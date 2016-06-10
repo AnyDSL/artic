@@ -11,23 +11,23 @@ namespace artic {
 /// Base class for all types.
 class Type : public Cast<Type> {
 public:
-	virtual ~Type() {}
-	virtual void print(PrettyPrinter&) const = 0;
+    virtual ~Type() {}
+    virtual void print(PrettyPrinter&) const = 0;
 };
 
 /// Primitive types.
 enum class Prim {
-	I1,
-	I8,
-	I16,
-	I32,
-	I64,
-	U8,
-	U16,
-	U32,
-	U64,
-	F32,
-	F64
+    I1,
+    I8,
+    I16,
+    I32,
+    I64,
+    U8,
+    U16,
+    U32,
+    U64,
+    F32,
+    F64
 };
 
 std::string to_string(Prim p);
@@ -64,75 +64,76 @@ template <> struct RepToPrim<double  > { static constexpr Prim prim() { return P
 /// Type that represents a scalar or vector type.
 class PrimType : public Type {
 public:
-	PrimType(Prim p, int s = 1)
-		: prim_(p), size_(s)
-	{}
+    PrimType(Prim p, int s = 1)
+        : prim_(p), size_(s)
+    {}
 
-	int size() const { return size_; }
-	void set_size(int i) { size_ = i; }
-	Prim prim() const { return prim_; }
-	void set_prim(Prim p) { prim_ = p; }
+    int size() const { return size_; }
+    void set_size(int i) { size_ = i; }
+    Prim prim() const { return prim_; }
+    void set_prim(Prim p) { prim_ = p; }
 
-	int bitcount() const { return artic::bitcount(prim()) * size(); }
+    int bitcount() const { return artic::bitcount(prim()) * size(); }
 
-	void print(PrettyPrinter&) const override;
+    void print(PrettyPrinter&) const override;
 
 private:
-	Prim prim_;
-	int size_;
+    Prim prim_;
+    int size_;
 };
 
 class TypeApp : public Type {
 protected:
-	TypeApp(const std::vector<Type*>& a = std::vector<Type*>())
-		: args_(types)
-	{}
-	virtual ~TypeApp() {}
+    TypeApp(const std::vector<Type*>& a = std::vector<Type*>())
+        : args_(types)
+    {}
+    virtual ~TypeApp() {}
 
-	std::vector<Type*> args_;
+    std::vector<Type*> args_;
 };
 
 class LambdaType : public TypeApp {
 public:
-	LambdaType(Type* from, Type* to)
-		: TypeApp({from, to})
-	{}
+    LambdaType(Type* from, Type* to)
+        : TypeApp({from, to})
+    {}
 
-	Type* from() const { return args_[0]; }
-	void set_from(Type* t) { args_[0] = t; }
-	Type* to() const { return args_[1]; }
-	Type* set_to(Type* t) { args_[1] = t; }
+    Type* from() const { return args_[0]; }
+    void set_from(Type* t) { args_[0] = t; }
+    Type* to() const { return args_[1]; }
+    Type* set_to(Type* t) { args_[1] = t; }
 
-	void print(PrettyPrinter&) const override;
+    void print(PrettyPrinter&) const override;
 };
 
 class TupleType {
 public:
-	TupleType(const std::vector<Type*>& args)
-		: TypeApp(args)
-	{}
+    TupleType(const std::vector<Type*>& args)
+        : TypeApp(args)
+    {}
 
-	const std::vector<Type*>& args() const { return args_; }
-	std::vector<Type*>& args() { return args_; }
-	Type* arg(int i) const { return args_[i]; }
+    const std::vector<Type*>& args() const { return args_; }
+    std::vector<Type*>& args() { return args_; }
+    Type* arg(int i) const { return args_[i]; }
 
-	void print(PrettyPrinter&) const override;
+    void print(PrettyPrinter&) const override;
 };
 
 class PolyType : public Type {
 public:
-	PolyType(const std::string var = "a", Type* body = nullptr)
-		: var_(var), body_(body)
-	{}
+    PolyType(const std::string var = "a", Type* body = nullptr)
+        : var_(var), body_(body)
+    {}
 
-	Type* body() const { return body_;}
-	void set_body(Type* t) { body_ = t; }
+    Type* body() const { return body_;}
+    void set_body(Type* t) { body_ = t; }
 
-	void print(PrettyPrinter&) const override;
+    void print(PrettyPrinter&) const override;
 
 private:
-	const std::string var_;
-	Type* body_;
+    const std::string var_;
+    Type* 
+    Type* body_;
 };
 
 } // namespace artic

@@ -4,8 +4,8 @@
 namespace artic {
 
 struct Loc {
-	std::string file;
-	int line, col;
+    std::string file;
+    int line, col;
 };
 
 } // namespace artic
