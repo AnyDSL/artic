@@ -6,65 +6,128 @@
 
 namespace artic {
 
-#define let(name, binding_lz, body_lz) \
-    [&] { \
-        auto var = builder.var(#name, nullptr); \
-        auto lambda = builder.let_expr(var); \
-        auto name = [&] () -> const Value* { return var; }; \
-        auto binding = binding_lz; \
-        auto body = body_lz; \
-        lambda->set_body(body()); \
-        var->set_binding(binding()); \
-        return lambda; \
-    }
-
-#define lambda(name, body_lz) \
-    [&] { \
-        auto param = builder.param(#name); \
-        auto fn = builder.lambda(param); \
-        auto name = [&] () -> const Value* { return param; }; \
-        auto body = body_lz; \
-        fn->set_body(body()); \
-        return fn; \
-    }
-
-#define vec(...) [&] { return builder.vector(__VA_ARGS__)->as<Value>(); }
-#define app(...) \
-    [&] { \
-        std::vector<std::function<const Value*()>> args_lz({__VA_ARGS__}); \
-        std::vector<const Value*> args; \
-        for (auto& a : args_lz) args.push_back(a()); \
-        return builder.app_expr(args); \
-    }
-
-#define if_(cond_lz, if_true_lz, if_false_lz) \
-    [&] { \
-        auto if_true = if_true_lz; \
-        auto if_false = if_false_lz; \
-        auto cond = cond_lz; \
-        return builder.if_expr(cond(), if_true(), if_false()); \
-    }
-
 template <typename T>
-using Lazy = std::function<T()>;
+using Lazy = std::function<const T*()>;
 
-typedef Lazy<const AtomicExpr*> LazyAtomicExpr;
-typedef Lazy<const Value*>      LazyValue;
+typedef Lazy<Expr>        LazyExpr;
+typedef Lazy<ComplexExpr> LazyComplexExpr;
+typedef Lazy<AtomicExpr>  LazyAtomicExpr;
+typedef Lazy<Value>       LazyValue;
 
-LazyAtomicExpr operator +  (const LazyValue& a_lz, const LazyValue& b_lz) { return [=] { auto a = a_lz(); auto b = b_lz(); return a->builder()->primop(PrimOp::ADD  , a, b); }; }
-LazyAtomicExpr operator -  (const LazyValue& a_lz, const LazyValue& b_lz) { return [=] { auto a = a_lz(); auto b = b_lz(); return a->builder()->primop(PrimOp::SUB  , a, b); }; }
-LazyAtomicExpr operator *  (const LazyValue& a_lz, const LazyValue& b_lz) { return [=] { auto a = a_lz(); auto b = b_lz(); return a->builder()->primop(PrimOp::MUL  , a, b); }; }
-LazyAtomicExpr operator /  (const LazyValue& a_lz, const LazyValue& b_lz) { return [=] { auto a = a_lz(); auto b = b_lz(); return a->builder()->primop(PrimOp::DIV  , a, b); }; }
-LazyAtomicExpr operator >> (const LazyValue& a_lz, const LazyValue& b_lz) { return [=] { auto a = a_lz(); auto b = b_lz(); return a->builder()->primop(PrimOp::RSHFT, a, b); }; }
-LazyAtomicExpr operator << (const LazyValue& a_lz, const LazyValue& b_lz) { return [=] { auto a = a_lz(); auto b = b_lz(); return a->builder()->primop(PrimOp::LSHFT, a, b); }; }
-LazyAtomicExpr operator &  (const LazyValue& a_lz, const LazyValue& b_lz) { return [=] { auto a = a_lz(); auto b = b_lz(); return a->builder()->primop(PrimOp::AND  , a, b); }; }
-LazyAtomicExpr operator |  (const LazyValue& a_lz, const LazyValue& b_lz) { return [=] { auto a = a_lz(); auto b = b_lz(); return a->builder()->primop(PrimOp::OR   , a, b); }; }
-LazyAtomicExpr operator ^  (const LazyValue& a_lz, const LazyValue& b_lz) { return [=] { auto a = a_lz(); auto b = b_lz(); return a->builder()->primop(PrimOp::XOR  , a, b); }; }
-LazyAtomicExpr operator == (const LazyValue& a_lz, const LazyValue& b_lz) { return [=] { auto a = a_lz(); auto b = b_lz(); return a->builder()->primop(PrimOp::CMP_EQ, a, b); }; }
-LazyAtomicExpr operator >= (const LazyValue& a_lz, const LazyValue& b_lz) { return [=] { auto a = a_lz(); auto b = b_lz(); return a->builder()->primop(PrimOp::CMP_GE, a, b); }; }
-LazyAtomicExpr operator <= (const LazyValue& a_lz, const LazyValue& b_lz) { return [=] { auto a = a_lz(); auto b = b_lz(); return a->builder()->primop(PrimOp::CMP_LE, a, b); }; }
-LazyAtomicExpr operator >  (const LazyValue& a_lz, const LazyValue& b_lz) { return [=] { auto a = a_lz(); auto b = b_lz(); return a->builder()->primop(PrimOp::CMP_GT, a, b); }; }
-LazyAtomicExpr operator <  (const LazyValue& a_lz, const LazyValue& b_lz) { return [=] { auto a = a_lz(); auto b = b_lz(); return a->builder()->primop(PrimOp::CMP_LT, a, b); }; }
+class Lang {
+public:
+    template <typename A, typename B>
+    LazyExpr let_(const Loc& loc, const std::string& v, const Lazy<A>& binding, const Lazy<B>& body) {
+        return [=] { 
+            auto var = builder_.var(v, nullptr);
+            var->set_loc(Loc(__FILE__, __LINE__, 0));
+            insert_var(v, var);
+            auto let = builder_.let_expr(var);
+            let->set_loc(Loc(__FILE__, __LINE__, 0));
+            auto name = [&] () -> const Value* { return var; };
+            let->set_body(body());
+            var->set_binding(binding());
+            remove_var(v);
+            return let;
+        };
+    }
+
+    template <typename... Args>
+    LazyComplexExpr app_(const Loc& loc, const Args&... args) {
+        return [=] {
+            std::vector<const Value*> values;
+            evaluate_args(values, args...);
+            auto app = builder_.app_expr(values);
+            app->set_loc(Loc(__FILE__, __LINE__, 0));
+            return app;
+        };
+    }
+
+    template <typename A, typename B>
+    LazyComplexExpr if_(const Loc& loc, const LazyValue& cond, const Lazy<A>& if_true, const Lazy<B>& if_false) {
+        return [=] {
+            auto if_expr = builder_.if_expr(cond(), if_true(), if_false());
+            if_expr->set_loc(Loc(__FILE__, __LINE__, 0));
+            return if_expr;
+        };
+    }
+
+    template <typename A>
+    LazyValue lambda_(const Loc& loc, const std::string& p, const Lazy<A>& body) {
+        return [=] {
+            auto param = builder_.param(p); \
+            param->set_loc(loc);
+            insert_var(p, param);
+            auto lambda = builder_.lambda(param);
+            lambda->set_loc(loc);
+            auto name = [&] () -> const Value* { return param; };
+            lambda->set_body(body());
+            remove_var(p);
+            return lambda; 
+        };
+    }
+
+    LazyValue var_(const std::string& v) {
+        return [=] { assert(vars_.find(v) != vars_.end()); return vars_[v]; };
+    }
+
+    template <typename... Args>
+    LazyValue vec_(const Loc& loc, const Args&... args) {
+        return [=] {
+            auto vec = builder_.vector(args...);
+            vec->set_loc(loc);
+            return vec;
+        };
+    }
+
+    void insert_var(const std::string& var, const Value* val) {
+        assert(vars_.find(var) == vars_.end());
+        vars_[var] = val;
+    }
+
+    void remove_var(const std::string& var) {
+        assert(vars_.find(var) != vars_.end());
+        vars_.erase(var);
+    }
+
+private:
+    template <typename T, typename... Args>
+    void evaluate_args(std::vector<const Value*>& values, const Lazy<T>& t, const Args&... args) {
+        values.push_back(t());
+        evaluate_args(values, args...);
+    }
+
+    void evaluate_args(std::vector<const Value*>& values) {}
+
+    std::unordered_map<std::string, const Value*> vars_;
+    IRBuilder builder_;
+};
+
+#define MAKE_BINOP(op, a_lz, b_lz) \
+    [=] { \
+        auto a = a_lz(); \
+        auto b = b_lz(); \
+        auto res = a->builder()->primop(op, a, b); \
+        res->set_loc(a->loc()); \
+        return res; \
+    }
+
+LazyAtomicExpr operator +  (const LazyValue& a_lz, const LazyValue& b_lz) { return MAKE_BINOP(PrimOp::ADD   , a_lz, b_lz); }
+LazyAtomicExpr operator -  (const LazyValue& a_lz, const LazyValue& b_lz) { return MAKE_BINOP(PrimOp::SUB   , a_lz, b_lz); }
+LazyAtomicExpr operator *  (const LazyValue& a_lz, const LazyValue& b_lz) { return MAKE_BINOP(PrimOp::MUL   , a_lz, b_lz); }
+LazyAtomicExpr operator /  (const LazyValue& a_lz, const LazyValue& b_lz) { return MAKE_BINOP(PrimOp::DIV   , a_lz, b_lz); }
+LazyAtomicExpr operator >> (const LazyValue& a_lz, const LazyValue& b_lz) { return MAKE_BINOP(PrimOp::RSHFT , a_lz, b_lz); }
+LazyAtomicExpr operator << (const LazyValue& a_lz, const LazyValue& b_lz) { return MAKE_BINOP(PrimOp::LSHFT , a_lz, b_lz); }
+LazyAtomicExpr operator &  (const LazyValue& a_lz, const LazyValue& b_lz) { return MAKE_BINOP(PrimOp::AND   , a_lz, b_lz); }
+LazyAtomicExpr operator |  (const LazyValue& a_lz, const LazyValue& b_lz) { return MAKE_BINOP(PrimOp::OR    , a_lz, b_lz); }
+LazyAtomicExpr operator ^  (const LazyValue& a_lz, const LazyValue& b_lz) { return MAKE_BINOP(PrimOp::XOR   , a_lz, b_lz); }
+LazyAtomicExpr operator == (const LazyValue& a_lz, const LazyValue& b_lz) { return MAKE_BINOP(PrimOp::CMP_EQ, a_lz, b_lz); }
+LazyAtomicExpr operator >= (const LazyValue& a_lz, const LazyValue& b_lz) { return MAKE_BINOP(PrimOp::CMP_GE, a_lz, b_lz); }
+LazyAtomicExpr operator <= (const LazyValue& a_lz, const LazyValue& b_lz) { return MAKE_BINOP(PrimOp::CMP_LE, a_lz, b_lz); }
+LazyAtomicExpr operator >  (const LazyValue& a_lz, const LazyValue& b_lz) { return MAKE_BINOP(PrimOp::CMP_GT, a_lz, b_lz); }
+LazyAtomicExpr operator <  (const LazyValue& a_lz, const LazyValue& b_lz) { return MAKE_BINOP(PrimOp::CMP_LT, a_lz, b_lz); }
+
+#undef MAKE_BINOP
 
 } // namespace artic
 

@@ -45,7 +45,7 @@ namespace BinOp {
 #undef UNSUPPORTED_TYPE
 };
 
-template <template <typename> typename F>
+template <template <typename> class F>
 const Vector* binop(const Vector* a, const Vector* b) {
     assert(a->size() == b->size());
     assert(a->prim() == b->prim());

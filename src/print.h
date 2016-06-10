@@ -5,15 +5,16 @@
 #include <set>
 #include <unordered_map>
 #include <string>
+#include <cstring>
 
 namespace artic {
 
 /// Utility class to print the IR in a human-readable form.
 class PrettyPrinter {
-    template <typename T> struct KeywordStyle { bool c; const T& t; KeywordStyle(bool c, const T& t) : c(c), t(t) {} };
-    template <typename T> struct LiteralStyle { bool c; const T& t; LiteralStyle(bool c, const T& t) : c(c), t(t) {} };
-    template <typename T> struct IdentStyle   { bool c; const T& t; IdentStyle  (bool c, const T& t) : c(c), t(t) {} };
-    template <typename T> struct ErrorStyle   { bool c; const T& t; ErrorStyle  (bool c, const T& t) : c(c), t(t) {} };
+    template <typename T> struct KeywordStyle { bool c; T t; KeywordStyle(bool c, T t) : c(c), t(t) {} };
+    template <typename T> struct LiteralStyle { bool c; T t; LiteralStyle(bool c, T t) : c(c), t(t) {} };
+    template <typename T> struct IdentStyle   { bool c; T t; IdentStyle  (bool c, T t) : c(c), t(t) {} };
+    template <typename T> struct ErrorStyle   { bool c; T t; ErrorStyle  (bool c, T t) : c(c), t(t) {} };
 
     template <typename T> friend std::ostream& operator << (std::ostream&, const KeywordStyle<T>&);
     template <typename T> friend std::ostream& operator << (std::ostream&, const LiteralStyle<T>&);
@@ -37,10 +38,10 @@ public:
     template <typename T, typename... Args>
     void print(T t, Args... args) { print(t); print(args...); }
 
-    template <typename T> KeywordStyle<T> keyword_style(const T& t) { return KeywordStyle<T>(color_, t); }
-    template <typename T> LiteralStyle<T> literal_style(const T& t) { return LiteralStyle<T>(color_, t); }
-    template <typename T> IdentStyle<T>   ident_style  (const T& t) { return IdentStyle<T>  (color_, t); }
-    template <typename T> ErrorStyle<T>   error_style  (const T& t) { return ErrorStyle<T>  (color_, t); }
+    template <typename T> KeywordStyle<T> keyword_style(const T& t) const { return KeywordStyle<T>(color_, t); }
+    template <typename T> LiteralStyle<T> literal_style(const T& t) const { return LiteralStyle<T>(color_, t); }
+    template <typename T> IdentStyle<T>   ident_style  (const T& t) const { return IdentStyle<T>  (color_, t); }
+    template <typename T> ErrorStyle<T>   error_style  (const T& t) const { return ErrorStyle<T>  (color_, t); }
 
     template <typename T, typename F>
     void print_list(const std::string& sep, const T& t, F f) {
@@ -93,6 +94,11 @@ private:
     int indent_;
     bool color_;
 };
+
+template <int N> struct PrettyPrinter::KeywordStyle<char[N]> { bool c; char t[N]; KeywordStyle(bool c, const char* s) : c(c) { strcpy(t, s); } };
+template <int N> struct PrettyPrinter::LiteralStyle<char[N]> { bool c; char t[N]; LiteralStyle(bool c, const char* s) : c(c) { strcpy(t, s); } };
+template <int N> struct PrettyPrinter::IdentStyle<char[N]>   { bool c; char t[N]; IdentStyle  (bool c, const char* s) : c(c) { strcpy(t, s); } };
+template <int N> struct PrettyPrinter::ErrorStyle<char[N]>   { bool c; char t[N]; ErrorStyle  (bool c, const char* s) : c(c) { strcpy(t, s); } };
 
 template <typename T>
 std::ostream& operator << (std::ostream& os, const PrettyPrinter::KeywordStyle<T>& style) {

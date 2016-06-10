@@ -1,0 +1,11 @@
+#undef let
+#undef be
+#undef in
+#undef lambda
+#undef if
+#undef then
+#undef else
+#undef end
+#undef var
+#undef vec
+#undef app
