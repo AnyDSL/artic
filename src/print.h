@@ -8,18 +8,39 @@
 
 namespace artic {
 
+/// Utility class to print the IR in a human-readable form.
 class PrettyPrinter {
+    template <typename T> struct KeywordStyle { bool c; const T& t; KeywordStyle(bool c, const T& t) : c(c), t(t) {} };
+    template <typename T> struct LiteralStyle { bool c; const T& t; LiteralStyle(bool c, const T& t) : c(c), t(t) {} };
+    template <typename T> struct IdentStyle   { bool c; const T& t; IdentStyle  (bool c, const T& t) : c(c), t(t) {} };
+    template <typename T> struct ErrorStyle   { bool c; const T& t; ErrorStyle  (bool c, const T& t) : c(c), t(t) {} };
+
+    template <typename T> friend std::ostream& operator << (std::ostream&, const KeywordStyle<T>&);
+    template <typename T> friend std::ostream& operator << (std::ostream&, const LiteralStyle<T>&);
+    template <typename T> friend std::ostream& operator << (std::ostream&, const IdentStyle<T>&);
+    template <typename T> friend std::ostream& operator << (std::ostream&, const ErrorStyle<T>&);
+
 public:
     PrettyPrinter(std::ostream& out = std::cout,
                   const std::string& tab = "  ",
-                  int indent = 0)
-        : out_(out), tab_(tab), indent_(indent), max_c_(default_max_complexity())
+                  int indent = 0,
+                  bool color = true)
+        : out_(out)
+        , tab_(tab)
+        , indent_(indent)
+        , max_c_(default_max_complexity())
+        , color_(color)
     {}
 
     template <typename T>
     void print(T t) { out_ << t; }
     template <typename T, typename... Args>
     void print(T t, Args... args) { print(t); print(args...); }
+
+    template <typename T> KeywordStyle<T> keyword_style(const T& t) { return KeywordStyle<T>(color_, t); }
+    template <typename T> LiteralStyle<T> literal_style(const T& t) { return LiteralStyle<T>(color_, t); }
+    template <typename T> IdentStyle<T>   ident_style  (const T& t) { return IdentStyle<T>  (color_, t); }
+    template <typename T> ErrorStyle<T>   error_style  (const T& t) { return ErrorStyle<T>  (color_, t); }
 
     template <typename T, typename F>
     void print_list(const std::string& sep, const T& t, F f) {
@@ -70,7 +91,40 @@ private:
     const std::string& tab_;
     size_t max_c_;
     int indent_;
+    bool color_;
 };
+
+template <typename T>
+std::ostream& operator << (std::ostream& os, const PrettyPrinter::KeywordStyle<T>& style) {
+    if (style.c) os << "\033[1;36m";
+    os << style.t;
+    if (style.c) os << "\033[0m";
+    return os;
+}
+
+template <typename T>
+std::ostream& operator << (std::ostream& os, const PrettyPrinter::LiteralStyle<T>& style) {
+    if (style.c) os << "\033[1;37m";
+    os << style.t;
+    if (style.c) os << "\033[0m";
+    return os;
+}
+
+template <typename T>
+std::ostream& operator << (std::ostream& os, const PrettyPrinter::IdentStyle<T>& style) {
+    if (style.c) os << "\033[1;32m";
+    os << style.t;
+    if (style.c) os << "\033[0m";
+    return os;
+}
+
+template <typename T>
+std::ostream& operator << (std::ostream& os, const PrettyPrinter::ErrorStyle<T>& style) {
+    if (style.c) os << "\033[1;31m";
+    os << style.t;
+    if (style.c) os << "\033[0m";
+    return os;
+}
 
 } // namespace artic
 

@@ -5,22 +5,22 @@
 namespace artic {
 
 void Vector::print(PrettyPrinter& p) const {
-    p.print(to_string(prim()));
+    p.print(p.keyword_style(to_string(prim())));
     const int n = size();
     if (n > 1) p.print("<");
     else p.print(" ");
     switch (prim()) {
-        case Prim::I1 : p.print_list(", ", elems(), [] (Elem e) { return e.i1 ; }); break;
-        case Prim::I8 : p.print_list(", ", elems(), [] (Elem e) { return e.i8 ; }); break;
-        case Prim::I16: p.print_list(", ", elems(), [] (Elem e) { return e.i16; }); break;
-        case Prim::I32: p.print_list(", ", elems(), [] (Elem e) { return e.i32; }); break;
-        case Prim::I64: p.print_list(", ", elems(), [] (Elem e) { return e.i64; }); break;
-        case Prim::U8 : p.print_list(", ", elems(), [] (Elem e) { return e.u8 ; }); break;
-        case Prim::U16: p.print_list(", ", elems(), [] (Elem e) { return e.u16; }); break;
-        case Prim::U32: p.print_list(", ", elems(), [] (Elem e) { return e.u32; }); break;
-        case Prim::U64: p.print_list(", ", elems(), [] (Elem e) { return e.u64; }); break;
-        case Prim::F32: p.print_list(", ", elems(), [] (Elem e) { return e.f32; }); break;
-        case Prim::F64: p.print_list(", ", elems(), [] (Elem e) { return e.f64; }); break;
+        case Prim::I1 : p.print_list(", ", elems(), [&] (Elem e) { return p.literal_style(e.i1 ); }); break;
+        case Prim::I8 : p.print_list(", ", elems(), [&] (Elem e) { return p.literal_style(e.i8 ); }); break;
+        case Prim::I16: p.print_list(", ", elems(), [&] (Elem e) { return p.literal_style(e.i16); }); break;
+        case Prim::I32: p.print_list(", ", elems(), [&] (Elem e) { return p.literal_style(e.i32); }); break;
+        case Prim::I64: p.print_list(", ", elems(), [&] (Elem e) { return p.literal_style(e.i64); }); break;
+        case Prim::U8 : p.print_list(", ", elems(), [&] (Elem e) { return p.literal_style(e.u8 ); }); break;
+        case Prim::U16: p.print_list(", ", elems(), [&] (Elem e) { return p.literal_style(e.u16); }); break;
+        case Prim::U32: p.print_list(", ", elems(), [&] (Elem e) { return p.literal_style(e.u32); }); break;
+        case Prim::U64: p.print_list(", ", elems(), [&] (Elem e) { return p.literal_style(e.u64); }); break;
+        case Prim::F32: p.print_list(", ", elems(), [&] (Elem e) { return p.literal_style(e.f32); }); break;
+        case Prim::F64: p.print_list(", ", elems(), [&] (Elem e) { return p.literal_style(e.f64); }); break;
         default: assert(false);
     }
     if (size() > 1) p.print(">");
@@ -38,15 +38,15 @@ void Tuple::print(PrettyPrinter& p) const {
 }
 
 void Var::print(PrettyPrinter& p) const {
-    p.print(name());
+    p.print(p.ident_style(name()));
 }
 
 void Param::print(PrettyPrinter& p) const {
-    p.print(name());
+    p.print(p.ident_style(name()));
 }
 
 void Lambda::print(PrettyPrinter& p) const {
-    p.print("\\", param()->name(), " -> ");
+    p.print("\\", p.ident_style(param()->name()), " -> ");
 
     const bool indent = complexity() > p.max_complexity();
     if (indent) { p.indent(); p. new_line(); }
@@ -78,23 +78,23 @@ void PrimOp::print(PrettyPrinter& p) const {
     } else {
         switch(op()) {
             case SELECT:
-                p.print("select ");
+                p.print(p.keyword_style("select"), " ");
                 arg(0)->print(p);
-                p.print(" or ");
+                p.print(" ", p.keyword_style("or"), " ");
                 arg(1)->print(p);
-                p.print(" with ");
+                p.print(" ", p.keyword_style("with"), " ");
                 arg(2)->print(p);
                 break;
             case BITCAST:
-                p.print("bitcast");
+                p.print(p.keyword_style("bitcast"));
                 arg(0)->print(p);
-                p.print(" to ");
+                p.print(" ", p.keyword_style("to"), " ");
                 type_arg(0)->print(p);
                 break;
             case ELEM:
-                p.print("elem ");
+                p.print(p.keyword_style("elem"), " ");
                 arg(0)->print(p);
-                p.print(" of ");
+                p.print(" ", p.keyword_style("of"), " ");
                 arg(1)->print(p);
                 break;
             default: assert(false);
@@ -103,15 +103,15 @@ void PrimOp::print(PrettyPrinter& p) const {
 }
 
 void IfExpr::print(PrettyPrinter& p) const {
-    p.print("if ");
+    p.print(p.keyword_style("if"), " ");
     cond()->print(p);
-    p.print(" then");
+    p.print(" ", p.keyword_style("then"));
     p.indent();
     p.new_line();
     if_true()->print(p);
     p.unindent();
     p.new_line();
-    p.print("else");
+    p.print(p.keyword_style("else"));
     p.indent();
     p.new_line();
     if_false()->print(p);
@@ -130,9 +130,9 @@ void AppExpr::print(PrettyPrinter& p) const {
 }
 
 void LetExpr::print(PrettyPrinter& p) const {
-    p.print("let ", var()->name(), " = ");
+    p.print(p.keyword_style("let"), " ", p.ident_style(var()->name()), " = ");
     var()->binding()->print(p);
-    p.print(" in ");
+    p.print(" ", p.keyword_style("in"), " ");
     const bool indent = complexity() > p.max_complexity();
     if (indent) { p.indent(); p. new_line(); }
     body()->print(p);
@@ -140,7 +140,7 @@ void LetExpr::print(PrettyPrinter& p) const {
 }
 
 void PrimType::print(PrettyPrinter& p) const {
-    p.print(to_string(prim()));
+    p.print(p.keyword_style(to_string(prim())));
     if (size() > 1) p.print("<", size(), ">");
 }
 
@@ -162,12 +162,12 @@ void TupleType::print(PrettyPrinter& p) const {
 }
 
 void TypeVar::print(PrettyPrinter& p) const {
-    p.print(p.ident(this));
+    p.print(p.ident_style(p.ident(this)));
 }
 
 void PolyType::print(PrettyPrinter& p) const {
     p.new_ident(var());
-    p.print("forall ");
+    p.print(p.keyword_style("forall"), " ");
     var()->print(p);
     p.print(".");
     body()->print(p);

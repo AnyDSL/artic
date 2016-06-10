@@ -8,19 +8,21 @@ namespace artic {
 
 #define let(name, binding_lz, body_lz) \
     [&] { \
-        auto l = b.let_expr(#name, nullptr); \
-        auto name = [&] () -> const Value* { return l->var(); }; \
+        auto var = b.var(#name, nullptr); \
+        auto lambda = b.let_expr(var); \
+        auto name = [&] () -> const Value* { return var; }; \
         auto binding = binding_lz; \
         auto body = body_lz; \
-        l->set_body(body()); \
-        l->var()->set_binding(binding()); \
-        return l; \
+        lambda->set_body(body()); \
+        var->set_binding(binding()); \
+        return lambda; \
     }
 
 #define lambda(name, body_lz) \
     [&] { \
-        auto fn = b.lambda(#name); \
-        auto name = [&] () -> Value* { return fn->param(); }; \
+        auto param = b.param(#name); \
+        auto fn = b.lambda(param); \
+        auto name = [&] () -> const Value* { return param; }; \
         auto body = body_lz; \
         fn->set_body(body()); \
         return fn; \
@@ -45,20 +47,24 @@ namespace artic {
 
 template <typename T>
 using Lazy = std::function<T()>;
-Lazy<const AtomicExpr*> operator +  (const Lazy<const Value*>& a_lz, const Lazy<const Value*>& b_lz) { return [&] { auto a = a_lz(); auto b = b_lz(); return a->builder()->primop(PrimOp::ADD  , a, b); }; }
-Lazy<const AtomicExpr*> operator -  (const Lazy<const Value*>& a_lz, const Lazy<const Value*>& b_lz) { return [&] { auto a = a_lz(); auto b = b_lz(); return a->builder()->primop(PrimOp::SUB  , a, b); }; }
-Lazy<const AtomicExpr*> operator *  (const Lazy<const Value*>& a_lz, const Lazy<const Value*>& b_lz) { return [&] { auto a = a_lz(); auto b = b_lz(); return a->builder()->primop(PrimOp::MUL  , a, b); }; }
-Lazy<const AtomicExpr*> operator /  (const Lazy<const Value*>& a_lz, const Lazy<const Value*>& b_lz) { return [&] { auto a = a_lz(); auto b = b_lz(); return a->builder()->primop(PrimOp::DIV  , a, b); }; }
-Lazy<const AtomicExpr*> operator >> (const Lazy<const Value*>& a_lz, const Lazy<const Value*>& b_lz) { return [&] { auto a = a_lz(); auto b = b_lz(); return a->builder()->primop(PrimOp::RSHFT, a, b); }; }
-Lazy<const AtomicExpr*> operator << (const Lazy<const Value*>& a_lz, const Lazy<const Value*>& b_lz) { return [&] { auto a = a_lz(); auto b = b_lz(); return a->builder()->primop(PrimOp::LSHFT, a, b); }; }
-Lazy<const AtomicExpr*> operator &  (const Lazy<const Value*>& a_lz, const Lazy<const Value*>& b_lz) { return [&] { auto a = a_lz(); auto b = b_lz(); return a->builder()->primop(PrimOp::AND  , a, b); }; }
-Lazy<const AtomicExpr*> operator |  (const Lazy<const Value*>& a_lz, const Lazy<const Value*>& b_lz) { return [&] { auto a = a_lz(); auto b = b_lz(); return a->builder()->primop(PrimOp::OR   , a, b); }; }
-Lazy<const AtomicExpr*> operator ^  (const Lazy<const Value*>& a_lz, const Lazy<const Value*>& b_lz) { return [&] { auto a = a_lz(); auto b = b_lz(); return a->builder()->primop(PrimOp::XOR  , a, b); }; }
-Lazy<const AtomicExpr*> operator == (const Lazy<const Value*>& a_lz, const Lazy<const Value*>& b_lz) { return [&] { auto a = a_lz(); auto b = b_lz(); return a->builder()->primop(PrimOp::CMP_EQ, a, b); }; }
-Lazy<const AtomicExpr*> operator >= (const Lazy<const Value*>& a_lz, const Lazy<const Value*>& b_lz) { return [&] { auto a = a_lz(); auto b = b_lz(); return a->builder()->primop(PrimOp::CMP_GE, a, b); }; }
-Lazy<const AtomicExpr*> operator <= (const Lazy<const Value*>& a_lz, const Lazy<const Value*>& b_lz) { return [&] { auto a = a_lz(); auto b = b_lz(); return a->builder()->primop(PrimOp::CMP_LE, a, b); }; }
-Lazy<const AtomicExpr*> operator >  (const Lazy<const Value*>& a_lz, const Lazy<const Value*>& b_lz) { return [&] { auto a = a_lz(); auto b = b_lz(); return a->builder()->primop(PrimOp::CMP_GT, a, b); }; }
-Lazy<const AtomicExpr*> operator <  (const Lazy<const Value*>& a_lz, const Lazy<const Value*>& b_lz) { return [&] { auto a = a_lz(); auto b = b_lz(); return a->builder()->primop(PrimOp::CMP_LT, a, b); }; }
+
+typedef Lazy<const AtomicExpr*> LazyAtomicExpr;
+typedef Lazy<const Value*>      LazyValue;
+
+LazyAtomicExpr operator +  (const LazyValue& a_lz, const LazyValue& b_lz) { return [=] { auto a = a_lz(); auto b = b_lz(); return a->builder()->primop(PrimOp::ADD  , a, b); }; }
+LazyAtomicExpr operator -  (const LazyValue& a_lz, const LazyValue& b_lz) { return [=] { auto a = a_lz(); auto b = b_lz(); return a->builder()->primop(PrimOp::SUB  , a, b); }; }
+LazyAtomicExpr operator *  (const LazyValue& a_lz, const LazyValue& b_lz) { return [=] { auto a = a_lz(); auto b = b_lz(); return a->builder()->primop(PrimOp::MUL  , a, b); }; }
+LazyAtomicExpr operator /  (const LazyValue& a_lz, const LazyValue& b_lz) { return [=] { auto a = a_lz(); auto b = b_lz(); return a->builder()->primop(PrimOp::DIV  , a, b); }; }
+LazyAtomicExpr operator >> (const LazyValue& a_lz, const LazyValue& b_lz) { return [=] { auto a = a_lz(); auto b = b_lz(); return a->builder()->primop(PrimOp::RSHFT, a, b); }; }
+LazyAtomicExpr operator << (const LazyValue& a_lz, const LazyValue& b_lz) { return [=] { auto a = a_lz(); auto b = b_lz(); return a->builder()->primop(PrimOp::LSHFT, a, b); }; }
+LazyAtomicExpr operator &  (const LazyValue& a_lz, const LazyValue& b_lz) { return [=] { auto a = a_lz(); auto b = b_lz(); return a->builder()->primop(PrimOp::AND  , a, b); }; }
+LazyAtomicExpr operator |  (const LazyValue& a_lz, const LazyValue& b_lz) { return [=] { auto a = a_lz(); auto b = b_lz(); return a->builder()->primop(PrimOp::OR   , a, b); }; }
+LazyAtomicExpr operator ^  (const LazyValue& a_lz, const LazyValue& b_lz) { return [=] { auto a = a_lz(); auto b = b_lz(); return a->builder()->primop(PrimOp::XOR  , a, b); }; }
+LazyAtomicExpr operator == (const LazyValue& a_lz, const LazyValue& b_lz) { return [=] { auto a = a_lz(); auto b = b_lz(); return a->builder()->primop(PrimOp::CMP_EQ, a, b); }; }
+LazyAtomicExpr operator >= (const LazyValue& a_lz, const LazyValue& b_lz) { return [=] { auto a = a_lz(); auto b = b_lz(); return a->builder()->primop(PrimOp::CMP_GE, a, b); }; }
+LazyAtomicExpr operator <= (const LazyValue& a_lz, const LazyValue& b_lz) { return [=] { auto a = a_lz(); auto b = b_lz(); return a->builder()->primop(PrimOp::CMP_LE, a, b); }; }
+LazyAtomicExpr operator >  (const LazyValue& a_lz, const LazyValue& b_lz) { return [=] { auto a = a_lz(); auto b = b_lz(); return a->builder()->primop(PrimOp::CMP_GT, a, b); }; }
+LazyAtomicExpr operator <  (const LazyValue& a_lz, const LazyValue& b_lz) { return [=] { auto a = a_lz(); auto b = b_lz(); return a->builder()->primop(PrimOp::CMP_LT, a, b); }; }
 
 } // namespace artic
 

@@ -16,11 +16,9 @@ public:
     template <typename... Args>
     Vector* vector(Args... args){ return new_node<Vector>(args...); }
     Tuple* tuple(const std::vector<const Value*> v = std::vector<const Value*>()){ return new_node<Tuple>(v); }
-    Lambda* lambda(const std::string& p, const Expr* b = nullptr) {
-        auto l = new_node<Lambda>(p, b);
-        l->param()->builder_ = this;
-        return l;
-    }
+    Lambda* lambda(const Param* p, const Expr* b = nullptr) { return new_node<Lambda>(p, b); }
+    Var* var(const std::string& n, const ComplexExpr* c) { return new_node<Var>(n, c); }
+    Param* param(const std::string& n) { return new_node<Param>(n); }
 
     // Prim ops
     PrimOp* primop(PrimOp::Op op, const Value* a, const Value* b) { return new_node<PrimOp>(op, a, b); }
@@ -30,17 +28,14 @@ public:
     // Complex expressions
     IfExpr* if_expr(const Value* cond, const Expr* if_true, const Expr* if_false) { return new_node<IfExpr>(cond, if_true, if_false); }
     AppExpr* app_expr(const std::vector<const Value*>& args) { return new_node<AppExpr>(args); }
-    LetExpr* let_expr(const std::string& n, const ComplexExpr* c, const Expr* e = nullptr) {
-        auto l = new_node<LetExpr>(n, c, e);
-        l->var()->builder_ = this;
-        return l;
-    }
+    LetExpr* let_expr(const Var* v, const Expr* e = nullptr) { return new_node<LetExpr>(v, e); }
 
     // Types
     PrimType* prim_type(Prim p, int size = 1) { return new_type<PrimType>(p, size); }
     LambdaType* lambda_type(const Type* from, const Type* to) { return new_type<LambdaType>(from, to); }
     TupleType* tuple_type(const std::vector<const Type*>& args) { return new_type<TupleType>(args); }
-    PolyType* poly_type(const Type* body) { return new_type<PolyType>(body); }
+    TypeVar* type_var() { return new_type<TypeVar>(); }
+    PolyType* poly_type(const TypeVar* var, const Type* body) { return new_type<PolyType>(var, body); }
 
 private:
     template <typename T, typename... Args>

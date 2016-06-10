@@ -200,7 +200,6 @@ private:
 /// Variable binding coming from a let expression.
 class Var : public Value {
     friend class IRBuilder;
-    friend class LetExpr;
 
     Var(const std::string& n, const ComplexExpr* b)
         : name_(n), binding_(b)
@@ -226,7 +225,6 @@ private:
 /// Parameter coming from a lambda expression.
 class Param : public Value {
     friend class IRBuilder;
-    friend class Lambda;
 
     Param(const std::string& n)
         : name_(n)
@@ -249,13 +247,13 @@ private:
 class Lambda : public Value {
     friend class IRBuilder;
 
-    Lambda(const std::string& p, const Expr* b = nullptr)
+    Lambda(const Param* p, const Expr* b = nullptr)
         : param_(p), body_(b)
     {}
 
 public:
-    const Param* param() const { return &param_; }
-    Param* param() { return &param_; }
+    const Param* param() const { return param_; }
+    void set_param(const Param* p) { param_ = p; }
 
     const Expr* body() const { return body_; }
     void set_body(const Expr* e) { body_ = e; }
@@ -268,7 +266,7 @@ protected:
     const Type* check_(TypeChecker&) const override;
 
 private:
-    Param param_;
+    const Param* param_;
     const Expr* body_;
 };
 
@@ -408,13 +406,13 @@ private:
 class LetExpr : public Expr {
     friend class IRBuilder;
 
-    LetExpr(const std::string& n, const ComplexExpr* c, const Expr* e = nullptr)
-        : var_(n, c), body_(e)
+    LetExpr(const Var* var, const Expr* e = nullptr)
+        : var_(var), body_(e)
     {}
 
 public:
-    const Var* var() const { return &var_; }
-    Var* var() { return &var_; }
+    const Var* var() const { return var_; }
+    void set_var(const Var* var) { var_ = var; }
 
     const Expr* body() const { return body_; }
     void set_body(const Expr* e) { body_ = e; }
@@ -429,7 +427,7 @@ protected:
     const Type* check_(TypeChecker&) const override;
 
 private:
-    Var var_;
+    const Var* var_;
     const Expr* body_;
 };
 

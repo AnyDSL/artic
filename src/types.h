@@ -66,7 +66,6 @@ template <> struct RepToPrim<double  > { static constexpr Prim prim() { return P
 class PrimType : public Type {
     friend class IRBuilder;
 
-private:
     PrimType(Prim p, int s = 1)
         : prim_(p), size_(s)
     {}
@@ -101,7 +100,6 @@ protected:
 class LambdaType : public TypeApp {
     friend class IRBuilder;
 
-private:
     LambdaType(const Type* from, const Type* to)
         : TypeApp({from, to})
     {}
@@ -119,7 +117,6 @@ public:
 class TupleType : public TypeApp {
     friend class IRBuilder;
 
-private:
     TupleType(const std::vector<const Type*>& args)
         : TypeApp(args)
     {}
@@ -136,9 +133,8 @@ public:
 
 /// Type variable coming from a polymorphic type.
 class TypeVar : public Type {
-    friend class PolyType;
+    friend class IRBuilder;
 
-private:
     TypeVar() {}
 
 public:
@@ -149,13 +145,13 @@ public:
 class PolyType : public Type {
     friend class IRBuilder;
 
-private:
-    PolyType(const Type* body = nullptr)
-        : body_(body)
+    PolyType(const TypeVar* var, const Type* body = nullptr)
+        : var_(var), body_(body)
     {}
 
 public:
-    const TypeVar* var() const { return &var_; }
+    const TypeVar* var() const { return var_; }
+    void set_var(const TypeVar* var) { var_ = var; }
 
     const Type* body() const { return body_;}
     void set_body(const Type* t) { body_ = t; }
@@ -163,7 +159,7 @@ public:
     void print(PrettyPrinter&) const override;
 
 private:
-    TypeVar var_;
+    const TypeVar* var_;
     const Type* body_;
 };
 
