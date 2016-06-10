@@ -1,11 +1,13 @@
 #include "lang.h"
+#include "check.h"
 
 using namespace artic;
 
 int main(int argc, char** argv) {
-    IRBuilder b;
-    PrettyPrinter p;
-    TypeChecker c;
+    IRBuilder builder;
+    PrettyPrinter printer;
+    //InferSema infer_sema;
+    CheckSema check_sema;
 
     /*auto fact = let(factorial,
         lambda(x,
@@ -15,11 +17,12 @@ int main(int argc, char** argv) {
                     let(x_, x - vec(1),
                         let(f_, app(factorial, x_), x * f_))))),
         app(factorial, vec(5)));*/
-    auto fact = let(c, vec(1), c);
 
+    auto fact = let(c, vec(1), c);
     auto e = fact();
-    e->check(c);
-    e->print(p);
+    //e->infer(infer_sema);
+    e->check(check_sema);
+    e->print(printer);
     std::cout << std::endl;
 
     return 0;

@@ -1,10 +1,36 @@
 #ifndef CHECK_H
 #define CHECK_H
 
+#include <iostream>
+#include "loc.h"
+#include "ir.h"
+
 namespace artic {
 
-class TypeChecker {
+class CheckSema {
+public:
+    CheckSema(std::ostream& out = std::cerr)
+        : out_(out)
+    {}
 
+    template <typename... Args>
+    void error(const Expr* e, Args... args) {
+        out_ << e->loc() << ": ";
+        error_(args...);
+    }
+
+private:
+    template <typename T, typename... Args>
+    void error_(T t, Args... args) {
+        out_ << t;
+        error_(args...);
+    }
+
+    void error_() {
+        out_ << std::endl;
+    }
+
+    std::ostream& out_;
 };
 
 } // namespace artic

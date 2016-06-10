@@ -7,13 +7,13 @@
 
 #include "cast.h"
 #include "types.h"
-#include "check.h"
 #include "print.h"
 #include "loc.h"
 
 namespace artic {
 
 class IRBuilder;
+class CheckSema;
 
 /// The IR follows an ANF structure. Its grammar is the following:
 ///
@@ -50,7 +50,7 @@ public:
     virtual ~Expr() {}
 
     /// Type checks an expression and returns the result.
-    const Type* check(TypeChecker& ctx) const {
+    const Type* check(CheckSema& ctx) const {
         if (!type_) type_ = check_(ctx);
         return type_;
     }
@@ -61,17 +61,24 @@ public:
     const Loc& loc() const { return loc_; }
     void set_loc(const Loc& l) { loc_ = l; }
 
+    /// Returns the builder that was used to create this node.
     IRBuilder* builder() const { return builder_; }
 
+    /// Prints the expression in a human-readable form.
     virtual void print(PrettyPrinter&) const = 0;
 
     /// Computes the complexity of the expression (used for pretty printing).
     virtual size_t complexity() const { return 1; }
 
+    void dump() const {
+        PrettyPrinter p;
+        print(p);
+    }
+
 protected:
     Expr() : type_(nullptr), builder_(nullptr) {}
 
-    virtual const Type* check_(TypeChecker&) const = 0;
+    virtual const Type* check_(CheckSema&) const = 0;
 
 private:
     IRBuilder* builder_;
@@ -152,7 +159,7 @@ public:
     void print(PrettyPrinter&) const override;
 
 protected:
-    const Type* check_(TypeChecker&) const override;
+    const Type* check_(CheckSema&) const override;
 
 private:
     template <int K, typename T, typename... Args>
@@ -191,7 +198,7 @@ public:
     }
 
 protected:
-    const Type* check_(TypeChecker&) const override;
+    const Type* check_(CheckSema&) const override;
 
 private:
     std::vector<const Value*> elems_;
@@ -215,7 +222,7 @@ public:
     void print(PrettyPrinter&) const override;
 
 protected:
-    const Type* check_(TypeChecker&) const override;
+    const Type* check_(CheckSema&) const override;
 
 private:
     const ComplexExpr* binding_;
@@ -237,7 +244,7 @@ public:
     void print(PrettyPrinter&) const override;
 
 protected:
-    const Type* check_(TypeChecker&) const override;
+    const Type* check_(CheckSema&) const override;
 
 private:
     std::string name_;
@@ -263,7 +270,7 @@ public:
     size_t complexity() const override { return 1 + body_->complexity(); }
 
 protected:
-    const Type* check_(TypeChecker&) const override;
+    const Type* check_(CheckSema&) const override;
 
 private:
     const Param* param_;
@@ -331,7 +338,7 @@ public:
     }
 
 protected:
-    const Type* check_(TypeChecker&) const override;
+    const Type* check_(CheckSema&) const override;
 
 private:
     Op op_;
@@ -366,7 +373,7 @@ public:
     }
 
 protected:
-    const Type* check_(TypeChecker&) const override;
+    const Type* check_(CheckSema&) const override;
 
 private:
     const Value* cond_;
@@ -396,7 +403,7 @@ public:
     }
 
 protected:
-    const Type* check_(TypeChecker&) const override;
+    const Type* check_(CheckSema&) const override;
 
 private:
     std::vector<const Value*> args_;
@@ -424,7 +431,7 @@ public:
     }
 
 protected:
-    const Type* check_(TypeChecker&) const override;
+    const Type* check_(CheckSema&) const override;
 
 private:
     const Var* var_;

@@ -163,6 +163,16 @@ private:
     const Type* body_;
 };
 
+/// A type that denotes an incorrect typed expression.
+class ErrorType : public Type {
+    friend class IRBuilder;
+
+    ErrorType() {}
+
+public:
+    void print(PrettyPrinter&) const override;
+};
+
 } // namespace artic
 
 #endif // TYPES_H

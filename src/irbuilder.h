@@ -37,6 +37,7 @@ public:
     TypeVar* type_var() { return new_type<TypeVar>(); }
     PolyType* poly_type(const TypeVar* var, const Type* body) { return new_type<PolyType>(var, body); }
     PolyType* top_type() { auto v = type_var(); return poly_type(v, v); }
+    ErrorType* error_type() { return new_type<ErrorType>(); }
 
 private:
     template <typename T, typename... Args>

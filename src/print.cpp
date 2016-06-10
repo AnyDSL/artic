@@ -184,4 +184,8 @@ void PolyType::print(PrettyPrinter& p) const {
     p.free_ident(var());
 }
 
+void ErrorType::print(PrettyPrinter& p) const {
+    p.print(p.error_style("<error>"));
+}
+
 } // namespace artic

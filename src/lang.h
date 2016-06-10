@@ -8,8 +8,8 @@ namespace artic {
 
 #define let(name, binding_lz, body_lz) \
     [&] { \
-        auto var = b.var(#name, nullptr); \
-        auto lambda = b.let_expr(var); \
+        auto var = builder.var(#name, nullptr); \
+        auto lambda = builder.let_expr(var); \
         auto name = [&] () -> const Value* { return var; }; \
         auto binding = binding_lz; \
         auto body = body_lz; \
@@ -20,21 +20,21 @@ namespace artic {
 
 #define lambda(name, body_lz) \
     [&] { \
-        auto param = b.param(#name); \
-        auto fn = b.lambda(param); \
+        auto param = builder.param(#name); \
+        auto fn = builder.lambda(param); \
         auto name = [&] () -> const Value* { return param; }; \
         auto body = body_lz; \
         fn->set_body(body()); \
         return fn; \
     }
 
-#define vec(...) [&] { return b.vector(__VA_ARGS__)->as<Value>(); }
+#define vec(...) [&] { return builder.vector(__VA_ARGS__)->as<Value>(); }
 #define app(...) \
     [&] { \
         std::vector<std::function<const Value*()>> args_lz({__VA_ARGS__}); \
         std::vector<const Value*> args; \
         for (auto& a : args_lz) args.push_back(a()); \
-        return b.app_expr(args); \
+        return builder.app_expr(args); \
     }
 
 #define if_(cond_lz, if_true_lz, if_false_lz) \
@@ -42,7 +42,7 @@ namespace artic {
         auto if_true = if_true_lz; \
         auto if_false = if_false_lz; \
         auto cond = cond_lz; \
-        return b.if_expr(cond(), if_true(), if_false()); \
+        return builder.if_expr(cond(), if_true(), if_false()); \
     }
 
 template <typename T>
