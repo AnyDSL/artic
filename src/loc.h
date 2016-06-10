@@ -7,16 +7,16 @@ namespace artic {
 
 struct Loc {
     std::string file;
-    int line, col;
+    int line;
 
     Loc() {}
-    Loc(const std::string& f, int l, int c)
-        : file(f), line(l), col(c)
+    Loc(const std::string& f, int l)
+        : file(f), line(l)
     {}
 };
 
 inline std::ostream& operator << (std::ostream& os, const Loc& loc) {
-    os << loc.file << "(" << loc.line << "," << loc.col << ")";
+    os << loc.file << "(" << loc.line << ")";
     return os;
 }
 

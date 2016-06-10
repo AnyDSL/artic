@@ -4,34 +4,34 @@
 using namespace artic;
 
 int main(int argc, char** argv) {
-    Lang lang;
+    IRBuilder builder;
     PrettyPrinter printer;
     //InferSema infer_sema;
     CheckSema check_sema;
 
 #include "begin_dsl.h"
-    auto fact = let(factorial) be
+    auto fact = let(factorial) =
         lambda(x)
-            let(c) be vec(0) == var(x) in
-                if var(c) then
+            let(c) = vec(0) == x in
+                if c then
                     vec(1)
                 else
-                    let(x_) be var(x) - vec(1) in
-                        let(f_) be app(factorial, var(x_)) in
-                            x * var(f_)
-                        end
-                    end
-                end
-            end
-        end
+                    let(x_) = x - vec(1) in
+                        let(f_) = app(factorial, x_) in
+                            x * f_
+                        end_let
+                    end_let
+                end_if
+            end_let
+        end_lambda
     in
-        vec(1, 1, 1, 1)
-    end;
+        vec(1, 2, 3, 4)
+    end_let;
 #include "end_dsl.h"
 
-    auto e = fact();
+    auto e = fact(Loc(__FILE__, __LINE__));
     //e->infer(infer_sema);
-    //e->check(check_sema);
+    e->check(check_sema);
     e->print(printer);
     std::cout << std::endl;
 
