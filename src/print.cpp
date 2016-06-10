@@ -144,4 +144,32 @@ void PrimType::print(PrettyPrinter& p) const {
     if (size() > 1) p.print("<", size(), ">");
 }
 
+void LambdaType::print(PrettyPrinter& p) const {
+    from()->print(p);
+    p.print(" -> ");
+    to()->print(p);
+}
+
+void TupleType::print(PrettyPrinter& p) const {
+    const int n = size();
+    p.print("(");
+    for (int i = 0; i < n - 1; i++) {
+        arg(i)->print(p);
+        p.print(", ");
+    }
+    if (n > 0) arg(n - 1)->print(p);
+    p.print(")");
+}
+
+void TypeVar::print(PrettyPrinter& p) const {
+    p.print(name());
+}
+
+void PolyType::print(PrettyPrinter& p) const {
+    p.print("forall ");    
+    var()->print(p);
+    p.print(".");
+    body()->print(p);
+}
+
 } // namespace artic

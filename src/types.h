@@ -2,6 +2,7 @@
 #define TYPES_H
 
 #include <string>
+#include <vector>
 
 #include "cast.h"
 #include "print.h"
@@ -82,16 +83,18 @@ private:
     int size_;
 };
 
+/// Base class for type constructors.
 class TypeApp : public Type {
 protected:
     TypeApp(const std::vector<Type*>& a = std::vector<Type*>())
-        : args_(types)
+        : args_(a)
     {}
     virtual ~TypeApp() {}
 
     std::vector<Type*> args_;
 };
 
+/// Type of a lambda function.
 class LambdaType : public TypeApp {
 public:
     LambdaType(Type* from, Type* to)
@@ -106,7 +109,8 @@ public:
     void print(PrettyPrinter&) const override;
 };
 
-class TupleType {
+/// Type of a tuple.
+class TupleType : public TypeApp {
 public:
     TupleType(const std::vector<Type*>& args)
         : TypeApp(args)
@@ -115,15 +119,37 @@ public:
     const std::vector<Type*>& args() const { return args_; }
     std::vector<Type*>& args() { return args_; }
     Type* arg(int i) const { return args_[i]; }
+    
+    size_t size() const { return args_.size(); }
 
     void print(PrettyPrinter&) const override;
 };
 
+/// Type variable coming from a polymorphic type.
+class TypeVar : public Type {
+public:
+    TypeVar(const std::string& n)
+        : name_(n)
+    {}
+
+    const std::string& name() const { return name_; }
+    void set_name(const std::string& n) { name_ = n; }
+
+    void print(PrettyPrinter&) const override;
+
+private:
+    std::string name_;
+};
+
+/// Polymorphic type.
 class PolyType : public Type {
 public:
-    PolyType(const std::string var = "a", Type* body = nullptr)
+    PolyType(const std::string& var = "a", Type* body = nullptr)
         : var_(var), body_(body)
     {}
+
+    const TypeVar* var() const { return &var_; }
+    TypeVar* var() { return &var_; }
 
     Type* body() const { return body_;}
     void set_body(Type* t) { body_ = t; }
@@ -131,8 +157,7 @@ public:
     void print(PrettyPrinter&) const override;
 
 private:
-    const std::string var_;
-    Type* 
+    TypeVar var_;
     Type* body_;
 };
 

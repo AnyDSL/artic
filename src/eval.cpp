@@ -1,3 +1,5 @@
+#include <cstring>
+
 #include "irbuilder.h"
 #include "ir.h"
 

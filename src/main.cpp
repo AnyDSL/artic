@@ -15,5 +15,6 @@ int main(int argc, char** argv) {
                         let(f_, app(factorial, x_), x * f_))))),
         app(factorial, vec(5)));
     fact()->print(p);
+    std::cout << std::endl;
     return 0;
 }
