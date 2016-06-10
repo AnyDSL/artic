@@ -59,7 +59,7 @@ public:
 
     void new_ident(const void* key) {
         std::string i;
-        if (!idents_.size()) i = "z";
+        if (!idents_.size()) i = "a";
         else {
             i = *idents_.crbegin();
             auto c = i.back();

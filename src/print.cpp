@@ -46,7 +46,12 @@ void Param::print(PrettyPrinter& p) const {
 }
 
 void Lambda::print(PrettyPrinter& p) const {
-    p.print("\\", p.ident_style(param()->name()), " -> ");
+    p.print("\\", p.ident_style(param()->name()));
+    if (param()->type()) {
+        p.print(" : ");
+        param()->type()->print(p);
+    }
+    p.print(" -> ");
 
     const bool indent = complexity() > p.max_complexity();
     if (indent) { p.indent(); p. new_line(); }
@@ -130,7 +135,12 @@ void AppExpr::print(PrettyPrinter& p) const {
 }
 
 void LetExpr::print(PrettyPrinter& p) const {
-    p.print(p.keyword_style("let"), " ", p.ident_style(var()->name()), " = ");
+    p.print(p.keyword_style("let"), " ", p.ident_style(var()->name()));
+    if (var()->type()) {
+        p.print(" : ");
+        var()->type()->print(p);
+    }
+    p.print(" = ");
     var()->binding()->print(p);
     p.print(" ", p.keyword_style("in"), " ");
     const bool indent = complexity() > p.max_complexity();

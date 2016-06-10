@@ -7,14 +7,15 @@ int main(int argc, char** argv) {
     PrettyPrinter p;
     TypeChecker c;
 
-    auto fact = let(factorial,
+    /*auto fact = let(factorial,
         lambda(x,
             let(c, x == vec(0),
                 if_(c,
                     vec(1),
                     let(x_, x - vec(1),
                         let(f_, app(factorial, x_), x * f_))))),
-        app(factorial, vec(5)));
+        app(factorial, vec(5)));*/
+    auto fact = let(c, vec(1), c);
 
     auto e = fact();
     e->check(c);
