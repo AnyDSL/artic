@@ -64,11 +64,14 @@ template <> struct RepToPrim<double  > { static constexpr Prim prim() { return P
 
 /// Type that represents a scalar or vector type.
 class PrimType : public Type {
-public:
+    friend class IRBuilder;
+
+private:
     PrimType(Prim p, int s = 1)
         : prim_(p), size_(s)
     {}
 
+public:
     int size() const { return size_; }
     void set_size(int i) { size_ = i; }
     Prim prim() const { return prim_; }
@@ -96,11 +99,14 @@ protected:
 
 /// Type of a lambda function.
 class LambdaType : public TypeApp {
-public:
+    friend class IRBuilder;
+
+private:
     LambdaType(const Type* from, const Type* to)
         : TypeApp({from, to})
     {}
 
+public:
     const Type* from() const { return args_[0]; }
     void set_from(const Type* t) { args_[0] = t; }
     const Type* to() const { return args_[1]; }
@@ -111,11 +117,14 @@ public:
 
 /// Type of a tuple.
 class TupleType : public TypeApp {
-public:
+    friend class IRBuilder;
+
+private:
     TupleType(const std::vector<const Type*>& args)
         : TypeApp(args)
     {}
 
+public:
     const std::vector<const Type*>& args() const { return args_; }
     std::vector<const Type*>& args() { return args_; }
     const Type* arg(int i) const { return args_[i]; }
@@ -127,29 +136,26 @@ public:
 
 /// Type variable coming from a polymorphic type.
 class TypeVar : public Type {
-public:
-    TypeVar(const std::string& n)
-        : name_(n)
-    {}
-
-    const std::string& name() const { return name_; }
-    void set_name(const std::string& n) { name_ = n; }
-
-    void print(PrettyPrinter&) const override;
+    friend class PolyType;
 
 private:
-    std::string name_;
+    TypeVar() {}
+
+public:
+    void print(PrettyPrinter&) const override;
 };
 
 /// Polymorphic type.
 class PolyType : public Type {
-public:
-    PolyType(const std::string& var = "a", const Type* body = nullptr)
-        : var_(var), body_(body)
+    friend class IRBuilder;
+
+private:
+    PolyType(const Type* body = nullptr)
+        : body_(body)
     {}
 
+public:
     const TypeVar* var() const { return &var_; }
-    TypeVar* var() { return &var_; }
 
     const Type* body() const { return body_;}
     void set_body(const Type* t) { body_ = t; }

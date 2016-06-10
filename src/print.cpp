@@ -162,14 +162,16 @@ void TupleType::print(PrettyPrinter& p) const {
 }
 
 void TypeVar::print(PrettyPrinter& p) const {
-    p.print(name());
+    p.print(p.ident(this));
 }
 
 void PolyType::print(PrettyPrinter& p) const {
-    p.print("forall ");    
+    p.new_ident(var());
+    p.print("forall ");
     var()->print(p);
     p.print(".");
     body()->print(p);
+    p.free_ident(var());
 }
 
 } // namespace artic

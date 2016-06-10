@@ -2,6 +2,9 @@
 #define PRINT_H
 
 #include <iostream>
+#include <set>
+#include <unordered_map>
+#include <string>
 
 namespace artic {
 
@@ -33,11 +36,36 @@ public:
     void indent() { indent_++; }
     void unindent() { indent_--; }
 
+    void new_ident(const void* key) {
+        std::string i;
+        if (!idents_.size()) i = "z";
+        else {
+            i = *idents_.crbegin();
+            auto c = i.back();
+            if (c == 'z') {
+                i.back() = 'a';
+                i += 'a';
+            } else i.back() = c + 1;
+        }
+        key_to_ident_[key] = i;
+        idents_.insert(i);
+    }
+
+    std::string ident(const void* key) { return key_to_ident_[key]; }
+
+    void free_ident(const void* key) {
+        idents_.erase(key_to_ident_[key]);
+        key_to_ident_.erase(key);
+    }
+
     size_t max_complexity() const { return max_c_; }
     size_t default_max_complexity() const { return 5; }
     void set_max_complexity(size_t c) { max_c_ = c; }
 
 private:
+    std::unordered_map<const void*, std::string> key_to_ident_;
+    std::set<std::string> idents_;
+
     std::ostream& out_;
     const std::string& tab_;
     size_t max_c_;

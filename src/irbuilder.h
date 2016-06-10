@@ -40,7 +40,7 @@ public:
     PrimType* prim_type(Prim p, int size = 1) { return new_type<PrimType>(p, size); }
     LambdaType* lambda_type(const Type* from, const Type* to) { return new_type<LambdaType>(from, to); }
     TupleType* tuple_type(const std::vector<const Type*>& args) { return new_type<TupleType>(args); }
-    PolyType* poly_type(const std::string& name, const Type* body) { return new_type<PolyType>(name, body); }
+    PolyType* poly_type(const Type* body) { return new_type<PolyType>(body); }
 
 private:
     template <typename T, typename... Args>

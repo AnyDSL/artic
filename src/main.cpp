@@ -20,5 +20,6 @@ int main(int argc, char** argv) {
     e->check(c);
     e->print(p);
     std::cout << std::endl;
+
     return 0;
 }
