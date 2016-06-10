@@ -46,7 +46,7 @@ namespace BinOp {
 };
 
 template <template <typename> typename F>
-Vector* binop(Vector* a, Vector* b) {
+const Vector* binop(const Vector* a, const Vector* b) {
     assert(a->size() == b->size());
     assert(a->prim() == b->prim());
     auto v = a->builder()->vector(a->prim());
@@ -71,7 +71,7 @@ Vector* binop(Vector* a, Vector* b) {
     return v;
 }
 
-static Vector* select(Vector* cond, Vector* a, Vector* b) {
+static const Vector* select(const Vector* cond, const Vector* a, const Vector* b) {
     assert(cond->size() == a->size() && a->size() == b->size());
     assert(cond->prim() == Prim::I1);
     assert(a->prim() == b->prim());
@@ -82,7 +82,7 @@ static Vector* select(Vector* cond, Vector* a, Vector* b) {
     return v;
 }
 
-static Vector* bitcast(const PrimType* type, Vector* a) {
+static const Vector* bitcast(const PrimType* type, const Vector* a) {
     assert(type->bitcount() == a->size() * bitcount(a->prim()));
     auto v = a->builder()->vector(type->prim());
     v->resize(type->size());
@@ -90,13 +90,13 @@ static Vector* bitcast(const PrimType* type, Vector* a) {
     return v;
 }
 
-static Value* tuple_elem(Vector* index, Tuple* tuple) {
+static const Value* tuple_elem(const Vector* index, const Tuple* tuple) {
     assert(index->size() == 1);
     auto i = index->value().u32;
     return tuple->elem(i);
 }
 
-static Value* vector_elem(Vector* index, Vector* vector) {
+static const Value* vector_elem(const Vector* index, const Vector* vector) {
     assert(index->size() == 1);
     auto i = index->value().u32;
     auto builder = vector->builder();
@@ -106,7 +106,7 @@ static Value* vector_elem(Vector* index, Vector* vector) {
     return v;
 }
 
-Value* PrimOp::eval() const {
+const Value* PrimOp::eval() const {
     if (binary()) {
         switch(op()) {
             case ADD:    return binop<BinOp::Add  >(arg(0)->as<Vector>(), arg(1)->as<Vector>());

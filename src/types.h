@@ -86,25 +86,25 @@ private:
 /// Base class for type constructors.
 class TypeApp : public Type {
 protected:
-    TypeApp(const std::vector<Type*>& a = std::vector<Type*>())
+    TypeApp(const std::vector<const Type*>& a = std::vector<const Type*>())
         : args_(a)
     {}
     virtual ~TypeApp() {}
 
-    std::vector<Type*> args_;
+    std::vector<const Type*> args_;
 };
 
 /// Type of a lambda function.
 class LambdaType : public TypeApp {
 public:
-    LambdaType(Type* from, Type* to)
+    LambdaType(const Type* from, const Type* to)
         : TypeApp({from, to})
     {}
 
-    Type* from() const { return args_[0]; }
-    void set_from(Type* t) { args_[0] = t; }
-    Type* to() const { return args_[1]; }
-    Type* set_to(Type* t) { args_[1] = t; }
+    const Type* from() const { return args_[0]; }
+    void set_from(const Type* t) { args_[0] = t; }
+    const Type* to() const { return args_[1]; }
+    void set_to(const Type* t) { args_[1] = t; }
 
     void print(PrettyPrinter&) const override;
 };
@@ -112,13 +112,13 @@ public:
 /// Type of a tuple.
 class TupleType : public TypeApp {
 public:
-    TupleType(const std::vector<Type*>& args)
+    TupleType(const std::vector<const Type*>& args)
         : TypeApp(args)
     {}
 
-    const std::vector<Type*>& args() const { return args_; }
-    std::vector<Type*>& args() { return args_; }
-    Type* arg(int i) const { return args_[i]; }
+    const std::vector<const Type*>& args() const { return args_; }
+    std::vector<const Type*>& args() { return args_; }
+    const Type* arg(int i) const { return args_[i]; }
     
     size_t size() const { return args_.size(); }
 
@@ -144,21 +144,21 @@ private:
 /// Polymorphic type.
 class PolyType : public Type {
 public:
-    PolyType(const std::string& var = "a", Type* body = nullptr)
+    PolyType(const std::string& var = "a", const Type* body = nullptr)
         : var_(var), body_(body)
     {}
 
     const TypeVar* var() const { return &var_; }
     TypeVar* var() { return &var_; }
 
-    Type* body() const { return body_;}
-    void set_body(Type* t) { body_ = t; }
+    const Type* body() const { return body_;}
+    void set_body(const Type* t) { body_ = t; }
 
     void print(PrettyPrinter&) const override;
 
 private:
     TypeVar var_;
-    Type* body_;
+    const Type* body_;
 };
 
 } // namespace artic

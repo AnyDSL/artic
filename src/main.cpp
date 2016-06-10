@@ -5,6 +5,7 @@ using namespace artic;
 int main(int argc, char** argv) {
     IRBuilder b;
     PrettyPrinter p;
+    TypeChecker c;
 
     auto fact = let(factorial,
         lambda(x,
@@ -14,7 +15,10 @@ int main(int argc, char** argv) {
                     let(x_, x - vec(1),
                         let(f_, app(factorial, x_), x * f_))))),
         app(factorial, vec(5)));
-    fact()->print(p);
+
+    auto e = fact();
+    e->check(c);
+    e->print(p);
     std::cout << std::endl;
     return 0;
 }

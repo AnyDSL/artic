@@ -1,14 +1,16 @@
 #include "check.h"
-#include "ir.h"
+#include "irbuilder.h"
 
 namespace artic {
 
 const Type* Vector::check_(TypeChecker&) const {
-    return nullptr;
+    return builder()->prim_type(prim(), size());
 }
 
-const Type* Tuple::check_(TypeChecker&) const {
-    return nullptr;
+const Type* Tuple::check_(TypeChecker& c) const {
+    std::vector<const Type*> args;
+    for (auto elem : elems()) args.emplace_back(elem->check(c));
+    return builder()->tuple_type(args);
 }
 
 const Type* Var::check_(TypeChecker&) const {

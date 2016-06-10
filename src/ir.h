@@ -50,8 +50,8 @@ public:
     virtual ~Expr() {}
 
     /// Type checks an expression and returns the result.
-    const Type* check(TypeChecker& ctx) {
-        type_ = check_(ctx);
+    const Type* check(TypeChecker& ctx) const {
+        if (!type_) type_ = check_(ctx);
         return type_;
     }
     /// Returns the type of the expression (after type-checking).
@@ -69,11 +69,13 @@ public:
     virtual size_t complexity() const { return 1; }
 
 protected:
+    Expr() : type_(nullptr), builder_(nullptr) {}
+
     virtual const Type* check_(TypeChecker&) const = 0;
 
 private:
     IRBuilder* builder_;
-    const Type* type_;
+    mutable const Type* type_;
     Loc loc_;
 };
 
@@ -170,14 +172,14 @@ private:
 class Tuple : public Value {
     friend class IRBuilder;
 
-    Tuple(const std::vector<Value*> v = std::vector<Value*>()) : elems_(v) {}
+    Tuple(const std::vector<const Value*>& v = std::vector<const Value*>()) : elems_(v) {}
 
 public:
-    const std::vector<Value*>& elems() const { return elems_; }
-    std::vector<Value*>& elems() { return elems_; }
+    const std::vector<const Value*>& elems() const { return elems_; }
+    std::vector<const Value*>& elems() { return elems_; }
 
-    Value* elem(int i) const { return elems_[i]; }
-    void set_elem(int i, Value* v) { elems_[i] = v; }
+    const Value* elem(int i) const { return elems_[i]; }
+    void set_elem(int i, const Value* v) { elems_[i] = v; }
     size_t size() const { return elems_.size(); }
 
     void print(PrettyPrinter&) const override;
@@ -192,7 +194,7 @@ protected:
     const Type* check_(TypeChecker&) const override;
 
 private:
-    std::vector<Value*> elems_;
+    std::vector<const Value*> elems_;
 };
 
 /// Variable binding coming from a let expression.
@@ -200,13 +202,13 @@ class Var : public Value {
     friend class IRBuilder;
     friend class LetExpr;
 
-    Var(const std::string& n, ComplexExpr* b)
+    Var(const std::string& n, const ComplexExpr* b)
         : name_(n), binding_(b)
     {}
 
 public:
-    ComplexExpr* binding() const { return binding_; }
-    void set_binding(ComplexExpr* b) { binding_ = b; }
+    const ComplexExpr* binding() const { return binding_; }
+    void set_binding(const ComplexExpr* b) { binding_ = b; }
 
     const std::string& name() const { return name_; }
     void set_name(const std::string& n) { name_ = n; }
@@ -217,7 +219,7 @@ protected:
     const Type* check_(TypeChecker&) const override;
 
 private:
-    ComplexExpr* binding_;
+    const ComplexExpr* binding_;
     std::string name_;
 };
 
@@ -247,7 +249,7 @@ private:
 class Lambda : public Value {
     friend class IRBuilder;
 
-    Lambda(const std::string& p, Expr* b = nullptr)
+    Lambda(const std::string& p, const Expr* b = nullptr)
         : param_(p), body_(b)
     {}
 
@@ -255,8 +257,8 @@ public:
     const Param* param() const { return &param_; }
     Param* param() { return &param_; }
 
-    Expr* body() const { return body_; }
-    void set_body(Expr* e) { body_ = e; }
+    const Expr* body() const { return body_; }
+    void set_body(const Expr* e) { body_ = e; }
 
     void print(PrettyPrinter&) const override;
 
@@ -267,7 +269,7 @@ protected:
 
 private:
     Param param_;
-    Expr* body_;
+    const Expr* body_;
 };
 
 /// Primitive operation on values.
@@ -283,20 +285,20 @@ public:
     };
 
 private:
-    PrimOp(Op op, Value* a, const Type* t) 
+    PrimOp(Op op, const Value* a, const Type* t) 
         : op_(op) {
         assert(op == BITCAST);
         args_.push_back(a);
         type_args_.push_back(t);
     }
 
-    PrimOp(Op op, Value* a, Value* b)
+    PrimOp(Op op, const Value* a, const Value* b)
         : op_(op) {
         args_.push_back(a);
         args_.push_back(b);
     }
 
-    PrimOp(Op op, Value* a, Value* b, Value* c)
+    PrimOp(Op op, const Value* a, const Value* b, const Value* c)
         : op_(op) {
         assert(op == SELECT);
         args_.push_back(a);
@@ -306,7 +308,7 @@ private:
 
 public:
     /// Evaluates the result of the operation.
-    Value* eval() const;
+    const Value* eval() const;
 
     Op op() const { return op_; }
 
@@ -315,9 +317,9 @@ public:
     const Type* type_arg(int i = 0) const { return type_args_[i]; }
     size_t num_type_args() const { return type_args_.size(); }
 
-    const std::vector<Value*>& args() const { return args_; }
-    std::vector<Value*>& args() { return args_; }
-    Value* arg(int i = 0) const { return args_[i]; }
+    const std::vector<const Value*>& args() const { return args_; }
+    std::vector<const Value*>& args() { return args_; }
+    const Value* arg(int i = 0) const { return args_[i]; }
     size_t num_args() const { return args_.size(); }
 
     bool binary() const { return op() <= CMP_EQ; }
@@ -335,7 +337,7 @@ protected:
 
 private:
     Op op_;
-    std::vector<Value*> args_;
+    std::vector<const Value*> args_;
     std::vector<const Type*> type_args_;
 };
 
@@ -343,18 +345,18 @@ private:
 class IfExpr : public ComplexExpr {
     friend class IRBuilder;
 
-    IfExpr(Value* cond, Expr* if_true, Expr* if_false)
+    IfExpr(const Value* cond, const Expr* if_true, const Expr* if_false)
         : cond_(cond), if_true_(if_true), if_false_(if_false)
     {}
 
 public:
-    Value* cond() const { return cond_; }
-    Expr* if_true() const { return if_true_; }
-    Expr* if_false() const { return if_false_; }
+    const Value* cond() const { return cond_; }
+    const Expr* if_true() const { return if_true_; }
+    const Expr* if_false() const { return if_false_; }
 
-    void set_cond(Value* v) { cond_ = v; }
-    void set_if_true(Expr* e) { if_true_ = e; }
-    void set_if_false(Expr* e) { if_false_ = e; }
+    void set_cond(const Value* v) { cond_ = v; }
+    void set_if_true(const Expr* e) { if_true_ = e; }
+    void set_if_false(const Expr* e) { if_false_ = e; }
 
     void print(PrettyPrinter&) const override;
 
@@ -369,22 +371,22 @@ protected:
     const Type* check_(TypeChecker&) const override;
 
 private:
-    Value* cond_;
-    Expr* if_true_, *if_false_;
+    const Value* cond_;
+    const Expr* if_true_, *if_false_;
 };
 
 /// Lambda application expression.
 class AppExpr : public ComplexExpr {
     friend class IRBuilder;
 
-    AppExpr(const std::vector<Value*>& args)
+    AppExpr(const std::vector<const Value*>& args)
         : args_(args)
     {}
 
 public:
-    const std::vector<Value*>& args() const { return args_; }
-    std::vector<Value*>& args() { return args_; }
-    Value* arg(int i = 0) const { return args_[i]; }
+    const std::vector<const Value*>& args() const { return args_; }
+    std::vector<const Value*>& args() { return args_; }
+    const Value* arg(int i = 0) const { return args_[i]; }
     size_t num_args() const { return args_.size(); }
 
     void print(PrettyPrinter&) const override;
@@ -399,14 +401,14 @@ protected:
     const Type* check_(TypeChecker&) const override;
 
 private:
-    std::vector<Value*> args_;
+    std::vector<const Value*> args_;
 };
 
 /// Let-expression, introducing a new variable in the scope of an expression.
 class LetExpr : public Expr {
     friend class IRBuilder;
 
-    LetExpr(const std::string& n, ComplexExpr* c, Expr* e = nullptr)
+    LetExpr(const std::string& n, const ComplexExpr* c, const Expr* e = nullptr)
         : var_(n, c), body_(e)
     {}
 
@@ -414,8 +416,8 @@ public:
     const Var* var() const { return &var_; }
     Var* var() { return &var_; }
 
-    Expr* body() const { return body_; }
-    void set_body(Expr* e) { body_ = e; }
+    const Expr* body() const { return body_; }
+    void set_body(const Expr* e) { body_ = e; }
 
     void print(PrettyPrinter&) const override;
 
@@ -428,7 +430,7 @@ protected:
 
 private:
     Var var_;
-    Expr* body_;
+    const Expr* body_;
 };
 
 } // namespace artic
