@@ -30,6 +30,7 @@ int main(int argc, char** argv) {
 #include "end_dsl.h"
 
     auto e = fact(Loc(__FILE__, __LINE__));
+
     //e->infer(infer_sema);
     e->check(check_sema);
     e->print(printer);

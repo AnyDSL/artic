@@ -84,7 +84,7 @@ const Type* PrimOp::check_(CheckSema& sema) const {
             case SELECT:
                 {
                     if (num_args() != 3) {
-                        sema.error(this, "Too many arguments in select operation");
+                        sema.error(this, "Incorrect number of arguments in select operation");
                         return builder()->error_type();
                     }
 
@@ -113,11 +113,53 @@ const Type* PrimOp::check_(CheckSema& sema) const {
 
                     return a;
                 }
-            /*case BITCAST: return bitcast(type_arg(0)->as<PrimType>(), arg(0)->as<Vector>());
+            case BITCAST:
+                {
+                    // Supports bitcast between primitive types only
+                    if (num_args() != 1 || num_type_args() != 1) {
+                        sema.error(this, "Incorrect number of arguments in bitcast operation");
+                        return builder()->error_type();
+                    }
+
+                    auto dst_type = type_arg(0)->isa<PrimType>();
+                    auto src_type = arg(0)->type()->isa<PrimType>();
+                    if (!dst_type || !src_type) {
+                        sema.error(this, "Primitive types expected in bitcast operation");
+                        return builder()->error_type();
+                    }
+
+                    if (dst_type->bitcount() != src_type->bitcount()) {
+                        sema.error(this, "Bit counts of Operands do not match in bitcast");
+                        return builder()->error_type();
+                    }
+
+                    return dst_type;
+                }
             case ELEM:
-                if (auto tuple  = arg(1)->isa<Tuple >()) return tuple_elem (arg(0)->as<Vector>(), tuple );
-                if (auto vector = arg(1)->isa<Vector>()) return vector_elem(arg(0)->as<Vector>(), vector);
-                break;*/
+                {
+                    auto arg_type = arg(1)->type();
+                    auto index_type = arg(0)->type()->isa<PrimType>();
+
+                    if (!index_type || !index_type->is_integer() || index_type->size() != 1) {
+                        sema.error(this, "Index must be an integer in element extraction operation");
+                        return builder()->error_type();
+                    }
+
+                    if (auto tuple_type = arg_type->isa<TupleType>()) {
+                        if (auto index = arg(0)->isa<Vector>()) {
+                            return tuple_type->arg(index->value().i32);
+                        } else {
+                            sema.error(this, "Index must be an immediate value in element extraction operation");
+                            return builder()->error_type();
+                        }
+                    } else if (auto vector_type = arg_type->isa<PrimType>()) {
+                        return builder()->prim_type(vector_type->prim(), 1);
+                    } else {
+                        sema.error(this, "Argument must be a vector or a tuple in element extraction operation");
+                        return builder()->error_type(); 
+                    }
+                }
+                break;
             default: break;
         }
     }

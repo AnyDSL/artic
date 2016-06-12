@@ -156,6 +156,9 @@ public:
     size_t size() const { return elems_.size(); }
     void resize(size_t s) { elems_.resize(s); }
 
+    bool is_integer() const { return artic::is_integer(prim()); }
+    int bit_count() const { return artic::bitcount(prim()) * size(); }
+
     void print(PrettyPrinter&) const override;
 
 protected:

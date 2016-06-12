@@ -17,7 +17,7 @@ public:
 };
 
 /// Primitive types.
-enum class Prim {
+enum class Prim : uint16_t {
     I1,
     I8,
     I16,
@@ -32,6 +32,7 @@ enum class Prim {
 };
 
 std::string to_string(Prim p);
+bool is_integer(Prim p);
 int bitcount(Prim p);
 
 /// Utility class to convert a primitive type into its C++ representation.
@@ -76,6 +77,7 @@ public:
     Prim prim() const { return prim_; }
     void set_prim(Prim p) { prim_ = p; }
 
+    int is_integer() const { return artic::is_integer(prim()) * size(); }
     int bitcount() const { return artic::bitcount(prim()) * size(); }
 
     void print(PrettyPrinter&) const override;
