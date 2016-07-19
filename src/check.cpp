@@ -3,38 +3,30 @@
 
 namespace artic {
 
-const Type* Vector::check_(CheckSema&) const {
-    return builder()->prim_type(prim(), size());
+void Vector::check(CheckSema&) const {}
+
+void Tuple::check(CheckSema& sema) const {
+    for (auto elem : elems()) {
+        sema.check(elem);
+    }
 }
 
-const Type* Tuple::check_(CheckSema& sema) const {
-    std::vector<const Type*> args;
-    for (auto elem : elems()) args.emplace_back(elem->check(sema));
-    return builder()->tuple_type(args);
+void Var::check(CheckSema& sema) const {}
+
+void Param::check(CheckSema&) const {}
+
+void Lambda::check(CheckSema& sema) const {
+    sema.check(param());
+    sema.check(body());
 }
 
-const Type* Var::check_(CheckSema& sema) const {
-    binding()->check(sema);
-    return binding()->type();
-}
-
-const Type* Param::check_(CheckSema&) const {
-    return builder()->top_type();
-}
-
-const Type* Lambda::check_(CheckSema& sema) const {
-    param()->check(sema);
-    body()->check(sema);
-    return builder()->lambda_type(param()->type(), body()->type());
-}
-
-const Type* PrimOp::check_(CheckSema& sema) const {
-    for (auto arg : args()) arg->check(sema);
+void PrimOp::check(CheckSema& sema) const {
+    for (auto arg : args()) sema.check(arg);
 
     if (binary()) {
         if (num_args() != 2) {
             sema.error(this, "Too many arguments in binary expression");
-            return builder()->error_type();
+            return;
         }
 
         auto a = arg(0)->type()->isa<PrimType>();
@@ -42,12 +34,12 @@ const Type* PrimOp::check_(CheckSema& sema) const {
 
         if (!a || !b) {
             sema.error(this, "Primitive types expected in binary expression");
-            return builder()->error_type();
+            return;
         }
 
         if (a->prim() != b->prim() || a->size() != b->size()) {
             sema.error(this, "Operands of different types in binary expression");
-            return builder()->error_type();
+            return;
         }
 
         switch(op()) {
@@ -57,9 +49,8 @@ const Type* PrimOp::check_(CheckSema& sema) const {
             case DIV:
                 if (a->prim() == Prim::I1) {
                     sema.error(this, "Incorrect type for arithmetic operation");
-                    return builder()->error_type();
                 }
-                return a;
+                break;
             case RSHFT:
             case LSHFT:
             case AND:
@@ -68,16 +59,15 @@ const Type* PrimOp::check_(CheckSema& sema) const {
                 if (a->prim() == Prim::F32 ||
                     a->prim() == Prim::F64) {
                     sema.error(this, "Incorrect type for logical operation");
-                    return builder()->error_type();
                 }
-                return a;
+                break;
             case CMP_GE:
             case CMP_LE:
             case CMP_GT:
             case CMP_LT:
             case CMP_EQ:
-                return builder()->prim_type(Prim::I1, a->size());
-            default: break;
+                break;
+            default: assert(false);
         }
     } else {
         switch(op()) {
@@ -85,7 +75,7 @@ const Type* PrimOp::check_(CheckSema& sema) const {
                 {
                     if (num_args() != 3) {
                         sema.error(this, "Incorrect number of arguments in select operation");
-                        return builder()->error_type();
+                        return;
                     }
 
                     auto a = arg(0)->type()->isa<PrimType>();
@@ -93,48 +83,46 @@ const Type* PrimOp::check_(CheckSema& sema) const {
                     auto c = arg(2)->type()->isa<PrimType>();
                     if (!a || !b || !c) {
                         sema.error(this, "Primitive types expected in select operation");
-                        return builder()->error_type();
+                        return;
                     }
 
                     if (a->prim() == b->prim() && a->size() == b->size()) {
                         sema.error(this, "Type mismatch in select operation");
-                        return builder()->error_type();
+                        return;
                     }
 
                     if (c->prim() != Prim::I1) {
                         sema.error(this, "Boolean expected in select condition");
-                        return builder()->error_type();
+                        return;
                     }
 
                     if (c->size() != a->size()) {
                         sema.error(this, "Vectors of different sizes in select operation");
-                        return builder()->error_type(); 
+                        return; 
                     }
-
-                    return a;
                 }
+                break;
             case BITCAST:
                 {
                     // Supports bitcast between primitive types only
                     if (num_args() != 1 || num_type_args() != 1) {
                         sema.error(this, "Incorrect number of arguments in bitcast operation");
-                        return builder()->error_type();
+                        return;
                     }
 
                     auto dst_type = type_arg(0)->isa<PrimType>();
                     auto src_type = arg(0)->type()->isa<PrimType>();
                     if (!dst_type || !src_type) {
                         sema.error(this, "Primitive types expected in bitcast operation");
-                        return builder()->error_type();
+                        return;
                     }
 
                     if (dst_type->bitcount() != src_type->bitcount()) {
                         sema.error(this, "Bit counts of Operands do not match in bitcast");
-                        return builder()->error_type();
+                        return;
                     }
-
-                    return dst_type;
                 }
+                break;
             case ELEM:
                 {
                     auto arg_type = arg(1)->type();
@@ -142,47 +130,47 @@ const Type* PrimOp::check_(CheckSema& sema) const {
 
                     if (!index_type || !index_type->is_integer() || index_type->size() != 1) {
                         sema.error(this, "Index must be an integer in element extraction operation");
-                        return builder()->error_type();
+                        return;
                     }
 
                     if (auto tuple_type = arg_type->isa<TupleType>()) {
-                        if (auto index = arg(0)->isa<Vector>()) {
-                            return tuple_type->arg(index->value().i32);
-                        } else {
+                        if (!arg(0)->isa<Vector>()) {
                             sema.error(this, "Index must be an immediate value in element extraction operation");
-                            return builder()->error_type();
+                            return;
                         }
-                    } else if (auto vector_type = arg_type->isa<PrimType>()) {
-                        return builder()->prim_type(vector_type->prim(), 1);
-                    } else {
+                    } else if (!arg_type->isa<PrimType>()) {
                         sema.error(this, "Argument must be a vector or a tuple in element extraction operation");
-                        return builder()->error_type(); 
+                        return;
                     }
                 }
                 break;
-            default: break;
+            default: assert(false);
         }
     }
-
-    assert(false);
-    return builder()->error_type();
 }
 
-const Type* IfExpr::check_(CheckSema& sema) const {
-    cond()->check(sema);
-    if_true()->check(sema);
-    if_false()->check(sema);
-    return if_true()->type();
+void IfExpr::check(CheckSema& sema) const {
+    sema.check(cond());
+
+    auto c = cond()->type()->isa<PrimType>();
+    if (!c || c->prim() != Prim::I1 || c->size() > 1) {
+        sema.error(cond(), "Condition must be of boolean type");
+    }
+
+    sema.check(if_true());
+    sema.check(if_false());
 }
 
-const Type* AppExpr::check_(CheckSema& sema) const {
-    return builder()->top_type();
+void AppExpr::check(CheckSema& sema) const {
+    for (auto arg : args()) {
+        sema.check(arg);
+    }
 }
 
-const Type* LetExpr::check_(CheckSema& sema) const {
-    var()->check(sema);
-    body()->check(sema);
-    return body()->type();
+void LetExpr::check(CheckSema& sema) const {
+    sema.check(var());
+    sema.check(var()->binding());
+    sema.check(body());
 }
 
 } // namespace artic

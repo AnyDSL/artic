@@ -1,12 +1,13 @@
 #include "lang.h"
 #include "check.h"
+#include "infer.h"
 
 using namespace artic;
 
 int main(int argc, char** argv) {
     IRBuilder builder;
     PrettyPrinter printer;
-    //InferSema infer_sema;
+    InferSema infer_sema;
     CheckSema check_sema;
 
 #include "begin_dsl.h"
@@ -31,8 +32,9 @@ int main(int argc, char** argv) {
 
     auto e = fact(Loc(__FILE__, __LINE__));
 
-    //e->infer(infer_sema);
-    e->check(check_sema);
+    infer_sema.infer(e);
+    check_sema.check(e);
+
     e->print(printer);
     std::cout << std::endl;
 

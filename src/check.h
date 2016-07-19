@@ -13,6 +13,10 @@ public:
         : out_(out)
     {}
 
+    void check(const Expr* e) {
+        e->check(*this);
+    }
+
     template <typename... Args>
     void error(const Expr* e, Args... args) {
         out_ << e->loc() << ": ";

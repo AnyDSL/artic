@@ -14,6 +14,7 @@ namespace artic {
 
 class IRBuilder;
 class CheckSema;
+class InferSema;
 
 /// The IR follows an ANF structure. Its grammar is the following:
 ///
@@ -45,15 +46,12 @@ class CheckSema;
 /// Base class for expressions.
 class Expr : public Cast<Expr> {
     friend class IRBuilder;
+    friend class CheckSema;
+    friend class InferSema;
 
 public:
     virtual ~Expr() {}
 
-    /// Type checks an expression and returns the result.
-    const Type* check(CheckSema& ctx) const {
-        if (!type_) type_ = check_(ctx);
-        return type_;
-    }
     /// Returns the type of the expression (after type-checking).
     const Type* type() const { return type_; }
 
@@ -64,21 +62,27 @@ public:
     /// Returns the builder that was used to create this node.
     IRBuilder* builder() const { return builder_; }
 
-    /// Prints the expression in a human-readable form.
-    virtual void print(PrettyPrinter&) const = 0;
-
     /// Computes the complexity of the expression (used for pretty printing).
     virtual size_t complexity() const { return 1; }
 
+    /// Prints the expression in a human-readable form.
+    virtual void print(PrettyPrinter&) const = 0;
+
+    /// Dumps the expression without any indentation nor coloring.
     void dump() const {
-        PrettyPrinter p;
+        PrettyPrinter p(std::cout, "", 0, false);
         print(p);
     }
+
+    /// Type checks an expression.
+    virtual void check(CheckSema&) const = 0;
+    /// Infers the type of the expression.
+    virtual const Type* infer(InferSema&) const = 0;
 
 protected:
     Expr() : type_(nullptr), builder_(nullptr) {}
 
-    virtual const Type* check_(CheckSema&) const = 0;
+    void assign_type(const Type* type) const { type_ = type; }
 
 private:
     IRBuilder* builder_;
@@ -160,9 +164,8 @@ public:
     int bit_count() const { return artic::bitcount(prim()) * size(); }
 
     void print(PrettyPrinter&) const override;
-
-protected:
-    const Type* check_(CheckSema&) const override;
+    void check(CheckSema&) const override;
+    const Type* infer(InferSema&) const override;
 
 private:
     template <int K, typename T, typename... Args>
@@ -192,16 +195,15 @@ public:
     void set_elem(int i, const Value* v) { elems_[i] = v; }
     size_t size() const { return elems_.size(); }
 
-    void print(PrettyPrinter&) const override;
-
     size_t complexity() const override {
         size_t c = 1;
         for (auto e : elems()) c += e->complexity();
         return c;
     }
 
-protected:
-    const Type* check_(CheckSema&) const override;
+    void print(PrettyPrinter&) const override;
+    void check(CheckSema&) const override;
+    const Type* infer(InferSema&) const override;
 
 private:
     std::vector<const Value*> elems_;
@@ -223,9 +225,8 @@ public:
     void set_name(const std::string& n) { name_ = n; }
 
     void print(PrettyPrinter&) const override;
-
-protected:
-    const Type* check_(CheckSema&) const override;
+    void check(CheckSema&) const override;
+    const Type* infer(InferSema&) const override;
 
 private:
     const ComplexExpr* binding_;
@@ -245,9 +246,8 @@ public:
     void set_name(const std::string& n) { name_ = n; }
 
     void print(PrettyPrinter&) const override;
-
-protected:
-    const Type* check_(CheckSema&) const override;
+    void check(CheckSema&) const override;
+    const Type* infer(InferSema&) const override;
 
 private:
     std::string name_;
@@ -268,12 +268,11 @@ public:
     const Expr* body() const { return body_; }
     void set_body(const Expr* e) { body_ = e; }
 
-    void print(PrettyPrinter&) const override;
-
     size_t complexity() const override { return 1 + body_->complexity(); }
 
-protected:
-    const Type* check_(CheckSema&) const override;
+    void print(PrettyPrinter&) const override;
+    void check(CheckSema&) const override;
+    const Type* infer(InferSema&) const override;
 
 private:
     const Param* param_;
@@ -332,16 +331,15 @@ public:
 
     bool binary() const { return op() <= CMP_EQ; }
 
-    void print(PrettyPrinter&) const override;
-
     size_t complexity() const override {
         size_t c = 1 + num_type_args();
         for (auto a : args()) c += a->complexity();
         return c;
     }
 
-protected:
-    const Type* check_(CheckSema&) const override;
+    void print(PrettyPrinter&) const override;
+    void check(CheckSema&) const override;
+    const Type* infer(InferSema&) const override;
 
 private:
     Op op_;
@@ -366,8 +364,6 @@ public:
     void set_if_true(const Expr* e) { if_true_ = e; }
     void set_if_false(const Expr* e) { if_false_ = e; }
 
-    void print(PrettyPrinter&) const override;
-
     size_t complexity() const override {
         return 1 +
                cond()->complexity() +
@@ -375,8 +371,9 @@ public:
                if_false()->complexity();
     }
 
-protected:
-    const Type* check_(CheckSema&) const override;
+    void print(PrettyPrinter&) const override;
+    void check(CheckSema&) const override;
+    const Type* infer(InferSema&) const override;
 
 private:
     const Value* cond_;
@@ -397,16 +394,15 @@ public:
     const Value* arg(int i = 0) const { return args_[i]; }
     size_t num_args() const { return args_.size(); }
 
-    void print(PrettyPrinter&) const override;
-
     size_t complexity() const override {
         size_t c = 1;
         for (auto a : args()) c += a->complexity();
         return c;
     }
 
-protected:
-    const Type* check_(CheckSema&) const override;
+    void print(PrettyPrinter&) const override;
+    void check(CheckSema&) const override;
+    const Type* infer(InferSema&) const override;
 
 private:
     std::vector<const Value*> args_;
@@ -427,14 +423,13 @@ public:
     const Expr* body() const { return body_; }
     void set_body(const Expr* e) { body_ = e; }
 
-    void print(PrettyPrinter&) const override;
-
     size_t complexity() const override {
         return 1 + var()->binding()->complexity() + body()->complexity();
     }
 
-protected:
-    const Type* check_(CheckSema&) const override;
+    void print(PrettyPrinter&) const override;
+    void check(CheckSema&) const override;
+    const Type* infer(InferSema&) const override;
 
 private:
     const Var* var_;
