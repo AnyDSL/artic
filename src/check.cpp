@@ -177,4 +177,9 @@ void LetExpr::check(CheckSema& sema) const {
     sema.check(body());
 }
 
+void check(const Expr* e) {
+    CheckSema sema;
+    sema.check(e);
+}
+
 } // namespace artic

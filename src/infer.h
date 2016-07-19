@@ -52,6 +52,8 @@ private:
     bool todo_;
 };
 
+void infer(const Expr* e);
+
 } // namespace artic
 
 #endif // INFER_H

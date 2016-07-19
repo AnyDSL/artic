@@ -37,6 +37,8 @@ private:
     std::ostream& out_;
 };
 
+void check(const Expr* e);
+
 } // namespace artic
 
 #endif // CHECK_H

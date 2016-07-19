@@ -147,4 +147,12 @@ const Type* LetExpr::infer(InferSema& sema) const {
     return body()->type();
 }
 
+void infer(const Expr* e) {
+    InferSema sema;
+    //do {
+        sema.restart();
+        sema.infer(e);
+    //} while (infer_sema.todo());
+}
+
 } // namespace artic

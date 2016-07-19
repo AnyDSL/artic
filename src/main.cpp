@@ -7,8 +7,6 @@ using namespace artic;
 int main(int argc, char** argv) {
     IRBuilder builder;
     PrettyPrinter printer;
-    InferSema infer_sema;
-    CheckSema check_sema;
 
 #include "begin_dsl.h"
     auto fact = let(factorial) =
@@ -32,12 +30,8 @@ int main(int argc, char** argv) {
 
     auto e = fact(Loc(__FILE__, __LINE__));
 
-    //do {
-        infer_sema.restart();
-        infer_sema.infer(e);
-    //} while (infer_sema.todo());
-
-    check_sema.check(e);
+    infer(e);
+    check(e);
 
     e->print(printer);
     std::cout << std::endl;
