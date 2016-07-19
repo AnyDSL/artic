@@ -29,6 +29,7 @@ public:
     }
 
     bool todo() const { return todo_; }
+    void restart() { todo_ = false; }
 
     template <typename... Args>
     void error(const Expr* e, Args... args) {

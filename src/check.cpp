@@ -159,6 +159,10 @@ void IfExpr::check(CheckSema& sema) const {
 
     sema.check(if_true());
     sema.check(if_false());
+
+    if (if_true()->type() != if_false()->type()) {
+        sema.error(this, "The two branches of the condition have a different type");
+    }
 }
 
 void AppExpr::check(CheckSema& sema) const {

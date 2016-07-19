@@ -97,8 +97,6 @@ const Type* PrimOp::infer(InferSema& sema) const {
                     if (auto tuple_type = arg_type->isa<TupleType>()) {
                         if (auto index = arg(0)->isa<Vector>()) {
                             return tuple_type->arg(index->value().i32);
-                        } else {
-                            return nullptr;
                         }
                     } else if (auto vector_type = arg_type->isa<PrimType>()) {
                         return builder()->prim_type(vector_type->prim(), 1);

@@ -32,7 +32,11 @@ int main(int argc, char** argv) {
 
     auto e = fact(Loc(__FILE__, __LINE__));
 
-    infer_sema.infer(e);
+    //do {
+        infer_sema.restart();
+        infer_sema.infer(e);
+    //} while (infer_sema.todo());
+
     check_sema.check(e);
 
     e->print(printer);
