@@ -1,7 +1,20 @@
-#include "check.h"
+#include "loc.h"
+#include "ir.h"
 #include "irbuilder.h"
 
 namespace artic {
+
+class CheckSema {
+public:
+    void check(const Expr* e) {
+        e->check(*this);
+    }
+
+    template <typename... Args>
+    void error(const Expr* e, Args... args) {
+        artic::error(e->loc(), ": ", args...);
+    }
+};
 
 void Vector::check(CheckSema&) const {}
 

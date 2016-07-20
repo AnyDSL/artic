@@ -1,6 +1,8 @@
 #ifndef IRBUILDER_H
 #define IRBUILDER_H
 
+#include <unordered_set>
+
 #include "ir.h"
 
 namespace artic {
@@ -40,6 +42,14 @@ public:
     ErrorType* error_type() { return new_type<ErrorType>(); }
 
 private:
+    struct HashType {
+        size_t operator () (const Type* t) const { return t->hash(); }
+    };
+
+    struct CompareType {
+        bool operator () (const Type* a, const Type* b) const { return a->equals(b); }
+    };
+
     template <typename T, typename... Args>
     T* new_node(const Args&... args) {
         auto node = new T(args...);
@@ -50,13 +60,16 @@ private:
 
     template <typename T, typename... Args>
     T* new_type(const Args&... args) {
+        T ref_type(args...);
+        auto it = types_.find(&ref_type);
+        if (it != types_.end()) return (*it)->template as<T>();
         auto type = new T(args...);
-        types_.push_back(type);
+        types_.insert(type);
         return type;
     }
 
     std::vector<Expr*> nodes_;
-    std::vector<Type*> types_;
+    std::unordered_set<Type*, HashType, CompareType> types_;
 };
 
 } // namespace artic

@@ -1,7 +1,36 @@
-#include "infer.h"
+#include "loc.h"
+#include "ir.h"
 #include "irbuilder.h"
 
 namespace artic {
+
+class InferSema {
+public:
+    InferSema()
+        : todo_(false)
+    {}
+
+    const Type* infer(const Expr* e) {
+        auto t = e->infer(*this);
+        todo_ |= e->type() != t;
+        if (t) e->assign_type(t);
+        return e->type();
+    }
+
+    const Type* infer(const Expr* e, const Type* u) {
+        auto t = e->infer(*this);
+        if (u && !t) t = u;
+        todo_ |= e->type() != t;
+        if (t) e->assign_type(t);
+        return e->type();
+    }
+
+    bool todo() const { return todo_; }
+    void restart() { todo_ = false; }
+
+private:
+    bool todo_;
+};
 
 const Type* Vector::infer(InferSema&) const {
     return builder()->prim_type(prim(), size());
@@ -149,10 +178,10 @@ const Type* LetExpr::infer(InferSema& sema) const {
 
 void infer(const Expr* e) {
     InferSema sema;
-    //do {
+    do {
         sema.restart();
         sema.infer(e);
-    //} while (infer_sema.todo());
+    } while (sema.todo());
 }
 
 } // namespace artic

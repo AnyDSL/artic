@@ -1,12 +1,9 @@
-#include "lang.h"
-#include "check.h"
-#include "infer.h"
+#include "artic.h"
 
 using namespace artic;
 
 int main(int argc, char** argv) {
     IRBuilder builder;
-    PrettyPrinter printer;
 
 #include "begin_dsl.h"
     auto fact = let(factorial) =
@@ -32,8 +29,7 @@ int main(int argc, char** argv) {
 
     infer(e);
     check(e);
-
-    e->print(printer);
+    print(e);
     std::cout << std::endl;
 
     return 0;

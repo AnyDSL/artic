@@ -7,12 +7,12 @@
 
 #include "cast.h"
 #include "types.h"
-#include "print.h"
 #include "loc.h"
 
 namespace artic {
 
 class IRBuilder;
+class PrettyPrinter;
 class CheckSema;
 class InferSema;
 
@@ -69,10 +69,7 @@ public:
     virtual void print(PrettyPrinter&) const = 0;
 
     /// Dumps the expression without any indentation nor coloring.
-    void dump() const {
-        PrettyPrinter p(std::cout, "", 0, false);
-        print(p);
-    }
+    void dump() const;
 
     /// Type checks an expression.
     virtual void check(CheckSema&) const = 0;

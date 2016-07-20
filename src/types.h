@@ -5,15 +5,25 @@
 #include <vector>
 
 #include "cast.h"
-#include "print.h"
+#include "common.h"
 
 namespace artic {
+
+class PrettyPrinter;
 
 /// Base class for all types.
 class Type : public Cast<Type> {
 public:
     virtual ~Type() {}
     virtual void print(PrettyPrinter&) const = 0;
+    virtual size_t hash() const = 0;
+    virtual bool equals(const Type* t) const = 0;
+};
+
+enum class TypeHash : size_t {
+    ERROR_TYPE,
+    TYPE_VAR,
+    PRIM_TYPE
 };
 
 /// Primitive types.
@@ -82,6 +92,17 @@ public:
 
     void print(PrettyPrinter&) const override;
 
+    size_t hash() const override {
+        return size_t(TypeHash::PRIM_TYPE) + 16 * size() + size_t(prim());
+    }
+
+    bool equals(const Type* t) const override {
+        if (auto p = t->isa<PrimType>()) {
+            return p->prim() == prim() && p->size() == size();
+        }
+        return false;
+    }
+
 private:
     Prim prim_;
     int size_;
@@ -96,6 +117,23 @@ protected:
     virtual ~TypeApp() {}
 
     std::vector<const Type*> args_;
+
+public:
+    size_t hash() const override {
+        return hash_combine(args_, [] (const Type* t) { return t->hash(); });
+    }
+
+    bool equals(const Type* t) const override {
+        if (auto app = t->isa<TypeApp>()) {
+            if (app->args_.size() != args_.size()) return false;
+            for (int i = 0, n = args_.size(); i < n; i++) {
+                if (!args_[i]->equals(app->args_[i]))
+                    return false;
+            }
+            return true;
+        }
+        return false;
+    }
 };
 
 /// Type of a lambda function.
@@ -113,6 +151,10 @@ public:
     void set_to(const Type* t) { args_[1] = t; }
 
     void print(PrettyPrinter&) const override;
+
+    bool equals(const Type* t) const override {
+        return t->isa<LambdaType>() && TypeApp::equals(t);
+    }
 };
 
 /// Type of a tuple.
@@ -131,6 +173,10 @@ public:
     size_t size() const { return args_.size(); }
 
     void print(PrettyPrinter&) const override;
+
+    bool equals(const Type* t) const override {
+        return t->isa<TupleType>() && TypeApp::equals(t);
+    }
 };
 
 /// Type variable coming from a polymorphic type.
@@ -141,6 +187,8 @@ class TypeVar : public Type {
 
 public:
     void print(PrettyPrinter&) const override;
+    size_t hash() const override { return size_t(TypeHash::TYPE_VAR); }
+    bool equals(const Type* t) const override { return t == this; }
 };
 
 /// Polymorphic type.
@@ -160,6 +208,17 @@ public:
 
     void print(PrettyPrinter&) const override;
 
+    size_t hash() const override {
+        return hash_combine(var()->hash(), body()->hash());
+    }
+
+    bool equals(const Type* t) const override {
+        if (auto poly = t->isa<PolyType>()) {
+            return var()->equals(poly->var()) && body()->equals(poly->body());
+        }
+        return false;
+    }
+
 private:
     const TypeVar* var_;
     const Type* body_;
@@ -173,6 +232,8 @@ class ErrorType : public Type {
 
 public:
     void print(PrettyPrinter&) const override;
+    size_t hash() const override { return size_t(TypeHash::ERROR_TYPE); }
+    bool equals(const Type* t) const override { return t->isa<ErrorType>(); }
 };
 
 } // namespace artic
