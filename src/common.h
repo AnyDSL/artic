@@ -33,6 +33,7 @@ inline void error() {
 template <typename T, typename... Args>
 inline void error(T t, Args... args) {
     std::cerr << t;
+    error(args...);
 }
 
 } // namespace artic
