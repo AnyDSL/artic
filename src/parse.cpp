@@ -325,7 +325,7 @@ private:
         T* e;
 
         ExprProxy(const Parser& p, T* e) : p(p), e(e) { e->loc_ = p.ahead().loc(); }
-        ~ExprProxy() { e->loc_.end = p.last_.end; }
+        ~ExprProxy() { e->loc_.end = p.prev_loc_.end; }
         operator T* () { return e; }
         T* operator -> () { return e; }
         const T* operator -> () const { return e; }
@@ -350,18 +350,18 @@ private:
     }
     void eat(Token::Type t) { assert(ahead() == t); lex(); }
     void lex() {
-        last_ = tok_[0].loc();
+        prev_loc_ = tok_[0].loc();
         tok_[0] = tok_[1];
         tok_[1] = lexer_();
     }
 
     template <typename... Args>
     void error(Args... args) {
-        artic::error(last_, ": ", args...);
+        artic::error(prev_loc_, ": ", args...);
         err_count_++;
     }
 
-    Loc last_;
+    Loc prev_loc_;
     int err_count_;
     Token tok_[2];
     Env env_;
@@ -442,7 +442,7 @@ AtomicExpr* Parser::parse_atomic_expr() {
     if (ahead().is_binop()) {
         auto primop = parse_primop(value);
         primop->loc_ = begin;
-        primop->loc_.end = last_.end;
+        primop->loc_.end = prev_loc_.end;
         return primop;
     }
     return value;
