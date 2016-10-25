@@ -5,19 +5,38 @@
 
 namespace artic {
 
-struct Loc {
-    std::string file;
-    int line;
+struct Pos {
+    int row, col;
 
-    Loc() {}
-    Loc(const std::string& f, int l)
-        : file(f), line(l)
+    Pos() {}
+    Pos(int r, int c)
+        : row(r), col(c)
     {}
 };
 
-inline std::ostream& operator << (std::ostream& os, const Loc& loc) {
-    os << loc.file << "(" << loc.line << ")";
+struct Loc {
+    std::string file;
+    Pos begin, end;
+
+    Loc() {}
+    Loc(const std::string& f, Pos b, Pos e)
+        : file(f), begin(b), end(e)
+    {}
+};
+
+inline std::ostream& operator << (std::ostream& os, const Pos& pos) {
+    os << pos.row << ", " << pos.col;
     return os;
+}
+
+inline std::ostream& operator << (std::ostream& os, const Loc& loc) {
+    os << loc.file << "(";
+    if (loc.begin.row == loc.end.row) {
+        os << loc.begin.row << ", " << loc.begin.col << " - " << loc.end.col;
+    } else {
+        os << loc.begin << " - " << loc.end;
+    }
+    return os << ")";
 }
 
 } // namespace artic

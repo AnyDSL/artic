@@ -18,7 +18,7 @@ class InferSema;
 
 /// The IR follows an ANF structure. Its grammar is the following:
 ///
-/// EXPR = CEXPR | Let [(id, type, CEXPR)] EXPR
+///     EXPR = CEXPR | Let [(id, type, CEXPR)] EXPR
 ///
 /// Complex expressions:
 ///     CEXPR = IFEXPR | APPEXPR | AEXPR
@@ -48,6 +48,7 @@ class Expr : public Cast<Expr> {
     friend class IRBuilder;
     friend class CheckSema;
     friend class InferSema;
+    friend class Parser;
 
 public:
     virtual ~Expr() {}
@@ -152,6 +153,7 @@ public:
 
     void set_elem(int i, Elem e) { elems_[i] = e; }
     void set_value(Elem e) { elems_[0] = e; }
+    void set_prim(Prim p) { prim_ = p; }
 
     Prim prim() const { return prim_; }
     size_t size() const { return elems_.size(); }

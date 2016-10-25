@@ -26,6 +26,7 @@ public:
     PrimOp* primop(PrimOp::Op op, const Value* a, const Value* b) { return new_node<PrimOp>(op, a, b); }
     PrimOp* select(const Value* cond, const Value* a, const Value* b) { return new_node<PrimOp>(PrimOp::SELECT, a, b, cond); }
     PrimOp* bitcast(const Value* a, const Type* t) { return new_node<PrimOp>(PrimOp::BITCAST, a, t); }
+    PrimOp* elem(const Value* a, const Value* b) { return new_node<PrimOp>(PrimOp::ELEM, a, b); }
 
     // Complex expressions
     IfExpr* if_expr(const Value* cond, const Expr* if_true, const Expr* if_false) { return new_node<IfExpr>(cond, if_true, if_false); }
@@ -33,13 +34,9 @@ public:
     LetExpr* let_expr(const Var* v, const Expr* e = nullptr) { return new_node<LetExpr>(v, e); }
 
     // Types
-    PrimType* prim_type(Prim p, int size = 1) { return new_type<PrimType>(p, size); }
-    LambdaType* lambda_type(const Type* from, const Type* to) { return new_type<LambdaType>(from, to); }
-    TupleType* tuple_type(const std::vector<const Type*>& args) { return new_type<TupleType>(args); }
-    TypeVar* type_var() { return new_type<TypeVar>(); }
-    PolyType* poly_type(const TypeVar* var, const Type* body) { return new_type<PolyType>(var, body); }
-    PolyType* top_type() { auto v = type_var(); return poly_type(v, v); }
-    ErrorType* error_type() { return new_type<ErrorType>(); }
+    const PrimType* prim_type(Prim p, int size = 1) { return new_type<PrimType>(p, size); }
+    const LambdaType* lambda_type(const Type* from, const Type* to) { return new_type<LambdaType>(from, to); }
+    const TupleType* tuple_type(const std::vector<const Type*>& args) { return new_type<TupleType>(args); }
 
 private:
     struct HashType {
@@ -59,7 +56,7 @@ private:
     }
 
     template <typename T, typename... Args>
-    T* new_type(const Args&... args) {
+    const T* new_type(const Args&... args) {
         T ref_type(args...);
         auto it = types_.find(&ref_type);
         if (it != types_.end()) return (*it)->template as<T>();

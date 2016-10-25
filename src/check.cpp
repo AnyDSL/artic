@@ -6,6 +6,8 @@ namespace artic {
 
 class CheckSema {
 public:
+    CheckSema() : err_count_(0) {}
+
     void check(const Expr* e) {
         e->check(*this);
     }
@@ -13,7 +15,13 @@ public:
     template <typename... Args>
     void error(const Expr* e, Args... args) {
         artic::error(e->loc(), ": ", args...);
+        err_count_++;
     }
+
+    int error_count() const { return err_count_; }
+
+private:
+    int err_count_;
 };
 
 void Vector::check(CheckSema&) const {}
@@ -190,9 +198,10 @@ void LetExpr::check(CheckSema& sema) const {
     sema.check(body());
 }
 
-void check(const Expr* e) {
+bool check(const Expr* e) {
     CheckSema sema;
     sema.check(e);
+    return sema.error_count() == 0;
 }
 
 } // namespace artic

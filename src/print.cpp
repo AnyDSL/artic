@@ -218,21 +218,17 @@ void PrimOp::print(PrettyPrinter& p) const {
             case SELECT:
                 p.print(p.keyword_style("select"), " ");
                 arg(0)->print(p);
-                p.print(" ", p.keyword_style("or"), " ");
                 arg(1)->print(p);
-                p.print(" ", p.keyword_style("with"), " ");
                 arg(2)->print(p);
                 break;
             case BITCAST:
                 p.print(p.keyword_style("bitcast"));
-                arg(0)->print(p);
-                p.print(" ", p.keyword_style("to"), " ");
                 type_arg(0)->print(p);
+                arg(0)->print(p);
                 break;
             case ELEM:
                 p.print(p.keyword_style("elem"), " ");
                 arg(0)->print(p);
-                p.print(" ", p.keyword_style("of"), " ");
                 arg(1)->print(p);
                 break;
             default: assert(false);
@@ -302,23 +298,6 @@ void TupleType::print(PrettyPrinter& p) const {
     }
     if (n > 0) arg(n - 1)->print(p);
     p.print(")");
-}
-
-void TypeVar::print(PrettyPrinter& p) const {
-    p.print(p.ident_style(p.ident(this)));
-}
-
-void PolyType::print(PrettyPrinter& p) const {
-    p.new_ident(var());
-    p.print(p.keyword_style("forall"), " ");
-    var()->print(p);
-    p.print(".");
-    body()->print(p);
-    p.free_ident(var());
-}
-
-void ErrorType::print(PrettyPrinter& p) const {
-    p.print(p.error_style("<error>"));
 }
 
 void print(const Expr* e,

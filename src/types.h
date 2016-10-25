@@ -20,12 +20,6 @@ public:
     virtual bool equals(const Type* t) const = 0;
 };
 
-enum class TypeHash : size_t {
-    ERROR_TYPE,
-    TYPE_VAR,
-    PRIM_TYPE
-};
-
 /// Primitive types.
 enum class Prim : uint16_t {
     I1,
@@ -93,7 +87,7 @@ public:
     void print(PrettyPrinter&) const override;
 
     size_t hash() const override {
-        return size_t(TypeHash::PRIM_TYPE) + 16 * size() + size_t(prim());
+        return 16 * size() + size_t(prim());
     }
 
     bool equals(const Type* t) const override {
@@ -177,63 +171,6 @@ public:
     bool equals(const Type* t) const override {
         return t->isa<TupleType>() && TypeApp::equals(t);
     }
-};
-
-/// Type variable coming from a polymorphic type.
-class TypeVar : public Type {
-    friend class IRBuilder;
-
-    TypeVar() {}
-
-public:
-    void print(PrettyPrinter&) const override;
-    size_t hash() const override { return size_t(TypeHash::TYPE_VAR); }
-    bool equals(const Type* t) const override { return t == this; }
-};
-
-/// Polymorphic type.
-class PolyType : public Type {
-    friend class IRBuilder;
-
-    PolyType(const TypeVar* var, const Type* body = nullptr)
-        : var_(var), body_(body)
-    {}
-
-public:
-    const TypeVar* var() const { return var_; }
-    void set_var(const TypeVar* var) { var_ = var; }
-
-    const Type* body() const { return body_;}
-    void set_body(const Type* t) { body_ = t; }
-
-    void print(PrettyPrinter&) const override;
-
-    size_t hash() const override {
-        return hash_combine(var()->hash(), body()->hash());
-    }
-
-    bool equals(const Type* t) const override {
-        if (auto poly = t->isa<PolyType>()) {
-            return var()->equals(poly->var()) && body()->equals(poly->body());
-        }
-        return false;
-    }
-
-private:
-    const TypeVar* var_;
-    const Type* body_;
-};
-
-/// A type that denotes an incorrect typed expression.
-class ErrorType : public Type {
-    friend class IRBuilder;
-
-    ErrorType() {}
-
-public:
-    void print(PrettyPrinter&) const override;
-    size_t hash() const override { return size_t(TypeHash::ERROR_TYPE); }
-    bool equals(const Type* t) const override { return t->isa<ErrorType>(); }
 };
 
 } // namespace artic

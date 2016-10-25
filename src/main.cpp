@@ -3,34 +3,20 @@
 using namespace artic;
 
 int main(int argc, char** argv) {
+    if (argc != 2) return 1;
+
     IRBuilder builder;
+    std::vector<Expr*> exprs;
 
-#include "begin_dsl.h"
-    auto fact = let(factorial) =
-        lambda(x)
-            let(c) = vec(0) == x in
-                if c then
-                    vec(1)
-                else
-                    let(x_) = x - vec(1) in
-                        let(f_) = app(factorial, x_) in
-                            x * f_
-                        end_let
-                    end_let
-                end_if
-            end_let
-        end_lambda
-    in
-        vec(1, 2, 3, 4)
-    end_let;
-#include "end_dsl.h"
-
-    auto e = fact(Loc(__FILE__, __LINE__));
-
-    infer(e);
-    check(e);
-    print(e);
-    std::cout << std::endl;
+    if (parse(argv[1], builder, exprs)) {
+        for (auto e : exprs) {
+            infer(e);
+            if (check(e)) {
+                print(e);
+                std::cout << std::endl;
+            }
+        }
+    }
 
     return 0;
 }
