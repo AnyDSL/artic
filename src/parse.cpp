@@ -59,6 +59,7 @@ public:
 #include "tokens.inc"
             default: assert(false);
         }
+        return Prim();
     }
 
     bool is_binop() const {
@@ -75,6 +76,7 @@ public:
 #include "tokens.inc"
             default: assert(false);
         }
+        return PrimOp::Op();
     }
 
     static std::string to_string(Token::Type t) {

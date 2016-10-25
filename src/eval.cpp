@@ -137,6 +137,7 @@ const Value* PrimOp::eval() const {
         }
     }
     assert(false);
+    return nullptr;
 }
 
 } // namespace artic
