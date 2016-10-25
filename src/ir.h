@@ -291,7 +291,7 @@ public:
     };
 
 private:
-    PrimOp(Op op, const Value* a, const Type* t) 
+    PrimOp(Op op, const Type* t, const Value* a)
         : op_(op) {
         assert(op == BITCAST);
         args_.push_back(a);

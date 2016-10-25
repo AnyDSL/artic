@@ -22,6 +22,7 @@ std::string to_string(Prim p) {
 
 bool is_integer(Prim p) {
     switch (p) {
+        case Prim::I1 :
         case Prim::I8 :
         case Prim::I16:
         case Prim::I32:
@@ -31,7 +32,6 @@ bool is_integer(Prim p) {
         case Prim::U32:
         case Prim::U64:
             return true;
-        case Prim::I1 : break;
         case Prim::F32: break;
         case Prim::F64: break;
         default: assert(false);

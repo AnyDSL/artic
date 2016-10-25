@@ -24,8 +24,8 @@ public:
 
     // Prim ops
     PrimOp* primop(PrimOp::Op op, const Value* a, const Value* b) { return new_node<PrimOp>(op, a, b); }
-    PrimOp* select(const Value* cond, const Value* a, const Value* b) { return new_node<PrimOp>(PrimOp::SELECT, a, b, cond); }
-    PrimOp* bitcast(const Value* a, const Type* t) { return new_node<PrimOp>(PrimOp::BITCAST, a, t); }
+    PrimOp* select(const Value* cond, const Value* a, const Value* b) { return new_node<PrimOp>(PrimOp::SELECT, cond, a, b); }
+    PrimOp* bitcast(const Type* t, const Value* a) { return new_node<PrimOp>(PrimOp::BITCAST, t, a); }
     PrimOp* elem(const Value* a, const Value* b) { return new_node<PrimOp>(PrimOp::ELEM, a, b); }
 
     // Complex expressions

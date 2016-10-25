@@ -475,8 +475,8 @@ PrimOp* Parser::parse_primop(const Value* left, const Pos& begin) {
 PrimOp* Parser::parse_bitcast() {
     auto bitcast = make_expr(builder_.bitcast(nullptr, nullptr));
     eat(Token::BITCAST);
-    bitcast->args()[0] = parse_value();
     bitcast->type_args()[0] = parse_type();
+    bitcast->args()[0] = parse_value();
     return bitcast;
 }
 
@@ -564,7 +564,7 @@ Vector* Parser::parse_vector() {
         switch (vector->prim()) {
             case Prim::I1:
                 if (lit.type != Literal::UINT ||
-                    lit.u64 != 0 || lit.u64 != 1)
+                    (lit.u64 != 0 && lit.u64 != 1))
                     error("Boolean literal expected");
                 break;
 

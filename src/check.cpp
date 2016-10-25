@@ -99,15 +99,15 @@ void PrimOp::check(CheckSema& sema) const {
                         return;
                     }
 
-                    auto a = arg(0)->type()->isa<PrimType>();
-                    auto b = arg(1)->type()->isa<PrimType>();
-                    auto c = arg(2)->type()->isa<PrimType>();
+                    auto a = arg(1)->type()->isa<PrimType>();
+                    auto b = arg(2)->type()->isa<PrimType>();
+                    auto c = arg(0)->type()->isa<PrimType>();
                     if (!a || !b || !c) {
                         sema.error(this, "Primitive types expected in select operation");
                         return;
                     }
 
-                    if (a->prim() == b->prim() && a->size() == b->size()) {
+                    if (a->prim() != b->prim() || a->size() != b->size()) {
                         sema.error(this, "Type mismatch in select operation");
                         return;
                     }
@@ -139,7 +139,7 @@ void PrimOp::check(CheckSema& sema) const {
                     }
 
                     if (dst_type->bitcount() != src_type->bitcount()) {
-                        sema.error(this, "Bit counts of Operands do not match in bitcast");
+                        sema.error(this, "Bit counts of operands do not match in bitcast");
                         return;
                     }
                 }

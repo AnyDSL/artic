@@ -102,15 +102,15 @@ const Type* PrimOp::infer(InferSema& sema) const {
         switch(op()) {
             case SELECT:
                 {
-                    auto a = arg(0)->type() ? arg(0)->type()->isa<PrimType>() : nullptr;
-                    auto b = arg(1)->type() ? arg(1)->type()->isa<PrimType>() : nullptr;
+                    auto a = arg(1)->type() ? arg(1)->type()->isa<PrimType>() : nullptr;
+                    auto b = arg(2)->type() ? arg(2)->type()->isa<PrimType>() : nullptr;
                     auto c = a ? builder()->prim_type(Prim::I1, a->size()) :
                              b ? builder()->prim_type(Prim::I1, b->size()) :
                              nullptr;
-                    sema.infer(arg(0), arg(1)->type());
-                    sema.infer(arg(1), arg(0)->type());
-                    sema.infer(arg(2), c);
-                    return arg(0)->type() ? arg(0)->type() : arg(1)->type();
+                    sema.infer(arg(1), arg(2)->type());
+                    sema.infer(arg(2), arg(1)->type());
+                    sema.infer(arg(0), c);
+                    return arg(1)->type() ? arg(1)->type() : arg(2)->type();
                 }
             case BITCAST:
                 sema.infer(arg(0), type_arg(0));
@@ -125,7 +125,8 @@ const Type* PrimOp::infer(InferSema& sema) const {
 
                     if (auto tuple_type = arg_type->isa<TupleType>()) {
                         if (auto index = arg(0)->isa<Vector>()) {
-                            return tuple_type->arg(index->value().i32);
+                            if (index->size() == 1 && is_integer(index->type()->as<PrimType>()->prim()))
+                                return tuple_type->arg(index->value().i32);
                         }
                     } else if (auto vector_type = arg_type->isa<PrimType>()) {
                         return builder()->prim_type(vector_type->prim(), 1);
