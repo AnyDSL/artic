@@ -305,9 +305,9 @@ public:
     LetExpr*     parse_let_expr();
     ComplexExpr* parse_complex_expr();
     IfExpr*      parse_if_expr();
-    AppExpr*     parse_app_expr(Value* first);
+    AppExpr*     parse_app_expr(Value* first, const Pos& begin);
     AtomicExpr*  parse_atomic_expr();
-    PrimOp*      parse_primop(const Value* left);
+    PrimOp*      parse_primop(const Value* left, const Pos& begin);
     PrimOp*      parse_bitcast();
     PrimOp*      parse_select();
     PrimOp*      parse_elem();
@@ -411,15 +411,16 @@ ComplexExpr* Parser::parse_complex_expr() {
     if (ahead() == Token::IF) return parse_if_expr();
     if (ahead() == Token::IDENT  ||
         ahead() == Token::BSLASH) {
+        auto begin = ahead().loc().begin;
         auto value = parse_value();
         if (ahead() == Token::IDENT  ||
             ahead() == Token::BSLASH ||
             ahead() == Token::LPAREN ||
             ahead().is_prim()) {
-            return parse_app_expr(value);
+            return parse_app_expr(value, begin);
         }
         if (ahead().is_binop())
-            return parse_primop(value);
+            return parse_primop(value, begin);
         return value;
     }
     return parse_atomic_expr();
@@ -436,9 +437,9 @@ IfExpr* Parser::parse_if_expr() {
     return if_expr;
 }
 
-AppExpr* Parser::parse_app_expr(Value* first) {
+AppExpr* Parser::parse_app_expr(Value* first, const Pos& begin) {
     auto app_expr = make_expr(builder_.app_expr({ first }));
-    if (first) app_expr->loc_.begin = first->loc_.begin;
+    app_expr->loc_.begin = begin;
     do {
         app_expr->args().push_back(parse_value());
     } while (ahead() == Token::IDENT  ||
@@ -456,16 +457,17 @@ AtomicExpr* Parser::parse_atomic_expr() {
         default: break;
     }
 
+    auto begin = ahead().loc().begin;
     auto value = parse_value();
     if (ahead().is_binop())
-        return parse_primop(value);
+        return parse_primop(value, begin);
     return value;
 }
 
-PrimOp* Parser::parse_primop(const Value* left) {
+PrimOp* Parser::parse_primop(const Value* left, const Pos& begin) {
     auto primop = make_expr(builder_.primop(ahead().to_binop(), left, nullptr));
     lex();
-    if (left) primop->loc_.begin = left->loc_.begin;
+    primop->loc_.begin = begin;
     primop->args()[1] = parse_value();
     return primop;
 }
