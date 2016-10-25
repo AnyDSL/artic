@@ -143,6 +143,14 @@ private:
         c_ = stream_.get();
     }
 
+    bool accept(int c) {
+        if (c_ == c) {
+            next();
+            return true;
+        }
+        return false;
+    }
+
     int c_;
     Pos cur_pos_;
     Pos prev_pos_;
@@ -160,11 +168,11 @@ Token Lexer::operator () () {
 
     if (c_ == EOF) return make_token(Token::END);
 
-    if (std::isalpha(c_)) {
+    if (std::isalpha(c_) || c_ == '_') {
         // Identifier or keyword
         std::string str(1, c_);
         next();
-        while (std::isalnum(c_)) {
+        while (std::isalnum(c_) || c_ == '_') {
             str += c_;
             next();
         }
@@ -183,10 +191,10 @@ Token Lexer::operator () () {
     }
 
     switch (d) {
-        case '=': return make_token(c_ == '=' ? Token::CMP_EQ : Token::ASSIGN);
-        case '>': return make_token(c_ == '=' ? Token::CMP_GE : (c_ == '>' ? Token::RSHFT : Token::CMP_GT));
-        case '<': return make_token(c_ == '=' ? Token::CMP_LE : (c_ == '<' ? Token::LSHFT : Token::CMP_LT));
-        case '-': return make_token(c_ == '>' ? Token::ARROW : Token::SUB);
+        case '=': return make_token(accept('=') ? Token::CMP_EQ : Token::ASSIGN);
+        case '>': return make_token(accept('=') ? Token::CMP_GE : (accept('>') ? Token::RSHFT : Token::CMP_GT));
+        case '<': return make_token(accept('=') ? Token::CMP_LE : (accept('>') ? Token::LSHFT : Token::CMP_LT));
+        case '-': return make_token(accept('>') ? Token::ARROW : Token::SUB);
         case '+': return make_token(Token::ADD);
         case '*': return make_token(Token::MUL);
         case '/': return make_token(Token::DIV);
@@ -202,11 +210,12 @@ Token Lexer::operator () () {
         case ')': return make_token(Token::RPAREN);
 
         case ',': return make_token(Token::COMMA);
+        case '.': return make_token(Token::DOT);
 
         default: break;
     }
 
-    error("Unknown token '", d, "'");
+    error("Unknown token '", (char)d, "'");
     return make_token(Token::ERROR);
 }
 
@@ -271,7 +280,7 @@ public:
     }
 
     void push(const std::string& str, Value* value) { symbols_.emplace_back(str, value); }
-    void pop() { symbols_.pop_back(); }
+    void pop() { assert(!symbols_.empty()); symbols_.pop_back(); }
 private:
     std::vector<std::pair<std::string, Value*> > symbols_;
 };
@@ -281,8 +290,7 @@ public:
     Parser(const std::string& file, std::istream& is, IRBuilder& builder)
         : err_count_(0), lexer_(file, is), builder_(builder)
     {
-        tok_[0] = lexer_();
-        tok_[1] = lexer_();
+        tok_ = lexer_();
     }
 
     void parse(std::vector<Expr*>& exprs) {
@@ -295,7 +303,7 @@ public:
     LetExpr*     parse_let_expr();
     ComplexExpr* parse_complex_expr();
     IfExpr*      parse_if_expr();
-    AppExpr*     parse_app_expr();
+    AppExpr*     parse_app_expr(Value* first);
     AtomicExpr*  parse_atomic_expr();
     PrimOp*      parse_primop(const Value* left);
     PrimOp*      parse_bitcast();
@@ -343,16 +351,15 @@ private:
         return nullptr;
     }
 
-    const Token& ahead(int i = 0) const { return tok_[i]; }
+    const Token& ahead() const { return tok_; }
     void expect(Token::Type t) {
         if (ahead() != t) error("'", Token::to_string(t), "' expected");
         lex();
     }
     void eat(Token::Type t) { assert(ahead() == t); lex(); }
     void lex() {
-        prev_loc_ = tok_[0].loc();
-        tok_[0] = tok_[1];
-        tok_[1] = lexer_();
+        prev_loc_ = tok_.loc();
+        tok_ = lexer_();
     }
 
     template <typename... Args>
@@ -363,7 +370,7 @@ private:
 
     Loc prev_loc_;
     int err_count_;
-    Token tok_[2];
+    Token tok_;
     Env env_;
     Lexer lexer_;
     IRBuilder& builder_;
@@ -400,9 +407,18 @@ LetExpr* Parser::parse_let_expr() {
 
 ComplexExpr* Parser::parse_complex_expr() {
     if (ahead() == Token::IF) return parse_if_expr();
-    if (ahead(0) == Token::IDENT &&
-        ahead(1) == Token::IDENT) {
-        return parse_app_expr();
+    if (ahead() == Token::IDENT  ||
+        ahead() == Token::BSLASH) {
+        auto value = parse_value();
+        if (ahead() == Token::IDENT  ||
+            ahead() == Token::BSLASH ||
+            ahead() == Token::LPAREN ||
+            ahead().is_prim()) {
+            return parse_app_expr(value);
+        }
+        if (ahead().is_binop())
+            return parse_primop(value);
+        return value;
     }
     return parse_atomic_expr();
 }
@@ -412,20 +428,21 @@ IfExpr* Parser::parse_if_expr() {
     eat(Token::IF);
     if_expr->set_cond(parse_value());
     expect(Token::THEN);
-    if_expr->set_if_true(parse_let_expr());
+    if_expr->set_if_true(parse_expr());
     expect(Token::ELSE);
-    if_expr->set_if_false(parse_let_expr());
+    if_expr->set_if_false(parse_expr());
     return if_expr;
 }
 
-AppExpr* Parser::parse_app_expr() {
-    auto app_expr = make_expr(builder_.app_expr({ parse_value(), parse_value() }));
-    while (ahead() == Token::IDENT  ||
-           ahead() == Token::LPAREN ||
-           ahead() == Token::BSLASH ||
-           ahead().is_prim()) {
+AppExpr* Parser::parse_app_expr(Value* first) {
+    auto app_expr = make_expr(builder_.app_expr({ first }));
+    if (first) app_expr->loc_.begin = first->loc_.begin;
+    do {
         app_expr->args().push_back(parse_value());
-    }
+    } while (ahead() == Token::IDENT  ||
+             ahead() == Token::LPAREN ||
+             ahead() == Token::BSLASH ||
+             ahead().is_prim());
     return app_expr;
 }
 
@@ -437,21 +454,18 @@ AtomicExpr* Parser::parse_atomic_expr() {
         default: break;
     }
 
-    auto begin = ahead().loc();
     auto value = parse_value();
-    if (ahead().is_binop()) {
-        auto primop = parse_primop(value);
-        primop->loc_ = begin;
-        primop->loc_.end = prev_loc_.end;
-        return primop;
-    }
+    if (ahead().is_binop())
+        return parse_primop(value);
     return value;
 }
 
 PrimOp* Parser::parse_primop(const Value* left) {
-    auto op = ahead().to_binop();
+    auto primop = make_expr(builder_.primop(ahead().to_binop(), left, nullptr));
     lex();
-    return builder_.primop(op, left, parse_value());
+    if (left) primop->loc_.begin = left->loc_.begin;
+    primop->args()[1] = parse_value();
+    return primop;
 }
 
 PrimOp* Parser::parse_bitcast() {
@@ -484,6 +498,8 @@ Value* Parser::parse_value() {
     if (ahead() == Token::LPAREN) return parse_tuple();
     if (ahead() == Token::BSLASH) return parse_lambda();
     if (ahead().is_prim())        return parse_vector();
+
+    lex();
     error("Value expected");
     return nullptr;
 }
@@ -510,10 +526,16 @@ Lambda* Parser::parse_lambda() {
     {
         auto param = make_expr(builder_.param(parse_ident()));
         lambda->set_param(param);
+        if (ahead() == Token::COLON) {
+            eat(Token::COLON);
+            param->assign_type(parse_type());
+        }
         env_.push(param->name(), param);
     }
 
-    lambda->set_body(parse_let_expr());
+    expect(Token::DOT);
+
+    lambda->set_body(parse_expr());
 
     env_.pop();
     return lambda;
@@ -535,12 +557,43 @@ Vector* Parser::parse_vector() {
         auto& elems = vector->elems();
 
         switch (vector->prim()) {
-            case Prim::I1:  elems.emplace_back((bool)lit.u64);     break;
+            case Prim::I1:
+                if (lit.type != Literal::UINT ||
+                    lit.u64 != 0 || lit.u64 != 1)
+                    error("Boolean literal expected");
+                break;
 
-            case Prim::I8:  elems.emplace_back((int8_t)lit.u64);   break;
-            case Prim::I16: elems.emplace_back((int16_t)lit.u64);  break;
-            case Prim::I32: elems.emplace_back((int32_t)lit.u64);  break;
-            case Prim::I64: elems.emplace_back((int64_t)lit.u64);  break;
+            case Prim::I8:
+            case Prim::I16:
+            case Prim::I32:
+            case Prim::I64:
+                if (lit.type != Literal::UINT &&
+                    lit.type != Literal::INT)
+                    error("Integer literal expected");
+                break;
+
+            case Prim::U8:
+            case Prim::U16:
+            case Prim::U32:
+            case Prim::U64:
+                if (lit.type != Literal::UINT)
+                    error("Unsigned literal expected");
+                break;
+
+            case Prim::F32:
+            case Prim::F64:
+                if (lit.type != Literal::FLOAT)
+                    error("Floating point literal expected");
+                break;
+        }
+
+        switch (vector->prim()) {
+            case Prim::I1:  elems.emplace_back((bool)lit.i64);     break;
+
+            case Prim::I8:  elems.emplace_back((int8_t)lit.i64);   break;
+            case Prim::I16: elems.emplace_back((int16_t)lit.i64);  break;
+            case Prim::I32: elems.emplace_back((int32_t)lit.i64);  break;
+            case Prim::I64: elems.emplace_back((int64_t)lit.i64);  break;
 
             case Prim::U8:  elems.emplace_back((uint8_t)lit.u64);  break;
             case Prim::U16: elems.emplace_back((uint16_t)lit.u64); break;
@@ -564,7 +617,7 @@ const Type* Parser::parse_type() {
 
     if (ahead() == Token::LPAREN) type = parse_tuple_type();
     else if (ahead().is_prim())   type = parse_prim_type();
-    else error("Type expected");
+    else { lex(); error("Type expected"); }
 
     return ahead() == Token::ARROW ? parse_lambda_type(type) : type;
 }

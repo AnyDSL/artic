@@ -61,6 +61,7 @@ TOKEN(BSLASH,  "\\")
 TOKEN(ARROW,   "->")
 TOKEN(COLON,   ":")
 TOKEN(ASSIGN,  "=")
+TOKEN(DOT,     ".")
 
 TOKEN(ERROR,   "<error>")
 TOKEN(END,     "<eof>")

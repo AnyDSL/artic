@@ -184,7 +184,7 @@ void Lambda::print(PrettyPrinter& p) const {
         p.print(" : ");
         param()->type()->print(p);
     }
-    p.print(" -> ");
+    p.print(" . ");
 
     const bool indent = complexity() > p.max_complexity();
     if (indent) { p.indent(); p. new_line(); }
