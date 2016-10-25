@@ -509,7 +509,8 @@ Tuple*  Parser::parse_tuple() {
     eat(Token::LPAREN);
     while (ahead() == Token::IDENT  ||
            ahead() == Token::LPAREN ||
-           ahead() == Token::BSLASH) {
+           ahead() == Token::BSLASH ||
+           ahead().is_prim()) {
         tuple->elems().push_back(parse_value());
 
         if (ahead() == Token::COMMA) eat(Token::COMMA);

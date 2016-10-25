@@ -39,7 +39,7 @@ const Type* Vector::infer(InferSema&) const {
 const Type* Tuple::infer(InferSema& sema) const {
     bool known = true;
     for (auto elem : elems()) {
-        known &= elem->infer(sema) != nullptr;
+        known &= sema.infer(elem) != nullptr;
     }
 
     if (known) {
