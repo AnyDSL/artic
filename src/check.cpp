@@ -210,7 +210,7 @@ void AppExpr::check(CheckSema& sema) const {
             }
         }
 
-        if (lambda->to()->isa<LambdaType>())
+        if (i >= num_args() && lambda->to()->isa<LambdaType>())
             sema.error(this, "Not enough arguments in function application");
     } else {
         sema.error(this, "Function expected in application expression");
