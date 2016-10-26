@@ -190,6 +190,31 @@ void AppExpr::check(CheckSema& sema) const {
     for (auto arg : args()) {
         sema.check(arg);
     }
+
+    if (auto lambda = arg(0)->type()->isa<LambdaType>()) {
+        assert(num_args() >= 2);
+        int i = 1;
+        while (true) {
+            if (arg(i)->type() != lambda->from()) {
+                sema.error(this, "Types do not match for argument ", i);
+                break;
+            }
+
+            if (++i >= num_args()) break;
+
+            if (auto next = lambda->to()->isa<LambdaType>()) {
+                lambda = next;
+            } else {
+                sema.error(this, "Too many arguments in function application");
+                break;
+            }
+        }
+
+        if (lambda->to()->isa<LambdaType>())
+            sema.error(this, "Not enough arguments in function application");
+    } else {
+        sema.error(this, "Function expected in application expression");
+    }
 }
 
 void LetExpr::check(CheckSema& sema) const {
