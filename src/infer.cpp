@@ -115,7 +115,7 @@ const Type* PrimOp::infer(InferSema& sema) const {
             case BITCAST:
                 sema.infer(arg(0), type_arg(0));
                 return type_arg(0);
-            case ELEM:
+            case EXTRACT:
                 {
                     sema.infer(arg(0), builder()->prim_type(Prim::I32, 1));
                     sema.infer(arg(1));

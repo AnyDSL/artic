@@ -287,7 +287,7 @@ public:
         ADD, SUB, MUL, DIV,                         // Arithmetic
         RSHFT, LSHFT, AND, OR, XOR,                 // Bitwise
         CMP_GE, CMP_LE, CMP_GT, CMP_LT, CMP_EQ,     // Comparison
-        SELECT, BITCAST, ELEM                       // Misc.
+        SELECT, BITCAST, EXTRACT, INSERT            // Misc.
     };
 
 private:

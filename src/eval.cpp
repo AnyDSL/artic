@@ -129,7 +129,7 @@ const Value* PrimOp::eval() const {
         switch(op()) {
             case SELECT:  return select(arg(2)->as<Vector>(), arg(0)->as<Vector>(), arg(1)->as<Vector>());
             case BITCAST: return bitcast(type_arg(0)->as<PrimType>(), arg(0)->as<Vector>());
-            case ELEM:
+            case EXTRACT:
                 if (auto tuple  = arg(1)->isa<Tuple >()) return tuple_elem (arg(0)->as<Vector>(), tuple );
                 if (auto vector = arg(1)->isa<Vector>()) return vector_elem(arg(0)->as<Vector>(), vector);
                 break;

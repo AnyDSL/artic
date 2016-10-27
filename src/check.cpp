@@ -144,7 +144,7 @@ void PrimOp::check(CheckSema& sema) const {
                     }
                 }
                 break;
-            case ELEM:
+            case EXTRACT:
                 {
                     auto arg_type = arg(1)->type();
                     auto index_type = arg(0)->type()->isa<PrimType>();

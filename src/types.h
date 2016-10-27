@@ -77,9 +77,7 @@ class PrimType : public Type {
 
 public:
     int size() const { return size_; }
-    void set_size(int i) { size_ = i; }
     Prim prim() const { return prim_; }
-    void set_prim(Prim p) { prim_ = p; }
 
     int is_integer() const { return artic::is_integer(prim()) * size(); }
     int bitcount() const { return artic::bitcount(prim()) * size(); }
@@ -87,7 +85,7 @@ public:
     void print(PrettyPrinter&) const override;
 
     size_t hash() const override {
-        return 16 * size() + size_t(prim());
+        return hash_combine(size(), int(prim()));
     }
 
     bool equals(const Type* t) const override {
@@ -100,6 +98,18 @@ public:
 private:
     Prim prim_;
     int size_;
+};
+
+/// Class that represents an incorrect type.
+class ErrorType : public Type {
+    friend class IRBuilder;
+
+    ErrorType() {}
+
+public:
+    void print(PrettyPrinter&) const override;
+    size_t hash() const override { return 0; }
+    bool equals(const Type* t) const override { return false; }
 };
 
 /// Base class for type constructors.
@@ -140,9 +150,7 @@ class LambdaType : public TypeApp {
 
 public:
     const Type* from() const { return args_[0]; }
-    void set_from(const Type* t) { args_[0] = t; }
     const Type* to() const { return args_[1]; }
-    void set_to(const Type* t) { args_[1] = t; }
 
     void print(PrettyPrinter&) const override;
 
@@ -161,7 +169,6 @@ class TupleType : public TypeApp {
 
 public:
     const std::vector<const Type*>& args() const { return args_; }
-    std::vector<const Type*>& args() { return args_; }
     const Type* arg(int i) const { return args_[i]; }
     
     size_t size() const { return args_.size(); }
@@ -171,6 +178,61 @@ public:
     bool equals(const Type* t) const override {
         return t->isa<TupleType>() && TypeApp::equals(t);
     }
+};
+
+/// A type variable coming from a type abstraction.
+class TypeVar : public Type {
+    friend class IRBuilder;
+
+    TypeVar(int bruijn)
+        : bruijn_(bruijn)
+    {}
+
+public:
+    int bruijn() const { return bruijn_; }
+
+    void print(PrettyPrinter&) const override;
+
+    size_t hash() const override {
+        return bruijn_;
+    }
+
+    bool equals(const Type* t) const override {
+        if (auto var = t->isa<TypeVar>())
+            return var->bruijn() == bruijn();
+        return false;
+    }
+
+private:
+    int bruijn_;
+};
+
+/// A polymorphic type abstraction.
+class PolyType : public Type {
+    friend class IRBuilder;
+
+    PolyType(const Type* body)
+        : body_(body)
+    {}
+
+public:
+    const Type* body() const { return body_; }
+
+    void print(PrettyPrinter&) const override;
+
+    size_t hash() const override {
+        return hash_combine(body()->hash(), 0x811c9dc5);
+    }
+
+    bool equals(const Type* t) const override {
+        if (auto poly = t->isa<PolyType>())
+            return poly->body()->equals(body());
+        return false;
+    }
+
+
+private:
+    const Type* body_;
 };
 
 } // namespace artic

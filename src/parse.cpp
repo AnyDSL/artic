@@ -310,16 +310,20 @@ public:
     PrimOp*      parse_primop(const Value* left, const Pos& begin);
     PrimOp*      parse_bitcast();
     PrimOp*      parse_select();
-    PrimOp*      parse_elem();
+    PrimOp*      parse_extract();
     Value*       parse_value();
     Tuple*       parse_tuple();
     Lambda*      parse_lambda();
     Vector*      parse_vector();
 
+    const Type*       parse_new_type() { type_level_ = 0; return parse_type(); }
+
     const Type*       parse_type();
     const TupleType*  parse_tuple_type();
     const LambdaType* parse_lambda_type(const Type* t);
     const PrimType*   parse_prim_type();
+    const Type*       parse_type_var();
+    const PolyType*   parse_poly_type();
 
     Literal parse_literal();
     std::string parse_ident();
@@ -373,9 +377,14 @@ private:
     Loc prev_loc_;
     int err_count_;
     Token tok_;
-    Env env_;
+
     Lexer lexer_;
     IRBuilder& builder_;
+
+    Env env_;
+
+    int type_level_;
+    std::unordered_map<std::string, int> type_vars_;
 };
 
 Expr* Parser::parse_expr() {
@@ -392,7 +401,7 @@ LetExpr* Parser::parse_let_expr() {
         var->set_name(parse_ident());
         if (ahead() == Token::COLON) {
             eat(Token::COLON);
-            var->assign_type(parse_type());
+            var->assign_type(parse_new_type());
         }
         expect(Token::ASSIGN);
         env_.push(var->name(), var);
@@ -453,7 +462,7 @@ AtomicExpr* Parser::parse_atomic_expr() {
     switch (ahead().type()) {
         case Token::SELECT:  return parse_select();
         case Token::BITCAST: return parse_bitcast();
-        case Token::ELEM:    return parse_elem();
+        case Token::EXTRACT: return parse_extract();
         default: break;
     }
 
@@ -475,7 +484,7 @@ PrimOp* Parser::parse_primop(const Value* left, const Pos& begin) {
 PrimOp* Parser::parse_bitcast() {
     auto bitcast = make_expr(builder_.bitcast(nullptr, nullptr));
     eat(Token::BITCAST);
-    bitcast->type_args()[0] = parse_type();
+    bitcast->type_args()[0] = parse_new_type();
     bitcast->args()[0] = parse_value();
     return bitcast;
 }
@@ -489,12 +498,12 @@ PrimOp* Parser::parse_select() {
     return select;
 }
 
-PrimOp* Parser::parse_elem() {
-    auto elem = make_expr(builder_.elem(nullptr, nullptr));
-    eat(Token::ELEM);
-    elem->args()[0] = parse_value();
-    elem->args()[1] = parse_value();
-    return elem;
+PrimOp* Parser::parse_extract() {
+    auto extract = make_expr(builder_.extract(nullptr, nullptr));
+    eat(Token::EXTRACT);
+    extract->args()[0] = parse_value();
+    extract->args()[1] = parse_value();
+    return extract;
 }
 
 Value* Parser::parse_value() {
@@ -533,7 +542,7 @@ Lambda* Parser::parse_lambda() {
         lambda->set_param(param);
         if (ahead() == Token::COLON) {
             eat(Token::COLON);
-            param->assign_type(parse_type());
+            param->assign_type(parse_new_type());
         }
         env_.push(param->name(), param);
     }
@@ -618,11 +627,17 @@ Vector* Parser::parse_vector() {
 }
 
 const Type* Parser::parse_type() {
-    const Type* type = nullptr;
+    const Type* type;
 
-    if (ahead() == Token::LPAREN) type = parse_tuple_type();
-    else if (ahead().is_prim())   type = parse_prim_type();
-    else { lex(); error("Type expected"); }
+    if      (ahead().is_prim())        type = parse_prim_type();
+    else if (ahead() == Token::LPAREN) type = parse_tuple_type();
+    else if (ahead() == Token::FORALL) type = parse_poly_type();
+    else if (ahead() == Token::IDENT)  type = parse_type_var();
+    else {
+        lex();
+        error("Type expected");
+        type = builder_.error_type();
+    }
 
     return ahead() == Token::ARROW ? parse_lambda_type(type) : type;
 }
@@ -630,7 +645,10 @@ const Type* Parser::parse_type() {
 const TupleType* Parser::parse_tuple_type() {
     eat(Token::LPAREN);
     std::vector<const Type*> types;
-    while (ahead() == Token::LPAREN || ahead().is_prim()) {
+    while (ahead().is_prim() ||
+           ahead() == Token::LPAREN ||
+           ahead() == Token::FORALL ||
+           ahead() == Token::IDENT) {
         types.push_back(parse_type());
 
         if (ahead() == Token::COMMA) eat(Token::COMMA);
@@ -650,6 +668,35 @@ const PrimType* Parser::parse_prim_type() {
     auto prim = ahead().to_prim();
     lex();
     return builder_.prim_type(prim, parse_dims());
+}
+
+const Type* Parser::parse_type_var() {
+    assert(ahead() == Token::IDENT);
+
+    auto var = type_vars_.find(ahead().ident());
+    lex();
+    if (var == type_vars_.end()) {
+        error("Unknown type variable");
+        return builder_.error_type();
+    }
+    return builder_.type_var(type_level_ - var->second - 1);
+}
+
+const PolyType* Parser::parse_poly_type() {
+    eat(Token::FORALL);
+    if (ahead() == Token::IDENT) {
+        if (type_vars_.count(ahead().ident()))
+            error("Type variable name already used");
+        else
+            type_vars_.emplace(ahead().ident(), type_level_);
+        eat(Token::IDENT);
+    } else {
+        lex();
+        error("Type variable name expected");
+    }
+    expect(Token::DOT);
+    type_level_++;
+    return builder_.poly_type(parse_type());
 }
 
 Literal Parser::parse_literal() {

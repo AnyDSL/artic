@@ -38,6 +38,11 @@ public:
     template <typename T, typename... Args>
     void print(T t, Args... args) { print(t); print(args...); }
 
+    void print_type(const Type* type) {
+        type_level_ = 0;
+        type->print(*this);
+    }
+
     template <typename T> KeywordStyle<T> keyword_style(const T& t) const { return KeywordStyle<T>(color_, t); }
     template <typename T> LiteralStyle<T> literal_style(const T& t) const { return LiteralStyle<T>(color_, t); }
     template <typename T> IdentStyle<T>   ident_style  (const T& t) const { return IdentStyle<T>  (color_, t); }
@@ -60,38 +65,18 @@ public:
         for (int i = 0; i < indent_; i++) out_ << tab_;
     }
 
+    int type_level() const { return type_level_; }
+    void inc_level() { type_level_++; }
+
     void indent() { indent_++; }
     void unindent() { indent_--; }
-
-    void new_ident(const void* key) {
-        std::string i;
-        if (!idents_.size()) i = "a";
-        else {
-            i = *idents_.crbegin();
-            auto c = i.back();
-            if (c == 'z') {
-                i.back() = 'a';
-                i += 'a';
-            } else i.back() = c + 1;
-        }
-        key_to_ident_[key] = i;
-        idents_.insert(i);
-    }
-
-    std::string ident(const void* key) { return key_to_ident_[key]; }
-
-    void free_ident(const void* key) {
-        idents_.erase(key_to_ident_[key]);
-        key_to_ident_.erase(key);
-    }
 
     size_t max_complexity() const { return max_c_; }
     size_t default_max_complexity() const { return 5; }
     void set_max_complexity(size_t c) { max_c_ = c; }
 
 private:
-    std::unordered_map<const void*, std::string> key_to_ident_;
-    std::set<std::string> idents_;
+    int type_level_;
 
     std::ostream& out_;
     const std::string& tab_;
@@ -186,7 +171,7 @@ void Lambda::print(PrettyPrinter& p) const {
     p.print("\\", p.ident_style(param()->name()));
     if (param()->type()) {
         p.print(" : ");
-        param()->type()->print(p);
+        p.print_type(param()->type());
     }
     p.print(" . ");
 
@@ -229,12 +214,12 @@ void PrimOp::print(PrettyPrinter& p) const {
                 break;
             case BITCAST:
                 p.print(p.keyword_style("bitcast"), " ");
-                type_arg(0)->print(p);
+                p.print_type(type_arg(0));
                 p.print(" ");
                 arg(0)->print(p);
                 break;
-            case ELEM:
-                p.print(p.keyword_style("elem"), " ");
+            case EXTRACT:
+                p.print(p.keyword_style("extract"), " ");
                 arg(0)->print(p);
                 p.print(" ");
                 arg(1)->print(p);
@@ -275,7 +260,7 @@ void LetExpr::print(PrettyPrinter& p) const {
     p.print(p.keyword_style("let"), " ", p.ident_style(var()->name()));
     if (var()->type()) {
         p.print(" : ");
-        var()->type()->print(p);
+        p.print_type(var()->type());
     }
     p.print(" = ");
     var()->binding()->print(p);
@@ -289,6 +274,10 @@ void LetExpr::print(PrettyPrinter& p) const {
 void PrimType::print(PrettyPrinter& p) const {
     p.print(p.keyword_style(to_string(prim())));
     if (size() > 1) p.print("<", size(), ">");
+}
+
+void ErrorType::print(PrettyPrinter& p) const {
+    p.print(p.error_style("<error>"));
 }
 
 void LambdaType::print(PrettyPrinter& p) const {
@@ -306,6 +295,25 @@ void TupleType::print(PrettyPrinter& p) const {
     }
     if (n > 0) arg(n - 1)->print(p);
     p.print(")");
+}
+
+void TypeVar::print(PrettyPrinter& p) const {
+    int k = p.type_level() - bruijn() - 1;
+    if (k < 26)
+        p.print(char('a' + k));
+    else
+        p.print("t", k - 26);
+}
+
+void PolyType::print(PrettyPrinter& p) const {
+    p.print(p.keyword_style("forall"), " ");
+    if (p.type_level() < 26)
+        p.print(char('a' + p.type_level()));
+    else
+        p.print("t", p.type_level() - 26);
+    p.print(" . ");
+    p.inc_level();
+    body()->print(p);
 }
 
 void print(const Expr* e,
