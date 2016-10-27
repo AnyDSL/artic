@@ -8,6 +8,7 @@
 namespace artic {
 
 /// Class that manages the creation/lifetime of IR nodes and types.
+/// Types are hashed and can be compared by comparing their addresses.
 class IRBuilder {
 public:
     ~IRBuilder() {
@@ -27,6 +28,7 @@ public:
     PrimOp* select(const Value* cond, const Value* a, const Value* b) { return new_node<PrimOp>(PrimOp::SELECT, cond, a, b); }
     PrimOp* bitcast(const Type* t, const Value* a) { return new_node<PrimOp>(PrimOp::BITCAST, t, a); }
     PrimOp* extract(const Value* a, const Value* b) { return new_node<PrimOp>(PrimOp::EXTRACT, a, b); }
+    PrimOp* insert(const Value* a, const Value* b, const Value* c) { return new_node<PrimOp>(PrimOp::INSERT, a, b, c); }
 
     // Complex expressions
     IfExpr*  if_expr(const Value* cond, const Expr* if_true, const Expr* if_false) { return new_node<IfExpr>(cond, if_true, if_false); }

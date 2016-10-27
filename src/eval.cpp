@@ -90,18 +90,36 @@ static const Vector* bitcast(const PrimType* type, const Vector* a) {
     return v;
 }
 
-static const Value* tuple_elem(const Vector* index, const Tuple* tuple) {
+static const Value* tuple_extract(const Vector* index, const Tuple* tuple) {
     assert(index->size() == 1);
     auto i = index->value().u32;
     return tuple->elem(i);
 }
 
-static const Value* vector_elem(const Vector* index, const Vector* vector) {
+static const Value* vector_extract(const Vector* index, const Vector* vector) {
     assert(index->size() == 1);
     auto i = index->value().u32;
-    auto builder = vector->builder();
-    auto v = builder->vector(vector->prim());
+    auto v = vector->builder()->vector(vector->prim());
     v->resize(1);
+    v->set_elem(0, vector->elem(i));
+    return v;
+}
+
+static const Value* tuple_insert(const Vector* index, const Tuple* tuple, const Value* value) {
+    assert(index->size() == 1);
+    auto i = index->value().u32;
+
+    std::vector<const Value*> elems = tuple->elems();
+    elems[i] = value;
+    return tuple->builder()->tuple(elems);
+}
+
+static const Value* vector_insert(const Vector* index, const Vector* vector, const Value* value) {
+    assert(index->size() == 1);
+    auto i = index->value().u32;
+    auto v = vector->builder()->vector(vector->prim());
+    v->resize(vector->size());
+    v->elems() = vector->elems();
     v->set_elem(0, vector->elem(i));
     return v;
 }
@@ -130,8 +148,12 @@ const Value* PrimOp::eval() const {
             case SELECT:  return select(arg(2)->as<Vector>(), arg(0)->as<Vector>(), arg(1)->as<Vector>());
             case BITCAST: return bitcast(type_arg(0)->as<PrimType>(), arg(0)->as<Vector>());
             case EXTRACT:
-                if (auto tuple  = arg(1)->isa<Tuple >()) return tuple_elem (arg(0)->as<Vector>(), tuple );
-                if (auto vector = arg(1)->isa<Vector>()) return vector_elem(arg(0)->as<Vector>(), vector);
+                if (auto tuple  = arg(1)->isa<Tuple >()) return tuple_extract (arg(0)->as<Vector>(), tuple );
+                if (auto vector = arg(1)->isa<Vector>()) return vector_extract(arg(0)->as<Vector>(), vector);
+                break;
+            case INSERT:
+                if (auto tuple  = arg(1)->isa<Tuple >()) return tuple_insert (arg(0)->as<Vector>(), tuple , arg(2));
+                if (auto vector = arg(1)->isa<Vector>()) return vector_insert(arg(0)->as<Vector>(), vector, arg(2));
                 break;
             default: break;
         }

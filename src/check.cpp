@@ -91,81 +91,90 @@ void PrimOp::check(CheckSema& sema) const {
             default: assert(false);
         }
     } else {
-        switch(op()) {
-            case SELECT:
-                {
-                    if (num_args() != 3) {
-                        sema.error(this, "Incorrect number of arguments in select operation");
-                        return;
-                    }
+        int req_args, req_type_args;
 
-                    auto a = arg(1)->type()->isa<PrimType>();
-                    auto b = arg(2)->type()->isa<PrimType>();
-                    auto c = arg(0)->type()->isa<PrimType>();
-                    if (!a || !b || !c) {
-                        sema.error(this, "Primitive types expected in select operation");
-                        return;
-                    }
-
-                    if (a->prim() != b->prim() || a->size() != b->size()) {
-                        sema.error(this, "Type mismatch in select operation");
-                        return;
-                    }
-
-                    if (c->prim() != Prim::I1) {
-                        sema.error(this, "Boolean expected in select condition");
-                        return;
-                    }
-
-                    if (c->size() != a->size()) {
-                        sema.error(this, "Vectors of different sizes in select operation");
-                        return; 
-                    }
-                }
-                break;
-            case BITCAST:
-                {
-                    // Supports bitcast between primitive types only
-                    if (num_args() != 1 || num_type_args() != 1) {
-                        sema.error(this, "Incorrect number of arguments in bitcast operation");
-                        return;
-                    }
-
-                    auto dst_type = type_arg(0)->isa<PrimType>();
-                    auto src_type = arg(0)->type()->isa<PrimType>();
-                    if (!dst_type || !src_type) {
-                        sema.error(this, "Primitive types expected in bitcast operation");
-                        return;
-                    }
-
-                    if (dst_type->bitcount() != src_type->bitcount()) {
-                        sema.error(this, "Bit counts of operands do not match in bitcast");
-                        return;
-                    }
-                }
-                break;
-            case EXTRACT:
-                {
-                    auto arg_type = arg(1)->type();
-                    auto index_type = arg(0)->type()->isa<PrimType>();
-
-                    if (!index_type || !index_type->is_integer() || index_type->size() != 1) {
-                        sema.error(this, "Index must be an integer in element extraction operation");
-                        return;
-                    }
-
-                    if (auto tuple_type = arg_type->isa<TupleType>()) {
-                        if (!arg(0)->isa<Vector>()) {
-                            sema.error(this, "Index must be an immediate value in element extraction operation");
-                            return;
-                        }
-                    } else if (!arg_type->isa<PrimType>()) {
-                        sema.error(this, "Argument must be a vector or a tuple in element extraction operation");
-                        return;
-                    }
-                }
-                break;
+        switch (op()) {
+            case SELECT:  req_args = 3; req_type_args = 0; break;
+            case BITCAST: req_args = 1; req_type_args = 1; break;
+            case EXTRACT: req_args = 2; req_type_args = 0; break;
+            case INSERT:  req_args = 3; req_type_args = 0; break;
             default: assert(false);
+        }
+
+        if (num_args() != req_args) {
+            sema.error(this, "Incorrect number of arguments");
+            return;
+        }
+
+        if (num_type_args() != req_type_args) {
+            sema.error(this, "Incorrect number of type arguments");
+            return;
+        }
+
+        switch (op()) {
+            case SELECT:  check_select(sema);  break;
+            case BITCAST: check_bitcast(sema); break;
+            case EXTRACT: check_extract_or_insert(sema, false); break;
+            case INSERT:  check_extract_or_insert(sema, true);  break;
+            default: assert(false);
+        }
+    }
+}
+
+void PrimOp::check_select(CheckSema& sema) const {
+    auto c = arg(0)->type()->isa<PrimType>();
+    auto a = arg(1)->type()->isa<PrimType>();
+    auto b = arg(2)->type()->isa<PrimType>();
+
+    if (!a || !b || !c ||
+        a->prim() != b->prim() || a->size() != b->size() ||
+        c->prim() != Prim::I1  || c->size() != a->size()) {
+        sema.error(this, "Incorrect select operation");
+    }
+}
+
+void PrimOp::check_bitcast(CheckSema& sema) const {
+    auto a = type_arg(0)->isa<PrimType>();
+    auto b = arg(0)->type()->isa<PrimType>();
+
+    if (!a || !b || a->bitcount() != b->bitcount()) {
+        sema.error(this, "Incorrect bitcast operation");
+    }
+}
+
+void PrimOp::check_extract_or_insert(CheckSema& sema, bool insert) const {
+    std::string op = insert ? "insert operation" : "extract operation";
+    auto index_type = arg(0)->type()->isa<PrimType>();
+
+    if (!index_type || !index_type->is_integer() || index_type->size() != 1) {
+        sema.error(this, "Index must be an integer in ", op);
+        return;
+    }
+
+    if (auto tuple_type = arg(1)->type()->isa<TupleType>()) {
+        auto index = arg(0)->isa<Vector>();
+        if (!index) {
+            sema.error(this, "Index must be an immediate value in insertion operation");
+            return;
+        }
+
+        if (insert && tuple_type->arg(index->value().u32) != arg(2)->type()) {
+            sema.error(this, "Element type mismatch in ", op);
+            return;
+        }
+    } else {
+        auto vector = arg(1)->type()->isa<PrimType>();
+        if (!vector || vector->size() <= 1) {
+            sema.error(this, "Argument must be a vector or a tuple in ", op);
+            return;
+        }
+
+        if (insert) {
+            auto value = arg(2)->type()->isa<PrimType>();
+            if (!value || value->size() != 1 || value->prim() != vector->prim()) {
+                sema.error(this, "Element type mismatch in insertion operation");
+                return;
+            }
         }
     }
 }

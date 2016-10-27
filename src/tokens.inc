@@ -38,6 +38,7 @@ KEYWORD(ELSE,    "else")
 KEYWORD(SELECT,  "select")
 KEYWORD(BITCAST, "bitcast")
 KEYWORD(EXTRACT, "extract")
+KEYWORD(INSERT,  "insert")
 KEYWORD(FORALL,  "forall")
 
 BINOP(CMP_EQ,    "==")

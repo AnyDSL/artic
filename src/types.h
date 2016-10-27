@@ -170,8 +170,7 @@ class TupleType : public TypeApp {
 public:
     const std::vector<const Type*>& args() const { return args_; }
     const Type* arg(int i) const { return args_[i]; }
-    
-    size_t size() const { return args_.size(); }
+    size_t num_args() const { return args_.size(); }
 
     void print(PrettyPrinter&) const override;
 

@@ -306,7 +306,7 @@ private:
 
     PrimOp(Op op, const Value* a, const Value* b, const Value* c)
         : op_(op) {
-        assert(op == SELECT);
+        assert(op == SELECT || op == INSERT);
         args_.push_back(a);
         args_.push_back(b);
         args_.push_back(c);
@@ -341,6 +341,10 @@ public:
     const Type* infer(InferSema&) const override;
 
 private:
+    void check_select(CheckSema&) const;
+    void check_bitcast(CheckSema&) const;
+    void check_extract_or_insert(CheckSema&, bool) const;
+
     Op op_;
     std::vector<const Value*> args_;
     std::vector<const Type*> type_args_;

@@ -311,6 +311,7 @@ public:
     PrimOp*      parse_bitcast();
     PrimOp*      parse_select();
     PrimOp*      parse_extract();
+    PrimOp*      parse_insert();
     Value*       parse_value();
     Tuple*       parse_tuple();
     Lambda*      parse_lambda();
@@ -463,6 +464,7 @@ AtomicExpr* Parser::parse_atomic_expr() {
         case Token::SELECT:  return parse_select();
         case Token::BITCAST: return parse_bitcast();
         case Token::EXTRACT: return parse_extract();
+        case Token::INSERT:  return parse_insert();
         default: break;
     }
 
@@ -504,6 +506,15 @@ PrimOp* Parser::parse_extract() {
     extract->args()[0] = parse_value();
     extract->args()[1] = parse_value();
     return extract;
+}
+
+PrimOp* Parser::parse_insert() {
+    auto insert = make_expr(builder_.insert(nullptr, nullptr, nullptr));
+    eat(Token::INSERT);
+    insert->args()[0] = parse_value();
+    insert->args()[1] = parse_value();
+    insert->args()[2] = parse_value();
+    return insert;
 }
 
 Value* Parser::parse_value() {

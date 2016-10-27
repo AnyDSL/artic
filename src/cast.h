@@ -30,13 +30,13 @@ template <typename Base>
 class Cast {
 public:
     /// Casts the object to the target type, no check is done.
-    template <typename T> T* as() { return artic::as<Base*, T*>(static_cast<Base*>(this)); }
+    template <typename T> T* as() { assert(this); return artic::as<Base*, T*>(static_cast<Base*>(this)); }
     /// Casts the object to the target type, dynamically checking if the cast is possible (returns NULL if the cast is not possible).
-    template <typename T> T* isa() { return artic::isa<Base*, T*>(static_cast<Base*>(this)); }
+    template <typename T> T* isa() { assert(this); return artic::isa<Base*, T*>(static_cast<Base*>(this)); }
     /// Casts the object to the target type, no check is done.
-    template <typename T> const T* as() const { return artic::as<const Base*, const T*>(static_cast<const Base*>(this)); }
+    template <typename T> const T* as() const { assert(this); return artic::as<const Base*, const T*>(static_cast<const Base*>(this)); }
     /// Casts the object to the target type, dynamically checking if the cast is possible (returns NULL if the cast is not possible).
-    template <typename T> const T* isa() const { return artic::isa<const Base*, const T*>(static_cast<const Base*>(this)); }
+    template <typename T> const T* isa() const { assert(this); return artic::isa<const Base*, const T*>(static_cast<const Base*>(this)); }
 };
 
 } // namespace artic
