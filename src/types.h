@@ -180,7 +180,7 @@ public:
     }
 };
 
-/// A type variable coming from a type abstraction.
+/// A type variable coming from a type abstraction, represented by its De Bruijn index.
 class TypeVar : public Type {
     friend class IRBuilder;
 

@@ -299,10 +299,14 @@ void TupleType::print(PrettyPrinter& p) const {
 
 void TypeVar::print(PrettyPrinter& p) const {
     int k = p.type_level() - bruijn() - 1;
-    if (k < 26)
-        p.print(char('a' + k));
-    else
-        p.print("t", k - 26);
+    if (k >= 0) {
+        if (k < 26)
+            p.print(char('a' + k));
+        else
+            p.print("t", k - 26);
+    } else {
+        p.print(p.error_style("<" + std::to_string(bruijn()) + ">"));
+    }
 }
 
 void PolyType::print(PrettyPrinter& p) const {
