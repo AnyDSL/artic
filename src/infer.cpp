@@ -37,12 +37,16 @@ const Type* Vector::infer(InferSema&) const {
 }
 
 const Type* Tuple::infer(InferSema& sema) const {
+    auto tuple = type() ? type()->as<TupleType>() : nullptr;
+
+    // Element type deduction
     bool known = true;
-    for (auto elem : elems()) {
-        known &= sema.infer(elem) != nullptr;
+    for (int i = 0, n = size(); i < n; i++) {
+        known &= sema.infer(elem(i), tuple ? tuple->arg(i) : nullptr) != nullptr;
     }
 
-    if (known) {
+    // Avoid type reconstruction when possible
+    if (known && !type()) {
         std::vector<const Type*> args;
         for (auto elem : elems()) {
             args.emplace_back(elem->type());
@@ -166,20 +170,38 @@ const Type* IfExpr::infer(InferSema& sema) const {
 }
 
 const Type* AppExpr::infer(InferSema& sema) const {
-    bool known = true;
     for (auto arg : args()) {
-        known &= sema.infer(arg) != nullptr;
+        sema.infer(arg);
     }
 
-    if (known && num_args() >= 2) {
-        const Type* first = arg(0)->type();
+    // Function type deduction
+    const Type* first = arg(0)->type();
+    bool known = true;
+    for (int i = 1, n = num_args(); i < n; i++) {
+        known &= arg(i)->type() != nullptr;
+    }
+
+    if (!first && known && type()) {
+        const Type* ret = type();
+        for (int i = num_args() - 1; i >= 1; i--) {
+            ret = builder()->lambda_type(arg(i)->type(), ret);
+        }
+        first = sema.infer(arg(0), ret);
+    }
+
+    // Return type and parameter type deduction
+    if (first && num_args() >= 2) {
         const Type* ret = nullptr;
         int n = 2;
         while (auto lambda = first->isa<LambdaType>()) {
+            if (!arg(n - 1)->type())
+                sema.infer(arg(n - 1), lambda->from());
+
             if (n++ >= num_args()) {
                 ret = lambda->to();
                 break;
             }
+
             first = lambda->to();
         }
         return ret;
