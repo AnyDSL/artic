@@ -23,6 +23,8 @@ public:
     /// Rebuilds the type when it does not have any argument, given an IRBuilder object.
     const Type* rebuild(IRBuilder* builder) const { return rebuild(builder, std::vector<const Type*>()); }
 
+    /// Shifts the de Bruijn indices contained in the type by the given increment.
+    virtual const Type* shift(IRBuilder* builder, int) const { return rebuild(builder); }
     /// Rebuilds the type, given a list of type operands and an IRBuilder object.
     virtual const Type* rebuild(IRBuilder*, const std::vector<const Type*>&) const = 0;
     /// Prints the expression in a human-readable form.
@@ -127,7 +129,7 @@ public:
     void print(PrettyPrinter&) const override;
     const Type* rebuild(IRBuilder*, const std::vector<const Type*>&) const override;
     size_t hash() const override { return 0; }
-    bool equals(const Type* t) const override { return false; }
+    bool equals(const Type* t) const override { return t->isa<ErrorType>(); }
 };
 
 /// Base class for type constructors.
@@ -144,6 +146,8 @@ public:
     const std::vector<const Type*>& args() const { return args_; }
     const Type* arg(int i) const { return args_[i]; }
     size_t num_args() const { return args_.size(); }
+
+    const Type* shift(IRBuilder* builder, int inc) const override;
 
     size_t hash() const override {
         return hash_combine(args_, [] (const Type* t) { return t->hash(); });
@@ -214,6 +218,7 @@ public:
 
     void print(PrettyPrinter&) const override;
 
+    const Type* shift(IRBuilder* builder, int inc) const override;
     const Type* rebuild(IRBuilder*, const std::vector<const Type*>&) const override;
 
     size_t hash() const override {
@@ -243,6 +248,7 @@ public:
 
     void print(PrettyPrinter&) const override;
 
+    const Type* shift(IRBuilder* builder, int inc) const override;
     const Type* rebuild(IRBuilder*, const std::vector<const Type*>&) const override;
 
     size_t hash() const override {

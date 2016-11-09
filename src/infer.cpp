@@ -9,7 +9,7 @@ namespace artic {
 class InferSema {
 public:
     InferSema(IRBuilder* builder)
-        : todo_(false), builder_(builder)
+        : builder_(builder), todo_(false)
     {}
 
     const Type* infer(const Expr* e) {
@@ -50,10 +50,9 @@ public:
         auto app_b = b->isa<TypeApp>();
         if (app_a || app_b) {
             if (app_a && app_b && typeid(app_a) == typeid(app_b) && app_a->num_args() == app_b->num_args()) {
-                std::vector<const Type*> args;
-                for (int i = 0, n = app_a->num_args(); i < n; i++) {
-                    args.push_back(unify(app_a->arg(i), app_b->arg(i)));
-                }
+                int n = app_a->num_args();
+                std::vector<const Type*> args(n);
+                for (int i = 0; i < n; i++) args[i] = unify(app_a->arg(i), app_b->arg(i));
                 return app_a->rebuild(builder_, args);
             }
             return builder_->error_type();
@@ -100,14 +99,16 @@ const Type* Var::infer(InferSema& sema) const {
     return type();
 }
 
-const Type* Param::infer(InferSema&) const {
+const Type* Param::infer(InferSema& sema) const {
     return type();
 }
 
 const Type* Lambda::infer(InferSema& sema) const {
-    sema.infer(param(),  builder()->type_var(0));
+    sema.infer(param(), builder()->type_var(0));
     sema.infer(body());
-    return builder()->poly_type(builder()->lambda_type(param()->type(), body()->type()));
+    auto from = param()->type();
+    auto to   = body()->type()->shift(builder(), 1);
+    return builder()->poly_type(builder()->lambda_type(from, to));
 }
 
 const Type* PrimOp::infer(InferSema& sema) const {

@@ -32,6 +32,20 @@ const Type* PolyType::rebuild(IRBuilder* builder, const std::vector<const Type*>
     return builder->poly_type(args[0]);
 }
 
+const Type* TypeApp::shift(IRBuilder* builder, int inc) const {
+    std::vector<const Type*> args(num_args());
+    for (int i = 0, n = num_args(); i < n; i++) args[i] = arg(i)->shift(builder, inc);
+    return rebuild(builder, args);
+}
+
+const Type* TypeVar::shift(IRBuilder* builder, int inc) const {
+    return builder->type_var(bruijn() + inc);
+}
+
+const Type* PolyType::shift(IRBuilder* builder, int inc) const {
+    return builder->poly_type(body()->shift(builder, inc));
+}
+
 std::string to_string(Prim p) {
     switch (p) {
         case Prim::I1 : return "i1" ;
