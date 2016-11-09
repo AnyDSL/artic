@@ -1,3 +1,5 @@
+#include <typeinfo>
+
 #include "loc.h"
 #include "ir.h"
 #include "irbuilder.h"
@@ -6,8 +8,8 @@ namespace artic {
 
 class InferSema {
 public:
-    InferSema()
-        : todo_(false)
+    InferSema(IRBuilder* builder)
+        : todo_(false), builder_(builder)
     {}
 
     const Type* infer(const Expr* e) {
@@ -19,16 +21,53 @@ public:
 
     const Type* infer(const Expr* e, const Type* u) {
         auto t = e->infer(*this);
-        if (u && !t) t = u;
+        if (u) t = unify(t, u);
         todo_ |= e->type() != t;
         if (t) e->assign_type(t);
         return e->type();
+    }
+
+    const Type* unify(const Type* a, const Type* b) {
+        if (!a) return b;
+        if (!b) return a;
+
+        // Polymorphic types
+        auto poly_a = a->isa<PolyType>();
+        auto poly_b = b->isa<PolyType>();
+        if (poly_a && poly_b) return builder_->poly_type(unify(poly_a->body(), poly_b->body()));
+        if (poly_a) return unify(poly_a->body(), b);
+        if (poly_b) return unify(poly_b->body(), a);
+
+        // Type variables
+        auto var_a = a->isa<TypeVar>();
+        auto var_b = b->isa<TypeVar>();
+        if (var_a && var_b && var_a->bruijn() != var_b->bruijn()) return builder_->error_type();
+        if (var_a) return b;
+        if (var_b) return a;
+
+        // Type application (lambdas, tuples, ...)
+        auto app_a = a->isa<TypeApp>();
+        auto app_b = b->isa<TypeApp>();
+        if (app_a || app_b) {
+            if (app_a && app_b && typeid(app_a) == typeid(app_b) && app_a->num_args() == app_b->num_args()) {
+                std::vector<const Type*> args;
+                for (int i = 0, n = app_a->num_args(); i < n; i++) {
+                    args.push_back(unify(app_a->arg(i), app_b->arg(i)));
+                }
+                return app_a->rebuild(builder_, args);
+            }
+            return builder_->error_type();
+        }
+
+        if (a != b) return builder_->error_type();
+        return a;
     }
 
     bool todo() const { return todo_; }
     void restart() { todo_ = false; }
 
 private:
+    IRBuilder* builder_;
     bool todo_;
 };
 
@@ -66,9 +105,9 @@ const Type* Param::infer(InferSema&) const {
 }
 
 const Type* Lambda::infer(InferSema& sema) const {
-    sema.infer(param());
+    sema.infer(param(),  builder()->type_var(0));
     sema.infer(body());
-    return param()->type() && body()->type() ? builder()->lambda_type(param()->type(), body()->type()) : nullptr;
+    return builder()->poly_type(builder()->lambda_type(param()->type(), body()->type()));
 }
 
 const Type* PrimOp::infer(InferSema& sema) const {
@@ -176,6 +215,7 @@ const Type* AppExpr::infer(InferSema& sema) const {
 
     // Function type deduction
     const Type* first = arg(0)->type();
+
     bool known = true;
     for (int i = 1, n = num_args(); i < n; i++) {
         known &= arg(i)->type() != nullptr;
@@ -218,7 +258,7 @@ const Type* LetExpr::infer(InferSema& sema) const {
 }
 
 void infer(const Expr* e) {
-    InferSema sema;
+    InferSema sema(e->builder());
     do {
         sema.restart();
         sema.infer(e);

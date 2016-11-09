@@ -42,6 +42,7 @@ public:
     const TupleType*  tuple_type(const std::vector<const Type*>& args) { return new_type<TupleType>(args); }
     const TypeVar*    type_var(int i) { return new_type<TypeVar>(i); }
     const PolyType*   poly_type(const Type* body) { return new_type<PolyType>(body); }
+    const PolyType*   top_type() { return new_type<PolyType>(type_var(0)); }
 
 private:
     struct HashType {

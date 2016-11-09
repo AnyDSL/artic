@@ -88,6 +88,8 @@ private:
     Loc loc_;
 };
 
+std::ostream& operator << (std::ostream& os, const Expr*);
+
 /// Base class for complex expressions. Complex expressions are expressions that may not terminate.
 class ComplexExpr : public Expr {
 public:

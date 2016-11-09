@@ -196,8 +196,12 @@ void IfExpr::check(CheckSema& sema) const {
 }
 
 void AppExpr::check(CheckSema& sema) const {
-    for (auto arg : args()) {
-        sema.check(arg);
+    for (int i = 0, n = num_args(); i < n; i++) {
+        sema.check(arg(i));
+        if (!arg(i)->type()) {
+            sema.error(this, "Cannot infer type for application argument ", i);
+            return;
+        }
     }
 
     if (auto lambda = arg(0)->type()->isa<LambdaType>()) {

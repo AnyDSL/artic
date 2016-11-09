@@ -10,15 +10,30 @@
 namespace artic {
 
 class PrettyPrinter;
+class IRBuilder;
 
 /// Base class for all types.
 class Type : public Cast<Type> {
 public:
     virtual ~Type() {}
+
+    /// Dumps the type without indentation nor coloring.
+    void dump() const;
+
+    /// Rebuilds the type when it does not have any argument, given an IRBuilder object.
+    const Type* rebuild(IRBuilder* builder) const { return rebuild(builder, std::vector<const Type*>()); }
+
+    /// Rebuilds the type, given a list of type operands and an IRBuilder object.
+    virtual const Type* rebuild(IRBuilder*, const std::vector<const Type*>&) const = 0;
+    /// Prints the expression in a human-readable form.
     virtual void print(PrettyPrinter&) const = 0;
+    /// Returns a hash value for the type.
     virtual size_t hash() const = 0;
+    /// Tests another type for equality by inspecting its shape.
     virtual bool equals(const Type* t) const = 0;
 };
+
+std::ostream& operator << (std::ostream&, const Type*);
 
 /// Primitive types.
 enum class Prim : uint16_t {
@@ -84,6 +99,8 @@ public:
 
     void print(PrettyPrinter&) const override;
 
+    const Type* rebuild(IRBuilder*, const std::vector<const Type*>& types) const override;
+
     size_t hash() const override {
         return hash_combine(size(), int(prim()));
     }
@@ -108,6 +125,7 @@ class ErrorType : public Type {
 
 public:
     void print(PrettyPrinter&) const override;
+    const Type* rebuild(IRBuilder*, const std::vector<const Type*>&) const override;
     size_t hash() const override { return 0; }
     bool equals(const Type* t) const override { return false; }
 };
@@ -123,6 +141,10 @@ protected:
     std::vector<const Type*> args_;
 
 public:
+    const std::vector<const Type*>& args() const { return args_; }
+    const Type* arg(int i) const { return args_[i]; }
+    size_t num_args() const { return args_.size(); }
+
     size_t hash() const override {
         return hash_combine(args_, [] (const Type* t) { return t->hash(); });
     }
@@ -154,6 +176,8 @@ public:
 
     void print(PrettyPrinter&) const override;
 
+    const Type* rebuild(IRBuilder*, const std::vector<const Type*>&) const override;
+
     bool equals(const Type* t) const override {
         return t->isa<LambdaType>() && TypeApp::equals(t);
     }
@@ -168,11 +192,9 @@ class TupleType : public TypeApp {
     {}
 
 public:
-    const std::vector<const Type*>& args() const { return args_; }
-    const Type* arg(int i) const { return args_[i]; }
-    size_t num_args() const { return args_.size(); }
-
     void print(PrettyPrinter&) const override;
+
+    const Type* rebuild(IRBuilder*, const std::vector<const Type*>&) const override;
 
     bool equals(const Type* t) const override {
         return t->isa<TupleType>() && TypeApp::equals(t);
@@ -191,6 +213,8 @@ public:
     int bruijn() const { return bruijn_; }
 
     void print(PrettyPrinter&) const override;
+
+    const Type* rebuild(IRBuilder*, const std::vector<const Type*>&) const override;
 
     size_t hash() const override {
         return bruijn_;
@@ -218,6 +242,8 @@ public:
     const Type* body() const { return body_; }
 
     void print(PrettyPrinter&) const override;
+
+    const Type* rebuild(IRBuilder*, const std::vector<const Type*>&) const override;
 
     size_t hash() const override {
         return hash_combine(body()->hash(), 0x811c9dc5);

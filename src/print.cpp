@@ -106,9 +106,24 @@ private:
     bool color_;
 };
 
+std::ostream& operator << (std::ostream& os, const Expr* e) {
+    PrettyPrinter pp(os, "  ", 0, false);
+    e->print(pp);
+    return os;
+}
+
+std::ostream& operator << (std::ostream& os, const Type* t) {
+    PrettyPrinter pp(os, "  ", 0, false);
+    t->print(pp);
+    return os;
+}
+
 void Expr::dump() const {
-    PrettyPrinter p(std::cout, "", 0, false);
-    print(p);
+    std::cout << this << std::endl;
+}
+
+void Type::dump() const {
+    std::cout << this << std::endl;
 }
 
 void Vector::print(PrettyPrinter& p) const {
