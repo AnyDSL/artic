@@ -402,7 +402,7 @@ LetExpr* Parser::parse_let_expr() {
         var->set_name(parse_ident());
         if (ahead() == Token::COLON) {
             eat(Token::COLON);
-            var->assign_type(parse_new_type());
+            var->set_type(parse_new_type());
         }
         expect(Token::ASSIGN);
         env_.push(var->name(), var);
@@ -553,7 +553,7 @@ Lambda* Parser::parse_lambda() {
         lambda->set_param(param);
         if (ahead() == Token::COLON) {
             eat(Token::COLON);
-            param->assign_type(parse_new_type());
+            param->set_type(parse_new_type());
         }
         env_.push(param->name(), param);
     }

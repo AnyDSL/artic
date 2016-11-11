@@ -9,21 +9,25 @@ namespace artic {
 class InferSema {
 public:
     InferSema(IRBuilder* builder)
-        : builder_(builder), todo_(false)
+        : builder_(builder), todo_(false), type_level_(0)
     {}
 
     const Type* infer(const Expr* e) {
         auto t = e->infer(*this);
-        todo_ |= e->type() != t;
-        if (t) e->assign_type(t);
+        if (t != e->type()) {
+            e->set_type(t);
+            todo_ |= true;
+        }
         return e->type();
     }
 
     const Type* infer(const Expr* e, const Type* u) {
         auto t = e->infer(*this);
         if (u) t = unify(t, u);
-        todo_ |= e->type() != t;
-        if (t) e->assign_type(t);
+        if (t != e->type()) {
+            e->set_type(t);
+            todo_ |= true;
+        }
         return e->type();
     }
 
@@ -58,6 +62,7 @@ public:
             return builder_->error_type();
         }
 
+        // Others
         if (a != b) return builder_->error_type();
         return a;
     }
@@ -65,8 +70,18 @@ public:
     bool todo() const { return todo_; }
     void restart() { todo_ = false; }
 
+    const Type* adapt_index(const Type* t) {
+        if (!t) return nullptr;
+        if (auto var = t->isa<TypeVar>())
+            return builder_->type_var(type_level_ - var->bruijn() - 1);
+        return t;
+    }
+    void push_level() { type_level_++; }
+    void pop_level()  { type_level_--; }
+
 private:
     IRBuilder* builder_;
+    int type_level_;
     bool todo_;
 };
 
@@ -96,19 +111,25 @@ const Type* Tuple::infer(InferSema& sema) const {
 }
 
 const Type* Var::infer(InferSema& sema) const {
-    return type();
+    return sema.adapt_index(type());
 }
 
 const Type* Param::infer(InferSema& sema) const {
-    return type();
+    return sema.adapt_index(type());
 }
 
 const Type* Lambda::infer(InferSema& sema) const {
-    sema.infer(param(), builder()->type_var(0));
+    if (!param()->type()) param()->set_type(builder()->type_var(0));
+
+    sema.push_level();
     sema.infer(body());
-    auto from = param()->type();
-    auto to   = body()->type()->shift(builder(), 1);
-    return builder()->poly_type(builder()->lambda_type(from, to));
+    sema.pop_level();
+
+    auto lambda = builder()->lambda_type(param()->type(), body()->type());
+    if (param()->type()->isa<TypeVar>())
+        return builder()->poly_type(lambda);
+
+    return lambda;
 }
 
 const Type* PrimOp::infer(InferSema& sema) const {

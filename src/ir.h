@@ -51,10 +51,12 @@ class Expr : public Cast<Expr> {
     friend class Parser;
 
 public:
+    Expr() : type_(nullptr), builder_(nullptr) {}
     virtual ~Expr() {}
 
     /// Returns the type of the expression (after type-checking).
     const Type* type() const { return type_; }
+    void set_type(const Type* type) const { type_ = type; }
 
     /// Returns the location of the expression in the file.
     const Loc& loc() const { return loc_; }
@@ -76,11 +78,6 @@ public:
     virtual void check(CheckSema&) const = 0;
     /// Infers the type of the expression.
     virtual const Type* infer(InferSema&) const = 0;
-
-protected:
-    Expr() : type_(nullptr), builder_(nullptr) {}
-
-    void assign_type(const Type* type) const { type_ = type; }
 
 private:
     IRBuilder* builder_;
