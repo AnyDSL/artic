@@ -21,14 +21,16 @@ public:
     void dump() const;
 
     /// Rebuilds the type when it does not have any argument, given an IRBuilder object.
-    const Type* rebuild(IRBuilder* builder) const { return rebuild(builder, std::vector<const Type*>()); }
+    const Type* rebuild(IRBuilder& builder) const { return rebuild(builder, std::vector<const Type*>()); }
 
-    /// Shifts the de Bruijn indices contained in the type by the given increment.
-    virtual const Type* shift(IRBuilder* builder, int) const { return rebuild(builder); }
     /// Rebuilds the type, given a list of type operands and an IRBuilder object.
-    virtual const Type* rebuild(IRBuilder*, const std::vector<const Type*>&) const = 0;
+    virtual const Type* rebuild(IRBuilder&, const std::vector<const Type*>&) const = 0;
+    /// Shifts the TypeVar's indices by the given amount.
+    virtual const Type* shift(IRBuilder& builder, int) const { return rebuild(builder); }
     /// Prints the expression in a human-readable form.
     virtual void print(PrettyPrinter&) const = 0;
+    /// Returns the depth of the type in number of polymorphic types.
+    virtual int depth() const { return 0; }
     /// Returns a hash value for the type.
     virtual size_t hash() const = 0;
     /// Tests another type for equality by inspecting its shape.
@@ -101,7 +103,7 @@ public:
 
     void print(PrettyPrinter&) const override;
 
-    const Type* rebuild(IRBuilder*, const std::vector<const Type*>& types) const override;
+    const Type* rebuild(IRBuilder&, const std::vector<const Type*>& types) const override;
 
     size_t hash() const override {
         return hash_combine(size(), int(prim()));
@@ -127,7 +129,7 @@ class ErrorType : public Type {
 
 public:
     void print(PrettyPrinter&) const override;
-    const Type* rebuild(IRBuilder*, const std::vector<const Type*>&) const override;
+    const Type* rebuild(IRBuilder&, const std::vector<const Type*>&) const override;
     size_t hash() const override { return 0; }
     bool equals(const Type* t) const override { return t->isa<ErrorType>(); }
 };
@@ -147,7 +149,19 @@ public:
     const Type* arg(int i) const { return args_[i]; }
     size_t num_args() const { return args_.size(); }
 
-    const Type* shift(IRBuilder* builder, int inc) const override;
+    const Type* shift(IRBuilder& builder, int inc) const override {
+        std::vector<const Type*> args(num_args());
+        for (int i = 0, n = num_args(); i < n; i++)
+            args[i] = arg(i)->shift(builder, inc);
+        return rebuild(builder, args);
+    }
+
+    int depth() const override {
+        int d = 0;
+        for (auto arg : args())
+            d = std::max(d, arg->depth());
+        return d;
+    }
 
     size_t hash() const override {
         return hash_combine(args_, [] (const Type* t) { return t->hash(); });
@@ -157,7 +171,7 @@ public:
         if (auto app = t->isa<TypeApp>()) {
             if (app->args_.size() != args_.size()) return false;
             for (int i = 0, n = args_.size(); i < n; i++) {
-                if (!args_[i]->equals(app->args_[i]))
+                if (arg(i) != app->arg(i))
                     return false;
             }
             return true;
@@ -180,7 +194,7 @@ public:
 
     void print(PrettyPrinter&) const override;
 
-    const Type* rebuild(IRBuilder*, const std::vector<const Type*>&) const override;
+    const Type* rebuild(IRBuilder&, const std::vector<const Type*>&) const override;
 
     bool equals(const Type* t) const override {
         return t->isa<LambdaType>() && TypeApp::equals(t);
@@ -198,41 +212,41 @@ class TupleType : public TypeApp {
 public:
     void print(PrettyPrinter&) const override;
 
-    const Type* rebuild(IRBuilder*, const std::vector<const Type*>&) const override;
+    const Type* rebuild(IRBuilder&, const std::vector<const Type*>&) const override;
 
     bool equals(const Type* t) const override {
         return t->isa<TupleType>() && TypeApp::equals(t);
     }
 };
 
-/// A type variable coming from a type abstraction, represented by its De Bruijn index.
+/// A type variable coming from a type abstraction, represented by its index.
 class TypeVar : public Type {
     friend class IRBuilder;
 
-    TypeVar(int bruijn)
-        : bruijn_(bruijn)
+    TypeVar(int index)
+        : index_(index)
     {}
 
 public:
-    int bruijn() const { return bruijn_; }
+    int index() const { return index_; }
 
     void print(PrettyPrinter&) const override;
 
-    const Type* shift(IRBuilder* builder, int inc) const override;
-    const Type* rebuild(IRBuilder*, const std::vector<const Type*>&) const override;
+    const Type* rebuild(IRBuilder&, const std::vector<const Type*>&) const override;
+    const Type* shift(IRBuilder&, int) const override;
 
     size_t hash() const override {
-        return bruijn_;
+        return index_;
     }
 
     bool equals(const Type* t) const override {
         if (auto var = t->isa<TypeVar>())
-            return var->bruijn() == bruijn();
+            return var->index() == index();
         return false;
     }
 
 private:
-    int bruijn_;
+    int index_;
 };
 
 /// A polymorphic type abstraction.
@@ -248,8 +262,13 @@ public:
 
     void print(PrettyPrinter&) const override;
 
-    const Type* shift(IRBuilder* builder, int inc) const override;
-    const Type* rebuild(IRBuilder*, const std::vector<const Type*>&) const override;
+    const Type* rebuild(IRBuilder&, const std::vector<const Type*>&) const override;
+
+    const Type* shift(IRBuilder& builder, int inc) const override {
+        return rebuild(builder, { body()->shift(builder, inc) });
+    }
+
+    int depth() const override { return 1 + body()->depth(); }
 
     size_t hash() const override {
         return hash_combine(body()->hash(), 0x811c9dc5);
@@ -257,13 +276,27 @@ public:
 
     bool equals(const Type* t) const override {
         if (auto poly = t->isa<PolyType>())
-            return poly->body()->equals(body());
+            return poly->body() == body();
         return false;
     }
 
-
 private:
     const Type* body_;
+};
+
+/// An unknown type, used for type inference.
+class UnknownType : public Type {
+    friend class IRBuilder;
+
+    UnknownType() {}
+
+public:
+    void print(PrettyPrinter&) const override;
+
+    const Type* rebuild(IRBuilder&, const std::vector<const Type*>&) const override;
+
+    size_t hash() const override { return reinterpret_cast<size_t>(this); }
+    bool equals(const Type* t) const override { return t == this; }
 };
 
 } // namespace artic

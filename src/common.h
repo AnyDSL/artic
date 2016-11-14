@@ -3,6 +3,12 @@
 
 #include <iostream>
 
+#ifndef NDEBUG
+#define assert_unused(x, c) assert(c)
+#else
+#define assert_unused(x, c) ((void)x)
+#endif
+
 namespace artic {
 
 inline size_t hash_combine(size_t a) {

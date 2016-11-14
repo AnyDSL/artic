@@ -85,13 +85,14 @@ public:
 #include "tokens.inc"
             default: assert(false);
         }
+        return "";
     }
 
 private:
-    Loc loc_;
     Type type_;
     Literal lit_;
     std::string ident_;
+    Loc loc_;
 };
 
 class Lexer {
@@ -317,7 +318,12 @@ public:
     Lambda*      parse_lambda();
     Vector*      parse_vector();
 
-    const Type*       parse_new_type() { type_level_ = 0; return parse_type(); }
+    const Type* parse_new_type() {
+        max_type_depth_ = type_depth_ = 0;
+        auto t = parse_type();
+        // Shift the type once it's created so that the innermost types have a depth of 0
+        return t->shift(builder_, max_type_depth_ - 1);
+    }
 
     const Type*       parse_type();
     const TupleType*  parse_tuple_type();
@@ -363,7 +369,7 @@ private:
         if (ahead() != t) error("'", Token::to_string(t), "' expected");
         lex();
     }
-    void eat(Token::Type t) { assert(ahead() == t); lex(); }
+    void eat(Token::Type t) { assert_unused(t, ahead() == t); lex(); }
     void lex() {
         prev_loc_ = tok_.loc();
         tok_ = lexer_();
@@ -384,7 +390,7 @@ private:
 
     Env env_;
 
-    int type_level_;
+    int type_depth_, max_type_depth_;
     std::unordered_map<std::string, int> type_vars_;
 };
 
@@ -690,7 +696,7 @@ const Type* Parser::parse_type_var() {
         error("Unknown type variable");
         return builder_.error_type();
     }
-    return builder_.type_var(type_level_ - var->second - 1);
+    return builder_.type_var(var->second);
 }
 
 const PolyType* Parser::parse_poly_type() {
@@ -699,14 +705,15 @@ const PolyType* Parser::parse_poly_type() {
         if (type_vars_.count(ahead().ident()))
             error("Type variable name already used");
         else
-            type_vars_.emplace(ahead().ident(), type_level_);
+            type_vars_.emplace(ahead().ident(), -type_depth_);
         eat(Token::IDENT);
     } else {
         lex();
         error("Type variable name expected");
     }
     expect(Token::DOT);
-    type_level_++;
+    type_depth_++;
+    max_type_depth_ = std::max(max_type_depth_, type_depth_);
     return builder_.poly_type(parse_type());
 }
 

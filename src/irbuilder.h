@@ -11,8 +11,13 @@ namespace artic {
 /// Types are hashed and can be compared by comparing their addresses.
 class IRBuilder {
 public:
+    IRBuilder() : error_type_(nullptr) {}
+
     ~IRBuilder() {
         for (auto n : nodes_) delete n;
+        for (auto t : types_) delete t;
+        for (auto u : unknowns_) delete u;
+        delete error_type_;
     }
 
     // Values
@@ -36,13 +41,14 @@ public:
     LetExpr* let_expr(const Var* v, const Expr* e = nullptr) { return new_node<LetExpr>(v, e); }
 
     // Types
-    const PrimType*   prim_type(Prim p, int size = 1) { return new_type<PrimType>(p, size); }
-    const ErrorType*  error_type() { return new_type<ErrorType>(); }
-    const LambdaType* lambda_type(const Type* from, const Type* to) { return new_type<LambdaType>(from, to); }
-    const TupleType*  tuple_type(const std::vector<const Type*>& args) { return new_type<TupleType>(args); }
-    const TypeVar*    type_var(int i) { return new_type<TypeVar>(i); }
-    const PolyType*   poly_type(const Type* body) { return new_type<PolyType>(body); }
-    const PolyType*   top_type() { return new_type<PolyType>(type_var(0)); }
+    const PrimType*    prim_type(Prim p, int size = 1) { return new_type<PrimType>(p, size); }
+    const ErrorType*   error_type() { return (error_type_ = !error_type_ ? new ErrorType() : error_type_); }
+    const LambdaType*  lambda_type(const Type* from, const Type* to) { return new_type<LambdaType>(from, to); }
+    const TupleType*   tuple_type(const std::vector<const Type*>& args) { return new_type<TupleType>(args); }
+    const TypeVar*     type_var(int i) { return new_type<TypeVar>(i); }
+    const PolyType*    poly_type(const Type* body) { return new_type<PolyType>(body); }
+    const PolyType*    top_type() { return new_type<PolyType>(type_var(0)); }
+    const UnknownType* unknown_type() { unknowns_.emplace_back(new UnknownType()); return unknowns_.back(); }
 
 private:
     struct HashType {
@@ -73,6 +79,8 @@ private:
 
     std::vector<Expr*> nodes_;
     std::unordered_set<Type*, HashType, CompareType> types_;
+    const ErrorType* error_type_;
+    std::vector<const UnknownType*> unknowns_;
 };
 
 } // namespace artic

@@ -3,47 +3,42 @@
 
 namespace artic {
 
-const Type* PrimType::rebuild(IRBuilder* builder, const std::vector<const Type*>& args) const {
-    (void)args; assert(args.size() == 0);
-    return builder->prim_type(prim(), size());
+const Type* PrimType::rebuild(IRBuilder& builder, const std::vector<const Type*>& args) const {
+    assert_unused(args, args.size() == 0);
+    return builder.prim_type(prim(), size());
 }
 
-const Type* ErrorType::rebuild(IRBuilder* builder, const std::vector<const Type*>& args) const {
-    (void)args; assert(args.size() == 0);
-    return builder->error_type();
+const Type* ErrorType::rebuild(IRBuilder& builder, const std::vector<const Type*>& args) const {
+    assert_unused(args, args.size() == 0);
+    return builder.error_type();
 }
 
-const Type* LambdaType::rebuild(IRBuilder* builder, const std::vector<const Type*>& args) const {
+const Type* LambdaType::rebuild(IRBuilder& builder, const std::vector<const Type*>& args) const {
     assert(args.size() == 2);
-    return builder->lambda_type(args[0], args[1]);
+    return builder.lambda_type(args[0], args[1]);
 }
 
-const Type* TupleType::rebuild(IRBuilder* builder, const std::vector<const Type*>& args) const {
-    return builder->tuple_type(args);
+const Type* TupleType::rebuild(IRBuilder& builder, const std::vector<const Type*>& args) const {
+    return builder.tuple_type(args);
 }
 
-const Type* TypeVar::rebuild(IRBuilder* builder, const std::vector<const Type*>& args) const {
-    (void)args; assert(args.size() == 0);
-    return builder->type_var(bruijn());
+const Type* TypeVar::rebuild(IRBuilder& builder, const std::vector<const Type*>& args) const {
+    assert_unused(args, args.size() == 0);
+    return builder.type_var(index());
 }
 
-const Type* PolyType::rebuild(IRBuilder* builder, const std::vector<const Type*>& args) const {
+const Type* PolyType::rebuild(IRBuilder& builder, const std::vector<const Type*>& args) const {
     assert(args.size() == 1);
-    return builder->poly_type(args[0]);
+    return builder.poly_type(args[0]);
 }
 
-const Type* TypeApp::shift(IRBuilder* builder, int inc) const {
-    std::vector<const Type*> args(num_args());
-    for (int i = 0, n = num_args(); i < n; i++) args[i] = arg(i)->shift(builder, inc);
-    return rebuild(builder, args);
+const Type* UnknownType::rebuild(IRBuilder& builder, const std::vector<const Type*>& args) const {
+    assert_unused(args, args.size() == 0);
+    return builder.unknown_type();
 }
 
-const Type* TypeVar::shift(IRBuilder* builder, int inc) const {
-    return builder->type_var(bruijn() + inc);
-}
-
-const Type* PolyType::shift(IRBuilder* builder, int inc) const {
-    return builder->poly_type(body()->shift(builder, inc));
+const Type* TypeVar::shift(IRBuilder& builder, int i) const {
+    return builder.type_var(index() + i);
 }
 
 std::string to_string(Prim p) {

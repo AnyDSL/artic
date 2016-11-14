@@ -51,7 +51,7 @@ class Expr : public Cast<Expr> {
     friend class Parser;
 
 public:
-    Expr() : type_(nullptr), builder_(nullptr) {}
+    Expr() : builder_(nullptr), type_(nullptr) {}
     virtual ~Expr() {}
 
     /// Returns the type of the expression (after type-checking).
@@ -227,8 +227,8 @@ public:
     const Type* infer(InferSema&) const override;
 
 private:
-    const ComplexExpr* binding_;
     std::string name_;
+    const ComplexExpr* binding_;
 };
 
 /// Parameter coming from a lambda expression.

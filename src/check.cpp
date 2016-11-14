@@ -32,7 +32,7 @@ void Tuple::check(CheckSema& sema) const {
     }
 }
 
-void Var::check(CheckSema& sema) const {}
+void Var::check(CheckSema&) const {}
 
 void Param::check(CheckSema&) const {}
 
@@ -91,7 +91,7 @@ void PrimOp::check(CheckSema& sema) const {
             default: assert(false);
         }
     } else {
-        int req_args, req_type_args;
+        size_t req_args = 0, req_type_args = 0;
 
         switch (op()) {
             case SELECT:  req_args = 3; req_type_args = 0; break;
@@ -206,7 +206,7 @@ void AppExpr::check(CheckSema& sema) const {
 
     if (auto lambda = arg(0)->type()->isa<LambdaType>()) {
         assert(num_args() >= 2);
-        int i = 1;
+        size_t i = 1;
         while (true) {
             if (arg(i)->type() != lambda->from()) {
                 sema.error(this, "Types do not match for argument ", i);

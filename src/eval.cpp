@@ -8,7 +8,7 @@ namespace artic {
 namespace BinOp {
 #define UNSUPPORTED_TYPE(Op, Type) \
     template <> struct Op<Type> { \
-        Type operator() (Type a, Type b) { assert(false); return Type(); } \
+        Type operator() (Type, Type) { assert(false); return Type(); } \
     };
 
     // Arithmetic
@@ -52,7 +52,7 @@ const Vector* binop(const Vector* a, const Vector* b) {
     auto v = a->builder()->vector(a->prim());
     v->resize(a->size());
     for (size_t i = 0; i < a->size(); i++) {
-        Vector::Elem e;
+        Vector::Elem e(0);
         switch (a->prim()) {
             case Prim::I1 : { F<typename PrimToRep<Prim::I1 >::Rep> f; e = Vector::Elem(f(a->elem(i).i1 , b->elem(i).i1 )); } break;
             case Prim::I8 : { F<typename PrimToRep<Prim::I8 >::Rep> f; e = Vector::Elem(f(a->elem(i).i8 , b->elem(i).i8 )); } break;
@@ -83,7 +83,7 @@ static const Vector* select(const Vector* cond, const Vector* a, const Vector* b
 }
 
 static const Vector* bitcast(const PrimType* type, const Vector* a) {
-    assert(type->bitcount() == a->size() * bitcount(a->prim()));
+    assert(type->bitcount() == (int)a->size() * bitcount(a->prim()));
     auto v = a->builder()->vector(type->prim());
     v->resize(type->size());
     memcpy(v->elems().data(), a->elems().data(), type->bitcount() / 8);
@@ -120,7 +120,7 @@ static const Value* vector_insert(const Vector* index, const Vector* vector, con
     auto v = vector->builder()->vector(vector->prim());
     v->resize(vector->size());
     v->elems() = vector->elems();
-    v->set_elem(0, vector->elem(i));
+    v->set_elem(i, value->as<Vector>()->value());
     return v;
 }
 

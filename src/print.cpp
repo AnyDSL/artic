@@ -9,8 +9,6 @@ namespace artic {
 
 /// Utility class to print the IR in a human-readable form.
 class PrettyPrinter {
-    struct ResetLevel { const Type* t; ResetLevel(const Type* t) : t(t) {} };
-
     template <typename T> struct KeywordStyle { T t; KeywordStyle(const T& t) : t{t} {} };
     template <typename T> struct LiteralStyle { T t; LiteralStyle(const T& t) : t{t} {} };
     template <typename T> struct IdentStyle   { T t; IdentStyle  (const T& t) : t{t} {} };
@@ -25,8 +23,8 @@ public:
         , out_(out)
         , tab_(tab)
         , indent_(indent)
-        , max_c_(default_max_complexity())
         , color_(color)
+        , max_c_(default_max_complexity())
     {}
 
     template <typename T>
@@ -37,7 +35,6 @@ public:
     void print(const T* expr_or_type) { expr_or_type->print(*this); }
 
     void print(const char* str) { out_ << str; }
-    void print(ResetLevel reset) { type_level_ = 0; reset.t->print(*this); }
 
     template <typename T> void print(const KeywordStyle<T>& style) {
         if (color_) print("\033[1;36m");
@@ -85,25 +82,21 @@ public:
         for (int i = 0; i < indent_; i++) out_ << tab_;
     }
 
-    int type_level() const { return type_level_; }
-    void inc_level() { type_level_++; }
-    ResetLevel reset_level(const Type* t) { return ResetLevel(t); }
-
     void indent() { indent_++; }
     void unindent() { indent_--; }
 
     size_t max_complexity() const { return max_c_; }
-    size_t default_max_complexity() const { return 5; }
     void set_max_complexity(size_t c) { max_c_ = c; }
+    static constexpr size_t default_max_complexity() { return 5; }
 
 private:
     int type_level_;
 
     std::ostream& out_;
     const std::string& tab_;
-    size_t max_c_;
     int indent_;
     bool color_;
+    size_t max_c_;
 };
 
 std::ostream& operator << (std::ostream& os, const Expr* e) {
@@ -172,7 +165,7 @@ void Param::print(PrettyPrinter& p) const {
 void Lambda::print(PrettyPrinter& p) const {
     p.print("\\", p.ident_style(param()->name()));
     if (param()->type())
-        p.print(" : ", p.reset_level(param()->type()));
+        p.print(" : ", param()->type());
     p.print(" . ");
 
     const bool indent = complexity() > p.max_complexity();
@@ -212,7 +205,7 @@ void PrimOp::print(PrettyPrinter& p) const {
         }
 
         p.print(" ");
-        p.print_list(" ", type_args(), [&] (const Type* t) { return p.reset_level(t); });
+        p.print_list(" ", type_args(), [&] (const Type* t) { return t; });
         if (num_type_args()) p.print(" ");
         p.print_list(" ", args(), [&] (const Value* v) { return v; });
     }
@@ -244,7 +237,7 @@ void AppExpr::print(PrettyPrinter& p) const {
 void LetExpr::print(PrettyPrinter& p) const {
     p.print(p.keyword_style("let"), " ", p.ident_style(var()->name()));
     if (var()->type())
-        p.print(" : ", p.reset_level(var()->type()));
+        p.print(" : ", var()->type());
     p.print(" = ", var()->binding(), " ", p.keyword_style("in"), " ");
     const bool indent = complexity() > p.max_complexity();
     if (indent) { p.indent(); p. new_line(); }
@@ -272,26 +265,15 @@ void TupleType::print(PrettyPrinter& p) const {
 }
 
 void TypeVar::print(PrettyPrinter& p) const {
-    int k = p.type_level() - bruijn() - 1;
-    if (k >= 0) {
-        if (k < 26)
-            p.print(char('a' + k));
-        else
-            p.print("t", k - 26);
-    } else {
-        p.print(p.error_style("<" + std::to_string(bruijn()) + ">"));
-    }
+    p.print(p.error_style("<" + std::to_string(index()) + ">"));
 }
 
 void PolyType::print(PrettyPrinter& p) const {
-    p.print(p.keyword_style("forall"), " ");
-    if (p.type_level() < 26)
-        p.print(char('a' + p.type_level()));
-    else
-        p.print("t", p.type_level() - 26);
-    p.print(" . ");
-    p.inc_level();
-    p.print(body());
+    p.print(p.keyword_style("forall"), " . ", body());
+}
+
+void UnknownType::print(PrettyPrinter& p) const {
+    p.print("?");
 }
 
 void print(const Expr* e,
