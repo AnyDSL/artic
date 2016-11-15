@@ -711,11 +711,12 @@ const Type* Parser::parse_type_var() {
 
 const PolyType* Parser::parse_poly_type() {
     eat(Token::FORALL);
+    auto ident = ahead().ident();
     if (ahead() == Token::IDENT) {
-        if (type_vars_.count(ahead().ident()))
+        if (type_vars_.count(ident))
             error("Type variable name already used");
         else
-            type_vars_.emplace(ahead().ident(), -type_depth_);
+            type_vars_.emplace(ident, -type_depth_);
         eat(Token::IDENT);
     } else {
         lex();
@@ -726,6 +727,7 @@ const PolyType* Parser::parse_poly_type() {
     max_type_depth_ = std::max(max_type_depth_, type_depth_);
     auto t = parse_type();
     type_depth_--;
+    type_vars_.erase(ident);
     return builder_.poly_type(t);
 }
 
