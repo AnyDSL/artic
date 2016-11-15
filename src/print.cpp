@@ -12,6 +12,7 @@ class PrettyPrinter {
     template <typename T> struct KeywordStyle { T t; KeywordStyle(const T& t) : t{t} {} };
     template <typename T> struct LiteralStyle { T t; LiteralStyle(const T& t) : t{t} {} };
     template <typename T> struct IdentStyle   { T t; IdentStyle  (const T& t) : t{t} {} };
+    template <typename T> struct TypeVarStyle { T t; TypeVarStyle(const T& t) : t{t} {} };
     template <typename T> struct ErrorStyle   { T t; ErrorStyle  (const T& t) : t{t} {} };
 
 public:
@@ -54,6 +55,12 @@ public:
         if (color_) print("\033[0m");
     }
 
+    template <typename T> void print(const TypeVarStyle<T>& style) {
+        if (color_) print("\033[1;34m");
+        print(style.t);
+        if (color_) print("\033[0m");
+    }
+
     template <typename T> void print(const ErrorStyle<T>& style) {
         if (color_) print("\033[1;31m");
         print(style.t);
@@ -67,10 +74,11 @@ public:
         if (n > 0) print(f(t[n - 1]));
     }
 
-    template <typename T> KeywordStyle<T> keyword_style(const T& t) const { return KeywordStyle<T>(t); }
-    template <typename T> LiteralStyle<T> literal_style(const T& t) const { return LiteralStyle<T>(t); }
-    template <typename T> IdentStyle<T>   ident_style  (const T& t) const { return IdentStyle<T>  (t); }
-    template <typename T> ErrorStyle<T>   error_style  (const T& t) const { return ErrorStyle<T>  (t); }
+    template <typename T> KeywordStyle<T> keyword_style (const T& t) const { return KeywordStyle<T>(t); }
+    template <typename T> LiteralStyle<T> literal_style (const T& t) const { return LiteralStyle<T>(t); }
+    template <typename T> IdentStyle<T>   ident_style   (const T& t) const { return IdentStyle<T>  (t); }
+    template <typename T> TypeVarStyle<T> type_var_style(const T& t) const { return TypeVarStyle<T>(t); }
+    template <typename T> ErrorStyle<T>   error_style   (const T& t) const { return ErrorStyle<T>  (t); }
 
     KeywordStyle<const char*> keyword_style(const char* str) const { return KeywordStyle<const char*>(str); }
     LiteralStyle<const char*> literal_style(const char* str) const { return LiteralStyle<const char*>(str); }
@@ -265,15 +273,20 @@ void TupleType::print(PrettyPrinter& p) const {
 }
 
 void TypeVar::print(PrettyPrinter& p) const {
-    p.print(p.error_style("<" + std::to_string(index()) + ">"));
+    p.print(p.type_var_style("<" + std::to_string(index()) + ">"));
 }
 
 void PolyType::print(PrettyPrinter& p) const {
-    p.print(p.keyword_style("forall"), " . ", body());
+    p.print(p.keyword_style("forall"), " ");
+    for (int i = size() - 1; i >= 0; i--) {
+        p.print(p.type_var_style("<" + std::to_string(depth() - size() + i) + ">"));
+        if (i != 0) p.print(" ");
+    }
+    p.print(". ", body());
 }
 
 void UnknownType::print(PrettyPrinter& p) const {
-    p.print("?");
+    p.print("?", id());
 }
 
 void print(const Expr* e,

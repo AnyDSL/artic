@@ -2,6 +2,7 @@
 #define IRBUILDER_H
 
 #include <unordered_set>
+#include <cassert>
 
 #include "ir.h"
 
@@ -46,9 +47,14 @@ public:
     const LambdaType*  lambda_type(const Type* from, const Type* to) { return new_type<LambdaType>(from, to); }
     const TupleType*   tuple_type(const std::vector<const Type*>& args) { return new_type<TupleType>(args); }
     const TypeVar*     type_var(int i) { return new_type<TypeVar>(i); }
-    const PolyType*    poly_type(const Type* body) { return new_type<PolyType>(body); }
-    const PolyType*    top_type() { return new_type<PolyType>(type_var(0)); }
-    const UnknownType* unknown_type() { unknowns_.emplace_back(new UnknownType()); return unknowns_.back(); }
+    const PolyType*    poly_type(const Type* body, int size = 1) {
+        // Normalize polymorphic types
+        assert(size > 0);
+        if (auto poly = body->isa<PolyType>())
+            return new_type<PolyType>(poly->body(), size + poly->size());
+        return new_type<PolyType>(body, size);
+    }
+    const UnknownType* unknown_type() { unknowns_.emplace_back(new UnknownType(unknowns_.size() + 1)); return unknowns_.back(); }
 
 private:
     struct HashType {

@@ -1,4 +1,5 @@
 #include <typeinfo>
+#include <unordered_map>
 
 #include "loc.h"
 #include "ir.h"
@@ -16,7 +17,7 @@ public:
         auto t = e->infer(*this);
         if (t != e->type()) {
             e->set_type(t);
-            todo_ |= true;
+            todo_ = true;
         }
         return e->type();
     }
@@ -26,19 +27,24 @@ public:
         if (u) t = unify(t, u);
         if (t != e->type()) {
             e->set_type(t);
-            todo_ |= true;
+            todo_ = true;
         }
         return e->type();
     }
 
     const Type* unify(const Type* a, const Type* b) {
-        if (!a || a->isa<UnknownType>()) return b;
-        if (!b || b->isa<UnknownType>()) return a;
+        assert(a && b);
+        a = find(a);
+        b = find(b);
+
+        if (a->isa<UnknownType>()) return constrain(a, b);
+        if (b->isa<UnknownType>()) return constrain(b, a);
 
         // Polymorphic types
         auto poly_a = a->isa<PolyType>();
         auto poly_b = b->isa<PolyType>();
-        if (poly_a && poly_b) return builder_.poly_type(unify(poly_a->body(), poly_b->body()));
+        if (poly_a && poly_b && poly_a->size() == poly_b->size())
+            return builder_.poly_type(unify(poly_a->body(), poly_b->body()), poly_a->size());
         if (poly_a || poly_b) return builder_.error_type();
 
         // Type application (lambdas, tuples, ...)
@@ -55,23 +61,36 @@ public:
         }
 
         // Others
-        if (a != b) return builder_.error_type();
-        return a;
-    }
-
-    std::pair<const Type*, int> generalize(const Type* type) {
-        int n = 0;
-        while (auto poly = type->isa<PolyType>()) {
-            type = poly->body();
-            n++;
-        }
-        return std::make_pair(type, n);
+        return (a != b) ? builder_.error_type() : a;
     }
 
     bool todo() const { return todo_; }
     void restart() { todo_ = false; }
 
 private:
+    const Type* find(const Type* t) {
+        assert(t);
+        auto it = constrs_.find(t);
+        if (it != constrs_.end()) {
+            if (it->first != it->second) {
+                auto next = find(it->second);
+                todo_ = next != it->second;
+                it->second = next;
+            }
+            return it->second;
+        }
+        todo_ = true;
+        constrs_.emplace(t, t);
+        return t;
+    }
+
+    const Type* constrain(const Type* a, const Type* b) {
+        b = find(b);
+        constrs_[find(a)] = b;
+        return b;
+    }
+
+    std::unordered_map<const Type*, const Type*> constrs_;
     IRBuilder& builder_;
     bool todo_;
 };
@@ -91,7 +110,7 @@ const Type* Tuple::infer(InferSema& sema) const {
 }
 
 const Type* Var::infer(InferSema&) const {
-    return type();
+    return type() ? type() : builder()->unknown_type();
 }
 
 const Type* Param::infer(InferSema&) const {
@@ -101,15 +120,7 @@ const Type* Param::infer(InferSema&) const {
 const Type* Lambda::infer(InferSema& sema) const {
     sema.infer(param());
     sema.infer(body());
-
-    if (param()->type()->isa<UnknownType>())
-        param()->set_type(builder()->type_var(body()->type()->depth()));
-
-    auto g = sema.generalize(body()->type());
-    int n = g.second + (param()->type()->isa<TypeVar>() ? 1 : 0);
-    const Type* lambda = builder()->lambda_type(param()->type(), g.first);
-    for (int i = 0; i < n; i++) lambda = builder()->poly_type(lambda);
-    return lambda;
+    return builder()->lambda_type(param()->type(), body()->type());
 }
 
 const Type* PrimOp::infer(InferSema& sema) const {

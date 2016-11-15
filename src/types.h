@@ -253,12 +253,13 @@ private:
 class PolyType : public Type {
     friend class IRBuilder;
 
-    PolyType(const Type* body)
-        : body_(body), depth_(1 + body->depth())
+    PolyType(const Type* body, int size)
+        : body_(body), size_(size), depth_(size + body->depth())
     {}
 
 public:
     const Type* body() const { return body_; }
+    int size() const { return size_; }
 
     void print(PrettyPrinter&) const override;
 
@@ -275,29 +276,37 @@ public:
     }
 
     bool equals(const Type* t) const override {
-        if (auto poly = t->isa<PolyType>())
-            return poly->depth() == depth() && poly->body() == body();
+        if (auto poly = t->isa<PolyType>()) {
+            return poly->size()  == size() &&
+                   poly->depth() == depth() &&
+                   poly->body()  == body();
+        }
         return false;
     }
 
 private:
     const Type* body_;
-    int depth_;
+    int size_, depth_;
 };
 
 /// An unknown type, used for type inference.
 class UnknownType : public Type {
     friend class IRBuilder;
 
-    UnknownType() {}
+    UnknownType(int id) : id_(id) {}
 
 public:
+    int id() const { return id_; }
+
     void print(PrettyPrinter&) const override;
 
     const Type* rebuild(IRBuilder&, const std::vector<const Type*>&) const override;
 
     size_t hash() const override { return reinterpret_cast<size_t>(this); }
     bool equals(const Type* t) const override { return t == this; }
+
+private:
+    int id_;
 };
 
 } // namespace artic
