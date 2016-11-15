@@ -42,7 +42,8 @@ public:
         auto poly_b = b->isa<PolyType>();
         if (poly_a && poly_b && poly_a->size() == poly_b->size())
             return builder_.poly_type(unify(poly_a->body(), poly_b->body()), poly_a->size());
-        if (poly_a || poly_b) return builder_.error_type();
+        if (poly_a) return builder_.poly_type(unify(poly_a->body(), b), poly_a->size());
+        if (poly_b) return builder_.poly_type(unify(poly_b->body(), a), poly_b->size());
 
         // Type application (lambdas, tuples, ...)
         auto app_a = a->isa<TypeApp>();
@@ -85,7 +86,11 @@ private:
     const Type* constrain(const Type* a, const Type* b) {
         // Create a new constraint linking type a to type b
         b = find(b);
-        constrs_[find(a)] = b;
+        a = find(a);
+        if (a != b) {
+            constrs_[a] = b;
+            todo_ = true;
+        }
         return b;
     }
 
@@ -117,8 +122,11 @@ const Type* Param::infer(InferSema&) const {
 }
 
 const Type* Lambda::infer(InferSema& sema) const {
-    sema.infer(param());
-    sema.infer(body());
+    auto lambda = type() ? type()->inner()->isa<LambdaType>() : nullptr;
+
+    sema.infer(param(), lambda ? lambda->from() : nullptr);
+    sema.infer(body(),  lambda ? lambda->to()   : nullptr);
+
     return builder()->lambda_type(param()->type(), body()->type());
 }
 

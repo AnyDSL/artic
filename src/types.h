@@ -31,6 +31,8 @@ public:
     virtual void print(PrettyPrinter&) const = 0;
     /// Returns the depth of the type in number of polymorphic types.
     virtual int depth() const { return 0; }
+    /// Returns the first non-polymorphic inner type.
+    virtual const Type* inner() const { return this; }
     /// Returns a hash value for the type.
     virtual size_t hash() const = 0;
     /// Tests another type for equality by inspecting its shape.
@@ -270,6 +272,11 @@ public:
     }
 
     int depth() const override { return depth_; }
+
+    const Type* inner() const override {
+        assert(body()->inner() == body() && "Polymorphic type not in normal form");
+        return body();
+    }
 
     size_t hash() const override {
         return hash_combine(body()->hash(), 0x811c9dc5);

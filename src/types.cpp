@@ -29,7 +29,7 @@ const Type* TypeVar::rebuild(IRBuilder& builder, const std::vector<const Type*>&
 
 const Type* PolyType::rebuild(IRBuilder& builder, const std::vector<const Type*>& args) const {
     assert(args.size() == 1);
-    return builder.poly_type(args[0]);
+    return builder.poly_type(args[0], size());
 }
 
 const Type* UnknownType::rebuild(IRBuilder& builder, const std::vector<const Type*>& args) const {

@@ -724,7 +724,9 @@ const PolyType* Parser::parse_poly_type() {
     expect(Token::DOT);
     type_depth_++;
     max_type_depth_ = std::max(max_type_depth_, type_depth_);
-    return builder_.poly_type(parse_type());
+    auto t = parse_type();
+    type_depth_--;
+    return builder_.poly_type(t);
 }
 
 Literal Parser::parse_literal() {

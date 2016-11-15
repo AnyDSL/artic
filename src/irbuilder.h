@@ -47,14 +47,20 @@ public:
     const LambdaType*  lambda_type(const Type* from, const Type* to) { return new_type<LambdaType>(from, to); }
     const TupleType*   tuple_type(const std::vector<const Type*>& args) { return new_type<TupleType>(args); }
     const TypeVar*     type_var(int i) { return new_type<TypeVar>(i); }
+
     const PolyType*    poly_type(const Type* body, int size = 1) {
         // Normalize polymorphic types
         assert(size > 0);
         if (auto poly = body->isa<PolyType>())
             return new_type<PolyType>(poly->body(), size + poly->size());
+
         return new_type<PolyType>(body, size);
     }
-    const UnknownType* unknown_type() { unknowns_.emplace_back(new UnknownType(unknowns_.size() + 1)); return unknowns_.back(); }
+
+    const UnknownType* unknown_type() {
+        unknowns_.emplace_back(new UnknownType(unknowns_.size() + 1));
+        return unknowns_.back();
+    }
 
 private:
     struct HashType {
