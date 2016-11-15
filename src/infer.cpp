@@ -34,9 +34,6 @@ public:
 
     const Type* unify(const Type* a, const Type* b) {
         assert(a && b);
-        a = find(a);
-        b = find(b);
-
         if (a->isa<UnknownType>()) return constrain(a, b);
         if (b->isa<UnknownType>()) return constrain(b, a);
 
@@ -69,6 +66,7 @@ public:
 
 private:
     const Type* find(const Type* t) {
+        // Apply the substitutions from the constraint set to the type t
         assert(t);
         auto it = constrs_.find(t);
         if (it != constrs_.end()) {
@@ -85,6 +83,7 @@ private:
     }
 
     const Type* constrain(const Type* a, const Type* b) {
+        // Create a new constraint linking type a to type b
         b = find(b);
         constrs_[find(a)] = b;
         return b;
