@@ -314,7 +314,7 @@ public:
     PrimOp*      parse_extract();
     PrimOp*      parse_insert();
     Value*       parse_value();
-    Tuple*       parse_tuple();
+    Value*       parse_tuple();
     Lambda*      parse_lambda();
     Vector*      parse_vector();
 
@@ -326,7 +326,7 @@ public:
     }
 
     const Type*       parse_type();
-    const TupleType*  parse_tuple_type();
+    const Type*       parse_tuple_type();
     const LambdaType* parse_lambda_type(const Type* t);
     const PrimType*   parse_prim_type();
     const Type*       parse_type_var();
@@ -534,20 +534,30 @@ Value* Parser::parse_value() {
     return nullptr;
 }
 
-Tuple*  Parser::parse_tuple() {
-    auto tuple = make_expr(builder_.tuple({}));
+Value* Parser::parse_tuple() {
+    auto begin = ahead().loc().begin;
+
+    std::vector<const Value*> elems;
+    Value* last;
+
     eat(Token::LPAREN);
     while (ahead() == Token::IDENT  ||
            ahead() == Token::LPAREN ||
            ahead() == Token::BSLASH ||
            ahead().is_prim()) {
-        tuple->elems().push_back(parse_value());
+        last = parse_value();
+        elems.push_back(last);
 
         if (ahead() == Token::COMMA) eat(Token::COMMA);
         else break;
     }
     expect(Token::RPAREN);
-    return tuple;
+
+    Value* value = elems.size() == 1 ? last : builder_.tuple(elems);
+
+    value->loc_.begin = begin;
+    value->loc_.end   = prev_loc_.end;
+    return value;
 }
 
 Lambda* Parser::parse_lambda() {
@@ -659,7 +669,7 @@ const Type* Parser::parse_type() {
     return ahead() == Token::ARROW ? parse_lambda_type(type) : type;
 }
 
-const TupleType* Parser::parse_tuple_type() {
+const Type* Parser::parse_tuple_type() {
     eat(Token::LPAREN);
     std::vector<const Type*> types;
     while (ahead().is_prim() ||
@@ -673,7 +683,7 @@ const TupleType* Parser::parse_tuple_type() {
     }
     expect(Token::RPAREN);
 
-    return builder_.tuple_type(types);
+    return types.size() == 1 ? types.front() : builder_.tuple_type(types);
 }
 
 const LambdaType* Parser::parse_lambda_type(const Type* t) {

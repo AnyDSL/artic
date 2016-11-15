@@ -254,7 +254,7 @@ class PolyType : public Type {
     friend class IRBuilder;
 
     PolyType(const Type* body)
-        : body_(body)
+        : body_(body), depth_(1 + body->depth())
     {}
 
 public:
@@ -268,7 +268,7 @@ public:
         return rebuild(builder, { body()->shift(builder, inc) });
     }
 
-    int depth() const override { return 1 + body()->depth(); }
+    int depth() const override { return depth_; }
 
     size_t hash() const override {
         return hash_combine(body()->hash(), 0x811c9dc5);
@@ -276,12 +276,13 @@ public:
 
     bool equals(const Type* t) const override {
         if (auto poly = t->isa<PolyType>())
-            return poly->body() == body();
+            return poly->depth() == depth() && poly->body() == body();
         return false;
     }
 
 private:
     const Type* body_;
+    int depth_;
 };
 
 /// An unknown type, used for type inference.
