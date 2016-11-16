@@ -13,6 +13,10 @@ public:
         : builder_(builder), todo_(false)
     {}
 
+    const Type* type(const Expr* expr) {
+        return expr->type() ? expr->type() : builder_.unknown_type();
+    }
+
     const Type* infer(const Expr* e) {
         auto t = e->infer(*this);
         if (t != e->type()) {
@@ -84,6 +88,7 @@ private:
     }
 
     const Type* constrain(const Type* a, const Type* b) {
+        assert(a && b);
         // Create a new constraint linking type a to type b
         b = find(b);
         a = find(a);
@@ -113,12 +118,12 @@ const Type* Tuple::infer(InferSema& sema) const {
     return builder()->tuple_type(args);
 }
 
-const Type* Var::infer(InferSema&) const {
-    return type() ? type() : builder()->unknown_type();
+const Type* Var::infer(InferSema& sema) const {
+    return sema.type(this);
 }
 
-const Type* Param::infer(InferSema&) const {
-    return type() ? type() : builder()->unknown_type();
+const Type* Param::infer(InferSema& sema) const {
+    return sema.type(this);
 }
 
 const Type* Lambda::infer(InferSema& sema) const {
@@ -131,10 +136,10 @@ const Type* Lambda::infer(InferSema& sema) const {
 }
 
 const Type* PrimOp::infer(InferSema& sema) const {
-    if (num_args() == 0) return nullptr;
+    if (num_args() == 0) return sema.type(this);
 
     if (binary()) {
-        if (num_args() != 2) return nullptr;
+        if (num_args() != 2) return sema.type(this);
 
         sema.infer(arg(0), arg(1)->type());
         sema.infer(arg(1), arg(0)->type());
@@ -157,7 +162,7 @@ const Type* PrimOp::infer(InferSema& sema) const {
             case CMP_EQ:
                 {
                     auto a = arg(0)->type() ? arg(0)->type()->isa<PrimType>() : nullptr;
-                    return a ? builder()->prim_type(Prim::I1, a->size()) : nullptr;
+                    return a ? builder()->prim_type(Prim::I1, a->size()) : sema.type(this);
                 }
             default: assert(false);
         }
@@ -218,7 +223,7 @@ const Type* PrimOp::infer(InferSema& sema) const {
         }
     }
 
-    return nullptr;
+    return sema.type(this);
 }
 
 const Type* IfExpr::infer(InferSema& sema) const {
@@ -229,45 +234,20 @@ const Type* IfExpr::infer(InferSema& sema) const {
 }
 
 const Type* AppExpr::infer(InferSema& sema) const {
-    for (auto arg : args()) {
-        sema.infer(arg);
-    }
+    for (auto arg : args()) sema.infer(arg);
 
-    // Function type deduction
-    const Type* first = arg(0)->type();
-
-    bool known = true;
-    for (int i = 1, n = num_args(); i < n; i++) {
-        known &= arg(i)->type() != nullptr;
-    }
-
-    if (!first && known && type()) {
-        const Type* ret = type();
-        for (int i = num_args() - 1; i >= 1; i--) {
-            ret = builder()->lambda_type(arg(i)->type(), ret);
+    // Return type deduction
+    const Type* ret = sema.type(this);
+    if (auto lambda = arg(0)->type()->inner()->isa<LambdaType>()) {
+        int i = 0, n = num_args();
+        while (i < n && lambda) {
+            ret = lambda->to();
+            lambda = ret->isa<LambdaType>();
+            i++;
         }
-        first = sema.infer(arg(0), ret);
     }
 
-    // Return type and parameter type deduction
-    if (first && num_args() >= 2) {
-        const Type* ret = nullptr;
-        size_t n = 2;
-        while (auto lambda = first->isa<LambdaType>()) {
-            if (!arg(n - 1)->type())
-                sema.infer(arg(n - 1), lambda->from());
-
-            if (n++ >= num_args()) {
-                ret = lambda->to();
-                break;
-            }
-
-            first = lambda->to();
-        }
-        return ret;
-    }
-
-    return type();
+    return ret;
 }
 
 const Type* LetExpr::infer(InferSema& sema) const {

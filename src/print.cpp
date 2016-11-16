@@ -15,13 +15,14 @@ class PrettyPrinter {
     template <typename T> struct TypeVarStyle { T t; TypeVarStyle(const T& t) : t{t} {} };
     template <typename T> struct ErrorStyle   { T t; ErrorStyle  (const T& t) : t{t} {} };
 
+    template <typename T> struct Optional { bool b; T t; Optional(bool b, const T& t) : b(b), t{t} {} };
+
 public:
     PrettyPrinter(std::ostream& out = std::cout,
                   const std::string& tab = "  ",
                   int indent = 0,
                   bool color = true)
-        : type_level_(0)
-        , out_(out)
+        : out_(out)
         , tab_(tab)
         , indent_(indent)
         , color_(color)
@@ -36,6 +37,10 @@ public:
     void print(const T* expr_or_type) { expr_or_type->print(*this); }
 
     void print(const char* str) { out_ << str; }
+
+    template <typename T> void print(const Optional<T>& opt) {
+        if (opt.b) print(opt.t);
+    }
 
     template <typename T> void print(const KeywordStyle<T>& style) {
         if (color_) print("\033[1;36m");
@@ -74,16 +79,21 @@ public:
         if (n > 0) print(f(t[n - 1]));
     }
 
+    template <typename T> Optional<T> opt(bool b, const T& t) const { return Optional<T>(b, t); }
+
     template <typename T> KeywordStyle<T> keyword_style (const T& t) const { return KeywordStyle<T>(t); }
     template <typename T> LiteralStyle<T> literal_style (const T& t) const { return LiteralStyle<T>(t); }
     template <typename T> IdentStyle<T>   ident_style   (const T& t) const { return IdentStyle<T>  (t); }
     template <typename T> TypeVarStyle<T> type_var_style(const T& t) const { return TypeVarStyle<T>(t); }
     template <typename T> ErrorStyle<T>   error_style   (const T& t) const { return ErrorStyle<T>  (t); }
 
-    KeywordStyle<const char*> keyword_style(const char* str) const { return KeywordStyle<const char*>(str); }
-    LiteralStyle<const char*> literal_style(const char* str) const { return LiteralStyle<const char*>(str); }
-    IdentStyle<const char*>   ident_style  (const char* str) const { return IdentStyle<const char*>  (str); }
-    ErrorStyle<const char*>   error_style  (const char* str) const { return ErrorStyle<const char*>  (str); }
+    Optional<const char*> opt(bool b, const char* str) const { return Optional<const char*>(b, str); }
+
+    KeywordStyle<const char*> keyword_style (const char* str) const { return KeywordStyle<const char*>(str); }
+    LiteralStyle<const char*> literal_style (const char* str) const { return LiteralStyle<const char*>(str); }
+    IdentStyle<const char*>   ident_style   (const char* str) const { return IdentStyle<const char*>  (str); }
+    TypeVarStyle<const char*> type_var_style(const char* str) const { return TypeVarStyle<const char*>(str); }
+    ErrorStyle<const char*>   error_style   (const char* str) const { return ErrorStyle<const char*>  (str); }
 
     void new_line() {
         out_ << std::endl;
@@ -98,8 +108,6 @@ public:
     static constexpr size_t default_max_complexity() { return 5; }
 
 private:
-    int type_level_;
-
     std::ostream& out_;
     const std::string& tab_;
     int indent_;
@@ -129,9 +137,10 @@ void Type::dump() const {
 
 void Vector::print(PrettyPrinter& p) const {
     p.print(p.keyword_style(to_string(prim())));
-    const int n = size();
-    if (n > 1) p.print("<");
-    else p.print(" ");
+
+    if (size() > 1) p.print("<");
+    else            p.print(" ");
+
     switch (prim()) {
         case Prim::I1 : p.print_list(", ", elems(), [&] (Elem e) { return p.literal_style(e.i1 ); }); break;
 
@@ -150,15 +159,14 @@ void Vector::print(PrettyPrinter& p) const {
         case Prim::F64: p.print_list(", ", elems(), [&] (Elem e) { return p.literal_style(e.f64); }); break;
         default: assert(false);
     }
+
     if (size() > 1) p.print(">");
 }
 
 void Tuple::print(PrettyPrinter& p) const {
-    const int n = size();
     p.print("(");
-    for (int i = 0; i < n - 1; i++)
-        p.print(elem(i), ", ");
-    if (n > 0) elem(n - 1)->print(p);
+    for (int i = 0, n = size(); i < n; i++)
+        p.print(elem(i), p.opt(i != n - 1, ", "));
     p.print(")");
 }
 
@@ -176,15 +184,15 @@ void Lambda::print(PrettyPrinter& p) const {
         p.print(" : ", param()->type());
     p.print(" . ");
 
-    const bool indent = complexity() > p.max_complexity();
-    if (indent) { p.indent(); p. new_line(); }
-    body()->print(p);
+    bool indent = complexity() > p.max_complexity();
+    if (indent) { p.indent(); p.new_line(); }
+    p.print(body());
     if (indent) p.unindent();
 }
 
 void PrimOp::print(PrettyPrinter& p) const {
     if (binary()) {
-        arg(0)->print(p);
+        p.print(arg(0));
         switch(op()) {
             case ADD:    p.print(" + ");  break;
             case SUB:    p.print(" - ");  break;
@@ -202,7 +210,7 @@ void PrimOp::print(PrettyPrinter& p) const {
             case CMP_EQ: p.print(" == "); break;
             default: assert(false);
         }
-        arg(1)->print(p);
+        p.print(arg(1));
     } else {
         switch(op()) {
             case SELECT:  p.print(p.keyword_style("select"));  break;
@@ -234,12 +242,10 @@ void IfExpr::print(PrettyPrinter& p) const {
 }
 
 void AppExpr::print(PrettyPrinter& p) const {
-    arg(0)->print(p);
-    p.print(" ");
-    const int n = num_args();
-    for (int i = 1; i < n - 1; i++)
-        p.print(arg(i), " ");
-    if (n > 0) arg(n - 1)->print(p);
+    for (int i = 0, n = num_args(); i < n; i++) {
+        bool paren = arg(i)->isa<Lambda>();
+        p.print(p.opt(paren, "("), arg(i), p.opt(paren, ")"), p.opt(i != n - 1, " "));
+    }
 }
 
 void LetExpr::print(PrettyPrinter& p) const {
@@ -248,7 +254,7 @@ void LetExpr::print(PrettyPrinter& p) const {
         p.print(" : ", var()->type());
     p.print(" = ", var()->binding(), " ", p.keyword_style("in"), " ");
     const bool indent = complexity() > p.max_complexity();
-    if (indent) { p.indent(); p. new_line(); }
+    if (indent) { p.indent(); p.new_line(); }
     p.print(body());
     if (indent) p.unindent();
 }
@@ -263,7 +269,8 @@ void ErrorType::print(PrettyPrinter& p) const {
 }
 
 void LambdaType::print(PrettyPrinter& p) const {
-    p.print(from(), " -> ", to());
+    bool paren = from()->isa<PolyType>() || from()->isa<LambdaType>();
+    p.print(p.opt(paren, "("), from(), p.opt(paren, ")"), " -> ", to());
 }
 
 void TupleType::print(PrettyPrinter& p) const {
@@ -279,8 +286,7 @@ void TypeVar::print(PrettyPrinter& p) const {
 void PolyType::print(PrettyPrinter& p) const {
     p.print(p.keyword_style("forall"), " ");
     for (int i = size() - 1; i >= 0; i--) {
-        p.print(p.type_var_style("<" + std::to_string(depth() - size() + i) + ">"));
-        if (i != 0) p.print(" ");
+        p.print(p.type_var_style("<" + std::to_string(depth() - size() + i) + ">"), p.opt(i != 0, " "));
     }
     p.print(". ", body());
 }

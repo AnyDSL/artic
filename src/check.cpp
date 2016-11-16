@@ -199,12 +199,13 @@ void AppExpr::check(CheckSema& sema) const {
     for (int i = 0, n = num_args(); i < n; i++) {
         sema.check(arg(i));
         if (!arg(i)->type()) {
+            arg(i)->type()->dump();
             sema.error(this, "Cannot infer type for application argument ", i);
             return;
         }
     }
 
-    if (auto lambda = arg(0)->type()->isa<LambdaType>()) {
+    if (auto lambda = arg(0)->type()->inner()->isa<LambdaType>()) {
         assert(num_args() >= 2);
         size_t i = 1;
         while (true) {
