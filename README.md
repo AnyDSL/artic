@@ -9,6 +9,7 @@ Ultimately, it might become usable in production one day. If this happens, this 
 ## Syntax
 
 The syntax is pretty small and compact, and follows the rules of ANF: every expression in an application must be in normal form.
+This means that, in practice, expressions defined by`EXPR` and `COMPLEX_EXPR` may or may not terminate, and that atomic expressions (defined by `ATOMIC_EXPR`) are guaranteed to terminate.
 
 ### Expressions:
 
@@ -22,10 +23,10 @@ The syntax is pretty small and compact, and follows the rules of ANF: every expr
              | insert VALUE VALUE VALUE
              | extract VALUE VALUE
              | select VALUE VALUE VALUE
-    VALUE ::= SCALAR | VECTOR | TUPLE | LAMBDA
+    VALUE  ::= SCALAR | VECTOR | TUPLE | LAMBDA
     SCALAR ::= PRIM_TYPE literal
     VECTOR ::= PRIM_TYPE < literal (literal)+ >
-    TUPLE ::= "(" (VALUE)* ")"
+    TUPLE  ::= "(" (VALUE)* ")"
     LAMBDA ::= \ IDENT (: TYPE)? . EXPR
     
 ### Types
