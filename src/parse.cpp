@@ -275,17 +275,17 @@ Literal Lexer::parse_literal(bool neg) {
 
 class Env {
 public:
-    Value* find(const std::string& str) const {
+    const Value* find(const std::string& str) const {
         for (int i = symbols_.size() - 1; i >= 0; i--) {
             if (symbols_[i].first == str) return symbols_[i].second;
         }
         return nullptr;
     }
 
-    void push(const std::string& str, Value* value) { symbols_.emplace_back(str, value); }
+    void push(const std::string& str, const Value* value) { symbols_.emplace_back(str, value); }
     void pop() { assert(!symbols_.empty()); symbols_.pop_back(); }
 private:
-    std::vector<std::pair<std::string, Value*> > symbols_;
+    std::vector<std::pair<std::string, const Value*> > symbols_;
 };
 
 class Parser {
@@ -296,27 +296,29 @@ public:
         tok_ = lexer_();
     }
 
-    void parse(std::vector<Expr*>& exprs) {
+    void parse(ExprVec& exprs) {
         while (ahead() != Token::END) {
             exprs.push_back(parse_expr());
         }
     }
 
-    Expr*        parse_expr();
-    LetExpr*     parse_let_expr();
-    ComplexExpr* parse_complex_expr();
-    IfExpr*      parse_if_expr();
-    AppExpr*     parse_app_expr(Value* first, const Pos& begin);
-    AtomicExpr*  parse_atomic_expr();
-    PrimOp*      parse_primop(const Value* left, const Pos& begin);
-    PrimOp*      parse_bitcast();
-    PrimOp*      parse_select();
-    PrimOp*      parse_extract();
-    PrimOp*      parse_insert();
-    Value*       parse_value();
-    Value*       parse_tuple();
-    Lambda*      parse_lambda();
-    Vector*      parse_vector();
+    const Expr*        parse_expr();
+    const LetExpr*     parse_let_expr();
+    const ComplexExpr* parse_complex_expr();
+    const IfExpr*      parse_if_expr();
+    const AppExpr*     parse_app_expr(const Value* first, const Pos& begin);
+    const AtomicExpr*  parse_atomic_expr();
+    const PrimOp*      parse_primop(const Value* left, const Pos& begin);
+    const PrimOp*      parse_bitcast();
+    const PrimOp*      parse_select();
+    const PrimOp*      parse_extract();
+    const PrimOp*      parse_insert();
+    const Value*       parse_value();
+    const Value*       parse_tuple();
+    const Lambda*      parse_lambda();
+    const Vector*      parse_vector();
+    const Var*         parse_var();
+    const Param*       parse_param();
 
     const Type* parse_new_type() {
         max_type_depth_ = type_depth_ = 0;
@@ -340,24 +342,23 @@ public:
     int error_count() const { return lexer_.error_count() + err_count_; }
 
 private:
-    template <typename T>
-    struct ExprProxy {
+    struct Anchor {
         const Parser& p;
-        T* e;
+        Pos begin;
 
-        ExprProxy(const Parser& p, T* e) : p(p), e(e) { e->loc_ = p.ahead().loc(); }
-        ~ExprProxy() { e->loc_.end = p.prev_loc_.end; }
-        operator T* () { return e; }
-        T* operator -> () { return e; }
-        const T* operator -> () const { return e; }
+        Anchor(const Parser& p, const Pos& pos) : p(p), begin(pos) {}
+        template <typename E>
+        const E* operator () (const E* e) {
+            e->loc_.begin = begin;
+            e->loc_.end   = p.prev_loc_.end;
+            return e;
+        }
     };
 
-    template <typename T>
-    ExprProxy<T> make_expr(T* e) {
-        return ExprProxy<T>(*this, e);
-    }
+    Anchor make_anchor()                 const { return Anchor(*this, ahead().loc().begin); }
+    Anchor make_anchor(const Pos& begin) const { return Anchor(*this, begin);         }
 
-    Value* find_ident(const std::string& ident) {
+    const Value* find_ident(const std::string& ident) {
         if (auto value = env_.find(ident))
             return value;
         error("Unknown identifier '", ident, "'");
@@ -394,36 +395,23 @@ private:
     std::unordered_map<std::string, int> type_vars_;
 };
 
-Expr* Parser::parse_expr() {
+const Expr* Parser::parse_expr() {
     if (ahead() == Token::LET) return parse_let_expr();
     return parse_complex_expr();
 }
 
-LetExpr* Parser::parse_let_expr() {
-    auto let = make_expr(builder_.let_expr(nullptr, nullptr));
+const LetExpr* Parser::parse_let_expr() {
+    auto anchor = make_anchor();
     eat(Token::LET);
-
-    {
-        auto var = make_expr(builder_.var("", nullptr));
-        var->set_name(parse_ident());
-        if (ahead() == Token::COLON) {
-            eat(Token::COLON);
-            var->set_type(parse_new_type());
-        }
-        expect(Token::ASSIGN);
-        env_.push(var->name(), var);
-        var->set_binding(parse_complex_expr());
-        let->set_var(var);
-    }
-
+    auto var = parse_var();
     expect(Token::IN);
-    let->set_body(parse_expr());
+    env_.push(var->name(), var);
+    auto body = parse_expr();
     env_.pop();
-
-    return let;
+    return anchor(builder_.let_expr(var, body));
 }
 
-ComplexExpr* Parser::parse_complex_expr() {
+const ComplexExpr* Parser::parse_complex_expr() {
     if (ahead() == Token::IF) return parse_if_expr();
     if (ahead() == Token::IDENT  ||
         ahead() == Token::BSLASH) {
@@ -442,30 +430,30 @@ ComplexExpr* Parser::parse_complex_expr() {
     return parse_atomic_expr();
 }
 
-IfExpr* Parser::parse_if_expr() {
-    auto if_expr = make_expr(builder_.if_expr(nullptr, nullptr, nullptr)); 
+const IfExpr* Parser::parse_if_expr() {
+    auto anchor = make_anchor();
     eat(Token::IF);
-    if_expr->set_cond(parse_value());
+    auto cond = parse_value();
     expect(Token::THEN);
-    if_expr->set_if_true(parse_expr());
+    auto if_true = parse_expr();
     expect(Token::ELSE);
-    if_expr->set_if_false(parse_expr());
-    return if_expr;
+    auto if_false = parse_expr();
+    return anchor(builder_.if_expr(cond, if_true, if_false));
 }
 
-AppExpr* Parser::parse_app_expr(Value* first, const Pos& begin) {
-    auto app_expr = make_expr(builder_.app_expr({ first }));
-    app_expr->loc_.begin = begin;
+const AppExpr* Parser::parse_app_expr(const Value* first, const Pos& begin) {
+    auto anchor = make_anchor(begin);
+    ValueVec args{first};
     do {
-        app_expr->args().push_back(parse_value());
+        args.push_back(parse_value());
     } while (ahead() == Token::IDENT  ||
              ahead() == Token::LPAREN ||
              ahead() == Token::BSLASH ||
              ahead().is_prim());
-    return app_expr;
+    return anchor(builder_.app_expr(args));
 }
 
-AtomicExpr* Parser::parse_atomic_expr() {
+const AtomicExpr* Parser::parse_atomic_expr() {
     switch (ahead().type()) {
         case Token::SELECT:  return parse_select();
         case Token::BITCAST: return parse_bitcast();
@@ -481,49 +469,50 @@ AtomicExpr* Parser::parse_atomic_expr() {
     return value;
 }
 
-PrimOp* Parser::parse_primop(const Value* left, const Pos& begin) {
-    auto primop = make_expr(builder_.primop(ahead().to_binop(), left, nullptr));
+const PrimOp* Parser::parse_primop(const Value* left, const Pos& begin) {
+    auto anchor = make_anchor(begin);
+    auto binop = ahead().to_binop();
     lex();
-    primop->loc_.begin = begin;
-    primop->args()[1] = parse_value();
-    return primop;
+    auto right = parse_value();
+    auto primop = builder_.primop(binop, left, right);
+    return anchor(primop);
 }
 
-PrimOp* Parser::parse_bitcast() {
-    auto bitcast = make_expr(builder_.bitcast(nullptr, nullptr));
+const PrimOp* Parser::parse_bitcast() {
+    auto anchor = make_anchor();
     eat(Token::BITCAST);
-    bitcast->type_args()[0] = parse_new_type();
-    bitcast->args()[0] = parse_value();
-    return bitcast;
+    auto type = parse_new_type();
+    auto val = parse_value();
+    return anchor(builder_.bitcast(type, val));
 }
 
-PrimOp* Parser::parse_select() {
-    auto select = make_expr(builder_.select(nullptr, nullptr, nullptr));
+const PrimOp* Parser::parse_select() {
+    auto anchor = make_anchor();
     eat(Token::SELECT);
-    select->args()[0] = parse_value();
-    select->args()[1] = parse_value();
-    select->args()[2] = parse_value();
-    return select;
+    auto cond = parse_value();
+    auto left = parse_value();
+    auto right = parse_value();
+    return anchor(builder_.select(cond, left, right));
 }
 
-PrimOp* Parser::parse_extract() {
-    auto extract = make_expr(builder_.extract(nullptr, nullptr));
+const PrimOp* Parser::parse_extract() {
+    auto anchor = make_anchor();
     eat(Token::EXTRACT);
-    extract->args()[0] = parse_value();
-    extract->args()[1] = parse_value();
-    return extract;
+    auto index = parse_value();
+    auto arg = parse_value();
+    return anchor(builder_.extract(index, arg));
 }
 
-PrimOp* Parser::parse_insert() {
-    auto insert = make_expr(builder_.insert(nullptr, nullptr, nullptr));
+const PrimOp* Parser::parse_insert() {
+    auto anchor = make_anchor();
     eat(Token::INSERT);
-    insert->args()[0] = parse_value();
-    insert->args()[1] = parse_value();
-    insert->args()[2] = parse_value();
-    return insert;
+    auto index = parse_value();
+    auto arg = parse_value();
+    auto val = parse_value();
+    return anchor(builder_.insert(index, arg, val));
 }
 
-Value* Parser::parse_value() {
+const Value* Parser::parse_value() {
     if (ahead() == Token::IDENT)  return find_ident(parse_ident());
     if (ahead() == Token::LPAREN) return parse_tuple();
     if (ahead() == Token::BSLASH) return parse_lambda();
@@ -534,11 +523,11 @@ Value* Parser::parse_value() {
     return nullptr;
 }
 
-Value* Parser::parse_tuple() {
-    auto begin = ahead().loc().begin;
+const Value* Parser::parse_tuple() {
+    auto anchor = make_anchor();
 
-    std::vector<const Value*> elems;
-    Value* last;
+    ValueVec elems;
+    const Value* last;
 
     eat(Token::LPAREN);
     while (ahead() == Token::IDENT  ||
@@ -553,38 +542,23 @@ Value* Parser::parse_tuple() {
     }
     expect(Token::RPAREN);
 
-    Value* value = elems.size() == 1 ? last : builder_.tuple(elems);
-
-    value->loc_.begin = begin;
-    value->loc_.end   = prev_loc_.end;
-    return value;
+    return anchor(elems.size() == 1 ? last : builder_.tuple(elems));
 }
 
-Lambda* Parser::parse_lambda() {
-    auto lambda = make_expr(builder_.lambda(nullptr, nullptr));
+const Lambda* Parser::parse_lambda() {
+    auto anchor = make_anchor();
     eat(Token::BSLASH);
-    
-    {
-        auto param = make_expr(builder_.param(parse_ident()));
-        lambda->set_param(param);
-        if (ahead() == Token::COLON) {
-            eat(Token::COLON);
-            param->set_type(parse_new_type());
-        }
-        env_.push(param->name(), param);
-    }
-
+    auto param = parse_param();
     expect(Token::DOT);
-
-    lambda->set_body(parse_expr());
-
+    env_.push(param->name(), param);
+    auto body = parse_expr();
     env_.pop();
-    return lambda;
+    return anchor(builder_.lambda(param, body));
 }
 
-Vector* Parser::parse_vector() {
-    auto vector = make_expr(builder_.vector());
-    vector->set_prim(ahead().to_prim());
+const Vector* Parser::parse_vector() {
+    auto anchor = make_anchor();
+    auto prim = ahead().to_prim();
     lex();
 
     bool scalar = true;
@@ -593,11 +567,12 @@ Vector* Parser::parse_vector() {
         scalar = false;
     }
 
+    Vector::ElemVec elems;
+
     do {
         auto lit = parse_literal();
-        auto& elems = vector->elems();
 
-        switch (vector->prim()) {
+        switch (prim) {
             case Prim::I1:
                 if (lit.type != Literal::UINT ||
                     (lit.u64 != 0 && lit.u64 != 1))
@@ -628,7 +603,7 @@ Vector* Parser::parse_vector() {
                 break;
         }
 
-        switch (vector->prim()) {
+        switch (prim) {
             case Prim::I1:  elems.emplace_back((bool)lit.i64);     break;
 
             case Prim::I8:  elems.emplace_back((int8_t)lit.i64);   break;
@@ -650,7 +625,31 @@ Vector* Parser::parse_vector() {
     } while (!scalar && ahead() == Token::LIT);
 
     if (!scalar) expect(Token::CMP_GT);   
-    return vector; 
+    return anchor(builder_.vector(prim, elems));
+}
+
+const Var* Parser::parse_var() {
+    auto anchor = make_anchor();
+    auto var = builder_.var(parse_ident());
+    if (ahead() == Token::COLON) {
+        eat(Token::COLON);
+        var->set_type(parse_new_type());
+    }
+    expect(Token::ASSIGN);
+    env_.push(var->name(), var);
+    var.bind(parse_complex_expr());
+    env_.pop();
+    return anchor(static_cast<const Var*>(var));
+}
+
+const Param* Parser::parse_param() {
+    auto anchor = make_anchor();
+    auto param = builder_.param(parse_ident());
+    if (ahead() == Token::COLON) {
+        eat(Token::COLON);
+        param->set_type(parse_new_type());
+    }
+    return anchor(param);
 }
 
 const Type* Parser::parse_type() {
@@ -671,7 +670,7 @@ const Type* Parser::parse_type() {
 
 const Type* Parser::parse_tuple_type() {
     eat(Token::LPAREN);
-    std::vector<const Type*> types;
+    TypeVec types;
     while (ahead().is_prim() ||
            ahead() == Token::LPAREN ||
            ahead() == Token::FORALL ||
@@ -780,7 +779,7 @@ int Parser::parse_dims() {
     return 1;
 }
 
-bool parse(const std::string& file, IRBuilder& builder, std::vector<Expr*>& exprs) {
+bool parse(const std::string& file, IRBuilder& builder, ExprVec& exprs) {
     std::ifstream is(file);
     if (!is) return false;
 

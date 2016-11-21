@@ -1,16 +1,22 @@
 #ifndef TYPES_H
 #define TYPES_H
 
+#include <unordered_set>
 #include <string>
 #include <vector>
 
 #include "cast.h"
 #include "common.h"
+#include "substitution.h"
 
 namespace artic {
 
 class PrettyPrinter;
 class IRBuilder;
+
+typedef std::unordered_set<const class Type*> TypeSet;
+typedef std::vector<const class Type*>        TypeVec;
+typedef Substitution<const class Type*>       TypeSub;
 
 /// Base class for all types.
 class Type : public Cast<Type> {
@@ -21,12 +27,16 @@ public:
     void dump() const;
 
     /// Rebuilds the type when it does not have any argument, given an IRBuilder object.
-    const Type* rebuild(IRBuilder& builder) const { return rebuild(builder, std::vector<const Type*>()); }
+    const Type* rebuild(IRBuilder& builder) const { return rebuild(builder, TypeVec()); }
 
     /// Rebuilds the type, given a list of type operands and an IRBuilder object.
-    virtual const Type* rebuild(IRBuilder&, const std::vector<const Type*>&) const = 0;
+    virtual const Type* rebuild(IRBuilder&, const TypeVec&) const = 0;
+    /// Substitute types inside this type.
+    virtual const Type* substitute(IRBuilder& builder, const TypeSub&) const { return rebuild(builder); }
     /// Shifts the TypeVar's indices by the given amount.
     virtual const Type* shift(IRBuilder& builder, int) const { return rebuild(builder); }
+    /// Returns the set of unknowns used in this type
+    virtual void unknowns(TypeSet&) const {}
     /// Prints the expression in a human-readable form.
     virtual void print(PrettyPrinter&) const = 0;
     /// Returns the depth of the type in number of polymorphic types.
@@ -105,7 +115,7 @@ public:
 
     void print(PrettyPrinter&) const override;
 
-    const Type* rebuild(IRBuilder&, const std::vector<const Type*>& types) const override;
+    const Type* rebuild(IRBuilder&, const TypeVec& types) const override;
 
     size_t hash() const override {
         return hash_combine(size(), int(prim()));
@@ -131,7 +141,7 @@ class ErrorType : public Type {
 
 public:
     void print(PrettyPrinter&) const override;
-    const Type* rebuild(IRBuilder&, const std::vector<const Type*>&) const override;
+    const Type* rebuild(IRBuilder&, const TypeVec&) const override;
     size_t hash() const override { return 0; }
     bool equals(const Type* t) const override { return t->isa<ErrorType>(); }
 };
@@ -139,22 +149,27 @@ public:
 /// Base class for type constructors.
 class TypeApp : public Type {
 protected:
-    TypeApp(const std::vector<const Type*>& a = std::vector<const Type*>())
+    TypeApp(const TypeVec& a = TypeVec())
         : args_(a)
     {}
     virtual ~TypeApp() {}
 
-    std::vector<const Type*> args_;
+    TypeVec args_;
 
 public:
-    const std::vector<const Type*>& args() const { return args_; }
+    const TypeVec& args() const { return args_; }
     const Type* arg(int i) const { return args_[i]; }
     size_t num_args() const { return args_.size(); }
 
+    const Type* substitute(IRBuilder& builder, const TypeSub& sub) const override {
+        TypeVec args(num_args());
+        for (int i = 0, n = num_args(); i < n; i++) args[i] = sub[arg(i)];
+        return rebuild(builder, args);
+    }
+
     const Type* shift(IRBuilder& builder, int inc) const override {
-        std::vector<const Type*> args(num_args());
-        for (int i = 0, n = num_args(); i < n; i++)
-            args[i] = arg(i)->shift(builder, inc);
+        TypeVec args(num_args());
+        for (int i = 0, n = num_args(); i < n; i++) args[i] = arg(i)->shift(builder, inc);
         return rebuild(builder, args);
     }
 
@@ -196,7 +211,7 @@ public:
 
     void print(PrettyPrinter&) const override;
 
-    const Type* rebuild(IRBuilder&, const std::vector<const Type*>&) const override;
+    const Type* rebuild(IRBuilder&, const TypeVec&) const override;
 
     bool equals(const Type* t) const override {
         return t->isa<LambdaType>() && TypeApp::equals(t);
@@ -207,14 +222,14 @@ public:
 class TupleType : public TypeApp {
     friend class IRBuilder;
 
-    TupleType(const std::vector<const Type*>& args)
+    TupleType(const TypeVec& args)
         : TypeApp(args)
     {}
 
 public:
     void print(PrettyPrinter&) const override;
 
-    const Type* rebuild(IRBuilder&, const std::vector<const Type*>&) const override;
+    const Type* rebuild(IRBuilder&, const TypeVec&) const override;
 
     bool equals(const Type* t) const override {
         return t->isa<TupleType>() && TypeApp::equals(t);
@@ -234,7 +249,7 @@ public:
 
     void print(PrettyPrinter&) const override;
 
-    const Type* rebuild(IRBuilder&, const std::vector<const Type*>&) const override;
+    const Type* rebuild(IRBuilder&, const TypeVec&) const override;
     const Type* shift(IRBuilder&, int) const override;
 
     size_t hash() const override {
@@ -265,7 +280,11 @@ public:
 
     void print(PrettyPrinter&) const override;
 
-    const Type* rebuild(IRBuilder&, const std::vector<const Type*>&) const override;
+    const Type* rebuild(IRBuilder&, const TypeVec&) const override;
+
+    const Type* substitute(IRBuilder& builder, const TypeSub& sub) const override {
+        return rebuild(builder, { sub[body()] });
+    }
 
     const Type* shift(IRBuilder& builder, int inc) const override {
         return rebuild(builder, { body()->shift(builder, inc) });
@@ -307,7 +326,7 @@ public:
 
     void print(PrettyPrinter&) const override;
 
-    const Type* rebuild(IRBuilder&, const std::vector<const Type*>&) const override;
+    const Type* rebuild(IRBuilder&, const TypeVec&) const override;
 
     size_t hash() const override { return reinterpret_cast<size_t>(this); }
     bool equals(const Type* t) const override { return t == this; }

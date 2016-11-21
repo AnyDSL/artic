@@ -16,32 +16,8 @@ class PrettyPrinter;
 class CheckSema;
 class InferSema;
 
-/// The IR follows an ANF structure. Its grammar is the following:
-///
-///     EXPR = CEXPR | Let [(id, type, CEXPR)] EXPR
-///
-/// Complex expressions:
-///     CEXPR = IFEXPR | APPEXPR | AEXPR
-///     IFEXPR = If VALUE EXPR EXPR
-///     APPEXPR = App [VALUE]
-///
-/// Atomic expressions:
-///     AEXPR = VALUE | PRIMOP
-///     PRIMOP = PrimOp OP [VALUE]
-///     OP = +, -, *, /, CMP, ...
-///     VALUE = VECTOR | TUPLE | VAR | PARAM | LAMBDA
-///     VECTOR = SCALAR | Vec SCALAR VECTOR
-///     SCALAR = I1 <bool> | I8 <int> | I16 <int> | ...
-///     TUPLE = Tuple [VALUE]
-///     VAR = Var <string>
-///     LAMBDA = Lambda <string> EXPR
-///
-/// Types:
-///     TYPE = PRIMTYPE | TUPLETYPE | LAMBDATYPE
-///     VECTORTYPE = SCALARTYPE | VecType SCALARTYPE VECTORTYPE
-///     SCALARTYPE = TypeI1 | TypeI8 | TypeI16 | ...
-///     TUPLETYPE = TupleType [TYPE]
-///     LAMBDATYPE = Lambda TYPE TYPE
+typedef std::vector<const class Expr*>  ExprVec;
+typedef std::vector<const class Value*> ValueVec;
 
 /// Base class for expressions.
 class Expr : public Cast<Expr> {
@@ -60,20 +36,18 @@ public:
 
     /// Returns the location of the expression in the file.
     const Loc& loc() const { return loc_; }
-    void set_loc(const Loc& l) { loc_ = l; }
+    void set_loc(const Loc& loc) { loc_ = loc; }
 
     /// Returns the builder that was used to create this node.
     IRBuilder* builder() const { return builder_; }
 
-    /// Computes the complexity of the expression (used for pretty printing).
-    virtual size_t complexity() const { return 1; }
-
-    /// Prints the expression in a human-readable form.
-    virtual void print(PrettyPrinter&) const = 0;
-
     /// Dumps the expression without any indentation nor coloring.
     void dump() const;
 
+    /// Computes the complexity of the expression (used for pretty printing).
+    virtual size_t complexity() const { return 1; }
+    /// Prints the expression in a human-readable form.
+    virtual void print(PrettyPrinter&) const = 0;
     /// Type checks an expression.
     virtual void check(CheckSema&) const = 0;
     /// Infers the type of the expression.
@@ -82,7 +56,7 @@ public:
 private:
     IRBuilder* builder_;
     mutable const Type* type_;
-    Loc loc_;
+    mutable Loc loc_;
 };
 
 std::ostream& operator << (std::ostream& os, const Expr*);
@@ -109,10 +83,6 @@ public:
 class Vector : public Value {
     friend class IRBuilder;
 
-    Vector() {}
-    template <typename... Args>
-    Vector(Args... args) { set(args...); }
-
 public:
     union Elem {
         Elem() {}
@@ -129,30 +99,20 @@ public:
         double   f64; Elem(double   f64) : f64(f64) {};
     };
 
+    typedef std::vector<Elem> ElemVec;
+
+private:
+    Vector() {}
+    Vector(Prim p, ElemVec&& e) : prim_(p), elems_(e) {}
+    Vector(Prim p, const ElemVec& e) : prim_(p), elems_(e) {}
     template <typename... Args>
-    void set(Prim p, Args... args) {
-        prim_ = p;
-        elems_.resize(sizeof...(args));
-        set_<0>(args...);
-    }
+    Vector(Args... args) { set(args...); }
 
-    template <typename T, typename... Args>
-    void set(T t, Args... args) {
-        // Infer the type based on the first parameter
-        prim_ = RepToPrim<T>::prim();
-        elems_.resize(sizeof...(args) + 1);
-        set_<0>(t, args...);
-    }
-
-    const std::vector<Elem>& elems() const { return elems_; }
-    std::vector<Elem>& elems() { return elems_; }
+public:
+    const ElemVec& elems() const { return elems_; }
 
     Elem elem(int i) const { return elems_[i]; }
     Elem value() const { return elems_[0]; }
-
-    void set_elem(int i, Elem e) { elems_[i] = e; }
-    void set_value(Elem e) { elems_[0] = e; }
-    void set_prim(Prim p) { prim_ = p; }
 
     Prim prim() const { return prim_; }
     size_t size() const { return elems_.size(); }
@@ -175,22 +135,28 @@ private:
     template <int K>
     void set_() {}
 
+    template <typename T, typename... Args>
+    void set(T t, Args... args) {
+        // Infer the type based on the first parameter
+        prim_ = RepToPrim<T>::prim();
+        elems_.resize(sizeof...(args) + 1);
+        set_<0>(t, args...);
+    }
+
     Prim prim_;
-    std::vector<Elem> elems_;
+    ElemVec elems_;
 };
 
 /// Tuple value that holds several values of (possibly) different types.
 class Tuple : public Value {
     friend class IRBuilder;
 
-    Tuple(const std::vector<const Value*>& v = std::vector<const Value*>()) : elems_(v) {}
+    Tuple(ValueVec&& v) : elems_(v) {}
+    Tuple(const ValueVec& v = ValueVec()) : elems_(v) {}
 
 public:
-    const std::vector<const Value*>& elems() const { return elems_; }
-    std::vector<const Value*>& elems() { return elems_; }
-
+    const ValueVec& elems() const { return elems_; }
     const Value* elem(int i) const { return elems_[i]; }
-    void set_elem(int i, const Value* v) { elems_[i] = v; }
     size_t size() const { return elems_.size(); }
 
     size_t complexity() const override {
@@ -204,7 +170,7 @@ public:
     const Type* infer(InferSema&) const override;
 
 private:
-    std::vector<const Value*> elems_;
+    ValueVec elems_;
 };
 
 /// Variable binding coming from a let expression.
@@ -217,10 +183,7 @@ class Var : public Value {
 
 public:
     const ComplexExpr* binding() const { return binding_; }
-    void set_binding(const ComplexExpr* b) { binding_ = b; }
-
     const std::string& name() const { return name_; }
-    void set_name(const std::string& n) { name_ = n; }
 
     void print(PrettyPrinter&) const override;
     void check(CheckSema&) const override;
@@ -241,7 +204,6 @@ class Param : public Value {
 
 public:
     const std::string& name() const { return name_; }
-    void set_name(const std::string& n) { name_ = n; }
 
     void print(PrettyPrinter&) const override;
     void check(CheckSema&) const override;
@@ -261,10 +223,7 @@ class Lambda : public Value {
 
 public:
     const Param* param() const { return param_; }
-    void set_param(const Param* p) { param_ = p; }
-
     const Expr* body() const { return body_; }
-    void set_body(const Expr* e) { body_ = e; }
 
     size_t complexity() const override { return 1 + body_->complexity(); }
 
@@ -317,13 +276,11 @@ public:
 
     Op op() const { return op_; }
 
-    const std::vector<const Type*>& type_args() const { return type_args_; }
-    std::vector<const Type*>& type_args() { return type_args_; }
+    const TypeVec& type_args() const { return type_args_; }
     const Type* type_arg(int i = 0) const { return type_args_[i]; }
     size_t num_type_args() const { return type_args_.size(); }
 
-    const std::vector<const Value*>& args() const { return args_; }
-    std::vector<const Value*>& args() { return args_; }
+    const ValueVec& args() const { return args_; }
     const Value* arg(int i = 0) const { return args_[i]; }
     size_t num_args() const { return args_.size(); }
 
@@ -345,8 +302,8 @@ private:
     void check_extract_or_insert(CheckSema&, bool) const;
 
     Op op_;
-    std::vector<const Value*> args_;
-    std::vector<const Type*> type_args_;
+    ValueVec args_;
+    TypeVec type_args_;
 };
 
 /// If-expression, which evaluates either one of its branches based on some condition.
@@ -361,10 +318,6 @@ public:
     const Value* cond() const { return cond_; }
     const Expr* if_true() const { return if_true_; }
     const Expr* if_false() const { return if_false_; }
-
-    void set_cond(const Value* v) { cond_ = v; }
-    void set_if_true(const Expr* e) { if_true_ = e; }
-    void set_if_false(const Expr* e) { if_false_ = e; }
 
     size_t complexity() const override {
         return 1 +
@@ -386,13 +339,12 @@ private:
 class AppExpr : public ComplexExpr {
     friend class IRBuilder;
 
-    AppExpr(const std::vector<const Value*>& args)
+    AppExpr(const ValueVec& args)
         : args_(args)
     {}
 
 public:
-    const std::vector<const Value*>& args() const { return args_; }
-    std::vector<const Value*>& args() { return args_; }
+    const ValueVec& args() const { return args_; }
     const Value* arg(int i = 0) const { return args_[i]; }
     size_t num_args() const { return args_.size(); }
 
@@ -407,7 +359,7 @@ public:
     const Type* infer(InferSema&) const override;
 
 private:
-    std::vector<const Value*> args_;
+    ValueVec args_;
 };
 
 /// Let-expression, introducing a new variable in the scope of an expression.
@@ -420,10 +372,7 @@ class LetExpr : public Expr {
 
 public:
     const Var* var() const { return var_; }
-    void set_var(const Var* var) { var_ = var; }
-
     const Expr* body() const { return body_; }
-    void set_body(const Expr* e) { body_ = e; }
 
     size_t complexity() const override {
         return 1 + var()->binding()->complexity() + body()->complexity();

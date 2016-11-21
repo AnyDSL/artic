@@ -12,6 +12,17 @@ namespace artic {
 /// Types are hashed and can be compared by comparing their addresses.
 class IRBuilder {
 public:
+    class Binder {
+        friend class IRBuilder;
+        Binder(Var* var) : var_(var) {}
+    public:
+        void bind(const ComplexExpr* c) { var_->builder()->bind(var_, c); }
+        operator const Var* () const { return var_; }
+        const Var* operator -> () const { return var_; }
+    private:
+        Var* var_;
+    };
+
     IRBuilder() : error_type_(nullptr) {}
 
     ~IRBuilder() {
@@ -23,23 +34,23 @@ public:
 
     // Values
     template <typename... Args>
-    Vector* vector(Args... args){ return new_node<Vector>(args...); }
-    Tuple*  tuple(const std::vector<const Value*> v = std::vector<const Value*>()){ return new_node<Tuple>(v); }
-    Lambda* lambda(const Param* p, const Expr* b = nullptr) { return new_node<Lambda>(p, b); }
-    Var*    var(const std::string& n, const ComplexExpr* c) { return new_node<Var>(n, c); }
-    Param*  param(const std::string& n) { return new_node<Param>(n); }
+    const Vector* vector(Args... args){ return new_node<Vector>(args...); }
+    const Tuple*  tuple(const std::vector<const Value*> v = std::vector<const Value*>()){ return new_node<Tuple>(v); }
+    const Lambda* lambda(const Param* p, const Expr* b = nullptr) { return new_node<Lambda>(p, b); }
+    const Param*  param(const std::string& n) { return new_node<Param>(n); }
+    Binder        var(const std::string& n) { return Binder(new_node<Var>(n, nullptr)); }
 
     // Prim ops
-    PrimOp* primop(PrimOp::Op op, const Value* a, const Value* b) { return new_node<PrimOp>(op, a, b); }
-    PrimOp* select(const Value* cond, const Value* a, const Value* b) { return new_node<PrimOp>(PrimOp::SELECT, cond, a, b); }
-    PrimOp* bitcast(const Type* t, const Value* a) { return new_node<PrimOp>(PrimOp::BITCAST, t, a); }
-    PrimOp* extract(const Value* a, const Value* b) { return new_node<PrimOp>(PrimOp::EXTRACT, a, b); }
-    PrimOp* insert(const Value* a, const Value* b, const Value* c) { return new_node<PrimOp>(PrimOp::INSERT, a, b, c); }
+    const PrimOp* primop(PrimOp::Op op, const Value* a, const Value* b) { return new_node<PrimOp>(op, a, b); }
+    const PrimOp* select(const Value* cond, const Value* a, const Value* b) { return new_node<PrimOp>(PrimOp::SELECT, cond, a, b); }
+    const PrimOp* bitcast(const Type* t, const Value* a) { return new_node<PrimOp>(PrimOp::BITCAST, t, a); }
+    const PrimOp* extract(const Value* a, const Value* b) { return new_node<PrimOp>(PrimOp::EXTRACT, a, b); }
+    const PrimOp* insert(const Value* a, const Value* b, const Value* c) { return new_node<PrimOp>(PrimOp::INSERT, a, b, c); }
 
     // Complex expressions
-    IfExpr*  if_expr(const Value* cond, const Expr* if_true, const Expr* if_false) { return new_node<IfExpr>(cond, if_true, if_false); }
-    AppExpr* app_expr(const std::vector<const Value*>& args) { return new_node<AppExpr>(args); }
-    LetExpr* let_expr(const Var* v, const Expr* e = nullptr) { return new_node<LetExpr>(v, e); }
+    const IfExpr*  if_expr(const Value* cond, const Expr* if_true, const Expr* if_false) { return new_node<IfExpr>(cond, if_true, if_false); }
+    const AppExpr* app_expr(const std::vector<const Value*>& args) { return new_node<AppExpr>(args); }
+    const LetExpr* let_expr(const Var* v, const Expr* e = nullptr) { return new_node<LetExpr>(v, e); }
 
     // Types
     const PrimType*    prim_type(Prim p, int size = 1) { return new_type<PrimType>(p, size); }
@@ -88,6 +99,8 @@ private:
         types_.insert(type);
         return type;
     }
+
+    void bind(Var* var, const ComplexExpr* c) { var->binding_ = c; }
 
     std::vector<Expr*> nodes_;
     std::unordered_set<Type*, HashType, CompareType> types_;

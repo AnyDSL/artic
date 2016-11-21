@@ -3,36 +3,36 @@
 
 namespace artic {
 
-const Type* PrimType::rebuild(IRBuilder& builder, const std::vector<const Type*>& args) const {
+const Type* PrimType::rebuild(IRBuilder& builder, const TypeVec& args) const {
     assert_unused(args, args.size() == 0);
     return builder.prim_type(prim(), size());
 }
 
-const Type* ErrorType::rebuild(IRBuilder& builder, const std::vector<const Type*>& args) const {
+const Type* ErrorType::rebuild(IRBuilder& builder, const TypeVec& args) const {
     assert_unused(args, args.size() == 0);
     return builder.error_type();
 }
 
-const Type* LambdaType::rebuild(IRBuilder& builder, const std::vector<const Type*>& args) const {
+const Type* LambdaType::rebuild(IRBuilder& builder, const TypeVec& args) const {
     assert(args.size() == 2);
     return builder.lambda_type(args[0], args[1]);
 }
 
-const Type* TupleType::rebuild(IRBuilder& builder, const std::vector<const Type*>& args) const {
+const Type* TupleType::rebuild(IRBuilder& builder, const TypeVec& args) const {
     return builder.tuple_type(args);
 }
 
-const Type* TypeVar::rebuild(IRBuilder& builder, const std::vector<const Type*>& args) const {
+const Type* TypeVar::rebuild(IRBuilder& builder, const TypeVec& args) const {
     assert_unused(args, args.size() == 0);
     return builder.type_var(index());
 }
 
-const Type* PolyType::rebuild(IRBuilder& builder, const std::vector<const Type*>& args) const {
+const Type* PolyType::rebuild(IRBuilder& builder, const TypeVec& args) const {
     assert(args.size() == 1);
     return builder.poly_type(args[0], size());
 }
 
-const Type* UnknownType::rebuild(IRBuilder& builder, const std::vector<const Type*>& args) const {
+const Type* UnknownType::rebuild(IRBuilder& builder, const TypeVec& args) const {
     assert_unused(args, args.size() == 0);
     return builder.unknown_type();
 }

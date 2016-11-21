@@ -210,7 +210,7 @@ void AppExpr::check(CheckSema& sema) const {
         size_t i = 1;
         while (true) {
             if (arg(i)->type() != lambda->from()) {
-                sema.error(this, "Types do not match for argument ", i);
+                sema.error(this, "Types do not match for argument ", i, ": got ", arg(i)->type(), ", expected ", lambda->from());
                 break;
             }
 

@@ -70,6 +70,29 @@ public:
     void restart() { todo_ = false; }
 
 private:
+    const Type* subsume(const PolyType* poly) {
+        // Replaces the type variables in a polymorphic type by unknowns
+        TypeSub s;
+        for (int i = 0; i < poly->size(); i++) {
+            auto var = builder_.type_var(poly->depth() - poly->size() + i);
+            s.map(var, builder_.unknown_type());
+        }
+        return poly->body()->substitute(builder_, s);
+    }
+
+    const Type* generalize(const Type* t) {
+        // Create a polymorphic type out of a type with unknowns
+        TypeSet u;
+        t->unknowns(u);
+        TypeSub s;
+        int d = t->depth(), n = 0;
+        for (auto t : u) {
+            if (t->isa<UnknownType>() && find(t) == t)
+                s.map(t, builder_.type_var(d + n++));
+        }
+        return builder_.poly_type(t->substitute(builder_, s), n);
+    }
+
     const Type* find(const Type* t) {
         // Apply the substitutions from the constraint set to the type t
         assert(t);
@@ -262,6 +285,7 @@ void infer(const Expr* e) {
     do {
         sema.restart();
         sema.infer(e);
+        e->type()->dump();
     } while (sema.todo());
 }
 

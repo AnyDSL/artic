@@ -49,8 +49,7 @@ template <template <typename> class F>
 const Vector* binop(const Vector* a, const Vector* b) {
     assert(a->size() == b->size());
     assert(a->prim() == b->prim());
-    auto v = a->builder()->vector(a->prim());
-    v->resize(a->size());
+    Vector::ElemVec elems(a->size());
     for (size_t i = 0; i < a->size(); i++) {
         Vector::Elem e(0);
         switch (a->prim()) {
@@ -65,29 +64,28 @@ const Vector* binop(const Vector* a, const Vector* b) {
             case Prim::U64: { F<typename PrimToRep<Prim::U64>::Rep> f; e = Vector::Elem(f(a->elem(i).u64, b->elem(i).u64)); } break;
             case Prim::F32: { F<typename PrimToRep<Prim::F32>::Rep> f; e = Vector::Elem(f(a->elem(i).f32, b->elem(i).f32)); } break;
             case Prim::F64: { F<typename PrimToRep<Prim::F64>::Rep> f; e = Vector::Elem(f(a->elem(i).f64, b->elem(i).f64)); } break;
+            default: assert(false);
         }
-        v->set_elem(i, e);
+        elems[i] = e;
     }
-    return v;
+    return a->builder()->vector(a->prim(), std::move(elems));
 }
 
 static const Vector* select(const Vector* cond, const Vector* a, const Vector* b) {
     assert(cond->size() == a->size() && a->size() == b->size());
     assert(cond->prim() == Prim::I1);
     assert(a->prim() == b->prim());
-    auto v = a->builder()->vector(a->prim());
-    v->resize(a->size());
+    Vector::ElemVec elems(a->size());
     for (size_t i = 0; i < a->size(); i++)
-        v->set_elem(i, cond->elem(i).i1 ? a->elem(i) : b->elem(i));
-    return v;
+        elems[i] = cond->elem(i).i1 ? a->elem(i) : b->elem(i);
+    return a->builder()->vector(a->prim(), std::move(elems));
 }
 
 static const Vector* bitcast(const PrimType* type, const Vector* a) {
     assert(type->bitcount() == (int)a->size() * bitcount(a->prim()));
-    auto v = a->builder()->vector(type->prim());
-    v->resize(type->size());
-    memcpy(v->elems().data(), a->elems().data(), type->bitcount() / 8);
-    return v;
+    Vector::ElemVec elems(type->size());
+    memcpy(elems.data(), a->elems().data(), type->bitcount() / 8);
+    return a->builder()->vector(type->prim(), std::move(elems));
 }
 
 static const Value* tuple_extract(const Vector* index, const Tuple* tuple) {
@@ -99,29 +97,24 @@ static const Value* tuple_extract(const Vector* index, const Tuple* tuple) {
 static const Value* vector_extract(const Vector* index, const Vector* vector) {
     assert(index->size() == 1);
     auto i = index->value().u32;
-    auto v = vector->builder()->vector(vector->prim());
-    v->resize(1);
-    v->set_elem(0, vector->elem(i));
-    return v;
+    return vector->builder()->vector(vector->prim(), Vector::ElemVec{ vector->elem(i) });
 }
 
 static const Value* tuple_insert(const Vector* index, const Tuple* tuple, const Value* value) {
     assert(index->size() == 1);
     auto i = index->value().u32;
 
-    std::vector<const Value*> elems = tuple->elems();
+    ValueVec elems = tuple->elems();
     elems[i] = value;
-    return tuple->builder()->tuple(elems);
+    return tuple->builder()->tuple(std::move(elems));
 }
 
 static const Value* vector_insert(const Vector* index, const Vector* vector, const Value* value) {
     assert(index->size() == 1);
     auto i = index->value().u32;
-    auto v = vector->builder()->vector(vector->prim());
-    v->resize(vector->size());
-    v->elems() = vector->elems();
-    v->set_elem(i, value->as<Vector>()->value());
-    return v;
+    auto elems = vector->elems();
+    elems[i] = value->as<Vector>()->value();
+    return vector->builder()->vector(vector->prim(), std::move(elems));
 }
 
 const Value* PrimOp::eval() const {
