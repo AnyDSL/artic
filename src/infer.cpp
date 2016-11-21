@@ -13,8 +13,12 @@ public:
         : builder_(builder), todo_(false)
     {}
 
-    const Type* type(const Expr* expr) {
-        return expr->type() ? expr->type() : builder_.unknown_type();
+    const Type* type(const Expr* e) {
+        if (!e->type()) {
+            todo_ = true;
+            e->set_type(builder_.unknown_type());
+        }
+        return e->type();
     }
 
     const Type* infer(const Expr* e) {
@@ -37,6 +41,9 @@ public:
     }
 
     const Type* unify(const Type* a, const Type* b) {
+        a = find(a);
+        b = find(b);
+
         assert(a && b);
         if (a->isa<UnknownType>()) return constrain(a, b);
         if (b->isa<UnknownType>()) return constrain(b, a);
@@ -57,7 +64,7 @@ public:
                 int n = app_a->num_args();
                 std::vector<const Type*> args(n);
                 for (int i = 0; i < n; i++) args[i] = unify(app_a->arg(i), app_b->arg(i));
-                return app_a->rebuild(builder_, args);
+                return find(app_a->rebuild(builder_, args));
             }
             return builder_.error_type();
         }
@@ -66,18 +73,17 @@ public:
         return (a != b) ? builder_.error_type() : a;
     }
 
-    bool todo() const { return todo_; }
-    void restart() { todo_ = false; }
-
-private:
-    const Type* subsume(const PolyType* poly) {
-        // Replaces the type variables in a polymorphic type by unknowns
-        TypeSub s;
-        for (int i = 0; i < poly->size(); i++) {
-            auto var = builder_.type_var(poly->depth() - poly->size() + i);
-            s.map(var, builder_.unknown_type());
+    const Type* subsume(const Type* t) {
+        if (auto poly = t->isa<PolyType>()) {
+            // Replaces the type variables in a polymorphic type by unknowns
+            TypeSub s;
+            for (int i = 0; i < poly->size(); i++) {
+                auto var = builder_.type_var(poly->depth() - poly->size() + i);
+                s.map(var, builder_.unknown_type());
+            }
+            return poly->body()->substitute(builder_, s);
         }
-        return poly->body()->substitute(builder_, s);
+        return t;
     }
 
     const Type* generalize(const Type* t) {
@@ -86,13 +92,18 @@ private:
         t->unknowns(u);
         TypeSub s;
         int d = t->depth(), n = 0;
-        for (auto t : u) {
-            if (t->isa<UnknownType>() && find(t) == t)
-                s.map(t, builder_.type_var(d + n++));
+        for (auto v : u) {
+            if (find(v) == v) s.map(v, builder_.type_var(d + n++));
         }
+        if (n == 0) return t;
+        assert(n > 0);
         return builder_.poly_type(t->substitute(builder_, s), n);
     }
 
+    bool todo() const { return todo_; }
+    void restart() { todo_ = false; }
+
+private:
     const Type* find(const Type* t) {
         // Apply the substitutions from the constraint set to the type t
         assert(t);
@@ -259,10 +270,24 @@ const Type* IfExpr::infer(InferSema& sema) const {
 const Type* AppExpr::infer(InferSema& sema) const {
     for (auto arg : args()) sema.infer(arg);
 
+    auto first = arg(0)->type();
+    if (first->isa<UnknownType>()) return sema.type(this);
+
+    auto lambda_args = sema.type(this);
+    for (int i = num_args() - 1; i >= 1; i--)
+        lambda_args = builder()->lambda_type(arg(i)->type(), lambda_args);
+
+    std::cout << "ARGS: "; lambda_args->dump();
+    std::cout << "BEFORE: "; first->dump();
+    auto unified = sema.subsume(first);
+    std::cout << "SUBSUMED: "; unified->dump();
+    unified = sema.unify(unified, lambda_args);
+    std::cout << "UNIFIED: "; unified->dump();
+
     // Return type deduction
     const Type* ret = sema.type(this);
-    if (auto lambda = arg(0)->type()->inner()->isa<LambdaType>()) {
-        int i = 0, n = num_args();
+    if (auto lambda = unified->inner()->isa<LambdaType>()) {
+        int i = 1, n = num_args();
         while (i < n && lambda) {
             ret = lambda->to();
             lambda = ret->isa<LambdaType>();
@@ -285,7 +310,6 @@ void infer(const Expr* e) {
     do {
         sema.restart();
         sema.infer(e);
-        e->type()->dump();
     } while (sema.todo());
 }
 

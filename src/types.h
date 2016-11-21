@@ -32,10 +32,10 @@ public:
     /// Rebuilds the type, given a list of type operands and an IRBuilder object.
     virtual const Type* rebuild(IRBuilder&, const TypeVec&) const = 0;
     /// Substitute types inside this type.
-    virtual const Type* substitute(IRBuilder& builder, const TypeSub&) const { return rebuild(builder); }
+    virtual const Type* substitute(IRBuilder&, const TypeSub&) const { return this; }
     /// Shifts the TypeVar's indices by the given amount.
     virtual const Type* shift(IRBuilder& builder, int) const { return rebuild(builder); }
-    /// Returns the set of unknowns used in this type
+    /// Returns the set of unknowns used in this type.
     virtual void unknowns(TypeSet&) const {}
     /// Prints the expression in a human-readable form.
     virtual void print(PrettyPrinter&) const = 0;
@@ -163,7 +163,7 @@ public:
 
     const Type* substitute(IRBuilder& builder, const TypeSub& sub) const override {
         TypeVec args(num_args());
-        for (int i = 0, n = num_args(); i < n; i++) args[i] = sub[arg(i)];
+        for (int i = 0, n = num_args(); i < n; i++) args[i] = sub[arg(i)->substitute(builder, sub)];
         return rebuild(builder, args);
     }
 
@@ -171,6 +171,10 @@ public:
         TypeVec args(num_args());
         for (int i = 0, n = num_args(); i < n; i++) args[i] = arg(i)->shift(builder, inc);
         return rebuild(builder, args);
+    }
+
+    void unknowns(TypeSet& u) const override {
+        for (auto arg : args()) arg->unknowns(u);
     }
 
     int depth() const override {
@@ -283,11 +287,15 @@ public:
     const Type* rebuild(IRBuilder&, const TypeVec&) const override;
 
     const Type* substitute(IRBuilder& builder, const TypeSub& sub) const override {
-        return rebuild(builder, { sub[body()] });
+        return rebuild(builder, { sub[body()->substitute(builder, sub)] });
     }
 
     const Type* shift(IRBuilder& builder, int inc) const override {
         return rebuild(builder, { body()->shift(builder, inc) });
+    }
+
+    void unknowns(TypeSet& u) const override {
+        body()->unknowns(u);
     }
 
     int depth() const override { return depth_; }
@@ -327,6 +335,7 @@ public:
     void print(PrettyPrinter&) const override;
 
     const Type* rebuild(IRBuilder&, const TypeVec&) const override;
+    void unknowns(TypeSet& u) const override { u.insert(this); }
 
     size_t hash() const override { return reinterpret_cast<size_t>(this); }
     bool equals(const Type* t) const override { return t == this; }
