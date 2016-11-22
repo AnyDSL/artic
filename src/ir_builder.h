@@ -68,8 +68,8 @@ public:
         return new_type<PolyType>(body, size);
     }
 
-    const UnknownType* unknown_type() {
-        unknowns_.emplace_back(new UnknownType(unknowns_.size() + 1));
+    const UnknownType* unknown_type(int rank) {
+        unknowns_.emplace_back(new UnknownType(unknowns_.size() + 1, rank));
         return unknowns_.back();
     }
 

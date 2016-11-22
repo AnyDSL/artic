@@ -1,12 +1,12 @@
 #ifndef ARTIC_H
 #define ARTIC_H
 
-#include "irbuilder.h"
+#include "ir_builder.h"
 
 namespace artic {
 
 /// Parses the contents of a file.
-bool parse(const std::string& file, IRBuilder& builder, ExprVec&);
+bool parse(const std::string& file, std::istream& in, IRBuilder& builder, ExprVec&);
 /// Infers the type of an expression.
 void infer(const Expr* e);
 /// Checks that an expression is correctly typed.

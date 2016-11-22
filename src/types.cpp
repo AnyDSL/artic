@@ -1,5 +1,5 @@
 #include "types.h"
-#include "irbuilder.h"
+#include "ir_builder.h"
 
 namespace artic {
 
@@ -34,7 +34,7 @@ const Type* PolyType::rebuild(IRBuilder& builder, const TypeVec& args) const {
 
 const Type* UnknownType::rebuild(IRBuilder& builder, const TypeVec& args) const {
     assert_unused(args, args.size() == 0);
-    return builder.unknown_type();
+    return builder.unknown_type(rank());
 }
 
 const Type* TypeVar::shift(IRBuilder& builder, int i) const {

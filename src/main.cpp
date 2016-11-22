@@ -1,3 +1,4 @@
+#include <fstream>
 #include "artic.h"
 
 using namespace artic;
@@ -8,7 +9,13 @@ int main(int argc, char** argv) {
     IRBuilder builder;
     ExprVec exprs;
 
-    if (parse(argv[1], builder, exprs)) {
+    std::ifstream file(argv[1]);
+    if (!file) {
+        error("Cannot open file ", argv[1]);
+        return 1;
+    }
+
+    if (parse(argv[1], file, builder, exprs)) {
         for (auto e : exprs) {
             infer(e);
             //if (check(e)) {

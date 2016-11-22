@@ -3,7 +3,7 @@
 
 #include "loc.h"
 #include "ir.h"
-#include "irbuilder.h"
+#include "ir_builder.h"
 
 namespace artic {
 
@@ -16,7 +16,7 @@ public:
     const Type* type(const Expr* e) {
         if (!e->type()) {
             todo_ = true;
-            e->set_type(builder_.unknown_type());
+            e->set_type(builder_.unknown_type(rank_));
         }
         return e->type();
     }
@@ -79,7 +79,7 @@ public:
             TypeSub s;
             for (int i = 0; i < poly->size(); i++) {
                 auto var = builder_.type_var(poly->depth() - poly->size() + i);
-                s.map(var, builder_.unknown_type());
+                s.map(var, builder_.unknown_type(rank_));
             }
             return poly->body()->substitute(builder_, s);
         }
@@ -93,15 +93,20 @@ public:
         TypeSub s;
         int d = t->depth(), n = 0;
         for (auto v : u) {
-            if (find(v) == v) s.map(v, builder_.type_var(d + n++));
+            // Only generalize type variables that are declared inside the current scope
+            if (v->as<UnknownType>()->rank() >= rank_)
+                s.map(v, builder_.type_var(d + n++));
         }
         if (n == 0) return t;
         assert(n > 0);
         return builder_.poly_type(t->substitute(builder_, s), n);
     }
 
+    void inc_rank() { rank_++; }
+    void dec_rank() { assert(rank_ > 0); rank_--; }
+
     bool todo() const { return todo_; }
-    void restart() { todo_ = false; }
+    void restart() { rank_ = 0; todo_ = false; }
 
 private:
     const Type* find(const Type* t) {
@@ -135,6 +140,7 @@ private:
 
     std::unordered_map<const Type*, const Type*> constrs_;
     IRBuilder& builder_;
+    int rank_;
     bool todo_;
 };
 
@@ -164,7 +170,9 @@ const Type* Lambda::infer(InferSema& sema) const {
     auto lambda = type() ? type()->inner()->isa<LambdaType>() : nullptr;
 
     sema.infer(param(), lambda ? lambda->from() : nullptr);
+    sema.inc_rank();
     sema.infer(body(),  lambda ? lambda->to()   : nullptr);
+    sema.dec_rank();
 
     return builder()->lambda_type(param()->type(), body()->type());
 }
@@ -277,12 +285,9 @@ const Type* AppExpr::infer(InferSema& sema) const {
     for (int i = num_args() - 1; i >= 1; i--)
         lambda_args = builder()->lambda_type(arg(i)->type(), lambda_args);
 
-    std::cout << "ARGS: "; lambda_args->dump();
-    std::cout << "BEFORE: "; first->dump();
     auto unified = sema.subsume(first);
-    std::cout << "SUBSUMED: "; unified->dump();
     unified = sema.unify(unified, lambda_args);
-    std::cout << "UNIFIED: "; unified->dump();
+    unified = sema.unify(unified, unified); // Make sure the unknowns have been substituted
 
     // Return type deduction
     const Type* ret = sema.type(this);
@@ -295,7 +300,7 @@ const Type* AppExpr::infer(InferSema& sema) const {
         }
     }
 
-    return ret;
+    return sema.generalize(ret);
 }
 
 const Type* LetExpr::infer(InferSema& sema) const {

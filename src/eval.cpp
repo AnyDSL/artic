@@ -1,6 +1,6 @@
 #include <cstring>
 
-#include "irbuilder.h"
+#include "ir_builder.h"
 #include "ir.h"
 
 namespace artic {

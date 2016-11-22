@@ -35,7 +35,7 @@ public:
     virtual const Type* substitute(IRBuilder&, const TypeSub&) const { return this; }
     /// Shifts the TypeVar's indices by the given amount.
     virtual const Type* shift(IRBuilder& builder, int) const { return rebuild(builder); }
-    /// Returns the set of unknowns used in this type.
+    /// Compute the set of unknowns used in this type.
     virtual void unknowns(TypeSet&) const {}
     /// Prints the expression in a human-readable form.
     virtual void print(PrettyPrinter&) const = 0;
@@ -327,10 +327,11 @@ private:
 class UnknownType : public Type {
     friend class IRBuilder;
 
-    UnknownType(int id) : id_(id) {}
+    UnknownType(int id, int rank) : id_(id), rank_(rank) {}
 
 public:
     int id() const { return id_; }
+    int rank() const { return rank_; }
 
     void print(PrettyPrinter&) const override;
 
@@ -341,7 +342,7 @@ public:
     bool equals(const Type* t) const override { return t == this; }
 
 private:
-    int id_;
+    int id_, rank_;
 };
 
 } // namespace artic

@@ -1,11 +1,11 @@
-#include <fstream>
+#include <istream>
 #include <cctype>
 #include <vector>
 #include <unordered_map>
 
 #include "ir.h"
 #include "types.h"
-#include "irbuilder.h"
+#include "ir_builder.h"
 
 namespace artic {
 
@@ -356,7 +356,7 @@ private:
     };
 
     Anchor make_anchor()                 const { return Anchor(*this, ahead().loc().begin); }
-    Anchor make_anchor(const Pos& begin) const { return Anchor(*this, begin);         }
+    Anchor make_anchor(const Pos& begin) const { return Anchor(*this, begin);               }
 
     const Value* find_ident(const std::string& ident) {
         if (auto value = env_.find(ident))
@@ -779,10 +779,7 @@ int Parser::parse_dims() {
     return 1;
 }
 
-bool parse(const std::string& file, IRBuilder& builder, ExprVec& exprs) {
-    std::ifstream is(file);
-    if (!is) return false;
-
+bool parse(const std::string& file, std::istream& is, IRBuilder& builder, ExprVec& exprs) {
     Parser parser(file, is, builder);
     parser.parse(exprs);
     return parser.error_count() == 0;

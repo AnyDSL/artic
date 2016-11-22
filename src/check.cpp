@@ -1,6 +1,6 @@
 #include "loc.h"
 #include "ir.h"
-#include "irbuilder.h"
+#include "ir_builder.h"
 
 namespace artic {
 
