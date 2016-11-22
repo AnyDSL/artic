@@ -4,6 +4,7 @@
 #include <unordered_set>
 #include <string>
 #include <vector>
+#include <limits>
 
 #include "cast.h"
 #include "common.h"
@@ -21,32 +22,37 @@ typedef Substitution<const class Type*>       TypeSub;
 /// Base class for all types.
 class Type : public Cast<Type> {
 public:
+    Type(int depth = 0) : depth_(depth) {}
     virtual ~Type() {}
 
     /// Dumps the type without indentation nor coloring.
     void dump() const;
 
-    /// Rebuilds the type when it does not have any argument, given an IRBuilder object.
-    const Type* rebuild(IRBuilder& builder) const { return rebuild(builder, TypeVec()); }
+    /// Returns the depth of the type in number of polymorphic types.
+    int depth() const { return depth_; }
 
-    /// Rebuilds the type, given a list of type operands and an IRBuilder object.
-    virtual const Type* rebuild(IRBuilder&, const TypeVec&) const = 0;
     /// Substitute types inside this type.
     virtual const Type* substitute(IRBuilder&, const TypeSub&) const { return this; }
     /// Shifts the TypeVar's indices by the given amount.
-    virtual const Type* shift(IRBuilder& builder, int) const { return rebuild(builder); }
-    /// Compute the set of unknowns used in this type.
-    virtual void unknowns(TypeSet&) const {}
-    /// Prints the expression in a human-readable form.
-    virtual void print(PrettyPrinter&) const = 0;
-    /// Returns the depth of the type in number of polymorphic types.
-    virtual int depth() const { return 0; }
+    virtual const Type* shift(IRBuilder&, int) const { return this; }
+    /// Update the lambda-abstraction rank. See "Efficient ML Type Inference Using Ranked Type Variables".
+    virtual void update_rank(int) const {}
     /// Returns the first non-polymorphic inner type.
     virtual const Type* inner() const { return this; }
+    /// Compute the set of unknowns used in this type.
+    virtual void unknowns(TypeSet&) const {}
+
+    /// Prints the expression in a human-readable form.
+    virtual void print(PrettyPrinter&) const = 0;
     /// Returns a hash value for the type.
     virtual size_t hash() const = 0;
     /// Tests another type for equality by inspecting its shape.
-    virtual bool equals(const Type* t) const = 0;
+    virtual bool equals(const Type*) const = 0;
+
+    static constexpr int inf_rank() { return std::numeric_limits<int>::max(); }
+
+private:
+    int depth_;
 };
 
 std::ostream& operator << (std::ostream&, const Type*);
@@ -115,8 +121,6 @@ public:
 
     void print(PrettyPrinter&) const override;
 
-    const Type* rebuild(IRBuilder&, const TypeVec& types) const override;
-
     size_t hash() const override {
         return hash_combine(size(), int(prim()));
     }
@@ -141,7 +145,6 @@ class ErrorType : public Type {
 
 public:
     void print(PrettyPrinter&) const override;
-    const Type* rebuild(IRBuilder&, const TypeVec&) const override;
     size_t hash() const override { return 0; }
     bool equals(const Type* t) const override { return t->isa<ErrorType>(); }
 };
@@ -150,7 +153,7 @@ public:
 class TypeApp : public Type {
 protected:
     TypeApp(const TypeVec& a = TypeVec())
-        : args_(a)
+        : Type(max_depth(a)), args_(a)
     {}
     virtual ~TypeApp() {}
 
@@ -161,27 +164,26 @@ public:
     const Type* arg(int i) const { return args_[i]; }
     size_t num_args() const { return args_.size(); }
 
+    virtual const Type* rebuild(IRBuilder&, const TypeVec&) const = 0;
+
     const Type* substitute(IRBuilder& builder, const TypeSub& sub) const override {
         TypeVec args(num_args());
         for (int i = 0, n = num_args(); i < n; i++) args[i] = sub[arg(i)->substitute(builder, sub)];
         return rebuild(builder, args);
     }
 
-    const Type* shift(IRBuilder& builder, int inc) const override {
+   const Type* shift(IRBuilder& builder, int inc) const override {
         TypeVec args(num_args());
         for (int i = 0, n = num_args(); i < n; i++) args[i] = arg(i)->shift(builder, inc);
         return rebuild(builder, args);
     }
 
-    void unknowns(TypeSet& u) const override {
-        for (auto arg : args()) arg->unknowns(u);
+    void update_rank(int rank) const override {
+        for (auto arg : args()) arg->update_rank(rank);
     }
 
-    int depth() const override {
-        int d = 0;
-        for (auto arg : args())
-            d = std::max(d, arg->depth());
-        return d;
+    void unknowns(TypeSet& u) const override {
+        for (auto arg : args()) arg->unknowns(u);
     }
 
     size_t hash() const override {
@@ -198,6 +200,14 @@ public:
             return true;
         }
         return false;
+    }
+
+private:
+    static int max_depth(const TypeVec& args) {
+        int d = 0;
+        for (auto arg : args)
+            d = std::max(d, arg->depth());
+        return d;
     }
 };
 
@@ -251,10 +261,9 @@ class TypeVar : public Type {
 public:
     int index() const { return index_; }
 
-    void print(PrettyPrinter&) const override;
-
-    const Type* rebuild(IRBuilder&, const TypeVec&) const override;
     const Type* shift(IRBuilder&, int) const override;
+
+    void print(PrettyPrinter&) const override;
 
     size_t hash() const override {
         return index_;
@@ -275,35 +284,30 @@ class PolyType : public Type {
     friend class IRBuilder;
 
     PolyType(const Type* body, int size)
-        : body_(body), size_(size), depth_(size + body->depth())
+        : Type(size + body->depth()), body_(body), size_(size)
     {}
 
 public:
     const Type* body() const { return body_; }
     int size() const { return size_; }
 
-    void print(PrettyPrinter&) const override;
+    const Type* substitute(IRBuilder&, const TypeSub&) const override;
+    const Type* shift(IRBuilder&, int) const override;
 
-    const Type* rebuild(IRBuilder&, const TypeVec&) const override;
-
-    const Type* substitute(IRBuilder& builder, const TypeSub& sub) const override {
-        return rebuild(builder, { sub[body()->substitute(builder, sub)] });
+    void update_rank(int rank) const override {
+        body()->update_rank(rank);
     }
 
-    const Type* shift(IRBuilder& builder, int inc) const override {
-        return rebuild(builder, { body()->shift(builder, inc) });
+    const Type* inner() const override {
+        assert(body()->inner() == body() && "Polymorphic type not in normal form");
+        return body();
     }
 
     void unknowns(TypeSet& u) const override {
         body()->unknowns(u);
     }
 
-    int depth() const override { return depth_; }
-
-    const Type* inner() const override {
-        assert(body()->inner() == body() && "Polymorphic type not in normal form");
-        return body();
-    }
+    void print(PrettyPrinter&) const override;
 
     size_t hash() const override {
         return hash_combine(body()->hash(), 0x811c9dc5);
@@ -320,7 +324,7 @@ public:
 
 private:
     const Type* body_;
-    int size_, depth_;
+    int size_;
 };
 
 /// An unknown type, used for type inference.
@@ -331,18 +335,20 @@ class UnknownType : public Type {
 
 public:
     int id() const { return id_; }
+
     int rank() const { return rank_; }
+    void update_rank(int rank) const override { rank_ = std::min(rank, rank_); }
 
     void print(PrettyPrinter&) const override;
 
-    const Type* rebuild(IRBuilder&, const TypeVec&) const override;
     void unknowns(TypeSet& u) const override { u.insert(this); }
 
     size_t hash() const override { return reinterpret_cast<size_t>(this); }
     bool equals(const Type* t) const override { return t == this; }
 
 private:
-    int id_, rank_;
+    int id_;
+    mutable int rank_;
 };
 
 } // namespace artic

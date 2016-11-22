@@ -292,7 +292,12 @@ void PolyType::print(PrettyPrinter& p) const {
 }
 
 void UnknownType::print(PrettyPrinter& p) const {
-    p.print("?", id(), "[", rank(), "]");
+    p.print("?", id(), "[");
+    if (rank() == inf_rank())
+        p.print("inf");
+    else
+        p.print(rank());
+    p.print("]");
 }
 
 void print(const Expr* e,

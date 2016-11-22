@@ -13,10 +13,12 @@ public:
         : builder_(builder), todo_(false)
     {}
 
-    const Type* type(const Expr* e) {
+    const Type* type(const Expr* e) { return type(e, rank_); }
+
+    const Type* type(const Expr* e, int rank) {
         if (!e->type()) {
             todo_ = true;
-            e->set_type(builder_.unknown_type(rank_));
+            e->set_type(builder_.unknown_type(rank));
         }
         return e->type();
     }
@@ -41,12 +43,14 @@ public:
     }
 
     const Type* unify(const Type* a, const Type* b) {
+        assert(a && b);
         a = find(a);
         b = find(b);
 
-        assert(a && b);
-        if (a->isa<UnknownType>()) return constrain(a, b);
-        if (b->isa<UnknownType>()) return constrain(b, a);
+        auto unknown_a = a->isa<UnknownType>();
+        auto unknown_b = b->isa<UnknownType>();
+        if (unknown_a) { b->update_rank(unknown_a->rank()); return constrain(a, b); }
+        if (unknown_b) { a->update_rank(unknown_b->rank()); return constrain(b, a); }
 
         // Polymorphic types
         auto poly_a = a->isa<PolyType>();
@@ -80,7 +84,7 @@ public:
             TypeSub s;
             for (int i = 0; i < poly->size(); i++) {
                 auto var = builder_.type_var(poly->depth() - poly->size() + i);
-                s.map(var, builder_.unknown_type(rank_ + 1));
+                s.map(var, builder_.unknown_type(Type::inf_rank()));
             }
             return poly->body()->substitute(builder_, s);
         }
@@ -171,8 +175,8 @@ const Type* Param::infer(InferSema& sema) const {
 const Type* Lambda::infer(InferSema& sema) const {
     auto lambda = type() ? type()->inner()->isa<LambdaType>() : nullptr;
 
-    sema.infer(param(), lambda ? lambda->from() : nullptr);
     sema.inc_rank();
+    sema.infer(param(), lambda ? lambda->from() : nullptr);
     sema.infer(body(),  lambda ? lambda->to()   : nullptr);
     sema.dec_rank();
 
@@ -180,10 +184,10 @@ const Type* Lambda::infer(InferSema& sema) const {
 }
 
 const Type* PrimOp::infer(InferSema& sema) const {
-    if (num_args() == 0) return sema.type(this);
+    if (num_args() == 0) return sema.type(this, Type::inf_rank());
 
     if (binary()) {
-        if (num_args() != 2) return sema.type(this);
+        if (num_args() != 2) return sema.type(this, Type::inf_rank());
 
         sema.infer(arg(0), arg(1)->type());
         sema.infer(arg(1), arg(0)->type());
@@ -206,7 +210,7 @@ const Type* PrimOp::infer(InferSema& sema) const {
             case CMP_EQ:
                 {
                     auto a = arg(0)->type() ? arg(0)->type()->isa<PrimType>() : nullptr;
-                    return a ? builder()->prim_type(Prim::I1, a->size()) : sema.type(this);
+                    return a ? builder()->prim_type(Prim::I1, a->size()) : sema.type(this, Type::inf_rank());
                 }
             default: assert(false);
         }
@@ -267,7 +271,7 @@ const Type* PrimOp::infer(InferSema& sema) const {
         }
     }
 
-    return sema.type(this);
+    return sema.type(this, Type::inf_rank());
 }
 
 const Type* IfExpr::infer(InferSema& sema) const {
@@ -281,9 +285,9 @@ const Type* AppExpr::infer(InferSema& sema) const {
     for (auto arg : args()) sema.infer(arg);
 
     auto first = arg(0)->type();
-    if (first->isa<UnknownType>()) return sema.type(this);
+    if (first->isa<UnknownType>()) return sema.type(this, Type::inf_rank());
 
-    auto lambda_args = sema.type(this);
+    auto lambda_args = sema.type(this, Type::inf_rank());
     for (int i = num_args() - 1; i >= 1; i--)
         lambda_args = builder()->lambda_type(arg(i)->type(), lambda_args);
 
@@ -292,7 +296,7 @@ const Type* AppExpr::infer(InferSema& sema) const {
     unified = sema.unify(unified, unified); // Make sure the unknowns have been substituted
 
     // Return type deduction
-    const Type* ret = sema.type(this);
+    const Type* ret = type();
     if (auto lambda = unified->inner()->isa<LambdaType>()) {
         int i = 1, n = num_args();
         while (i < n && lambda) {
