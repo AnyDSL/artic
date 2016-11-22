@@ -79,7 +79,7 @@ public:
             TypeSub s;
             for (int i = 0; i < poly->size(); i++) {
                 auto var = builder_.type_var(poly->depth() - poly->size() + i);
-                s.map(var, builder_.unknown_type(rank_));
+                s.map(var, builder_.unknown_type(rank_ + 1));
             }
             return poly->body()->substitute(builder_, s);
         }
@@ -94,7 +94,7 @@ public:
         int d = t->depth(), n = 0;
         for (auto v : u) {
             // Only generalize type variables that are declared inside the current scope
-            if (v->as<UnknownType>()->rank() >= rank_)
+            if (v->as<UnknownType>()->rank() > rank_)
                 s.map(v, builder_.type_var(d + n++));
         }
         if (n == 0) return t;
