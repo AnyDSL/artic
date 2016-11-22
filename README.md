@@ -21,10 +21,11 @@ Note that tuples can only have zero or more than two elements, because of the am
     APP          ::=    (VALUE)+
     IF           ::=    if VALUE then EXPR else EXPR
     ATOMIC_EXPR  ::=    PRIMOP | VALUE
-    PRIMOP       ::=    VALUE (+|-|*|/|&|^|"|"|==|<|<=|>|>=) VALUE
+    PRIMOP       ::=    VALUE BINOP VALUE
                    |    insert VALUE VALUE VALUE
                    |    extract VALUE VALUE
                    |    select VALUE VALUE VALUE
+    BINOP        ::=   "+" | "-" | "*" | "/" | "&" | "^" | "|" | "==" | "<" | "<=" | ">" | ">="
     VALUE        ::=   SCALAR | VECTOR | TUPLE | LAMBDA | "(" VALUE ")"
     SCALAR       ::=   PRIM_TYPE literal
     VECTOR       ::=   PRIM_TYPE < literal (, literal)+ >
@@ -34,9 +35,10 @@ Note that tuples can only have zero or more than two elements, because of the am
 ### Types
 
 The restriction for tuples also applies to the tuple types: Tuples types with only one element do not exist, they are interpreted as parenthesized expressions.
+The type system is based on System-F, and annotations are required to infer more than Hindley-Milner types.
 
     TYPE         ::=   PRIM_TYPE | VECTOR_TYPE | TUPLE_TYPE | LAMBDA_TYPE | POLY_TYPE | TYPE_VAR | "(" TYPE ")"
-    PRIM_TYPE    ::=   i1|i8|i16|i32|u8|u16|u32|u64|f32|f64
+    PRIM_TYPE    ::=   i1 | i8 | i16 | i32 | u8 | u16 | u32 | u64 | f32 | f64
     VECTOR_TYPE  ::=   PRIM_TYPE < literal >
     TUPLE_TYPE   ::=   "(" ")" | "(" TYPE (, TYPE)+ ")"
     LAMBDA_TYPE  ::=   TYPE -> TYPE
@@ -55,6 +57,18 @@ A factorial function can be written like so:
            let n_ = n - i32 1 in 
                let f_ = fact n_ in 
                    n * f_ in 
+    fact
+    
+Running the type inference algorithm will fill in the type annotations:
+
+    let fact : i32 -> i32 = \n : i32 . 
+        let c : i1 = i32 0 == n in 
+        if c then
+            i32 1
+        else
+            let n_ : i32 = n - i32 1 in 
+                let f_ : i32 = fact n_ in 
+                    n * f_ in 
     fact
     
 ## Features
