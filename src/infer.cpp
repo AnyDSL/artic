@@ -75,7 +75,8 @@ public:
 
     const Type* subsume(const Type* t) {
         if (auto poly = t->isa<PolyType>()) {
-            // Replaces the type variables in a polymorphic type by unknowns
+            // Replaces the type variables in a polymorphic type by unknowns,
+            // effectively allowing the type to be specialized
             TypeSub s;
             for (int i = 0; i < poly->size(); i++) {
                 auto var = builder_.type_var(poly->depth() - poly->size() + i);
@@ -94,6 +95,7 @@ public:
         int d = t->depth(), n = 0;
         for (auto v : u) {
             // Only generalize type variables that are declared inside the current scope
+            // See "Efficient ML Type Inference Using Ranked Type Variables", by G. Kuan and D. MacQueen
             if (v->as<UnknownType>()->rank() > rank_)
                 s.map(v, builder_.type_var(d + n++));
         }
