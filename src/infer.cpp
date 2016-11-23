@@ -228,10 +228,10 @@ const Type* PrimOp::infer(InferSema& sema) const {
                              nullptr;
                     sema.infer(arg(0), c);
 
-                    return arg(1)->type() ? arg(1)->type() : arg(2)->type();
+                    return arg(1)->type();
                 }
             case BITCAST:
-                sema.infer(arg(0), type_arg(0));
+                sema.infer(arg(0));
                 return type_arg(0);
             case EXTRACT:
                 {
