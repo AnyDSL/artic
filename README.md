@@ -18,7 +18,7 @@ Note that tuples can only have zero or more than two elements, because of the am
     EXPR         ::=    LET_STMT | COMPLEX_EXPR
     LET          ::=    let IDENT (: TYPE)? = COMPLEX_EXPR in EXPR
     COMPLEX_EXPR ::=    APP | IF | ATOMIC_EXPR
-    APP          ::=    (VALUE)+
+    APP          ::=    VALUE VALUE
     IF           ::=    if VALUE then EXPR else EXPR
     ATOMIC_EXPR  ::=    PRIMOP | VALUE
     PRIMOP       ::=    VALUE BINOP VALUE
