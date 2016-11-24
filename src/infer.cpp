@@ -63,17 +63,15 @@ public:
         // Type application (lambdas, tuples, ...)
         auto app_a = a->isa<TypeApp>();
         auto app_b = b->isa<TypeApp>();
-        if (app_a || app_b) {
-            if (app_a && app_b && typeid(app_a) == typeid(app_b) && app_a->num_args() == app_b->num_args()) {
-                int n = app_a->num_args();
-                std::vector<const Type*> args(n);
-                for (int i = 0; i < n; i++) args[i] = unify(app_a->arg(i), app_b->arg(i));
-                return find(app_a->rebuild(builder_, args));
-            }
-            return builder_.error_type();
+        if (app_a && app_b && typeid(app_a) == typeid(app_b) && app_a->num_args() == app_b->num_args()) {
+            int n = app_a->num_args();
+            std::vector<const Type*> args(n);
+            for (int i = 0; i < n; i++) args[i] = unify(app_a->arg(i), app_b->arg(i));
+            return find(app_a->rebuild(builder_, args));
         }
 
         // Others
+        if (a != b) error("Cannot unify ", a, " and ", b);
         return (a != b) ? builder_.error_type() : a;
     }
 
@@ -100,11 +98,9 @@ public:
         for (auto v : u) {
             // Only generalize type variables that are declared inside the current scope
             // See "Efficient ML Type Inference Using Ranked Type Variables", by G. Kuan and D. MacQueen
-            if (v->as<UnknownType>()->rank() > rank_)
-                s.map(v, builder_.type_var(d + n++));
+            if (v->as<UnknownType>()->rank() >= rank_) s.map(v, builder_.type_var(d + n++));
         }
         if (n == 0) return t;
-        assert(n > 0);
         return builder_.poly_type(t->substitute(builder_, s), n);
     }
 
@@ -175,8 +171,8 @@ const Type* Param::infer(InferSema& sema) const {
 const Type* Lambda::infer(InferSema& sema) const {
     auto lambda = type() ? type()->inner()->isa<LambdaType>() : nullptr;
 
-    sema.inc_rank();
     sema.infer(param(), lambda ? lambda->from() : nullptr);
+    sema.inc_rank();
     sema.infer(body(),  lambda ? lambda->to()   : nullptr);
     sema.dec_rank();
 
@@ -282,37 +278,30 @@ const Type* IfExpr::infer(InferSema& sema) const {
 }
 
 const Type* AppExpr::infer(InferSema& sema) const {
-    for (auto arg : args()) sema.infer(arg);
+    sema.infer(left());
+    sema.infer(right());
 
-    auto first = arg(0)->type();
-    if (first->isa<UnknownType>()) return sema.type(this, Type::inf_rank());
+    auto ret = sema.type(this);
+    auto lambda_args = builder()->lambda_type(right()->type(), ret);
+    if (!lambda_type())
+        set_lambda_type(sema.subsume(left()->type()));
+    set_lambda_type(sema.unify(lambda_type(), lambda_args));
 
-    auto lambda_args = sema.type(this, Type::inf_rank());
-    for (int i = num_args() - 1; i >= 1; i--)
-        lambda_args = builder()->lambda_type(arg(i)->type(), lambda_args);
-
-    auto unified = sema.subsume(first);
-    unified = sema.unify(unified, lambda_args);
-    unified = sema.unify(unified, unified); // Make sure the unknowns have been substituted
-
-    // Return type deduction
-    const Type* ret = type();
-    if (auto lambda = unified->inner()->isa<LambdaType>()) {
-        int i = 1, n = num_args();
-        while (i < n && lambda) {
-            ret = lambda->to();
-            lambda = ret->isa<LambdaType>();
-            i++;
-        }
-    }
-
-    return sema.generalize(ret);
+    return ret;
 }
 
 const Type* LetExpr::infer(InferSema& sema) const {
+    sema.infer(var());
+    sema.inc_rank();
     sema.infer(var()->binding(), var()->type());
+    sema.dec_rank();
     sema.infer(var(), var()->binding()->type());
+
+    sema.infer(var(), sema.generalize(var()->type()));
+
+    sema.inc_rank();
     sema.infer(body());
+    sema.dec_rank();
     return body()->type();
 }
 

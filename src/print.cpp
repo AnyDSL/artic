@@ -242,10 +242,10 @@ void IfExpr::print(PrettyPrinter& p) const {
 }
 
 void AppExpr::print(PrettyPrinter& p) const {
-    for (int i = 0, n = num_args(); i < n; i++) {
-        bool paren = arg(i)->isa<Lambda>();
-        p.print(p.opt(paren, "("), arg(i), p.opt(paren, ")"), p.opt(i != n - 1, " "));
-    }
+    bool lparen = left()->isa<Lambda>();
+    bool rparen = right()->isa<Lambda>();
+    p.print(p.opt(lparen, "("), left(),  p.opt(lparen, ")"), " ",
+            p.opt(rparen, "("), right(), p.opt(rparen, ")"));
 }
 
 void LetExpr::print(PrettyPrinter& p) const {

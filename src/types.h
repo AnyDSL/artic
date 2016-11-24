@@ -336,6 +336,10 @@ class UnknownType : public Type {
 public:
     int id() const { return id_; }
 
+    const Type* substitute(IRBuilder&, const TypeSub& sub) const override {
+        return sub[this];
+    }
+
     int rank() const { return rank_; }
     void update_rank(int rank) const override { rank_ = std::min(rank, rank_); }
 

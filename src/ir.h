@@ -339,19 +339,19 @@ private:
 class AppExpr : public ComplexExpr {
     friend class IRBuilder;
 
-    AppExpr(const ValueVec& args)
-        : args_(args)
+    AppExpr(const Value* left, const Value* right)
+        : left_(left), right_(right), lambda_type_(nullptr)
     {}
 
 public:
-    const ValueVec& args() const { return args_; }
-    const Value* arg(int i = 0) const { return args_[i]; }
-    size_t num_args() const { return args_.size(); }
+    const Type* lambda_type() const { return lambda_type_; }
+    void set_lambda_type(const Type* t) const { lambda_type_ = t; }
+
+    const Value* left() const { return left_; }
+    const Value* right() const { return right_; }
 
     size_t complexity() const override {
-        size_t c = 1;
-        for (auto a : args()) c += a->complexity();
-        return c;
+        return left_->complexity() + right_->complexity();
     }
 
     void print(PrettyPrinter&) const override;
@@ -359,7 +359,9 @@ public:
     const Type* infer(InferSema&) const override;
 
 private:
-    ValueVec args_;
+    mutable const Type* lambda_type_;
+    const Value* left_;
+    const Value* right_;
 };
 
 /// Let-expression, introducing a new variable in the scope of an expression.

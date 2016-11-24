@@ -165,61 +165,70 @@ private:
 };
 
 Token Lexer::operator () () {
-     // Skip spaces
-    while (isspace(c_)) next();
-    prev_pos_ = cur_pos_;
+    while (true) {
+        // Skip spaces
+        while (isspace(c_)) next();
+        prev_pos_ = cur_pos_;
 
-    if (c_ == EOF) return make_token(Token::END);
+        if (c_ == EOF) return make_token(Token::END);
 
-    if (std::isalpha(c_) || c_ == '_') {
-        // Identifier or keyword
-        std::string str(1, c_);
-        next();
-        while (std::isalnum(c_) || c_ == '_') {
-            str += c_;
+        if (std::isalpha(c_) || c_ == '_') {
+            // Identifier or keyword
+            std::string str(1, c_);
             next();
+            while (std::isalnum(c_) || c_ == '_') {
+                str += c_;
+                next();
+            }
+            return make_ident(str);
         }
-        return make_ident(str);
+
+        if (std::isdigit(c_)) return make_literal(parse_literal(false));
+
+        int d = c_;
+        next();
+
+        if (d == '-') {
+            // Negative literals
+            if (std::isdigit(c_))
+                return make_literal(parse_literal(true));
+            // Comments
+            if (c_ == '-') {
+                // Eat the whole line
+                while (c_ != '\n') next();
+                // Restart lexing from here
+                continue;
+            }
+        }
+
+        switch (d) {
+            case '=': return make_token(accept('=') ? Token::CMP_EQ : Token::ASSIGN);
+            case '>': return make_token(accept('=') ? Token::CMP_GE : (accept('>') ? Token::RSHFT : Token::CMP_GT));
+            case '<': return make_token(accept('=') ? Token::CMP_LE : (accept('>') ? Token::LSHFT : Token::CMP_LT));
+            case '-': return make_token(accept('>') ? Token::ARROW : Token::SUB);
+            case '+': return make_token(Token::ADD);
+            case '*': return make_token(Token::MUL);
+            case '/': return make_token(Token::DIV);
+
+            case '\\': return make_token(Token::BSLASH);
+            case ':':  return make_token(Token::COLON);
+
+            case '&': return make_token(Token::AND);
+            case '|': return make_token(Token::OR);
+            case '^': return make_token(Token::XOR);
+
+            case '(': return make_token(Token::LPAREN);
+            case ')': return make_token(Token::RPAREN);
+
+            case ',': return make_token(Token::COMMA);
+            case '.': return make_token(Token::DOT);
+
+            default: break;
+        }
+
+        error("Unknown token '", (char)d, "'");
+        return make_token(Token::ERROR);
     }
-
-    if (std::isdigit(c_)) return make_literal(parse_literal(false));
-
-    int d = c_;
-    next();
-
-    if (d == '-') {
-        // Negative literals
-        if (std::isdigit(c_))
-            return make_literal(parse_literal(true));
-    }
-
-    switch (d) {
-        case '=': return make_token(accept('=') ? Token::CMP_EQ : Token::ASSIGN);
-        case '>': return make_token(accept('=') ? Token::CMP_GE : (accept('>') ? Token::RSHFT : Token::CMP_GT));
-        case '<': return make_token(accept('=') ? Token::CMP_LE : (accept('>') ? Token::LSHFT : Token::CMP_LT));
-        case '-': return make_token(accept('>') ? Token::ARROW : Token::SUB);
-        case '+': return make_token(Token::ADD);
-        case '*': return make_token(Token::MUL);
-        case '/': return make_token(Token::DIV);
-
-        case '\\': return make_token(Token::BSLASH);
-        case ':':  return make_token(Token::COLON);
-
-        case '&': return make_token(Token::AND);
-        case '|': return make_token(Token::OR);
-        case '^': return make_token(Token::XOR);
-
-        case '(': return make_token(Token::LPAREN);
-        case ')': return make_token(Token::RPAREN);
-
-        case ',': return make_token(Token::COMMA);
-        case '.': return make_token(Token::DOT);
-
-        default: break;
-    }
-
-    error("Unknown token '", (char)d, "'");
-    return make_token(Token::ERROR);
 }
 
 std::string Lexer::parse_exponent() {
@@ -306,7 +315,7 @@ public:
     const LetExpr*     parse_let_expr();
     const ComplexExpr* parse_complex_expr();
     const IfExpr*      parse_if_expr();
-    const AppExpr*     parse_app_expr(const Value* first, const Pos& begin);
+    const AppExpr*     parse_app_expr(const Value* left, const Pos& begin);
     const AtomicExpr*  parse_atomic_expr();
     const PrimOp*      parse_primop(const Value* left, const Pos& begin);
     const PrimOp*      parse_bitcast();
@@ -441,16 +450,10 @@ const IfExpr* Parser::parse_if_expr() {
     return anchor(builder_.if_expr(cond, if_true, if_false));
 }
 
-const AppExpr* Parser::parse_app_expr(const Value* first, const Pos& begin) {
+const AppExpr* Parser::parse_app_expr(const Value* left, const Pos& begin) {
     auto anchor = make_anchor(begin);
-    ValueVec args{first};
-    do {
-        args.push_back(parse_value());
-    } while (ahead() == Token::IDENT  ||
-             ahead() == Token::LPAREN ||
-             ahead() == Token::BSLASH ||
-             ahead().is_prim());
-    return anchor(builder_.app_expr(args));
+    const Value* right = parse_value();
+    return anchor(builder_.app_expr(left, right));
 }
 
 const AtomicExpr* Parser::parse_atomic_expr() {

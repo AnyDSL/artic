@@ -196,36 +196,12 @@ void IfExpr::check(CheckSema& sema) const {
 }
 
 void AppExpr::check(CheckSema& sema) const {
-    for (int i = 0, n = num_args(); i < n; i++) {
-        sema.check(arg(i));
-        if (!arg(i)->type()) {
-            arg(i)->type()->dump();
-            sema.error(this, "Cannot infer type for application argument ", i);
-            return;
-        }
-    }
+    sema.check(left());
+    sema.check(right());
 
-    if (auto lambda = arg(0)->type()->inner()->isa<LambdaType>()) {
-        assert(num_args() >= 2);
-        size_t i = 1;
-        while (true) {
-            if (arg(i)->type() != lambda->from()) {
-                sema.error(this, "Types do not match for argument ", i, ": got ", arg(i)->type(), ", expected ", lambda->from());
-                break;
-            }
-
-            if (++i >= num_args()) break;
-
-            if (auto next = lambda->to()->isa<LambdaType>()) {
-                lambda = next;
-            } else {
-                sema.error(this, "Too many arguments in function application");
-                break;
-            }
-        }
-
-        if (i >= num_args() && lambda->to()->isa<LambdaType>())
-            sema.error(this, "Not enough arguments in function application");
+    if (auto lambda = lambda_type()->inner()->isa<LambdaType>()) {
+        if (right()->type() != lambda->from())
+            sema.error(this, "Types do not match in application: got ", right()->type(), ", expected ", lambda->from());
     } else {
         sema.error(this, "Function expected in application expression");
     }
