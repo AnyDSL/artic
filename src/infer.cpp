@@ -71,7 +71,6 @@ public:
         }
 
         // Others
-        if (a != b) error("Cannot unify ", a, " and ", b);
         return (a != b) ? builder_.error_type() : a;
     }
 
@@ -180,10 +179,10 @@ const Type* Lambda::infer(InferSema& sema) const {
 }
 
 const Type* PrimOp::infer(InferSema& sema) const {
-    if (num_args() == 0) return sema.type(this, Type::inf_rank());
+    assert(num_args() != 0);
 
     if (binary()) {
-        if (num_args() != 2) return sema.type(this, Type::inf_rank());
+        assert(num_args() == 2);
 
         sema.infer(arg(0), arg(1)->type());
         sema.infer(arg(1), arg(0)->type());
@@ -205,8 +204,11 @@ const Type* PrimOp::infer(InferSema& sema) const {
             case CMP_LT:
             case CMP_EQ:
                 {
-                    auto a = arg(0)->type() ? arg(0)->type()->isa<PrimType>() : nullptr;
-                    return a ? builder()->prim_type(Prim::I1, a->size()) : sema.type(this, Type::inf_rank());
+                    auto a = arg(0)->type()->isa<PrimType>();
+                    auto b = arg(1)->type()->isa<PrimType>();
+                    return a ? builder()->prim_type(Prim::I1, a->size()) :
+                           b ? builder()->prim_type(Prim::I1, b->size()) :
+                           builder()->prim_type(Prim::I1);
                 }
             default: assert(false);
         }
@@ -267,7 +269,7 @@ const Type* PrimOp::infer(InferSema& sema) const {
         }
     }
 
-    return sema.type(this, Type::inf_rank());
+    return sema.type(this);
 }
 
 const Type* IfExpr::infer(InferSema& sema) const {
