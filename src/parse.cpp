@@ -315,7 +315,7 @@ public:
     const LetExpr*     parse_let_expr();
     const ComplexExpr* parse_complex_expr();
     const IfExpr*      parse_if_expr();
-    const AppExpr*     parse_app_expr(const Value* left, const Pos& begin);
+    const AppExpr*     parse_app_expr(const Value* first, const Pos& begin);
     const AtomicExpr*  parse_atomic_expr();
     const PrimOp*      parse_primop(const Value* left, const Pos& begin);
     const PrimOp*      parse_bitcast();
@@ -450,10 +450,16 @@ const IfExpr* Parser::parse_if_expr() {
     return anchor(builder_.if_expr(cond, if_true, if_false));
 }
 
-const AppExpr* Parser::parse_app_expr(const Value* left, const Pos& begin) {
+const AppExpr* Parser::parse_app_expr(const Value* first, const Pos& begin) {
     auto anchor = make_anchor(begin);
-    const Value* right = parse_value();
-    return anchor(builder_.app_expr(left, right));
+    ValueVec args{first};
+    do {
+        args.push_back(parse_value());
+    } while (ahead() == Token::IDENT  ||
+             ahead() == Token::LPAREN ||
+             ahead() == Token::BSLASH ||
+             ahead().is_prim());
+    return anchor(builder_.app_expr(args));
 }
 
 const AtomicExpr* Parser::parse_atomic_expr() {

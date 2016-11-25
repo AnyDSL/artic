@@ -49,7 +49,7 @@ public:
 
     // Complex expressions
     const IfExpr*  if_expr(const Value* cond, const Expr* if_true, const Expr* if_false) { return new_node<IfExpr>(cond, if_true, if_false); }
-    const AppExpr* app_expr(const Value* left, const Value* right) { return new_node<AppExpr>(left, right); }
+    const AppExpr* app_expr(const ValueVec& args) { return new_node<AppExpr>(args); }
     const LetExpr* let_expr(const Var* v, const Expr* e = nullptr) { return new_node<LetExpr>(v, e); }
 
     // Types
