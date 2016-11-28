@@ -206,7 +206,7 @@ void AppExpr::check(CheckSema& sema) const {
             }
 
             if (arg(i)->type() != lambda->from()) {
-                sema.error(this, "Types do not match in application: got ", arg(i)->type(), ", expected ", lambda->from());
+                sema.error(this, "Types do not match in for argument ", i, ": got ", arg(i)->type(), ", expected ", lambda->from());
                 break;
             }
 

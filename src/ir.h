@@ -17,7 +17,6 @@ class CheckSema;
 class InferSema;
 
 typedef std::vector<const class Expr*>  ExprVec;
-typedef std::vector<const class Value*> ValueVec;
 
 /// Base class for expressions.
 class Expr : public Cast<Expr> {
@@ -61,26 +60,8 @@ private:
 
 std::ostream& operator << (std::ostream& os, const Expr*);
 
-/// Base class for complex expressions. Complex expressions are expressions that may not terminate.
-class ComplexExpr : public Expr {
-public:
-    virtual ~ComplexExpr() {}
-};
-
-/// Base class for atomic expressions. Atomic expressions are expressions that are guaranteed to terminate.
-class AtomicExpr : public ComplexExpr {
-public:
-    virtual ~AtomicExpr() {}
-};
-
-/// Base class for values.
-class Value : public AtomicExpr {
-public:
-    virtual ~Value() {}
-};
-
 /// Scalar value or vector that holds elements of the same type.
-class Vector : public Value {
+class Vector : public Expr {
     friend class IRBuilder;
 
 public:
@@ -148,15 +129,15 @@ private:
 };
 
 /// Tuple value that holds several values of (possibly) different types.
-class Tuple : public Value {
+class Tuple : public Expr {
     friend class IRBuilder;
 
-    Tuple(ValueVec&& v) : elems_(v) {}
-    Tuple(const ValueVec& v = ValueVec()) : elems_(v) {}
+    Tuple(ExprVec&& v) : elems_(v) {}
+    Tuple(const ExprVec& v = ExprVec()) : elems_(v) {}
 
 public:
-    const ValueVec& elems() const { return elems_; }
-    const Value* elem(int i) const { return elems_[i]; }
+    const ExprVec& elems() const { return elems_; }
+    const Expr* elem(int i) const { return elems_[i]; }
     size_t size() const { return elems_.size(); }
 
     size_t complexity() const override {
@@ -170,19 +151,19 @@ public:
     const Type* infer(InferSema&) const override;
 
 private:
-    ValueVec elems_;
+    ExprVec elems_;
 };
 
 /// Variable binding coming from a let expression.
-class Var : public Value {
+class Var : public Expr {
     friend class IRBuilder;
 
-    Var(const std::string& n, const ComplexExpr* b)
+    Var(const std::string& n, const Expr* b)
         : name_(n), binding_(b)
     {}
 
 public:
-    const ComplexExpr* binding() const { return binding_; }
+    const Expr* binding() const { return binding_; }
     const std::string& name() const { return name_; }
 
     void print(PrettyPrinter&) const override;
@@ -191,11 +172,11 @@ public:
 
 private:
     std::string name_;
-    const ComplexExpr* binding_;
+    const Expr* binding_;
 };
 
 /// Parameter coming from a lambda expression.
-class Param : public Value {
+class Param : public Expr {
     friend class IRBuilder;
 
     Param(const std::string& n)
@@ -214,7 +195,7 @@ private:
 };
 
 /// Lambda function abstraction, composed of the argument with its type, and the corresponding body.
-class Lambda : public Value {
+class Lambda : public Expr {
     friend class IRBuilder;
 
     Lambda(const Param* p, const Expr* b = nullptr)
@@ -237,7 +218,7 @@ private:
 };
 
 /// Primitive operation on values.
-class PrimOp : public AtomicExpr {
+class PrimOp : public Expr {
     friend class IRBuilder;
 
 public:
@@ -249,20 +230,20 @@ public:
     };
 
 private:
-    PrimOp(Op op, const Type* t, const Value* a)
+    PrimOp(Op op, const Type* t, const Expr* a)
         : op_(op) {
         assert(op == BITCAST);
         args_.push_back(a);
         type_args_.push_back(t);
     }
 
-    PrimOp(Op op, const Value* a, const Value* b)
+    PrimOp(Op op, const Expr* a, const Expr* b)
         : op_(op) {
         args_.push_back(a);
         args_.push_back(b);
     }
 
-    PrimOp(Op op, const Value* a, const Value* b, const Value* c)
+    PrimOp(Op op, const Expr* a, const Expr* b, const Expr* c)
         : op_(op) {
         assert(op == SELECT || op == INSERT);
         args_.push_back(a);
@@ -272,7 +253,7 @@ private:
 
 public:
     /// Evaluates the result of the operation.
-    const Value* eval() const;
+    //const Expr* eval() const;
 
     Op op() const { return op_; }
 
@@ -280,8 +261,8 @@ public:
     const Type* type_arg(int i = 0) const { return type_args_[i]; }
     size_t num_type_args() const { return type_args_.size(); }
 
-    const ValueVec& args() const { return args_; }
-    const Value* arg(int i = 0) const { return args_[i]; }
+    const ExprVec& args() const { return args_; }
+    const Expr* arg(int i = 0) const { return args_[i]; }
     size_t num_args() const { return args_.size(); }
 
     bool binary() const { return op() <= CMP_EQ; }
@@ -302,20 +283,20 @@ private:
     void check_extract_or_insert(CheckSema&, bool) const;
 
     Op op_;
-    ValueVec args_;
+    ExprVec args_;
     TypeVec type_args_;
 };
 
 /// If-expression, which evaluates either one of its branches based on some condition.
-class IfExpr : public ComplexExpr {
+class IfExpr : public Expr {
     friend class IRBuilder;
 
-    IfExpr(const Value* cond, const Expr* if_true, const Expr* if_false)
+    IfExpr(const Expr* cond, const Expr* if_true, const Expr* if_false)
         : cond_(cond), if_true_(if_true), if_false_(if_false)
     {}
 
 public:
-    const Value* cond() const { return cond_; }
+    const Expr* cond() const { return cond_; }
     const Expr* if_true() const { return if_true_; }
     const Expr* if_false() const { return if_false_; }
 
@@ -331,15 +312,16 @@ public:
     const Type* infer(InferSema&) const override;
 
 private:
-    const Value* cond_;
-    const Expr* if_true_, *if_false_;
+    const Expr* cond_;
+    const Expr* if_true_;
+    const Expr* if_false_;
 };
 
 /// Lambda application expression.
-class AppExpr : public ComplexExpr {
+class AppExpr : public Expr {
     friend class IRBuilder;
 
-    AppExpr(const ValueVec& args)
+    AppExpr(const ExprVec& args)
         : args_(args), lambda_type_(nullptr)
     {}
 
@@ -347,8 +329,8 @@ public:
     const Type* lambda_type() const { return lambda_type_; }
     void set_lambda_type(const Type* t) const { lambda_type_ = t; }
 
-    const ValueVec& args() const { return args_; }
-    const Value* arg(int i) const { return args_[i]; }
+    const ExprVec& args() const { return args_; }
+    const Expr* arg(int i) const { return args_[i]; }
     size_t num_args() const { return args_.size(); }
 
     size_t complexity() const override {
@@ -363,7 +345,7 @@ public:
 
 private:
     mutable const Type* lambda_type_;
-    ValueVec args_;
+    ExprVec args_;
 };
 
 /// Let-expression, introducing a new variable in the scope of an expression.

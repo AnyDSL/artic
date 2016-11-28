@@ -284,17 +284,17 @@ Literal Lexer::parse_literal(bool neg) {
 
 class Env {
 public:
-    const Value* find(const std::string& str) const {
+    const Expr* find(const std::string& str) const {
         for (int i = symbols_.size() - 1; i >= 0; i--) {
             if (symbols_[i].first == str) return symbols_[i].second;
         }
         return nullptr;
     }
 
-    void push(const std::string& str, const Value* value) { symbols_.emplace_back(str, value); }
+    void push(const std::string& str, const Expr* value) { symbols_.emplace_back(str, value); }
     void pop() { assert(!symbols_.empty()); symbols_.pop_back(); }
 private:
-    std::vector<std::pair<std::string, const Value*> > symbols_;
+    std::vector<std::pair<std::string, const Expr*> > symbols_;
 };
 
 class Parser {
@@ -313,17 +313,15 @@ public:
 
     const Expr*        parse_expr();
     const LetExpr*     parse_let_expr();
-    const ComplexExpr* parse_complex_expr();
     const IfExpr*      parse_if_expr();
-    const AppExpr*     parse_app_expr(const Value* first, const Pos& begin);
-    const AtomicExpr*  parse_atomic_expr();
-    const PrimOp*      parse_primop(const Value* left, const Pos& begin);
+    const AppExpr*     parse_app_expr(const Expr* first, const Pos& begin);
+    const PrimOp*      parse_primop(const Expr* left, const Pos& begin);
     const PrimOp*      parse_bitcast();
     const PrimOp*      parse_select();
     const PrimOp*      parse_extract();
     const PrimOp*      parse_insert();
-    const Value*       parse_value();
-    const Value*       parse_tuple();
+    const Expr*        parse_value();
+    const Expr*        parse_tuple();
     const Lambda*      parse_lambda();
     const Vector*      parse_vector();
     const Var*         parse_var();
@@ -367,7 +365,7 @@ private:
     Anchor make_anchor()                 const { return Anchor(*this, ahead().loc().begin); }
     Anchor make_anchor(const Pos& begin) const { return Anchor(*this, begin);               }
 
-    const Value* find_ident(const std::string& ident) {
+    const Expr* find_ident(const std::string& ident) {
         if (auto value = env_.find(ident))
             return value;
         error("Unknown identifier '", ident, "'");
@@ -406,7 +404,33 @@ private:
 
 const Expr* Parser::parse_expr() {
     if (ahead() == Token::LET) return parse_let_expr();
-    return parse_complex_expr();
+    if (ahead() == Token::IF) return parse_if_expr();
+    if (ahead() == Token::IDENT  ||
+        ahead() == Token::LPAREN ||
+        ahead() == Token::BSLASH ||
+        ahead().is_prim()) {
+        auto begin = ahead().loc().begin;
+        auto value = parse_value();
+        if (ahead() == Token::IDENT  ||
+            ahead() == Token::BSLASH ||
+            ahead() == Token::LPAREN ||
+            ahead().is_prim()) {
+            return parse_app_expr(value, begin);
+        }
+        if (ahead().is_binop())
+            return parse_primop(value, begin);
+        return value;
+    }
+    switch (ahead().type()) {
+        case Token::SELECT:  return parse_select();
+        case Token::BITCAST: return parse_bitcast();
+        case Token::EXTRACT: return parse_extract();
+        case Token::INSERT:  return parse_insert();
+        default: break;
+    }
+
+    error("Expression expected");
+    return nullptr;
 }
 
 const LetExpr* Parser::parse_let_expr() {
@@ -420,29 +444,10 @@ const LetExpr* Parser::parse_let_expr() {
     return anchor(builder_.let_expr(var, body));
 }
 
-const ComplexExpr* Parser::parse_complex_expr() {
-    if (ahead() == Token::IF) return parse_if_expr();
-    if (ahead() == Token::IDENT  ||
-        ahead() == Token::BSLASH) {
-        auto begin = ahead().loc().begin;
-        auto value = parse_value();
-        if (ahead() == Token::IDENT  ||
-            ahead() == Token::BSLASH ||
-            ahead() == Token::LPAREN ||
-            ahead().is_prim()) {
-            return parse_app_expr(value, begin);
-        }
-        if (ahead().is_binop())
-            return parse_primop(value, begin);
-        return value;
-    }
-    return parse_atomic_expr();
-}
-
 const IfExpr* Parser::parse_if_expr() {
     auto anchor = make_anchor();
     eat(Token::IF);
-    auto cond = parse_value();
+    auto cond = parse_expr();
     expect(Token::THEN);
     auto if_true = parse_expr();
     expect(Token::ELSE);
@@ -450,9 +455,9 @@ const IfExpr* Parser::parse_if_expr() {
     return anchor(builder_.if_expr(cond, if_true, if_false));
 }
 
-const AppExpr* Parser::parse_app_expr(const Value* first, const Pos& begin) {
+const AppExpr* Parser::parse_app_expr(const Expr* first, const Pos& begin) {
     auto anchor = make_anchor(begin);
-    ValueVec args{first};
+    ExprVec args{first};
     do {
         args.push_back(parse_value());
     } while (ahead() == Token::IDENT  ||
@@ -462,23 +467,7 @@ const AppExpr* Parser::parse_app_expr(const Value* first, const Pos& begin) {
     return anchor(builder_.app_expr(args));
 }
 
-const AtomicExpr* Parser::parse_atomic_expr() {
-    switch (ahead().type()) {
-        case Token::SELECT:  return parse_select();
-        case Token::BITCAST: return parse_bitcast();
-        case Token::EXTRACT: return parse_extract();
-        case Token::INSERT:  return parse_insert();
-        default: break;
-    }
-
-    auto begin = ahead().loc().begin;
-    auto value = parse_value();
-    if (ahead().is_binop())
-        return parse_primop(value, begin);
-    return value;
-}
-
-const PrimOp* Parser::parse_primop(const Value* left, const Pos& begin) {
+const PrimOp* Parser::parse_primop(const Expr* left, const Pos& begin) {
     auto anchor = make_anchor(begin);
     auto binop = ahead().to_binop();
     lex();
@@ -521,7 +510,7 @@ const PrimOp* Parser::parse_insert() {
     return anchor(builder_.insert(index, arg, val));
 }
 
-const Value* Parser::parse_value() {
+const Expr* Parser::parse_value() {
     if (ahead() == Token::IDENT)  return find_ident(parse_ident());
     if (ahead() == Token::LPAREN) return parse_tuple();
     if (ahead() == Token::BSLASH) return parse_lambda();
@@ -532,18 +521,18 @@ const Value* Parser::parse_value() {
     return nullptr;
 }
 
-const Value* Parser::parse_tuple() {
+const Expr* Parser::parse_tuple() {
     auto anchor = make_anchor();
 
-    ValueVec elems;
-    const Value* last;
+    ExprVec elems;
+    const Expr* last;
 
     eat(Token::LPAREN);
     while (ahead() == Token::IDENT  ||
            ahead() == Token::LPAREN ||
            ahead() == Token::BSLASH ||
            ahead().is_prim()) {
-        last = parse_value();
+        last = parse_expr();
         elems.push_back(last);
 
         if (ahead() == Token::COMMA) eat(Token::COMMA);
@@ -646,7 +635,7 @@ const Var* Parser::parse_var() {
     }
     expect(Token::ASSIGN);
     env_.push(var->name(), var);
-    var.bind(parse_complex_expr());
+    var.bind(parse_expr());
     env_.pop();
     return anchor(static_cast<const Var*>(var));
 }

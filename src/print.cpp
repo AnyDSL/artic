@@ -223,7 +223,7 @@ void PrimOp::print(PrettyPrinter& p) const {
         p.print(" ");
         p.print_list(" ", type_args(), [&] (const Type* t) { return t; });
         if (num_type_args()) p.print(" ");
-        p.print_list(" ", args(), [&] (const Value* v) { return v; });
+        p.print_list(" ", args(), [&] (const Expr* v) { return v; });
     }
 }
 
@@ -243,7 +243,7 @@ void IfExpr::print(PrettyPrinter& p) const {
 
 void AppExpr::print(PrettyPrinter& p) const {
     for (int i = 0, n = num_args(); i < n; i++) {
-        bool paren = arg(i)->isa<Lambda>();
+        bool paren = !(arg(i)->isa<Var>() || arg(i)->isa<Param>() || arg(i)->isa<Vector>());
         p.print(p.opt(paren, "("), arg(i),  p.opt(paren, ")"), p.opt(i != n - 1, " "));
     }
 }

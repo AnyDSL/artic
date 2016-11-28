@@ -20,7 +20,7 @@ public:
             todo_ = true;
             e->set_type(builder_.unknown_type(rank));
         }
-        return e->type();
+        return find(e->type());
     }
 
     const Type* infer(const Expr* e) {
@@ -289,7 +289,7 @@ const Type* AppExpr::infer(InferSema& sema) const {
     
     if (!lambda_type())
         set_lambda_type(sema.subsume(arg(0)->type()));
-    set_lambda_type(sema.unify(lambda_type(), lambda_args));
+    set_lambda_type(sema.generalize(sema.unify(lambda_type(), lambda_args)));
 
     return ret;
 }
