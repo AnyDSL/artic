@@ -17,11 +17,11 @@ int main(int argc, char** argv) {
 
     if (parse(argv[1], file, builder, exprs)) {
         for (auto e : exprs) {
-            infer(e);check(e);
-            //if (check(e)) {
+            infer(e);
+            if (check(e)) {
                 print(e);
                 std::cout << std::endl;
-            //}
+            }
         }
     }
 
