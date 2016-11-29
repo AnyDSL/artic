@@ -31,16 +31,22 @@ public:
     /// Returns the depth of the type in number of polymorphic types.
     int depth() const { return depth_; }
 
-    /// Substitute types inside this type.
+    /// Substitutes types inside this type.
     virtual const Type* substitute(IRBuilder&, const TypeSub&) const { return this; }
     /// Shifts the TypeVar's indices by the given amount.
     virtual const Type* shift(IRBuilder&, int) const { return this; }
-    /// Update the lambda-abstraction rank. See "Efficient ML Type Inference Using Ranked Type Variables".
+    /// Updates the lambda-abstraction rank. See "Efficient ML Type Inference Using Ranked Type Variables".
     virtual void update_rank(int) const {}
     /// Returns the first non-polymorphic inner type.
     virtual const Type* inner() const { return this; }
-    /// Compute the set of unknowns used in this type.
+    /// Computes the set of unknowns used in this type.
     virtual void unknowns(TypeSet&) const {}
+    /// Computes the set of unknowns used in this type (return-by-value version).
+    TypeSet unknowns() const {
+        TypeSet u;
+        unknowns(u);
+        return u;    
+    }
 
     /// Prints the expression in a human-readable form.
     virtual void print(PrettyPrinter&) const = 0;

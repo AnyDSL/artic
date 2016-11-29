@@ -229,6 +229,33 @@ public:
         SELECT, BITCAST, EXTRACT, INSERT            // Misc.
     };
 
+    static int precedence(Op op) {
+        switch (op) {
+            case ADD:
+            case SUB:
+                return 4;
+            case MUL:
+            case DIV:
+                return 3;
+            case RSHFT:
+            case LSHFT:
+                return 5;
+            case AND: return 8;
+            case OR:  return 10;
+            case XOR: return 9;
+            case CMP_GE:
+            case CMP_LE:
+            case CMP_GT:
+            case CMP_LT:
+            case CMP_EQ:
+                return 14;
+            default: assert(false);
+        }
+        return 0;
+    }
+
+    static constexpr int max_precedence() { return 14; }
+
 private:
     PrimOp(Op op, const Type* t, const Expr* a)
         : op_(op) {
@@ -266,6 +293,7 @@ public:
     size_t num_args() const { return args_.size(); }
 
     bool binary() const { return op() <= CMP_EQ; }
+    int precedence() const { return precedence(op()); }
 
     size_t complexity() const override {
         size_t c = 1 + num_type_args();

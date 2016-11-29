@@ -192,7 +192,10 @@ void Lambda::print(PrettyPrinter& p) const {
 
 void PrimOp::print(PrettyPrinter& p) const {
     if (binary()) {
-        p.print(arg(0));
+        int prec = precedence();
+        bool lparen = arg(0)->isa<PrimOp>() && arg(0)->as<PrimOp>()->precedence() > prec;
+        bool rparen = arg(1)->isa<PrimOp>() && arg(1)->as<PrimOp>()->precedence() > prec;
+        p.print(p.opt(lparen, "("), arg(0), p.opt(lparen, ")"));
         switch(op()) {
             case ADD:    p.print(" + ");  break;
             case SUB:    p.print(" - ");  break;
@@ -210,7 +213,7 @@ void PrimOp::print(PrettyPrinter& p) const {
             case CMP_EQ: p.print(" == "); break;
             default: assert(false);
         }
-        p.print(arg(1));
+        p.print(p.opt(rparen, "("), arg(1), p.opt(rparen, ")"));
     } else {
         switch(op()) {
             case SELECT:  p.print(p.keyword_style("select"));  break;

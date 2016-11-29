@@ -90,8 +90,7 @@ public:
 
     const Type* generalize(const Type* t) {
         // Create a polymorphic type out of a type with unknowns
-        TypeSet u;
-        t->unknowns(u);
+        auto u = t->unknowns();
         TypeSub s;
         int d = t->depth(), n = 0;
         for (auto v : u) {
@@ -118,6 +117,9 @@ private:
             if (it->first != it->second) {
                 auto next = find(it->second);
                 todo_ = next != it->second;
+                // Detect cycles in order to avoid infinite fix point iterations
+                if (cycle(t, next))
+                    next = builder_.error_type();
                 it->second = next;
             }
             return it->second;
@@ -137,6 +139,16 @@ private:
             todo_ = true;
         }
         return b;
+    }
+
+    static bool cycle(const Type* a, const Type* b) {
+        auto u1 = a->unknowns();
+        auto u2 = b->unknowns();
+        if (u1.size() > u2.size()) std::swap(u1, u2);
+        for (auto u : u1) {
+            if (u2.count(u) > 0) return true;
+        }
+        return false;
     }
 
     std::unordered_map<const Type*, const Type*> constrs_;
@@ -286,7 +298,7 @@ const Type* AppExpr::infer(InferSema& sema) const {
     auto lambda_args = ret;
     for (int i = num_args() - 1; i >= 1; i--)
         lambda_args = builder()->lambda_type(arg(i)->type(), lambda_args);
-    
+
     if (!lambda_type())
         set_lambda_type(sema.subsume(arg(0)->type()));
     set_lambda_type(sema.generalize(sema.unify(lambda_type(), lambda_args)));

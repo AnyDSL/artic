@@ -315,7 +315,7 @@ public:
     const LetExpr*     parse_let_expr();
     const IfExpr*      parse_if_expr();
     const AppExpr*     parse_app_expr(const Expr* first, const Pos& begin);
-    const PrimOp*      parse_primop(const Expr* left, const Pos& begin);
+    const Expr*        parse_binop(const Expr* left, const Pos& begin, int prec);
     const PrimOp*      parse_bitcast();
     const PrimOp*      parse_select();
     const PrimOp*      parse_extract();
@@ -417,9 +417,7 @@ const Expr* Parser::parse_expr() {
             ahead().is_prim()) {
             return parse_app_expr(value, begin);
         }
-        if (ahead().is_binop())
-            return parse_primop(value, begin);
-        return value;
+        return parse_binop(value, begin, PrimOp::max_precedence());
     }
     switch (ahead().type()) {
         case Token::SELECT:  return parse_select();
@@ -467,13 +465,20 @@ const AppExpr* Parser::parse_app_expr(const Expr* first, const Pos& begin) {
     return anchor(builder_.app_expr(args));
 }
 
-const PrimOp* Parser::parse_primop(const Expr* left, const Pos& begin) {
-    auto anchor = make_anchor(begin);
-    auto binop = ahead().to_binop();
-    lex();
-    auto right = parse_value();
-    auto primop = builder_.primop(binop, left, right);
-    return anchor(primop);
+const Expr* Parser::parse_binop(const Expr* left, const Pos& begin, int prec) {
+    while (ahead().is_binop()) {
+        auto binop = ahead().to_binop();
+
+        int next_prec = PrimOp::precedence(binop);
+        if (next_prec > prec) {
+            left = parse_binop(left, begin, next_prec);
+        } else {
+            lex();
+            auto anchor = make_anchor(begin);
+            left = anchor(builder_.primop(binop, left, parse_value()));
+        }
+    }
+    return left;
 }
 
 const PrimOp* Parser::parse_bitcast() {
