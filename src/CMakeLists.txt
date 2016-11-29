@@ -7,8 +7,8 @@ add_executable(artic
     print.cpp
     types.cpp
     cast.h
-    ast.h
-    ast_builder.h
+    ir.h
+    ir_builder.h
     loc.h
     types.h
     common.h
