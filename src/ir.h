@@ -223,7 +223,7 @@ class PrimOp : public Expr {
 
 public:
     enum Op {
-        ADD, SUB, MUL, DIV,                         // Arithmetic
+        ADD, SUB, MUL, DIV, MOD,                    // Arithmetic
         RSHFT, LSHFT, AND, OR, XOR,                 // Bitwise
         CMP_GE, CMP_LE, CMP_GT, CMP_LT, CMP_EQ,     // Comparison
         SELECT, BITCAST, EXTRACT, INSERT            // Misc.
@@ -236,6 +236,7 @@ public:
                 return 4;
             case MUL:
             case DIV:
+            case MOD:
                 return 3;
             case RSHFT:
             case LSHFT:

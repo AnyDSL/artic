@@ -209,6 +209,7 @@ Token Lexer::operator () () {
             case '+': return make_token(Token::ADD);
             case '*': return make_token(Token::MUL);
             case '/': return make_token(Token::DIV);
+            case '%': return make_token(Token::MOD);
 
             case '\\': return make_token(Token::BSLASH);
             case ':':  return make_token(Token::COLON);
@@ -526,8 +527,7 @@ const Expr* Parser::parse_value() {
 
     if (ahead() == Token::LIT || ahead().is_prim()) return parse_vector();
 
-    lex();
-    error("Value expected");
+    assert(false);
     return nullptr;
 }
 

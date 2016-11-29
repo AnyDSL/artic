@@ -201,6 +201,7 @@ void PrimOp::print(PrettyPrinter& p) const {
             case SUB:    p.print(" - ");  break;
             case MUL:    p.print(" * ");  break;
             case DIV:    p.print(" / ");  break;
+            case MOD:    p.print(" % ");  break;
             case RSHFT:  p.print(" >> "); break;
             case LSHFT:  p.print(" << "); break;
             case AND:    p.print(" & ");  break;

@@ -3,26 +3,33 @@
 
 using namespace artic;
 
-int main(int argc, char** argv) {
-    if (argc != 2) return 1;
+static bool process_file(const char* file, IRBuilder& builder) {
+    std::ifstream is(file);
+    if (!is) error("Cannot open file ", file);
 
-    IRBuilder builder;
     ExprVec exprs;
+    if (parse(file, is, builder, exprs)) {
+        for (auto e : exprs) {
+            infer(e);
+            check(e);
+            print(e);
+            std::cout << std::endl;
+        }
+    }
 
-    std::ifstream file(argv[1]);
-    if (!file) {
-        error("Cannot open file ", argv[1]);
+    return true;
+}
+
+int main(int argc, char** argv) {
+    if (argc <= 1) {
+        std::cout << "Usage: artic files..." << std::endl;
         return 1;
     }
 
-    if (parse(argv[1], file, builder, exprs)) {
-        for (auto e : exprs) {
-            infer(e);
-            if (check(e)) {
-                print(e);
-                std::cout << std::endl;
-            }
-        }
+    IRBuilder builder;
+    for (int i = 1; i < argc; i++) {
+        if (!process_file(argv[i], builder))
+            return 1;
     }
 
     return 0;

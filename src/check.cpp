@@ -72,6 +72,13 @@ void PrimOp::check(CheckSema& sema) const {
                     sema.error(this, "Incorrect type for arithmetic operation");
                 }
                 break;
+            case MOD:
+                if (a->prim() == Prim::I1  ||
+                    a->prim() == Prim::F32 ||
+                    a->prim() == Prim::F64) {
+                    sema.error(this, "Incorrect type for modulus operation");
+                }
+                break;
             case RSHFT:
             case LSHFT:
             case AND:
@@ -206,7 +213,7 @@ void AppExpr::check(CheckSema& sema) const {
             }
 
             if (arg(i)->type() != lambda->from()) {
-                sema.error(this, "Types do not match in for argument ", i, ": got ", arg(i)->type(), ", expected ", lambda->from());
+                sema.error(this, "Types do not match in for argument ", i);
                 break;
             }
 

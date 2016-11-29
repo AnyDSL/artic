@@ -206,6 +206,7 @@ const Type* PrimOp::infer(InferSema& sema) const {
             case SUB:
             case MUL:
             case DIV:
+            case MOD:
             case RSHFT:
             case LSHFT:
             case AND:
