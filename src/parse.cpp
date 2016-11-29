@@ -406,12 +406,14 @@ const Expr* Parser::parse_expr() {
     if (ahead() == Token::LET) return parse_let_expr();
     if (ahead() == Token::IF) return parse_if_expr();
     if (ahead() == Token::IDENT  ||
+        ahead() == Token::LIT    ||
         ahead() == Token::LPAREN ||
         ahead() == Token::BSLASH ||
         ahead().is_prim()) {
         auto begin = ahead().loc().begin;
         auto value = parse_value();
         if (ahead() == Token::IDENT  ||
+            ahead() == Token::LIT    ||
             ahead() == Token::BSLASH ||
             ahead() == Token::LPAREN ||
             ahead().is_prim()) {
@@ -427,6 +429,7 @@ const Expr* Parser::parse_expr() {
         default: break;
     }
 
+    lex();
     error("Expression expected");
     return nullptr;
 }
@@ -459,6 +462,7 @@ const AppExpr* Parser::parse_app_expr(const Expr* first, const Pos& begin) {
     do {
         args.push_back(parse_value());
     } while (ahead() == Token::IDENT  ||
+             ahead() == Token::LIT    ||
              ahead() == Token::LPAREN ||
              ahead() == Token::BSLASH ||
              ahead().is_prim());
@@ -519,7 +523,8 @@ const Expr* Parser::parse_value() {
     if (ahead() == Token::IDENT)  return find_ident(parse_ident());
     if (ahead() == Token::LPAREN) return parse_tuple();
     if (ahead() == Token::BSLASH) return parse_lambda();
-    if (ahead().is_prim())        return parse_vector();
+
+    if (ahead() == Token::LIT || ahead().is_prim()) return parse_vector();
 
     lex();
     error("Value expected");
@@ -561,6 +566,17 @@ const Lambda* Parser::parse_lambda() {
 
 const Vector* Parser::parse_vector() {
     auto anchor = make_anchor();
+
+    // Without prefix, assume i32 for integers and f32 for floating point numbers
+    if (ahead() == Token::LIT) {
+        auto lit = ahead().lit();
+        lex();
+        if (lit.type == Literal::FLOAT)
+            return anchor(builder_.vector(float(lit.f64)));
+        else
+            return anchor(builder_.vector(int32_t(lit.i64)));
+    }
+
     auto prim = ahead().to_prim();
     lex();
 
