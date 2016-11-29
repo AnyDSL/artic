@@ -118,7 +118,7 @@ private:
                 auto next = find(it->second);
                 todo_ = next != it->second;
                 // Detect cycles when the constraint is propagated
-                if (next != it->second && cycle(t, next))
+                if (next != it->second && cycle(t->unknowns(), next))
                     next = builder_.error_type();
                 it->second = next;
             }
@@ -136,19 +136,21 @@ private:
         a = find(a);
         if (a != b) {
             // Detect cycles when the constraint is created
-            if (cycle(a,b)) b = builder_.error_type();
+            if (cycle(a->unknowns(), b)) b = builder_.error_type();
             constrs_[a] = b;
             todo_ = true;
         }
         return b;
     }
 
-    static bool cycle(const Type* a, const Type* b) {
-        auto u1 = a->unknowns();
-        auto u2 = b->unknowns();
-        if (u1.size() > u2.size()) std::swap(u1, u2);
-        for (auto u : u1) {
-            if (u2.count(u) > 0) return true;
+    bool cycle(const TypeSet& from, const Type* to) {
+        // Detects a cyle between the types in "from" and the types in "to"
+        auto unknowns = to->unknowns();
+        for (auto u : unknowns) {
+            auto v = find(u);
+            if (from.count(v) > 0 ||         // One of the unknowns in "to" leads us back into "from"
+                (u != v && cycle(from, v)))  // The unknown is mapped to another type that leads us back into "from"
+                return true;
         }
         return false;
     }
