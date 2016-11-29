@@ -117,8 +117,8 @@ private:
             if (it->first != it->second) {
                 auto next = find(it->second);
                 todo_ = next != it->second;
-                // Detect cycles in order to avoid infinite fix point iterations
-                if (cycle(t, next))
+                // Detect cycles when the constraint is propagated
+                if (next != it->second && cycle(t, next))
                     next = builder_.error_type();
                 it->second = next;
             }
@@ -135,6 +135,8 @@ private:
         b = find(b);
         a = find(a);
         if (a != b) {
+            // Detect cycles when the constraint is created
+            if (cycle(a,b)) b = builder_.error_type();
             constrs_[a] = b;
             todo_ = true;
         }
