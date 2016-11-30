@@ -729,29 +729,35 @@ const Type* Parser::parse_type_var() {
 
 const PolyType* Parser::parse_poly_type() {
     eat(Token::FORALL);
-    std::string ident;
+    std::vector<std::string> vars;
     if (ahead() == Token::IDENT) {
-        ident = ahead().ident();
-        if (type_vars_.count(ident))
-            error("Type variable name already used");
-        else
-            type_vars_.emplace(ident, -type_depth_);
-        eat(Token::IDENT);
+        do {
+            auto ident = ahead().ident();
+            eat(Token::IDENT);
+            if (type_vars_.count(ident))
+                error("Type variable name already used");
+            else {
+                type_vars_.emplace(ident, -type_depth_ - vars.size());
+                vars.emplace_back(ident);
+            }
+        } while (ahead() == Token::IDENT);
     } else {
         lex();
         error("Type variable name expected");
     }
     expect(Token::DOT);
 
-    type_depth_++;
+    int depth = vars.empty() ? 1 : vars.size();
+
+    type_depth_ += depth;
     max_type_depth_ = std::max(max_type_depth_, type_depth_);
 
     auto body = parse_type();
 
-    type_depth_--;
-    type_vars_.erase(ident);
+    type_depth_ -= depth;
+    for (auto& v : vars) type_vars_.erase(v);
 
-    return builder_.poly_type(body);
+    return builder_.poly_type(body, depth);
 }
 
 Literal Parser::parse_literal() {

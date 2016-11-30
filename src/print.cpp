@@ -283,14 +283,18 @@ void TupleType::print(PrettyPrinter& p) const {
     p.print(")");
 }
 
+static std::string type_var_name(int i) {
+    return i < 26 ? std::string(1, 'a' + i) : "t" + std::to_string(i - 26);
+}
+
 void TypeVar::print(PrettyPrinter& p) const {
-    p.print(p.type_var_style("<" + std::to_string(index()) + ">"));
+    p.print(p.type_var_style(type_var_name(index())));
 }
 
 void PolyType::print(PrettyPrinter& p) const {
     p.print(p.keyword_style("forall"), " ");
     for (int i = size() - 1; i >= 0; i--) {
-        p.print(p.type_var_style("<" + std::to_string(depth() - size() + i) + ">"), p.opt(i != 0, " "));
+        p.print(p.type_var_style(type_var_name(depth() - size() + i)), p.opt(i != 0, " "));
     }
     p.print(". ", body());
 }
