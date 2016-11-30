@@ -313,7 +313,19 @@ const Type* AppExpr::infer(InferSema& sema) const {
     return ret;
 }
 
+static void propagate(const Expr* e, const Type* t) {
+    if (auto lambda_type = t->inner()->isa<LambdaType>()) {
+        if (auto lambda = e->isa<Lambda>()) {
+            lambda->param()->set_type(lambda_type->from());
+            propagate(lambda->body(), lambda_type->to());
+        }
+    }
+}
+
 const Type* LetExpr::infer(InferSema& sema) const {
+    // Propagate type annotations
+    if (var()->type()) propagate(var()->binding(), var()->type());
+
     sema.infer(var());
     sema.inc_rank();
     sema.infer(var()->binding(), var()->type());
