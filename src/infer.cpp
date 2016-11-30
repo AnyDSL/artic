@@ -299,15 +299,17 @@ const Type* IfExpr::infer(InferSema& sema) const {
 const Type* AppExpr::infer(InferSema& sema) const {
     for (auto arg : args()) sema.infer(arg);
 
+    if (!lambda_type())
+        set_lambda_type(sema.subsume(arg(0)->type()));
+
     auto ret = sema.type(this);
     auto lambda_args = ret;
     for (int i = num_args() - 1; i >= 1; i--)
         lambda_args = builder()->lambda_type(arg(i)->type(), lambda_args);
 
-    if (!lambda_type())
-        set_lambda_type(sema.subsume(arg(0)->type()));
+    sema.inc_rank();
     set_lambda_type(sema.generalize(sema.unify(lambda_type(), lambda_args)));
-
+    sema.dec_rank();
     return ret;
 }
 

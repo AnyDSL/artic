@@ -32,7 +32,7 @@ public:
     int depth() const { return depth_; }
 
     /// Substitutes types inside this type.
-    virtual const Type* substitute(IRBuilder&, const TypeSub&) const { return this; }
+    virtual const Type* substitute(IRBuilder&, const TypeSub& sub) const { return sub[this]; }
     /// Shifts the TypeVar's indices by the given amount.
     virtual const Type* shift(IRBuilder&, int) const { return this; }
     /// Updates the lambda-abstraction rank. See "Efficient ML Type Inference Using Ranked Type Variables".
@@ -341,10 +341,6 @@ class UnknownType : public Type {
 
 public:
     int id() const { return id_; }
-
-    const Type* substitute(IRBuilder&, const TypeSub& sub) const override {
-        return sub[this];
-    }
 
     int rank() const { return rank_; }
     void update_rank(int rank) const override { rank_ = std::min(rank, rank_); }
