@@ -303,12 +303,17 @@ const Type* AppExpr::infer(InferSema& sema) const {
         set_lambda_type(sema.subsume(arg(0)->type()));
 
     auto ret = sema.type(this);
-    auto lambda_args = ret;
-    for (int i = num_args() - 1; i >= 1; i--)
-        lambda_args = builder()->lambda_type(arg(i)->type(), lambda_args);
+    if (!lambda_args()) {
+        auto args = ret;
+        for (int i = num_args() - 1; i >= 1; i--)
+            args = builder()->lambda_type(sema.subsume(arg(i)->type()), args);
+        set_lambda_args(args);
+    }
 
     sema.inc_rank();
-    set_lambda_type(sema.generalize(sema.unify(lambda_type(), lambda_args)));
+    auto unified = sema.unify(lambda_type(), lambda_args());
+    set_lambda_type(sema.generalize(unified));
+    set_lambda_args(unified);
     sema.dec_rank();
     return ret;
 }

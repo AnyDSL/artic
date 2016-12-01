@@ -22,7 +22,10 @@ typedef Substitution<const class Type*>       TypeSub;
 /// Base class for all types.
 class Type : public Cast<Type> {
 public:
-    Type(int depth = 0) : depth_(depth) {}
+    Type(int depth = 0, bool unknown = false, bool error = false)
+        : depth_(depth), unknown_(unknown), error_(error)
+    {}
+
     virtual ~Type() {}
 
     /// Dumps the type without indentation nor coloring.
@@ -30,6 +33,10 @@ public:
 
     /// Returns the depth of the type in number of polymorphic types.
     int depth() const { return depth_; }
+    /// Returns true if the type contains unknowns.
+    bool has_unknown() const { return unknown_; }
+    /// Returns true if the type contains an error.
+    bool has_error() const { return error_; }
 
     /// Substitutes types inside this type.
     virtual const Type* substitute(IRBuilder&, const TypeSub& sub) const { return sub[this]; }
@@ -59,6 +66,8 @@ public:
 
 private:
     int depth_;
+    bool unknown_;
+    bool error_;
 };
 
 std::ostream& operator << (std::ostream&, const Type*);
@@ -147,7 +156,7 @@ private:
 class ErrorType : public Type {
     friend class IRBuilder;
 
-    ErrorType() {}
+    ErrorType() : Type(0, false, true) {}
 
 public:
     void print(PrettyPrinter&) const override;
@@ -159,7 +168,10 @@ public:
 class TypeApp : public Type {
 protected:
     TypeApp(const TypeVec& a = TypeVec())
-        : Type(max_depth(a)), args_(a)
+        : Type(reduce(a, 0,     [] (int  d, const Type* t) { return std::max(d, t->depth()); }),
+               reduce(a, false, [] (bool u, const Type* t) { return u || t->has_unknown();   }),
+               reduce(a, false, [] (bool e, const Type* t) { return e || t->has_error();     }))
+        , args_(a)
     {}
     virtual ~TypeApp() {}
 
@@ -209,11 +221,11 @@ public:
     }
 
 private:
-    static int max_depth(const TypeVec& args) {
-        int d = 0;
+    template <typename T, typename F>
+    static T reduce(const TypeVec& args, T init, F f) {
         for (auto arg : args)
-            d = std::max(d, arg->depth());
-        return d;
+            init = f(init, arg);
+        return init;
     }
 };
 
@@ -290,7 +302,7 @@ class PolyType : public Type {
     friend class IRBuilder;
 
     PolyType(const Type* body, int size)
-        : Type(size + body->depth()), body_(body), size_(size)
+        : Type(size + body->depth(), body->has_unknown(), body->has_error()), body_(body), size_(size)
     {}
 
 public:
@@ -337,7 +349,7 @@ private:
 class UnknownType : public Type {
     friend class IRBuilder;
 
-    UnknownType(int id, int rank) : id_(id), rank_(rank) {}
+    UnknownType(int id, int rank) : Type(0, true, false), id_(id), rank_(rank) {}
 
 public:
     int id() const { return id_; }

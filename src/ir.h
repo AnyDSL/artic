@@ -351,12 +351,15 @@ class AppExpr : public Expr {
     friend class IRBuilder;
 
     AppExpr(const ExprVec& args)
-        : args_(args), lambda_type_(nullptr)
+        : args_(args), lambda_type_(nullptr), lambda_args_(nullptr)
     {}
 
 public:
     const Type* lambda_type() const { return lambda_type_; }
     void set_lambda_type(const Type* t) const { lambda_type_ = t; }
+
+    const Type* lambda_args() const { return lambda_args_; }
+    void set_lambda_args(const Type* t) const { lambda_args_ = t; }
 
     const ExprVec& args() const { return args_; }
     const Expr* arg(int i) const { return args_[i]; }
@@ -374,6 +377,7 @@ public:
 
 private:
     mutable const Type* lambda_type_;
+    mutable const Type* lambda_args_;
     ExprVec args_;
 };
 
