@@ -1,44 +1,30 @@
-#ifndef LOCATION_H
-#define LOCATION_H
-
-#include <ostream>
-
-namespace artic {
-
-struct Pos {
-    int row, col;
-
-    Pos() {}
-    Pos(int r, int c)
-        : row(r), col(c)
-    {}
-};
+#ifndef LOC_H
+#define LOC_H
 
 struct Loc {
     std::string file;
-    Pos begin, end;
+    int begin_row, begin_col;
+    int end_row, end_col;
 
     Loc() {}
-    Loc(const std::string& f, Pos b, Pos e)
-        : file(f), begin(b), end(e)
+    Loc(const std::string& file, int row, int col)
+        : Loc(file, row, col, row, col)
+    {}
+    Loc(const std::string& file, int brow, int bcol, int erow, int ecol)
+        : file(file)
+        , begin_row(brow), end_row(erow)
+        , begin_col(bcol), end_col(ecol)
     {}
 };
 
-inline std::ostream& operator << (std::ostream& os, const Pos& pos) {
-    os << pos.row << ", " << pos.col;
-    return os;
-}
-
-inline std::ostream& operator << (std::ostream& os, const Loc& loc) {
+std::ostream& operator << (std::ostream& os, Loc& loc) {
     os << loc.file << "(";
-    if (loc.begin.row == loc.end.row) {
-        os << loc.begin.row << ", " << loc.begin.col << " - " << loc.end.col;
-    } else {
-        os << loc.begin << " - " << loc.end;
+    os << loc.begin_row << ", " << loc.begin_col;
+    if (loc.begin_row != loc.end_row ||
+        loc.begin_col != loc.end_col) {
+        os << " - " << loc.end_row << ", " << loc.end_col;
     }
-    return os << ")";
+    os << ")";
 }
 
-} // namespace artic
-
-#endif // LOCATION_H
+#endif // LOC_H

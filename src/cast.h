@@ -2,12 +2,8 @@
 #define CAST_H
 
 #include <type_traits>
-#include <cassert>
 
-namespace artic {
-
-/// Compile-time converts a pointer type A = ClassA* into B = ClassB* provided ClassB derives from ClassA.
-template <typename A, typename B>
+template <typename B, typename A>
 inline B as(A a) {
     static_assert(std::is_base_of<typename std::remove_pointer<A>::type,
                                   typename std::remove_pointer<B>::type>::value,
@@ -16,8 +12,7 @@ inline B as(A a) {
     return static_cast<B>(a);
 }
 
-/// Runtime converts a pointer type A = ClassA* into B = ClassB* provided ClassB derives from ClassA.
-template <typename A, typename B>
+template <typename B, typename A>
 inline B isa(A a) {
     static_assert(std::is_base_of<typename std::remove_pointer<A>::type,
                                   typename std::remove_pointer<B>::type>::value,
@@ -25,20 +20,13 @@ inline B isa(A a) {
     return dynamic_cast<B>(a);
 }
 
-/// Utility class to allow matching over derived class types.
-template <typename Base>
+template <typename T>
 class Cast {
 public:
-    /// Casts the object to the target type, no check is done.
-    template <typename T> T* as() { assert(this); return artic::as<Base*, T*>(static_cast<Base*>(this)); }
-    /// Casts the object to the target type, dynamically checking if the cast is possible (returns NULL if the cast is not possible).
-    template <typename T> T* isa() { assert(this); return artic::isa<Base*, T*>(static_cast<Base*>(this)); }
-    /// Casts the object to the target type, no check is done.
-    template <typename T> const T* as() const { assert(this); return artic::as<const Base*, const T*>(static_cast<const Base*>(this)); }
-    /// Casts the object to the target type, dynamically checking if the cast is possible (returns NULL if the cast is not possible).
-    template <typename T> const T* isa() const { assert(this); return artic::isa<const Base*, const T*>(static_cast<const Base*>(this)); }
+    template <typename U> const U* isa() const { ::isa<const U*>(this); }
+    template <typename U> U* isa() { ::isa<U*>(this); }
+    template <typename U> const U* as() const { ::as<const U*>(this); }
+    template <typename U> U* as() { ::as<const U*>(this); }
 };
-
-} // namespace artic
 
 #endif // CAST_H
