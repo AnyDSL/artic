@@ -1,6 +1,9 @@
 #ifndef LOC_H
 #define LOC_H
 
+#include <string>
+#include <ostream>
+
 struct Loc {
     std::string file;
     int begin_row, begin_col;

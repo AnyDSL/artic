@@ -1,0 +1,10 @@
+add_library(artic
+    ast.h
+    box.h
+    cast.h
+    lexer.h
+    loc.h
+    parser.h
+    print.h
+    token.h
+    token.cpp)
