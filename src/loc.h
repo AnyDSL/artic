@@ -5,23 +5,23 @@
 #include <ostream>
 
 struct Loc {
-    std::string file;
+    const std::string* file;
     int begin_row, begin_col;
     int end_row, end_col;
 
-    Loc() {}
+    Loc() : file(nullptr) {}
     Loc(const std::string& file, int row, int col)
         : Loc(file, row, col, row, col)
     {}
     Loc(const std::string& file, int brow, int bcol, int erow, int ecol)
-        : file(file)
+        : file(&file)
         , begin_row(brow), end_row(erow)
         , begin_col(bcol), end_col(ecol)
     {}
 };
 
-std::ostream& operator << (std::ostream& os, Loc& loc) {
-    os << loc.file << "(";
+inline std::ostream& operator << (std::ostream& os, const Loc& loc) {
+    os << *loc.file << "(";
     os << loc.begin_row << ", " << loc.begin_col;
     if (loc.begin_row != loc.end_row ||
         loc.begin_col != loc.end_col) {

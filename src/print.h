@@ -5,9 +5,11 @@
 #include <cstring>
 #include <cassert>
 
-void format(std::ostream& os, const char* fmt) {
+#include "loc.h"
+
+inline void format(std::ostream& os, const char* fmt) {
     assert(strchr(fmt, '%') == nullptr && "Some % have not been formatted");
-    os << fmt;
+    os << fmt << std::endl;
 }
 
 template <typename T, typename... Args>
@@ -31,8 +33,20 @@ void error(const char* fmt, Args... args) {
 }
 
 template <typename... Args>
-void log(const char* fmt, Args... args) {
+void warn(const char* fmt, Args... args) {
     format(std::clog, fmt, args...);
+}
+
+template <typename... Args>
+void error(const Loc& loc, const char* fmt, Args... args) {
+    std::cerr << loc << ": ";
+    error(fmt, args...);
+}
+
+template <typename... Args>
+void warn(const Loc& loc, const char* fmt, Args... args) {
+    std::clog << loc << ": ";
+    warn(fmt, args...);
 }
 
 #endif // PRINT_H

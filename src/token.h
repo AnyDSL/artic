@@ -1,7 +1,6 @@
 #ifndef TOKEN_H
 #define TOKEN_H
 
-#include <unordered_map>
 #include <string>
 
 #include "loc.h"
@@ -10,11 +9,17 @@
 struct Literal {
     Box box;
     bool suffix;
+
+    Literal() {}
+    Literal(const Box& box, bool suffix)
+        : box(box), suffix(suffix)
+    {}
 };
 
 struct Token {
 public:
     enum Tag {
+        ERR,            // Unknown token
         ID,             // Some identifier
         LIT,            // Some literal
         DEF,            // 'def'
@@ -24,30 +29,28 @@ public:
         R_PAREN,        // ')'
         L_BRACE,        // '{'
         R_BRACE,        // '}'
-        EQ              // '='
+        EQ,             // '='
+        END             // End of file
     };
 
-    Token(Tag tag, const Loc& loc)
-        : tag_(tag), loc_(loc) {
-        assert(tag != ID && tag != LIT);
-    }
+    Token() : tag_(ERR) {}
 
-    Token(const Literal& lit, const Loc& loc)
-        : tag_(Token::LIT), lit_(lit), loc_(loc)
+    Token(const std::string& str, Tag tag, const Loc& loc)
+        : loc_(loc), tag_(tag), str_(str)
+    {}
+
+    Token(const std::string& str, const Literal& lit, const Loc& loc)
+        : loc_(loc), tag_(LIT), lit_(lit), str_(str)
     {}
 
     Token(const std::string& str, const Loc& loc)
-        : loc_(loc) {
-        auto it = keywords.find(str);
-        if (it == keywords.end()) {
-            tag_ = ID;
-            id_ = str;
-        } else tag_ = it->second;
-    }
+        : loc_(loc), tag_(ID), str_(str)
+    {}
 
     Tag tag() const { return tag_; }
-    const Literal& literal() const { return lit_; }
-    const std::string& ident() const { return id_; }
+    const Literal& literal() const { assert(is_literal()); return lit_; }
+    const std::string& ident() const { assert(is_ident()); return str_; }
+    const std::string& string() const { return str_; }
 
     bool is_ident() const { return tag_ == ID; }
     bool is_literal() const { return tag_ == LIT; }
@@ -58,9 +61,7 @@ private:
     Loc loc_;
     Tag tag_;
     Literal lit_;
-    std::string id_;
-
-    static std::unordered_map<std::string, Tag> keywords;
+    std::string str_;
 };
 
 #endif // TOKEN_H

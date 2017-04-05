@@ -2,6 +2,7 @@
 #define BOX_H
 
 #include <functional>
+#include <ostream>
 #include <cassert>
 
 #define BOX_TAGS(f) \
@@ -41,7 +42,7 @@ template <template <typename> typename F>
 Box zip(const Box& a, const Box& b) {
     assert(a.tag == b.tag);
     switch (a.tag) {
-#define TAG(t, n, ty) case Box::t: { F<ty> f; return Box(f(a.n, b.n)); }
+#define TAG(t, n, ty) case Box::t: { F<ty> f; return Box(f(a.n, b.n)); } break;
         BOX_TAGS(TAG)
 #undef TAG
         default: assert(false && "unknown box tag");
@@ -52,7 +53,7 @@ Box zip(const Box& a, const Box& b) {
 template <template <typename> typename F>
 Box map(const Box& a) {
     switch (a.tag) {
-#define TAG(t, n, ty) case Box::t: { F<ty> f; return Box(f(a.n)); }
+#define TAG(t, n, ty) case Box::t: { F<ty> f; return Box(f(a.n)); } break;
         BOX_TAGS(TAG)
 #undef TAG
         default: assert(false && "unknown box tag");
@@ -92,13 +93,22 @@ namespace BoxOps {
     template <> struct Xor<double> : public InvalidOp<double> {};
 }
 
-Box operator + (const Box& a, const Box& b) { return zip<BoxOps::Add>(a, b); }
-Box operator - (const Box& a, const Box& b) { return zip<BoxOps::Sub>(a, b); }
-Box operator * (const Box& a, const Box& b) { return zip<BoxOps::Mul>(a, b); }
-Box operator / (const Box& a, const Box& b) { return zip<BoxOps::Div>(a, b); }
+inline Box operator + (const Box& a, const Box& b) { return zip<BoxOps::Add>(a, b); }
+inline Box operator - (const Box& a, const Box& b) { return zip<BoxOps::Sub>(a, b); }
+inline Box operator * (const Box& a, const Box& b) { return zip<BoxOps::Mul>(a, b); }
+inline Box operator / (const Box& a, const Box& b) { return zip<BoxOps::Div>(a, b); }
 
-Box operator & (const Box& a, const Box& b) { return zip<BoxOps::And>(a, b); }
-Box operator | (const Box& a, const Box& b) { return zip<BoxOps::Or >(a, b); }
-Box operator ^ (const Box& a, const Box& b) { return zip<BoxOps::Xor>(a, b); }
+inline Box operator & (const Box& a, const Box& b) { return zip<BoxOps::And>(a, b); }
+inline Box operator | (const Box& a, const Box& b) { return zip<BoxOps::Or >(a, b); }
+inline Box operator ^ (const Box& a, const Box& b) { return zip<BoxOps::Xor>(a, b); }
+
+inline std::ostream& operator << (std::ostream& os, const Box& box) {
+    switch (box.tag) {
+#define TAG(t, n, ty) case Box::t: { os << box.n; } break;
+        BOX_TAGS(TAG)
+#undef TAG
+        default: assert(false && "unknown box tag");
+    }
+} 
 
 #endif // BOX_H
