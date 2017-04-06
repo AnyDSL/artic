@@ -24,6 +24,26 @@ public:
     ast::Ptr<ast::DeclExpr>   parse_decl_expr();
 
 private:
+    struct Tracker {
+        int begin_row, begin_col;
+        const Parser* parser;
+
+        Loc operator () () const {
+            auto& loc = parser->ahead().loc();
+            return Loc(*loc.file, begin_row, begin_col, loc.end_row, loc.end_col);
+        }
+
+        Tracker(const Parser* parser)
+            : parser(parser)
+            , begin_row(parser->ahead().loc().begin_row)
+            , begin_col(parser->ahead().loc().begin_col)
+        {}
+    };
+
+    void next() {
+        ahead_ = lexer_.next();
+    }
+
     const Token& ahead() const {
         return ahead_;
     }

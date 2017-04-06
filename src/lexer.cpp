@@ -79,7 +79,7 @@ Token Lexer::next() {
 
     error(loc_, "unknown token '%'", utf8_to_string(peek()));
     eat();
-    return Token();
+    return Token(loc_);
 }
 
 void Lexer::eat() {

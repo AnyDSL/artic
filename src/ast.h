@@ -11,15 +11,30 @@ namespace ast {
 
 template <typename T> using Ptr = std::unique_ptr<T>;
 template <typename T> using PtrVector = std::vector<std::unique_ptr<T>>;
+template <typename T, typename... Args>
+std::unique_ptr<T> make_ptr(Args... args) {
+    return std::make_unique<T>(std::forward<Args>(args)...);
+}
 
 struct Node : public Cast<Node> {
     Loc loc;
+    Node(const Loc& loc) : loc(loc) {}
 };
 
-struct Ptrn : public Node {};
-struct Expr : public Node {};
+struct Ptrn : public Node {
+    Ptrn(const Loc& loc) : Node(loc) {}
+};
+
+struct Expr : public Node {
+    Expr(const Loc& loc) : Node(loc) {}
+};
+
 struct Decl : public Node {
     Ptr<Ptrn> ptrn;
+
+    Decl(const Loc& loc, Ptr<Ptrn>&& ptrn)
+        : Node(loc), ptrn(std::move(ptrn))
+    {}
 };
 
 struct IdPtrn : public Ptrn {
@@ -59,8 +74,8 @@ struct Def : public Decl {
 struct Program : public Node {
     PtrVector<Decl> decls;
 
-    Program(PtrVector<Decl>&& decls)
-        : decls(std::move(decls))
+    Program(const Loc& loc, PtrVector<Decl>&& decls)
+        : Node(loc), decls(std::move(decls))
     {}
 };
 

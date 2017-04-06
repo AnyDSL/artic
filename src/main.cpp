@@ -5,6 +5,7 @@
 #include <iostream>
 
 #include "lexer.h"
+#include "parser.h"
 #include "print.h"
 
 static void usage() {
@@ -49,13 +50,8 @@ int main(int argc, char** argv) {
     for (auto& file : opts.files) {
         std::ifstream is(file);
         Lexer lexer(file, is);
-        while (true) {
-            Token tok = lexer.next();
-            if (tok.tag() == Token::END) break;
-            std::cout << tok.string();
-            if (tok.tag() == Token::LIT) { std::cout << " = " << tok.literal().box; }
-            std::cout << std::endl;      
-        }
+        Parser parser(lexer);
+        auto program = parser.parse_program();
     }
 
     return 0;

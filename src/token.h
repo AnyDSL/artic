@@ -33,7 +33,7 @@ public:
         END             // End of file
     };
 
-    Token() : tag_(ERR) {}
+    Token(const Loc& loc) : loc_(loc), tag_(ERR) {}
 
     Token(const std::string& str, Tag tag, const Loc& loc)
         : loc_(loc), tag_(tag), str_(str)
@@ -55,7 +55,7 @@ public:
     bool is_ident() const { return tag_ == ID; }
     bool is_literal() const { return tag_ == LIT; }
 
-    Loc loc() const { return loc_; }
+    const Loc& loc() const { return loc_; }
 
 private:
     Loc loc_;
