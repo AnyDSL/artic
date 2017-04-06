@@ -6,6 +6,7 @@ add_executable(artic
     lexer.cpp
     lexer.h
     loc.h
+    parser.cpp
     parser.h
     print.h
     token.h)

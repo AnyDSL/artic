@@ -16,12 +16,11 @@ struct Node : public Cast<Node> {
     Loc loc;
 };
 
-struct Def : public Node {
-    Ptr<Ptrn> ptrn;
-    Ptr<Expr> init;
-};
-
 struct Ptrn : public Node {};
+struct Expr : public Node {};
+struct Decl : public Node {
+    Ptr<Ptrn> ptrn;
+};
 
 struct IdPtrn : public Ptrn {
     std::string id;
@@ -30,8 +29,6 @@ struct IdPtrn : public Ptrn {
 struct TuplePtrn : public Ptrn {
     PtrVector<Ptrn> args;
 };
-
-struct Expr : public Node {};
 
 struct TupleExpr : public Expr {
     PtrVector<Expr> args;
@@ -46,12 +43,25 @@ struct BlockExpr : public Expr {
     PtrVector<Expr> exprs;
 };
 
-struct DefExpr : public Expr {
-    Ptr<Def> def;
+struct DeclExpr : public Expr {
+    Ptr<Decl> decl;
+};
+
+struct Val : public Decl {
+    Ptr<Expr> init;
+};
+
+struct Def : public Decl {
+    PtrVector<Ptrn> args;
+    Ptr<Expr> body;
 };
 
 struct Program : public Node {
-    PtrVector<Def> defs;
+    PtrVector<Decl> decls;
+
+    Program(PtrVector<Decl>&& decls)
+        : decls(std::move(decls))
+    {}
 };
 
 } // namespace ast
