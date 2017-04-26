@@ -6,6 +6,23 @@
 #include "loc.h"
 #include "box.h"
 
+#define TOKEN_TAGS(f) \
+    f(ERR, "<error>") \
+    f(ID, "<identifier>") \
+    f(LIT, "<literal>") \
+    f(DEF, "def") \
+    f(VAR, "var") \
+    f(VAL, "val") \
+    f(L_PAREN, "(") \
+    f(R_PAREN, ")") \
+    f(L_BRACE, "{") \
+    f(R_BRACE, "}") \
+    f(COMMA, ",") \
+    f(SEMICOLON, ";") \
+    f(COLON, ":") \
+    f(EQ, "=") \
+    f(END, "<eof>")
+
 struct Literal {
     Box box;
     bool suffix;
@@ -19,31 +36,22 @@ struct Literal {
 struct Token {
 public:
     enum Tag {
-        ERR,            // Unknown token
-        ID,             // Some identifier
-        LIT,            // Some literal
-        DEF,            // 'def'
-        VAR,            // 'var'
-        VAL,            // 'val'
-        L_PAREN,        // '('
-        R_PAREN,        // ')'
-        L_BRACE,        // '{'
-        R_BRACE,        // '}'
-        EQ,             // '='
-        END             // End of file
+#define TAG(t, str) t,
+        TOKEN_TAGS(TAG)
+#undef TAG
     };
 
-    Token(const Loc& loc) : loc_(loc), tag_(ERR) {}
+    Token(const Loc& loc) : Token(loc, ERR) {}
 
-    Token(const std::string& str, Tag tag, const Loc& loc)
-        : loc_(loc), tag_(tag), str_(str)
+    Token(const Loc& loc, Tag tag)
+        : loc_(loc), tag_(tag), str_(to_string(tag))
     {}
 
-    Token(const std::string& str, const Literal& lit, const Loc& loc)
+    Token(const Loc& loc, const std::string& str, const Literal& lit)
         : loc_(loc), tag_(LIT), lit_(lit), str_(str)
     {}
 
-    Token(const std::string& str, const Loc& loc)
+    Token(const Loc& loc, const std::string& str)
         : loc_(loc), tag_(ID), str_(str)
     {}
 
@@ -56,6 +64,16 @@ public:
     bool is_literal() const { return tag_ == LIT; }
 
     const Loc& loc() const { return loc_; }
+
+    static std::string to_string(Tag tag) {
+        switch (tag) {
+#define TAG(t, str) case t: return str;
+            TOKEN_TAGS(TAG)
+#undef TAG
+            default: assert(false);
+        }
+        return std::string();
+    }
 
 private:
     Loc loc_;

@@ -39,14 +39,32 @@ struct Decl : public Node {
 
 struct IdPtrn : public Ptrn {
     std::string id;
+
+    IdPtrn(const Loc& loc, const std::string& id)
+        : Ptrn(loc), id(id)
+    {}
 };
 
 struct TuplePtrn : public Ptrn {
     PtrVector<Ptrn> args;
+
+    TuplePtrn(const Loc& loc, PtrVector<Ptrn>&& args)
+        : Ptrn(loc), args(std::move(args))
+    {}
+};
+
+struct ErrorPtrn : public Ptrn {
+    ErrorPtrn(const Loc& loc)
+        : Ptrn(loc)
+    {}
 };
 
 struct TupleExpr : public Expr {
     PtrVector<Expr> args;
+
+    TupleExpr(const Loc& loc, PtrVector<Expr>&& args)
+        : Expr(loc), args(std::move(args))
+    {}
 };
 
 struct LambdaExpr : public Expr {
@@ -56,19 +74,44 @@ struct LambdaExpr : public Expr {
 
 struct BlockExpr : public Expr {
     PtrVector<Expr> exprs;
+
+    BlockExpr(const Loc& loc, PtrVector<Expr>&& exprs)
+        : Expr(loc), exprs(std::move(exprs))
+    {}
 };
 
 struct DeclExpr : public Expr {
     Ptr<Decl> decl;
 };
 
-struct Val : public Decl {
+struct ErrorExpr : public Expr {
+    ErrorExpr(const Loc& loc)
+        : Expr(loc)
+    {}
+};
+
+struct ValDecl : public Decl {
     Ptr<Expr> init;
 };
 
-struct Def : public Decl {
+struct DefDecl : public Decl {
     PtrVector<Ptrn> args;
     Ptr<Expr> body;
+
+    DefDecl(const Loc& loc,
+        Ptr<Ptrn>&& id,
+        PtrVector<Ptrn>&& args,
+        Ptr<Expr>&& body)
+        : Decl(loc, std::move(id))
+        , args(std::move(args))
+        , body(std::move(body))
+    {}
+};
+
+struct ErrorDecl : public Decl {
+    ErrorDecl(const Loc& loc)
+        : Decl(loc, nullptr)
+    {}
 };
 
 struct Program : public Node {

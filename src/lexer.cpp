@@ -57,24 +57,28 @@ Token Lexer::next() {
     loc_.begin_row = loc_.end_row;
     loc_.begin_col = loc_.end_col;
 
-    if (eof_) return Token("", Token::END, loc_);
+    if (eof_) return Token(loc_, Token::END);
 
-    if (accept('(')) return Token(current_, Token::L_PAREN, loc_);
-    if (accept(')')) return Token(current_, Token::R_PAREN, loc_);
-    if (accept('{')) return Token(current_, Token::L_BRACE, loc_);
-    if (accept('}')) return Token(current_, Token::R_BRACE, loc_);
-    if (accept('=')) return Token(current_, Token::EQ, loc_);
+    if (accept('(')) return Token(loc_, Token::L_PAREN);
+    if (accept(')')) return Token(loc_, Token::R_PAREN);
+    if (accept('{')) return Token(loc_, Token::L_BRACE);
+    if (accept('}')) return Token(loc_, Token::R_BRACE);
+    if (accept(',')) return Token(loc_, Token::COMMA);
+    if (accept(';')) return Token(loc_, Token::SEMICOLON);
+    if (accept(':')) return Token(loc_, Token::COLON);
+    if (accept('=')) return Token(loc_, Token::EQ);
 
     if (std::isdigit(peek()) || peek() == '.') {
         auto lit = parse_literal();
-        return Token(current_, lit, loc_);
+        return Token(loc_, current_, lit);
     }
 
     if (std::isalpha(peek()) || peek() == '_') {
         eat();
         while (std::isalnum(peek()) || peek() == '_') eat();
         auto key_it = keywords.find(current_);
-        return Token(current_, key_it == keywords.end() ? Token::ID : key_it->second, loc_);
+        if (key_it == keywords.end()) return Token(loc_, current_);
+        return Token(loc_, key_it->second);
     }
 
     error(loc_, "unknown token '%'", utf8_to_string(peek()));
@@ -83,10 +87,7 @@ Token Lexer::next() {
 }
 
 void Lexer::eat() {
-    if (buf_.empty() && stream_.peek() == std::char_traits<char>::eof()) {
-        eof_ = true;
-        return;
-    }
+    if (eof_) return;
 
     if (peek() == '\n') {
         loc_.end_row++;
@@ -95,9 +96,11 @@ void Lexer::eat() {
         loc_.end_col++;
     }
 
-    eof_ = !buf_.fill(stream_);
-    current_ += utf8_to_string(code_);
-    code_ = buf_.decode();
+    eof_ = !buf_.fill(stream_) && buf_.empty();
+    if (!eof_) {
+        current_ += utf8_to_string(code_);
+        code_ = buf_.decode();
+    }
 }
 
 void Lexer::eat_spaces() {
