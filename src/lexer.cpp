@@ -7,8 +7,7 @@
 
 std::unordered_map<std::string, Token::Tag> Lexer::keywords{
     std::make_pair("def", Token::DEF),
-    std::make_pair("var", Token::VAR),
-    std::make_pair("val", Token::VAL)
+    std::make_pair("var", Token::VAR)
 };
 
 bool Lexer::Utf8Buffer::fill(std::istream& is) {
@@ -66,7 +65,10 @@ Token Lexer::next() {
     if (accept(',')) return Token(loc_, Token::COMMA);
     if (accept(';')) return Token(loc_, Token::SEMICOLON);
     if (accept(':')) return Token(loc_, Token::COLON);
-    if (accept('=')) return Token(loc_, Token::EQ);
+    if (accept('=')) {
+        if (accept('>')) return Token(loc_, Token::ARROW);
+        return Token(loc_, Token::EQ);
+    }
 
     if (std::isdigit(peek()) || peek() == '.') {
         auto lit = parse_literal();

@@ -12,7 +12,6 @@
     f(LIT, "<literal>") \
     f(DEF, "def") \
     f(VAR, "var") \
-    f(VAL, "val") \
     f(L_PAREN, "(") \
     f(R_PAREN, ")") \
     f(L_BRACE, "{") \
@@ -21,6 +20,7 @@
     f(SEMICOLON, ";") \
     f(COLON, ":") \
     f(EQ, "=") \
+    f(ARROW, "=>") \
     f(END, "<eof>")
 
 struct Literal {
@@ -57,10 +57,10 @@ public:
 
     Tag tag() const { return tag_; }
     const Literal& literal() const { assert(is_literal()); return lit_; }
-    const std::string& ident() const { assert(is_ident()); return str_; }
+    const std::string& identifier() const { assert(is_identifier()); return str_; }
     const std::string& string() const { return str_; }
 
-    bool is_ident() const { return tag_ == ID; }
+    bool is_identifier() const { return tag_ == ID; }
     bool is_literal() const { return tag_ == LIT; }
 
     const Loc& loc() const { return loc_; }

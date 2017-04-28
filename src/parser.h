@@ -12,21 +12,20 @@ public:
     ast::Ptr<ast::Program>    parse_program();
 
 private:
-    ast::Ptr<ast::Ptrn>       parse_ptrn();
-    ast::Ptr<ast::IdPtrn>     parse_id_ptrn();
-    ast::Ptr<ast::TuplePtrn>  parse_tuple_ptrn();
-    ast::Ptr<ast::ErrorPtrn>  parse_error_ptrn();
+    ast::Ptr<ast::Decl>        parse_decl();
+    ast::Ptr<ast::DefDecl>     parse_def_decl();
+    ast::Ptr<ast::VarDecl>     parse_var_decl();
+    ast::Ptr<ast::ErrorDecl>   parse_error_decl();
 
-    ast::Ptr<ast::Decl>       parse_decl();
-    ast::Ptr<ast::DefDecl>    parse_def_decl();
-    ast::Ptr<ast::ValDecl>    parse_val_decl();
-    ast::Ptr<ast::ErrorDecl>  parse_error_decl();
-
-    ast::Ptr<ast::Expr>       parse_expr();
-    ast::Ptr<ast::TupleExpr>  parse_tuple_expr();
-    ast::Ptr<ast::BlockExpr>  parse_block_expr();
-    ast::Ptr<ast::DeclExpr>   parse_decl_expr();
-    ast::Ptr<ast::ErrorExpr>  parse_error_expr();
+    ast::Ptr<ast::Expr>        parse_expr();
+    ast::Ptr<ast::IdExpr>      parse_id_expr();
+    ast::Ptr<ast::LiteralExpr> parse_literal_expr();
+    ast::Ptr<ast::Expr>        parse_tuple_expr();
+    ast::Ptr<ast::BlockExpr>   parse_block_expr();
+    ast::Ptr<ast::DeclExpr>    parse_decl_expr();
+    ast::Ptr<ast::LambdaExpr>  parse_lambda_expr(ast::Ptr<ast::Expr>&&);
+    ast::Ptr<ast::CallExpr>    parse_call_expr(ast::Ptr<ast::Expr>&&);
+    ast::Ptr<ast::ErrorExpr>   parse_error_expr();
 
     struct Tracker {
         int begin_row, begin_col;
@@ -37,10 +36,14 @@ private:
             return Loc(*loc.file, begin_row, begin_col, loc.end_row, loc.end_col);
         }
 
-        Tracker(const Parser* parser)
+        Tracker(const Parser* parser, const Loc& loc)
             : parser(parser)
-            , begin_row(parser->ahead().loc().begin_row)
-            , begin_col(parser->ahead().loc().begin_col)
+            , begin_row(loc.begin_row)
+            , begin_col(loc.begin_col)
+        {}
+
+        Tracker(const Parser* parser)
+            : Tracker(parser, parser->ahead().loc())
         {}
     };
 
