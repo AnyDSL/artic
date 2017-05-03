@@ -50,7 +50,7 @@ Ptr<VarDecl> Parser::parse_var_decl() {
     Tracker tracker(this);
     eat(Token::VAR);
     auto id = parse_ptrn();
-    if (!id->is_binder()) error("invalid variable declaration");
+    if (!id->is_binder()) error(id->loc, "invalid variable declaration");
     expect(Token::EQ);
     auto init = parse_expr();
     return make_ptr<VarDecl>(tracker(), std::move(id), std::move(init));
