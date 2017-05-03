@@ -20,19 +20,32 @@ std::unique_ptr<T> make_ptr(Args... args) {
 struct Node : public Cast<Node> {
     Loc loc;
     Node(const Loc& loc) : loc(loc) {}
+    virtual ~Node() {}
 };
 
 struct Expr : public Node {
     Expr(const Loc& loc) : Node(loc) {}
-    virtual bool is_pattern() const { return false; }
-    virtual bool is_refutable() const { assert(false); return false; }
-    bool is_binder() const { return is_pattern() && !is_refutable(); }
+
+    virtual bool needs_evaluation() const { return true;  }
+    virtual bool is_valid_pattern() const { return false; }
+    virtual bool only_identifiers() const { return false; }
+};
+
+struct Ptrn : public Node {
+    Ptr<Expr> expr;
+
+    Ptrn(Ptr<Expr>&& expr)
+        : Node(expr->loc), expr(std::move(expr))
+    {}
+
+    bool is_valid()  const { return expr->is_valid_pattern(); }
+    bool is_binder() const { return expr->only_identifiers(); }
 };
 
 struct Decl : public Node {
-    Ptr<Expr> ptrn;
+    Ptr<Ptrn> ptrn;
 
-    Decl(const Loc& loc, Ptr<Expr>&& ptrn)
+    Decl(const Loc& loc, Ptr<Ptrn>&& ptrn)
         : Node(loc), ptrn(std::move(ptrn))
     {}
 };
@@ -44,8 +57,9 @@ struct IdExpr : public Expr {
         : Expr(loc), id(id)
     {}
 
-    bool is_pattern() const override { return true; }
-    bool is_refutable() const override { return false; }
+    bool needs_evaluation() const override { return false; }
+    bool only_identifiers() const override { return true;  }
+    bool is_valid_pattern() const override { return true;  }
 };
 
 struct LiteralExpr : public Expr {
@@ -55,8 +69,8 @@ struct LiteralExpr : public Expr {
         : Expr(loc), lit(lit)
     {}
 
-    bool is_pattern() const override { return true; }
-    bool is_refutable() const override { return true; }
+    bool needs_evaluation() const override { return false; }
+    bool is_valid_pattern() const override { return true;  }
 };
 
 struct TupleExpr : public Expr {
@@ -66,31 +80,36 @@ struct TupleExpr : public Expr {
         : Expr(loc), args(std::move(args))
     {}
 
-    bool is_pattern() const {
-        return std::all_of(args.begin(), args.end(), [] (const Ptr<Expr>& e) {
-                return e->is_pattern();
-            });
+    bool needs_evaluation() const override { return if_any([] (auto& e) { return e->needs_evaluation(); }); }
+    bool only_identifiers() const override { return if_all([] (auto& e) { return e->only_identifiers(); }); }
+    bool is_valid_pattern() const override { return if_all([] (auto& e) { return e->is_valid_pattern(); }); }
+
+    template <typename F>
+    bool if_all(F f) const {
+        return std::all_of(args.begin(), args.end(), [&] (const Ptr<Expr>& e) { return f(e); });
     }
 
-    bool is_refutable() const {
-        assert(is_pattern());
-        return std::any_of(args.begin(), args.end(), [] (const Ptr<Expr>& e) {
-                return e->is_refutable();
-            });
+    template <typename F>
+    bool if_any(F f) const {
+        return std::any_of(args.begin(), args.end(), [&] (const Ptr<Expr>& e) { return f(e); });
     }
 };
 
 struct LambdaExpr : public Expr {
-    Ptr<Expr> arg;
+    Ptr<Ptrn> arg;
     Ptr<Expr> body;
 
     LambdaExpr(const Loc& loc,
-               Ptr<Expr>&& arg,
+               Ptr<Ptrn>&& arg,
                Ptr<Expr>&& body)
         : Expr(loc)
         , arg(std::move(arg))
         , body(std::move(body))
     {}
+
+    bool needs_evaluation() const override { return false; }
+    bool only_identifiers() const override { return false; }
+    bool is_valid_pattern() const override { return false; }
 };
 
 struct BlockExpr : public Expr {
@@ -131,18 +150,18 @@ struct ErrorExpr : public Expr {
 struct VarDecl : public Decl {
     Ptr<Expr> init;
 
-    VarDecl(const Loc& loc, Ptr<Expr>&& id, Ptr<Expr>&& init)
+    VarDecl(const Loc& loc, Ptr<Ptrn>&& id, Ptr<Expr>&& init)
         : Decl(loc, std::move(id)), init(std::move(init))
     {}
 };
 
 struct DefDecl : public Decl {
-    PtrVector<Expr> args;
+    PtrVector<Ptrn> args;
     Ptr<Expr> body;
 
     DefDecl(const Loc& loc,
-        Ptr<Expr>&& id,
-        PtrVector<Expr>&& args,
+        Ptr<Ptrn>&& id,
+        PtrVector<Ptrn>&& args,
         Ptr<Expr>&& body)
         : Decl(loc, std::move(id))
         , args(std::move(args))

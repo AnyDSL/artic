@@ -17,6 +17,9 @@ private:
     ast::Ptr<ast::VarDecl>     parse_var_decl();
     ast::Ptr<ast::ErrorDecl>   parse_error_decl();
 
+    ast::Ptr<ast::Ptrn>        parse_ptrn();
+    ast::Ptr<ast::Ptrn>        parse_id_ptrn();
+
     ast::Ptr<ast::Expr>        parse_expr();
     ast::Ptr<ast::IdExpr>      parse_id_expr();
     ast::Ptr<ast::LiteralExpr> parse_literal_expr();
@@ -32,8 +35,10 @@ private:
         const Parser* parser;
 
         Loc operator () () const {
-            auto& loc = parser->ahead().loc();
-            return Loc(*loc.file, begin_row, begin_col, loc.end_row, loc.end_col);
+            return Loc(*parser->prev_.file,
+                       begin_row, begin_col,
+                       parser->prev_.end_row,
+                       parser->prev_.end_col);
         }
 
         Tracker(const Parser* parser, const Loc& loc)
@@ -72,6 +77,7 @@ private:
     }
 
     void next() {
+        prev_  = ahead_.loc();
         ahead_ = lexer_.next();
     }
 
@@ -79,6 +85,7 @@ private:
         return ahead_;
     }
 
+    Loc prev_;
     Token ahead_;
     Lexer& lexer_;
 };

@@ -29,13 +29,13 @@ Ptr<Decl> Parser::parse_decl() {
 Ptr<DefDecl> Parser::parse_def_decl() {
     Tracker tracker(this);
     eat(Token::DEF);
-    auto id = parse_id_expr();
+    auto id = parse_id_ptrn();
 
-    PtrVector<Expr> args;
+    PtrVector<Ptrn> args;
     if (ahead().tag() == Token::L_PAREN) {
         eat(Token::L_PAREN);
         parse_list(Token::R_PAREN, Token::COMMA, [&] {
-            auto arg = parse_expr();
+            auto arg = parse_ptrn();
             if (!arg->is_binder()) error(arg->loc, "incorrect function parameter");
             args.emplace_back(std::move(arg));
         });
@@ -49,7 +49,8 @@ Ptr<DefDecl> Parser::parse_def_decl() {
 Ptr<VarDecl> Parser::parse_var_decl() {
     Tracker tracker(this);
     eat(Token::VAR);
-    auto id = parse_id_expr();
+    auto id = parse_ptrn();
+    if (!id->is_binder()) error("invalid variable declaration");
     expect(Token::EQ);
     auto init = parse_expr();
     return make_ptr<VarDecl>(tracker(), std::move(id), std::move(init));
@@ -60,6 +61,20 @@ Ptr<ErrorDecl> Parser::parse_error_decl() {
     error(ahead().loc(), "invalid declaration");
     next();
     return make_ptr<ErrorDecl>(tracker());
+}
+
+Ptr<Ptrn> Parser::parse_ptrn() {
+    Tracker tracker(this);
+    auto expr = parse_expr();
+    if (!expr->is_valid_pattern())
+        error(expr->loc, "invalid pattern");
+    return make_ptr<Ptrn>(std::move(expr));
+}
+
+Ptr<Ptrn> Parser::parse_id_ptrn() {
+    Tracker tracker(this);
+    auto expr = parse_id_expr();
+    return make_ptr<Ptrn>(std::move(expr));
 }
 
 Ptr<Expr> Parser::parse_expr() {
@@ -135,10 +150,12 @@ Ptr<DeclExpr> Parser::parse_decl_expr() {
 
 Ptr<LambdaExpr> Parser::parse_lambda_expr(Ptr<Expr>&& arg) {
     Tracker tracker(this, arg->loc);
-    if (!arg->is_binder()) error(arg->loc, "incorrect anonymous function parameter");
+    auto ptrn = make_ptr<Ptrn>(std::move(arg));
+    if (!ptrn->is_valid() || !ptrn->is_binder())
+        error(arg->loc, "incorrect anonymous function parameter");
     eat(Token::ARROW);
     auto body = parse_expr();
-    return make_ptr<LambdaExpr>(tracker(), std::move(arg), std::move(body));
+    return make_ptr<LambdaExpr>(tracker(), std::move(ptrn), std::move(body));
 }
 
 Ptr<CallExpr> Parser::parse_call_expr(Ptr<Expr>&& callee) {
