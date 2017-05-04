@@ -8,5 +8,6 @@ add_executable(artic
     loc.h
     parser.cpp
     parser.h
+    print.cpp
     print.h
     token.h)

@@ -31,19 +31,16 @@ Ptr<DefDecl> Parser::parse_def_decl() {
     eat(Token::DEF);
     auto id = parse_id_ptrn();
 
-    PtrVector<Ptrn> args;
+    Ptr<Ptrn> param;
     if (ahead().tag() == Token::L_PAREN) {
-        eat(Token::L_PAREN);
-        parse_list(Token::R_PAREN, Token::COMMA, [&] {
-            auto arg = parse_ptrn();
-            if (!arg->is_binder()) error(arg->loc, "incorrect function parameter");
-            args.emplace_back(std::move(arg));
-        });
+        param = std::move(parse_tuple_ptrn());
+        if (!param->is_binder())
+            error(param->loc, "invalid function parameter");
     }
 
     expect(Token::EQ);
     auto body = parse_expr();
-    return make_ptr<DefDecl>(tracker(), std::move(id), std::move(args), std::move(body));
+    return make_ptr<DefDecl>(tracker(), std::move(id), std::move(param), std::move(body));
 }
 
 Ptr<VarDecl> Parser::parse_var_decl() {
@@ -72,9 +69,11 @@ Ptr<Ptrn> Parser::parse_ptrn() {
 }
 
 Ptr<Ptrn> Parser::parse_id_ptrn() {
-    Tracker tracker(this);
-    auto expr = parse_id_expr();
-    return make_ptr<Ptrn>(std::move(expr));
+    return make_ptr<Ptrn>(std::move(parse_id_expr()));
+}
+
+Ptr<Ptrn> Parser::parse_tuple_ptrn() {
+    return make_ptr<Ptrn>(std::move(parse_tuple_expr()));
 }
 
 Ptr<Expr> Parser::parse_expr() {
@@ -148,11 +147,11 @@ Ptr<DeclExpr> Parser::parse_decl_expr() {
     return make_ptr<DeclExpr>(tracker(), std::move(decl));
 }
 
-Ptr<LambdaExpr> Parser::parse_lambda_expr(Ptr<Expr>&& arg) {
-    Tracker tracker(this, arg->loc);
-    auto ptrn = make_ptr<Ptrn>(std::move(arg));
+Ptr<LambdaExpr> Parser::parse_lambda_expr(Ptr<Expr>&& param) {
+    Tracker tracker(this, param->loc);
+    auto ptrn = make_ptr<Ptrn>(std::move(param));
     if (!ptrn->is_valid() || !ptrn->is_binder())
-        error(arg->loc, "incorrect anonymous function parameter");
+        error(param->loc, "invalid anonymous function parameter");
     eat(Token::ARROW);
     auto body = parse_expr();
     return make_ptr<LambdaExpr>(tracker(), std::move(ptrn), std::move(body));
@@ -160,11 +159,7 @@ Ptr<LambdaExpr> Parser::parse_lambda_expr(Ptr<Expr>&& arg) {
 
 Ptr<CallExpr> Parser::parse_call_expr(Ptr<Expr>&& callee) {
     Tracker tracker(this, callee->loc);
-    eat(Token::L_PAREN);
-    PtrVector<Expr> args;
-    parse_list(Token::R_PAREN, Token::COMMA, [&] {
-        args.emplace_back(parse_expr());
-    });
+    auto args = parse_tuple_expr();
     return make_ptr<CallExpr>(tracker(), std::move(callee), std::move(args));
 }
 

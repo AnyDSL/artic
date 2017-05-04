@@ -52,6 +52,7 @@ int main(int argc, char** argv) {
         Lexer lexer(file, is);
         Parser parser(lexer);
         auto program = parser.parse_program();
+        program->dump();
     }
 
     return 0;

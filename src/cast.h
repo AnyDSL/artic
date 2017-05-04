@@ -23,10 +23,10 @@ inline B isa(A a) {
 template <typename T>
 class Cast {
 public:
-    template <typename U> const U* isa() const { ::isa<const U*>(this); }
-    template <typename U> U* isa() { ::isa<U*>(this); }
-    template <typename U> const U* as() const { ::as<const U*>(this); }
-    template <typename U> U* as() { ::as<const U*>(this); }
+    template <typename U> const U* isa() const { ::isa<const U*>(static_cast<const T*>(this)); }
+    template <typename U> const U* as()  const { ::as <const U*>(static_cast<const T*>(this)); }
+    template <typename U> U* isa() { ::isa<U*>(static_cast<T*>(this)); }
+    template <typename U> U* as()  { ::as <U*>(static_cast<T*>(this)); }
 };
 
 #endif // CAST_H

@@ -19,6 +19,7 @@ private:
 
     ast::Ptr<ast::Ptrn>        parse_ptrn();
     ast::Ptr<ast::Ptrn>        parse_id_ptrn();
+    ast::Ptr<ast::Ptrn>        parse_tuple_ptrn();
 
     ast::Ptr<ast::Expr>        parse_expr();
     ast::Ptr<ast::IdExpr>      parse_id_expr();

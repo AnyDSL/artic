@@ -89,7 +89,14 @@ Token Lexer::next() {
 }
 
 void Lexer::eat() {
-    if (eof_) return;
+    constexpr uint32_t sentinel = 0xFFFFFFFF;
+    if (eof_) {
+        if (code_ != sentinel) {
+            current_ += utf8_to_string(code_);
+            code_ = sentinel;
+        }
+        return;
+    }
 
     if (peek() == '\n') {
         loc_.end_row++;

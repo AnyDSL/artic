@@ -4,9 +4,12 @@
 #include <memory>
 #include <vector>
 #include <algorithm>
+#include <iostream>
 
 #include "loc.h"
 #include "cast.h"
+#include "print.h"
+#include "token.h"
 
 namespace ast {
 
@@ -21,6 +24,12 @@ struct Node : public Cast<Node> {
     Loc loc;
     Node(const Loc& loc) : loc(loc) {}
     virtual ~Node() {}
+
+    virtual void print(Printer&) const = 0;
+    void dump() const {
+        Printer p(std::cout);
+        print(p);
+    }
 };
 
 struct Expr : public Node {
@@ -40,6 +49,9 @@ struct Ptrn : public Node {
 
     bool is_valid()  const { return expr->is_valid_pattern(); }
     bool is_binder() const { return expr->only_identifiers(); }
+    inline bool is_tuple() const;
+
+    void print(Printer&) const override;
 };
 
 struct Decl : public Node {
@@ -60,6 +72,8 @@ struct IdExpr : public Expr {
     bool needs_evaluation() const override { return false; }
     bool only_identifiers() const override { return true;  }
     bool is_valid_pattern() const override { return true;  }
+
+    void print(Printer&) const override;
 };
 
 struct LiteralExpr : public Expr {
@@ -71,6 +85,8 @@ struct LiteralExpr : public Expr {
 
     bool needs_evaluation() const override { return false; }
     bool is_valid_pattern() const override { return true;  }
+
+    void print(Printer&) const override;
 };
 
 struct TupleExpr : public Expr {
@@ -84,6 +100,8 @@ struct TupleExpr : public Expr {
     bool only_identifiers() const override { return if_all([] (auto& e) { return e->only_identifiers(); }); }
     bool is_valid_pattern() const override { return if_all([] (auto& e) { return e->is_valid_pattern(); }); }
 
+    void print(Printer&) const override;
+
     template <typename F>
     bool if_all(F f) const {
         return std::all_of(args.begin(), args.end(), [&] (const Ptr<Expr>& e) { return f(e); });
@@ -96,20 +114,22 @@ struct TupleExpr : public Expr {
 };
 
 struct LambdaExpr : public Expr {
-    Ptr<Ptrn> arg;
+    Ptr<Ptrn> param;
     Ptr<Expr> body;
 
     LambdaExpr(const Loc& loc,
-               Ptr<Ptrn>&& arg,
+               Ptr<Ptrn>&& param,
                Ptr<Expr>&& body)
         : Expr(loc)
-        , arg(std::move(arg))
+        , param(std::move(param))
         , body(std::move(body))
     {}
 
     bool needs_evaluation() const override { return false; }
     bool only_identifiers() const override { return false; }
     bool is_valid_pattern() const override { return false; }
+
+    void print(Printer&) const override;
 };
 
 struct BlockExpr : public Expr {
@@ -118,6 +138,8 @@ struct BlockExpr : public Expr {
     BlockExpr(const Loc& loc, PtrVector<Expr>&& exprs)
         : Expr(loc), exprs(std::move(exprs))
     {}
+
+    void print(Printer&) const override;
 };
 
 struct DeclExpr : public Expr {
@@ -126,25 +148,31 @@ struct DeclExpr : public Expr {
     DeclExpr(const Loc& loc, Ptr<Decl>&& decl)
         : Expr(loc), decl(std::move(decl))
     {}
+
+    void print(Printer&) const override;
 };
 
 struct CallExpr : public Expr {
     Ptr<Expr> callee;
-    PtrVector<Expr> args;
+    Ptr<Expr> arg;
 
     CallExpr(const Loc& loc,
              Ptr<Expr>&& callee,
-             PtrVector<Expr>&& args)
+             Ptr<Expr>&& arg)
         : Expr(loc)
         , callee(std::move(callee))
-        , args(std::move(args))
+        , arg(std::move(arg))
     {}
+
+    void print(Printer&) const override;
 };
 
 struct ErrorExpr : public Expr {
     ErrorExpr(const Loc& loc)
         : Expr(loc)
     {}
+
+    void print(Printer&) const override;
 };
 
 struct VarDecl : public Decl {
@@ -153,26 +181,34 @@ struct VarDecl : public Decl {
     VarDecl(const Loc& loc, Ptr<Ptrn>&& id, Ptr<Expr>&& init)
         : Decl(loc, std::move(id)), init(std::move(init))
     {}
+
+    void print(Printer&) const override;
 };
 
 struct DefDecl : public Decl {
-    PtrVector<Ptrn> args;
+    Ptr<Ptrn> param;
     Ptr<Expr> body;
 
     DefDecl(const Loc& loc,
         Ptr<Ptrn>&& id,
-        PtrVector<Ptrn>&& args,
+        Ptr<Ptrn>&& param,
         Ptr<Expr>&& body)
         : Decl(loc, std::move(id))
-        , args(std::move(args))
+        , param(std::move(param))
         , body(std::move(body))
     {}
+
+    bool is_function() const { return param != nullptr; }
+
+    void print(Printer&) const override;
 };
 
 struct ErrorDecl : public Decl {
     ErrorDecl(const Loc& loc)
         : Decl(loc, nullptr)
     {}
+
+    void print(Printer&) const override;
 };
 
 struct Program : public Node {
@@ -181,7 +217,11 @@ struct Program : public Node {
     Program(const Loc& loc, PtrVector<Decl>&& decls)
         : Node(loc), decls(std::move(decls))
     {}
+
+    void print(Printer&) const override;
 };
+
+bool Ptrn::is_tuple() const { return expr->isa<TupleExpr>(); }
 
 } // namespace ast
 
