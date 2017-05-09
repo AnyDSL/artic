@@ -29,6 +29,7 @@ private:
     ast::Ptr<ast::DeclExpr>    parse_decl_expr();
     ast::Ptr<ast::LambdaExpr>  parse_lambda_expr(ast::Ptr<ast::Expr>&&);
     ast::Ptr<ast::CallExpr>    parse_call_expr(ast::Ptr<ast::Expr>&&);
+    ast::Ptr<ast::IfExpr>      parse_if_expr();
     ast::Ptr<ast::ErrorExpr>   parse_error_expr();
 
     struct Tracker {
@@ -60,6 +61,12 @@ private:
             if (ahead().tag() != sep) break;
             eat(sep);
         }
+        expect(end);
+    }
+
+    template <typename F>
+    void parse_list(Token::Tag end, F f) {
+        while (ahead().tag() != end) f();
         expect(end);
     }
 

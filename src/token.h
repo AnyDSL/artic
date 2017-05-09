@@ -12,6 +12,8 @@
     f(LIT, "<literal>") \
     f(DEF, "def") \
     f(VAR, "var") \
+    f(IF, "if") \
+    f(ELSE, "else") \
     f(L_PAREN, "(") \
     f(R_PAREN, ")") \
     f(L_BRACE, "{") \

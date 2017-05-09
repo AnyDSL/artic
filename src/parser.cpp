@@ -87,6 +87,7 @@ Ptr<Expr> Parser::parse_expr() {
         case Token::VAR:
             expr = std::move(parse_decl_expr());
             break;
+        case Token::IF: expr = std::move(parse_if_expr()); break;
         default:
             expr = std::move(parse_error_expr()); break;
     }
@@ -135,7 +136,7 @@ Ptr<BlockExpr> Parser::parse_block_expr() {
     Tracker tracker(this);
     eat(Token::L_BRACE);
     PtrVector<Expr> exprs;
-    parse_list(Token::R_BRACE, Token::SEMICOLON, [&] {
+    parse_list(Token::R_BRACE, [&] {
         exprs.emplace_back(parse_expr());
     });
     return make_ptr<BlockExpr>(tracker(), std::move(exprs));
@@ -161,6 +162,21 @@ Ptr<CallExpr> Parser::parse_call_expr(Ptr<Expr>&& callee) {
     Tracker tracker(this, callee->loc);
     auto args = parse_tuple_expr();
     return make_ptr<CallExpr>(tracker(), std::move(callee), std::move(args));
+}
+
+Ptr<IfExpr> Parser::parse_if_expr() {
+    Tracker tracker(this);
+    eat(Token::IF);
+    expect(Token::L_PAREN);
+    auto cond = parse_expr();
+    expect(Token::R_PAREN);
+    auto if_true = parse_expr();
+    Ptr<Expr> if_false;
+    if (ahead().tag() == Token::ELSE) {
+        eat(Token::ELSE);
+        if_false = std::move(parse_expr());
+    }
+    return make_ptr<IfExpr>(tracker(), std::move(cond), std::move(if_true), std::move(if_false));
 }
 
 Ptr<ErrorExpr> Parser::parse_error_expr() {

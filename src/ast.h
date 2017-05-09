@@ -38,6 +38,8 @@ struct Expr : public Node {
     virtual bool needs_evaluation() const { return true;  }
     virtual bool is_valid_pattern() const { return false; }
     virtual bool only_identifiers() const { return false; }
+
+    inline bool is_tuple() const;
 };
 
 struct Ptrn : public Node {
@@ -49,7 +51,7 @@ struct Ptrn : public Node {
 
     bool is_valid()  const { return expr->is_valid_pattern(); }
     bool is_binder() const { return expr->only_identifiers(); }
-    inline bool is_tuple() const;
+    bool is_tuple()  const { return expr->is_tuple(); }
 
     void print(Printer&) const override;
 };
@@ -167,6 +169,122 @@ struct CallExpr : public Expr {
     void print(Printer&) const override;
 };
 
+struct IfExpr : public Expr {
+    Ptr<Expr> cond;
+    Ptr<Expr> if_true;
+    Ptr<Expr> if_false;
+
+    IfExpr(const Loc& loc,
+           Ptr<Expr>&& cond,
+           Ptr<Expr>&& if_true,
+           Ptr<Expr>&& if_false)
+        : Expr(loc)
+        , cond(std::move(cond))
+        , if_true(std::move(if_true))
+        , if_false(std::move(if_false))
+    {}
+
+    void print(Printer&) const override;
+};
+
+struct UnaryExpr : public Expr {
+    enum Tag {
+        NOP,
+        NEG,
+        PRE_INC,
+        POST_INC,
+        PRE_DEC,
+        POST_DEC
+    };
+    Tag tag;
+    Ptr<Expr> expr;
+
+    UnaryExpr(const Loc& loc, Tag tag, Ptr<Expr>&& expr)
+        : Expr(loc), tag(tag), expr(std::move(expr))
+    {}
+
+    bool is_prefix() const { return !is_postfix(); }
+    bool is_postfix() const { return tag == POST_INC || tag == POST_DEC; }
+
+    void print(Printer&) const override;
+
+    static std::string tag_to_string(Tag tag) {
+        switch (tag) {
+            case NOP: return "+";
+            case NEG: return "-";
+            case POST_INC:
+            case PRE_INC:
+                return "++";
+            case POST_DEC:
+            case PRE_DEC:
+                return "--";
+            default:
+                assert(false);
+                return "";
+        }
+    }
+};
+
+struct BinaryExpr : public Expr {
+    enum Tag {
+        ADD, SUB, MUL, DIV, MOD,
+        L_SHFT, R_SHFT,
+        AND, OR, XOR
+    };
+    Tag tag;
+    Ptr<Expr> left;
+    Ptr<Expr> right;
+
+    BinaryExpr(const Loc& loc,
+               Tag tag,
+               Ptr<Expr>&& left,
+               Ptr<Expr>&& right)
+        : Expr(loc)
+        , tag(tag)
+        , left(std::move(left))
+        , right(std::move(right))
+    {}
+
+    void print(Printer&) const override;
+
+    static int precedence(Tag tag) {
+        switch (tag) {
+            case MUL:
+            case DIV:
+            case MOD:
+                return 1;
+            case ADD:
+            case SUB:
+                return 2;
+            case L_SHFT:
+            case R_SHFT:
+                return 3;
+            case AND: return 4;
+            case XOR: return 5;
+            case OR:  return 6;
+            default:
+                assert(false);
+                return 0;
+        }
+    }
+    static constexpr int max_precedence() { return 10; }
+
+    static std::string tag_to_string(Tag tag) {
+        switch (tag) {
+            case ADD: return "+";
+            case SUB: return "-";
+            case MUL: return "*";
+            case DIV: return "/";
+            case MOD: return "%";
+            case AND: return "&";
+            case OR:  return "|";
+            case XOR: return "^";
+            case L_SHFT: return "<<";
+            case R_SHFT: return ">>";
+        }
+    }
+};
+
 struct ErrorExpr : public Expr {
     ErrorExpr(const Loc& loc)
         : Expr(loc)
@@ -221,7 +339,7 @@ struct Program : public Node {
     void print(Printer&) const override;
 };
 
-bool Ptrn::is_tuple() const { return expr->isa<TupleExpr>(); }
+bool Expr::is_tuple() const { return isa<TupleExpr>(); }
 
 } // namespace ast
 
