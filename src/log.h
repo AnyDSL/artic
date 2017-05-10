@@ -64,6 +64,8 @@ inline std::ostream& operator << (std::ostream& os, const Stylized<T, Args...>& 
         os << "\33[";
         s.styles.apply(os);
         os << "m" << s.t << "\33[0m";
+    } else {
+        os << s.t;
     }
 #else
     os << s.t;
