@@ -32,6 +32,7 @@ private:
     ast::Ptr<ast::IfExpr>      parse_if_expr();
     ast::Ptr<ast::Expr>        parse_primary_expr();
     ast::Ptr<ast::UnaryExpr>   parse_prefix_expr();
+    ast::Ptr<ast::UnaryExpr>   parse_postfix_expr(ast::Ptr<ast::Expr>&&);
     ast::Ptr<ast::Expr>        parse_binary_expr(ast::Ptr<ast::Expr>&&, int);
     ast::Ptr<ast::ErrorExpr>   parse_error_expr();
 

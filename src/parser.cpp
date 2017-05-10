@@ -187,13 +187,24 @@ Ptr<Expr> Parser::parse_primary_expr() {
         return parse_lambda_expr(std::move(expr));
     if (ahead().tag() == Token::L_PAREN)
         return parse_call_expr(std::move(expr));
+    if (ahead().tag() == Token::INC ||
+        ahead().tag() == Token::DEC)
+        return parse_postfix_expr(std::move(expr));
     return std::move(expr);
 }
 
 Ptr<UnaryExpr> Parser::parse_prefix_expr() {
     Tracker tracker(this);
     auto tag = UnaryExpr::tag_from_token(ahead(), true);
+    next();
     auto expr = parse_expr();
+    return make_ptr<UnaryExpr>(tracker(), tag, std::move(expr));
+}
+
+Ptr<UnaryExpr> Parser::parse_postfix_expr(Ptr<Expr>&& expr) {
+    Tracker tracker(this, expr->loc);
+    auto tag = UnaryExpr::tag_from_token(ahead(), false);
+    next();
     return make_ptr<UnaryExpr>(tracker(), tag, std::move(expr));
 }
 
