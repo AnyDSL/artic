@@ -35,7 +35,7 @@ Ptr<DefDecl> Parser::parse_def_decl() {
     if (ahead().tag() == Token::L_PAREN) {
         param = std::move(parse_tuple_ptrn());
         if (!param->is_binder())
-            error(param->loc, "invalid function parameter");
+            log::error(param->loc, "invalid function parameter");
     }
 
     expect(Token::EQ);
@@ -47,7 +47,7 @@ Ptr<VarDecl> Parser::parse_var_decl() {
     Tracker tracker(this);
     eat(Token::VAR);
     auto id = parse_ptrn();
-    if (!id->is_binder()) error(id->loc, "invalid variable declaration");
+    if (!id->is_binder()) log::error(id->loc, "invalid variable declaration");
     expect(Token::EQ);
     auto init = parse_expr();
     return make_ptr<VarDecl>(tracker(), std::move(id), std::move(init));
@@ -55,7 +55,7 @@ Ptr<VarDecl> Parser::parse_var_decl() {
 
 Ptr<ErrorDecl> Parser::parse_error_decl() {
     Tracker tracker(this);
-    error(ahead().loc(), "invalid declaration");
+    log::error(ahead().loc(), "invalid declaration");
     next();
     return make_ptr<ErrorDecl>(tracker());
 }
@@ -64,7 +64,7 @@ Ptr<Ptrn> Parser::parse_ptrn() {
     Tracker tracker(this);
     auto expr = parse_expr();
     if (!expr->is_valid_pattern())
-        error(expr->loc, "invalid pattern");
+        log::error(expr->loc, "invalid pattern");
     return make_ptr<Ptrn>(std::move(expr));
 }
 
@@ -77,32 +77,15 @@ Ptr<Ptrn> Parser::parse_tuple_ptrn() {
 }
 
 Ptr<Expr> Parser::parse_expr() {
-    Ptr<Expr> expr;
-    switch (ahead().tag()) {
-        case Token::L_BRACE: expr = std::move(parse_block_expr());   break;
-        case Token::L_PAREN: expr = std::move(parse_tuple_expr());   break;
-        case Token::ID:      expr = std::move(parse_id_expr());      break;
-        case Token::LIT:     expr = std::move(parse_literal_expr()); break;
-        case Token::DEF:
-        case Token::VAR:
-            expr = std::move(parse_decl_expr());
-            break;
-        case Token::IF: expr = std::move(parse_if_expr()); break;
-        default:
-            expr = std::move(parse_error_expr()); break;
-    }
-    if (ahead().tag() == Token::ARROW)
-        return parse_lambda_expr(std::move(expr));
-    if (ahead().tag() == Token::L_PAREN)
-        return parse_call_expr(std::move(expr));
-    return expr;
+    auto expr = parse_primary_expr();
+    return parse_binary_expr(std::move(expr), BinaryExpr::max_precedence());
 }
 
 Ptr<IdExpr> Parser::parse_id_expr() {
     Tracker tracker(this);
     std::string id;
     if (!ahead().is_identifier())
-        error(ahead().loc(), "identifier expected");
+        log::error(ahead().loc(), "identifier expected");
     else
         id = ahead().identifier();
     next();
@@ -113,7 +96,7 @@ Ptr<LiteralExpr> Parser::parse_literal_expr() {
     Tracker tracker(this);
     Literal lit;
     if (!ahead().is_literal())
-        error(ahead().loc(), "literal expected");
+        log::error(ahead().loc(), "literal expected");
     else
         lit = ahead().literal();
     next();
@@ -152,7 +135,7 @@ Ptr<LambdaExpr> Parser::parse_lambda_expr(Ptr<Expr>&& param) {
     Tracker tracker(this, param->loc);
     auto ptrn = make_ptr<Ptrn>(std::move(param));
     if (!ptrn->is_valid() || !ptrn->is_binder())
-        error(param->loc, "invalid anonymous function parameter");
+        log::error(param->loc, "invalid anonymous function parameter");
     eat(Token::ARROW);
     auto body = parse_expr();
     return make_ptr<LambdaExpr>(tracker(), std::move(ptrn), std::move(body));
@@ -179,9 +162,67 @@ Ptr<IfExpr> Parser::parse_if_expr() {
     return make_ptr<IfExpr>(tracker(), std::move(cond), std::move(if_true), std::move(if_false));
 }
 
+Ptr<Expr> Parser::parse_primary_expr() {
+    Ptr<Expr> expr;
+    switch (ahead().tag()) {
+        case Token::INC:
+        case Token::DEC:
+        case Token::ADD:
+        case Token::SUB:
+            expr = std::move(parse_prefix_expr());
+            break;
+        case Token::L_BRACE: expr = std::move(parse_block_expr());   break;
+        case Token::L_PAREN: expr = std::move(parse_tuple_expr());   break;
+        case Token::ID:      expr = std::move(parse_id_expr());      break;
+        case Token::LIT:     expr = std::move(parse_literal_expr()); break;
+        case Token::DEF:
+        case Token::VAR:
+            expr = std::move(parse_decl_expr());
+            break;
+        case Token::IF: expr = std::move(parse_if_expr()); break;
+        default:
+            expr = std::move(parse_error_expr()); break;
+    }
+    if (ahead().tag() == Token::ARROW)
+        return parse_lambda_expr(std::move(expr));
+    if (ahead().tag() == Token::L_PAREN)
+        return parse_call_expr(std::move(expr));
+    return std::move(expr);
+}
+
+Ptr<UnaryExpr> Parser::parse_prefix_expr() {
+    Tracker tracker(this);
+    auto tag = UnaryExpr::tag_from_token(ahead(), true);
+    auto expr = parse_expr();
+    return make_ptr<UnaryExpr>(tracker(), tag, std::move(expr));
+}
+
+Ptr<Expr> Parser::parse_binary_expr(Ptr<Expr>&& left, int max_prec) {
+    while (true) {
+        Tracker tracker(this, left->loc);
+
+        auto tag = BinaryExpr::tag_from_token(ahead());
+        if (tag == BinaryExpr::ERR) break;
+        auto prec = BinaryExpr::precedence(tag);
+        if (prec > max_prec) break;
+
+        next();
+        auto right = parse_primary_expr();
+
+        auto next_tag = BinaryExpr::tag_from_token(ahead());
+        if (next_tag != BinaryExpr::ERR) {
+            auto next_prec = BinaryExpr::precedence(next_tag);
+            if (next_prec < prec) right = std::move(parse_binary_expr(std::move(right), next_prec));
+        }
+
+        left = std::move(make_ptr<BinaryExpr>(tracker(), tag, std::move(left), std::move(right)));
+    }
+    return std::move(left);
+}
+
 Ptr<ErrorExpr> Parser::parse_error_expr() {
     Tracker tracker(this);
-    error(ahead().loc(), "invalid expression");
+    log::error(ahead().loc(), "invalid expression");
     next();
     return make_ptr<ErrorExpr>(tracker());
 }

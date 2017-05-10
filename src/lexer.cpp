@@ -3,7 +3,7 @@
 #include <utf8.h>
 
 #include "lexer.h"
-#include "print.h"
+#include "log.h"
 
 std::unordered_map<std::string, Token::Tag> Lexer::keywords{
     std::make_pair("def",  Token::DEF),
@@ -69,7 +69,58 @@ Token Lexer::next() {
     if (accept(':')) return Token(loc_, Token::COLON);
     if (accept('=')) {
         if (accept('>')) return Token(loc_, Token::ARROW);
+        if (accept('=')) return Token(loc_, Token::CMP_EQ);
         return Token(loc_, Token::EQ);
+    }
+    if (accept('<')) {
+        if (accept('<')) {
+            if (accept('=')) return Token(loc_, Token::L_SHFT_EQ);
+            return Token(loc_, Token::L_SHFT);
+        }
+        if (accept('=')) return Token(loc_, Token::CMP_LE);
+        return Token(loc_, Token::CMP_LT);
+    }
+    if (accept('>')) {
+        if (accept('>')) {
+            if (accept('=')) return Token(loc_, Token::R_SHFT_EQ);
+            return Token(loc_, Token::R_SHFT);
+        }
+        if (accept('=')) return Token(loc_, Token::CMP_GE);
+        return Token(loc_, Token::CMP_GT);
+    }
+    if (accept('+')) {
+        if (accept('+')) return Token(loc_, Token::INC);
+        if (accept('=')) return Token(loc_, Token::ADD_EQ);
+        return Token(loc_, Token::ADD);
+    }
+    if (accept('-')) {
+        if (accept('-')) return Token(loc_, Token::DEC);
+        if (accept('=')) return Token(loc_, Token::SUB_EQ);
+        return Token(loc_, Token::SUB);
+    }
+    if (accept('*')) {
+        if (accept('=')) return Token(loc_, Token::MUL_EQ);
+        return Token(loc_, Token::MUL);
+    }
+    if (accept('/')) {
+        if (accept('=')) return Token(loc_, Token::DIV_EQ);
+        return Token(loc_, Token::DIV);
+    }
+    if (accept('%')) {
+        if (accept('=')) return Token(loc_, Token::MOD_EQ);
+        return Token(loc_, Token::MOD);
+    }
+    if (accept('&')) {
+        if (accept('=')) return Token(loc_, Token::AND_EQ);
+        return Token(loc_, Token::AND);
+    }
+    if (accept('|')) {
+        if (accept('=')) return Token(loc_, Token::OR_EQ);
+        return Token(loc_, Token::OR);
+    }
+    if (accept('^')) {
+        if (accept('=')) return Token(loc_, Token::XOR_EQ);
+        return Token(loc_, Token::XOR);
     }
 
     if (std::isdigit(peek()) || peek() == '.') {
@@ -85,7 +136,7 @@ Token Lexer::next() {
         return Token(loc_, key_it->second);
     }
 
-    error(loc_, "unknown token '%'", utf8_to_string(peek()));
+    log::error(loc_, "unknown token '{}'", utf8_to_string(peek()));
     eat();
     return Token(loc_);
 }
@@ -161,34 +212,10 @@ Literal Lexer::parse_literal() {
 
     // Check digits
     if (base < 10 && std::find_if(digit_ptr, last_ptr, invalid_digit) != last_ptr)
-        error(loc_, "invalid literal '%'", current_);
+        log::error(loc_, "invalid literal '{}'", current_);
 
-    // Suffix
-    if (!exp && !fract) {
-        if (accept('i')) {
-            if (accept("8"))  return Literal(int8_t (strtol (digit_ptr, nullptr, base)), true);
-            if (accept("16")) return Literal(int16_t(strtol (digit_ptr, nullptr, base)), true);
-            if (accept("32")) return Literal(int32_t(strtol (digit_ptr, nullptr, base)), true);
-            if (accept("64")) return Literal(int64_t(strtoll(digit_ptr, nullptr, base)), true);
-        }
-
-        if (accept('u')) {
-            if (accept("8"))  return Literal(uint8_t (strtoul (digit_ptr, nullptr, base)), true);
-            if (accept("16")) return Literal(uint16_t(strtoul (digit_ptr, nullptr, base)), true);
-            if (accept("32")) return Literal(uint32_t(strtoul (digit_ptr, nullptr, base)), true);
-            if (accept("64")) return Literal(uint64_t(strtoull(digit_ptr, nullptr, base)), true);
-        }
-    }
-
-    if (base == 10 && accept('f')) {
-        if (accept("32")) return Literal(float (strtof(digit_ptr, nullptr)), true);
-        if (accept("64")) return Literal(double(strtod(digit_ptr, nullptr)), true);
-    }
-
-    // Untyped literals
-    return (!fract && !exp)
-        ? Literal(int64_t(strtol(digit_ptr, nullptr, base)), false)
-        : Literal(float(strtof(digit_ptr, nullptr)), false);
+    if (exp || fract) Literal(double(strtod(digit_ptr, nullptr)));
+    return Literal(uint64_t(strtoull(digit_ptr, nullptr, base)));
 }
 
 bool Lexer::accept(uint32_t c) {

@@ -6,6 +6,7 @@
 
 #include "lexer.h"
 #include "parser.h"
+#include "log.h"
 #include "print.h"
 
 static void usage() {
@@ -33,7 +34,7 @@ struct ProgramOptions {
                     usage();
                     return false;
                 } else {
-                    error("Unknown option '%'", argv[i]);
+                    log::error("Unknown option '{}'", argv[i]);
                 }
             } else
                 files.push_back(argv[i]);

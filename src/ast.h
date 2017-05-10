@@ -4,7 +4,6 @@
 #include <memory>
 #include <vector>
 #include <algorithm>
-#include <iostream>
 
 #include "loc.h"
 #include "cast.h"
@@ -39,7 +38,7 @@ struct Expr : public Node {
     virtual bool is_valid_pattern() const { return false; }
     virtual bool only_identifiers() const { return false; }
 
-    inline bool is_tuple() const;
+    bool is_tuple() const;
 };
 
 struct Ptrn : public Node {
@@ -189,12 +188,13 @@ struct IfExpr : public Expr {
 
 struct UnaryExpr : public Expr {
     enum Tag {
-        NOP,
-        NEG,
+        PLUS,
+        MINUS,
         PRE_INC,
         POST_INC,
         PRE_DEC,
-        POST_DEC
+        POST_DEC,
+        ERR
     };
     Tag tag;
     Ptr<Expr> expr;
@@ -208,28 +208,20 @@ struct UnaryExpr : public Expr {
 
     void print(Printer&) const override;
 
-    static std::string tag_to_string(Tag tag) {
-        switch (tag) {
-            case NOP: return "+";
-            case NEG: return "-";
-            case POST_INC:
-            case PRE_INC:
-                return "++";
-            case POST_DEC:
-            case PRE_DEC:
-                return "--";
-            default:
-                assert(false);
-                return "";
-        }
-    }
+    static std::string tag_to_string(Tag);
+    static Tag tag_from_token(const Token&, bool);
 };
 
 struct BinaryExpr : public Expr {
     enum Tag {
+        EQ, ADD_EQ, SUB_EQ, MUL_EQ, DIV_EQ, MOD_EQ,
+        L_SHFT_EQ, R_SHFT_EQ,
+        AND_EQ, OR_EQ, XOR_EQ,
         ADD, SUB, MUL, DIV, MOD,
         L_SHFT, R_SHFT,
-        AND, OR, XOR
+        AND, OR, XOR,
+        CMP_LT, CMP_GT, CMP_LE, CMP_GE, CMP_EQ,
+        ERR
     };
     Tag tag;
     Ptr<Expr> left;
@@ -247,42 +239,15 @@ struct BinaryExpr : public Expr {
 
     void print(Printer&) const override;
 
-    static int precedence(Tag tag) {
-        switch (tag) {
-            case MUL:
-            case DIV:
-            case MOD:
-                return 1;
-            case ADD:
-            case SUB:
-                return 2;
-            case L_SHFT:
-            case R_SHFT:
-                return 3;
-            case AND: return 4;
-            case XOR: return 5;
-            case OR:  return 6;
-            default:
-                assert(false);
-                return 0;
-        }
-    }
-    static constexpr int max_precedence() { return 10; }
+    bool has_eq() const { return has_eq(tag); }
 
-    static std::string tag_to_string(Tag tag) {
-        switch (tag) {
-            case ADD: return "+";
-            case SUB: return "-";
-            case MUL: return "*";
-            case DIV: return "/";
-            case MOD: return "%";
-            case AND: return "&";
-            case OR:  return "|";
-            case XOR: return "^";
-            case L_SHFT: return "<<";
-            case R_SHFT: return ">>";
-        }
-    }
+    static bool has_eq(Tag);
+
+    static int precedence(Tag);
+    static int max_precedence();
+
+    static std::string tag_to_string(Tag);
+    static Tag tag_from_token(const Token&);
 };
 
 struct ErrorExpr : public Expr {
@@ -338,8 +303,6 @@ struct Program : public Node {
 
     void print(Printer&) const override;
 };
-
-bool Expr::is_tuple() const { return isa<TupleExpr>(); }
 
 } // namespace ast
 

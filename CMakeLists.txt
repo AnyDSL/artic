@@ -6,4 +6,11 @@ set(CMAKE_CXX_STANDARD 14)
 include_directories(contrib/half/include)
 include_directories(contrib/utf8-cpp/source)
 
+set(COLOR_TTY_AVAILABLE TRUE)
+if (WIN32)
+    # By default, Windows console does not support ANSI escape codes
+    set(COLOR_TTY_AVAILABLE FALSE)
+endif ()
+set(COLORIZE_OUTPUT ${COLOR_TTY_AVAILABLE} CACHE BOOL "Set to TRUE to enable colorized output. Requires an ANSI compliant terminal.")
+
 add_subdirectory(src)

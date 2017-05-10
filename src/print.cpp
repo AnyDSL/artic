@@ -1,7 +1,12 @@
 #include "print.h"
+#include "log.h"
 #include "ast.h"
 
 using namespace ast;
+
+template <typename T> auto error_style(const T& t)   -> decltype(log::style(t, log::Style())) { return log::style(t, log::Style::RED);   }
+template <typename T> auto keyword_style(const T& t) -> decltype(log::style(t, log::Style())) { return log::style(t, log::Style::GREEN); }
+template <typename T> auto literal_style(const T& t) -> decltype(log::style(t, log::Style())) { return log::style(t, log::Style::BLUE); }
 
 template <typename L, typename S, typename F>
 void print_list(Printer& p, const S& sep, const L& list, F f) {
@@ -36,7 +41,7 @@ void IdExpr::print(Printer& p) const {
 }
 
 void LiteralExpr::print(Printer& p) const {
-    p << lit.box;
+    p << literal_style(lit.box);
 }
 
 void TupleExpr::print(Printer& p) const {
@@ -72,12 +77,12 @@ void CallExpr::print(Printer& p) const {
 }
 
 void IfExpr::print(Printer& p) const {
-    p << "if (";
+    p << keyword_style("if") << " (";
     cond->print(p);
     p << ") ";
     if_true->print(p);
     if (if_false) {
-        p << " else ";
+        p << " " << keyword_style("else") << " ";
         if_false->print(p);
     }
 }
@@ -93,17 +98,27 @@ void UnaryExpr::print(Printer& p) const {
 }
 
 void BinaryExpr::print(Printer& p) const {
-    left->print(p);
-    p << tag_to_string(tag);
-    right->print(p);
+    auto prec = BinaryExpr::precedence(tag);
+    auto print_op = [prec, &p] (auto& e) {
+        if (auto bin = e->isa<BinaryExpr>()) {
+            if (BinaryExpr::precedence(bin->tag) > prec) {
+                print_parens(p, e);
+                return;
+            }
+        }
+        e->print(p);
+    };   
+    print_op(left);
+    p << " " << tag_to_string(tag) << " ";
+    print_op(right);
 }
 
 void ErrorExpr::print(Printer& p) const {
-    p << "<error>";
+    p << error_style("<error>");
 }
 
 void VarDecl::print(Printer& p) const {
-    p << "var ";
+    p << keyword_style("var") << " ";
     ptrn->print(p);
     if (init) {
         p << " = ";
@@ -112,7 +127,7 @@ void VarDecl::print(Printer& p) const {
 }
 
 void DefDecl::print(Printer& p) const {
-    p << "def ";
+    p << keyword_style("def") << " ";
     ptrn->print(p);
     if (param) print_parens(p, param);
     p << " = ";
@@ -120,7 +135,7 @@ void DefDecl::print(Printer& p) const {
 }
 
 void ErrorDecl::print(Printer& p) const {
-    p << "<error>";
+    p << error_style("<error>");
 }
 
 void Program::print(Printer& p) const {

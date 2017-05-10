@@ -23,16 +23,47 @@
     f(COLON, ":") \
     f(EQ, "=") \
     f(ARROW, "=>") \
+    f(INC, "++") \
+    f(DEC, "--") \
+    f(ADD_EQ, "+=") \
+    f(SUB_EQ, "-=") \
+    f(MUL_EQ, "*=") \
+    f(DIV_EQ, "/=") \
+    f(MOD_EQ, "%=") \
+    f(L_SHFT_EQ, "<<=") \
+    f(R_SHFT_EQ, ">>=") \
+    f(AND_EQ, "&=") \
+    f(OR_EQ, "|=") \
+    f(XOR_EQ, "^=") \
+    f(ADD, "+") \
+    f(SUB, "-") \
+    f(MUL, "*") \
+    f(DIV, "/") \
+    f(MOD, "%") \
+    f(L_SHFT, "<<") \
+    f(R_SHFT, ">>") \
+    f(AND, "&") \
+    f(OR, "|") \
+    f(XOR, "^") \
+    f(CMP_LE, "<=") \
+    f(CMP_GE, ">=") \
+    f(CMP_LT, "<") \
+    f(CMP_GT, ">") \
+    f(CMP_EQ, "==") \
     f(END, "<eof>")
 
 struct Literal {
     Box box;
-    bool suffix;
+
+    bool is_double()  const { return box.tag == Box::F64; }
+    bool is_integer() const { return box.tag == Box::U64; }
+
+    double as_double()    const { return box.f64; }
+    uint64_t as_integer() const { return box.u64; }
 
     Literal() {}
-    Literal(const Box& box, bool suffix)
-        : box(box), suffix(suffix)
-    {}
+    Literal(uint64_t i) : box(i) {}
+    Literal(double d)   : box(d) {}
 };
 
 struct Token {

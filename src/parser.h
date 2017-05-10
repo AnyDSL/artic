@@ -1,7 +1,7 @@
 #ifndef PARSER_H
 #define PARSER_H
 
-#include "print.h"
+#include "log.h"
 #include "lexer.h"
 #include "ast.h"
 
@@ -30,6 +30,9 @@ private:
     ast::Ptr<ast::LambdaExpr>  parse_lambda_expr(ast::Ptr<ast::Expr>&&);
     ast::Ptr<ast::CallExpr>    parse_call_expr(ast::Ptr<ast::Expr>&&);
     ast::Ptr<ast::IfExpr>      parse_if_expr();
+    ast::Ptr<ast::Expr>        parse_primary_expr();
+    ast::Ptr<ast::UnaryExpr>   parse_prefix_expr();
+    ast::Ptr<ast::Expr>        parse_binary_expr(ast::Ptr<ast::Expr>&&, int);
     ast::Ptr<ast::ErrorExpr>   parse_error_expr();
 
     struct Tracker {
@@ -72,7 +75,7 @@ private:
 
     void expect(Token::Tag tag) {
         if (ahead().tag() != tag) {
-            error(ahead().loc(), "expected '%', but got '%'",
+            log::error(ahead().loc(), "expected '{}', but got '{}'",
                 Token::to_string(tag),
                 ahead().string());
         }
