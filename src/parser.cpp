@@ -63,7 +63,7 @@ Ptr<ErrorDecl> Parser::parse_error_decl() {
 
 Ptr<Ptrn> Parser::parse_ptrn() {
     Tracker tracker(this);
-    auto expr = parse_expr();
+    auto expr = parse_primary_expr();
     if (!expr->is_valid_pattern())
         log::error(expr->loc, "invalid pattern");
     return make_ptr<Ptrn>(std::move(expr));

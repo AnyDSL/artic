@@ -34,7 +34,6 @@ struct Node : public Cast<Node> {
 struct Expr : public Node {
     Expr(const Loc& loc) : Node(loc) {}
 
-    virtual bool needs_evaluation() const { return true;  }
     virtual bool is_valid_pattern() const { return false; }
     virtual bool only_identifiers() const { return false; }
 
@@ -70,7 +69,6 @@ struct IdExpr : public Expr {
         : Expr(loc), id(id)
     {}
 
-    bool needs_evaluation() const override { return false; }
     bool only_identifiers() const override { return true;  }
     bool is_valid_pattern() const override { return true;  }
 
@@ -84,7 +82,6 @@ struct LiteralExpr : public Expr {
         : Expr(loc), lit(lit)
     {}
 
-    bool needs_evaluation() const override { return false; }
     bool is_valid_pattern() const override { return true;  }
 
     void print(Printer&) const override;
@@ -97,7 +94,6 @@ struct TupleExpr : public Expr {
         : Expr(loc), args(std::move(args))
     {}
 
-    bool needs_evaluation() const override { return if_any([] (auto& e) { return e->needs_evaluation(); }); }
     bool only_identifiers() const override { return if_all([] (auto& e) { return e->only_identifiers(); }); }
     bool is_valid_pattern() const override { return if_all([] (auto& e) { return e->is_valid_pattern(); }); }
 
@@ -126,7 +122,6 @@ struct LambdaExpr : public Expr {
         , body(std::move(body))
     {}
 
-    bool needs_evaluation() const override { return false; }
     bool only_identifiers() const override { return false; }
     bool is_valid_pattern() const override { return false; }
 
