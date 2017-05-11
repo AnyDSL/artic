@@ -68,12 +68,6 @@ private:
         expect(end);
     }
 
-    template <typename F>
-    void parse_list(Token::Tag end, F f) {
-        while (ahead().tag() != end) f();
-        expect(end);
-    }
-
     void expect(Token::Tag tag) {
         if (ahead().tag() != tag) {
             log::error(ahead().loc(), "expected '{}', but got '{}'",
@@ -86,6 +80,11 @@ private:
     void eat(Token::Tag tag) {
         assert(ahead().tag() == tag);
         next();
+    }
+
+    void eat_nl() {
+        if (ahead().tag() == Token::SEMICOLON && ahead().is_newline())
+            eat(Token::SEMICOLON);
     }
 
     void next() {

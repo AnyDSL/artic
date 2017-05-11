@@ -60,6 +60,15 @@ Token Lexer::next() {
 
     if (eof_) return Token(loc_, Token::END);
 
+    if (peek() == '\n') {
+        while (accept('\n')) {
+            loc_.begin_row = loc_.end_row;
+            loc_.begin_col = loc_.end_col;
+            eat_spaces();
+        }
+        return Token(loc_, Token::SEMICOLON, true);
+    }
+
     if (accept('(')) return Token(loc_, Token::L_PAREN);
     if (accept(')')) return Token(loc_, Token::R_PAREN);
     if (accept('{')) return Token(loc_, Token::L_BRACE);
@@ -166,7 +175,7 @@ void Lexer::eat() {
 }
 
 void Lexer::eat_spaces() {
-    while (!eof() && std::isspace(peek())) eat();
+    while (!eof() && peek() != '\n' && std::isspace(peek())) eat();
 }
 
 Literal Lexer::parse_literal() {

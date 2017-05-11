@@ -16,11 +16,6 @@ void print_list(Printer& p, const S& sep, const L& list, F f) {
     }
 }
 
-template <typename L, typename F>
-void print_list(Printer& p, const L& list, F f) {
-    for (auto it = list.begin(); it != list.end(); ++it) f(*it);
-}
-
 template <typename E>
 void print_parens(Printer& p, const E& e) {
     if (e->is_tuple()) {
@@ -60,7 +55,7 @@ void LambdaExpr::print(Printer& p) const {
 
 void BlockExpr::print(Printer& p) const {
     p << '{' << p.indent();
-    print_list(p, exprs, [&] (auto& e) {
+    print_list(p, ';', exprs, [&] (auto& e) {
         p << p.endl();
         e->print(p);
     });

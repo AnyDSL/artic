@@ -12,9 +12,10 @@ Parser::Parser(Lexer& lexer)
 Ptr<Program> Parser::parse_program() {
     Tracker tracker(this);
     PtrVector<Decl> decls;
-    while (ahead().tag() != Token::END) {
-        decls.emplace_back(parse_decl());
-    }
+    parse_list(Token::END, Token::SEMICOLON, [&] {
+        if (ahead().tag() != Token::SEMICOLON)
+            decls.emplace_back(parse_decl());
+    });
     return make_ptr<Program>(tracker(), std::move(decls));
 }
 
@@ -55,7 +56,7 @@ Ptr<VarDecl> Parser::parse_var_decl() {
 
 Ptr<ErrorDecl> Parser::parse_error_decl() {
     Tracker tracker(this);
-    log::error(ahead().loc(), "invalid declaration");
+    log::error(ahead().loc(), "expected declaration, got '{}'", ahead().string());
     next();
     return make_ptr<ErrorDecl>(tracker());
 }
@@ -85,7 +86,7 @@ Ptr<IdExpr> Parser::parse_id_expr() {
     Tracker tracker(this);
     std::string id;
     if (!ahead().is_identifier())
-        log::error(ahead().loc(), "identifier expected");
+        log::error(ahead().loc(), "expected identifier, got '{}'", ahead().string());
     else
         id = ahead().identifier();
     next();
@@ -96,7 +97,7 @@ Ptr<LiteralExpr> Parser::parse_literal_expr() {
     Tracker tracker(this);
     Literal lit;
     if (!ahead().is_literal())
-        log::error(ahead().loc(), "literal expected");
+        log::error(ahead().loc(), "expected literal, got '{}'", ahead().string());
     else
         lit = ahead().literal();
     next();
@@ -106,8 +107,10 @@ Ptr<LiteralExpr> Parser::parse_literal_expr() {
 Ptr<Expr> Parser::parse_tuple_expr() {
     Tracker tracker(this);
     eat(Token::L_PAREN);
+    eat_nl();
     PtrVector<Expr> args;
     parse_list(Token::R_PAREN, Token::COMMA, [&] {
+        eat_nl();
         args.emplace_back(parse_expr());
     });
     return args.size() == 1
@@ -119,8 +122,9 @@ Ptr<BlockExpr> Parser::parse_block_expr() {
     Tracker tracker(this);
     eat(Token::L_BRACE);
     PtrVector<Expr> exprs;
-    parse_list(Token::R_BRACE, [&] {
-        exprs.emplace_back(parse_expr());
+    parse_list(Token::R_BRACE, Token::SEMICOLON, [&] {
+        if (ahead().tag() != Token::SEMICOLON)
+            exprs.emplace_back(parse_expr());
     });
     return make_ptr<BlockExpr>(tracker(), std::move(exprs));
 }
@@ -153,10 +157,13 @@ Ptr<IfExpr> Parser::parse_if_expr() {
     expect(Token::L_PAREN);
     auto cond = parse_expr();
     expect(Token::R_PAREN);
+    eat_nl();
     auto if_true = parse_expr();
+    eat_nl();
     Ptr<Expr> if_false;
     if (ahead().tag() == Token::ELSE) {
         eat(Token::ELSE);
+        eat_nl();
         if_false = std::move(parse_expr());
     }
     return make_ptr<IfExpr>(tracker(), std::move(cond), std::move(if_true), std::move(if_false));
@@ -183,13 +190,12 @@ Ptr<Expr> Parser::parse_primary_expr() {
         default:
             expr = std::move(parse_error_expr()); break;
     }
+    while (ahead().tag() == Token::L_PAREN)
+        expr = std::move(parse_call_expr(std::move(expr)));
     if (ahead().tag() == Token::ARROW)
-        return parse_lambda_expr(std::move(expr));
-    if (ahead().tag() == Token::L_PAREN)
-        return parse_call_expr(std::move(expr));
-    if (ahead().tag() == Token::INC ||
-        ahead().tag() == Token::DEC)
-        return parse_postfix_expr(std::move(expr));
+        expr = std::move(parse_lambda_expr(std::move(expr)));
+    if (ahead().tag() == Token::INC || ahead().tag() == Token::DEC)
+        expr = std::move(parse_postfix_expr(std::move(expr)));
     return std::move(expr);
 }
 
@@ -216,8 +222,9 @@ Ptr<Expr> Parser::parse_binary_expr(Ptr<Expr>&& left, int max_prec) {
         if (tag == BinaryExpr::ERR) break;
         auto prec = BinaryExpr::precedence(tag);
         if (prec > max_prec) break;
-
         next();
+
+        eat_nl();
         auto right = parse_primary_expr();
 
         auto next_tag = BinaryExpr::tag_from_token(ahead());
@@ -233,7 +240,7 @@ Ptr<Expr> Parser::parse_binary_expr(Ptr<Expr>&& left, int max_prec) {
 
 Ptr<ErrorExpr> Parser::parse_error_expr() {
     Tracker tracker(this);
-    log::error(ahead().loc(), "invalid expression");
+    log::error(ahead().loc(), "expected expression, got '{}'", ahead().string());
     next();
     return make_ptr<ErrorExpr>(tracker());
 }

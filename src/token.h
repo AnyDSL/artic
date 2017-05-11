@@ -76,8 +76,8 @@ public:
 
     Token(const Loc& loc) : Token(loc, ERR) {}
 
-    Token(const Loc& loc, Tag tag)
-        : loc_(loc), tag_(tag), str_(to_string(tag))
+    Token(const Loc& loc, Tag tag, bool new_line = false)
+        : loc_(loc), tag_(tag), new_line_(new_line), str_(to_string(tag))
     {}
 
     Token(const Loc& loc, const std::string& str, const Literal& lit)
@@ -92,6 +92,8 @@ public:
     const Literal& literal() const { assert(is_literal()); return lit_; }
     const std::string& identifier() const { assert(is_identifier()); return str_; }
     const std::string& string() const { return str_; }
+
+    bool is_newline() const { return new_line_; }
 
     bool is_identifier() const { return tag_ == ID; }
     bool is_literal() const { return tag_ == LIT; }
@@ -111,7 +113,10 @@ public:
 private:
     Loc loc_;
     Tag tag_;
-    Literal lit_;
+    union {
+        Literal lit_;
+        bool new_line_;
+    };
     std::string str_;
 };
 
