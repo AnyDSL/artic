@@ -7,7 +7,7 @@
 #include "box.h"
 
 #define TOKEN_TAGS(f) \
-    f(ERR, "<error>") \
+    f(ERR, "<unknown token>") \
     f(ID, "<identifier>") \
     f(LIT, "<literal>") \
     f(DEF, "def") \
@@ -74,10 +74,12 @@ public:
 #undef TAG
     };
 
-    Token(const Loc& loc) : Token(loc, ERR) {}
+    Token(const Loc& loc)
+        : Token(loc, ERR)
+    {}
 
     Token(const Loc& loc, Tag tag, bool new_line = false)
-        : loc_(loc), tag_(tag), new_line_(new_line), str_(to_string(tag))
+        : loc_(loc), tag_(tag), new_line_(new_line), str_(tag_to_string(tag))
     {}
 
     Token(const Loc& loc, const std::string& str, const Literal& lit)
@@ -100,7 +102,7 @@ public:
 
     const Loc& loc() const { return loc_; }
 
-    static std::string to_string(Tag tag) {
+    static std::string tag_to_string(Tag tag) {
         switch (tag) {
 #define TAG(t, str) case t: return str;
             TOKEN_TAGS(TAG)

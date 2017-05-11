@@ -29,6 +29,7 @@ private:
 
     void eat();
     void eat_spaces();
+    void eat_comments();
     Literal parse_literal();
 
     bool accept(uint32_t);

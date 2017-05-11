@@ -52,102 +52,110 @@ Lexer::Lexer(const std::string& filename, std::istream& is)
 }
 
 Token Lexer::next() {
-    eat_spaces();
+    while (true) {
+        eat_spaces();
 
-    current_.clear();
-    loc_.begin_row = loc_.end_row;
-    loc_.begin_col = loc_.end_col;
+        current_.clear();
+        loc_.begin_row = loc_.end_row;
+        loc_.begin_col = loc_.end_col;
 
-    if (eof_) return Token(loc_, Token::END);
+        if (eof()) return Token(loc_, Token::END);
 
-    if (peek() == '\n') {
-        while (accept('\n')) {
-            loc_.begin_row = loc_.end_row;
-            loc_.begin_col = loc_.end_col;
-            eat_spaces();
+        if (peek() == '\n') {
+            while (accept('\n')) {
+                loc_.begin_row = loc_.end_row;
+                loc_.begin_col = loc_.end_col;
+                eat_spaces();
+            }
+            return Token(loc_, Token::SEMICOLON, true);
         }
-        return Token(loc_, Token::SEMICOLON, true);
-    }
 
-    if (accept('(')) return Token(loc_, Token::L_PAREN);
-    if (accept(')')) return Token(loc_, Token::R_PAREN);
-    if (accept('{')) return Token(loc_, Token::L_BRACE);
-    if (accept('}')) return Token(loc_, Token::R_BRACE);
-    if (accept(',')) return Token(loc_, Token::COMMA);
-    if (accept(';')) return Token(loc_, Token::SEMICOLON);
-    if (accept(':')) return Token(loc_, Token::COLON);
-    if (accept('=')) {
-        if (accept('>')) return Token(loc_, Token::ARROW);
-        if (accept('=')) return Token(loc_, Token::CMP_EQ);
-        return Token(loc_, Token::EQ);
-    }
-    if (accept('<')) {
+        if (accept('(')) return Token(loc_, Token::L_PAREN);
+        if (accept(')')) return Token(loc_, Token::R_PAREN);
+        if (accept('{')) return Token(loc_, Token::L_BRACE);
+        if (accept('}')) return Token(loc_, Token::R_BRACE);
+        if (accept(',')) return Token(loc_, Token::COMMA);
+        if (accept(';')) return Token(loc_, Token::SEMICOLON);
+        if (accept(':')) return Token(loc_, Token::COLON);
+        if (accept('=')) {
+            if (accept('>')) return Token(loc_, Token::ARROW);
+            if (accept('=')) return Token(loc_, Token::CMP_EQ);
+            return Token(loc_, Token::EQ);
+        }
         if (accept('<')) {
-            if (accept('=')) return Token(loc_, Token::L_SHFT_EQ);
-            return Token(loc_, Token::L_SHFT);
+            if (accept('<')) {
+                if (accept('=')) return Token(loc_, Token::L_SHFT_EQ);
+                return Token(loc_, Token::L_SHFT);
+            }
+            if (accept('=')) return Token(loc_, Token::CMP_LE);
+            return Token(loc_, Token::CMP_LT);
         }
-        if (accept('=')) return Token(loc_, Token::CMP_LE);
-        return Token(loc_, Token::CMP_LT);
-    }
-    if (accept('>')) {
         if (accept('>')) {
-            if (accept('=')) return Token(loc_, Token::R_SHFT_EQ);
-            return Token(loc_, Token::R_SHFT);
+            if (accept('>')) {
+                if (accept('=')) return Token(loc_, Token::R_SHFT_EQ);
+                return Token(loc_, Token::R_SHFT);
+            }
+            if (accept('=')) return Token(loc_, Token::CMP_GE);
+            return Token(loc_, Token::CMP_GT);
         }
-        if (accept('=')) return Token(loc_, Token::CMP_GE);
-        return Token(loc_, Token::CMP_GT);
-    }
-    if (accept('+')) {
-        if (accept('+')) return Token(loc_, Token::INC);
-        if (accept('=')) return Token(loc_, Token::ADD_EQ);
-        return Token(loc_, Token::ADD);
-    }
-    if (accept('-')) {
-        if (accept('-')) return Token(loc_, Token::DEC);
-        if (accept('=')) return Token(loc_, Token::SUB_EQ);
-        return Token(loc_, Token::SUB);
-    }
-    if (accept('*')) {
-        if (accept('=')) return Token(loc_, Token::MUL_EQ);
-        return Token(loc_, Token::MUL);
-    }
-    if (accept('/')) {
-        if (accept('=')) return Token(loc_, Token::DIV_EQ);
-        return Token(loc_, Token::DIV);
-    }
-    if (accept('%')) {
-        if (accept('=')) return Token(loc_, Token::MOD_EQ);
-        return Token(loc_, Token::MOD);
-    }
-    if (accept('&')) {
-        if (accept('=')) return Token(loc_, Token::AND_EQ);
-        return Token(loc_, Token::AND);
-    }
-    if (accept('|')) {
-        if (accept('=')) return Token(loc_, Token::OR_EQ);
-        return Token(loc_, Token::OR);
-    }
-    if (accept('^')) {
-        if (accept('=')) return Token(loc_, Token::XOR_EQ);
-        return Token(loc_, Token::XOR);
-    }
+        if (accept('+')) {
+            if (accept('+')) return Token(loc_, Token::INC);
+            if (accept('=')) return Token(loc_, Token::ADD_EQ);
+            return Token(loc_, Token::ADD);
+        }
+        if (accept('-')) {
+            if (accept('-')) return Token(loc_, Token::DEC);
+            if (accept('=')) return Token(loc_, Token::SUB_EQ);
+            return Token(loc_, Token::SUB);
+        }
+        if (accept('*')) {
+            if (accept('=')) return Token(loc_, Token::MUL_EQ);
+            return Token(loc_, Token::MUL);
+        }
+        if (accept('/')) {
+            // Handle comments here
+            if (accept('*')) { eat_comments(); continue; }
+            if (accept('/')) {
+                while (!eof() && peek() != '\n') eat();
+                continue;
+            }
+            if (accept('=')) return Token(loc_, Token::DIV_EQ);
+            return Token(loc_, Token::DIV);
+        }
+        if (accept('%')) {
+            if (accept('=')) return Token(loc_, Token::MOD_EQ);
+            return Token(loc_, Token::MOD);
+        }
+        if (accept('&')) {
+            if (accept('=')) return Token(loc_, Token::AND_EQ);
+            return Token(loc_, Token::AND);
+        }
+        if (accept('|')) {
+            if (accept('=')) return Token(loc_, Token::OR_EQ);
+            return Token(loc_, Token::OR);
+        }
+        if (accept('^')) {
+            if (accept('=')) return Token(loc_, Token::XOR_EQ);
+            return Token(loc_, Token::XOR);
+        }
 
-    if (std::isdigit(peek()) || peek() == '.') {
-        auto lit = parse_literal();
-        return Token(loc_, current_, lit);
-    }
+        if (std::isdigit(peek()) || peek() == '.') {
+            auto lit = parse_literal();
+            return Token(loc_, current_, lit);
+        }
 
-    if (std::isalpha(peek()) || peek() == '_') {
+        if (std::isalpha(peek()) || peek() == '_') {
+            eat();
+            while (std::isalnum(peek()) || peek() == '_') eat();
+            auto key_it = keywords.find(current_);
+            if (key_it == keywords.end()) return Token(loc_, current_);
+            return Token(loc_, key_it->second);
+        }
+
+        log::error(loc_, "unknown token '{}'", utf8_to_string(peek()));
         eat();
-        while (std::isalnum(peek()) || peek() == '_') eat();
-        auto key_it = keywords.find(current_);
-        if (key_it == keywords.end()) return Token(loc_, current_);
-        return Token(loc_, key_it->second);
+        return Token(loc_);
     }
-
-    log::error(loc_, "unknown token '{}'", utf8_to_string(peek()));
-    eat();
-    return Token(loc_);
 }
 
 void Lexer::eat() {
@@ -176,6 +184,18 @@ void Lexer::eat() {
 
 void Lexer::eat_spaces() {
     while (!eof() && peek() != '\n' && std::isspace(peek())) eat();
+}
+
+void Lexer::eat_comments() {
+    while (true) {
+        while (!eof() && peek() != '*') eat();
+        if (eof()) {
+            log::error(loc_, "non-terminated multiline comment");
+            return;
+        }
+        eat();
+        if (accept('/')) break;
+    }
 }
 
 Literal Lexer::parse_literal() {

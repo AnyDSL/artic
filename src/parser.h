@@ -71,7 +71,7 @@ private:
     void expect(Token::Tag tag) {
         if (ahead().tag() != tag) {
             log::error(ahead().loc(), "expected '{}', but got '{}'",
-                Token::to_string(tag),
+                Token::tag_to_string(tag),
                 ahead().string());
         }
         next();
