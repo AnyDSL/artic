@@ -112,6 +112,7 @@ Ptr<Expr> Parser::parse_tuple_expr() {
     parse_list(Token::R_PAREN, Token::COMMA, [&] {
         eat_nl();
         args.emplace_back(parse_expr());
+        eat_nl();
     });
     return args.size() == 1
         ? std::move(args[0])
