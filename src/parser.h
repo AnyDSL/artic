@@ -7,7 +7,7 @@
 
 class Parser {
 public:
-    Parser(Lexer& lex);
+    Parser(Lexer&, TypeTable&);
 
     Ptr<Program>    parse_program();
 
@@ -22,6 +22,7 @@ private:
     Ptr<Ptrn>        parse_tuple_ptrn();
 
     Ptr<Expr>        parse_expr();
+    Ptr<TypedExpr>   parse_typed_expr(Ptr<Expr>&&);
     Ptr<IdExpr>      parse_id_expr();
     Ptr<LiteralExpr> parse_literal_expr();
     Ptr<Expr>        parse_tuple_expr();
@@ -35,6 +36,8 @@ private:
     Ptr<UnaryExpr>   parse_postfix_expr(Ptr<Expr>&&);
     Ptr<Expr>        parse_binary_expr(Ptr<Expr>&&, int);
     Ptr<ErrorExpr>   parse_error_expr();
+
+    const Type*      parse_type();
 
     struct Tracker {
         int begin_row, begin_col;
@@ -99,6 +102,7 @@ private:
     Loc prev_;
     Token ahead_;
     Lexer& lexer_;
+    TypeTable& type_table_;
 };
 
 #endif // PARSER_H

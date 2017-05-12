@@ -30,6 +30,12 @@ void Ptrn::print(Printer& p) const {
     expr->print(p);
 }
 
+void TypedExpr::print(Printer& p) const {
+    expr->print(p);
+    p << " : ";
+    type->print(p);
+}
+
 void IdExpr::print(Printer& p) const {
     p << id;
 }
@@ -140,14 +146,7 @@ void Program::print(Printer& p) const {
 }
 
 void PrimType::print(Printer& p) const {
-    switch (tag) {
-#define TAG(t, n, ty) case t: p << keyword_style(#n); break;
-        BOX_TAGS(TAG)
-#undef TAG
-        default:
-            assert(false);
-            break;
-    }
+    p << keyword_style(tag_to_string(tag));
 }
 
 void TupleType::print(Printer& p) const {
@@ -159,7 +158,17 @@ void TupleType::print(Printer& p) const {
 }
 
 void FunctionType::print(Printer& p) const {
-    from->print(p);
+    if (from->isa<FunctionType>()) {
+        p << '(';
+        from->print(p);
+        p << ')';
+    } else {
+        from->print(p);
+    }
     p << " => ";
     to->print(p);
+}
+
+void ErrorType::print(Printer& p) const {
+    p << error_style("<error>");
 }

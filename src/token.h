@@ -50,6 +50,19 @@
     f(CMP_LT, "<") \
     f(CMP_GT, ">") \
     f(CMP_EQ, "==") \
+    f(BOOL, "bool") \
+    f(TRUE, "true") \
+    f(FALSE, "false") \
+    f(INT8, "int8") \
+    f(INT16, "int16") \
+    f(INT32, "int32") \
+    f(INT64, "int64") \
+    f(UINT8, "uint8") \
+    f(UINT16, "uint16") \
+    f(UINT32, "uint32") \
+    f(UINT64, "uint64") \
+    f(FLOAT32, "float32") \
+    f(FLOAT64, "float64") \
     f(END, "<eof>")
 
 struct Literal {

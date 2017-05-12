@@ -62,9 +62,17 @@ struct Decl : public Node {
 };
 
 struct TypedExpr : public Expr {
+    Ptr<Expr> expr;
     const Type* type;
 
-    TypedExpr(const Loc& loc, const Type* type) : Expr(loc), type(type) {}
+    TypedExpr(const Loc& loc, Ptr<Expr>&& expr, const Type* type)
+        : Expr(loc), expr(std::move(expr)), type(type)
+    {}
+
+    bool only_identifiers() const override { return expr->only_identifiers(); }
+    bool is_valid_pattern() const override { return expr->is_valid_pattern(); }
+
+    void print(Printer&) const override;
 };
 
 struct IdExpr : public Expr {
@@ -74,8 +82,8 @@ struct IdExpr : public Expr {
         : Expr(loc), id(id)
     {}
 
-    bool only_identifiers() const override { return true;  }
-    bool is_valid_pattern() const override { return true;  }
+    bool only_identifiers() const override { return true; }
+    bool is_valid_pattern() const override { return true; }
 
     void print(Printer&) const override;
 };

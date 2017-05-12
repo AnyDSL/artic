@@ -9,7 +9,28 @@ std::unordered_map<std::string, Token::Tag> Lexer::keywords{
     std::make_pair("def",  Token::DEF),
     std::make_pair("var",  Token::VAR),
     std::make_pair("if",   Token::IF),
-    std::make_pair("else", Token::ELSE)
+    std::make_pair("else", Token::ELSE),
+
+    std::make_pair("bool",  Token::BOOL),
+    std::make_pair("true",  Token::TRUE),
+    std::make_pair("false", Token::FALSE),
+
+    std::make_pair("int8",  Token::INT8),
+    std::make_pair("int16", Token::INT16),
+    std::make_pair("int32", Token::INT32),
+    std::make_pair("int64", Token::INT64),
+
+    std::make_pair("uint8",  Token::UINT8),
+    std::make_pair("uint16", Token::UINT16),
+    std::make_pair("uint32", Token::UINT32),
+    std::make_pair("uint64", Token::UINT64),
+
+    std::make_pair("float32", Token::FLOAT32),
+    std::make_pair("float64", Token::FLOAT64),
+
+    std::make_pair("float", Token::FLOAT32),
+    std::make_pair("uint",  Token::UINT32),
+    std::make_pair("int",   Token::INT32)
 };
 
 bool Lexer::Utf8Buffer::fill(std::istream& is) {

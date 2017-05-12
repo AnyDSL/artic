@@ -1,8 +1,8 @@
 #include "parser.h"
 #include "print.h"
 
-Parser::Parser(Lexer& lexer)
-    : lexer_(lexer), ahead_(Loc())
+Parser::Parser(Lexer& lexer, TypeTable& type_table)
+    : lexer_(lexer), type_table_(type_table), ahead_(Loc())
 {
     next();
 }
@@ -78,6 +78,14 @@ Ptr<Ptrn> Parser::parse_tuple_ptrn() {
 Ptr<Expr> Parser::parse_expr() {
     auto expr = parse_primary_expr();
     return parse_binary_expr(std::move(expr), BinaryExpr::max_precedence());
+}
+
+Ptr<TypedExpr> Parser::parse_typed_expr(Ptr<Expr>&& expr) {
+    Tracker tracker(this, expr->loc);
+    eat(Token::COLON);
+    eat_nl();
+    auto type = parse_type();
+    return make_ptr<TypedExpr>(tracker(), std::move(expr), type); 
 }
 
 Ptr<IdExpr> Parser::parse_id_expr() {
@@ -195,6 +203,8 @@ Ptr<Expr> Parser::parse_primary_expr() {
         expr = std::move(parse_lambda_expr(std::move(expr)));
     if (ahead().tag() == Token::INC || ahead().tag() == Token::DEC)
         expr = std::move(parse_postfix_expr(std::move(expr)));
+    if (ahead().tag() == Token::COLON)
+        expr = std::move(parse_typed_expr(std::move(expr)));
     return std::move(expr);
 }
 
@@ -242,4 +252,35 @@ Ptr<ErrorExpr> Parser::parse_error_expr() {
     log::error(ahead().loc(), "expected expression, got '{}'", ahead().string());
     next();
     return make_ptr<ErrorExpr>(tracker());
+}
+
+const Type* Parser::parse_type() {
+    const Type* type = nullptr;
+
+    auto tag = PrimType::tag_from_token(ahead());
+    if (tag != PrimType::ERR) {
+        next();
+        type = type_table_.new_type<PrimType>(tag);
+    } else if (ahead().tag() == Token::L_PAREN) {
+        eat(Token::L_PAREN);
+        std::vector<const Type*> args;
+        parse_list(Token::R_PAREN, Token::COMMA, [&] {
+            eat_nl();
+            args.emplace_back(parse_type());
+            eat_nl();
+        });
+        type = args.size() == 1 ? args[0] : type_table_.new_type<TupleType>(std::move(args));
+    } else {
+        log::error(ahead().loc(), "expected type, got '{}'", ahead().string());
+        next();
+        return type_table_.new_type<ErrorType>(ahead().loc());
+    }
+
+    if (ahead().tag() == Token::ARROW) {
+        eat(Token::ARROW);
+        eat_nl();
+        auto to = parse_type();
+        type = type_table_.new_type<FunctionType>(type, to);
+    }
+    return type;
 }

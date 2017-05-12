@@ -51,7 +51,8 @@ int main(int argc, char** argv) {
     for (auto& file : opts.files) {
         std::ifstream is(file);
         Lexer lexer(file, is);
-        Parser parser(lexer);
+        TypeTable type_table;
+        Parser parser(lexer, type_table);
         auto program = parser.parse_program();
         program->dump();
     }

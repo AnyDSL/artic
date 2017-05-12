@@ -8,6 +8,7 @@
 #include "hash.h"
 #include "box.h"
 #include "print.h"
+#include "token.h"
 
 struct Type : public Cast<Type> {
     virtual ~Type() {}
@@ -22,8 +23,9 @@ struct Type : public Cast<Type> {
 struct PrimType : public Type {
     enum Tag {
 #define TAG(t, n, ty) t = Box::t,
-        BOX_TAGS(TAG)
+        PRIM_TAGS(TAG)
 #undef TAG
+        ERR
     };
 
     Tag tag;
@@ -35,6 +37,9 @@ struct PrimType : public Type {
     uint32_t hash() const override;
     bool equals(const Type* t) const override;
     void print(Printer&) const override;
+
+    static std::string tag_to_string(Tag tag);
+    static Tag tag_from_token(const Token&);
 };
 
 struct TupleType : public Type {
@@ -62,8 +67,24 @@ struct FunctionType : public Type {
     void print(Printer&) const override;
 };
 
+struct ErrorType : public Type {
+    const Loc& loc;
+
+    ErrorType(const Loc& loc)
+        : loc(loc)
+    {}
+
+    uint32_t hash() const override;
+    bool equals(const Type* t) const override;
+    void print(Printer&) const override;
+};
+
 class TypeTable {
 public:
+    ~TypeTable() {
+        for (auto& t : types_) delete t;
+    }
+
     template <typename T, typename... Args>
     const T* new_type(Args... args) {
         T t(std::forward<Args>(args)...);

@@ -5,7 +5,7 @@
 #include <ostream>
 #include <cassert>
 
-#define BOX_TAGS(f) \
+#define PRIM_TAGS(f) \
     f(I1,  i1,  bool) \
     f(U8,  u8,  uint8_t) \
     f(U16, u16, uint16_t) \
@@ -21,20 +21,20 @@
 struct Box {
     enum Tag {
 #define TAG(t, n, ty) t,
-        BOX_TAGS(TAG)
+        PRIM_TAGS(TAG)
 #undef TAG
     } tag;
 
     union {
 #define MEMBER(t, n, ty) ty n;
-        BOX_TAGS(MEMBER)
+        PRIM_TAGS(MEMBER)
 #undef MEMBER
     };
 
     Box() : tag(U64), u64(0) {}
 
 #define CTOR(t, n, ty) Box(ty n) : tag(t), n(n) {}
-    BOX_TAGS(CTOR)
+    PRIM_TAGS(CTOR)
 #undef CTOR
 };
 
@@ -43,7 +43,7 @@ Box zip(const Box& a, const Box& b) {
     assert(a.tag == b.tag);
     switch (a.tag) {
 #define TAG(t, n, ty) case Box::t: { F<ty> f; return Box(f(a.n, b.n)); } break;
-        BOX_TAGS(TAG)
+        PRIM_TAGS(TAG)
 #undef TAG
         default: assert(false && "unknown box tag");
     }
@@ -54,7 +54,7 @@ template <template <typename> typename F>
 Box map(const Box& a) {
     switch (a.tag) {
 #define TAG(t, n, ty) case Box::t: { F<ty> f; return Box(f(a.n)); } break;
-        BOX_TAGS(TAG)
+        PRIM_TAGS(TAG)
 #undef TAG
         default: assert(false && "unknown box tag");
     }
@@ -105,7 +105,7 @@ inline Box operator ^ (const Box& a, const Box& b) { return zip<BoxOps::Xor>(a, 
 inline std::ostream& operator << (std::ostream& os, const Box& box) {
     switch (box.tag) {
 #define TAG(t, n, ty) case Box::t: { os << box.n; } break;
-        BOX_TAGS(TAG)
+        PRIM_TAGS(TAG)
 #undef TAG
         default: assert(false && "unknown box tag");
     }
