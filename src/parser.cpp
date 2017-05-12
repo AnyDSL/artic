@@ -1,8 +1,6 @@
 #include "parser.h"
 #include "print.h"
 
-using namespace ast;
-
 Parser::Parser(Lexer& lexer)
     : lexer_(lexer), ahead_(Loc())
 {

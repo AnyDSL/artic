@@ -9,8 +9,7 @@
 #include "cast.h"
 #include "print.h"
 #include "token.h"
-
-namespace ast {
+#include "type.h"
 
 template <typename T> using Ptr = std::unique_ptr<T>;
 template <typename T> using PtrVector = std::vector<std::unique_ptr<T>>;
@@ -60,6 +59,12 @@ struct Decl : public Node {
     Decl(const Loc& loc, Ptr<Ptrn>&& ptrn)
         : Node(loc), ptrn(std::move(ptrn))
     {}
+};
+
+struct TypedExpr : public Expr {
+    const Type* type;
+
+    TypedExpr(const Loc& loc, const Type* type) : Expr(loc), type(type) {}
 };
 
 struct IdExpr : public Expr {
@@ -298,7 +303,5 @@ struct Program : public Node {
 
     void print(Printer&) const override;
 };
-
-} // namespace ast
 
 #endif // AST_H

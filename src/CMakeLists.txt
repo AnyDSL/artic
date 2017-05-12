@@ -11,7 +11,9 @@ add_executable(artic
     parser.h
     print.cpp
     print.h
-    token.h)
+    token.h
+    type.cpp
+    type.h)
 
 if (${COLORIZE_OUTPUT})
     target_compile_definitions(artic PUBLIC -DCOLORIZE)

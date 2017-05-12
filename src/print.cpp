@@ -1,8 +1,7 @@
 #include "print.h"
 #include "log.h"
+#include "type.h"
 #include "ast.h"
-
-using namespace ast;
 
 template <typename T> auto error_style(const T& t)   -> decltype(log::style(t, log::Style())) { return log::style(t, log::Style::RED);   }
 template <typename T> auto keyword_style(const T& t) -> decltype(log::style(t, log::Style())) { return log::style(t, log::Style::GREEN); }
@@ -138,4 +137,29 @@ void Program::print(Printer& p) const {
         decl->print(p);
         p << p.endl();
     }
+}
+
+void PrimType::print(Printer& p) const {
+    switch (tag) {
+#define TAG(t, n, ty) case t: p << keyword_style(#n); break;
+        BOX_TAGS(TAG)
+#undef TAG
+        default:
+            assert(false);
+            break;
+    }
+}
+
+void TupleType::print(Printer& p) const {
+    p << '(';
+    print_list(p, ", ", args, [&] (auto arg) {
+        arg->print(p);
+    });
+    p << ')';
+}
+
+void FunctionType::print(Printer& p) const {
+    from->print(p);
+    p << " => ";
+    to->print(p);
 }

@@ -9,32 +9,32 @@ class Parser {
 public:
     Parser(Lexer& lex);
 
-    ast::Ptr<ast::Program>    parse_program();
+    Ptr<Program>    parse_program();
 
 private:
-    ast::Ptr<ast::Decl>        parse_decl();
-    ast::Ptr<ast::DefDecl>     parse_def_decl();
-    ast::Ptr<ast::VarDecl>     parse_var_decl();
-    ast::Ptr<ast::ErrorDecl>   parse_error_decl();
+    Ptr<Decl>        parse_decl();
+    Ptr<DefDecl>     parse_def_decl();
+    Ptr<VarDecl>     parse_var_decl();
+    Ptr<ErrorDecl>   parse_error_decl();
 
-    ast::Ptr<ast::Ptrn>        parse_ptrn();
-    ast::Ptr<ast::Ptrn>        parse_id_ptrn();
-    ast::Ptr<ast::Ptrn>        parse_tuple_ptrn();
+    Ptr<Ptrn>        parse_ptrn();
+    Ptr<Ptrn>        parse_id_ptrn();
+    Ptr<Ptrn>        parse_tuple_ptrn();
 
-    ast::Ptr<ast::Expr>        parse_expr();
-    ast::Ptr<ast::IdExpr>      parse_id_expr();
-    ast::Ptr<ast::LiteralExpr> parse_literal_expr();
-    ast::Ptr<ast::Expr>        parse_tuple_expr();
-    ast::Ptr<ast::BlockExpr>   parse_block_expr();
-    ast::Ptr<ast::DeclExpr>    parse_decl_expr();
-    ast::Ptr<ast::LambdaExpr>  parse_lambda_expr(ast::Ptr<ast::Expr>&&);
-    ast::Ptr<ast::CallExpr>    parse_call_expr(ast::Ptr<ast::Expr>&&);
-    ast::Ptr<ast::IfExpr>      parse_if_expr();
-    ast::Ptr<ast::Expr>        parse_primary_expr();
-    ast::Ptr<ast::UnaryExpr>   parse_prefix_expr();
-    ast::Ptr<ast::UnaryExpr>   parse_postfix_expr(ast::Ptr<ast::Expr>&&);
-    ast::Ptr<ast::Expr>        parse_binary_expr(ast::Ptr<ast::Expr>&&, int);
-    ast::Ptr<ast::ErrorExpr>   parse_error_expr();
+    Ptr<Expr>        parse_expr();
+    Ptr<IdExpr>      parse_id_expr();
+    Ptr<LiteralExpr> parse_literal_expr();
+    Ptr<Expr>        parse_tuple_expr();
+    Ptr<BlockExpr>   parse_block_expr();
+    Ptr<DeclExpr>    parse_decl_expr();
+    Ptr<LambdaExpr>  parse_lambda_expr(Ptr<Expr>&&);
+    Ptr<CallExpr>    parse_call_expr(Ptr<Expr>&&);
+    Ptr<IfExpr>      parse_if_expr();
+    Ptr<Expr>        parse_primary_expr();
+    Ptr<UnaryExpr>   parse_prefix_expr();
+    Ptr<UnaryExpr>   parse_postfix_expr(Ptr<Expr>&&);
+    Ptr<Expr>        parse_binary_expr(Ptr<Expr>&&, int);
+    Ptr<ErrorExpr>   parse_error_expr();
 
     struct Tracker {
         int begin_row, begin_col;

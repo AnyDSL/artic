@@ -1,6 +1,7 @@
 #ifndef CAST_H
 #define CAST_H
 
+#include <cassert>
 #include <type_traits>
 
 template <typename B, typename A>
