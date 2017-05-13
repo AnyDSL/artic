@@ -1,6 +1,8 @@
 #include <cassert>
 #include "ast.h"
 
+namespace artic {
+
 bool Expr::is_tuple() const { return isa<TupleExpr>(); }
 
 std::string UnaryExpr::tag_to_string(Tag tag) {
@@ -157,3 +159,5 @@ BinaryExpr::Tag BinaryExpr::tag_from_token(const Token& token) {
         default: return ERR;
     }
 }
+
+} // namespace artic

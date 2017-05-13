@@ -11,6 +11,8 @@
 #include "token.h"
 #include "type.h"
 
+namespace artic {
+
 template <typename T> using Ptr = std::unique_ptr<T>;
 template <typename T> using PtrVector = std::vector<std::unique_ptr<T>>;
 template <typename T, typename... Args>
@@ -311,5 +313,7 @@ struct Program : public Node {
 
     void print(Printer&) const override;
 };
+
+} // namespace artic
 
 #endif // AST_H

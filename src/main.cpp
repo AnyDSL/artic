@@ -9,6 +9,8 @@
 #include "log.h"
 #include "print.h"
 
+using namespace artic;
+
 static void usage() {
     std::cout << "Usage: artic [options] files...\n"
                  "Available options:\n"

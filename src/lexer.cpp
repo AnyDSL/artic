@@ -5,6 +5,8 @@
 #include "lexer.h"
 #include "log.h"
 
+namespace artic {
+
 std::unordered_map<std::string, Token::Tag> Lexer::keywords{
     std::make_pair("def",  Token::DEF),
     std::make_pair("var",  Token::VAR),
@@ -281,3 +283,5 @@ bool Lexer::accept(const std::string& str) {
     while (it != str.end() && accept(*(it++))) ;
     return it == str.end() && (eof() || !(peek() == '_' || std::isalnum(peek())));
 }
+
+} // namespace artic

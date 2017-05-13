@@ -6,6 +6,8 @@
 #include "loc.h"
 #include "box.h"
 
+namespace artic {
+
 #define TOKEN_TAGS(f) \
     f(ERR, "<unknown token>") \
     f(ID, "<identifier>") \
@@ -134,5 +136,7 @@ private:
     };
     std::string str_;
 };
+
+} // namespace artic
 
 #endif // TOKEN_H

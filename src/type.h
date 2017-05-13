@@ -10,6 +10,8 @@
 #include "print.h"
 #include "token.h"
 
+namespace artic {
+
 struct Type : public Cast<Type> {
     virtual ~Type() {}
 
@@ -113,5 +115,7 @@ private:
 
     std::unordered_set<const Type*, HashType, CmpType> types_;
 };
+
+} // namespace artic
 
 #endif // TYPE_H

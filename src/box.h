@@ -5,6 +5,8 @@
 #include <ostream>
 #include <cassert>
 
+namespace artic {
+
 #define PRIM_TAGS(f) \
     f(I1,  i1,  bool) \
     f(U8,  u8,  uint8_t) \
@@ -109,6 +111,8 @@ inline std::ostream& operator << (std::ostream& os, const Box& box) {
 #undef TAG
         default: assert(false && "unknown box tag");
     }
-} 
+}
+
+} // namespace artic
 
 #endif // BOX_H

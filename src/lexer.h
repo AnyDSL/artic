@@ -7,6 +7,8 @@
 
 #include "token.h"
 
+namespace artic {
+
 class Lexer {
 public:
     Lexer(const std::string& filename, std::istream& is);
@@ -49,5 +51,7 @@ private:
 
     static std::unordered_map<std::string, Token::Tag> keywords;
 };
+
+} // namespace artic
 
 #endif // LEXER_H

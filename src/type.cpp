@@ -1,5 +1,7 @@
 #include "type.h"
 
+namespace artic {
+
 bool Type::is_tuple() const {
     return isa<TupleType>();
 }
@@ -85,3 +87,5 @@ uint32_t ErrorType::hash() const {
 bool ErrorType::equals(const Type* t) const {
     return false;
 }
+
+} // namespace artic

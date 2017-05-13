@@ -4,6 +4,8 @@
 #include <string>
 #include <ostream>
 
+namespace artic {
+
 struct Loc {
     const std::string* file;
     int begin_row, begin_col;
@@ -29,5 +31,7 @@ inline std::ostream& operator << (std::ostream& os, const Loc& loc) {
     }
     os << ")";
 }
+
+} // namespace artic
 
 #endif // LOC_H

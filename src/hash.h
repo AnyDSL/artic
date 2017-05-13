@@ -1,6 +1,8 @@
 #ifndef HASH_H
 #define HASH_H
 
+namespace artic {
+
 inline uint32_t hash_init() { return 0x811C9DC5; }
 
 inline uint32_t hash_combine(uint32_t h, uint32_t d) {
@@ -22,5 +24,7 @@ uint32_t hash_list(const L& l, F f) {
     for (const auto& e : l) h = hash_combine(h, f(e));
     return h;
 }
+
+} // namespace artic
 
 #endif // HASH_H

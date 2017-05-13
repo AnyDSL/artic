@@ -4,6 +4,8 @@
 #include <string>
 #include <iostream>
 
+namespace artic {
+
 struct Printer {
     struct Endl {};
     struct Indent {};
@@ -30,5 +32,7 @@ struct Printer {
         return *this;
     }
 };
+
+} // namespace artic
 
 #endif // PRINT_H

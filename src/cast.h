@@ -4,6 +4,8 @@
 #include <cassert>
 #include <type_traits>
 
+namespace artic {
+
 template <typename B, typename A>
 inline B as(A a) {
     static_assert(std::is_base_of<typename std::remove_pointer<A>::type,
@@ -24,10 +26,12 @@ inline B isa(A a) {
 template <typename T>
 class Cast {
 public:
-    template <typename U> const U* isa() const { ::isa<const U*>(static_cast<const T*>(this)); }
-    template <typename U> const U* as()  const { ::as <const U*>(static_cast<const T*>(this)); }
-    template <typename U> U* isa() { ::isa<U*>(static_cast<T*>(this)); }
-    template <typename U> U* as()  { ::as <U*>(static_cast<T*>(this)); }
+    template <typename U> const U* isa() const { artic::isa<const U*>(static_cast<const T*>(this)); }
+    template <typename U> const U* as()  const { artic::as <const U*>(static_cast<const T*>(this)); }
+    template <typename U> U* isa() { artic::isa<U*>(static_cast<T*>(this)); }
+    template <typename U> U* as()  { artic::as <U*>(static_cast<T*>(this)); }
 };
+
+} // namespace artic
 
 #endif // CAST_H

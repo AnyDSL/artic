@@ -1,6 +1,8 @@
 #include "parser.h"
 #include "print.h"
 
+namespace artic {
+
 Parser::Parser(Lexer& lexer, TypeTable& type_table)
     : lexer_(lexer), type_table_(type_table), ahead_(Loc())
 {
@@ -284,3 +286,5 @@ const Type* Parser::parse_type() {
     }
     return type;
 }
+
+} // namespace artic

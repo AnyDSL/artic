@@ -3,6 +3,8 @@
 #include "type.h"
 #include "ast.h"
 
+namespace artic {
+
 template <typename T> auto error_style(const T& t)   -> decltype(log::style(t, log::Style())) { return log::style(t, log::Style::RED);   }
 template <typename T> auto keyword_style(const T& t) -> decltype(log::style(t, log::Style())) { return log::style(t, log::Style::GREEN); }
 template <typename T> auto literal_style(const T& t) -> decltype(log::style(t, log::Style())) { return log::style(t, log::Style::BLUE);  }
@@ -172,3 +174,5 @@ void FunctionType::print(Printer& p) const {
 void ErrorType::print(Printer& p) const {
     p << error_style("<error>");
 }
+
+} // namespace artic

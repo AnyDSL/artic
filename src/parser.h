@@ -5,6 +5,8 @@
 #include "lexer.h"
 #include "ast.h"
 
+namespace artic {
+
 class Parser {
 public:
     Parser(Lexer&, TypeTable&);
@@ -104,5 +106,7 @@ private:
     Lexer& lexer_;
     TypeTable& type_table_;
 };
+
+} // namespace artic
 
 #endif // PARSER_H

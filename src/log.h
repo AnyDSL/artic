@@ -15,6 +15,8 @@
 #include <unistd.h>
 #endif
 
+namespace artic {
+
 namespace log {
 
 enum Style {
@@ -145,5 +147,7 @@ void info(const Loc& loc, const char* fmt, Args... args) {
 }
 
 } // namespace log
+
+} // namespace artic
 
 #endif // LOG_H
