@@ -33,10 +33,15 @@ struct Node : public Cast<Node> {
 };
 
 struct Expr : public Node {
-    Expr(const Loc& loc) : Node(loc) {}
+    const Type* type;
+
+    Expr(const Loc& loc) : Node(loc), type(nullptr) {}
 
     virtual bool is_valid_pattern() const { return false; }
     virtual bool only_identifiers() const { return false; }
+
+    void print(Printer&) const override;
+    virtual void print(Printer&, bool) const = 0;
 
     bool is_tuple() const;
 };
@@ -63,20 +68,6 @@ struct Decl : public Node {
     {}
 };
 
-struct TypedExpr : public Expr {
-    Ptr<Expr> expr;
-    const Type* type;
-
-    TypedExpr(const Loc& loc, Ptr<Expr>&& expr, const Type* type)
-        : Expr(loc), expr(std::move(expr)), type(type)
-    {}
-
-    bool only_identifiers() const override { return expr->only_identifiers(); }
-    bool is_valid_pattern() const override { return expr->is_valid_pattern(); }
-
-    void print(Printer&) const override;
-};
-
 struct IdExpr : public Expr {
     std::string id;
 
@@ -87,7 +78,7 @@ struct IdExpr : public Expr {
     bool only_identifiers() const override { return true; }
     bool is_valid_pattern() const override { return true; }
 
-    void print(Printer&) const override;
+    void print(Printer&, bool) const override;
 };
 
 struct LiteralExpr : public Expr {
@@ -99,7 +90,7 @@ struct LiteralExpr : public Expr {
 
     bool is_valid_pattern() const override { return true;  }
 
-    void print(Printer&) const override;
+    void print(Printer&, bool) const override;
 };
 
 struct TupleExpr : public Expr {
@@ -112,7 +103,7 @@ struct TupleExpr : public Expr {
     bool only_identifiers() const override { return if_all([] (auto& e) { return e->only_identifiers(); }); }
     bool is_valid_pattern() const override { return if_all([] (auto& e) { return e->is_valid_pattern(); }); }
 
-    void print(Printer&) const override;
+    void print(Printer&, bool) const override;
 
     template <typename F>
     bool if_all(F f) const {
@@ -140,7 +131,7 @@ struct LambdaExpr : public Expr {
     bool only_identifiers() const override { return false; }
     bool is_valid_pattern() const override { return false; }
 
-    void print(Printer&) const override;
+    void print(Printer&, bool) const override;
 };
 
 struct BlockExpr : public Expr {
@@ -150,7 +141,7 @@ struct BlockExpr : public Expr {
         : Expr(loc), exprs(std::move(exprs))
     {}
 
-    void print(Printer&) const override;
+    void print(Printer&, bool) const override;
 };
 
 struct DeclExpr : public Expr {
@@ -160,7 +151,7 @@ struct DeclExpr : public Expr {
         : Expr(loc), decl(std::move(decl))
     {}
 
-    void print(Printer&) const override;
+    void print(Printer&, bool) const override;
 };
 
 struct CallExpr : public Expr {
@@ -175,7 +166,7 @@ struct CallExpr : public Expr {
         , arg(std::move(arg))
     {}
 
-    void print(Printer&) const override;
+    void print(Printer&, bool) const override;
 };
 
 struct IfExpr : public Expr {
@@ -193,7 +184,7 @@ struct IfExpr : public Expr {
         , if_false(std::move(if_false))
     {}
 
-    void print(Printer&) const override;
+    void print(Printer&, bool) const override;
 };
 
 struct UnaryExpr : public Expr {
@@ -216,7 +207,7 @@ struct UnaryExpr : public Expr {
     bool is_prefix() const { return !is_postfix(); }
     bool is_postfix() const { return tag == POST_INC || tag == POST_DEC; }
 
-    void print(Printer&) const override;
+    void print(Printer&, bool) const override;
 
     static std::string tag_to_string(Tag);
     static Tag tag_from_token(const Token&, bool);
@@ -247,7 +238,7 @@ struct BinaryExpr : public Expr {
         , right(std::move(right))
     {}
 
-    void print(Printer&) const override;
+    void print(Printer&, bool) const override;
 
     bool has_eq() const { return has_eq(tag); }
 
@@ -265,7 +256,7 @@ struct ErrorExpr : public Expr {
         : Expr(loc)
     {}
 
-    void print(Printer&) const override;
+    void print(Printer&, bool) const override;
 };
 
 struct VarDecl : public Decl {
@@ -281,14 +272,17 @@ struct VarDecl : public Decl {
 struct DefDecl : public Decl {
     Ptr<Ptrn> param;
     Ptr<Expr> body;
+    const Type* ret;
 
     DefDecl(const Loc& loc,
         Ptr<Ptrn>&& id,
         Ptr<Ptrn>&& param,
-        Ptr<Expr>&& body)
+        Ptr<Expr>&& body,
+        const Type* ret)
         : Decl(loc, std::move(id))
         , param(std::move(param))
         , body(std::move(body))
+        , ret(ret)
     {}
 
     bool is_function() const { return param != nullptr; }

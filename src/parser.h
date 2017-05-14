@@ -24,7 +24,7 @@ private:
     Ptr<Ptrn>        parse_tuple_ptrn();
 
     Ptr<Expr>        parse_expr();
-    Ptr<TypedExpr>   parse_typed_expr(Ptr<Expr>&&);
+    Ptr<Expr>        parse_typed_expr(Ptr<Expr>&&);
     Ptr<IdExpr>      parse_id_expr();
     Ptr<LiteralExpr> parse_literal_expr();
     Ptr<Expr>        parse_tuple_expr();

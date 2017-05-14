@@ -39,9 +39,16 @@ Ptr<DefDecl> Parser::parse_def_decl() {
             log::error(param->loc, "invalid function parameter");
     }
 
+    const Type* ret = nullptr;
+    if (ahead().tag() == Token::COLON) {
+        eat(Token::COLON);
+        eat_nl();
+        ret = parse_type();
+    }
+
     expect(Token::EQ);
     auto body = parse_expr();
-    return make_ptr<DefDecl>(tracker(), std::move(id), std::move(param), std::move(body));
+    return make_ptr<DefDecl>(tracker(), std::move(id), std::move(param), std::move(body), ret);
 }
 
 Ptr<VarDecl> Parser::parse_var_decl() {
@@ -70,7 +77,7 @@ Ptr<Ptrn> Parser::parse_ptrn() {
 }
 
 Ptr<Ptrn> Parser::parse_id_ptrn() {
-    return make_ptr<Ptrn>(std::move(parse_id_expr()));
+    return make_ptr<Ptrn>(std::move(parse_typed_expr(parse_id_expr())));
 }
 
 Ptr<Ptrn> Parser::parse_tuple_ptrn() {
@@ -82,12 +89,13 @@ Ptr<Expr> Parser::parse_expr() {
     return parse_binary_expr(std::move(expr), BinaryExpr::max_precedence());
 }
 
-Ptr<TypedExpr> Parser::parse_typed_expr(Ptr<Expr>&& expr) {
-    Tracker tracker(this, expr->loc);
-    eat(Token::COLON);
-    eat_nl();
-    auto type = parse_type();
-    return make_ptr<TypedExpr>(tracker(), std::move(expr), type); 
+Ptr<Expr> Parser::parse_typed_expr(Ptr<Expr>&& expr) {
+    if (ahead().tag() == Token::COLON) {
+        eat(Token::COLON);
+        eat_nl();
+        expr->type = parse_type();
+    }
+    return std::move(expr);
 }
 
 Ptr<IdExpr> Parser::parse_id_expr() {
@@ -148,7 +156,7 @@ Ptr<LambdaExpr> Parser::parse_lambda_expr(Ptr<Expr>&& param) {
     Tracker tracker(this, param->loc);
     auto ptrn = make_ptr<Ptrn>(std::move(param));
     if (!ptrn->is_valid() || !ptrn->is_binder())
-        log::error(param->loc, "invalid anonymous function parameter");
+        log::error(ptrn->loc, "invalid anonymous function parameter");
     eat(Token::ARROW);
     auto body = parse_expr();
     return make_ptr<LambdaExpr>(tracker(), std::move(ptrn), std::move(body));
@@ -205,9 +213,7 @@ Ptr<Expr> Parser::parse_primary_expr() {
         expr = std::move(parse_lambda_expr(std::move(expr)));
     if (ahead().tag() == Token::INC || ahead().tag() == Token::DEC)
         expr = std::move(parse_postfix_expr(std::move(expr)));
-    if (ahead().tag() == Token::COLON)
-        expr = std::move(parse_typed_expr(std::move(expr)));
-    return std::move(expr);
+    return parse_typed_expr(std::move(expr));
 }
 
 Ptr<UnaryExpr> Parser::parse_prefix_expr() {

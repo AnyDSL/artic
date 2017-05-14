@@ -29,38 +29,40 @@ void print_parens(Printer& p, const E& e) {
 }
 
 void Ptrn::print(Printer& p) const {
-    expr->print(p);
+    expr->print(p, true);
 }
 
-void TypedExpr::print(Printer& p) const {
-    expr->print(p);
-    p << " : ";
-    type->print(p);
+void Expr::print(Printer& p) const {
+    print(p, false);
 }
 
-void IdExpr::print(Printer& p) const {
+void IdExpr::print(Printer& p, bool print_type) const {
     p << id;
+    if (type && print_type) {
+        p << " : ";
+        type->print(p);
+    }
 }
 
-void LiteralExpr::print(Printer& p) const {
+void LiteralExpr::print(Printer& p, bool) const {
     p << literal_style(lit.box);
 }
 
-void TupleExpr::print(Printer& p) const {
+void TupleExpr::print(Printer& p, bool print_type) const {
     p << '(';
     print_list(p, ", ", args, [&] (auto& a) {
-        a->print(p);
+        a->print(p, print_type);
     });
     p << ')';
 }
 
-void LambdaExpr::print(Printer& p) const {
+void LambdaExpr::print(Printer& p, bool) const {
     param->print(p);
     p << " => ";
     body->print(p);
 }
 
-void BlockExpr::print(Printer& p) const {
+void BlockExpr::print(Printer& p, bool) const {
     p << '{' << p.indent();
     print_list(p, ';', exprs, [&] (auto& e) {
         p << p.endl();
@@ -69,16 +71,16 @@ void BlockExpr::print(Printer& p) const {
     p << p.unindent() << p.endl() << "}";
 }
 
-void DeclExpr::print(Printer& p) const {
+void DeclExpr::print(Printer& p, bool) const {
     decl->print(p);
 }
 
-void CallExpr::print(Printer& p) const {
+void CallExpr::print(Printer& p, bool) const {
     callee->print(p);
     print_parens(p, arg);
 }
 
-void IfExpr::print(Printer& p) const {
+void IfExpr::print(Printer& p, bool) const {
     p << keyword_style("if") << " (";
     cond->print(p);
     p << ") ";
@@ -89,7 +91,7 @@ void IfExpr::print(Printer& p) const {
     }
 }
 
-void UnaryExpr::print(Printer& p) const {
+void UnaryExpr::print(Printer& p, bool) const {
     if (is_postfix()) {
         expr->print(p);
         p << tag_to_string(tag);
@@ -99,23 +101,22 @@ void UnaryExpr::print(Printer& p) const {
     }
 }
 
-void BinaryExpr::print(Printer& p) const {
+void BinaryExpr::print(Printer& p, bool) const {
     auto prec = BinaryExpr::precedence(tag);
     auto print_op = [prec, &p] (auto& e) {
-        if (auto bin = e->isa<BinaryExpr>()) {
-            if (BinaryExpr::precedence(bin->tag) > prec) {
-                print_parens(p, e);
-                return;
-            }
-        }
-        e->print(p);
+        if (e->isa<IfExpr>() ||
+            (e->isa<BinaryExpr>() &&
+             BinaryExpr::precedence(e->as<BinaryExpr>()->tag) > prec))
+            print_parens(p, e);
+        else
+            e->print(p);
     };   
     print_op(left);
     p << " " << tag_to_string(tag) << " ";
     print_op(right);
 }
 
-void ErrorExpr::print(Printer& p) const {
+void ErrorExpr::print(Printer& p, bool) const {
     p << error_style("<error>");
 }
 
@@ -132,6 +133,10 @@ void DefDecl::print(Printer& p) const {
     p << keyword_style("def") << " ";
     ptrn->print(p);
     if (param) print_parens(p, param);
+    if (ret) {
+        p << " : ";
+        ret->print(p);
+    }
     p << " = ";
     body->print(p);
 }
