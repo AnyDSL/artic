@@ -132,7 +132,7 @@ void error(const Loc& loc, const char* fmt, Args... args) {
 
 template <typename... Args>
 void warn(const Loc& loc, const char* fmt, Args... args) {
-    warn<false>("{} in {}:",
+    warn<false>("{} in {}: ",
          style("warning", Style::YELLOW, Style::BOLD),
          style(loc,       Style::WHITE,  Style::BOLD));
     warn(fmt, args...);
@@ -140,7 +140,7 @@ void warn(const Loc& loc, const char* fmt, Args... args) {
 
 template <typename... Args>
 void info(const Loc& loc, const char* fmt, Args... args) {
-    info<false>("{} in {}:",
+    info<false>("{} in {}: ",
          style("info", Style::CYAN,  Style::BOLD),
          style(loc,    Style::WHITE, Style::BOLD));
     info(fmt, args...);

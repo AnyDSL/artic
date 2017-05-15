@@ -7,11 +7,14 @@
 
 #include "loc.h"
 #include "cast.h"
-#include "print.h"
 #include "token.h"
 #include "type.h"
 
 namespace artic {
+
+class NameBinder;
+class TypeChecker;
+class Printer;
 
 template <typename T> using Ptr = std::unique_ptr<T>;
 template <typename T> using PtrVector = std::vector<std::unique_ptr<T>>;
@@ -25,6 +28,8 @@ struct Node : public Cast<Node> {
     Node(const Loc& loc) : loc(loc) {}
     virtual ~Node() {}
 
+    virtual void bind_names(NameBinder&) const = 0;
+    virtual void type_check(TypeChecker&) const = 0;
     virtual void print(Printer&) const = 0;
     void dump() const {
         Printer p(std::cout);
@@ -40,8 +45,10 @@ struct Expr : public Node {
     virtual bool is_valid_pattern() const { return false; }
     virtual bool only_identifiers() const { return false; }
 
+    void bind_names(NameBinder&) const override;
     void print(Printer&) const override;
     virtual void print(Printer&, bool) const = 0;
+    virtual void bind_names(NameBinder&, bool) const = 0;
 
     bool is_tuple() const;
 };
@@ -57,6 +64,8 @@ struct Ptrn : public Node {
     bool is_binder() const { return expr->only_identifiers(); }
     bool is_tuple()  const { return expr->is_tuple(); }
 
+    void bind_names(NameBinder&) const override;
+    void type_check(TypeChecker&) const override;
     void print(Printer&) const override;
 };
 
@@ -70,14 +79,17 @@ struct Decl : public Node {
 
 struct IdExpr : public Expr {
     std::string id;
+    mutable const Expr* decl;
 
     IdExpr(const Loc& loc, const std::string& id)
-        : Expr(loc), id(id)
+        : Expr(loc), id(id), decl(nullptr)
     {}
 
     bool only_identifiers() const override { return true; }
     bool is_valid_pattern() const override { return true; }
 
+    void bind_names(NameBinder&, bool) const override;
+    void type_check(TypeChecker&) const override;
     void print(Printer&, bool) const override;
 };
 
@@ -90,6 +102,8 @@ struct LiteralExpr : public Expr {
 
     bool is_valid_pattern() const override { return true;  }
 
+    void bind_names(NameBinder&, bool) const override;
+    void type_check(TypeChecker&) const override;
     void print(Printer&, bool) const override;
 };
 
@@ -103,6 +117,8 @@ struct TupleExpr : public Expr {
     bool only_identifiers() const override { return if_all([] (auto& e) { return e->only_identifiers(); }); }
     bool is_valid_pattern() const override { return if_all([] (auto& e) { return e->is_valid_pattern(); }); }
 
+    void bind_names(NameBinder&, bool) const override;
+    void type_check(TypeChecker&) const override;
     void print(Printer&, bool) const override;
 
     template <typename F>
@@ -131,6 +147,8 @@ struct LambdaExpr : public Expr {
     bool only_identifiers() const override { return false; }
     bool is_valid_pattern() const override { return false; }
 
+    void bind_names(NameBinder&, bool) const override;
+    void type_check(TypeChecker&) const override;
     void print(Printer&, bool) const override;
 };
 
@@ -141,6 +159,8 @@ struct BlockExpr : public Expr {
         : Expr(loc), exprs(std::move(exprs))
     {}
 
+    void bind_names(NameBinder&, bool) const override;
+    void type_check(TypeChecker&) const override;
     void print(Printer&, bool) const override;
 };
 
@@ -151,6 +171,8 @@ struct DeclExpr : public Expr {
         : Expr(loc), decl(std::move(decl))
     {}
 
+    void bind_names(NameBinder&, bool) const override;
+    void type_check(TypeChecker&) const override;
     void print(Printer&, bool) const override;
 };
 
@@ -166,6 +188,8 @@ struct CallExpr : public Expr {
         , arg(std::move(arg))
     {}
 
+    void bind_names(NameBinder&, bool) const override;
+    void type_check(TypeChecker&) const override;
     void print(Printer&, bool) const override;
 };
 
@@ -184,6 +208,8 @@ struct IfExpr : public Expr {
         , if_false(std::move(if_false))
     {}
 
+    void bind_names(NameBinder&, bool) const override;
+    void type_check(TypeChecker&) const override;
     void print(Printer&, bool) const override;
 };
 
@@ -207,6 +233,8 @@ struct UnaryExpr : public Expr {
     bool is_prefix() const { return !is_postfix(); }
     bool is_postfix() const { return tag == POST_INC || tag == POST_DEC; }
 
+    void bind_names(NameBinder&, bool) const override;
+    void type_check(TypeChecker&) const override;
     void print(Printer&, bool) const override;
 
     static std::string tag_to_string(Tag);
@@ -238,6 +266,8 @@ struct BinaryExpr : public Expr {
         , right(std::move(right))
     {}
 
+    void bind_names(NameBinder&, bool) const override;
+    void type_check(TypeChecker&) const override;
     void print(Printer&, bool) const override;
 
     bool has_eq() const { return has_eq(tag); }
@@ -256,6 +286,8 @@ struct ErrorExpr : public Expr {
         : Expr(loc)
     {}
 
+    void bind_names(NameBinder&, bool) const override;
+    void type_check(TypeChecker&) const override;
     void print(Printer&, bool) const override;
 };
 
@@ -266,6 +298,8 @@ struct VarDecl : public Decl {
         : Decl(loc, std::move(id)), init(std::move(init))
     {}
 
+    void bind_names(NameBinder&) const override;
+    void type_check(TypeChecker&) const override;
     void print(Printer&) const override;
 };
 
@@ -287,6 +321,8 @@ struct DefDecl : public Decl {
 
     bool is_function() const { return param != nullptr; }
 
+    void bind_names(NameBinder&) const override;
+    void type_check(TypeChecker&) const override;
     void print(Printer&) const override;
 };
 
@@ -295,6 +331,8 @@ struct ErrorDecl : public Decl {
         : Decl(loc, nullptr)
     {}
 
+    void bind_names(NameBinder&) const override;
+    void type_check(TypeChecker&) const override;
     void print(Printer&) const override;
 };
 
@@ -305,6 +343,8 @@ struct Program : public Node {
         : Node(loc), decls(std::move(decls))
     {}
 
+    void bind_names(NameBinder&) const override;
+    void type_check(TypeChecker&) const override;
     void print(Printer&) const override;
 };
 

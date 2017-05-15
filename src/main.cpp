@@ -8,6 +8,7 @@
 #include "parser.h"
 #include "log.h"
 #include "print.h"
+#include "bind_names.h"
 
 using namespace artic;
 
@@ -56,6 +57,8 @@ int main(int argc, char** argv) {
         TypeTable type_table;
         Parser parser(lexer, type_table);
         auto program = parser.parse_program();
+        NameBinder name_binder;
+        program->bind_names(name_binder);
         program->dump();
     }
 

@@ -2,6 +2,8 @@ add_executable(artic
     main.cpp
     ast.h
     ast.cpp
+    bind_names.cpp
+    bind_names.h
     box.h
     cast.h
     lexer.cpp
@@ -13,7 +15,9 @@ add_executable(artic
     print.h
     token.h
     type.cpp
-    type.h)
+    type.h
+    type_check.cpp
+    type_check.h)
 
 if (${COLORIZE_OUTPUT})
     target_compile_definitions(artic PUBLIC -DCOLORIZE)
