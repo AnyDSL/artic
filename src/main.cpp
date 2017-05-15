@@ -8,7 +8,9 @@
 #include "parser.h"
 #include "log.h"
 #include "print.h"
+
 #include "bind_names.h"
+#include "type_check.h"
 
 using namespace artic;
 
@@ -59,6 +61,8 @@ int main(int argc, char** argv) {
         auto program = parser.parse_program();
         NameBinder name_binder;
         program->bind_names(name_binder);
+        TypeChecker type_checker(type_table);
+        program->type_check(type_checker);
         program->dump();
     }
 
