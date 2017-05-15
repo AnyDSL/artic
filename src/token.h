@@ -52,19 +52,17 @@ namespace artic {
     f(CMP_LT, "<") \
     f(CMP_GT, ">") \
     f(CMP_EQ, "==") \
-    f(BOOL, "bool") \
-    f(TRUE, "true") \
-    f(FALSE, "false") \
-    f(INT8, "int8") \
-    f(INT16, "int16") \
-    f(INT32, "int32") \
-    f(INT64, "int64") \
-    f(UINT8, "uint8") \
-    f(UINT16, "uint16") \
-    f(UINT32, "uint32") \
-    f(UINT64, "uint64") \
-    f(FLOAT32, "float32") \
-    f(FLOAT64, "float64") \
+    f(BOOL, "Bool") \
+    f(INT8,  "Int8") \
+    f(INT16, "Int16") \
+    f(INT32, "Int32") \
+    f(INT64, "Int64") \
+    f(WORD8,  "Word8") \
+    f(WORD16, "Word16") \
+    f(WORD32, "Word32") \
+    f(WORD64, "Word64") \
+    f(FLOAT32, "Float32") \
+    f(FLOAT64, "Float64") \
     f(END, "<eof>")
 
 struct Literal {
@@ -72,13 +70,16 @@ struct Literal {
 
     bool is_double()  const { return box.tag == Box::F64; }
     bool is_integer() const { return box.tag == Box::U64; }
+    bool is_bool()    const { return box.tag == Box::I1; }
 
     double as_double()    const { return box.f64; }
     uint64_t as_integer() const { return box.u64; }
+    bool as_bool()        const { return box.i1; }
 
     Literal() {}
     Literal(uint64_t i) : box(i) {}
     Literal(double d)   : box(d) {}
+    Literal(bool b)     : box(b) {}
 };
 
 struct Token {

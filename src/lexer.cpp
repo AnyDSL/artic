@@ -13,26 +13,26 @@ std::unordered_map<std::string, Token::Tag> Lexer::keywords{
     std::make_pair("if",   Token::IF),
     std::make_pair("else", Token::ELSE),
 
-    std::make_pair("bool",  Token::BOOL),
-    std::make_pair("true",  Token::TRUE),
-    std::make_pair("false", Token::FALSE),
+    std::make_pair("Bool",  Token::BOOL),
 
-    std::make_pair("int8",  Token::INT8),
-    std::make_pair("int16", Token::INT16),
-    std::make_pair("int32", Token::INT32),
-    std::make_pair("int64", Token::INT64),
+    std::make_pair("Int8",  Token::INT8),
+    std::make_pair("Int16", Token::INT16),
+    std::make_pair("Int32", Token::INT32),
+    std::make_pair("Int64", Token::INT64),
 
-    std::make_pair("uint8",  Token::UINT8),
-    std::make_pair("uint16", Token::UINT16),
-    std::make_pair("uint32", Token::UINT32),
-    std::make_pair("uint64", Token::UINT64),
+    std::make_pair("Word8",  Token::WORD8),
+    std::make_pair("Word6",  Token::WORD16),
+    std::make_pair("Word32", Token::WORD32),
+    std::make_pair("Word64", Token::WORD64),
 
-    std::make_pair("float32", Token::FLOAT32),
-    std::make_pair("float64", Token::FLOAT64),
+    std::make_pair("Float32", Token::FLOAT32),
+    std::make_pair("Float64", Token::FLOAT64),
 
-    std::make_pair("float", Token::FLOAT32),
-    std::make_pair("uint",  Token::UINT32),
-    std::make_pair("int",   Token::INT32)
+    // Aliases
+    std::make_pair("Float",  Token::FLOAT32),
+    std::make_pair("Double", Token::FLOAT64),
+    std::make_pair("Word",   Token::WORD32),
+    std::make_pair("Int",    Token::INT32)
 };
 
 bool Lexer::Utf8Buffer::fill(std::istream& is) {
@@ -170,6 +170,10 @@ Token Lexer::next() {
         if (std::isalpha(peek()) || peek() == '_') {
             eat();
             while (std::isalnum(peek()) || peek() == '_') eat();
+
+            if (current_ == "true")  return Token(loc_, current_, true);
+            if (current_ == "false") return Token(loc_, current_, false);
+
             auto key_it = keywords.find(current_);
             if (key_it == keywords.end()) return Token(loc_, current_);
             return Token(loc_, key_it->second);

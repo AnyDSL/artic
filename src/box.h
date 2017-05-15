@@ -105,12 +105,15 @@ inline Box operator | (const Box& a, const Box& b) { return zip<BoxOps::Or >(a, 
 inline Box operator ^ (const Box& a, const Box& b) { return zip<BoxOps::Xor>(a, b); }
 
 inline std::ostream& operator << (std::ostream& os, const Box& box) {
+    if (box.tag == Box::I1) return os << (box.i1 ? "true" : "false");
+
     switch (box.tag) {
 #define TAG(t, n, ty) case Box::t: { os << box.n; } break;
         PRIM_TAGS(TAG)
 #undef TAG
         default: assert(false && "unknown box tag");
     }
+    return os;
 }
 
 } // namespace artic

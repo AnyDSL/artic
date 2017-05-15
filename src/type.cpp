@@ -8,17 +8,17 @@ bool Type::is_tuple() const {
 
 std::string PrimType::tag_to_string(Tag tag) {
     switch (tag) {
-        case I1:  return "bool";
-        case I8:  return "int8";
-        case I16: return "int16";
-        case I32: return "int32";
-        case I64: return "int64";
-        case U8:  return "uint8";
-        case U16: return "uint16";
-        case U32: return "uint32";
-        case U64: return "uint64";
-        case F32: return "float32";
-        case F64: return "float64";
+        case I1:  return "Bool";
+        case I8:  return "Int8";
+        case I16: return "Int16";
+        case I32: return "Int32";
+        case I64: return "Int64";
+        case U8:  return "Word8";
+        case U16: return "Word16";
+        case U32: return "Word32";
+        case U64: return "Word64";
+        case F32: return "Float32";
+        case F64: return "Float64";
         default:
             assert(false);
             return "";
@@ -34,10 +34,10 @@ PrimType::Tag PrimType::tag_from_token(const Token& token) {
         case Token::INT32: return I32;
         case Token::INT64: return I64;
 
-        case Token::UINT8:  return U8;
-        case Token::UINT16: return U16;
-        case Token::UINT32: return U32;
-        case Token::UINT64: return U64;
+        case Token::WORD8:  return U8;
+        case Token::WORD16: return U16;
+        case Token::WORD32: return U32;
+        case Token::WORD64: return U64;
 
         case Token::FLOAT32: return F32;
         case Token::FLOAT64: return F64;
