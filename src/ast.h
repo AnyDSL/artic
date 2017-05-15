@@ -12,9 +12,9 @@
 
 namespace artic {
 
+class Printer;
 class NameBinder;
 class TypeChecker;
-class Printer;
 
 template <typename T> using Ptr = std::unique_ptr<T>;
 template <typename T> using PtrVector = std::vector<std::unique_ptr<T>>;
@@ -31,10 +31,8 @@ struct Node : public Cast<Node> {
     virtual void bind_names(NameBinder&) const = 0;
     virtual void type_check(TypeChecker&) const = 0;
     virtual void print(Printer&) const = 0;
-    void dump() const {
-        Printer p(std::cout);
-        print(p);
-    }
+
+    void dump() const;
 };
 
 struct Expr : public Node {

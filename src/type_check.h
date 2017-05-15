@@ -12,7 +12,7 @@ public:
     {}
 
 private:
-    TypeTable type_table_;
+    TypeTable& type_table_;
 };
 
 } // namespace artic

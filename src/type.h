@@ -7,10 +7,11 @@
 #include "cast.h"
 #include "hash.h"
 #include "box.h"
-#include "print.h"
 #include "token.h"
 
 namespace artic {
+
+class Printer;
 
 struct Type : public Cast<Type> {
     virtual ~Type() {}
@@ -20,6 +21,8 @@ struct Type : public Cast<Type> {
     virtual uint32_t hash() const = 0;
     virtual bool equals(const Type*) const = 0;
     virtual void print(Printer&) const = 0;
+
+    void dump() const;
 };
 
 struct PrimType : public Type {
@@ -83,6 +86,9 @@ struct ErrorType : public Type {
 
 class TypeTable {
 public:
+    TypeTable() {}
+    TypeTable(const TypeTable&) = delete;
+
     ~TypeTable() {
         for (auto& t : types_) delete t;
     }

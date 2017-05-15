@@ -57,7 +57,11 @@ void TupleExpr::print(Printer& p, bool print_type) const {
 }
 
 void LambdaExpr::print(Printer& p, bool) const {
-    param->print(p);
+    if (!param->expr->type && param->expr->isa<IdExpr>())
+        param->print(p);
+    else
+        print_parens(p, param);
+
     p << " => ";
     body->print(p);
 }
@@ -178,6 +182,16 @@ void FunctionType::print(Printer& p) const {
 
 void ErrorType::print(Printer& p) const {
     p << error_style("<error>");
+}
+
+void Node::dump() const {
+    Printer p(std::cout);
+    print(p);
+}
+
+void Type::dump() const {
+    Printer p(std::cout);
+    print(p);
 }
 
 } // namespace artic
