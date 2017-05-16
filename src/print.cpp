@@ -136,13 +136,13 @@ void VarDecl::print(Printer& p) const {
 void DefDecl::print(Printer& p) const {
     p << keyword_style("def") << " ";
     id->print(p);
-    if (param) print_parens(p, param);
+    if (lambda->param) print_parens(p, lambda->param);
     if (ret_type) {
         p << " : ";
         ret_type->print(p);
     }
     p << " = ";
-    body->print(p);
+    lambda->body->print(p);
 }
 
 void ErrorDecl::print(Printer& p) const {

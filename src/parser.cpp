@@ -49,7 +49,9 @@ Ptr<DefDecl> Parser::parse_def_decl() {
 
     expect(Token::EQ);
     auto body = parse_expr();
-    return make_ptr<DefDecl>(tracker(), std::move(id), std::move(param), std::move(body), ret);
+    auto lambda = make_ptr<LambdaExpr>(tracker(), std::move(param), std::move(body));
+
+    return make_ptr<DefDecl>(tracker(), std::move(id), std::move(lambda), ret);
 }
 
 Ptr<VarDecl> Parser::parse_var_decl() {

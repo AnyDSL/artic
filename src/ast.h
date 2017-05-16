@@ -160,6 +160,8 @@ struct LambdaExpr : public Expr {
     bool only_identifiers() const override { return false; }
     bool is_valid_pattern() const override { return false; }
 
+    using Expr::bind_names;
+
     void bind_names(NameBinder&, bool) override;
     void type_check(TypeChecker&) const override;
     void print(Printer&, bool) const override;
@@ -319,23 +321,20 @@ struct VarDecl : public Decl {
 
 struct DefDecl : public Decl {
     Ptr<Ptrn> id;
-    Ptr<Ptrn> param;
-    Ptr<Expr> body;
+    Ptr<LambdaExpr> lambda;
     const Type* ret_type;
 
     DefDecl(const Loc& loc,
         Ptr<Ptrn>&& id,
-        Ptr<Ptrn>&& param,
-        Ptr<Expr>&& body,
+        Ptr<LambdaExpr>&& lambda,
         const Type* ret_type)
         : Decl(loc)
         , id(link(std::move(id)))
-        , param(link(std::move(param)))
-        , body(link(std::move(body)))
+        , lambda(link(std::move(lambda)))
         , ret_type(ret_type)
     {}
 
-    bool is_function() const { return param != nullptr; }
+    bool is_function() const { return lambda->param != nullptr; }
     std::string name() const { return id->expr->as<IdExpr>()->id; }
 
     void bind_names(NameBinder&) override;

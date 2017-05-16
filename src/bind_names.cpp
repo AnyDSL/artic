@@ -35,7 +35,7 @@ void TupleExpr::bind_names(NameBinder& b, bool pattern) {
 
 void LambdaExpr::bind_names(NameBinder& b, bool) {
     b.push_scope();
-    param->bind_names(b);
+    if (param) param->bind_names(b);
     b.push_scope();
     body->bind_names(b);
     b.pop_scope();
@@ -83,12 +83,7 @@ void VarDecl::bind_names(NameBinder& b) {
 
 void DefDecl::bind_names(NameBinder& b) {
     id->bind_names(b);
-    b.push_scope();
-    if (param) param->bind_names(b);
-    b.push_scope();
-    body->bind_names(b);
-    b.pop_scope();
-    b.pop_scope();
+    lambda->bind_names(b);
 }
 
 void ErrorDecl::bind_names(NameBinder& b) {}
