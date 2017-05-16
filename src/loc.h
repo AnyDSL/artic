@@ -7,6 +7,7 @@
 
 namespace artic {
 
+/// Source file location.
 struct Loc {
     std::shared_ptr<std::string> file;
     int begin_row, begin_col;

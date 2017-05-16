@@ -13,6 +13,7 @@ namespace artic {
 
 class Printer;
 
+/// Base class for all types.
 struct Type : public Cast<Type> {
     virtual ~Type() {}
 
@@ -37,6 +38,7 @@ struct Type : public Cast<Type> {
     };
 };
 
+/// A type constraint, for overloading.
 struct Constraint {
     std::string id;
     const Type* type;
@@ -70,6 +72,7 @@ typedef std::vector<const Type*> TypeVector;
 typedef std::unordered_set<const Type*, Type::Hash, Type::Cmp> TypeSet;
 typedef std::unordered_set<Constraint, Constraint::Hash, Constraint::Cmp> ConstraintSet;
 
+/// Primitive type (integers)
 struct PrimType : public Type {
     enum Tag {
 #define TAG(t, n, ty) t = Box::t,
@@ -92,6 +95,7 @@ struct PrimType : public Type {
     static Tag tag_from_token(const Token&);
 };
 
+/// Type of a tuple, made of the product of the types of its elements.
 struct TupleType : public Type {
     TypeVector args;
 
@@ -104,6 +108,7 @@ struct TupleType : public Type {
     void print(Printer&) const override;
 };
 
+/// Function type with domain and codomain types (multi-argument functions use tuple types for the domain).
 struct FunctionType : public Type {
     const Type* from;
     const Type* to;
@@ -117,6 +122,7 @@ struct FunctionType : public Type {
     void print(Printer&) const override;
 };
 
+/// Polymorphic type with possibly several variables and a set of constraints.
 struct PolyType : public Type {
     int vars;
     ConstraintSet constraints;
@@ -131,6 +137,7 @@ struct PolyType : public Type {
     void print(Printer&) const override;
 };
 
+/// Type variable, identifiable by its (integer) index.
 struct TypeVar : public Type {
     int index;
 
@@ -143,6 +150,7 @@ struct TypeVar : public Type {
     void print(Printer&) const override;
 };
 
+/// Unknown type in a set of type equations.
 struct UnknownType : public Type {
     int number;
 
@@ -155,6 +163,7 @@ struct UnknownType : public Type {
     void print(Printer&) const override;
 };
 
+/// Incorrect type, generated during parsing or typechecking.
 struct ErrorType : public Type {
     const Loc& loc;
     const Type* a;
@@ -169,6 +178,7 @@ struct ErrorType : public Type {
     void print(Printer&) const override;
 };
 
+/// Type table: Keeps all types hashed. Comparison of types can hence be done with pointer equality.
 class TypeTable {
 public:
     TypeTable() : unknowns_(0) {}

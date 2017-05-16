@@ -9,6 +9,7 @@
 
 namespace artic {
 
+/// Generates a stream of tokens for the Parser.
 class Lexer {
 public:
     Lexer(const std::string& filename, std::istream& is);

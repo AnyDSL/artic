@@ -8,6 +8,7 @@ namespace artic {
 
 class Node;
 
+/// Declaration site of a symbol.
 struct Symbol {
     Symbol(Node* node) : nodes{ node } {}
     Symbol(std::vector<Node*>&& nodes) : nodes(std::move(nodes)) {}
@@ -16,6 +17,7 @@ struct Symbol {
     std::vector<Node*> nodes;
 };
 
+/// Table containing a map from symbol name to declaration site.
 struct SymbolTable {
     std::unordered_map<std::string, std::shared_ptr<Symbol>> symbols;
 

@@ -7,6 +7,7 @@
 
 namespace artic {
 
+/// Utility class to perform type checking.
 class TypeChecker {
 public:
     TypeChecker(TypeTable& type_table)

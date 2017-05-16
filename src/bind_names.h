@@ -10,6 +10,7 @@ namespace artic {
 
 class Expr;
 
+/// Binds identifiers to the nodes of the AST.
 class NameBinder {
 public:
     NameBinder() { push_scope(); }

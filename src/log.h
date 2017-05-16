@@ -122,6 +122,7 @@ void info(const char* fmt, Args... args) {
     format<new_line>(std::cout, fmt, args...);
 }
 
+/// Report an error at the given location in a source file.
 template <typename... Args>
 void error(const Loc& loc, const char* fmt, Args... args) {
     error<false>("{} in {}: ",
@@ -130,6 +131,7 @@ void error(const Loc& loc, const char* fmt, Args... args) {
     error(fmt, args...);
 }
 
+/// Report a warning at the given location in a source file.
 template <typename... Args>
 void warn(const Loc& loc, const char* fmt, Args... args) {
     warn<false>("{} in {}: ",
@@ -138,6 +140,7 @@ void warn(const Loc& loc, const char* fmt, Args... args) {
     warn(fmt, args...);
 }
 
+/// Display a note corresponding to a specific location in a source file.
 template <typename... Args>
 void info(const Loc& loc, const char* fmt, Args... args) {
     info<false>("{} in {}: ",

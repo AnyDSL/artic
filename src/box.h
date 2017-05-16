@@ -20,6 +20,7 @@ namespace artic {
     f(F32, f32, float) \
     f(F64, f64, double)
 
+/// Container for all primitive values.
 struct Box {
     enum Tag {
 #define TAG(t, n, ty) t,

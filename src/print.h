@@ -8,6 +8,7 @@
 
 namespace artic {
 
+/// Utility class to print AST nodes in a human readable form.
 struct Printer {
     struct Endl {};
     struct Indent {};

@@ -7,6 +7,7 @@
 
 namespace artic {
 
+/// Generates an AST from a stream of tokens.
 class Parser {
 public:
     Parser(Lexer&, TypeTable&);

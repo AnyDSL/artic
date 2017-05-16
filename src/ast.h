@@ -26,6 +26,7 @@ std::unique_ptr<T> make_ptr(Args... args) {
     return std::make_unique<T>(std::forward<Args>(args)...);
 }
 
+/// Base class for all AST nodes.
 struct Node : public Cast<Node> {
     Loc loc;
     Node* parent;
@@ -33,12 +34,17 @@ struct Node : public Cast<Node> {
     Node(const Loc& loc) : loc(loc), parent(nullptr) {}
     virtual ~Node() {}
 
+    /// Binds identifiers to AST nodes.
     virtual void bind_names(NameBinder&) = 0;
+    /// Checks and infers the types of the node.
     virtual void type_check(TypeChecker&) const = 0;
+    /// Prints the node with the given formatting parameters.
     virtual void print(Printer&) const = 0;
 
+    /// Prints the node on the console, for debugging.
     void dump() const;
 
+    /// Links the parent pointer of a child node to this node.
     template <typename T>
     Ptr<T>&& link(Ptr<T>&& node) {
         if (node) node->parent = this;
@@ -53,6 +59,7 @@ struct Node : public Cast<Node> {
     }
 };
 
+/// Base class for expressions.
 struct Expr : public Node {
     const Type* type;
 
@@ -70,6 +77,12 @@ struct Expr : public Node {
     bool is_tuple() const;
 };
 
+/// Base class for all declarations.
+struct Decl : public Node {
+    Decl(const Loc& loc) : Node(loc) {}
+};
+
+/// Pattern: An expression which does not need evaluation.
 struct Ptrn : public Node {
     Ptr<Expr> expr;
 
@@ -86,10 +99,7 @@ struct Ptrn : public Node {
     void print(Printer&) const override;
 };
 
-struct Decl : public Node {
-    Decl(const Loc& loc) : Node(loc) {}
-};
-
+/// Expression made of an identifier.
 struct IdExpr : public Expr {
     std::string id;
     std::shared_ptr<Symbol> symbol;
@@ -106,6 +116,7 @@ struct IdExpr : public Expr {
     void print(Printer&, bool) const override;
 };
 
+/// Expression made of a literal.
 struct LiteralExpr : public Expr {
     Literal lit;
 
@@ -120,6 +131,7 @@ struct LiteralExpr : public Expr {
     void print(Printer&, bool) const override;
 };
 
+/// Expression enclosed by parenthesis and made of several expressions separated by commas.
 struct TupleExpr : public Expr {
     PtrVector<Expr> args;
 
@@ -145,6 +157,7 @@ struct TupleExpr : public Expr {
     }
 };
 
+/// Anonymous function expression.
 struct LambdaExpr : public Expr {
     Ptr<Ptrn> param;
     Ptr<Expr> body;
@@ -167,6 +180,7 @@ struct LambdaExpr : public Expr {
     void print(Printer&, bool) const override;
 };
 
+/// Block of code, whose result is the last expression in the block.
 struct BlockExpr : public Expr {
     PtrVector<Expr> exprs;
 
@@ -179,6 +193,7 @@ struct BlockExpr : public Expr {
     void print(Printer&, bool) const override;
 };
 
+/// Expression containing a declaration.
 struct DeclExpr : public Expr {
     Ptr<Decl> decl;
 
@@ -191,6 +206,7 @@ struct DeclExpr : public Expr {
     void print(Printer&, bool) const override;
 };
 
+/// Function call with a single expression (can be a tuple) for the arguments.
 struct CallExpr : public Expr {
     Ptr<Expr> callee;
     Ptr<Expr> arg;
@@ -208,6 +224,7 @@ struct CallExpr : public Expr {
     void print(Printer&, bool) const override;
 };
 
+/// If/Else expression (the else branch is optional).
 struct IfExpr : public Expr {
     Ptr<Expr> cond;
     Ptr<Expr> if_true;
@@ -228,6 +245,7 @@ struct IfExpr : public Expr {
     void print(Printer&, bool) const override;
 };
 
+/// Unary expression (negation, increment, ...).
 struct UnaryExpr : public Expr {
     enum Tag {
         PLUS,
@@ -256,6 +274,7 @@ struct UnaryExpr : public Expr {
     static Tag tag_from_token(const Token&, bool);
 };
 
+/// Binary expression (addition, logical operations, ...).
 struct BinaryExpr : public Expr {
     enum Tag {
         EQ, ADD_EQ, SUB_EQ, MUL_EQ, DIV_EQ, MOD_EQ,
@@ -296,6 +315,7 @@ struct BinaryExpr : public Expr {
     static Tag tag_from_token(const Token&);
 };
 
+/// Incorrect expression, as a result of parsing. 
 struct ErrorExpr : public Expr {
     ErrorExpr(const Loc& loc)
         : Expr(loc)
@@ -306,6 +326,7 @@ struct ErrorExpr : public Expr {
     void print(Printer&, bool) const override;
 };
 
+/// Variable declaration (can declare several variables at a time with a pattern).
 struct VarDecl : public Decl {
     Ptr<Ptrn> id;
     Ptr<Expr> init;
@@ -319,6 +340,7 @@ struct VarDecl : public Decl {
     void print(Printer&) const override;
 };
 
+/// Function/constant definition.
 struct DefDecl : public Decl {
     Ptr<Ptrn> id;
     Ptr<LambdaExpr> lambda;
@@ -342,6 +364,7 @@ struct DefDecl : public Decl {
     void print(Printer&) const override;
 };
 
+/// Incorrect declaration, coming from parsing.
 struct ErrorDecl : public Decl {
     ErrorDecl(const Loc& loc) : Decl(loc) {}
 
@@ -350,6 +373,7 @@ struct ErrorDecl : public Decl {
     void print(Printer&) const override;
 };
 
+/// Complete program.
 struct Program : public Node {
     PtrVector<Decl> decls;
 

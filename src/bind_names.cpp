@@ -15,6 +15,7 @@ void Expr::bind_names(NameBinder& b) {
 void IdExpr::bind_names(NameBinder& b, bool pattern) {
     if (pattern) {
         if (!b.insert_symbol(id, this) && !b.top_scope()) {
+            // Overloading is authorized at the top level
             log::error(loc, "identifier '{}' already declared", id);
             for (auto node : b.find_symbol(id)->nodes)
                 log::info(node->loc, "previously declared here");
