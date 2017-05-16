@@ -14,7 +14,7 @@ void Expr::bind_names(NameBinder& b) {
 
 void IdExpr::bind_names(NameBinder& b, bool pattern) {
     if (pattern) {
-        if (!b.insert_local(id, this)) {
+        if (!b.insert_symbol(id, this) && !b.top_scope()) {
             log::error(loc, "identifier '{}' already declared", id);
             for (auto node : b.find_symbol(id)->nodes)
                 log::info(node->loc, "previously declared here");
@@ -82,8 +82,7 @@ void VarDecl::bind_names(NameBinder& b) {
 }
 
 void DefDecl::bind_names(NameBinder& b) {
-    // If we are at the top-most scope, this identifier has already been registered
-    if (!b.top_scope()) id->bind_names(b);
+    id->bind_names(b);
     b.push_scope();
     if (param) param->bind_names(b);
     b.push_scope();
@@ -95,13 +94,6 @@ void DefDecl::bind_names(NameBinder& b) {
 void ErrorDecl::bind_names(NameBinder& b) {}
 
 void Program::bind_names(NameBinder& b) {
-    // First, fill globals
-    for (auto& decl : decls) {
-        if (auto def = decl->isa<DefDecl>()) {
-            b.insert_global(def->name(), def);
-        }
-    }
-    // Then, process the program again to bind non-overloaded symbols
     for (auto& decl : decls) decl->bind_names(b);
 }
 

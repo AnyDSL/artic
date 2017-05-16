@@ -12,35 +12,27 @@ class Expr;
 
 class NameBinder {
 public:
-    bool top_scope() const { return scopes_.empty(); }
+    NameBinder() { push_scope(); }
+    ~NameBinder() { pop_scope(); }
+
+    bool top_scope() const { return scopes_.size() == 1; }
 
     void push_scope() { scopes_.emplace_back(); }
     void pop_scope()  { scopes_.pop_back();  }
 
-    void insert_global(const std::string& name, Node* node) {
-        if (auto symbol = global_.find(name)) {
-            symbol->nodes.emplace_back(node);
-        } else {
-            global_.insert(name, Symbol(node));
-        }
-    }
-
-    bool insert_local(const std::string& name, Node* node) {
-        return scopes_.empty()
-            ? global_.insert(name, Symbol(node))
-            : scopes_.back().insert(name, Symbol(node));
+    bool insert_symbol(const std::string& name, Node* node) {
+        return scopes_.back().insert(name, Symbol(node));
     }
 
     std::shared_ptr<Symbol> find_symbol(const std::string& name) {
         for (auto it = scopes_.rbegin(); it != scopes_.rend(); it++) {
             if (auto decl = it->find(name)) return decl;
         }
-        return global_.find(name);
+        return nullptr;
     }
 
 private:
     std::vector<SymbolTable> scopes_;
-    SymbolTable global_;
 };
 
 } // namespace artic
