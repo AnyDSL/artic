@@ -28,7 +28,7 @@ std::unique_ptr<T> make_ptr(Args... args) {
 
 struct Node : public Cast<Node> {
     Loc loc;
-    const Node* parent;
+    Node* parent;
 
     Node(const Loc& loc) : loc(loc), parent(nullptr) {}
     virtual ~Node() {}
@@ -40,12 +40,12 @@ struct Node : public Cast<Node> {
     void dump() const;
 
     template <typename T>
-    Ptr<T>&& link(Ptr<T>&& node) const {
+    Ptr<T>&& link(Ptr<T>&& node) {
         if (node) node->parent = this;
         return std::move(node);
     }
     template <typename T>
-    PtrVector<T>&& link(PtrVector<T>&& nodes) const {
+    PtrVector<T>&& link(PtrVector<T>&& nodes) {
         for (auto& n : nodes) {
             if (n) n->parent = this;
         }
