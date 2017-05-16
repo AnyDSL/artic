@@ -3,20 +3,21 @@
 
 #include <string>
 #include <ostream>
+#include <memory>
 
 namespace artic {
 
 struct Loc {
-    const std::string* file;
+    std::shared_ptr<std::string> file;
     int begin_row, begin_col;
     int end_row, end_col;
 
-    Loc() : file(nullptr) {}
-    Loc(const std::string& file, int row, int col)
+    Loc() {}
+    Loc(std::shared_ptr<std::string> file, int row, int col)
         : Loc(file, row, col, row, col)
     {}
-    Loc(const std::string& file, int brow, int bcol, int erow, int ecol)
-        : file(&file)
+    Loc(std::shared_ptr<std::string> file, int brow, int bcol, int erow, int ecol)
+        : file(file)
         , begin_row(brow), end_row(erow)
         , begin_col(bcol), end_col(ecol)
     {}

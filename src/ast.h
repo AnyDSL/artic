@@ -9,8 +9,11 @@
 #include "cast.h"
 #include "token.h"
 #include "type.h"
+#include "symbol.h"
 
 namespace artic {
+
+class Symbol;
 
 class Printer;
 class NameBinder;
@@ -25,14 +28,28 @@ std::unique_ptr<T> make_ptr(Args... args) {
 
 struct Node : public Cast<Node> {
     Loc loc;
-    Node(const Loc& loc) : loc(loc) {}
+    const Node* parent;
+
+    Node(const Loc& loc) : loc(loc), parent(nullptr) {}
     virtual ~Node() {}
 
-    virtual void bind_names(NameBinder&) const = 0;
     virtual void type_check(TypeChecker&) const = 0;
     virtual void print(Printer&) const = 0;
 
     void dump() const;
+
+    template <typename T>
+    Ptr<T>&& link(Ptr<T>&& node) const {
+        if (node) node->parent = this;
+        return std::move(node);
+    }
+    template <typename T>
+    PtrVector<T>&& link(PtrVector<T>&& nodes) const {
+        for (auto& n : nodes) {
+            if (n) n->parent = this;
+        }
+        return std::move(nodes);
+    }
 };
 
 struct Expr : public Node {
@@ -43,10 +60,8 @@ struct Expr : public Node {
     virtual bool is_valid_pattern() const { return false; }
     virtual bool only_identifiers() const { return false; }
 
-    void bind_names(NameBinder&) const override;
     void print(Printer&) const override;
     virtual void print(Printer&, bool) const = 0;
-    virtual void bind_names(NameBinder&, bool) const = 0;
 
     bool is_tuple() const;
 };
@@ -55,38 +70,32 @@ struct Ptrn : public Node {
     Ptr<Expr> expr;
 
     Ptrn(Ptr<Expr>&& expr)
-        : Node(expr->loc), expr(std::move(expr))
+        : Node(expr->loc), expr(link(std::move(expr)))
     {}
 
     bool is_valid()  const { return expr->is_valid_pattern(); }
     bool is_binder() const { return expr->only_identifiers(); }
     bool is_tuple()  const { return expr->is_tuple(); }
 
-    void bind_names(NameBinder&) const override;
     void type_check(TypeChecker&) const override;
     void print(Printer&) const override;
 };
 
 struct Decl : public Node {
-    Ptr<Ptrn> ptrn;
-
-    Decl(const Loc& loc, Ptr<Ptrn>&& ptrn)
-        : Node(loc), ptrn(std::move(ptrn))
-    {}
+    Decl(const Loc& loc) : Node(loc) {}
 };
 
 struct IdExpr : public Expr {
     std::string id;
-    mutable const Expr* decl;
+    std::shared_ptr<Symbol> symbol;
 
     IdExpr(const Loc& loc, const std::string& id)
-        : Expr(loc), id(id), decl(nullptr)
+        : Expr(loc), id(id)
     {}
 
     bool only_identifiers() const override { return true; }
     bool is_valid_pattern() const override { return true; }
 
-    void bind_names(NameBinder&, bool) const override;
     void type_check(TypeChecker&) const override;
     void print(Printer&, bool) const override;
 };
@@ -100,7 +109,6 @@ struct LiteralExpr : public Expr {
 
     bool is_valid_pattern() const override { return true;  }
 
-    void bind_names(NameBinder&, bool) const override;
     void type_check(TypeChecker&) const override;
     void print(Printer&, bool) const override;
 };
@@ -109,13 +117,12 @@ struct TupleExpr : public Expr {
     PtrVector<Expr> args;
 
     TupleExpr(const Loc& loc, PtrVector<Expr>&& args)
-        : Expr(loc), args(std::move(args))
+        : Expr(loc), args(link(std::move(args)))
     {}
 
     bool only_identifiers() const override { return if_all([] (auto& e) { return e->only_identifiers(); }); }
     bool is_valid_pattern() const override { return if_all([] (auto& e) { return e->is_valid_pattern(); }); }
 
-    void bind_names(NameBinder&, bool) const override;
     void type_check(TypeChecker&) const override;
     void print(Printer&, bool) const override;
 
@@ -138,14 +145,13 @@ struct LambdaExpr : public Expr {
                Ptr<Ptrn>&& param,
                Ptr<Expr>&& body)
         : Expr(loc)
-        , param(std::move(param))
-        , body(std::move(body))
+        , param(link(std::move(param)))
+        , body(link(std::move(body)))
     {}
 
     bool only_identifiers() const override { return false; }
     bool is_valid_pattern() const override { return false; }
 
-    void bind_names(NameBinder&, bool) const override;
     void type_check(TypeChecker&) const override;
     void print(Printer&, bool) const override;
 };
@@ -154,10 +160,9 @@ struct BlockExpr : public Expr {
     PtrVector<Expr> exprs;
 
     BlockExpr(const Loc& loc, PtrVector<Expr>&& exprs)
-        : Expr(loc), exprs(std::move(exprs))
+        : Expr(loc), exprs(link(std::move(exprs)))
     {}
 
-    void bind_names(NameBinder&, bool) const override;
     void type_check(TypeChecker&) const override;
     void print(Printer&, bool) const override;
 };
@@ -166,10 +171,9 @@ struct DeclExpr : public Expr {
     Ptr<Decl> decl;
 
     DeclExpr(const Loc& loc, Ptr<Decl>&& decl)
-        : Expr(loc), decl(std::move(decl))
+        : Expr(loc), decl(link(std::move(decl)))
     {}
 
-    void bind_names(NameBinder&, bool) const override;
     void type_check(TypeChecker&) const override;
     void print(Printer&, bool) const override;
 };
@@ -182,11 +186,10 @@ struct CallExpr : public Expr {
              Ptr<Expr>&& callee,
              Ptr<Expr>&& arg)
         : Expr(loc)
-        , callee(std::move(callee))
-        , arg(std::move(arg))
+        , callee(link(std::move(callee)))
+        , arg(link(std::move(arg)))
     {}
 
-    void bind_names(NameBinder&, bool) const override;
     void type_check(TypeChecker&) const override;
     void print(Printer&, bool) const override;
 };
@@ -201,12 +204,11 @@ struct IfExpr : public Expr {
            Ptr<Expr>&& if_true,
            Ptr<Expr>&& if_false)
         : Expr(loc)
-        , cond(std::move(cond))
-        , if_true(std::move(if_true))
-        , if_false(std::move(if_false))
+        , cond(link(std::move(cond)))
+        , if_true(link(std::move(if_true)))
+        , if_false(link(std::move(if_false)))
     {}
 
-    void bind_names(NameBinder&, bool) const override;
     void type_check(TypeChecker&) const override;
     void print(Printer&, bool) const override;
 };
@@ -225,13 +227,12 @@ struct UnaryExpr : public Expr {
     Ptr<Expr> expr;
 
     UnaryExpr(const Loc& loc, Tag tag, Ptr<Expr>&& expr)
-        : Expr(loc), tag(tag), expr(std::move(expr))
+        : Expr(loc), tag(tag), expr(link(std::move(expr)))
     {}
 
     bool is_prefix() const { return !is_postfix(); }
     bool is_postfix() const { return tag == POST_INC || tag == POST_DEC; }
 
-    void bind_names(NameBinder&, bool) const override;
     void type_check(TypeChecker&) const override;
     void print(Printer&, bool) const override;
 
@@ -260,11 +261,10 @@ struct BinaryExpr : public Expr {
                Ptr<Expr>&& right)
         : Expr(loc)
         , tag(tag)
-        , left(std::move(left))
-        , right(std::move(right))
+        , left(link(std::move(left)))
+        , right(link(std::move(right)))
     {}
 
-    void bind_names(NameBinder&, bool) const override;
     void type_check(TypeChecker&) const override;
     void print(Printer&, bool) const override;
 
@@ -284,52 +284,49 @@ struct ErrorExpr : public Expr {
         : Expr(loc)
     {}
 
-    void bind_names(NameBinder&, bool) const override;
     void type_check(TypeChecker&) const override;
     void print(Printer&, bool) const override;
 };
 
 struct VarDecl : public Decl {
+    Ptr<Ptrn> id;
     Ptr<Expr> init;
 
     VarDecl(const Loc& loc, Ptr<Ptrn>&& id, Ptr<Expr>&& init)
-        : Decl(loc, std::move(id)), init(std::move(init))
+        : Decl(loc), id(link(std::move(id))), init(link(std::move(init)))
     {}
 
-    void bind_names(NameBinder&) const override;
     void type_check(TypeChecker&) const override;
     void print(Printer&) const override;
 };
 
 struct DefDecl : public Decl {
+    Ptr<Ptrn> id;
     Ptr<Ptrn> param;
     Ptr<Expr> body;
-    const Type* ret;
+    const Type* ret_type;
 
     DefDecl(const Loc& loc,
         Ptr<Ptrn>&& id,
         Ptr<Ptrn>&& param,
         Ptr<Expr>&& body,
-        const Type* ret)
-        : Decl(loc, std::move(id))
-        , param(std::move(param))
-        , body(std::move(body))
-        , ret(ret)
+        const Type* ret_type)
+        : Decl(loc)
+        , id(link(std::move(id)))
+        , param(link(std::move(param)))
+        , body(link(std::move(body)))
+        , ret_type(ret_type)
     {}
 
     bool is_function() const { return param != nullptr; }
 
-    void bind_names(NameBinder&) const override;
     void type_check(TypeChecker&) const override;
     void print(Printer&) const override;
 };
 
 struct ErrorDecl : public Decl {
-    ErrorDecl(const Loc& loc)
-        : Decl(loc, nullptr)
-    {}
+    ErrorDecl(const Loc& loc) : Decl(loc) {}
 
-    void bind_names(NameBinder&) const override;
     void type_check(TypeChecker&) const override;
     void print(Printer&) const override;
 };
@@ -338,10 +335,9 @@ struct Program : public Node {
     PtrVector<Decl> decls;
 
     Program(const Loc& loc, PtrVector<Decl>&& decls)
-        : Node(loc), decls(std::move(decls))
+        : Node(loc), decls(link(std::move(decls)))
     {}
 
-    void bind_names(NameBinder&) const override;
     void type_check(TypeChecker&) const override;
     void print(Printer&) const override;
 };

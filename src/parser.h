@@ -46,7 +46,7 @@ private:
         const Parser* parser;
 
         Loc operator () () const {
-            return Loc(*parser->prev_.file,
+            return Loc(parser->prev_.file,
                        begin_row, begin_col,
                        parser->prev_.end_row,
                        parser->prev_.end_col);

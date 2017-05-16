@@ -268,7 +268,7 @@ const Type* Parser::parse_type() {
     auto tag = PrimType::tag_from_token(ahead());
     if (tag != PrimType::ERR) {
         next();
-        type = type_table_.new_type<PrimType>(tag);
+        type = type_table_.prim_type(tag);
     } else if (ahead().tag() == Token::L_PAREN) {
         eat(Token::L_PAREN);
         std::vector<const Type*> args;
@@ -277,18 +277,18 @@ const Type* Parser::parse_type() {
             args.emplace_back(parse_type());
             eat_nl();
         });
-        type = args.size() == 1 ? args[0] : type_table_.new_type<TupleType>(std::move(args));
+        type = args.size() == 1 ? args[0] : type_table_.tuple_type(std::move(args));
     } else {
         log::error(ahead().loc(), "expected type, got '{}'", ahead().string());
         next();
-        return type_table_.new_type<ErrorType>(ahead().loc());
+        return type_table_.error_type(ahead().loc());
     }
 
     if (ahead().tag() == Token::ARROW) {
         eat(Token::ARROW);
         eat_nl();
         auto to = parse_type();
-        type = type_table_.new_type<FunctionType>(type, to);
+        type = type_table_.function_type(type, to);
     }
     return type;
 }

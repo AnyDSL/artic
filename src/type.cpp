@@ -70,7 +70,7 @@ bool TupleType::equals(const Type* t) const {
 }
 
 uint32_t FunctionType::hash() const {
-    return hash_combine(hash_init(), from->hash(), to->hash());
+    return hash_combine(from->hash(), to->hash());
 }
 
 bool FunctionType::equals(const Type* t) const {
@@ -80,8 +80,42 @@ bool FunctionType::equals(const Type* t) const {
     return false;
 }
 
+uint32_t PolyType::hash() const {
+    return hash_combine(body->hash(), uint32_t(vars),
+        hash_list(constraints, [] (auto& c) { return c.hash(); }));
+}
+
+bool PolyType::equals(const Type* t) const {
+    if (auto poly = t->isa<PolyType>()) {
+        return poly->body == body &&
+               poly->vars == vars &&
+               poly->constraints == constraints;
+    }
+    return false;
+}
+
+uint32_t TypeVar::hash() const {
+    return hash_combine(hash_init(), uint32_t(index));
+}
+
+bool TypeVar::equals(const Type* t) const {
+    return t->isa<TypeVar>() && t->as<TypeVar>()->index == index;
+}
+
+uint32_t UnknownType::hash() const {
+    return hash_combine(hash_init(), uint32_t(number));
+}
+
+bool UnknownType::equals(const Type* t) const {
+    return t == this;
+}
+
 uint32_t ErrorType::hash() const {
-    return hash_combine(hash_init(), loc.begin_row, loc.end_row, loc.begin_col, loc.end_col);
+    return hash_combine(hash_init(),
+        uint32_t(loc.begin_row),
+        uint32_t(loc.end_row),
+        uint32_t(loc.begin_col),
+        uint32_t(loc.end_col));
 }
 
 bool ErrorType::equals(const Type* t) const {

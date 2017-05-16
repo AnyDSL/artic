@@ -121,12 +121,12 @@ void BinaryExpr::print(Printer& p, bool) const {
 }
 
 void ErrorExpr::print(Printer& p, bool) const {
-    p << error_style("<error>");
+    p << error_style("<invalid expression>");
 }
 
 void VarDecl::print(Printer& p) const {
     p << keyword_style("var") << " ";
-    ptrn->print(p);
+    id->print(p);
     if (init) {
         p << " = ";
         init->print(p);
@@ -135,18 +135,18 @@ void VarDecl::print(Printer& p) const {
 
 void DefDecl::print(Printer& p) const {
     p << keyword_style("def") << " ";
-    ptrn->print(p);
+    id->print(p);
     if (param) print_parens(p, param);
-    if (ret) {
+    if (ret_type) {
         p << " : ";
-        ret->print(p);
+        ret_type->print(p);
     }
     p << " = ";
     body->print(p);
 }
 
 void ErrorDecl::print(Printer& p) const {
-    p << error_style("<error>");
+    p << error_style("<invalid declaration>");
 }
 
 void Program::print(Printer& p) const {
@@ -180,8 +180,31 @@ void FunctionType::print(Printer& p) const {
     to->print(p);
 }
 
+void PolyType::print(Printer& p) const {
+    p << keyword_style("forall") << " ";
+    for (int i = 0; i < vars; i++) {
+        p << p.var_name(i);
+        if (i != vars - 1) p << ", ";
+    }
+    if (!constraints.empty()) {
+        p << " " << keyword_style("with") << " ";
+        print_list(p, ", ", constraints, [&] (auto& c) {
+            p << c.id << " : ";
+            c.type->print(p);
+        });
+    }
+}
+
+void TypeVar::print(Printer& p) const {
+    p << p.var_name(index);
+}
+
+void UnknownType::print(Printer& p) const {
+    p << error_style("?") << number;
+}
+
 void ErrorType::print(Printer& p) const {
-    p << error_style("<error>");
+    p << error_style("<invalid type>");
 }
 
 void Node::dump() const {

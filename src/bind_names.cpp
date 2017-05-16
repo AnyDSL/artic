@@ -14,12 +14,12 @@ void Expr::bind_names(NameBinder& b) const {
 
 void IdExpr::bind_names(NameBinder& b, bool pattern) const {
     if (pattern) {
-        if (!b.insert_name(id, this)) {
+        if (!b.insert_local(id, this)) {
             log::error(loc, "identifier '{}' already declared", id);
             log::info(b.find_name(id)->loc, "previously declared here");
         }
     } else {
-        decl = b.find_name(id);
+        decl = b.find_symbol(id);
         if (!decl) log::error(loc, "unknown identifier '{}'", id);
     }
 }
@@ -93,6 +93,14 @@ void DefDecl::bind_names(NameBinder& b) const {
 void ErrorDecl::bind_names(NameBinder& b) const {}
 
 void Program::bind_names(NameBinder& b) const {
+    // First, fill globals
+    for (auto& decl : decls) {
+        if (auto def = decl->isa<DefDecl>()) {
+            def->id->expr
+        } else {
+        }
+    }
+    
     b.push_scope();
     for (auto& decl : decls) decl->bind_names(b);
     b.pop_scope();

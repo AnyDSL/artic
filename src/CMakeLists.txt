@@ -2,8 +2,6 @@ add_executable(artic
     main.cpp
     ast.h
     ast.cpp
-    bind_names.cpp
-    bind_names.h
     box.h
     cast.h
     lexer.cpp

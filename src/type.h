@@ -23,7 +23,52 @@ struct Type : public Cast<Type> {
     virtual void print(Printer&) const = 0;
 
     void dump() const;
+
+    struct Hash {
+        size_t operator () (const Type* t) const {
+            return size_t(t->hash());
+        }
+    };
+
+    struct Cmp {
+        bool operator () (const Type* a, const Type* b) const {
+            return a->equals(b);
+        }
+    };
 };
+
+struct Constraint {
+    std::string id;
+    const Type* type;
+
+    Constraint(const std::string& id, const Type* type)
+        : id(id), type(type)
+    {}
+
+    uint32_t hash() const {
+        return hash_combine(type->hash(), hash_string(id));
+    }
+
+    bool operator == (const Constraint& c) const {
+        return c.type == type && c.id == id;
+    }
+
+    struct Hash {
+        size_t operator () (const Constraint& c) const {
+            return size_t(c.hash());
+        }
+    };
+
+    struct Cmp {
+        bool operator () (const Constraint& a, const Constraint& b) const {
+            return a == b;
+        }
+    };
+};
+
+typedef std::vector<const Type*> TypeVector;
+typedef std::unordered_set<const Type*, Type::Hash, Type::Cmp> TypeSet;
+typedef std::unordered_set<Constraint, Constraint::Hash, Constraint::Cmp> ConstraintSet;
 
 struct PrimType : public Type {
     enum Tag {
@@ -48,9 +93,9 @@ struct PrimType : public Type {
 };
 
 struct TupleType : public Type {
-    std::vector<const Type*> args;
+    TypeVector args;
 
-    TupleType(std::vector<const Type*>&& args)
+    TupleType(TypeVector&& args)
         : args(args)
     {}
 
@@ -72,11 +117,51 @@ struct FunctionType : public Type {
     void print(Printer&) const override;
 };
 
+struct PolyType : public Type {
+    int vars;
+    ConstraintSet constraints;
+    const Type* body;
+
+    PolyType(int vars, ConstraintSet&& constraints, const Type* body)
+        : vars(vars), constraints(std::move(constraints)), body(body)
+    {}
+
+    uint32_t hash() const override;
+    bool equals(const Type* t) const override;
+    void print(Printer&) const override;
+};
+
+struct TypeVar : public Type {
+    int index;
+
+    TypeVar(int index)
+        : index(index)
+    {}
+
+    uint32_t hash() const override;
+    bool equals(const Type* t) const override;
+    void print(Printer&) const override;
+};
+
+struct UnknownType : public Type {
+    int number;
+
+    UnknownType(int number)
+        : number(number)
+    {}
+
+    uint32_t hash() const override;
+    bool equals(const Type* t) const override;
+    void print(Printer&) const override;
+};
+
 struct ErrorType : public Type {
     const Loc& loc;
+    const Type* a;
+    const Type* b;
 
-    ErrorType(const Loc& loc)
-        : loc(loc)
+    ErrorType(const Loc& loc, const Type* a, const Type* b)
+        : loc(loc), a(a), b(b)
     {}
 
     uint32_t hash() const override;
@@ -86,13 +171,25 @@ struct ErrorType : public Type {
 
 class TypeTable {
 public:
-    TypeTable() {}
+    TypeTable() : unknowns_(0) {}
     TypeTable(const TypeTable&) = delete;
 
     ~TypeTable() {
         for (auto& t : types_) delete t;
+        for (auto& u : unknowns_) delete u;
     }
 
+    const PrimType*     prim_type(PrimType::Tag tag) { return new_type<PrimType>(tag); }
+    const TupleType*    tuple_type(TypeVector&& args) { return new_type<TupleType>(std::move(args)); }
+    const FunctionType* function_type(const Type* from, const Type* to) { return new_type<FunctionType>(from, to); }
+    const ErrorType*    error_type(const Loc& loc, const Type* a = nullptr, const Type* b = nullptr) { return new_type<ErrorType>(loc, a, b); }
+    const UnknownType*  unknown_type() {
+        auto u = new UnknownType(unknowns_.size());
+        unknowns_.emplace_back(u);
+        return u;
+    }
+
+private:
     template <typename T, typename... Args>
     const T* new_type(Args... args) {
         T t(std::forward<Args>(args)...);
@@ -106,20 +203,8 @@ public:
         return ptr;
     }
 
-private:
-    struct HashType {
-        size_t operator () (const Type* t) const {
-            return size_t(t->hash());
-        }
-    };
-
-    struct CmpType {
-        bool operator () (const Type* a, const Type* b) const {
-            return a->equals(b);
-        }
-    };
-
-    std::unordered_set<const Type*, HashType, CmpType> types_;
+    TypeSet types_;
+    TypeVector unknowns_;
 };
 
 } // namespace artic

@@ -46,7 +46,6 @@ private:
     Utf8Buffer buf_;
     std::string current_;
 
-    std::string filename_;
     std::istream& stream_;
 
     static std::unordered_map<std::string, Token::Tag> keywords;
