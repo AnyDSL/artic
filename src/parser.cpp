@@ -31,6 +31,7 @@ Ptr<DefDecl> Parser::parse_def_decl() {
     Tracker tracker(this);
     eat(Token::DEF);
     auto id = parse_id_ptrn();
+    if (id->expr->type) log::error(id->loc, "types are not allowed here");
 
     Ptr<Ptrn> param;
     if (ahead().tag() == Token::L_PAREN) {

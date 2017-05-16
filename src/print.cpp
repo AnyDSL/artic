@@ -36,9 +36,9 @@ void Expr::print(Printer& p) const {
     print(p, false);
 }
 
-void IdExpr::print(Printer& p, bool print_type) const {
+void IdExpr::print(Printer& p, bool pattern) const {
     p << id;
-    if (type && print_type) {
+    if (type && pattern) {
         p << " : ";
         type->print(p);
     }
@@ -48,10 +48,10 @@ void LiteralExpr::print(Printer& p, bool) const {
     p << literal_style(lit.box);
 }
 
-void TupleExpr::print(Printer& p, bool print_type) const {
+void TupleExpr::print(Printer& p, bool pattern) const {
     p << '(';
     print_list(p, ", ", args, [&] (auto& a) {
-        a->print(p, print_type);
+        a->print(p, pattern);
     });
     p << ')';
 }

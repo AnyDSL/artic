@@ -12,19 +12,23 @@ class Expr;
 
 class NameBinder {
 public:
+    bool top_scope() const { return scopes_.empty(); }
+
     void push_scope() { scopes_.emplace_back(); }
     void pop_scope()  { scopes_.pop_back();  }
 
-    void insert_global(const std::string& name, Expr* decl) {
-        if (auto& symbol = global_.find(name)) {
-            symbol.decls.emplace_back(decl);
+    void insert_global(const std::string& name, Node* node) {
+        if (auto symbol = global_.find(name)) {
+            symbol->nodes.emplace_back(node);
         } else {
-            global_.insert(name, make_ptr<Symbol>(decl));
+            global_.insert(name, Symbol(node));
         }
     }
 
-    bool insert_local(const std::string& name, Expr* decl) {
-        return scopes_.back().insert(name, make_ptr<Symbol>(decl));
+    bool insert_local(const std::string& name, Node* node) {
+        return scopes_.empty()
+            ? global_.insert(name, Symbol(node))
+            : scopes_.back().insert(name, Symbol(node));
     }
 
     std::shared_ptr<Symbol> find_symbol(const std::string& name) {

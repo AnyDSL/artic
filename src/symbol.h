@@ -6,14 +6,14 @@
 
 namespace artic {
 
-class Ptrn;
+class Node;
 
 struct Symbol {
-    Symbol(Ptrn* ptrn) : ptrns{ ptrn } {}
-    Symbol(std::vector<Ptrn*>&& ptrns) : ptrns(std::move(ptrns)) {}
+    Symbol(Node* node) : nodes{ node } {}
+    Symbol(std::vector<Node*>&& nodes) : nodes(std::move(nodes)) {}
     virtual ~Symbol() {}
 
-    std::vector<Ptrn*> ptrns;
+    std::vector<Node*> nodes;
 };
 
 struct SymbolTable {

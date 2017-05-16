@@ -33,6 +33,7 @@ struct Node : public Cast<Node> {
     Node(const Loc& loc) : loc(loc), parent(nullptr) {}
     virtual ~Node() {}
 
+    virtual void bind_names(NameBinder&) = 0;
     virtual void type_check(TypeChecker&) const = 0;
     virtual void print(Printer&) const = 0;
 
@@ -60,8 +61,11 @@ struct Expr : public Node {
     virtual bool is_valid_pattern() const { return false; }
     virtual bool only_identifiers() const { return false; }
 
+    void bind_names(NameBinder&) override;
     void print(Printer&) const override;
+
     virtual void print(Printer&, bool) const = 0;
+    virtual void bind_names(NameBinder&, bool) = 0;
 
     bool is_tuple() const;
 };
@@ -77,6 +81,7 @@ struct Ptrn : public Node {
     bool is_binder() const { return expr->only_identifiers(); }
     bool is_tuple()  const { return expr->is_tuple(); }
 
+    void bind_names(NameBinder&) override;
     void type_check(TypeChecker&) const override;
     void print(Printer&) const override;
 };
@@ -96,6 +101,7 @@ struct IdExpr : public Expr {
     bool only_identifiers() const override { return true; }
     bool is_valid_pattern() const override { return true; }
 
+    void bind_names(NameBinder&, bool) override;
     void type_check(TypeChecker&) const override;
     void print(Printer&, bool) const override;
 };
@@ -109,6 +115,7 @@ struct LiteralExpr : public Expr {
 
     bool is_valid_pattern() const override { return true;  }
 
+    void bind_names(NameBinder&, bool) override;
     void type_check(TypeChecker&) const override;
     void print(Printer&, bool) const override;
 };
@@ -123,6 +130,7 @@ struct TupleExpr : public Expr {
     bool only_identifiers() const override { return if_all([] (auto& e) { return e->only_identifiers(); }); }
     bool is_valid_pattern() const override { return if_all([] (auto& e) { return e->is_valid_pattern(); }); }
 
+    void bind_names(NameBinder&, bool) override;
     void type_check(TypeChecker&) const override;
     void print(Printer&, bool) const override;
 
@@ -152,6 +160,7 @@ struct LambdaExpr : public Expr {
     bool only_identifiers() const override { return false; }
     bool is_valid_pattern() const override { return false; }
 
+    void bind_names(NameBinder&, bool) override;
     void type_check(TypeChecker&) const override;
     void print(Printer&, bool) const override;
 };
@@ -163,6 +172,7 @@ struct BlockExpr : public Expr {
         : Expr(loc), exprs(link(std::move(exprs)))
     {}
 
+    void bind_names(NameBinder&, bool) override;
     void type_check(TypeChecker&) const override;
     void print(Printer&, bool) const override;
 };
@@ -174,6 +184,7 @@ struct DeclExpr : public Expr {
         : Expr(loc), decl(link(std::move(decl)))
     {}
 
+    void bind_names(NameBinder&, bool) override;
     void type_check(TypeChecker&) const override;
     void print(Printer&, bool) const override;
 };
@@ -190,6 +201,7 @@ struct CallExpr : public Expr {
         , arg(link(std::move(arg)))
     {}
 
+    void bind_names(NameBinder&, bool) override;
     void type_check(TypeChecker&) const override;
     void print(Printer&, bool) const override;
 };
@@ -209,6 +221,7 @@ struct IfExpr : public Expr {
         , if_false(link(std::move(if_false)))
     {}
 
+    void bind_names(NameBinder&, bool) override;
     void type_check(TypeChecker&) const override;
     void print(Printer&, bool) const override;
 };
@@ -233,6 +246,7 @@ struct UnaryExpr : public Expr {
     bool is_prefix() const { return !is_postfix(); }
     bool is_postfix() const { return tag == POST_INC || tag == POST_DEC; }
 
+    void bind_names(NameBinder&, bool) override;
     void type_check(TypeChecker&) const override;
     void print(Printer&, bool) const override;
 
@@ -265,6 +279,7 @@ struct BinaryExpr : public Expr {
         , right(link(std::move(right)))
     {}
 
+    void bind_names(NameBinder&, bool) override;
     void type_check(TypeChecker&) const override;
     void print(Printer&, bool) const override;
 
@@ -284,6 +299,7 @@ struct ErrorExpr : public Expr {
         : Expr(loc)
     {}
 
+    void bind_names(NameBinder&, bool) override;
     void type_check(TypeChecker&) const override;
     void print(Printer&, bool) const override;
 };
@@ -296,6 +312,7 @@ struct VarDecl : public Decl {
         : Decl(loc), id(link(std::move(id))), init(link(std::move(init)))
     {}
 
+    void bind_names(NameBinder&) override;
     void type_check(TypeChecker&) const override;
     void print(Printer&) const override;
 };
@@ -319,7 +336,9 @@ struct DefDecl : public Decl {
     {}
 
     bool is_function() const { return param != nullptr; }
+    std::string name() const { return id->expr->as<IdExpr>()->id; }
 
+    void bind_names(NameBinder&) override;
     void type_check(TypeChecker&) const override;
     void print(Printer&) const override;
 };
@@ -327,6 +346,7 @@ struct DefDecl : public Decl {
 struct ErrorDecl : public Decl {
     ErrorDecl(const Loc& loc) : Decl(loc) {}
 
+    void bind_names(NameBinder&) override;
     void type_check(TypeChecker&) const override;
     void print(Printer&) const override;
 };
@@ -338,6 +358,7 @@ struct Program : public Node {
         : Node(loc), decls(link(std::move(decls)))
     {}
 
+    void bind_names(NameBinder&) override;
     void type_check(TypeChecker&) const override;
     void print(Printer&) const override;
 };
