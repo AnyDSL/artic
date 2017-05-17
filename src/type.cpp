@@ -1,3 +1,4 @@
+#include <algorithm>
 #include "type.h"
 
 namespace artic {
@@ -70,12 +71,12 @@ bool TupleType::equals(const Type* t) const {
 }
 
 uint32_t FunctionType::hash() const {
-    return hash_combine(from->hash(), to->hash());
+    return hash_combine(from()->hash(), to()->hash());
 }
 
 bool FunctionType::equals(const Type* t) const {
     if (auto fn = t->isa<FunctionType>()) {
-        return fn->from == from && fn->to == to;
+        return fn->from() == from() && fn->to() == to();
     }
     return false;
 }
@@ -147,6 +148,14 @@ const FunctionType* TypeTable::function_type(const Type* from, const Type* to) {
     return new_type<FunctionType>(from, to);
 }
 
+const PolyType* TypeTable::poly_type(int vars, TypeConstraint::Set&& constraints, const Type* body) {
+    return new_type<PolyType>(vars, constraints, body);
+}
+
+const TypeVar* TypeTable::type_var(int index) {
+    return new_type<TypeVar>(index);
+}
+
 const UnparsedType* TypeTable::unparsed_type(const Loc& loc) {
     return new_type<UnparsedType>(loc);
 }
@@ -155,8 +164,44 @@ const NoUnifierType* TypeTable::no_unifier_type(const Loc& loc, const Type* type
     return new_type<NoUnifierType>(loc, type_a, type_b);
 }
 
-const UnknownType* TypeTable::unknown_type() {
-    return new_unknown();
+const UnknownType* TypeTable::unknown_type(int rank) {
+    return new_unknown(rank);
+}
+
+const TypeApplication* TupleType::rebuild(TypeTable& table, Args&& new_args) const {
+    return table.tuple_type(std::move(new_args));
+}
+
+const TypeApplication* FunctionType::rebuild(TypeTable& table, Args&& new_args) const {
+    return table.function_type(from(), to());
+}
+
+void TypeApplication::update_rank(int rank) const {
+    for (auto arg : args)
+        arg->update_rank(rank);
+}
+
+const Type* TypeApplication::substitute(TypeTable& table, const Type::Map& map) const {
+    Args new_args(args.size());
+    std::transform(args.begin(), args.end(), new_args.begin(), [&] (auto arg) {
+        return Type::apply_map(map, arg->substitute(table, map));
+    });
+    return rebuild(table, std::move(new_args));
+}
+
+void PolyType::update_rank(int rank) const {
+    body->update_rank(rank);
+}
+
+const Type* PolyType::substitute(TypeTable& table, const Type::Map& map) const {
+    TypeConstraint::Set new_constraints;
+    for (auto& constraint : constraints) {
+        new_constraints.emplace(constraint.id,
+            Type::apply_map(map, constraint.type->substitute(table, map)));
+    }
+    return table.poly_type(vars,
+        std::move(new_constraints),
+        Type::apply_map(map, body->substitute(table, map)));
 }
 
 } // namespace artic

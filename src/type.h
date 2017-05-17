@@ -2,7 +2,9 @@
 #define TYPE_H
 
 #include <unordered_set>
+#include <unordered_map>
 #include <vector>
+#include <limits>
 
 #include "cast.h"
 #include "hash.h"
@@ -12,19 +14,10 @@
 namespace artic {
 
 class Printer;
+class TypeTable;
 
 /// Base class for all types.
 struct Type : public Cast<Type> {
-    virtual ~Type() {}
-
-    bool is_tuple() const;
-
-    virtual uint32_t hash() const = 0;
-    virtual bool equals(const Type*) const = 0;
-    virtual void print(Printer&) const = 0;
-
-    void dump() const;
-
     struct Hash {
         size_t operator () (const Type* t) const {
             return size_t(t->hash());
@@ -36,16 +29,62 @@ struct Type : public Cast<Type> {
             return a->equals(b);
         }
     };
+
+    typedef std::unordered_set<const Type*, Type::Hash, Type::Cmp> Set;
+    typedef std::unordered_map<const Type*, const Type*, Type::Hash, Type::Cmp> Map;
+
+    virtual ~Type() {}
+
+    bool is_tuple() const;
+
+    /// Updates the rank of the unknowns contained in the type.
+    virtual void update_rank(int rank) const {}
+    /// Returns true if the type is nominally typed.
+    virtual bool is_nominal() const { return false; }
+
+    /// Applies a substitution to the inner part of this type.
+    virtual const Type* substitute(TypeTable&, const Map&) const { return this; }
+
+    /// Computes a hash value for the type.
+    virtual uint32_t hash() const = 0;
+    /// Test for structural equality with another type.
+    virtual bool equals(const Type*) const = 0;
+    /// Prints the type with the given formatting parameters.
+    virtual void print(Printer&) const = 0;
+
+    /// Dumps the type on the console, for debugging purposes.
+    void dump() const;
+
+    static const Type* apply_map(const Map& map, const Type* type) {
+        auto it = map.find(type);
+        if (it != map.end()) return it->second;
+        return type;
+    }
 };
 
 std::ostream& operator << (std::ostream&, const Type*);
 
-/// A type constraint, for overloading.
-struct Constraint {
+/// A type constraint mapping one identifier to one type.
+/// These constraints are used during overload resolution.
+struct TypeConstraint {
+    struct Hash {
+        size_t operator () (const TypeConstraint& c) const {
+            return size_t(c.hash());
+        }
+    };
+
+    struct Cmp {
+        bool operator () (const TypeConstraint& a, const TypeConstraint& b) const {
+            return a == b;
+        }
+    };
+
+    typedef std::unordered_set<TypeConstraint, Hash, Cmp> Set;
+
     std::string id;
     const Type* type;
 
-    Constraint(const std::string& id, const Type* type)
+    TypeConstraint(const std::string& id, const Type* type)
         : id(id), type(type)
     {}
 
@@ -53,25 +92,10 @@ struct Constraint {
         return hash_combine(type->hash(), hash_string(id));
     }
 
-    bool operator == (const Constraint& c) const {
+    bool operator == (const TypeConstraint& c) const {
         return c.type == type && c.id == id;
     }
-
-    struct Hash {
-        size_t operator () (const Constraint& c) const {
-            return size_t(c.hash());
-        }
-    };
-
-    struct Cmp {
-        bool operator () (const Constraint& a, const Constraint& b) const {
-            return a == b;
-        }
-    };
 };
-
-typedef std::unordered_set<const Type*, Type::Hash, Type::Cmp> TypeSet;
-typedef std::unordered_set<Constraint, Constraint::Hash, Constraint::Cmp> ConstraintSet;
 
 /// Primitive type (integers)
 struct PrimType : public Type {
@@ -96,13 +120,31 @@ struct PrimType : public Type {
     static Tag tag_from_token(const Token&);
 };
 
-/// Type of a tuple, made of the product of the types of its elements.
-struct TupleType : public Type {
+/// Type application (e.g. tuples, functions, ...).
+struct TypeApplication : public Type {
+    typedef std::vector<const Type*> Args;
+
     std::vector<const Type*> args;
 
-    TupleType(std::vector<const Type*>&& args)
-        : args(args)
+    TypeApplication(Args&& args)
+        : args(std::move(args))
     {}
+
+    void update_rank(int rank) const override;
+    const Type* substitute(TypeTable& table, const Type::Map& map) const override;
+
+    virtual const TypeApplication* rebuild(TypeTable& table, Args&& new_args) const = 0;
+};
+
+/// Type of a tuple, made of the product of the types of its elements.
+struct TupleType : public TypeApplication {
+    using TypeApplication::Args;
+
+    TupleType(Args&& args)
+        : TypeApplication(std::move(args))
+    {}
+
+    const TypeApplication* rebuild(TypeTable&, Args&&) const override;
 
     uint32_t hash() const override;
     bool equals(const Type* t) const override;
@@ -110,13 +152,17 @@ struct TupleType : public Type {
 };
 
 /// Function type with domain and codomain types (multi-argument functions use tuple types for the domain).
-struct FunctionType : public Type {
-    const Type* from;
-    const Type* to;
+struct FunctionType : public TypeApplication {
+    using TypeApplication::Args;
 
     FunctionType(const Type* from, const Type* to)
-        : from(from), to(to)
+        : TypeApplication(Args{from, to})
     {}
+
+    const Type* from() const { return args[0]; }
+    const Type* to() const { return args[1]; }
+
+    const TypeApplication* rebuild(TypeTable&, Args&&) const override;
 
     uint32_t hash() const override;
     bool equals(const Type* t) const override;
@@ -126,12 +172,15 @@ struct FunctionType : public Type {
 /// Polymorphic type with possibly several variables and a set of constraints.
 struct PolyType : public Type {
     int vars;
-    ConstraintSet constraints;
+    TypeConstraint::Set constraints;
     const Type* body;
 
-    PolyType(int vars, ConstraintSet&& constraints, const Type* body)
+    PolyType(int vars, TypeConstraint::Set&& constraints, const Type* body)
         : vars(vars), constraints(std::move(constraints)), body(body)
     {}
+
+    void update_rank(int rank) const override;
+    const Type* substitute(TypeTable&, const Type::Map&) const override;
 
     uint32_t hash() const override;
     bool equals(const Type* t) const override;
@@ -154,10 +203,17 @@ struct TypeVar : public Type {
 /// Unknown type in a set of type equations.
 struct UnknownType : public Type {
     int number;
+    mutable int rank;
 
-    UnknownType(int number)
-        : number(number)
+    UnknownType(int number, int rank)
+        : number(number), rank(rank)
     {}
+
+    void update_rank(int i) const override {
+        rank = std::min(rank, i);
+    }
+
+    static constexpr int max_rank() { return std::numeric_limits<int>::max(); }
 
     uint32_t hash() const override;
     bool equals(const Type* t) const override;
@@ -205,15 +261,24 @@ public:
         for (auto& u : unknowns_) delete u;
     }
 
+    // Basic types
     const PrimType*      prim_type(PrimType::Tag);
     const TupleType*     tuple_type(std::vector<const Type*>&&);
     const TupleType*     unit_type();
     const FunctionType*  function_type(const Type*, const Type*);
+
+    // Polymorphic types
+    const PolyType*      poly_type(int, TypeConstraint::Set&&, const Type*);
+    const TypeVar*       type_var(int);
+
+    // Errors
     const UnparsedType*  unparsed_type(const Loc&);
     const NoUnifierType* no_unifier_type(const Loc&, const Type*, const Type*);
-    const UnknownType*   unknown_type();
 
-    const TypeSet& types() const { return types_; }
+    // Unknowns
+    const UnknownType*   unknown_type(int rank);
+
+    const Type::Set& types() const { return types_; }
 
 private:
     template <typename T, typename... Args>
@@ -229,13 +294,12 @@ private:
         return ptr;
     }
 
-    template <typename... Args>
-    const UnknownType* new_unknown(Args... args) {
-        unknowns_.emplace_back(new UnknownType(unknowns_.size(), args...));
+    const UnknownType* new_unknown(int rank) {
+        unknowns_.emplace_back(new UnknownType(unknowns_.size(), rank));
         return unknowns_.back();
     }
 
-    TypeSet types_;
+    Type::Set types_;
     std::vector<const UnknownType*> unknowns_;
 };
 

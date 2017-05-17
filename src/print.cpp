@@ -172,15 +172,15 @@ void TupleType::print(Printer& p) const {
 }
 
 void FunctionType::print(Printer& p) const {
-    if (from->isa<FunctionType>()) {
+    if (from()->isa<FunctionType>()) {
         p << '(';
-        from->print(p);
+        from()->print(p);
         p << ')';
     } else {
-        from->print(p);
+        from()->print(p);
     }
     p << " => ";
-    to->print(p);
+    to()->print(p);
 }
 
 void PolyType::print(Printer& p) const {

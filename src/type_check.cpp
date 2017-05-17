@@ -9,27 +9,19 @@ const Type* TypeChecker::unify(const Loc& loc, const Type* a, const Type* b) {
     b = find(b);
 
     // Constrain unknowns
-    if (a->isa<UnknownType>()) { join(loc, a, b); return b; }
-    if (b->isa<UnknownType>()) { join(loc, b, a); return a; }
+    auto unknown_a = a->isa<UnknownType>();
+    auto unknown_b = b->isa<UnknownType>();
+    if (unknown_a) { b->update_rank(unknown_a->rank); join(loc, a, b); return b; }
+    if (unknown_b) { a->update_rank(unknown_b->rank); join(loc, b, a); return a; }
 
-    // Unification for tuples
-    auto tuple_a = a->isa<TupleType>();
-    auto tuple_b = b->isa<TupleType>();
-    if (tuple_a && tuple_b && tuple_a->args.size() == tuple_b->args.size()) {
-        std::vector<const Type*> args;
-        for (size_t i = 0; i < tuple_a->args.size(); i++) {
-            args.emplace_back(unify(loc, tuple_a->args[i], tuple_b->args[i]));
-        }
-        return type_table_.tuple_type(std::move(args));
-    }
-
-    // Unification for functions
-    auto fn_a = a->isa<FunctionType>();
-    auto fn_b = b->isa<FunctionType>();
-    if (fn_a && fn_b) {
-        return type_table_.function_type(
-            unify(loc, fn_a->from, fn_b->from),
-            unify(loc, fn_a->to, fn_b->to));
+    // Unification for type constructors
+    auto app_a = a->isa<TypeApplication>();
+    auto app_b = b->isa<TypeApplication>();
+    if (app_a && app_b && typeid(app_a) == typeid(app_b) && app_a->args.size() == app_b->args.size()) {
+        auto n = app_a->args.size();
+        std::vector<const Type*> args(n);
+        for (size_t i = 0; i < n; i++) args[i] = unify(loc, app_a->args[i], app_b->args[i]);
+        return app_a->rebuild(type_table_, std::move(args));
     }
 
     if (a != b) return type_table_.no_unifier_type(loc, a, b);
@@ -56,7 +48,7 @@ const Type* TypeChecker::find(const Type* type) {
 }
 
 const Type* TypeChecker::type(Expr* expr) {
-    return expr->type ? expr->type : type_table_.unknown_type();
+    return expr->type ? expr->type : type_table_.unknown_type(rank_);
 }
 
 const Type* TypeChecker::check(Expr* expr, bool pattern) {
@@ -145,8 +137,8 @@ const Type* CallExpr::type_check(TypeChecker& c, bool) {
         c.type_table().function_type(arg_type, c.type(this)));
 
     if (auto fn_type = callee_type->isa<FunctionType>()) {
-        c.unify(arg->loc, arg_type, fn_type->from);
-        return fn_type->to;
+        c.unify(arg->loc, arg_type, fn_type->from());
+        return fn_type->to();
     }
     return c.type(this);
 }
@@ -187,7 +179,7 @@ void DefDecl::type_check(TypeChecker& c) {
     auto id_type = c.check(id);
     auto init_type = lambda->param ? c.check(lambda->as<Expr>()) : c.check(lambda->body);
     if (lambda->param && lambda->type->isa<FunctionType>())
-        ret_type = lambda->type->as<FunctionType>()->to;
+        ret_type = lambda->type->as<FunctionType>()->to();
     c.unify(loc, id_type, init_type);
 }
 
