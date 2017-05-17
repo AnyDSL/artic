@@ -40,6 +40,7 @@ const Type* TypeChecker::join(const Loc& loc, const Type* from, const Type* to) 
     if (!from || from == to) return to;
     assert(to == from || find(to) != find(from));
     eqs_.emplace(from, Equation(loc, to));
+    todo_  = true;
     return to;
 }
 

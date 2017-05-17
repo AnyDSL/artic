@@ -269,7 +269,7 @@ Literal Lexer::parse_literal() {
     if (base < 10 && std::find_if(digit_ptr, last_ptr, invalid_digit) != last_ptr)
         log::error(loc_, "invalid literal '{}'", current_);
 
-    if (exp || fract) Literal(double(strtod(digit_ptr, nullptr)));
+    if (exp || fract) return Literal(double(strtod(digit_ptr, nullptr)));
     return Literal(uint64_t(strtoull(digit_ptr, nullptr, base)));
 }
 
