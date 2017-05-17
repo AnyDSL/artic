@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "symbol.h"
+#include "ast.h"
 
 namespace artic {
 
@@ -16,13 +17,15 @@ public:
     NameBinder() { push_scope(); }
     ~NameBinder() { pop_scope(); }
 
+    void bind(Ptr<Program>&);
+
     bool top_scope() const { return scopes_.size() == 1; }
 
     void push_scope() { scopes_.emplace_back(); }
     void pop_scope()  { scopes_.pop_back();  }
 
-    bool insert_symbol(const std::string& name, Node* node) {
-        return scopes_.back().insert(name, Symbol(node));
+    bool insert_symbol(const std::string& name, Expr* expr) {
+        return scopes_.back().insert(name, Symbol(expr));
     }
 
     std::shared_ptr<Symbol> find_symbol(const std::string& name) {

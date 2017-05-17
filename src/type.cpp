@@ -110,16 +110,53 @@ bool UnknownType::equals(const Type* t) const {
     return t == this;
 }
 
-uint32_t ErrorType::hash() const {
-    return hash_combine(hash_init(),
-        uint32_t(loc.begin_row),
-        uint32_t(loc.end_row),
-        uint32_t(loc.begin_col),
-        uint32_t(loc.end_col));
+uint32_t UnparsedType::hash() const {
+    return loc.hash();
 }
 
-bool ErrorType::equals(const Type* t) const {
+bool UnparsedType::equals(const Type* t) const {
+    return t->isa<UnparsedType>() && t->as<UnparsedType>()->loc == loc;
+}
+
+uint32_t NoUnifierType::hash() const {
+    return hash_combine(loc.hash(), type_a->hash(), type_b->hash());
+}
+
+bool NoUnifierType::equals(const Type* t) const {
+    if (auto no_unifier = t->isa<NoUnifierType>()) {
+        return no_unifier->type_a == type_a &&
+               no_unifier->type_b == type_b &&
+               no_unifier->loc == loc;
+    }
     return false;
+}
+
+const PrimType* TypeTable::prim_type(PrimType::Tag tag) {
+    return new_type<PrimType>(tag);
+}
+
+const TupleType* TypeTable::tuple_type(std::vector<const Type*>&& args) {
+    return new_type<TupleType>(std::move(args));
+}
+
+const TupleType* TypeTable::unit_type() {
+    return new_type<TupleType>(std::vector<const Type*>{});
+}
+
+const FunctionType* TypeTable::function_type(const Type* from, const Type* to) {
+    return new_type<FunctionType>(from, to);
+}
+
+const UnparsedType* TypeTable::unparsed_type(const Loc& loc) {
+    return new_type<UnparsedType>(loc);
+}
+
+const NoUnifierType* TypeTable::no_unifier_type(const Loc& loc, const Type* type_a, const Type* type_b) { 
+    return new_type<NoUnifierType>(loc, type_a, type_b);
+}
+
+const UnknownType* TypeTable::unknown_type() {
+    return new_unknown();
 }
 
 } // namespace artic

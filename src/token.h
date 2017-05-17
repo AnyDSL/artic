@@ -5,6 +5,7 @@
 
 #include "loc.h"
 #include "box.h"
+#include "hash.h"
 
 namespace artic {
 
@@ -117,6 +118,10 @@ public:
     bool is_literal() const { return tag_ == LIT; }
 
     const Loc& loc() const { return loc_; }
+
+    bool operator == (const Token& token) const { return token.loc_ == loc_ && token.str_ == str_; }
+    bool operator != (const Token& token) const { return token.loc_ != loc_ || token.str_ != str_; }
+    uint32_t hash() const { return hash_combine(loc_.hash(), hash_string(str_)); }
 
     static std::string tag_to_string(Tag tag) {
         switch (tag) {

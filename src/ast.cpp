@@ -49,6 +49,18 @@ bool BinaryExpr::has_eq(Tag tag) {
     }
 }
 
+bool BinaryExpr::has_cmp(Tag tag) {
+    switch (tag) {
+        case CMP_LT:
+        case CMP_GT:
+        case CMP_LE:
+        case CMP_GE:
+        case CMP_EQ:
+            return true;
+        default: return false;
+    }
+}
+
 int BinaryExpr::precedence(Tag tag) {
     switch (tag) {
         case MUL:

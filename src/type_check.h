@@ -4,6 +4,7 @@
 #include <unordered_map>
 
 #include "type.h"
+#include "ast.h"
 
 namespace artic {
 
@@ -15,10 +16,17 @@ public:
     {}
 
     const Type* unify(const Loc&, const Type*, const Type*);
-    void join(const Loc&, const Type*, const Type*);
+    const Type* join(const Loc&, const Type*, const Type*);
     const Type* find(const Type*);
 
-    bool todo() const { return todo_; }
+    const Type* type(Expr*);
+    const Type* check(Expr*, bool pattern = false);
+    const Type* check(Ptr<Expr>&, bool pattern = false);
+    const Type* check(Ptr<Ptrn>&);
+    const Type* check(Ptr<Decl>&);
+    const Type* check(Ptr<Program>&);
+
+    TypeTable& type_table() { return type_table_; }
 
 private:
     struct Equation {

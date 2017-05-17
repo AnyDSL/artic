@@ -4,6 +4,10 @@
 
 namespace artic {
 
+void NameBinder::bind(Ptr<Program>& program) {
+    program->bind_names(*this); 
+}
+
 void Ptrn::bind_names(NameBinder& b) {
     expr->bind_names(b, true);
 }
@@ -17,8 +21,8 @@ void IdExpr::bind_names(NameBinder& b, bool pattern) {
         if (!b.insert_symbol(id, this) && !b.top_scope()) {
             // Overloading is authorized at the top level
             log::error(loc, "identifier '{}' already declared", id);
-            for (auto node : b.find_symbol(id)->nodes)
-                log::info(node->loc, "previously declared here");
+            for (auto expr : b.find_symbol(id)->exprs)
+                log::info(expr->loc, "previously declared here");
         }
     } else {
         symbol = b.find_symbol(id);

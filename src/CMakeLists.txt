@@ -13,6 +13,7 @@ add_executable(artic
     parser.h
     print.cpp
     print.h
+    symbol.h
     token.h
     type.cpp
     type.h

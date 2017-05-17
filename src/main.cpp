@@ -58,11 +58,15 @@ int main(int argc, char** argv) {
         Lexer lexer(file, is);
         TypeTable type_table;
         Parser parser(lexer, type_table);
+
         auto program = parser.parse_program();
+
         NameBinder name_binder;
-        program->bind_names(name_binder);
         TypeChecker type_checker(type_table);
-        program->type_check(type_checker);
+
+        name_binder.bind(program);
+        type_checker.check(program);
+
         program->dump();
     }
 

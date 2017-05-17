@@ -38,6 +38,8 @@ struct Type : public Cast<Type> {
     };
 };
 
+std::ostream& operator << (std::ostream&, const Type*);
+
 /// A type constraint, for overloading.
 struct Constraint {
     std::string id;
@@ -68,7 +70,6 @@ struct Constraint {
     };
 };
 
-typedef std::vector<const Type*> TypeVector;
 typedef std::unordered_set<const Type*, Type::Hash, Type::Cmp> TypeSet;
 typedef std::unordered_set<Constraint, Constraint::Hash, Constraint::Cmp> ConstraintSet;
 
@@ -97,9 +98,9 @@ struct PrimType : public Type {
 
 /// Type of a tuple, made of the product of the types of its elements.
 struct TupleType : public Type {
-    TypeVector args;
+    std::vector<const Type*> args;
 
-    TupleType(TypeVector&& args)
+    TupleType(std::vector<const Type*>&& args)
         : args(args)
     {}
 
@@ -163,22 +164,37 @@ struct UnknownType : public Type {
     void print(Printer&) const override;
 };
 
-/// Incorrect type, generated during parsing or typechecking.
+/// Base class for incorrect types resulting from parsing/type-checking.
 struct ErrorType : public Type {
-    const Loc& loc;
-    const Type* a;
-    const Type* b;
+    Loc loc;
+    ErrorType(const Loc& loc) : loc(loc) {}
+    void print(Printer&) const override;
+};
 
-    ErrorType(const Loc& loc, const Type* a, const Type* b)
-        : loc(loc), a(a), b(b)
+/// Incorrectly parsed type.
+struct UnparsedType : public ErrorType {
+    UnparsedType(const Loc& loc) : ErrorType(loc) {}
+
+    uint32_t hash() const override;
+    bool equals(const Type* t) const override;
+};
+
+/// Non unifiable type generated during type-checking.
+struct NoUnifierType : public ErrorType {
+    const Type* type_a;
+    const Type* type_b;
+
+    NoUnifierType(const Loc& loc, const Type* type_a, const Type* type_b)
+        : ErrorType(loc)
+        , type_a(type_a)
+        , type_b(type_b)
     {}
 
     uint32_t hash() const override;
     bool equals(const Type* t) const override;
-    void print(Printer&) const override;
 };
 
-/// Type table: Keeps all types hashed. Comparison of types can hence be done with pointer equality.
+/// Keeps all types hashed. Comparison of types can hence be done with pointer equality.
 class TypeTable {
 public:
     TypeTable() : unknowns_(0) {}
@@ -189,15 +205,15 @@ public:
         for (auto& u : unknowns_) delete u;
     }
 
-    const PrimType*     prim_type(PrimType::Tag tag) { return new_type<PrimType>(tag); }
-    const TupleType*    tuple_type(TypeVector&& args) { return new_type<TupleType>(std::move(args)); }
-    const FunctionType* function_type(const Type* from, const Type* to) { return new_type<FunctionType>(from, to); }
-    const ErrorType*    error_type(const Loc& loc, const Type* a = nullptr, const Type* b = nullptr) { return new_type<ErrorType>(loc, a, b); }
-    const UnknownType*  unknown_type() {
-        auto u = new UnknownType(unknowns_.size());
-        unknowns_.emplace_back(u);
-        return u;
-    }
+    const PrimType*      prim_type(PrimType::Tag);
+    const TupleType*     tuple_type(std::vector<const Type*>&&);
+    const TupleType*     unit_type();
+    const FunctionType*  function_type(const Type*, const Type*);
+    const UnparsedType*  unparsed_type(const Loc&);
+    const NoUnifierType* no_unifier_type(const Loc&, const Type*, const Type*);
+    const UnknownType*   unknown_type();
+
+    const TypeSet& types() const { return types_; }
 
 private:
     template <typename T, typename... Args>
@@ -213,8 +229,14 @@ private:
         return ptr;
     }
 
+    template <typename... Args>
+    const UnknownType* new_unknown(Args... args) {
+        unknowns_.emplace_back(new UnknownType(unknowns_.size(), args...));
+        return unknowns_.back();
+    }
+
     TypeSet types_;
-    TypeVector unknowns_;
+    std::vector<const UnknownType*> unknowns_;
 };
 
 } // namespace artic

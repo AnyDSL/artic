@@ -135,8 +135,11 @@ void VarDecl::print(Printer& p) const {
 
 void DefDecl::print(Printer& p) const {
     p << keyword_style("def") << " ";
-    id->print(p);
-    if (lambda->param) print_parens(p, lambda->param);
+    if (lambda->param) {
+        id->expr->print(p);
+        print_parens(p, lambda->param);
+    } else id->print(p);
+
     if (ret_type) {
         p << " : ";
         ret_type->print(p);
@@ -207,14 +210,19 @@ void ErrorType::print(Printer& p) const {
     p << error_style("<invalid type>");
 }
 
-void Node::dump() const {
-    Printer p(std::cout);
-    print(p);
+std::ostream& operator << (std::ostream& os, const Node* node) {
+    Printer p(os);
+    node->print(p);
+    return os;
 }
 
-void Type::dump() const {
-    Printer p(std::cout);
-    print(p);
+std::ostream& operator << (std::ostream& os, const Type* type) {
+    Printer p(os);
+    type->print(p);
+    return os;
 }
+
+void Node::dump() const { std::cout << this << std::endl; }
+void Type::dump() const { std::cout << this << std::endl; }
 
 } // namespace artic
