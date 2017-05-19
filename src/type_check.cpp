@@ -132,7 +132,7 @@ const Type* IdExpr::type_check(TypeChecker& c, bool pattern) {
 
 const Type* LiteralExpr::type_check(TypeChecker& c, bool) {
     // TODO: use contrained types here
-    if (lit.is_integer())     return c.type_table().prim_type(PrimType::I64);
+    if (lit.is_integer())     return c.type_table().prim_type(PrimType::I32);
     else if (lit.is_double()) return c.type_table().prim_type(PrimType::F64);
     else if (lit.is_bool())   return c.type_table().prim_type(PrimType::I1);
 
