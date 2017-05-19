@@ -71,6 +71,7 @@ const Type* TypeChecker::generalize(const Type* type) {
             map.emplace(u, type_table_.type_var(map.size()));
     }
     if (map.empty()) return type;
+    // TODO: Build the constraint set from the unknowns
     return type_table_.poly_type(map.size(), TypeConstraint::Set{}, type->substitute(type_table_, map));
 }
 

@@ -212,7 +212,15 @@ struct TypeVar : public Type {
 
 /// Unknown type in a set of type equations.
 struct UnknownType : public Type {
+    // Number that will be displayed when printing this type.
     int number;
+
+    // The rank corresponds to the highest scope index to which this
+    // unknown has been bound. If the current scope index is greater
+    // than the rank of an unknown, then the unknown cannot be generalized
+    // at this point, because it is bound somewhere in an enclosing scope.
+    // See "Efficient ML Type Inference Using Ranked Type Variables",
+    // by G. Kuan and D. MacQueen
     mutable int rank;
 
     UnknownType(int number, int rank)
@@ -259,7 +267,7 @@ struct NoUnifierType : public ErrorType {
     bool equals(const Type* t) const override;
 };
 
-/// Keeps all types hashed. Comparison of types can hence be done with pointer equality.
+/// Table containing all types. Types are hashed so that comparison of types can be done with pointer equality.
 class TypeTable {
 public:
     TypeTable() : unknowns_(0) {}
@@ -275,15 +283,12 @@ public:
     const TupleType*     tuple_type(std::vector<const Type*>&&);
     const TupleType*     unit_type();
     const FunctionType*  function_type(const Type*, const Type*);
-
     // Polymorphic types
     const PolyType*      poly_type(size_t, TypeConstraint::Set&&, const Type*);
     const TypeVar*       type_var(int);
-
     // Errors
     const UnparsedType*  unparsed_type(const Loc&);
     const NoUnifierType* no_unifier_type(const Loc&, const Type*, const Type*);
-
     // Unknowns
     const UnknownType*   unknown_type(int rank);
 
