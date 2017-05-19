@@ -50,12 +50,37 @@ uint32_t PrimType::hash() const {
     return uint32_t(tag);
 }
 
+uint32_t TupleType::hash() const {
+    return hash_list(args, [] (auto& arg) { return arg->hash(); });
+}
+
 bool PrimType::equals(const Type* t) const {
     return t->isa<PrimType>() && t->as<PrimType>()->tag == tag;
 }
 
-uint32_t TupleType::hash() const {
-    return hash_list(args, [] (auto& arg) { return arg->hash(); });
+uint32_t FunctionType::hash() const {
+    return hash_combine(from()->hash(), to()->hash());
+}
+
+uint32_t PolyType::hash() const {
+    return hash_combine(body->hash(), uint32_t(vars),
+        hash_list(constraints, [] (auto& c) { return c.hash(); }));
+}
+
+uint32_t TypeVar::hash() const {
+    return hash_combine(hash_init(), uint32_t(index));
+}
+
+uint32_t UnknownType::hash() const {
+    return hash_combine(hash_init(), uint32_t(number));
+}
+
+uint32_t UnparsedType::hash() const {
+    return loc.hash();
+}
+
+uint32_t NoUnifierType::hash() const {
+    return hash_combine(loc.hash(), type_a->hash(), type_b->hash());
 }
 
 bool TupleType::equals(const Type* t) const {
@@ -70,20 +95,11 @@ bool TupleType::equals(const Type* t) const {
     return false;
 }
 
-uint32_t FunctionType::hash() const {
-    return hash_combine(from()->hash(), to()->hash());
-}
-
 bool FunctionType::equals(const Type* t) const {
     if (auto fn = t->isa<FunctionType>()) {
         return fn->from() == from() && fn->to() == to();
     }
     return false;
-}
-
-uint32_t PolyType::hash() const {
-    return hash_combine(body->hash(), uint32_t(vars),
-        hash_list(constraints, [] (auto& c) { return c.hash(); }));
 }
 
 bool PolyType::equals(const Type* t) const {
@@ -95,32 +111,16 @@ bool PolyType::equals(const Type* t) const {
     return false;
 }
 
-uint32_t TypeVar::hash() const {
-    return hash_combine(hash_init(), uint32_t(index));
-}
-
 bool TypeVar::equals(const Type* t) const {
     return t->isa<TypeVar>() && t->as<TypeVar>()->index == index;
-}
-
-uint32_t UnknownType::hash() const {
-    return hash_combine(hash_init(), uint32_t(number));
 }
 
 bool UnknownType::equals(const Type* t) const {
     return t == this;
 }
 
-uint32_t UnparsedType::hash() const {
-    return loc.hash();
-}
-
 bool UnparsedType::equals(const Type* t) const {
     return t->isa<UnparsedType>() && t->as<UnparsedType>()->loc == loc;
-}
-
-uint32_t NoUnifierType::hash() const {
-    return hash_combine(loc.hash(), type_a->hash(), type_b->hash());
 }
 
 bool NoUnifierType::equals(const Type* t) const {
@@ -173,12 +173,16 @@ const TypeApplication* TupleType::rebuild(TypeTable& table, Args&& new_args) con
 }
 
 const TypeApplication* FunctionType::rebuild(TypeTable& table, Args&& new_args) const {
-    return table.function_type(from(), to());
+    return table.function_type(new_args[0], new_args[1]);
 }
 
 void TypeApplication::update_rank(int rank) const {
     for (auto arg : args)
         arg->update_rank(rank);
+}
+
+void PolyType::update_rank(int rank) const {
+    body->update_rank(rank);
 }
 
 const Type* TypeApplication::substitute(TypeTable& table, const Type::Map& map) const {
@@ -187,10 +191,6 @@ const Type* TypeApplication::substitute(TypeTable& table, const Type::Map& map) 
         return Type::apply_map(map, arg->substitute(table, map));
     });
     return rebuild(table, std::move(new_args));
-}
-
-void PolyType::update_rank(int rank) const {
-    body->update_rank(rank);
 }
 
 const Type* PolyType::substitute(TypeTable& table, const Type::Map& map) const {

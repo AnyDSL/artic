@@ -48,7 +48,9 @@ const Type* TypeChecker::find(const Type* type) {
 }
 
 const Type* TypeChecker::type(Expr* expr) {
-    return expr->type ? expr->type : type_table_.unknown_type(rank_);
+    if (!expr->type)
+        expr->type = type_table_.unknown_type(rank_);
+    return find(expr->type);
 }
 
 const Type* TypeChecker::check(Expr* expr, bool pattern) {
@@ -90,9 +92,8 @@ void Ptrn::type_check(TypeChecker& c) {
 }
 
 const Type* IdExpr::type_check(TypeChecker& c, bool pattern) {
-    // TODO: Do something here?
     if (!pattern) {
-        // Assume no overloading
+        // TODO: Currently no overloading
         if (!symbol->exprs.empty())
             return c.check(symbol->exprs.back(), true);
     }
@@ -121,7 +122,11 @@ const Type* LambdaExpr::type_check(TypeChecker& c, bool) {
 }
 
 const Type* BlockExpr::type_check(TypeChecker& c, bool) {
-    for (auto& expr : exprs) c.check(expr);
+    for (size_t i = 0, n = exprs.size(); i < n; i++) {
+        c.check(exprs[i]);
+        if (i != n - 1)
+            c.unify(loc, exprs[i]->type, c.type_table().unit_type());
+    }
     return exprs.back()->type;
 }
 
@@ -136,10 +141,9 @@ const Type* CallExpr::type_check(TypeChecker& c, bool) {
         c.check(callee),
         c.type_table().function_type(arg_type, c.type(this)));
 
-    if (auto fn_type = callee_type->isa<FunctionType>()) {
-        c.unify(arg->loc, arg_type, fn_type->from());
+    if (auto fn_type = callee_type->isa<FunctionType>())
         return fn_type->to();
-    }
+
     return c.type(this);
 }
 
