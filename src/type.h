@@ -231,7 +231,7 @@ struct UnknownType : public Type {
 
     /// Set of constraints attached to this unknown. When this unknown will
     /// be generalized, they will be attached to the polymorphic type.
-    TypeConstraint::Set constrs;
+    mutable TypeConstraint::Set constrs;
 
     UnknownType(int number, int rank, TypeConstraint::Set&& constrs)
         : number(number), rank(rank), constrs(std::move(constrs))

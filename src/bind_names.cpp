@@ -79,7 +79,7 @@ void BinaryExpr::bind_names(NameBinder& b, bool) {
     right->bind_names(b);
 }
 
-void ErrorExpr::bind_names(NameBinder& b, bool) {}
+void ErrorExpr::bind_names(NameBinder&, bool) {}
 
 void VarDecl::bind_names(NameBinder& b) {
     init->bind_names(b);
@@ -91,7 +91,7 @@ void DefDecl::bind_names(NameBinder& b) {
     lambda->bind_names(b);
 }
 
-void ErrorDecl::bind_names(NameBinder& b) {}
+void ErrorDecl::bind_names(NameBinder&) {}
 
 void Program::bind_names(NameBinder& b) {
     for (auto& decl : decls) decl->bind_names(b);
