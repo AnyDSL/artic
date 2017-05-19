@@ -12,7 +12,7 @@ namespace artic {
 class TypeChecker {
 public:
     TypeChecker(TypeTable& type_table)
-        : type_table_(type_table), rank_(0)
+        : type_table_(type_table)
     {}
 
     const Type* unify(const Loc&, const Type*, const Type*);

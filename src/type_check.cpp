@@ -5,7 +5,7 @@
 namespace artic {
 
 const Type* TypeChecker::unify(const Loc& loc, const Type* a, const Type* b) {
-    // Unifies to types: returns the principal type for two given types
+    // Unifies types: returns the principal type for two given types
     a = find(a);
     b = find(b);
 
@@ -103,6 +103,8 @@ void TypeChecker::check(Ptr<Decl>& decl) {
 void TypeChecker::check(Ptr<Program>& program) {
     do {
         todo_ = false;
+        rank_ = 0;
+
         program->type_check(*this);
     } while (todo_);
 
@@ -216,7 +218,7 @@ void DefDecl::type_check(TypeChecker& c) {
     c.unify(loc, id_type, init_type);
 }
 
-void ErrorDecl::type_check(TypeChecker& c) {}
+void ErrorDecl::type_check(TypeChecker&) {}
 
 void Program::type_check(TypeChecker& c) {
     for (auto& decl : decls) c.check(decl);

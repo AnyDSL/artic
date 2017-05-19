@@ -38,7 +38,7 @@ struct Type : public Cast<Type> {
     bool is_tuple() const;
 
     /// Updates the rank of the unknowns contained in the type.
-    virtual void update_rank(int rank) const {}
+    virtual void update_rank(int) const {}
     /// Returns true if the type is nominally typed.
     virtual bool is_nominal() const { return false; }
 

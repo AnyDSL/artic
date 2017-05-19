@@ -30,7 +30,7 @@ void IdExpr::bind_names(NameBinder& b, bool pattern) {
     }
 }
 
-void LiteralExpr::bind_names(NameBinder& b, bool) {}
+void LiteralExpr::bind_names(NameBinder&, bool) {}
 
 void TupleExpr::bind_names(NameBinder& b, bool pattern) {
     for (auto& arg : args) {
