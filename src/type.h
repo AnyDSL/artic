@@ -44,6 +44,15 @@ struct Type : public Cast<Type> {
 
     /// Applies a substitution to the inner part of this type.
     virtual const Type* substitute(TypeTable&, const Map&) const { return this; }
+    /// Fills the given set with unknowns contained in this type.
+    virtual void unknowns(Set&) const {}
+
+    /// Returns the set of unknowns contained in this type.
+    Type::Set unknowns() const {
+        Type::Set set;
+        unknowns(set);
+        return set;
+    }
 
     /// Computes a hash value for the type.
     virtual uint32_t hash() const = 0;
@@ -121,30 +130,30 @@ struct PrimType : public Type {
 };
 
 /// Type application (e.g. tuples, functions, ...).
-struct TypeApplication : public Type {
+struct TypeApp : public Type {
     typedef std::vector<const Type*> Args;
+    Args args;
 
-    std::vector<const Type*> args;
-
-    TypeApplication(Args&& args)
+    TypeApp(Args&& args)
         : args(std::move(args))
     {}
 
     void update_rank(int rank) const override;
     const Type* substitute(TypeTable& table, const Type::Map& map) const override;
+    void unknowns(Type::Set&) const override;
 
-    virtual const TypeApplication* rebuild(TypeTable& table, Args&& new_args) const = 0;
+    virtual const TypeApp* rebuild(TypeTable& table, Args&& new_args) const = 0;
 };
 
 /// Type of a tuple, made of the product of the types of its elements.
-struct TupleType : public TypeApplication {
-    using TypeApplication::Args;
+struct TupleType : public TypeApp {
+    using TypeApp::Args;
 
     TupleType(Args&& args)
-        : TypeApplication(std::move(args))
+        : TypeApp(std::move(args))
     {}
 
-    const TypeApplication* rebuild(TypeTable&, Args&&) const override;
+    const TypeApp* rebuild(TypeTable&, Args&&) const override;
 
     uint32_t hash() const override;
     bool equals(const Type* t) const override;
@@ -152,17 +161,17 @@ struct TupleType : public TypeApplication {
 };
 
 /// Function type with domain and codomain types (multi-argument functions use tuple types for the domain).
-struct FunctionType : public TypeApplication {
-    using TypeApplication::Args;
+struct FunctionType : public TypeApp {
+    using TypeApp::Args;
 
     FunctionType(const Type* from, const Type* to)
-        : TypeApplication(Args{from, to})
+        : TypeApp(Args{from, to})
     {}
 
     const Type* from() const { return args[0]; }
     const Type* to() const { return args[1]; }
 
-    const TypeApplication* rebuild(TypeTable&, Args&&) const override;
+    const TypeApp* rebuild(TypeTable&, Args&&) const override;
 
     uint32_t hash() const override;
     bool equals(const Type* t) const override;
@@ -171,16 +180,17 @@ struct FunctionType : public TypeApplication {
 
 /// Polymorphic type with possibly several variables and a set of constraints.
 struct PolyType : public Type {
-    int vars;
+    size_t vars;
     TypeConstraint::Set constraints;
     const Type* body;
 
-    PolyType(int vars, TypeConstraint::Set&& constraints, const Type* body)
+    PolyType(size_t vars, TypeConstraint::Set&& constraints, const Type* body)
         : vars(vars), constraints(std::move(constraints)), body(body)
     {}
 
     void update_rank(int rank) const override;
     const Type* substitute(TypeTable&, const Type::Map&) const override;
+    void unknowns(Type::Set&) const override;
 
     uint32_t hash() const override;
     bool equals(const Type* t) const override;
@@ -209,9 +219,8 @@ struct UnknownType : public Type {
         : number(number), rank(rank)
     {}
 
-    void update_rank(int i) const override {
-        rank = std::min(rank, i);
-    }
+    void update_rank(int i) const override;
+    void unknowns(Type::Set&) const override;
 
     static constexpr int max_rank() { return std::numeric_limits<int>::max(); }
 
@@ -268,7 +277,7 @@ public:
     const FunctionType*  function_type(const Type*, const Type*);
 
     // Polymorphic types
-    const PolyType*      poly_type(int, TypeConstraint::Set&&, const Type*);
+    const PolyType*      poly_type(size_t, TypeConstraint::Set&&, const Type*);
     const TypeVar*       type_var(int);
 
     // Errors

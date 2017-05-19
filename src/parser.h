@@ -43,8 +43,8 @@ private:
     const Type*      parse_type();
 
     struct Tracker {
-        int begin_row, begin_col;
         const Parser* parser;
+        int begin_row, begin_col;
 
         Loc operator () () const {
             return Loc(parser->prev_.file,

@@ -4,7 +4,7 @@
 namespace artic {
 
 Parser::Parser(Lexer& lexer, TypeTable& type_table)
-    : lexer_(lexer), type_table_(type_table), ahead_(Loc())
+    : ahead_(Loc()), lexer_(lexer), type_table_(type_table)
 {
     next();
 }

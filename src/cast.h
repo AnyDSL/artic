@@ -26,10 +26,10 @@ inline B isa(A a) {
 template <typename T>
 class Cast {
 public:
-    template <typename U> const U* isa() const { artic::isa<const U*>(static_cast<const T*>(this)); }
-    template <typename U> const U* as()  const { artic::as <const U*>(static_cast<const T*>(this)); }
-    template <typename U> U* isa() { artic::isa<U*>(static_cast<T*>(this)); }
-    template <typename U> U* as()  { artic::as <U*>(static_cast<T*>(this)); }
+    template <typename U> const U* isa() const { return artic::isa<const U*>(static_cast<const T*>(this)); }
+    template <typename U> const U* as()  const { return artic::as <const U*>(static_cast<const T*>(this)); }
+    template <typename U> U* isa() { return artic::isa<U*>(static_cast<T*>(this)); }
+    template <typename U> U* as()  { return artic::as <U*>(static_cast<T*>(this)); }
 };
 
 } // namespace artic

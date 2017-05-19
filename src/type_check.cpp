@@ -5,6 +5,7 @@
 namespace artic {
 
 const Type* TypeChecker::unify(const Loc& loc, const Type* a, const Type* b) {
+    // Unifies to types: returns the principal type for two given types
     a = find(a);
     b = find(b);
 
@@ -15,8 +16,8 @@ const Type* TypeChecker::unify(const Loc& loc, const Type* a, const Type* b) {
     if (unknown_b) { a->update_rank(unknown_b->rank); join(loc, b, a); return a; }
 
     // Unification for type constructors
-    auto app_a = a->isa<TypeApplication>();
-    auto app_b = b->isa<TypeApplication>();
+    auto app_a = a->isa<TypeApp>();
+    auto app_b = b->isa<TypeApp>();
     if (app_a && app_b && typeid(app_a) == typeid(app_b) && app_a->args.size() == app_b->args.size()) {
         auto n = app_a->args.size();
         std::vector<const Type*> args(n);
@@ -29,6 +30,7 @@ const Type* TypeChecker::unify(const Loc& loc, const Type* a, const Type* b) {
 }
 
 const Type* TypeChecker::join(const Loc& loc, const Type* from, const Type* to) {
+    // Adds a type equation that maps type 'from' to type 'to'
     if (!from || from == to) return to;
     assert(to == from || find(to) != find(from));
     eqs_.emplace(from, Equation(loc, to));
@@ -37,6 +39,8 @@ const Type* TypeChecker::join(const Loc& loc, const Type* from, const Type* to) 
 }
 
 const Type* TypeChecker::find(const Type* type) {
+    // Propagates the type equations to find the most
+    // precise type corresponding to the given type
     auto it = eqs_.find(type);
     if (it != eqs_.end()) {
         auto next = find(it->second.type);
@@ -45,6 +49,29 @@ const Type* TypeChecker::find(const Type* type) {
         return next;
     }
     return type;
+}
+
+const Type* TypeChecker::subsume(const PolyType* poly) {
+    // Replaces the type variables in the given type by unknowns
+    Type::Map map;
+    for (size_t i = 0; i < poly->vars; i++)
+        map.emplace(type_table_.type_var(i),
+                    type_table_.unknown_type(UnknownType::max_rank()));
+    return poly->substitute(type_table_, map)->as<PolyType>()->body;
+}
+
+const Type* TypeChecker::generalize(const Type* type) {
+    // Generalizes the given type by transforming unknowns
+    // into the type variables of a polymorphic type
+    assert(!type->isa<PolyType>());
+    auto unknowns = type->unknowns();
+    Type::Map map;
+    for (auto u : unknowns) {
+        if (u->as<UnknownType>()->rank > rank_)
+            map.emplace(u, type_table_.type_var(map.size()));
+    }
+    if (map.empty()) return type;
+    return type_table_.poly_type(map.size(), TypeConstraint::Set{}, type->substitute(type_table_, map));
 }
 
 const Type* TypeChecker::type(Expr* expr) {
@@ -68,11 +95,11 @@ const Type* TypeChecker::check(Ptr<Ptrn>& ptrn) {
     return ptrn->expr->type;
 }
 
-const Type* TypeChecker::check(Ptr<Decl>& decl) {
+void TypeChecker::check(Ptr<Decl>& decl) {
     decl->type_check(*this);
 }
 
-const Type* TypeChecker::check(Ptr<Program>& program) {
+void TypeChecker::check(Ptr<Program>& program) {
     do {
         todo_ = false;
         program->type_check(*this);
@@ -148,7 +175,8 @@ const Type* CallExpr::type_check(TypeChecker& c, bool) {
 }
 
 const Type* IfExpr::type_check(TypeChecker& c, bool) {
-    auto cond_type = c.unify(cond->loc, c.check(cond), c.type_table().prim_type(PrimType::I1));
+    c.unify(cond->loc, c.check(cond), c.type_table().prim_type(PrimType::I1));
+
     auto then_type = c.check(if_true);
     if (if_false) {
         auto else_type = c.check(if_false);

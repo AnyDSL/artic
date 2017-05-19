@@ -185,7 +185,7 @@ void FunctionType::print(Printer& p) const {
 
 void PolyType::print(Printer& p) const {
     p << keyword_style("forall") << " ";
-    for (int i = 0; i < vars; i++) {
+    for (size_t i = 0; i < vars; i++) {
         p << p.var_name(i);
         if (i != vars - 1) p << ", ";
     }

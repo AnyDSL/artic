@@ -41,13 +41,13 @@ private:
     uint32_t peek() const { return code_; }
     bool eof() const { return eof_; }
 
+    std::istream& stream_;
+
     Loc loc_;
     bool eof_;
     uint32_t code_;
     Utf8Buffer buf_;
     std::string current_;
-
-    std::istream& stream_;
 
     static std::unordered_map<std::string, Token::Tag> keywords;
 };

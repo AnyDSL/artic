@@ -62,7 +62,7 @@ inline std::string utf8_to_string(uint32_t code) {
 Lexer::Lexer(const std::string& filename, std::istream& is)
     : stream_(is)
     , loc_(std::make_shared<std::string>(filename), 1, 0)
-    , code_(0), eof_(false)
+    , eof_(false), code_(0)
 {
     // Read UTF8 byte order mark
     char bytes[3];

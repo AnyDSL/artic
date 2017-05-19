@@ -19,19 +19,20 @@ public:
     const Type* join(const Loc&, const Type*, const Type*);
     const Type* find(const Type*);
 
-    const Type* subsume(const Type*);
+    const Type* subsume(const PolyType*);
+    const Type* generalize(const Type*);
 
     const Type* type(Expr*);
     const Type* check(Expr*, bool pattern = false);
     const Type* check(Ptr<Expr>&, bool pattern = false);
     const Type* check(Ptr<Ptrn>&);
-    const Type* check(Ptr<Decl>&);
-    const Type* check(Ptr<Program>&);
+    void check(Ptr<Decl>&);
+    void check(Ptr<Program>&);
 
     TypeTable& type_table() { return type_table_; }
 
-    void inc_rank();
-    void dec_rank();
+    void inc_rank() { rank_++; }
+    void dec_rank() { rank_--; }
 
 private:
     struct Equation {

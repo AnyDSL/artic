@@ -148,7 +148,7 @@ const FunctionType* TypeTable::function_type(const Type* from, const Type* to) {
     return new_type<FunctionType>(from, to);
 }
 
-const PolyType* TypeTable::poly_type(int vars, TypeConstraint::Set&& constraints, const Type* body) {
+const PolyType* TypeTable::poly_type(size_t vars, TypeConstraint::Set&& constraints, const Type* body) {
     return new_type<PolyType>(vars, constraints, body);
 }
 
@@ -168,15 +168,15 @@ const UnknownType* TypeTable::unknown_type(int rank) {
     return new_unknown(rank);
 }
 
-const TypeApplication* TupleType::rebuild(TypeTable& table, Args&& new_args) const {
+const TypeApp* TupleType::rebuild(TypeTable& table, Args&& new_args) const {
     return table.tuple_type(std::move(new_args));
 }
 
-const TypeApplication* FunctionType::rebuild(TypeTable& table, Args&& new_args) const {
+const TypeApp* FunctionType::rebuild(TypeTable& table, Args&& new_args) const {
     return table.function_type(new_args[0], new_args[1]);
 }
 
-void TypeApplication::update_rank(int rank) const {
+void TypeApp::update_rank(int rank) const {
     for (auto arg : args)
         arg->update_rank(rank);
 }
@@ -185,7 +185,23 @@ void PolyType::update_rank(int rank) const {
     body->update_rank(rank);
 }
 
-const Type* TypeApplication::substitute(TypeTable& table, const Type::Map& map) const {
+void UnknownType::update_rank(int i) const {
+    rank = std::min(rank, i);
+}
+
+void TypeApp::unknowns(Type::Set& u) const {
+    for (auto arg : args) arg->unknowns(u);
+}
+
+void PolyType::unknowns(Type::Set& u) const {
+    body->unknowns(u);
+}
+
+void UnknownType::unknowns(Type::Set& u) const {
+    u.emplace(this);
+}
+
+const Type* TypeApp::substitute(TypeTable& table, const Type::Map& map) const {
     Args new_args(args.size());
     std::transform(args.begin(), args.end(), new_args.begin(), [&] (auto arg) {
         return Type::apply_map(map, arg->substitute(table, map));

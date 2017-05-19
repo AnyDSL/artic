@@ -41,7 +41,7 @@ struct Box {
 #undef CTOR
 };
 
-template <template <typename> typename F>
+template <template <typename> class F>
 Box zip(const Box& a, const Box& b) {
     assert(a.tag == b.tag);
     switch (a.tag) {
@@ -53,7 +53,7 @@ Box zip(const Box& a, const Box& b) {
     return Box();
 }
 
-template <template <typename> typename F>
+template <template <typename> class F>
 Box map(const Box& a) {
     switch (a.tag) {
 #define TAG(t, n, ty) case Box::t: { F<ty> f; return Box(f(a.n)); } break;

@@ -19,8 +19,8 @@ struct Printer {
     static constexpr Unindent unindent() { return Unindent(); }
 
     int level = 0;
-    std::string tab;
     std::ostream& os;
+    std::string tab;
     std::vector<std::string> var_names;
 
     Printer(std::ostream& os, const std::string& tab = "    ")
@@ -41,7 +41,7 @@ struct Printer {
             if (i < 26) return std::string(1, 'a' + i);
             return "t" + std::to_string(i);
         } else {
-            assert(i < var_names.size());
+            assert(i < int(var_names.size()));
             return var_names[i];
         }
     }
