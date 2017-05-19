@@ -180,12 +180,18 @@ struct FunctionType : public TypeApp {
 
 /// Polymorphic type with possibly several variables and a set of constraints.
 struct PolyType : public Type {
+    /// Number of type variables in this polymorphic type.
     size_t vars;
-    TypeConstraint::Set constraints;
+    /// Body of this polymorphic type.
     const Type* body;
 
-    PolyType(size_t vars, TypeConstraint::Set&& constraints, const Type* body)
-        : vars(vars), constraints(std::move(constraints)), body(body)
+    /// Type constraints attached to this polymorphic type. Those contraints
+    /// specify the conditions that should be verified on the type arguments
+    /// during application so that the resulting type is correct.
+    TypeConstraint::Set constrs;
+
+    PolyType(size_t vars, const Type* body, TypeConstraint::Set&& constrs)
+        : vars(vars), body(body), constrs(std::move(constrs))
     {}
 
     void update_rank(int rank) const override;
@@ -212,19 +218,23 @@ struct TypeVar : public Type {
 
 /// Unknown type in a set of type equations.
 struct UnknownType : public Type {
-    // Number that will be displayed when printing this type.
+    /// Number that will be displayed when printing this type.
     int number;
 
-    // The rank corresponds to the highest scope index to which this
-    // unknown has been bound. If the current scope index is greater
-    // than the rank of an unknown, then the unknown cannot be generalized
-    // at this point, because it is bound somewhere in an enclosing scope.
-    // See "Efficient ML Type Inference Using Ranked Type Variables",
-    // by G. Kuan and D. MacQueen
+    /// The rank corresponds to the highest scope index to which this
+    /// unknown has been bound. If the current scope index is greater
+    /// than the rank of an unknown, then the unknown cannot be generalized
+    /// at this point, because it is bound somewhere in an enclosing scope.
+    /// See "Efficient ML Type Inference Using Ranked Type Variables",
+    /// by G. Kuan and D. MacQueen
     mutable int rank;
 
-    UnknownType(int number, int rank)
-        : number(number), rank(rank)
+    /// Set of constraints attached to this unknown. When this unknown will
+    /// be generalized, they will be attached to the polymorphic type.
+    TypeConstraint::Set constrs;
+
+    UnknownType(int number, int rank, TypeConstraint::Set&& constrs)
+        : number(number), rank(rank), constrs(std::move(constrs))
     {}
 
     void update_rank(int i) const override;
@@ -284,13 +294,13 @@ public:
     const TupleType*     unit_type();
     const FunctionType*  function_type(const Type*, const Type*);
     // Polymorphic types
-    const PolyType*      poly_type(size_t, TypeConstraint::Set&&, const Type*);
+    const PolyType*      poly_type(size_t, const Type*, TypeConstraint::Set&& constrs = TypeConstraint::Set());
     const TypeVar*       type_var(int);
     // Errors
     const UnparsedType*  unparsed_type(const Loc&);
     const NoUnifierType* no_unifier_type(const Loc&, const Type*, const Type*);
     // Unknowns
-    const UnknownType*   unknown_type(int rank);
+    const UnknownType*   unknown_type(int rank, TypeConstraint::Set&& constrs = TypeConstraint::Set());
 
     const Type::Set& types() const { return types_; }
 
@@ -308,8 +318,8 @@ private:
         return ptr;
     }
 
-    const UnknownType* new_unknown(int rank) {
-        unknowns_.emplace_back(new UnknownType(unknowns_.size(), rank));
+    const UnknownType* new_unknown(int rank, TypeConstraint::Set&& constrs) {
+        unknowns_.emplace_back(new UnknownType(unknowns_.size(), rank, std::move(constrs)));
         return unknowns_.back();
     }
 

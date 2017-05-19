@@ -64,7 +64,7 @@ uint32_t FunctionType::hash() const {
 
 uint32_t PolyType::hash() const {
     return hash_combine(body->hash(), uint32_t(vars),
-        hash_list(constraints, [] (auto& c) { return c.hash(); }));
+        hash_list(constrs, [] (auto& c) { return c.hash(); }));
 }
 
 uint32_t TypeVar::hash() const {
@@ -106,7 +106,7 @@ bool PolyType::equals(const Type* t) const {
     if (auto poly = t->isa<PolyType>()) {
         return poly->body == body &&
                poly->vars == vars &&
-               poly->constraints == constraints;
+               poly->constrs == constrs;
     }
     return false;
 }
@@ -130,42 +130,6 @@ bool NoUnifierType::equals(const Type* t) const {
                no_unifier->loc == loc;
     }
     return false;
-}
-
-const PrimType* TypeTable::prim_type(PrimType::Tag tag) {
-    return new_type<PrimType>(tag);
-}
-
-const TupleType* TypeTable::tuple_type(std::vector<const Type*>&& args) {
-    return new_type<TupleType>(std::move(args));
-}
-
-const TupleType* TypeTable::unit_type() {
-    return new_type<TupleType>(std::vector<const Type*>{});
-}
-
-const FunctionType* TypeTable::function_type(const Type* from, const Type* to) {
-    return new_type<FunctionType>(from, to);
-}
-
-const PolyType* TypeTable::poly_type(size_t vars, TypeConstraint::Set&& constraints, const Type* body) {
-    return new_type<PolyType>(vars, constraints, body);
-}
-
-const TypeVar* TypeTable::type_var(int index) {
-    return new_type<TypeVar>(index);
-}
-
-const UnparsedType* TypeTable::unparsed_type(const Loc& loc) {
-    return new_type<UnparsedType>(loc);
-}
-
-const NoUnifierType* TypeTable::no_unifier_type(const Loc& loc, const Type* type_a, const Type* type_b) { 
-    return new_type<NoUnifierType>(loc, type_a, type_b);
-}
-
-const UnknownType* TypeTable::unknown_type(int rank) {
-    return new_unknown(rank);
 }
 
 const TypeApp* TupleType::rebuild(TypeTable& table, Args&& new_args) const {
@@ -210,14 +174,50 @@ const Type* TypeApp::substitute(TypeTable& table, const Type::Map& map) const {
 }
 
 const Type* PolyType::substitute(TypeTable& table, const Type::Map& map) const {
-    TypeConstraint::Set new_constraints;
-    for (auto& constraint : constraints) {
-        new_constraints.emplace(constraint.id,
-            Type::apply_map(map, constraint.type->substitute(table, map)));
+    TypeConstraint::Set new_constrs;
+    for (auto& c : constrs) {
+        new_constrs.emplace(c.id,
+            Type::apply_map(map, c.type->substitute(table, map)));
     }
     return table.poly_type(vars,
-        std::move(new_constraints),
-        Type::apply_map(map, body->substitute(table, map)));
+        Type::apply_map(map, body->substitute(table, map)),
+        std::move(new_constrs));
+}
+
+const PrimType* TypeTable::prim_type(PrimType::Tag tag) {
+    return new_type<PrimType>(tag);
+}
+
+const TupleType* TypeTable::tuple_type(std::vector<const Type*>&& args) {
+    return new_type<TupleType>(std::move(args));
+}
+
+const TupleType* TypeTable::unit_type() {
+    return new_type<TupleType>(std::vector<const Type*>{});
+}
+
+const FunctionType* TypeTable::function_type(const Type* from, const Type* to) {
+    return new_type<FunctionType>(from, to);
+}
+
+const PolyType* TypeTable::poly_type(size_t vars, const Type* body, TypeConstraint::Set&& constrs) {
+    return new_type<PolyType>(vars, body, std::move(constrs));
+}
+
+const TypeVar* TypeTable::type_var(int index) {
+    return new_type<TypeVar>(index);
+}
+
+const UnparsedType* TypeTable::unparsed_type(const Loc& loc) {
+    return new_type<UnparsedType>(loc);
+}
+
+const NoUnifierType* TypeTable::no_unifier_type(const Loc& loc, const Type* type_a, const Type* type_b) { 
+    return new_type<NoUnifierType>(loc, type_a, type_b);
+}
+
+const UnknownType* TypeTable::unknown_type(int rank, TypeConstraint::Set&& constrs) {
+    return new_unknown(rank, std::move(constrs));
 }
 
 } // namespace artic

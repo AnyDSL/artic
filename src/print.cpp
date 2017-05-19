@@ -189,9 +189,9 @@ void PolyType::print(Printer& p) const {
         p << p.var_name(i);
         if (i != vars - 1) p << ", ";
     }
-    if (!constraints.empty()) {
+    if (!constrs.empty()) {
         p << " " << keyword_style("with") << " ";
-        print_list(p, ", ", constraints, [&] (auto& c) {
+        print_list(p, ", ", constrs, [&] (auto& c) {
             p << c.id << " : ";
             c.type->print(p);
         });
