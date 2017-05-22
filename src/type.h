@@ -247,32 +247,12 @@ struct UnknownType : public Type {
     void print(Printer&) const override;
 };
 
-/// Base class for incorrect types resulting from parsing/type-checking.
+/// Type that represents type-checking/parsing errors.
 struct ErrorType : public Type {
     Loc loc;
     ErrorType(const Loc& loc) : loc(loc) {}
+
     void print(Printer&) const override;
-};
-
-/// Incorrectly parsed type.
-struct UnparsedType : public ErrorType {
-    UnparsedType(const Loc& loc) : ErrorType(loc) {}
-
-    uint32_t hash() const override;
-    bool equals(const Type* t) const override;
-};
-
-/// Non unifiable type generated during type-checking.
-struct NoUnifierType : public ErrorType {
-    const Type* type_a;
-    const Type* type_b;
-
-    NoUnifierType(const Loc& loc, const Type* type_a, const Type* type_b)
-        : ErrorType(loc)
-        , type_a(type_a)
-        , type_b(type_b)
-    {}
-
     uint32_t hash() const override;
     bool equals(const Type* t) const override;
 };
@@ -297,8 +277,7 @@ public:
     const PolyType*      poly_type(size_t, const Type*, TypeConstraint::Set&& constrs = TypeConstraint::Set());
     const TypeVar*       type_var(int);
     // Errors
-    const UnparsedType*  unparsed_type(const Loc&);
-    const NoUnifierType* no_unifier_type(const Loc&, const Type*, const Type*);
+    const ErrorType*     error_type(const Loc&);
     // Unknowns
     const UnknownType*   unknown_type(int rank, TypeConstraint::Set&& constrs = TypeConstraint::Set());
 

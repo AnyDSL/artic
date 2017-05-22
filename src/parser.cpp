@@ -285,7 +285,7 @@ const Type* Parser::parse_type() {
     } else {
         log::error(ahead().loc(), "expected type, got '{}'", ahead().string());
         next();
-        return type_table_.unparsed_type(ahead().loc());
+        return type_table_.error_type(ahead().loc());
     }
 
     if (ahead().tag() == Token::ARROW) {

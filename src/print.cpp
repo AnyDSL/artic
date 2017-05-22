@@ -45,7 +45,7 @@ void IdExpr::print(Printer& p, bool pattern) const {
 }
 
 void LiteralExpr::print(Printer& p, bool) const {
-    p << literal_style(lit.box);
+    p << std::showpoint << literal_style(lit.box);
 }
 
 void TupleExpr::print(Printer& p, bool pattern) const {

@@ -75,12 +75,8 @@ uint32_t UnknownType::hash() const {
     return hash_combine(hash_init(), uint32_t(number));
 }
 
-uint32_t UnparsedType::hash() const {
+uint32_t ErrorType::hash() const {
     return loc.hash();
-}
-
-uint32_t NoUnifierType::hash() const {
-    return hash_combine(loc.hash(), type_a->hash(), type_b->hash());
 }
 
 bool TupleType::equals(const Type* t) const {
@@ -119,16 +115,7 @@ bool UnknownType::equals(const Type* t) const {
     return t == this;
 }
 
-bool UnparsedType::equals(const Type* t) const {
-    return t->isa<UnparsedType>() && t->as<UnparsedType>()->loc == loc;
-}
-
-bool NoUnifierType::equals(const Type* t) const {
-    if (auto no_unifier = t->isa<NoUnifierType>()) {
-        return no_unifier->type_a == type_a &&
-               no_unifier->type_b == type_b &&
-               no_unifier->loc == loc;
-    }
+bool ErrorType::equals(const Type* t) const {
     return false;
 }
 
@@ -208,12 +195,8 @@ const TypeVar* TypeTable::type_var(int index) {
     return new_type<TypeVar>(index);
 }
 
-const UnparsedType* TypeTable::unparsed_type(const Loc& loc) {
-    return new_type<UnparsedType>(loc);
-}
-
-const NoUnifierType* TypeTable::no_unifier_type(const Loc& loc, const Type* type_a, const Type* type_b) { 
-    return new_type<NoUnifierType>(loc, type_a, type_b);
+const ErrorType* TypeTable::error_type(const Loc& loc) {
+    return new_type<ErrorType>(loc);
 }
 
 const UnknownType* TypeTable::unknown_type(int rank, TypeConstraint::Set&& constrs) {

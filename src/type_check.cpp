@@ -34,7 +34,9 @@ const Type* TypeChecker::unify(const Loc& loc, const Type* a, const Type* b) {
         return app_a->rebuild(type_table_, std::move(args));
     }
 
-    if (a != b) return type_table_.no_unifier_type(loc, a, b);
+    if (a != b && report_)
+        log::error(loc, "cannot unify '{}' with '{}'", a, b);
+
     return a;
 }
 
@@ -95,18 +97,22 @@ const Type* TypeChecker::type(Expr* expr) {
     return find(expr->type);
 }
 
-const Type* TypeChecker::check(Expr* expr, bool pattern) {
+const Type* TypeChecker::check(Expr* expr, const Type* expected, bool pattern) {
     auto type = expr->type_check(*this, pattern);
+    if (expected) type = unify(expr->loc, type, expected);
     expr->type = expr->type ? unify(expr->loc, expr->type, type) : type;
     return expr->type;
 }
 
-const Type* TypeChecker::check(Ptr<Expr>& expr, bool pattern) {
-    return check(expr.get(), pattern);
+const Type* TypeChecker::check(Ptr<Expr>& expr, const Type* expected, bool pattern) {
+    return check(expr.get(), expected, pattern);
 }
 
-const Type* TypeChecker::check(Ptr<Ptrn>& ptrn) {
+const Type* TypeChecker::check(Ptr<Ptrn>& ptrn, const Type* expected) {
     ptrn->type_check(*this);
+    if (expected) ptrn->expr->type = unify(ptrn->loc, ptrn->expr->type, expected);
+    if (report_ && !ptrn->expr->type->unknowns().empty())
+        log::error(ptrn->loc, "type cannot be inferred, best estimate is '{}'", ptrn->expr->type);
     return ptrn->expr->type;
 }
 
@@ -115,31 +121,28 @@ void TypeChecker::check(Ptr<Decl>& decl) {
 }
 
 void TypeChecker::check(Ptr<Program>& program) {
+    // Run fix-point iterations until convergence, with error messages disabled
+    report_ = false;
     do {
         todo_ = false;
         rank_ = 0;
-
         program->type_check(*this);
     } while (todo_);
 
-    for (auto type : type_table_.types()) {
-        // Process unification errors
-        if (auto no_unifier = type->isa<NoUnifierType>()) {
-            if (!no_unifier->type_a->isa<ErrorType>() && !no_unifier->type_b->isa<ErrorType>())
-                log::error(no_unifier->loc, "cannot unify '{}' with '{}'", no_unifier->type_a, no_unifier->type_b);
-        }
-    }
+    // Display type-checking errors
+    report_ = true;
+    program->type_check(*this);
 }
 
 void Ptrn::type_check(TypeChecker& c) {
-    c.check(expr, true);
+    c.check(expr, nullptr, true);
 }
 
 const Type* IdExpr::type_check(TypeChecker& c, bool pattern) {
     if (!pattern) {
         // TODO: Currently no overloading
         if (!symbol->exprs.empty())
-            return c.check(symbol->exprs.back(), true);
+            return c.check(symbol->exprs.back(), nullptr, true);
     }
     return c.type(this);
 }
@@ -156,7 +159,7 @@ const Type* LiteralExpr::type_check(TypeChecker& c, bool) {
 
 const Type* TupleExpr::type_check(TypeChecker& c, bool pattern) {
     std::vector<const Type*> type_args;
-    for (auto& arg : args) type_args.emplace_back(c.check(arg, pattern));
+    for (auto& arg : args) type_args.emplace_back(c.check(arg, nullptr, pattern));
     return c.type_table().tuple_type(std::move(type_args));
 }
 
@@ -169,11 +172,8 @@ const Type* LambdaExpr::type_check(TypeChecker& c, bool) {
 }
 
 const Type* BlockExpr::type_check(TypeChecker& c, bool) {
-    for (size_t i = 0, n = exprs.size(); i < n; i++) {
-        c.check(exprs[i]);
-        if (i != n - 1)
-            c.unify(loc, exprs[i]->type, c.type_table().unit_type());
-    }
+    for (size_t i = 0, n = exprs.size(); i < n; i++)
+        c.check(exprs[i], i != n - 1 ? c.type_table().unit_type() : nullptr);
     return exprs.back()->type;
 }
 
@@ -188,20 +188,18 @@ const Type* CallExpr::type_check(TypeChecker& c, bool) {
     auto ret_type = c.type(this);
 
     if (!call_type) call_type = c.subsume(callee_type);
-    c.unify(loc, call_type, c.type_table().function_type(arg_type, ret_type));
+    call_type = c.unify(loc, call_type, c.type_table().function_type(arg_type, ret_type));
 
     return ret_type;
 }
 
 const Type* IfExpr::type_check(TypeChecker& c, bool) {
-    c.unify(cond->loc, c.check(cond), c.type_table().prim_type(PrimType::I1));
+    c.check(cond, c.type_table().prim_type(PrimType::I1));
 
-    auto then_type = c.check(if_true);
-    if (if_false) {
-        auto else_type = c.check(if_false);
-        return c.unify(loc, then_type, else_type);
-    }
-    return c.unify(loc, then_type, c.type_table().unit_type());
+    if (if_false)
+        return c.check(if_false, c.check(if_true));
+
+    return c.check(if_true, c.type_table().unit_type());
 }
 
 const Type* UnaryExpr::type_check(TypeChecker& c, bool) {
@@ -211,29 +209,24 @@ const Type* UnaryExpr::type_check(TypeChecker& c, bool) {
 
 const Type* BinaryExpr::type_check(TypeChecker& c, bool) {
     // TODO: Use constrained types here
-    auto op_type = c.unify(loc, c.check(left), c.check(right));
+    auto op_type = c.check(left, c.check(right));
     if (has_cmp()) return c.type_table().prim_type(PrimType::I1);
     return op_type;
 }
 
 const Type* ErrorExpr::type_check(TypeChecker& c, bool) {
-    return c.type_table().unparsed_type(loc);
+    return c.type_table().error_type(loc);
 }
 
 void VarDecl::type_check(TypeChecker& c) {
-    auto id_type = c.check(id);
-    auto init_type = c.check(init);
-
-    c.unify(loc, id_type, init_type);
+    c.check(id, c.check(init));
 }
 
 void DefDecl::type_check(TypeChecker& c) {
-    auto id_type = c.check(id);
     auto init_type = lambda->param ? c.check(lambda->as<Expr>()) : c.check(lambda->body);
     if (lambda->param && lambda->type->isa<FunctionType>())
         ret_type = lambda->type->as<FunctionType>()->to();
-
-    c.unify(loc, id_type, c.generalize(loc, init_type));
+    c.check(id, c.generalize(loc, init_type));
 }
 
 void ErrorDecl::type_check(TypeChecker&) {}

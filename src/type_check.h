@@ -23,9 +23,9 @@ public:
     const Type* generalize(const Loc& loc, const Type*);
 
     const Type* type(Expr*);
-    const Type* check(Expr*, bool pattern = false);
-    const Type* check(Ptr<Expr>&, bool pattern = false);
-    const Type* check(Ptr<Ptrn>&);
+    const Type* check(Expr*, const Type* expected = nullptr, bool pattern = false);
+    const Type* check(Ptr<Expr>&, const Type* expected = nullptr, bool pattern = false);
+    const Type* check(Ptr<Ptrn>&, const Type* expected = nullptr);
     void check(Ptr<Decl>&);
     void check(Ptr<Program>&);
 
@@ -47,8 +47,8 @@ private:
 
     std::unordered_map<const Type*, Equation> eqs_;
     TypeTable& type_table_;
+    bool todo_, report_;
     int rank_;
-    bool todo_;
 };
 
 } // namespace artic
