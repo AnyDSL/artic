@@ -80,8 +80,11 @@ const Type* TypeChecker::subsume(const Type* type) {
 const Type* TypeChecker::generalize(const Loc& loc, const Type* type) {
     // Generalizes the given type by transforming unknowns
     // into the type variables of a polymorphic type
-    assert(!type->isa<PolyType>());
     int vars = 0;
+    if (auto poly = type->isa<PolyType>()) {
+        vars = poly->vars;
+        type = poly->body;
+    }
     for (auto u : type->unknowns()) {
         // If the type is not tied to a concrete type nor tied in a higher scope, generalize it
         if (find(u) == u && u->as<UnknownType>()->rank >= rank_) {
@@ -226,7 +229,8 @@ void VarDecl::type_check(TypeChecker& c) {
 }
 
 void DefDecl::type_check(TypeChecker& c) {
-    auto init_type = lambda->param ? c.check(lambda->as<Expr>()) : c.check(lambda->body);
+    auto id_type = c.check(id);
+    auto init_type = lambda->param ? c.check(lambda->as<Expr>(), id_type) : c.check(lambda->body, id_type);
     if (lambda->param && lambda->type->isa<FunctionType>()) {
         auto to = lambda->type->as<FunctionType>()->to();
         ret_type = ret_type ? c.unify(loc, ret_type, to) : to;
