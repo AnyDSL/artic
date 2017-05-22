@@ -213,12 +213,15 @@ struct CallExpr : public Expr {
     Ptr<Expr> callee;
     Ptr<Expr> arg;
 
+    const Type* call_type;
+
     CallExpr(const Loc& loc,
              Ptr<Expr>&& callee,
              Ptr<Expr>&& arg)
         : Expr(loc)
         , callee(link(std::move(callee)))
         , arg(link(std::move(arg)))
+        , call_type(nullptr)
     {}
 
     void bind_names(NameBinder&, bool) override;

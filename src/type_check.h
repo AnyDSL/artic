@@ -19,8 +19,8 @@ public:
     const Type* join(const Loc&, const Type*, const Type*);
     const Type* find(const Type*);
 
-    const Type* subsume(const PolyType*);
-    const Type* generalize(const Type*);
+    const Type* subsume(const Type*);
+    const Type* generalize(const Loc& loc, const Type*);
 
     const Type* type(Expr*);
     const Type* check(Expr*, bool pattern = false);
@@ -31,8 +31,8 @@ public:
 
     TypeTable& type_table() { return type_table_; }
 
-    void inc_rank() { rank_++; }
-    void dec_rank() { rank_--; }
+    void inc_rank(int i = 1) { rank_ += i; }
+    void dec_rank(int i = 1) { rank_ -= i; }
 
 private:
     struct Equation {

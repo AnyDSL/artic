@@ -196,6 +196,8 @@ void PolyType::print(Printer& p) const {
             c.type->print(p);
         });
     }
+    p << " . ";
+    body->print(p);
 }
 
 void TypeVar::print(Printer& p) const {

@@ -38,8 +38,8 @@ struct Printer {
 
     std::string var_name(int i) {
         if (var_names.empty()) {
-            if (i < 26) return std::string(1, 'a' + i);
-            return "t" + std::to_string(i);
+            if (i < 26) return std::string(1, 'A' + i);
+            return "T" + std::to_string(i);
         } else {
             assert(i < int(var_names.size()));
             return var_names[i];

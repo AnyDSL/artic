@@ -12,8 +12,17 @@ const Type* TypeChecker::unify(const Loc& loc, const Type* a, const Type* b) {
     // Constrain unknowns
     auto unknown_a = a->isa<UnknownType>();
     auto unknown_b = b->isa<UnknownType>();
+    // TODO: Make sure the constraints are satisfied
     if (unknown_a) { b->update_rank(unknown_a->rank); join(loc, a, b); return b; }
     if (unknown_b) { a->update_rank(unknown_b->rank); join(loc, b, a); return a; }
+
+    // Polymorphic types
+    auto poly_a = a->isa<PolyType>();
+    auto poly_b = b->isa<PolyType>();
+    if (poly_a && poly_b && poly_a->vars == poly_b->vars)
+        return type_table_.poly_type(poly_a->vars, unify(loc, poly_a->body, poly_b->body));
+    if (poly_a) return type_table_.poly_type(poly_a->vars, unify(loc, poly_a->body, b));
+    if (poly_b) return type_table_.poly_type(poly_b->vars, unify(loc, poly_b->body, a));
 
     // Unification for type constructors
     auto app_a = a->isa<TypeApp>();
@@ -51,28 +60,33 @@ const Type* TypeChecker::find(const Type* type) {
     return type;
 }
 
-const Type* TypeChecker::subsume(const PolyType* poly) {
+const Type* TypeChecker::subsume(const Type* type) {
     // Replaces the type variables in the given type by unknowns
-    Type::Map map;
-    for (size_t i = 0; i < poly->vars; i++)
-        map.emplace(type_table_.type_var(i),
-                    type_table_.unknown_type(UnknownType::max_rank()));
-    return poly->substitute(type_table_, map)->as<PolyType>()->body;
+    if (auto poly = type->isa<PolyType>()) {
+        Type::Map map;
+        for (size_t i = 0; i < poly->vars; i++)
+            map.emplace(type_table_.type_var(i),
+                        type_table_.unknown_type(UnknownType::max_rank()));
+        return poly->substitute(type_table_, map)->as<PolyType>()->body;
+    }
+    return type;
 }
 
-const Type* TypeChecker::generalize(const Type* type) {
+const Type* TypeChecker::generalize(const Loc& loc, const Type* type) {
     // Generalizes the given type by transforming unknowns
     // into the type variables of a polymorphic type
     assert(!type->isa<PolyType>());
-    auto unknowns = type->unknowns();
-    Type::Map map;
-    for (auto u : unknowns) {
-        if (u->as<UnknownType>()->rank > rank_)
-            map.emplace(u, type_table_.type_var(map.size()));
+    int vars = 0;
+    for (auto u : type->unknowns()) {
+        // If the type is not tied to a concrete type nor tied in a higher scope, generalize it
+        if (find(u) == u && u->as<UnknownType>()->rank >= rank_) {
+            unify(loc, u, type_table_.type_var(vars));
+            vars++;
+        }
     }
-    if (map.empty()) return type;
+    if (vars == 0) return type;
     // TODO: Build the constraint set from the unknowns
-    return type_table_.poly_type(map.size(), type->substitute(type_table_, map));
+    return type_table_.poly_type(vars, type);
 }
 
 const Type* TypeChecker::type(Expr* expr) {
@@ -147,8 +161,11 @@ const Type* TupleExpr::type_check(TypeChecker& c, bool pattern) {
 }
 
 const Type* LambdaExpr::type_check(TypeChecker& c, bool) {
-    // TODO: Generalize lambdas
-    return c.type_table().function_type(c.check(param), c.check(body));
+    auto param_type = c.check(param);
+    c.inc_rank();
+    auto body_type = c.check(body);
+    c.dec_rank();
+    return c.type_table().function_type(param_type, body_type);
 }
 
 const Type* BlockExpr::type_check(TypeChecker& c, bool) {
@@ -167,14 +184,13 @@ const Type* DeclExpr::type_check(TypeChecker& c, bool) {
 
 const Type* CallExpr::type_check(TypeChecker& c, bool) {
     auto arg_type = c.check(arg);
-    auto callee_type = c.unify(loc,
-        c.check(callee),
-        c.type_table().function_type(arg_type, c.type(this)));
+    auto callee_type = c.check(callee);
+    auto ret_type = c.type(this);
 
-    if (auto fn_type = callee_type->isa<FunctionType>())
-        return fn_type->to();
+    if (!call_type) call_type = c.subsume(callee_type);
+    c.unify(loc, call_type, c.type_table().function_type(arg_type, ret_type));
 
-    return c.type(this);
+    return ret_type;
 }
 
 const Type* IfExpr::type_check(TypeChecker& c, bool) {
@@ -207,6 +223,7 @@ const Type* ErrorExpr::type_check(TypeChecker& c, bool) {
 void VarDecl::type_check(TypeChecker& c) {
     auto id_type = c.check(id);
     auto init_type = c.check(init);
+
     c.unify(loc, id_type, init_type);
 }
 
@@ -215,7 +232,8 @@ void DefDecl::type_check(TypeChecker& c) {
     auto init_type = lambda->param ? c.check(lambda->as<Expr>()) : c.check(lambda->body);
     if (lambda->param && lambda->type->isa<FunctionType>())
         ret_type = lambda->type->as<FunctionType>()->to();
-    c.unify(loc, id_type, init_type);
+
+    c.unify(loc, id_type, c.generalize(loc, init_type));
 }
 
 void ErrorDecl::type_check(TypeChecker&) {}
