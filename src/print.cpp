@@ -5,9 +5,10 @@
 
 namespace artic {
 
-template <typename T> auto error_style(const T& t)   -> decltype(log::style(t, log::Style())) { return log::style(t, log::Style::RED);   }
-template <typename T> auto keyword_style(const T& t) -> decltype(log::style(t, log::Style())) { return log::style(t, log::Style::GREEN); }
-template <typename T> auto literal_style(const T& t) -> decltype(log::style(t, log::Style())) { return log::style(t, log::Style::BLUE);  }
+template <typename T> auto error_style(const T& t)    -> decltype(log::style(t, log::Style())) { return log::style(t, log::Style::RED);   }
+template <typename T> auto keyword_style(const T& t)  -> decltype(log::style(t, log::Style())) { return log::style(t, log::Style::GREEN); }
+template <typename T> auto literal_style(const T& t)  -> decltype(log::style(t, log::Style())) { return log::style(t, log::Style::BLUE);  }
+template <typename T> auto type_var_style(const T& t) -> decltype(log::style(t, log::Style(), log::Style())) { return log::style(t, log::Style::BOLD, log::Style::WHITE);  }
 
 template <typename L, typename S, typename F>
 void print_list(Printer& p, const S& sep, const L& list, F f) {
@@ -26,6 +27,20 @@ void print_parens(Printer& p, const E& e) {
         e->print(p);
         p << ')';
     }
+}
+
+inline void print_vars(Printer& p, size_t vars) {
+    for (size_t i = 0; i < vars; i++) {
+        p << type_var_style(p.var_name(i));
+        if (i != vars - 1) p << ", ";
+    }
+}
+
+inline void print_constraints(Printer& p, const TypeConstraint::Set& constrs) {
+    print_list(p, ", ", constrs, [&] (auto& c) {
+        p << c.id << " : ";
+        c.type->print(p);
+    });
 }
 
 void Ptrn::print(Printer& p) const {
@@ -137,6 +152,15 @@ void DefDecl::print(Printer& p) const {
     p << keyword_style("def") << " ";
     if (lambda->param) {
         id->expr->print(p);
+        if (auto poly = id->expr->type->isa<PolyType>()) {
+            p << '[';
+            print_vars(p, poly->vars);
+            if (!poly->constrs.empty()) {
+                p << ' ' << keyword_style("with") << ' ';
+                print_constraints(p, poly->constrs);
+            }
+            p << ']';
+        }
         print_parens(p, lambda->param);
     } else id->print(p);
 
@@ -185,23 +209,17 @@ void FunctionType::print(Printer& p) const {
 
 void PolyType::print(Printer& p) const {
     p << keyword_style("forall") << " ";
-    for (size_t i = 0; i < vars; i++) {
-        p << p.var_name(i);
-        if (i != vars - 1) p << ", ";
-    }
+    print_vars(p, vars);
     if (!constrs.empty()) {
-        p << " " << keyword_style("with") << " ";
-        print_list(p, ", ", constrs, [&] (auto& c) {
-            p << c.id << " : ";
-            c.type->print(p);
-        });
+        p << ' ' << keyword_style("with") << ' ';
+        print_constraints(p, constrs);
     }
     p << " . ";
     body->print(p);
 }
 
 void TypeVar::print(Printer& p) const {
-    p << p.var_name(index);
+    p << type_var_style(p.var_name(index));
 }
 
 void UnknownType::print(Printer& p) const {

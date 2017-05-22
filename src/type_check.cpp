@@ -34,8 +34,11 @@ const Type* TypeChecker::unify(const Loc& loc, const Type* a, const Type* b) {
         return app_a->rebuild(type_table_, std::move(args));
     }
 
-    if (a != b && report_)
-        log::error(loc, "cannot unify '{}' with '{}'", a, b);
+    if (a != b) {
+        if (!a->isa<ErrorType>() && !b->isa<ErrorType>())
+            log::error(loc, "cannot unify '{}' with '{}'", a, b);
+        return type_table_.error_type(loc);
+    }
 
     return a;
 }
@@ -224,8 +227,10 @@ void VarDecl::type_check(TypeChecker& c) {
 
 void DefDecl::type_check(TypeChecker& c) {
     auto init_type = lambda->param ? c.check(lambda->as<Expr>()) : c.check(lambda->body);
-    if (lambda->param && lambda->type->isa<FunctionType>())
-        ret_type = lambda->type->as<FunctionType>()->to();
+    if (lambda->param && lambda->type->isa<FunctionType>()) {
+        auto to = lambda->type->as<FunctionType>()->to();
+        ret_type = ret_type ? c.unify(loc, ret_type, to) : to;
+    }
     c.check(id, c.generalize(loc, init_type));
 }
 

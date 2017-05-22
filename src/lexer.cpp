@@ -96,6 +96,8 @@ Token Lexer::next() {
         if (accept(')')) return Token(loc_, Token::R_PAREN);
         if (accept('{')) return Token(loc_, Token::L_BRACE);
         if (accept('}')) return Token(loc_, Token::R_BRACE);
+        if (accept('[')) return Token(loc_, Token::L_BRACKET);
+        if (accept(']')) return Token(loc_, Token::R_BRACKET);
         if (accept(',')) return Token(loc_, Token::COMMA);
         if (accept(';')) return Token(loc_, Token::SEMICOLON);
         if (accept(':')) return Token(loc_, Token::COLON);

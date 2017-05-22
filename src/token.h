@@ -21,6 +21,8 @@ namespace artic {
     f(R_PAREN, ")") \
     f(L_BRACE, "{") \
     f(R_BRACE, "}") \
+    f(L_BRACKET, "[") \
+    f(R_BRACKET, "]") \
     f(COMMA, ",") \
     f(SEMICOLON, ";") \
     f(COLON, ":") \
