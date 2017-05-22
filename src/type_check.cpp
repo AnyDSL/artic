@@ -231,9 +231,9 @@ void VarDecl::type_check(TypeChecker& c) {
 void DefDecl::type_check(TypeChecker& c) {
     auto id_type = c.check(id);
     auto init_type = lambda->param ? c.check(lambda->as<Expr>(), id_type) : c.check(lambda->body, id_type);
-    if (lambda->param && lambda->type->isa<FunctionType>()) {
-        auto to = lambda->type->as<FunctionType>()->to();
-        ret_type = ret_type ? c.unify(loc, ret_type, to) : to;
+    if (lambda->param) {
+        if (auto fn_type = lambda->type->inner()->isa<FunctionType>())
+            ret_type = ret_type ? c.unify(loc, ret_type, fn_type->to()) : fn_type->to();
     }
     c.check(id, c.generalize(loc, init_type));
 }

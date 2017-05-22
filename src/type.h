@@ -35,7 +35,10 @@ struct Type : public Cast<Type> {
 
     virtual ~Type() {}
 
+    /// Returns true if this type is a tuple.
     bool is_tuple() const;
+    /// Returns the body of a polymorphic type, or the type itself if it is not polymorphic.
+    const Type* inner() const;
 
     /// Updates the rank of the unknowns contained in the type.
     virtual void update_rank(int) const {}

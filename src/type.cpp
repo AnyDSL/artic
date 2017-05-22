@@ -7,6 +7,11 @@ bool Type::is_tuple() const {
     return isa<TupleType>();
 }
 
+const Type* Type::inner() const {
+    if (auto poly = isa<PolyType>()) return poly->body;
+    return this;
+}
+
 std::string PrimType::tag_to_string(Tag tag) {
     switch (tag) {
         case I1:  return "Bool";
