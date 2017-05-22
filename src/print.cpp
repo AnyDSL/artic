@@ -95,7 +95,10 @@ void DeclExpr::print(Printer& p, bool) const {
 }
 
 void CallExpr::print(Printer& p, bool) const {
-    callee->print(p);
+    if (callee->isa<LambdaExpr>())
+        print_parens(p, callee);
+    else
+        callee->print(p);
     print_parens(p, arg);
 }
 

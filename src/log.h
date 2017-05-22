@@ -5,8 +5,6 @@
 #include <cstring>
 #include <cassert>
 
-#include "loc.h"
-
 #ifdef _WIN32
 #include <io.h>
 #define isatty _isatty
@@ -15,9 +13,17 @@
 #include <unistd.h>
 #endif
 
+#include "loc.h"
+
 namespace artic {
 
 namespace log {
+
+#ifdef COLORIZE
+static const bool colorize = isatty(fileno(stdout)) && isatty(fileno(stderr));
+#else
+static constexpr bool colorize = false;
+#endif
 
 enum Style {
     NORMAL = 0,
@@ -62,13 +68,9 @@ struct Stylized {
 template <typename T, typename... Args>
 inline std::ostream& operator << (std::ostream& os, const Stylized<T, Args...>& s) {
 #ifdef COLORIZE
-    if (isatty(fileno(stdout)) && isatty(fileno(stderr))) {
-        os << "\33[";
-        s.styles.apply(os);
-        os << "m" << s.t << "\33[0m";
-    } else {
-        os << s.t;
-    }
+    os << "\33[";
+    s.styles.apply(os);
+    os << "m" << s.t << "\33[0m";
 #else
     os << s.t;
 #endif
@@ -125,27 +127,39 @@ void info(const char* fmt, Args... args) {
 /// Report an error at the given location in a source file.
 template <typename... Args>
 void error(const Loc& loc, const char* fmt, Args... args) {
-    error<false>("{} in {}: ",
-          style("error", Style::RED,   Style::BOLD),
-          style(loc,     Style::WHITE, Style::BOLD));
+    if (colorize) {
+        error<false>("{} in {}: ",
+              style("error", Style::RED,   Style::BOLD),
+              style(loc,     Style::WHITE, Style::BOLD));
+    } else {
+        error<false>("error in {}: ", loc);
+    }
     error(fmt, args...);
 }
 
 /// Report a warning at the given location in a source file.
 template <typename... Args>
 void warn(const Loc& loc, const char* fmt, Args... args) {
-    warn<false>("{} in {}: ",
-         style("warning", Style::YELLOW, Style::BOLD),
-         style(loc,       Style::WHITE,  Style::BOLD));
+    if (colorize) {
+        warn<false>("{} in {}: ",
+             style("warning", Style::YELLOW, Style::BOLD),
+             style(loc,       Style::WHITE,  Style::BOLD));
+    } else {
+        error<false>("warning in {}: ", loc);
+    }
     warn(fmt, args...);
 }
 
 /// Display a note corresponding to a specific location in a source file.
 template <typename... Args>
 void info(const Loc& loc, const char* fmt, Args... args) {
-    info<false>("{} in {}: ",
-         style("info", Style::CYAN,  Style::BOLD),
-         style(loc,    Style::WHITE, Style::BOLD));
+    if (colorize) {
+        info<false>("{} in {}: ",
+             style("info", Style::CYAN,  Style::BOLD),
+             style(loc,    Style::WHITE, Style::BOLD));
+    } else {
+        error<false>("info in {}: ", loc);
+    }
     info(fmt, args...);
 }
 
