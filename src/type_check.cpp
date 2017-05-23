@@ -81,10 +81,6 @@ const Type* TypeChecker::generalize(const Loc& loc, const Type* type) {
     // Generalizes the given type by transforming unknowns
     // into the type variables of a polymorphic type
     int vars = 0;
-    if (auto poly = type->isa<PolyType>()) {
-        vars = poly->vars;
-        type = poly->body;
-    }
     for (auto u : type->unknowns()) {
         // If the type is not tied to a concrete type nor tied in a higher scope, generalize it
         if (find(u) == u && u->as<UnknownType>()->rank >= rank_) {
@@ -93,6 +89,7 @@ const Type* TypeChecker::generalize(const Loc& loc, const Type* type) {
         }
     }
     if (vars == 0) return type;
+    assert(!type->isa<PolyType>());
     // TODO: Build the constraint set from the unknowns
     return type_table_.poly_type(vars, type);
 }

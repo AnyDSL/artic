@@ -180,10 +180,9 @@ void ErrorDecl::print(Printer& p) const {
 }
 
 void Program::print(Printer& p) const {
-    for (auto& decl : decls) {
+    print_list(p, p.endl(), decls, [&] (auto& decl) {
         decl->print(p);
-        p << p.endl();
-    }
+    });
 }
 
 void PrimType::print(Printer& p) const {
