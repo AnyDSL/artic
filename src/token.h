@@ -50,11 +50,13 @@ namespace artic {
     f(AND, "&") \
     f(OR, "|") \
     f(XOR, "^") \
+    f(NOT, "!") \
     f(CMP_LE, "<=") \
     f(CMP_GE, ">=") \
     f(CMP_LT, "<") \
     f(CMP_GT, ">") \
     f(CMP_EQ, "==") \
+    f(CMP_NEQ, "!=") \
     f(BOOL, "Bool") \
     f(INT8,  "Int8") \
     f(INT16, "Int16") \

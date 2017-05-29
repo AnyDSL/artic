@@ -253,6 +253,7 @@ struct IfExpr : public Expr {
 /// Unary expression (negation, increment, ...).
 struct UnaryExpr : public Expr {
     enum Tag {
+        NOT,
         PLUS,
         MINUS,
         PRE_INC,
@@ -288,7 +289,7 @@ struct BinaryExpr : public Expr {
         ADD, SUB, MUL, DIV, MOD,
         L_SHFT, R_SHFT,
         AND, OR, XOR,
-        CMP_LT, CMP_GT, CMP_LE, CMP_GE, CMP_EQ,
+        CMP_LT, CMP_GT, CMP_LE, CMP_GE, CMP_EQ, CMP_NEQ,
         ERR
     };
     Tag tag;

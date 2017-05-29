@@ -176,6 +176,13 @@ const Type* PolyType::substitute(TypeTable& table, const Type::Map& map) const {
         std::move(new_constrs));
 }
 
+const Type* FunctionType::first_arg() const {
+    if (auto tuple_type = from()->isa<TupleType>()) {
+        if (!tuple_type->args.empty()) return tuple_type->args[0];
+    }
+    return from();
+}
+
 const PrimType* TypeTable::prim_type(PrimType::Tag tag) {
     return new_type<PrimType>(tag);
 }

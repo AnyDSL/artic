@@ -16,11 +16,15 @@ public:
     {}
 
     const Type* unify(const Loc&, const Type*, const Type*);
-    const Type* join(const Loc&, const Type*, const Type*);
+    const Type* join(const Loc&, const UnknownType*, const Type*);
     const Type* find(const Type*);
 
     const Type* subsume(const Type*);
     const Type* generalize(const Loc& loc, const Type*);
+
+    void arithm_ops(TypeConstraint::Set&, const Type*);
+    void logical_ops(TypeConstraint::Set&, const Type*);
+    void cmp_ops(TypeConstraint::Set&, const Type*);
 
     const Type* type(Expr*);
     const Type* check(Expr*, const Type* expected = nullptr, bool pattern = false);

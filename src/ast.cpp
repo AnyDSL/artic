@@ -7,6 +7,7 @@ bool Expr::is_tuple() const { return isa<TupleExpr>(); }
 
 std::string UnaryExpr::tag_to_string(Tag tag) {
     switch (tag) {
+        case NOT:   return "!";
         case PLUS:  return "+";
         case MINUS: return "-";
         case POST_INC:
@@ -23,6 +24,7 @@ std::string UnaryExpr::tag_to_string(Tag tag) {
 
 UnaryExpr::Tag UnaryExpr::tag_from_token(const Token& token, bool prefix) {
     switch (token.tag()) {
+        case Token::NOT: return NOT;
         case Token::ADD: return PLUS;
         case Token::SUB: return MINUS;
         case Token::INC: return prefix ? PRE_INC : POST_INC;
@@ -56,6 +58,7 @@ bool BinaryExpr::has_cmp(Tag tag) {
         case CMP_LE:
         case CMP_GE:
         case CMP_EQ:
+        case CMP_NEQ:
             return true;
         default: return false;
     }
@@ -78,6 +81,7 @@ int BinaryExpr::precedence(Tag tag) {
         case CMP_LE:
         case CMP_GE:
         case CMP_EQ:
+        case CMP_NEQ:
             return 4;
         case AND: return 5;
         case XOR: return 6;
@@ -127,11 +131,12 @@ std::string BinaryExpr::tag_to_string(Tag tag) {
         case L_SHFT: return "<<";
         case R_SHFT: return ">>";
 
-        case CMP_LT: return "<";
-        case CMP_GT: return ">";
-        case CMP_LE: return "<=";
-        case CMP_GE: return ">=";
-        case CMP_EQ: return "==";
+        case CMP_LT:  return "<";
+        case CMP_GT:  return ">";
+        case CMP_LE:  return "<=";
+        case CMP_GE:  return ">=";
+        case CMP_EQ:  return "==";
+        case CMP_NEQ: return "==";
         default:
             assert(false);
             return "";
@@ -163,11 +168,12 @@ BinaryExpr::Tag BinaryExpr::tag_from_token(const Token& token) {
         case Token::L_SHFT: return L_SHFT;
         case Token::R_SHFT: return R_SHFT;
 
-        case Token::CMP_LT: return CMP_LT;
-        case Token::CMP_GT: return CMP_GT;
-        case Token::CMP_LE: return CMP_LE;
-        case Token::CMP_GE: return CMP_GE;
-        case Token::CMP_EQ: return CMP_EQ;
+        case Token::CMP_LT:  return CMP_LT;
+        case Token::CMP_GT:  return CMP_GT;
+        case Token::CMP_LE:  return CMP_LE;
+        case Token::CMP_GE:  return CMP_GE;
+        case Token::CMP_EQ:  return CMP_EQ;
+        case Token::CMP_NEQ: return CMP_NEQ;
         default: return ERR;
     }
 }

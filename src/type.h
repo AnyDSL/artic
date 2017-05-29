@@ -174,6 +174,8 @@ struct FunctionType : public TypeApp {
     const Type* from() const { return args[0]; }
     const Type* to() const { return args[1]; }
 
+    const Type* first_arg() const;
+
     const TypeApp* rebuild(TypeTable&, Args&&) const override;
 
     uint32_t hash() const override;

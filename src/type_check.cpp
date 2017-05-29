@@ -12,17 +12,25 @@ const Type* TypeChecker::unify(const Loc& loc, const Type* a, const Type* b) {
     // Constrain unknowns
     auto unknown_a = a->isa<UnknownType>();
     auto unknown_b = b->isa<UnknownType>();
-    // TODO: Make sure the constraints are satisfied
-    if (unknown_a) { b->update_rank(unknown_a->rank); join(loc, a, b); return b; }
-    if (unknown_b) { a->update_rank(unknown_b->rank); join(loc, b, a); return a; }
+    if (unknown_a) return join(loc, unknown_a, b);
+    if (unknown_b) return join(loc, unknown_b, a);
 
     // Polymorphic types
     auto poly_a = a->isa<PolyType>();
     auto poly_b = b->isa<PolyType>();
-    if (poly_a && poly_b && poly_a->vars == poly_b->vars)
-        return type_table_.poly_type(poly_a->vars, unify(loc, poly_a->body, poly_b->body));
-    if (poly_a) return type_table_.poly_type(poly_a->vars, unify(loc, poly_a->body, b));
-    if (poly_b) return type_table_.poly_type(poly_b->vars, unify(loc, poly_b->body, a));
+    if (poly_a && poly_b && poly_a->vars == poly_b->vars) {
+        // Unify the constraints
+        TypeConstraint::Set constrs_a, constrs_b;
+        for (auto& c : poly_a->constrs) constrs_a.emplace(c.id, unify(loc, c.type, c.type));
+        for (auto& c : poly_b->constrs) constrs_b.emplace(c.id, unify(loc, c.type, c.type));
+        if (constrs_a != constrs_b) {
+            log::error(loc, "the constraints do not match in '{}' and '{}'", a, b);
+            return type_table_.error_type(loc);
+        }
+        return type_table_.poly_type(poly_a->vars, unify(loc, poly_a->body, poly_b->body), std::move(constrs_a));
+    }
+    if (poly_a) return type_table_.poly_type(poly_a->vars, unify(loc, poly_a->body, b), TypeConstraint::Set(poly_a->constrs));
+    if (poly_b) return type_table_.poly_type(poly_b->vars, unify(loc, poly_b->body, a), TypeConstraint::Set(poly_b->constrs));
 
     // Unification for type constructors
     auto app_a = a->isa<TypeApp>();
@@ -39,17 +47,26 @@ const Type* TypeChecker::unify(const Loc& loc, const Type* a, const Type* b) {
             log::error(loc, "cannot unify '{}' with '{}'", a, b);
         return type_table_.error_type(loc);
     }
-
     return a;
 }
 
-const Type* TypeChecker::join(const Loc& loc, const Type* from, const Type* to) {
+const Type* TypeChecker::join(const Loc& loc, const UnknownType* unknown_a, const Type* b) {
     // Adds a type equation that maps type 'from' to type 'to'
-    if (!from || from == to) return to;
-    assert(to == from || find(to) != find(from));
-    eqs_.emplace(from, Equation(loc, to));
-    todo_  = true;
-    return to;
+    if (!unknown_a || unknown_a == b) return b;
+    assert(find(b) != find(unknown_a));
+
+    b->update_rank(unknown_a->rank);
+    eqs_.emplace(unknown_a, Equation(loc, b));
+
+    if (auto unknown_b = b->isa<UnknownType>()) {
+        for (auto& c : unknown_a->constrs)
+            unknown_b->constrs.emplace(c.id, unify(loc, c.type, c.type));
+    } else if (!b->isa<TypeVar>()) {
+        // TODO: Make sure the constraints are satisfied
+    }
+
+    todo_ = true;
+    return b;
 }
 
 const Type* TypeChecker::find(const Type* type) {
@@ -69,9 +86,19 @@ const Type* TypeChecker::subsume(const Type* type) {
     // Replaces the type variables in the given type by unknowns
     if (auto poly = type->isa<PolyType>()) {
         Type::Map map;
-        for (size_t i = 0; i < poly->vars; i++)
-            map.emplace(type_table_.type_var(i),
-                        type_table_.unknown_type(UnknownType::max_rank()));
+        for (size_t i = 0; i < poly->vars; i++) {
+            map.emplace(
+                type_table_.type_var(i),
+                type_table_.unknown_type(UnknownType::max_rank())
+            );
+        }
+
+        for (auto& c : poly->constrs) {
+            auto var = c.type->as<FunctionType>()->first_arg();
+            assert(map.count(var) > 0);
+            auto u = map[var]->as<UnknownType>();
+            u->constrs.emplace(c.id, c.type->substitute(type_table_, map));
+        }
         return poly->substitute(type_table_, map)->as<PolyType>()->body;
     }
     return type;
@@ -80,18 +107,56 @@ const Type* TypeChecker::subsume(const Type* type) {
 const Type* TypeChecker::generalize(const Loc& loc, const Type* type) {
     // Generalizes the given type by transforming unknowns
     // into the type variables of a polymorphic type
+    TypeConstraint::Set constrs;
     int vars = 0;
-    for (auto u : type->unknowns()) {
+    for (auto t : type->unknowns()) {
+        auto u = t->as<UnknownType>();
         // If the type is not tied to a concrete type nor tied in a higher scope, generalize it
-        if (find(u) == u && u->as<UnknownType>()->rank >= rank_) {
+        if (find(u) == u && u->rank >= rank_) {
             unify(loc, u, type_table_.type_var(vars));
+            // Add the constraints that are tied to this unknown
+            for (auto& c : u->constrs)
+                constrs.emplace(c.id, unify(loc, c.type, c.type));
             vars++;
         }
     }
     if (vars == 0) return type;
     assert(!type->isa<PolyType>());
-    // TODO: Build the constraint set from the unknowns
-    return type_table_.poly_type(vars, type);
+    return type_table_.poly_type(vars, type, std::move(constrs));
+}
+
+void TypeChecker::arithm_ops(TypeConstraint::Set& constrs, const Type* t) {
+    // +, -, *, /, %: (T, T) -> T
+    auto fn_type = type_table_.function_type(type_table_.tuple_type({ t, t }), t);
+    constrs.emplace("+", fn_type);
+    constrs.emplace("-", fn_type);
+    constrs.emplace("*", fn_type);
+    constrs.emplace("/", fn_type);
+    constrs.emplace("%", fn_type);
+}
+
+void TypeChecker::logical_ops(TypeConstraint::Set& constrs, const Type* t) {
+    // &, |, ^, <<, >>: (T, T) -> T
+    auto fn2_type = type_table_.function_type(type_table_.tuple_type({ t, t }), t);
+    constrs.emplace("&", fn2_type);
+    constrs.emplace("|", fn2_type);
+    constrs.emplace("^", fn2_type);
+    constrs.emplace("<<", fn2_type);
+    constrs.emplace(">>", fn2_type);
+    // ! : T -> T
+    auto fn1_type = type_table_.function_type(t, t);
+    constrs.emplace("!", fn1_type);
+}
+
+void TypeChecker::cmp_ops(TypeConstraint::Set& constrs, const Type* t) {
+    // <, >, <=, >=, ==, !=: (T, T) -> Bool
+    auto fn_type = type_table_.function_type(type_table_.tuple_type({ t, t }), t);
+    constrs.emplace("<", fn_type);
+    constrs.emplace(">", fn_type);
+    constrs.emplace("<=", fn_type);
+    constrs.emplace(">=", fn_type);
+    constrs.emplace("==", fn_type);
+    constrs.emplace("!=", fn_type);
 }
 
 const Type* TypeChecker::type(Expr* expr) {
@@ -151,12 +216,13 @@ const Type* IdExpr::type_check(TypeChecker& c, bool pattern) {
 }
 
 const Type* LiteralExpr::type_check(TypeChecker& c, bool) {
-    // TODO: use contrained types here
-    if (lit.is_integer())     return c.type_table().prim_type(PrimType::I32);
-    else if (lit.is_double()) return c.type_table().prim_type(PrimType::F64);
-    else if (lit.is_bool())   return c.type_table().prim_type(PrimType::I1);
-
-    assert(false);
+    if (!type) {
+        auto u = c.type(this)->as<UnknownType>();
+        c.arithm_ops(u->constrs, u);
+        c.cmp_ops(u->constrs, u);
+        if (lit.is_integer() || lit.is_bool()) c.logical_ops(u->constrs, u);
+        return u;
+    }
     return c.type(this);
 }
 

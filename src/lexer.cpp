@@ -163,6 +163,11 @@ Token Lexer::next() {
             return Token(loc_, Token::XOR);
         }
 
+        if (accept('!')) {
+            if (accept('=')) return Token(loc_, Token::CMP_NEQ);
+            return Token(loc_, Token::NOT);
+        }
+
         if (std::isdigit(peek()) || peek() == '.') {
             auto lit = parse_literal();
             return Token(loc_, current_, lit);
