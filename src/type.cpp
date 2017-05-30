@@ -120,7 +120,7 @@ bool UnknownType::equals(const Type* t) const {
     return t == this;
 }
 
-bool ErrorType::equals(const Type* t) const {
+bool ErrorType::equals(const Type*) const {
     return false;
 }
 
