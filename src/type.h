@@ -289,6 +289,7 @@ public:
     void comparison_ops(TypeConstraint::Set&, const Type*);
 
     const Type::Set& types() const { return types_; }
+    const std::vector<const UnknownType*>& unknowns() const { return unknowns_; }
 
 private:
     template <typename T, typename... Args>
