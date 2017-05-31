@@ -28,7 +28,13 @@ struct SymbolTable {
     }
 
     bool insert(const std::string& name, Symbol&& symbol) {
-        if (symbols.count(name)) return false;
+        auto it = symbols.find(name);
+        if (it != symbols.end()) {
+            auto& exprs = it->second->exprs;
+            exprs.insert(exprs.end(), symbol.exprs.begin(), symbol.exprs.end());
+            return false;
+        }
+
         symbols.emplace(name, std::make_shared<Symbol>(std::move(symbol)));
         return true;
     }

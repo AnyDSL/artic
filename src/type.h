@@ -176,6 +176,7 @@ struct FunctionType : public TypeApp {
     const Type* to() const { return args[1]; }
 
     const Type* first_arg() const;
+    size_t num_args() const;
 
     const TypeApp* rebuild(TypeTable&, Args&&) const override;
 
@@ -281,7 +282,7 @@ public:
     const PolyType*     poly_type(size_t, const Type*, TypeConstraint::Set&& constrs = TypeConstraint::Set());
     const TypeVar*      type_var(int);
     const ErrorType*    error_type(const Loc&);
-    const UnknownType*  unknown_type(int rank, TypeConstraint::Set&& constrs = TypeConstraint::Set());
+    const UnknownType*  unknown_type(int rank = UnknownType::max_rank(), TypeConstraint::Set&& constrs = TypeConstraint::Set());
 
     void arithmetic_ops(TypeConstraint::Set&, const Type*);
     void logical_ops(TypeConstraint::Set&, const Type*);

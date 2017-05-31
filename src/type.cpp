@@ -183,6 +183,13 @@ const Type* FunctionType::first_arg() const {
     return from();
 }
 
+size_t FunctionType::num_args() const {
+    if (auto tuple_type = from()->isa<TupleType>()) {
+        return tuple_type->args.size();
+    }
+    return 1;
+}
+
 const PrimType* TypeTable::prim_type(PrimType::Tag tag) {
     return new_type<PrimType>(tag);
 }

@@ -173,12 +173,36 @@ void Ptrn::type_check(TypeChecker& c) {
 }
 
 const Type* IdExpr::type_check(TypeChecker& c, bool pattern) {
-    if (!pattern) {
-        // TODO: Currently no overloading
-        if (!symbol->exprs.empty())
-            return c.check(symbol->exprs.back(), nullptr, true);
+    if (pattern || type) return c.type(this);
+    if (!symbol) return c.type_table().error_type(loc);
+
+    // If this is a use, and not a declaration site
+    auto& exprs = symbol->exprs;
+    assert(!exprs.empty());
+
+    // Check the first symbol
+    auto symbol_type = c.check(symbol->exprs.front(), nullptr, true);
+    // No overloading when the symbol is defined only once
+    if (exprs.size() == 1) return symbol_type;
+
+    // When the symbol is overloaded, create an unknown function type
+    auto var = c.type_table().unknown_type();
+    if (auto fn_type = symbol_type->isa<FunctionType>()) {
+        const Type* from = var;
+        if (fn_type->num_args() > 1) {
+            std::vector<const Type*> args;
+            args.push_back(var);
+            for (size_t i = 1; i < fn_type->num_args(); i++)
+                args.push_back(c.type_table().unknown_type());
+            from = c.type_table().tuple_type(std::move(args));
+        }
+        auto ov_fn_type = c.type_table().function_type(from, c.type_table().unknown_type());
+        var->constrs.emplace(id, ov_fn_type);
+        return ov_fn_type;
     }
-    return c.type(this);
+
+    log::error(loc, "use of the overloaded symbol '{}' which is not a function", id);
+    return c.type_table().error_type(loc);
 }
 
 const Type* LiteralExpr::type_check(TypeChecker& c, bool) {

@@ -37,12 +37,19 @@ inline void print_vars(Printer& p, size_t vars) {
 }
 
 inline void print_constraints(Printer& p, const TypeConstraint::Set& constrs) {
-    p << p.indent();
-    print_list(p, ", ", constrs, [&] (auto& c) {
-        p << p.endl() << c.id << " : ";
-        c.type->print(p);
-    });
-    p << p.unindent() << p.endl();
+    if (constrs.size() > 4) {
+        p << p.indent();
+        print_list(p, ", ", constrs, [&] (auto& c) {
+            p << p.endl() << c.id << " : ";
+            c.type->print(p);
+        });
+        p << p.unindent() << p.endl();
+    } else {
+        print_list(p, ", ", constrs, [&] (auto& c) {
+            p << c.id << " : ";
+            c.type->print(p);
+        });
+    }
 }
 
 void Ptrn::print(Printer& p) const {
