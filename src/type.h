@@ -109,6 +109,7 @@ struct TypeConstraint {
     }
 };
 
+
 /// Primitive type (integers)
 struct PrimType : public Type {
     enum Tag {
@@ -273,18 +274,18 @@ public:
         for (auto& u : unknowns_) delete u;
     }
 
-    // Basic types
-    const PrimType*      prim_type(PrimType::Tag);
-    const TupleType*     tuple_type(std::vector<const Type*>&&);
-    const TupleType*     unit_type();
-    const FunctionType*  function_type(const Type*, const Type*);
-    // Polymorphic types
-    const PolyType*      poly_type(size_t, const Type*, TypeConstraint::Set&& constrs = TypeConstraint::Set());
-    const TypeVar*       type_var(int);
-    // Errors
-    const ErrorType*     error_type(const Loc&);
-    // Unknowns
-    const UnknownType*   unknown_type(int rank, TypeConstraint::Set&& constrs = TypeConstraint::Set());
+    const PrimType*     prim_type(PrimType::Tag);
+    const TupleType*    tuple_type(std::vector<const Type*>&&);
+    const TupleType*    unit_type();
+    const FunctionType* function_type(const Type*, const Type*);
+    const PolyType*     poly_type(size_t, const Type*, TypeConstraint::Set&& constrs = TypeConstraint::Set());
+    const TypeVar*      type_var(int);
+    const ErrorType*    error_type(const Loc&);
+    const UnknownType*  unknown_type(int rank, TypeConstraint::Set&& constrs = TypeConstraint::Set());
+
+    void arithmetic_ops(TypeConstraint::Set&, const Type*);
+    void logical_ops(TypeConstraint::Set&, const Type*);
+    void comparison_ops(TypeConstraint::Set&, const Type*);
 
     const Type::Set& types() const { return types_; }
 

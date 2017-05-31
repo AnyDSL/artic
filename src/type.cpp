@@ -215,4 +215,38 @@ const UnknownType* TypeTable::unknown_type(int rank, TypeConstraint::Set&& const
     return new_unknown(rank, std::move(constrs));
 }
 
+void TypeTable::arithmetic_ops(TypeConstraint::Set& constrs, const Type* t) {
+    // +, -, *, /, %: (T, T) -> T
+    auto fn_type = function_type(tuple_type({ t, t }), t);
+    constrs.emplace("+", fn_type);
+    constrs.emplace("-", fn_type);
+    constrs.emplace("*", fn_type);
+    constrs.emplace("/", fn_type);
+    constrs.emplace("%", fn_type);
+}
+
+void TypeTable::logical_ops(TypeConstraint::Set& constrs, const Type* t) {
+    // &, |, ^, <<, >>: (T, T) -> T
+    auto fn2_type = function_type(tuple_type({ t, t }), t);
+    constrs.emplace("&", fn2_type);
+    constrs.emplace("|", fn2_type);
+    constrs.emplace("^", fn2_type);
+    constrs.emplace("<<", fn2_type);
+    constrs.emplace(">>", fn2_type);
+    // ! : T -> T
+    auto fn1_type = function_type(t, t);
+    constrs.emplace("!", fn1_type);
+}
+
+void TypeTable::comparison_ops(TypeConstraint::Set& constrs, const Type* t) {
+    // <, >, <=, >=, ==, !=: (T, T) -> Bool
+    auto fn_type = function_type(tuple_type({ t, t }), t);
+    constrs.emplace("<", fn_type);
+    constrs.emplace(">", fn_type);
+    constrs.emplace("<=", fn_type);
+    constrs.emplace(">=", fn_type);
+    constrs.emplace("==", fn_type);
+    constrs.emplace("!=", fn_type);
+}
+
 } // namespace artic

@@ -125,40 +125,6 @@ const Type* TypeChecker::generalize(const Loc& loc, const Type* type) {
     return type_table_.poly_type(vars, type, std::move(constrs));
 }
 
-void TypeChecker::arithm_ops(TypeConstraint::Set& constrs, const Type* t) {
-    // +, -, *, /, %: (T, T) -> T
-    auto fn_type = type_table_.function_type(type_table_.tuple_type({ t, t }), t);
-    constrs.emplace("+", fn_type);
-    constrs.emplace("-", fn_type);
-    constrs.emplace("*", fn_type);
-    constrs.emplace("/", fn_type);
-    constrs.emplace("%", fn_type);
-}
-
-void TypeChecker::logical_ops(TypeConstraint::Set& constrs, const Type* t) {
-    // &, |, ^, <<, >>: (T, T) -> T
-    auto fn2_type = type_table_.function_type(type_table_.tuple_type({ t, t }), t);
-    constrs.emplace("&", fn2_type);
-    constrs.emplace("|", fn2_type);
-    constrs.emplace("^", fn2_type);
-    constrs.emplace("<<", fn2_type);
-    constrs.emplace(">>", fn2_type);
-    // ! : T -> T
-    auto fn1_type = type_table_.function_type(t, t);
-    constrs.emplace("!", fn1_type);
-}
-
-void TypeChecker::cmp_ops(TypeConstraint::Set& constrs, const Type* t) {
-    // <, >, <=, >=, ==, !=: (T, T) -> Bool
-    auto fn_type = type_table_.function_type(type_table_.tuple_type({ t, t }), t);
-    constrs.emplace("<", fn_type);
-    constrs.emplace(">", fn_type);
-    constrs.emplace("<=", fn_type);
-    constrs.emplace(">=", fn_type);
-    constrs.emplace("==", fn_type);
-    constrs.emplace("!=", fn_type);
-}
-
 const Type* TypeChecker::type(Expr* expr) {
     if (!expr->type)
         expr->type = type_table_.unknown_type(rank_);
@@ -218,9 +184,10 @@ const Type* IdExpr::type_check(TypeChecker& c, bool pattern) {
 const Type* LiteralExpr::type_check(TypeChecker& c, bool) {
     if (!type) {
         auto u = c.type(this)->as<UnknownType>();
-        c.arithm_ops(u->constrs, u);
-        c.cmp_ops(u->constrs, u);
-        if (lit.is_integer() || lit.is_bool()) c.logical_ops(u->constrs, u);
+        c.type_table().arithmetic_ops(u->constrs, u);
+        c.type_table().comparison_ops(u->constrs, u);
+        if (lit.is_integer() || lit.is_bool())
+            c.type_table().logical_ops(u->constrs, u);
         return u;
     }
     return c.type(this);

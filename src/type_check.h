@@ -22,10 +22,6 @@ public:
     const Type* subsume(const Type*);
     const Type* generalize(const Loc& loc, const Type*);
 
-    void arithm_ops(TypeConstraint::Set&, const Type*);
-    void logical_ops(TypeConstraint::Set&, const Type*);
-    void cmp_ops(TypeConstraint::Set&, const Type*);
-
     const Type* type(Expr*);
     const Type* check(Expr*, const Type* expected = nullptr, bool pattern = false);
     const Type* check(Ptr<Expr>&, const Type* expected = nullptr, bool pattern = false);
