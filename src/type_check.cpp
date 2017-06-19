@@ -186,17 +186,9 @@ const Type* IdExpr::type_check(TypeChecker& c, bool pattern) {
     if (exprs.size() == 1) return symbol_type;
 
     // When the symbol is overloaded, create an unknown function type
-    auto var = c.type_table().unknown_type();
     if (auto fn_type = symbol_type->isa<FunctionType>()) {
-        const Type* from = var;
-        if (fn_type->num_args() > 1) {
-            std::vector<const Type*> args;
-            args.push_back(var);
-            for (size_t i = 1; i < fn_type->num_args(); i++)
-                args.push_back(c.type_table().unknown_type());
-            from = c.type_table().tuple_type(std::move(args));
-        }
-        auto ov_fn_type = c.type_table().function_type(from, c.type_table().unknown_type());
+        auto var = c.type_table().unknown_type();
+        auto ov_fn_type = c.type_table().function_type(var, c.type_table().unknown_type());
         var->constrs.emplace(id, ov_fn_type);
         return ov_fn_type;
     }

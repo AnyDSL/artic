@@ -109,7 +109,6 @@ struct TypeConstraint {
     }
 };
 
-
 /// Primitive type (integers)
 struct PrimType : public Type {
     enum Tag {
