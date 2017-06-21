@@ -226,7 +226,7 @@ const Type* LambdaExpr::type_check(TypeChecker& c, bool) {
 const Type* BlockExpr::type_check(TypeChecker& c, bool) {
     for (size_t i = 0, n = exprs.size(); i < n; i++)
         c.check(exprs[i], i != n - 1 ? c.type_table().unit_type() : nullptr);
-    return exprs.back()->type;
+    return exprs.empty() ? c.type_table().unit_type() : exprs.back()->type;
 }
 
 const Type* DeclExpr::type_check(TypeChecker& c, bool) {
