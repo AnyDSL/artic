@@ -17,6 +17,7 @@ namespace artic {
     f(VAR, "var") \
     f(IF, "if") \
     f(ELSE, "else") \
+    f(TYPE, "type") \
     f(L_PAREN, "(") \
     f(R_PAREN, ")") \
     f(L_BRACE, "{") \
@@ -57,17 +58,6 @@ namespace artic {
     f(CMP_GT, ">") \
     f(CMP_EQ, "==") \
     f(CMP_NEQ, "!=") \
-    f(BOOL, "Bool") \
-    f(INT8,  "Int8") \
-    f(INT16, "Int16") \
-    f(INT32, "Int32") \
-    f(INT64, "Int64") \
-    f(WORD8,  "Word8") \
-    f(WORD16, "Word16") \
-    f(WORD32, "Word32") \
-    f(WORD64, "Word64") \
-    f(FLOAT32, "Float32") \
-    f(FLOAT64, "Float64") \
     f(END, "<eof>")
 
 struct Literal {

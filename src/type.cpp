@@ -32,23 +32,30 @@ std::string PrimType::tag_to_string(Tag tag) {
 }
 
 PrimType::Tag PrimType::tag_from_token(const Token& token) {
-    switch (token.tag()) {
-        case Token::BOOL: return I1;
+    static std::unordered_map<std::string, Tag> tag_map{
+        std::make_pair("Bool", I1),
 
-        case Token::INT8:  return I8;
-        case Token::INT16: return I16;
-        case Token::INT32: return I32;
-        case Token::INT64: return I64;
+        std::make_pair("Int8",  I8),
+        std::make_pair("Int16", I16),
+        std::make_pair("Int32", I32),
+        std::make_pair("Int64", I64),
 
-        case Token::WORD8:  return U8;
-        case Token::WORD16: return U16;
-        case Token::WORD32: return U32;
-        case Token::WORD64: return U64;
+        std::make_pair("Word8",  U8),
+        std::make_pair("Word16", U16),
+        std::make_pair("Word32", U32),
+        std::make_pair("Word64", U64),
 
-        case Token::FLOAT32: return F32;
-        case Token::FLOAT64: return F64;
-        default: return ERR;
-    }
+        std::make_pair("Float16", F32),
+        std::make_pair("Float32", F64),
+
+        // Aliases
+        std::make_pair("Int",    I32),
+        std::make_pair("Word",   U32),
+        std::make_pair("Float",  F32),
+        std::make_pair("Double", F64),
+    };
+    auto it = tag_map.find(token.string());
+    return it != tag_map.end() ? it->second : ERR;
 }
 
 uint32_t PrimType::hash() const {
