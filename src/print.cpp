@@ -29,7 +29,7 @@ void print_parens(Printer& p, const E& e) {
     }
 }
 
-inline void print_vars(Printer& p, size_t vars, const PolyType::Traits& traits) {
+inline void print_vars(Printer& p, size_t vars, const PolyType::VarTraits& traits) {
     for (size_t i = 0; i < vars; i++) {
         p << type_var_style(p.var_name(i));
         auto& var_traits = traits[i];

@@ -139,7 +139,7 @@ struct FunctionType : public TypeApp {
 
 /// Polymorphic type with possibly several variables and a set of constraints.
 struct PolyType : public Type {
-    typedef std::vector<std::unordered_set<const Trait*>> Traits;
+    typedef std::vector<std::unordered_set<const Trait*>> VarTraits;
 
     /// Number of type variables in this polymorphic type.
     size_t vars;
@@ -147,9 +147,9 @@ struct PolyType : public Type {
     const Type* body;
 
     /// Type traits attached to this polymorphic type, per type variable.
-    Traits var_traits;
+    VarTraits var_traits;
 
-    PolyType(size_t vars, const Type* body, Traits&& var_traits)
+    PolyType(size_t vars, const Type* body, VarTraits&& var_traits)
         : vars(vars), body(body), var_traits(std::move(var_traits))
     {}
 
@@ -177,6 +177,8 @@ struct TypeVar : public Type {
 
 /// Unknown type in a set of type equations.
 struct UnknownType : public Type {
+    typedef std::unordered_set<const Trait*> Traits;
+
     /// Number that will be displayed when printing this type.
     int number;
 
@@ -190,10 +192,10 @@ struct UnknownType : public Type {
 
     /// Set of traits attached to this unknown. When this unknown will
     /// be generalized, they will be attached to the polymorphic type.
-    mutable std::unordered_set<const Trait*> traits;
+    mutable Traits traits;
 
-    UnknownType(int number, int rank)
-        : number(number), rank(rank)
+    UnknownType(int number, int rank, Traits&& traits)
+        : number(number), rank(rank), traits(traits)
     {}
 
     void update_rank(int i) const override;
@@ -246,10 +248,10 @@ public:
     const TupleType*    tuple_type(std::vector<const Type*>&&);
     const TupleType*    unit_type();
     const FunctionType* function_type(const Type*, const Type*);
-    const PolyType*     poly_type(size_t, const Type*, PolyType::Traits&&);
+    const PolyType*     poly_type(size_t, const Type*, PolyType::VarTraits&&);
     const TypeVar*      type_var(int);
     const ErrorType*    error_type(const Loc&);
-    const UnknownType*  unknown_type(int rank = UnknownType::max_rank());
+    const UnknownType*  unknown_type(int rank = UnknownType::max_rank(), UnknownType::Traits&& traits = UnknownType::Traits());
 
     const TypeSet& types() const { return types_; }
     const std::vector<const UnknownType*>& unknowns() const { return unknowns_; }
@@ -268,8 +270,8 @@ private:
         return ptr;
     }
 
-    const UnknownType* new_unknown(int rank) {
-        unknowns_.emplace_back(new UnknownType(unknowns_.size(), rank));
+    const UnknownType* new_unknown(int rank, UnknownType::Traits&& traits) {
+        unknowns_.emplace_back(new UnknownType(unknowns_.size(), rank, std::move(traits)));
         return unknowns_.back();
     }
 

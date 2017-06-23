@@ -168,7 +168,7 @@ void UnknownType::unknowns(std::unordered_set<const UnknownType*>& u) const {
     u.emplace(this);
 }
 
-static const Type* apply_map(const std::unordered_map<const Type*, const Type*>& map, const Type* type) {
+inline const Type* apply_map(const std::unordered_map<const Type*, const Type*>& map, const Type* type) {
     auto it = map.find(type);
     if (it != map.end()) return it->second;
     return type;
@@ -183,10 +183,9 @@ const Type* TypeApp::substitute(TypeTable& table, const std::unordered_map<const
 }
 
 const Type* PolyType::substitute(TypeTable& table, const std::unordered_map<const Type*, const Type*>& map) const {
-    auto new_traits = var_traits;
     return table.poly_type(vars,
         apply_map(map, body->substitute(table, map)),
-        std::move(new_traits));
+        VarTraits(var_traits));
 }
 
 const Type* FunctionType::first_arg() const {
@@ -219,8 +218,9 @@ const FunctionType* TypeTable::function_type(const Type* from, const Type* to) {
     return new_type<FunctionType>(from, to);
 }
 
-const PolyType* TypeTable::poly_type(size_t vars, const Type* body, PolyType::Traits&& traits) {
-    return new_type<PolyType>(vars, body, std::move(traits));
+const PolyType* TypeTable::poly_type(size_t vars, const Type* body, PolyType::VarTraits&& var_traits) {
+    assert(var_traits.size() == vars);
+    return new_type<PolyType>(vars, body, std::move(var_traits));
 }
 
 const TypeVar* TypeTable::type_var(int index) {
@@ -231,8 +231,8 @@ const ErrorType* TypeTable::error_type(const Loc& loc) {
     return new_type<ErrorType>(loc);
 }
 
-const UnknownType* TypeTable::unknown_type(int rank) {
-    return new_unknown(rank);
+const UnknownType* TypeTable::unknown_type(int rank, UnknownType::Traits&& traits) {
+    return new_unknown(rank, std::move(traits));
 }
 
 } // namespace artic
