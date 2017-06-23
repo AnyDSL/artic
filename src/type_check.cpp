@@ -94,13 +94,17 @@ const Type* TypeChecker::subsume(const Type* type) {
 }
 
 const Type* TypeChecker::generalize(const Loc& loc, const Type* type) {
+    // Get the best estimate of the type at this point
+    type = unify(loc, type, type);
+
     // Generalizes the given type by transforming unknowns
     // into the type variables of a polymorphic type
     PolyType::VarTraits var_traits;
     int vars = 0;
     for (auto u : type->unknowns()) {
+        u = find(u)->isa<UnknownType>();
         // If the type is not tied to a concrete type nor tied in a higher scope, generalize it
-        if (find(u) == u && u->rank >= rank_) {
+        if (u && u->rank >= rank_) {
             unify(loc, u, type_table_.type_var(vars));
             // Add the constraints that are tied to this unknown
             var_traits.emplace_back(u->traits);
@@ -161,16 +165,12 @@ void Ptrn::type_check(TypeChecker& c) {
 
 const Type* IdExpr::type_check(TypeChecker& c, bool pattern) {
     if (pattern || type) return c.type(this);
-    if (!symbol) return c.type_table().error_type(loc);
-
-    // If this is a use, and not a declaration site
-    auto& exprs = symbol->exprs;
-    assert(!exprs.empty());
+    if (!symbol || symbol->exprs.empty()) return c.type_table().error_type(loc);
 
     // Check the first symbol
     auto symbol_type = c.check(symbol->exprs.front(), nullptr, true);
     // No overloading when the symbol is defined only once
-    if (exprs.size() == 1) return symbol_type;
+    if (symbol->exprs.size() == 1) return c.subsume(symbol_type);
 
     // TODO: When the symbol is overloaded, create an unknown function type
 
@@ -213,9 +213,7 @@ const Type* CallExpr::type_check(TypeChecker& c, bool) {
     auto callee_type = c.check(callee);
     auto ret_type = c.type(this);
 
-    if (!call_type) call_type = c.subsume(callee_type);
-    call_type = c.unify(loc, call_type, c.type_table().function_type(arg_type, ret_type));
-
+    call_type = c.unify(loc, callee_type, c.type_table().function_type(arg_type, ret_type));
     return ret_type;
 }
 
