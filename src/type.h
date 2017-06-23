@@ -15,24 +15,10 @@ namespace artic {
 
 class Printer;
 class TypeTable;
+class UnknownType;
 
 /// Base class for all types.
 struct Type : public Cast<Type> {
-    struct Hash {
-        size_t operator () (const Type* t) const {
-            return size_t(t->hash());
-        }
-    };
-
-    struct Cmp {
-        bool operator () (const Type* a, const Type* b) const {
-            return a->equals(b);
-        }
-    };
-
-    typedef std::unordered_set<const Type*, Type::Hash, Type::Cmp> Set;
-    typedef std::unordered_map<const Type*, const Type*, Type::Hash, Type::Cmp> Map;
-
     virtual ~Type() {}
 
     /// Returns true if this type is a tuple.
@@ -46,13 +32,13 @@ struct Type : public Cast<Type> {
     virtual bool is_nominal() const { return false; }
 
     /// Applies a substitution to the inner part of this type.
-    virtual const Type* substitute(TypeTable&, const Map&) const { return this; }
+    virtual const Type* substitute(TypeTable&, const std::unordered_map<const Type*, const Type*>&) const { return this; }
     /// Fills the given set with unknowns contained in this type.
-    virtual void unknowns(Set&) const {}
+    virtual void unknowns(std::unordered_set<const UnknownType*>&) const {}
 
     /// Returns the set of unknowns contained in this type.
-    Type::Set unknowns() const {
-        Type::Set set;
+    std::unordered_set<const UnknownType*> unknowns() const {
+        std::unordered_set<const UnknownType*> set;
         unknowns(set);
         return set;
     }
@@ -66,51 +52,17 @@ struct Type : public Cast<Type> {
 
     /// Dumps the type on the console, for debugging purposes.
     void dump() const;
-
-    static const Type* apply_map(const Map& map, const Type* type) {
-        auto it = map.find(type);
-        if (it != map.end()) return it->second;
-        return type;
-    }
 };
 
 std::ostream& operator << (std::ostream&, const Type*);
 
-/// A type constraint mapping one identifier to one type.
-/// These constraints are used during overload resolution.
-struct TypeConstraint {
-    struct Hash {
-        size_t operator () (const TypeConstraint& c) const {
-            return size_t(c.hash());
-        }
-    };
-
-    struct Cmp {
-        bool operator () (const TypeConstraint& a, const TypeConstraint& b) const {
-            return a == b;
-        }
-    };
-
-    typedef std::unordered_set<TypeConstraint, Hash, Cmp> Set;
-
-    std::string id;
-    const Type* type;
-
-    TypeConstraint(const std::string& id, const Type* type)
-        : id(id), type(type)
-    {}
-
-    uint32_t hash() const {
-        return hash_combine(type->hash(), hash_string(id));
-    }
-
-    bool operator == (const TypeConstraint& c) const {
-        return c.type == type && c.id == id;
-    }
+/// A trait is a structure containing a set of operations that are valid for a type.
+struct Trait {
+    std::string name;
+    std::unordered_map<std::string, const Type*> members;
 };
 
-
-/// Primitive type (integers)
+/// Primitive type (integers/floats/...)
 struct PrimType : public Type {
     enum Tag {
 #define TAG(t, n, ty) t = Box::t,
@@ -143,8 +95,8 @@ struct TypeApp : public Type {
     {}
 
     void update_rank(int rank) const override;
-    const Type* substitute(TypeTable& table, const Type::Map& map) const override;
-    void unknowns(Type::Set&) const override;
+    const Type* substitute(TypeTable& table, const std::unordered_map<const Type*, const Type*>& map) const override;
+    void unknowns(std::unordered_set<const UnknownType*>&) const override;
 
     virtual const TypeApp* rebuild(TypeTable& table, Args&& new_args) const = 0;
 };
@@ -187,23 +139,23 @@ struct FunctionType : public TypeApp {
 
 /// Polymorphic type with possibly several variables and a set of constraints.
 struct PolyType : public Type {
+    typedef std::vector<std::unordered_set<const Trait*>> Traits;
+
     /// Number of type variables in this polymorphic type.
     size_t vars;
     /// Body of this polymorphic type.
     const Type* body;
 
-    /// Type constraints attached to this polymorphic type. Those contraints
-    /// specify the conditions that should be verified on the type arguments
-    /// during application so that the resulting type is correct.
-    TypeConstraint::Set constrs;
+    /// Type traits attached to this polymorphic type, per type variable.
+    Traits var_traits;
 
-    PolyType(size_t vars, const Type* body, TypeConstraint::Set&& constrs)
-        : vars(vars), body(body), constrs(std::move(constrs))
+    PolyType(size_t vars, const Type* body, Traits&& var_traits)
+        : vars(vars), body(body), var_traits(std::move(var_traits))
     {}
 
     void update_rank(int rank) const override;
-    const Type* substitute(TypeTable&, const Type::Map&) const override;
-    void unknowns(Type::Set&) const override;
+    const Type* substitute(TypeTable&, const std::unordered_map<const Type*, const Type*>&) const override;
+    void unknowns(std::unordered_set<const UnknownType*>&) const override;
 
     uint32_t hash() const override;
     bool equals(const Type* t) const override;
@@ -236,16 +188,16 @@ struct UnknownType : public Type {
     /// by G. Kuan and D. MacQueen
     mutable int rank;
 
-    /// Set of constraints attached to this unknown. When this unknown will
+    /// Set of traits attached to this unknown. When this unknown will
     /// be generalized, they will be attached to the polymorphic type.
-    mutable TypeConstraint::Set constrs;
+    mutable std::unordered_set<const Trait*> traits;
 
-    UnknownType(int number, int rank, TypeConstraint::Set&& constrs)
-        : number(number), rank(rank), constrs(std::move(constrs))
+    UnknownType(int number, int rank)
+        : number(number), rank(rank)
     {}
 
     void update_rank(int i) const override;
-    void unknowns(Type::Set&) const override;
+    void unknowns(std::unordered_set<const UnknownType*>&) const override;
 
     static constexpr int max_rank() { return std::numeric_limits<int>::max(); }
 
@@ -266,6 +218,21 @@ struct ErrorType : public Type {
 
 /// Table containing all types. Types are hashed so that comparison of types can be done with pointer equality.
 class TypeTable {
+private:
+    struct HashType {
+        size_t operator () (const Type* t) const {
+            return size_t(t->hash());
+        }
+    };
+
+    struct CmpType {
+        bool operator () (const Type* a, const Type* b) const {
+            return a->equals(b);
+        }
+    };
+
+    typedef std::unordered_set<const Type*, HashType, CmpType> TypeSet;
+
 public:
     TypeTable() : unknowns_(0) {}
     TypeTable(const TypeTable&) = delete;
@@ -279,16 +246,12 @@ public:
     const TupleType*    tuple_type(std::vector<const Type*>&&);
     const TupleType*    unit_type();
     const FunctionType* function_type(const Type*, const Type*);
-    const PolyType*     poly_type(size_t, const Type*, TypeConstraint::Set&& constrs = TypeConstraint::Set());
+    const PolyType*     poly_type(size_t, const Type*, PolyType::Traits&&);
     const TypeVar*      type_var(int);
     const ErrorType*    error_type(const Loc&);
-    const UnknownType*  unknown_type(int rank = UnknownType::max_rank(), TypeConstraint::Set&& constrs = TypeConstraint::Set());
+    const UnknownType*  unknown_type(int rank = UnknownType::max_rank());
 
-    void arithmetic_ops(TypeConstraint::Set&, const Type*);
-    void logical_ops(TypeConstraint::Set&, const Type*);
-    void comparison_ops(TypeConstraint::Set&, const Type*);
-
-    const Type::Set& types() const { return types_; }
+    const TypeSet& types() const { return types_; }
     const std::vector<const UnknownType*>& unknowns() const { return unknowns_; }
 
 private:
@@ -305,12 +268,12 @@ private:
         return ptr;
     }
 
-    const UnknownType* new_unknown(int rank, TypeConstraint::Set&& constrs) {
-        unknowns_.emplace_back(new UnknownType(unknowns_.size(), rank, std::move(constrs)));
+    const UnknownType* new_unknown(int rank) {
+        unknowns_.emplace_back(new UnknownType(unknowns_.size(), rank));
         return unknowns_.back();
     }
 
-    Type::Set types_;
+    TypeSet types_;
     std::vector<const UnknownType*> unknowns_;
 };
 

@@ -29,26 +29,17 @@ void print_parens(Printer& p, const E& e) {
     }
 }
 
-inline void print_vars(Printer& p, size_t vars) {
+inline void print_vars(Printer& p, size_t vars, const PolyType::Traits& traits) {
     for (size_t i = 0; i < vars; i++) {
         p << type_var_style(p.var_name(i));
+        auto& var_traits = traits[i];
+        if (!var_traits.empty()) {
+            p << ": ";
+            print_list(p, ", ", var_traits, [&] (auto trait) {
+                p << trait->name;
+            });
+        }
         if (i != vars - 1) p << ", ";
-    }
-}
-
-inline void print_constraints(Printer& p, const TypeConstraint::Set& constrs) {
-    if (constrs.size() > 4) {
-        p << p.indent();
-        print_list(p, ", ", constrs, [&] (auto& c) {
-            p << p.endl() << c.id << " : ";
-            c.type->print(p);
-        });
-        p << p.unindent() << p.endl();
-    } else {
-        print_list(p, ", ", constrs, [&] (auto& c) {
-            p << c.id << " : ";
-            c.type->print(p);
-        });
     }
 }
 
@@ -166,11 +157,7 @@ void DefDecl::print(Printer& p) const {
         id->expr->print(p);
         if (auto poly = id->expr->type->isa<PolyType>()) {
             p << '[';
-            print_vars(p, poly->vars);
-            if (!poly->constrs.empty()) {
-                p << ' ' << keyword_style("with") << ' ';
-                print_constraints(p, poly->constrs);
-            }
+            print_vars(p, poly->vars, poly->var_traits);
             p << ']';
         }
         print_parens(p, lambda->param);
@@ -220,11 +207,7 @@ void FunctionType::print(Printer& p) const {
 
 void PolyType::print(Printer& p) const {
     p << keyword_style("forall") << " ";
-    print_vars(p, vars);
-    if (!constrs.empty()) {
-        p << ' ' << keyword_style("with") << ' ';
-        print_constraints(p, constrs);
-    }
+    print_vars(p, vars, var_traits);
     p << " . ";
     body->print(p);
 }

@@ -69,7 +69,11 @@ uint32_t FunctionType::hash() const {
 
 uint32_t PolyType::hash() const {
     return hash_combine(body->hash(), uint32_t(vars),
-        hash_list(constrs, [] (auto& c) { return c.hash(); }));
+        hash_list(var_traits, [] (auto& traits) {
+            return hash_list(traits, [] (auto& t) {
+                return hash_string(t->name);
+            });
+        }));
 }
 
 uint32_t TypeVar::hash() const {
@@ -107,7 +111,7 @@ bool PolyType::equals(const Type* t) const {
     if (auto poly = t->isa<PolyType>()) {
         return poly->body == body &&
                poly->vars == vars &&
-               poly->constrs == constrs;
+               poly->var_traits == var_traits;
     }
     return false;
 }
@@ -145,35 +149,37 @@ void UnknownType::update_rank(int i) const {
     rank = std::min(rank, i);
 }
 
-void TypeApp::unknowns(Type::Set& u) const {
+void TypeApp::unknowns(std::unordered_set<const UnknownType*>& u) const {
     for (auto arg : args) arg->unknowns(u);
 }
 
-void PolyType::unknowns(Type::Set& u) const {
+void PolyType::unknowns(std::unordered_set<const UnknownType*>& u) const {
     body->unknowns(u);
 }
 
-void UnknownType::unknowns(Type::Set& u) const {
+void UnknownType::unknowns(std::unordered_set<const UnknownType*>& u) const {
     u.emplace(this);
 }
 
-const Type* TypeApp::substitute(TypeTable& table, const Type::Map& map) const {
+static const Type* apply_map(const std::unordered_map<const Type*, const Type*>& map, const Type* type) {
+    auto it = map.find(type);
+    if (it != map.end()) return it->second;
+    return type;
+}
+
+const Type* TypeApp::substitute(TypeTable& table, const std::unordered_map<const Type*, const Type*>& map) const {
     Args new_args(args.size());
     std::transform(args.begin(), args.end(), new_args.begin(), [&] (auto arg) {
-        return Type::apply_map(map, arg->substitute(table, map));
+        return apply_map(map, arg->substitute(table, map));
     });
     return rebuild(table, std::move(new_args));
 }
 
-const Type* PolyType::substitute(TypeTable& table, const Type::Map& map) const {
-    TypeConstraint::Set new_constrs;
-    for (auto& c : constrs) {
-        new_constrs.emplace(c.id,
-            Type::apply_map(map, c.type->substitute(table, map)));
-    }
+const Type* PolyType::substitute(TypeTable& table, const std::unordered_map<const Type*, const Type*>& map) const {
+    auto new_traits = var_traits;
     return table.poly_type(vars,
-        Type::apply_map(map, body->substitute(table, map)),
-        std::move(new_constrs));
+        apply_map(map, body->substitute(table, map)),
+        std::move(new_traits));
 }
 
 const Type* FunctionType::first_arg() const {
@@ -206,8 +212,8 @@ const FunctionType* TypeTable::function_type(const Type* from, const Type* to) {
     return new_type<FunctionType>(from, to);
 }
 
-const PolyType* TypeTable::poly_type(size_t vars, const Type* body, TypeConstraint::Set&& constrs) {
-    return new_type<PolyType>(vars, body, std::move(constrs));
+const PolyType* TypeTable::poly_type(size_t vars, const Type* body, PolyType::Traits&& traits) {
+    return new_type<PolyType>(vars, body, std::move(traits));
 }
 
 const TypeVar* TypeTable::type_var(int index) {
@@ -218,42 +224,8 @@ const ErrorType* TypeTable::error_type(const Loc& loc) {
     return new_type<ErrorType>(loc);
 }
 
-const UnknownType* TypeTable::unknown_type(int rank, TypeConstraint::Set&& constrs) {
-    return new_unknown(rank, std::move(constrs));
-}
-
-void TypeTable::arithmetic_ops(TypeConstraint::Set& constrs, const Type* t) {
-    // +, -, *, /, %: (T, T) -> T
-    auto fn_type = function_type(tuple_type({ t, t }), t);
-    constrs.emplace("+", fn_type);
-    constrs.emplace("-", fn_type);
-    constrs.emplace("*", fn_type);
-    constrs.emplace("/", fn_type);
-    constrs.emplace("%", fn_type);
-}
-
-void TypeTable::logical_ops(TypeConstraint::Set& constrs, const Type* t) {
-    // &, |, ^, <<, >>: (T, T) -> T
-    auto fn2_type = function_type(tuple_type({ t, t }), t);
-    constrs.emplace("&", fn2_type);
-    constrs.emplace("|", fn2_type);
-    constrs.emplace("^", fn2_type);
-    constrs.emplace("<<", fn2_type);
-    constrs.emplace(">>", fn2_type);
-    // ! : T -> T
-    auto fn1_type = function_type(t, t);
-    constrs.emplace("!", fn1_type);
-}
-
-void TypeTable::comparison_ops(TypeConstraint::Set& constrs, const Type* t) {
-    // <, >, <=, >=, ==, !=: (T, T) -> Bool
-    auto fn_type = function_type(tuple_type({ t, t }), t);
-    constrs.emplace("<", fn_type);
-    constrs.emplace(">", fn_type);
-    constrs.emplace("<=", fn_type);
-    constrs.emplace(">=", fn_type);
-    constrs.emplace("==", fn_type);
-    constrs.emplace("!=", fn_type);
+const UnknownType* TypeTable::unknown_type(int rank) {
+    return new_unknown(rank);
 }
 
 } // namespace artic
