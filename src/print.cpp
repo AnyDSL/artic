@@ -43,35 +43,35 @@ inline void print_vars(Printer& p, size_t vars, const PolyType::VarTraits& trait
     }
 }
 
+namespace ast {
+
 void Ptrn::print(Printer& p) const {
-    expr->print(p, true);
+    expr->print(p);
 }
 
-void Expr::print(Printer& p) const {
-    print(p, false);
+void TypedExpr::print(Printer& p) const {
+    expr->print(p);
+    p << " : ";
+    type->print(p);
 }
 
-void IdExpr::print(Printer& p, bool pattern) const {
+void IdExpr::print(Printer& p) const {
     p << id;
-    if (type && pattern) {
-        p << " : ";
-        type->print(p);
-    }
 }
 
-void LiteralExpr::print(Printer& p, bool) const {
+void LiteralExpr::print(Printer& p) const {
     p << std::showpoint << literal_style(lit.box);
 }
 
-void TupleExpr::print(Printer& p, bool pattern) const {
+void TupleExpr::print(Printer& p) const {
     p << '(';
     print_list(p, ", ", args, [&] (auto& a) {
-        a->print(p, pattern);
+        a->print(p);
     });
     p << ')';
 }
 
-void LambdaExpr::print(Printer& p, bool) const {
+void LambdaExpr::print(Printer& p) const {
     if (!param->expr->type && param->expr->isa<IdExpr>())
         param->print(p);
     else
@@ -81,7 +81,7 @@ void LambdaExpr::print(Printer& p, bool) const {
     body->print(p);
 }
 
-void BlockExpr::print(Printer& p, bool) const {
+void BlockExpr::print(Printer& p) const {
     p << '{' << p.indent();
     print_list(p, ';', exprs, [&] (auto& e) {
         p << p.endl();
@@ -90,11 +90,11 @@ void BlockExpr::print(Printer& p, bool) const {
     p << p.unindent() << p.endl() << "}";
 }
 
-void DeclExpr::print(Printer& p, bool) const {
+void DeclExpr::print(Printer& p) const {
     decl->print(p);
 }
 
-void CallExpr::print(Printer& p, bool) const {
+void CallExpr::print(Printer& p) const {
     if (callee->isa<LambdaExpr>())
         print_parens(p, callee);
     else
@@ -102,7 +102,7 @@ void CallExpr::print(Printer& p, bool) const {
     print_parens(p, arg);
 }
 
-void IfExpr::print(Printer& p, bool) const {
+void IfExpr::print(Printer& p) const {
     p << keyword_style("if") << " (";
     cond->print(p);
     p << ") ";
@@ -113,7 +113,7 @@ void IfExpr::print(Printer& p, bool) const {
     }
 }
 
-void UnaryExpr::print(Printer& p, bool) const {
+void UnaryExpr::print(Printer& p) const {
     if (is_postfix()) {
         expr->print(p);
         p << tag_to_string(tag);
@@ -123,7 +123,7 @@ void UnaryExpr::print(Printer& p, bool) const {
     }
 }
 
-void BinaryExpr::print(Printer& p, bool) const {
+void BinaryExpr::print(Printer& p) const {
     auto prec = BinaryExpr::precedence(tag);
     auto print_op = [prec, &p] (auto& e) {
         if (e->isa<IfExpr>() ||
@@ -138,7 +138,7 @@ void BinaryExpr::print(Printer& p, bool) const {
     print_op(right);
 }
 
-void ErrorExpr::print(Printer& p, bool) const {
+void ErrorExpr::print(Printer& p) const {
     p << error_style("<invalid expression>");
 }
 
@@ -155,11 +155,6 @@ void DefDecl::print(Printer& p) const {
     p << keyword_style("def") << " ";
     if (lambda->param) {
         id->expr->print(p);
-        if (auto poly = id->expr->type->isa<PolyType>()) {
-            p << '[';
-            print_vars(p, poly->vars, poly->var_traits);
-            p << ']';
-        }
         print_parens(p, lambda->param);
     } else id->print(p);
 
@@ -183,6 +178,48 @@ void Program::print(Printer& p) const {
 
 void PrimType::print(Printer& p) const {
     p << keyword_style(tag_to_string(tag));
+}
+
+void NamedType::print(Printer& p) const {
+    p << name;
+}
+
+void TupleType::print(Printer& p) const {
+    p << '(';
+    print_list(p, ", ", args, [&] (auto& arg) {
+        arg->print(p);
+    });
+    p << ')';
+}
+
+void FunctionType::print(Printer& p) const {
+    if (from->isa<FunctionType>()) {
+        p << '(';
+        from->print(p);
+        p << ')';
+    } else {
+        from->print(p);
+    }
+    p << " => ";
+    to->print(p);
+}
+
+void ErrorType::print(Printer& p) const {
+    p << error_style("<invalid type>");
+}
+
+std::ostream& operator << (std::ostream& os, const Node* node) {
+    Printer p(os);
+    node->print(p);
+    return os;
+}
+
+void Node::dump() const { std::cout << this << std::endl; }
+
+} // namespace ast
+
+void PrimType::print(Printer& p) const {
+    p << keyword_style(ast::PrimType::tag_to_string(ast::PrimType::Tag(tag)));
 }
 
 void TupleType::print(Printer& p) const {
@@ -224,19 +261,12 @@ void ErrorType::print(Printer& p) const {
     p << error_style("<invalid type>");
 }
 
-std::ostream& operator << (std::ostream& os, const Node* node) {
-    Printer p(os);
-    node->print(p);
-    return os;
-}
-
 std::ostream& operator << (std::ostream& os, const Type* type) {
     Printer p(os);
     type->print(p);
     return os;
 }
 
-void Node::dump() const { std::cout << this << std::endl; }
 void Type::dump() const { std::cout << this << std::endl; }
 
 } // namespace artic

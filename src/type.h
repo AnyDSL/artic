@@ -9,7 +9,7 @@
 #include "cast.h"
 #include "hash.h"
 #include "box.h"
-#include "token.h"
+#include "loc.h"
 
 namespace artic {
 
@@ -74,7 +74,6 @@ struct PrimType : public Type {
 #define TAG(t, n, ty) t = Box::t,
         PRIM_TAGS(TAG)
 #undef TAG
-        ERR
     };
 
     Tag tag;
@@ -86,9 +85,6 @@ struct PrimType : public Type {
     uint32_t hash() const override;
     bool equals(const Type* t) const override;
     void print(Printer&) const override;
-
-    static std::string tag_to_string(Tag tag);
-    static Tag tag_from_token(const Token&);
 };
 
 /// Type application (e.g. tuples, functions, ...).

@@ -4,19 +4,40 @@
 
 namespace artic {
 
-void NameBinder::bind(Ptr<Program>& program) {
+void NameBinder::bind(Ptr<ast::Program>& program) {
     program->bind_names(*this); 
 }
 
+namespace ast {
+
+void PrimType::bind_names(NameBinder&) {}
+
+void NamedType::bind_names(NameBinder&) {
+    // TODO
+    assert(false);
+}
+
+void TupleType::bind_names(NameBinder& b) {
+    for (auto& arg : args) arg->bind_names(b);
+}
+
+void FunctionType::bind_names(NameBinder& b) {
+    from->bind_names(b);
+    to->bind_names(b);
+}
+
+void ErrorType::bind_names(NameBinder&) {}
+
 void Ptrn::bind_names(NameBinder& b) {
-    expr->bind_names(b, true);
+    expr->bind_names(b);
 }
 
-void Expr::bind_names(NameBinder& b) {
-    bind_names(b, false);
+void TypedExpr::bind_names(NameBinder& b) {
+    expr->bind_names(b);
+    type->bind_names(b);
 }
 
-void IdExpr::bind_names(NameBinder& b, bool pattern) {
+void IdExpr::bind_names(NameBinder& b) {
     if (pattern) {
         if (!b.insert_symbol(id, this) && !b.top_scope()) {
             // Overloading is authorized at the top level
@@ -30,15 +51,15 @@ void IdExpr::bind_names(NameBinder& b, bool pattern) {
     }
 }
 
-void LiteralExpr::bind_names(NameBinder&, bool) {}
+void LiteralExpr::bind_names(NameBinder&) {}
 
-void TupleExpr::bind_names(NameBinder& b, bool pattern) {
+void TupleExpr::bind_names(NameBinder& b) {
     for (auto& arg : args) {
-        arg->bind_names(b, pattern);
+        arg->bind_names(b);
     }
 }
 
-void LambdaExpr::bind_names(NameBinder& b, bool) {
+void LambdaExpr::bind_names(NameBinder& b) {
     b.push_scope();
     if (param) param->bind_names(b);
     b.push_scope();
@@ -47,7 +68,7 @@ void LambdaExpr::bind_names(NameBinder& b, bool) {
     b.pop_scope();
 }
 
-void BlockExpr::bind_names(NameBinder& b, bool) {
+void BlockExpr::bind_names(NameBinder& b) {
     b.push_scope();
     for (auto& expr : exprs) {
         expr->bind_names(b);
@@ -55,31 +76,31 @@ void BlockExpr::bind_names(NameBinder& b, bool) {
     b.pop_scope();
 }
 
-void DeclExpr::bind_names(NameBinder& b, bool) {
+void DeclExpr::bind_names(NameBinder& b) {
     decl->bind_names(b);
 }
 
-void CallExpr::bind_names(NameBinder& b, bool) {
+void CallExpr::bind_names(NameBinder& b) {
     callee->bind_names(b);
     arg->bind_names(b);
 }
 
-void IfExpr::bind_names(NameBinder& b, bool) {
+void IfExpr::bind_names(NameBinder& b) {
     cond->bind_names(b);
     if_true->bind_names(b);
     if (if_false) if_false->bind_names(b);
 }
 
-void UnaryExpr::bind_names(NameBinder& b, bool) {
+void UnaryExpr::bind_names(NameBinder& b) {
     expr->bind_names(b);
 }
 
-void BinaryExpr::bind_names(NameBinder& b, bool) {
+void BinaryExpr::bind_names(NameBinder& b) {
     left->bind_names(b);
     right->bind_names(b);
 }
 
-void ErrorExpr::bind_names(NameBinder&, bool) {}
+void ErrorExpr::bind_names(NameBinder&) {}
 
 void VarDecl::bind_names(NameBinder& b) {
     init->bind_names(b);
@@ -96,5 +117,7 @@ void ErrorDecl::bind_names(NameBinder&) {}
 void Program::bind_names(NameBinder& b) {
     for (auto& decl : decls) decl->bind_names(b);
 }
+
+} // namespace ast
 
 } // namespace artic

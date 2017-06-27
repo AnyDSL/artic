@@ -116,24 +116,24 @@ const Type* TypeChecker::generalize(const Loc& loc, const Type* type) {
     return type_table_.poly_type(vars, type, std::move(var_traits));
 }
 
-const Type* TypeChecker::type(Expr* expr) {
+const Type* TypeChecker::type(ast::Expr* expr) {
     if (!expr->type)
         expr->type = type_table_.unknown_type(rank_);
     return find(expr->type);
 }
 
-const Type* TypeChecker::check(Expr* expr, const Type* expected, bool pattern) {
-    auto type = expr->type_check(*this, pattern);
+const Type* TypeChecker::check(ast::Expr* expr, const Type* expected) {
+    auto type = expr->type_check(*this);
     if (expected) type = unify(expr->loc, type, expected);
     expr->type = expr->type ? unify(expr->loc, expr->type, type) : type;
     return expr->type;
 }
 
-const Type* TypeChecker::check(Ptr<Expr>& expr, const Type* expected, bool pattern) {
-    return check(expr.get(), expected, pattern);
+const Type* TypeChecker::check(Ptr<ast::Expr>& expr, const Type* expected) {
+    return check(expr.get(), expected);
 }
 
-const Type* TypeChecker::check(Ptr<Ptrn>& ptrn, const Type* expected) {
+const Type* TypeChecker::check(Ptr<ast::Ptrn>& ptrn, const Type* expected) {
     ptrn->type_check(*this);
     if (expected) ptrn->expr->type = unify(ptrn->loc, ptrn->expr->type, expected);
     if (report_ && !ptrn->expr->type->unknowns().empty())
@@ -141,11 +141,15 @@ const Type* TypeChecker::check(Ptr<Ptrn>& ptrn, const Type* expected) {
     return ptrn->expr->type;
 }
 
-void TypeChecker::check(Ptr<Decl>& decl) {
+const Type* TypeChecker::check(Ptr<ast::Type>& type) {
+    return type->type_check(*this);
+}
+
+void TypeChecker::check(Ptr<ast::Decl>& decl) {
     decl->type_check(*this);
 }
 
-void TypeChecker::check(Ptr<Program>& program) {
+void TypeChecker::check(Ptr<ast::Program>& program) {
     // Run fix-point iterations until convergence, with error messages disabled
     report_ = false;
     do {
@@ -159,16 +163,48 @@ void TypeChecker::check(Ptr<Program>& program) {
     program->type_check(*this);
 }
 
-void Ptrn::type_check(TypeChecker& c) {
-    c.check(expr, nullptr, true);
+namespace ast {
+
+const artic::Type* PrimType::type_check(TypeChecker& c) {
+    return c.type_table().prim_type(artic::PrimType::Tag(tag));
 }
 
-const Type* IdExpr::type_check(TypeChecker& c, bool pattern) {
+const artic::Type* NamedType::type_check(TypeChecker&) {
+    // TODO
+    assert(false);
+    return nullptr;
+}
+
+const artic::Type* TupleType::type_check(TypeChecker& c) {
+    std::vector<const artic::Type*> types(args.size());
+    std::transform(args.begin(), args.end(), types.begin(), [&] (auto& arg) {
+        return c.check(arg);
+    });
+    return c.type_table().tuple_type(std::move(types));
+}
+
+const artic::Type* FunctionType::type_check(TypeChecker& c) {
+    return c.type_table().function_type(c.check(from), c.check(to));
+}
+
+const artic::Type* ErrorType::type_check(TypeChecker& c) {
+    return c.type_table().error_type(loc);
+}
+
+void Ptrn::type_check(TypeChecker& c) {
+    c.check(expr, nullptr);
+}
+
+const artic::Type* TypedExpr::type_check(TypeChecker& c) {
+    return c.unify(loc, c.check(expr), c.check(type));
+}
+
+const artic::Type* IdExpr::type_check(TypeChecker& c) {
     if (pattern || type) return c.type(this);
     if (!symbol || symbol->exprs.empty()) return c.type_table().error_type(loc);
 
     // Check the first symbol
-    auto symbol_type = c.check(symbol->exprs.front(), nullptr, true);
+    auto symbol_type = c.check(symbol->exprs.front(), nullptr);
     // No overloading when the symbol is defined only once
     if (symbol->exprs.size() == 1) return c.subsume(symbol_type);
 
@@ -178,18 +214,18 @@ const Type* IdExpr::type_check(TypeChecker& c, bool pattern) {
     return c.type_table().error_type(loc);
 }
 
-const Type* LiteralExpr::type_check(TypeChecker& c, bool) {
+const artic::Type* LiteralExpr::type_check(TypeChecker& c) {
     // TODO: Create a Num type for integers, Fract for floats
     return c.type(this);
 }
 
-const Type* TupleExpr::type_check(TypeChecker& c, bool pattern) {
-    std::vector<const Type*> type_args;
-    for (auto& arg : args) type_args.emplace_back(c.check(arg, nullptr, pattern));
+const artic::Type* TupleExpr::type_check(TypeChecker& c) {
+    std::vector<const artic::Type*> type_args;
+    for (auto& arg : args) type_args.emplace_back(c.check(arg, nullptr));
     return c.type_table().tuple_type(std::move(type_args));
 }
 
-const Type* LambdaExpr::type_check(TypeChecker& c, bool) {
+const artic::Type* LambdaExpr::type_check(TypeChecker& c) {
     auto param_type = c.check(param);
     c.inc_rank();
     auto body_type = c.check(body);
@@ -197,18 +233,18 @@ const Type* LambdaExpr::type_check(TypeChecker& c, bool) {
     return c.type_table().function_type(param_type, body_type);
 }
 
-const Type* BlockExpr::type_check(TypeChecker& c, bool) {
+const artic::Type* BlockExpr::type_check(TypeChecker& c) {
     for (size_t i = 0, n = exprs.size(); i < n; i++)
         c.check(exprs[i], i != n - 1 ? c.type_table().unit_type() : nullptr);
     return exprs.empty() ? c.type_table().unit_type() : exprs.back()->type;
 }
 
-const Type* DeclExpr::type_check(TypeChecker& c, bool) {
+const artic::Type* DeclExpr::type_check(TypeChecker& c) {
     c.check(decl);
     return c.type_table().unit_type();
 }
 
-const Type* CallExpr::type_check(TypeChecker& c, bool) {
+const artic::Type* CallExpr::type_check(TypeChecker& c) {
     auto arg_type = c.check(arg);
     auto callee_type = c.check(callee);
     auto ret_type = c.type(this);
@@ -217,8 +253,8 @@ const Type* CallExpr::type_check(TypeChecker& c, bool) {
     return ret_type;
 }
 
-const Type* IfExpr::type_check(TypeChecker& c, bool) {
-    c.check(cond, c.type_table().prim_type(PrimType::I1));
+const artic::Type* IfExpr::type_check(TypeChecker& c) {
+    c.check(cond, c.type_table().prim_type(artic::PrimType::I1));
 
     if (if_false)
         return c.check(if_false, c.check(if_true));
@@ -226,19 +262,19 @@ const Type* IfExpr::type_check(TypeChecker& c, bool) {
     return c.check(if_true, c.type_table().unit_type());
 }
 
-const Type* UnaryExpr::type_check(TypeChecker& c, bool) {
+const artic::Type* UnaryExpr::type_check(TypeChecker& c) {
     // TODO: Use constrained types here
     return c.check(expr);
 }
 
-const Type* BinaryExpr::type_check(TypeChecker& c, bool) {
+const artic::Type* BinaryExpr::type_check(TypeChecker& c) {
     // TODO: Use constrained types here
     auto op_type = c.check(left, c.check(right));
-    if (has_cmp()) return c.type_table().prim_type(PrimType::I1);
+    if (has_cmp()) return c.type_table().prim_type(artic::PrimType::I1);
     return op_type;
 }
 
-const Type* ErrorExpr::type_check(TypeChecker& c, bool) {
+const artic::Type* ErrorExpr::type_check(TypeChecker& c) {
     return c.type_table().error_type(loc);
 }
 
@@ -248,10 +284,10 @@ void VarDecl::type_check(TypeChecker& c) {
 
 void DefDecl::type_check(TypeChecker& c) {
     auto id_type = c.check(id);
-    auto init_type = lambda->param ? c.check(lambda->as<Expr>(), id_type) : c.check(lambda->body, id_type);
-    if (lambda->param) {
-        if (auto fn_type = lambda->type->inner()->isa<FunctionType>())
-            ret_type = ret_type ? c.unify(loc, ret_type, fn_type->to()) : fn_type->to();
+    auto init_type = lambda->param ? c.check(lambda->as<ast::Expr>(), id_type) : c.check(lambda->body, id_type);
+    if (lambda->param && ret_type) {
+        if (auto fn_type = lambda->type->inner()->isa<artic::FunctionType>())
+            c.unify(loc, c.check(ret_type), fn_type->to());
     }
     c.check(id, c.generalize(loc, init_type));
 }
@@ -261,5 +297,7 @@ void ErrorDecl::type_check(TypeChecker&) {}
 void Program::type_check(TypeChecker& c) {
     for (auto& decl : decls) c.check(decl);
 }
+
+} // namespace ast
 
 } // namespace artic

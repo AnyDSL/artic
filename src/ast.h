@@ -24,6 +24,8 @@ std::unique_ptr<T> make_ptr(Args... args) {
     return std::make_unique<T>(std::forward<Args>(args)...);
 }
 
+namespace ast {
+
 /// Base class for all AST nodes.
 struct Node : public Cast<Node> {
     Loc loc;
@@ -57,21 +59,31 @@ struct Node : public Cast<Node> {
 
 std::ostream& operator << (std::ostream&, const Node*);
 
-/// Base class for expressions.
-struct Expr : public Node {
+// Base AST nodes ------------------------------------------------------------------
+
+/// Base class for types.
+struct Type : public Node {
     const Type* type;
 
-    Expr(const Loc& loc) : Node(loc), type(nullptr) {}
+    Type(const Loc& loc) : Node(loc), type(nullptr) {}
+
+    virtual void bind_names(NameBinder&) = 0;
+    virtual const artic::Type* type_check(TypeChecker&) = 0;
+    virtual void print(Printer&) const = 0;
+};
+
+/// Base class for expressions.
+struct Expr : public Node {
+    const artic::Type* type;
+    bool pattern;
+
+    Expr(const Loc& loc) : Node(loc), type(nullptr), pattern(false) {}
 
     virtual bool is_valid_pattern() const { return false; }
     virtual bool only_identifiers() const { return false; }
+    virtual void make_pattern() { pattern = true; }
 
-    void bind_names(NameBinder&) override;
-    void print(Printer&) const override;
-
-    virtual void bind_names(NameBinder&, bool) = 0;
-    virtual const Type* type_check(TypeChecker&, bool) = 0;
-    virtual void print(Printer&, bool) const = 0;
+    virtual const artic::Type* type_check(TypeChecker&) = 0;
 
     bool is_tuple() const;
 };
@@ -89,16 +101,111 @@ struct Ptrn : public Node {
 
     Ptrn(Ptr<Expr>&& expr)
         : Node(expr->loc), expr(link(std::move(expr)))
-    {}
+    {
+        this->expr->make_pattern();
+    }
 
     bool is_valid()  const { return expr->is_valid_pattern(); }
     bool is_binder() const { return expr->only_identifiers(); }
     bool is_tuple()  const { return expr->is_tuple(); }
 
     void type_check(TypeChecker&);
-
     void bind_names(NameBinder&) override;
     void print(Printer&) const override;
+};
+
+// Types ---------------------------------------------------------------------------
+
+/// Primitive type (integer, float, ...).
+struct PrimType : public Type {
+    enum Tag {
+#define TAG(t, n, ty) t = Box::t,
+        PRIM_TAGS(TAG)
+#undef TAG
+        ERR
+    };
+
+    Tag tag;
+
+    PrimType(const Loc& loc, Tag tag)
+        : Type(loc), tag(tag)
+    {}
+
+    void bind_names(NameBinder&) override;
+    const artic::Type* type_check(TypeChecker&) override;
+    void print(Printer&) const override;
+
+    static std::string tag_to_string(Tag tag);
+    static Tag tag_from_token(const Token&);
+};
+
+/// Identifier used as a type (type variable/struct).
+struct NamedType : public Type {
+    std::string name;
+
+    NamedType(const Loc& loc, std::string name)
+        : Type(loc), name(name)
+    {}
+
+    void bind_names(NameBinder&) override;
+    const artic::Type* type_check(TypeChecker&) override;
+    void print(Printer&) const override;
+};
+
+/// Tuple type, made of a product of simpler types.
+struct TupleType : public Type {
+    PtrVector<Type> args;
+
+    TupleType(const Loc& loc, PtrVector<Type>&& args)
+        : Type(loc), args(std::move(args))
+    {}
+
+    void bind_names(NameBinder&) override;
+    const artic::Type* type_check(TypeChecker&) override;
+    void print(Printer&) const override;
+};
+
+/// Function type, consisting of domain and codomain types.
+struct FunctionType : public Type {
+    Ptr<Type> from;
+    Ptr<Type> to;
+
+    FunctionType(const Loc& loc, Ptr<Type>&& from, Ptr<Type>&& to)
+        : Type(loc), from(std::move(from)), to(std::move(to))
+    {}
+
+    void bind_names(NameBinder&) override;
+    const artic::Type* type_check(TypeChecker&) override;
+    void print(Printer&) const override;
+};
+
+/// Type resulting from a parsing error.
+struct ErrorType : public Type {
+    ErrorType(const Loc& loc)
+        : Type(loc)
+    {}
+
+    void bind_names(NameBinder&) override;
+    const artic::Type* type_check(TypeChecker&) override;
+    void print(Printer&) const override;
+};
+
+// Expressions ---------------------------------------------------------------------
+
+/// Manually typed expression.
+struct TypedExpr : public Expr {
+    Ptr<Expr> expr;
+    Ptr<Type> type;
+
+    TypedExpr(const Loc& loc, Ptr<Expr>&& expr, Ptr<Type>&& type)
+        : Expr(loc), expr(link(std::move(expr))), type(std::move(type))
+    {}
+
+    void bind_names(NameBinder&) override;
+    const artic::Type* type_check(TypeChecker&) override;
+    void print(Printer&) const override;
+
+    void make_pattern() override;
 };
 
 /// Expression made of an identifier.
@@ -113,9 +220,9 @@ struct IdExpr : public Expr {
     bool only_identifiers() const override { return true; }
     bool is_valid_pattern() const override { return true; }
 
-    void bind_names(NameBinder&, bool) override;
-    const Type* type_check(TypeChecker&, bool) override;
-    void print(Printer&, bool) const override;
+    void bind_names(NameBinder&) override;
+    const artic::Type* type_check(TypeChecker&) override;
+    void print(Printer&) const override;
 };
 
 /// Expression made of a literal.
@@ -126,11 +233,11 @@ struct LiteralExpr : public Expr {
         : Expr(loc), lit(lit)
     {}
 
-    bool is_valid_pattern() const override { return true;  }
+    bool is_valid_pattern() const override { return true; }
 
-    void bind_names(NameBinder&, bool) override;
-    const Type* type_check(TypeChecker&, bool) override;
-    void print(Printer&, bool) const override;
+    void bind_names(NameBinder&) override;
+    const artic::Type* type_check(TypeChecker&) override;
+    void print(Printer&) const override;
 };
 
 /// Expression enclosed by parenthesis and made of several expressions separated by commas.
@@ -143,10 +250,11 @@ struct TupleExpr : public Expr {
 
     bool only_identifiers() const override { return if_all([] (auto& e) { return e->only_identifiers(); }); }
     bool is_valid_pattern() const override { return if_all([] (auto& e) { return e->is_valid_pattern(); }); }
+    void make_pattern() override;
 
-    void bind_names(NameBinder&, bool) override;
-    const Type* type_check(TypeChecker&, bool) override;
-    void print(Printer&, bool) const override;
+    void bind_names(NameBinder&) override;
+    const artic::Type* type_check(TypeChecker&) override;
+    void print(Printer&) const override;
 
     template <typename F>
     bool if_all(F f) const {
@@ -172,14 +280,11 @@ struct LambdaExpr : public Expr {
         , body(link(std::move(body)))
     {}
 
-    bool only_identifiers() const override { return false; }
-    bool is_valid_pattern() const override { return false; }
-
     using Expr::bind_names;
 
-    void bind_names(NameBinder&, bool) override;
-    const Type* type_check(TypeChecker&, bool) override;
-    void print(Printer&, bool) const override;
+    void bind_names(NameBinder&) override;
+    const artic::Type* type_check(TypeChecker&) override;
+    void print(Printer&) const override;
 };
 
 /// Block of code, whose result is the last expression in the block.
@@ -190,9 +295,9 @@ struct BlockExpr : public Expr {
         : Expr(loc), exprs(link(std::move(exprs)))
     {}
 
-    void bind_names(NameBinder&, bool) override;
-    const Type* type_check(TypeChecker&, bool) override;
-    void print(Printer&, bool) const override;
+    void bind_names(NameBinder&) override;
+    const artic::Type* type_check(TypeChecker&) override;
+    void print(Printer&) const override;
 };
 
 /// Expression containing a declaration.
@@ -203,9 +308,9 @@ struct DeclExpr : public Expr {
         : Expr(loc), decl(link(std::move(decl)))
     {}
 
-    void bind_names(NameBinder&, bool) override;
-    const Type* type_check(TypeChecker&, bool) override;
-    void print(Printer&, bool) const override;
+    void bind_names(NameBinder&) override;
+    const artic::Type* type_check(TypeChecker&) override;
+    void print(Printer&) const override;
 };
 
 /// Function call with a single expression (can be a tuple) for the arguments.
@@ -213,7 +318,7 @@ struct CallExpr : public Expr {
     Ptr<Expr> callee;
     Ptr<Expr> arg;
 
-    const Type* call_type;
+    const artic::Type* call_type;
 
     CallExpr(const Loc& loc,
              Ptr<Expr>&& callee,
@@ -224,9 +329,9 @@ struct CallExpr : public Expr {
         , call_type(nullptr)
     {}
 
-    void bind_names(NameBinder&, bool) override;
-    const Type* type_check(TypeChecker&, bool) override;
-    void print(Printer&, bool) const override;
+    void bind_names(NameBinder&) override;
+    const artic::Type* type_check(TypeChecker&) override;
+    void print(Printer&) const override;
 };
 
 /// If/Else expression (the else branch is optional).
@@ -245,9 +350,9 @@ struct IfExpr : public Expr {
         , if_false(link(std::move(if_false)))
     {}
 
-    void bind_names(NameBinder&, bool) override;
-    const Type* type_check(TypeChecker&, bool) override;
-    void print(Printer&, bool) const override;
+    void bind_names(NameBinder&) override;
+    const artic::Type* type_check(TypeChecker&) override;
+    void print(Printer&) const override;
 };
 
 /// Unary expression (negation, increment, ...).
@@ -272,9 +377,9 @@ struct UnaryExpr : public Expr {
     bool is_prefix() const { return !is_postfix(); }
     bool is_postfix() const { return tag == POST_INC || tag == POST_DEC; }
 
-    void bind_names(NameBinder&, bool) override;
-    const Type* type_check(TypeChecker&, bool) override;
-    void print(Printer&, bool) const override;
+    void bind_names(NameBinder&) override;
+    const artic::Type* type_check(TypeChecker&) override;
+    void print(Printer&) const override;
 
     static std::string tag_to_string(Tag);
     static Tag tag_from_token(const Token&, bool);
@@ -306,9 +411,9 @@ struct BinaryExpr : public Expr {
         , right(link(std::move(right)))
     {}
 
-    void bind_names(NameBinder&, bool) override;
-    const Type* type_check(TypeChecker&, bool) override;
-    void print(Printer&, bool) const override;
+    void bind_names(NameBinder&) override;
+    const artic::Type* type_check(TypeChecker&) override;
+    void print(Printer&) const override;
 
     bool has_cmp() const { return has_cmp(tag); }
     bool has_eq() const { return has_eq(tag); }
@@ -329,10 +434,12 @@ struct ErrorExpr : public Expr {
         : Expr(loc)
     {}
 
-    void bind_names(NameBinder&, bool) override;
-    const Type* type_check(TypeChecker&, bool) override;
-    void print(Printer&, bool) const override;
+    void bind_names(NameBinder&) override;
+    const artic::Type* type_check(TypeChecker&) override;
+    void print(Printer&) const override;
 };
+
+// Declarations --------------------------------------------------------------------
 
 /// Variable declaration (can declare several variables at a time with a pattern).
 struct VarDecl : public Decl {
@@ -352,16 +459,16 @@ struct VarDecl : public Decl {
 struct DefDecl : public Decl {
     Ptr<Ptrn> id;
     Ptr<LambdaExpr> lambda;
-    const Type* ret_type;
+    Ptr<Type> ret_type;
 
     DefDecl(const Loc& loc,
         Ptr<Ptrn>&& id,
         Ptr<LambdaExpr>&& lambda,
-        const Type* ret_type)
+        Ptr<Type>&& ret_type)
         : Decl(loc)
         , id(link(std::move(id)))
         , lambda(link(std::move(lambda)))
-        , ret_type(ret_type)
+        , ret_type(std::move(ret_type))
     {}
 
     bool is_function() const { return lambda->param != nullptr; }
@@ -384,7 +491,6 @@ struct ErrorDecl : public Decl {
 /// Complete program.
 struct Program : public Node {
     PtrVector<Decl> decls;
-    PtrVector<Trait> traits;
 
     Program(const Loc& loc, PtrVector<Decl>&& decls)
         : Node(loc), decls(link(std::move(decls)))
@@ -395,6 +501,8 @@ struct Program : public Node {
     void bind_names(NameBinder&) override;
     void print(Printer&) const override;
 };
+
+} // namespace ast
 
 } // namespace artic
 

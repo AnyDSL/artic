@@ -17,14 +17,14 @@ public:
     NameBinder() { push_scope(); }
     ~NameBinder() { pop_scope(); }
 
-    void bind(Ptr<Program>&);
+    void bind(Ptr<ast::Program>&);
 
     bool top_scope() const { return scopes_.size() == 1; }
 
     void push_scope() { scopes_.emplace_back(); }
     void pop_scope()  { scopes_.pop_back();  }
 
-    bool insert_symbol(const std::string& name, Expr* expr) {
+    bool insert_symbol(const std::string& name, ast::Expr* expr) {
         return scopes_.back().insert(name, Symbol(expr));
     }
 

@@ -6,15 +6,17 @@
 
 namespace artic {
 
-class Expr;
+namespace ast {
+    class Expr;
+}
 
 /// Declaration site of a symbol.
 struct Symbol {
-    Symbol(Expr* expr) : exprs{ expr } {}
-    Symbol(std::vector<Expr*>&& exprs) : exprs(std::move(exprs)) {}
+    Symbol(ast::Expr* expr) : exprs{ expr } {}
+    Symbol(std::vector<ast::Expr*>&& exprs) : exprs(std::move(exprs)) {}
     virtual ~Symbol() {}
 
-    std::vector<Expr*> exprs;
+    std::vector<ast::Expr*> exprs;
 };
 
 /// Table containing a map from symbol name to declaration site.

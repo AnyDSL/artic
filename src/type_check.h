@@ -21,13 +21,14 @@ public:
 
     const Type* subsume(const Type*);
     const Type* generalize(const Loc& loc, const Type*);
+    const Type* type(ast::Expr*);
 
-    const Type* type(Expr*);
-    const Type* check(Expr*, const Type* expected = nullptr, bool pattern = false);
-    const Type* check(Ptr<Expr>&, const Type* expected = nullptr, bool pattern = false);
-    const Type* check(Ptr<Ptrn>&, const Type* expected = nullptr);
-    void check(Ptr<Decl>&);
-    void check(Ptr<Program>&);
+    const Type* check(ast::Expr*, const Type* expected = nullptr);
+    const Type* check(Ptr<ast::Expr>&, const Type* expected = nullptr);
+    const Type* check(Ptr<ast::Ptrn>&, const Type* expected = nullptr);
+    const Type* check(Ptr<ast::Type>&);
+    void check(Ptr<ast::Decl>&);
+    void check(Ptr<ast::Program>&);
 
     TypeTable& type_table() { return type_table_; }
 

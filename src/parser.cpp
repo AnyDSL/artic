@@ -1,6 +1,8 @@
 #include "parser.h"
 #include "print.h"
 
+using namespace artic::ast;
+
 namespace artic {
 
 Parser::Parser(Lexer& lexer, TypeTable& type_table)
@@ -18,6 +20,8 @@ Ptr<Program> Parser::parse_program() {
     });
     return make_ptr<Program>(tracker(), std::move(decls));
 }
+
+// Declarations --------------------------------------------------------------------
 
 Ptr<Decl> Parser::parse_decl() {
     switch (ahead().tag()) {
@@ -41,18 +45,18 @@ Ptr<DefDecl> Parser::parse_def_decl() {
 
     if (id->expr->type && param) log::error(id->loc, "types are not allowed here");
 
-    const Type* ret = nullptr;
+    Ptr<ast::Type> ret = nullptr;
     if (ahead().tag() == Token::COLON) {
         eat(Token::COLON);
         eat_nl();
-        ret = parse_type();
+        ret = std::move(parse_type());
     }
 
     expect(Token::EQ);
     auto body = parse_expr();
     auto lambda = make_ptr<LambdaExpr>(tracker(), std::move(param), std::move(body));
 
-    return make_ptr<DefDecl>(tracker(), std::move(id), std::move(lambda), ret);
+    return make_ptr<DefDecl>(tracker(), std::move(id), std::move(lambda), std::move(ret));
 }
 
 Ptr<VarDecl> Parser::parse_var_decl() {
@@ -72,6 +76,8 @@ Ptr<ErrorDecl> Parser::parse_error_decl() {
     return make_ptr<ErrorDecl>(tracker());
 }
 
+// Patterns ------------------------------------------------------------------------
+
 Ptr<Ptrn> Parser::parse_ptrn() {
     Tracker tracker(this);
     auto expr = parse_primary_expr();
@@ -88,6 +94,8 @@ Ptr<Ptrn> Parser::parse_tuple_ptrn() {
     return make_ptr<Ptrn>(std::move(parse_tuple_expr()));
 }
 
+// Expressions ---------------------------------------------------------------------
+
 Ptr<Expr> Parser::parse_expr() {
     auto expr = parse_primary_expr();
     return parse_binary_expr(std::move(expr), BinaryExpr::max_precedence());
@@ -95,16 +103,18 @@ Ptr<Expr> Parser::parse_expr() {
 
 Ptr<Expr> Parser::parse_typed_expr(Ptr<Expr>&& expr) {
     if (ahead().tag() == Token::COLON) {
+        Tracker tracker(this);
         eat(Token::COLON);
         eat_nl();
-        expr->type = parse_type();
+        return make_ptr<TypedExpr>(tracker(), std::move(expr), std::move(parse_type()));
     }
     return std::move(expr);
 }
 
 Ptr<IdExpr> Parser::parse_id_expr() {
     Tracker tracker(this);
-    return make_ptr<IdExpr>(tracker(), parse_ident());
+    auto ident = parse_ident();
+    return make_ptr<IdExpr>(tracker(), ident);
 }
 
 Ptr<LiteralExpr> Parser::parse_literal_expr() {
@@ -260,35 +270,55 @@ Ptr<ErrorExpr> Parser::parse_error_expr() {
     return make_ptr<ErrorExpr>(tracker());
 }
 
-const Type* Parser::parse_type() {
-    const Type* type = nullptr;
+// Types ---------------------------------------------------------------------------
 
-    auto tag = PrimType::tag_from_token(ahead());
-    if (tag != PrimType::ERR) {
+Ptr<ast::Type> Parser::parse_type() {
+    Ptr<ast::Type> type;
+    switch (ahead().tag()) {
+        case Token::ID:      type = std::move(parse_named_type()); break;
+        case Token::L_PAREN: type = std::move(parse_tuple_type()); break;
+        default:             type = std::move(parse_error_type()); break;
+    }
+    if (ahead().tag() == Token::ARROW)
+        return parse_function_type(std::move(type));
+    return std::move(type);
+}
+
+Ptr<ast::Type> Parser::parse_named_type() {
+    Tracker tracker(this);
+    auto tag = ast::PrimType::tag_from_token(ahead());
+    if (tag != ast::PrimType::ERR) {
         next();
-        type = type_table_.prim_type(tag);
-    } else if (ahead().tag() == Token::L_PAREN) {
-        eat(Token::L_PAREN);
-        std::vector<const Type*> args;
-        parse_list(Token::R_PAREN, Token::COMMA, [&] {
-            eat_nl();
-            args.emplace_back(parse_type());
-            eat_nl();
-        });
-        type = args.size() == 1 ? args[0] : type_table_.tuple_type(std::move(args));
+        return make_ptr<ast::PrimType>(tracker(), tag);
     } else {
-        log::error(ahead().loc(), "expected type, got '{}'", ahead().string());
-        next();
-        return type_table_.error_type(ahead().loc());
+        auto ident = parse_ident();
+        return make_ptr<ast::NamedType>(tracker(), ident);
     }
+}
 
-    if (ahead().tag() == Token::ARROW) {
-        eat(Token::ARROW);
-        eat_nl();
-        auto to = parse_type();
-        type = type_table_.function_type(type, to);
-    }
-    return type;
+Ptr<ast::TupleType> Parser::parse_tuple_type() {
+    Tracker tracker(this);
+    eat(Token::L_PAREN);
+    PtrVector<ast::Type> args;
+    parse_list(Token::R_PAREN, Token::COLON, [&] {
+        args.emplace_back(parse_type());
+    });
+    return make_ptr<ast::TupleType>(tracker(), std::move(args));
+}
+
+Ptr<ast::FunctionType> Parser::parse_function_type(Ptr<ast::Type>&& from) {
+    Tracker tracker(this, from->loc);
+    eat(Token::ARROW);
+    eat_nl();
+    auto to = parse_type();
+    return make_ptr<ast::FunctionType>(tracker(), std::move(from), std::move(to));
+}
+
+Ptr<ast::ErrorType> Parser::parse_error_type() {
+    Tracker tracker(this);
+    log::error(ahead().loc(), "expected type, got '{}'", ahead().string());
+    next();
+    return make_ptr<ast::ErrorType>(tracker());
 }
 
 std::string Parser::parse_ident() {
