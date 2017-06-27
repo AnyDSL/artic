@@ -104,13 +104,7 @@ Ptr<Expr> Parser::parse_typed_expr(Ptr<Expr>&& expr) {
 
 Ptr<IdExpr> Parser::parse_id_expr() {
     Tracker tracker(this);
-    std::string id;
-    if (!ahead().is_identifier())
-        log::error(ahead().loc(), "expected identifier, got '{}'", ahead().string());
-    else
-        id = ahead().identifier();
-    next();
-    return make_ptr<IdExpr>(tracker(), id);
+    return make_ptr<IdExpr>(tracker(), parse_ident());
 }
 
 Ptr<LiteralExpr> Parser::parse_literal_expr() {
@@ -295,6 +289,16 @@ const Type* Parser::parse_type() {
         type = type_table_.function_type(type, to);
     }
     return type;
+}
+
+std::string Parser::parse_ident() {
+    std::string ident;
+    if (ahead().is_identifier())
+        ident = ahead().identifier();
+    else
+        log::error(ahead().loc(), "expected identifier, got '{}'", ahead().string());
+    next();
+    return ident;
 }
 
 } // namespace artic

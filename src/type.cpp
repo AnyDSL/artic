@@ -66,10 +66,6 @@ uint32_t TupleType::hash() const {
     return hash_list(args, [] (auto& arg) { return arg->hash(); });
 }
 
-bool PrimType::equals(const Type* t) const {
-    return t->isa<PrimType>() && t->as<PrimType>()->tag == tag;
-}
-
 uint32_t FunctionType::hash() const {
     return hash_combine(from()->hash(), to()->hash());
 }
@@ -93,6 +89,10 @@ uint32_t UnknownType::hash() const {
 
 uint32_t ErrorType::hash() const {
     return loc.hash();
+}
+
+bool PrimType::equals(const Type* t) const {
+    return t->isa<PrimType>() && t->as<PrimType>()->tag == tag;
 }
 
 bool TupleType::equals(const Type* t) const {
@@ -232,7 +232,8 @@ const ErrorType* TypeTable::error_type(const Loc& loc) {
 }
 
 const UnknownType* TypeTable::unknown_type(int rank, UnknownType::Traits&& traits) {
-    return new_unknown(rank, std::move(traits));
+    unknowns_.emplace_back(new UnknownType(unknowns_.size(), rank, std::move(traits)));
+    return unknowns_.back();
 }
 
 } // namespace artic

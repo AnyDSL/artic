@@ -384,6 +384,7 @@ struct ErrorDecl : public Decl {
 /// Complete program.
 struct Program : public Node {
     PtrVector<Decl> decls;
+    PtrVector<Trait> traits;
 
     Program(const Loc& loc, PtrVector<Decl>&& decls)
         : Node(loc), decls(link(std::move(decls)))

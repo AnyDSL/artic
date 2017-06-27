@@ -42,6 +42,8 @@ private:
 
     const Type*      parse_type();
 
+    std::string      parse_ident();
+
     struct Tracker {
         const Parser* parser;
         int begin_row, begin_col;
@@ -106,6 +108,8 @@ private:
     Token ahead_;
     Lexer& lexer_;
     TypeTable& type_table_;
+
+    std::vector<std::unordered_map<std::string, const TypeVar*>> type_vars_;
 };
 
 } // namespace artic

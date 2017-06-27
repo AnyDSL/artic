@@ -58,8 +58,14 @@ std::ostream& operator << (std::ostream&, const Type*);
 
 /// A trait is a structure containing a set of operations that are valid for a type.
 struct Trait {
+    typedef std::unordered_map<std::string, const Type*> Members;
+
     std::string name;
-    std::unordered_map<std::string, const Type*> members;
+    Members members;
+
+    Trait(const std::string& name, Members&& members)
+        : name(name), members(std::move(members))
+    {}
 };
 
 /// Primitive type (integers/floats/...)
@@ -268,11 +274,6 @@ private:
         const T* ptr = new T(std::move(t));
         types_.emplace(ptr);
         return ptr;
-    }
-
-    const UnknownType* new_unknown(int rank, UnknownType::Traits&& traits) {
-        unknowns_.emplace_back(new UnknownType(unknowns_.size(), rank, std::move(traits)));
-        return unknowns_.back();
     }
 
     TypeSet types_;
