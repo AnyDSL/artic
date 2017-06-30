@@ -89,7 +89,6 @@ void VarDecl::check(TypeChecker& ctx) const {
 }
 
 void DefDecl::check(TypeChecker& ctx) const {
-    id->expr->type->dump();
     id->check(ctx);
     lambda->check(ctx);
 }

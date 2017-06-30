@@ -109,9 +109,12 @@ struct Ptrn : public Node {
         this->expr->make_pattern();
     }
 
-    bool is_valid()  const { return expr->is_valid_pattern(); }
+    /// Returns true iff the pattern is valid (e.g. after parsing).
+    bool is_valid() const { return expr->is_valid_pattern(); }
+    /// Returns true iff the pattern is a valid binder (e.g. it is not refutable).
     bool is_binder() const { return expr->only_identifiers(); }
-    bool is_tuple()  const { return expr->is_tuple(); }
+    /// Returns true iff the pattern is a tuple pattern.
+    bool is_tuple() const { return expr->is_tuple(); }
 
     void infer(TypeInference&);
 

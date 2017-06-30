@@ -21,14 +21,14 @@ class UnknownType;
 struct Type : public Cast<Type> {
     virtual ~Type() {}
 
-    /// Returns true if this type is a tuple.
+    /// Returns true iff this type is a tuple.
     bool is_tuple() const;
     /// Returns the body of a polymorphic type, or the type itself if it is not polymorphic.
     const Type* inner() const;
 
     /// Updates the rank of the unknowns contained in the type.
     virtual void update_rank(int) const {}
-    /// Returns true if the type is nominally typed.
+    /// Returns true iff the type is nominally typed.
     virtual bool is_nominal() const { return false; }
 
     /// Applies a substitution to the inner part of this type.
@@ -36,9 +36,9 @@ struct Type : public Cast<Type> {
     /// Fills the given set with unknowns contained in this type.
     virtual void unknowns(std::unordered_set<const UnknownType*>&) const {}
 
-    /// Returns true if the type has unknowns.
+    /// Returns true iff the type has unknowns.
     virtual bool has_unknowns() const { return false; }
-    /// Returns true if the type has errors.
+    /// Returns true iff the type has errors.
     virtual bool has_errors() const { return false; }
 
     /// Returns the set of unknowns contained in this type.
