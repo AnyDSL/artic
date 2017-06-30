@@ -180,10 +180,6 @@ void PrimType::print(Printer& p) const {
     p << keyword_style(tag_to_string(tag));
 }
 
-void NamedType::print(Printer& p) const {
-    p << name;
-}
-
 void TupleType::print(Printer& p) const {
     p << '(';
     print_list(p, ", ", args, [&] (auto& arg) {
@@ -202,6 +198,17 @@ void FunctionType::print(Printer& p) const {
     }
     p << " => ";
     to->print(p);
+}
+
+void TypeApp::print(Printer& p) const {
+    p << id;
+    if (!args.empty()) {
+        p << '[';
+        print_list(p, ", ", args, [&] (auto& arg) {
+            arg->print(p);
+        });
+        p << ']';
+    }
 }
 
 void ErrorType::print(Printer& p) const {

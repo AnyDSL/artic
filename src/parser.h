@@ -45,6 +45,7 @@ private:
     Ptr<ast::PrimType>     parse_prim_type(ast::PrimType::Tag);
     Ptr<ast::TupleType>    parse_tuple_type();
     Ptr<ast::FunctionType> parse_function_type(Ptr<ast::Type>&&);
+    Ptr<ast::TypeApp>      parse_type_app();
     Ptr<ast::ErrorType>    parse_error_type();
 
     std::string            parse_ident();

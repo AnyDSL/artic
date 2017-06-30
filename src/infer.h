@@ -1,5 +1,5 @@
-#ifndef TYPE_CHECK_H
-#define TYPE_CHECK_H
+#ifndef INFER_H
+#define INFER_H
 
 #include <unordered_map>
 
@@ -8,10 +8,10 @@
 
 namespace artic {
 
-/// Utility class to perform type checking.
-class TypeChecker {
+/// Utility class to perform type inference.
+class TypeInference {
 public:
-    TypeChecker(TypeTable& type_table)
+    TypeInference(TypeTable& type_table)
         : type_table_(type_table)
     {}
 
@@ -23,12 +23,12 @@ public:
     const Type* generalize(const Loc& loc, const Type*);
     const Type* type(ast::Expr*);
 
-    const Type* check(ast::Expr*, const Type* expected = nullptr);
-    const Type* check(Ptr<ast::Expr>&, const Type* expected = nullptr);
-    const Type* check(Ptr<ast::Ptrn>&, const Type* expected = nullptr);
-    const Type* check(Ptr<ast::Type>&);
-    void check(Ptr<ast::Decl>&);
-    void check(Ptr<ast::Program>&);
+    const Type* infer(ast::Expr*, const Type* expected = nullptr);
+    const Type* infer(Ptr<ast::Expr>&, const Type* expected = nullptr);
+    const Type* infer(Ptr<ast::Ptrn>&, const Type* expected = nullptr);
+    const Type* infer(Ptr<ast::Type>&);
+    void infer(Ptr<ast::Decl>&);
+    void infer(Ptr<ast::Program>&);
 
     TypeTable& type_table() { return type_table_; }
 
@@ -48,10 +48,10 @@ private:
 
     std::unordered_map<const Type*, Equation> eqs_;
     TypeTable& type_table_;
-    bool todo_, report_;
+    bool todo_;
     int rank_;
 };
 
 } // namespace artic
 
-#endif // TYPE_CHECK_H
+#endif // INFER_H

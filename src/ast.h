@@ -16,6 +16,7 @@ namespace artic {
 class Printer;
 class NameBinder;
 class TypeChecker;
+class TypeInference;
 
 template <typename T> using Ptr = std::unique_ptr<T>;
 template <typename T> using PtrVector = std::vector<std::unique_ptr<T>>;
@@ -35,7 +36,9 @@ struct Node : public Cast<Node> {
     virtual ~Node() {}
 
     /// Binds identifiers to AST nodes.
-    virtual void bind_names(NameBinder&) = 0;
+    virtual void bind(NameBinder&) = 0;
+    /// Checks if the program is correct.
+    virtual void check(TypeChecker&) const = 0;
     /// Prints the node with the given formatting parameters.
     virtual void print(Printer&) const = 0;
 
@@ -67,8 +70,9 @@ struct Type : public Node {
 
     Type(const Loc& loc) : Node(loc), type(nullptr) {}
 
-    virtual void bind_names(NameBinder&) = 0;
-    virtual const artic::Type* type_check(TypeChecker&) = 0;
+    void check(TypeChecker&) const override;
+
+    virtual const artic::Type* infer(TypeInference&) = 0;
     virtual void print(Printer&) const = 0;
 };
 
@@ -83,7 +87,7 @@ struct Expr : public Node {
     virtual bool only_identifiers() const { return false; }
     virtual void make_pattern() { pattern = true; }
 
-    virtual const artic::Type* type_check(TypeChecker&) = 0;
+    virtual const artic::Type* infer(TypeInference&) = 0;
 
     bool is_tuple() const;
 };
@@ -92,7 +96,7 @@ struct Expr : public Node {
 struct Decl : public Node {
     Decl(const Loc& loc) : Node(loc) {}
 
-    virtual void type_check(TypeChecker&) = 0;
+    virtual void infer(TypeInference&) = 0;
 };
 
 /// Pattern: An expression which does not need evaluation.
@@ -109,8 +113,10 @@ struct Ptrn : public Node {
     bool is_binder() const { return expr->only_identifiers(); }
     bool is_tuple()  const { return expr->is_tuple(); }
 
-    void type_check(TypeChecker&);
-    void bind_names(NameBinder&) override;
+    void infer(TypeInference&);
+
+    void bind(NameBinder&) override;
+    void check(TypeChecker&) const override;
     void print(Printer&) const override;
 };
 
@@ -131,25 +137,13 @@ struct PrimType : public Type {
         : Type(loc), tag(tag)
     {}
 
-    void bind_names(NameBinder&) override;
-    const artic::Type* type_check(TypeChecker&) override;
+    const artic::Type* infer(TypeInference&) override;
+
+    void bind(NameBinder&) override;
     void print(Printer&) const override;
 
     static std::string tag_to_string(Tag tag);
     static Tag tag_from_token(const Token&);
-};
-
-/// Identifier used as a type (type variable/struct).
-struct NamedType : public Type {
-    std::string name;
-
-    NamedType(const Loc& loc, std::string name)
-        : Type(loc), name(name)
-    {}
-
-    void bind_names(NameBinder&) override;
-    const artic::Type* type_check(TypeChecker&) override;
-    void print(Printer&) const override;
 };
 
 /// Tuple type, made of a product of simpler types.
@@ -160,8 +154,9 @@ struct TupleType : public Type {
         : Type(loc), args(std::move(args))
     {}
 
-    void bind_names(NameBinder&) override;
-    const artic::Type* type_check(TypeChecker&) override;
+    const artic::Type* infer(TypeInference&) override;
+
+    void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
 
@@ -174,8 +169,24 @@ struct FunctionType : public Type {
         : Type(loc), from(std::move(from)), to(std::move(to))
     {}
 
-    void bind_names(NameBinder&) override;
-    const artic::Type* type_check(TypeChecker&) override;
+    const artic::Type* infer(TypeInference&) override;
+
+    void bind(NameBinder&) override;
+    void print(Printer&) const override;
+};
+
+/// A type application (e.g. structure application).
+struct TypeApp : public Type {
+    std::string id;
+    PtrVector<Type> args;
+
+    TypeApp(const Loc& loc, const std::string& id, PtrVector<Type>&& args)
+        : Type(loc), id(id), args(std::move(args))
+    {}
+
+    const artic::Type* infer(TypeInference&) override;
+
+    void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
 
@@ -185,8 +196,9 @@ struct ErrorType : public Type {
         : Type(loc)
     {}
 
-    void bind_names(NameBinder&) override;
-    const artic::Type* type_check(TypeChecker&) override;
+    const artic::Type* infer(TypeInference&) override;
+
+    void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
 
@@ -201,11 +213,15 @@ struct TypedExpr : public Expr {
         : Expr(loc), expr(link(std::move(expr))), type(std::move(type))
     {}
 
-    void bind_names(NameBinder&) override;
-    const artic::Type* type_check(TypeChecker&) override;
-    void print(Printer&) const override;
-
+    bool only_identifiers() const override { return expr->only_identifiers(); }
+    bool is_valid_pattern() const override { return expr->is_valid_pattern(); }
     void make_pattern() override;
+
+    const artic::Type* infer(TypeInference&) override;
+
+    void bind(NameBinder&) override;
+    void check(TypeChecker&) const override;
+    void print(Printer&) const override;
 };
 
 /// Expression made of an identifier.
@@ -220,8 +236,10 @@ struct IdExpr : public Expr {
     bool only_identifiers() const override { return true; }
     bool is_valid_pattern() const override { return true; }
 
-    void bind_names(NameBinder&) override;
-    const artic::Type* type_check(TypeChecker&) override;
+    const artic::Type* infer(TypeInference&) override;
+
+    void bind(NameBinder&) override;
+    void check(TypeChecker&) const override;
     void print(Printer&) const override;
 };
 
@@ -235,8 +253,10 @@ struct LiteralExpr : public Expr {
 
     bool is_valid_pattern() const override { return true; }
 
-    void bind_names(NameBinder&) override;
-    const artic::Type* type_check(TypeChecker&) override;
+    const artic::Type* infer(TypeInference&) override;
+
+    void bind(NameBinder&) override;
+    void check(TypeChecker&) const override;
     void print(Printer&) const override;
 };
 
@@ -252,10 +272,6 @@ struct TupleExpr : public Expr {
     bool is_valid_pattern() const override { return if_all([] (auto& e) { return e->is_valid_pattern(); }); }
     void make_pattern() override;
 
-    void bind_names(NameBinder&) override;
-    const artic::Type* type_check(TypeChecker&) override;
-    void print(Printer&) const override;
-
     template <typename F>
     bool if_all(F f) const {
         return std::all_of(args.begin(), args.end(), [&] (const Ptr<Expr>& e) { return f(e); });
@@ -265,6 +281,12 @@ struct TupleExpr : public Expr {
     bool if_any(F f) const {
         return std::any_of(args.begin(), args.end(), [&] (const Ptr<Expr>& e) { return f(e); });
     }
+
+    const artic::Type* infer(TypeInference&) override;
+
+    void bind(NameBinder&) override;
+    void check(TypeChecker&) const override;
+    void print(Printer&) const override;
 };
 
 /// Anonymous function expression.
@@ -280,10 +302,10 @@ struct LambdaExpr : public Expr {
         , body(link(std::move(body)))
     {}
 
-    using Expr::bind_names;
+    const artic::Type* infer(TypeInference&) override;
 
-    void bind_names(NameBinder&) override;
-    const artic::Type* type_check(TypeChecker&) override;
+    void bind(NameBinder&) override;
+    void check(TypeChecker&) const override;
     void print(Printer&) const override;
 };
 
@@ -295,8 +317,10 @@ struct BlockExpr : public Expr {
         : Expr(loc), exprs(link(std::move(exprs)))
     {}
 
-    void bind_names(NameBinder&) override;
-    const artic::Type* type_check(TypeChecker&) override;
+    const artic::Type* infer(TypeInference&) override;
+
+    void bind(NameBinder&) override;
+    void check(TypeChecker&) const override;
     void print(Printer&) const override;
 };
 
@@ -308,8 +332,10 @@ struct DeclExpr : public Expr {
         : Expr(loc), decl(link(std::move(decl)))
     {}
 
-    void bind_names(NameBinder&) override;
-    const artic::Type* type_check(TypeChecker&) override;
+    const artic::Type* infer(TypeInference&) override;
+
+    void bind(NameBinder&) override;
+    void check(TypeChecker&) const override;
     void print(Printer&) const override;
 };
 
@@ -329,8 +355,10 @@ struct CallExpr : public Expr {
         , call_type(nullptr)
     {}
 
-    void bind_names(NameBinder&) override;
-    const artic::Type* type_check(TypeChecker&) override;
+    const artic::Type* infer(TypeInference&) override;
+
+    void bind(NameBinder&) override;
+    void check(TypeChecker&) const override;
     void print(Printer&) const override;
 };
 
@@ -350,8 +378,10 @@ struct IfExpr : public Expr {
         , if_false(link(std::move(if_false)))
     {}
 
-    void bind_names(NameBinder&) override;
-    const artic::Type* type_check(TypeChecker&) override;
+    const artic::Type* infer(TypeInference&) override;
+
+    void bind(NameBinder&) override;
+    void check(TypeChecker&) const override;
     void print(Printer&) const override;
 };
 
@@ -377,8 +407,10 @@ struct UnaryExpr : public Expr {
     bool is_prefix() const { return !is_postfix(); }
     bool is_postfix() const { return tag == POST_INC || tag == POST_DEC; }
 
-    void bind_names(NameBinder&) override;
-    const artic::Type* type_check(TypeChecker&) override;
+    const artic::Type* infer(TypeInference&) override;
+
+    void bind(NameBinder&) override;
+    void check(TypeChecker&) const override;
     void print(Printer&) const override;
 
     static std::string tag_to_string(Tag);
@@ -411,12 +443,14 @@ struct BinaryExpr : public Expr {
         , right(link(std::move(right)))
     {}
 
-    void bind_names(NameBinder&) override;
-    const artic::Type* type_check(TypeChecker&) override;
-    void print(Printer&) const override;
-
     bool has_cmp() const { return has_cmp(tag); }
     bool has_eq() const { return has_eq(tag); }
+
+    const artic::Type* infer(TypeInference&) override;
+
+    void bind(NameBinder&) override;
+    void check(TypeChecker&) const override;
+    void print(Printer&) const override;
 
     static bool has_eq(Tag);
     static bool has_cmp(Tag);
@@ -434,8 +468,10 @@ struct ErrorExpr : public Expr {
         : Expr(loc)
     {}
 
-    void bind_names(NameBinder&) override;
-    const artic::Type* type_check(TypeChecker&) override;
+    const artic::Type* infer(TypeInference&) override;
+
+    void bind(NameBinder&) override;
+    void check(TypeChecker&) const override;
     void print(Printer&) const override;
 };
 
@@ -450,12 +486,14 @@ struct VarDecl : public Decl {
         : Decl(loc), id(link(std::move(id))), init(link(std::move(init)))
     {}
 
-    void bind_names(NameBinder&) override;
-    void type_check(TypeChecker&) override;
+    void infer(TypeInference&) override;
+
+    void bind(NameBinder&) override;
+    void check(TypeChecker&) const override;
     void print(Printer&) const override;
 };
 
-/// Function/constant definition.
+/// Function/constant declaration.
 struct DefDecl : public Decl {
     Ptr<Ptrn> id;
     Ptr<LambdaExpr> lambda;
@@ -474,8 +512,30 @@ struct DefDecl : public Decl {
     bool is_function() const { return lambda->param != nullptr; }
     std::string name() const { return id->expr->as<IdExpr>()->id; }
 
-    void bind_names(NameBinder&) override;
-    void type_check(TypeChecker&) override;
+    void infer(TypeInference&) override;
+
+    void bind(NameBinder&) override;
+    void check(TypeChecker&) const override;
+    void print(Printer&) const override;
+};
+
+/// Structure declaration.
+struct StructDecl : public Decl {
+    std::string name;
+    PtrVector<Decl> decls;
+
+    StructDecl(const Loc& loc,
+        const std::string& name,
+        PtrVector<Decl>&& decls)
+        : Decl(loc)
+        , name(std::move(name))
+        , decls(std::move(decls))
+    {}
+
+    void infer(TypeInference&) override;
+
+    void bind(NameBinder&) override;
+    void check(TypeChecker&) const override;
     void print(Printer&) const override;
 };
 
@@ -483,8 +543,10 @@ struct DefDecl : public Decl {
 struct ErrorDecl : public Decl {
     ErrorDecl(const Loc& loc) : Decl(loc) {}
 
-    void bind_names(NameBinder&) override;
-    void type_check(TypeChecker&) override;
+    void infer(TypeInference&) override;
+
+    void bind(NameBinder&) override;
+    void check(TypeChecker&) const override;
     void print(Printer&) const override;
 };
 
@@ -496,9 +558,10 @@ struct Program : public Node {
         : Node(loc), decls(link(std::move(decls)))
     {}
 
-    void type_check(TypeChecker&);
+    void infer(TypeInference&);
 
-    void bind_names(NameBinder&) override;
+    void bind(NameBinder&) override;
+    void check(TypeChecker&) const override;
     void print(Printer&) const override;
 };
 

@@ -122,6 +122,36 @@ void UnknownType::unknowns(std::unordered_set<const UnknownType*>& u) const {
     u.emplace(this);
 }
 
+bool TypeApp::has_unknowns() const {
+    for (auto arg : args) {
+        if (arg->has_unknowns()) return true;
+    }
+    return false;
+}
+
+bool PolyType::has_unknowns() const {
+    return body->has_unknowns();
+}
+
+bool UnknownType::has_unknowns() const {
+    return true;
+}
+
+bool TypeApp::has_errors() const {
+    for (auto arg : args) {
+        if (arg->has_errors()) return true;
+    }
+    return false;
+}
+
+bool PolyType::has_errors() const {
+    return body->has_errors();
+}
+
+bool ErrorType::has_errors() const {
+    return true;
+}
+
 inline const Type* apply_map(const std::unordered_map<const Type*, const Type*>& map, const Type* type) {
     auto it = map.find(type);
     if (it != map.end()) return it->second;

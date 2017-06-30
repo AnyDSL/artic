@@ -36,6 +36,11 @@ struct Type : public Cast<Type> {
     /// Fills the given set with unknowns contained in this type.
     virtual void unknowns(std::unordered_set<const UnknownType*>&) const {}
 
+    /// Returns true if the type has unknowns.
+    virtual bool has_unknowns() const { return false; }
+    /// Returns true if the type has errors.
+    virtual bool has_errors() const { return false; }
+
     /// Returns the set of unknowns contained in this type.
     std::unordered_set<const UnknownType*> unknowns() const {
         std::unordered_set<const UnknownType*> set;
@@ -100,6 +105,9 @@ struct TypeApp : public Type {
     const Type* substitute(TypeTable& table, const std::unordered_map<const Type*, const Type*>& map) const override;
     void unknowns(std::unordered_set<const UnknownType*>&) const override;
 
+    bool has_unknowns() const override;
+    bool has_errors() const override;
+
     virtual const TypeApp* rebuild(TypeTable& table, Args&& new_args) const = 0;
 };
 
@@ -159,6 +167,9 @@ struct PolyType : public Type {
     const Type* substitute(TypeTable&, const std::unordered_map<const Type*, const Type*>&) const override;
     void unknowns(std::unordered_set<const UnknownType*>&) const override;
 
+    bool has_unknowns() const override;
+    bool has_errors() const override;
+
     uint32_t hash() const override;
     bool equals(const Type* t) const override;
     void print(Printer&) const override;
@@ -203,17 +214,21 @@ struct UnknownType : public Type {
     void update_rank(int i) const override;
     void unknowns(std::unordered_set<const UnknownType*>&) const override;
 
-    static constexpr int max_rank() { return std::numeric_limits<int>::max(); }
+    bool has_unknowns() const override;
 
     uint32_t hash() const override;
     bool equals(const Type* t) const override;
     void print(Printer&) const override;
+
+    static constexpr int max_rank() { return std::numeric_limits<int>::max(); }
 };
 
 /// Type that represents type-checking/parsing errors.
 struct ErrorType : public Type {
     Loc loc;
     ErrorType(const Loc& loc) : loc(loc) {}
+
+    bool has_errors() const override;
 
     void print(Printer&) const override;
     uint32_t hash() const override;

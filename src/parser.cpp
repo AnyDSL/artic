@@ -285,15 +285,16 @@ Ptr<ast::Type> Parser::parse_type() {
 }
 
 Ptr<ast::Type> Parser::parse_named_type() {
-    Tracker tracker(this);
     auto tag = ast::PrimType::tag_from_token(ahead());
-    if (tag != ast::PrimType::ERR) {
-        next();
-        return make_ptr<ast::PrimType>(tracker(), tag);
-    } else {
-        auto ident = parse_ident();
-        return make_ptr<ast::NamedType>(tracker(), ident);
-    }
+    if (tag != ast::PrimType::ERR)
+        return parse_prim_type(tag);
+    return parse_type_app();
+}
+
+Ptr<ast::PrimType> Parser::parse_prim_type(ast::PrimType::Tag tag) {
+    Tracker tracker(this);
+    next();
+    return make_ptr<ast::PrimType>(tracker(), tag);
 }
 
 Ptr<ast::TupleType> Parser::parse_tuple_type() {
@@ -301,7 +302,9 @@ Ptr<ast::TupleType> Parser::parse_tuple_type() {
     eat(Token::L_PAREN);
     PtrVector<ast::Type> args;
     parse_list(Token::R_PAREN, Token::COLON, [&] {
+        eat_nl();
         args.emplace_back(parse_type());
+        eat_nl();
     });
     return make_ptr<ast::TupleType>(tracker(), std::move(args));
 }
@@ -312,6 +315,20 @@ Ptr<ast::FunctionType> Parser::parse_function_type(Ptr<ast::Type>&& from) {
     eat_nl();
     auto to = parse_type();
     return make_ptr<ast::FunctionType>(tracker(), std::move(from), std::move(to));
+}
+
+Ptr<ast::TypeApp> Parser::parse_type_app() {
+    Tracker tracker(this);
+    auto ident = parse_ident();
+    PtrVector<ast::Type> args;
+    if (ahead().tag() == Token::L_BRACKET) {
+        parse_list(Token::R_BRACKET, Token::COMMA, [&] {
+            eat_nl();
+            args.emplace_back(parse_type());
+            eat_nl();
+        });
+    }
+    return make_ptr<ast::TypeApp>(tracker(), ident, std::move(args));
 }
 
 Ptr<ast::ErrorType> Parser::parse_error_type() {
