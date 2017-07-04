@@ -49,14 +49,20 @@ void Ptrn::print(Printer& p) const {
     expr->print(p);
 }
 
+void Path::print(Printer& p) const {
+    print_list(p, '.', elems, [&] (auto& e) {
+        p << e.name;
+    });
+}
+
 void TypedExpr::print(Printer& p) const {
     expr->print(p);
     p << " : ";
     type->print(p);
 }
 
-void IdExpr::print(Printer& p) const {
-    p << id;
+void PathExpr::print(Printer& p) const {
+    path->print(p);
 }
 
 void LiteralExpr::print(Printer& p) const {
@@ -72,7 +78,7 @@ void TupleExpr::print(Printer& p) const {
 }
 
 void LambdaExpr::print(Printer& p) const {
-    if (!param->expr->type && param->expr->isa<IdExpr>())
+    if (!param->expr->type && param->expr->isa<PathExpr>())
         param->print(p);
     else
         print_parens(p, param);
@@ -201,7 +207,7 @@ void FunctionType::print(Printer& p) const {
 }
 
 void TypeApp::print(Printer& p) const {
-    p << id;
+    path->print(p);
     if (!args.empty()) {
         p << '[';
         print_list(p, ", ", args, [&] (auto& arg) {

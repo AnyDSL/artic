@@ -8,6 +8,11 @@ bool TypeChecker::check(const Ptr<ast::Program>& program) {
     return errors() == 0;
 }
 
+void TypeChecker::expect(const std::string& where, const Ptr<ast::Expr>& expr, const artic::Type* type) {
+    if (expr->type != type)
+        log::error(expr->loc, "type mismatch in {}, got '{}'", where, expr->type);
+}
+
 namespace ast {
 
 void Type::check(TypeChecker&) const {}
@@ -16,14 +21,16 @@ void Ptrn::check(TypeChecker& ctx) const {
     expr->check(ctx);
 }
 
+void Path::check(TypeChecker&) const {}
+
 void TypedExpr::check(TypeChecker& ctx) const {
     expr->check(ctx);
     type->check(ctx);
 }
 
-void IdExpr::check(TypeChecker& ctx) const {
+void PathExpr::check(TypeChecker& ctx) const {
     if (pattern && type->has_unknowns())
-        log::error(loc, "cannot infer type for '{}'", id);
+        log::error(loc, "cannot infer type for '{}'", identifier());
 }
 
 void LiteralExpr::check(TypeChecker&) const {}
@@ -58,7 +65,7 @@ void CallExpr::check(TypeChecker& ctx) const {
         if (num_args != num_params)
             log::error(loc, "incorrect number of arguments, got {} instead of {}", num_args, num_params);
         else
-            log::error(loc, "incorrect argument in function call");
+            ctx.expect("function call", arg, callee->type->as<artic::FunctionType>()->from());
         return;
     }
 
@@ -84,6 +91,8 @@ void BinaryExpr::check(TypeChecker& ctx) const {
 void ErrorExpr::check(TypeChecker&) const {}
 
 void VarDecl::check(TypeChecker& ctx) const {
+    ctx.expect("variable declaration", init, id->expr->type);
+
     init->check(ctx);
     id->check(ctx);
 }

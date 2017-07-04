@@ -187,8 +187,10 @@ const artic::Type* TypedExpr::infer(TypeInference& ctx) {
     return ctx.unify(loc, ctx.infer(expr), ctx.infer(type));
 }
 
-const artic::Type* IdExpr::infer(TypeInference& ctx) {
+const artic::Type* PathExpr::infer(TypeInference& ctx) {
     if (pattern || type) return ctx.type(this);
+
+    auto& symbol = path->elems.back().symbol;
     if (!symbol || symbol->exprs.empty()) return ctx.type_table().error_type(loc);
 
     // Check the first symbol

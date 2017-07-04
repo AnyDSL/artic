@@ -123,6 +123,28 @@ struct Ptrn : public Node {
     void print(Printer&) const override;
 };
 
+/// A path of the form A.B.C
+struct Path : public Node {
+    struct Elem {
+        std::string name;
+        std::shared_ptr<Symbol> symbol;
+
+        Elem() {}
+        Elem(const std::string& name, std::shared_ptr<Symbol> symbol = nullptr)
+            : name(name), symbol(symbol)
+        {}
+    };
+    std::vector<Elem> elems;
+
+    Path(const Loc& loc, std::vector<Elem>&& elems)
+        : Node(loc), elems(std::move(elems))
+    {}
+
+    void bind(NameBinder&) override;
+    void check(TypeChecker&) const override;
+    void print(Printer&) const override;
+};
+
 // Types ---------------------------------------------------------------------------
 
 /// Primitive type (integer, float, ...).
@@ -178,13 +200,13 @@ struct FunctionType : public Type {
     void print(Printer&) const override;
 };
 
-/// A type application (e.g. structure application).
+/// A type application.
 struct TypeApp : public Type {
-    std::string id;
+    Ptr<Path> path;
     PtrVector<Type> args;
 
-    TypeApp(const Loc& loc, const std::string& id, PtrVector<Type>&& args)
-        : Type(loc), id(id), args(std::move(args))
+    TypeApp(const Loc& loc, Ptr<Path>&& path, PtrVector<Type>&& args)
+        : Type(loc), path(std::move(path)), args(std::move(args))
     {}
 
     const artic::Type* infer(TypeInference&) override;
@@ -227,17 +249,19 @@ struct TypedExpr : public Expr {
     void print(Printer&) const override;
 };
 
-/// Expression made of an identifier.
-struct IdExpr : public Expr {
-    std::string id;
-    std::shared_ptr<Symbol> symbol;
+/// Expression made of a path to an identifier.
+struct PathExpr : public Expr {
+    Ptr<Path> path;
 
-    IdExpr(const Loc& loc, const std::string& id)
-        : Expr(loc), id(id)
+    PathExpr(const Loc& loc, Ptr<Path>&& path)
+        : Expr(loc), path(std::move(path))
     {}
 
     bool only_identifiers() const override { return true; }
-    bool is_valid_pattern() const override { return true; }
+    bool is_valid_pattern() const override { return path->elems.size() == 1; }
+
+    const std::string& identifier() const { return path->elems.back().name; }
+    std::shared_ptr<Symbol>& symbol() { return path->elems.back().symbol; }
 
     const artic::Type* infer(TypeInference&) override;
 
@@ -513,7 +537,7 @@ struct DefDecl : public Decl {
     {}
 
     bool is_function() const { return lambda->param != nullptr; }
-    std::string name() const { return id->expr->as<IdExpr>()->id; }
+    std::string identifier() const { return id->expr->as<PathExpr>()->identifier(); }
 
     void infer(TypeInference&) override;
 

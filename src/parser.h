@@ -26,7 +26,7 @@ private:
 
     Ptr<ast::Expr>         parse_expr();
     Ptr<ast::Expr>         parse_typed_expr(Ptr<ast::Expr>&&);
-    Ptr<ast::IdExpr>       parse_id_expr();
+    Ptr<ast::PathExpr>     parse_path_expr();
     Ptr<ast::LiteralExpr>  parse_literal_expr();
     Ptr<ast::Expr>         parse_tuple_expr();
     Ptr<ast::BlockExpr>    parse_block_expr();
@@ -48,6 +48,7 @@ private:
     Ptr<ast::TypeApp>      parse_type_app();
     Ptr<ast::ErrorType>    parse_error_type();
 
+    Ptr<ast::Path>         parse_path();
     std::string            parse_ident();
 
     struct Tracker {

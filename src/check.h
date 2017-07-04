@@ -11,6 +11,7 @@ public:
     TypeChecker() : errors_(0) {}
 
     bool check(const Ptr<ast::Program>&);
+    void expect(const std::string&, const Ptr<ast::Expr>&, const artic::Type*);
 
     size_t errors() const { return errors_; }
 

@@ -87,7 +87,10 @@ Ptr<Ptrn> Parser::parse_ptrn() {
 }
 
 Ptr<Ptrn> Parser::parse_id_ptrn() {
-    return make_ptr<Ptrn>(std::move(parse_typed_expr(parse_id_expr())));
+    auto expr = parse_typed_expr(parse_path_expr());
+    if (!expr->is_valid_pattern())
+        log::error(expr->loc, "invalid pattern");
+    return make_ptr<Ptrn>(std::move(expr));
 }
 
 Ptr<Ptrn> Parser::parse_tuple_ptrn() {
@@ -111,10 +114,10 @@ Ptr<Expr> Parser::parse_typed_expr(Ptr<Expr>&& expr) {
     return std::move(expr);
 }
 
-Ptr<IdExpr> Parser::parse_id_expr() {
+Ptr<PathExpr> Parser::parse_path_expr() {
     Tracker tracker(this);
-    auto ident = parse_ident();
-    return make_ptr<IdExpr>(tracker(), ident);
+    auto path = parse_path();
+    return make_ptr<PathExpr>(tracker(), std::move(path));
 }
 
 Ptr<LiteralExpr> Parser::parse_literal_expr() {
@@ -205,7 +208,7 @@ Ptr<Expr> Parser::parse_primary_expr() {
             break;
         case Token::L_BRACE: expr = std::move(parse_block_expr());   break;
         case Token::L_PAREN: expr = std::move(parse_tuple_expr());   break;
-        case Token::ID:      expr = std::move(parse_id_expr());      break;
+        case Token::ID:      expr = std::move(parse_path_expr());    break;
         case Token::LIT:     expr = std::move(parse_literal_expr()); break;
         case Token::DEF:
         case Token::VAR:
@@ -301,7 +304,7 @@ Ptr<ast::TupleType> Parser::parse_tuple_type() {
     Tracker tracker(this);
     eat(Token::L_PAREN);
     PtrVector<ast::Type> args;
-    parse_list(Token::R_PAREN, Token::COLON, [&] {
+    parse_list(Token::R_PAREN, Token::COMMA, [&] {
         eat_nl();
         args.emplace_back(parse_type());
         eat_nl();
@@ -319,7 +322,7 @@ Ptr<ast::FunctionType> Parser::parse_function_type(Ptr<ast::Type>&& from) {
 
 Ptr<ast::TypeApp> Parser::parse_type_app() {
     Tracker tracker(this);
-    auto ident = parse_ident();
+    auto path = parse_path();
     PtrVector<ast::Type> args;
     if (ahead().tag() == Token::L_BRACKET) {
         parse_list(Token::R_BRACKET, Token::COMMA, [&] {
@@ -328,7 +331,7 @@ Ptr<ast::TypeApp> Parser::parse_type_app() {
             eat_nl();
         });
     }
-    return make_ptr<ast::TypeApp>(tracker(), ident, std::move(args));
+    return make_ptr<ast::TypeApp>(tracker(), std::move(path), std::move(args));
 }
 
 Ptr<ast::ErrorType> Parser::parse_error_type() {
@@ -336,6 +339,18 @@ Ptr<ast::ErrorType> Parser::parse_error_type() {
     log::error(ahead().loc(), "expected type, got '{}'", ahead().string());
     next();
     return make_ptr<ast::ErrorType>(tracker());
+}
+
+Ptr<ast::Path> Parser::parse_path() {
+    Tracker tracker(this);
+    std::vector<ast::Path::Elem> elems;
+    while (true) {
+        elems.emplace_back(parse_ident());
+        if (ahead().tag() != Token::DOT) break;
+        eat(Token::DOT);
+        eat_nl();
+    }
+    return make_ptr<Path>(tracker(), std::move(elems));
 }
 
 std::string Parser::parse_ident() {
