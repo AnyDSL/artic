@@ -34,9 +34,9 @@ void Ptrn::bind(NameBinder& ctx) {
 
 void Path::bind(NameBinder& ctx) {
     for (auto& elem : elems) {
-        elem.symbol = ctx.find_symbol(elem.name);
+        elem.symbol = ctx.find_symbol(elem.id.name);
         if (!elem.symbol)
-            log::error(loc, "unknown identifier '{}'", elem.name);
+            log::error(loc, "unknown identifier '{}'", elem.id.name);
     }
 }
 
@@ -48,7 +48,7 @@ void TypedExpr::bind(NameBinder& ctx) {
 void PathExpr::bind(NameBinder& ctx) {
     if (pattern) {
         assert(path.size() == 1);
-        auto& id = identifier();
+        auto& id = identifier().name;
         if (!ctx.insert_symbol(id, this) && !ctx.top_scope()) {
             // Overloading is authorized at the top level
             log::error(loc, "identifier '{}' already declared", id);

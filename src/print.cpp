@@ -51,7 +51,7 @@ void Ptrn::print(Printer& p) const {
 
 void Path::print(Printer& p) const {
     print_list(p, '.', elems, [&] (auto& e) {
-        p << e.name;
+        p << e.id.name;
     });
 }
 

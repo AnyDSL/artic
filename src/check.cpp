@@ -30,7 +30,7 @@ void TypedExpr::check(TypeChecker& ctx) const {
 
 void PathExpr::check(TypeChecker& ctx) const {
     if (pattern && type->has_unknowns())
-        log::error(loc, "cannot infer type for '{}'", identifier());
+        log::error(loc, "cannot infer type for '{}'", identifier().name);
 }
 
 void LiteralExpr::check(TypeChecker&) const {}

@@ -27,6 +27,17 @@ std::unique_ptr<T> make_ptr(Args... args) {
 
 namespace ast {
 
+/// Identifier with its location in the file
+struct Identifier {
+    Loc loc;
+    std::string name;
+
+    Identifier() {}
+    Identifier(const Loc& loc, std::string&& name)
+        : loc(loc), name(std::move(name))
+    {}
+};
+
 /// Base class for all AST nodes.
 struct Node : public Cast<Node> {
     Loc loc;
@@ -126,12 +137,12 @@ struct Ptrn : public Node {
 /// A path of the form A.B.C
 struct Path : public Node {
     struct Elem {
-        std::string name;
+        Identifier id;
         std::shared_ptr<Symbol> symbol;
 
         Elem() {}
-        Elem(const std::string& name, std::shared_ptr<Symbol> symbol = nullptr)
-            : name(name), symbol(symbol)
+        Elem(const Identifier& id, std::shared_ptr<Symbol> symbol = nullptr)
+            : id(id), symbol(symbol)
         {}
     };
     std::vector<Elem> elems;
@@ -260,7 +271,7 @@ struct PathExpr : public Expr {
     bool only_identifiers() const override { return true; }
     bool is_valid_pattern() const override { return path->elems.size() == 1; }
 
-    const std::string& identifier() const { return path->elems.back().name; }
+    const Identifier& identifier() const { return path->elems.back().id; }
     std::shared_ptr<Symbol>& symbol() { return path->elems.back().symbol; }
 
     const artic::Type* infer(TypeInference&) override;
@@ -537,7 +548,7 @@ struct DefDecl : public Decl {
     {}
 
     bool is_function() const { return lambda->param != nullptr; }
-    std::string identifier() const { return id->expr->as<PathExpr>()->identifier(); }
+    const Identifier& identifier() const { return id->expr->as<PathExpr>()->identifier(); }
 
     void infer(TypeInference&) override;
 
@@ -546,17 +557,67 @@ struct DefDecl : public Decl {
     void print(Printer&) const override;
 };
 
+/// Type parameter, introduced by the operator [].
+struct TypeParam : public Decl {
+    Identifier id;
+    PtrVector<Type> bounds;
+
+    TypeParam(const Loc& loc,
+              const Identifier& id,
+              PtrVector<Type>&& bounds)
+        : Decl(loc), id(id), bounds(std::move(bounds))
+    {}
+};
+
+/// Type parameter list, of the form [T : A, U : B, ...]
+struct TypeParamList : public Decl {
+    PtrVector<TypeParam> params;
+
+    TypeParamList(const Loc& loc, PtrVector<TypeParam>&& params)
+        : Decl(loc), params(std::move(params))
+    {}
+
+    /// Returns true if there are trait constraints on any of the type parameters.
+    bool has_traits() const;
+};
+
 /// Structure declaration.
 struct StructDecl : public Decl {
-    std::string name;
+    Identifier id;
     PtrVector<Decl> decls;
+    Ptr<TypeParamList> param_list;
 
     StructDecl(const Loc& loc,
-        const std::string& name,
-        PtrVector<Decl>&& decls)
+               const Identifier& id,
+               PtrVector<Decl>&& decls,
+               Ptr<TypeParamList>&& param_list)
         : Decl(loc)
-        , name(std::move(name))
+        , id(std::move(id))
         , decls(std::move(decls))
+        , param_list(std::move(param_list))
+    {}
+
+    void infer(TypeInference&) override;
+
+    void bind(NameBinder&) override;
+    void check(TypeChecker&) const override;
+    void print(Printer&) const override;
+};
+
+/// Trait declaration.
+struct TraitDecl : public Decl {
+    Identifier id;
+    PtrVector<Decl> decls;
+    Ptr<TypeParamList> param_list;
+
+    TraitDecl(const Loc& loc,
+              const Identifier& id,
+              PtrVector<Decl>&& decls,
+              Ptr<TypeParamList>&& param_list)
+        : Decl(loc)
+        , id(std::move(id))
+        , decls(std::move(decls))
+        , param_list(std::move(param_list))
     {}
 
     void infer(TypeInference&) override;

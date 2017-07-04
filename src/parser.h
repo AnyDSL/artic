@@ -18,6 +18,8 @@ private:
     Ptr<ast::Decl>         parse_decl();
     Ptr<ast::DefDecl>      parse_def_decl();
     Ptr<ast::VarDecl>      parse_var_decl();
+    Ptr<ast::StructDecl>   parse_struct_decl();
+    Ptr<ast::TraitDecl>    parse_trait_decl();
     Ptr<ast::ErrorDecl>    parse_error_decl();
 
     Ptr<ast::Ptrn>         parse_ptrn();
@@ -49,7 +51,7 @@ private:
     Ptr<ast::ErrorType>    parse_error_type();
 
     Ptr<ast::Path>         parse_path();
-    std::string            parse_ident();
+    ast::Identifier        parse_id();
 
     struct Tracker {
         const Parser* parser;

@@ -345,7 +345,7 @@ Ptr<ast::Path> Parser::parse_path() {
     Tracker tracker(this);
     std::vector<ast::Path::Elem> elems;
     while (true) {
-        elems.emplace_back(parse_ident());
+        elems.emplace_back(parse_id());
         if (ahead().tag() != Token::DOT) break;
         eat(Token::DOT);
         eat_nl();
@@ -353,14 +353,15 @@ Ptr<ast::Path> Parser::parse_path() {
     return make_ptr<Path>(tracker(), std::move(elems));
 }
 
-std::string Parser::parse_ident() {
+ast::Identifier Parser::parse_id() {
+    Tracker tracker(this);
     std::string ident;
     if (ahead().is_identifier())
         ident = ahead().identifier();
     else
         log::error(ahead().loc(), "expected identifier, got '{}'", ahead().string());
     next();
-    return ident;
+    return Identifier(tracker(), std::move(ident));
 }
 
 } // namespace artic
