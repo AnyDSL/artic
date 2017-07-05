@@ -7,16 +7,16 @@
 namespace artic {
 
 namespace ast {
-    class Expr;
+    class Ptrn;
 }
 
 /// Declaration site of a symbol.
 struct Symbol {
-    Symbol(ast::Expr* expr) : exprs{ expr } {}
-    Symbol(std::vector<ast::Expr*>&& exprs) : exprs(std::move(exprs)) {}
+    Symbol(const ast::Ptrn* ptrn) : ptrns{ ptrn } {}
+    Symbol(std::vector<const ast::Ptrn*>&& ptrns) : ptrns(std::move(ptrns)) {}
     virtual ~Symbol() {}
 
-    std::vector<ast::Expr*> exprs;
+    std::vector<const ast::Ptrn*> ptrns;
 };
 
 /// Table containing a map from symbol name to declaration site.
@@ -32,8 +32,8 @@ struct SymbolTable {
     bool insert(const std::string& name, Symbol&& symbol) {
         auto it = symbols.find(name);
         if (it != symbols.end()) {
-            auto& exprs = it->second->exprs;
-            exprs.insert(exprs.end(), symbol.exprs.begin(), symbol.exprs.end());
+            auto& exprs = it->second->ptrns;
+            exprs.insert(exprs.end(), symbol.ptrns.begin(), symbol.ptrns.end());
             return false;
         }
 

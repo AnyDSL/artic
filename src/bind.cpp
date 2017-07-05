@@ -4,35 +4,30 @@
 
 namespace artic {
 
-void NameBinder::bind(Ptr<ast::Program>& program) {
-    program->bind(*this); 
+void NameBinder::bind(const ast::Program& program) {
+    program.bind(*this);
 }
 
 namespace ast {
 
-void PrimType::bind(NameBinder&) {}
+void PrimType::bind(NameBinder&) const {}
 
-void TupleType::bind(NameBinder& ctx) {
+void TupleType::bind(NameBinder& ctx) const {
     for (auto& arg : args) arg->bind(ctx);
 }
 
-void FunctionType::bind(NameBinder& ctx) {
+void FunctionType::bind(NameBinder& ctx) const {
     from->bind(ctx);
     to->bind(ctx);
 }
 
-void TypeApp::bind(NameBinder&) {
+void TypeApp::bind(NameBinder&) const {
     // TODO
-    assert(false);
 }
 
-void ErrorType::bind(NameBinder&) {}
+void ErrorType::bind(NameBinder&) const {}
 
-void Ptrn::bind(NameBinder& ctx) {
-    expr->bind(ctx);
-}
-
-void Path::bind(NameBinder& ctx) {
+void Path::bind(NameBinder& ctx) const {
     for (auto& elem : elems) {
         elem.symbol = ctx.find_symbol(elem.id.name);
         if (!elem.symbol)
@@ -40,33 +35,22 @@ void Path::bind(NameBinder& ctx) {
     }
 }
 
-void TypedExpr::bind(NameBinder& ctx) {
+void TypedExpr::bind(NameBinder& ctx) const {
     expr->bind(ctx);
     type->bind(ctx);
 }
 
-void PathExpr::bind(NameBinder& ctx) {
-    if (pattern) {
-        assert(path.size() == 1);
-        auto& id = identifier().name;
-        if (!ctx.insert_symbol(id, this) && !ctx.top_scope()) {
-            // Overloading is authorized at the top level
-            log::error(loc, "identifier '{}' already declared", id);
-            for (auto expr : ctx.find_symbol(id)->exprs)
-                log::info(expr->loc, "previously declared here");
-        }
-    } else {
-        path->bind(ctx);
-    }
+void PathExpr::bind(NameBinder& ctx) const {
+    path->bind(ctx);
 }
 
-void LiteralExpr::bind(NameBinder&) {}
+void LiteralExpr::bind(NameBinder&) const {}
 
-void TupleExpr::bind(NameBinder& ctx) {
+void TupleExpr::bind(NameBinder& ctx) const {
     for (auto& arg : args) arg->bind(ctx);
 }
 
-void LambdaExpr::bind(NameBinder& ctx) {
+void LambdaExpr::bind(NameBinder& ctx) const {
     ctx.push_scope();
     if (param) param->bind(ctx);
     ctx.push_scope();
@@ -75,51 +59,95 @@ void LambdaExpr::bind(NameBinder& ctx) {
     ctx.pop_scope();
 }
 
-void BlockExpr::bind(NameBinder& ctx) {
+void BlockExpr::bind(NameBinder& ctx) const {
     ctx.push_scope();
     for (auto& expr : exprs) expr->bind(ctx);
     ctx.pop_scope();
 }
 
-void DeclExpr::bind(NameBinder& ctx) {
+void DeclExpr::bind(NameBinder& ctx) const {
     decl->bind(ctx);
 }
 
-void CallExpr::bind(NameBinder& ctx) {
+void CallExpr::bind(NameBinder& ctx) const {
     callee->bind(ctx);
     arg->bind(ctx);
 }
 
-void IfExpr::bind(NameBinder& ctx) {
+void IfExpr::bind(NameBinder& ctx) const {
     cond->bind(ctx);
     if_true->bind(ctx);
     if (if_false) if_false->bind(ctx);
 }
 
-void UnaryExpr::bind(NameBinder& ctx) {
+void UnaryExpr::bind(NameBinder& ctx) const {
     expr->bind(ctx);
 }
 
-void BinaryExpr::bind(NameBinder& ctx) {
+void BinaryExpr::bind(NameBinder& ctx) const {
     left->bind(ctx);
     right->bind(ctx);
 }
 
-void ErrorExpr::bind(NameBinder&) {}
+void TypeAppExpr::bind(NameBinder& ctx) const {
+    expr->bind(ctx);
+    for (auto& arg : args) arg->bind(ctx);
+}
 
-void VarDecl::bind(NameBinder& ctx) {
+void ErrorExpr::bind(NameBinder&) const {}
+
+void TypedPtrn::bind(NameBinder& ctx) const {
+    ptrn->bind(ctx);
+    type->bind(ctx);
+}
+
+void IdPtrn::bind(NameBinder& ctx) const {
+    if (!ctx.insert_symbol(id.name, this)) {
+        log::error(loc, "identifier '{}' already declared", id.name);
+        for (auto ptrn : ctx.find_symbol(id.name)->ptrns)
+            log::info(ptrn->loc, "previously declared here");
+    }
+}
+
+void LiteralPtrn::bind(NameBinder&) const {}
+
+void TuplePtrn::bind(NameBinder& ctx) const {
+    for (auto& arg : args) arg->bind(ctx);
+}
+
+void ErrorPtrn::bind(NameBinder&) const {}
+
+void TypeParam::bind(NameBinder&) const {
+    // TODO
+}
+
+void TypeParamList::bind(NameBinder&) const {
+    // TODO
+}
+
+void VarDecl::bind(NameBinder& ctx) const {
     init->bind(ctx);
-    id->bind(ctx);
+    ptrn->bind(ctx);
 }
 
-void DefDecl::bind(NameBinder& ctx) {
-    id->bind(ctx);
-    lambda->bind(ctx);
+void DefDecl::bind(NameBinder& ctx) const {
+    id_ptrn->bind(ctx);
+    if (lambda->param && lambda->body) lambda->bind(ctx);
+    else if (lambda->body)  lambda->body->bind(ctx);
+    else if (lambda->param) lambda->param->bind(ctx);
 }
 
-void ErrorDecl::bind(NameBinder&) {}
+void StructDecl::bind(NameBinder&) const {
+    // TODO
+}
 
-void Program::bind(NameBinder& ctx) {
+void TraitDecl::bind(NameBinder&) const {
+    // TODO
+}
+
+void ErrorDecl::bind(NameBinder&) const {}
+
+void Program::bind(NameBinder& ctx) const {
     for (auto& decl : decls) decl->bind(ctx);
 }
 

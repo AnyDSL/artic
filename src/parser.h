@@ -15,43 +15,52 @@ public:
     Ptr<ast::Program>      parse_program();
 
 private:
-    Ptr<ast::Decl>         parse_decl();
-    Ptr<ast::DefDecl>      parse_def_decl();
-    Ptr<ast::VarDecl>      parse_var_decl();
-    Ptr<ast::StructDecl>   parse_struct_decl();
-    Ptr<ast::TraitDecl>    parse_trait_decl();
-    Ptr<ast::ErrorDecl>    parse_error_decl();
+    Ptr<ast::Decl>          parse_decl();
+    Ptr<ast::DefDecl>       parse_def_decl();
+    Ptr<ast::VarDecl>       parse_var_decl();
+    Ptr<ast::StructDecl>    parse_struct_decl();
+    Ptr<ast::TraitDecl>     parse_trait_decl();
+    Ptr<ast::TypeParam>     parse_type_param();
+    Ptr<ast::TypeParamList> parse_type_params();
+    Ptr<ast::ErrorDecl>     parse_error_decl();
 
-    Ptr<ast::Ptrn>         parse_ptrn();
-    Ptr<ast::Ptrn>         parse_id_ptrn();
-    Ptr<ast::Ptrn>         parse_tuple_ptrn();
+    Ptr<ast::Ptrn>          parse_ptrn();
+    Ptr<ast::Ptrn>          parse_typed_ptrn(Ptr<ast::Ptrn>&&);
+    Ptr<ast::IdPtrn>        parse_id_ptrn();
+    Ptr<ast::LiteralPtrn>   parse_literal_ptrn();
+    Ptr<ast::TuplePtrn>     parse_tuple_ptrn();
+    Ptr<ast::ErrorPtrn>     parse_error_ptrn();
 
-    Ptr<ast::Expr>         parse_expr();
-    Ptr<ast::Expr>         parse_typed_expr(Ptr<ast::Expr>&&);
-    Ptr<ast::PathExpr>     parse_path_expr();
-    Ptr<ast::LiteralExpr>  parse_literal_expr();
-    Ptr<ast::Expr>         parse_tuple_expr();
-    Ptr<ast::BlockExpr>    parse_block_expr();
-    Ptr<ast::DeclExpr>     parse_decl_expr();
-    Ptr<ast::LambdaExpr>   parse_lambda_expr(Ptr<ast::Expr>&&);
-    Ptr<ast::CallExpr>     parse_call_expr(Ptr<ast::Expr>&&);
-    Ptr<ast::IfExpr>       parse_if_expr();
-    Ptr<ast::Expr>         parse_primary_expr();
-    Ptr<ast::UnaryExpr>    parse_prefix_expr();
-    Ptr<ast::UnaryExpr>    parse_postfix_expr(Ptr<ast::Expr>&&);
-    Ptr<ast::Expr>         parse_binary_expr(Ptr<ast::Expr>&&, int);
-    Ptr<ast::ErrorExpr>    parse_error_expr();
+    Ptr<ast::Expr>          parse_expr();
+    Ptr<ast::Expr>          parse_typed_expr(Ptr<ast::Expr>&&);
+    Ptr<ast::PathExpr>      parse_path_expr();
+    Ptr<ast::LiteralExpr>   parse_literal_expr();
+    Ptr<ast::Expr>          parse_tuple_expr();
+    Ptr<ast::BlockExpr>     parse_block_expr();
+    Ptr<ast::DeclExpr>      parse_decl_expr();
+    Ptr<ast::LambdaExpr>    parse_lambda_expr(Ptr<ast::Expr>&&);
+    Ptr<ast::CallExpr>      parse_call_expr(Ptr<ast::Expr>&&);
+    Ptr<ast::IfExpr>        parse_if_expr();
+    Ptr<ast::Expr>          parse_primary_expr();
+    Ptr<ast::UnaryExpr>     parse_prefix_expr();
+    Ptr<ast::UnaryExpr>     parse_postfix_expr(Ptr<ast::Expr>&&);
+    Ptr<ast::Expr>          parse_binary_expr(Ptr<ast::Expr>&&, int);
+    Ptr<ast::TypeAppExpr>   parse_type_app_expr(Ptr<ast::Expr>&&);
+    Ptr<ast::ErrorExpr>     parse_error_expr();
 
-    Ptr<ast::Type>         parse_type();
-    Ptr<ast::Type>         parse_named_type();
-    Ptr<ast::PrimType>     parse_prim_type(ast::PrimType::Tag);
-    Ptr<ast::TupleType>    parse_tuple_type();
-    Ptr<ast::FunctionType> parse_function_type(Ptr<ast::Type>&&);
-    Ptr<ast::TypeApp>      parse_type_app();
-    Ptr<ast::ErrorType>    parse_error_type();
+    Ptr<ast::Type>          parse_type();
+    Ptr<ast::Type>          parse_named_type();
+    Ptr<ast::PrimType>      parse_prim_type(ast::PrimType::Tag);
+    Ptr<ast::TupleType>     parse_tuple_type();
+    Ptr<ast::FunctionType>  parse_function_type(Ptr<ast::Type>&&);
+    Ptr<ast::TypeApp>       parse_type_app();
+    Ptr<ast::ErrorType>     parse_error_type();
 
-    Ptr<ast::Path>         parse_path();
-    ast::Identifier        parse_id();
+    Ptr<ast::Path>          parse_path();
+    ast::Identifier         parse_id();
+    Literal                 parse_lit();
+
+    Ptr<ast::Ptrn>          expr_to_ptrn(Ptr<ast::Expr>&&);
 
     struct Tracker {
         const Parser* parser;
@@ -92,6 +101,11 @@ private:
                 ahead().string());
         }
         next();
+    }
+
+    void expect_binder(const std::string& msg, const Ptr<ast::Ptrn>& ptrn) {
+        if (ptrn->is_refutable())
+            log::error(ptrn->loc, "invalid {}", msg);
     }
 
     void eat(Token::Tag tag) {

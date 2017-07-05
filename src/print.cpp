@@ -45,10 +45,6 @@ inline void print_vars(Printer& p, size_t vars, const PolyType::VarTraits& trait
 
 namespace ast {
 
-void Ptrn::print(Printer& p) const {
-    expr->print(p);
-}
-
 void Path::print(Printer& p) const {
     print_list(p, '.', elems, [&] (auto& e) {
         p << e.id.name;
@@ -78,7 +74,7 @@ void TupleExpr::print(Printer& p) const {
 }
 
 void LambdaExpr::print(Printer& p) const {
-    if (!param->expr->type && param->expr->isa<PathExpr>())
+    if (param->isa<IdPtrn>())
         param->print(p);
     else
         print_parens(p, param);
@@ -144,13 +140,70 @@ void BinaryExpr::print(Printer& p) const {
     print_op(right);
 }
 
+void TypeAppExpr::print(Printer& p) const {
+    expr->print(p);
+    /*if (args.size())*/ {
+        p << '[';
+        print_list(p, ", ", args, [&] (auto& arg) {
+            arg->print(p);
+        });
+        p << ']';
+    }
+}
+
 void ErrorExpr::print(Printer& p) const {
     p << error_style("<invalid expression>");
 }
 
+void TypedPtrn::print(Printer& p) const {
+    ptrn->print(p);
+    p << " : ";
+    type->print(p);
+}
+
+void IdPtrn::print(Printer& p) const {
+    p << id.name;
+}
+
+void LiteralPtrn::print(Printer& p) const {
+    p << std::showpoint << literal_style(lit.box);
+}
+
+void TuplePtrn::print(Printer& p) const {
+    p << '(';
+    print_list(p, ", ", args, [&] (auto& arg) {
+        arg->print(p);
+    });
+    p << ')';
+}
+
+void ErrorPtrn::print(Printer& p) const {
+    p << error_style("<invalid pattern>");
+}
+
+void TypeParam::print(Printer& p) const {
+    p << id.name;
+    if (!bounds.empty()) {
+        p << " : ";
+        print_list(p, " + ", bounds, [&] (auto& bound) {
+            bound->print(p);
+        });
+    }
+}
+
+void TypeParamList::print(Printer& p) const {
+    if (!params.empty()) {
+        p << '[';
+        print_list(p, ", ", params, [&] (auto& param) {
+            param->print(p);
+        });
+        p << ']';
+    }
+}
+
 void VarDecl::print(Printer& p) const {
     p << keyword_style("var") << " ";
-    id->print(p);
+    ptrn->print(p);
     if (init) {
         p << " = ";
         init->print(p);
@@ -160,16 +213,45 @@ void VarDecl::print(Printer& p) const {
 void DefDecl::print(Printer& p) const {
     p << keyword_style("def") << " ";
     if (lambda->param) {
-        id->expr->print(p);
+        id_ptrn->print(p);
+        type_params->print(p);
         print_parens(p, lambda->param);
-    } else id->print(p);
+    } else {
+        id_ptrn->print(p);
+        type_params->print(p);
+    }
 
     if (ret_type) {
         p << " : ";
         ret_type->print(p);
     }
-    p << " = ";
-    lambda->body->print(p);
+
+    if (lambda->body) {
+        p << " = ";
+        lambda->body->print(p);
+    }
+}
+
+void StructDecl::print(Printer& p) const {
+    p << keyword_style("struct") << ' ' << id.name;
+    type_params->print(p);
+    p << " {" << p.indent();
+    print_list(p, p.endl(), decls, [&] (auto& decl) {
+        p << p.endl();
+        decl->print(p);
+    });
+    p << p.unindent() << p.endl() << '}';
+}
+
+void TraitDecl::print(Printer& p) const {
+    p << keyword_style("trait") << ' ' << id.name;
+    type_params->print(p);
+    p << " {" << p.indent();
+    print_list(p, p.endl(), decls, [&] (auto& decl) {
+        p << p.endl();
+        decl->print(p);
+    });
+    p << p.unindent() << p.endl() << '}';
 }
 
 void ErrorDecl::print(Printer& p) const {

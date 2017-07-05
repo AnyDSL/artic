@@ -19,16 +19,12 @@ public:
     const Type* join(const Loc&, const UnknownType*, const Type*);
     const Type* find(const Type*);
 
-    const Type* subsume(const Type*);
     const Type* generalize(const Loc& loc, const Type*);
-    const Type* type(ast::Expr*);
+    const Type* type(const ast::Typeable&);
 
-    const Type* infer(ast::Expr*, const Type* expected = nullptr);
-    const Type* infer(Ptr<ast::Expr>&, const Type* expected = nullptr);
-    const Type* infer(Ptr<ast::Ptrn>&, const Type* expected = nullptr);
-    const Type* infer(Ptr<ast::Type>&);
-    void infer(Ptr<ast::Decl>&);
-    void infer(Ptr<ast::Program>&);
+    const Type* infer(const ast::Typeable&, const Type* expected = nullptr);
+    void infer(const ast::Decl&);
+    void infer(const ast::Program&);
 
     TypeTable& type_table() { return type_table_; }
 

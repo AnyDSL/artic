@@ -6,6 +6,7 @@ namespace artic {
 namespace ast {
 
 bool Expr::is_tuple() const { return isa<TupleExpr>(); }
+bool Ptrn::is_tuple() const { return isa<TuplePtrn>(); }
 
 std::string PrimType::tag_to_string(Tag tag) {
     switch (tag) {
@@ -226,14 +227,24 @@ BinaryExpr::Tag BinaryExpr::tag_from_token(const Token& token) {
     }
 }
 
-void TypedExpr::make_pattern() {
-    pattern = true;
-    expr->make_pattern();
+bool TypedPtrn::is_refutable() const {
+    return ptrn->is_refutable();
 }
 
-void TupleExpr::make_pattern() {
-    pattern = true;
-    for (auto& arg : args) arg->make_pattern();
+bool IdPtrn::is_refutable() const {
+    return false;
+}
+
+bool LiteralPtrn::is_refutable() const {
+    return true;
+}
+
+bool TuplePtrn::is_refutable() const {
+    return if_any([] (auto& p) { return p->is_refutable(); });
+}
+
+bool ErrorPtrn::is_refutable() const {
+    return false;
 }
 
 } // namespace ast

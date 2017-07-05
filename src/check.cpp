@@ -3,8 +3,8 @@
 
 namespace artic {
 
-bool TypeChecker::check(const Ptr<ast::Program>& program) {
-    program->check(*this);
+bool TypeChecker::check(const ast::Program& program) {
+    program.check(*this);
     return errors() == 0;
 }
 
@@ -17,10 +17,6 @@ namespace ast {
 
 void Type::check(TypeChecker&) const {}
 
-void Ptrn::check(TypeChecker& ctx) const {
-    expr->check(ctx);
-}
-
 void Path::check(TypeChecker&) const {}
 
 void TypedExpr::check(TypeChecker& ctx) const {
@@ -28,10 +24,7 @@ void TypedExpr::check(TypeChecker& ctx) const {
     type->check(ctx);
 }
 
-void PathExpr::check(TypeChecker& ctx) const {
-    if (pattern && type->has_unknowns())
-        log::error(loc, "cannot infer type for '{}'", identifier().name);
-}
+void PathExpr::check(TypeChecker&) const {}
 
 void LiteralExpr::check(TypeChecker&) const {}
 
@@ -40,7 +33,7 @@ void TupleExpr::check(TypeChecker& ctx) const {
 }
 
 void LambdaExpr::check(TypeChecker& ctx) const {
-    if (param) param->check(ctx);
+    param->check(ctx);
     body->check(ctx);
 }
 
@@ -53,7 +46,7 @@ void DeclExpr::check(TypeChecker& ctx) const {
 }
 
 void CallExpr::check(TypeChecker& ctx) const {
-    auto fn_type = call_type->isa<artic::FunctionType>();
+    auto fn_type = callee->type->inner()->isa<artic::FunctionType>();
     if (!fn_type) {
         log::error(loc, "callee '{}' is not a function", callee.get());
         return;
@@ -88,18 +81,63 @@ void BinaryExpr::check(TypeChecker& ctx) const {
     right->check(ctx);
 }
 
+void TypeAppExpr::check(TypeChecker& ctx) const {
+    expr->check(ctx);
+    for (auto& arg : args) arg->check(ctx);
+}
+
 void ErrorExpr::check(TypeChecker&) const {}
 
+void TypedPtrn::check(TypeChecker& ctx) const {
+    ptrn->check(ctx);
+    type->check(ctx);
+}
+
+void IdPtrn::check(TypeChecker&) const {
+    if (type->has_unknowns())
+        log::error(loc, "cannot infer type for '{}'", id.name);
+}
+
+void LiteralPtrn::check(TypeChecker&) const {}
+
+void TuplePtrn::check(TypeChecker& ctx) const {
+    for (auto& arg : args) arg->check(ctx);
+}
+
+void ErrorPtrn::check(TypeChecker&) const {}
+
+void TypeParam::check(TypeChecker&) const {
+    // TODO
+}
+
+void TypeParamList::check(TypeChecker&) const {
+    // TODO
+}
+
 void VarDecl::check(TypeChecker& ctx) const {
-    ctx.expect("variable declaration", init, id->expr->type);
+    ctx.expect("variable declaration", init, ptrn->type);
 
     init->check(ctx);
-    id->check(ctx);
+    ptrn->check(ctx);
 }
 
 void DefDecl::check(TypeChecker& ctx) const {
-    id->check(ctx);
-    lambda->check(ctx);
+    id_ptrn->check(ctx);
+    if (lambda->body && lambda->param) {
+        lambda->check(ctx);
+    } else if (lambda->body) {
+        lambda->body->check(ctx);
+    } else if (lambda->param) {
+        lambda->param->check(ctx);
+    }
+}
+
+void StructDecl::check(TypeChecker&) const {
+    // TODO
+}
+
+void TraitDecl::check(TypeChecker&) const {
+    // TODO
 }
 
 void ErrorDecl::check(TypeChecker&) const {}

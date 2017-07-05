@@ -73,21 +73,6 @@ const Type* TypeInference::find(const Type* type) {
     return type;
 }
 
-const Type* TypeInference::subsume(const Type* type) {
-    // Replaces the type variables in the given type by unknowns
-    if (auto poly = type->isa<PolyType>()) {
-        std::unordered_map<const Type*, const Type*> map;
-        for (size_t i = 0; i < poly->vars; i++) {
-            map.emplace(
-                type_table_.type_var(i),
-                type_table_.unknown_type(UnknownType::max_rank(), UnknownType::Traits(poly->var_traits[i]))
-            );
-        }
-        return poly->substitute(type_table_, map)->as<PolyType>()->body;
-    }
-    return type;
-}
-
 const Type* TypeInference::generalize(const Loc& loc, const Type* type) {
     // Get the best estimate of the type at this point
     type = unify(loc, type, type);
@@ -111,180 +96,235 @@ const Type* TypeInference::generalize(const Loc& loc, const Type* type) {
     return type_table_.poly_type(vars, type, std::move(var_traits));
 }
 
-const Type* TypeInference::type(ast::Expr* expr) {
-    if (!expr->type)
-        expr->type = type_table_.unknown_type(rank_);
-    return find(expr->type);
+const Type* TypeInference::type(const ast::Typeable& typeable) {
+    if (!typeable.type)
+        typeable.type = type_table_.unknown_type(rank_);
+    return find(typeable.type);
 }
 
-const Type* TypeInference::infer(ast::Expr* expr, const Type* expected) {
-    auto type = expr->infer(*this);
-    if (expected) type = unify(expr->loc, type, expected);
-    expr->type = expr->type ? unify(expr->loc, expr->type, type) : type;
-    return expr->type;
+const Type* TypeInference::infer(const ast::Typeable& typeable, const Type* expected) {
+    auto type = typeable.infer(*this);
+    type = expected ? unify(typeable.loc, type, expected) : type;
+    typeable.type = typeable.type ? unify(typeable.loc, typeable.type, type) : type;
+    return typeable.type;
 }
 
-const Type* TypeInference::infer(Ptr<ast::Expr>& expr, const Type* expected) {
-    return infer(expr.get(), expected);
+void TypeInference::infer(const ast::Decl& decl) {
+    decl.infer(*this);
 }
 
-const Type* TypeInference::infer(Ptr<ast::Ptrn>& ptrn, const Type* expected) {
-    ptrn->infer(*this);
-    if (expected) ptrn->expr->type = unify(ptrn->loc, ptrn->expr->type, expected);
-    return ptrn->expr->type;
-}
-
-const Type* TypeInference::infer(Ptr<ast::Type>& type) {
-    return type->infer(*this);
-}
-
-void TypeInference::infer(Ptr<ast::Decl>& decl) {
-    decl->infer(*this);
-}
-
-void TypeInference::infer(Ptr<ast::Program>& program) {
+void TypeInference::infer(const ast::Program& program) {
     // Run fix-point iterations until convergence
     do {
         todo_ = false;
         rank_ = 0;
-        program->infer(*this);
+        program.infer(*this);
     } while (todo_);
 }
 
 namespace ast {
 
-const artic::Type* PrimType::infer(TypeInference& ctx) {
+const artic::Type* PrimType::infer(TypeInference& ctx) const {
     return ctx.type_table().prim_type(artic::PrimType::Tag(tag));
 }
 
-const artic::Type* TupleType::infer(TypeInference& ctx) {
+const artic::Type* TupleType::infer(TypeInference& ctx) const {
     std::vector<const artic::Type*> types(args.size());
     std::transform(args.begin(), args.end(), types.begin(), [&] (auto& arg) {
-        return ctx.infer(arg);
+        return ctx.infer(*arg);
     });
     return ctx.type_table().tuple_type(std::move(types));
 }
 
-const artic::Type* FunctionType::infer(TypeInference& ctx) {
-    return ctx.type_table().function_type(ctx.infer(from), ctx.infer(to));
+const artic::Type* FunctionType::infer(TypeInference& ctx) const {
+    return ctx.type_table().function_type(ctx.infer(*from), ctx.infer(*to));
 }
 
-const artic::Type* TypeApp::infer(TypeInference&) {
+const artic::Type* TypeApp::infer(TypeInference& ctx) const {
     // TODO
-    assert(false);
-    return nullptr;
+    return ctx.type(*this);
 }
 
-const artic::Type* ErrorType::infer(TypeInference& ctx) {
+const artic::Type* ErrorType::infer(TypeInference& ctx) const {
     return ctx.type_table().error_type(loc);
 }
 
-void Ptrn::infer(TypeInference& ctx) {
-    ctx.infer(expr, nullptr);
+const artic::Type* TypedExpr::infer(TypeInference& ctx) const {
+    return ctx.infer(*expr, ctx.infer(*type));
 }
 
-const artic::Type* TypedExpr::infer(TypeInference& ctx) {
-    return ctx.unify(loc, ctx.infer(expr), ctx.infer(type));
-}
-
-const artic::Type* PathExpr::infer(TypeInference& ctx) {
-    if (pattern || type) return ctx.type(this);
-
+const artic::Type* PathExpr::infer(TypeInference& ctx) const {
     auto& symbol = path->elems.back().symbol;
-    if (!symbol || symbol->exprs.empty()) return ctx.type_table().error_type(loc);
+    if (!symbol || symbol->ptrns.empty()) return ctx.type_table().error_type(loc);
 
-    // Check the first symbol
-    auto symbol_type = ctx.infer(symbol->exprs.front(), nullptr);
-    // No overloading when the symbol is defined only once
-    if (symbol->exprs.size() == 1) return ctx.subsume(symbol_type);
+    auto symbol_type = symbol->ptrns.front()->type;
+    if (!symbol_type) return ctx.type(*this);
 
-    // TODO: When the symbol is overloaded, create an unknown function type
+    if (parent_ptr && !parent_ptr->isa<TypeAppExpr>()) {
+        auto type_app = make_ptr<TypeAppExpr>(loc.end(),
+            Ptr<Expr>(const_cast<PathExpr*>(this)),
+            PtrVector<Type>());
+        parent_ptr = type_app.get();
+        back_ptr->release();
+        back_ptr->reset(type_app.release());
+    }
 
-    return ctx.type_table().error_type(loc);
+    // TODO: Handle ad-hoc polymorphism
+
+    return symbol_type;
 }
 
-const artic::Type* LiteralExpr::infer(TypeInference& ctx) {
+const artic::Type* LiteralExpr::infer(TypeInference& ctx) const {
     // TODO: Create a Num type for integers, Fract for floats
-    return ctx.type(this);
+    return ctx.type(*this);
 }
 
-const artic::Type* TupleExpr::infer(TypeInference& ctx) {
+const artic::Type* TupleExpr::infer(TypeInference& ctx) const {
     std::vector<const artic::Type*> type_args;
-    for (auto& arg : args) type_args.emplace_back(ctx.infer(arg, nullptr));
+    for (auto& arg : args) type_args.emplace_back(ctx.infer(*arg));
     return ctx.type_table().tuple_type(std::move(type_args));
 }
 
-const artic::Type* LambdaExpr::infer(TypeInference& ctx) {
-    auto param_type = ctx.infer(param);
+const artic::Type* LambdaExpr::infer(TypeInference& ctx) const {
+    auto param_type = ctx.infer(*param);
     ctx.inc_rank();
-    auto body_type = ctx.infer(body);
+    auto body_type = ctx.infer(*body);
     ctx.dec_rank();
     return ctx.type_table().function_type(param_type, body_type);
 }
 
-const artic::Type* BlockExpr::infer(TypeInference& ctx) {
+const artic::Type* BlockExpr::infer(TypeInference& ctx) const {
     for (size_t i = 0, n = exprs.size(); i < n; i++)
-        ctx.infer(exprs[i], i != n - 1 ? ctx.type_table().unit_type() : nullptr);
+        ctx.infer(*exprs[i], i != n - 1 ? ctx.type_table().unit_type() : nullptr);
     return exprs.empty() ? ctx.type_table().unit_type() : exprs.back()->type;
 }
 
-const artic::Type* DeclExpr::infer(TypeInference& ctx) {
-    ctx.infer(decl);
+const artic::Type* DeclExpr::infer(TypeInference& ctx) const {
+    ctx.infer(*decl);
     return ctx.type_table().unit_type();
 }
 
-const artic::Type* CallExpr::infer(TypeInference& ctx) {
-    auto arg_type = ctx.infer(arg);
-    auto callee_type = ctx.infer(callee);
-    auto ret_type = ctx.type(this);
-
-    call_type = ctx.unify(loc, callee_type, ctx.type_table().function_type(arg_type, ret_type));
+const artic::Type* CallExpr::infer(TypeInference& ctx) const {
+    auto arg_type = ctx.infer(*arg);
+    auto ret_type = ctx.type(*this);
+    ctx.infer(*callee, ctx.type_table().function_type(arg_type, ret_type));
     return ret_type;
 }
 
-const artic::Type* IfExpr::infer(TypeInference& ctx) {
-    ctx.infer(cond, ctx.type_table().prim_type(artic::PrimType::I1));
+const artic::Type* IfExpr::infer(TypeInference& ctx) const {
+    ctx.infer(*cond, ctx.type_table().prim_type(artic::PrimType::I1));
 
     if (if_false)
-        return ctx.infer(if_false, ctx.infer(if_true));
+        return ctx.infer(*if_false, ctx.infer(*if_true));
 
-    return ctx.infer(if_true, ctx.type_table().unit_type());
+    return ctx.infer(*if_true, ctx.type_table().unit_type());
 }
 
-const artic::Type* UnaryExpr::infer(TypeInference& ctx) {
-    // TODO: Use constrained types here
-    return ctx.infer(expr);
+const artic::Type* UnaryExpr::infer(TypeInference& ctx) const {
+    // TODO: Use bounds on types here
+    return ctx.infer(*expr);
 }
 
-const artic::Type* BinaryExpr::infer(TypeInference& ctx) {
-    // TODO: Use constrained types here
-    auto op_type = ctx.infer(left, ctx.infer(right));
+const artic::Type* BinaryExpr::infer(TypeInference& ctx) const {
+    // TODO: Use bounds on types here
+    auto op_type = ctx.infer(*left, ctx.infer(*right));
     if (has_cmp()) return ctx.type_table().prim_type(artic::PrimType::I1);
     return op_type;
 }
 
-const artic::Type* ErrorExpr::infer(TypeInference& ctx) {
+const artic::Type* TypeAppExpr::infer(TypeInference& ctx) const {
+    auto expr_type = ctx.infer(*expr);
+    if (auto poly = expr_type->isa<artic::PolyType>()) {
+        // Replaces the type variables in the given type by unknowns
+        if (type_args.size() < poly->vars) {
+            for (size_t i = type_args.size(); i < poly->vars; i++) {
+                auto u = ctx.type_table().unknown_type(UnknownType::max_rank(), UnknownType::Traits(poly->var_traits[i]));
+                type_args.emplace_back(u);
+            }
+        }
+
+        std::unordered_map<const artic::Type*, const artic::Type*> map;
+        for (size_t i = 0; i < poly->vars; i++)
+            map.emplace(ctx.type_table().type_var(i), type_args[i]);
+
+        return poly->substitute(ctx.type_table(), map)->as<PolyType>()->body;
+    }
+    return expr_type;
+}
+
+const artic::Type* ErrorExpr::infer(TypeInference& ctx) const {
     return ctx.type_table().error_type(loc);
 }
 
-void VarDecl::infer(TypeInference& ctx) {
-    ctx.infer(id, ctx.infer(init));
+const artic::Type* TypedPtrn::infer(TypeInference& ctx) const {
+    return ctx.infer(*ptrn, ctx.infer(*type));
 }
 
-void DefDecl::infer(TypeInference& ctx) {
-    auto id_type = ctx.infer(id);
-    auto init_type = lambda->param ? ctx.infer(lambda->as<ast::Expr>(), id_type) : ctx.infer(lambda->body, id_type);
-    if (lambda->param && ret_type) {
-        if (auto fn_type = lambda->type->inner()->isa<artic::FunctionType>())
-            ctx.unify(loc, ctx.infer(ret_type), fn_type->to());
+const artic::Type* IdPtrn::infer(TypeInference& ctx) const {
+    return ctx.type(*this);
+}
+
+const artic::Type* LiteralPtrn::infer(TypeInference& ctx) const {
+    // TODO: Create a Num type for integers, Fract for floats
+    return ctx.type(*this);
+}
+
+const artic::Type* TuplePtrn::infer(TypeInference& ctx) const {
+    std::vector<const artic::Type*> type_args;
+    for (auto& arg : args) type_args.emplace_back(ctx.infer(*arg));
+    return ctx.type_table().tuple_type(std::move(type_args));
+}
+
+const artic::Type* ErrorPtrn::infer(TypeInference& ctx) const {
+    return ctx.type_table().error_type(loc);
+}
+
+void TypeParam::infer(TypeInference&) const {
+    // TODO
+}
+
+void TypeParamList::infer(TypeInference&) const {
+    // TODO
+}
+
+void VarDecl::infer(TypeInference& ctx) const {
+    ctx.infer(*ptrn, ctx.infer(*init));
+}
+
+void DefDecl::infer(TypeInference& ctx) const {
+    ctx.infer(*id_ptrn);
+
+    const artic::Type* init_type = nullptr;
+    if (lambda->body && lambda->param) {
+        init_type = ctx.infer(*lambda);
+        // If a return type is present, unify it with the return type of the function
+        if (auto fn_type = init_type->isa<artic::FunctionType>()) {
+            if (ret_type) ctx.infer(*ret_type, fn_type->to());
+        }
+    } else if (lambda->body) {
+        init_type = ctx.infer(*lambda->body);
+    } else if (lambda->param) {
+        // The return type is mandatory here
+        init_type = ctx.type_table().function_type(
+            ctx.infer(*lambda->param),
+            ret_type ? ctx.infer(*ret_type) : ctx.type_table().error_type(loc));
     }
-    ctx.infer(id, ctx.generalize(loc, init_type));
+
+    ctx.infer(*id_ptrn, init_type ? ctx.generalize(loc, init_type) : nullptr);
 }
 
-void ErrorDecl::infer(TypeInference&) {}
+void StructDecl::infer(TypeInference&) const {
+    // TODO
+}
 
-void Program::infer(TypeInference& ctx) {
-    for (auto& decl : decls) ctx.infer(decl);
+void TraitDecl::infer(TypeInference&) const {
+    // TODO
+}
+
+void ErrorDecl::infer(TypeInference&) const {}
+
+void Program::infer(TypeInference& ctx) const {
+    for (auto& decl : decls) ctx.infer(*decl);
 }
 
 } // namespace ast
