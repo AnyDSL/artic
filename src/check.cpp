@@ -24,7 +24,9 @@ void TypedExpr::check(TypeChecker& ctx) const {
     type->check(ctx);
 }
 
-void PathExpr::check(TypeChecker&) const {}
+void PathExpr::check(TypeChecker& ctx) const {
+    for (auto& arg : args) arg->check(ctx);
+}
 
 void LiteralExpr::check(TypeChecker&) const {}
 
@@ -79,11 +81,6 @@ void UnaryExpr::check(TypeChecker& ctx) const {
 void BinaryExpr::check(TypeChecker& ctx) const {
     left->check(ctx);
     right->check(ctx);
-}
-
-void TypeAppExpr::check(TypeChecker& ctx) const {
-    expr->check(ctx);
-    for (auto& arg : args) arg->check(ctx);
 }
 
 void ErrorExpr::check(TypeChecker&) const {}

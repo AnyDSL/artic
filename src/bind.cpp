@@ -42,6 +42,7 @@ void TypedExpr::bind(NameBinder& ctx) const {
 
 void PathExpr::bind(NameBinder& ctx) const {
     path->bind(ctx);
+    for (auto& arg : args) arg->bind(ctx);
 }
 
 void LiteralExpr::bind(NameBinder&) const {}
@@ -87,11 +88,6 @@ void UnaryExpr::bind(NameBinder& ctx) const {
 void BinaryExpr::bind(NameBinder& ctx) const {
     left->bind(ctx);
     right->bind(ctx);
-}
-
-void TypeAppExpr::bind(NameBinder& ctx) const {
-    expr->bind(ctx);
-    for (auto& arg : args) arg->bind(ctx);
 }
 
 void ErrorExpr::bind(NameBinder&) const {}

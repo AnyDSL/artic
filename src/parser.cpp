@@ -210,7 +210,16 @@ Ptr<ast::Expr> Parser::parse_typed_expr(Ptr<Expr>&& expr) {
 Ptr<ast::PathExpr> Parser::parse_path_expr() {
     Tracker tracker(this);
     auto path = parse_path();
-    return make_ptr<ast::PathExpr>(tracker(), std::move(path));
+    PtrVector<ast::Type> args;
+    if (ahead().tag() == Token::L_BRACKET) {
+        eat(Token::L_BRACKET);
+        parse_list(Token::R_BRACKET, Token::COMMA, [&] {
+            eat_nl();
+            args.emplace_back(parse_type());
+            eat_nl();
+        });
+    }
+    return make_ptr<ast::PathExpr>(tracker(), std::move(path), std::move(args));
 }
 
 Ptr<ast::LiteralExpr> Parser::parse_literal_expr() {
@@ -305,8 +314,6 @@ Ptr<ast::Expr> Parser::parse_primary_expr() {
         default:
             expr = std::move(parse_error_expr()); break;
     }
-    if (ahead().tag() == Token::L_BRACKET)
-        expr = std::move(parse_type_app_expr(std::move(expr)));
     if (ahead().tag() == Token::ARROW)
         expr = std::move(parse_lambda_expr(std::move(expr)));
     if (ahead().tag() == Token::INC || ahead().tag() == Token::DEC)
@@ -353,18 +360,6 @@ Ptr<ast::Expr> Parser::parse_binary_expr(Ptr<ast::Expr>&& left, int max_prec) {
         left = std::move(make_ptr<ast::BinaryExpr>(tracker(), tag, std::move(left), std::move(right)));
     }
     return std::move(left);
-}
-
-Ptr<ast::TypeAppExpr> Parser::parse_type_app_expr(Ptr<Expr>&& expr) {
-    Tracker tracker(this, expr->loc);
-    eat(Token::L_BRACKET);
-    PtrVector<ast::Type> args;
-    parse_list(Token::R_BRACKET, Token::COMMA, [&] {
-        eat_nl();
-        args.emplace_back(parse_type());
-        eat_nl();
-    });
-    return make_ptr<ast::TypeAppExpr>(tracker(), std::move(expr), std::move(args));
 }
 
 Ptr<ast::ErrorExpr> Parser::parse_error_expr() {

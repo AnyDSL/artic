@@ -78,30 +78,9 @@ struct Type : public Typeable {
 
 /// Base class for expressions.
 struct Expr : public Typeable {
-    Expr(const Loc& loc) : Typeable(loc), back_ptr(nullptr), parent_ptr(nullptr) {}
+    Expr(const Loc& loc) : Typeable(loc) {}
 
     bool is_tuple() const;
-
-    mutable Ptr<Expr>*  back_ptr;
-    mutable const Expr* parent_ptr;
-    Ptr<Expr>&& link(Ptr<Expr>& expr, Ptr<Expr>&& other) const {
-        if (other) {
-            other->back_ptr = &expr;
-            other->parent_ptr = this;
-        }
-        return std::move(other);
-    }
-    PtrVector<Expr>&& link(PtrVector<Expr>&, PtrVector<Expr>&& others) const {
-        for (auto& e : others)
-            link(e, std::move(e));
-        return std::move(others);
-    }
-    void insert_above(Ptr<Expr>&& expr) const {
-        if (back_ptr) {
-            back_ptr->release();
-            *back_ptr = std::move(expr);
-        }
-    }
 };
 
 /// Pattern: An expression which does not need evaluation.
@@ -123,6 +102,7 @@ struct Decl : public Node {
 struct Path : public Node {
     struct Elem {
         Identifier id;
+
         mutable std::shared_ptr<Symbol> symbol;
 
         Elem() {}
@@ -234,7 +214,7 @@ struct TypedExpr : public Expr {
 
     TypedExpr(const Loc& loc, Ptr<Expr>&& expr, Ptr<Type>&& type)
         : Expr(loc)
-        , expr(link(this->expr, std::move(expr)))
+        , expr(std::move(expr))
         , type(std::move(type))
     {}
 
@@ -248,9 +228,12 @@ struct TypedExpr : public Expr {
 /// Expression made of a path to an identifier.
 struct PathExpr : public Expr {
     Ptr<Path> path;
+    PtrVector<Type> args;
 
-    PathExpr(const Loc& loc, Ptr<Path>&& path)
-        : Expr(loc), path(std::move(path))
+    mutable std::vector<const artic::Type*> type_args;
+
+    PathExpr(const Loc& loc, Ptr<Path>&& path, PtrVector<Type>&& args)
+        : Expr(loc), path(std::move(path)), args(std::move(args))
     {}
 
     const Identifier& identifier() const { return path->elems.back().id; }
@@ -283,7 +266,7 @@ struct TupleExpr : public Expr {
     PtrVector<Expr> args;
 
     TupleExpr(const Loc& loc, PtrVector<Expr>&& args)
-        : Expr(loc), args(link(this->args, std::move(args)))
+        : Expr(loc), args(std::move(args))
     {}
 
     template <typename F>
@@ -313,7 +296,7 @@ struct LambdaExpr : public Expr {
                Ptr<Expr>&& body)
         : Expr(loc)
         , param(std::move(param))
-        , body(link(this->body, std::move(body)))
+        , body(std::move(body))
     {}
 
     const artic::Type* infer(TypeInference&) const override;
@@ -328,7 +311,7 @@ struct BlockExpr : public Expr {
     PtrVector<Expr> exprs;
 
     BlockExpr(const Loc& loc, PtrVector<Expr>&& exprs)
-        : Expr(loc), exprs(link(this->exprs, std::move(exprs)))
+        : Expr(loc), exprs(std::move(exprs))
     {}
 
     const artic::Type* infer(TypeInference&) const  override;
@@ -362,8 +345,8 @@ struct CallExpr : public Expr {
              Ptr<Expr>&& callee,
              Ptr<Expr>&& arg)
         : Expr(loc)
-        , callee(link(this->callee, std::move(callee)))
-        , arg(link(this->arg, std::move(arg)))
+        , callee(std::move(callee))
+        , arg(std::move(arg))
     {}
 
     const artic::Type* infer(TypeInference&) const override;
@@ -384,9 +367,9 @@ struct IfExpr : public Expr {
            Ptr<Expr>&& if_true,
            Ptr<Expr>&& if_false)
         : Expr(loc)
-        , cond(link(this->cond, std::move(cond)))
-        , if_true(link(this->if_true, std::move(if_true)))
-        , if_false(link(this->if_false, std::move(if_false)))
+        , cond(std::move(cond))
+        , if_true(std::move(if_true))
+        , if_false(std::move(if_false))
     {}
 
     const artic::Type* infer(TypeInference&) const override;
@@ -412,7 +395,7 @@ struct UnaryExpr : public Expr {
     Ptr<Expr> expr;
 
     UnaryExpr(const Loc& loc, Tag tag, Ptr<Expr>&& expr)
-        : Expr(loc), tag(tag), expr(link(this->expr, std::move(expr)))
+        : Expr(loc), tag(tag), expr(std::move(expr))
     {}
 
     bool is_prefix() const { return !is_postfix(); }
@@ -450,8 +433,8 @@ struct BinaryExpr : public Expr {
                Ptr<Expr>&& right)
         : Expr(loc)
         , tag(tag)
-        , left(link(this->left, std::move(left)))
-        , right(link(this->right, std::move(right)))
+        , left(std::move(left))
+        , right(std::move(right))
     {}
 
     bool has_cmp() const { return has_cmp(tag); }
@@ -471,25 +454,6 @@ struct BinaryExpr : public Expr {
 
     static std::string tag_to_string(Tag);
     static Tag tag_from_token(const Token&);
-};
-
-/// Type application expression.
-struct TypeAppExpr : public Expr {
-    Ptr<Expr> expr;
-    PtrVector<Type> args;
-    mutable std::vector<const artic::Type*> type_args;
-
-    TypeAppExpr(const Loc& loc, Ptr<Expr>&& expr, PtrVector<Type>&& args)
-        : Expr(loc)
-        , expr(link(this->expr, std::move(expr)))
-        , args(std::move(args))
-    {}
-
-    const artic::Type* infer(TypeInference&) const override;
-
-    void bind(NameBinder&) const override;
-    void check(TypeChecker&) const override;
-    void print(Printer&) const override;
 };
 
 /// Incorrect expression, as a result of parsing. 

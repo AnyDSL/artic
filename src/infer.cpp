@@ -96,6 +96,26 @@ const Type* TypeInference::generalize(const Loc& loc, const Type* type) {
     return type_table_.poly_type(vars, type, std::move(var_traits));
 }
 
+const Type* TypeInference::subsume(const Type* type, std::vector<const Type*>& type_args) {
+    if (auto poly = type->isa<artic::PolyType>()) {
+        // Replaces the type variables in the given type by unknowns
+        if (type_args.size() < poly->vars) {
+            for (size_t i = type_args.size(); i < poly->vars; i++) {
+                // TODO: Handle ad-hoc polymorphism
+                auto u = type_table().unknown_type(UnknownType::max_rank(), UnknownType::Traits(poly->var_traits[i]));
+                type_args.emplace_back(u);
+            }
+        }
+
+        std::unordered_map<const artic::Type*, const artic::Type*> map;
+        for (size_t i = 0; i < poly->vars; i++)
+            map.emplace(type_table().type_var(i), type_args[i]);
+
+        return poly->substitute(type_table(), map)->as<PolyType>()->body;
+    }
+    return type;
+}
+
 const Type* TypeInference::type(const ast::Typeable& typeable) {
     if (!typeable.type)
         typeable.type = type_table_.unknown_type(rank_);
@@ -160,18 +180,12 @@ const artic::Type* PathExpr::infer(TypeInference& ctx) const {
     auto symbol_type = symbol->ptrns.front()->type;
     if (!symbol_type) return ctx.type(*this);
 
-    if (parent_ptr && !parent_ptr->isa<TypeAppExpr>()) {
-        auto type_app = make_ptr<TypeAppExpr>(loc.end(),
-            Ptr<Expr>(const_cast<PathExpr*>(this)),
-            PtrVector<Type>());
-        parent_ptr = type_app.get();
-        back_ptr->release();
-        back_ptr->reset(type_app.release());
+    type_args.resize(std::max(type_args.size(), args.size()));
+    for (size_t i = 0; i < args.size(); i++) {
+        type_args[i] = ctx.infer(*args[i]);
     }
 
-    // TODO: Handle ad-hoc polymorphism
-
-    return symbol_type;
+    return ctx.subsume(symbol_type, type_args);
 }
 
 const artic::Type* LiteralExpr::infer(TypeInference& ctx) const {
@@ -230,26 +244,6 @@ const artic::Type* BinaryExpr::infer(TypeInference& ctx) const {
     auto op_type = ctx.infer(*left, ctx.infer(*right));
     if (has_cmp()) return ctx.type_table().prim_type(artic::PrimType::I1);
     return op_type;
-}
-
-const artic::Type* TypeAppExpr::infer(TypeInference& ctx) const {
-    auto expr_type = ctx.infer(*expr);
-    if (auto poly = expr_type->isa<artic::PolyType>()) {
-        // Replaces the type variables in the given type by unknowns
-        if (type_args.size() < poly->vars) {
-            for (size_t i = type_args.size(); i < poly->vars; i++) {
-                auto u = ctx.type_table().unknown_type(UnknownType::max_rank(), UnknownType::Traits(poly->var_traits[i]));
-                type_args.emplace_back(u);
-            }
-        }
-
-        std::unordered_map<const artic::Type*, const artic::Type*> map;
-        for (size_t i = 0; i < poly->vars; i++)
-            map.emplace(ctx.type_table().type_var(i), type_args[i]);
-
-        return poly->substitute(ctx.type_table(), map)->as<PolyType>()->body;
-    }
-    return expr_type;
 }
 
 const artic::Type* ErrorExpr::infer(TypeInference& ctx) const {

@@ -20,6 +20,7 @@ public:
     const Type* find(const Type*);
 
     const Type* generalize(const Loc& loc, const Type*);
+    const Type* subsume(const Type*, std::vector<const Type*>&);
     const Type* type(const ast::Typeable&);
 
     const Type* infer(const ast::Typeable&, const Type* expected = nullptr);

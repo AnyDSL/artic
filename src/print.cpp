@@ -59,6 +59,13 @@ void TypedExpr::print(Printer& p) const {
 
 void PathExpr::print(Printer& p) const {
     path->print(p);
+    if (args.size()) {
+        p << '[';
+        print_list(p, ", ", args, [&] (auto& arg) {
+            arg->print(p);
+        });
+        p << ']';
+    }
 }
 
 void LiteralExpr::print(Printer& p) const {
@@ -138,17 +145,6 @@ void BinaryExpr::print(Printer& p) const {
     print_op(left);
     p << " " << tag_to_string(tag) << " ";
     print_op(right);
-}
-
-void TypeAppExpr::print(Printer& p) const {
-    expr->print(p);
-    /*if (args.size())*/ {
-        p << '[';
-        print_list(p, ", ", args, [&] (auto& arg) {
-            arg->print(p);
-        });
-        p << ']';
-    }
 }
 
 void ErrorExpr::print(Printer& p) const {
