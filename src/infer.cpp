@@ -185,6 +185,8 @@ const artic::Type* PathExpr::infer(TypeInference& ctx) const {
         type_args[i] = ctx.infer(*args[i]);
     }
 
+    // TODO: make sure the type symbol type is polymorphic and expects at most args.size() variables
+
     return ctx.subsume(symbol_type, type_args);
 }
 

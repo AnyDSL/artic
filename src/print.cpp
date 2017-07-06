@@ -231,9 +231,8 @@ void DefDecl::print(Printer& p) const {
 void StructDecl::print(Printer& p) const {
     p << keyword_style("struct") << ' ' << id.name;
     type_params->print(p);
-    p << " {" << p.indent();
+    p << " {" << p.indent() << p.endl();
     print_list(p, p.endl(), decls, [&] (auto& decl) {
-        p << p.endl();
         decl->print(p);
     });
     p << p.unindent() << p.endl() << '}';
