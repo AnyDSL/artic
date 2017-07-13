@@ -158,7 +158,7 @@ void TypedPtrn::print(Printer& p) const {
 }
 
 void IdPtrn::print(Printer& p) const {
-    p << id.name;
+    local->print(p);
 }
 
 void LiteralPtrn::print(Printer& p) const {
@@ -197,6 +197,10 @@ void TypeParamList::print(Printer& p) const {
     }
 }
 
+void LocalDecl::print(Printer& p) const {
+    p << id.name;
+}
+
 void VarDecl::print(Printer& p) const {
     p << keyword_style("var") << " ";
     ptrn->print(p);
@@ -209,11 +213,11 @@ void VarDecl::print(Printer& p) const {
 void DefDecl::print(Printer& p) const {
     p << keyword_style("def") << " ";
     if (lambda->param) {
-        id_ptrn->print(p);
+        p << id.name;
         type_params->print(p);
         print_parens(p, lambda->param);
     } else {
-        id_ptrn->print(p);
+        p << id.name;
         type_params->print(p);
     }
 
@@ -228,14 +232,11 @@ void DefDecl::print(Printer& p) const {
     }
 }
 
-void StructDecl::print(Printer& p) const {
-    p << keyword_style("struct") << ' ' << id.name;
+void TypeDecl::print(Printer& p) const {
+    p << keyword_style("type") << ' ' << id.name;
     type_params->print(p);
-    p << " {" << p.indent() << p.endl();
-    print_list(p, p.endl(), decls, [&] (auto& decl) {
-        decl->print(p);
-    });
-    p << p.unindent() << p.endl() << '}';
+    p << " = ";
+    ctor->print(p);
 }
 
 void TraitDecl::print(Printer& p) const {
@@ -257,6 +258,26 @@ void Program::print(Printer& p) const {
     print_list(p, p.endl(), decls, [&] (auto& decl) {
         decl->print(p);
     });
+}
+
+void RecordCtor::print(Printer& p) const {
+    p << id.name;
+    if (!args.empty()) {
+        p << '(';
+        print_list(p, ", ", args, [&] (auto& arg) {
+            arg->print(p);
+        });
+        p << ')';
+    }
+}
+
+void SumCtor::print(Printer& p) const {
+    p << p.indent();
+    print_list(p, " |", args, [&] (auto& arg) {
+        p << p.endl();
+        arg->print(p);
+    });
+    p << p.unindent() << p.endl();
 }
 
 void PrimType::print(Printer& p) const {

@@ -17,7 +17,7 @@ namespace artic {
     f(VAR, "var") \
     f(IF, "if") \
     f(ELSE, "else") \
-    f(STRUCT, "struct") \
+    f(TYPE, "type") \
     f(TRAIT, "trait") \
     f(L_PAREN, "(") \
     f(R_PAREN, ")") \

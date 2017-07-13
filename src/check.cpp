@@ -15,7 +15,30 @@ void TypeChecker::expect(const std::string& where, const Ptr<ast::Expr>& expr, c
 
 namespace ast {
 
-void Type::check(TypeChecker&) const {}
+void PrimType::check(TypeChecker&) const {}
+
+void TupleType::check(TypeChecker& ctx) const {
+    for (auto& arg : args) arg->check(ctx);
+}
+
+void FunctionType::check(TypeChecker& ctx) const {
+    from->check(ctx);
+    to->check(ctx);
+}
+
+void TypeApp::check(TypeChecker& ctx) const {
+    for (auto& arg : args) arg->check(ctx);
+}
+
+void ErrorType::check(TypeChecker&) const {}
+
+void RecordCtor::check(TypeChecker& ctx) const {
+    for (auto& arg : args) arg->check(ctx);
+}
+
+void SumCtor::check(TypeChecker& ctx) const {
+    for (auto& arg : args) arg->check(ctx);
+}
 
 void Path::check(TypeChecker&) const {}
 
@@ -90,10 +113,7 @@ void TypedPtrn::check(TypeChecker& ctx) const {
     type->check(ctx);
 }
 
-void IdPtrn::check(TypeChecker&) const {
-    if (type->has_unknowns())
-        log::error(loc, "cannot infer type for '{}'", id.name);
-}
+void IdPtrn::check(TypeChecker&) const {}
 
 void LiteralPtrn::check(TypeChecker&) const {}
 
@@ -111,6 +131,11 @@ void TypeParamList::check(TypeChecker&) const {
     // TODO
 }
 
+void LocalDecl::check(TypeChecker&) const {
+    if (type->has_unknowns())
+        log::error(loc, "cannot infer type for '{}'", id.name);
+}
+
 void VarDecl::check(TypeChecker& ctx) const {
     ctx.expect("variable declaration", init, ptrn->type);
 
@@ -119,7 +144,6 @@ void VarDecl::check(TypeChecker& ctx) const {
 }
 
 void DefDecl::check(TypeChecker& ctx) const {
-    id_ptrn->check(ctx);
     if (lambda->body && lambda->param) {
         lambda->check(ctx);
     } else if (lambda->body) {
@@ -129,7 +153,7 @@ void DefDecl::check(TypeChecker& ctx) const {
     }
 }
 
-void StructDecl::check(TypeChecker&) const {
+void TypeDecl::check(TypeChecker&) const {
     // TODO
 }
 

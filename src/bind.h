@@ -17,16 +17,11 @@ public:
     NameBinder() { push_scope(); }
     ~NameBinder() { pop_scope(); }
 
-    void bind(const ast::Program&);
-
-    bool top_scope() const { return scopes_.size() == 1; }
+    void bind(const ast::Node&);
 
     void push_scope() { scopes_.emplace_back(); }
-    void pop_scope()  { scopes_.pop_back();  }
-
-    bool insert_symbol(const std::string& name, const ast::Ptrn* ptrn) {
-        return scopes_.back().insert(name, Symbol(ptrn));
-    }
+    void pop_scope()  { scopes_.pop_back();     }
+    void insert_symbol(const ast::NamedDecl&);
 
     std::shared_ptr<Symbol> find_symbol(const std::string& name) {
         for (auto it = scopes_.rbegin(); it != scopes_.rend(); it++) {
