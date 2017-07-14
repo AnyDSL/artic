@@ -4,6 +4,14 @@
 
 namespace artic {
 
+void TypeInference::run(const ast::Program& program) {
+    // Run fix-point iterations until convergence
+    do {
+        todo_ = false;
+        program.infer(*this);
+    } while (todo_);
+}
+
 const Type* TypeInference::unify(const Loc& loc, const Type* a, const Type* b) {
     // Unifies types: returns the principal type for two given types
     a = find(a);
@@ -134,14 +142,6 @@ const Type* TypeInference::infer(const ast::Node& node, const Type* expected) {
     return nullptr;
 }
 
-void TypeInference::infer(const ast::Program& program) {
-    // Run fix-point iterations until convergence
-    do {
-        todo_ = false;
-        program.infer(*this);
-    } while (todo_);
-}
-
 namespace ast {
 
 const artic::Type* PrimType::infer(TypeInference& ctx) const {
@@ -161,26 +161,28 @@ const artic::Type* FunctionType::infer(TypeInference& ctx) const {
 }
 
 const artic::Type* TypeApp::infer(TypeInference& ctx) const {
-    // TODO
-    return ctx.type(*this);
+    auto symbol_type = ctx.infer(*path);
+
+    type_args.resize(std::max(type_args.size(), args.size()));
+    for (size_t i = 0; i < args.size(); i++) {
+        type_args[i] = ctx.infer(*args[i]);
+    }
+
+    // TODO: Make sure the type symbol type is polymorphic and expects at most args.size() variables
+
+    return ctx.subsume(symbol_type, type_args);
 }
 
 const artic::Type* ErrorType::infer(TypeInference& ctx) const {
     return ctx.type_table().error_type(loc);
 }
 
-const artic::Type* RecordCtor::infer(TypeInference&) const {
-    // TODO
-    return nullptr;
-}
+const artic::Type* Path::infer(TypeInference& ctx) const {
+    auto& symbol = elems.back().symbol;
+    if (!symbol || symbol->decls.empty()) return ctx.type_table().error_type(loc);
 
-const artic::Type* SumCtor::infer(TypeInference&) const {
-    // TODO
-    return nullptr;
-}
-
-const artic::Type* Path::infer(TypeInference&) const {
-    return nullptr;
+    auto decl = symbol->decls.front();
+    return decl->type ? decl->type : ctx.type(*this, decl->rank);
 }
 
 const artic::Type* TypedExpr::infer(TypeInference& ctx) const {
@@ -188,19 +190,15 @@ const artic::Type* TypedExpr::infer(TypeInference& ctx) const {
 }
 
 const artic::Type* PathExpr::infer(TypeInference& ctx) const {
-    auto& symbol = path->elems.back().symbol;
-    if (!symbol || symbol->decls.empty()) return ctx.type_table().error_type(loc);
-
-    auto decl = symbol->decls.front();
-    auto symbol_type = decl->type;
-    if (!symbol_type) return ctx.type(*this, decl->rank);
+    auto symbol_type = ctx.infer(*path);
+    if (symbol_type->has_unknowns()) return ctx.type(*this);
 
     type_args.resize(std::max(type_args.size(), args.size()));
     for (size_t i = 0; i < args.size(); i++) {
         type_args[i] = ctx.infer(*args[i]);
     }
 
-    // TODO: make sure the type symbol type is polymorphic and expects at most args.size() variables
+    // TODO: Make sure the type symbol type is polymorphic and expects at most args.size() variables
 
     return ctx.subsume(symbol_type, type_args);
 }
@@ -236,6 +234,7 @@ const artic::Type* DeclExpr::infer(TypeInference& ctx) const {
 const artic::Type* CallExpr::infer(TypeInference& ctx) const {
     auto arg_type = ctx.infer(*arg);
     auto ret_type = ctx.type(*this);
+
     ctx.infer(*callee, ctx.type_table().function_type(arg_type, ret_type));
     return ret_type;
 }
@@ -288,13 +287,13 @@ const artic::Type* ErrorPtrn::infer(TypeInference& ctx) const {
     return ctx.type_table().error_type(loc);
 }
 
-const artic::Type* TypeParam::infer(TypeInference&) const {
-    // TODO
-    return nullptr;
+const artic::Type* TypeParam::infer(TypeInference& ctx) const {
+    // TODO: Type check bounds
+    return ctx.type(*this);
 }
 
-const artic::Type* TypeParamList::infer(TypeInference&) const {
-    // TODO
+const artic::Type* TypeParamList::infer(TypeInference& ctx) const {
+    for (auto& param : params) ctx.infer(*param);
     return nullptr;
 }
 
@@ -307,6 +306,8 @@ const artic::Type* VarDecl::infer(TypeInference& ctx) const {
 }
 
 const artic::Type* DefDecl::infer(TypeInference& ctx) const {
+    if (type_params) ctx.infer(*type_params);
+
     const artic::Type* init_type = nullptr;
     if (lambda->body && lambda->param) {
         init_type = ctx.infer(*lambda);
@@ -336,6 +337,20 @@ const artic::Type* TraitDecl::infer(TypeInference&) const {
 }
 
 const artic::Type* ErrorDecl::infer(TypeInference& ctx) const {
+    return ctx.type_table().error_type(loc);
+}
+
+const artic::Type* RecordCtor::infer(TypeInference&) const {
+    // TODO
+    return nullptr;
+}
+
+const artic::Type* OptionCtor::infer(TypeInference&) const {
+    // TODO
+    return nullptr;
+}
+
+const artic::Type* ErrorCtor::infer(TypeInference& ctx) const {
     return ctx.type_table().error_type(loc);
 }
 

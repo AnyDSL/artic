@@ -3,7 +3,7 @@
 
 namespace artic {
 
-bool TypeChecker::check(const ast::Program& program) {
+bool TypeChecker::run(const ast::Program& program) {
     program.check(*this);
     return errors() == 0;
 }
@@ -31,14 +31,6 @@ void TypeApp::check(TypeChecker& ctx) const {
 }
 
 void ErrorType::check(TypeChecker&) const {}
-
-void RecordCtor::check(TypeChecker& ctx) const {
-    for (auto& arg : args) arg->check(ctx);
-}
-
-void SumCtor::check(TypeChecker& ctx) const {
-    for (auto& arg : args) arg->check(ctx);
-}
 
 void Path::check(TypeChecker&) const {}
 
@@ -78,12 +70,7 @@ void CallExpr::check(TypeChecker& ctx) const {
     }
 
     if (arg->type != fn_type->from()) {
-        auto num_params = callee->type->as<artic::FunctionType>()->num_args();
-        auto num_args   = arg->type->isa<artic::TupleType>() ? arg->type->as<artic::TupleType>()->args.size() : 1;
-        if (num_args != num_params)
-            log::error(loc, "incorrect number of arguments, got {} instead of {}", num_args, num_params);
-        else
-            ctx.expect("function call", arg, callee->type->as<artic::FunctionType>()->from());
+        ctx.expect("function call", arg, callee->type->as<artic::FunctionType>()->from());
         return;
     }
 
@@ -113,7 +100,9 @@ void TypedPtrn::check(TypeChecker& ctx) const {
     type->check(ctx);
 }
 
-void IdPtrn::check(TypeChecker&) const {}
+void IdPtrn::check(TypeChecker& ctx) const {
+    local->check(ctx);
+}
 
 void LiteralPtrn::check(TypeChecker&) const {}
 
@@ -153,8 +142,9 @@ void DefDecl::check(TypeChecker& ctx) const {
     }
 }
 
-void TypeDecl::check(TypeChecker&) const {
-    // TODO
+void TypeDecl::check(TypeChecker& ctx) const {
+    type_params->check(ctx);
+    ctor->check(ctx);
 }
 
 void TraitDecl::check(TypeChecker&) const {
@@ -162,6 +152,16 @@ void TraitDecl::check(TypeChecker&) const {
 }
 
 void ErrorDecl::check(TypeChecker&) const {}
+
+void RecordCtor::check(TypeChecker& ctx) const {
+    for (auto& arg : args) arg->check(ctx);
+}
+
+void OptionCtor::check(TypeChecker& ctx) const {
+    for (auto& option : options) option->check(ctx);
+}
+
+void ErrorCtor::check(TypeChecker&) const {}
 
 void Program::check(TypeChecker& ctx) const {
     for (auto& decl : decls) decl->check(ctx);

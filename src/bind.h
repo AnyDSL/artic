@@ -17,6 +17,8 @@ public:
     NameBinder() { push_scope(); }
     ~NameBinder() { pop_scope(); }
 
+    void run(const ast::Program&);
+
     void bind(const ast::Node&);
 
     void push_scope() { scopes_.emplace_back(); }
@@ -32,6 +34,7 @@ public:
 
 private:
     std::vector<SymbolTable> scopes_;
+    bool first_run_;
 };
 
 } // namespace artic

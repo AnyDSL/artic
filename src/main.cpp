@@ -65,9 +65,9 @@ int main(int argc, char** argv) {
         TypeInference type_inference(type_table);
         TypeChecker type_checker;
 
-        name_binder.bind(*program);
-        type_inference.infer(*program);
-        type_checker.check(*program);
+        name_binder.run(*program);
+        type_inference.run(*program);
+        type_checker.run(*program);
 
         program->dump();
     }

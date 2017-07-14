@@ -132,40 +132,6 @@ struct Path : public Node {
     void print(Printer&) const override;
 };
 
-// Type Constructors ---------------------------------------------------------------
-
-/// Record type constructor.
-struct RecordCtor : public TypeCtor {
-    Identifier id;
-    PtrVector<Type> args;
-
-    RecordCtor(const Loc& loc,
-               const Identifier& id,
-               PtrVector<Type>&& args)
-        : TypeCtor(loc), id(id), args(std::move(args))
-    {}
-
-    const artic::Type* infer(TypeInference&) const override;
-    void bind(NameBinder&) const override;
-    void check(TypeChecker&) const override;
-    void print(Printer&) const override;
-};
-
-/// Sum type constructor.
-struct SumCtor : public TypeCtor {
-    PtrVector<TypeCtor> args;
-
-    SumCtor(const Loc& loc,
-            PtrVector<TypeCtor>&& args)
-        : TypeCtor(loc), args(std::move(args))
-    {}
-
-    const artic::Type* infer(TypeInference&) const override;
-    void bind(NameBinder&) const override;
-    void check(TypeChecker&) const override;
-    void print(Printer&) const override;
-};
-
 // Types ---------------------------------------------------------------------------
 
 /// Primitive type (integer, float, ...).
@@ -226,7 +192,7 @@ struct TypeApp : public Type {
     Ptr<Path> path;
     PtrVector<Type> args;
 
-    mutable std::shared_ptr<Symbol> symbol;
+    mutable std::vector<const artic::Type*> type_args;
 
     TypeApp(const Loc& loc, Ptr<Path>&& path, PtrVector<Type>&& args)
         : Type(loc), path(std::move(path)), args(std::move(args))
@@ -490,7 +456,7 @@ struct BinaryExpr : public Expr {
     static Tag tag_from_token(const Token&);
 };
 
-/// Incorrect expression, as a result of parsing. 
+/// Incorrect expression, as a result of parsing.
 struct ErrorExpr : public Expr {
     ErrorExpr(const Loc& loc)
         : Expr(loc)
@@ -600,18 +566,18 @@ struct DefDecl : public NamedDecl {
     void print(Printer&) const override;
 };
 
-/// Structure declaration.
+/// Base class for type declarations.
 struct TypeDecl : public NamedDecl {
-    Ptr<TypeCtor> ctor;
     Ptr<TypeParamList> type_params;
+    Ptr<TypeCtor> ctor;
 
     TypeDecl(const Loc& loc,
              const Identifier& id,
-             Ptr<TypeCtor>&& ctor,
-             Ptr<TypeParamList>&& type_params)
+             Ptr<TypeParamList>&& type_params,
+             Ptr<TypeCtor> ctor)
         : NamedDecl(loc, id)
-        , ctor(std::move(ctor))
         , type_params(std::move(type_params))
+        , ctor(std::move(ctor))
     {}
 
     const artic::Type* infer(TypeInference&) const override;
@@ -643,6 +609,52 @@ struct TraitDecl : public NamedDecl {
 /// Incorrect declaration, coming from parsing.
 struct ErrorDecl : public Decl {
     ErrorDecl(const Loc& loc) : Decl(loc) {}
+
+    const artic::Type* infer(TypeInference&) const override;
+    void bind(NameBinder&) const override;
+    void check(TypeChecker&) const override;
+    void print(Printer&) const override;
+};
+
+// Type Constructors ---------------------------------------------------------------
+
+/// Record type constructor.
+struct RecordCtor : public TypeCtor {
+    Identifier id;
+    PtrVector<Type> args;
+
+    RecordCtor(const Loc& loc,
+               const Identifier& id,
+               PtrVector<Type>&& args)
+        : TypeCtor(loc)
+        , id(id)
+        , args(std::move(args))
+    {}
+
+    const artic::Type* infer(TypeInference&) const override;
+    void bind(NameBinder&) const override;
+    void check(TypeChecker&) const override;
+    void print(Printer&) const override;
+};
+
+/// Option type constructor.
+struct OptionCtor : public TypeCtor {
+    PtrVector<RecordCtor> options;
+
+    OptionCtor(const Loc& loc, PtrVector<RecordCtor>&& options)
+        : TypeCtor(loc)
+        , options(std::move(options))
+    {}
+
+    const artic::Type* infer(TypeInference&) const override;
+    void bind(NameBinder&) const override;
+    void check(TypeChecker&) const override;
+    void print(Printer&) const override;
+};
+
+/// Incorrect type constructor, as a result of parsing.
+struct ErrorCtor : public TypeCtor {
+    ErrorCtor(const Loc& loc) : TypeCtor(loc) {}
 
     const artic::Type* infer(TypeInference&) const override;
     void bind(NameBinder&) const override;

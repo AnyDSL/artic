@@ -18,11 +18,16 @@ private:
     Ptr<ast::Decl>          parse_decl();
     Ptr<ast::DefDecl>       parse_def_decl();
     Ptr<ast::VarDecl>       parse_var_decl();
-    Ptr<ast::TypeDecl>      parse_type_decl();
+    Ptr<ast::Decl>          parse_type_decl();
     Ptr<ast::TraitDecl>     parse_trait_decl();
     Ptr<ast::TypeParam>     parse_type_param();
     Ptr<ast::TypeParamList> parse_type_params();
     Ptr<ast::ErrorDecl>     parse_error_decl();
+
+    Ptr<ast::TypeCtor>      parse_type_ctor();
+    Ptr<ast::RecordCtor>    parse_record_ctor();
+    Ptr<ast::OptionCtor>    parse_option_ctor();
+    Ptr<ast::ErrorCtor>     parse_error_ctor();
 
     Ptr<ast::Ptrn>          parse_ptrn();
     Ptr<ast::Ptrn>          parse_typed_ptrn(Ptr<ast::Ptrn>&&);
@@ -54,9 +59,6 @@ private:
     Ptr<ast::FunctionType>  parse_function_type(Ptr<ast::Type>&&);
     Ptr<ast::TypeApp>       parse_type_app();
     Ptr<ast::ErrorType>     parse_error_type();
-
-    Ptr<ast::TypeCtor>      parse_type_ctor();
-    Ptr<ast::RecordCtor>    parse_record_ctor();
 
     Ptr<ast::Path>          parse_path();
     ast::Identifier         parse_id();

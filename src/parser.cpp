@@ -77,7 +77,7 @@ Ptr<ast::VarDecl> Parser::parse_var_decl() {
     return make_ptr<ast::VarDecl>(tracker(), std::move(ptrn), std::move(init));
 }
 
-Ptr<ast::TypeDecl> Parser::parse_type_decl() {
+Ptr<ast::Decl> Parser::parse_type_decl() {
     Tracker tracker(this);
     eat(Token::TYPE);
     auto id = parse_id();
@@ -85,7 +85,7 @@ Ptr<ast::TypeDecl> Parser::parse_type_decl() {
     expect(Token::EQ);
     eat_nl();
     auto ctor = parse_type_ctor();
-    return make_ptr<ast::TypeDecl>(tracker(), id, std::move(ctor), std::move(type_params));
+    return make_ptr<ast::TypeDecl>(tracker(), id, std::move(type_params), std::move(ctor));
 }
 
 Ptr<ast::TraitDecl> Parser::parse_trait_decl() {
@@ -135,6 +135,48 @@ Ptr<ast::ErrorDecl> Parser::parse_error_decl() {
     log::error(ahead().loc(), "expected declaration, got '{}'", ahead().string());
     next();
     return make_ptr<ast::ErrorDecl>(tracker());
+}
+
+// Type Constructors ---------------------------------------------------------------
+
+Ptr<ast::TypeCtor> Parser::parse_type_ctor() {
+    if (ahead().tag() == Token::ID)           return parse_record_ctor();
+    else if (ahead().tag() == Token::L_BRACE) return parse_option_ctor();
+    else                                      return parse_error_ctor();
+}
+
+Ptr<ast::RecordCtor> Parser::parse_record_ctor() {
+    Tracker tracker(this);
+    auto id = parse_id();
+    PtrVector<ast::Type> args;
+    if (ahead().tag() == Token::L_PAREN) {
+        eat(Token::L_PAREN);
+        parse_list(Token::R_PAREN, Token::COMMA, [&] {
+            eat_nl();
+            args.emplace_back(parse_type());
+            eat_nl();
+        });
+    }
+    return make_ptr<ast::RecordCtor>(tracker(), id, std::move(args));
+}
+
+Ptr<ast::OptionCtor> Parser::parse_option_ctor() {
+    Tracker tracker(this);
+    PtrVector<ast::RecordCtor> options;
+    eat(Token::L_BRACE);
+    parse_list(Token::R_BRACE, Token::COMMA, [&] {
+        eat_nl();
+        options.emplace_back(parse_record_ctor());
+        eat_nl();
+    });
+    return make_ptr<ast::OptionCtor>(tracker(), std::move(options));
+}
+
+Ptr<ast::ErrorCtor> Parser::parse_error_ctor() {
+    Tracker tracker(this);
+    log::error(ahead().loc(), "expected type constructor, got '{}'", ahead().string());
+    next();
+    return make_ptr<ast::ErrorCtor>(tracker());
 }
 
 // Patterns ------------------------------------------------------------------------
@@ -420,6 +462,7 @@ Ptr<ast::TypeApp> Parser::parse_type_app() {
     auto path = parse_path();
     PtrVector<ast::Type> args;
     if (ahead().tag() == Token::L_BRACKET) {
+        eat(Token::L_BRACKET);
         parse_list(Token::R_BRACKET, Token::COMMA, [&] {
             eat_nl();
             args.emplace_back(parse_type());
@@ -434,34 +477,6 @@ Ptr<ast::ErrorType> Parser::parse_error_type() {
     log::error(ahead().loc(), "expected type, got '{}'", ahead().string());
     next();
     return make_ptr<ast::ErrorType>(tracker());
-}
-
-Ptr<ast::TypeCtor> Parser::parse_type_ctor() {
-    Tracker tracker(this);
-    PtrVector<ast::TypeCtor> args;
-    while (true) {
-        args.emplace_back(std::move(parse_record_ctor()));
-        if (ahead().tag() != Token::OR) break;
-        eat(Token::OR);
-        eat_nl();
-    }
-    if (args.size() == 1) return std::move(args[0]);
-    return make_ptr<ast::SumCtor>(tracker(), std::move(args));
-}
-
-Ptr<ast::RecordCtor> Parser::parse_record_ctor() {
-    Tracker tracker(this);
-    auto id = parse_id();
-    PtrVector<ast::Type> args;
-    if (ahead().tag() == Token::L_PAREN) {
-        eat(Token::L_PAREN);
-        parse_list(Token::R_PAREN, Token::COMMA, [&] {
-            eat_nl();
-            args.emplace_back(parse_type());
-            eat_nl();
-        });
-    }
-    return make_ptr<ast::RecordCtor>(tracker(), id, std::move(args));
 }
 
 Ptr<ast::Path> Parser::parse_path() {

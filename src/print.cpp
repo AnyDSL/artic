@@ -197,6 +197,13 @@ void TypeParamList::print(Printer& p) const {
     }
 }
 
+void TypeDecl::print(Printer& p) const {
+    p << keyword_style("type") << ' ' << id.name;
+    type_params->print(p);
+    p << " = ";
+    ctor->print(p);
+}
+
 void LocalDecl::print(Printer& p) const {
     p << id.name;
 }
@@ -232,13 +239,6 @@ void DefDecl::print(Printer& p) const {
     }
 }
 
-void TypeDecl::print(Printer& p) const {
-    p << keyword_style("type") << ' ' << id.name;
-    type_params->print(p);
-    p << " = ";
-    ctor->print(p);
-}
-
 void TraitDecl::print(Printer& p) const {
     p << keyword_style("trait") << ' ' << id.name;
     type_params->print(p);
@@ -254,12 +254,6 @@ void ErrorDecl::print(Printer& p) const {
     p << error_style("<invalid declaration>");
 }
 
-void Program::print(Printer& p) const {
-    print_list(p, p.endl(), decls, [&] (auto& decl) {
-        decl->print(p);
-    });
-}
-
 void RecordCtor::print(Printer& p) const {
     p << id.name;
     if (!args.empty()) {
@@ -271,13 +265,25 @@ void RecordCtor::print(Printer& p) const {
     }
 }
 
-void SumCtor::print(Printer& p) const {
-    p << p.indent();
-    print_list(p, " |", args, [&] (auto& arg) {
-        p << p.endl();
-        arg->print(p);
+void OptionCtor::print(Printer& p) const {
+    if (!options.empty()) {
+        p << '{' << p.indent();
+        print_list(p, ",", options, [&] (auto& option) {
+            p << p.endl();
+            option->print(p);
+        });
+        p << p.unindent() << p.endl() << '}';
+    }
+}
+
+void ErrorCtor::print(Printer& p) const {
+    p << error_style("<invalid constructor>");
+}
+
+void Program::print(Printer& p) const {
+    print_list(p, p.endl(), decls, [&] (auto& decl) {
+        decl->print(p);
     });
-    p << p.unindent() << p.endl();
 }
 
 void PrimType::print(Printer& p) const {
@@ -354,9 +360,9 @@ void FunctionType::print(Printer& p) const {
 }
 
 void PolyType::print(Printer& p) const {
-    p << keyword_style("forall") << " ";
+    p << '[';
     print_vars(p, vars, var_traits);
-    p << " . ";
+    p << ']';
     body->print(p);
 }
 

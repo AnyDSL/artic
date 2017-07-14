@@ -15,6 +15,8 @@ public:
         : type_table_(type_table)
     {}
 
+    void run(const ast::Program&);
+
     const Type* unify(const Loc&, const Type*, const Type*);
     const Type* join(const Loc&, const UnknownType*, const Type*);
     const Type* find(const Type*);
@@ -24,8 +26,6 @@ public:
 
     const Type* type(const ast::Node&, int rank = UnknownType::max_rank());
     const Type* infer(const ast::Node&, const Type* expected = nullptr);
-
-    void infer(const ast::Program&);
 
     TypeTable& type_table() { return type_table_; }
 
