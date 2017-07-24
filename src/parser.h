@@ -33,7 +33,7 @@ private:
     Ptr<ast::Ptrn>          parse_typed_ptrn(Ptr<ast::Ptrn>&&);
     Ptr<ast::IdPtrn>        parse_id_ptrn();
     Ptr<ast::LiteralPtrn>   parse_literal_ptrn();
-    Ptr<ast::TuplePtrn>     parse_tuple_ptrn();
+    Ptr<ast::Ptrn>          parse_tuple_ptrn();
     Ptr<ast::ErrorPtrn>     parse_error_ptrn();
 
     Ptr<ast::Expr>          parse_expr();

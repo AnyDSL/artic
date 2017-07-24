@@ -214,14 +214,16 @@ Ptr<ast::LiteralPtrn> Parser::parse_literal_ptrn() {
     return make_ptr<ast::LiteralPtrn>(tracker(), lit);
 }
 
-Ptr<ast::TuplePtrn> Parser::parse_tuple_ptrn() {
+Ptr<ast::Ptrn> Parser::parse_tuple_ptrn() {
     Tracker tracker(this);
     eat(Token::L_PAREN);
     PtrVector<Ptrn> args;
     parse_list(Token::R_PAREN, Token::COMMA, [&] {
         args.emplace_back(parse_ptrn());
     });
-    return make_ptr<ast::TuplePtrn>(tracker(), std::move(args));
+    return args.size() == 1
+        ? std::move(args[0])
+        : make_ptr<ast::TuplePtrn>(tracker(), std::move(args));
 }
 
 Ptr<ast::ErrorPtrn> Parser::parse_error_ptrn() {
