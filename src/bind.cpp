@@ -155,9 +155,8 @@ void VarDecl::bind(NameBinder& ctx) const {
 
 void DefDecl::bind(NameBinder& ctx) const {
     ctx.insert_symbol(*this);
-    if (type_params) ctx.bind(*type_params);
-
     ctx.push_scope();
+    if (type_params) ctx.bind(*type_params);
     if (ret_type) ctx.bind(*ret_type);
 
     if (lambda->param && lambda->body) ctx.bind(*lambda);

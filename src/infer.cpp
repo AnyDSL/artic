@@ -191,7 +191,6 @@ const artic::Type* TypedExpr::infer(TypeInference& ctx) const {
 
 const artic::Type* PathExpr::infer(TypeInference& ctx) const {
     auto symbol_type = ctx.infer(*path);
-    if (symbol_type->has_unknowns()) return ctx.type(*this);
 
     type_args.resize(std::max(type_args.size(), args.size()));
     for (size_t i = 0; i < args.size(); i++) {

@@ -93,11 +93,9 @@ struct Type : public Node {
 
 /// Base class for expressions.
 struct Expr : public Node {
-    Expr(const Loc& loc) : Node(loc), rank(artic::UnknownType::max_rank()) {}
+    Expr(const Loc& loc) : Node(loc) {}
 
     bool is_tuple() const;
-
-    int rank;
 };
 
 /// Pattern: An expression which does not need evaluation.
