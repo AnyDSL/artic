@@ -41,8 +41,8 @@ PrimType::Tag PrimType::tag_from_token(const Token& token) {
         std::make_pair("Word32", U32),
         std::make_pair("Word64", U64),
 
-        std::make_pair("Float16", F32),
-        std::make_pair("Float32", F64),
+        std::make_pair("Float32", F32),
+        std::make_pair("Float64", F64),
 
         // Aliases
         std::make_pair("Int",    I32),
