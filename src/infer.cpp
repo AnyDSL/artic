@@ -160,29 +160,13 @@ const artic::Type* FunctionType::infer(TypeInference& ctx) const {
     return ctx.type_table().function_type(ctx.infer(*from), ctx.infer(*to));
 }
 
-const artic::Type* TypeApp::infer(TypeInference& ctx) const {
-    auto symbol_type = ctx.infer(*path);
-
-    type_args.resize(std::max(type_args.size(), args.size()));
-    for (size_t i = 0; i < args.size(); i++) {
-        type_args[i] = ctx.infer(*args[i]);
-    }
-
-    // TODO: Make sure the type symbol type is polymorphic and expects at most args.size() variables
-
-    return ctx.subsume(symbol_type, type_args);
+const artic::Type* TypeApp::infer(TypeInference&) const {
+    // TODO
+    return nullptr;
 }
 
 const artic::Type* ErrorType::infer(TypeInference& ctx) const {
     return ctx.type_table().error_type(loc);
-}
-
-const artic::Type* Path::infer(TypeInference& ctx) const {
-    auto& symbol = elems.back().symbol;
-    if (!symbol || symbol->decls.empty()) return ctx.type_table().error_type(loc);
-
-    auto decl = symbol->decls.front();
-    return decl->type ? decl->type : ctx.type(*this, decl->rank);
 }
 
 const artic::Type* TypedExpr::infer(TypeInference& ctx) const {
@@ -190,7 +174,12 @@ const artic::Type* TypedExpr::infer(TypeInference& ctx) const {
 }
 
 const artic::Type* PathExpr::infer(TypeInference& ctx) const {
-    auto symbol_type = ctx.infer(*path);
+    // TODO: Follow the whole path
+    auto& symbol = path.elems.back().symbol;
+    if (!symbol || symbol->decls.empty()) return ctx.type_table().error_type(loc);
+
+    auto decl = symbol->decls.front();
+    if (!decl->type) return ctx.type(*this, decl->rank);
 
     type_args.resize(std::max(type_args.size(), args.size()));
     for (size_t i = 0; i < args.size(); i++) {
@@ -199,7 +188,7 @@ const artic::Type* PathExpr::infer(TypeInference& ctx) const {
 
     // TODO: Make sure the type symbol type is polymorphic and expects at most args.size() variables
 
-    return ctx.subsume(symbol_type, type_args);
+    return ctx.subsume(decl->type, type_args);
 }
 
 const artic::Type* LiteralExpr::infer(TypeInference& ctx) const {

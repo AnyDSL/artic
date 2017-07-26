@@ -19,6 +19,7 @@ public:
 
     void run(const ast::Program&);
 
+    void bind(const ast::Path&);
     void bind(const ast::Node&);
 
     void push_scope() { scopes_.emplace_back(); }

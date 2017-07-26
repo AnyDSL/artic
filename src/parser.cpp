@@ -63,7 +63,7 @@ Ptr<ast::DefDecl> Parser::parse_def_decl() {
         log::error(id.loc, "definition without a body requires a type");
 
     auto lambda = make_ptr<ast::LambdaExpr>(tracker(), std::move(param), std::move(body));
-    return make_ptr<ast::DefDecl>(tracker(), id, std::move(lambda), std::move(ret_type), std::move(type_params));
+    return make_ptr<ast::DefDecl>(tracker(), std::move(id), std::move(lambda), std::move(ret_type), std::move(type_params));
 }
 
 Ptr<ast::VarDecl> Parser::parse_var_decl() {
@@ -85,7 +85,7 @@ Ptr<ast::Decl> Parser::parse_type_decl() {
     expect(Token::EQ);
     eat_nl();
     auto ctor = parse_type_ctor();
-    return make_ptr<ast::TypeDecl>(tracker(), id, std::move(type_params), std::move(ctor));
+    return make_ptr<ast::TypeDecl>(tracker(), std::move(id), std::move(type_params), std::move(ctor));
 }
 
 Ptr<ast::TraitDecl> Parser::parse_trait_decl() {
@@ -99,7 +99,7 @@ Ptr<ast::TraitDecl> Parser::parse_trait_decl() {
         if (ahead().tag() != Token::SEMICOLON)
             decls.emplace_back(parse_decl());
     });
-    return make_ptr<ast::TraitDecl>(tracker(), id, std::move(decls), std::move(type_params));
+    return make_ptr<ast::TraitDecl>(tracker(), std::move(id), std::move(decls), std::move(type_params));
 }
 
 Ptr<ast::TypeParam> Parser::parse_type_param() {
@@ -113,7 +113,7 @@ Ptr<ast::TypeParam> Parser::parse_type_param() {
             if (ahead().tag() != Token::ADD) break;
         }
     }
-    return make_ptr<ast::TypeParam>(tracker(), id, std::move(bounds));
+    return make_ptr<ast::TypeParam>(tracker(), std::move(id), std::move(bounds));
 }
 
 Ptr<ast::TypeParamList> Parser::parse_type_params() {
@@ -157,7 +157,7 @@ Ptr<ast::RecordCtor> Parser::parse_record_ctor() {
             eat_nl();
         });
     }
-    return make_ptr<ast::RecordCtor>(tracker(), id, std::move(args));
+    return make_ptr<ast::RecordCtor>(tracker(), std::move(id), std::move(args));
 }
 
 Ptr<ast::OptionCtor> Parser::parse_option_ctor() {
@@ -205,7 +205,7 @@ Ptr<ast::Ptrn> Parser::parse_typed_ptrn(Ptr<ast::Ptrn>&& ptrn) {
 Ptr<ast::IdPtrn> Parser::parse_id_ptrn() {
     Tracker tracker(this);
     auto id = parse_id();
-    return make_ptr<ast::IdPtrn>(tracker(), make_ptr<ast::LocalDecl>(id.loc, id));
+    return make_ptr<ast::IdPtrn>(tracker(), make_ptr<ast::LocalDecl>(tracker(), std::move(id)));
 }
 
 Ptr<ast::LiteralPtrn> Parser::parse_literal_ptrn() {
@@ -481,7 +481,7 @@ Ptr<ast::ErrorType> Parser::parse_error_type() {
     return make_ptr<ast::ErrorType>(tracker());
 }
 
-Ptr<ast::Path> Parser::parse_path() {
+ast::Path Parser::parse_path() {
     Tracker tracker(this);
     std::vector<ast::Path::Elem> elems;
     while (true) {
@@ -490,7 +490,7 @@ Ptr<ast::Path> Parser::parse_path() {
         eat(Token::DOT);
         eat_nl();
     }
-    return make_ptr<Path>(tracker(), std::move(elems));
+    return ast::Path(std::move(elems));
 }
 
 ast::Identifier Parser::parse_id() {
@@ -518,11 +518,11 @@ Ptr<ast::Ptrn> Parser::expr_to_ptrn(Ptr<ast::Expr>&& expr) {
     if (auto typed = expr->isa<ast::TypedExpr>()) {
         return make_ptr<ast::TypedPtrn>(expr->loc, expr_to_ptrn(std::move(typed->expr)), std::move(typed->type));
     } else if (auto path = expr->isa<ast::PathExpr>()) {
-        if (path->path->elems.size() != 1) {
+        if (path->path.elems.size() != 1) {
             log::error(expr->loc, "patterns cannot contain paths");
             return make_ptr<ErrorPtrn>(expr->loc);
         }
-        auto& id = path->path->elems[0].id;
+        auto& id = path->path.elems[0].id;
         return make_ptr<ast::IdPtrn>(expr->loc, make_ptr<ast::LocalDecl>(id.loc, id));
     } else if (auto lit = expr->isa<ast::LiteralExpr>()) {
         return make_ptr<ast::LiteralPtrn>(expr->loc, lit->lit);

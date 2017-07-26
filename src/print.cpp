@@ -43,13 +43,13 @@ inline void print_vars(Printer& p, size_t vars, const PolyType::VarTraits& trait
     }
 }
 
-namespace ast {
-
-void Path::print(Printer& p) const {
-    print_list(p, '.', elems, [&] (auto& e) {
+inline void print_path(Printer& p, const ast::Path& path) {
+    print_list(p, '.', path.elems, [&] (auto& e) {
         p << e.id.name;
     });
 }
+
+namespace ast {
 
 void TypedExpr::print(Printer& p) const {
     expr->print(p);
@@ -58,7 +58,7 @@ void TypedExpr::print(Printer& p) const {
 }
 
 void PathExpr::print(Printer& p) const {
-    path->print(p);
+    print_path(p, path);
     if (args.size()) {
         p << '[';
         print_list(p, ", ", args, [&] (auto& arg) {
@@ -311,7 +311,7 @@ void FunctionType::print(Printer& p) const {
 }
 
 void TypeApp::print(Printer& p) const {
-    path->print(p);
+    print_path(p, path);
     if (!args.empty()) {
         p << '[';
         print_list(p, ", ", args, [&] (auto& arg) {

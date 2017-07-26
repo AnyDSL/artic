@@ -38,6 +38,26 @@ struct Identifier {
     {}
 };
 
+/// A path of the form A.B.C
+struct Path {
+    struct Elem {
+        Identifier id;
+
+        mutable std::shared_ptr<Symbol> symbol;
+
+        Elem() {}
+        Elem(Identifier&& id, std::shared_ptr<Symbol> symbol = nullptr)
+            : id(std::move(id)), symbol(symbol)
+        {}
+    };
+    std::vector<Elem> elems;
+
+    Path(std::vector<Elem>&& elems)
+        : elems(std::move(elems))
+    {}
+};
+
+
 /// Base class for all AST nodes.
 struct Node : public Cast<Node> {
     /// Location of the node in the source file.
@@ -106,30 +126,6 @@ struct Ptrn : public Node {
     virtual bool is_refutable() const = 0;
 };
 
-/// A path of the form A.B.C
-struct Path : public Node {
-    struct Elem {
-        Identifier id;
-
-        mutable std::shared_ptr<Symbol> symbol;
-
-        Elem() {}
-        Elem(const Identifier& id, std::shared_ptr<Symbol> symbol = nullptr)
-            : id(id), symbol(symbol)
-        {}
-    };
-    std::vector<Elem> elems;
-
-    Path(const Loc& loc, std::vector<Elem>&& elems)
-        : Node(loc), elems(std::move(elems))
-    {}
-
-    const artic::Type* infer(TypeInference&) const override;
-    void bind(NameBinder&) const override;
-    void check(TypeChecker&) const override;
-    void print(Printer&) const override;
-};
-
 // Types ---------------------------------------------------------------------------
 
 /// Primitive type (integer, float, ...).
@@ -187,12 +183,12 @@ struct FunctionType : public Type {
 
 /// A type application.
 struct TypeApp : public Type {
-    Ptr<Path> path;
+    Path path;
     PtrVector<Type> args;
 
     mutable std::vector<const artic::Type*> type_args;
 
-    TypeApp(const Loc& loc, Ptr<Path>&& path, PtrVector<Type>&& args)
+    TypeApp(const Loc& loc, Path&& path, PtrVector<Type>&& args)
         : Type(loc), path(std::move(path)), args(std::move(args))
     {}
 
@@ -235,17 +231,17 @@ struct TypedExpr : public Expr {
 
 /// Expression made of a path to an identifier.
 struct PathExpr : public Expr {
-    Ptr<Path> path;
+    Path path;
     PtrVector<Type> args;
 
     mutable std::vector<const artic::Type*> type_args;
 
-    PathExpr(const Loc& loc, Ptr<Path>&& path, PtrVector<Type>&& args)
+    PathExpr(const Loc& loc, Path&& path, PtrVector<Type>&& args)
         : Expr(loc), path(std::move(path)), args(std::move(args))
     {}
 
-    const Identifier& identifier() const { return path->elems.back().id; }
-    std::shared_ptr<Symbol>& symbol() const { return path->elems.back().symbol; }
+    const Identifier& identifier() const { return path.elems.back().id; }
+    std::shared_ptr<Symbol>& symbol() const { return path.elems.back().symbol; }
 
     const artic::Type* infer(TypeInference&) const override;
     void bind(NameBinder&) const override;
@@ -472,8 +468,8 @@ struct ErrorExpr : public Expr {
 struct NamedDecl : public Decl {
     Identifier id;
 
-    NamedDecl(const Loc& loc, const Identifier& id)
-        : Decl(loc), id(id)
+    NamedDecl(const Loc& loc, Identifier&& id)
+        : Decl(loc), id(std::move(id))
     {}
 };
 
@@ -482,9 +478,9 @@ struct TypeParam : public NamedDecl {
     PtrVector<Type> bounds;
 
     TypeParam(const Loc& loc,
-              const Identifier& id,
+              Identifier&& id,
               PtrVector<Type>&& bounds)
-        : NamedDecl(loc, id), bounds(std::move(bounds))
+        : NamedDecl(loc, std::move(id)), bounds(std::move(bounds))
     {}
 
     const artic::Type* infer(TypeInference&) const override;
@@ -512,8 +508,8 @@ struct TypeParamList : public Decl {
 
 /// Local variable/parameter declaration, which introduces a new symbol in the scope.
 struct LocalDecl : public NamedDecl {
-    LocalDecl(const Loc& loc, const Identifier& id)
-        : NamedDecl(loc, id)
+    LocalDecl(const Loc& loc, Identifier&& id)
+        : NamedDecl(loc, std::move(id))
     {}
 
     const artic::Type* infer(TypeInference&) const override;
@@ -546,11 +542,11 @@ struct DefDecl : public NamedDecl {
     Ptr<TypeParamList> type_params;
 
     DefDecl(const Loc& loc,
-            const Identifier& id,
+            Identifier&& id,
             Ptr<LambdaExpr>&& lambda,
             Ptr<Type>&& ret_type,
             Ptr<TypeParamList>&& type_params)
-        : NamedDecl(loc, id)
+        : NamedDecl(loc, std::move(id))
         , lambda(std::move(lambda))
         , ret_type(std::move(ret_type))
         , type_params(std::move(type_params))
@@ -570,10 +566,10 @@ struct TypeDecl : public NamedDecl {
     Ptr<TypeCtor> ctor;
 
     TypeDecl(const Loc& loc,
-             const Identifier& id,
+             Identifier&& id,
              Ptr<TypeParamList>&& type_params,
              Ptr<TypeCtor> ctor)
-        : NamedDecl(loc, id)
+        : NamedDecl(loc, std::move(id))
         , type_params(std::move(type_params))
         , ctor(std::move(ctor))
     {}
@@ -590,10 +586,10 @@ struct TraitDecl : public NamedDecl {
     Ptr<TypeParamList> type_params;
 
     TraitDecl(const Loc& loc,
-              const Identifier& id,
+              Identifier&& id,
               PtrVector<Decl>&& decls,
               Ptr<TypeParamList>&& type_params)
-        : NamedDecl(loc, id)
+        : NamedDecl(loc, std::move(id))
         , decls(std::move(decls))
         , type_params(std::move(type_params))
     {}
@@ -622,10 +618,10 @@ struct RecordCtor : public TypeCtor {
     PtrVector<Type> args;
 
     RecordCtor(const Loc& loc,
-               const Identifier& id,
+               Identifier&& id,
                PtrVector<Type>&& args)
         : TypeCtor(loc)
-        , id(id)
+        , id(std::move(id))
         , args(std::move(args))
     {}
 

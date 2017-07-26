@@ -32,8 +32,6 @@ void TypeApp::check(TypeChecker& ctx) const {
 
 void ErrorType::check(TypeChecker&) const {}
 
-void Path::check(TypeChecker&) const {}
-
 void TypedExpr::check(TypeChecker& ctx) const {
     expr->check(ctx);
     type->check(ctx);
