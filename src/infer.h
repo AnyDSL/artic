@@ -22,7 +22,7 @@ public:
     const Type* find(const Type*);
 
     const Type* generalize(const Loc& loc, const Type*, int);
-    const Type* subsume(const Type*, std::vector<const Type*>&);
+    const Type* subsume(const Loc& loc, const Type*, std::vector<const Type*>&);
 
     const Type* type(const ast::Node&, int rank = UnknownType::max_rank());
     const Type* infer(const ast::Node&, const Type* expected = nullptr);

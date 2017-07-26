@@ -106,7 +106,10 @@ const Type* TypeInference::generalize(const Loc& loc, const Type* type, int rank
     return type_table_.poly_type(vars, type, std::move(var_traits));
 }
 
-const Type* TypeInference::subsume(const Type* type, std::vector<const Type*>& type_args) {
+const Type* TypeInference::subsume(const Loc& loc, const Type* type, std::vector<const Type*>& type_args) {
+    // Get the best estimate of the type at this point
+    type = unify(loc, type, type);
+
     if (auto poly = type->isa<artic::PolyType>()) {
         // Replaces the type variables in the given type by unknowns
         if (type_args.size() < poly->vars) {
@@ -188,7 +191,7 @@ const artic::Type* PathExpr::infer(TypeInference& ctx) const {
 
     // TODO: Make sure the type symbol type is polymorphic and expects at most args.size() variables
 
-    return ctx.subsume(decl->type, type_args);
+    return ctx.subsume(loc, decl->type, type_args);
 }
 
 const artic::Type* LiteralExpr::infer(TypeInference& ctx) const {
@@ -304,7 +307,7 @@ const artic::Type* DefDecl::infer(TypeInference& ctx) const {
             if (ret_type) ctx.infer(*ret_type, fn_type->to());
         }
     } else if (lambda->body) {
-        init_type = ctx.infer(*lambda->body);
+        init_type = ctx.infer(*lambda->body, ret_type ? ctx.infer(*ret_type) : nullptr);
     } else if (lambda->param) {
         // The return type is mandatory here
         init_type = ctx.type_table().function_type(
