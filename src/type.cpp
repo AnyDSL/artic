@@ -26,10 +26,8 @@ uint32_t FunctionType::hash() const {
 
 uint32_t PolyType::hash() const {
     return hash_combine(body->hash(), uint32_t(vars),
-        hash_list(var_traits, [] (auto& traits) {
-            return hash_list(traits, [] (auto& t) {
-                return hash_string(t->name);
-            });
+        hash_list(traits, [] (auto& t) {
+            return hash_string(t->name);
         }));
 }
 
@@ -72,7 +70,7 @@ bool PolyType::equals(const Type* t) const {
     if (auto poly = t->isa<PolyType>()) {
         return poly->body == body &&
                poly->vars == vars &&
-               poly->var_traits == var_traits;
+               poly->traits == traits;
     }
     return false;
 }
@@ -169,7 +167,7 @@ const Type* TypeApp::substitute(TypeTable& table, const std::unordered_map<const
 const Type* PolyType::substitute(TypeTable& table, const std::unordered_map<const Type*, const Type*>& map) const {
     return table.poly_type(vars,
         apply_map(map, body->substitute(table, map)),
-        VarTraits(var_traits));
+        std::unordered_set<const Trait*>(traits));
 }
 
 const Type* FunctionType::first_arg() const {
@@ -202,9 +200,8 @@ const FunctionType* TypeTable::function_type(const Type* from, const Type* to) {
     return new_type<FunctionType>(from, to);
 }
 
-const PolyType* TypeTable::poly_type(size_t vars, const Type* body, PolyType::VarTraits&& var_traits) {
-    assert(var_traits.size() == vars);
-    return new_type<PolyType>(vars, body, std::move(var_traits));
+const PolyType* TypeTable::poly_type(size_t vars, const Type* body, std::unordered_set<const Trait*>&& traits) {
+    return new_type<PolyType>(vars, body, std::move(traits));
 }
 
 const TypeVar* TypeTable::type_var(int index) {
@@ -215,7 +212,7 @@ const ErrorType* TypeTable::error_type(const Loc& loc) {
     return new_type<ErrorType>(loc);
 }
 
-const UnknownType* TypeTable::unknown_type(int rank, UnknownType::Traits&& traits) {
+const UnknownType* TypeTable::unknown_type(int rank, std::unordered_set<const Trait*>&& traits) {
     unknowns_.emplace_back(new UnknownType(unknowns_.size(), rank, std::move(traits)));
     return unknowns_.back();
 }

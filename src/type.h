@@ -149,18 +149,16 @@ struct FunctionType : public TypeApp {
 
 /// Polymorphic type with possibly several variables and a set of constraints.
 struct PolyType : public Type {
-    typedef std::vector<std::unordered_set<const Trait*>> VarTraits;
-
     /// Number of type variables in this polymorphic type.
     size_t vars;
     /// Body of this polymorphic type.
     const Type* body;
 
-    /// Type traits attached to this polymorphic type, per type variable.
-    VarTraits var_traits;
+    /// Type traits attached to this polymorphic type.
+    std::unordered_set<const Trait*> traits;
 
-    PolyType(size_t vars, const Type* body, VarTraits&& var_traits)
-        : vars(vars), body(body), var_traits(std::move(var_traits))
+    PolyType(size_t vars, const Type* body, std::unordered_set<const Trait*>&& traits)
+        : vars(vars), body(body), traits(std::move(traits))
     {}
 
     void update_rank(int rank) const override;
@@ -190,8 +188,6 @@ struct TypeVar : public Type {
 
 /// Unknown type in a set of type equations.
 struct UnknownType : public Type {
-    typedef std::unordered_set<const Trait*> Traits;
-
     /// Number that will be displayed when printing this type.
     int number;
 
@@ -205,9 +201,9 @@ struct UnknownType : public Type {
 
     /// Set of traits attached to this unknown. When this unknown will
     /// be generalized, they will be attached to the polymorphic type.
-    mutable Traits traits;
+    mutable std::unordered_set<const Trait*> traits;
 
-    UnknownType(int number, int rank, Traits&& traits)
+    UnknownType(int number, int rank, std::unordered_set<const Trait*>&& traits)
         : number(number), rank(rank), traits(traits)
     {}
 
@@ -265,10 +261,10 @@ public:
     const TupleType*    tuple_type(std::vector<const Type*>&&);
     const TupleType*    unit_type();
     const FunctionType* function_type(const Type*, const Type*);
-    const PolyType*     poly_type(size_t, const Type*, PolyType::VarTraits&&);
+    const PolyType*     poly_type(size_t, const Type*, std::unordered_set<const Trait*>&&);
     const TypeVar*      type_var(int);
     const ErrorType*    error_type(const Loc&);
-    const UnknownType*  unknown_type(int rank = UnknownType::max_rank(), UnknownType::Traits&& traits = UnknownType::Traits());
+    const UnknownType*  unknown_type(int rank = UnknownType::max_rank(), std::unordered_set<const Trait*>&& traits = std::unordered_set<const Trait*>());
 
     const TypeSet& types() const { return types_; }
     const std::vector<const UnknownType*>& unknowns() const { return unknowns_; }

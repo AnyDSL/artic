@@ -37,7 +37,10 @@ Ptr<ast::DefDecl> Parser::parse_def_decl() {
     Tracker tracker(this);
     eat(Token::DEF);
     auto id = parse_id();
-    auto type_params = parse_type_params();
+
+    Ptr<TypeParamList> type_params;
+    if (ahead().tag() == Token::L_BRACKET)
+        type_params = std::move(parse_type_params());
 
     Ptr<ast::Ptrn> param;
     if (ahead().tag() == Token::L_PAREN) {
@@ -81,7 +84,11 @@ Ptr<ast::Decl> Parser::parse_type_decl() {
     Tracker tracker(this);
     eat(Token::TYPE);
     auto id = parse_id();
-    auto type_params = parse_type_params();
+
+    Ptr<TypeParamList> type_params;
+    if (ahead().tag() == Token::L_BRACKET)
+        type_params = std::move(parse_type_params());
+
     expect(Token::EQ);
     eat_nl();
     auto ctor = parse_type_ctor();
@@ -92,7 +99,11 @@ Ptr<ast::TraitDecl> Parser::parse_trait_decl() {
     Tracker tracker(this);
     eat(Token::TRAIT);
     auto id = parse_id();
-    auto type_params = parse_type_params();
+
+    Ptr<TypeParamList> type_params;
+    if (ahead().tag() == Token::L_BRACKET)
+        type_params = std::move(parse_type_params());
+
     expect(Token::L_BRACE);
     PtrVector<Decl> decls;
     parse_list(Token::R_BRACE, Token::SEMICOLON, [&] {
@@ -102,7 +113,7 @@ Ptr<ast::TraitDecl> Parser::parse_trait_decl() {
     return make_ptr<ast::TraitDecl>(tracker(), std::move(id), std::move(decls), std::move(type_params));
 }
 
-Ptr<ast::TypeParam> Parser::parse_type_param() {
+Ptr<ast::TypeParam> Parser::parse_type_param(size_t index) {
     Tracker tracker(this);
     auto id = parse_id();
     PtrVector<ast::Type> bounds;
@@ -113,20 +124,19 @@ Ptr<ast::TypeParam> Parser::parse_type_param() {
             if (ahead().tag() != Token::ADD) break;
         }
     }
-    return make_ptr<ast::TypeParam>(tracker(), std::move(id), std::move(bounds));
+    return make_ptr<ast::TypeParam>(tracker(), std::move(id), index, std::move(bounds));
 }
 
 Ptr<ast::TypeParamList> Parser::parse_type_params() {
     Tracker tracker(this);
+    eat(Token::L_BRACKET);
     PtrVector<ast::TypeParam> type_params;
-    if (ahead().tag() == Token::L_BRACKET) {
-        eat(Token::L_BRACKET);
-        parse_list(Token::R_BRACKET, Token::COMMA, [&] {
-            eat_nl();
-            type_params.emplace_back(parse_type_param());
-            eat_nl();
-        });
-    }
+    size_t index = 0;
+    parse_list(Token::R_BRACKET, Token::COMMA, [&] {
+        eat_nl();
+        type_params.emplace_back(parse_type_param(index++));
+        eat_nl();
+    });
     return make_ptr<ast::TypeParamList>(tracker(), std::move(type_params));
 }
 

@@ -28,12 +28,12 @@ const Type* TypeInference::unify(const Loc& loc, const Type* a, const Type* b) {
     auto poly_b = b->isa<PolyType>();
     if (poly_a && poly_b && poly_a->vars == poly_b->vars) {
         // Make sure the traits match
-        if (poly_a->var_traits != poly_b->var_traits)
+        if (poly_a->traits != poly_b->traits)
             return type_table_.error_type(loc);
-        return type_table_.poly_type(poly_a->vars, unify(loc, poly_a->body, poly_b->body), PolyType::VarTraits(poly_a->var_traits));
+        return type_table_.poly_type(poly_a->vars, unify(loc, poly_a->body, poly_b->body), std::unordered_set<const Trait*>(poly_a->traits));
     }
-    if (poly_a) return type_table_.poly_type(poly_a->vars, unify(loc, poly_a->body, b), PolyType::VarTraits(poly_a->var_traits));
-    if (poly_b) return type_table_.poly_type(poly_b->vars, unify(loc, poly_b->body, a), PolyType::VarTraits(poly_b->var_traits));
+    if (poly_a) return type_table_.poly_type(poly_a->vars, unify(loc, poly_a->body, b), std::unordered_set<const Trait*>(poly_a->traits));
+    if (poly_b) return type_table_.poly_type(poly_b->vars, unify(loc, poly_b->body, a), std::unordered_set<const Trait*>(poly_b->traits));
 
     // Unification for type constructors
     auto app_a = a->isa<TypeApp>();
@@ -89,7 +89,7 @@ const Type* TypeInference::generalize(const Loc& loc, const Type* type, int rank
 
     // Generalizes the given type by transforming unknowns
     // into the type variables of a polymorphic type
-    PolyType::VarTraits var_traits;
+    std::unordered_set<const Trait*> traits;
     int vars = 0;
     for (auto u : type->unknowns()) {
         u = find(u)->isa<UnknownType>();
@@ -97,13 +97,13 @@ const Type* TypeInference::generalize(const Loc& loc, const Type* type, int rank
         if (u && u->rank >= rank) {
             unify(loc, u, type_table_.type_var(vars));
             // Add the constraints that are tied to this unknown
-            var_traits.emplace_back(u->traits);
+            traits.insert(u->traits.begin(), u->traits.end());
             vars++;
         }
     }
     if (vars == 0) return type;
     assert(!type->isa<PolyType>());
-    return type_table_.poly_type(vars, type, std::move(var_traits));
+    return type_table_.poly_type(vars, type, std::move(traits));
 }
 
 const Type* TypeInference::subsume(const Loc& loc, const Type* type, std::vector<const Type*>& type_args) {
@@ -114,8 +114,8 @@ const Type* TypeInference::subsume(const Loc& loc, const Type* type, std::vector
         // Replaces the type variables in the given type by unknowns
         if (type_args.size() < poly->vars) {
             for (size_t i = type_args.size(); i < poly->vars; i++) {
-                // TODO: Handle ad-hoc polymorphism
-                auto u = type_table().unknown_type(UnknownType::max_rank(), UnknownType::Traits(poly->var_traits[i]));
+                // TODO: Handle ad-hoc polymorphism/take only relevant traits from poly type
+                auto u = type_table().unknown_type(UnknownType::max_rank(), std::unordered_set<const Trait*>(poly->traits));
                 type_args.emplace_back(u);
             }
         }
@@ -163,9 +163,16 @@ const artic::Type* FunctionType::infer(TypeInference& ctx) const {
     return ctx.type_table().function_type(ctx.infer(*from), ctx.infer(*to));
 }
 
-const artic::Type* TypeApp::infer(TypeInference&) const {
-    // TODO
-    return nullptr;
+const artic::Type* TypeApp::infer(TypeInference& ctx) const {
+    // TODO: Follow the whole path / make sure it's a type
+    auto& symbol = path.elems.back().symbol;
+    if (!symbol || symbol->decls.empty()) return ctx.type_table().error_type(loc);
+
+    auto decl = symbol->decls.front();
+    if (!decl->type) return ctx.type(*this, decl->rank);
+
+    // TODO: Subsume
+    return decl->type;
 }
 
 const artic::Type* ErrorType::infer(TypeInference& ctx) const {
@@ -177,7 +184,7 @@ const artic::Type* TypedExpr::infer(TypeInference& ctx) const {
 }
 
 const artic::Type* PathExpr::infer(TypeInference& ctx) const {
-    // TODO: Follow the whole path
+    // TODO: Follow the whole path / make sure it's a value
     auto& symbol = path.elems.back().symbol;
     if (!symbol || symbol->decls.empty()) return ctx.type_table().error_type(loc);
 
@@ -225,7 +232,6 @@ const artic::Type* DeclExpr::infer(TypeInference& ctx) const {
 const artic::Type* CallExpr::infer(TypeInference& ctx) const {
     auto arg_type = ctx.infer(*arg);
     auto ret_type = ctx.type(*this);
-
     ctx.infer(*callee, ctx.type_table().function_type(arg_type, ret_type));
     return ret_type;
 }
@@ -280,12 +286,16 @@ const artic::Type* ErrorPtrn::infer(TypeInference& ctx) const {
 
 const artic::Type* TypeParam::infer(TypeInference& ctx) const {
     // TODO: Type check bounds
-    return ctx.type(*this);
+    return ctx.type_table().type_var(index);
 }
 
 const artic::Type* TypeParamList::infer(TypeInference& ctx) const {
     for (auto& param : params) ctx.infer(*param);
-    return nullptr;
+    // TODO: Use trait bounds coming from all type params
+    auto traits = std::unordered_set<const Trait*>();
+    return params.empty() || type
+        ? ctx.type(*this)
+        : ctx.type_table().poly_type(params.size(), ctx.type_table().unknown_type(rank), std::move(traits));
 }
 
 const artic::Type* LocalDecl::infer(TypeInference& ctx) const {
@@ -297,9 +307,9 @@ const artic::Type* VarDecl::infer(TypeInference& ctx) const {
 }
 
 const artic::Type* DefDecl::infer(TypeInference& ctx) const {
-    if (type_params) ctx.infer(*type_params);
-
+    const artic::Type* poly_type = type_params ? ctx.infer(*type_params) : nullptr;
     const artic::Type* init_type = nullptr;
+
     if (lambda->body && lambda->param) {
         init_type = ctx.infer(*lambda);
         // If a return type is present, unify it with the return type of the function
@@ -314,6 +324,8 @@ const artic::Type* DefDecl::infer(TypeInference& ctx) const {
             ctx.infer(*lambda->param),
             ret_type ? ctx.infer(*ret_type) : ctx.type_table().error_type(loc));
     }
+
+    if (poly_type) return ctx.unify(loc, poly_type, init_type);
     return init_type ? ctx.generalize(loc, init_type, rank) : ctx.type(*this);
 }
 

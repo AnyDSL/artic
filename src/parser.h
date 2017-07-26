@@ -20,7 +20,7 @@ private:
     Ptr<ast::VarDecl>       parse_var_decl();
     Ptr<ast::Decl>          parse_type_decl();
     Ptr<ast::TraitDecl>     parse_trait_decl();
-    Ptr<ast::TypeParam>     parse_type_param();
+    Ptr<ast::TypeParam>     parse_type_param(size_t);
     Ptr<ast::TypeParamList> parse_type_params();
     Ptr<ast::ErrorDecl>     parse_error_decl();
 

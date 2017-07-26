@@ -57,7 +57,6 @@ struct Path {
     {}
 };
 
-
 /// Base class for all AST nodes.
 struct Node : public Cast<Node> {
     /// Location of the node in the source file.
@@ -475,12 +474,14 @@ struct NamedDecl : public Decl {
 
 /// Type parameter, introduced by the operator [].
 struct TypeParam : public NamedDecl {
+    size_t index;
     PtrVector<Type> bounds;
 
     TypeParam(const Loc& loc,
               Identifier&& id,
+              size_t index,
               PtrVector<Type>&& bounds)
-        : NamedDecl(loc, std::move(id)), bounds(std::move(bounds))
+        : NamedDecl(loc, std::move(id)), index(index), bounds(std::move(bounds))
     {}
 
     const artic::Type* infer(TypeInference&) const override;

@@ -29,17 +29,16 @@ void print_parens(Printer& p, const E& e) {
     }
 }
 
-inline void print_vars(Printer& p, size_t vars, const PolyType::VarTraits& traits) {
+inline void print_vars(Printer& p, size_t vars, const std::unordered_set<const Trait*>& traits) {
     for (size_t i = 0; i < vars; i++) {
         p << type_var_style(p.var_name(i));
-        auto& var_traits = traits[i];
-        if (!var_traits.empty()) {
-            p << ": ";
-            print_list(p, ", ", var_traits, [&] (auto trait) {
-                p << trait->name;
-            });
-        }
-        if (i != vars - 1) p << ", ";
+        if (i != vars - 1) p << ' ';
+    }
+    if (!traits.empty()) {
+        p << " with ";
+        print_list(p, ", ", traits, [&] (auto trait) {
+            p << trait->name;
+        });
     }
 }
 
@@ -199,7 +198,7 @@ void TypeParamList::print(Printer& p) const {
 
 void TypeDecl::print(Printer& p) const {
     p << keyword_style("type") << ' ' << id.name;
-    type_params->print(p);
+    if (type_params) type_params->print(p);
     p << " = ";
     ctor->print(p);
 }
@@ -221,11 +220,11 @@ void DefDecl::print(Printer& p) const {
     p << keyword_style("def") << " ";
     if (lambda->param) {
         p << id.name;
-        type_params->print(p);
+        if (type_params) type_params->print(p);
         print_parens(p, lambda->param);
     } else {
         p << id.name;
-        type_params->print(p);
+        if (type_params) type_params->print(p);
     }
 
     if (ret_type) {
@@ -241,7 +240,7 @@ void DefDecl::print(Printer& p) const {
 
 void TraitDecl::print(Printer& p) const {
     p << keyword_style("trait") << ' ' << id.name;
-    type_params->print(p);
+    if (type_params) type_params->print(p);
     p << " {" << p.indent();
     print_list(p, p.endl(), decls, [&] (auto& decl) {
         p << p.endl();
@@ -361,7 +360,7 @@ void FunctionType::print(Printer& p) const {
 
 void PolyType::print(Printer& p) const {
     p << '[';
-    print_vars(p, vars, var_traits);
+    print_vars(p, vars, traits);
     p << ']';
     body->print(p);
 }
