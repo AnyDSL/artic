@@ -60,6 +60,8 @@ Ptr<ast::DefDecl> Parser::parse_def_decl() {
         eat(Token::EQ);
         eat_nl();
         body = parse_expr();
+    } else if (param && ahead().tag() == Token::L_BRACE) {
+        body = parse_expr();
     }
 
     if (!body && !ret_type)
