@@ -1,4 +1,6 @@
 #include <algorithm>
+#include <typeinfo>
+#include <iostream>
 #include "type.h"
 
 namespace artic {
@@ -12,8 +14,19 @@ const Type* Type::inner() const {
     return this;
 }
 
+bool TypeApp::is_nominal() const {
+    return name != "";
+}
+
 uint32_t PrimType::hash() const {
     return uint32_t(tag);
+}
+
+uint32_t StructType::hash() const {
+    return hash_combine(
+        hash_string(name),
+        hash_list(args, [] (auto& arg) { return arg->hash(); })
+    );
 }
 
 uint32_t TupleType::hash() const {
@@ -25,10 +38,13 @@ uint32_t FunctionType::hash() const {
 }
 
 uint32_t PolyType::hash() const {
-    return hash_combine(body->hash(), uint32_t(vars),
+    return hash_combine(
+        body->hash(),
+        uint32_t(vars),
         hash_list(traits, [] (auto& t) {
             return hash_string(t->name);
-        }));
+        })
+    );
 }
 
 uint32_t TypeVar::hash() const {
@@ -47,21 +63,19 @@ bool PrimType::equals(const Type* t) const {
     return t->isa<PrimType>() && t->as<PrimType>()->tag == tag;
 }
 
-bool TupleType::equals(const Type* t) const {
-    if (auto tuple = t->isa<TupleType>()) {
-        size_t n = tuple->args.size();
+bool TypeApp::equals(const Type* t) const {
+    if (auto app = t->isa<TypeApp>()) {
+        // Check that the types have the same name if they are nominally typed
+        if (typeid(*this) != typeid(*t) || name != app->name)
+            return false;
+
+        // Check that the arguments are the same
+        size_t n = app->args.size();
         if (n != args.size()) return false;
         for (size_t i = 0; i < n; i++) {
-            if (args[i] != tuple->args[i]) return false;
+            if (args[i] != app->args[i]) return false;
         }
         return true;
-    }
-    return false;
-}
-
-bool FunctionType::equals(const Type* t) const {
-    if (auto fn = t->isa<FunctionType>()) {
-        return fn->from() == from() && fn->to() == to();
     }
     return false;
 }
@@ -85,6 +99,10 @@ bool UnknownType::equals(const Type* t) const {
 
 bool ErrorType::equals(const Type*) const {
     return false;
+}
+
+const TypeApp* StructType::rebuild(TypeTable& table, Args&& new_args) const {
+    return table.struct_type(std::string(name), std::move(new_args));
 }
 
 const TypeApp* TupleType::rebuild(TypeTable& table, Args&& new_args) const {
@@ -186,6 +204,10 @@ size_t FunctionType::num_args() const {
 
 const PrimType* TypeTable::prim_type(PrimType::Tag tag) {
     return new_type<PrimType>(tag);
+}
+
+const StructType* TypeTable::struct_type(std::string&& name, std::vector<const Type*>&& args) {
+    return new_type<StructType>(std::move(name), std::move(args));
 }
 
 const TupleType* TypeTable::tuple_type(std::vector<const Type*>&& args) {

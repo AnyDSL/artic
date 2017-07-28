@@ -12,7 +12,7 @@ class Parser {
 public:
     Parser(Lexer&, TypeTable&);
 
-    Ptr<ast::Program>      parse_program();
+    Ptr<ast::Program>       parse_program();
 
 private:
     Ptr<ast::Decl>          parse_decl();

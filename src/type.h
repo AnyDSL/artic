@@ -68,8 +68,8 @@ struct Trait {
     std::string name;
     Members members;
 
-    Trait(const std::string& name, Members&& members)
-        : name(name), members(std::move(members))
+    Trait(std::string&& name, Members&& members)
+        : name(std::move(name)), members(std::move(members))
     {}
 };
 
@@ -95,10 +95,18 @@ struct PrimType : public Type {
 /// Type application (e.g. tuples, functions, ...).
 struct TypeApp : public Type {
     typedef std::vector<const Type*> Args;
+
+    std::string name;
     Args args;
 
+    /// Structural type constructor
     TypeApp(Args&& args)
         : args(std::move(args))
+    {}
+
+    /// Nominal type constructor
+    TypeApp(std::string&& name, Args&& args)
+        : name(std::move(name)), args(std::move(args))
     {}
 
     void update_rank(int rank) const override;
@@ -108,7 +116,26 @@ struct TypeApp : public Type {
     bool has_unknowns() const override;
     bool has_errors() const override;
 
+    bool is_nominal() const;
+
+    /// Rebuilds this type with different arguments.
     virtual const TypeApp* rebuild(TypeTable& table, Args&& new_args) const = 0;
+
+    bool equals(const Type* t) const override;
+};
+
+/// Structure type.
+struct StructType : public TypeApp {
+    using TypeApp::Args;
+
+    StructType(std::string&& name, Args&& args)
+        : TypeApp(std::move(name), std::move(args))
+    {}
+
+    const TypeApp* rebuild(TypeTable&, Args&&) const override;
+
+    uint32_t hash() const override;
+    void print(Printer&) const override;
 };
 
 /// Type of a tuple, made of the product of the types of its elements.
@@ -122,7 +149,6 @@ struct TupleType : public TypeApp {
     const TypeApp* rebuild(TypeTable&, Args&&) const override;
 
     uint32_t hash() const override;
-    bool equals(const Type* t) const override;
     void print(Printer&) const override;
 };
 
@@ -143,7 +169,6 @@ struct FunctionType : public TypeApp {
     const TypeApp* rebuild(TypeTable&, Args&&) const override;
 
     uint32_t hash() const override;
-    bool equals(const Type* t) const override;
     void print(Printer&) const override;
 };
 
@@ -258,6 +283,7 @@ public:
     }
 
     const PrimType*     prim_type(PrimType::Tag);
+    const StructType*   struct_type(std::string&&, std::vector<const Type*>&&);
     const TupleType*    tuple_type(std::vector<const Type*>&&);
     const TupleType*    unit_type();
     const FunctionType* function_type(const Type*, const Type*);

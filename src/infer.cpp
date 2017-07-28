@@ -1,3 +1,4 @@
+#include <typeinfo>
 #include "infer.h"
 #include "ast.h"
 #include "log.h"
@@ -38,7 +39,12 @@ const Type* TypeInference::unify(const Loc& loc, const Type* a, const Type* b) {
     // Unification for type constructors
     auto app_a = a->isa<TypeApp>();
     auto app_b = b->isa<TypeApp>();
-    if (app_a && app_b && typeid(app_a) == typeid(app_b) && app_a->args.size() == app_b->args.size()) {
+    if (app_a && app_b && typeid(*app_a) == typeid(*app_b) && app_a->args.size() == app_b->args.size()) {
+        if (app_a->name != app_b->name) {
+            log::error(loc, "incompatible nominal types '{}' and '{}'", a, b);
+            return type_table_.error_type(loc);
+        }
+
         auto n = app_a->args.size();
         std::vector<const Type*> args(n);
         for (size_t i = 0; i < n; i++) args[i] = unify(loc, app_a->args[i], app_b->args[i]);
@@ -329,14 +335,15 @@ const artic::Type* DefDecl::infer(TypeInference& ctx) const {
     return init_type ? ctx.generalize(loc, init_type, rank) : ctx.type(*this);
 }
 
-const artic::Type* FieldDecl::infer(TypeInference&) const {
-    // TODO
-    return nullptr;
+const artic::Type* FieldDecl::infer(TypeInference& ctx) const {
+    return ctx.infer(*type);
 }
 
-const artic::Type* StructDecl::infer(TypeInference&) const {
-    // TODO
-    return nullptr;
+const artic::Type* StructDecl::infer(TypeInference& ctx) const {
+    std::vector<const artic::Type*> args;
+    for (auto& field : fields)
+        args.emplace_back(ctx.infer(*field));
+    return ctx.type_table().struct_type(std::string(id.name), std::move(args));
 }
 
 const artic::Type* TraitDecl::infer(TypeInference&) const {

@@ -590,7 +590,7 @@ struct StructDecl : public NamedDecl {
         , types(std::move(types))
     {}
 
-    bool use_constructor() const { return !types.empty(); }
+    bool is_constructor() const { return !types.empty(); }
 
     const artic::Type* infer(TypeInference&) const override;
     void bind(NameBinder&) const override;

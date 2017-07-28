@@ -204,7 +204,7 @@ void FieldDecl::print(Printer& p) const {
 void StructDecl::print(Printer& p) const {
     p << keyword_style("struct") << ' ' << id.name;
     if (type_params) type_params->print(p);
-    if (use_constructor()) {
+    if (is_constructor()) {
         p << '(';
         print_list(p, ", ", types, [&] (auto& t) { t->print(p); });
         p << ')';
@@ -325,6 +325,10 @@ void Node::dump() const { std::cout << this << std::endl; }
 
 void PrimType::print(Printer& p) const {
     p << keyword_style(ast::PrimType::tag_to_string(ast::PrimType::Tag(tag)));
+}
+
+void StructType::print(Printer& p) const {
+    p << name;
 }
 
 void TupleType::print(Printer& p) const {
