@@ -329,7 +329,12 @@ const artic::Type* DefDecl::infer(TypeInference& ctx) const {
     return init_type ? ctx.generalize(loc, init_type, rank) : ctx.type(*this);
 }
 
-const artic::Type* TypeDecl::infer(TypeInference&) const {
+const artic::Type* FieldDecl::infer(TypeInference&) const {
+    // TODO
+    return nullptr;
+}
+
+const artic::Type* StructDecl::infer(TypeInference&) const {
     // TODO
     return nullptr;
 }
@@ -340,20 +345,6 @@ const artic::Type* TraitDecl::infer(TypeInference&) const {
 }
 
 const artic::Type* ErrorDecl::infer(TypeInference& ctx) const {
-    return ctx.type_table().error_type(loc);
-}
-
-const artic::Type* RecordCtor::infer(TypeInference&) const {
-    // TODO
-    return nullptr;
-}
-
-const artic::Type* OptionCtor::infer(TypeInference&) const {
-    // TODO
-    return nullptr;
-}
-
-const artic::Type* ErrorCtor::infer(TypeInference& ctx) const {
     return ctx.type_table().error_type(loc);
 }
 

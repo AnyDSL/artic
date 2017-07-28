@@ -196,11 +196,26 @@ void TypeParamList::print(Printer& p) const {
     }
 }
 
-void TypeDecl::print(Printer& p) const {
-    p << keyword_style("type") << ' ' << id.name;
+void FieldDecl::print(Printer& p) const {
+    p << id.name << " : ";
+    type->print(p);
+}
+
+void StructDecl::print(Printer& p) const {
+    p << keyword_style("struct") << ' ' << id.name;
     if (type_params) type_params->print(p);
-    p << " = ";
-    ctor->print(p);
+    if (use_constructor()) {
+        p << '(';
+        print_list(p, ", ", types, [&] (auto& t) { t->print(p); });
+        p << ')';
+    } else {
+        p << " {" << p.indent();
+        print_list(p, ',', fields, [&] (auto& f) {
+            p << p.endl();
+            f->print(p);
+        });
+        p << p.unindent() << p.endl() << '}';
+    }
 }
 
 void LocalDecl::print(Printer& p) const {
@@ -251,32 +266,6 @@ void TraitDecl::print(Printer& p) const {
 
 void ErrorDecl::print(Printer& p) const {
     p << error_style("<invalid declaration>");
-}
-
-void RecordCtor::print(Printer& p) const {
-    p << id.name;
-    if (!args.empty()) {
-        p << '(';
-        print_list(p, ", ", args, [&] (auto& arg) {
-            arg->print(p);
-        });
-        p << ')';
-    }
-}
-
-void OptionCtor::print(Printer& p) const {
-    if (!options.empty()) {
-        p << '{' << p.indent();
-        print_list(p, ",", options, [&] (auto& option) {
-            p << p.endl();
-            option->print(p);
-        });
-        p << p.unindent() << p.endl() << '}';
-    }
-}
-
-void ErrorCtor::print(Printer& p) const {
-    p << error_style("<invalid constructor>");
 }
 
 void Program::print(Printer& p) const {

@@ -165,11 +165,16 @@ void DefDecl::bind(NameBinder& ctx) const {
     ctx.pop_scope();
 }
 
-void TypeDecl::bind(NameBinder& ctx) const {
+void FieldDecl::bind(NameBinder& ctx) const {
+    ctx.insert_symbol(*this);
+}
+
+void StructDecl::bind(NameBinder& ctx) const {
     ctx.insert_symbol(*this);
     ctx.push_scope();
     ctx.bind(*type_params);
-    ctx.bind(*ctor);
+    for (auto& field : fields) ctx.bind(*field);
+    for (auto& type  : types)  ctx.bind(*type);
     ctx.pop_scope();
 }
 
@@ -178,18 +183,6 @@ void TraitDecl::bind(NameBinder& ctx) const {
 }
 
 void ErrorDecl::bind(NameBinder&) const {}
-
-void RecordCtor::bind(NameBinder& ctx) const {
-    for (auto& arg : args) ctx.bind(*arg);
-}
-
-void OptionCtor::bind(NameBinder& ctx) const {
-    ctx.push_scope();
-    for (auto& option : options) ctx.bind(*option);
-    ctx.pop_scope();
-}
-
-void ErrorCtor::bind(NameBinder&) const {}
 
 void Program::bind(NameBinder& ctx) const {
     for (auto& decl : decls) ctx.bind(*decl);

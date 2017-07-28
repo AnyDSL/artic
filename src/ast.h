@@ -100,11 +100,6 @@ struct Decl : public Node {
     Decl(const Loc& loc) : Node(loc) {}
 };
 
-/// Base class for all type constructors.
-struct TypeCtor : public Node {
-    TypeCtor(const Loc& loc) : Node(loc) {}
-};
-
 /// Base class for types.
 struct Type : public Node {
     Type(const Loc& loc) : Node(loc) {}
@@ -561,19 +556,41 @@ struct DefDecl : public NamedDecl {
     void print(Printer&) const override;
 };
 
-/// Base class for type declarations.
-struct TypeDecl : public NamedDecl {
-    Ptr<TypeParamList> type_params;
-    Ptr<TypeCtor> ctor;
+/// Structure field declaration.
+struct FieldDecl : public NamedDecl {
+    Ptr<Type> type;
 
-    TypeDecl(const Loc& loc,
-             Identifier&& id,
-             Ptr<TypeParamList>&& type_params,
-             Ptr<TypeCtor> ctor)
+    FieldDecl(const Loc& loc,
+              Identifier&& id,
+              Ptr<Type>&& type)
+        : NamedDecl(loc, std::move(id))
+        , type(std::move(type))
+    {}
+
+    const artic::Type* infer(TypeInference&) const override;
+    void bind(NameBinder&) const override;
+    void check(TypeChecker&) const override;
+    void print(Printer&) const override;
+};
+
+/// Structure type declarations.
+struct StructDecl : public NamedDecl {
+    Ptr<TypeParamList> type_params;
+    PtrVector<FieldDecl> fields;
+    PtrVector<Type> types;
+
+    StructDecl(const Loc& loc,
+               Identifier&& id,
+               Ptr<TypeParamList>&& type_params,
+               PtrVector<FieldDecl>&& fields,
+               PtrVector<Type>&& types)
         : NamedDecl(loc, std::move(id))
         , type_params(std::move(type_params))
-        , ctor(std::move(ctor))
+        , fields(std::move(fields))
+        , types(std::move(types))
     {}
+
+    bool use_constructor() const { return !types.empty(); }
 
     const artic::Type* infer(TypeInference&) const override;
     void bind(NameBinder&) const override;
@@ -604,52 +621,6 @@ struct TraitDecl : public NamedDecl {
 /// Incorrect declaration, coming from parsing.
 struct ErrorDecl : public Decl {
     ErrorDecl(const Loc& loc) : Decl(loc) {}
-
-    const artic::Type* infer(TypeInference&) const override;
-    void bind(NameBinder&) const override;
-    void check(TypeChecker&) const override;
-    void print(Printer&) const override;
-};
-
-// Type Constructors ---------------------------------------------------------------
-
-/// Record type constructor.
-struct RecordCtor : public TypeCtor {
-    Identifier id;
-    PtrVector<Type> args;
-
-    RecordCtor(const Loc& loc,
-               Identifier&& id,
-               PtrVector<Type>&& args)
-        : TypeCtor(loc)
-        , id(std::move(id))
-        , args(std::move(args))
-    {}
-
-    const artic::Type* infer(TypeInference&) const override;
-    void bind(NameBinder&) const override;
-    void check(TypeChecker&) const override;
-    void print(Printer&) const override;
-};
-
-/// Option type constructor.
-struct OptionCtor : public TypeCtor {
-    PtrVector<RecordCtor> options;
-
-    OptionCtor(const Loc& loc, PtrVector<RecordCtor>&& options)
-        : TypeCtor(loc)
-        , options(std::move(options))
-    {}
-
-    const artic::Type* infer(TypeInference&) const override;
-    void bind(NameBinder&) const override;
-    void check(TypeChecker&) const override;
-    void print(Printer&) const override;
-};
-
-/// Incorrect type constructor, as a result of parsing.
-struct ErrorCtor : public TypeCtor {
-    ErrorCtor(const Loc& loc) : TypeCtor(loc) {}
 
     const artic::Type* infer(TypeInference&) const override;
     void bind(NameBinder&) const override;

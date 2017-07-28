@@ -140,9 +140,12 @@ void DefDecl::check(TypeChecker& ctx) const {
     }
 }
 
-void TypeDecl::check(TypeChecker& ctx) const {
+void FieldDecl::check(TypeChecker&) const {}
+
+void StructDecl::check(TypeChecker& ctx) const {
     type_params->check(ctx);
-    ctor->check(ctx);
+    for (auto& field : fields) field->check(ctx);
+    for (auto& type  : types)  type->check(ctx);
 }
 
 void TraitDecl::check(TypeChecker&) const {
@@ -150,16 +153,6 @@ void TraitDecl::check(TypeChecker&) const {
 }
 
 void ErrorDecl::check(TypeChecker&) const {}
-
-void RecordCtor::check(TypeChecker& ctx) const {
-    for (auto& arg : args) arg->check(ctx);
-}
-
-void OptionCtor::check(TypeChecker& ctx) const {
-    for (auto& option : options) option->check(ctx);
-}
-
-void ErrorCtor::check(TypeChecker&) const {}
 
 void Program::check(TypeChecker& ctx) const {
     for (auto& decl : decls) decl->check(ctx);
