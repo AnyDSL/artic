@@ -152,9 +152,8 @@ void DefDecl::check(TypeChecker& ctx) const {
 void FieldDecl::check(TypeChecker&) const {}
 
 void StructDecl::check(TypeChecker& ctx) const {
-    type_params->check(ctx);
+    if (type_params) type_params->check(ctx);
     for (auto& field : fields) field->check(ctx);
-    for (auto& type  : types)  type->check(ctx);
 }
 
 void TraitDecl::check(TypeChecker&) const {

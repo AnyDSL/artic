@@ -14,6 +14,11 @@ const Type* Type::inner() const {
     return this;
 }
 
+size_t Type::num_vars() const {
+    if (auto poly = isa<PolyType>()) return poly->vars;
+    return 0;
+}
+
 bool TypeApp::is_nominal() const {
     return name != "";
 }
@@ -240,7 +245,7 @@ const FunctionType* TypeTable::function_type(const Type* from, const Type* to) {
     return new_type<FunctionType>(from, to);
 }
 
-const PolyType* TypeTable::poly_type(size_t vars, const Type* body, std::unordered_set<const Trait*>&& traits) {
+const PolyType* TypeTable::poly_type(size_t vars, const Type* body, PolyType::Traits&& traits) {
     return new_type<PolyType>(vars, body, std::move(traits));
 }
 
@@ -252,7 +257,7 @@ const ErrorType* TypeTable::error_type(const Loc& loc) {
     return new_type<ErrorType>(loc);
 }
 
-const UnknownType* TypeTable::unknown_type(int rank, std::unordered_set<const Trait*>&& traits) {
+const UnknownType* TypeTable::unknown_type(int rank, UnknownType::Traits&& traits) {
     unknowns_.emplace_back(new UnknownType(unknowns_.size(), rank, std::move(traits)));
     return unknowns_.back();
 }

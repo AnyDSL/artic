@@ -25,6 +25,8 @@ struct Type : public Cast<Type> {
     bool is_tuple() const;
     /// Returns the body of a polymorphic type, or the type itself if it is not polymorphic.
     const Type* inner() const;
+    /// Returns the number of polymorphic variables in this type.
+    size_t num_vars() const;
 
     /// Updates the rank of the unknowns contained in the type.
     virtual void update_rank(int) const {}
@@ -135,8 +137,6 @@ struct StructType : public TypeApp {
         : TypeApp(std::move(name), std::move(args)), members(std::move(members))
     {}
 
-    bool is_constructor() const { return members.empty(); }
-
     const TypeApp* rebuild(TypeTable&, Args&&) const override;
 
     uint32_t hash() const override;
@@ -179,15 +179,18 @@ struct FunctionType : public TypeApp {
 
 /// Polymorphic type with possibly several variables and a set of constraints.
 struct PolyType : public Type {
+    typedef std::unordered_set<const Trait*> Traits;
+
     /// Number of type variables in this polymorphic type.
     size_t vars;
-    /// Body of this polymorphic type.
+
+    /// Body of this polymorphic type
     const Type* body;
 
     /// Type traits attached to this polymorphic type.
-    std::unordered_set<const Trait*> traits;
+    Traits traits;
 
-    PolyType(size_t vars, const Type* body, std::unordered_set<const Trait*>&& traits)
+    PolyType(size_t vars, const Type* body, Traits&& traits)
         : vars(vars), body(body), traits(std::move(traits))
     {}
 
@@ -218,6 +221,8 @@ struct TypeVar : public Type {
 
 /// Unknown type in a set of type equations.
 struct UnknownType : public Type {
+    typedef std::unordered_set<const Trait*> Traits;
+
     /// Number that will be displayed when printing this type.
     int number;
 
@@ -231,9 +236,9 @@ struct UnknownType : public Type {
 
     /// Set of traits attached to this unknown. When this unknown will
     /// be generalized, they will be attached to the polymorphic type.
-    mutable std::unordered_set<const Trait*> traits;
+    mutable Traits traits;
 
-    UnknownType(int number, int rank, std::unordered_set<const Trait*>&& traits)
+    UnknownType(int number, int rank, Traits&& traits)
         : number(number), rank(rank), traits(traits)
     {}
 
@@ -292,10 +297,10 @@ public:
     const TupleType*    tuple_type(TupleType::Args&&);
     const TupleType*    unit_type();
     const FunctionType* function_type(const Type*, const Type*);
-    const PolyType*     poly_type(size_t, const Type*, std::unordered_set<const Trait*>&&);
+    const PolyType*     poly_type(size_t, const Type*, PolyType::Traits&&);
     const TypeVar*      type_var(int);
     const ErrorType*    error_type(const Loc&);
-    const UnknownType*  unknown_type(int rank = UnknownType::max_rank(), std::unordered_set<const Trait*>&& traits = std::unordered_set<const Trait*>());
+    const UnknownType*  unknown_type(int rank = UnknownType::max_rank(), UnknownType::Traits&& traits = UnknownType::Traits());
 
     const TypeSet& types() const { return types_; }
     const std::vector<const UnknownType*>& unknowns() const { return unknowns_; }

@@ -615,20 +615,15 @@ struct FieldDecl : public NamedDecl {
 struct StructDecl : public NamedDecl {
     Ptr<TypeParamList> type_params;
     PtrVector<FieldDecl> fields;
-    PtrVector<Type> types;
 
     StructDecl(const Loc& loc,
                Identifier&& id,
                Ptr<TypeParamList>&& type_params,
-               PtrVector<FieldDecl>&& fields,
-               PtrVector<Type>&& types)
+               PtrVector<FieldDecl>&& fields)
         : NamedDecl(loc, std::move(id))
         , type_params(std::move(type_params))
         , fields(std::move(fields))
-        , types(std::move(types))
     {}
-
-    bool is_constructor() const { return !types.empty(); }
 
     const artic::Type* infer(TypeInference&) const override;
     void bind(NameBinder&) const override;

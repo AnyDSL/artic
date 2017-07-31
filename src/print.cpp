@@ -74,17 +74,17 @@ void LiteralExpr::print(Printer& p) const {
 }
 
 void FieldExpr::print(Printer& p) const {
-    p << id.name << ": ";
+    p << id.name << " : ";
     expr->print(p);
 }
 
 void StructExpr::print(Printer& p) const {
     expr->print(p);
-    p << '{';
+    p << " { ";
     print_list(p, ", ", fields, [&] (auto& f) {
         f->print(p);
     });
-    p << '}';
+    p << " }";
 }
 
 void TupleExpr::print(Printer& p) const {
@@ -220,18 +220,12 @@ void FieldDecl::print(Printer& p) const {
 void StructDecl::print(Printer& p) const {
     p << keyword_style("struct") << ' ' << id.name;
     if (type_params) type_params->print(p);
-    if (is_constructor()) {
-        p << '(';
-        print_list(p, ", ", types, [&] (auto& t) { t->print(p); });
-        p << ')';
-    } else {
-        p << " {" << p.indent();
-        print_list(p, ',', fields, [&] (auto& f) {
-            p << p.endl();
-            f->print(p);
-        });
-        p << p.unindent() << p.endl() << '}';
-    }
+    p << " {" << p.indent();
+    print_list(p, ',', fields, [&] (auto& f) {
+        p << p.endl();
+        f->print(p);
+    });
+    p << p.unindent() << p.endl() << '}';
 }
 
 void LocalDecl::print(Printer& p) const {
@@ -347,6 +341,13 @@ void PrimType::print(Printer& p) const {
 
 void StructType::print(Printer& p) const {
     p << name;
+    p << " { ";
+    for (size_t i = 0, n = args.size(); i < n; i++) {
+        p << members[i] << " : ";
+        args[i]->print(p);
+        if (i != n - 1) p << ", ";
+    }
+    p << " }";
 }
 
 void TupleType::print(Printer& p) const {

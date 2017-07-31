@@ -217,13 +217,30 @@ const artic::Type* FieldExpr::infer(TypeInference& ctx) const {
 }
 
 const artic::Type* StructExpr::infer(TypeInference& ctx) const {
-    auto struct_type = ctx.infer(*expr)->isa<StructType>();
-
-    std::vector<const artic::Type*> args;
-    for (auto& field : fields)
-        args.emplace_back(ctx.infer(*field));
-
+    auto struct_type = ctx.infer(*expr, ctx.type(*this))->isa<StructType>();
     if (!struct_type) return ctx.type(*this);
+
+
+    // Build the structure arguments
+    std::vector<const artic::Type*> args(struct_type->args.size(), nullptr);
+    auto& members = struct_type->members;
+
+    for (auto& field : fields) {
+        auto index = std::find(members.begin(), members.end(), field->id.name);
+        if (index == members.end()) {
+            log::error(loc, "'{}' is not a member of '{}'", field->id.name, struct_type->name);
+            return ctx.type_table().error_type(loc);
+        }
+        args[index - members.begin()] = ctx.infer(*field);
+    }
+
+    // Make sure all fields are set
+    auto not_set = std::find(args.begin(), args.end(), nullptr);
+    if (not_set != args.end()) {
+        log::error(loc, "missing initializer for structure field '{}'", members[not_set - args.begin()]);
+        return ctx.type_table().error_type(loc);
+    }
+
     return struct_type->rebuild(ctx.type_table(), std::move(args));
 }
 
@@ -355,20 +372,18 @@ const artic::Type* FieldDecl::infer(TypeInference& ctx) const {
 }
 
 const artic::Type* StructDecl::infer(TypeInference& ctx) const {
-    std::vector<const artic::Type*> args;
-    std::vector<std::string> members;
-    if (is_constructor()) {
-        for (auto& type : types) args.emplace_back(ctx.infer(*type));
-    } else {
-        for (auto& field : fields) {
-            args.emplace_back(ctx.infer(*field));
-            members.emplace_back(field->id.name);
-        }
-    }
-
-    auto struct_type = ctx.type_table().struct_type(std::string(id.name), std::move(args), std::move(members));
+    // Infer type parameters first, otherwise the type
+    // variables are not bound when visiting fields/arguments
     auto poly_type = type_params ? ctx.infer(*type_params) : nullptr;
 
+    std::vector<const artic::Type*> args;
+    std::vector<std::string> members;
+    for (auto& field : fields) {
+        args.emplace_back(ctx.infer(*field));
+        members.emplace_back(field->id.name);
+    }
+
+    auto struct_type = ctx.type_table().struct_type(std::string(id.name), StructType::Args(args), std::move(members));
     return poly_type ? ctx.unify(loc, poly_type, struct_type) : struct_type;
 }
 

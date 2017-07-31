@@ -182,9 +182,8 @@ void FieldDecl::bind(NameBinder& ctx) const {
 void StructDecl::bind(NameBinder& ctx) const {
     ctx.insert_symbol(*this);
     ctx.push_scope();
-    ctx.bind(*type_params);
+    if (type_params) ctx.bind(*type_params);
     for (auto& field : fields) ctx.bind(*field);
-    for (auto& type  : types)  ctx.bind(*type);
     ctx.pop_scope();
 }
 
