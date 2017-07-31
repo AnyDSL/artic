@@ -48,6 +48,8 @@ inline void print_path(Printer& p, const ast::Path& path) {
     });
 }
 
+// AST nodes -----------------------------------------------------------------------
+
 namespace ast {
 
 void TypedExpr::print(Printer& p) const {
@@ -69,6 +71,20 @@ void PathExpr::print(Printer& p) const {
 
 void LiteralExpr::print(Printer& p) const {
     p << std::showpoint << literal_style(lit.box);
+}
+
+void FieldExpr::print(Printer& p) const {
+    p << id.name << ": ";
+    expr->print(p);
+}
+
+void StructExpr::print(Printer& p) const {
+    expr->print(p);
+    p << '{';
+    print_list(p, ", ", fields, [&] (auto& f) {
+        f->print(p);
+    });
+    p << '}';
 }
 
 void TupleExpr::print(Printer& p) const {
@@ -323,6 +339,8 @@ void Node::dump() const { std::cout << this << std::endl; }
 
 } // namespace ast
 
+// Types ---------------------------------------------------------------------------
+
 void PrimType::print(Printer& p) const {
     p << keyword_style(ast::PrimType::tag_to_string(ast::PrimType::Tag(tag)));
 }
@@ -352,10 +370,12 @@ void FunctionType::print(Printer& p) const {
 }
 
 void PolyType::print(Printer& p) const {
+    bool body_first = body->isa<StructType>();
+    if (body_first) body->print(p);
     p << '[';
     print_vars(p, vars, traits);
     p << ']';
-    body->print(p);
+    if (!body_first) body->print(p);
 }
 
 void TypeVar::print(Printer& p) const {

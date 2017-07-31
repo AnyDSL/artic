@@ -126,11 +126,16 @@ struct TypeApp : public Type {
 
 /// Structure type.
 struct StructType : public TypeApp {
+    typedef std::vector<std::string> Members;
     using TypeApp::Args;
 
-    StructType(std::string&& name, Args&& args)
-        : TypeApp(std::move(name), std::move(args))
+    Members members;
+
+    StructType(std::string&& name, Args&& args, Members&& members)
+        : TypeApp(std::move(name), std::move(args)), members(std::move(members))
     {}
+
+    bool is_constructor() const { return members.empty(); }
 
     const TypeApp* rebuild(TypeTable&, Args&&) const override;
 
@@ -283,8 +288,8 @@ public:
     }
 
     const PrimType*     prim_type(PrimType::Tag);
-    const StructType*   struct_type(std::string&&, std::vector<const Type*>&&);
-    const TupleType*    tuple_type(std::vector<const Type*>&&);
+    const StructType*   struct_type(std::string&&, StructType::Args&&, StructType::Members&&);
+    const TupleType*    tuple_type(TupleType::Args&&);
     const TupleType*    unit_type();
     const FunctionType* function_type(const Type*, const Type*);
     const PolyType*     poly_type(size_t, const Type*, std::unordered_set<const Trait*>&&);

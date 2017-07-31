@@ -10,7 +10,7 @@
 
 namespace artic {
 
-/// Utility class to print AST nodes in a human readable form.
+/// Utility class to print AST nodes and types in a human readable form.
 struct Printer {
     struct Endl {};
     struct Indent {};

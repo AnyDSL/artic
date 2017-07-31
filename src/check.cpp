@@ -43,6 +43,15 @@ void PathExpr::check(TypeChecker& ctx) const {
 
 void LiteralExpr::check(TypeChecker&) const {}
 
+void FieldExpr::check(TypeChecker& ctx) const {
+    expr->check(ctx);
+}
+
+void StructExpr::check(TypeChecker& ctx) const {
+    expr->check(ctx);
+    for (auto& field : fields) field->check(ctx);
+}
+
 void TupleExpr::check(TypeChecker& ctx) const {
     for (auto& arg : args) arg->check(ctx);
 }

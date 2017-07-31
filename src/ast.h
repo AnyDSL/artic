@@ -257,6 +257,44 @@ struct LiteralExpr : public Expr {
     void print(Printer&) const override;
 };
 
+/// Field expression, part of a structure expression.
+struct FieldExpr : public Expr {
+    Identifier id;
+    Ptr<Expr> expr;
+
+    FieldExpr(const Loc& loc,
+              Identifier&& id,
+              Ptr<Expr>&& expr)
+        : Expr(loc)
+        , id(std::move(id))
+        , expr(std::move(expr))
+    {}
+
+    const artic::Type* infer(TypeInference&) const override;
+    void bind(NameBinder&) const override;
+    void check(TypeChecker&) const override;
+    void print(Printer&) const override;
+};
+
+/// Structure expression.
+struct StructExpr : public Expr {
+    Ptr<Expr> expr;
+    PtrVector<FieldExpr> fields;
+
+    StructExpr(const Loc& loc,
+               Ptr<Expr>&& expr,
+               PtrVector<FieldExpr>&& fields)
+        : Expr(loc)
+        , expr(std::move(expr))
+        , fields(std::move(fields))
+    {}
+
+    const artic::Type* infer(TypeInference&) const override;
+    void bind(NameBinder&) const override;
+    void check(TypeChecker&) const override;
+    void print(Printer&) const override;
+};
+
 /// Expression enclosed by parenthesis and made of several expressions separated by commas.
 struct TupleExpr : public Expr {
     PtrVector<Expr> args;

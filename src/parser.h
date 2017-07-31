@@ -36,6 +36,8 @@ private:
     Ptr<ast::Expr>          parse_typed_expr(Ptr<ast::Expr>&&);
     Ptr<ast::PathExpr>      parse_path_expr();
     Ptr<ast::LiteralExpr>   parse_literal_expr();
+    Ptr<ast::FieldExpr>     parse_field_expr();
+    Ptr<ast::StructExpr>    parse_struct_expr(Ptr<ast::Expr>&&);
     Ptr<ast::Expr>          parse_tuple_expr();
     Ptr<ast::BlockExpr>     parse_block_expr();
     Ptr<ast::DeclExpr>      parse_decl_expr();

@@ -72,6 +72,15 @@ void PathExpr::bind(NameBinder& ctx) const {
 
 void LiteralExpr::bind(NameBinder&) const {}
 
+void FieldExpr::bind(NameBinder& ctx) const {
+    ctx.bind(*expr);
+}
+
+void StructExpr::bind(NameBinder& ctx) const {
+    ctx.bind(*expr);
+    for (auto& field : fields) ctx.bind(*field);
+}
+
 void TupleExpr::bind(NameBinder& ctx) const {
     for (auto& arg : args) ctx.bind(*arg);
 }
@@ -167,6 +176,7 @@ void DefDecl::bind(NameBinder& ctx) const {
 
 void FieldDecl::bind(NameBinder& ctx) const {
     ctx.insert_symbol(*this);
+    ctx.bind(*type);
 }
 
 void StructDecl::bind(NameBinder& ctx) const {

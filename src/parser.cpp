@@ -104,7 +104,6 @@ Ptr<ast::StructDecl> Parser::parse_struct_decl() {
     if (ahead().tag() == Token::L_BRACE) {
         // Structure form
         eat(Token::L_BRACE);
-        eat_nl();
         parse_list(Token::R_BRACE, Token::COMMA, [&] {
             eat_nl();
             fields.emplace_back(parse_field_decl());
@@ -113,7 +112,6 @@ Ptr<ast::StructDecl> Parser::parse_struct_decl() {
     } else if (ahead().tag() == Token::L_PAREN) {
         // Constructor form
         eat(Token::L_PAREN);
-        eat_nl();
         parse_list(Token::R_PAREN, Token::COMMA, [&] {
             eat_nl();
             types.emplace_back(parse_type());
@@ -171,7 +169,7 @@ Ptr<ast::TypeParamList> Parser::parse_type_params() {
 
 Ptr<ast::ErrorDecl> Parser::parse_error_decl() {
     Tracker tracker(this);
-    log::error(ahead().loc(), "expected declaration, got '{}'", ahead().string());
+    log::error(ahead().loc(), "expected declaration, but got '{}'", ahead().string());
     next();
     return make_ptr<ast::ErrorDecl>(tracker());
 }
@@ -225,7 +223,7 @@ Ptr<ast::Ptrn> Parser::parse_tuple_ptrn() {
 
 Ptr<ast::ErrorPtrn> Parser::parse_error_ptrn() {
     Tracker tracker(this);
-    log::error(ahead().loc(), "expected pattern, got '{}'", ahead().string());
+    log::error(ahead().loc(), "expected pattern, but got '{}'", ahead().string());
     next();
     return make_ptr<ast::ErrorPtrn>(tracker());
 }
@@ -266,6 +264,26 @@ Ptr<ast::LiteralExpr> Parser::parse_literal_expr() {
     Tracker tracker(this);
     auto lit = parse_lit();
     return make_ptr<ast::LiteralExpr>(tracker(), lit);
+}
+
+Ptr<ast::FieldExpr> Parser::parse_field_expr() {
+    Tracker tracker(this);
+    auto id = parse_id();
+    expect(Token::COLON);
+    auto expr = parse_expr();
+    return make_ptr<ast::FieldExpr>(tracker(), std::move(id), std::move(expr));
+}
+
+Ptr<ast::StructExpr> Parser::parse_struct_expr(Ptr<Expr>&& expr) {
+    Tracker tracker(this);
+    eat(Token::L_BRACE);
+    PtrVector<ast::FieldExpr> fields;
+    parse_list(Token::R_BRACE, Token::COMMA, [&] {
+        eat_nl();
+        fields.emplace_back(parse_field_expr());
+        eat_nl();
+    });
+    return make_ptr<ast::StructExpr>(tracker(), std::move(expr), std::move(fields));
 }
 
 Ptr<ast::Expr> Parser::parse_tuple_expr() {
@@ -358,6 +376,8 @@ Ptr<ast::Expr> Parser::parse_primary_expr() {
         expr = std::move(parse_lambda_expr(std::move(expr)));
     if (ahead().tag() == Token::INC || ahead().tag() == Token::DEC)
         expr = std::move(parse_postfix_expr(std::move(expr)));
+    if (ahead().tag() == Token::L_BRACE)
+        expr = std::move(parse_struct_expr(std::move(expr)));
     while (ahead().tag() == Token::L_PAREN)
         expr = std::move(parse_call_expr(std::move(expr)));
     return parse_typed_expr(std::move(expr));
@@ -404,7 +424,7 @@ Ptr<ast::Expr> Parser::parse_binary_expr(Ptr<ast::Expr>&& left, int max_prec) {
 
 Ptr<ast::ErrorExpr> Parser::parse_error_expr() {
     Tracker tracker(this);
-    log::error(ahead().loc(), "expected expression, got '{}'", ahead().string());
+    log::error(ahead().loc(), "expected expression, but got '{}'", ahead().string());
     next();
     return make_ptr<ast::ErrorExpr>(tracker());
 }
@@ -473,7 +493,7 @@ Ptr<ast::TypeApp> Parser::parse_type_app() {
 
 Ptr<ast::ErrorType> Parser::parse_error_type() {
     Tracker tracker(this);
-    log::error(ahead().loc(), "expected type, got '{}'", ahead().string());
+    log::error(ahead().loc(), "expected type, but got '{}'", ahead().string());
     next();
     return make_ptr<ast::ErrorType>(tracker());
 }
@@ -496,7 +516,7 @@ ast::Identifier Parser::parse_id() {
     if (ahead().is_identifier())
         ident = ahead().identifier();
     else
-        log::error(ahead().loc(), "expected identifier, got '{}'", ahead().string());
+        log::error(ahead().loc(), "expected identifier, but got '{}'", ahead().string());
     next();
     return Identifier(tracker(), std::move(ident));
 }
@@ -504,7 +524,7 @@ ast::Identifier Parser::parse_id() {
 Literal Parser::parse_lit() {
     Literal lit;
     if (!ahead().is_literal())
-        log::error(ahead().loc(), "expected literal, got '{}'", ahead().string());
+        log::error(ahead().loc(), "expected literal, but got '{}'", ahead().string());
     else
         lit = ahead().literal();
     next();
@@ -528,7 +548,7 @@ Ptr<ast::Ptrn> Parser::expr_to_ptrn(Ptr<ast::Expr>&& expr) {
         for (auto& arg : tuple->args) args.emplace_back(expr_to_ptrn(std::move(arg)));
         return make_ptr<ast::TuplePtrn>(expr->loc, std::move(args));
     }
-    log::error(expr->loc, "pattern expected, got '{}'", expr.get());
+    log::error(expr->loc, "pattern expected, but got '{}'", expr.get());
     return make_ptr<ast::ErrorPtrn>(expr->loc);
 }
 

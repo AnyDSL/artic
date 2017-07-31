@@ -212,6 +212,21 @@ const artic::Type* LiteralExpr::infer(TypeInference& ctx) const {
     return ctx.type(*this);
 }
 
+const artic::Type* FieldExpr::infer(TypeInference& ctx) const {
+    return ctx.infer(*expr);
+}
+
+const artic::Type* StructExpr::infer(TypeInference& ctx) const {
+    auto struct_type = ctx.infer(*expr)->isa<StructType>();
+
+    std::vector<const artic::Type*> args;
+    for (auto& field : fields)
+        args.emplace_back(ctx.infer(*field));
+
+    if (!struct_type) return ctx.type(*this);
+    return struct_type->rebuild(ctx.type_table(), std::move(args));
+}
+
 const artic::Type* TupleExpr::infer(TypeInference& ctx) const {
     std::vector<const artic::Type*> type_args;
     for (auto& arg : args) type_args.emplace_back(ctx.infer(*arg));
@@ -313,9 +328,9 @@ const artic::Type* VarDecl::infer(TypeInference& ctx) const {
 }
 
 const artic::Type* DefDecl::infer(TypeInference& ctx) const {
-    const artic::Type* poly_type = type_params ? ctx.infer(*type_params) : nullptr;
-    const artic::Type* init_type = nullptr;
+    auto poly_type = type_params ? ctx.infer(*type_params) : nullptr;
 
+    const artic::Type* init_type = nullptr;
     if (lambda->body && lambda->param) {
         init_type = ctx.infer(*lambda);
         // If a return type is present, unify it with the return type of the function
@@ -341,9 +356,20 @@ const artic::Type* FieldDecl::infer(TypeInference& ctx) const {
 
 const artic::Type* StructDecl::infer(TypeInference& ctx) const {
     std::vector<const artic::Type*> args;
-    for (auto& field : fields)
-        args.emplace_back(ctx.infer(*field));
-    return ctx.type_table().struct_type(std::string(id.name), std::move(args));
+    std::vector<std::string> members;
+    if (is_constructor()) {
+        for (auto& type : types) args.emplace_back(ctx.infer(*type));
+    } else {
+        for (auto& field : fields) {
+            args.emplace_back(ctx.infer(*field));
+            members.emplace_back(field->id.name);
+        }
+    }
+
+    auto struct_type = ctx.type_table().struct_type(std::string(id.name), std::move(args), std::move(members));
+    auto poly_type = type_params ? ctx.infer(*type_params) : nullptr;
+
+    return poly_type ? ctx.unify(loc, poly_type, struct_type) : struct_type;
 }
 
 const artic::Type* TraitDecl::infer(TypeInference&) const {
