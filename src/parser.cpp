@@ -1,3 +1,4 @@
+#include <algorithm>
 #include "parser.h"
 #include "print.h"
 
@@ -167,7 +168,18 @@ Ptr<ast::ErrorDecl> Parser::parse_error_decl() {
 Ptr<ast::Ptrn> Parser::parse_ptrn() {
     Ptr<ast::Ptrn> ptrn;
     switch (ahead().tag()) {
-        case Token::ID:      ptrn = std::move(parse_id_ptrn());      break;
+        case Token::ID:
+            {
+                auto id = parse_id();
+                if (ahead().tag() == Token::DOT ||
+                    ahead().tag() == Token::L_BRACKET ||
+                    ahead().tag() == Token::L_BRACE) {
+                    ptrn = std::move(parse_struct_ptrn(std::move(id)));
+                } else {
+                    ptrn = std::move(parse_id_ptrn(std::move(id)));
+                }
+            }
+            break;
         case Token::L_PAREN: ptrn = std::move(parse_tuple_ptrn());   break;
         case Token::LIT:     ptrn = std::move(parse_literal_ptrn()); break;
         default:             ptrn = std::move(parse_error_ptrn());   break;
@@ -185,9 +197,8 @@ Ptr<ast::Ptrn> Parser::parse_typed_ptrn(Ptr<ast::Ptrn>&& ptrn) {
     return std::move(ptrn);
 }
 
-Ptr<ast::IdPtrn> Parser::parse_id_ptrn() {
-    Tracker tracker(this);
-    auto id = parse_id();
+Ptr<ast::IdPtrn> Parser::parse_id_ptrn(Identifier&& id) {
+    Tracker tracker(this, id.loc);
     return make_ptr<ast::IdPtrn>(tracker(), make_ptr<ast::LocalDecl>(tracker(), std::move(id)));
 }
 
@@ -195,6 +206,55 @@ Ptr<ast::LiteralPtrn> Parser::parse_literal_ptrn() {
     Tracker tracker(this);
     auto lit = parse_lit();
     return make_ptr<ast::LiteralPtrn>(tracker(), lit);
+}
+
+Ptr<ast::FieldPtrn> Parser::parse_field_ptrn() {
+    Tracker tracker(this);
+    Identifier id;
+    Ptr<ast::Ptrn> ptrn;
+    if (ahead().tag() == Token::DOTS) {
+        id.name = "...";
+        id.loc = ahead().loc();
+        eat(Token::DOTS);
+    } else {
+        id = std::move(parse_id());
+        expect(Token::COLON);
+        ptrn = std::move(parse_ptrn());
+    }
+    return make_ptr<ast::FieldPtrn>(tracker(), std::move(id), std::move(ptrn));
+}
+
+Ptr<ast::StructPtrn> Parser::parse_struct_ptrn(Identifier&& id) {
+    Tracker tracker(this, id.loc);
+    Path path(std::move(id));
+    if (ahead().tag() == Token::DOT) {
+        eat(Token::DOT);
+        auto next = parse_path();
+        path.concat(next);
+    }
+
+    PtrVector<ast::Type> args;
+    if (ahead().tag() == Token::L_BRACKET) {
+        eat(Token::L_BRACKET);
+        parse_list(Token::R_BRACKET, Token::COMMA, [&] {
+            eat_nl();
+            args.emplace_back(parse_type());
+            eat_nl();
+        });
+    }
+
+    expect(Token::L_BRACE);
+    PtrVector<ast::FieldPtrn> fields;
+    parse_list(Token::R_BRACE, Token::COMMA, [&] {
+        fields.emplace_back(parse_field_ptrn());
+    });
+
+    // Make sure the ... sign appears only as the last field of the pattern
+    auto etc = std::find_if(fields.begin(), fields.end(), [] (auto& field) { return field->is_etc(); });
+    if (etc != fields.end() && etc != fields.end() - 1)
+        log::error(ahead().loc(), "'...' can only be used at the end of a structure pattern"); 
+
+    return make_ptr<ast::StructPtrn>(tracker(), std::move(path), std::move(args), std::move(fields));
 }
 
 Ptr<ast::Ptrn> Parser::parse_tuple_ptrn() {

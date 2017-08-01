@@ -1,4 +1,5 @@
 #include <typeinfo>
+#include <algorithm>
 #include "infer.h"
 #include "ast.h"
 #include "log.h"
@@ -220,7 +221,6 @@ const artic::Type* StructExpr::infer(TypeInference& ctx) const {
     auto struct_type = ctx.infer(*expr, ctx.type(*this))->isa<StructType>();
     if (!struct_type) return ctx.type(*this);
 
-
     // Build the structure arguments
     std::vector<const artic::Type*> args(struct_type->args.size(), nullptr);
     auto& members = struct_type->members;
@@ -309,6 +309,17 @@ const artic::Type* IdPtrn::infer(TypeInference& ctx) const {
 
 const artic::Type* LiteralPtrn::infer(TypeInference& ctx) const {
     // TODO: Create a Num type for integers, Fract for floats
+    return ctx.type(*this);
+}
+
+const artic::Type* FieldPtrn::infer(TypeInference& ctx) const {
+    if (ptrn) return ctx.infer(*ptrn);
+    return ctx.type(*this);
+}
+
+const artic::Type* StructPtrn::infer(TypeInference& ctx) const {
+    // TODO
+    for (auto& field : fields) ctx.infer(*field);
     return ctx.type(*this);
 }
 

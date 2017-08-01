@@ -3,7 +3,6 @@
 
 #include <memory>
 #include <vector>
-#include <algorithm>
 
 #include "loc.h"
 #include "cast.h"
@@ -52,9 +51,17 @@ struct Path {
     };
     std::vector<Elem> elems;
 
+    Path(Identifier&& id)
+        : elems{ Elem(std::move(id)) }
+    {}
+
     Path(std::vector<Elem>&& elems)
         : elems(std::move(elems))
     {}
+
+    void concat(const Path& other) {
+        elems.insert(elems.end(), other.elems.begin(), other.elems.end());
+    }
 };
 
 /// Base class for all AST nodes.
@@ -302,16 +309,6 @@ struct TupleExpr : public Expr {
     TupleExpr(const Loc& loc, PtrVector<Expr>&& args)
         : Expr(loc), args(std::move(args))
     {}
-
-    template <typename F>
-    bool if_all(F f) const {
-        return std::all_of(args.begin(), args.end(), [&] (auto& e) { return f(e); });
-    }
-
-    template <typename F>
-    bool if_any(F f) const {
-        return std::any_of(args.begin(), args.end(), [&] (auto& e) { return f(e); });
-    }
 
     const artic::Type* infer(TypeInference&) const override;
     void bind(NameBinder&) const override;
@@ -712,23 +709,51 @@ struct LiteralPtrn : public Ptrn {
     void print(Printer&) const override;
 };
 
-/// A tuple made of several pattern arguments.
+/// A pattern that matches against a structure field.
+struct FieldPtrn : public Ptrn {
+    Identifier id;
+    Ptr<Ptrn> ptrn;
+
+    FieldPtrn(const Loc& loc, Identifier&& id, Ptr<Ptrn>&& ptrn)
+        : Ptrn(loc), id(std::move(id)), ptrn(std::move(ptrn))
+    {}
+
+    bool is_refutable() const override;
+    bool is_etc() const { return !ptrn; }
+
+    const artic::Type* infer(TypeInference&) const override;
+    void bind(NameBinder&) const override;
+    void check(TypeChecker&) const override;
+    void print(Printer&) const override;
+};
+
+/// A pattern that matches against structures.
+struct StructPtrn : public Ptrn {
+    Path path;
+    PtrVector<Type> args;
+    PtrVector<FieldPtrn> fields;
+
+    mutable std::vector<const artic::Type*> type_args;
+
+    StructPtrn(const Loc& loc, Path&& path, PtrVector<Type>&& args, PtrVector<FieldPtrn>&& fields)
+        : Ptrn(loc), path(std::move(path)), args(std::move(args)), fields(std::move(fields))
+    {}
+
+    bool is_refutable() const override;
+
+    const artic::Type* infer(TypeInference&) const override;
+    void bind(NameBinder&) const override;
+    void check(TypeChecker&) const override;
+    void print(Printer&) const override;
+};
+
+/// A pattern that matches against tuples.
 struct TuplePtrn : public Ptrn {
     PtrVector<Ptrn> args;
 
     TuplePtrn(const Loc& loc, PtrVector<Ptrn>&& args)
         : Ptrn(loc), args(std::move(args))
     {}
-
-    template <typename F>
-    bool if_all(F f) const {
-        return std::all_of(args.begin(), args.end(), [&] (auto& p) { return f(p); });
-    }
-
-    template <typename F>
-    bool if_any(F f) const {
-        return std::any_of(args.begin(), args.end(), [&] (auto& p) { return f(p); });
-    }
 
     bool is_refutable() const override;
 

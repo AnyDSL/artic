@@ -113,6 +113,14 @@ void IdPtrn::check(TypeChecker& ctx) const {
 
 void LiteralPtrn::check(TypeChecker&) const {}
 
+void FieldPtrn::check(TypeChecker& ctx) const {
+    if (ptrn) ptrn->check(ctx);
+}
+
+void StructPtrn::check(TypeChecker& ctx) const {
+    for (auto& field : fields) field->check(ctx);
+}
+
 void TuplePtrn::check(TypeChecker& ctx) const {
     for (auto& arg : args) arg->check(ctx);
 }

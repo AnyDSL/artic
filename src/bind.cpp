@@ -32,6 +32,9 @@ void NameBinder::insert_symbol(const ast::NamedDecl& decl) {
     assert(!first_run_ || scopes_.size() == 1);
     auto& name = decl.id.name;
 
+    // Do not bind anonymous variables
+    if (name == "_") return;
+
     if (!scopes_.back().insert(name, Symbol(&decl)) && (first_run_ || scopes_.size() > 1)) {
         log::error(decl.loc, "identifier '{}' already declared", name);
         for (auto other : find_symbol(name)->decls) {
@@ -136,6 +139,16 @@ void IdPtrn::bind(NameBinder& ctx) const {
 }
 
 void LiteralPtrn::bind(NameBinder&) const {}
+
+void FieldPtrn::bind(NameBinder& ctx) const {
+    if (ptrn) ctx.bind(*ptrn);
+}
+
+void StructPtrn::bind(NameBinder& ctx) const {
+    ctx.bind(path);
+    for (auto& arg : args) ctx.bind(*arg);
+    for (auto& field : fields) ctx.bind(*field);
+}
 
 void TuplePtrn::bind(NameBinder& ctx) const {
     for (auto& arg : args) ctx.bind(*arg);

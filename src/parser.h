@@ -27,8 +27,10 @@ private:
 
     Ptr<ast::Ptrn>          parse_ptrn();
     Ptr<ast::Ptrn>          parse_typed_ptrn(Ptr<ast::Ptrn>&&);
-    Ptr<ast::IdPtrn>        parse_id_ptrn();
+    Ptr<ast::IdPtrn>        parse_id_ptrn(ast::Identifier&&);
     Ptr<ast::LiteralPtrn>   parse_literal_ptrn();
+    Ptr<ast::FieldPtrn>     parse_field_ptrn();
+    Ptr<ast::StructPtrn>    parse_struct_ptrn(ast::Identifier&&);
     Ptr<ast::Ptrn>          parse_tuple_ptrn();
     Ptr<ast::ErrorPtrn>     parse_error_ptrn();
 

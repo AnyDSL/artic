@@ -79,7 +79,14 @@ Token Lexer::next() {
         if (accept('}')) return Token(loc_, Token::R_BRACE);
         if (accept('[')) return Token(loc_, Token::L_BRACKET);
         if (accept(']')) return Token(loc_, Token::R_BRACKET);
-        if (accept('.')) return Token(loc_, Token::DOT);
+        if (accept('.')) {
+            if (accept('.')) {
+                if (accept('.')) return Token(loc_, Token::DOTS);
+                log::error(loc_, "unknown token '..'");
+                return Token(loc_);
+            }
+            return Token(loc_, Token::DOT);
+        }
         if (accept(',')) return Token(loc_, Token::COMMA);
         if (accept(';')) return Token(loc_, Token::SEMICOLON);
         if (accept(':')) return Token(loc_, Token::COLON);

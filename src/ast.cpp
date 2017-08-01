@@ -1,4 +1,5 @@
 #include <cassert>
+#include <algorithm>
 #include "ast.h"
 
 namespace artic {
@@ -227,6 +228,8 @@ BinaryExpr::Tag BinaryExpr::tag_from_token(const Token& token) {
     }
 }
 
+// Refutable patterns --------------------------------------------------------------
+
 bool TypedPtrn::is_refutable() const {
     return ptrn->is_refutable();
 }
@@ -239,8 +242,16 @@ bool LiteralPtrn::is_refutable() const {
     return true;
 }
 
+bool FieldPtrn::is_refutable() const {
+    return ptrn ? ptrn->is_refutable() : false;
+}
+
+bool StructPtrn::is_refutable() const {
+    return std::any_of(fields.begin(), fields.end(), [&] (auto& field) { return field->is_refutable(); });
+}
+
 bool TuplePtrn::is_refutable() const {
-    return if_any([] (auto& p) { return p->is_refutable(); });
+    return std::any_of(args.begin(), args.end(), [&] (auto& arg) { return arg->is_refutable(); });
 }
 
 bool ErrorPtrn::is_refutable() const {

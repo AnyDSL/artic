@@ -60,7 +60,7 @@ void TypedExpr::print(Printer& p) const {
 
 void PathExpr::print(Printer& p) const {
     print_path(p, path);
-    if (args.size()) {
+    if (!args.empty()) {
         p << '[';
         print_list(p, ", ", args, [&] (auto& arg) {
             arg->print(p);
@@ -178,6 +178,32 @@ void IdPtrn::print(Printer& p) const {
 
 void LiteralPtrn::print(Printer& p) const {
     p << std::showpoint << literal_style(lit.box);
+}
+
+void FieldPtrn::print(Printer& p) const {
+    if (is_etc()) {
+        p << "...";
+    } else {
+        p << id.name << " : ";
+        ptrn->print(p);
+    }
+}
+
+void StructPtrn::print(Printer& p) const {
+    print_path(p, path);
+    if (!args.empty()) {
+        p << '[';
+        print_list(p, ", ", args, [&] (auto& arg) {
+            arg->print(p);
+        });
+        p << ']';
+    }
+
+    p << " { ";
+    print_list(p, ", ", fields, [&] (auto& field) {
+        field->print(p);
+    });
+    p << " }";
 }
 
 void TuplePtrn::print(Printer& p) const {
