@@ -60,7 +60,7 @@ private:
     Ptr<ast::TypeApp>       parse_type_app();
     Ptr<ast::ErrorType>     parse_error_type();
 
-    ast::Path               parse_path();
+    ast::Path               parse_path(ast::Identifier&&);
     ast::Identifier         parse_id();
     Literal                 parse_lit();
 

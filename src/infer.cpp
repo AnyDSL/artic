@@ -154,6 +154,24 @@ const Type* TypeInference::infer(const ast::Node& node, const Type* expected) {
 
 namespace ast {
 
+const artic::Type* Path::infer(TypeInference& ctx) const {
+    // TODO: Follow the whole path
+    auto& symbol = elems.back().symbol;
+    if (!symbol || symbol->decls.empty()) return ctx.type_table().error_type(loc);
+
+    auto decl = symbol->decls.front();
+    if (!decl->type) return ctx.type(*this, decl->rank);
+
+    type_args.resize(std::max(type_args.size(), args.size()));
+    for (size_t i = 0; i < args.size(); i++) {
+        type_args[i] = ctx.infer(*args[i]);
+    }
+
+    // TODO: Make sure the type symbol type is polymorphic and expects at most args.size() variables
+
+    return ctx.subsume(loc, decl->type, type_args);
+}
+
 const artic::Type* PrimType::infer(TypeInference& ctx) const {
     return ctx.type_table().prim_type(artic::PrimType::Tag(tag));
 }
@@ -171,15 +189,7 @@ const artic::Type* FunctionType::infer(TypeInference& ctx) const {
 }
 
 const artic::Type* TypeApp::infer(TypeInference& ctx) const {
-    // TODO: Follow the whole path / make sure it's a type
-    auto& symbol = path.elems.back().symbol;
-    if (!symbol || symbol->decls.empty()) return ctx.type_table().error_type(loc);
-
-    auto decl = symbol->decls.front();
-    if (!decl->type) return ctx.type(*this, decl->rank);
-
-    // TODO: Subsume
-    return decl->type;
+    return ctx.infer(path);
 }
 
 const artic::Type* ErrorType::infer(TypeInference& ctx) const {
@@ -191,21 +201,7 @@ const artic::Type* TypedExpr::infer(TypeInference& ctx) const {
 }
 
 const artic::Type* PathExpr::infer(TypeInference& ctx) const {
-    // TODO: Follow the whole path / make sure it's a value
-    auto& symbol = path.elems.back().symbol;
-    if (!symbol || symbol->decls.empty()) return ctx.type_table().error_type(loc);
-
-    auto decl = symbol->decls.front();
-    if (!decl->type) return ctx.type(*this, decl->rank);
-
-    type_args.resize(std::max(type_args.size(), args.size()));
-    for (size_t i = 0; i < args.size(); i++) {
-        type_args[i] = ctx.infer(*args[i]);
-    }
-
-    // TODO: Make sure the type symbol type is polymorphic and expects at most args.size() variables
-
-    return ctx.subsume(loc, decl->type, type_args);
+    return ctx.infer(path);
 }
 
 const artic::Type* LiteralExpr::infer(TypeInference& ctx) const {

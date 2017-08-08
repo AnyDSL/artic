@@ -14,14 +14,6 @@ void NameBinder::run(const ast::Program& program) {
     bind(program);
 }
 
-void NameBinder::bind(const ast::Path& path) {
-    for (auto& elem : path.elems) {
-        elem.symbol = find_symbol(elem.id.name);
-        if (!elem.symbol)
-            log::error(elem.id.loc, "unknown identifier '{}'", elem.id.name);
-    }
-}
-
 void NameBinder::bind(const ast::Node& node) {
     if (first_run_ && scopes_.size() > 1) return;
     node.rank = scopes_.size();
@@ -45,6 +37,15 @@ void NameBinder::insert_symbol(const ast::NamedDecl& decl) {
 
 namespace ast {
 
+void Path::bind(NameBinder& ctx) const {
+    for (auto& elem : elems) {
+        elem.symbol = ctx.find_symbol(elem.id.name);
+        if (!elem.symbol)
+            log::error(elem.id.loc, "unknown identifier '{}'", elem.id.name);
+    }
+    for (auto& arg : args) ctx.bind(*arg);
+}
+
 void PrimType::bind(NameBinder&) const {}
 
 void TupleType::bind(NameBinder& ctx) const {
@@ -58,7 +59,6 @@ void FunctionType::bind(NameBinder& ctx) const {
 
 void TypeApp::bind(NameBinder& ctx) const {
     ctx.bind(path);
-    for (auto& arg : args) ctx.bind(*arg);
 }
 
 void ErrorType::bind(NameBinder&) const {}
@@ -70,7 +70,6 @@ void TypedExpr::bind(NameBinder& ctx) const {
 
 void PathExpr::bind(NameBinder& ctx) const {
     ctx.bind(path);
-    for (auto& arg : args) ctx.bind(*arg);
 }
 
 void LiteralExpr::bind(NameBinder&) const {}
@@ -146,7 +145,6 @@ void FieldPtrn::bind(NameBinder& ctx) const {
 
 void StructPtrn::bind(NameBinder& ctx) const {
     ctx.bind(path);
-    for (auto& arg : args) ctx.bind(*arg);
     for (auto& field : fields) ctx.bind(*field);
 }
 

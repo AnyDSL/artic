@@ -226,22 +226,7 @@ Ptr<ast::FieldPtrn> Parser::parse_field_ptrn() {
 
 Ptr<ast::StructPtrn> Parser::parse_struct_ptrn(Identifier&& id) {
     Tracker tracker(this, id.loc);
-    Path path(std::move(id));
-    if (ahead().tag() == Token::DOT) {
-        eat(Token::DOT);
-        auto next = parse_path();
-        path.concat(next);
-    }
-
-    PtrVector<ast::Type> args;
-    if (ahead().tag() == Token::L_BRACKET) {
-        eat(Token::L_BRACKET);
-        parse_list(Token::R_BRACKET, Token::COMMA, [&] {
-            eat_nl();
-            args.emplace_back(parse_type());
-            eat_nl();
-        });
-    }
+    Path path = parse_path(std::move(id));
 
     expect(Token::L_BRACE);
     PtrVector<ast::FieldPtrn> fields;
@@ -254,7 +239,7 @@ Ptr<ast::StructPtrn> Parser::parse_struct_ptrn(Identifier&& id) {
     if (etc != fields.end() && etc != fields.end() - 1)
         log::error(ahead().loc(), "'...' can only be used at the end of a structure pattern"); 
 
-    return make_ptr<ast::StructPtrn>(tracker(), std::move(path), std::move(args), std::move(fields));
+    return make_ptr<ast::StructPtrn>(tracker(), std::move(path), std::move(fields));
 }
 
 Ptr<ast::Ptrn> Parser::parse_tuple_ptrn() {
@@ -295,17 +280,8 @@ Ptr<ast::Expr> Parser::parse_typed_expr(Ptr<Expr>&& expr) {
 
 Ptr<ast::PathExpr> Parser::parse_path_expr() {
     Tracker tracker(this);
-    auto path = parse_path();
-    PtrVector<ast::Type> args;
-    if (ahead().tag() == Token::L_BRACKET) {
-        eat(Token::L_BRACKET);
-        parse_list(Token::R_BRACKET, Token::COMMA, [&] {
-            eat_nl();
-            args.emplace_back(parse_type());
-            eat_nl();
-        });
-    }
-    return make_ptr<ast::PathExpr>(tracker(), std::move(path), std::move(args));
+    auto path = parse_path(parse_id());
+    return make_ptr<ast::PathExpr>(tracker(), std::move(path));
 }
 
 Ptr<ast::LiteralExpr> Parser::parse_literal_expr() {
@@ -526,17 +502,8 @@ Ptr<ast::FunctionType> Parser::parse_function_type(Ptr<ast::Type>&& from) {
 
 Ptr<ast::TypeApp> Parser::parse_type_app() {
     Tracker tracker(this);
-    auto path = parse_path();
-    PtrVector<ast::Type> args;
-    if (ahead().tag() == Token::L_BRACKET) {
-        eat(Token::L_BRACKET);
-        parse_list(Token::R_BRACKET, Token::COMMA, [&] {
-            eat_nl();
-            args.emplace_back(parse_type());
-            eat_nl();
-        });
-    }
-    return make_ptr<ast::TypeApp>(tracker(), std::move(path), std::move(args));
+    auto path = parse_path(parse_id());
+    return make_ptr<ast::TypeApp>(tracker(), std::move(path));
 }
 
 Ptr<ast::ErrorType> Parser::parse_error_type() {
@@ -546,16 +513,27 @@ Ptr<ast::ErrorType> Parser::parse_error_type() {
     return make_ptr<ast::ErrorType>(tracker());
 }
 
-ast::Path Parser::parse_path() {
-    Tracker tracker(this);
+ast::Path Parser::parse_path(ast::Identifier&& id) {
+    Tracker tracker(this, id.loc);
     std::vector<ast::Path::Elem> elems;
-    while (true) {
-        elems.emplace_back(parse_id());
-        if (ahead().tag() != Token::DOT) break;
+
+    elems.emplace_back(std::move(id));
+    while (ahead().tag() == Token::DOT) {
         eat(Token::DOT);
         eat_nl();
+        elems.emplace_back(parse_id());
     }
-    return ast::Path(std::move(elems));
+
+    PtrVector<ast::Type> args;
+    if (ahead().tag() == Token::L_BRACKET) {
+        eat(Token::L_BRACKET);
+        parse_list(Token::R_BRACKET, Token::COMMA, [&] {
+            eat_nl();
+            args.emplace_back(parse_type());
+            eat_nl();
+        });
+    }
+    return ast::Path(tracker(), std::move(elems), std::move(args));
 }
 
 ast::Identifier Parser::parse_id() {

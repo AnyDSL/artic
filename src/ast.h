@@ -37,33 +37,6 @@ struct Identifier {
     {}
 };
 
-/// A path of the form A.B.C
-struct Path {
-    struct Elem {
-        Identifier id;
-
-        mutable std::shared_ptr<Symbol> symbol;
-
-        Elem() {}
-        Elem(Identifier&& id, std::shared_ptr<Symbol> symbol = nullptr)
-            : id(std::move(id)), symbol(symbol)
-        {}
-    };
-    std::vector<Elem> elems;
-
-    Path(Identifier&& id)
-        : elems{ Elem(std::move(id)) }
-    {}
-
-    Path(std::vector<Elem>&& elems)
-        : elems(std::move(elems))
-    {}
-
-    void concat(const Path& other) {
-        elems.insert(elems.end(), other.elems.begin(), other.elems.end());
-    }
-};
-
 /// Base class for all AST nodes.
 struct Node : public Cast<Node> {
     /// Location of the node in the source file.
@@ -127,6 +100,39 @@ struct Ptrn : public Node {
     virtual bool is_refutable() const = 0;
 };
 
+// Path ----------------------------------------------------------------------------
+
+/// A path of the form A.B.C[T1, T2, ..., TN]
+struct Path : public Node {
+    struct Elem {
+        Identifier id;
+
+        mutable std::shared_ptr<Symbol> symbol;
+
+        Elem() {}
+        Elem(Identifier&& id, std::shared_ptr<Symbol> symbol = nullptr)
+            : id(std::move(id)), symbol(symbol)
+        {}
+    };
+    std::vector<Elem> elems;
+    PtrVector<Type> args;
+
+    mutable std::vector<const artic::Type*> type_args;
+
+    Path(const Loc& loc, Identifier&& id, PtrVector<Type>&& args)
+        : Node(loc), elems{ Elem(std::move(id)) }, args(std::move(args))
+    {}
+
+    Path(const Loc& loc, std::vector<Elem>&& elems, PtrVector<Type>&& args)
+        : Node(loc), elems(std::move(elems)), args(std::move(args))
+    {}
+
+    const artic::Type* infer(TypeInference&) const override;
+    void bind(NameBinder&) const override;
+    void check(TypeChecker&) const override;
+    void print(Printer&) const override;
+};
+
 // Types ---------------------------------------------------------------------------
 
 /// Primitive type (integer, float, ...).
@@ -185,12 +191,9 @@ struct FunctionType : public Type {
 /// A type application.
 struct TypeApp : public Type {
     Path path;
-    PtrVector<Type> args;
 
-    mutable std::vector<const artic::Type*> type_args;
-
-    TypeApp(const Loc& loc, Path&& path, PtrVector<Type>&& args)
-        : Type(loc), path(std::move(path)), args(std::move(args))
+    TypeApp(const Loc& loc, Path&& path)
+        : Type(loc), path(std::move(path))
     {}
 
     const artic::Type* infer(TypeInference&) const override;
@@ -233,12 +236,9 @@ struct TypedExpr : public Expr {
 /// Expression made of a path to an identifier.
 struct PathExpr : public Expr {
     Path path;
-    PtrVector<Type> args;
 
-    mutable std::vector<const artic::Type*> type_args;
-
-    PathExpr(const Loc& loc, Path&& path, PtrVector<Type>&& args)
-        : Expr(loc), path(std::move(path)), args(std::move(args))
+    PathExpr(const Loc& loc, Path&& path)
+        : Expr(loc), path(std::move(path))
     {}
 
     const Identifier& identifier() const { return path.elems.back().id; }
@@ -730,13 +730,10 @@ struct FieldPtrn : public Ptrn {
 /// A pattern that matches against structures.
 struct StructPtrn : public Ptrn {
     Path path;
-    PtrVector<Type> args;
     PtrVector<FieldPtrn> fields;
 
-    mutable std::vector<const artic::Type*> type_args;
-
-    StructPtrn(const Loc& loc, Path&& path, PtrVector<Type>&& args, PtrVector<FieldPtrn>&& fields)
-        : Ptrn(loc), path(std::move(path)), args(std::move(args)), fields(std::move(fields))
+    StructPtrn(const Loc& loc, Path&& path, PtrVector<FieldPtrn>&& fields)
+        : Ptrn(loc), path(std::move(path)), fields(std::move(fields))
     {}
 
     bool is_refutable() const override;

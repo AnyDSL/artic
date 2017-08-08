@@ -15,6 +15,10 @@ void TypeChecker::expect(const std::string& where, const Ptr<ast::Expr>& expr, c
 
 namespace ast {
 
+void Path::check(TypeChecker& ctx) const {
+    for (auto& arg : args) arg->check(ctx);
+}
+
 void PrimType::check(TypeChecker&) const {}
 
 void TupleType::check(TypeChecker& ctx) const {
@@ -27,7 +31,7 @@ void FunctionType::check(TypeChecker& ctx) const {
 }
 
 void TypeApp::check(TypeChecker& ctx) const {
-    for (auto& arg : args) arg->check(ctx);
+    path.check(ctx);
 }
 
 void ErrorType::check(TypeChecker&) const {}
@@ -38,7 +42,7 @@ void TypedExpr::check(TypeChecker& ctx) const {
 }
 
 void PathExpr::check(TypeChecker& ctx) const {
-    for (auto& arg : args) arg->check(ctx);
+    path.check(ctx);
 }
 
 void LiteralExpr::check(TypeChecker&) const {}
@@ -118,6 +122,7 @@ void FieldPtrn::check(TypeChecker& ctx) const {
 }
 
 void StructPtrn::check(TypeChecker& ctx) const {
+    path.check(ctx);
     for (auto& field : fields) field->check(ctx);
 }
 

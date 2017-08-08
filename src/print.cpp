@@ -42,15 +42,22 @@ inline void print_vars(Printer& p, size_t vars, const std::unordered_set<const T
     }
 }
 
-inline void print_path(Printer& p, const ast::Path& path) {
-    print_list(p, '.', path.elems, [&] (auto& e) {
-        p << e.id.name;
-    });
-}
-
 // AST nodes -----------------------------------------------------------------------
 
 namespace ast {
+
+void Path::print(Printer& p) const {
+    print_list(p, '.', elems, [&] (auto& e) {
+        p << e.id.name;
+    });
+    if (!args.empty()) {
+        p << '[';
+        print_list(p, ", ", args, [&] (auto& arg) {
+            arg->print(p);
+        });
+        p << ']';
+    }
+}
 
 void TypedExpr::print(Printer& p) const {
     expr->print(p);
@@ -59,14 +66,7 @@ void TypedExpr::print(Printer& p) const {
 }
 
 void PathExpr::print(Printer& p) const {
-    print_path(p, path);
-    if (!args.empty()) {
-        p << '[';
-        print_list(p, ", ", args, [&] (auto& arg) {
-            arg->print(p);
-        });
-        p << ']';
-    }
+    path.print(p);
 }
 
 void LiteralExpr::print(Printer& p) const {
@@ -190,14 +190,7 @@ void FieldPtrn::print(Printer& p) const {
 }
 
 void StructPtrn::print(Printer& p) const {
-    print_path(p, path);
-    if (!args.empty()) {
-        p << '[';
-        print_list(p, ", ", args, [&] (auto& arg) {
-            arg->print(p);
-        });
-        p << ']';
-    }
+    path.print(p);
 
     p << " { ";
     print_list(p, ", ", fields, [&] (auto& field) {
@@ -335,14 +328,7 @@ void FunctionType::print(Printer& p) const {
 }
 
 void TypeApp::print(Printer& p) const {
-    print_path(p, path);
-    if (!args.empty()) {
-        p << '[';
-        print_list(p, ", ", args, [&] (auto& arg) {
-            arg->print(p);
-        });
-        p << ']';
-    }
+    path.print(p);
 }
 
 void ErrorType::print(Printer& p) const {
