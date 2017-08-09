@@ -342,11 +342,12 @@ Ptr<ast::DeclExpr> Parser::parse_decl_expr() {
     return make_ptr<ast::DeclExpr>(tracker(), std::move(decl));
 }
 
-Ptr<ast::LambdaExpr> Parser::parse_lambda_expr(Ptr<ast::Expr>&& param) {
-    Tracker tracker(this, param->loc);
-    auto ptrn = expr_to_ptrn(std::move(param));
+Ptr<ast::LambdaExpr> Parser::parse_lambda_expr() {
+    Tracker tracker(this);
+    eat(Token::OR);
+    auto ptrn = parse_ptrn();
+    expect(Token::OR);
     expect_binder("lambda parameter", ptrn);
-    eat(Token::ARROW);
     auto body = parse_expr();
     return make_ptr<ast::LambdaExpr>(tracker(), std::move(ptrn), std::move(body));
 }
@@ -387,6 +388,7 @@ Ptr<ast::Expr> Parser::parse_primary_expr() {
         case Token::L_BRACE: expr = std::move(parse_block_expr());   break;
         case Token::L_PAREN: expr = std::move(parse_tuple_expr());   break;
         case Token::ID:      expr = std::move(parse_path_expr());    break;
+        case Token::OR:      expr = std::move(parse_lambda_expr());  break;
         case Token::LIT:     expr = std::move(parse_literal_expr()); break;
         case Token::DEF:
         case Token::VAR:
@@ -396,8 +398,6 @@ Ptr<ast::Expr> Parser::parse_primary_expr() {
         default:
             expr = std::move(parse_error_expr()); break;
     }
-    if (ahead().tag() == Token::ARROW)
-        expr = std::move(parse_lambda_expr(std::move(expr)));
     if (ahead().tag() == Token::INC || ahead().tag() == Token::DEC)
         expr = std::move(parse_postfix_expr(std::move(expr)));
     if (ahead().tag() == Token::L_BRACE)
@@ -555,27 +555,6 @@ Literal Parser::parse_lit() {
         lit = ahead().literal();
     next();
     return lit;
-}
-
-Ptr<ast::Ptrn> Parser::expr_to_ptrn(Ptr<ast::Expr>&& expr) {
-    if (auto typed = expr->isa<ast::TypedExpr>()) {
-        return make_ptr<ast::TypedPtrn>(expr->loc, expr_to_ptrn(std::move(typed->expr)), std::move(typed->type));
-    } else if (auto path = expr->isa<ast::PathExpr>()) {
-        if (path->path.elems.size() != 1) {
-            log::error(expr->loc, "patterns cannot contain paths");
-            return make_ptr<ErrorPtrn>(expr->loc);
-        }
-        auto& id = path->path.elems[0].id;
-        return make_ptr<ast::IdPtrn>(expr->loc, make_ptr<ast::LocalDecl>(id.loc, id));
-    } else if (auto lit = expr->isa<ast::LiteralExpr>()) {
-        return make_ptr<ast::LiteralPtrn>(expr->loc, lit->lit);
-    } else if (auto tuple = expr->isa<ast::TupleExpr>()) {
-        PtrVector<ast::Ptrn> args;
-        for (auto& arg : tuple->args) args.emplace_back(expr_to_ptrn(std::move(arg)));
-        return make_ptr<ast::TuplePtrn>(expr->loc, std::move(args));
-    }
-    log::error(expr->loc, "expected pattern, got '{}'", expr.get());
-    return make_ptr<ast::ErrorPtrn>(expr->loc);
 }
 
 } // namespace artic

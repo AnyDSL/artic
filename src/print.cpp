@@ -323,7 +323,7 @@ void FunctionType::print(Printer& p) const {
     } else {
         from->print(p);
     }
-    p << " => ";
+    p << " -> ";
     to->print(p);
 }
 
@@ -378,7 +378,7 @@ void FunctionType::print(Printer& p) const {
     } else {
         from()->print(p);
     }
-    p << " => ";
+    p << " -> ";
     to()->print(p);
 }
 

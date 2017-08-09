@@ -31,7 +31,7 @@ namespace artic {
     f(SEMICOLON, ";") \
     f(COLON, ":") \
     f(EQ, "=") \
-    f(ARROW, "=>") \
+    f(ARROW, "->") \
     f(INC, "++") \
     f(DEC, "--") \
     f(ADD_EQ, "+=") \

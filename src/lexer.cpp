@@ -91,7 +91,6 @@ Token Lexer::next() {
         if (accept(';')) return Token(loc_, Token::SEMICOLON);
         if (accept(':')) return Token(loc_, Token::COLON);
         if (accept('=')) {
-            if (accept('>')) return Token(loc_, Token::ARROW);
             if (accept('=')) return Token(loc_, Token::CMP_EQ);
             return Token(loc_, Token::EQ);
         }
@@ -117,6 +116,7 @@ Token Lexer::next() {
             return Token(loc_, Token::ADD);
         }
         if (accept('-')) {
+            if (accept('>')) return Token(loc_, Token::ARROW);
             if (accept('-')) return Token(loc_, Token::DEC);
             if (accept('=')) return Token(loc_, Token::SUB_EQ);
             return Token(loc_, Token::SUB);

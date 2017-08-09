@@ -43,7 +43,7 @@ private:
     Ptr<ast::Expr>          parse_tuple_expr();
     Ptr<ast::BlockExpr>     parse_block_expr();
     Ptr<ast::DeclExpr>      parse_decl_expr();
-    Ptr<ast::LambdaExpr>    parse_lambda_expr(Ptr<ast::Expr>&&);
+    Ptr<ast::LambdaExpr>    parse_lambda_expr();
     Ptr<ast::CallExpr>      parse_call_expr(Ptr<ast::Expr>&&);
     Ptr<ast::IfExpr>        parse_if_expr();
     Ptr<ast::Expr>          parse_primary_expr();
