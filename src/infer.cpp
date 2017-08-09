@@ -154,6 +154,37 @@ const Type* TypeInference::infer(const ast::Node& node, const Type* expected) {
 
 namespace ast {
 
+template <typename FieldVector>
+const artic::Type* infer_struct(TypeInference& ctx, const Loc& loc, const artic::StructType* struct_type, const FieldVector& fields, bool has_etc) {
+    auto& members = struct_type->members;
+
+    // Infer all fields
+    for (size_t i = 0, n = has_etc ? fields.size() - 1 : fields.size(); i < n; i++) {
+        auto& field = fields[i];
+        auto index = std::find(members.begin(), members.end(), field->id.name);
+        if (index == members.end()) {
+            log::error(loc, "'{}' is not a member of '{}'", field->id.name, struct_type->name);
+            return ctx.type_table().error_type(loc);
+        }
+        ctx.infer(*field, struct_type->args[index - members.begin()]);
+    }
+
+    // Make sure all fields are set
+    if (!has_etc) {
+        auto not_set = std::find_if(members.begin(), members.end(), [&] (auto& member) {
+            return std::find_if(fields.begin(), fields.end(), [&] (auto& field) {
+                return field->id.name == member;
+            }) == fields.end();
+        });
+        if (not_set != members.end()) {
+            log::error(loc, "missing initializer for structure field '{}'", *not_set);
+            return ctx.type_table().error_type(loc);
+        }
+    }
+
+    return struct_type;
+}
+
 const artic::Type* Path::infer(TypeInference& ctx) const {
     // TODO: Follow the whole path
     auto& symbol = elems.back().symbol;
@@ -215,29 +246,12 @@ const artic::Type* FieldExpr::infer(TypeInference& ctx) const {
 
 const artic::Type* StructExpr::infer(TypeInference& ctx) const {
     auto struct_type = ctx.infer(*expr, ctx.type(*this))->isa<StructType>();
-    if (!struct_type) return ctx.type(*this);
-
-    // Build the structure arguments
-    std::vector<const artic::Type*> args(struct_type->args.size(), nullptr);
-    auto& members = struct_type->members;
-
-    for (auto& field : fields) {
-        auto index = std::find(members.begin(), members.end(), field->id.name);
-        if (index == members.end()) {
-            log::error(loc, "'{}' is not a member of '{}'", field->id.name, struct_type->name);
-            return ctx.type_table().error_type(loc);
-        }
-        args[index - members.begin()] = ctx.infer(*field);
+    if (!struct_type) {
+        for (auto& field : fields) ctx.infer(*field);
+        return ctx.type(*this);
     }
 
-    // Make sure all fields are set
-    auto not_set = std::find(args.begin(), args.end(), nullptr);
-    if (not_set != args.end()) {
-        log::error(loc, "missing initializer for structure field '{}'", members[not_set - args.begin()]);
-        return ctx.type_table().error_type(loc);
-    }
-
-    return struct_type->rebuild(ctx.type_table(), std::move(args));
+    return infer_struct(ctx, loc, struct_type, fields, false);
 }
 
 const artic::Type* TupleExpr::infer(TypeInference& ctx) const {
@@ -314,9 +328,13 @@ const artic::Type* FieldPtrn::infer(TypeInference& ctx) const {
 }
 
 const artic::Type* StructPtrn::infer(TypeInference& ctx) const {
-    // TODO
-    for (auto& field : fields) ctx.infer(*field);
-    return ctx.type(*this);
+    auto struct_type = ctx.infer(path)->isa<StructType>();
+    if (!struct_type) {
+        for (auto& field : fields) ctx.infer(*field);
+        return ctx.type(*this);
+    }
+
+    return infer_struct(ctx, loc, struct_type, fields, !fields.empty() && fields.back()->is_etc());
 }
 
 const artic::Type* TuplePtrn::infer(TypeInference& ctx) const {
