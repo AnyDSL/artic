@@ -96,12 +96,9 @@ void TupleExpr::print(Printer& p) const {
 }
 
 void LambdaExpr::print(Printer& p) const {
-    if (param->isa<IdPtrn>())
-        param->print(p);
-    else
-        print_parens(p, param);
-
-    p << " => ";
+    p << '|';
+    param->print(p);
+    p << "| ";
     body->print(p);
 }
 
