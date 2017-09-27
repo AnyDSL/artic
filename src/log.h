@@ -145,7 +145,7 @@ void warn(const Loc& loc, const char* fmt, Args... args) {
              style("warning", Style::YELLOW, Style::BOLD),
              style(loc,       Style::WHITE,  Style::BOLD));
     } else {
-        error<false>("warning in {}: ", loc);
+        warn<false>("warning in {}: ", loc);
     }
     warn(fmt, args...);
 }
@@ -158,7 +158,7 @@ void info(const Loc& loc, const char* fmt, Args... args) {
              style("info", Style::CYAN,  Style::BOLD),
              style(loc,    Style::WHITE, Style::BOLD));
     } else {
-        error<false>("info in {}: ", loc);
+        info<false>("info in {}: ", loc);
     }
     info(fmt, args...);
 }
