@@ -353,9 +353,9 @@ Ptr<ast::DeclExpr> Parser::parse_decl_expr() {
 
 Ptr<ast::LambdaExpr> Parser::parse_lambda_expr() {
     Tracker tracker(this);
-    eat(Token::OR);
+    eat(Token::FN);
     auto ptrn = parse_ptrn();
-    expect(Token::OR);
+    expect(Token::ARROW);
     expect_binder("lambda parameter", ptrn);
     auto body = parse_expr();
     return make_ptr<ast::LambdaExpr>(tracker(), std::move(ptrn), std::move(body));
@@ -397,7 +397,7 @@ Ptr<ast::Expr> Parser::parse_primary_expr() {
         case Token::L_BRACE: expr = std::move(parse_block_expr());   break;
         case Token::L_PAREN: expr = std::move(parse_tuple_expr());   break;
         case Token::ID:      expr = std::move(parse_path_expr());    break;
-        case Token::OR:      expr = std::move(parse_lambda_expr());  break;
+        case Token::FN:      expr = std::move(parse_lambda_expr());  break;
         case Token::LIT:     expr = std::move(parse_literal_expr()); break;
         case Token::DEF:
         case Token::VAR:

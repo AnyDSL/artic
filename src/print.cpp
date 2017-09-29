@@ -96,9 +96,9 @@ void TupleExpr::print(Printer& p) const {
 }
 
 void LambdaExpr::print(Printer& p) const {
-    p << '|';
+    p << keyword_style("fn");
     param->print(p);
-    p << "| ";
+    p << " -> ";
     body->print(p);
 }
 
