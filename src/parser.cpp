@@ -28,6 +28,7 @@ Ptr<ast::Decl> Parser::parse_decl() {
     switch (ahead().tag()) {
         case Token::DEF:    return parse_def_decl();
         case Token::VAR:    return parse_var_decl();
+        case Token::FN:     return parse_fn_decl();
         case Token::STRUCT: return parse_struct_decl();
         case Token::TRAIT:  return parse_trait_decl();
         default:            return parse_error_decl();
@@ -37,39 +38,13 @@ Ptr<ast::Decl> Parser::parse_decl() {
 Ptr<ast::DefDecl> Parser::parse_def_decl() {
     Tracker tracker(this);
     eat(Token::DEF);
-    auto id = parse_id();
 
-    Ptr<TypeParamList> type_params;
-    if (ahead().tag() == Token::L_BRACKET)
-        type_params = std::move(parse_type_params());
-
-    Ptr<ast::Ptrn> param;
-    if (ahead().tag() == Token::L_PAREN) {
-        param = std::move(parse_tuple_ptrn());
-        expect_binder("function parameter", param);
-    }
-
-    Ptr<ast::Type> ret_type;
-    if (ahead().tag() == Token::COLON) {
-        eat(Token::COLON);
-        eat_nl();
-        ret_type = std::move(parse_type());
-    }
-
-    Ptr<Expr> body;
-    if (ahead().tag() == Token::EQ) {
-        eat(Token::EQ);
-        eat_nl();
-        body = parse_expr();
-    } else if (param && ahead().tag() == Token::L_BRACE) {
-        body = parse_expr();
-    }
-
-    if (!body && !ret_type)
-        log::error(id.loc, "definition without a body requires a type");
-
-    auto lambda = make_ptr<ast::LambdaExpr>(tracker(), std::move(param), std::move(body));
-    return make_ptr<ast::DefDecl>(tracker(), std::move(id), std::move(lambda), std::move(ret_type), std::move(type_params));
+    auto ptrn = parse_ptrn();
+    expect_binder("constant definition", ptrn);
+    expect(Token::EQ);
+    eat_nl();
+    auto init = parse_expr();
+    return make_ptr<DefDecl>(tracker(), std::move(ptrn), std::move(init));
 }
 
 Ptr<ast::VarDecl> Parser::parse_var_decl() {
@@ -77,10 +52,44 @@ Ptr<ast::VarDecl> Parser::parse_var_decl() {
     eat(Token::VAR);
     auto ptrn = parse_ptrn();
     expect_binder("variable declaration", ptrn);
-    expect(Token::EQ);
-    eat_nl();
-    auto init = parse_expr();
+    Ptr<Expr> init;
+    if (ahead().tag() == Token::EQ) {
+        eat(Token::EQ);
+        eat_nl();
+        init = std::move(parse_expr());
+    }
     return make_ptr<ast::VarDecl>(tracker(), std::move(ptrn), std::move(init));
+}
+
+Ptr<ast::FnDecl> Parser::parse_fn_decl() {
+    Tracker tracker(this);
+    eat(Token::FN);
+
+    auto id = parse_id();
+    Ptr<TypeParamList> type_params;
+    if (ahead().tag() == Token::L_BRACKET)
+        type_params = std::move(parse_type_params());
+
+    Ptr<Ptrn> param;
+    if (ahead().tag() == Token::L_PAREN) {
+        param = std::move(parse_tuple_ptrn());
+        expect_binder("function parameter", param);
+    } else {
+        log::error(ahead().loc(), "parameter list expected in function definition");
+    }
+
+    Ptr<ast::Type> ret_type;
+    if (ahead().tag() == Token::ARROW) {
+        eat(Token::ARROW);
+        ret_type = std::move(parse_type());
+    }
+
+    Ptr<Expr> body;
+    if (ahead().tag() == Token::L_BRACE)
+        body = std::move(parse_block_expr());
+
+    auto lambda = make_ptr<ast::LambdaExpr>(tracker(), std::move(param), std::move(body));
+    return make_ptr<ast::FnDecl>(tracker(), std::move(id), std::move(lambda), std::move(ret_type), std::move(type_params));
 }
 
 Ptr<ast::FieldDecl> Parser::parse_field_decl() {
@@ -199,7 +208,7 @@ Ptr<ast::Ptrn> Parser::parse_typed_ptrn(Ptr<ast::Ptrn>&& ptrn) {
 
 Ptr<ast::IdPtrn> Parser::parse_id_ptrn(Identifier&& id) {
     Tracker tracker(this, id.loc);
-    return make_ptr<ast::IdPtrn>(tracker(), make_ptr<ast::LocalDecl>(tracker(), std::move(id)));
+    return make_ptr<ast::IdPtrn>(tracker(), make_ptr<ast::PtrnDecl>(tracker(), std::move(id)));
 }
 
 Ptr<ast::LiteralPtrn> Parser::parse_literal_ptrn() {

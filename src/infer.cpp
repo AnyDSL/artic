@@ -314,7 +314,7 @@ const artic::Type* TypedPtrn::infer(TypeInference& ctx) const {
 }
 
 const artic::Type* IdPtrn::infer(TypeInference& ctx) const {
-    return ctx.infer(*local);
+    return ctx.infer(*decl);
 }
 
 const artic::Type* LiteralPtrn::infer(TypeInference& ctx) const {
@@ -361,27 +361,25 @@ const artic::Type* TypeParamList::infer(TypeInference& ctx) const {
         : ctx.type_table().poly_type(params.size(), ctx.type_table().unknown_type(rank), std::move(traits));
 }
 
-const artic::Type* LocalDecl::infer(TypeInference& ctx) const {
+const artic::Type* PtrnDecl::infer(TypeInference& ctx) const {
     return ctx.type(*this);
 }
 
-const artic::Type* VarDecl::infer(TypeInference& ctx) const {
-    return ctx.infer(*ptrn, ctx.infer(*init));
+const artic::Type* LocalDecl::infer(TypeInference& ctx) const {
+    return init ? ctx.infer(*ptrn, ctx.infer(*init)) : ctx.infer(*ptrn);
 }
 
-const artic::Type* DefDecl::infer(TypeInference& ctx) const {
+const artic::Type* FnDecl::infer(TypeInference& ctx) const {
     auto poly_type = type_params ? ctx.infer(*type_params) : nullptr;
 
     const artic::Type* init_type = nullptr;
-    if (lambda->body && lambda->param) {
+    if (lambda->body) {
         init_type = ctx.infer(*lambda);
         // If a return type is present, unify it with the return type of the function
         if (auto fn_type = init_type->isa<artic::FunctionType>()) {
             if (ret_type) ctx.infer(*ret_type, fn_type->to());
         }
-    } else if (lambda->body) {
-        init_type = ctx.infer(*lambda->body, ret_type ? ctx.infer(*ret_type) : nullptr);
-    } else if (lambda->param) {
+    } else {
         // The return type is mandatory here
         init_type = ctx.type_table().function_type(
             ctx.infer(*lambda->param),

@@ -134,7 +134,7 @@ void TypedPtrn::bind(NameBinder& ctx) const {
 }
 
 void IdPtrn::bind(NameBinder& ctx) const {
-    ctx.bind(*local);
+    ctx.bind(*decl);
 }
 
 void LiteralPtrn::bind(NameBinder&) const {}
@@ -162,26 +162,26 @@ void TypeParamList::bind(NameBinder& ctx) const {
     for (auto& param : params) ctx.bind(*param);
 }
 
-void LocalDecl::bind(NameBinder& ctx) const {
+void PtrnDecl::bind(NameBinder& ctx) const {
     ctx.insert_symbol(*this);
 }
 
-void VarDecl::bind(NameBinder& ctx) const {
+void LocalDecl::bind(NameBinder& ctx) const {
     ctx.bind(*ptrn);
     ctx.push_scope();
     ctx.bind(*init);
     ctx.pop_scope();
 }
 
-void DefDecl::bind(NameBinder& ctx) const {
+void FnDecl::bind(NameBinder& ctx) const {
     ctx.insert_symbol(*this);
     ctx.push_scope();
-    if (type_params) ctx.bind(*type_params);
-    if (ret_type) ctx.bind(*ret_type);
 
-    if (lambda->param && lambda->body) ctx.bind(*lambda);
-    else if (lambda->body)  ctx.bind(*lambda->body);
-    else if (lambda->param) ctx.bind(*lambda->param);
+    if (type_params) ctx.bind(*type_params);
+    if (ret_type)    ctx.bind(*ret_type);
+
+    if (lambda->body) ctx.bind(*lambda);
+    else              ctx.bind(*lambda->param);
     ctx.pop_scope();
 }
 

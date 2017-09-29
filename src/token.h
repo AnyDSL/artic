@@ -15,6 +15,7 @@ namespace artic {
     f(LIT, "<literal>") \
     f(DEF, "def") \
     f(VAR, "var") \
+    f(FN,  "fn") \
     f(IF, "if") \
     f(ELSE, "else") \
     f(STRUCT, "struct") \

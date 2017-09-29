@@ -112,7 +112,7 @@ void TypedPtrn::check(TypeChecker& ctx) const {
 }
 
 void IdPtrn::check(TypeChecker& ctx) const {
-    local->check(ctx);
+    decl->check(ctx);
 }
 
 void LiteralPtrn::check(TypeChecker&) const {}
@@ -140,23 +140,23 @@ void TypeParamList::check(TypeChecker&) const {
     // TODO
 }
 
-void LocalDecl::check(TypeChecker&) const {
+void PtrnDecl::check(TypeChecker&) const {
     if (type->has_unknowns())
         log::error(loc, "cannot infer type for '{}'", id.name);
 }
 
-void VarDecl::check(TypeChecker& ctx) const {
+void LocalDecl::check(TypeChecker& ctx) const {
     ctx.expect("variable declaration", init, ptrn->type);
 
     init->check(ctx);
     ptrn->check(ctx);
 }
 
-void DefDecl::check(TypeChecker& ctx) const {
-    if (lambda->body && lambda->param) {
+void FnDecl::check(TypeChecker& ctx) const {
+    if (type_params) type_params->check(ctx);
+    if (ret_type) ret_type->check(ctx);
+    if (lambda->body) {
         lambda->check(ctx);
-    } else if (lambda->body) {
-        lambda->body->check(ctx);
     } else if (lambda->param) {
         lambda->param->check(ctx);
     }

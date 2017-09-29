@@ -170,7 +170,7 @@ void TypedPtrn::print(Printer& p) const {
 }
 
 void IdPtrn::print(Printer& p) const {
-    local->print(p);
+    decl->print(p);
 }
 
 void LiteralPtrn::print(Printer& p) const {
@@ -244,8 +244,15 @@ void StructDecl::print(Printer& p) const {
     p << p.unindent() << p.endl() << '}';
 }
 
-void LocalDecl::print(Printer& p) const {
+void PtrnDecl::print(Printer& p) const {
     p << id.name;
+}
+
+void DefDecl::print(Printer& p) const {
+    p << keyword_style("def") << " ";
+    ptrn->print(p);
+    p << " = ";
+    init->print(p);
 }
 
 void VarDecl::print(Printer& p) const {
@@ -257,26 +264,20 @@ void VarDecl::print(Printer& p) const {
     }
 }
 
-void DefDecl::print(Printer& p) const {
-    p << keyword_style("def") << " ";
-    if (lambda->param) {
-        p << id.name;
-        if (type_params) type_params->print(p);
-        print_parens(p, lambda->param);
-    } else {
-        p << id.name;
-        if (type_params) type_params->print(p);
-    }
+void FnDecl::print(Printer& p) const {
+    p << keyword_style("fn") << " " << id.name;
 
+    if (type_params) type_params->print(p);
+    print_parens(p, lambda->param);
+
+    p << ' ';
     if (ret_type) {
-        p << " : ";
+        p << "-> ";
         ret_type->print(p);
     }
 
-    if (lambda->body) {
-        p << " = ";
+    if (lambda->body)
         lambda->body->print(p);
-    }
 }
 
 void TraitDecl::print(Printer& p) const {

@@ -537,9 +537,9 @@ struct TypeParamList : public Decl {
     void print(Printer&) const override;
 };
 
-/// Local variable/parameter declaration, which introduces a new symbol in the scope.
-struct LocalDecl : public NamedDecl {
-    LocalDecl(const Loc& loc, Identifier&& id)
+/// Pattern binding associated with an identifier.
+struct PtrnDecl : public NamedDecl {
+    PtrnDecl(const Loc& loc, Identifier&& id)
         : NamedDecl(loc, std::move(id))
     {}
 
@@ -549,12 +549,12 @@ struct LocalDecl : public NamedDecl {
     void print(Printer&) const override;
 };
 
-/// Variable declaration (can declare several variables at a time with a pattern).
-struct VarDecl : public Decl {
+/// Declaration that introduces a new symbol in the scope, with an optional initializer.
+struct LocalDecl : public Decl {
     Ptr<Ptrn> ptrn;
     Ptr<Expr> init;
 
-    VarDecl(const Loc& loc, Ptr<Ptrn>&& ptrn, Ptr<Expr>&& init)
+    LocalDecl(const Loc& loc, Ptr<Ptrn>&& ptrn, Ptr<Expr>&& init)
         : Decl(loc)
         , ptrn(std::move(ptrn))
         , init(std::move(init))
@@ -563,27 +563,42 @@ struct VarDecl : public Decl {
     const artic::Type* infer(TypeInference&) const override;
     void bind(NameBinder&) const override;
     void check(TypeChecker&) const override;
+};
+
+/// Variable declaration (can declare several variables at a time with a pattern).
+struct VarDecl : public LocalDecl {
+    VarDecl(const Loc& loc, Ptr<Ptrn>&& ptrn, Ptr<Expr>&& init)
+        : LocalDecl(loc, std::move(ptrn), std::move(init))
+    {}
+
     void print(Printer&) const override;
 };
 
-/// Function/constant declaration.
-struct DefDecl : public NamedDecl {
+/// Constant or function declaration.
+struct DefDecl : public LocalDecl {
+    DefDecl(const Loc& loc, Ptr<Ptrn>&& ptrn, Ptr<Expr>&& init)
+        : LocalDecl(loc, std::move(ptrn), std::move(init))
+    {}
+
+    void print(Printer&) const override;
+};
+
+/// Function declaration.
+struct FnDecl : public NamedDecl {
     Ptr<LambdaExpr> lambda;
     Ptr<Type> ret_type;
     Ptr<TypeParamList> type_params;
 
-    DefDecl(const Loc& loc,
-            Identifier&& id,
-            Ptr<LambdaExpr>&& lambda,
-            Ptr<Type>&& ret_type,
-            Ptr<TypeParamList>&& type_params)
+    FnDecl(const Loc& loc,
+           Identifier&& id,
+           Ptr<LambdaExpr>&& lambda,
+           Ptr<Type>&& ret_type,
+           Ptr<TypeParamList>&& type_params)
         : NamedDecl(loc, std::move(id))
         , lambda(std::move(lambda))
         , ret_type(std::move(ret_type))
         , type_params(std::move(type_params))
     {}
-
-    bool is_function() const { return lambda->param != nullptr; }
 
     const artic::Type* infer(TypeInference&) const override;
     void bind(NameBinder&) const override;
@@ -679,10 +694,10 @@ struct TypedPtrn : public Ptrn {
 
 /// An identifier used as a pattern.
 struct IdPtrn : public Ptrn {
-    Ptr<LocalDecl> local;
+    Ptr<PtrnDecl> decl;
 
-    IdPtrn(const Loc& loc, Ptr<LocalDecl>&& local)
-        : Ptrn(loc), local(std::move(local))
+    IdPtrn(const Loc& loc, Ptr<PtrnDecl>&& decl)
+        : Ptrn(loc), decl(std::move(decl))
     {}
 
     bool is_refutable() const override;
