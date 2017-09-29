@@ -493,7 +493,7 @@ struct ErrorExpr : public Expr {
 
 // Declarations --------------------------------------------------------------------
 
-/// Declaration that associated with an identifier.
+/// Declaration associated with an identifier.
 struct NamedDecl : public Decl {
     Identifier id;
 
