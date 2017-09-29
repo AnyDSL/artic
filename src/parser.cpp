@@ -81,6 +81,7 @@ Ptr<ast::FnDecl> Parser::parse_fn_decl() {
     Ptr<ast::Type> ret_type;
     if (ahead().tag() == Token::ARROW) {
         eat(Token::ARROW);
+        eat_nl();
         ret_type = std::move(parse_type());
     }
 
