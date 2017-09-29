@@ -169,7 +169,7 @@ void PtrnDecl::bind(NameBinder& ctx) const {
 void LocalDecl::bind(NameBinder& ctx) const {
     ctx.bind(*ptrn);
     ctx.push_scope();
-    ctx.bind(*init);
+    if (init) ctx.bind(*init);
     ctx.pop_scope();
 }
 

@@ -146,9 +146,10 @@ void PtrnDecl::check(TypeChecker&) const {
 }
 
 void LocalDecl::check(TypeChecker& ctx) const {
-    ctx.expect("variable declaration", init, ptrn->type);
-
-    init->check(ctx);
+    if (init) {
+        ctx.expect("variable declaration", init, ptrn->type);
+        init->check(ctx);
+    }
     ptrn->check(ctx);
 }
 
