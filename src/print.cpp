@@ -270,14 +270,15 @@ void FnDecl::print(Printer& p) const {
     if (type_params) type_params->print(p);
     print_parens(p, lambda->param);
 
-    p << ' ';
     if (ret_type) {
-        p << "-> ";
+        p << " -> ";
         ret_type->print(p);
     }
 
-    if (lambda->body)
+    if (lambda->body) {
+        p << ' ';
         lambda->body->print(p);
+    }
 }
 
 void TraitDecl::print(Printer& p) const {
