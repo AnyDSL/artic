@@ -60,7 +60,7 @@ void TupleExpr::check(TypeChecker& ctx) const {
     for (auto& arg : args) arg->check(ctx);
 }
 
-void LambdaExpr::check(TypeChecker& ctx) const {
+void FnExpr::check(TypeChecker& ctx) const {
     param->check(ctx);
     body->check(ctx);
 }
@@ -156,10 +156,10 @@ void LocalDecl::check(TypeChecker& ctx) const {
 void FnDecl::check(TypeChecker& ctx) const {
     if (type_params) type_params->check(ctx);
     if (ret_type) ret_type->check(ctx);
-    if (lambda->body) {
-        lambda->check(ctx);
-    } else if (lambda->param) {
-        lambda->param->check(ctx);
+    if (fn->body) {
+        fn->check(ctx);
+    } else if (fn->param) {
+        fn->param->check(ctx);
     }
 }
 

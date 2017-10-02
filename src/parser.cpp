@@ -89,8 +89,8 @@ Ptr<ast::FnDecl> Parser::parse_fn_decl() {
     if (ahead().tag() == Token::L_BRACE)
         body = std::move(parse_block_expr());
 
-    auto lambda = make_ptr<ast::LambdaExpr>(tracker(), std::move(param), std::move(body));
-    return make_ptr<ast::FnDecl>(tracker(), std::move(id), std::move(lambda), std::move(ret_type), std::move(type_params));
+    auto fn = make_ptr<ast::FnExpr>(tracker(), std::move(param), std::move(body));
+    return make_ptr<ast::FnDecl>(tracker(), std::move(id), std::move(fn), std::move(ret_type), std::move(type_params));
 }
 
 Ptr<ast::FieldDecl> Parser::parse_field_decl() {
@@ -352,14 +352,14 @@ Ptr<ast::DeclExpr> Parser::parse_decl_expr() {
     return make_ptr<ast::DeclExpr>(tracker(), std::move(decl));
 }
 
-Ptr<ast::LambdaExpr> Parser::parse_lambda_expr() {
+Ptr<ast::FnExpr> Parser::parse_fn_expr() {
     Tracker tracker(this);
     eat(Token::FN);
     auto ptrn = parse_ptrn();
     expect(Token::ARROW);
-    expect_binder("lambda parameter", ptrn);
+    expect_binder("anonymous function parameter", ptrn);
     auto body = parse_expr();
-    return make_ptr<ast::LambdaExpr>(tracker(), std::move(ptrn), std::move(body));
+    return make_ptr<ast::FnExpr>(tracker(), std::move(ptrn), std::move(body));
 }
 
 Ptr<ast::CallExpr> Parser::parse_call_expr(Ptr<Expr>&& callee) {
@@ -398,7 +398,7 @@ Ptr<ast::Expr> Parser::parse_primary_expr() {
         case Token::L_BRACE: expr = std::move(parse_block_expr());   break;
         case Token::L_PAREN: expr = std::move(parse_tuple_expr());   break;
         case Token::ID:      expr = std::move(parse_path_expr());    break;
-        case Token::FN:      expr = std::move(parse_lambda_expr());  break;
+        case Token::FN:      expr = std::move(parse_fn_expr());      break;
         case Token::LIT:     expr = std::move(parse_literal_expr()); break;
         case Token::DEF:
         case Token::VAR:

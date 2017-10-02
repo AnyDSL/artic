@@ -87,7 +87,7 @@ void TupleExpr::bind(NameBinder& ctx) const {
     for (auto& arg : args) ctx.bind(*arg);
 }
 
-void LambdaExpr::bind(NameBinder& ctx) const {
+void FnExpr::bind(NameBinder& ctx) const {
     ctx.push_scope();
     if (param) ctx.bind(*param);
     ctx.push_scope();
@@ -180,8 +180,8 @@ void FnDecl::bind(NameBinder& ctx) const {
     if (type_params) ctx.bind(*type_params);
     if (ret_type)    ctx.bind(*ret_type);
 
-    if (lambda->body) ctx.bind(*lambda);
-    else              ctx.bind(*lambda->param);
+    if (fn->body) ctx.bind(*fn);
+    else          ctx.bind(*fn->param);
     ctx.pop_scope();
 }
 

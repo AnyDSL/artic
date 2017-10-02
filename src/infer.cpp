@@ -260,7 +260,7 @@ const artic::Type* TupleExpr::infer(TypeInference& ctx) const {
     return ctx.type_table().tuple_type(std::move(type_args));
 }
 
-const artic::Type* LambdaExpr::infer(TypeInference& ctx) const {
+const artic::Type* FnExpr::infer(TypeInference& ctx) const {
     auto param_type = ctx.infer(*param);
     auto body_type = ctx.infer(*body);
     return ctx.type_table().function_type(param_type, body_type);
@@ -373,8 +373,8 @@ const artic::Type* FnDecl::infer(TypeInference& ctx) const {
     auto poly_type = type_params ? ctx.infer(*type_params) : nullptr;
 
     const artic::Type* init_type = nullptr;
-    if (lambda->body) {
-        init_type = ctx.infer(*lambda);
+    if (fn->body) {
+        init_type = ctx.infer(*fn);
         // If a return type is present, unify it with the return type of the function
         if (auto fn_type = init_type->isa<artic::FunctionType>()) {
             if (ret_type) ctx.infer(*ret_type, fn_type->to());
@@ -382,7 +382,7 @@ const artic::Type* FnDecl::infer(TypeInference& ctx) const {
     } else {
         // The return type is mandatory here
         init_type = ctx.type_table().function_type(
-            ctx.infer(*lambda->param),
+            ctx.infer(*fn->param),
             ret_type ? ctx.infer(*ret_type) : ctx.type_table().error_type(loc));
     }
 

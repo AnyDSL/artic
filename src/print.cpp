@@ -95,7 +95,7 @@ void TupleExpr::print(Printer& p) const {
     p << ')';
 }
 
-void LambdaExpr::print(Printer& p) const {
+void FnExpr::print(Printer& p) const {
     p << keyword_style("fn") << ' ';
     print_parens(p, param);
     p << " -> ";
@@ -116,7 +116,7 @@ void DeclExpr::print(Printer& p) const {
 }
 
 void CallExpr::print(Printer& p) const {
-    if (callee->isa<LambdaExpr>())
+    if (callee->isa<FnExpr>())
         print_parens(p, callee);
     else
         callee->print(p);
@@ -268,16 +268,16 @@ void FnDecl::print(Printer& p) const {
     p << keyword_style("fn") << " " << id.name;
 
     if (type_params) type_params->print(p);
-    print_parens(p, lambda->param);
+    print_parens(p, fn->param);
 
     if (ret_type) {
         p << " -> ";
         ret_type->print(p);
     }
 
-    if (lambda->body) {
+    if (fn->body) {
         p << ' ';
-        lambda->body->print(p);
+        fn->body->print(p);
     }
 }
 

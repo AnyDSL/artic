@@ -317,13 +317,13 @@ struct TupleExpr : public Expr {
 };
 
 /// Anonymous function expression.
-struct LambdaExpr : public Expr {
+struct FnExpr : public Expr {
     Ptr<Ptrn> param;
     Ptr<Expr> body;
 
-    LambdaExpr(const Loc& loc,
-               Ptr<Ptrn>&& param,
-               Ptr<Expr>&& body)
+    FnExpr(const Loc& loc,
+           Ptr<Ptrn>&& param,
+           Ptr<Expr>&& body)
         : Expr(loc)
         , param(std::move(param))
         , body(std::move(body))
@@ -585,17 +585,17 @@ struct DefDecl : public LocalDecl {
 
 /// Function declaration.
 struct FnDecl : public NamedDecl {
-    Ptr<LambdaExpr> lambda;
+    Ptr<FnExpr> fn;
     Ptr<Type> ret_type;
     Ptr<TypeParamList> type_params;
 
     FnDecl(const Loc& loc,
            Identifier&& id,
-           Ptr<LambdaExpr>&& lambda,
+           Ptr<FnExpr>&& fn,
            Ptr<Type>&& ret_type,
            Ptr<TypeParamList>&& type_params)
         : NamedDecl(loc, std::move(id))
-        , lambda(std::move(lambda))
+        , fn(std::move(fn))
         , ret_type(std::move(ret_type))
         , type_params(std::move(type_params))
     {}
