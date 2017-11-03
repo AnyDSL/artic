@@ -32,7 +32,7 @@ void print_parens(Printer& p, const E& e) {
 inline void print_vars(Printer& p, size_t vars, const std::unordered_set<const Trait*>& traits) {
     for (size_t i = 0; i < vars; i++) {
         p << type_var_style(p.var_name(i));
-        if (i != vars - 1) p << ' ';
+        if (i != vars - 1) p << ", ";
     }
     if (!traits.empty()) {
         p << " with ";

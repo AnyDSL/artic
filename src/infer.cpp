@@ -370,8 +370,11 @@ const artic::Type* LocalDecl::infer(TypeInference& ctx) const {
 }
 
 const artic::Type* FnDecl::infer(TypeInference& ctx) const {
-    auto poly_type = type_params ? ctx.infer(*type_params) : nullptr;
+    // Create a dummy type for this declaration,
+    // so that it can be bound during constraint generation
+    ctx.type(*this);
 
+    auto poly_type = type_params ? ctx.infer(*type_params) : nullptr;
     const artic::Type* init_type = nullptr;
     if (fn->body) {
         init_type = ctx.infer(*fn);
@@ -387,7 +390,14 @@ const artic::Type* FnDecl::infer(TypeInference& ctx) const {
     }
 
     if (poly_type) return ctx.unify(loc, poly_type, init_type);
-    return init_type ? ctx.generalize(loc, init_type, rank) : ctx.type(*this);
+    if (init_type) {
+        // Unify the type of the function with its initializer,
+        // so that recursive calls constrain arguments
+        ctx.unify(loc, ctx.type(*this), init_type);
+        // Generate a polymorphic type
+        return ctx.generalize(loc, init_type, rank);
+    }
+    return ctx.type(*this);
 }
 
 const artic::Type* FieldDecl::infer(TypeInference& ctx) const {
