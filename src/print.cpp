@@ -162,7 +162,7 @@ void UnaryExpr::print(Printer& p) const {
 
 void BinaryExpr::print(Printer& p) const {
     auto prec = BinaryExpr::precedence(tag);
-    auto print_op = [prec, &p] (auto& e) {
+    auto print_op = [prec, &p] (const Ptr<Expr>& e) {
         if (e->isa<IfExpr>() ||
             (e->isa<BinaryExpr>() &&
              BinaryExpr::precedence(e->as<BinaryExpr>()->tag) > prec))
