@@ -1,10 +1,6 @@
 # Artic
 
-Colder, and cooler. This is the redesigned version of Artic, whose goal is to provide a language with the following features:
-
-- [X] Scala-like syntax
-- [ ] Type system which supports polymorphism and overloading (with an associated inference algorithm, e.g. W<sup>o</sup>)
-- [ ] AST-level optimizations, available through annotations in the code
+A simple rust-like language with global type inference.
 
 ## Building
 
@@ -19,10 +15,9 @@ A compiler that supports C++14 and CMake are required to build the project. Use 
 
 The syntax is as follows:
 
-```scala
-def x = 1
-var (a, b) = (1, 2)
-def fun(x, y) = {
-   x + y
+```rust
+fn foo(x, y) {
+    let z = 3 : i32;
+    z * (x + y)
 }
 ```
