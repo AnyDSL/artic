@@ -1,6 +1,8 @@
 #ifndef PARSER_H
 #define PARSER_H
 
+#include <array>
+
 #include "log.h"
 #include "lexer.h"
 #include "ast.h"
@@ -16,8 +18,7 @@ public:
 
 private:
     Ptr<ast::Decl>          parse_decl();
-    Ptr<ast::DefDecl>       parse_def_decl();
-    Ptr<ast::VarDecl>       parse_var_decl();
+    Ptr<ast::LetDecl>       parse_let_decl();
     Ptr<ast::FnDecl>        parse_fn_decl();
     Ptr<ast::FieldDecl>     parse_field_decl();
     Ptr<ast::StructDecl>    parse_struct_decl();
@@ -44,7 +45,7 @@ private:
     Ptr<ast::Expr>          parse_tuple_expr();
     Ptr<ast::BlockExpr>     parse_block_expr();
     Ptr<ast::DeclExpr>      parse_decl_expr();
-    Ptr<ast::FnExpr>        parse_fn_expr();
+    Ptr<ast::FnExpr>        parse_fn_expr(bool);
     Ptr<ast::CallExpr>      parse_call_expr(Ptr<ast::Expr>&&);
     Ptr<ast::IfExpr>        parse_if_expr();
     Ptr<ast::Expr>          parse_primary_expr();
@@ -57,7 +58,7 @@ private:
     Ptr<ast::Type>          parse_named_type();
     Ptr<ast::PrimType>      parse_prim_type(ast::PrimType::Tag);
     Ptr<ast::TupleType>     parse_tuple_type();
-    Ptr<ast::FunctionType>  parse_function_type(Ptr<ast::Type>&&);
+    Ptr<ast::FnType>        parse_fn_type();
     Ptr<ast::TypeApp>       parse_type_app();
     Ptr<ast::ErrorType>     parse_error_type();
 
@@ -89,23 +90,48 @@ private:
         {}
     };
 
-    template <typename F>
-    void parse_list(Token::Tag end, Token::Tag sep, F f) {
-        while (ahead().tag() != end) {
+    template <typename F, size_t N, size_t M>
+    size_t parse_list(std::array<Token::Tag, N> ends, std::array<Token::Tag, M> seps, F f) {
+        while (std::find(ends.begin(), ends.end(), ahead().tag()) == ends.end()) {
             f();
-            if (ahead().tag() != sep) break;
-            eat(sep);
+            auto sep_it = std::find(seps.begin(), seps.end(), ahead().tag());
+            if (sep_it == seps.end()) break;
+            eat(*sep_it);
         }
-        expect(end);
+        return expect(ends);
     }
 
-    void expect(Token::Tag tag) {
-        if (ahead().tag() != tag) {
+    template <typename F>
+    void parse_list(Token::Tag end, Token::Tag sep, F f) { parse_list(std::array<Token::Tag, 1>{end}, std::array<Token::Tag, 1>{sep}, f); }
+
+    template <size_t N>
+    size_t expect(std::array<Token::Tag, N> tags) {
+        if (N == 1) {
+            return expect(tags.front()) ? 0 : 1;
+        } else {
+            auto it = std::find(tags.begin(), tags.end(), ahead().tag());
+            if (it == tags.end()) {
+                std::string tag_list;
+                for (size_t i = 0; i < N; i++) {
+                    tag_list += '\'' + Token::tag_to_string(tags[i]) + '\'';
+                    if (i != N - 1) tag_list += " or ";
+                }
+                log::error(ahead().loc(), "expected {}, got '{}'", tag_list, ahead().string());
+            }
+            next();
+            return std::distance(it, tags.begin());
+        }
+    }
+
+    bool expect(Token::Tag tag) {
+        bool res = ahead().tag() == tag;
+        if (!res) {
             log::error(ahead().loc(), "expected '{}', got '{}'",
                 Token::tag_to_string(tag),
                 ahead().string());
         }
         next();
+        return res;
     }
 
     void expect_binder(const std::string& msg, const Ptr<ast::Ptrn>& ptrn) {
@@ -118,22 +144,30 @@ private:
         next();
     }
 
-    void eat_nl() {
-        if (ahead().tag() == Token::SEMICOLON && ahead().is_newline())
-            eat(Token::SEMICOLON);
+    void next() {
+        prev_ = ahead_[ptr_].loc();
+        if (ptr_ == 0) {
+            ahead_[0] = lexer_.next();
+        } else {
+            ptr_--;
+        }
     }
 
-    void next() {
-        prev_  = ahead_.loc();
-        ahead_ = lexer_.next();
+    void push(const Token& tok) {
+        assert(ptr_ < max_ahead);
+        ahead_[++ptr_] = tok;
     }
 
     const Token& ahead() const {
-        return ahead_;
+        return ahead_[ptr_];
     }
 
+    static constexpr size_t max_ahead = 2;
+
     Loc prev_;
-    Token ahead_;
+    Token ahead_[max_ahead];
+    size_t ptr_ = 0;
+ 
     Lexer& lexer_;
     TypeTable& type_table_;
 

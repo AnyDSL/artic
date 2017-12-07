@@ -8,8 +8,8 @@
 namespace artic {
 
 std::unordered_map<std::string, Token::Tag> Lexer::keywords{
-    std::make_pair("def",    Token::DEF),
-    std::make_pair("var",    Token::VAR),
+    std::make_pair("let",    Token::LET),
+    std::make_pair("mut",    Token::MUT),
     std::make_pair("fn",     Token::FN),
     std::make_pair("if",     Token::IF),
     std::make_pair("else",   Token::ELSE),
@@ -64,15 +64,6 @@ Token Lexer::next() {
         loc_.begin_col = loc_.end_col;
 
         if (eof()) return Token(loc_, Token::END);
-
-        if (peek() == '\n') {
-            while (accept('\n')) {
-                loc_.begin_row = loc_.end_row;
-                loc_.begin_col = loc_.end_col;
-                eat_spaces();
-            }
-            return Token(loc_, Token::SEMICOLON, true);
-        }
 
         if (accept('(')) return Token(loc_, Token::L_PAREN);
         if (accept(')')) return Token(loc_, Token::R_PAREN);
@@ -141,10 +132,12 @@ Token Lexer::next() {
             return Token(loc_, Token::MOD);
         }
         if (accept('&')) {
+            if (accept('&')) return Token(loc_, Token::AND_AND);
             if (accept('=')) return Token(loc_, Token::AND_EQ);
             return Token(loc_, Token::AND);
         }
         if (accept('|')) {
+            if (accept('|')) return Token(loc_, Token::OR_OR);
             if (accept('=')) return Token(loc_, Token::OR_EQ);
             return Token(loc_, Token::OR);
         }
@@ -206,7 +199,7 @@ void Lexer::eat() {
 }
 
 void Lexer::eat_spaces() {
-    while (!eof() && peek() != '\n' && std::isspace(peek())) eat();
+    while (!eof() && std::isspace(peek())) eat();
 }
 
 void Lexer::eat_comments() {

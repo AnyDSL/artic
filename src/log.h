@@ -99,34 +99,34 @@ void format(std::ostream& os, const char* fmt) {
 }
 
 template <bool new_line = true, typename T, typename... Args>
-void format(std::ostream& os, const char* fmt, T t, Args... args) {
+void format(std::ostream& os, const char* fmt, const T& t, const Args&... args) {
     auto ptr = fmt;
     auto p = strchr(ptr, '{');
     while (p && *(p + 1) == '{') p = strchr(p + 2, '{');
     assert(p != nullptr && "Missing argument to format");
     os.write(ptr, p - ptr);
     os << t;
-    format<new_line>(os, strchr(p, '}') + 1, args...); 
+    format<new_line>(os, strchr(p, '}') + 1, args...);
 }
 
 template <bool new_line = true, typename... Args>
-void error(const char* fmt, Args... args) {
+void error(const char* fmt, const Args&... args) {
     format<new_line>(std::cerr, fmt, args...);
 }
 
 template <bool new_line = true, typename... Args>
-void warn(const char* fmt, Args... args) {
+void warn(const char* fmt, const Args&... args) {
     format<new_line>(std::clog, fmt, args...);
 }
 
 template <bool new_line = true, typename... Args>
-void info(const char* fmt, Args... args) {
+void info(const char* fmt, const Args&... args) {
     format<new_line>(std::cout, fmt, args...);
 }
 
 /// Report an error at the given location in a source file.
 template <typename... Args>
-void error(const Loc& loc, const char* fmt, Args... args) {
+void error(const Loc& loc, const char* fmt, const Args&... args) {
     if (colorize) {
         error<false>("{} in {}: ",
               style("error", Style::RED,   Style::BOLD),
@@ -139,7 +139,7 @@ void error(const Loc& loc, const char* fmt, Args... args) {
 
 /// Report a warning at the given location in a source file.
 template <typename... Args>
-void warn(const Loc& loc, const char* fmt, Args... args) {
+void warn(const Loc& loc, const char* fmt, const Args&... args) {
     if (colorize) {
         warn<false>("{} in {}: ",
              style("warning", Style::YELLOW, Style::BOLD),
@@ -152,7 +152,7 @@ void warn(const Loc& loc, const char* fmt, Args... args) {
 
 /// Display a note corresponding to a specific location in a source file.
 template <typename... Args>
-void info(const Loc& loc, const char* fmt, Args... args) {
+void info(const Loc& loc, const char* fmt, const Args&... args) {
     if (colorize) {
         info<false>("{} in {}: ",
              style("info", Style::CYAN,  Style::BOLD),

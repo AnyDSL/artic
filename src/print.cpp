@@ -42,6 +42,16 @@ inline void print_vars(Printer& p, size_t vars, const std::unordered_set<const T
     }
 }
 
+inline void print_struct_body(Printer& p, const StructType* struct_type) {
+    p << " { ";
+    for (size_t i = 0, n = struct_type->args.size(); i < n; i++) {
+        p << struct_type->members[i] << ": ";
+        struct_type->args[i]->print(p);
+        if (i != n - 1) p << ", ";
+    }
+    p << " }";
+}
+
 // AST nodes -----------------------------------------------------------------------
 
 namespace ast {
@@ -74,7 +84,7 @@ void LiteralExpr::print(Printer& p) const {
 }
 
 void FieldExpr::print(Printer& p) const {
-    p << id.name << " : ";
+    p << id.name << ": ";
     expr->print(p);
 }
 
@@ -96,18 +106,29 @@ void TupleExpr::print(Printer& p) const {
 }
 
 void FnExpr::print(Printer& p) const {
-    p << keyword_style("fn") << ' ';
-    print_parens(p, param);
-    p << " -> ";
+    p << '|';
+    if (auto tuple = param->isa<TuplePtrn>()) {
+        print_list(p, ", ", tuple->args, [&] (auto& a) {
+            a->print(p);
+        });
+    } else {
+        param->print(p);
+    }
+    p << "| ";
     body->print(p);
 }
 
 void BlockExpr::print(Printer& p) const {
     p << '{' << p.indent();
-    print_list(p, ';', exprs, [&] (auto& e) {
+    for (size_t i = 0, n = exprs.size(); i < n; i++) {
+        auto& expr = exprs[i];
         p << p.endl();
-        e->print(p);
-    });
+        expr->print(p);
+
+        auto decl_expr = expr->isa<DeclExpr>();
+        bool semicolon = !decl_expr || !decl_expr->decl->isa<FnDecl>();
+        if (i != n - 1 && semicolon) p << ';';
+    }
     p << p.unindent() << p.endl() << "}";
 }
 
@@ -124,12 +145,12 @@ void CallExpr::print(Printer& p) const {
 }
 
 void IfExpr::print(Printer& p) const {
-    p << keyword_style("if") << " (";
+    p << keyword_style("if") << ' ';
     cond->print(p);
-    p << ") ";
+    p << ' ';
     if_true->print(p);
     if (if_false) {
-        p << " " << keyword_style("else") << " ";
+        p << ' ' << keyword_style("else") << ' ';
         if_false->print(p);
     }
 }
@@ -181,7 +202,7 @@ void FieldPtrn::print(Printer& p) const {
     if (is_etc()) {
         p << "...";
     } else {
-        p << id.name << " : ";
+        p << id.name << ": ";
         ptrn->print(p);
     }
 }
@@ -229,7 +250,7 @@ void TypeParamList::print(Printer& p) const {
 }
 
 void FieldDecl::print(Printer& p) const {
-    p << id.name << " : ";
+    p << id.name << ": ";
     type->print(p);
 }
 
@@ -245,18 +266,12 @@ void StructDecl::print(Printer& p) const {
 }
 
 void PtrnDecl::print(Printer& p) const {
+    if (mut) p << keyword_style("mut") << ' ';
     p << id.name;
 }
 
-void DefDecl::print(Printer& p) const {
-    p << keyword_style("def") << " ";
-    ptrn->print(p);
-    p << " = ";
-    init->print(p);
-}
-
-void VarDecl::print(Printer& p) const {
-    p << keyword_style("var") << " ";
+void LetDecl::print(Printer& p) const {
+    p << keyword_style("let") << " ";
     ptrn->print(p);
     if (init) {
         p << " = ";
@@ -314,16 +329,13 @@ void TupleType::print(Printer& p) const {
     p << ')';
 }
 
-void FunctionType::print(Printer& p) const {
-    if (from->isa<FunctionType>()) {
-        p << '(';
-        from->print(p);
-        p << ')';
-    } else {
-        from->print(p);
+void FnType::print(Printer& p) const {
+    p << keyword_style("fn") << ' ';
+    print_parens(p, from);
+    if (to) {
+        p << " -> ";
+        to->print(p);
     }
-    p << " -> ";
-    to->print(p);
 }
 
 void TypeApp::print(Printer& p) const {
@@ -334,13 +346,13 @@ void ErrorType::print(Printer& p) const {
     p << error_style("<invalid type>");
 }
 
-std::ostream& operator << (std::ostream& os, const Node* node) {
+std::ostream& operator << (std::ostream& os, const Node& node) {
     Printer p(os);
-    node->print(p);
+    node.print(p);
     return os;
 }
 
-void Node::dump() const { std::cout << this << std::endl; }
+void Node::dump() const { std::cout << *this << std::endl; }
 
 } // namespace ast
 
@@ -352,13 +364,7 @@ void PrimType::print(Printer& p) const {
 
 void StructType::print(Printer& p) const {
     p << name;
-    p << " { ";
-    for (size_t i = 0, n = args.size(); i < n; i++) {
-        p << members[i] << " : ";
-        args[i]->print(p);
-        if (i != n - 1) p << ", ";
-    }
-    p << " }";
+    print_struct_body(p, this);
 }
 
 void TupleType::print(Printer& p) const {
@@ -369,25 +375,34 @@ void TupleType::print(Printer& p) const {
     p << ')';
 }
 
-void FunctionType::print(Printer& p) const {
-    if (from()->isa<FunctionType>()) {
-        p << '(';
-        from()->print(p);
-        p << ')';
-    } else {
-        from()->print(p);
-    }
+void FnType::print(Printer& p) const {
+    p << keyword_style("fn");
+    print_parens(p, from());
     p << " -> ";
     to()->print(p);
 }
 
 void PolyType::print(Printer& p) const {
-    bool body_first = body->isa<StructType>();
-    if (body_first) body->print(p);
-    p << '[';
-    print_vars(p, vars, traits);
-    p << ']';
-    if (!body_first) body->print(p);
+    if (auto struct_type = body->isa<StructType>()) {
+        p << struct_type->name;
+        p << '[';
+        print_vars(p, vars, traits);
+        p << ']';
+        print_struct_body(p, struct_type);
+    } else if (auto fn_type = body->isa<FnType>()) {
+        p << keyword_style("fn");
+        p << '[';
+        print_vars(p, vars, traits);
+        p << ']';
+        print_parens(p, fn_type->from());
+        p << " -> ";
+        fn_type->to()->print(p);
+    } else {
+        p << '[';
+        print_vars(p, vars, traits);
+        p << "] ";
+        body->print(p);
+    }
 }
 
 void TypeVar::print(Printer& p) const {
@@ -402,12 +417,12 @@ void ErrorType::print(Printer& p) const {
     p << error_style("<invalid type>");
 }
 
-std::ostream& operator << (std::ostream& os, const Type* type) {
+std::ostream& operator << (std::ostream& os, const Type& type) {
     Printer p(os);
-    type->print(p);
+    type.print(p);
     return os;
 }
 
-void Type::dump() const { std::cout << this << std::endl; }
+void Type::dump() const { std::cout << *this << std::endl; }
 
 } // namespace artic

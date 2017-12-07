@@ -10,7 +10,7 @@ bool TypeChecker::run(const ast::Program& program) {
 
 void TypeChecker::expect(const std::string& where, const Ptr<ast::Expr>& expr, const artic::Type* type) {
     if (expr->type != type)
-        log::error(expr->loc, "type mismatch in {}, got '{}'", where, expr->type);
+        log::error(expr->loc, "type mismatch in {}, got '{}'", where, *expr->type);
 }
 
 namespace ast {
@@ -25,7 +25,7 @@ void TupleType::check(TypeChecker& ctx) const {
     for (auto& arg : args) arg->check(ctx);
 }
 
-void FunctionType::check(TypeChecker& ctx) const {
+void FnType::check(TypeChecker& ctx) const {
     from->check(ctx);
     to->check(ctx);
 }
@@ -74,14 +74,14 @@ void DeclExpr::check(TypeChecker& ctx) const {
 }
 
 void CallExpr::check(TypeChecker& ctx) const {
-    auto fn_type = callee->type->inner()->isa<artic::FunctionType>();
+    auto fn_type = callee->type->inner()->isa<artic::FnType>();
     if (!fn_type) {
-        log::error(loc, "callee '{}' is not a function", callee.get());
+        log::error(loc, "callee '{}' is not a function", *callee.get());
         return;
     }
 
     if (arg->type != fn_type->from()) {
-        ctx.expect("function call", arg, callee->type->as<artic::FunctionType>()->from());
+        ctx.expect("function call", arg, callee->type->as<artic::FnType>()->from());
         return;
     }
 
@@ -145,7 +145,7 @@ void PtrnDecl::check(TypeChecker&) const {
         log::error(loc, "cannot infer type for '{}'", id.name);
 }
 
-void LocalDecl::check(TypeChecker& ctx) const {
+void LetDecl::check(TypeChecker& ctx) const {
     if (init) {
         ctx.expect("variable declaration", init, ptrn->type);
         init->check(ctx);

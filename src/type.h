@@ -61,7 +61,7 @@ struct Type : public Cast<Type> {
     void dump() const;
 };
 
-std::ostream& operator << (std::ostream&, const Type*);
+std::ostream& operator << (std::ostream&, const Type&);
 
 /// A trait is a structure containing a set of operations that are valid for a type.
 struct Trait {
@@ -158,10 +158,10 @@ struct TupleType : public TypeApp {
 };
 
 /// Function type with domain and codomain types (multi-argument functions use tuple types for the domain).
-struct FunctionType : public TypeApp {
+struct FnType : public TypeApp {
     using TypeApp::Args;
 
-    FunctionType(const Type* from, const Type* to)
+    FnType(const Type* from, const Type* to)
         : TypeApp(Args{from, to})
     {}
 
@@ -296,7 +296,7 @@ public:
     const StructType*   struct_type(std::string&&, StructType::Args&&, StructType::Members&&);
     const TupleType*    tuple_type(TupleType::Args&&);
     const TupleType*    unit_type();
-    const FunctionType* function_type(const Type*, const Type*);
+    const FnType*       fn_type(const Type*, const Type*);
     const PolyType*     poly_type(size_t, const Type*, PolyType::Traits&&);
     const TypeVar*      type_var(int);
     const ErrorType*    error_type(const Loc&);

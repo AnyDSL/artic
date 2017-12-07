@@ -23,14 +23,14 @@ bool TypeApp::is_nominal() const {
     return name != "";
 }
 
-const Type* FunctionType::first_arg() const {
+const Type* FnType::first_arg() const {
     if (auto tuple_type = from()->isa<TupleType>()) {
         if (!tuple_type->args.empty()) return tuple_type->args[0];
     }
     return from();
 }
 
-size_t FunctionType::num_args() const {
+size_t FnType::num_args() const {
     if (auto tuple_type = from()->isa<TupleType>()) {
         return tuple_type->args.size();
     }
@@ -54,7 +54,7 @@ uint32_t TupleType::hash() const {
     return hash_list(args, [] (auto& arg) { return arg->hash(); });
 }
 
-uint32_t FunctionType::hash() const {
+uint32_t FnType::hash() const {
     return hash_combine(from()->hash(), to()->hash());
 }
 
@@ -134,8 +134,8 @@ const TypeApp* TupleType::rebuild(TypeTable& table, Args&& new_args) const {
     return table.tuple_type(std::move(new_args));
 }
 
-const TypeApp* FunctionType::rebuild(TypeTable& table, Args&& new_args) const {
-    return table.function_type(new_args[0], new_args[1]);
+const TypeApp* FnType::rebuild(TypeTable& table, Args&& new_args) const {
+    return table.fn_type(new_args[0], new_args[1]);
 }
 
 // Update rank ---------------------------------------------------------------------
@@ -241,8 +241,8 @@ const TupleType* TypeTable::unit_type() {
     return new_type<TupleType>(std::vector<const Type*>{});
 }
 
-const FunctionType* TypeTable::function_type(const Type* from, const Type* to) {
-    return new_type<FunctionType>(from, to);
+const FnType* TypeTable::fn_type(const Type* from, const Type* to) {
+    return new_type<FnType>(from, to);
 }
 
 const PolyType* TypeTable::poly_type(size_t vars, const Type* body, PolyType::Traits&& traits) {

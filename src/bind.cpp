@@ -5,17 +5,15 @@
 namespace artic {
 
 void NameBinder::run(const ast::Program& program) {
-    // First run: get the top-level declarations into the environment
-    first_run_ = true;
-    bind(program);
-
-    // Second run: bind the rest of the program
-    first_run_ = false;
     bind(program);
 }
 
+void NameBinder::bind_head(const ast::Decl& decl) {
+    decl.rank = scopes_.size();
+    decl.bind_head(*this);
+}
+
 void NameBinder::bind(const ast::Node& node) {
-    if (first_run_ && scopes_.size() > 1) return;
     node.rank = scopes_.size();
     node.bind(*this);
 }
@@ -52,9 +50,9 @@ void TupleType::bind(NameBinder& ctx) const {
     for (auto& arg : args) ctx.bind(*arg);
 }
 
-void FunctionType::bind(NameBinder& ctx) const {
+void FnType::bind(NameBinder& ctx) const {
     ctx.bind(*from);
-    ctx.bind(*to);
+    if (to) ctx.bind(*to);
 }
 
 void TypeApp::bind(NameBinder& ctx) const {
@@ -98,6 +96,10 @@ void FnExpr::bind(NameBinder& ctx) const {
 
 void BlockExpr::bind(NameBinder& ctx) const {
     ctx.push_scope();
+    for (auto& expr : exprs) {
+        if (auto decl_expr = expr->isa<DeclExpr>())
+            ctx.bind_head(*decl_expr->decl);
+    }
     for (auto& expr : exprs) ctx.bind(*expr);
     ctx.pop_scope();
 }
@@ -166,15 +168,18 @@ void PtrnDecl::bind(NameBinder& ctx) const {
     ctx.insert_symbol(*this);
 }
 
-void LocalDecl::bind(NameBinder& ctx) const {
+void LetDecl::bind(NameBinder& ctx) const {
     ctx.bind(*ptrn);
     ctx.push_scope();
     if (init) ctx.bind(*init);
     ctx.pop_scope();
 }
 
-void FnDecl::bind(NameBinder& ctx) const {
+void FnDecl::bind_head(NameBinder& ctx) const {
     ctx.insert_symbol(*this);
+}
+
+void FnDecl::bind(NameBinder& ctx) const {
     ctx.push_scope();
 
     if (type_params) ctx.bind(*type_params);
@@ -190,21 +195,27 @@ void FieldDecl::bind(NameBinder& ctx) const {
     ctx.bind(*type);
 }
 
-void StructDecl::bind(NameBinder& ctx) const {
+void StructDecl::bind_head(NameBinder& ctx) const {
     ctx.insert_symbol(*this);
+}
+
+void StructDecl::bind(NameBinder& ctx) const {
     ctx.push_scope();
     if (type_params) ctx.bind(*type_params);
     for (auto& field : fields) ctx.bind(*field);
     ctx.pop_scope();
 }
 
-void TraitDecl::bind(NameBinder& ctx) const {
+void TraitDecl::bind_head(NameBinder& ctx) const {
     ctx.insert_symbol(*this);
 }
+
+void TraitDecl::bind(NameBinder&) const {}
 
 void ErrorDecl::bind(NameBinder&) const {}
 
 void Program::bind(NameBinder& ctx) const {
+    for (auto& decl : decls) ctx.bind_head(*decl);
     for (auto& decl : decls) ctx.bind(*decl);
 }
 

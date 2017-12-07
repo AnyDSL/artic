@@ -10,6 +10,10 @@ void TypeInference::run(const ast::Program& program) {
     // Run fix-point iterations until convergence
     do {
         todo_ = false;
+        // Reset the rank of unknowns, so that next iteration
+        // can generalize type variables when it is safe to do so
+        for (auto u : type_table_.unknowns())
+            u->rank = UnknownType::max_rank();
         program.infer(*this);
     } while (todo_);
 }
@@ -42,7 +46,7 @@ const Type* TypeInference::unify(const Loc& loc, const Type* a, const Type* b) {
     auto app_b = b->isa<TypeApp>();
     if (app_a && app_b && typeid(*app_a) == typeid(*app_b) && app_a->args.size() == app_b->args.size()) {
         if (app_a->name != app_b->name) {
-            log::error(loc, "incompatible nominal types '{}' and '{}'", a, b);
+            log::error(loc, "incompatible nominal types '{}' and '{}'", *a, *b);
             return type_table_.error_type(loc);
         }
 
@@ -53,7 +57,7 @@ const Type* TypeInference::unify(const Loc& loc, const Type* a, const Type* b) {
     }
 
     if (a != b) {
-        log::error(loc, "cannot unify '{}' and '{}'", a, b);
+        log::error(loc, "cannot unify '{}' and '{}'", *a, *b);
         return type_table_.error_type(loc);
     }
     return a;
@@ -138,7 +142,7 @@ const Type* TypeInference::subsume(const Loc& loc, const Type* type, std::vector
 
 const Type* TypeInference::type(const ast::Node& node, int rank) {
     if (!node.type)
-        node.type = type_table_.unknown_type(std::min(node.rank, rank));
+        node.type = type_table_.unknown_type(std::min(rank, node.rank));
     return find(node.type);
 }
 
@@ -191,7 +195,8 @@ const artic::Type* Path::infer(TypeInference& ctx) const {
     if (!symbol || symbol->decls.empty()) return ctx.type_table().error_type(loc);
 
     auto decl = symbol->decls.front();
-    if (!decl->type) return ctx.type(*this, decl->rank);
+    // Return an unknown with a rank that prevents too eager generalization of constraints
+    if (!decl->type) return ctx.type(*this, decl->rank-1);
 
     type_args.resize(std::max(type_args.size(), args.size()));
     for (size_t i = 0; i < args.size(); i++) {
@@ -215,8 +220,8 @@ const artic::Type* TupleType::infer(TypeInference& ctx) const {
     return ctx.type_table().tuple_type(std::move(types));
 }
 
-const artic::Type* FunctionType::infer(TypeInference& ctx) const {
-    return ctx.type_table().function_type(ctx.infer(*from), ctx.infer(*to));
+const artic::Type* FnType::infer(TypeInference& ctx) const {
+    return ctx.type_table().fn_type(ctx.infer(*from), ctx.infer(*to));
 }
 
 const artic::Type* TypeApp::infer(TypeInference& ctx) const {
@@ -245,13 +250,11 @@ const artic::Type* FieldExpr::infer(TypeInference& ctx) const {
 }
 
 const artic::Type* StructExpr::infer(TypeInference& ctx) const {
-    auto struct_type = ctx.infer(*expr, ctx.type(*this))->isa<StructType>();
-    if (!struct_type) {
-        for (auto& field : fields) ctx.infer(*field);
-        return ctx.type(*this);
-    }
-
-    return infer_struct(ctx, loc, struct_type, fields, false);
+    auto expr_type = ctx.infer(*expr, ctx.type(*this));
+    for (auto& field : fields) ctx.infer(*field);
+    if (auto struct_type = expr_type->isa<StructType>())
+        return infer_struct(ctx, loc, struct_type, fields, false);
+    return expr_type;
 }
 
 const artic::Type* TupleExpr::infer(TypeInference& ctx) const {
@@ -263,7 +266,7 @@ const artic::Type* TupleExpr::infer(TypeInference& ctx) const {
 const artic::Type* FnExpr::infer(TypeInference& ctx) const {
     auto param_type = ctx.infer(*param);
     auto body_type = ctx.infer(*body);
-    return ctx.type_table().function_type(param_type, body_type);
+    return ctx.type_table().fn_type(param_type, body_type);
 }
 
 const artic::Type* BlockExpr::infer(TypeInference& ctx) const {
@@ -280,7 +283,7 @@ const artic::Type* DeclExpr::infer(TypeInference& ctx) const {
 const artic::Type* CallExpr::infer(TypeInference& ctx) const {
     auto arg_type = ctx.infer(*arg);
     auto ret_type = ctx.type(*this);
-    ctx.infer(*callee, ctx.type_table().function_type(arg_type, ret_type));
+    ctx.infer(*callee, ctx.type_table().fn_type(arg_type, ret_type));
     return ret_type;
 }
 
@@ -328,13 +331,11 @@ const artic::Type* FieldPtrn::infer(TypeInference& ctx) const {
 }
 
 const artic::Type* StructPtrn::infer(TypeInference& ctx) const {
-    auto struct_type = ctx.infer(path)->isa<StructType>();
-    if (!struct_type) {
-        for (auto& field : fields) ctx.infer(*field);
-        return ctx.type(*this);
-    }
-
-    return infer_struct(ctx, loc, struct_type, fields, !fields.empty() && fields.back()->is_etc());
+    auto expr_type = ctx.infer(path);
+    for (auto& field : fields) ctx.infer(*field);
+    if (auto struct_type = expr_type->isa<StructType>())
+        return infer_struct(ctx, loc, struct_type, fields, !fields.empty() && fields.back()->is_etc());
+    return expr_type;
 }
 
 const artic::Type* TuplePtrn::infer(TypeInference& ctx) const {
@@ -365,26 +366,25 @@ const artic::Type* PtrnDecl::infer(TypeInference& ctx) const {
     return ctx.type(*this);
 }
 
-const artic::Type* LocalDecl::infer(TypeInference& ctx) const {
+const artic::Type* LetDecl::infer(TypeInference& ctx) const {
     return init ? ctx.infer(*ptrn, ctx.infer(*init)) : ctx.infer(*ptrn);
 }
 
 const artic::Type* FnDecl::infer(TypeInference& ctx) const {
     // Create a dummy type for this declaration,
     // so that it can be bound during constraint generation
-    ctx.type(*this);
-
+    auto fn_type = ctx.type(*this);
     auto poly_type = type_params ? ctx.infer(*type_params) : nullptr;
     const artic::Type* init_type = nullptr;
     if (fn->body) {
         init_type = ctx.infer(*fn);
         // If a return type is present, unify it with the return type of the function
-        if (auto fn_type = init_type->isa<artic::FunctionType>()) {
+        if (auto fn_type = init_type->isa<artic::FnType>()) {
             if (ret_type) ctx.infer(*ret_type, fn_type->to());
         }
     } else {
         // The return type is mandatory here
-        init_type = ctx.type_table().function_type(
+        init_type = ctx.type_table().fn_type(
             ctx.infer(*fn->param),
             ret_type ? ctx.infer(*ret_type) : ctx.type_table().error_type(loc));
     }
@@ -393,11 +393,11 @@ const artic::Type* FnDecl::infer(TypeInference& ctx) const {
     if (init_type) {
         // Unify the type of the function with its initializer,
         // so that recursive calls constrain arguments
-        ctx.unify(loc, ctx.type(*this), init_type);
+        ctx.unify(loc, fn_type, init_type);
         // Generate a polymorphic type
         return ctx.generalize(loc, init_type, rank);
     }
-    return ctx.type(*this);
+    return fn_type;
 }
 
 const artic::Type* FieldDecl::infer(TypeInference& ctx) const {

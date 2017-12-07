@@ -13,8 +13,8 @@ namespace artic {
     f(ERR, "<unknown token>") \
     f(ID, "<identifier>") \
     f(LIT, "<literal>") \
-    f(DEF, "def") \
-    f(VAR, "var") \
+    f(LET, "let") \
+    f(MUT, "mut") \
     f(FN,  "fn") \
     f(IF, "if") \
     f(ELSE, "else") \
@@ -30,6 +30,7 @@ namespace artic {
     f(DOTS, "...") \
     f(COMMA, ",") \
     f(SEMICOLON, ";") \
+    f(COLON_COLON, "::") \
     f(COLON, ":") \
     f(EQ, "=") \
     f(ARROW, "->") \
@@ -53,7 +54,9 @@ namespace artic {
     f(L_SHFT, "<<") \
     f(R_SHFT, ">>") \
     f(AND, "&") \
+    f(AND_AND, "&&") \
     f(OR, "|") \
+    f(OR_OR, "||") \
     f(XOR, "^") \
     f(NOT, "!") \
     f(CMP_LE, "<=") \

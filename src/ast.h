@@ -71,18 +71,23 @@ struct Node : public Cast<Node> {
     void dump() const;
 };
 
-std::ostream& operator << (std::ostream&, const Node*);
+std::ostream& operator << (std::ostream&, const Node&);
 
 // Base AST nodes ------------------------------------------------------------------
 
 /// Base class for all declarations.
 struct Decl : public Node {
     Decl(const Loc& loc) : Node(loc) {}
+
+    /// Binds the declaration to its AST node, without entering sub-AST nodes.
+    virtual void bind_head(NameBinder&) const {}
 };
 
 /// Base class for types.
 struct Type : public Node {
     Type(const Loc& loc) : Node(loc) {}
+
+    bool is_tuple() const;
 };
 
 /// Base class for expressions.
@@ -174,11 +179,11 @@ struct TupleType : public Type {
 };
 
 /// Function type, consisting of domain and codomain types.
-struct FunctionType : public Type {
+struct FnType : public Type {
     Ptr<Type> from;
     Ptr<Type> to;
 
-    FunctionType(const Loc& loc, Ptr<Type>&& from, Ptr<Type>&& to)
+    FnType(const Loc& loc, Ptr<Type>&& from, Ptr<Type>&& to)
         : Type(loc), from(std::move(from)), to(std::move(to))
     {}
 
@@ -444,6 +449,7 @@ struct BinaryExpr : public Expr {
         ADD, SUB, MUL, DIV, MOD,
         L_SHFT, R_SHFT,
         AND, OR, XOR,
+        AND_AND, OR_OR,
         CMP_LT, CMP_GT, CMP_LE, CMP_GE, CMP_EQ, CMP_NEQ,
         ERR
     };
@@ -539,8 +545,10 @@ struct TypeParamList : public Decl {
 
 /// Pattern binding associated with an identifier.
 struct PtrnDecl : public NamedDecl {
-    PtrnDecl(const Loc& loc, Identifier&& id)
-        : NamedDecl(loc, std::move(id))
+    bool mut;
+
+    PtrnDecl(const Loc& loc, Identifier&& id, bool mut = false)
+        : NamedDecl(loc, std::move(id)), mut(mut)
     {}
 
     const artic::Type* infer(TypeInference&) const override;
@@ -550,11 +558,11 @@ struct PtrnDecl : public NamedDecl {
 };
 
 /// Declaration that introduces a new symbol in the scope, with an optional initializer.
-struct LocalDecl : public Decl {
+struct LetDecl : public Decl {
     Ptr<Ptrn> ptrn;
     Ptr<Expr> init;
 
-    LocalDecl(const Loc& loc, Ptr<Ptrn>&& ptrn, Ptr<Expr>&& init)
+    LetDecl(const Loc& loc, Ptr<Ptrn>&& ptrn, Ptr<Expr>&& init)
         : Decl(loc)
         , ptrn(std::move(ptrn))
         , init(std::move(init))
@@ -563,23 +571,6 @@ struct LocalDecl : public Decl {
     const artic::Type* infer(TypeInference&) const override;
     void bind(NameBinder&) const override;
     void check(TypeChecker&) const override;
-};
-
-/// Variable declaration (can declare several variables at a time with a pattern).
-struct VarDecl : public LocalDecl {
-    VarDecl(const Loc& loc, Ptr<Ptrn>&& ptrn, Ptr<Expr>&& init)
-        : LocalDecl(loc, std::move(ptrn), std::move(init))
-    {}
-
-    void print(Printer&) const override;
-};
-
-/// Constant or function declaration.
-struct DefDecl : public LocalDecl {
-    DefDecl(const Loc& loc, Ptr<Ptrn>&& ptrn, Ptr<Expr>&& init)
-        : LocalDecl(loc, std::move(ptrn), std::move(init))
-    {}
-
     void print(Printer&) const override;
 };
 
@@ -601,6 +592,7 @@ struct FnDecl : public NamedDecl {
     {}
 
     const artic::Type* infer(TypeInference&) const override;
+    void bind_head(NameBinder&) const override;
     void bind(NameBinder&) const override;
     void check(TypeChecker&) const override;
     void print(Printer&) const override;
@@ -638,6 +630,7 @@ struct StructDecl : public NamedDecl {
     {}
 
     const artic::Type* infer(TypeInference&) const override;
+    void bind_head(NameBinder&) const override;
     void bind(NameBinder&) const override;
     void check(TypeChecker&) const override;
     void print(Printer&) const override;
@@ -658,6 +651,7 @@ struct TraitDecl : public NamedDecl {
     {}
 
     const artic::Type* infer(TypeInference&) const override;
+    void bind_head(NameBinder&) const override;
     void bind(NameBinder&) const override;
     void check(TypeChecker&) const override;
     void print(Printer&) const override;

@@ -19,10 +19,11 @@ public:
 
     void run(const ast::Program&);
 
+    void bind_head(const ast::Decl&);
     void bind(const ast::Node&);
 
     void push_scope() { scopes_.emplace_back(); }
-    void pop_scope()  { scopes_.pop_back();     }
+    void pop_scope()  { scopes_.pop_back(); }
     void insert_symbol(const ast::NamedDecl&);
 
     std::shared_ptr<Symbol> find_symbol(const std::string& name) {

@@ -6,22 +6,23 @@ namespace artic {
 
 namespace ast {
 
+bool Type::is_tuple() const { return isa<TupleType>(); }
 bool Expr::is_tuple() const { return isa<TupleExpr>(); }
 bool Ptrn::is_tuple() const { return isa<TuplePtrn>(); }
 
 std::string PrimType::tag_to_string(Tag tag) {
     switch (tag) {
-        case I1:  return "Bool";
-        case I8:  return "Int8";
-        case I16: return "Int16";
-        case I32: return "Int32";
-        case I64: return "Int64";
-        case U8:  return "Word8";
-        case U16: return "Word16";
-        case U32: return "Word32";
-        case U64: return "Word64";
-        case F32: return "Float32";
-        case F64: return "Float64";
+        case I1:  return "bool";
+        case I8:  return "i8";
+        case I16: return "i16";
+        case I32: return "i32";
+        case I64: return "i64";
+        case U8:  return "u8";
+        case U16: return "u16";
+        case U32: return "u32";
+        case U64: return "u64";
+        case F32: return "f32";
+        case F64: return "f64";
         default:
             assert(false);
             return "";
@@ -30,26 +31,20 @@ std::string PrimType::tag_to_string(Tag tag) {
 
 PrimType::Tag PrimType::tag_from_token(const Token& token) {
     static std::unordered_map<std::string, Tag> tag_map{
-        std::make_pair("Bool", I1),
+        std::make_pair("bool", I1),
 
-        std::make_pair("Int8",  I8),
-        std::make_pair("Int16", I16),
-        std::make_pair("Int32", I32),
-        std::make_pair("Int64", I64),
+        std::make_pair("i8",  I8),
+        std::make_pair("i16", I16),
+        std::make_pair("i32", I32),
+        std::make_pair("i64", I64),
 
-        std::make_pair("Word8",  U8),
-        std::make_pair("Word16", U16),
-        std::make_pair("Word32", U32),
-        std::make_pair("Word64", U64),
+        std::make_pair("u8",  U8),
+        std::make_pair("u16", U16),
+        std::make_pair("u32", U32),
+        std::make_pair("u64", U64),
 
-        std::make_pair("Float32", F32),
-        std::make_pair("Float64", F64),
-
-        // Aliases
-        std::make_pair("Int",    I32),
-        std::make_pair("Word",   U32),
-        std::make_pair("Float",  F32),
-        std::make_pair("Double", F64),
+        std::make_pair("f32", F32),
+        std::make_pair("f64", F64),
     };
     auto it = tag_map.find(token.string());
     return it != tag_map.end() ? it->second : ERR;
@@ -126,16 +121,18 @@ int BinaryExpr::precedence(Tag tag) {
         case L_SHFT:
         case R_SHFT:
             return 3;
+        case AND: return 4;
+        case XOR: return 5;
+        case OR:  return 6;
         case CMP_LT:
         case CMP_GT:
         case CMP_LE:
         case CMP_GE:
         case CMP_EQ:
         case CMP_NEQ:
-            return 4;
-        case AND: return 5;
-        case XOR: return 6;
-        case OR:  return 7;
+            return 7;
+        case AND_AND: return 8;
+        case OR_OR: return 9;
         case EQ:
         case ADD_EQ:
         case SUB_EQ:
@@ -147,7 +144,7 @@ int BinaryExpr::precedence(Tag tag) {
         case XOR_EQ:
         case L_SHFT_EQ:
         case R_SHFT_EQ:
-            return 8;
+            return 10;
         default:
             assert(false);
             return 0;
@@ -180,6 +177,9 @@ std::string BinaryExpr::tag_to_string(Tag tag) {
         case XOR: return "^";
         case L_SHFT: return "<<";
         case R_SHFT: return ">>";
+
+        case AND_AND: return "&&";
+        case OR_OR:   return "||";
 
         case CMP_LT:  return "<";
         case CMP_GT:  return ">";
@@ -217,6 +217,9 @@ BinaryExpr::Tag BinaryExpr::tag_from_token(const Token& token) {
         case Token::XOR: return XOR;
         case Token::L_SHFT: return L_SHFT;
         case Token::R_SHFT: return R_SHFT;
+
+        case Token::AND_AND: return AND_AND;
+        case Token::OR_OR:   return OR_OR;
 
         case Token::CMP_LT:  return CMP_LT;
         case Token::CMP_GT:  return CMP_GT;
