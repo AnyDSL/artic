@@ -323,16 +323,26 @@ Ptr<ast::BlockExpr> Parser::parse_block_expr() {
     Tracker tracker(this);
     eat(Token::L_BRACE);
     PtrVector<ast::Expr> exprs;
-    while (ahead().tag() != Token::R_BRACE &&
-           ahead().tag() != Token::END) {
-        auto expr = parse_expr();
-        auto decl = expr->isa<DeclExpr>();
-        exprs.emplace_back(std::move(expr));
-        if (!decl) {
-            if (ahead().tag() != Token::SEMICOLON)
+    while (true) {
+        switch (ahead().tag()) {
+            case Token::SEMICOLON: eat(Token::SEMICOLON); continue;
+            case Token::ID:
+            case Token::LIT:
+            case Token::L_PAREN:
+            case Token::L_BRACE:
+            case Token::IF:
+            case Token::ADD:
+            case Token::SUB:
+            case Token::INC:
+            case Token::DEC:
+            case Token::LET:
+            case Token::FN:
+                exprs.emplace_back(parse_expr());
+                continue;
+            default:
                 break;
-            eat(Token::SEMICOLON);
         }
+        break;
     }
     expect(Token::R_BRACE);
     return make_ptr<ast::BlockExpr>(tracker(), std::move(exprs));

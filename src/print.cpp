@@ -120,9 +120,12 @@ void FnExpr::print(Printer& p) const {
 
 void BlockExpr::print(Printer& p) const {
     p << '{' << p.indent();
-    for (auto& expr : exprs) {
+    for (size_t i = 0, n = exprs.size(); i < n; i++) {
+        auto& expr = exprs[i];
         p << p.endl();
         expr->print(p);
+        if (i != n - 1 && !expr->isa<DeclExpr>() && !expr->isa<IfExpr>())
+            p << ';';
     }
     p << p.unindent() << p.endl() << "}";
 }
