@@ -170,8 +170,14 @@ Ptr<ast::Ptrn> Parser::parse_ptrn() {
                     ahead().tag() == Token::L_BRACE) {
                     ptrn = std::move(parse_struct_ptrn(std::move(id)));
                 } else {
-                    ptrn = std::move(parse_id_ptrn(std::move(id)));
+                    ptrn = std::move(parse_id_ptrn(std::move(id), false));
                 }
+            }
+            break;
+        case Token::MUT:
+            {
+                eat(Token::MUT);
+                ptrn = std::move(parse_id_ptrn(parse_id(), true));
             }
             break;
         case Token::L_PAREN: ptrn = std::move(parse_tuple_ptrn());   break;
@@ -191,13 +197,8 @@ Ptr<ast::Ptrn> Parser::parse_typed_ptrn(Ptr<ast::Ptrn>&& ptrn) {
     return std::move(ptrn);
 }
 
-Ptr<ast::IdPtrn> Parser::parse_id_ptrn(Identifier&& id) {
+Ptr<ast::IdPtrn> Parser::parse_id_ptrn(Identifier&& id, bool mut) {
     Tracker tracker(this, id.loc);
-    bool mut = false;
-    if (ahead().tag() == Token::MUT) {
-        eat(Token::MUT);
-        mut = true;
-    }
     auto decl = make_ptr<ast::PtrnDecl>(tracker(), std::move(id), mut);
     return make_ptr<ast::IdPtrn>(tracker(), std::move(decl));
 }
