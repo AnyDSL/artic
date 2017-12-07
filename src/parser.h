@@ -57,7 +57,7 @@ private:
     Ptr<ast::Type>          parse_type();
     Ptr<ast::Type>          parse_named_type();
     Ptr<ast::PrimType>      parse_prim_type(ast::PrimType::Tag);
-    Ptr<ast::TupleType>     parse_tuple_type();
+    Ptr<ast::Type>          parse_tuple_type();
     Ptr<ast::FnType>        parse_fn_type();
     Ptr<ast::TypeApp>       parse_type_app();
     Ptr<ast::ErrorType>     parse_error_type();
@@ -145,29 +145,21 @@ private:
     }
 
     void next() {
-        prev_ = ahead_[ptr_].loc();
-        if (ptr_ == 0) {
-            ahead_[0] = lexer_.next();
-        } else {
-            ptr_--;
-        }
+        prev_ = ahead_[0].loc();
+        for (int i = 0; i < max_ahead - 1; i++)
+            ahead_[i] = ahead_[i + 1];
+        ahead_[max_ahead - 1] = lexer_.next();
     }
 
-    void push(const Token& tok) {
-        assert(ptr_ < max_ahead);
-        ahead_[++ptr_] = tok;
+    const Token& ahead(int i = 0) const {
+        assert(i < max_ahead);
+        return ahead_[i];
     }
 
-    const Token& ahead() const {
-        return ahead_[ptr_];
-    }
-
-    static constexpr size_t max_ahead = 2;
+    static constexpr int max_ahead = 3;
 
     Loc prev_;
     Token ahead_[max_ahead];
-    size_t ptr_ = 0;
- 
     Lexer& lexer_;
     TypeTable& type_table_;
 

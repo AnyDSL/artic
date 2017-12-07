@@ -7,17 +7,18 @@ using namespace artic::ast;
 namespace artic {
 
 Parser::Parser(Lexer& lexer, TypeTable& type_table)
-    : ahead_{ Token(Loc()), Token(Loc()) }, lexer_(lexer), type_table_(type_table)
+    : lexer_(lexer), type_table_(type_table)
 {
-    next();
+    for (int i = 0; i < max_ahead; i++)
+        next();
 }
 
 Ptr<ast::Program> Parser::parse_program() {
     Tracker tracker(this);
     PtrVector<ast::Decl> decls;
-    parse_list(Token::END, Token::SEMICOLON, [&] {
+    while (ahead().tag() != Token::END) {
         decls.emplace_back(parse_decl());
-    });
+    }
     return make_ptr<ast::Program>(tracker(), std::move(decls));
 }
 
@@ -44,6 +45,7 @@ Ptr<ast::LetDecl> Parser::parse_let_decl() {
         eat(Token::EQ);
         init = std::move(parse_expr());
     }
+    expect(Token::SEMICOLON);
     return make_ptr<LetDecl>(tracker(), std::move(ptrn), std::move(init));
 }
 
@@ -74,7 +76,6 @@ Ptr<ast::FnDecl> Parser::parse_fn_decl() {
     if (ahead().tag() == Token::L_BRACE)
         body = std::move(parse_block_expr());
 
-    push(Token(prev_.end(), Token::SEMICOLON));
     auto fn = make_ptr<ast::FnExpr>(tracker(), std::move(param), std::move(body));
     return make_ptr<ast::FnDecl>(tracker(), std::move(id), std::move(fn), std::move(ret_type), std::move(type_params));
 }
@@ -102,7 +103,6 @@ Ptr<ast::StructDecl> Parser::parse_struct_decl() {
         fields.emplace_back(parse_field_decl());
     });
 
-    push(Token(prev_.end(), Token::SEMICOLON));
     return make_ptr<ast::StructDecl>(tracker(), std::move(id), std::move(type_params), std::move(fields));
 }
 
@@ -121,7 +121,6 @@ Ptr<ast::TraitDecl> Parser::parse_trait_decl() {
         decls.emplace_back(parse_decl());
     });
 
-    push(Token(prev_.end(), Token::SEMICOLON));
     return make_ptr<ast::TraitDecl>(tracker(), std::move(id), std::move(decls), std::move(type_params));
 }
 
@@ -324,9 +323,18 @@ Ptr<ast::BlockExpr> Parser::parse_block_expr() {
     Tracker tracker(this);
     eat(Token::L_BRACE);
     PtrVector<ast::Expr> exprs;
-    parse_list(Token::R_BRACE, Token::SEMICOLON, [&] {
-        exprs.emplace_back(parse_expr());
-    });
+    while (ahead().tag() != Token::R_BRACE &&
+           ahead().tag() != Token::END) {
+        auto expr = parse_expr();
+        auto decl = expr->isa<DeclExpr>();
+        exprs.emplace_back(std::move(expr));
+        if (!decl) {
+            if (ahead().tag() != Token::SEMICOLON)
+                break;
+            eat(Token::SEMICOLON);
+        }
+    }
+    expect(Token::R_BRACE);
     return make_ptr<ast::BlockExpr>(tracker(), std::move(exprs));
 }
 
@@ -426,7 +434,9 @@ Ptr<ast::Expr> Parser::parse_primary_expr() {
         case Token::LIT:     expr = std::move(parse_literal_expr()); break;
         case Token::ID:
             expr = std::move(parse_path_expr());
-            if (ahead().tag() == Token::L_BRACE)
+            if (ahead(0).tag() == Token::L_BRACE &&
+                ((ahead(1).tag() == Token::ID && ahead(2).tag() == Token::COLON) ||
+                 ahead(1).tag() == Token::R_BRACE))
                 expr = std::move(parse_struct_expr(std::move(expr)));
             break;
         case Token::OR_OR:
@@ -518,14 +528,16 @@ Ptr<ast::PrimType> Parser::parse_prim_type(ast::PrimType::Tag tag) {
     return make_ptr<ast::PrimType>(tracker(), tag);
 }
 
-Ptr<ast::TupleType> Parser::parse_tuple_type() {
+Ptr<ast::Type> Parser::parse_tuple_type() {
     Tracker tracker(this);
     eat(Token::L_PAREN);
     PtrVector<ast::Type> args;
     parse_list(Token::R_PAREN, Token::COMMA, [&] {
         args.emplace_back(parse_type());
     });
-    return make_ptr<ast::TupleType>(tracker(), std::move(args));
+    return args.size() == 1
+        ? std::move(args[0])
+        : make_ptr<ast::TupleType>(tracker(), std::move(args));
 }
 
 Ptr<ast::FnType> Parser::parse_fn_type() {

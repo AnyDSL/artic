@@ -92,7 +92,7 @@ public:
 #undef TAG
     };
 
-    Token(const Loc& loc)
+    Token(const Loc& loc = Loc())
         : Token(loc, ERR)
     {}
 

@@ -120,14 +120,9 @@ void FnExpr::print(Printer& p) const {
 
 void BlockExpr::print(Printer& p) const {
     p << '{' << p.indent();
-    for (size_t i = 0, n = exprs.size(); i < n; i++) {
-        auto& expr = exprs[i];
+    for (auto& expr : exprs) {
         p << p.endl();
         expr->print(p);
-
-        auto decl_expr = expr->isa<DeclExpr>();
-        bool semicolon = !decl_expr || !decl_expr->decl->isa<FnDecl>();
-        if (i != n - 1 && semicolon) p << ';';
     }
     p << p.unindent() << p.endl() << "}";
 }
@@ -277,6 +272,7 @@ void LetDecl::print(Printer& p) const {
         p << " = ";
         init->print(p);
     }
+    p << ';';
 }
 
 void FnDecl::print(Printer& p) const {
