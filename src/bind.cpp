@@ -19,13 +19,13 @@ void NameBinder::bind(const ast::Node& node) {
 }
 
 void NameBinder::insert_symbol(const ast::NamedDecl& decl) {
-    assert(!first_run_ || scopes_.size() == 1);
+    assert(!scopes_.empty());
     auto& name = decl.id.name;
 
     // Do not bind anonymous variables
     if (name == "_") return;
 
-    if (!scopes_.back().insert(name, Symbol(&decl)) && (first_run_ || scopes_.size() > 1)) {
+    if (!scopes_.back().insert(name, Symbol(&decl))) {
         log::error(decl.loc, "identifier '{}' already declared", name);
         for (auto other : find_symbol(name)->decls) {
             if (other != &decl) log::info(other->loc, "previously declared here");

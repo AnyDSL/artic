@@ -35,7 +35,6 @@ public:
 
 private:
     std::vector<SymbolTable> scopes_;
-    bool first_run_;
 };
 
 } // namespace artic
