@@ -196,7 +196,7 @@ const artic::Type* Path::infer(TypeInference& ctx) const {
 
     auto decl = symbol->decls.front();
     // Return an unknown with a rank that prevents too eager generalization of constraints
-    if (!decl->type) return ctx.type(*this, decl->rank-1);
+    if (!decl->type) return ctx.type(*this, 0);
 
     type_args.resize(std::max(type_args.size(), args.size()));
     for (size_t i = 0; i < args.size(); i++) {
@@ -332,7 +332,6 @@ const artic::Type* FieldPtrn::infer(TypeInference& ctx) const {
 
 const artic::Type* StructPtrn::infer(TypeInference& ctx) const {
     auto expr_type = ctx.infer(path);
-    for (auto& field : fields) ctx.infer(*field);
     if (auto struct_type = expr_type->isa<StructType>())
         return infer_struct(ctx, loc, struct_type, fields, !fields.empty() && fields.back()->is_etc());
     return expr_type;
