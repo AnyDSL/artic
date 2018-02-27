@@ -296,18 +296,6 @@ const artic::Type* IfExpr::infer(TypeInference& ctx) const {
     return ctx.infer(*if_true, ctx.type_table().unit_type());
 }
 
-const artic::Type* UnaryExpr::infer(TypeInference& ctx) const {
-    // TODO: Use bounds on types here
-    return ctx.infer(*expr);
-}
-
-const artic::Type* BinaryExpr::infer(TypeInference& ctx) const {
-    // TODO: Use bounds on types here
-    auto op_type = ctx.infer(*left, ctx.infer(*right));
-    if (has_cmp()) return ctx.type_table().prim_type(artic::PrimType::I1);
-    return op_type;
-}
-
 const artic::Type* ErrorExpr::infer(TypeInference& ctx) const {
     return ctx.type_table().error_type(loc);
 }

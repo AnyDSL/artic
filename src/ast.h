@@ -410,7 +410,7 @@ struct IfExpr : public Expr {
 };
 
 /// Unary expression (negation, increment, ...).
-struct UnaryExpr : public Expr {
+struct UnaryExpr : public CallExpr {
     enum Tag {
         NOT,
         PLUS,
@@ -422,26 +422,24 @@ struct UnaryExpr : public Expr {
         ERR
     };
     Tag tag;
-    Ptr<Expr> expr;
 
     UnaryExpr(const Loc& loc, Tag tag, Ptr<Expr>&& expr)
-        : Expr(loc), tag(tag), expr(std::move(expr))
+        : CallExpr(loc, op_expr(loc, tag), std::move(expr)), tag(tag)
     {}
 
     bool is_prefix() const { return !is_postfix(); }
     bool is_postfix() const { return tag == POST_INC || tag == POST_DEC; }
+    const Ptr<Expr>& operand() const { return arg; }
 
-    const artic::Type* infer(TypeInference&) const override;
-    void bind(NameBinder&) const override;
-    void check(TypeChecker&) const override;
     void print(Printer&) const override;
 
+    static Ptr<Expr> op_expr(const Loc& loc, Tag);
     static std::string tag_to_string(Tag);
     static Tag tag_from_token(const Token&, bool);
 };
 
 /// Binary expression (addition, logical operations, ...).
-struct BinaryExpr : public Expr {
+struct BinaryExpr : public CallExpr {
     enum Tag {
         EQ, ADD_EQ, SUB_EQ, MUL_EQ, DIV_EQ, MOD_EQ,
         L_SHFT_EQ, R_SHFT_EQ,
@@ -454,25 +452,20 @@ struct BinaryExpr : public Expr {
         ERR
     };
     Tag tag;
-    Ptr<Expr> left;
-    Ptr<Expr> right;
 
     BinaryExpr(const Loc& loc,
                Tag tag,
                Ptr<Expr>&& left,
                Ptr<Expr>&& right)
-        : Expr(loc)
+        : CallExpr(loc, op_expr(loc, tag), arg_expr(loc, std::move(left), std::move(right)))
         , tag(tag)
-        , left(std::move(left))
-        , right(std::move(right))
     {}
 
     bool has_cmp() const { return has_cmp(tag); }
     bool has_eq() const { return has_eq(tag); }
+    const Ptr<Expr>& left_operand() const { return arg->as<TupleExpr>()->args[0]; }
+    const Ptr<Expr>& right_operand() const { return arg->as<TupleExpr>()->args[1]; }
 
-    const artic::Type* infer(TypeInference&) const override;
-    void bind(NameBinder&) const override;
-    void check(TypeChecker&) const override;
     void print(Printer&) const override;
 
     static bool has_eq(Tag);
@@ -481,6 +474,8 @@ struct BinaryExpr : public Expr {
     static int precedence(Tag);
     static int max_precedence();
 
+    static Ptr<Expr> op_expr(const Loc&, Tag);
+    static Ptr<Expr> arg_expr(const Loc&, Ptr<Expr>&&, Ptr<Expr>&&);
     static std::string tag_to_string(Tag);
     static Tag tag_from_token(const Token&);
 };

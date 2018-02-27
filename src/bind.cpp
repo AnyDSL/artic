@@ -119,15 +119,6 @@ void IfExpr::bind(NameBinder& ctx) const {
     if (if_false) ctx.bind(*if_false);
 }
 
-void UnaryExpr::bind(NameBinder& ctx) const {
-    ctx.bind(*expr);
-}
-
-void BinaryExpr::bind(NameBinder& ctx) const {
-    ctx.bind(*left);
-    ctx.bind(*right);
-}
-
 void ErrorExpr::bind(NameBinder&) const {}
 
 void TypedPtrn::bind(NameBinder& ctx) const {

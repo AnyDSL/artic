@@ -155,11 +155,11 @@ void IfExpr::print(Printer& p) const {
 
 void UnaryExpr::print(Printer& p) const {
     if (is_postfix()) {
-        expr->print(p);
+        operand()->print(p);
         p << tag_to_string(tag);
     } else {
         p << tag_to_string(tag);
-        expr->print(p);
+        operand()->print(p);
     }
 }
 
@@ -173,9 +173,9 @@ void BinaryExpr::print(Printer& p) const {
         else
             e->print(p);
     };   
-    print_op(left);
+    print_op(left_operand());
     p << " " << tag_to_string(tag) << " ";
-    print_op(right);
+    print_op(right_operand());
 }
 
 void ErrorExpr::print(Printer& p) const {

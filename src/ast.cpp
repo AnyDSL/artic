@@ -50,6 +50,10 @@ PrimType::Tag PrimType::tag_from_token(const Token& token) {
     return it != tag_map.end() ? it->second : ERR;
 }
 
+Ptr<Expr> UnaryExpr::op_expr(const Loc& loc, Tag tag) {
+    return make_ptr<PathExpr>(loc, Path(loc, Identifier(loc, tag_to_string(tag)), PtrVector<Type>{}));
+}
+
 std::string UnaryExpr::tag_to_string(Tag tag) {
     switch (tag) {
         case NOT:   return "!";
@@ -152,6 +156,17 @@ int BinaryExpr::precedence(Tag tag) {
 }
 
 int BinaryExpr::max_precedence() { return 10; }
+
+Ptr<Expr> BinaryExpr::op_expr(const Loc& loc, Tag tag) {
+    return make_ptr<PathExpr>(loc, Path(loc, Identifier(loc, tag_to_string(tag)), PtrVector<Type>{}));
+}
+
+Ptr<Expr> BinaryExpr::arg_expr(const Loc& loc, Ptr<Expr>&& left, Ptr<Expr>&& right) {
+    PtrVector<Expr> args;
+    args.emplace_back(std::move(left));
+    args.emplace_back(std::move(right));
+    return make_ptr<TupleExpr>(loc, std::move(args));
+}
 
 std::string BinaryExpr::tag_to_string(Tag tag) {
     switch (tag) {

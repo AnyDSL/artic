@@ -95,15 +95,6 @@ void IfExpr::check(TypeChecker& ctx) const {
     if (if_false) if_false->check(ctx);
 }
 
-void UnaryExpr::check(TypeChecker& ctx) const {
-    expr->check(ctx);
-}
-
-void BinaryExpr::check(TypeChecker& ctx) const {
-    left->check(ctx);
-    right->check(ctx);
-}
-
 void ErrorExpr::check(TypeChecker&) const {}
 
 void TypedPtrn::check(TypeChecker& ctx) const {
