@@ -2,22 +2,17 @@
 #define CHECK_H
 
 #include "ast.h"
+#include "log.h"
 
 namespace artic {
 
 /// Utility class to perform type checking.
-class TypeChecker {
+class TypeChecker : public Logger {
 public:
-    TypeChecker() : errors_(0) {}
+    TypeChecker(const Logger& log = Logger()) : Logger(log) {}
 
     bool run(const ast::Program&);
-    
     void expect(const std::string&, const Ptr<ast::Expr>&, const artic::Type*);
-
-    size_t errors() const { return errors_; }
-
-private:
-    size_t errors_;
 };
 
 } // namespace artic

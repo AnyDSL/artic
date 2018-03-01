@@ -1,8 +1,8 @@
 #include <typeinfo>
 #include <algorithm>
+
 #include "infer.h"
 #include "ast.h"
-#include "log.h"
 
 namespace artic {
 
@@ -46,7 +46,7 @@ const Type* TypeInference::unify(const Loc& loc, const Type* a, const Type* b) {
     auto app_b = b->isa<TypeApp>();
     if (app_a && app_b && typeid(*app_a) == typeid(*app_b) && app_a->args.size() == app_b->args.size()) {
         if (app_a->name != app_b->name) {
-            log::error(loc, "incompatible nominal types '{}' and '{}'", *a, *b);
+            error(loc, "incompatible nominal types '{}' and '{}'", *a, *b);
             return type_table_.error_type(loc);
         }
 
@@ -57,7 +57,7 @@ const Type* TypeInference::unify(const Loc& loc, const Type* a, const Type* b) {
     }
 
     if (a != b) {
-        log::error(loc, "cannot unify '{}' and '{}'", *a, *b);
+        error(loc, "cannot unify '{}' and '{}'", *a, *b);
         return type_table_.error_type(loc);
     }
     return a;
@@ -167,7 +167,7 @@ const artic::Type* infer_struct(TypeInference& ctx, const Loc& loc, const artic:
         auto& field = fields[i];
         auto index = std::find(members.begin(), members.end(), field->id.name);
         if (index == members.end()) {
-            log::error(loc, "'{}' is not a member of '{}'", field->id.name, struct_type->name);
+            ctx.error(loc, "'{}' is not a member of '{}'", field->id.name, struct_type->name);
             return ctx.type_table().error_type(loc);
         }
         ctx.infer(*field, struct_type->args[index - members.begin()]);
@@ -181,7 +181,7 @@ const artic::Type* infer_struct(TypeInference& ctx, const Loc& loc, const artic:
             }) == fields.end();
         });
         if (not_set != members.end()) {
-            log::error(loc, "missing initializer for structure field '{}'", *not_set);
+            ctx.error(loc, "missing initializer for structure field '{}'", *not_set);
             return ctx.type_table().error_type(loc);
         }
     }

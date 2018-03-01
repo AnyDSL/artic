@@ -20,12 +20,12 @@ struct Printer {
     static constexpr Indent indent() { return Indent(); }
     static constexpr Unindent unindent() { return Unindent(); }
 
-    int level = 0;                    ///< Initial indentation level
-    std::string tab = "    ";         ///< String used as tabulation symbol
-    bool colorize = log::colorize;    ///< Set to true if the printer should use colors
-
     std::ostream& os;
     std::vector<std::string> var_names;
+
+    int level = 0;              ///< Initial indentation level
+    std::string tab = "    ";   ///< String used as tabulation symbol
+    bool colorize = true;       ///< Set to true if the printer should use colors
 
     Printer(std::ostream& os) : os(os) {}
 

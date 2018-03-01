@@ -5,14 +5,15 @@
 
 #include "type.h"
 #include "ast.h"
+#include "log.h"
 
 namespace artic {
 
 /// Utility class to perform type inference.
-class TypeInference {
+class TypeInference : public Logger {
 public:
-    TypeInference(TypeTable& type_table)
-        : type_table_(type_table)
+    TypeInference(TypeTable& type_table, const Logger& log = Logger())
+        : Logger(log), type_table_(type_table)
     {}
 
     void run(const ast::Program&);

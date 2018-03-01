@@ -1,5 +1,4 @@
 #include "bind.h"
-#include "log.h"
 #include "ast.h"
 
 namespace artic {
@@ -26,9 +25,9 @@ void NameBinder::insert_symbol(const ast::NamedDecl& decl) {
     if (name == "_") return;
 
     if (!scopes_.back().insert(name, Symbol(&decl))) {
-        log::error(decl.loc, "identifier '{}' already declared", name);
+        error(decl.loc, "identifier '{}' already declared", name);
         for (auto other : find_symbol(name)->decls) {
-            if (other != &decl) log::info(other->loc, "previously declared here");
+            if (other != &decl) note(other->loc, "previously declared here");
         }
     }
 }
@@ -39,7 +38,7 @@ void Path::bind(NameBinder& ctx) const {
     for (auto& elem : elems) {
         elem.symbol = ctx.find_symbol(elem.id.name);
         if (!elem.symbol)
-            log::error(elem.id.loc, "unknown identifier '{}'", elem.id.name);
+            ctx.error(elem.id.loc, "unknown identifier '{}'", elem.id.name);
     }
     for (auto& arg : args) ctx.bind(*arg);
 }

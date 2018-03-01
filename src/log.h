@@ -5,25 +5,11 @@
 #include <cstring>
 #include <cassert>
 
-#ifdef _WIN32
-#include <io.h>
-#define isatty _isatty
-#define fileno _fileno
-#else
-#include <unistd.h>
-#endif
-
 #include "loc.h"
 
 namespace artic {
 
 namespace log {
-
-#ifdef COLORIZE
-static const bool colorize = isatty(fileno(stdout)) && isatty(fileno(stderr));
-#else
-static constexpr bool colorize = false;
-#endif
 
 enum Style {
     NORMAL = 0,
@@ -67,13 +53,9 @@ struct Stylized {
 
 template <typename T, typename... Args>
 inline std::ostream& operator << (std::ostream& os, const Stylized<T, Args...>& s) {
-#ifdef COLORIZE
     os << "\33[";
     s.styles.apply(os);
     os << "m" << s.t << "\33[0m";
-#else
-    os << s.t;
-#endif
     return os;
 }
 
@@ -111,59 +93,77 @@ void format(std::ostream& os, const char* fmt, const T& t, const Args&... args) 
 
 template <bool new_line = true, typename... Args>
 void error(const char* fmt, const Args&... args) {
-    format<new_line>(std::cerr, fmt, args...);
+    log::format<new_line>(std::cerr, fmt, args...);
 }
 
 template <bool new_line = true, typename... Args>
-void warn(const char* fmt, const Args&... args) {
-    format<new_line>(std::clog, fmt, args...);
-}
-
-template <bool new_line = true, typename... Args>
-void info(const char* fmt, const Args&... args) {
-    format<new_line>(std::cout, fmt, args...);
-}
-
-/// Report an error at the given location in a source file.
-template <typename... Args>
-void error(const Loc& loc, const char* fmt, const Args&... args) {
-    if (colorize) {
-        error<false>("{} in {}: ",
-              style("error", Style::RED,   Style::BOLD),
-              style(loc,     Style::WHITE, Style::BOLD));
-    } else {
-        error<false>("error in {}: ", loc);
-    }
-    error(fmt, args...);
-}
-
-/// Report a warning at the given location in a source file.
-template <typename... Args>
-void warn(const Loc& loc, const char* fmt, const Args&... args) {
-    if (colorize) {
-        warn<false>("{} in {}: ",
-             style("warning", Style::YELLOW, Style::BOLD),
-             style(loc,       Style::WHITE,  Style::BOLD));
-    } else {
-        warn<false>("warning in {}: ", loc);
-    }
-    warn(fmt, args...);
-}
-
-/// Display a note corresponding to a specific location in a source file.
-template <typename... Args>
-void info(const Loc& loc, const char* fmt, const Args&... args) {
-    if (colorize) {
-        info<false>("{} in {}: ",
-             style("info", Style::CYAN,  Style::BOLD),
-             style(loc,    Style::WHITE, Style::BOLD));
-    } else {
-        info<false>("info in {}: ", loc);
-    }
-    info(fmt, args...);
+void print(const char* fmt, const Args&... args) {
+    log::format<new_line>(std::cout, fmt, args...);
 }
 
 } // namespace log
+
+struct Logger {
+    bool colorize;
+    std::ostream& err;
+    std::ostream& log;
+    std::ostream& out;
+    size_t error_count;
+    size_t warn_count;
+
+    Logger(bool colorize = true,
+           std::ostream& err = std::cerr,
+           std::ostream& log = std::clog,
+           std::ostream& out = std::cout)
+        : colorize(colorize)
+        , err(err)
+        , log(log)
+        , out(out)
+        , error_count(0)
+        , warn_count(0)
+    {}
+
+    /// Report an error at the given location in a source file.
+    template <typename... Args>
+    void error(const Loc& loc, const char* fmt, const Args&... args) {
+        error_count++;
+        if (colorize) {
+            log::format<false>(err, "{} in {}: ",
+                log::style("error", log::Style::RED,   log::Style::BOLD),
+                log::style(loc,     log::Style::WHITE, log::Style::BOLD));
+        } else {
+            log::format<false>(err, "error in {}: ", loc);
+        }
+        log::format(err, fmt, args...);
+    }
+
+    /// Report a warning at the given location in a source file.
+    template <typename... Args>
+    void warn(const Loc& loc, const char* fmt, const Args&... args) {
+        warn_count++;
+        if (colorize) {
+            log::format<false>(log, "{} in {}: ",
+                log::style("warning", log::Style::YELLOW, log::Style::BOLD),
+                log::style(loc,       log::Style::WHITE,  log::Style::BOLD));
+        } else {
+            log::format<false>(log, "warning in {}: ", loc);
+        }
+        log::format(log, fmt, args...);
+    }
+
+    /// Display a note corresponding to a specific location in a source file.
+    template <typename... Args>
+    void note(const Loc& loc, const char* fmt, const Args&... args) {
+        if (colorize) {
+            log::format<false>(out, "{} in {}: ",
+                log::style("info", log::Style::CYAN,  log::Style::BOLD),
+                log::style(loc,    log::Style::WHITE, log::Style::BOLD));
+        } else {
+            log::format<false>(out, "note in {}: ", loc);
+        }
+        log::format(out, fmt, args...);
+    }
+};
 
 } // namespace artic
 

@@ -10,9 +10,9 @@
 namespace artic {
 
 /// Generates an AST from a stream of tokens.
-class Parser {
+class Parser : public Logger {
 public:
-    Parser(Lexer&, TypeTable&);
+    Parser(Lexer&, TypeTable&, const Logger& log = Logger());
 
     Ptr<ast::Program>       parse_program();
 
@@ -116,7 +116,7 @@ private:
                     tag_list += '\'' + Token::tag_to_string(tags[i]) + '\'';
                     if (i != N - 1) tag_list += " or ";
                 }
-                log::error(ahead().loc(), "expected {}, got '{}'", tag_list, ahead().string());
+                error(ahead().loc(), "expected {}, got '{}'", tag_list, ahead().string());
             }
             next();
             return std::distance(it, tags.begin());
@@ -126,7 +126,7 @@ private:
     bool expect(Token::Tag tag) {
         bool res = ahead().tag() == tag;
         if (!res) {
-            log::error(ahead().loc(), "expected '{}', got '{}'",
+            error(ahead().loc(), "expected '{}', got '{}'",
                 Token::tag_to_string(tag),
                 ahead().string());
         }
@@ -136,7 +136,7 @@ private:
 
     void expect_binder(const std::string& msg, const Ptr<ast::Ptrn>& ptrn) {
         if (ptrn->is_refutable())
-            log::error(ptrn->loc, "invalid {}", msg);
+            error(ptrn->loc, "invalid {}", msg);
     }
 
     void eat(Token::Tag tag) {

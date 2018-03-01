@@ -1,5 +1,4 @@
-add_executable(artic
-    main.cpp
+add_library(libartic
     ast.h
     ast.cpp
     bind.cpp
@@ -21,6 +20,9 @@ add_executable(artic
     token.h
     type.cpp
     type.h)
+
+add_executable(artic main.cpp)
+target_link_libraries(artic libartic)
 
 if (${COLORIZE_OUTPUT})
     target_compile_definitions(artic PUBLIC -DCOLORIZE)

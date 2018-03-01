@@ -5,14 +5,15 @@
 #include <istream>
 #include <string>
 
+#include "log.h"
 #include "token.h"
 
 namespace artic {
 
 /// Generates a stream of tokens for the Parser.
-class Lexer {
+class Lexer : public Logger {
 public:
-    Lexer(const std::string& filename, std::istream& is);
+    Lexer(const std::string& filename, std::istream& is, const Logger& log = Logger());
 
     Token next();
 

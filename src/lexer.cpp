@@ -3,7 +3,6 @@
 #include <utf8.h>
 
 #include "lexer.h"
-#include "log.h"
 
 namespace artic {
 
@@ -41,8 +40,9 @@ inline std::string utf8_to_string(uint32_t code) {
     return std::string(res);
 }
 
-Lexer::Lexer(const std::string& filename, std::istream& is)
-    : stream_(is)
+Lexer::Lexer(const std::string& filename, std::istream& is, const Logger& log)
+    : Logger(log)
+    , stream_(is)
     , loc_(std::make_shared<std::string>(filename), 1, 0)
     , eof_(false), code_(0)
 {
@@ -74,7 +74,7 @@ Token Lexer::next() {
         if (accept('.')) {
             if (accept('.')) {
                 if (accept('.')) return Token(loc_, Token::DOTS);
-                log::error(loc_, "unknown token '..'");
+                error(loc_, "unknown token '..'");
                 return Token(loc_);
             }
             return Token(loc_, Token::DOT);
@@ -168,7 +168,7 @@ Token Lexer::next() {
             return Token(loc_, key_it->second);
         }
 
-        log::error(loc_, "unknown token '{}'", utf8_to_string(peek()));
+        error(loc_, "unknown token '{}'", utf8_to_string(peek()));
         eat();
         return Token(loc_);
     }
@@ -206,7 +206,7 @@ void Lexer::eat_comments() {
     while (true) {
         while (!eof() && peek() != '*') eat();
         if (eof()) {
-            log::error(loc_, "non-terminated multiline comment");
+            error(loc_, "non-terminated multiline comment");
             return;
         }
         eat();
@@ -257,7 +257,7 @@ Literal Lexer::parse_literal() {
 
     // Check digits
     if (base < 10 && std::find_if(digit_ptr, last_ptr, invalid_digit) != last_ptr)
-        log::error(loc_, "invalid literal '{}'", current_);
+        error(loc_, "invalid literal '{}'", current_);
 
     if (exp || fract) return Literal(double(strtod(digit_ptr, nullptr)));
     return Literal(uint64_t(strtoull(digit_ptr, nullptr, base)));

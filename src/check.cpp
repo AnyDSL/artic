@@ -5,12 +5,12 @@ namespace artic {
 
 bool TypeChecker::run(const ast::Program& program) {
     program.check(*this);
-    return errors() == 0;
+    return error_count == 0;
 }
 
 void TypeChecker::expect(const std::string& where, const Ptr<ast::Expr>& expr, const artic::Type* type) {
     if (expr->type != type)
-        log::error(expr->loc, "type mismatch in {}, got '{}'", where, *expr->type);
+        error(expr->loc, "type mismatch in {}, got '{}'", where, *expr->type);
 }
 
 namespace ast {
@@ -76,7 +76,7 @@ void DeclExpr::check(TypeChecker& ctx) const {
 void CallExpr::check(TypeChecker& ctx) const {
     auto fn_type = callee->type->inner()->isa<artic::FnType>();
     if (!fn_type) {
-        log::error(loc, "callee '{}' is not a function", *callee.get());
+        ctx.error(loc, "callee '{}' is not a function", *callee.get());
         return;
     }
 
@@ -131,9 +131,9 @@ void TypeParamList::check(TypeChecker&) const {
     // TODO
 }
 
-void PtrnDecl::check(TypeChecker&) const {
+void PtrnDecl::check(TypeChecker& ctx) const {
     if (type->has_unknowns())
-        log::error(loc, "cannot infer type for '{}'", id.name);
+        ctx.error(loc, "cannot infer type for '{}'", id.name);
 }
 
 void LetDecl::check(TypeChecker& ctx) const {

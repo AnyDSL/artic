@@ -1,4 +1,5 @@
 #include <algorithm>
+
 #include "parser.h"
 #include "print.h"
 
@@ -6,8 +7,8 @@ using namespace artic::ast;
 
 namespace artic {
 
-Parser::Parser(Lexer& lexer, TypeTable& type_table)
-    : lexer_(lexer), type_table_(type_table)
+Parser::Parser(Lexer& lexer, TypeTable& type_table, const Logger& log)
+    : Logger(log), lexer_(lexer), type_table_(type_table)
 {
     for (int i = 0; i < max_ahead; i++)
         next();
@@ -63,7 +64,7 @@ Ptr<ast::FnDecl> Parser::parse_fn_decl() {
         param = std::move(parse_tuple_ptrn());
         expect_binder("function parameter", param);
     } else {
-        log::error(ahead().loc(), "parameter list expected in function definition");
+        error(ahead().loc(), "parameter list expected in function definition");
     }
 
     Ptr<ast::Type> ret_type;
@@ -151,7 +152,7 @@ Ptr<ast::TypeParamList> Parser::parse_type_params() {
 
 Ptr<ast::ErrorDecl> Parser::parse_error_decl() {
     Tracker tracker(this);
-    log::error(ahead().loc(), "expected declaration, got '{}'", ahead().string());
+    error(ahead().loc(), "expected declaration, got '{}'", ahead().string());
     next();
     return make_ptr<ast::ErrorDecl>(tracker());
 }
@@ -237,7 +238,7 @@ Ptr<ast::StructPtrn> Parser::parse_struct_ptrn(Identifier&& id) {
     // Make sure the ... sign appears only as the last field of the pattern
     auto etc = std::find_if(fields.begin(), fields.end(), [] (auto& field) { return field->is_etc(); });
     if (etc != fields.end() && etc != fields.end() - 1)
-        log::error(ahead().loc(), "'...' can only be used at the end of a structure pattern"); 
+        error(ahead().loc(), "'...' can only be used at the end of a structure pattern"); 
 
     return make_ptr<ast::StructPtrn>(tracker(), std::move(path), std::move(fields));
 }
@@ -256,7 +257,7 @@ Ptr<ast::Ptrn> Parser::parse_tuple_ptrn() {
 
 Ptr<ast::ErrorPtrn> Parser::parse_error_ptrn() {
     Tracker tracker(this);
-    log::error(ahead().loc(), "expected pattern, got '{}'", ahead().string());
+    error(ahead().loc(), "expected pattern, got '{}'", ahead().string());
     next();
     return make_ptr<ast::ErrorPtrn>(tracker());
 }
@@ -508,7 +509,7 @@ Ptr<ast::Expr> Parser::parse_binary_expr(Ptr<ast::Expr>&& left, int max_prec) {
 
 Ptr<ast::ErrorExpr> Parser::parse_error_expr() {
     Tracker tracker(this);
-    log::error(ahead().loc(), "expected expression, got '{}'", ahead().string());
+    error(ahead().loc(), "expected expression, got '{}'", ahead().string());
     next();
     return make_ptr<ast::ErrorExpr>(tracker());
 }
@@ -570,7 +571,7 @@ Ptr<ast::TypeApp> Parser::parse_type_app() {
 
 Ptr<ast::ErrorType> Parser::parse_error_type() {
     Tracker tracker(this);
-    log::error(ahead().loc(), "expected type, got '{}'", ahead().string());
+    error(ahead().loc(), "expected type, got '{}'", ahead().string());
     next();
     return make_ptr<ast::ErrorType>(tracker());
 }
@@ -601,7 +602,7 @@ ast::Identifier Parser::parse_id() {
     if (ahead().is_identifier())
         ident = ahead().identifier();
     else
-        log::error(ahead().loc(), "expected identifier, got '{}'", ahead().string());
+        error(ahead().loc(), "expected identifier, got '{}'", ahead().string());
     next();
     return Identifier(tracker(), std::move(ident));
 }
@@ -609,7 +610,7 @@ ast::Identifier Parser::parse_id() {
 Literal Parser::parse_lit() {
     Literal lit;
     if (!ahead().is_literal())
-        log::error(ahead().loc(), "expected literal, got '{}'", ahead().string());
+        error(ahead().loc(), "expected literal, got '{}'", ahead().string());
     else
         lit = ahead().literal();
     next();

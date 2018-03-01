@@ -6,15 +6,16 @@
 
 #include "symbol.h"
 #include "ast.h"
+#include "log.h"
 
 namespace artic {
 
 class Expr;
 
 /// Binds identifiers to the nodes of the AST.
-class NameBinder {
+class NameBinder : public Logger {
 public:
-    NameBinder() { push_scope(); }
+    NameBinder(const Logger& log = Logger()) : Logger(log) { push_scope(); }
     ~NameBinder() { pop_scope(); }
 
     void run(const ast::Program&);
