@@ -122,7 +122,10 @@ int main(int argc, char** argv) {
         type_inference.run(*program);
         type_checker.run(*program);
 
-        program->dump();
+        Printer printer(std::cout);
+        printer.colorize = colorize;
+        program->print(printer);
+        std::cout << std::endl;
     }
 
     return 0;

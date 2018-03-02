@@ -170,8 +170,6 @@ void ErrorDecl::check(TypeChecker&) const {}
 void Program::check(TypeChecker& ctx) const {
     for (auto& decl : decls) {
         decl->check(ctx);
-        if (auto named = decl->isa<NamedDecl>())
-            std::cout << named->id.name << ": " << *decl->type << std::endl;
     }
 }
 

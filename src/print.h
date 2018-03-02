@@ -40,7 +40,7 @@ struct Printer {
     Printer& operator << (const Indent&)   { level++; return *this; }
     Printer& operator << (const Unindent&) { level--; return *this; }
     Printer& operator << (const Endl&) {
-        os << std::endl;
+        os << '\n';
         for (int i = 0; i < level; i++) os << tab;
         return *this;
     }
