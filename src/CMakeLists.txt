@@ -23,6 +23,8 @@ add_library(libartic
 set_target_properties(libartic PROPERTIES PREFIX "")
 
 add_executable(artic main.cpp)
+target_compile_definitions(artic PUBLIC -DARTIC_VERSION_MAJOR=${PROJECT_VERSION_MAJOR})
+target_compile_definitions(artic PUBLIC -DARTIC_VERSION_MINOR=${PROJECT_VERSION_MINOR})
 target_link_libraries(artic libartic)
 
 if (${COLORIZE_OUTPUT})

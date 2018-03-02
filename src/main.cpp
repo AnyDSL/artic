@@ -38,7 +38,6 @@ static void usage() {
 }
 
 static void version() {
-    static const char* version = "0.0.1";
     static const char day[] = { __DATE__[4] == ' ' ? '0' : __DATE__[4], __DATE__[5], 0 };
     static const char* month =
         (__DATE__[0] == 'J' && __DATE__[1] == 'a' && __DATE__[2] == 'n') ? "01" :
@@ -60,7 +59,9 @@ static void version() {
 #else
     static const char* build = "Debug";
 #endif
-    std::cout << "artic " << version << " " << year << "-" << month << "-" << day <<  " (" << build << ")\n";
+    std::cout << "artic " << ARTIC_VERSION_MAJOR << "." << ARTIC_VERSION_MINOR << " "
+              << year << "-" << month << "-" << day
+              <<  " (" << build << ")\n";
 }
 
 struct ProgramOptions {
