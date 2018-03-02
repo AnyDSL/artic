@@ -20,6 +20,7 @@ add_library(libartic
     token.h
     type.cpp
     type.h)
+set_target_properties(libartic PROPERTIES PREFIX "")
 
 add_executable(artic main.cpp)
 target_link_libraries(artic libartic)
