@@ -36,6 +36,7 @@ private:
     void eat_comments();
     Literal parse_literal();
 
+    void accept();
     bool accept(uint32_t);
     bool accept(const std::string&);
 
@@ -48,7 +49,7 @@ private:
     bool eof_;
     uint32_t code_;
     Utf8Buffer buf_;
-    std::string current_;
+    std::string str_;
 
     static std::unordered_map<std::string, Token::Tag> keywords;
 };

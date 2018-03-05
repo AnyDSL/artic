@@ -50,8 +50,10 @@ Lexer::Lexer(const std::string& filename, std::istream& is, const Logger& log)
     char bytes[3];
     std::fill_n(bytes, 3, std::char_traits<char>::eof());
     stream_.read(bytes, 3);
-    if (!utf8::starts_with_bom(bytes, bytes + 3))
+    if (!utf8::starts_with_bom(bytes, bytes + 3)) {
+        stream_.clear();
         stream_.seekg(0);
+    }
     eat();
 }
 
@@ -59,7 +61,7 @@ Token Lexer::next() {
     while (true) {
         eat_spaces();
 
-        current_.clear();
+        str_.clear();
         loc_.begin_row = loc_.end_row;
         loc_.begin_col = loc_.end_col;
 
@@ -153,18 +155,18 @@ Token Lexer::next() {
 
         if (std::isdigit(peek()) || peek() == '.') {
             auto lit = parse_literal();
-            return Token(loc_, current_, lit);
+            return Token(loc_, str_, lit);
         }
 
         if (std::isalpha(peek()) || peek() == '_') {
-            eat();
-            while (std::isalnum(peek()) || peek() == '_') eat();
+            accept();
+            while (std::isalnum(peek()) || peek() == '_') accept();
 
-            if (current_ == "true")  return Token(loc_, current_, true);
-            if (current_ == "false") return Token(loc_, current_, false);
+            if (str_ == "true")  return Token(loc_, str_, true);
+            if (str_ == "false") return Token(loc_, str_, false);
 
-            auto key_it = keywords.find(current_);
-            if (key_it == keywords.end()) return Token(loc_, current_);
+            auto key_it = keywords.find(str_);
+            if (key_it == keywords.end()) return Token(loc_, str_);
             return Token(loc_, key_it->second);
         }
 
@@ -175,27 +177,14 @@ Token Lexer::next() {
 }
 
 void Lexer::eat() {
-    constexpr uint32_t sentinel = 0xFFFFFFFF;
-    if (eof_) {
-        if (code_ != sentinel) {
-            current_ += utf8_to_string(code_);
-            code_ = sentinel;
-        }
-        return;
-    }
-
-    if (peek() == '\n') {
+    if (code_ == '\n') {
         loc_.end_row++;
         loc_.end_col = 1;
     } else {
         loc_.end_col++;
     }
-
-    eof_ = !buf_.fill(stream_) && buf_.empty();
-    if (!eof_) {
-        current_ += utf8_to_string(code_);
-        code_ = buf_.decode();
-    }
+    eof_  = !buf_.fill(stream_) && buf_.empty();
+    code_ = eof_ ? 0 : buf_.decode();
 }
 
 void Lexer::eat_spaces() {
@@ -221,7 +210,7 @@ Literal Lexer::parse_literal() {
         while (std::isdigit(peek()) ||
                (base == 16 && peek() >= 'a' && peek() <= 'f') ||
                (base == 16 && peek() >= 'A' && peek() <= 'F')) {
-            eat();
+            accept();
         }
     };
 
@@ -251,21 +240,26 @@ Literal Lexer::parse_literal() {
     }
 
     // Skip prefix for strtol and friends
-    const char* digit_ptr = current_.c_str() + (base == 10 ? 0 : 2);
-    const char* last_ptr  = current_.c_str() + current_.size();
+    const char* digit_ptr = str_.c_str() + (base == 10 ? 0 : 2);
+    const char* last_ptr  = str_.c_str() + str_.size();
     auto invalid_digit = [=] (char c) { return c - '0' >= base; };
 
     // Check digits
     if (base < 10 && std::find_if(digit_ptr, last_ptr, invalid_digit) != last_ptr)
-        error(loc_, "invalid literal '{}'", current_);
+        error(loc_, "invalid literal '{}'", str_);
 
     if (exp || fract) return Literal(double(strtod(digit_ptr, nullptr)));
     return Literal(uint64_t(strtoull(digit_ptr, nullptr, base)));
 }
 
+void Lexer::accept() {
+    str_ += utf8_to_string(peek());
+    eat();
+}
+
 bool Lexer::accept(uint32_t c) {
     if (peek() == c) {
-        eat();
+        accept();
         return true;
     }
     return false;
