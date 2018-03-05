@@ -12,17 +12,17 @@ namespace artic {
 namespace log {
 
 enum Style {
-    NORMAL = 0,
-    BOLD = 1,
-    UNDERLINE = 4,
-    BLACK = 30,
-    RED = 31,
-    GREEN = 32,
-    YELLOW = 33,
-    BLUE = 34,
-    MAGENTA = 35,
-    CYAN = 36,
-    WHITE = 37
+    Normal = 0,
+    Bold = 1,
+    Underline = 4,
+    Black = 30,
+    Red = 31,
+    Green = 32,
+    Yellow = 33,
+    Blue = 34,
+    Magenta = 35,
+    Cyan = 36,
+    White = 37
 };
 
 template <typename...> struct StyleList {
@@ -129,8 +129,8 @@ struct Logger {
         error_count++;
         if (colorize) {
             log::format<false>(err, "{} in {}: ",
-                log::style("error", log::Style::RED,   log::Style::BOLD),
-                log::style(loc,     log::Style::WHITE, log::Style::BOLD));
+                log::style("error", log::Style::Red,   log::Style::Bold),
+                log::style(loc,     log::Style::White, log::Style::Bold));
         } else {
             log::format<false>(err, "error in {}: ", loc);
         }
@@ -143,8 +143,8 @@ struct Logger {
         warn_count++;
         if (colorize) {
             log::format<false>(log, "{} in {}: ",
-                log::style("warning", log::Style::YELLOW, log::Style::BOLD),
-                log::style(loc,       log::Style::WHITE,  log::Style::BOLD));
+                log::style("warning", log::Style::Yellow, log::Style::Bold),
+                log::style(loc,       log::Style::White,  log::Style::Bold));
         } else {
             log::format<false>(log, "warning in {}: ", loc);
         }
@@ -156,8 +156,8 @@ struct Logger {
     void note(const Loc& loc, const char* fmt, const Args&... args) {
         if (colorize) {
             log::format<false>(out, "{} in {}: ",
-                log::style("info", log::Style::CYAN,  log::Style::BOLD),
-                log::style(loc,    log::Style::WHITE, log::Style::BOLD));
+                log::style("info", log::Style::Cyan,  log::Style::Bold),
+                log::style(loc,    log::Style::White, log::Style::Bold));
         } else {
             log::format<false>(out, "note in {}: ", loc);
         }

@@ -10,62 +10,62 @@
 namespace artic {
 
 #define TOKEN_TAGS(f) \
-    f(ERR, "<unknown token>") \
-    f(ID, "<identifier>") \
-    f(LIT, "<literal>") \
-    f(LET, "let") \
-    f(MUT, "mut") \
-    f(FN,  "fn") \
-    f(IF, "if") \
-    f(ELSE, "else") \
-    f(STRUCT, "struct") \
-    f(TRAIT, "trait") \
-    f(L_PAREN, "(") \
-    f(R_PAREN, ")") \
-    f(L_BRACE, "{") \
-    f(R_BRACE, "}") \
-    f(L_BRACKET, "[") \
-    f(R_BRACKET, "]") \
-    f(DOT, ".") \
-    f(DOTS, "...") \
-    f(COMMA, ",") \
-    f(SEMICOLON, ";") \
-    f(COLON_COLON, "::") \
-    f(COLON, ":") \
-    f(EQ, "=") \
-    f(ARROW, "->") \
-    f(INC, "++") \
-    f(DEC, "--") \
-    f(ADD_EQ, "+=") \
-    f(SUB_EQ, "-=") \
-    f(MUL_EQ, "*=") \
-    f(DIV_EQ, "/=") \
-    f(MOD_EQ, "%=") \
-    f(L_SHFT_EQ, "<<=") \
-    f(R_SHFT_EQ, ">>=") \
-    f(AND_EQ, "&=") \
-    f(OR_EQ, "|=") \
-    f(XOR_EQ, "^=") \
-    f(ADD, "+") \
-    f(SUB, "-") \
-    f(MUL, "*") \
-    f(DIV, "/") \
-    f(MOD, "%") \
-    f(L_SHFT, "<<") \
-    f(R_SHFT, ">>") \
-    f(AND, "&") \
-    f(AND_AND, "&&") \
-    f(OR, "|") \
-    f(OR_OR, "||") \
-    f(XOR, "^") \
-    f(NOT, "!") \
-    f(CMP_LE, "<=") \
-    f(CMP_GE, ">=") \
-    f(CMP_LT, "<") \
-    f(CMP_GT, ">") \
-    f(CMP_EQ, "==") \
-    f(CMP_NEQ, "!=") \
-    f(END, "<eof>")
+    f(Error, "<unknown token>") \
+    f(Id, "<identifier>") \
+    f(Lit, "<literal>") \
+    f(Let, "let") \
+    f(Mut, "mut") \
+    f(Fn,  "fn") \
+    f(If, "if") \
+    f(Else, "else") \
+    f(Struct, "struct") \
+    f(Trait, "trait") \
+    f(LParen, "(") \
+    f(RParen, ")") \
+    f(LBrace, "{") \
+    f(RBrace, "}") \
+    f(LBracket, "[") \
+    f(RBracket, "]") \
+    f(Dot, ".") \
+    f(Dots, "...") \
+    f(Comma, ",") \
+    f(Semi, ";") \
+    f(ColonColon, "::") \
+    f(Colon, ":") \
+    f(Eq, "=") \
+    f(Arrow, "->") \
+    f(Inc, "++") \
+    f(Dec, "--") \
+    f(AddEq, "+=") \
+    f(SubEq, "-=") \
+    f(MulEq, "*=") \
+    f(DivEq, "/=") \
+    f(ModEq, "%=") \
+    f(LShftEq, "<<=") \
+    f(RShftEq, ">>=") \
+    f(AndEq, "&=") \
+    f(OrEq, "|=") \
+    f(XorEq, "^=") \
+    f(Add, "+") \
+    f(Sub, "-") \
+    f(Mul, "*") \
+    f(Div, "/") \
+    f(Mod, "%") \
+    f(LShft, "<<") \
+    f(RShft, ">>") \
+    f(And, "&") \
+    f(AndAnd, "&&") \
+    f(Or, "|") \
+    f(OrOr, "||") \
+    f(Xor, "^") \
+    f(Not, "!") \
+    f(CmpLE, "<=") \
+    f(CmpGE, ">=") \
+    f(CmpLT, "<") \
+    f(CmpGT, ">") \
+    f(CmpEq, "==") \
+    f(CmpNE, "!=") \
+    f(End, "<eof>")
 
 struct Literal {
     Box box;
@@ -93,7 +93,7 @@ public:
     };
 
     Token(const Loc& loc = Loc())
-        : Token(loc, ERR)
+        : Token(loc, Error)
     {}
 
     Token(const Loc& loc, Tag tag, bool new_line = false)
@@ -101,11 +101,11 @@ public:
     {}
 
     Token(const Loc& loc, const std::string& str, const Literal& lit)
-        : loc_(loc), tag_(LIT), lit_(lit), str_(str)
+        : loc_(loc), tag_(Lit), lit_(lit), str_(str)
     {}
 
     Token(const Loc& loc, const std::string& str)
-        : loc_(loc), tag_(ID), str_(str)
+        : loc_(loc), tag_(Id), str_(str)
     {}
 
     Tag tag() const { return tag_; }
@@ -115,8 +115,8 @@ public:
 
     bool is_newline() const { return new_line_; }
 
-    bool is_identifier() const { return tag_ == ID; }
-    bool is_literal() const { return tag_ == LIT; }
+    bool is_identifier() const { return tag_ == Id; }
+    bool is_literal() const { return tag_ == Lit; }
 
     const Loc& loc() const { return loc_; }
 

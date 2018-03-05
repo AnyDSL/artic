@@ -146,7 +146,7 @@ struct PrimType : public Type {
 #define TAG(t, n, ty) t = Box::t,
         PRIM_TAGS(TAG)
 #undef TAG
-        ERR
+        Error
     };
 
     Tag tag;
@@ -412,14 +412,14 @@ struct IfExpr : public Expr {
 /// Unary expression (negation, increment, ...).
 struct UnaryExpr : public CallExpr {
     enum Tag {
-        NOT,
-        PLUS,
-        MINUS,
-        PRE_INC,
-        POST_INC,
-        PRE_DEC,
-        POST_DEC,
-        ERR
+        Not,
+        Plus,
+        Minus,
+        PreInc,
+        PostInc,
+        PreDec,
+        PostDec,
+        Error
     };
     Tag tag;
 
@@ -428,7 +428,7 @@ struct UnaryExpr : public CallExpr {
     {}
 
     bool is_prefix() const { return !is_postfix(); }
-    bool is_postfix() const { return tag == POST_INC || tag == POST_DEC; }
+    bool is_postfix() const { return tag == PostInc || tag == PostDec; }
     const Ptr<Expr>& operand() const { return arg; }
 
     void print(Printer&) const override;
@@ -441,15 +441,15 @@ struct UnaryExpr : public CallExpr {
 /// Binary expression (addition, logical operations, ...).
 struct BinaryExpr : public CallExpr {
     enum Tag {
-        EQ, ADD_EQ, SUB_EQ, MUL_EQ, DIV_EQ, MOD_EQ,
-        L_SHFT_EQ, R_SHFT_EQ,
-        AND_EQ, OR_EQ, XOR_EQ,
-        ADD, SUB, MUL, DIV, MOD,
-        L_SHFT, R_SHFT,
-        AND, OR, XOR,
-        AND_AND, OR_OR,
-        CMP_LT, CMP_GT, CMP_LE, CMP_GE, CMP_EQ, CMP_NEQ,
-        ERR
+        Eq, AddEq, SubEq, MulEq, DivEq, ModEq,
+        LShftEq, RShftEq,
+        AndEq, OrEq, XorEq,
+        Add, Sub, Mul, Div, Mod,
+        LShft, RShft,
+        And, Or, Xor,
+        AndAnd, OrOr,
+        CmpLT, CmpGT, CmpLE, CmpGE, CmpEq, CmpNE,
+        Error
     };
     Tag tag;
 
