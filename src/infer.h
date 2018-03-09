@@ -27,6 +27,7 @@ public:
 
     const Type* type(const ast::Node&, int rank = UnknownType::max_rank());
     const Type* infer(const ast::Node&, const Type* expected = nullptr);
+    void infer_head(const ast::Decl&);
 
     TypeTable& type_table() { return type_table_; }
 

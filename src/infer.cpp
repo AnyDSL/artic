@@ -156,6 +156,11 @@ const Type* TypeInference::infer(const ast::Node& node, const Type* expected) {
     return nullptr;
 }
 
+void TypeInference::infer_head(const ast::Decl& decl) {
+    if (!decl.type)
+        decl.type = decl.infer_head(*this);
+}
+
 namespace ast {
 
 template <typename FieldVector>
@@ -195,8 +200,7 @@ const artic::Type* Path::infer(TypeInference& ctx) const {
     if (!symbol || symbol->decls.empty()) return ctx.type_table().error_type(loc);
 
     auto decl = symbol->decls.front();
-    // Return an unknown with a rank that prevents too eager generalization of constraints
-    if (!decl->type) return ctx.type(*this, 0);
+    assert(decl->type);
 
     type_args.resize(std::max(type_args.size(), args.size()));
     for (size_t i = 0; i < args.size(); i++) {
@@ -251,7 +255,6 @@ const artic::Type* FieldExpr::infer(TypeInference& ctx) const {
 
 const artic::Type* StructExpr::infer(TypeInference& ctx) const {
     auto expr_type = ctx.infer(*expr, ctx.type(*this));
-    for (auto& field : fields) ctx.infer(*field);
     if (auto struct_type = expr_type->isa<StructType>())
         return infer_struct(ctx, loc, struct_type, fields, false);
     return expr_type;
@@ -270,6 +273,10 @@ const artic::Type* FnExpr::infer(TypeInference& ctx) const {
 }
 
 const artic::Type* BlockExpr::infer(TypeInference& ctx) const {
+    for (auto& expr : exprs) {
+        if (auto decl_expr = expr->isa<DeclExpr>())
+            ctx.infer_head(*decl_expr->decl);
+    }
     for (size_t i = 0, n = exprs.size(); i < n; i++)
         ctx.infer(*exprs[i], i != n - 1 ? ctx.type_table().unit_type() : nullptr);
     return exprs.empty() ? ctx.type_table().unit_type() : exprs.back()->type;
@@ -357,11 +364,13 @@ const artic::Type* LetDecl::infer(TypeInference& ctx) const {
     return init ? ctx.infer(*ptrn, ctx.infer(*init)) : ctx.infer(*ptrn);
 }
 
+const artic::Type* FnDecl::infer_head(TypeInference& ctx) const {
+    if (type_params)
+        return ctx.infer(*type_params);
+    return ctx.type(*this);
+}
+
 const artic::Type* FnDecl::infer(TypeInference& ctx) const {
-    // Create a dummy type for this declaration,
-    // so that it can be bound during constraint generation
-    auto fn_type = ctx.type(*this);
-    auto poly_type = type_params ? ctx.infer(*type_params) : nullptr;
     const artic::Type* init_type = nullptr;
     if (fn->body) {
         init_type = ctx.infer(*fn);
@@ -376,26 +385,21 @@ const artic::Type* FnDecl::infer(TypeInference& ctx) const {
             ret_type ? ctx.infer(*ret_type) : ctx.type_table().error_type(loc));
     }
 
-    if (poly_type) return ctx.unify(loc, poly_type, init_type);
-    if (init_type) {
-        // Unify the type of the function with its initializer,
-        // so that recursive calls constrain arguments
-        ctx.unify(loc, fn_type, init_type);
-        // Generate a polymorphic type
-        return ctx.generalize(loc, init_type, rank);
-    }
-    return fn_type;
+    // Generate a polymorphic type
+    return ctx.generalize(loc, init_type, rank);
 }
 
 const artic::Type* FieldDecl::infer(TypeInference& ctx) const {
     return ctx.infer(*type);
 }
 
-const artic::Type* StructDecl::infer(TypeInference& ctx) const {
-    // Infer type parameters first, otherwise the type
-    // variables are not bound when visiting fields/arguments
-    auto poly_type = type_params ? ctx.infer(*type_params) : nullptr;
+const artic::Type* StructDecl::infer_head(TypeInference& ctx) const {
+    if (type_params)
+        return ctx.infer(*type_params);
+    return ctx.type(*this);
+}
 
+const artic::Type* StructDecl::infer(TypeInference& ctx) const {
     std::vector<const artic::Type*> args;
     std::vector<std::string> members;
     for (auto& field : fields) {
@@ -403,8 +407,7 @@ const artic::Type* StructDecl::infer(TypeInference& ctx) const {
         members.emplace_back(field->id.name);
     }
 
-    auto struct_type = ctx.type_table().struct_type(std::string(id.name), StructType::Args(args), std::move(members));
-    return poly_type ? ctx.unify(loc, poly_type, struct_type) : struct_type;
+    return ctx.type_table().struct_type(std::string(id.name), StructType::Args(args), std::move(members));
 }
 
 const artic::Type* TraitDecl::infer(TypeInference&) const {
@@ -417,6 +420,11 @@ const artic::Type* ErrorDecl::infer(TypeInference& ctx) const {
 }
 
 const artic::Type* Program::infer(TypeInference& ctx) const {
+    for (auto& decl : decls) ctx.infer_head(*decl);
+    for (auto& decl : decls) {
+        if (decl->isa<StructDecl>())
+            ctx.infer(*decl);
+    }
     for (auto& decl : decls) ctx.infer(*decl);
     return nullptr;
 }

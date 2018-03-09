@@ -81,6 +81,8 @@ struct Decl : public Node {
 
     /// Binds the declaration to its AST node, without entering sub-AST nodes.
     virtual void bind_head(NameBinder&) const {}
+    /// Infers a type for the declaration so that uses before declaration can type.
+    virtual const artic::Type* infer_head(TypeInference&) const { return nullptr; }
 };
 
 /// Base class for types.
@@ -586,6 +588,7 @@ struct FnDecl : public NamedDecl {
         , type_params(std::move(type_params))
     {}
 
+    const artic::Type* infer_head(TypeInference&) const override;
     const artic::Type* infer(TypeInference&) const override;
     void bind_head(NameBinder&) const override;
     void bind(NameBinder&) const override;
@@ -624,6 +627,7 @@ struct StructDecl : public NamedDecl {
         , fields(std::move(fields))
     {}
 
+    const artic::Type* infer_head(TypeInference&) const override;
     const artic::Type* infer(TypeInference&) const override;
     void bind_head(NameBinder&) const override;
     void bind(NameBinder&) const override;
