@@ -10,10 +10,6 @@ void TypeInference::run(const ast::Program& program) {
     // Run fix-point iterations until convergence
     do {
         todo_ = false;
-        // Reset the rank of unknowns, so that next iteration
-        // can generalize type variables when it is safe to do so
-        for (auto u : type_table_.unknowns())
-            u->rank = UnknownType::max_rank();
         program.infer(*this);
     } while (todo_);
 }
