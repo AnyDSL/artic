@@ -1,7 +1,9 @@
 #include <algorithm>
 #include <typeinfo>
 #include <iostream>
+
 #include "type.h"
+#include "ast.h"
 
 namespace artic {
 
@@ -35,6 +37,18 @@ size_t FnType::num_args() const {
         return tuple_type->args.size();
     }
     return 1;
+}
+
+const StructType::Members& StructType::members(TypeTable& type_table) const {
+    if (members_.empty()) {
+        assert(decl->type && decl->type_params->params.size() == args.size());
+        std::unordered_map<const Type*, const Type*> map;
+        for (size_t i = 0; i < args.size(); i++)
+            map.emplace(decl->type_params->params[i]->type, args[i]);
+        for (auto& field : decl->fields)
+            members_.emplace_back(field->id.name, field->Node::type->substitute(type_table, map));
+    }
+    return members_;
 }
 
 // Hash ----------------------------------------------------------------------------
@@ -126,7 +140,7 @@ bool ErrorType::equals(const Type*) const {
 // Rebuild -------------------------------------------------------------------------
 
 const TypeApp* StructType::rebuild(TypeTable& table, Args&& new_args) const {
-    return table.struct_type(std::string(name), std::move(new_args), Members(members));
+    return table.struct_type(std::string(name), std::move(new_args), decl);
 }
 
 const TypeApp* TupleType::rebuild(TypeTable& table, Args&& new_args) const {
@@ -222,6 +236,10 @@ inline const Type* apply_map(const std::unordered_map<const Type*, const Type*>&
     return type;
 }
 
+const Type* Type::substitute(TypeTable&, const std::unordered_map<const Type*, const Type*>& map) const {
+    return apply_map(map, this);
+}
+
 const Type* TypeApp::substitute(TypeTable& table, const std::unordered_map<const Type*, const Type*>& map) const {
     Args new_args(args.size());
     std::transform(args.begin(), args.end(), new_args.begin(), [&] (auto arg) {
@@ -240,8 +258,8 @@ const PrimType* TypeTable::prim_type(PrimType::Tag tag) {
     return new_type<PrimType>(tag);
 }
 
-const StructType* TypeTable::struct_type(std::string&& name, StructType::Args&& args, StructType::Members&& members) {
-    return new_type<StructType>(std::move(name), std::move(args), std::move(members));
+const StructType* TypeTable::struct_type(std::string&& name, StructType::Args&& args, const ast::StructDecl* decl) {
+    return new_type<StructType>(std::move(name), std::move(args), decl);
 }
 
 const TupleType* TypeTable::tuple_type(TupleType::Args&& args) {

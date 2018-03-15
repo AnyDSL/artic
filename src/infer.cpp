@@ -38,10 +38,8 @@ const Type* TypeInference::unify(const Loc& loc, const Type* a, const Type* b) {
     auto app_a = a->isa<TypeApp>();
     auto app_b = b->isa<TypeApp>();
     if (app_a && app_b && typeid(*app_a) == typeid(*app_b) && app_a->args.size() == app_b->args.size()) {
-        if (app_a->name != app_b->name) {
-            error(loc, "incompatible nominal types '{}' and '{}'", *a, *b);
+        if (app_a->name != app_b->name)
             return type_table_.error_type(loc);
-        }
 
         auto n = app_a->args.size();
         std::vector<const Type*> args(n);
@@ -49,10 +47,8 @@ const Type* TypeInference::unify(const Loc& loc, const Type* a, const Type* b) {
         return app_a->rebuild(type_table_, std::move(args));
     }
 
-    if (a != b) {
-        error(loc, "cannot unify '{}' and '{}'", *a, *b);
+    if (a != b)
         return type_table_.error_type(loc);
-    }
     return a;
 }
 
@@ -151,30 +147,26 @@ namespace ast {
 
 template <typename FieldVector>
 const artic::Type* infer_struct(TypeInference& ctx, const Loc& loc, const artic::StructType* struct_type, const FieldVector& fields, bool has_etc) {
-    auto& members = struct_type->members;
+    auto& members = struct_type->members(ctx.type_table());
 
     // Infer all fields
     for (size_t i = 0, n = has_etc ? fields.size() - 1 : fields.size(); i < n; i++) {
         auto& field = fields[i];
-        auto index = std::find(members.begin(), members.end(), field->id.name);
-        if (index == members.end()) {
-            ctx.error(loc, "'{}' is not a member of '{}'", field->id.name, struct_type->name);
-            return ctx.type_table().error_type(loc);
-        }
-        ctx.infer(*field, struct_type->args[index - members.begin()]);
+        auto it = std::find_if(members.begin(), members.end(), [&] (auto& member) {
+            return member.first == field->id.name;
+        });
+        ctx.infer(*field, it != members.end() ? it->second : ctx.type_table().error_type(loc));
     }
 
     // Make sure all fields are set
     if (!has_etc) {
         auto not_set = std::find_if(members.begin(), members.end(), [&] (auto& member) {
             return std::find_if(fields.begin(), fields.end(), [&] (auto& field) {
-                return field->id.name == member;
+                return member.first == field->id.name;
             }) == fields.end();
         });
-        if (not_set != members.end()) {
-            ctx.error(loc, "missing initializer for structure field '{}'", *not_set);
+        if (not_set != members.end())
             return ctx.type_table().error_type(loc);
-        }
     }
 
     return struct_type;
@@ -193,6 +185,7 @@ const artic::Type* Path::infer(TypeInference& ctx) const {
         type_args[i] = ctx.infer(*args[i]);
     }
 
+    // Do not subsume twice, as subsumption introduces unknowns
     return type ? type : ctx.subsume(loc, decl->type, type_args);
 }
 
@@ -376,20 +369,20 @@ const artic::Type* FieldDecl::infer(TypeInference& ctx) const {
 }
 
 const artic::Type* StructDecl::infer_head(TypeInference& ctx) const {
-    if (type_params)
-        return ctx.infer(*type_params);
-    return ctx.type(*this);
+    if (type_params) {
+        auto poly_type = ctx.infer(*type_params);
+        StructType::Args args;
+        for (auto& param : type_params->params)
+            args.emplace_back(param->type);
+        return ctx.unify(loc, poly_type, ctx.type_table().struct_type(std::string(id.name), std::move(args), this));
+    }
+    return ctx.type_table().struct_type(std::string(id.name), StructType::Args(), this);
 }
 
 const artic::Type* StructDecl::infer(TypeInference& ctx) const {
-    std::vector<const artic::Type*> args;
-    std::vector<std::string> members;
-    for (auto& field : fields) {
-        args.emplace_back(ctx.infer(*field));
-        members.emplace_back(field->id.name);
-    }
-
-    return ctx.type_table().struct_type(std::string(id.name), StructType::Args(args), std::move(members));
+    for (auto& field : fields)
+        ctx.infer(*field);
+    return ctx.type(*this);
 }
 
 const artic::Type* TraitDecl::infer(TypeInference&) const {

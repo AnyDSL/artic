@@ -36,16 +36,6 @@ inline void print_vars(Printer& p, size_t vars) {
     }
 }
 
-inline void print_struct_body(Printer& p, const StructType* struct_type) {
-    p << " { ";
-    for (size_t i = 0, n = struct_type->args.size(); i < n; i++) {
-        p << struct_type->members[i] << ": ";
-        struct_type->args[i]->print(p);
-        if (i != n - 1) p << ", ";
-    }
-    p << " }";
-}
-
 // AST nodes -----------------------------------------------------------------------
 
 namespace ast {
@@ -357,7 +347,13 @@ void PrimType::print(Printer& p) const {
 
 void StructType::print(Printer& p) const {
     p << name;
-    print_struct_body(p, this);
+    if (!args.empty()) {
+        p << '[';
+        print_list(p, ", ", args, [&] (auto arg) {
+            arg->print(p);
+        });
+        p << ']';
+    }
 }
 
 void TupleType::print(Printer& p) const {
@@ -376,26 +372,10 @@ void FnType::print(Printer& p) const {
 }
 
 void PolyType::print(Printer& p) const {
-    if (auto struct_type = body->isa<StructType>()) {
-        p << struct_type->name;
-        p << '[';
-        print_vars(p, num_vars);
-        p << ']';
-        print_struct_body(p, struct_type);
-    } else if (auto fn_type = body->isa<FnType>()) {
-        p << keyword_style("fn");
-        p << '[';
-        print_vars(p, num_vars);
-        p << ']';
-        print_parens(p, fn_type->from());
-        p << " -> ";
-        fn_type->to()->print(p);
-    } else {
-        p << '[';
-        print_vars(p, num_vars);
-        p << "] ";
-        body->print(p);
-    }
+    p << '[';
+    print_vars(p, num_vars);
+    p << "] ";
+    body->print(p);
 }
 
 void TypeVar::print(Printer& p) const {

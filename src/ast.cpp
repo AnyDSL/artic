@@ -1,5 +1,6 @@
 #include <cassert>
 #include <algorithm>
+
 #include "ast.h"
 
 namespace artic {

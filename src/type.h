@@ -13,6 +13,10 @@
 
 namespace artic {
 
+namespace ast {
+    class StructDecl;
+}
+
 class Printer;
 class TypeTable;
 class UnknownType;
@@ -35,7 +39,7 @@ struct Type : public Cast<Type> {
     virtual bool is_nominal() const { return false; }
 
     /// Applies a substitution to the inner part of this type.
-    virtual const Type* substitute(TypeTable&, const std::unordered_map<const Type*, const Type*>&) const { return this; }
+    virtual const Type* substitute(TypeTable&, const std::unordered_map<const Type*, const Type*>& map) const;
     /// Fills the given set with unknowns contained in this type.
     virtual void unknowns(std::unordered_set<const UnknownType*>&) const {}
     /// Fills the given set with type variables contained in this type.
@@ -100,7 +104,7 @@ struct PrimType : public Type {
     {}
 
     uint32_t hash() const override;
-    bool equals(const Type* t) const override;
+    bool equals(const Type*) const override;
     void print(Printer&) const override;
 };
 
@@ -121,7 +125,7 @@ struct TypeApp : public Type {
         : name(std::move(name)), args(std::move(args))
     {}
 
-    void update_rank(uint32_t rank) const override;
+    void update_rank(uint32_t) const override;
     const Type* substitute(TypeTable& table, const std::unordered_map<const Type*, const Type*>& map) const override;
     void unknowns(std::unordered_set<const UnknownType*>&) const override;
     void vars(std::unordered_set<const TypeVar*>&) const override;
@@ -134,24 +138,30 @@ struct TypeApp : public Type {
     /// Rebuilds this type with different arguments.
     virtual const TypeApp* rebuild(TypeTable& table, Args&& new_args) const = 0;
 
-    bool equals(const Type* t) const override;
+    bool equals(const Type*) const override;
 };
 
 /// Structure type.
 struct StructType : public TypeApp {
-    typedef std::vector<std::string> Members;
+    typedef std::vector<std::pair<std::string, const Type*>> Members;
     using TypeApp::Args;
 
-    Members members;
+    const ast::StructDecl* decl;
 
-    StructType(std::string&& name, Args&& args, Members&& members)
-        : TypeApp(std::move(name), std::move(args)), members(std::move(members))
+    StructType(std::string&& name, Args&& args, const ast::StructDecl* decl)
+        : TypeApp(std::move(name), std::move(args)), decl(decl)
     {}
 
     const TypeApp* rebuild(TypeTable&, Args&&) const override;
 
     uint32_t hash() const override;
     void print(Printer&) const override;
+
+    /// Lazily build the members of the structure.
+    const Members& members(TypeTable&) const;
+
+private:
+    mutable Members members_;
 };
 
 /// Type of a tuple, made of the product of the types of its elements.
@@ -199,7 +209,7 @@ struct PolyType : public Type {
         : num_vars(num_vars), body(body)
     {}
 
-    void update_rank(uint32_t rank) const override;
+    void update_rank(uint32_t) const override;
     const Type* substitute(TypeTable&, const std::unordered_map<const Type*, const Type*>&) const override;
     void unknowns(std::unordered_set<const UnknownType*>&) const override;
     void vars(std::unordered_set<const TypeVar*>&) const override;
@@ -208,7 +218,7 @@ struct PolyType : public Type {
     bool has_errors() const override;
 
     uint32_t hash() const override;
-    bool equals(const Type* t) const override;
+    bool equals(const Type*) const override;
     void print(Printer&) const override;
 };
 
@@ -228,7 +238,7 @@ struct TypeVar : public Type {
     void vars(std::unordered_set<const TypeVar*>&) const override;
 
     uint32_t hash() const override;
-    bool equals(const Type* t) const override;
+    bool equals(const Type*) const override;
     void print(Printer&) const override;
 };
 
@@ -255,13 +265,13 @@ struct UnknownType : public Type {
         : number(number), rank(rank), traits(std::move(traits))
     {}
 
-    void update_rank(uint32_t i) const override;
+    void update_rank(uint32_t) const override;
     void unknowns(std::unordered_set<const UnknownType*>&) const override;
 
     bool has_unknowns() const override;
 
     uint32_t hash() const override;
-    bool equals(const Type* t) const override;
+    bool equals(const Type*) const override;
     void print(Printer&) const override;
 
     static constexpr uint32_t max_rank() { return std::numeric_limits<uint32_t>::max(); }
@@ -277,7 +287,7 @@ struct ErrorType : public Type {
 
     void print(Printer&) const override;
     uint32_t hash() const override;
-    bool equals(const Type* t) const override;
+    bool equals(const Type*) const override;
 };
 
 /// Table containing all types. Types are hashed so that comparison of types can be done with pointer equality.
@@ -307,7 +317,7 @@ public:
     }
 
     const PrimType*     prim_type(PrimType::Tag);
-    const StructType*   struct_type(std::string&&, StructType::Args&&, StructType::Members&&);
+    const StructType*   struct_type(std::string&&, StructType::Args&&, const ast::StructDecl*);
     const TupleType*    tuple_type(TupleType::Args&&);
     const TupleType*    unit_type();
     const FnType*       fn_type(const Type*, const Type*);

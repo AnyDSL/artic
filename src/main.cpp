@@ -116,7 +116,7 @@ int main(int argc, char** argv) {
         auto program = parser.parse_program();
 
         NameBinder name_binder(logger);
-        TypeInference type_inference(type_table, logger);
+        TypeInference type_inference(type_table);
         TypeChecker type_checker(logger);
 
         name_binder.run(*program);
