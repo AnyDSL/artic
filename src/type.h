@@ -30,7 +30,7 @@ struct Type : public Cast<Type> {
     size_t num_vars() const;
 
     /// Updates the rank of the unknowns contained in the type.
-    virtual void update_rank(int) const {}
+    virtual void update_rank(uint32_t) const {}
     /// Returns true iff the type is nominally typed.
     virtual bool is_nominal() const { return false; }
 
@@ -121,7 +121,7 @@ struct TypeApp : public Type {
         : name(std::move(name)), args(std::move(args))
     {}
 
-    void update_rank(int rank) const override;
+    void update_rank(uint32_t rank) const override;
     const Type* substitute(TypeTable& table, const std::unordered_map<const Type*, const Type*>& map) const override;
     void unknowns(std::unordered_set<const UnknownType*>&) const override;
     void vars(std::unordered_set<const TypeVar*>&) const override;
@@ -199,7 +199,7 @@ struct PolyType : public Type {
         : num_vars(num_vars), body(body)
     {}
 
-    void update_rank(int rank) const override;
+    void update_rank(uint32_t rank) const override;
     const Type* substitute(TypeTable&, const std::unordered_map<const Type*, const Type*>&) const override;
     void unknowns(std::unordered_set<const UnknownType*>&) const override;
     void vars(std::unordered_set<const TypeVar*>&) const override;
@@ -217,11 +217,11 @@ struct TypeVar : public Type {
     typedef std::unordered_set<const Trait*> Traits;
 
     /// Index of the type variable.
-    int index;
+    uint32_t index;
     /// Set of traits attached to the variable.
     Traits traits;
 
-    TypeVar(int index, Traits&& traits)
+    TypeVar(uint32_t index, Traits&& traits)
         : index(index), traits(std::move(traits))
     {}
 
@@ -237,7 +237,7 @@ struct UnknownType : public Type {
     typedef std::unordered_set<const Trait*> Traits;
 
     /// Number that will be displayed when printing this type.
-    int number;
+    uint32_t number;
 
     /// The rank corresponds to the highest scope index to which this
     /// unknown has been bound. If the current scope index is greater
@@ -245,17 +245,17 @@ struct UnknownType : public Type {
     /// at this point, because it is bound somewhere in an enclosing scope.
     /// See "Efficient ML Type Inference Using Ranked Type Variables",
     /// by G. Kuan and D. MacQueen
-    mutable int rank;
+    mutable uint32_t rank;
 
     /// Set of traits attached to this unknown. When this unknown will
     /// be generalized, they will be attached to the polymorphic type.
     mutable Traits traits;
 
-    UnknownType(int number, int rank, Traits&& traits)
+    UnknownType(uint32_t number, uint32_t rank, Traits&& traits)
         : number(number), rank(rank), traits(std::move(traits))
     {}
 
-    void update_rank(int i) const override;
+    void update_rank(uint32_t i) const override;
     void unknowns(std::unordered_set<const UnknownType*>&) const override;
 
     bool has_unknowns() const override;
@@ -264,7 +264,7 @@ struct UnknownType : public Type {
     bool equals(const Type* t) const override;
     void print(Printer&) const override;
 
-    static constexpr int max_rank() { return std::numeric_limits<int>::max(); }
+    static constexpr uint32_t max_rank() { return std::numeric_limits<uint32_t>::max(); }
 };
 
 /// Type that represents type-checking/parsing errors.
@@ -312,9 +312,9 @@ public:
     const TupleType*    unit_type();
     const FnType*       fn_type(const Type*, const Type*);
     const PolyType*     poly_type(size_t, const Type*);
-    const TypeVar*      type_var(int, TypeVar::Traits&& traits = TypeVar::Traits());
+    const TypeVar*      type_var(uint32_t, TypeVar::Traits&& traits = TypeVar::Traits());
     const ErrorType*    error_type(const Loc&);
-    const UnknownType*  unknown_type(int rank = UnknownType::max_rank(), UnknownType::Traits&& traits = UnknownType::Traits());
+    const UnknownType*  unknown_type(uint32_t rank = UnknownType::max_rank(), UnknownType::Traits&& traits = UnknownType::Traits());
 
     const TypeSet& types() const { return types_; }
     const std::vector<const UnknownType*>& unknowns() const { return unknowns_; }

@@ -87,7 +87,7 @@ const Type* TypeInference::find(const Type* type) {
     return type;
 }
 
-const Type* TypeInference::generalize(const Loc& loc, const Type* type, int rank) {
+const Type* TypeInference::generalize(const Loc& loc, const Type* type, uint32_t rank) {
     // Get the best estimate of the type at this point
     type = unify(loc, type, type);
 
@@ -126,7 +126,7 @@ const Type* TypeInference::subsume(const Loc& loc, const Type* type, std::vector
     return type;
 }
 
-const Type* TypeInference::type(const ast::Node& node, int rank) {
+const Type* TypeInference::type(const ast::Node& node, uint32_t rank) {
     if (!node.type)
         node.type = type_table_.unknown_type(std::min(rank, node.rank));
     return find(node.type);

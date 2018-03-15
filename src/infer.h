@@ -22,10 +22,10 @@ public:
     const Type* join(const Loc&, const UnknownType*, const Type*);
     const Type* find(const Type*);
 
-    const Type* generalize(const Loc& loc, const Type*, int);
+    const Type* generalize(const Loc& loc, const Type*, uint32_t);
     const Type* subsume(const Loc& loc, const Type*, std::vector<const Type*>&);
 
-    const Type* type(const ast::Node&, int rank = UnknownType::max_rank());
+    const Type* type(const ast::Node&, uint32_t rank = UnknownType::max_rank());
     const Type* infer(const ast::Node&, const Type* expected = nullptr);
     void infer_head(const ast::Decl&);
 

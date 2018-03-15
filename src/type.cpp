@@ -63,8 +63,7 @@ uint32_t PolyType::hash() const {
 }
 
 uint32_t TypeVar::hash() const {
-    return hash_combine(hash_init(),
-        uint32_t(index),
+    return hash_combine(hash_init(), index,
         hash_list(traits, [] (auto& t) {
             return hash_string(t->name);
         })
@@ -72,7 +71,7 @@ uint32_t TypeVar::hash() const {
 }
 
 uint32_t UnknownType::hash() const {
-    return hash_combine(hash_init(), uint32_t(number));
+    return hash_combine(hash_init(), number);
 }
 
 uint32_t ErrorType::hash() const {
@@ -140,16 +139,16 @@ const TypeApp* FnType::rebuild(TypeTable& table, Args&& new_args) const {
 
 // Update rank ---------------------------------------------------------------------
 
-void TypeApp::update_rank(int rank) const {
+void TypeApp::update_rank(uint32_t rank) const {
     for (auto arg : args)
         arg->update_rank(rank);
 }
 
-void PolyType::update_rank(int rank) const {
+void PolyType::update_rank(uint32_t rank) const {
     body->update_rank(rank);
 }
 
-void UnknownType::update_rank(int i) const {
+void UnknownType::update_rank(uint32_t i) const {
     rank = std::min(rank, i);
 }
 
@@ -261,7 +260,7 @@ const PolyType* TypeTable::poly_type(size_t num_vars, const Type* body) {
     return new_type<PolyType>(num_vars, body);
 }
 
-const TypeVar* TypeTable::type_var(int index, TypeVar::Traits&& traits) {
+const TypeVar* TypeTable::type_var(uint32_t index, TypeVar::Traits&& traits) {
     return new_type<TypeVar>(index, std::move(traits));
 }
 
@@ -269,7 +268,7 @@ const ErrorType* TypeTable::error_type(const Loc& loc) {
     return new_type<ErrorType>(loc);
 }
 
-const UnknownType* TypeTable::unknown_type(int rank, UnknownType::Traits&& traits) {
+const UnknownType* TypeTable::unknown_type(uint32_t rank, UnknownType::Traits&& traits) {
     unknowns_.emplace_back(new UnknownType(unknowns_.size(), rank, std::move(traits)));
     return unknowns_.back();
 }

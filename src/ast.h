@@ -48,7 +48,7 @@ struct Node : public Cast<Node> {
     /// Rank: index of the enclosing scope. Used during type inference
     /// in order to generalize type variables. Assigned during name
     /// binding. See UnknownType.
-    mutable int rank;
+    mutable uint32_t rank;
 
     Node(const Loc& loc)
         : loc(loc)
