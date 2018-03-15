@@ -28,14 +28,11 @@ const Type* TypeInference::unify(const Loc& loc, const Type* a, const Type* b) {
     // Polymorphic types
     auto poly_a = a->isa<PolyType>();
     auto poly_b = b->isa<PolyType>();
-    if (poly_a && poly_b && poly_a->vars == poly_b->vars) {
-        // Make sure the traits match
-        if (poly_a->traits != poly_b->traits)
-            return type_table_.error_type(loc);
-        return type_table_.poly_type(poly_a->vars, unify(loc, poly_a->body, poly_b->body), std::unordered_set<const Trait*>(poly_a->traits));
+    if (poly_a && poly_b && poly_a->num_vars == poly_b->num_vars) {
+        return type_table_.poly_type(poly_a->num_vars, unify(loc, poly_a->body, poly_b->body));
     }
-    if (poly_a) return type_table_.poly_type(poly_a->vars, unify(loc, poly_a->body, b), std::unordered_set<const Trait*>(poly_a->traits));
-    if (poly_b) return type_table_.poly_type(poly_b->vars, unify(loc, poly_b->body, a), std::unordered_set<const Trait*>(poly_b->traits));
+    if (poly_a) return type_table_.poly_type(poly_a->num_vars, unify(loc, poly_a->body, b));
+    if (poly_b) return type_table_.poly_type(poly_b->num_vars, unify(loc, poly_b->body, a));
 
     // Unification for type constructors
     auto app_a = a->isa<TypeApp>();
@@ -101,16 +98,12 @@ const Type* TypeInference::generalize(const Loc& loc, const Type* type, int rank
     for (auto u : type->unknowns()) {
         u = find(u)->isa<UnknownType>();
         // If the type is not tied to a concrete type nor tied in a higher scope, generalize it
-        if (u && u->rank >= rank) {
-            unify(loc, u, type_table_.type_var(vars));
-            // Add the constraints that are tied to this unknown
-            traits.insert(u->traits.begin(), u->traits.end());
-            vars++;
-        }
+        if (u && u->rank >= rank)
+            unify(loc, u, type_table_.type_var(vars++, TypeVar::Traits(u->traits)));
     }
     if (vars == 0) return type;
     assert(!type->isa<PolyType>());
-    return type_table_.poly_type(vars, type, std::move(traits));
+    return type_table_.poly_type(vars, type);
 }
 
 const Type* TypeInference::subsume(const Loc& loc, const Type* type, std::vector<const Type*>& type_args) {
@@ -118,18 +111,15 @@ const Type* TypeInference::subsume(const Loc& loc, const Type* type, std::vector
     type = unify(loc, type, type);
 
     if (auto poly = type->isa<artic::PolyType>()) {
-        // Replaces the type variables in the given type by unknowns
-        if (type_args.size() < poly->vars) {
-            for (size_t i = type_args.size(); i < poly->vars; i++) {
-                // TODO: Handle ad-hoc polymorphism/take only relevant traits from poly type
-                auto u = type_table().unknown_type(UnknownType::max_rank(), std::unordered_set<const Trait*>(poly->traits));
-                type_args.emplace_back(u);
-            }
-        }
-
         std::unordered_map<const artic::Type*, const artic::Type*> map;
-        for (size_t i = 0; i < poly->vars; i++)
-            map.emplace(type_table().type_var(i), type_args[i]);
+
+        // Replaces the type variables in the given type by unknowns
+        for (auto var : type->vars()) {
+            const Type* arg = var->index < type_args.size()
+                ? type_args[var->index]
+                : type_table().unknown_type(UnknownType::max_rank(), UnknownType::Traits(var->traits));
+            map.emplace(var, arg);
+        }
 
         return poly->substitute(type_table(), map)->as<PolyType>()->body;
     }
@@ -203,9 +193,7 @@ const artic::Type* Path::infer(TypeInference& ctx) const {
         type_args[i] = ctx.infer(*args[i]);
     }
 
-    // TODO: Make sure the type symbol type is polymorphic and expects at most args.size() variables
-
-    return ctx.subsume(loc, decl->type, type_args);
+    return type ? type : ctx.subsume(loc, decl->type, type_args);
 }
 
 const artic::Type* PrimType::infer(TypeInference& ctx) const {
@@ -345,11 +333,9 @@ const artic::Type* TypeParam::infer(TypeInference& ctx) const {
 
 const artic::Type* TypeParamList::infer(TypeInference& ctx) const {
     for (auto& param : params) ctx.infer(*param);
-    // TODO: Use trait bounds coming from all type params
-    auto traits = std::unordered_set<const Trait*>();
     return params.empty() || type
         ? ctx.type(*this)
-        : ctx.type_table().poly_type(params.size(), ctx.type_table().unknown_type(rank), std::move(traits));
+        : ctx.type_table().poly_type(params.size(), ctx.type_table().unknown_type(rank));
 }
 
 const artic::Type* PtrnDecl::infer(TypeInference& ctx) const {

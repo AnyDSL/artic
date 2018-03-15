@@ -15,7 +15,7 @@ const Type* Type::inner() const {
 }
 
 size_t Type::num_vars() const {
-    if (auto poly = isa<PolyType>()) return poly->vars;
+    if (auto poly = isa<PolyType>()) return poly->num_vars;
     return 0;
 }
 
@@ -59,17 +59,16 @@ uint32_t FnType::hash() const {
 }
 
 uint32_t PolyType::hash() const {
-    return hash_combine(
-        body->hash(),
-        uint32_t(vars),
+    return hash_combine(body->hash(), uint32_t(num_vars));
+}
+
+uint32_t TypeVar::hash() const {
+    return hash_combine(hash_init(),
+        uint32_t(index),
         hash_list(traits, [] (auto& t) {
             return hash_string(t->name);
         })
     );
-}
-
-uint32_t TypeVar::hash() const {
-    return hash_combine(hash_init(), uint32_t(index));
 }
 
 uint32_t UnknownType::hash() const {
@@ -106,14 +105,15 @@ bool TypeApp::equals(const Type* t) const {
 bool PolyType::equals(const Type* t) const {
     if (auto poly = t->isa<PolyType>()) {
         return poly->body == body &&
-               poly->vars == vars &&
-               poly->traits == traits;
+               poly->num_vars == num_vars;
     }
     return false;
 }
 
 bool TypeVar::equals(const Type* t) const {
-    return t->isa<TypeVar>() && t->as<TypeVar>()->index == index;
+    return t->isa<TypeVar>() &&
+           t->as<TypeVar>()->index == index &&
+           t->as<TypeVar>()->traits == traits;
 }
 
 bool UnknownType::equals(const Type* t) const {
@@ -167,6 +167,20 @@ void UnknownType::unknowns(std::unordered_set<const UnknownType*>& u) const {
     u.emplace(this);
 }
 
+// Vars ----------------------------------------------------------------------------
+
+void TypeApp::vars(std::unordered_set<const TypeVar*>& v) const {
+    for (auto arg : args) arg->vars(v);
+}
+
+void PolyType::vars(std::unordered_set<const TypeVar*>& v) const {
+    body->vars(v);
+}
+
+void TypeVar::vars(std::unordered_set<const TypeVar*>& v) const {
+    v.emplace(this);
+}
+
 // Has unknowns --------------------------------------------------------------------
 
 bool TypeApp::has_unknowns() const {
@@ -218,9 +232,7 @@ const Type* TypeApp::substitute(TypeTable& table, const std::unordered_map<const
 }
 
 const Type* PolyType::substitute(TypeTable& table, const std::unordered_map<const Type*, const Type*>& map) const {
-    return table.poly_type(vars,
-        apply_map(map, body->substitute(table, map)),
-        std::unordered_set<const Trait*>(traits));
+    return table.poly_type(num_vars, apply_map(map, body->substitute(table, map)));
 }
 
 // Type table ----------------------------------------------------------------------
@@ -245,12 +257,12 @@ const FnType* TypeTable::fn_type(const Type* from, const Type* to) {
     return new_type<FnType>(from, to);
 }
 
-const PolyType* TypeTable::poly_type(size_t vars, const Type* body, PolyType::Traits&& traits) {
-    return new_type<PolyType>(vars, body, std::move(traits));
+const PolyType* TypeTable::poly_type(size_t num_vars, const Type* body) {
+    return new_type<PolyType>(num_vars, body);
 }
 
-const TypeVar* TypeTable::type_var(int index) {
-    return new_type<TypeVar>(index);
+const TypeVar* TypeTable::type_var(int index, TypeVar::Traits&& traits) {
+    return new_type<TypeVar>(index, std::move(traits));
 }
 
 const ErrorType* TypeTable::error_type(const Loc& loc) {

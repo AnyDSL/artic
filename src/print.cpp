@@ -29,16 +29,10 @@ void print_parens(Printer& p, const E& e) {
     }
 }
 
-inline void print_vars(Printer& p, size_t vars, const std::unordered_set<const Trait*>& traits) {
+inline void print_vars(Printer& p, size_t vars) {
     for (size_t i = 0; i < vars; i++) {
         p << type_var_style(p.var_name(i));
         if (i != vars - 1) p << ", ";
-    }
-    if (!traits.empty()) {
-        p << " with ";
-        print_list(p, ", ", traits, [&] (auto trait) {
-            p << trait->name;
-        });
     }
 }
 
@@ -385,20 +379,20 @@ void PolyType::print(Printer& p) const {
     if (auto struct_type = body->isa<StructType>()) {
         p << struct_type->name;
         p << '[';
-        print_vars(p, vars, traits);
+        print_vars(p, num_vars);
         p << ']';
         print_struct_body(p, struct_type);
     } else if (auto fn_type = body->isa<FnType>()) {
         p << keyword_style("fn");
         p << '[';
-        print_vars(p, vars, traits);
+        print_vars(p, num_vars);
         p << ']';
         print_parens(p, fn_type->from());
         p << " -> ";
         fn_type->to()->print(p);
     } else {
         p << '[';
-        print_vars(p, vars, traits);
+        print_vars(p, num_vars);
         p << "] ";
         body->print(p);
     }

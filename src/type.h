@@ -16,6 +16,7 @@ namespace artic {
 class Printer;
 class TypeTable;
 class UnknownType;
+class TypeVar;
 
 /// Base class for all types.
 struct Type : public Cast<Type> {
@@ -37,6 +38,8 @@ struct Type : public Cast<Type> {
     virtual const Type* substitute(TypeTable&, const std::unordered_map<const Type*, const Type*>&) const { return this; }
     /// Fills the given set with unknowns contained in this type.
     virtual void unknowns(std::unordered_set<const UnknownType*>&) const {}
+    /// Fills the given set with type variables contained in this type.
+    virtual void vars(std::unordered_set<const TypeVar*>&) const {}
 
     /// Returns true iff the type has unknowns.
     virtual bool has_unknowns() const { return false; }
@@ -47,6 +50,13 @@ struct Type : public Cast<Type> {
     std::unordered_set<const UnknownType*> unknowns() const {
         std::unordered_set<const UnknownType*> set;
         unknowns(set);
+        return set;
+    }
+
+    /// Returns the set of unknowns contained in this type.
+    std::unordered_set<const TypeVar*> vars() const {
+        std::unordered_set<const TypeVar*> set;
+        vars(set);
         return set;
     }
 
@@ -114,6 +124,7 @@ struct TypeApp : public Type {
     void update_rank(int rank) const override;
     const Type* substitute(TypeTable& table, const std::unordered_map<const Type*, const Type*>& map) const override;
     void unknowns(std::unordered_set<const UnknownType*>&) const override;
+    void vars(std::unordered_set<const TypeVar*>&) const override;
 
     bool has_unknowns() const override;
     bool has_errors() const override;
@@ -179,24 +190,19 @@ struct FnType : public TypeApp {
 
 /// Polymorphic type with possibly several variables and a set of constraints.
 struct PolyType : public Type {
-    typedef std::unordered_set<const Trait*> Traits;
-
     /// Number of type variables in this polymorphic type.
-    size_t vars;
-
+    size_t num_vars;
     /// Body of this polymorphic type
     const Type* body;
 
-    /// Type traits attached to this polymorphic type.
-    Traits traits;
-
-    PolyType(size_t vars, const Type* body, Traits&& traits)
-        : vars(vars), body(body), traits(std::move(traits))
+    PolyType(size_t num_vars, const Type* body)
+        : num_vars(num_vars), body(body)
     {}
 
     void update_rank(int rank) const override;
     const Type* substitute(TypeTable&, const std::unordered_map<const Type*, const Type*>&) const override;
     void unknowns(std::unordered_set<const UnknownType*>&) const override;
+    void vars(std::unordered_set<const TypeVar*>&) const override;
 
     bool has_unknowns() const override;
     bool has_errors() const override;
@@ -208,11 +214,18 @@ struct PolyType : public Type {
 
 /// Type variable, identifiable by its (integer) index.
 struct TypeVar : public Type {
-    int index;
+    typedef std::unordered_set<const Trait*> Traits;
 
-    TypeVar(int index)
-        : index(index)
+    /// Index of the type variable.
+    int index;
+    /// Set of traits attached to the variable.
+    Traits traits;
+
+    TypeVar(int index, Traits&& traits)
+        : index(index), traits(std::move(traits))
     {}
+
+    void vars(std::unordered_set<const TypeVar*>&) const override;
 
     uint32_t hash() const override;
     bool equals(const Type* t) const override;
@@ -239,7 +252,7 @@ struct UnknownType : public Type {
     mutable Traits traits;
 
     UnknownType(int number, int rank, Traits&& traits)
-        : number(number), rank(rank), traits(traits)
+        : number(number), rank(rank), traits(std::move(traits))
     {}
 
     void update_rank(int i) const override;
@@ -257,6 +270,7 @@ struct UnknownType : public Type {
 /// Type that represents type-checking/parsing errors.
 struct ErrorType : public Type {
     Loc loc;
+
     ErrorType(const Loc& loc) : loc(loc) {}
 
     bool has_errors() const override;
@@ -297,8 +311,8 @@ public:
     const TupleType*    tuple_type(TupleType::Args&&);
     const TupleType*    unit_type();
     const FnType*       fn_type(const Type*, const Type*);
-    const PolyType*     poly_type(size_t, const Type*, PolyType::Traits&&);
-    const TypeVar*      type_var(int);
+    const PolyType*     poly_type(size_t, const Type*);
+    const TypeVar*      type_var(int, TypeVar::Traits&& traits = TypeVar::Traits());
     const ErrorType*    error_type(const Loc&);
     const UnknownType*  unknown_type(int rank = UnknownType::max_rank(), UnknownType::Traits&& traits = UnknownType::Traits());
 
