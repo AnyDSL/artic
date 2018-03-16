@@ -21,6 +21,11 @@ size_t Type::num_vars() const {
     return 0;
 }
 
+void Type::update_rank(uint32_t rank) const {
+    for (auto u : all<UnknownType>())
+        u->rank = std::min(u->rank, rank);
+}
+
 bool TypeApp::is_nominal() const {
     return name != "";
 }
@@ -41,12 +46,16 @@ size_t FnType::num_args() const {
 
 const StructType::Members& StructType::members(TypeTable& type_table) const {
     if (members_.empty()) {
-        assert(decl->type && decl->type_params->params.size() == args.size());
+        assert(decl->type);
+        assert(!decl->type_params || decl->type_params->params.size() == args.size());
+        assert(decl->type_params || args.empty());
         std::unordered_map<const Type*, const Type*> map;
         for (size_t i = 0; i < args.size(); i++)
             map.emplace(decl->type_params->params[i]->type, args[i]);
-        for (auto& field : decl->fields)
+        for (auto& field : decl->fields) {
+            assert(field->Node::type);
             members_.emplace_back(field->id.name, field->Node::type->substitute(type_table, map));
+        }
     }
     return members_;
 }
@@ -90,6 +99,10 @@ uint32_t UnknownType::hash() const {
 
 uint32_t ErrorType::hash() const {
     return loc.hash();
+}
+
+uint32_t InferError::hash() const {
+    return hash_combine(loc.hash(), left->hash(), right->hash());
 }
 
 // Equals ----------------------------------------------------------------------------
@@ -137,6 +150,13 @@ bool ErrorType::equals(const Type*) const {
     return false;
 }
 
+bool InferError::equals(const Type* t) const {
+    return t->isa<InferError>() &&
+           t->as<InferError>()->loc == loc &&
+           t->as<InferError>()->left == left &&
+           t->as<InferError>()->right == right;
+}
+
 // Rebuild -------------------------------------------------------------------------
 
 const TypeApp* StructType::rebuild(TypeTable& table, Args&& new_args) const {
@@ -151,81 +171,31 @@ const TypeApp* FnType::rebuild(TypeTable& table, Args&& new_args) const {
     return table.fn_type(new_args[0], new_args[1]);
 }
 
-// Update rank ---------------------------------------------------------------------
+// All -----------------------------------------------------------------------------
 
-void TypeApp::update_rank(uint32_t rank) const {
+void TypeApp::all(std::unordered_set<const Type*>& set, std::function<bool (const Type*)> pred) const {
+    if (pred(this)) set.emplace(this);
     for (auto arg : args)
-        arg->update_rank(rank);
+        arg->all(set, pred);
 }
 
-void PolyType::update_rank(uint32_t rank) const {
-    body->update_rank(rank);
+void PolyType::all(std::unordered_set<const Type*>& set, std::function<bool (const Type*)> pred) const {
+    if (pred(this)) set.emplace(this);
+    body->all(set, pred);
 }
 
-void UnknownType::update_rank(uint32_t i) const {
-    rank = std::min(rank, i);
-}
+// Has -----------------------------------------------------------------------------
 
-// Unknowns ------------------------------------------------------------------------
-
-void TypeApp::unknowns(std::unordered_set<const UnknownType*>& u) const {
-    for (auto arg : args) arg->unknowns(u);
-}
-
-void PolyType::unknowns(std::unordered_set<const UnknownType*>& u) const {
-    body->unknowns(u);
-}
-
-void UnknownType::unknowns(std::unordered_set<const UnknownType*>& u) const {
-    u.emplace(this);
-}
-
-// Vars ----------------------------------------------------------------------------
-
-void TypeApp::vars(std::unordered_set<const TypeVar*>& v) const {
-    for (auto arg : args) arg->vars(v);
-}
-
-void PolyType::vars(std::unordered_set<const TypeVar*>& v) const {
-    body->vars(v);
-}
-
-void TypeVar::vars(std::unordered_set<const TypeVar*>& v) const {
-    v.emplace(this);
-}
-
-// Has unknowns --------------------------------------------------------------------
-
-bool TypeApp::has_unknowns() const {
+bool TypeApp::has(std::function<bool (const Type*)> pred) const {
+    if (pred(this)) return true;
     for (auto arg : args) {
-        if (arg->has_unknowns()) return true;
+        if (arg->has(pred)) return true;
     }
     return false;
 }
 
-bool PolyType::has_unknowns() const {
-    return body->has_unknowns();
-}
-
-bool UnknownType::has_unknowns() const {
-    return true;
-}
-
-// Has errors ----------------------------------------------------------------------
-
-bool TypeApp::has_errors() const {
-    for (auto arg : args) {
-        if (arg->has_errors()) return true;
-    }
-    return false;
-}
-
-bool PolyType::has_errors() const {
-    return body->has_errors();
-}
-
-bool ErrorType::has_errors() const {
-    return true;
+bool PolyType::has(std::function<bool (const Type*)> pred) const {
+    return pred(this) || body->has(pred);
 }
 
 // Substitute ----------------------------------------------------------------------
@@ -284,6 +254,10 @@ const TypeVar* TypeTable::type_var(uint32_t index, TypeVar::Traits&& traits) {
 
 const ErrorType* TypeTable::error_type(const Loc& loc) {
     return new_type<ErrorType>(loc);
+}
+
+const InferError* TypeTable::infer_error(const Loc& loc, const Type* left, const Type* right) {
+    return new_type<InferError>(loc, left, right);
 }
 
 const UnknownType* TypeTable::unknown_type(uint32_t rank, UnknownType::Traits&& traits) {

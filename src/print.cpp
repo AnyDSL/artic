@@ -74,11 +74,15 @@ void FieldExpr::print(Printer& p) const {
 
 void StructExpr::print(Printer& p) const {
     expr->print(p);
-    p << " { ";
-    print_list(p, ", ", fields, [&] (auto& f) {
-        f->print(p);
-    });
-    p << " }";
+    p << " {";
+    if (!fields.empty()) {
+        p << ' ';
+        print_list(p, ", ", fields, [&] (auto& f) {
+            f->print(p);
+        });
+        p << ' ';
+    }
+    p << "}";
 }
 
 void TupleExpr::print(Printer& p) const {
@@ -191,12 +195,15 @@ void FieldPtrn::print(Printer& p) const {
 
 void StructPtrn::print(Printer& p) const {
     path.print(p);
-
-    p << " { ";
-    print_list(p, ", ", fields, [&] (auto& field) {
-        field->print(p);
-    });
-    p << " }";
+    p << " {";
+    if (!fields.empty()) {
+        p << ' ';
+        print_list(p, ", ", fields, [&] (auto& field) {
+            field->print(p);
+        });
+        p << ' ';
+    }
+    p << "}";
 }
 
 void TuplePtrn::print(Printer& p) const {
@@ -239,12 +246,16 @@ void FieldDecl::print(Printer& p) const {
 void StructDecl::print(Printer& p) const {
     p << keyword_style("struct") << ' ' << id.name;
     if (type_params) type_params->print(p);
-    p << " {" << p.indent();
-    print_list(p, ',', fields, [&] (auto& f) {
-        p << p.endl();
-        f->print(p);
-    });
-    p << p.unindent() << p.endl() << '}';
+    p << " {";
+    if (!fields.empty()) {
+       p << p.indent();
+        print_list(p, ',', fields, [&] (auto& f) {
+            p << p.endl();
+            f->print(p);
+        });
+        p << p.unindent() << p.endl();
+    }
+    p << '}';
 }
 
 void PtrnDecl::print(Printer& p) const {

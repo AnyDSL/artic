@@ -39,7 +39,7 @@ const Type* TypeInference::unify(const Loc& loc, const Type* a, const Type* b) {
     auto app_b = b->isa<TypeApp>();
     if (app_a && app_b && typeid(*app_a) == typeid(*app_b) && app_a->args.size() == app_b->args.size()) {
         if (app_a->name != app_b->name)
-            return type_table_.error_type(loc);
+            return type_table_.infer_error(loc, a, b);
 
         auto n = app_a->args.size();
         std::vector<const Type*> args(n);
@@ -48,7 +48,7 @@ const Type* TypeInference::unify(const Loc& loc, const Type* a, const Type* b) {
     }
 
     if (a != b)
-        return type_table_.error_type(loc);
+        return type_table_.infer_error(loc, a, b);
     return a;
 }
 
@@ -91,7 +91,7 @@ const Type* TypeInference::generalize(const Loc& loc, const Type* type, uint32_t
     // into the type variables of a polymorphic type
     std::unordered_set<const Trait*> traits;
     int vars = 0;
-    for (auto u : type->unknowns()) {
+    for (auto u : type->all<UnknownType>()) {
         u = find(u)->isa<UnknownType>();
         // If the type is not tied to a concrete type nor tied in a higher scope, generalize it
         if (u && u->rank >= rank)
@@ -110,7 +110,7 @@ const Type* TypeInference::subsume(const Loc& loc, const Type* type, std::vector
         std::unordered_map<const artic::Type*, const artic::Type*> map;
 
         // Replaces the type variables in the given type by unknowns
-        for (auto var : type->vars()) {
+        for (auto var : type->all<TypeVar>()) {
             const Type* arg = var->index < type_args.size()
                 ? type_args[var->index]
                 : type_table().unknown_type(UnknownType::max_rank(), UnknownType::Traits(var->traits));
@@ -140,7 +140,8 @@ const Type* TypeInference::infer(const ast::Node& node, const Type* expected) {
 
 void TypeInference::infer_head(const ast::Decl& decl) {
     auto type = decl.infer_head(*this);
-    decl.type = decl.type ? unify(decl.loc, type, decl.type) : type;
+    if (type)
+        decl.type = decl.type ? unify(decl.loc, type, decl.type) : type;
 }
 
 namespace ast {

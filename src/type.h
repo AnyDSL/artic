@@ -3,6 +3,7 @@
 
 #include <unordered_set>
 #include <unordered_map>
+#include <functional>
 #include <vector>
 #include <limits>
 
@@ -20,7 +21,6 @@ namespace ast {
 class Printer;
 class TypeTable;
 class UnknownType;
-class TypeVar;
 
 /// Base class for all types.
 struct Type : public Cast<Type> {
@@ -34,34 +34,38 @@ struct Type : public Cast<Type> {
     size_t num_vars() const;
 
     /// Updates the rank of the unknowns contained in the type.
-    virtual void update_rank(uint32_t) const {}
+    void update_rank(uint32_t) const;
     /// Returns true iff the type is nominally typed.
     virtual bool is_nominal() const { return false; }
 
     /// Applies a substitution to the inner part of this type.
     virtual const Type* substitute(TypeTable&, const std::unordered_map<const Type*, const Type*>& map) const;
-    /// Fills the given set with unknowns contained in this type.
-    virtual void unknowns(std::unordered_set<const UnknownType*>&) const {}
-    /// Fills the given set with type variables contained in this type.
-    virtual void vars(std::unordered_set<const TypeVar*>&) const {}
 
-    /// Returns true iff the type has unknowns.
-    virtual bool has_unknowns() const { return false; }
-    /// Returns true iff the type has errors.
-    virtual bool has_errors() const { return false; }
-
-    /// Returns the set of unknowns contained in this type.
-    std::unordered_set<const UnknownType*> unknowns() const {
-        std::unordered_set<const UnknownType*> set;
-        unknowns(set);
-        return set;
+    /// Returns true if the type contains at least one type verifying the predicate.
+    virtual bool has(std::function<bool (const Type*)> pred) const { return pred(this); };
+    /// Returns the types contained in this type that verifies the predicate.
+    virtual void all(std::unordered_set<const Type*>& set, std::function<bool (const Type*)> pred) const {
+        if (pred(this))
+            set.emplace(this);
     }
 
-    /// Returns the set of unknowns contained in this type.
-    std::unordered_set<const TypeVar*> vars() const {
-        std::unordered_set<const TypeVar*> set;
-        vars(set);
-        return set;
+    /// Returns true if the type contains an instance of the given (C++) type.
+    template <typename T>
+    bool has() const {
+        return has([] (const Type* t) {
+            return t->isa<T>();
+        });
+    }
+
+    /// Returns the types contained in this type that are instances of the given (C++) type.
+    template <typename T>
+    std::vector<const T*> all() const {
+        std::vector<const T*> result;
+        std::unordered_set<const Type*> set;
+        all(set, [] (const Type* t) { return t->isa<T>(); });
+        for (const Type* elem : set)
+            result.emplace_back(elem->as<T>());
+        return result;
     }
 
     /// Computes a hash value for the type.
@@ -125,13 +129,9 @@ struct TypeApp : public Type {
         : name(std::move(name)), args(std::move(args))
     {}
 
-    void update_rank(uint32_t) const override;
     const Type* substitute(TypeTable& table, const std::unordered_map<const Type*, const Type*>& map) const override;
-    void unknowns(std::unordered_set<const UnknownType*>&) const override;
-    void vars(std::unordered_set<const TypeVar*>&) const override;
-
-    bool has_unknowns() const override;
-    bool has_errors() const override;
+    bool has(std::function<bool (const Type*)>) const override;
+    void all(std::unordered_set<const Type*>&, std::function<bool (const Type*)>) const override;
 
     bool is_nominal() const;
 
@@ -209,13 +209,9 @@ struct PolyType : public Type {
         : num_vars(num_vars), body(body)
     {}
 
-    void update_rank(uint32_t) const override;
     const Type* substitute(TypeTable&, const std::unordered_map<const Type*, const Type*>&) const override;
-    void unknowns(std::unordered_set<const UnknownType*>&) const override;
-    void vars(std::unordered_set<const TypeVar*>&) const override;
-
-    bool has_unknowns() const override;
-    bool has_errors() const override;
+    bool has(std::function<bool (const Type*)>) const override;
+    void all(std::unordered_set<const Type*>&, std::function<bool (const Type*)>) const override;
 
     uint32_t hash() const override;
     bool equals(const Type*) const override;
@@ -234,8 +230,6 @@ struct TypeVar : public Type {
     TypeVar(uint32_t index, Traits&& traits)
         : index(index), traits(std::move(traits))
     {}
-
-    void vars(std::unordered_set<const TypeVar*>&) const override;
 
     uint32_t hash() const override;
     bool equals(const Type*) const override;
@@ -265,11 +259,6 @@ struct UnknownType : public Type {
         : number(number), rank(rank), traits(std::move(traits))
     {}
 
-    void update_rank(uint32_t) const override;
-    void unknowns(std::unordered_set<const UnknownType*>&) const override;
-
-    bool has_unknowns() const override;
-
     uint32_t hash() const override;
     bool equals(const Type*) const override;
     void print(Printer&) const override;
@@ -277,15 +266,26 @@ struct UnknownType : public Type {
     static constexpr uint32_t max_rank() { return std::numeric_limits<uint32_t>::max(); }
 };
 
-/// Type that represents type-checking/parsing errors.
+/// Base class for type errors.
 struct ErrorType : public Type {
     Loc loc;
 
     ErrorType(const Loc& loc) : loc(loc) {}
 
-    bool has_errors() const override;
-
     void print(Printer&) const override;
+    uint32_t hash() const override;
+    bool equals(const Type*) const override;
+};
+
+/// Error generated during type inference.
+struct InferError : public ErrorType {
+    const Type* left;
+    const Type* right;
+
+    InferError(const Loc& loc, const Type* left, const Type* right)
+        : ErrorType(loc), left(left), right(right)
+    {}
+
     uint32_t hash() const override;
     bool equals(const Type*) const override;
 };
@@ -324,6 +324,7 @@ public:
     const PolyType*     poly_type(size_t, const Type*);
     const TypeVar*      type_var(uint32_t, TypeVar::Traits&& traits = TypeVar::Traits());
     const ErrorType*    error_type(const Loc&);
+    const InferError*   infer_error(const Loc&, const Type*, const Type*);
     const UnknownType*  unknown_type(uint32_t rank = UnknownType::max_rank(), UnknownType::Traits&& traits = UnknownType::Traits());
 
     const TypeSet& types() const { return types_; }

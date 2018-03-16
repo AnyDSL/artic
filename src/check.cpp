@@ -10,15 +10,20 @@ bool TypeChecker::run(const ast::Program& program) {
 
 void TypeChecker::check(const ast::Node& node) {
     node.check(*this);
-    if (node.type->has_unknowns()) {
+    if (node.type->has<UnknownType>()) {
         error(node.loc, "Cannot infer type for '{}'", node);
         note(node.loc, "Best inferred type is '{}'", *node.type);
+    } else if (node.type->has<ErrorType>()) {
+        error(node.loc, "Incorrect type for '{}'", node);
+        for (auto& error : node.type->all<InferError>()) {
+            if (error->left->isa<ErrorType>() ||
+                error->right->isa<ErrorType>())
+                continue;
+            note(error->loc,
+                 "Resulting from unification of '{}' and '{}'",
+                 *error->left, *error->right);
+        }
     }
-}
-
-void TypeChecker::expect(const std::string& where, const Ptr<ast::Expr>& expr, const artic::Type* type) {
-    if (expr->type != type)
-        error(expr->loc, "type mismatch in {}, got '{}', expected '{}'", where, *expr->type, *type);
 }
 
 namespace ast {
@@ -82,17 +87,6 @@ void DeclExpr::check(TypeChecker& ctx) const {
 }
 
 void CallExpr::check(TypeChecker& ctx) const {
-    auto fn_type = callee->type->inner()->isa<artic::FnType>();
-    if (!fn_type) {
-        ctx.error(loc, "callee '{}' is not a function", *callee.get());
-        return;
-    }
-
-    if (arg->type != fn_type->from()) {
-        ctx.expect("function call", arg, fn_type->from());
-        return;
-    }
-
     ctx.check(*callee);
     ctx.check(*arg);
 }
@@ -139,16 +133,11 @@ void TypeParamList::check(TypeChecker&) const {
     // TODO
 }
 
-void PtrnDecl::check(TypeChecker& ctx) const {
-    if (type->has_unknowns())
-        ctx.error(loc, "cannot infer type for '{}'", id.name);
-}
+void PtrnDecl::check(TypeChecker&) const {}
 
 void LetDecl::check(TypeChecker& ctx) const {
-    if (init) {
-        ctx.expect("variable declaration", init, ptrn->type);
+    if (init)
         ctx.check(*init);
-    }
     ctx.check(*ptrn);
 }
 
@@ -162,7 +151,9 @@ void FnDecl::check(TypeChecker& ctx) const {
     }
 }
 
-void FieldDecl::check(TypeChecker& ctx) const {}
+void FieldDecl::check(TypeChecker& ctx) const {
+    ctx.check(*type);
+}
 
 void StructDecl::check(TypeChecker& ctx) const {
     if (type_params) ctx.check(*type_params);
@@ -176,12 +167,8 @@ void TraitDecl::check(TypeChecker&) const {
 void ErrorDecl::check(TypeChecker&) const {}
 
 void Program::check(TypeChecker& ctx) const {
-    for (auto& decl : decls) {
+    for (auto& decl : decls)
         ctx.check(*decl);
-        if (auto named = decl->isa<NamedDecl>()) {
-            std::cout << named->id.name << " : " << *named->type << std::endl;
-        }
-    }
 }
 
 } // namespace ast
