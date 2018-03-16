@@ -99,7 +99,7 @@ int main(int argc, char** argv) {
         Parser parser(lexer, type_table, logger);
         auto module = parser.parse_program();
         std::move(module->decls.begin(), module->decls.end(), std::back_inserter(program.decls));
-        if (parser.error_count != 0)
+        if (lexer.error_count + parser.error_count != 0)
             return 1;
     }
 
