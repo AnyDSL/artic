@@ -5,11 +5,40 @@
 #include <cstring>
 #include <cassert>
 
+#ifdef COLORIZE
+    #ifdef _WIN32
+        #include <io.h>
+        #define isatty _isatty
+        #define fileno _fileno
+    #else
+        #include <unistd.h>
+    #endif
+#endif
+
 #include "loc.h"
 
 namespace artic {
 
 namespace log {
+
+struct Output {
+    std::ostream& stream;
+    bool colorized;
+
+    Output(std::ostream& stream, bool colorized)
+        : stream(stream), colorized(colorized)
+    {}
+};
+
+#ifdef COLORIZE
+static Output err(std::cerr, isatty(fileno(stderr)));
+static Output log(std::clog, isatty(fileno(stdout)));
+static Output out(std::cout, isatty(fileno(stdout)));
+#else
+static Output err(std::cerr, false);
+static Output log(std::clog, false);
+static Output out(std::cout, false);
+#endif
 
 enum Style {
     Normal = 0,
@@ -51,12 +80,22 @@ struct Stylized {
     {}
 };
 
+template <typename T>
+inline Output& operator << (Output& out, const T& t) {
+    out.stream << t;
+    return out;
+}
+
 template <typename T, typename... Args>
-inline std::ostream& operator << (std::ostream& os, const Stylized<T, Args...>& s) {
-    os << "\33[";
-    s.styles.apply(os);
-    os << "m" << s.t << "\33[0m";
-    return os;
+inline Output& operator << (Output& out, const Stylized<T, Args...>& s) {
+    if (out.colorized) {
+        out.stream << "\33[";
+        s.styles.apply(out.stream);
+        out.stream << "m" << s.t << "\33[0m";
+    } else {
+        out.stream << s.t;
+    }
+    return out;
 }
 
 template <typename T, typename... Args>
@@ -65,7 +104,7 @@ Stylized<T, Args...> style(const T& t, Args... args) {
 }
 
 template <bool new_line = true>
-void format(std::ostream& os, const char* fmt) {
+void format(Output& out, const char* fmt) {
 #ifndef NDEBUG
     auto ptr = fmt;
     while (auto p = strchr(ptr, '{')) {
@@ -76,47 +115,44 @@ void format(std::ostream& os, const char* fmt) {
         ptr = p + 2;
     }
 #endif
-    os << fmt;
-    if (new_line) os << std::endl;
+    out << fmt;
+    if (new_line) out.stream << std::endl;
 }
 
 template <bool new_line = true, typename T, typename... Args>
-void format(std::ostream& os, const char* fmt, const T& t, const Args&... args) {
+void format(Output& out, const char* fmt, const T& t, const Args&... args) {
     auto ptr = fmt;
     auto p = strchr(ptr, '{');
     while (p && *(p + 1) == '{') p = strchr(p + 2, '{');
     assert(p != nullptr && "Missing argument to format");
-    os.write(ptr, p - ptr);
-    os << t;
-    format<new_line>(os, strchr(p, '}') + 1, args...);
+    out.stream.write(ptr, p - ptr);
+    out << t;
+    format<new_line>(out, strchr(p, '}') + 1, args...);
 }
 
 template <bool new_line = true, typename... Args>
 void error(const char* fmt, const Args&... args) {
-    log::format<new_line>(std::cerr, fmt, args...);
+    log::format<new_line>(err, fmt, args...);
 }
 
 template <bool new_line = true, typename... Args>
 void print(const char* fmt, const Args&... args) {
-    log::format<new_line>(std::cout, fmt, args...);
+    log::format<new_line>(out, fmt, args...);
 }
 
 } // namespace log
 
 struct Logger {
-    bool colorize;
-    std::ostream& err;
-    std::ostream& log;
-    std::ostream& out;
+    log::Output& err;
+    log::Output& log;
+    log::Output& out;
     size_t error_count;
     size_t warn_count;
 
-    Logger(bool colorize = true,
-           std::ostream& err = std::cerr,
-           std::ostream& log = std::clog,
-           std::ostream& out = std::cout)
-        : colorize(colorize)
-        , err(err)
+    Logger(log::Output& err = log::err,
+           log::Output& log = log::log,
+           log::Output& out = log::out)
+        : err(err)
         , log(log)
         , out(out)
         , error_count(0)
@@ -127,13 +163,9 @@ struct Logger {
     template <typename... Args>
     void error(const Loc& loc, const char* fmt, const Args&... args) {
         error_count++;
-        if (colorize) {
-            log::format<false>(err, "{} in {}: ",
-                log::style("error", log::Style::Red,   log::Style::Bold),
-                log::style(loc,     log::Style::White, log::Style::Bold));
-        } else {
-            log::format<false>(err, "error in {}: ", loc);
-        }
+        log::format<false>(err, "{} in {}: ",
+            log::style("error", log::Style::Red,   log::Style::Bold),
+            log::style(loc,     log::Style::White, log::Style::Bold));
         log::format(err, fmt, args...);
     }
 
@@ -141,26 +173,18 @@ struct Logger {
     template <typename... Args>
     void warn(const Loc& loc, const char* fmt, const Args&... args) {
         warn_count++;
-        if (colorize) {
-            log::format<false>(log, "{} in {}: ",
-                log::style("warning", log::Style::Yellow, log::Style::Bold),
-                log::style(loc,       log::Style::White,  log::Style::Bold));
-        } else {
-            log::format<false>(log, "warning in {}: ", loc);
-        }
+        log::format<false>(log, "{} in {}: ",
+            log::style("warning", log::Style::Yellow, log::Style::Bold),
+            log::style(loc,       log::Style::White,  log::Style::Bold));
         log::format(log, fmt, args...);
     }
 
     /// Display a note corresponding to a specific location in a source file.
     template <typename... Args>
     void note(const Loc& loc, const char* fmt, const Args&... args) {
-        if (colorize) {
-            log::format<false>(out, "{} in {}: ",
-                log::style("note", log::Style::Cyan,  log::Style::Bold),
-                log::style(loc,    log::Style::White, log::Style::Bold));
-        } else {
-            log::format<false>(out, "note in {}: ", loc);
-        }
+        log::format<false>(out, "{} in {}: ",
+            log::style("note", log::Style::Cyan,  log::Style::Bold),
+            log::style(loc,    log::Style::White, log::Style::Bold));
         log::format(out, fmt, args...);
     }
 };

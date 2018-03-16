@@ -20,28 +20,22 @@ struct Printer {
     static constexpr Indent indent() { return Indent(); }
     static constexpr Unindent unindent() { return Unindent(); }
 
-    std::ostream& os;
+    log::Output& out;
     std::vector<std::string> var_names;
 
-    int level = 0;              ///< Initial indentation level
-    std::string tab = "    ";   ///< String used as tabulation symbol
-    bool colorize = true;       ///< Set to true if the printer should use colors
+    int level = 0;      ///< Initial indentation level
+    std::string tab;    ///< String used as tabulation symbol
 
-    Printer(std::ostream& os) : os(os) {}
+    Printer(log::Output& out, const std::string& tab = "    ")
+        : out(out), tab(tab)
+    {}
 
-    template <typename T, typename... Args>
-    inline Printer& operator << (const log::Stylized<T, Args...>& s) {
-        if (colorize) os << s;
-        else          os << s.t;
-        return *this;
-    }
-
-    template <typename T> Printer& operator << (const T& t) { os << t; return *this; }
+    template <typename T> Printer& operator << (const T& t) { out << t; return *this; }
     Printer& operator << (const Indent&)   { level++; return *this; }
     Printer& operator << (const Unindent&) { level--; return *this; }
     Printer& operator << (const Endl&) {
-        os << '\n';
-        for (int i = 0; i < level; i++) os << tab;
+        out << '\n';
+        for (int i = 0; i < level; i++) out << tab;
         return *this;
     }
 

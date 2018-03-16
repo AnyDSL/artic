@@ -14,6 +14,8 @@ class Parser : public Logger {
 public:
     Parser(Lexer&, TypeTable&, const Logger& log = Logger());
 
+    /// Parses a program read from Lexer object.
+    /// Errors are reported by the Logger.
     Ptr<ast::Program>       parse_program();
 
 private:

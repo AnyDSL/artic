@@ -56,7 +56,7 @@ Ptr<ast::FnDecl> Parser::parse_fn_decl() {
 
     auto id = parse_id();
     Ptr<TypeParamList> type_params;
-    if (ahead().tag() == Token::LBracket)
+    if (ahead().tag() == Token::CmpLT)
         type_params = std::move(parse_type_params());
 
     Ptr<Ptrn> param;
@@ -95,7 +95,7 @@ Ptr<ast::StructDecl> Parser::parse_struct_decl() {
     auto id = parse_id();
 
     Ptr<ast::TypeParamList> type_params;
-    if (ahead().tag() == Token::LBracket)
+    if (ahead().tag() == Token::CmpLT)
         type_params = std::move(parse_type_params());
 
     PtrVector<ast::FieldDecl> fields;
@@ -113,7 +113,7 @@ Ptr<ast::TraitDecl> Parser::parse_trait_decl() {
     auto id = parse_id();
 
     Ptr<TypeParamList> type_params;
-    if (ahead().tag() == Token::LBracket)
+    if (ahead().tag() == Token::CmpLT)
         type_params = std::move(parse_type_params());
 
     expect(Token::LBrace);
@@ -141,10 +141,10 @@ Ptr<ast::TypeParam> Parser::parse_type_param(size_t index) {
 
 Ptr<ast::TypeParamList> Parser::parse_type_params() {
     Tracker tracker(this);
-    eat(Token::LBracket);
+    eat(Token::CmpLT);
     PtrVector<ast::TypeParam> type_params;
     size_t index = 0;
-    parse_list(Token::RBracket, Token::Comma, [&] {
+    parse_list(Token::CmpGT, Token::Comma, [&] {
         type_params.emplace_back(parse_type_param(index++));
     });
     return make_ptr<ast::TypeParamList>(tracker(), std::move(type_params));
@@ -166,7 +166,7 @@ Ptr<ast::Ptrn> Parser::parse_ptrn() {
             {
                 auto id = parse_id();
                 if (ahead().tag() == Token::Dot ||
-                    ahead().tag() == Token::LBracket ||
+                    ahead().tag() == Token::CmpLT ||
                     ahead().tag() == Token::LBrace) {
                     ptrn = std::move(parse_struct_ptrn(std::move(id)));
                 } else {
@@ -587,9 +587,9 @@ ast::Path Parser::parse_path(ast::Identifier&& id) {
     }
 
     PtrVector<ast::Type> args;
-    if (ahead().tag() == Token::LBracket) {
-        eat(Token::LBracket);
-        parse_list(Token::RBracket, Token::Comma, [&] {
+    if (ahead().tag() == Token::CmpLT) {
+        eat(Token::CmpLT);
+        parse_list(Token::CmpGT, Token::Comma, [&] {
             args.emplace_back(parse_type());
         });
     }

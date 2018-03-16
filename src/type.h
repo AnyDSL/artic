@@ -14,6 +14,10 @@
 
 namespace artic {
 
+namespace log {
+    struct Output;
+}
+
 namespace ast {
     class StructDecl;
 }
@@ -79,7 +83,7 @@ struct Type : public Cast<Type> {
     void dump() const;
 };
 
-std::ostream& operator << (std::ostream&, const Type&);
+log::Output& operator << (log::Output&, const Type&);
 
 /// A trait is a structure containing a set of operations that are valid for a type.
 struct Trait {

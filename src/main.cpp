@@ -4,14 +4,6 @@
 #include <fstream>
 #include <iostream>
 
-#ifdef _WIN32
-#include <io.h>
-#define isatty _isatty
-#define fileno _fileno
-#else
-#include <unistd.h>
-#endif
-
 #include "lexer.h"
 #include "parser.h"
 #include "log.h"
@@ -21,14 +13,6 @@
 #include "check.h"
 
 using namespace artic;
-
-inline bool should_colorize() {
-#ifdef COLORIZE
-    return isatty(fileno(stdout)) && isatty(fileno(stderr));
-#else
-    return false;
-#endif
-}
 
 static void usage() {
     std::cout << "Usage: artic [options] files...\n"
@@ -104,30 +88,33 @@ int main(int argc, char** argv) {
     ProgramOptions opts;
     if (!opts.parse(argc, argv)) return 1;
 
-    bool colorize = should_colorize();
+    Logger logger(log::out);
+    Printer printer(log::out);
+    TypeTable type_table;
+
+    auto program = ast::Program(Loc(), PtrVector<ast::Decl>());
     for (auto& file : opts.files) {
         std::ifstream is(file);
-        Logger logger(colorize);
-
         Lexer lexer(file, is, logger);
-        TypeTable type_table;
         Parser parser(lexer, type_table, logger);
-
-        auto program = parser.parse_program();
-
-        NameBinder name_binder(logger);
-        TypeInference type_inference(type_table);
-        TypeChecker type_checker(logger);
-
-        name_binder.run(*program);
-        type_inference.run(*program);
-        type_checker.run(*program);
-
-        Printer printer(std::cout);
-        printer.colorize = colorize;
-        program->print(printer);
-        std::cout << std::endl;
+        auto module = parser.parse_program();
+        std::move(module->decls.begin(), module->decls.end(), std::back_inserter(program.decls));
+        if (parser.error_count != 0)
+            return 1;
     }
+
+    NameBinder name_binder(logger);
+    TypeInference type_inference(type_table);
+    TypeChecker type_checker(logger);
+
+    if (!name_binder.run(program))
+        return 1;
+    type_inference.run(program);
+    if (!type_checker.run(program))
+        return 1;
+
+    program.print(printer);
+    log::out << '\n';
 
     return 0;
 }

@@ -18,7 +18,9 @@ public:
     NameBinder(const Logger& log = Logger()) : Logger(log) { push_scope(); }
     ~NameBinder() { pop_scope(); }
 
-    void run(const ast::Program&);
+    /// Performs name binding on a whole program.
+    /// Returns true on success, otherwise false.
+    bool run(const ast::Program&);
 
     void bind_head(const ast::Decl&);
     void bind(const ast::Node&);

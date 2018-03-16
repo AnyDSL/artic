@@ -45,11 +45,11 @@ void Path::print(Printer& p) const {
         p << e.id.name;
     });
     if (!args.empty()) {
-        p << '[';
+        p << '<';
         print_list(p, ", ", args, [&] (auto& arg) {
             arg->print(p);
         });
-        p << ']';
+        p << '>';
     }
 }
 
@@ -230,11 +230,11 @@ void TypeParam::print(Printer& p) const {
 
 void TypeParamList::print(Printer& p) const {
     if (!params.empty()) {
-        p << '[';
+        p << '<';
         print_list(p, ", ", params, [&] (auto& param) {
             param->print(p);
         });
-        p << ']';
+        p << '>';
     }
 }
 
@@ -340,13 +340,13 @@ void ErrorType::print(Printer& p) const {
     p << error_style("<invalid type>");
 }
 
-std::ostream& operator << (std::ostream& os, const Node& node) {
-    Printer p(os);
+log::Output& operator << (log::Output& out, const Node& node) {
+    Printer p(out);
     node.print(p);
-    return os;
+    return out;
 }
 
-void Node::dump() const { std::cout << *this << std::endl; }
+void Node::dump() const { log::out << *this << '\n'; }
 
 } // namespace ast
 
@@ -359,11 +359,11 @@ void PrimType::print(Printer& p) const {
 void StructType::print(Printer& p) const {
     p << name;
     if (!args.empty()) {
-        p << '[';
+        p << '<';
         print_list(p, ", ", args, [&] (auto arg) {
             arg->print(p);
         });
-        p << ']';
+        p << '>';
     }
 }
 
@@ -383,9 +383,9 @@ void FnType::print(Printer& p) const {
 }
 
 void PolyType::print(Printer& p) const {
-    p << '[';
+    p << '<';
     print_vars(p, num_vars);
-    p << "] ";
+    p << "> ";
     body->print(p);
 }
 
@@ -401,12 +401,12 @@ void ErrorType::print(Printer& p) const {
     p << error_style("<invalid type>");
 }
 
-std::ostream& operator << (std::ostream& os, const Type& type) {
-    Printer p(os);
+log::Output& operator << (log::Output& out, const Type& type) {
+    Printer p(out);
     type.print(p);
-    return os;
+    return out;
 }
 
-void Type::dump() const { std::cout << *this << std::endl; }
+void Type::dump() const { log::out << *this << '\n'; }
 
 } // namespace artic

@@ -71,7 +71,7 @@ struct Node : public Cast<Node> {
     void dump() const;
 };
 
-std::ostream& operator << (std::ostream&, const Node&);
+log::Output& operator << (log::Output&, const Node&);
 
 // Base AST nodes ------------------------------------------------------------------
 

@@ -3,8 +3,9 @@
 
 namespace artic {
 
-void NameBinder::run(const ast::Program& program) {
+bool NameBinder::run(const ast::Program& program) {
     bind(program);
+    return error_count == 0;
 }
 
 void NameBinder::bind_head(const ast::Decl& decl) {
