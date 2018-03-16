@@ -10,13 +10,15 @@ bool TypeChecker::run(const ast::Program& program) {
 
 void TypeChecker::check(const ast::Node& node) {
     node.check(*this);
-    if (node.type->has_unknowns())
-        error(node.loc, "Cannot infer type");
+    if (node.type->has_unknowns()) {
+        error(node.loc, "Cannot infer type for '{}'", node);
+        note(node.loc, "Best inferred type is '{}'", *node.type);
+    }
 }
 
 void TypeChecker::expect(const std::string& where, const Ptr<ast::Expr>& expr, const artic::Type* type) {
     if (expr->type != type)
-        error(expr->loc, "type mismatch in {}, got '{}'", where, *expr->type);
+        error(expr->loc, "type mismatch in {}, got '{}', expected '{}'", where, *expr->type, *type);
 }
 
 namespace ast {
@@ -87,7 +89,7 @@ void CallExpr::check(TypeChecker& ctx) const {
     }
 
     if (arg->type != fn_type->from()) {
-        ctx.expect("function call", arg, callee->type->as<artic::FnType>()->from());
+        ctx.expect("function call", arg, fn_type->from());
         return;
     }
 
@@ -160,13 +162,11 @@ void FnDecl::check(TypeChecker& ctx) const {
     }
 }
 
-void FieldDecl::check(TypeChecker& ctx) const {
-    ctx.check(*type);
-}
+void FieldDecl::check(TypeChecker& ctx) const {}
 
 void StructDecl::check(TypeChecker& ctx) const {
-    if (type_params) type_params->check(ctx);
-    for (auto& field : fields) field->check(ctx);
+    if (type_params) ctx.check(*type_params);
+    for (auto& field : fields) ctx.check(*field);
 }
 
 void TraitDecl::check(TypeChecker&) const {
