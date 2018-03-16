@@ -95,6 +95,10 @@ int main(int argc, char** argv) {
     auto program = ast::Program(Loc(), PtrVector<ast::Decl>());
     for (auto& file : opts.files) {
         std::ifstream is(file);
+        if (!is) {
+            log::error("Cannot open file '{}'", file);
+            return 1;
+        }
         Lexer lexer(file, is, logger);
         Parser parser(lexer, type_table, logger);
         auto module = parser.parse_program();
