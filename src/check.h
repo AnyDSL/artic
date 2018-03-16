@@ -12,6 +12,7 @@ public:
     TypeChecker(const Logger& log = Logger()) : Logger(log) {}
 
     bool run(const ast::Program&);
+    void check(const ast::Node&);
     void expect(const std::string&, const Ptr<ast::Expr>&, const artic::Type*);
 };
 

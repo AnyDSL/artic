@@ -139,8 +139,8 @@ const Type* TypeInference::infer(const ast::Node& node, const Type* expected) {
 }
 
 void TypeInference::infer_head(const ast::Decl& decl) {
-    if (!decl.type)
-        decl.type = decl.infer_head(*this);
+    auto type = decl.infer_head(*this);
+    decl.type = decl.type ? unify(decl.loc, type, decl.type) : type;
 }
 
 namespace ast {
@@ -359,7 +359,6 @@ const artic::Type* FnDecl::infer(TypeInference& ctx) const {
             ctx.infer(*fn->param),
             ret_type ? ctx.infer(*ret_type) : ctx.type_table().error_type(loc));
     }
-
     // Generate a polymorphic type
     return ctx.generalize(loc, init_type, rank);
 }

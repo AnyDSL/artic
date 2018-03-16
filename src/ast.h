@@ -531,9 +531,6 @@ struct TypeParamList : public Decl {
         : Decl(loc), params(std::move(params))
     {}
 
-    /// Returns true if there are trait constraints on any of the type parameters.
-    bool has_traits() const;
-
     const artic::Type* infer(TypeInference&) const override;
     void bind(NameBinder&) const override;
     void check(TypeChecker&) const override;

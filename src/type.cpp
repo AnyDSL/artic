@@ -243,13 +243,13 @@ const Type* Type::substitute(TypeTable&, const std::unordered_map<const Type*, c
 const Type* TypeApp::substitute(TypeTable& table, const std::unordered_map<const Type*, const Type*>& map) const {
     Args new_args(args.size());
     std::transform(args.begin(), args.end(), new_args.begin(), [&] (auto arg) {
-        return apply_map(map, arg->substitute(table, map));
+        return arg->substitute(table, map);
     });
     return rebuild(table, std::move(new_args));
 }
 
 const Type* PolyType::substitute(TypeTable& table, const std::unordered_map<const Type*, const Type*>& map) const {
-    return table.poly_type(num_vars, apply_map(map, body->substitute(table, map)));
+    return table.poly_type(num_vars, body->substitute(table, map));
 }
 
 // Type table ----------------------------------------------------------------------
