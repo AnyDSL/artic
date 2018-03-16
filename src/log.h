@@ -156,7 +156,7 @@ struct Logger {
     void note(const Loc& loc, const char* fmt, const Args&... args) {
         if (colorize) {
             log::format<false>(out, "{} in {}: ",
-                log::style("info", log::Style::Cyan,  log::Style::Bold),
+                log::style("note", log::Style::Cyan,  log::Style::Bold),
                 log::style(loc,    log::Style::White, log::Style::Bold));
         } else {
             log::format<false>(out, "note in {}: ", loc);
