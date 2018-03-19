@@ -294,7 +294,7 @@ void TraitDecl::print(Printer& p) const {
     p << keyword_style("trait") << ' ' << id.name;
     if (type_params) type_params->print(p);
     p << " {" << p.indent();
-    print_list(p, p.endl(), decls, [&] (auto& decl) {
+    print_list(p, ";", decls, [&] (auto& decl) {
         p << p.endl();
         decl->print(p);
     });
