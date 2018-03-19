@@ -12,6 +12,14 @@ bool TypeChecker::run(const ast::Program& program) {
 
 void TypeChecker::check(const ast::Node& node) {
     node.check(*this);
+
+    // Do not emit an error message for compound expressions,
+    // as an error message has already been emitted for each and
+    // every faulty sub-expression.
+    if (node.isa<ast::BlockExpr>() ||
+        node.isa<ast::TypeParamList>())
+        return;
+
     if (node.type->has<UnknownType>()) {
         error(node.loc, "Cannot infer type for '{}'", node);
         note(node.loc, "Best inferred type is '{}'", *node.type);
@@ -127,12 +135,13 @@ void TuplePtrn::check(TypeChecker& ctx) const {
 
 void ErrorPtrn::check(TypeChecker&) const {}
 
-void TypeParam::check(TypeChecker&) const {
-    // TODO
+void TypeParam::check(TypeChecker& ctx) const {
+    for (auto& bound : bounds)
+        ctx.check(*bound);
 }
 
-void TypeParamList::check(TypeChecker&) const {
-    // TODO
+void TypeParamList::check(TypeChecker& ctx) const {
+    for (auto& param : params) ctx.check(*param);
 }
 
 void PtrnDecl::check(TypeChecker&) const {}
@@ -147,7 +156,7 @@ void FnDecl::check(TypeChecker& ctx) const {
     if (type_params) ctx.check(*type_params);
     if (ret_type) ctx.check(*ret_type);
     if (fn->body) {
-        ctx.check(*fn);
+        ctx.check(*fn->body);
     } else if (fn->param) {
         ctx.check(*fn->param);
     }

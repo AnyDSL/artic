@@ -123,6 +123,10 @@ void FnExpr::print(Printer& p) const {
     body->print(p);
 }
 
+void BlockExpr::print_head(Printer& p) const {
+    p << "{ ... }";
+}
+
 void BlockExpr::print(Printer& p) const {
     p << '{' << p.indent();
     for (size_t i = 0, n = exprs.size(); i < n; i++) {
