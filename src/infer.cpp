@@ -29,26 +29,26 @@ const Type* TypeInference::unify(const Loc& loc, const Type* a, const Type* b) {
     auto poly_a = a->isa<PolyType>();
     auto poly_b = b->isa<PolyType>();
     if (poly_a && poly_b && poly_a->num_vars == poly_b->num_vars) {
-        return type_table_.poly_type(poly_a->num_vars, unify(loc, poly_a->body, poly_b->body));
+        return type_table().poly_type(poly_a->num_vars, unify(loc, poly_a->body, poly_b->body));
     }
-    if (poly_a) return type_table_.poly_type(poly_a->num_vars, unify(loc, poly_a->body, b));
-    if (poly_b) return type_table_.poly_type(poly_b->num_vars, unify(loc, poly_b->body, a));
+    if (poly_a) return type_table().poly_type(poly_a->num_vars, unify(loc, poly_a->body, b));
+    if (poly_b) return type_table().poly_type(poly_b->num_vars, unify(loc, poly_b->body, a));
 
     // Unification for type constructors
     auto app_a = a->isa<TypeApp>();
     auto app_b = b->isa<TypeApp>();
     if (app_a && app_b && typeid(*app_a) == typeid(*app_b) && app_a->args.size() == app_b->args.size()) {
         if (app_a->name != app_b->name)
-            return type_table_.infer_error(loc, a, b);
+            return type_table().infer_error(loc, a, b);
 
         auto n = app_a->args.size();
         std::vector<const Type*> args(n);
         for (size_t i = 0; i < n; i++) args[i] = unify(loc, app_a->args[i], app_b->args[i]);
-        return app_a->rebuild(type_table_, std::move(args));
+        return app_a->rebuild(type_table(), std::move(args));
     }
 
     if (a != b)
-        return type_table_.infer_error(loc, a, b);
+        return type_table().infer_error(loc, a, b);
     return a;
 }
 
@@ -63,7 +63,12 @@ const Type* TypeInference::join(const Loc& loc, const UnknownType* unknown_a, co
     if (auto unknown_b = b->isa<UnknownType>()) {
         unknown_b->traits.insert(unknown_a->traits.begin(), unknown_a->traits.end());
     } else {
-        // TODO: Make sure the traits associated with unknown_a are also valid for b
+        if (auto var_b = b->isa<TypeVar>()) {
+            for (auto trait : unknown_a->traits) {
+                if (!var_b->traits.count(trait))
+                    return type_table().error_type(loc);
+            }
+        }
     }
 
     todo_ = true;
@@ -94,11 +99,11 @@ const Type* TypeInference::generalize(const Loc& loc, const Type* type, uint32_t
         u = find(u)->isa<UnknownType>();
         // If the type is not tied to a concrete type nor tied in a higher scope, generalize it
         if (u && u->rank >= rank)
-            unify(loc, u, type_table_.type_var(vars++, TypeVar::Traits(u->traits)));
+            unify(loc, u, type_table().type_var(vars++, TypeVar::Traits(u->traits)));
     }
     if (vars == 0) return type;
     assert(!type->isa<PolyType>());
-    return type_table_.poly_type(vars, type);
+    return type_table().poly_type(vars, type);
 }
 
 const Type* TypeInference::subsume(const Loc& loc, const Type* type, std::vector<const Type*>& type_args) {
@@ -131,7 +136,7 @@ const Type* TypeInference::instanciate(const Type* type, const TraitType* trait)
 
 const Type* TypeInference::type(const ast::Node& node, uint32_t rank) {
     if (!node.type)
-        node.type = type_table_.unknown_type(std::min(rank, node.rank));
+        node.type = type_table().unknown_type(std::min(rank, node.rank));
     return find(node.type);
 }
 
