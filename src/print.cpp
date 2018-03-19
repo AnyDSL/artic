@@ -442,7 +442,7 @@ void PolyType::print(Printer& p) const {
     std::sort(vars.begin(), vars.end(), [] (auto& var1, auto& var2) {
         return var1->index < var2->index;
     });
-    for (size_t i = 0, n = num_vars; i < n; i++) {
+    for (size_t i = 0, n = std::min(vars.size(), num_vars); i < n; i++) {
         p << type_var_style(p.var_name(i));
         assert(vars[i]->index == i);
         if (!vars[i]->traits.empty()) {

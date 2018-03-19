@@ -62,12 +62,14 @@ const Type* TypeInference::join(const Loc& loc, const UnknownType* unknown_a, co
 
     if (auto unknown_b = b->isa<UnknownType>()) {
         unknown_b->traits.insert(unknown_a->traits.begin(), unknown_a->traits.end());
-    } else {
+    } else if (!unknown_a->traits.empty()) {
         if (auto var_b = b->isa<TypeVar>()) {
             for (auto trait : unknown_a->traits) {
                 if (!var_b->traits.count(trait))
                     return type_table().error_type(loc);
             }
+        } else {
+            return type_table().error_type(loc);
         }
     }
 
@@ -196,6 +198,7 @@ const artic::Type* Path::infer(TypeInference& ctx) const {
 
     auto decl = symbol->decls.front();
     auto decl_type = decl->type;
+    assert(decl_type);
     for (size_t i = 1; i < elems.size(); i++) {
         if (auto trait = decl->type->isa<TraitType>()) {
             auto it = trait->members.find(elems[i].id.name);
@@ -264,6 +267,10 @@ const artic::Type* StructExpr::infer(TypeInference& ctx) const {
     auto expr_type = ctx.infer(*expr, ctx.type(*this));
     if (auto struct_type = expr_type->isa<StructType>())
         return infer_struct(ctx, loc, struct_type, fields, false);
+    else {
+        for (auto& field : fields)
+            ctx.infer(*field);
+    }
     return expr_type;
 }
 
@@ -336,6 +343,10 @@ const artic::Type* StructPtrn::infer(TypeInference& ctx) const {
     auto expr_type = ctx.infer(path);
     if (auto struct_type = expr_type->isa<StructType>())
         return infer_struct(ctx, loc, struct_type, fields, !fields.empty() && fields.back()->is_etc());
+    else {
+        for (auto& field : fields)
+            ctx.infer(*field);
+    }
     return expr_type;
 }
 
@@ -436,17 +447,24 @@ const artic::Type* ErrorDecl::infer(TypeInference& ctx) const {
 }
 
 const artic::Type* Program::infer(TypeInference& ctx) const {
+    // First, infer all traits
     for (auto& decl : decls) {
         if (decl->isa<TraitDecl>())
             ctx.infer_head(*decl);
     }
-    for (auto& decl : decls) ctx.infer_head(*decl);
+    // Then structure and function declarations
+    for (auto& decl : decls) {
+        if (decl->isa<StructDecl>() || decl->isa<FnDecl>())
+            ctx.infer_head(*decl);
+    }
+    // Infer the contents of structures and traits
     for (auto& decl : decls) {
         if (decl->isa<StructDecl>() || decl->isa<TraitDecl>())
             ctx.infer(*decl);
     }
+    // Finally, the infer the whole program
     for (auto& decl : decls) ctx.infer(*decl);
-    return nullptr;
+    return ctx.type_table().tuple_type({});
 }
 
 } // namespace ast
