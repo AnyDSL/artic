@@ -17,6 +17,10 @@ void TypeChecker::check(const ast::Node& node) {
     // as an error message has already been emitted for each and
     // every faulty sub-expression.
     if (node.isa<ast::BlockExpr>() ||
+        node.isa<ast::TupleExpr>() ||
+        node.isa<ast::StructExpr>() ||
+        node.isa<ast::TuplePtrn>() ||
+        node.isa<ast::StructPtrn>() ||
         node.isa<ast::TypeParamList>())
         return;
 
@@ -171,8 +175,9 @@ void StructDecl::check(TypeChecker& ctx) const {
     for (auto& field : fields) ctx.check(*field);
 }
 
-void TraitDecl::check(TypeChecker&) const {
-    // TODO
+void TraitDecl::check(TypeChecker& ctx) const {
+    for (auto& decl : decls)
+        ctx.check(*decl);
 }
 
 void ErrorDecl::check(TypeChecker&) const {}

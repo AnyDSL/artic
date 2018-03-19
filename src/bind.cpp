@@ -200,6 +200,8 @@ void StructDecl::bind(NameBinder& ctx) const {
 }
 
 void TraitDecl::bind_head(NameBinder& ctx) const {
+    for (auto& decl : decls)
+        ctx.bind(*decl);
     ctx.insert_symbol(*this);
 }
 
