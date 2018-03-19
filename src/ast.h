@@ -522,7 +522,7 @@ struct NamedDecl : public Decl {
     {}
 };
 
-/// Type parameter, introduced by the operator [].
+/// Type parameter, introduced by the operator <>.
 struct TypeParam : public NamedDecl {
     size_t index;
     PtrVector<Type> bounds;
@@ -540,7 +540,7 @@ struct TypeParam : public NamedDecl {
     void print(Printer&) const override;
 };
 
-/// Type parameter list, of the form [T : A, U : B, ...]
+/// Type parameter list, of the form <T : A, U : B, ...>
 struct TypeParamList : public Decl {
     PtrVector<TypeParam> params;
 
