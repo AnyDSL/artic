@@ -292,7 +292,7 @@ const artic::Type* BlockExpr::infer(TypeInference& ctx) const {
             ctx.infer_head(*decl_expr->decl);
     }
     for (size_t i = 0, n = exprs.size(); i < n; i++)
-        ctx.infer(*exprs[i], i != n - 1 ? ctx.type_table().unit_type() : nullptr);
+        ctx.infer(*exprs[i]);
     return exprs.empty() ? ctx.type_table().unit_type() : exprs.back()->type;
 }
 
@@ -462,7 +462,7 @@ const artic::Type* Program::infer(TypeInference& ctx) const {
         if (decl->isa<StructDecl>() || decl->isa<TraitDecl>())
             ctx.infer(*decl);
     }
-    // Finally, the infer the whole program
+    // Finally, infer the whole program
     for (auto& decl : decls) ctx.infer(*decl);
     return ctx.type_table().tuple_type({});
 }
