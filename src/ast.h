@@ -111,7 +111,7 @@ struct Ptrn : public Node {
 
 // Path ----------------------------------------------------------------------------
 
-/// A path of the form A.B.C[T1, T2, ..., TN]
+/// A path of the form A::B::C<T1, T2, ..., TN>
 struct Path : public Node {
     struct Elem {
         Identifier id;

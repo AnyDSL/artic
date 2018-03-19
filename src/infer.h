@@ -24,6 +24,7 @@ public:
 
     const Type* generalize(const Loc& loc, const Type*, uint32_t);
     const Type* subsume(const Loc& loc, const Type*, std::vector<const Type*>&);
+    const Type* instanciate(const Type*, const TraitType*);
 
     const Type* type(const ast::Node&, uint32_t rank = UnknownType::max_rank());
     const Type* infer(const ast::Node&, const Type* expected = nullptr);

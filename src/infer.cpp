@@ -121,6 +121,14 @@ const Type* TypeInference::subsume(const Loc& loc, const Type* type, std::vector
     return type;
 }
 
+const Type* TypeInference::instanciate(const Type* type, const TraitType* trait) {
+    // Replace Self with a type variable bound to the trait
+    std::unordered_map<const Type*, const Type*> map;
+    auto u = type_table().unknown_type(UnknownType::max_rank(), UnknownType::Traits { trait });
+    map.emplace(type_table().self_type(), u);
+    return type->substitute(type_table(), map);
+}
+
 const Type* TypeInference::type(const ast::Node& node, uint32_t rank) {
     if (!node.type)
         node.type = type_table_.unknown_type(std::min(rank, node.rank));
@@ -173,20 +181,33 @@ const artic::Type* infer_struct(TypeInference& ctx, const Loc& loc, const artic:
 }
 
 const artic::Type* Path::infer(TypeInference& ctx) const {
-    // TODO: Follow the whole path
-    auto& symbol = elems.back().symbol;
-    if (!symbol || symbol->decls.empty()) return ctx.type_table().error_type(loc);
+    // Do not subsume twice, as subsumption introduces unknowns
+    if (type)
+        return type;
+
+    auto symbol = elems.front().symbol;
+    if (!symbol)
+        return ctx.type_table().error_type(loc);
 
     auto decl = symbol->decls.front();
-    assert(decl->type);
+    auto decl_type = decl->type;
+    for (size_t i = 1; i < elems.size(); i++) {
+        if (auto trait = decl->type->isa<TraitType>()) {
+            auto it = trait->members.find(elems[i].id.name);
+            if (it != trait->members.end()) {
+                decl_type = ctx.instanciate(it->second, trait);
+                break;
+            }
+        }
+        return ctx.type_table().error_type(loc);
+    }
 
     type_args.resize(std::max(type_args.size(), args.size()));
     for (size_t i = 0; i < args.size(); i++) {
         type_args[i] = ctx.infer(*args[i]);
     }
 
-    // Do not subsume twice, as subsumption introduces unknowns
-    return type ? type : ctx.subsume(loc, decl->type, type_args);
+    return ctx.subsume(loc, decl_type, type_args);
 }
 
 const artic::Type* PrimType::infer(TypeInference& ctx) const {

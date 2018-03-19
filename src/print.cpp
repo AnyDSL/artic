@@ -1,3 +1,5 @@
+#include <algorithm>
+
 #include "print.h"
 #include "log.h"
 #include "type.h"
@@ -26,13 +28,6 @@ void print_parens(Printer& p, const E& e) {
         p << '(';
         e->print(p);
         p << ')';
-    }
-}
-
-inline void print_vars(Printer& p, size_t vars) {
-    for (size_t i = 0; i < vars; i++) {
-        p << type_var_style(p.var_name(i));
-        if (i != vars - 1) p << ", ";
     }
 }
 
@@ -443,7 +438,21 @@ void FnType::print(Printer& p) const {
 
 void PolyType::print(Printer& p) const {
     p << '<';
-    print_vars(p, num_vars);
+    auto vars = body->all<TypeVar>();
+    std::sort(vars.begin(), vars.end(), [] (auto& var1, auto& var2) {
+        return var1->index < var2->index;
+    });
+    for (size_t i = 0, n = num_vars; i < n; i++) {
+        p << type_var_style(p.var_name(i));
+        assert(vars[i]->index == i);
+        if (!vars[i]->traits.empty()) {
+            p << " : ";
+            print_list(p, " + ", vars[i]->traits, [&] (auto& trait) {
+                p << trait->name;
+            });
+        }
+        if (i != n - 1) p << ", ";
+    }
     p << "> ";
     body->print(p);
 }

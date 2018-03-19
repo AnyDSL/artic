@@ -187,6 +187,9 @@ void ErrorDecl::check(TypeChecker&) const {}
 void Program::check(TypeChecker& ctx) const {
     for (auto& decl : decls)
         ctx.check(*decl);
+    for (auto& decl : decls) {
+        log::print("{} : {}", *decl->as<Node>(), *(decl->type));
+    }
 }
 
 } // namespace ast
