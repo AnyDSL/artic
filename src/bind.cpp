@@ -148,6 +148,8 @@ void TuplePtrn::bind(NameBinder& ctx) const {
 void ErrorPtrn::bind(NameBinder&) const {}
 
 void TypeParam::bind(NameBinder& ctx) const {
+    for (auto& bound : bounds)
+        ctx.bind(*bound);
     ctx.insert_symbol(*this);
 }
 

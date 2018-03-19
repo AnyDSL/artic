@@ -320,8 +320,14 @@ const artic::Type* ErrorPtrn::infer(TypeInference& ctx) const {
 }
 
 const artic::Type* TypeParam::infer(TypeInference& ctx) const {
-    // TODO: Type check bounds
-    return ctx.type_table().type_var(index);
+    TypeVar::Traits traits;
+    for (auto& bound : bounds) {
+        auto trait = ctx.infer(*bound)->isa<TraitType>();
+        if (!trait)
+            return ctx.type_table().error_type(loc);
+        traits.emplace(trait);
+    }
+    return ctx.type_table().type_var(index, std::move(traits));
 }
 
 const artic::Type* TypeParamList::infer(TypeInference& ctx) const {

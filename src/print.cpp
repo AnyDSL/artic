@@ -72,6 +72,11 @@ void FieldExpr::print(Printer& p) const {
     expr->print(p);
 }
 
+void StructExpr::print_head(Printer& p) const {
+    expr->print(p);
+    p << " { ... }";
+}
+
 void StructExpr::print(Printer& p) const {
     expr->print(p);
     p << " {";
@@ -91,6 +96,18 @@ void TupleExpr::print(Printer& p) const {
         a->print(p);
     });
     p << ')';
+}
+
+void FnExpr::print_head(Printer& p) const {
+    p << '|';
+    if (auto tuple = param->isa<TuplePtrn>()) {
+        print_list(p, ", ", tuple->args, [&] (auto& a) {
+            a->print(p);
+        });
+    } else {
+        param->print(p);
+    }
+    p << "| ...";
 }
 
 void FnExpr::print(Printer& p) const {
@@ -193,6 +210,11 @@ void FieldPtrn::print(Printer& p) const {
     }
 }
 
+void StructPtrn::print_head(Printer& p) const {
+    path.print(p);
+    p << " { ... }";
+}
+
 void StructPtrn::print(Printer& p) const {
     path.print(p);
     p << " {";
@@ -243,6 +265,12 @@ void FieldDecl::print(Printer& p) const {
     type->print(p);
 }
 
+void StructDecl::print_head(Printer& p) const {
+    p << keyword_style("struct") << ' ' << id.name;
+    if (type_params) type_params->print(p);
+    p << " { ... }";
+}
+
 void StructDecl::print(Printer& p) const {
     p << keyword_style("struct") << ' ' << id.name;
     if (type_params) type_params->print(p);
@@ -273,6 +301,19 @@ void LetDecl::print(Printer& p) const {
     p << ';';
 }
 
+void FnDecl::print_head(Printer& p) const {
+    p << keyword_style("fn") << " " << id.name;
+
+    if (type_params) type_params->print(p);
+    print_parens(p, fn->param);
+
+    if (ret_type) {
+        p << " -> ";
+        ret_type->print(p);
+    }
+    p << " { ... }";
+}
+
 void FnDecl::print(Printer& p) const {
     p << keyword_style("fn") << " " << id.name;
 
@@ -288,6 +329,12 @@ void FnDecl::print(Printer& p) const {
         p << ' ';
         fn->body->print(p);
     }
+}
+
+void TraitDecl::print_head(Printer& p) const {
+    p << keyword_style("trait") << ' ' << id.name;
+    if (type_params) type_params->print(p);
+    p << " { ... }";
 }
 
 void TraitDecl::print(Printer& p) const {
@@ -342,11 +389,15 @@ void ErrorType::print(Printer& p) const {
 
 log::Output& operator << (log::Output& out, const Node& node) {
     Printer p(out);
-    node.print(p);
+    node.print_head(p);
     return out;
 }
 
-void Node::dump() const { log::out << *this << '\n'; }
+void Node::dump() const {
+    Printer p(log::out);
+    print(p);
+    p << '\n';
+}
 
 } // namespace ast
 

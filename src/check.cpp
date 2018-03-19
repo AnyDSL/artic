@@ -1,3 +1,5 @@
+#include <sstream>
+
 #include "check.h"
 #include "log.h"
 

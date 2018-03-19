@@ -64,6 +64,8 @@ struct Node : public Cast<Node> {
     virtual void bind(NameBinder&) const = 0;
     /// Checks if the program is correct w.r.t the type system.
     virtual void check(TypeChecker&) const = 0;
+    /// Prints the node, omitting its contents, with the given formatting parameters.
+    virtual void print_head(Printer& p) const { print(p); }
     /// Prints the node with the given formatting parameters.
     virtual void print(Printer&) const = 0;
 
@@ -306,6 +308,7 @@ struct StructExpr : public Expr {
     const artic::Type* infer(TypeInference&) const override;
     void bind(NameBinder&) const override;
     void check(TypeChecker&) const override;
+    void print_head(Printer&) const override;
     void print(Printer&) const override;
 };
 
@@ -339,6 +342,7 @@ struct FnExpr : public Expr {
     const artic::Type* infer(TypeInference&) const override;
     void bind(NameBinder&) const override;
     void check(TypeChecker&) const override;
+    void print_head(Printer&) const override;
     void print(Printer&) const override;
 };
 
@@ -590,6 +594,7 @@ struct FnDecl : public NamedDecl {
     void bind_head(NameBinder&) const override;
     void bind(NameBinder&) const override;
     void check(TypeChecker&) const override;
+    void print_head(Printer&) const override;
     void print(Printer&) const override;
 };
 
@@ -629,6 +634,7 @@ struct StructDecl : public NamedDecl {
     void bind_head(NameBinder&) const override;
     void bind(NameBinder&) const override;
     void check(TypeChecker&) const override;
+    void print_head(Printer&) const override;
     void print(Printer&) const override;
 };
 
@@ -651,6 +657,7 @@ struct TraitDecl : public NamedDecl {
     void bind_head(NameBinder&) const override;
     void bind(NameBinder&) const override;
     void check(TypeChecker&) const override;
+    void print_head(Printer&) const override;
     void print(Printer&) const override;
 };
 
@@ -747,6 +754,7 @@ struct StructPtrn : public Ptrn {
     const artic::Type* infer(TypeInference&) const override;
     void bind(NameBinder&) const override;
     void check(TypeChecker&) const override;
+    void print_head(Printer&) const override;
     void print(Printer&) const override;
 };
 
