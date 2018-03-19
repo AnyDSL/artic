@@ -393,7 +393,7 @@ const artic::Type* FnDecl::infer(TypeInference& ctx) const {
         // The return type is mandatory here
         init_type = ctx.type_table().fn_type(
             ctx.infer(*fn->param),
-            ret_type ? ctx.infer(*ret_type) : ctx.type_table().error_type(loc));
+            ret_type ? ctx.infer(*ret_type) : ctx.type_table().tuple_type({}));
     }
     // Generate a polymorphic type
     return ctx.generalize(loc, init_type, rank);
