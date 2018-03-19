@@ -30,7 +30,7 @@ namespace artic {
     f(Dots, "...") \
     f(Comma, ",") \
     f(Semi, ";") \
-    f(ColonColon, "::") \
+    f(DblColon, "::") \
     f(Colon, ":") \
     f(Eq, "=") \
     f(Arrow, "->") \

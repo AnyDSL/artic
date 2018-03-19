@@ -181,8 +181,8 @@ Ptr<ast::Ptrn> Parser::parse_ptrn() {
             }
             break;
         case Token::LParen: ptrn = std::move(parse_tuple_ptrn());   break;
-        case Token::Lit:     ptrn = std::move(parse_literal_ptrn()); break;
-        default:             ptrn = std::move(parse_error_ptrn());   break;
+        case Token::Lit:    ptrn = std::move(parse_literal_ptrn()); break;
+        default:            ptrn = std::move(parse_error_ptrn());   break;
     }
     return parse_typed_ptrn(std::move(ptrn));
 }
@@ -442,7 +442,7 @@ Ptr<ast::Expr> Parser::parse_primary_expr() {
             break;
         case Token::LBrace: expr = std::move(parse_block_expr());   break;
         case Token::LParen: expr = std::move(parse_tuple_expr());   break;
-        case Token::Lit:     expr = std::move(parse_literal_expr()); break;
+        case Token::Lit:    expr = std::move(parse_literal_expr()); break;
         case Token::Id:
             expr = std::move(parse_path_expr());
             if (ahead(0).tag() == Token::LBrace &&
@@ -519,10 +519,10 @@ Ptr<ast::ErrorExpr> Parser::parse_error_expr() {
 Ptr<ast::Type> Parser::parse_type() {
     Ptr<ast::Type> type;
     switch (ahead().tag()) {
-        case Token::Fn:      return parse_fn_type();
-        case Token::Id:      return parse_named_type();
+        case Token::Fn:     return parse_fn_type();
+        case Token::Id:     return parse_named_type();
         case Token::LParen: return parse_tuple_type();
-        default:             return parse_error_type();
+        default:            return parse_error_type();
     }
 }
 
@@ -581,8 +581,8 @@ ast::Path Parser::parse_path(ast::Identifier&& id) {
     std::vector<ast::Path::Elem> elems;
 
     elems.emplace_back(std::move(id));
-    while (ahead().tag() == Token::ColonColon) {
-        eat(Token::ColonColon);
+    while (ahead().tag() == Token::DblColon) {
+        eat(Token::DblColon);
         elems.emplace_back(parse_id());
     }
 

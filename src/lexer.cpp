@@ -83,7 +83,10 @@ Token Lexer::next() {
         }
         if (accept(',')) return Token(loc_, Token::Comma);
         if (accept(';')) return Token(loc_, Token::Semi);
-        if (accept(':')) return Token(loc_, Token::Colon);
+        if (accept(':')) {
+            if (accept(':')) return Token(loc_, Token::DblColon);
+            return Token(loc_, Token::Colon);
+        }
         if (accept('=')) {
             if (accept('=')) return Token(loc_, Token::CmpEq);
             return Token(loc_, Token::Eq);
