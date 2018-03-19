@@ -61,6 +61,8 @@ void TypeApp::check(TypeChecker& ctx) const {
     ctx.check(path);
 }
 
+void SelfType::check(TypeChecker&) const {}
+
 void ErrorType::check(TypeChecker&) const {}
 
 void TypedExpr::check(TypeChecker& ctx) const {

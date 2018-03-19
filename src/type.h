@@ -226,6 +226,15 @@ struct TraitType : public Type {
     void print(Printer&) const override;
 };
 
+/// The Self type, which represents the implementation type for a trait.
+struct SelfType : public Type {
+    SelfType() {}
+
+    uint32_t hash() const override;
+    bool equals(const Type*) const override;
+    void print(Printer&) const override;
+};
+
 /// Type variable, identifiable by its (integer) index.
 struct TypeVar : public Type {
     typedef std::unordered_set<const TraitType*> Traits;
@@ -331,6 +340,7 @@ public:
     const FnType*       fn_type(const Type*, const Type*);
     const PolyType*     poly_type(size_t, const Type*);
     const TraitType*    trait_type(std::string&&);
+    const SelfType*     self_type();
     const TypeVar*      type_var(uint32_t, TypeVar::Traits&& traits = TypeVar::Traits());
     const ErrorType*    error_type(const Loc&);
     const InferError*   infer_error(const Loc&, const Type*, const Type*);

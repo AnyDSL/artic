@@ -209,6 +209,10 @@ const artic::Type* TypeApp::infer(TypeInference& ctx) const {
     return ctx.infer(path);
 }
 
+const artic::Type* SelfType::infer(TypeInference& ctx) const {
+    return ctx.type_table().self_type();
+}
+
 const artic::Type* ErrorType::infer(TypeInference& ctx) const {
     return ctx.type_table().error_type(loc);
 }

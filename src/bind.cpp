@@ -59,6 +59,8 @@ void TypeApp::bind(NameBinder& ctx) const {
     ctx.bind(path);
 }
 
+void SelfType::bind(NameBinder&) const {}
+
 void ErrorType::bind(NameBinder&) const {}
 
 void TypedExpr::bind(NameBinder& ctx) const {

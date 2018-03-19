@@ -62,6 +62,7 @@ private:
     Ptr<ast::Type>          parse_tuple_type();
     Ptr<ast::FnType>        parse_fn_type();
     Ptr<ast::TypeApp>       parse_type_app();
+    Ptr<ast::SelfType>      parse_self_type();
     Ptr<ast::ErrorType>     parse_error_type();
 
     ast::Path               parse_path(ast::Identifier&&);

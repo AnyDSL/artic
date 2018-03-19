@@ -520,6 +520,7 @@ Ptr<ast::Type> Parser::parse_type() {
     Ptr<ast::Type> type;
     switch (ahead().tag()) {
         case Token::Fn:     return parse_fn_type();
+        case Token::Self:   return parse_self_type();
         case Token::Id:     return parse_named_type();
         case Token::LParen: return parse_tuple_type();
         default:            return parse_error_type();
@@ -567,6 +568,12 @@ Ptr<ast::TypeApp> Parser::parse_type_app() {
     Tracker tracker(this);
     auto path = parse_path(parse_id());
     return make_ptr<ast::TypeApp>(tracker(), std::move(path));
+}
+
+Ptr<ast::SelfType> Parser::parse_self_type() {
+    Tracker tracker(this);
+    eat(Token::Self);
+    return make_ptr<ast::SelfType>(tracker());
 }
 
 Ptr<ast::ErrorType> Parser::parse_error_type() {

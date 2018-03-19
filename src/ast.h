@@ -211,6 +211,18 @@ struct TypeApp : public Type {
     void print(Printer&) const override;
 };
 
+/// The Self type.
+struct SelfType : public Type {
+    SelfType(const Loc& loc)
+        : Type(loc)
+    {}
+
+    const artic::Type* infer(TypeInference&) const override;
+    void bind(NameBinder&) const override;
+    void check(TypeChecker&) const override;
+    void print(Printer&) const override;
+};
+
 /// Type resulting from a parsing error.
 struct ErrorType : public Type {
     ErrorType(const Loc& loc)

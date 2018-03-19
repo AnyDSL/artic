@@ -20,6 +20,7 @@ namespace artic {
     f(Else, "else") \
     f(Struct, "struct") \
     f(Trait, "trait") \
+    f(Self, "Self") \
     f(LParen, "(") \
     f(RParen, ")") \
     f(LBrace, "{") \

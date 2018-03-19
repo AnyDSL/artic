@@ -387,6 +387,10 @@ void TypeApp::print(Printer& p) const {
     path.print(p);
 }
 
+void SelfType::print(Printer& p) const {
+    p << keyword_style("Self");
+}
+
 void ErrorType::print(Printer& p) const {
     p << error_style("<invalid type>");
 }
@@ -446,6 +450,10 @@ void PolyType::print(Printer& p) const {
 
 void TraitType::print(Printer& p) const {
     p << keyword_style("trait") << ' ' << name;
+}
+
+void SelfType::print(Printer& p) const {
+    p << keyword_style("Self");
 }
 
 void TypeVar::print(Printer& p) const {
