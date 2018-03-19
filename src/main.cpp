@@ -15,10 +15,10 @@
 using namespace artic;
 
 static void usage() {
-    std::cout << "Usage: artic [options] files...\n"
-                 "Available options:\n"
-                 "          --version  Displays the version number\n"
-                 "    -h    --help     Displays this message\n";
+    log::out << "Usage: artic [options] files...\n"
+                "Available options:\n"
+                "          --version  Displays the version number\n"
+                "    -h    --help     Displays this message\n";
 }
 
 static void version() {
@@ -43,9 +43,9 @@ static void version() {
 #else
     static const char* build = "Debug";
 #endif
-    std::cout << "artic " << ARTIC_VERSION_MAJOR << "." << ARTIC_VERSION_MINOR << " "
-              << year << "-" << month << "-" << day
-              <<  " (" << build << ")\n";
+    log::out << "artic " << ARTIC_VERSION_MAJOR << "." << ARTIC_VERSION_MINOR << " "
+             << year << "-" << month << "-" << day
+             <<  " (" << build << ")\n";
 }
 
 struct ProgramOptions {

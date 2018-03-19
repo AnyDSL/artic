@@ -85,6 +85,10 @@ uint32_t PolyType::hash() const {
     return hash_combine(body->hash(), uint32_t(num_vars));
 }
 
+uint32_t TraitType::hash() const {
+    return hash_string(name);
+}
+
 uint32_t TypeVar::hash() const {
     return hash_combine(hash_init(), index,
         hash_list(traits, [] (auto& t) {
@@ -134,6 +138,10 @@ bool PolyType::equals(const Type* t) const {
                poly->num_vars == num_vars;
     }
     return false;
+}
+
+bool TraitType::equals(const Type* t) const {
+    return t->isa<TraitType>() && t->as<TraitType>()->name == name;
 }
 
 bool TypeVar::equals(const Type* t) const {
@@ -246,6 +254,10 @@ const FnType* TypeTable::fn_type(const Type* from, const Type* to) {
 
 const PolyType* TypeTable::poly_type(size_t num_vars, const Type* body) {
     return new_type<PolyType>(num_vars, body);
+}
+
+const TraitType* TypeTable::trait_type(std::string&& name) {
+    return new_type<TraitType>(std::move(name));
 }
 
 const TypeVar* TypeTable::type_var(uint32_t index, TypeVar::Traits&& traits) {

@@ -117,9 +117,9 @@ Ptr<ast::TraitDecl> Parser::parse_trait_decl() {
         type_params = std::move(parse_type_params());
 
     expect(Token::LBrace);
-    PtrVector<Decl> decls;
+    PtrVector<NamedDecl> decls;
     parse_list(Token::RBrace, Token::Semi, [&] {
-        decls.emplace_back(parse_decl());
+        decls.emplace_back(parse_fn_decl());
     });
 
     return make_ptr<ast::TraitDecl>(tracker(), std::move(id), std::move(decls), std::move(type_params));

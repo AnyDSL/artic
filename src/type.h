@@ -85,18 +85,6 @@ struct Type : public Cast<Type> {
 
 log::Output& operator << (log::Output&, const Type&);
 
-/// A trait is a structure containing a set of operations that are valid for a type.
-struct Trait {
-    typedef std::unordered_map<std::string, const Type*> Members;
-
-    std::string name;
-    Members members;
-
-    Trait(std::string&& name, Members&& members)
-        : name(std::move(name)), members(std::move(members))
-    {}
-};
-
 /// Primitive type (integers/floats/...)
 struct PrimType : public Type {
     enum Tag {
@@ -222,9 +210,25 @@ struct PolyType : public Type {
     void print(Printer&) const override;
 };
 
+/// A trait is a structure containing a set of operations that are valid for a type.
+struct TraitType : public Type {
+    typedef std::unordered_map<std::string, const Type*> Members;
+
+    std::string name;
+    mutable Members members;
+
+    TraitType(std::string&& name)
+        : name(std::move(name))
+    {}
+
+    uint32_t hash() const override;
+    bool equals(const Type*) const override;
+    void print(Printer&) const override;
+};
+
 /// Type variable, identifiable by its (integer) index.
 struct TypeVar : public Type {
-    typedef std::unordered_set<const Trait*> Traits;
+    typedef std::unordered_set<const TraitType*> Traits;
 
     /// Index of the type variable.
     uint32_t index;
@@ -242,7 +246,7 @@ struct TypeVar : public Type {
 
 /// Unknown type in a set of type equations.
 struct UnknownType : public Type {
-    typedef std::unordered_set<const Trait*> Traits;
+    typedef std::unordered_set<const TraitType*> Traits;
 
     /// Number that will be displayed when printing this type.
     uint32_t number;
@@ -326,6 +330,7 @@ public:
     const TupleType*    unit_type();
     const FnType*       fn_type(const Type*, const Type*);
     const PolyType*     poly_type(size_t, const Type*);
+    const TraitType*    trait_type(std::string&&);
     const TypeVar*      type_var(uint32_t, TypeVar::Traits&& traits = TypeVar::Traits());
     const ErrorType*    error_type(const Loc&);
     const InferError*   infer_error(const Loc&, const Type*, const Type*);

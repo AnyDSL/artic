@@ -389,6 +389,10 @@ void PolyType::print(Printer& p) const {
     body->print(p);
 }
 
+void TraitType::print(Printer& p) const {
+    p << keyword_style("trait") << ' ' << name;
+}
+
 void TypeVar::print(Printer& p) const {
     p << type_var_style(p.var_name(index));
 }

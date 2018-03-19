@@ -634,18 +634,19 @@ struct StructDecl : public NamedDecl {
 
 /// Trait declaration.
 struct TraitDecl : public NamedDecl {
-    PtrVector<Decl> decls;
+    PtrVector<NamedDecl> decls;
     Ptr<TypeParamList> type_params;
 
     TraitDecl(const Loc& loc,
               Identifier&& id,
-              PtrVector<Decl>&& decls,
+              PtrVector<NamedDecl>&& decls,
               Ptr<TypeParamList>&& type_params)
         : NamedDecl(loc, std::move(id))
         , decls(std::move(decls))
         , type_params(std::move(type_params))
     {}
 
+    const artic::Type* infer_head(TypeInference&) const override;
     const artic::Type* infer(TypeInference&) const override;
     void bind_head(NameBinder&) const override;
     void bind(NameBinder&) const override;

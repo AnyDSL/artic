@@ -89,7 +89,6 @@ const Type* TypeInference::generalize(const Loc& loc, const Type* type, uint32_t
 
     // Generalizes the given type by transforming unknowns
     // into the type variables of a polymorphic type
-    std::unordered_set<const Trait*> traits;
     int vars = 0;
     for (auto u : type->all<UnknownType>()) {
         u = find(u)->isa<UnknownType>();
@@ -385,9 +384,15 @@ const artic::Type* StructDecl::infer(TypeInference& ctx) const {
     return ctx.type(*this);
 }
 
-const artic::Type* TraitDecl::infer(TypeInference&) const {
-    // TODO
-    return nullptr;
+const artic::Type* TraitDecl::infer_head(TypeInference& ctx) const {
+    return ctx.type_table().trait_type(std::string(id.name));
+}
+
+const artic::Type* TraitDecl::infer(TypeInference& ctx) const {
+    auto trait_type = type->as<TraitType>();
+    for (auto& decl : decls)
+        trait_type->members.emplace(decl->id.name, ctx.infer(*decl));
+    return trait_type;
 }
 
 const artic::Type* ErrorDecl::infer(TypeInference& ctx) const {
@@ -397,7 +402,7 @@ const artic::Type* ErrorDecl::infer(TypeInference& ctx) const {
 const artic::Type* Program::infer(TypeInference& ctx) const {
     for (auto& decl : decls) ctx.infer_head(*decl);
     for (auto& decl : decls) {
-        if (decl->isa<StructDecl>())
+        if (decl->isa<StructDecl>() || decl->isa<TraitDecl>())
             ctx.infer(*decl);
     }
     for (auto& decl : decls) ctx.infer(*decl);
