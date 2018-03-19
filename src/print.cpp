@@ -41,7 +41,7 @@ inline void print_vars(Printer& p, size_t vars) {
 namespace ast {
 
 void Path::print(Printer& p) const {
-    print_list(p, '.', elems, [&] (auto& e) {
+    print_list(p, "::", elems, [&] (auto& e) {
         p << e.id.name;
     });
     if (!args.empty()) {

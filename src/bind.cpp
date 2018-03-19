@@ -36,11 +36,11 @@ void NameBinder::insert_symbol(const ast::NamedDecl& decl) {
 namespace ast {
 
 void Path::bind(NameBinder& ctx) const {
-    for (auto& elem : elems) {
-        elem.symbol = ctx.find_symbol(elem.id.name);
-        if (!elem.symbol)
-            ctx.error(elem.id.loc, "unknown identifier '{}'", elem.id.name);
-    }
+    // Bind only the outermost element, since other elements
+    // require type-inference to be bound
+    elems[0].symbol = ctx.find_symbol(elems[0].id.name);
+    if (!elems[0].symbol)
+        ctx.error(elems[0].id.loc, "unknown identifier '{}'", elems[0].id.name);
     for (auto& arg : args) ctx.bind(*arg);
 }
 
@@ -202,12 +202,15 @@ void StructDecl::bind(NameBinder& ctx) const {
 }
 
 void TraitDecl::bind_head(NameBinder& ctx) const {
-    for (auto& decl : decls)
-        ctx.bind(*decl);
     ctx.insert_symbol(*this);
 }
 
-void TraitDecl::bind(NameBinder&) const {}
+void TraitDecl::bind(NameBinder& ctx) const {
+    ctx.push_scope();
+    if (type_params) ctx.bind(*type_params);
+    for (auto& decl : decls) ctx.bind(*decl);
+    ctx.pop_scope();
+}
 
 void ErrorDecl::bind(NameBinder&) const {}
 
