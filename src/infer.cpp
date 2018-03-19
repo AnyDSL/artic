@@ -436,6 +436,10 @@ const artic::Type* ErrorDecl::infer(TypeInference& ctx) const {
 }
 
 const artic::Type* Program::infer(TypeInference& ctx) const {
+    for (auto& decl : decls) {
+        if (decl->isa<TraitDecl>())
+            ctx.infer_head(*decl);
+    }
     for (auto& decl : decls) ctx.infer_head(*decl);
     for (auto& decl : decls) {
         if (decl->isa<StructDecl>() || decl->isa<TraitDecl>())
