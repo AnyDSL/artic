@@ -331,20 +331,20 @@ void FnDecl::print(Printer& p) const {
 }
 
 void TraitDecl::print_head(Printer& p) const {
-    p << keyword_style("trait") << ' ' << id.name;
-    if (type_params) type_params->print(p);
-    p << " { ... }";
+    p << keyword_style("trait") << ' ' << id.name << " { ... }";
 }
 
 void TraitDecl::print(Printer& p) const {
-    p << keyword_style("trait") << ' ' << id.name;
-    if (type_params) type_params->print(p);
-    p << " {" << p.indent();
-    print_list(p, ";", decls, [&] (auto& decl) {
-        p << p.endl();
-        decl->print(p);
-    });
-    p << p.unindent() << p.endl() << '}';
+    p << keyword_style("trait") << ' ' << id.name << " {";
+    if (!decls.empty()) {
+        p << p.indent();
+        print_list(p, ";", decls, [&] (auto& decl) {
+            p << p.endl();
+            decl->print(p);
+        });
+        p << p.unindent() << p.endl();
+    }
+    p << '}';
 }
 
 void ErrorDecl::print(Printer& p) const {
@@ -423,13 +423,6 @@ void StructType::print(Printer& p) const {
 
 void TraitType::print(Printer& p) const {
     p << keyword_style("trait") << ' ' << name;
-    if (!args.empty()) {
-        p << '<';
-        print_list(p, ", ", args, [&] (auto arg) {
-            arg->print(p);
-        });
-        p << '>';
-    }
 }
 
 void TupleType::print(Printer& p) const {

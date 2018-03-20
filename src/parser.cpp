@@ -112,17 +112,18 @@ Ptr<ast::TraitDecl> Parser::parse_trait_decl() {
     eat(Token::Trait);
     auto id = parse_id();
 
-    Ptr<TypeParamList> type_params;
-    if (ahead().tag() == Token::CmpLT)
-        type_params = std::move(parse_type_params());
-
     expect(Token::LBrace);
     PtrVector<NamedDecl> decls;
     parse_list(Token::RBrace, Token::Semi, [&] {
-        decls.emplace_back(parse_fn_decl());
+        if (ahead().tag() == Token::Fn)
+            decls.emplace_back(parse_fn_decl());
+        else {
+            error(ahead().loc(), "function declaration expected");
+            next();
+        }
     });
 
-    return make_ptr<ast::TraitDecl>(tracker(), std::move(id), std::move(decls), std::move(type_params));
+    return make_ptr<ast::TraitDecl>(tracker(), std::move(id), std::move(decls));
 }
 
 Ptr<ast::TypeParam> Parser::parse_type_param(size_t index) {

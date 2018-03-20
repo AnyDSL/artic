@@ -158,23 +158,22 @@ private:
 };
 
 /// A trait is a structure containing a set of operations that are valid for a type.
-struct TraitType : public TypeApp {
+struct TraitType : public Type {
     typedef std::unordered_map<std::string, const Type*> Members;
-    using TypeApp::Args;
 
+    std::string name;
     const ast::TraitDecl* decl;
 
-    TraitType(std::string&& name, Args&& args, const ast::TraitDecl* decl)
-        : TypeApp(std::move(name), std::move(args)), decl(decl)
+    TraitType(std::string&& name, const ast::TraitDecl* decl)
+        : name(std::move(name)), decl(decl)
     {}
-
-    const TypeApp* rebuild(TypeTable&, Args&&) const override;
 
     uint32_t hash() const override;
     void print(Printer&) const override;
+    bool equals(const Type*) const override;
 
     /// Lazily build the members of the trait.
-    const Members& members(TypeTable&) const;
+    const Members& members() const;
 
 private:
     mutable Members members_;
@@ -343,7 +342,7 @@ public:
 
     const PrimType*     prim_type(PrimType::Tag);
     const StructType*   struct_type(std::string&&, StructType::Args&&, const ast::StructDecl*);
-    const TraitType*    trait_type(std::string&&, TraitType::Args&&, const ast::TraitDecl*);
+    const TraitType*    trait_type(std::string&&, const ast::TraitDecl*);
     const TupleType*    tuple_type(TupleType::Args&&);
     const TupleType*    unit_type();
     const FnType*       fn_type(const Type*, const Type*);

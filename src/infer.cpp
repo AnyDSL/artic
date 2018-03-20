@@ -201,7 +201,7 @@ const artic::Type* Path::infer(TypeInference& ctx) const {
     assert(decl_type);
     for (size_t i = 1; i < elems.size(); i++) {
         if (auto trait = decl->type->isa<TraitType>()) {
-            auto& members = trait->members(ctx.type_table());
+            auto& members = trait->members();
             auto it = members.find(elems[i].id.name);
             if (it != members.end()) {
                 decl_type = ctx.instanciate(it->second, trait);
@@ -409,8 +409,11 @@ const artic::Type* FnDecl::infer(TypeInference& ctx) const {
             ctx.infer(*fn->param),
             ret_type ? ctx.infer(*ret_type) : ctx.type_table().tuple_type({}));
     }
-    // Generate a polymorphic type
-    return ctx.generalize(loc, init_type, rank);
+    if (!type_params) {
+        // Generate a polymorphic type
+        return ctx.generalize(loc, init_type, rank);
+    }
+    return init_type;
 }
 
 const artic::Type* FieldDecl::infer(TypeInference& ctx) const {
@@ -435,14 +438,7 @@ const artic::Type* StructDecl::infer(TypeInference& ctx) const {
 }
 
 const artic::Type* TraitDecl::infer_head(TypeInference& ctx) const {
-    if (type_params) {
-        auto poly_type = ctx.infer(*type_params);
-        TraitType::Args args;
-        for (auto& param : type_params->params)
-            args.emplace_back(param->type);
-        return ctx.unify(loc, poly_type, ctx.type_table().trait_type(std::string(id.name), std::move(args), this));
-    }
-    return ctx.type_table().trait_type(std::string(id.name), TraitType::Args(), this);
+    return ctx.type_table().trait_type(std::string(id.name), this);
 }
 
 const artic::Type* TraitDecl::infer(TypeInference& ctx) const {
