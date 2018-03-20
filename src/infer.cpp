@@ -201,8 +201,9 @@ const artic::Type* Path::infer(TypeInference& ctx) const {
     assert(decl_type);
     for (size_t i = 1; i < elems.size(); i++) {
         if (auto trait = decl->type->isa<TraitType>()) {
-            auto it = trait->members.find(elems[i].id.name);
-            if (it != trait->members.end()) {
+            auto& members = trait->members(ctx.type_table());
+            auto it = members.find(elems[i].id.name);
+            if (it != members.end()) {
                 decl_type = ctx.instanciate(it->second, trait);
                 break;
             }
@@ -396,9 +397,11 @@ const artic::Type* FnDecl::infer(TypeInference& ctx) const {
     const artic::Type* init_type = nullptr;
     if (fn->body) {
         init_type = ctx.infer(*fn);
+
         // If a return type is present, unify it with the return type of the function
-        if (auto fn_type = init_type->isa<artic::FnType>()) {
-            if (ret_type) ctx.infer(*ret_type, fn_type->to());
+        if (ret_type) {
+            auto to = init_type->isa<artic::FnType>() ? init_type->as<artic::FnType>()->to() : nullptr;
+            ctx.infer(*ret_type, to);
         }
     } else {
         // The return type is mandatory here
@@ -432,16 +435,22 @@ const artic::Type* StructDecl::infer(TypeInference& ctx) const {
 }
 
 const artic::Type* TraitDecl::infer_head(TypeInference& ctx) const {
-    return ctx.type_table().trait_type(std::string(id.name));
+    if (type_params) {
+        auto poly_type = ctx.infer(*type_params);
+        TraitType::Args args;
+        for (auto& param : type_params->params)
+            args.emplace_back(param->type);
+        return ctx.unify(loc, poly_type, ctx.type_table().trait_type(std::string(id.name), std::move(args), this));
+    }
+    return ctx.type_table().trait_type(std::string(id.name), TraitType::Args(), this);
 }
 
 const artic::Type* TraitDecl::infer(TypeInference& ctx) const {
-    auto trait_type = type->as<TraitType>();
     for (auto& decl : decls)
         ctx.infer_head(*decl);
     for (auto& decl : decls)
-        trait_type->members.emplace(decl->id.name, ctx.infer(*decl));
-    return trait_type;
+        ctx.infer(*decl);
+    return ctx.type(*this);
 }
 
 const artic::Type* ErrorDecl::infer(TypeInference& ctx) const {

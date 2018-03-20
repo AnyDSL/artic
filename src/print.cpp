@@ -421,6 +421,17 @@ void StructType::print(Printer& p) const {
     }
 }
 
+void TraitType::print(Printer& p) const {
+    p << keyword_style("trait") << ' ' << name;
+    if (!args.empty()) {
+        p << '<';
+        print_list(p, ", ", args, [&] (auto arg) {
+            arg->print(p);
+        });
+        p << '>';
+    }
+}
+
 void TupleType::print(Printer& p) const {
     p << '(';
     print_list(p, ", ", args, [&] (auto arg) {
@@ -455,10 +466,6 @@ void PolyType::print(Printer& p) const {
     }
     p << "> ";
     body->print(p);
-}
-
-void TraitType::print(Printer& p) const {
-    p << keyword_style("trait") << ' ' << name;
 }
 
 void SelfType::print(Printer& p) const {

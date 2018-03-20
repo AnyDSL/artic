@@ -11,6 +11,7 @@ bool TypeChecker::run(const ast::Program& program) {
 }
 
 void TypeChecker::check(const ast::Node& node) {
+    assert(node.type);
     node.check(*this);
 
     // Do not emit an error message for compound expressions,

@@ -20,6 +20,7 @@ namespace log {
 
 namespace ast {
     class StructDecl;
+    class TraitDecl;
 }
 
 class Printer;
@@ -135,7 +136,7 @@ struct TypeApp : public Type {
 
 /// Structure type.
 struct StructType : public TypeApp {
-    typedef std::vector<std::pair<std::string, const Type*>> Members;
+    typedef std::unordered_map<std::string, const Type*> Members;
     using TypeApp::Args;
 
     const ast::StructDecl* decl;
@@ -150,6 +151,29 @@ struct StructType : public TypeApp {
     void print(Printer&) const override;
 
     /// Lazily build the members of the structure.
+    const Members& members(TypeTable&) const;
+
+private:
+    mutable Members members_;
+};
+
+/// A trait is a structure containing a set of operations that are valid for a type.
+struct TraitType : public TypeApp {
+    typedef std::unordered_map<std::string, const Type*> Members;
+    using TypeApp::Args;
+
+    const ast::TraitDecl* decl;
+
+    TraitType(std::string&& name, Args&& args, const ast::TraitDecl* decl)
+        : TypeApp(std::move(name), std::move(args)), decl(decl)
+    {}
+
+    const TypeApp* rebuild(TypeTable&, Args&&) const override;
+
+    uint32_t hash() const override;
+    void print(Printer&) const override;
+
+    /// Lazily build the members of the trait.
     const Members& members(TypeTable&) const;
 
 private:
@@ -204,22 +228,6 @@ struct PolyType : public Type {
     const Type* substitute(TypeTable&, const std::unordered_map<const Type*, const Type*>&) const override;
     bool has(std::function<bool (const Type*)>) const override;
     void all(std::unordered_set<const Type*>&, std::function<bool (const Type*)>) const override;
-
-    uint32_t hash() const override;
-    bool equals(const Type*) const override;
-    void print(Printer&) const override;
-};
-
-/// A trait is a structure containing a set of operations that are valid for a type.
-struct TraitType : public Type {
-    typedef std::unordered_map<std::string, const Type*> Members;
-
-    std::string name;
-    mutable Members members;
-
-    TraitType(std::string&& name)
-        : name(std::move(name))
-    {}
 
     uint32_t hash() const override;
     bool equals(const Type*) const override;
@@ -335,11 +343,11 @@ public:
 
     const PrimType*     prim_type(PrimType::Tag);
     const StructType*   struct_type(std::string&&, StructType::Args&&, const ast::StructDecl*);
+    const TraitType*    trait_type(std::string&&, TraitType::Args&&, const ast::TraitDecl*);
     const TupleType*    tuple_type(TupleType::Args&&);
     const TupleType*    unit_type();
     const FnType*       fn_type(const Type*, const Type*);
     const PolyType*     poly_type(size_t, const Type*);
-    const TraitType*    trait_type(std::string&&);
     const SelfType*     self_type();
     const TypeVar*      type_var(uint32_t, TypeVar::Traits&& traits = TypeVar::Traits());
     const ErrorType*    error_type(const Loc&);

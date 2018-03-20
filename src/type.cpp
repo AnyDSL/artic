@@ -54,7 +54,23 @@ const StructType::Members& StructType::members(TypeTable& type_table) const {
             map.emplace(decl->type_params->params[i]->type, args[i]);
         for (auto& field : decl->fields) {
             assert(field->Node::type);
-            members_.emplace_back(field->id.name, field->Node::type->substitute(type_table, map));
+            members_.emplace(field->id.name, field->Node::type->substitute(type_table, map));
+        }
+    }
+    return members_;
+}
+
+const TraitType::Members& TraitType::members(TypeTable& type_table) const {
+    if (members_.empty()) {
+        assert(decl->type);
+        assert(!decl->type_params || decl->type_params->params.size() == args.size());
+        assert(decl->type_params || args.empty());
+        std::unordered_map<const Type*, const Type*> map;
+        for (size_t i = 0; i < args.size(); i++)
+            map.emplace(decl->type_params->params[i]->type, args[i]);
+        for (auto& decl : decl->decls) {
+            assert(decl->type);
+            members_.emplace(decl->id.name, decl->type->substitute(type_table, map));
         }
     }
     return members_;
@@ -73,6 +89,13 @@ uint32_t StructType::hash() const {
     );
 }
 
+uint32_t TraitType::hash() const {
+    return hash_combine(
+        hash_string(name),
+        hash_list(args, [] (auto& arg) { return arg->hash(); })
+    );
+}
+
 uint32_t TupleType::hash() const {
     return hash_list(args, [] (auto& arg) { return arg->hash(); });
 }
@@ -83,10 +106,6 @@ uint32_t FnType::hash() const {
 
 uint32_t PolyType::hash() const {
     return hash_combine(body->hash(), uint32_t(num_vars));
-}
-
-uint32_t TraitType::hash() const {
-    return hash_string(name);
 }
 
 uint32_t SelfType::hash() const {
@@ -144,10 +163,6 @@ bool PolyType::equals(const Type* t) const {
     return false;
 }
 
-bool TraitType::equals(const Type* t) const {
-    return t->isa<TraitType>() && t->as<TraitType>()->name == name;
-}
-
 bool SelfType::equals(const Type* t) const {
     return t->isa<SelfType>();
 }
@@ -177,6 +192,10 @@ bool InferError::equals(const Type* t) const {
 
 const TypeApp* StructType::rebuild(TypeTable& table, Args&& new_args) const {
     return table.struct_type(std::string(name), std::move(new_args), decl);
+}
+
+const TypeApp* TraitType::rebuild(TypeTable& table, Args&& new_args) const {
+    return table.trait_type(std::string(name), std::move(new_args), decl);
 }
 
 const TypeApp* TupleType::rebuild(TypeTable& table, Args&& new_args) const {
@@ -235,6 +254,7 @@ const Type* TypeApp::substitute(TypeTable& table, const std::unordered_map<const
 }
 
 const Type* PolyType::substitute(TypeTable& table, const std::unordered_map<const Type*, const Type*>& map) const {
+    // TODO: Take into account substitution depth (i.e. Nested polymorphic types)
     return table.poly_type(num_vars, body->substitute(table, map));
 }
 
@@ -246,6 +266,10 @@ const PrimType* TypeTable::prim_type(PrimType::Tag tag) {
 
 const StructType* TypeTable::struct_type(std::string&& name, StructType::Args&& args, const ast::StructDecl* decl) {
     return new_type<StructType>(std::move(name), std::move(args), decl);
+}
+
+const TraitType* TypeTable::trait_type(std::string&& name, TraitType::Args&& args, const ast::TraitDecl* decl) {
+    return new_type<TraitType>(std::move(name), std::move(args), decl);
 }
 
 const TupleType* TypeTable::tuple_type(TupleType::Args&& args) {
@@ -262,10 +286,6 @@ const FnType* TypeTable::fn_type(const Type* from, const Type* to) {
 
 const PolyType* TypeTable::poly_type(size_t num_vars, const Type* body) {
     return new_type<PolyType>(num_vars, body);
-}
-
-const TraitType* TypeTable::trait_type(std::string&& name) {
-    return new_type<TraitType>(std::move(name));
 }
 
 const SelfType* TypeTable::self_type() {
