@@ -26,16 +26,16 @@ void TypeChecker::check(const ast::Node& node) {
         return;
 
     if (node.type->has<UnknownType>()) {
-        error(node.loc, "Cannot infer type for '{}'", node);
-        note(node.loc, "Best inferred type is '{}'", *node.type);
+        error(node.loc, "cannot infer type for '{}'", node);
+        note(node.loc, "best inferred type is '{}'", *node.type);
     } else if (node.type->has<ErrorType>()) {
-        error(node.loc, "Incorrect type for '{}'", node);
+        error(node.loc, "incorrect type for '{}'", node);
         for (auto& error : node.type->all<InferError>()) {
             if (error->left->isa<ErrorType>() ||
                 error->right->isa<ErrorType>())
                 continue;
             note(error->loc,
-                 "Resulting from unification of '{}' and '{}'",
+                 "resulting from unification of '{}' and '{}'",
                  *error->left, *error->right);
         }
     }
@@ -179,6 +179,8 @@ void StructDecl::check(TypeChecker& ctx) const {
 }
 
 void TraitDecl::check(TypeChecker& ctx) const {
+    if (type_params)
+        ctx.error(loc, "polymorphic traits are currently not supported");
     for (auto& decl : decls)
         ctx.check(*decl);
 }
