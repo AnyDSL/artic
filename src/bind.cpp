@@ -25,11 +25,15 @@ void NameBinder::insert_symbol(const ast::NamedDecl& decl) {
     // Do not bind anonymous variables
     if (name == "_") return;
 
+    auto shadow_symbol = find_symbol(name);
     if (!scopes_.back().insert(name, Symbol(&decl))) {
         error(decl.loc, "identifier '{}' already declared", name);
         for (auto other : find_symbol(name)->decls) {
             if (other != &decl) note(other->loc, "previously declared here");
         }
+    } else if (shadow_symbol)  {
+        warn(decl.loc, "declaration shadows identifier '{}'", name);
+        note(shadow_symbol->decls[0]->loc, "previously declared here");
     }
 }
 
