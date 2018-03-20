@@ -7,7 +7,7 @@
 namespace artic {
 
 void TypeInference::run(const ast::Program& program) {
-    // Run fix-point iterations until convergence
+    // Run iterations until fixpoint
     do {
         todo_ = false;
         program.infer(*this);
