@@ -25,6 +25,7 @@ private:
     Ptr<ast::FieldDecl>     parse_field_decl();
     Ptr<ast::StructDecl>    parse_struct_decl();
     Ptr<ast::TraitDecl>     parse_trait_decl();
+    Ptr<ast::ImplDecl>      parse_impl_decl();
     Ptr<ast::TypeParam>     parse_type_param(size_t);
     Ptr<ast::TypeParamList> parse_type_params();
     Ptr<ast::ErrorDecl>     parse_error_decl();
@@ -66,10 +67,11 @@ private:
     Ptr<ast::ErrorType>     parse_error_type();
 
     ast::Path               parse_path(ast::Identifier&&);
+    ast::Path               parse_path() { return parse_path(parse_id()); }
     ast::Identifier         parse_id();
     Literal                 parse_lit();
 
-    Ptr<ast::Ptrn>          expr_to_ptrn(Ptr<ast::Expr>&&);
+    PtrVector<ast::NamedDecl> parse_trait_body();
 
     struct Tracker {
         const Parser* parser;

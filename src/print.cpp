@@ -347,6 +347,33 @@ void TraitDecl::print(Printer& p) const {
     p << '}';
 }
 
+void ImplDecl::print_head(Printer& p) const {
+    p << keyword_style("impl") << ' ';
+    if (type_params) type_params->print(p);
+    trait_path.print(p);
+    p << ' ' << keyword_style("for") << ' ';
+    impl_path.print(p);
+    p << " { ... }";
+}
+
+void ImplDecl::print(Printer& p) const {
+    p << keyword_style("impl") << ' ';
+    if (type_params) type_params->print(p);
+    trait_path.print(p);
+    p << ' ' << keyword_style("for") << ' ';
+    impl_path.print(p);
+    p << " {";
+    if (!decls.empty()) {
+        p << p.indent();
+        print_list(p, ";", decls, [&] (auto& decl) {
+            p << p.endl();
+            decl->print(p);
+        });
+        p << p.unindent() << p.endl();
+    }
+    p << '}';
+}
+
 void ErrorDecl::print(Printer& p) const {
     p << error_style("<invalid declaration>");
 }

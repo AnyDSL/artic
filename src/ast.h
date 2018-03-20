@@ -671,6 +671,32 @@ struct TraitDecl : public NamedDecl {
     void print(Printer&) const override;
 };
 
+/// Implementation for a trait.
+struct ImplDecl : public Decl {
+    Path trait_path;
+    Path impl_path;
+    PtrVector<NamedDecl> decls;
+    Ptr<TypeParamList> type_params;
+
+    ImplDecl(const Loc& loc,
+             Path&& trait_path,
+             Path&& impl_path,
+             PtrVector<NamedDecl>&& decls,
+             Ptr<TypeParamList>&& type_params)
+        : Decl(loc)
+        , trait_path(std::move(trait_path))
+        , impl_path(std::move(impl_path))
+        , decls(std::move(decls))
+        , type_params(std::move(type_params))
+    {}
+
+    const artic::Type* infer(TypeInference&) const override;
+    void bind(NameBinder&) const override;
+    void check(TypeChecker&) const override;
+    void print_head(Printer&) const override;
+    void print(Printer&) const override;
+};
+
 /// Incorrect declaration, coming from parsing.
 struct ErrorDecl : public Decl {
     ErrorDecl(const Loc& loc) : Decl(loc) {}

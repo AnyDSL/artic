@@ -111,19 +111,23 @@ Ptr<ast::TraitDecl> Parser::parse_trait_decl() {
     Tracker tracker(this);
     eat(Token::Trait);
     auto id = parse_id();
-
-    expect(Token::LBrace);
-    PtrVector<NamedDecl> decls;
-    parse_list(Token::RBrace, Token::Semi, [&] {
-        if (ahead().tag() == Token::Fn)
-            decls.emplace_back(parse_fn_decl());
-        else {
-            error(ahead().loc(), "function declaration expected");
-            next();
-        }
-    });
-
+    auto decls = parse_trait_body();
     return make_ptr<ast::TraitDecl>(tracker(), std::move(id), std::move(decls));
+}
+
+Ptr<ast::ImplDecl> Parser::parse_impl_decl() {
+    Tracker tracker(this);
+    eat(Token::Impl);
+
+    Ptr<ast::TypeParamList> type_params;
+    if (ahead().tag() == Token::CmpLT)
+        type_params = std::move(parse_type_params());
+
+    auto trait_path = parse_path();
+    expect(Token::For);
+    auto impl_path = parse_path();
+    auto decls = parse_trait_body();
+    return make_ptr<ast::ImplDecl>(tracker(), std::move(trait_path), std::move(impl_path), std::move(decls), std::move(type_params));
 }
 
 Ptr<ast::TypeParam> Parser::parse_type_param(size_t index) {
@@ -281,7 +285,7 @@ Ptr<ast::Expr> Parser::parse_typed_expr(Ptr<Expr>&& expr) {
 
 Ptr<ast::PathExpr> Parser::parse_path_expr() {
     Tracker tracker(this);
-    auto path = parse_path(parse_id());
+    auto path = parse_path();
     return make_ptr<ast::PathExpr>(tracker(), std::move(path));
 }
 
@@ -567,7 +571,7 @@ Ptr<ast::FnType> Parser::parse_fn_type() {
 
 Ptr<ast::TypeApp> Parser::parse_type_app() {
     Tracker tracker(this);
-    auto path = parse_path(parse_id());
+    auto path = parse_path();
     return make_ptr<ast::TypeApp>(tracker(), std::move(path));
 }
 
@@ -623,6 +627,20 @@ Literal Parser::parse_lit() {
         lit = ahead().literal();
     next();
     return lit;
+}
+
+PtrVector<ast::NamedDecl> Parser::parse_trait_body() {
+    PtrVector<NamedDecl> decls;
+    expect(Token::LBrace);
+    parse_list(Token::RBrace, Token::Semi, [&] {
+        if (ahead().tag() == Token::Fn)
+            decls.emplace_back(parse_fn_decl());
+        else {
+            error(ahead().loc(), "function declaration expected");
+            next();
+        }
+    });
+    return decls;
 }
 
 } // namespace artic

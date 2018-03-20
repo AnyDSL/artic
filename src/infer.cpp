@@ -449,6 +449,18 @@ const artic::Type* TraitDecl::infer(TypeInference& ctx) const {
     return ctx.type(*this);
 }
 
+const artic::Type* ImplDecl::infer(TypeInference& ctx) const {
+    if (type_params)
+        ctx.infer(*type_params);
+    ctx.infer(trait_path);
+    ctx.infer(impl_path);
+    for (auto& decl : decls)
+        ctx.infer_head(*decl);
+    for (auto& decl : decls)
+        ctx.infer(*decl);
+    return ctx.type_table().tuple_type({});
+}
+
 const artic::Type* ErrorDecl::infer(TypeInference& ctx) const {
     return ctx.type_table().error_type(loc);
 }

@@ -168,10 +168,8 @@ void PtrnDecl::bind(NameBinder& ctx) const {
 }
 
 void LetDecl::bind(NameBinder& ctx) const {
-    ctx.bind(*ptrn);
-    ctx.push_scope();
     if (init) ctx.bind(*init);
-    ctx.pop_scope();
+    ctx.bind(*ptrn);
 }
 
 void FnDecl::bind_head(NameBinder& ctx) const {
@@ -211,6 +209,15 @@ void TraitDecl::bind_head(NameBinder& ctx) const {
 
 void TraitDecl::bind(NameBinder& ctx) const {
     ctx.push_scope();
+    for (auto& decl : decls) ctx.bind(*decl);
+    ctx.pop_scope();
+}
+
+void ImplDecl::bind(NameBinder& ctx) const {
+    ctx.push_scope();
+    if (type_params) ctx.bind(*type_params);
+    trait_path.bind(ctx);
+    impl_path.bind(ctx);
     for (auto& decl : decls) ctx.bind(*decl);
     ctx.pop_scope();
 }

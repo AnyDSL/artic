@@ -179,8 +179,14 @@ void StructDecl::check(TypeChecker& ctx) const {
 }
 
 void TraitDecl::check(TypeChecker& ctx) const {
-    if (type_params)
-        ctx.error(loc, "polymorphic traits are currently not supported");
+    for (auto& decl : decls)
+        ctx.check(*decl);
+}
+
+void ImplDecl::check(TypeChecker& ctx) const {
+    if (type_params) ctx.check(*type_params);
+    ctx.check(trait_path);
+    ctx.check(impl_path);
     for (auto& decl : decls)
         ctx.check(*decl);
 }

@@ -18,8 +18,10 @@ namespace artic {
     f(Fn,  "fn") \
     f(If, "if") \
     f(Else, "else") \
+    f(For, "for") \
     f(Struct, "struct") \
     f(Trait, "trait") \
+    f(Impl, "impl") \
     f(Self, "Self") \
     f(LParen, "(") \
     f(RParen, ")") \
