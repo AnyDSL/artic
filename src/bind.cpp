@@ -190,8 +190,8 @@ void FnDecl::bind(NameBinder& ctx) const {
 }
 
 void FieldDecl::bind(NameBinder& ctx) const {
-    ctx.insert_symbol(*this);
     ctx.bind(*type);
+    ctx.insert_symbol(*this);
 }
 
 void StructDecl::bind_head(NameBinder& ctx) const {

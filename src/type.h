@@ -276,8 +276,8 @@ struct UnknownType : public Type {
     /// by G. Kuan and D. MacQueen
     mutable uint32_t rank;
 
-    /// Set of traits attached to this unknown. When this unknown will
-    /// be generalized, they will be attached to the polymorphic type.
+    /// Set of traits attached to this unknown. When this unknown is generalized,
+    /// they will be attached to the corresponding type variable.
     mutable Traits traits;
 
     UnknownType(uint32_t number, uint32_t rank, Traits&& traits)
