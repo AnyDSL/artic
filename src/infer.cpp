@@ -438,6 +438,8 @@ const artic::Type* TraitDecl::infer_head(TypeInference& ctx) const {
 const artic::Type* TraitDecl::infer(TypeInference& ctx) const {
     auto trait_type = type->as<TraitType>();
     for (auto& decl : decls)
+        ctx.infer_head(*decl);
+    for (auto& decl : decls)
         trait_type->members.emplace(decl->id.name, ctx.infer(*decl));
     return trait_type;
 }
