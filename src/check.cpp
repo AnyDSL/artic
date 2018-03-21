@@ -1,4 +1,4 @@
-#include <sstream>
+#include <algorithm>
 
 #include "check.h"
 #include "log.h"
@@ -43,6 +43,22 @@ void TypeChecker::check(const ast::Node& node) {
 
 namespace ast {
 
+template <typename FieldVector>
+void check_struct(TypeChecker& ctx, const Loc& loc, const artic::StructType* struct_type, const FieldVector& fields, bool has_etc) {
+    auto& members = struct_type->members(ctx.type_table());
+
+    // Make sure all fields are set
+    if (!has_etc) {
+        auto not_set = std::find_if(members.begin(), members.end(), [&] (auto& member) {
+            return std::find_if(fields.begin(), fields.end(), [&] (auto& field) {
+                return member.first == field->id.name;
+            }) == fields.end();
+        });
+        if (not_set != members.end())
+            ctx.error(loc, "missing initializer for field '{}'", not_set->first);
+    }
+}
+
 void Path::check(TypeChecker& ctx) const {
     for (auto& arg : args) ctx.check(*arg);
 }
@@ -84,6 +100,9 @@ void FieldExpr::check(TypeChecker& ctx) const {
 void StructExpr::check(TypeChecker& ctx) const {
     ctx.check(*expr);
     for (auto& field : fields) ctx.check(*field);
+
+    if (auto struct_type = type->isa<StructType>())
+        check_struct(ctx, loc, struct_type, fields, false);
 }
 
 void TupleExpr::check(TypeChecker& ctx) const {
@@ -134,6 +153,9 @@ void FieldPtrn::check(TypeChecker& ctx) const {
 void StructPtrn::check(TypeChecker& ctx) const {
     ctx.check(path);
     for (auto& field : fields) ctx.check(*field);
+
+    if (auto struct_type = type->isa<StructType>())
+        check_struct(ctx, loc, struct_type, fields, has_etc());
 }
 
 void TuplePtrn::check(TypeChecker& ctx) const {
@@ -167,6 +189,7 @@ void FnDecl::check(TypeChecker& ctx) const {
     } else if (fn->param) {
         ctx.check(*fn->param);
     }
+    log::out << (const Node&)*this << " : " << *type << '\n';
 }
 
 void FieldDecl::check(TypeChecker& ctx) const {

@@ -89,6 +89,7 @@ const Type* TypeInference::find(const Type* type) {
     if (it != eqs_.end()) {
         auto next = find(it->second.type);
         todo_ |= next != it->second.type;
+        // Path compression
         it->second = Equation(it->second.loc, next);
         return next;
     }
@@ -141,7 +142,7 @@ const Type* TypeInference::subsume(const Loc& loc, const Type* type, const std::
 }
 
 const Type* TypeInference::instanciate(const Type* type, const TraitType* trait) {
-    // Replace Self with a type variable bound to the trait
+    // Replace Self with a type unknown bound to the trait
     std::unordered_map<const Type*, const Type*> map;
     auto u = type_table().unknown_type(UnknownType::max_rank(), UnknownType::Traits { trait });
     map.emplace(type_table().self_type(), u);
@@ -191,26 +192,12 @@ namespace ast {
 template <typename FieldVector>
 const artic::Type* infer_struct(TypeInference& ctx, const Loc& loc, const artic::StructType* struct_type, const FieldVector& fields, bool has_etc) {
     auto& members = struct_type->members(ctx.type_table());
-
     // Infer all fields
     for (size_t i = 0, n = has_etc ? fields.size() - 1 : fields.size(); i < n; i++) {
         auto& field = fields[i];
         auto it = members.find(field->id.name);
         ctx.infer(*field, it != members.end() ? it->second : ctx.type_table().error_type(loc));
     }
-
-    // Make sure all fields are set
-    // TODO: Put this in the final checking phase
-    if (!has_etc) {
-        auto not_set = std::find_if(members.begin(), members.end(), [&] (auto& member) {
-            return std::find_if(fields.begin(), fields.end(), [&] (auto& field) {
-                return member.first == field->id.name;
-            }) == fields.end();
-        });
-        if (not_set != members.end())
-            return ctx.type_table().error_type(loc);
-    }
-
     return struct_type;
 }
 
@@ -370,7 +357,7 @@ const artic::Type* FieldPtrn::infer(TypeInference& ctx) const {
 const artic::Type* StructPtrn::infer(TypeInference& ctx) const {
     auto expr_type = ctx.infer(path);
     if (auto struct_type = expr_type->isa<StructType>())
-        return infer_struct(ctx, loc, struct_type, fields, !fields.empty() && fields.back()->is_etc());
+        return infer_struct(ctx, loc, struct_type, fields, has_etc());
     else {
         for (auto& field : fields)
             ctx.infer(*field);

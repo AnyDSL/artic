@@ -789,6 +789,7 @@ struct StructPtrn : public Ptrn {
     {}
 
     bool is_refutable() const override;
+    bool has_etc() const { return !fields.empty() && fields.back()->is_etc(); }
 
     const artic::Type* infer(TypeInference&) const override;
     void bind(NameBinder&) const override;
