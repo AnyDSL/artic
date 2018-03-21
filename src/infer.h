@@ -22,9 +22,11 @@ public:
     const Type* join(const Loc&, const UnknownType*, const Type*);
     const Type* find(const Type*);
 
+    const Type* rename(const Type*);
     const Type* generalize(const Loc& loc, const Type*, uint32_t);
-    const Type* subsume(const Loc& loc, const Type*, std::vector<const Type*>&);
+    const Type* subsume(const Loc& loc, const Type*, const std::vector<const Type*>&);
     const Type* instanciate(const Type*, const TraitType*);
+    bool has_matching_impl(const Loc&, const TraitType*, const Type*);
 
     const Type* type(const ast::Node&, uint32_t rank = UnknownType::max_rank());
     const Type* infer(const ast::Node&, const Type* expected = nullptr);

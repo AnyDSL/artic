@@ -64,12 +64,17 @@ const Type* TypeInference::join(const Loc& loc, const UnknownType* unknown_a, co
         unknown_b->traits.insert(unknown_a->traits.begin(), unknown_a->traits.end());
     } else if (!unknown_a->traits.empty()) {
         if (auto var_b = b->isa<TypeVar>()) {
+            // Check that the type variable satisfies all the required traits
             for (auto trait : unknown_a->traits) {
                 if (!var_b->traits.count(trait))
-                    return type_table().error_type(loc);
+                    return type_table().infer_error(loc, unknown_a, b);
             }
         } else {
-            return type_table().error_type(loc);
+            // Check that there exists an implementation of the trait for our type
+            for (auto trait : unknown_a->traits) {
+                if (!has_matching_impl(loc, trait, b))
+                    return type_table().infer_error(loc, unknown_a, b);
+            }
         }
     }
 
@@ -90,6 +95,13 @@ const Type* TypeInference::find(const Type* type) {
     return type;
 }
 
+const Type* TypeInference::rename(const Type* type) {
+    std::unordered_map<const Type*, const Type*> map;
+    for (auto& u : type->all<UnknownType>())
+        map.emplace(u, type_table().unknown_type(u->rank, UnknownType::Traits(u->traits)));
+    return type->substitute(type_table(), map);
+}
+
 const Type* TypeInference::generalize(const Loc& loc, const Type* type, uint32_t rank) {
     // Get the best estimate of the type at this point
     type = unify(loc, type, type);
@@ -108,7 +120,7 @@ const Type* TypeInference::generalize(const Loc& loc, const Type* type, uint32_t
     return type_table().poly_type(vars, type);
 }
 
-const Type* TypeInference::subsume(const Loc& loc, const Type* type, std::vector<const Type*>& type_args) {
+const Type* TypeInference::subsume(const Loc& loc, const Type* type, const std::vector<const Type*>& type_args) {
     // Get the best estimate of the type at this point
     type = unify(loc, type, type);
 
@@ -134,6 +146,22 @@ const Type* TypeInference::instanciate(const Type* type, const TraitType* trait)
     auto u = type_table().unknown_type(UnknownType::max_rank(), UnknownType::Traits { trait });
     map.emplace(type_table().self_type(), u);
     return type->substitute(type_table(), map);
+}
+
+bool TypeInference::has_matching_impl(const Loc& loc, const TraitType* trait, const Type* type) {
+    for (auto impl : trait->impls) {
+        auto matcher = subsume(loc, impl->Node::type, {});
+        auto renamed = rename(type);
+        if (!unify(loc, matcher, renamed)->has<ErrorType>()) {
+            // Bind the type to the pattern, so as to encode any possible constraints.
+            // Consider the following implementation:
+            //     impl<T : Trait> OtherTrait for SomeType<T> { ... }
+            // This forces T to carry the trait Trait. For this reason, we must unify here.
+            unify(loc, matcher, type);
+            return true;
+        }
+    }
+    return false;
 }
 
 const Type* TypeInference::type(const ast::Node& node, uint32_t rank) {
@@ -167,13 +195,12 @@ const artic::Type* infer_struct(TypeInference& ctx, const Loc& loc, const artic:
     // Infer all fields
     for (size_t i = 0, n = has_etc ? fields.size() - 1 : fields.size(); i < n; i++) {
         auto& field = fields[i];
-        auto it = std::find_if(members.begin(), members.end(), [&] (auto& member) {
-            return member.first == field->id.name;
-        });
+        auto it = members.find(field->id.name);
         ctx.infer(*field, it != members.end() ? it->second : ctx.type_table().error_type(loc));
     }
 
     // Make sure all fields are set
+    // TODO: Put this in the final checking phase
     if (!has_etc) {
         auto not_set = std::find_if(members.begin(), members.end(), [&] (auto& member) {
             return std::find_if(fields.begin(), fields.end(), [&] (auto& field) {
@@ -449,16 +476,18 @@ const artic::Type* TraitDecl::infer(TypeInference& ctx) const {
     return ctx.type(*this);
 }
 
+const artic::Type* ImplDecl::infer_head(TypeInference& ctx) const {
+    if (auto trait_type = ctx.infer(*trait)->isa<TraitType>())
+        trait_type->impls.push_back(this);
+    return ctx.infer(*type, type_params ? ctx.infer(*type_params) : nullptr);
+}
+
 const artic::Type* ImplDecl::infer(TypeInference& ctx) const {
-    if (type_params)
-        ctx.infer(*type_params);
-    ctx.infer(trait_path);
-    ctx.infer(impl_path);
     for (auto& decl : decls)
         ctx.infer_head(*decl);
     for (auto& decl : decls)
         ctx.infer(*decl);
-    return ctx.type_table().tuple_type({});
+    return ctx.type(*this);
 }
 
 const artic::Type* ErrorDecl::infer(TypeInference& ctx) const {
@@ -474,6 +503,11 @@ const artic::Type* Program::infer(TypeInference& ctx) const {
     // Then structure and function declarations
     for (auto& decl : decls) {
         if (decl->isa<StructDecl>() || decl->isa<FnDecl>())
+            ctx.infer_head(*decl);
+    }
+    // Then implementations
+    for (auto& decl : decls) {
+        if (decl->isa<ImplDecl>())
             ctx.infer_head(*decl);
     }
     // Infer the contents of structures and traits

@@ -350,18 +350,18 @@ void TraitDecl::print(Printer& p) const {
 void ImplDecl::print_head(Printer& p) const {
     p << keyword_style("impl") << ' ';
     if (type_params) type_params->print(p);
-    trait_path.print(p);
+    trait->print(p);
     p << ' ' << keyword_style("for") << ' ';
-    impl_path.print(p);
+    type->print(p);
     p << " { ... }";
 }
 
 void ImplDecl::print(Printer& p) const {
     p << keyword_style("impl") << ' ';
     if (type_params) type_params->print(p);
-    trait_path.print(p);
+    trait->print(p);
     p << ' ' << keyword_style("for") << ' ';
-    impl_path.print(p);
+    type->print(p);
     p << " {";
     if (!decls.empty()) {
         p << p.indent();

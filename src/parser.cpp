@@ -31,6 +31,7 @@ Ptr<ast::Decl> Parser::parse_decl() {
         case Token::Fn:     return parse_fn_decl();
         case Token::Struct: return parse_struct_decl();
         case Token::Trait:  return parse_trait_decl();
+        case Token::Impl:   return parse_impl_decl();
         default:            return parse_error_decl();
     }
 }
@@ -123,11 +124,11 @@ Ptr<ast::ImplDecl> Parser::parse_impl_decl() {
     if (ahead().tag() == Token::CmpLT)
         type_params = std::move(parse_type_params());
 
-    auto trait_path = parse_path();
+    auto trait = parse_type();
     expect(Token::For);
-    auto impl_path = parse_path();
+    auto type = parse_type();
     auto decls = parse_trait_body();
-    return make_ptr<ast::ImplDecl>(tracker(), std::move(trait_path), std::move(impl_path), std::move(decls), std::move(type_params));
+    return make_ptr<ast::ImplDecl>(tracker(), std::move(trait), std::move(type), std::move(decls), std::move(type_params));
 }
 
 Ptr<ast::TypeParam> Parser::parse_type_param(size_t index) {

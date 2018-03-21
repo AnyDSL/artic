@@ -185,8 +185,8 @@ void TraitDecl::check(TypeChecker& ctx) const {
 
 void ImplDecl::check(TypeChecker& ctx) const {
     if (type_params) ctx.check(*type_params);
-    ctx.check(trait_path);
-    ctx.check(impl_path);
+    ctx.check(*trait);
+    ctx.check(*type);
     for (auto& decl : decls)
         ctx.check(*decl);
 }

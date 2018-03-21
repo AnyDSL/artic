@@ -52,7 +52,22 @@ PrimType::Tag PrimType::tag_from_token(const Token& token) {
 }
 
 Ptr<Expr> UnaryExpr::op_expr(const Loc& loc, Tag tag) {
-    return make_ptr<PathExpr>(loc, Path(loc, Identifier(loc, tag_to_string(tag)), PtrVector<Type>{}));
+    return make_ptr<PathExpr>(loc, tag_to_fn(loc, tag));
+}
+
+Path UnaryExpr::tag_to_fn(const Loc& loc, Tag tag) {
+    switch (tag) {
+        case Not:     return Path(loc, { Identifier(loc, "Not"), Identifier(loc, "not") }, {});
+        case Plus:    return Path(loc, { Identifier(loc, "Pos"), Identifier(loc, "pos") }, {});
+        case Minus:   return Path(loc, { Identifier(loc, "Neg"), Identifier(loc, "neg") }, {});
+        case PostInc: return Path(loc, { Identifier(loc, "PostInc"), Identifier(loc, "inc") }, {});
+        case PreInc:  return Path(loc, { Identifier(loc, "PreInc"),  Identifier(loc, "inc") }, {});
+        case PostDec: return Path(loc, { Identifier(loc, "PostDec"), Identifier(loc, "dec") }, {});
+        case PreDec:  return Path(loc, { Identifier(loc, "PreDec"),  Identifier(loc, "dec") }, {});
+        default:
+            assert(false);
+            return Path(loc, Identifier(loc, ""), {});
+    }
 }
 
 std::string UnaryExpr::tag_to_string(Tag tag) {
@@ -159,7 +174,7 @@ int BinaryExpr::precedence(Tag tag) {
 int BinaryExpr::max_precedence() { return 10; }
 
 Ptr<Expr> BinaryExpr::op_expr(const Loc& loc, Tag tag) {
-    return make_ptr<PathExpr>(loc, Path(loc, Identifier(loc, tag_to_string(tag)), PtrVector<Type>{}));
+    return make_ptr<PathExpr>(loc, tag_to_fn(loc, tag));
 }
 
 Ptr<Expr> BinaryExpr::arg_expr(const Loc& loc, Ptr<Expr>&& left, Ptr<Expr>&& right) {
@@ -167,6 +182,43 @@ Ptr<Expr> BinaryExpr::arg_expr(const Loc& loc, Ptr<Expr>&& left, Ptr<Expr>&& rig
     args.emplace_back(std::move(left));
     args.emplace_back(std::move(right));
     return make_ptr<TupleExpr>(loc, std::move(args));
+}
+
+Path BinaryExpr::tag_to_fn(const Loc& loc, Tag tag) {
+    switch (tag) {
+        case Eq:      return Path(loc, { Identifier(loc, "Assign"),    Identifier(loc, "assign") }, {});
+        case AddEq:   return Path(loc, { Identifier(loc, "AssignAdd"), Identifier(loc, "assign_add") }, {});
+        case SubEq:   return Path(loc, { Identifier(loc, "AssignSub"), Identifier(loc, "assign_sub") }, {});
+        case MulEq:   return Path(loc, { Identifier(loc, "AssignMul"), Identifier(loc, "assign_mul") }, {});
+        case DivEq:   return Path(loc, { Identifier(loc, "AssignDiv"), Identifier(loc, "assign_div") }, {});
+        case ModEq:   return Path(loc, { Identifier(loc, "AssignMod"), Identifier(loc, "assign_mod") }, {});
+        case AndEq:   return Path(loc, { Identifier(loc, "AssignAnd"), Identifier(loc, "assign_and") }, {});
+        case OrEq:    return Path(loc, { Identifier(loc, "AssignOr"),  Identifier(loc, "assign_or") }, {});
+        case XorEq:   return Path(loc, { Identifier(loc, "AssignXor"), Identifier(loc, "assign_xor") }, {});
+        case LShftEq: return Path(loc, { Identifier(loc, "AssignLShft"), Identifier(loc, "assign_lshft") }, {});
+        case RShftEq: return Path(loc, { Identifier(loc, "AssignRShft"), Identifier(loc, "assign_rshft") }, {});
+        case Add:     return Path(loc, { Identifier(loc, "Add"), Identifier(loc, "add") }, {});
+        case Sub:     return Path(loc, { Identifier(loc, "Sub"), Identifier(loc, "sub") }, {});
+        case Mul:     return Path(loc, { Identifier(loc, "Mul"), Identifier(loc, "mul") }, {});
+        case Div:     return Path(loc, { Identifier(loc, "Div"), Identifier(loc, "div") }, {});
+        case Mod:     return Path(loc, { Identifier(loc, "Mod"), Identifier(loc, "mod") }, {});
+        case And:     return Path(loc, { Identifier(loc, "And"), Identifier(loc, "and") }, {});
+        case Or:      return Path(loc, { Identifier(loc, "Or"),  Identifier(loc, "or")  }, {});
+        case Xor:     return Path(loc, { Identifier(loc, "Xor"), Identifier(loc, "xor") }, {});
+        case LShft:   return Path(loc, { Identifier(loc, "LShft"), Identifier(loc, "lshft") }, {});
+        case RShft:   return Path(loc, { Identifier(loc, "RShft"), Identifier(loc, "rshft") }, {});
+        case AndAnd:  return Path(loc, { Identifier(loc, "LogicAnd"), Identifier(loc, "logic_and") }, {});
+        case OrOr:    return Path(loc, { Identifier(loc, "LogicOr"),  Identifier(loc, "logic_or")  }, {});
+        case CmpLT:   return Path(loc, { Identifier(loc, "CmpLT"), Identifier(loc, "cmp_lt") }, {});
+        case CmpGT:   return Path(loc, { Identifier(loc, "CmpGT"), Identifier(loc, "cmp_gt") }, {});
+        case CmpLE:   return Path(loc, { Identifier(loc, "CmpLE"), Identifier(loc, "cmp_le") }, {});
+        case CmpGE:   return Path(loc, { Identifier(loc, "CmpGE"), Identifier(loc, "cmp_ge") }, {});
+        case CmpEq:   return Path(loc, { Identifier(loc, "CmpEq"), Identifier(loc, "cmp_eq") }, {});
+        case CmpNE:   return Path(loc, { Identifier(loc, "CmpNE"), Identifier(loc, "cmp_ne") }, {});
+        default:
+            assert(false);
+            return Path(loc, Identifier(loc, ""), {});
+    }
 }
 
 std::string BinaryExpr::tag_to_string(Tag tag) {

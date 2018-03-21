@@ -453,6 +453,7 @@ struct UnaryExpr : public CallExpr {
     void print(Printer&) const override;
 
     static Ptr<Expr> op_expr(const Loc& loc, Tag);
+    static Path tag_to_fn(const Loc&, Tag);
     static std::string tag_to_string(Tag);
     static Tag tag_from_token(const Token&, bool);
 };
@@ -495,6 +496,7 @@ struct BinaryExpr : public CallExpr {
 
     static Ptr<Expr> op_expr(const Loc&, Tag);
     static Ptr<Expr> arg_expr(const Loc&, Ptr<Expr>&&, Ptr<Expr>&&);
+    static Path tag_to_fn(const Loc&, Tag);
     static std::string tag_to_string(Tag);
     static Tag tag_from_token(const Token&);
 };
@@ -673,23 +675,24 @@ struct TraitDecl : public NamedDecl {
 
 /// Implementation for a trait.
 struct ImplDecl : public Decl {
-    Path trait_path;
-    Path impl_path;
+    Ptr<Type> trait;
+    Ptr<Type> type;
     PtrVector<NamedDecl> decls;
     Ptr<TypeParamList> type_params;
 
     ImplDecl(const Loc& loc,
-             Path&& trait_path,
-             Path&& impl_path,
+             Ptr<Type>&& trait,
+             Ptr<Type>&& type,
              PtrVector<NamedDecl>&& decls,
              Ptr<TypeParamList>&& type_params)
         : Decl(loc)
-        , trait_path(std::move(trait_path))
-        , impl_path(std::move(impl_path))
+        , trait(std::move(trait))
+        , type(std::move(type))
         , decls(std::move(decls))
         , type_params(std::move(type_params))
     {}
 
+    const artic::Type* infer_head(TypeInference&) const override;
     const artic::Type* infer(TypeInference&) const override;
     void bind(NameBinder&) const override;
     void check(TypeChecker&) const override;
