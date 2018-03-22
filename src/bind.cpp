@@ -28,10 +28,10 @@ void NameBinder::insert_symbol(const ast::NamedDecl& decl) {
     auto shadow_symbol = find_symbol(name);
     if (!scopes_.back().insert(name, Symbol(&decl))) {
         error(decl.loc, "identifier '{}' already declared", name);
-        for (auto other : find_symbol(name)->decls) {
+        for (auto other : shadow_symbol->decls) {
             if (other != &decl) note(other->loc, "previously declared here");
         }
-    } else if (shadow_symbol)  {
+    } else if (shadow_symbol && decl.isa<ast::PtrnDecl>()) {
         warn(decl.loc, "declaration shadows identifier '{}'", name);
         note(shadow_symbol->decls[0]->loc, "previously declared here");
     }

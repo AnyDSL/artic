@@ -418,7 +418,7 @@ const artic::Type* FnDecl::infer(TypeInference& ctx) const {
             ctx.infer(*ret_type, to);
         }
     } else {
-        // The return type is mandatory here
+        // The return type is () if no type is present in this case
         init_type = ctx.type_table().fn_type(
             ctx.infer(*fn->param),
             ret_type ? ctx.infer(*ret_type) : ctx.type_table().tuple_type({}));
