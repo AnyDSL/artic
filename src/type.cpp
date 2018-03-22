@@ -12,18 +12,27 @@ bool Type::is_tuple() const {
 }
 
 const Type* Type::inner() const {
-    if (auto poly = isa<PolyType>()) return poly->body;
-    return this;
+    return isa<PolyType>() ? as<PolyType>()->body : this;
 }
 
 size_t Type::num_vars() const {
-    if (auto poly = isa<PolyType>()) return poly->num_vars;
-    return 0;
+    return isa<PolyType>() ? as<PolyType>()->num_vars : 0;
 }
 
 void Type::update_rank(uint32_t rank) const {
     for (auto u : all<UnknownType>())
         u->rank = std::min(u->rank, rank);
+}
+
+const Type* Type::shift(TypeTable& table, int32_t k) const {
+    std::unordered_map<const Type*, const Type*> map;
+    for (auto v : all<TypeVar>())
+        map.emplace(v, table.type_var(v->index + k, TypeVar::Traits { v->traits }));
+    return substitute(table, map);
+}
+
+bool Type::is_nominal() const {
+    return isa<TypeApp>() && as<TypeApp>()->is_nominal();
 }
 
 bool TypeApp::is_nominal() const {

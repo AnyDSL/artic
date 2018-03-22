@@ -470,7 +470,7 @@ void FnType::print(Printer& p) const {
 }
 
 void PolyType::print(Printer& p) const {
-    p << '<';
+    p << keyword_style("for") << '<';
     auto vars = body->all<TypeVar>();
     std::sort(vars.begin(), vars.end(), [] (auto& var1, auto& var2) {
         return var1->index < var2->index;

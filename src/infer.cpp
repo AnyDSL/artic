@@ -472,7 +472,7 @@ const artic::Type* ImplDecl::infer(TypeInference& ctx) const {
 
     auto impl_type = ctx.infer(*type)->inner();
     for (auto& decl : decls) {
-        const Type* member_type = nullptr;
+        const artic::Type* member_type = nullptr;
 
         // Instanciate the trait with the given type to get the
         // expected signature of implemented functions
@@ -505,8 +505,13 @@ const artic::Type* Program::infer(TypeInference& ctx) const {
     }
     // Then implementations
     for (auto& decl : decls) {
-        if (decl->isa<ImplDecl>())
+        if (decl->isa<ImplDecl>() || decl->isa<LetDecl>())
             ctx.infer_head(*decl);
+    }
+    // Then global variables
+    for (auto& decl : decls) {
+        if (decl->isa<LetDecl>())
+            ctx.infer(*decl);
     }
     // Infer the contents of structures and traits
     for (auto& decl : decls) {

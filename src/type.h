@@ -41,8 +41,10 @@ struct Type : public Cast<Type> {
 
     /// Updates the rank of the unknowns contained in the type.
     void update_rank(uint32_t) const;
+    /// Shift the type variables contained in this type by the given amount.
+    const Type* shift(TypeTable&, int32_t) const;
     /// Returns true iff the type is nominally typed.
-    virtual bool is_nominal() const { return false; }
+    bool is_nominal() const;
 
     /// Applies a substitution to the inner part of this type.
     virtual const Type* substitute(TypeTable&, const std::unordered_map<const Type*, const Type*>& map) const;
@@ -123,11 +125,11 @@ struct TypeApp : public Type {
         : name(std::move(name)), args(std::move(args))
     {}
 
+    bool is_nominal() const;
+
     const Type* substitute(TypeTable& table, const std::unordered_map<const Type*, const Type*>& map) const override;
     bool has(std::function<bool (const Type*)>) const override;
     void all(std::unordered_set<const Type*>&, std::function<bool (const Type*)>) const override;
-
-    bool is_nominal() const;
 
     /// Rebuilds this type with different arguments.
     virtual const TypeApp* rebuild(TypeTable& table, Args&& new_args) const = 0;
