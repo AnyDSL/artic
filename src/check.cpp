@@ -12,6 +12,8 @@ bool TypeChecker::run(const ast::Program& program) {
 
 void TypeChecker::check(const ast::Node& node) {
     assert(node.type);
+    // Propagate any remaining unknown before checking
+    node.type = type_inference().unify(node.loc, node.type, node.type);
     node.check(*this);
 
     // Do not emit an error message for compound expressions,

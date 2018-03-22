@@ -109,7 +109,7 @@ int main(int argc, char** argv) {
 
     NameBinder name_binder(logger);
     TypeInference type_inference(type_table);
-    TypeChecker type_checker(type_table, logger);
+    TypeChecker type_checker(type_inference, logger);
 
     if (!name_binder.run(program))
         return 1;

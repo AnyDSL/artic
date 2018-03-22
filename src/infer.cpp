@@ -7,11 +7,7 @@
 namespace artic {
 
 void TypeInference::run(const ast::Program& program) {
-    // Run iterations until fixpoint
-    do {
-        todo_ = false;
-        program.infer(*this);
-    } while (todo_);
+    program.infer(*this);
 }
 
 const Type* TypeInference::unify(const Loc& loc, const Type* a, const Type* b) {
@@ -72,13 +68,12 @@ const Type* TypeInference::join(const Loc& loc, const UnknownType* unknown_a, co
         } else {
             // Check that there exists an implementation of the trait for our type
             for (auto trait : unknown_a->traits) {
-                if (!has_matching_impl(loc, trait, b))
+                if (!match_impl(loc, trait, b))
                     return type_table().infer_error(loc, unknown_a, b);
             }
         }
     }
 
-    todo_ = true;
     return b;
 }
 
@@ -88,7 +83,6 @@ const Type* TypeInference::find(const Type* type) {
     auto it = eqs_.find(type);
     if (it != eqs_.end()) {
         auto next = find(it->second.type);
-        todo_ |= next != it->second.type;
         // Path compression
         it->second = Equation(it->second.loc, next);
         return next;
@@ -149,7 +143,7 @@ const Type* TypeInference::instanciate(const Type* type, const TraitType* trait)
     return type->substitute(type_table(), map);
 }
 
-bool TypeInference::has_matching_impl(const Loc& loc, const TraitType* trait, const Type* type) {
+bool TypeInference::match_impl(const Loc& loc, const TraitType* trait, const Type* type) {
     for (auto impl : trait->impls) {
         auto matcher = subsume(loc, impl->Node::type, {});
         auto renamed = rename(type);
