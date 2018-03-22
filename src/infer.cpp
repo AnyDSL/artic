@@ -476,7 +476,7 @@ const artic::Type* ImplDecl::infer(TypeInference& ctx) const {
     for (auto& decl : decls) {
         const artic::Type* member_type = nullptr;
 
-        // Instanciate the trait with the given type to get the
+        // Instantiate the trait with the given type to get the
         // expected signature of implemented functions
         if (auto trait_type = ctx.infer(*trait)->isa<TraitType>()) {
             auto& members = trait_type->members();
