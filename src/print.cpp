@@ -348,8 +348,9 @@ void TraitDecl::print(Printer& p) const {
 }
 
 void ImplDecl::print_head(Printer& p) const {
-    p << keyword_style("impl") << ' ';
+    p << keyword_style("impl");
     if (type_params) type_params->print(p);
+    p << ' ';
     trait->print(p);
     p << ' ' << keyword_style("for") << ' ';
     type->print(p);
@@ -357,8 +358,9 @@ void ImplDecl::print_head(Printer& p) const {
 }
 
 void ImplDecl::print(Printer& p) const {
-    p << keyword_style("impl") << ' ';
+    p << keyword_style("impl");
     if (type_params) type_params->print(p);
+    p << ' ';
     trait->print(p);
     p << ' ' << keyword_style("for") << ' ';
     type->print(p);
