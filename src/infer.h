@@ -25,7 +25,8 @@ public:
     const Type* rename(const Type*);
     const Type* generalize(const Loc& loc, const Type*, uint32_t);
     const Type* subsume(const Loc& loc, const Type*, const std::vector<const Type*>&);
-    const Type* instanciate(const Type*, const TraitType*);
+
+    const Type* replace_self(const Type*, const Type*);
     bool match_impl(const Loc&, const TraitType*, const Type*);
 
     const Type* type(const ast::Node&, uint32_t rank = UnknownType::max_rank());

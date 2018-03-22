@@ -135,11 +135,9 @@ const Type* TypeInference::subsume(const Loc& loc, const Type* type, const std::
     return type;
 }
 
-const Type* TypeInference::instanciate(const Type* type, const TraitType* trait) {
-    // Replace Self with a type unknown bound to the trait
+const Type* TypeInference::replace_self(const Type* type, const Type* self) {
     std::unordered_map<const Type*, const Type*> map;
-    auto u = type_table().unknown_type(UnknownType::max_rank(), UnknownType::Traits { trait });
-    map.emplace(type_table().self_type(), u);
+    map.emplace(type_table().self_type(), self);
     return type->substitute(type_table(), map);
 }
 
@@ -212,7 +210,12 @@ const artic::Type* Path::infer(TypeInference& ctx) const {
             auto& members = trait->members();
             auto it = members.find(elems[i].id.name);
             if (it != members.end()) {
-                decl_type = ctx.instanciate(it->second, trait);
+                // Replace Self with an unknown bound to the trait
+                auto self = ctx.type_table().unknown_type(
+                    UnknownType::max_rank(),
+                    UnknownType::Traits { trait }
+                );
+                decl_type = ctx.replace_self(it->second, self);
                 break;
             }
         }
@@ -417,7 +420,7 @@ const artic::Type* FnDecl::infer(TypeInference& ctx) const {
             ctx.infer(*fn->param),
             ret_type ? ctx.infer(*ret_type) : ctx.type_table().tuple_type({}));
     }
-    if (!type_params) {
+    if (!type_params && can_generalize) {
         // Generate a polymorphic type
         return ctx.generalize(loc, init_type, rank);
     }
@@ -466,8 +469,22 @@ const artic::Type* ImplDecl::infer_head(TypeInference& ctx) const {
 const artic::Type* ImplDecl::infer(TypeInference& ctx) const {
     for (auto& decl : decls)
         ctx.infer_head(*decl);
-    for (auto& decl : decls)
-        ctx.infer(*decl);
+
+    auto impl_type = ctx.infer(*type)->inner();
+    for (auto& decl : decls) {
+        const Type* member_type = nullptr;
+
+        // Instanciate the trait with the given type to get the
+        // expected signature of implemented functions
+        if (auto trait_type = ctx.infer(*trait)->isa<TraitType>()) {
+            auto& members = trait_type->members();
+            auto it = members.find(decl->id.name);
+            if (it != members.end())
+                member_type = ctx.replace_self(it->second, impl_type);
+        }
+
+        ctx.infer(*decl, member_type);
+    }
     return ctx.type(*this);
 }
 

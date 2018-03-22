@@ -28,7 +28,7 @@ Ptr<ast::Program> Parser::parse_program() {
 Ptr<ast::Decl> Parser::parse_decl() {
     switch (ahead().tag()) {
         case Token::Let:    return parse_let_decl();
-        case Token::Fn:     return parse_fn_decl();
+        case Token::Fn:     return parse_fn_decl(true);
         case Token::Struct: return parse_struct_decl();
         case Token::Trait:  return parse_trait_decl();
         case Token::Impl:   return parse_impl_decl();
@@ -51,7 +51,7 @@ Ptr<ast::LetDecl> Parser::parse_let_decl() {
     return make_ptr<LetDecl>(tracker(), std::move(ptrn), std::move(init));
 }
 
-Ptr<ast::FnDecl> Parser::parse_fn_decl() {
+Ptr<ast::FnDecl> Parser::parse_fn_decl(bool can_generalize) {
     Tracker tracker(this);
     eat(Token::Fn);
 
@@ -79,7 +79,7 @@ Ptr<ast::FnDecl> Parser::parse_fn_decl() {
         body = std::move(parse_block_expr());
 
     auto fn = make_ptr<ast::FnExpr>(tracker(), std::move(param), std::move(body));
-    return make_ptr<ast::FnDecl>(tracker(), std::move(id), std::move(fn), std::move(ret_type), std::move(type_params));
+    return make_ptr<ast::FnDecl>(tracker(), std::move(id), std::move(fn), std::move(ret_type), std::move(type_params), can_generalize);
 }
 
 Ptr<ast::FieldDecl> Parser::parse_field_decl() {
@@ -635,7 +635,7 @@ PtrVector<ast::NamedDecl> Parser::parse_trait_body() {
     expect(Token::LBrace);
     parse_list(Token::RBrace, Token::Semi, [&] {
         if (ahead().tag() == Token::Fn)
-            decls.emplace_back(parse_fn_decl());
+            decls.emplace_back(parse_fn_decl(false));
         else {
             error(ahead().loc(), "function declaration expected");
             next();
