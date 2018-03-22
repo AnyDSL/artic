@@ -166,7 +166,7 @@ struct TraitType : public Type {
 
     std::string name;
     const ast::TraitDecl* decl;
-    mutable std::vector<const ast::ImplDecl*> impls;
+    mutable std::unordered_set<const ast::ImplDecl*> impls;
 
     TraitType(std::string&& name, const ast::TraitDecl* decl)
         : name(std::move(name)), decl(decl)

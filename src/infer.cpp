@@ -462,15 +462,17 @@ const artic::Type* TraitDecl::infer(TypeInference& ctx) const {
 
 const artic::Type* ImplDecl::infer_head(TypeInference& ctx) const {
     if (auto trait_type = ctx.infer(*trait)->isa<TraitType>())
-        trait_type->impls.push_back(this);
-    return ctx.infer(*type, type_params ? ctx.infer(*type_params) : nullptr);
+        trait_type->impls.emplace(this);
+    auto poly_type = type_params ? ctx.infer(*type_params) : nullptr;
+    auto impl_type = ctx.infer(*type);
+    return poly_type ? ctx.unify(loc, impl_type, poly_type) : impl_type;
 }
 
 const artic::Type* ImplDecl::infer(TypeInference& ctx) const {
     for (auto& decl : decls)
         ctx.infer_head(*decl);
 
-    auto impl_type = ctx.infer(*type)->inner();
+    auto impl_type = ctx.infer(*type);
     for (auto& decl : decls) {
         const artic::Type* member_type = nullptr;
 
