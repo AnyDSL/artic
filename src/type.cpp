@@ -24,13 +24,6 @@ void Type::update_rank(uint32_t rank) const {
         u->rank = std::min(u->rank, rank);
 }
 
-const Type* Type::shift(TypeTable& table, int32_t k) const {
-    std::unordered_map<const Type*, const Type*> map;
-    for (auto v : all<TypeVar>())
-        map.emplace(v, table.type_var(v->index + k, TypeVar::Traits { v->traits }));
-    return substitute(table, map);
-}
-
 bool Type::is_nominal() const {
     return isa<TypeApp>() && as<TypeApp>()->is_nominal();
 }
@@ -236,27 +229,22 @@ bool PolyType::has(std::function<bool (const Type*)> pred) const {
 
 // Substitute ----------------------------------------------------------------------
 
-inline const Type* apply_map(const std::unordered_map<const Type*, const Type*>& map, const Type* type) {
-    auto it = map.find(type);
+const Type* Type::substitute(TypeTable&, std::unordered_map<const Type*, const Type*>& map) const {
+    auto it = map.find(this);
     if (it != map.end()) return it->second;
-    return type;
+    return this;
 }
 
-const Type* Type::substitute(TypeTable&, const std::unordered_map<const Type*, const Type*>& map) const {
-    return apply_map(map, this);
-}
-
-const Type* TypeApp::substitute(TypeTable& table, const std::unordered_map<const Type*, const Type*>& map) const {
+const Type* TypeApp::substitute(TypeTable& table, std::unordered_map<const Type*, const Type*>& map) const {
     Args new_args(args.size());
     std::transform(args.begin(), args.end(), new_args.begin(), [&] (auto arg) {
         return arg->substitute(table, map);
     });
-    return rebuild(table, std::move(new_args));
+    return map[this] = rebuild(table, std::move(new_args));
 }
 
-const Type* PolyType::substitute(TypeTable& table, const std::unordered_map<const Type*, const Type*>& map) const {
-    // TODO: Take into account substitution depth (i.e. Nested polymorphic types)
-    return table.poly_type(num_vars, body->substitute(table, map));
+const Type* PolyType::substitute(TypeTable& table, std::unordered_map<const Type*, const Type*>& map) const {
+    return map[this] = table.poly_type(num_vars, body->substitute(table, map));
 }
 
 // Type table ----------------------------------------------------------------------

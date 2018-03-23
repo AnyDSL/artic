@@ -41,13 +41,11 @@ struct Type : public Cast<Type> {
 
     /// Updates the rank of the unknowns contained in the type.
     void update_rank(uint32_t) const;
-    /// Shift the type variables contained in this type by the given amount.
-    const Type* shift(TypeTable&, int32_t) const;
     /// Returns true iff the type is nominally typed.
     bool is_nominal() const;
 
-    /// Applies a substitution to the inner part of this type.
-    virtual const Type* substitute(TypeTable&, const std::unordered_map<const Type*, const Type*>& map) const;
+    /// Applies a substitution to this type.
+    virtual const Type* substitute(TypeTable&, std::unordered_map<const Type*, const Type*>& map) const;
 
     /// Returns true if the type contains at least one type verifying the predicate.
     virtual bool has(std::function<bool (const Type*)> pred) const { return pred(this); };
@@ -127,7 +125,7 @@ struct TypeApp : public Type {
 
     bool is_nominal() const;
 
-    const Type* substitute(TypeTable& table, const std::unordered_map<const Type*, const Type*>& map) const override;
+    const Type* substitute(TypeTable& table, std::unordered_map<const Type*, const Type*>& map) const override;
     bool has(std::function<bool (const Type*)>) const override;
     void all(std::unordered_set<const Type*>&, std::function<bool (const Type*)>) const override;
 
@@ -228,7 +226,7 @@ struct PolyType : public Type {
         : num_vars(num_vars), body(body)
     {}
 
-    const Type* substitute(TypeTable&, const std::unordered_map<const Type*, const Type*>&) const override;
+    const Type* substitute(TypeTable&, std::unordered_map<const Type*, const Type*>&) const override;
     bool has(std::function<bool (const Type*)>) const override;
     void all(std::unordered_set<const Type*>&, std::function<bool (const Type*)>) const override;
 
