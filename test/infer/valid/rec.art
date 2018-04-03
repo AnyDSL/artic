@@ -1,0 +1,11 @@
+fn rec1(x) {
+    rec2(x:i32)
+}
+
+fn rec2(x) {
+    rec1(x)
+}
+
+fn rec3(f) {
+    f(rec3(f))
+}

@@ -1,0 +1,30 @@
+fn pow(x, n) {
+    if n == 0 {
+        1
+    } else {
+        if n % 2 == 0 {
+            let y = pow(x, n / 2);
+            y * y
+        } else {
+            x * pow(x, n - 1)
+        }
+    }
+}
+trait Add {
+    fn add(a: Self, b: Self) -> Self
+}
+trait Sub {
+    fn sub(a: Self, b: Self) -> Self
+}
+trait Mul {
+    fn mul(a: Self, b: Self) -> Self
+}
+trait Div {
+    fn div(a: Self, b: Self) -> Self
+}
+trait Mod {
+    fn mod(a: Self, b: Self) -> Self
+}
+trait CmpEq {
+    fn cmp_eq(a: Self, b: Self) -> bool
+}

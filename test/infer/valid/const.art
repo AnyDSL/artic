@@ -1,0 +1,6 @@
+fn const(x) {
+    fn inner(y) {
+        x
+    }
+    inner
+}
