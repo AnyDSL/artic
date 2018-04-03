@@ -30,14 +30,16 @@ class UnknownType;
 
 /// Base class for all types.
 struct Type : public Cast<Type> {
+    /// Number of polymorphic quantifiers contained in the type.
+    /// Useful to generate new variable names.
+    uint32_t depth = 0;
+
     virtual ~Type() {}
 
     /// Returns true iff this type is a tuple.
     bool is_tuple() const;
     /// Returns the body of a polymorphic type, or the type itself if it is not polymorphic.
     const Type* inner() const;
-    /// Returns the number of polymorphic variables in this type.
-    size_t num_vars() const;
 
     /// Updates the rank of the unknowns contained in the type.
     void update_rank(uint32_t) const;
@@ -116,12 +118,18 @@ struct TypeApp : public Type {
     /// Structural type constructor
     TypeApp(Args&& args)
         : args(std::move(args))
-    {}
+    {
+        for (auto arg : this->args)
+            depth = std::max(arg->depth, depth);
+    }
 
     /// Nominal type constructor
     TypeApp(std::string&& name, Args&& args)
         : name(std::move(name)), args(std::move(args))
-    {}
+    {
+        for (auto arg : this->args)
+            depth = std::max(arg->depth, depth);
+    }
 
     bool is_nominal() const;
 
@@ -224,7 +232,9 @@ struct PolyType : public Type {
 
     PolyType(size_t num_vars, const Type* body)
         : num_vars(num_vars), body(body)
-    {}
+    {
+        depth = num_vars + body->depth;
+    }
 
     const Type* substitute(TypeTable&, std::unordered_map<const Type*, const Type*>&) const override;
     bool has(std::function<bool (const Type*)>) const override;

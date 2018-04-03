@@ -15,10 +15,6 @@ const Type* Type::inner() const {
     return isa<PolyType>() ? as<PolyType>()->body : this;
 }
 
-size_t Type::num_vars() const {
-    return isa<PolyType>() ? as<PolyType>()->num_vars : 0;
-}
-
 void Type::update_rank(uint32_t rank) const {
     for (auto u : all<UnknownType>())
         u->rank = std::min(u->rank, rank);
@@ -276,6 +272,8 @@ const FnType* TypeTable::fn_type(const Type* from, const Type* to) {
 }
 
 const PolyType* TypeTable::poly_type(size_t num_vars, const Type* body) {
+    if (auto poly_type = body->isa<PolyType>())
+        return new_type<PolyType>(num_vars + poly_type->num_vars, poly_type->body);
     return new_type<PolyType>(num_vars, body);
 }
 
