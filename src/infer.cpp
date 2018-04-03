@@ -68,8 +68,15 @@ const Type* TypeInference::join(const Loc& loc, const UnknownType* unknown_a, co
         } else {
             // Check that there exists an implementation of the trait for our type
             for (auto trait : unknown_a->traits) {
-                if (!match_impl(loc, trait, b))
+                if (auto matcher = match_impl(loc, trait, b)) {
+                    // Bind the type to the pattern, so as to encode any possible constraints.
+                    // Consider the following implementation:
+                    //     impl<T : Trait> OtherTrait for SomeType<T> { ... }
+                    // This forces T to carry the trait Trait. For this reason, we must unify here.
+                    unify(loc, matcher, b);
+                } else {
                     return type_table().infer_error(loc, unknown_a, b);
+                }
             }
         }
     }
@@ -143,20 +150,15 @@ const Type* TypeInference::replace_self(const Type* type, const Type* self) {
     return type->substitute(type_table(), map);
 }
 
-bool TypeInference::match_impl(const Loc& loc, const TraitType* trait, const Type* type) {
+const Type* TypeInference::match_impl(const Loc& loc, const TraitType* trait, const Type* type) {
     for (auto impl : trait->impls) {
         auto matcher = subsume(loc, impl->Node::type, {});
         auto renamed = rename(type);
-        if (!unify(loc, matcher, renamed)->has<ErrorType>()) {
-            // Bind the type to the pattern, so as to encode any possible constraints.
-            // Consider the following implementation:
-            //     impl<T : Trait> OtherTrait for SomeType<T> { ... }
-            // This forces T to carry the trait Trait. For this reason, we must unify here.
-            unify(loc, matcher, type);
-            return true;
-        }
+        // Return the first implementation that matches
+        if (!unify(loc, matcher, renamed)->has<ErrorType>())
+            return matcher;
     }
-    return false;
+    return nullptr;
 }
 
 const Type* TypeInference::type(const ast::Node& node, uint32_t rank) {

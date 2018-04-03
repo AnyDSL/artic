@@ -46,6 +46,8 @@ size_t FnType::num_args() const {
     return 1;
 }
 
+// Members -------------------------------------------------------------------------
+
 const StructType::Members& StructType::members(TypeTable& type_table) const {
     if (members_.empty()) {
         assert(decl->type);
