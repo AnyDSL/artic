@@ -22,9 +22,9 @@ public:
     const Type* join(const Loc&, const UnknownType*, const Type*);
     const Type* find(const Type*);
 
-    const Type* rename(const Type*);
     const Type* subsume(const Loc& loc, const Type*, const std::vector<const Type*>&);
 
+    const Type* rename(const Type*);
     const Type* replace_self(const Type*, const Type*);
     const Type* match_impl(const Loc&, const TraitType*, const Type*);
 

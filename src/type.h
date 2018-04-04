@@ -175,6 +175,7 @@ struct TraitType : public Type {
     std::string name;
     const ast::TraitDecl* decl;
     mutable std::unordered_set<const ast::ImplDecl*> impls;
+    mutable std::unordered_set<const TraitType*> supers;
 
     TraitType(std::string&& name, const ast::TraitDecl* decl)
         : name(std::move(name)), decl(decl)
@@ -186,6 +187,9 @@ struct TraitType : public Type {
 
     /// Lazily build the members of the trait.
     const Members& members() const;
+
+    /// Returns true if this trait is a subtrait of the given trait.
+    bool subtrait(const TraitType*) const;
 
 private:
     mutable Members members_;

@@ -62,7 +62,10 @@ const Type* TypeInference::join(const Loc& loc, const UnknownType* unknown_a, co
         if (auto var_b = b->isa<TypeVar>()) {
             // Check that the type variable satisfies all the required traits
             for (auto trait : unknown_a->traits) {
-                if (!var_b->traits.count(trait))
+                bool satisfied = std::any_of(var_b->traits.begin(), var_b->traits.end(), [=] (auto var_trait) {
+                    return var_trait->subtrait(trait);
+                });
+                if (!satisfied)
                     return type_table().infer_error(loc, unknown_a, b);
             }
         } else {
@@ -97,13 +100,6 @@ const Type* TypeInference::find(const Type* type) {
     return type;
 }
 
-const Type* TypeInference::rename(const Type* type) {
-    std::unordered_map<const Type*, const Type*> map;
-    for (auto& u : type->all<UnknownType>())
-        map.emplace(u, type_table().unknown_type(u->rank, UnknownType::Traits(u->traits)));
-    return type->substitute(type_table(), map);
-}
-
 const Type* TypeInference::subsume(const Loc& loc, const Type* type, const std::vector<const Type*>& type_args) {
     // Get the best estimate of the type at this point
     type = unify(loc, type, type);
@@ -122,6 +118,13 @@ const Type* TypeInference::subsume(const Loc& loc, const Type* type, const std::
         return poly->substitute(type_table(), map)->as<PolyType>()->body;
     }
     return type;
+}
+
+const Type* TypeInference::rename(const Type* type) {
+    std::unordered_map<const Type*, const Type*> map;
+    for (auto& u : type->all<UnknownType>())
+        map.emplace(u, type_table().unknown_type(u->rank, UnknownType::Traits(u->traits)));
+    return type->substitute(type_table(), map);
 }
 
 const Type* TypeInference::replace_self(const Type* type, const Type* self) {
@@ -417,11 +420,17 @@ const artic::Type* TraitDecl::infer_head(TypeInference& ctx) const {
 }
 
 const artic::Type* TraitDecl::infer(TypeInference& ctx) const {
+    auto trait_type = ctx.type(*this)->as<artic::TraitType>();
+    for (auto& super : supers) {
+        auto super_type = ctx.infer(*super);
+        if (auto super_trait = super_type->isa<artic::TraitType>())
+            trait_type->supers.emplace(super_trait);
+    }
     for (auto& decl : decls)
         ctx.infer_head(*decl);
     for (auto& decl : decls)
         ctx.infer(*decl);
-    return ctx.type(*this);
+    return trait_type;
 }
 
 const artic::Type* ImplDecl::infer_head(TypeInference& ctx) const {
@@ -469,6 +478,11 @@ const artic::Type* Program::infer(TypeInference& ctx) const {
         if (decl->isa<StructDecl>() || decl->isa<FnDecl>())
             ctx.infer_head(*decl);
     }
+    // Infer the contents of structures and traits
+    for (auto& decl : decls) {
+        if (decl->isa<StructDecl>() || decl->isa<TraitDecl>())
+            ctx.infer(*decl);
+    }
     // Then implementations
     for (auto& decl : decls) {
         if (decl->isa<ImplDecl>() || decl->isa<LetDecl>())
@@ -477,11 +491,6 @@ const artic::Type* Program::infer(TypeInference& ctx) const {
     // Then global variables
     for (auto& decl : decls) {
         if (decl->isa<LetDecl>())
-            ctx.infer(*decl);
-    }
-    // Infer the contents of structures and traits
-    for (auto& decl : decls) {
-        if (decl->isa<StructDecl>() || decl->isa<TraitDecl>())
             ctx.infer(*decl);
     }
     // Finally, infer the whole program

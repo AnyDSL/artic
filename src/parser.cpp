@@ -112,8 +112,17 @@ Ptr<ast::TraitDecl> Parser::parse_trait_decl() {
     Tracker tracker(this);
     eat(Token::Trait);
     auto id = parse_id();
+    PtrVector<ast::Type> supers;
+    if (ahead().tag() == Token::Colon) {
+        eat(Token::Colon);
+        while (true) {
+            supers.emplace_back(parse_type());
+            if (ahead().tag() != Token::Add) break;
+            eat(Token::Add);
+        }
+    }
     auto decls = parse_trait_body();
-    return make_ptr<ast::TraitDecl>(tracker(), std::move(id), std::move(decls));
+    return make_ptr<ast::TraitDecl>(tracker(), std::move(id), std::move(decls), std::move(supers));
 }
 
 Ptr<ast::ImplDecl> Parser::parse_impl_decl() {

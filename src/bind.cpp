@@ -208,6 +208,7 @@ void TraitDecl::bind_head(NameBinder& ctx) const {
 }
 
 void TraitDecl::bind(NameBinder& ctx) const {
+    for (auto& super : supers) ctx.bind(*super);
     ctx.push_scope();
     for (auto& decl : decls) ctx.bind(*decl);
     ctx.pop_scope();

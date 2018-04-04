@@ -41,6 +41,14 @@ size_t FnType::num_args() const {
     return 1;
 }
 
+bool TraitType::subtrait(const TraitType* super) const {
+    if (super == this || supers.count(super))
+        return true;
+    return std::any_of(supers.begin(), supers.end(), [=] (auto trait) {
+        return trait->subtrait(super);
+    });
+}
+
 // Members -------------------------------------------------------------------------
 
 const StructType::Members& StructType::members(TypeTable& type_table) const {

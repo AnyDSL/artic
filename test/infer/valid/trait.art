@@ -1,4 +1,4 @@
-fn pow<T: Mul, U: CmpEq + Mod + Div + Sub>(x: T, n: U) -> T {
+fn pow<T: Mul, U: Num>(x: T, n: U) -> T {
     if n == 0 {
         1
     } else {
@@ -28,3 +28,4 @@ trait Mod {
 trait CmpEq {
     fn cmp_eq(a: Self, b: Self) -> bool
 }
+trait Num : Add + Sub + Mul + Div + Mod + CmpEq {}

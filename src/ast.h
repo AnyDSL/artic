@@ -656,12 +656,15 @@ struct StructDecl : public NamedDecl {
 /// Trait declaration.
 struct TraitDecl : public NamedDecl {
     PtrVector<NamedDecl> decls;
+    PtrVector<Type> supers;
 
     TraitDecl(const Loc& loc,
               Identifier&& id,
-              PtrVector<NamedDecl>&& decls)
+              PtrVector<NamedDecl>&& decls,
+              PtrVector<Type>&& supers)
         : NamedDecl(loc, std::move(id))
         , decls(std::move(decls))
+        , supers(std::move(supers))
     {}
 
     const artic::Type* infer_head(TypeInference&) const override;

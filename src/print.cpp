@@ -335,7 +335,14 @@ void TraitDecl::print_head(Printer& p) const {
 }
 
 void TraitDecl::print(Printer& p) const {
-    p << keyword_style("trait") << ' ' << id.name << " {";
+    p << keyword_style("trait") << ' ' << id.name;
+    if (!supers.empty()) {
+        p << " : ";
+        print_list(p, " + ", supers, [&] (auto& super) {
+                super->print(p);
+        });
+    }
+    p << " {";
     if (!decls.empty()) {
         p << p.indent();
         print_list(p, ";", decls, [&] (auto& decl) {
