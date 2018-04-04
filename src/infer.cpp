@@ -109,10 +109,10 @@ const Type* TypeInference::subsume(const Loc& loc, const Type* type, std::vector
 
         // Replaces the type variables in the given type by unknowns
         for (auto var : type->all<TypeVar>()) {
-            if (var->index >= type_args.size() || !type_args[var->index]) {
-                type_args.resize(std::max<size_t>(type_args.size(), var->index + 1));
+            if (var->index >= type_args.size())
+                type_args.resize(var->index + 1);
+            if (!type_args[var->index])
                 type_args[var->index] = type_table().unknown_type(UnknownType::max_rank(), UnknownType::Traits(var->traits));
-            }
             map.emplace(var, type_args[var->index]);
         }
 
