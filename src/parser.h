@@ -21,7 +21,7 @@ public:
 private:
     Ptr<ast::Decl>          parse_decl();
     Ptr<ast::LetDecl>       parse_let_decl();
-    Ptr<ast::FnDecl>        parse_fn_decl(bool);
+    Ptr<ast::FnDecl>        parse_fn_decl();
     Ptr<ast::FieldDecl>     parse_field_decl();
     Ptr<ast::StructDecl>    parse_struct_decl();
     Ptr<ast::TraitDecl>     parse_trait_decl();

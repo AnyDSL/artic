@@ -1,1 +1,2 @@
-fn id(x) { x }
+fn id<T>(x: T) -> T { x }
+fn id_i32(x: i32) -> i32 { id(x) }

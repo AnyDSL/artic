@@ -23,7 +23,6 @@ public:
     const Type* find(const Type*);
 
     const Type* rename(const Type*);
-    const Type* generalize(const Loc& loc, const Type*, uint32_t);
     const Type* subsume(const Loc& loc, const Type*, const std::vector<const Type*>&);
 
     const Type* replace_self(const Type*, const Type*);

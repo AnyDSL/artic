@@ -593,19 +593,15 @@ struct FnDecl : public NamedDecl {
     Ptr<Type> ret_type;
     Ptr<TypeParamList> type_params;
 
-    bool can_generalize;
-
     FnDecl(const Loc& loc,
            Identifier&& id,
            Ptr<FnExpr>&& fn,
            Ptr<Type>&& ret_type,
-           Ptr<TypeParamList>&& type_params,
-           bool can_generalize = true)
+           Ptr<TypeParamList>&& type_params)
         : NamedDecl(loc, std::move(id))
         , fn(std::move(fn))
         , ret_type(std::move(ret_type))
         , type_params(std::move(type_params))
-        , can_generalize(can_generalize)
     {}
 
     const artic::Type* infer_head(TypeInference&) const override;

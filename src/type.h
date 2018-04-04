@@ -4,6 +4,7 @@
 #include <unordered_set>
 #include <unordered_map>
 #include <functional>
+#include <algorithm>
 #include <vector>
 #include <limits>
 
@@ -68,11 +69,12 @@ struct Type : public Cast<Type> {
     /// Returns the types contained in this type that are instances of the given (C++) type.
     template <typename T>
     std::vector<const T*> all() const {
-        std::vector<const T*> result;
         std::unordered_set<const Type*> set;
-        all(set, [] (const Type* t) { return t->isa<T>(); });
-        for (const Type* elem : set)
-            result.emplace_back(elem->as<T>());
+        all(set, [] (auto t) { return t->template isa<T>(); });
+        std::vector<const T*> result(set.size());
+        std::transform(set.begin(), set.end(), result.begin(), [] (auto t) {
+            return t->template as<T>();
+        });
         return result;
     }
 

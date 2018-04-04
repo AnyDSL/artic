@@ -1,11 +1,39 @@
-fn rec1(x) {
+fn rec1<T>(x) -> T {
     rec2(x:i32)
 }
 
-fn rec2(x) {
+fn rec2<T>(x) -> T {
     rec1(x)
 }
 
-fn rec3(f) {
-    f(rec3(f))
+fn rec3<T, U>(x : T) -> U {
+    rec1(1)
+}
+
+fn rec4<T>(f: fn(T) -> T) -> T {
+    f(rec4(f))
+}
+
+fn rec5<T, U>(x: T) -> U {
+    rec5(x)
+}
+
+fn rec6<T, U>(x: T) -> U {
+    rec6(x)
+}
+
+fn rec7<T, U, V, W>(x: T, y: U) -> (V, W) {
+    (rec6(x), rec5(y))
+}
+
+fn rec8<T, U, V, W>(x: T, y: U) -> (V, W) {
+    (rec6(x), rec6(y))
+}
+
+fn rec9<T, U>(x: T, y: i32) -> U {
+    rec10(y, x)
+}
+
+fn rec10<T, U>(x: i32, y: T) -> U {
+    rec9(y, x)
 }

@@ -1,4 +1,4 @@
-fn pow(x, n) {
+fn pow<T: Mul, U: CmpEq + Mod + Div + Sub>(x: T, n: U) -> T {
     if n == 0 {
         1
     } else {

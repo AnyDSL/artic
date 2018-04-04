@@ -1,5 +1,5 @@
-fn const(x) {
-    fn inner(y) {
+fn const<T, U>(x: T) -> fn (U) -> T {
+    fn inner(y: U) -> T {
         x
     }
     inner

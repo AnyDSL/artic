@@ -104,26 +104,6 @@ const Type* TypeInference::rename(const Type* type) {
     return type->substitute(type_table(), map);
 }
 
-const Type* TypeInference::generalize(const Loc& loc, const Type* type, uint32_t rank) {
-    // Get the best estimate of the type at this point
-    type = unify(loc, type, type);
-
-    // Generalizes the given type by transforming unknowns
-    // into the type variables of a polymorphic type
-    int vars = 0;
-    for (auto u : type->all<UnknownType>()) {
-        u = find(u)->isa<UnknownType>();
-        // If the type is not tied to a concrete type nor tied in a higher scope, generalize it
-        if (u && u->rank >= rank)
-            unify(loc, u, type_table().type_var(vars++, TypeVar::Traits(u->traits)));
-    }
-    // The type may already contain type variables which have to be accounted for
-    vars += type->all<TypeVar>().size();
-    if (vars == 0) return type;
-    assert(!type->isa<PolyType>());
-    return type_table().poly_type(vars, type);
-}
-
 const Type* TypeInference::subsume(const Loc& loc, const Type* type, const std::vector<const Type*>& type_args) {
     // Get the best estimate of the type at this point
     type = unify(loc, type, type);
@@ -169,12 +149,10 @@ const Type* TypeInference::type(const ast::Node& node, uint32_t rank) {
 
 const Type* TypeInference::infer(const ast::Node& node, const Type* expected) {
     auto type = node.infer(*this);
-    if (type) {
-        type = expected ? unify(node.loc, type, expected) : type;
-        node.type = node.type ? unify(node.loc, node.type, type) : type;
-        return node.type;
-    }
-    return nullptr;
+    assert(type);
+    type = expected ? unify(node.loc, type, expected) : type;
+    node.type = node.type ? unify(node.loc, node.type, type) : type;
+    return node.type;
 }
 
 void TypeInference::infer_head(const ast::Decl& decl) {
@@ -403,33 +381,14 @@ const artic::Type* LetDecl::infer(TypeInference& ctx) const {
 }
 
 const artic::Type* FnDecl::infer_head(TypeInference& ctx) const {
-    if (type_params)
-        return ctx.infer(*type_params);
-    return ctx.type(*this);
+    auto poly_type = type_params ? ctx.infer(*type_params) : nullptr;
+    auto return_type = ret_type ? ctx.infer(*ret_type) : ctx.type_table().tuple_type({});
+    auto fn_type = ctx.type_table().fn_type(ctx.infer(*fn->param), return_type);
+    return poly_type ? ctx.unify(loc, poly_type, fn_type) : fn_type;
 }
 
 const artic::Type* FnDecl::infer(TypeInference& ctx) const {
-    if (fn->body) {
-        auto fn_type = ctx.infer(*fn, ctx.type(*this))->isa<artic::FnType>();
-
-        // If a return type is present, unify it with the return type of the function
-        if (ret_type) {
-            auto to = fn_type ? fn_type->to() : nullptr;
-            ctx.infer(*ret_type, to);
-        }
-    } else {
-        // The return type is () if no type is present in this case
-        auto fn_type = ctx.type_table().fn_type(
-            ctx.infer(*fn->param),
-            ret_type ? ctx.infer(*ret_type) : ctx.type_table().tuple_type({}));
-
-        ctx.unify(loc, ctx.type(*this), fn_type);
-    }
-    if (!type_params && can_generalize) {
-        // Generate a polymorphic type
-        return ctx.generalize(loc, ctx.type(*this), rank);
-    }
-    return ctx.type(*this);
+    return fn->body ? ctx.infer(*fn, ctx.type(*this)) : ctx.type(*this);
 }
 
 const artic::Type* FieldDecl::infer(TypeInference& ctx) const {
