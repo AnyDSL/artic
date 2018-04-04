@@ -1,5 +1,7 @@
+struct S {}
+
 fn rec1<T>(x) -> T {
-    rec2(x:i32)
+    rec2(x : S)
 }
 
 fn rec2<T>(x) -> T {
@@ -7,7 +9,7 @@ fn rec2<T>(x) -> T {
 }
 
 fn rec3<T, U>(x : T) -> U {
-    rec1(1)
+    rec1(S{})
 }
 
 fn rec4<T>(f: fn(T) -> T) -> T {

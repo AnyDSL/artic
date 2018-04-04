@@ -1,4 +1,4 @@
-fn pow<T: Mul, U: Num>(x: T, n: U) -> T {
+fn pow<T: Num, U: Num>(x: T, n: U) -> T {
     if n == 0 {
         1
     } else {

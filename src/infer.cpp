@@ -100,7 +100,7 @@ const Type* TypeInference::find(const Type* type) {
     return type;
 }
 
-const Type* TypeInference::subsume(const Loc& loc, const Type* type, const std::vector<const Type*>& type_args) {
+const Type* TypeInference::subsume(const Loc& loc, const Type* type, std::vector<const Type*>& type_args) {
     // Get the best estimate of the type at this point
     type = unify(loc, type, type);
 
@@ -109,10 +109,11 @@ const Type* TypeInference::subsume(const Loc& loc, const Type* type, const std::
 
         // Replaces the type variables in the given type by unknowns
         for (auto var : type->all<TypeVar>()) {
-            const Type* arg = var->index < type_args.size()
-                ? type_args[var->index]
-                : type_table().unknown_type(UnknownType::max_rank(), UnknownType::Traits(var->traits));
-            map.emplace(var, arg);
+            if (var->index >= type_args.size() || !type_args[var->index]) {
+                type_args.resize(std::max<size_t>(type_args.size(), var->index + 1));
+                type_args[var->index] = type_table().unknown_type(UnknownType::max_rank(), UnknownType::Traits(var->traits));
+            }
+            map.emplace(var, type_args[var->index]);
         }
 
         return poly->substitute(type_table(), map)->as<PolyType>()->body;
@@ -135,7 +136,8 @@ const Type* TypeInference::replace_self(const Type* type, const Type* self) {
 
 const Type* TypeInference::match_impl(const Loc& loc, const TraitType* trait, const Type* type) {
     for (auto impl : trait->impls) {
-        auto matcher = subsume(loc, impl->Node::type, {});
+        std::vector<const Type*> args;
+        auto matcher = subsume(loc, impl->Node::type, args);
         auto renamed = rename(type);
         // Return the first implementation that matches
         if (!unify(loc, matcher, renamed)->has<ErrorType>())
@@ -144,9 +146,9 @@ const Type* TypeInference::match_impl(const Loc& loc, const TraitType* trait, co
     return nullptr;
 }
 
-const Type* TypeInference::type(const ast::Node& node, uint32_t rank) {
+const Type* TypeInference::type(const ast::Node& node, UnknownType::Traits&& traits) {
     if (!node.type)
-        node.type = type_table().unknown_type(std::min(rank, node.rank));
+        node.type = type_table().unknown_type(node.rank, std::move(traits));
     return find(node.type);
 }
 
@@ -208,9 +210,8 @@ const artic::Type* Path::infer(TypeInference& ctx) const {
     }
 
     type_args.resize(std::max(type_args.size(), args.size()));
-    for (size_t i = 0; i < args.size(); i++) {
+    for (size_t i = 0; i < args.size(); i++)
         type_args[i] = ctx.infer(*args[i]);
-    }
 
     return ctx.subsume(loc, decl_type, type_args);
 }
@@ -252,8 +253,7 @@ const artic::Type* PathExpr::infer(TypeInference& ctx) const {
 }
 
 const artic::Type* LiteralExpr::infer(TypeInference& ctx) const {
-    // TODO: Create a Num type for integers, Fract for floats
-    return ctx.type(*this);
+    return ctx.type(*this, { ctx.type_table().trait_type("Num", nullptr) });
 }
 
 const artic::Type* FieldExpr::infer(TypeInference& ctx) const {
@@ -327,8 +327,7 @@ const artic::Type* IdPtrn::infer(TypeInference& ctx) const {
 }
 
 const artic::Type* LiteralPtrn::infer(TypeInference& ctx) const {
-    // TODO: Create a Num type for integers, Fract for floats
-    return ctx.type(*this);
+    return ctx.type(*this, { ctx.type_table().trait_type("Num", nullptr) });
 }
 
 const artic::Type* FieldPtrn::infer(TypeInference& ctx) const {

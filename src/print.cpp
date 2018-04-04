@@ -146,6 +146,12 @@ void CallExpr::print(Printer& p) const {
     print_parens(p, arg);
 }
 
+void IfExpr::print_head(Printer& p) const {
+    p << keyword_style("if") << ' ';
+    cond->print(p);
+    p << " ...";
+}
+
 void IfExpr::print(Printer& p) const {
     p << keyword_style("if") << ' ';
     cond->print(p);

@@ -425,6 +425,7 @@ struct IfExpr : public Expr {
     const artic::Type* infer(TypeInference&) const override;
     void bind(NameBinder&) const override;
     void check(TypeChecker&) const override;
+    void print_head(Printer&) const override;
     void print(Printer&) const override;
 };
 
