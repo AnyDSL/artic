@@ -472,9 +472,14 @@ const artic::Type* Program::infer(TypeInference& ctx) const {
         if (decl->isa<TraitDecl>())
             ctx.infer_head(*decl);
     }
-    // Then structure and function declarations
+    // Then type declarations
     for (auto& decl : decls) {
-        if (decl->isa<StructDecl>() || decl->isa<FnDecl>())
+        if (decl->isa<StructDecl>())
+            ctx.infer_head(*decl);
+    }
+    // Then function declarations
+    for (auto& decl : decls) {
+        if (decl->isa<FnDecl>())
             ctx.infer_head(*decl);
     }
     // Infer the contents of structures and traits
@@ -484,7 +489,7 @@ const artic::Type* Program::infer(TypeInference& ctx) const {
     }
     // Then implementations
     for (auto& decl : decls) {
-        if (decl->isa<ImplDecl>() || decl->isa<LetDecl>())
+        if (decl->isa<ImplDecl>())
             ctx.infer_head(*decl);
     }
     // Then global variables

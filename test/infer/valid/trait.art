@@ -1,13 +1,11 @@
 fn pow<T: Mul, U: Num>(x: T, n: U) -> T {
     if n == 1 {
         x
+    } else if n % 2 == 0 {
+        let y = pow(x, n / 2);
+        y * y
     } else {
-        if n % 2 == 0 {
-            let y = pow(x, n / 2);
-            y * y
-        } else {
-            x * pow(x, n - 1)
-        }
+        x * pow(x, n - 1)
     }
 }
 trait Add {
@@ -29,3 +27,13 @@ trait CmpEq {
     fn cmp_eq(a: Self, b: Self) -> bool
 }
 trait Num : Add + Sub + Mul + Div + Mod + CmpEq {}
+
+impl Add for i32 {}
+impl Sub for i32 {}
+impl Mul for i32 {}
+impl Div for i32 {}
+impl Mod for i32 {}
+impl CmpEq for i32 {}
+impl Num for i32 {}
+
+let _256 : i32 = pow(2 : i32, 8 : i32);
