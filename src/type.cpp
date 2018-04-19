@@ -84,8 +84,9 @@ uint32_t PrimType::hash() const {
     return uint32_t(tag);
 }
 
-uint32_t StructType::hash() const {
+uint32_t TypeApp::hash() const {
     return hash_combine(
+        typeid(*this).hash_code(),
         hash_string(name),
         hash_list(args, [] (auto& arg) { return arg->hash(); })
     );
@@ -95,12 +96,8 @@ uint32_t TraitType::hash() const {
     return hash_string(name);
 }
 
-uint32_t TupleType::hash() const {
-    return hash_list(args, [] (auto& arg) { return arg->hash(); });
-}
-
-uint32_t FnType::hash() const {
-    return hash_combine(from()->hash(), to()->hash());
+uint32_t RefType::hash() const {
+    return hash_combine(pointee()->hash(), addr_space.hash(), uint32_t(mut));
 }
 
 uint32_t PolyType::hash() const {
@@ -158,6 +155,13 @@ bool TraitType::equals(const Type* t) const {
     return t->isa<TraitType>() && t->as<TraitType>()->name == name;
 }
 
+bool RefType::equals(const Type* t) const {
+    return t->isa<RefType>() &&
+           t->as<RefType>()->pointee() == pointee() &&
+           t->as<RefType>()->addr_space == addr_space &&
+           t->as<RefType>()->mut == mut;
+}
+
 bool PolyType::equals(const Type* t) const {
     if (auto poly = t->isa<PolyType>()) {
         return poly->body == body &&
@@ -205,22 +209,26 @@ const TypeApp* FnType::rebuild(TypeTable& table, Args&& new_args) const {
     return table.fn_type(new_args[0], new_args[1]);
 }
 
+const TypeApp* RefType::rebuild(TypeTable& table, Args&& new_args) const {
+    return table.ref_type(new_args[0], addr_space, mut);
+}
+
 // All -----------------------------------------------------------------------------
 
-void TypeApp::all(std::unordered_set<const Type*>& set, std::function<bool (const Type*)> pred) const {
+void TypeApp::all(std::unordered_set<const Type*>& set, const std::function<bool (const Type*)>& pred) const {
     if (pred(this)) set.emplace(this);
     for (auto arg : args)
         arg->all(set, pred);
 }
 
-void PolyType::all(std::unordered_set<const Type*>& set, std::function<bool (const Type*)> pred) const {
+void PolyType::all(std::unordered_set<const Type*>& set, const std::function<bool (const Type*)>& pred) const {
     if (pred(this)) set.emplace(this);
     body->all(set, pred);
 }
 
 // Has -----------------------------------------------------------------------------
 
-bool TypeApp::has(std::function<bool (const Type*)> pred) const {
+bool TypeApp::has(const std::function<bool (const Type*)>& pred) const {
     if (pred(this)) return true;
     for (auto arg : args) {
         if (arg->has(pred)) return true;
@@ -228,7 +236,7 @@ bool TypeApp::has(std::function<bool (const Type*)> pred) const {
     return false;
 }
 
-bool PolyType::has(std::function<bool (const Type*)> pred) const {
+bool PolyType::has(const std::function<bool (const Type*)>& pred) const {
     return pred(this) || body->has(pred);
 }
 
@@ -276,6 +284,10 @@ const TupleType* TypeTable::unit_type() {
 
 const FnType* TypeTable::fn_type(const Type* from, const Type* to) {
     return new_type<FnType>(from, to);
+}
+
+const RefType* TypeTable::ref_type(const Type* pointee, AddrSpace addr_space, bool mut) {
+    return new_type<RefType>(pointee, addr_space, mut);
 }
 
 const PolyType* TypeTable::poly_type(size_t num_vars, const Type* body) {

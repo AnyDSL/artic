@@ -482,6 +482,13 @@ void FnType::print(Printer& p) const {
     to()->print(p);
 }
 
+void RefType::print(Printer& p) const {
+    if (mut) p << keyword_style("mut") << ' ';
+    p << keyword_style(addr_space.to_string()) << ' '
+      << keyword_style("ref") << ' ';
+    pointee()->print(p);
+}
+
 void PolyType::print(Printer& p) const {
     p << keyword_style("for") << '<';
     auto vars = body->all<TypeVar>();

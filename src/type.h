@@ -29,6 +29,36 @@ class Printer;
 class TypeTable;
 class UnknownType;
 
+struct AddrSpace {
+    enum Locality : uint32_t {
+        Generic,
+        Private,
+        Shared,
+        Global
+    };
+    Locality locality;
+
+    std::string to_string() const {
+        switch (locality) {
+            case Generic: return "generic";
+            case Private: return "private";
+            case Shared:  return "shared";
+            case Global:  return "global";
+            default:
+                assert(false);
+                return "";
+        }
+    }
+
+    uint32_t hash() const {
+        return uint32_t(locality);
+    }
+
+    bool operator == (const AddrSpace& other) const {
+        return other.locality == locality;
+    }
+};
+
 /// Base class for all types.
 struct Type : public Cast<Type> {
     /// Number of polymorphic quantifiers contained in the type.
@@ -51,9 +81,9 @@ struct Type : public Cast<Type> {
     virtual const Type* substitute(TypeTable&, std::unordered_map<const Type*, const Type*>& map) const;
 
     /// Returns true if the type contains at least one type verifying the predicate.
-    virtual bool has(std::function<bool (const Type*)> pred) const { return pred(this); };
+    virtual bool has(const std::function<bool (const Type*)>& pred) const { return pred(this); };
     /// Returns the types contained in this type that verifies the predicate.
-    virtual void all(std::unordered_set<const Type*>& set, std::function<bool (const Type*)> pred) const {
+    virtual void all(std::unordered_set<const Type*>& set, const std::function<bool (const Type*)>& pred) const {
         if (pred(this))
             set.emplace(this);
     }
@@ -136,12 +166,13 @@ struct TypeApp : public Type {
     bool is_nominal() const;
 
     const Type* substitute(TypeTable& table, std::unordered_map<const Type*, const Type*>& map) const override;
-    bool has(std::function<bool (const Type*)>) const override;
-    void all(std::unordered_set<const Type*>&, std::function<bool (const Type*)>) const override;
+    bool has(const std::function<bool (const Type*)>&) const override;
+    void all(std::unordered_set<const Type*>&, const std::function<bool (const Type*)>&) const override;
 
     /// Rebuilds this type with different arguments.
     virtual const TypeApp* rebuild(TypeTable& table, Args&& new_args) const = 0;
 
+    uint32_t hash() const override;
     bool equals(const Type*) const override;
 };
 
@@ -158,7 +189,6 @@ struct StructType : public TypeApp {
 
     const TypeApp* rebuild(TypeTable&, Args&&) const override;
 
-    uint32_t hash() const override;
     void print(Printer&) const override;
 
     /// Lazily build the members of the structure.
@@ -205,7 +235,6 @@ struct TupleType : public TypeApp {
 
     const TypeApp* rebuild(TypeTable&, Args&&) const override;
 
-    uint32_t hash() const override;
     void print(Printer&) const override;
 };
 
@@ -225,7 +254,23 @@ struct FnType : public TypeApp {
 
     const TypeApp* rebuild(TypeTable&, Args&&) const override;
 
+    void print(Printer&) const override;
+};
+
+struct RefType : public TypeApp {
+    AddrSpace addr_space;
+    bool mut;
+
+    RefType(const Type* pointee, AddrSpace addr_space, bool mut)
+        : TypeApp(TypeApp::Args{ pointee }), addr_space(addr_space), mut(mut)
+    {}
+
+    const Type* pointee() const { return args[0]; }
+
+    const TypeApp* rebuild(TypeTable&, Args&&) const override;
+
     uint32_t hash() const override;
+    bool equals(const Type*) const override;
     void print(Printer&) const override;
 };
 
@@ -243,8 +288,8 @@ struct PolyType : public Type {
     }
 
     const Type* substitute(TypeTable&, std::unordered_map<const Type*, const Type*>&) const override;
-    bool has(std::function<bool (const Type*)>) const override;
-    void all(std::unordered_set<const Type*>&, std::function<bool (const Type*)>) const override;
+    bool has(const std::function<bool (const Type*)>&) const override;
+    void all(std::unordered_set<const Type*>&, const std::function<bool (const Type*)>&) const override;
 
     uint32_t hash() const override;
     bool equals(const Type*) const override;
@@ -364,6 +409,7 @@ public:
     const TupleType*    tuple_type(TupleType::Args&&);
     const TupleType*    unit_type();
     const FnType*       fn_type(const Type*, const Type*);
+    const RefType*      ref_type(const Type*, AddrSpace, bool);
     const PolyType*     poly_type(size_t, const Type*);
     const SelfType*     self_type();
     const TypeVar*      type_var(uint32_t, TypeVar::Traits&& traits = TypeVar::Traits());
