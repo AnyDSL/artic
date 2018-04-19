@@ -38,6 +38,10 @@ struct AddrSpace {
     };
     Locality locality;
 
+    AddrSpace(Locality locality)
+        : locality(locality)
+    {}
+
     std::string to_string() const {
         switch (locality) {
             case Generic: return "generic";
@@ -56,6 +60,11 @@ struct AddrSpace {
 
     bool operator == (const AddrSpace& other) const {
         return other.locality == locality;
+    }
+
+    bool operator <= (const AddrSpace& other) const {
+        return other.locality == locality ||
+               other.locality == Generic;
     }
 };
 
@@ -119,9 +128,30 @@ struct Type : public Cast<Type> {
     void dump() const;
 };
 
+// Base class for types made of multiple arguments.
+struct CompoundType : public Type {
+    typedef std::vector<const Type*> Args;
+
+    Args args;
+
+    CompoundType(Args&& args)
+        : args(std::move(args))
+    {
+        for (auto arg : this->args)
+            depth = std::max(arg->depth, depth);
+    }
+
+    const Type* substitute(TypeTable& table, std::unordered_map<const Type*, const Type*>& map) const override;
+    bool has(const std::function<bool (const Type*)>&) const override;
+    void all(std::unordered_set<const Type*>&, const std::function<bool (const Type*)>&) const override;
+
+    /// Rebuilds this type with different arguments.
+    virtual const CompoundType* rebuild(TypeTable& table, Args&& new_args) const = 0;
+};
+
 log::Output& operator << (log::Output&, const Type&);
 
-/// Primitive type (integers/floats/...)
+/// Primitive type (integers/floats/...).
 struct PrimType : public Type {
     enum Tag {
 #define TAG(t, n, ty) t = Box::t,
@@ -141,36 +171,22 @@ struct PrimType : public Type {
 };
 
 /// Type application (e.g. tuples, functions, ...).
-struct TypeApp : public Type {
-    typedef std::vector<const Type*> Args;
+struct TypeApp : public CompoundType {
+    using CompoundType::Args;
 
     std::string name;
-    Args args;
 
     /// Structural type constructor
     TypeApp(Args&& args)
-        : args(std::move(args))
-    {
-        for (auto arg : this->args)
-            depth = std::max(arg->depth, depth);
-    }
+        : CompoundType(std::move(args))
+    {}
 
     /// Nominal type constructor
     TypeApp(std::string&& name, Args&& args)
-        : name(std::move(name)), args(std::move(args))
-    {
-        for (auto arg : this->args)
-            depth = std::max(arg->depth, depth);
-    }
+        : CompoundType(std::move(args)), name(std::move(name))
+    {}
 
     bool is_nominal() const;
-
-    const Type* substitute(TypeTable& table, std::unordered_map<const Type*, const Type*>& map) const override;
-    bool has(const std::function<bool (const Type*)>&) const override;
-    void all(std::unordered_set<const Type*>&, const std::function<bool (const Type*)>&) const override;
-
-    /// Rebuilds this type with different arguments.
-    virtual const TypeApp* rebuild(TypeTable& table, Args&& new_args) const = 0;
 
     uint32_t hash() const override;
     bool equals(const Type*) const override;
@@ -187,7 +203,7 @@ struct StructType : public TypeApp {
         : TypeApp(std::move(name), std::move(args)), decl(decl)
     {}
 
-    const TypeApp* rebuild(TypeTable&, Args&&) const override;
+    const CompoundType* rebuild(TypeTable&, Args&&) const override;
 
     void print(Printer&) const override;
 
@@ -233,7 +249,7 @@ struct TupleType : public TypeApp {
         : TypeApp(std::move(args))
     {}
 
-    const TypeApp* rebuild(TypeTable&, Args&&) const override;
+    const CompoundType* rebuild(TypeTable&, Args&&) const override;
 
     void print(Printer&) const override;
 };
@@ -243,7 +259,7 @@ struct FnType : public TypeApp {
     using TypeApp::Args;
 
     FnType(const Type* from, const Type* to)
-        : TypeApp(Args{from, to})
+        : TypeApp({ from, to })
     {}
 
     const Type* from() const { return args[0]; }
@@ -252,22 +268,22 @@ struct FnType : public TypeApp {
     const Type* first_arg() const;
     size_t num_args() const;
 
-    const TypeApp* rebuild(TypeTable&, Args&&) const override;
+    const CompoundType* rebuild(TypeTable&, Args&&) const override;
 
     void print(Printer&) const override;
 };
 
-struct RefType : public TypeApp {
+struct RefType : public CompoundType {
     AddrSpace addr_space;
     bool mut;
 
     RefType(const Type* pointee, AddrSpace addr_space, bool mut)
-        : TypeApp(TypeApp::Args{ pointee }), addr_space(addr_space), mut(mut)
+        : CompoundType({ pointee }), addr_space(addr_space), mut(mut)
     {}
 
     const Type* pointee() const { return args[0]; }
 
-    const TypeApp* rebuild(TypeTable&, Args&&) const override;
+    const CompoundType* rebuild(TypeTable&, Args&&) const override;
 
     uint32_t hash() const override;
     bool equals(const Type*) const override;
@@ -275,21 +291,19 @@ struct RefType : public TypeApp {
 };
 
 /// Polymorphic type with possibly several variables and a set of constraints.
-struct PolyType : public Type {
+struct PolyType : public CompoundType {
     /// Number of type variables in this polymorphic type.
     size_t num_vars;
-    /// Body of this polymorphic type
-    const Type* body;
 
     PolyType(size_t num_vars, const Type* body)
-        : num_vars(num_vars), body(body)
+        : CompoundType({ body }), num_vars(num_vars)
     {
         depth = num_vars + body->depth;
     }
 
-    const Type* substitute(TypeTable&, std::unordered_map<const Type*, const Type*>&) const override;
-    bool has(const std::function<bool (const Type*)>&) const override;
-    void all(std::unordered_set<const Type*>&, const std::function<bool (const Type*)>&) const override;
+    const Type* body() const { return args[0]; }
+
+    const CompoundType* rebuild(TypeTable&, Args&&) const override;
 
     uint32_t hash() const override;
     bool equals(const Type*) const override;

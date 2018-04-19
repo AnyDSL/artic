@@ -491,7 +491,7 @@ void RefType::print(Printer& p) const {
 
 void PolyType::print(Printer& p) const {
     p << keyword_style("for") << '<';
-    auto vars = body->all<TypeVar>();
+    auto vars = body()->all<TypeVar>();
     std::sort(vars.begin(), vars.end(), [] (auto& var1, auto& var2) {
         return var1->index < var2->index;
     });
@@ -507,7 +507,7 @@ void PolyType::print(Printer& p) const {
         if (i != n - 1) p << ", ";
     }
     p << "> ";
-    body->print(p);
+    body()->print(p);
 }
 
 void SelfType::print(Printer& p) const {

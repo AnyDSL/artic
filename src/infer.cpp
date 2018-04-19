@@ -15,6 +15,22 @@ const Type* TypeInference::unify(const Loc& loc, const Type* a, const Type* b) {
     a = find(a);
     b = find(b);
 
+    // References
+    auto ref_a = a->isa<RefType>();
+    auto ref_b = b->isa<RefType>();
+    if (ref_a && !ref_b)
+        return unify(loc, ref_a->pointee(), b);
+    if (!ref_a && ref_b)
+        return unify(loc, a, ref_b->pointee());
+    if (ref_a && ref_b) {
+        if (ref_a->mut != ref_b->mut ||
+            (!(ref_a->addr_space <= ref_b->addr_space) &&
+            (!(ref_b->addr_space <= ref_a->addr_space))))
+            return type_table().infer_error(loc, a, b);
+        auto min_addr_space = ref_a->addr_space <= ref_b->addr_space ? ref_a->addr_space : ref_b->addr_space;
+        return type_table().ref_type(unify(loc, ref_a->pointee(), ref_b->pointee()), min_addr_space, ref_a->mut);
+    }
+
     // Constrain unknowns
     auto unknown_a = a->isa<UnknownType>();
     auto unknown_b = b->isa<UnknownType>();
@@ -25,10 +41,10 @@ const Type* TypeInference::unify(const Loc& loc, const Type* a, const Type* b) {
     auto poly_a = a->isa<PolyType>();
     auto poly_b = b->isa<PolyType>();
     if (poly_a && poly_b && poly_a->num_vars == poly_b->num_vars) {
-        return type_table().poly_type(poly_a->num_vars, unify(loc, poly_a->body, poly_b->body));
+        return type_table().poly_type(poly_a->num_vars, unify(loc, poly_a->body(), poly_b->body()));
     }
-    if (poly_a) return type_table().poly_type(poly_a->num_vars, unify(loc, poly_a->body, b));
-    if (poly_b) return type_table().poly_type(poly_b->num_vars, unify(loc, poly_b->body, a));
+    if (poly_a) return type_table().poly_type(poly_a->num_vars, unify(loc, poly_a->body(), b));
+    if (poly_b) return type_table().poly_type(poly_b->num_vars, unify(loc, poly_b->body(), a));
 
     // Unification for type constructors
     auto app_a = a->isa<TypeApp>();
@@ -116,7 +132,7 @@ const Type* TypeInference::subsume(const Loc& loc, const Type* type, std::vector
             map.emplace(var, type_args[var->index]);
         }
 
-        return poly->substitute(type_table(), map)->as<PolyType>()->body;
+        return poly->substitute(type_table(), map)->as<PolyType>()->body();
     }
     return type;
 }
@@ -213,7 +229,10 @@ const artic::Type* Path::infer(TypeInference& ctx) const {
     for (size_t i = 0; i < args.size(); i++)
         type_args[i] = ctx.infer(*args[i]);
 
-    return ctx.subsume(loc, decl_type, type_args);
+    auto subsumed = ctx.subsume(loc, decl_type, type_args);
+    if (auto ptrn_decl = decl->isa<PtrnDecl>())
+        return ctx.type_table().ref_type(subsumed, AddrSpace(AddrSpace::Generic), ptrn_decl->mut);
+    return subsumed;
 }
 
 const artic::Type* PrimType::infer(TypeInference& ctx) const {

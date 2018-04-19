@@ -11,7 +11,7 @@ bool Type::is_tuple() const {
 }
 
 const Type* Type::inner() const {
-    return isa<PolyType>() ? as<PolyType>()->body : this;
+    return isa<PolyType>() ? as<PolyType>()->body() : this;
 }
 
 void Type::update_rank(uint32_t rank) const {
@@ -101,7 +101,7 @@ uint32_t RefType::hash() const {
 }
 
 uint32_t PolyType::hash() const {
-    return hash_combine(body->hash(), uint32_t(num_vars));
+    return hash_combine(body()->hash(), uint32_t(num_vars));
 }
 
 uint32_t SelfType::hash() const {
@@ -164,7 +164,7 @@ bool RefType::equals(const Type* t) const {
 
 bool PolyType::equals(const Type* t) const {
     if (auto poly = t->isa<PolyType>()) {
-        return poly->body == body &&
+        return poly->body() == body() &&
                poly->num_vars == num_vars;
     }
     return false;
@@ -197,47 +197,42 @@ bool InferError::equals(const Type* t) const {
 
 // Rebuild -------------------------------------------------------------------------
 
-const TypeApp* StructType::rebuild(TypeTable& table, Args&& new_args) const {
+const CompoundType* StructType::rebuild(TypeTable& table, Args&& new_args) const {
     return table.struct_type(std::string(name), std::move(new_args), decl);
 }
 
-const TypeApp* TupleType::rebuild(TypeTable& table, Args&& new_args) const {
+const CompoundType* TupleType::rebuild(TypeTable& table, Args&& new_args) const {
     return table.tuple_type(std::move(new_args));
 }
 
-const TypeApp* FnType::rebuild(TypeTable& table, Args&& new_args) const {
+const CompoundType* FnType::rebuild(TypeTable& table, Args&& new_args) const {
     return table.fn_type(new_args[0], new_args[1]);
 }
 
-const TypeApp* RefType::rebuild(TypeTable& table, Args&& new_args) const {
+const CompoundType* RefType::rebuild(TypeTable& table, Args&& new_args) const {
     return table.ref_type(new_args[0], addr_space, mut);
+}
+
+const CompoundType* PolyType::rebuild(TypeTable& table, Args&& new_args) const {
+    return table.poly_type(num_vars, new_args[0]);
 }
 
 // All -----------------------------------------------------------------------------
 
-void TypeApp::all(std::unordered_set<const Type*>& set, const std::function<bool (const Type*)>& pred) const {
+void CompoundType::all(std::unordered_set<const Type*>& set, const std::function<bool (const Type*)>& pred) const {
     if (pred(this)) set.emplace(this);
     for (auto arg : args)
         arg->all(set, pred);
 }
 
-void PolyType::all(std::unordered_set<const Type*>& set, const std::function<bool (const Type*)>& pred) const {
-    if (pred(this)) set.emplace(this);
-    body->all(set, pred);
-}
-
 // Has -----------------------------------------------------------------------------
 
-bool TypeApp::has(const std::function<bool (const Type*)>& pred) const {
+bool CompoundType::has(const std::function<bool (const Type*)>& pred) const {
     if (pred(this)) return true;
     for (auto arg : args) {
         if (arg->has(pred)) return true;
     }
     return false;
-}
-
-bool PolyType::has(const std::function<bool (const Type*)>& pred) const {
-    return pred(this) || body->has(pred);
 }
 
 // Substitute ----------------------------------------------------------------------
@@ -248,16 +243,12 @@ const Type* Type::substitute(TypeTable&, std::unordered_map<const Type*, const T
     return this;
 }
 
-const Type* TypeApp::substitute(TypeTable& table, std::unordered_map<const Type*, const Type*>& map) const {
+const Type* CompoundType::substitute(TypeTable& table, std::unordered_map<const Type*, const Type*>& map) const {
     Args new_args(args.size());
     std::transform(args.begin(), args.end(), new_args.begin(), [&] (auto arg) {
         return arg->substitute(table, map);
     });
     return map[this] = rebuild(table, std::move(new_args));
-}
-
-const Type* PolyType::substitute(TypeTable& table, std::unordered_map<const Type*, const Type*>& map) const {
-    return map[this] = table.poly_type(num_vars, body->substitute(table, map));
 }
 
 // Type table ----------------------------------------------------------------------
@@ -292,7 +283,7 @@ const RefType* TypeTable::ref_type(const Type* pointee, AddrSpace addr_space, bo
 
 const PolyType* TypeTable::poly_type(size_t num_vars, const Type* body) {
     if (auto poly_type = body->isa<PolyType>())
-        return new_type<PolyType>(num_vars + poly_type->num_vars, poly_type->body);
+        return new_type<PolyType>(num_vars + poly_type->num_vars, poly_type->body());
     return new_type<PolyType>(num_vars, body);
 }
 

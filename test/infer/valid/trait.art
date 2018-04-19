@@ -37,3 +37,5 @@ impl CmpEq for i32 {}
 impl Num for i32 {}
 
 let _256 : i32 = pow(2 : i32, 8 : i32);
+let mut x = 42 : i32;
+let y = x + 5;
