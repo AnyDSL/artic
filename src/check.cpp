@@ -147,6 +147,11 @@ void IfExpr::check(TypeChecker& ctx) const {
     if (if_false) ctx.check(*if_false);
 }
 
+void WhileExpr::check(TypeChecker& ctx) const {
+    ctx.check(*cond);
+    ctx.check(*body);
+}
+
 void ErrorExpr::check(TypeChecker&) const {}
 
 void TypedPtrn::check(TypeChecker& ctx) const {

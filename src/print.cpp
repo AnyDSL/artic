@@ -163,13 +163,28 @@ void IfExpr::print(Printer& p) const {
     }
 }
 
+void WhileExpr::print_head(Printer& p) const {
+    p << keyword_style("while") << ' ';
+    cond->print(p);
+    p << " { ... }";
+}
+
+void WhileExpr::print(Printer& p) const {
+    p << keyword_style("while") << ' ';
+    cond->print(p);
+    p << ' ';
+    body->print(p);
+}
+
+
 void UnaryExpr::print(Printer& p) const {
+    auto& op = is_inc() || is_dec() ? operand()->as<AddrOfExpr>()->expr : operand();
     if (is_postfix()) {
-        operand()->print(p);
+        op->print(p);
         p << tag_to_string(tag);
     } else {
         p << tag_to_string(tag);
-        operand()->print(p);
+        op->print(p);
     }
 }
 
@@ -182,8 +197,12 @@ void BinaryExpr::print(Printer& p) const {
             print_parens(p, e);
         else
             e->print(p);
-    };   
-    print_op(left_operand());
+    };
+    if (has_eq()) {
+        print_op(left_operand()->as<AddrOfExpr>()->expr);
+    } else {
+        print_op(left_operand());
+    }
     p << " " << tag_to_string(tag) << " ";
     print_op(right_operand());
 }

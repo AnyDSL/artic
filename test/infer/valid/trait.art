@@ -9,22 +9,22 @@ fn pow<T: Mul, U: Num>(x: T, n: U) -> T {
     }
 }
 trait Add {
-    fn add(a: Self, b: Self) -> Self
+    fn add(a: Self, b: Self) -> Self;
 }
 trait Sub {
-    fn sub(a: Self, b: Self) -> Self
+    fn sub(a: Self, b: Self) -> Self;
 }
 trait Mul {
-    fn mul(a: Self, b: Self) -> Self
+    fn mul(a: Self, b: Self) -> Self;
 }
 trait Div {
-    fn div(a: Self, b: Self) -> Self
+    fn div(a: Self, b: Self) -> Self;
 }
 trait Mod {
-    fn mod(a: Self, b: Self) -> Self
+    fn mod(a: Self, b: Self) -> Self;
 }
 trait CmpEq {
-    fn cmp_eq(a: Self, b: Self) -> bool
+    fn cmp_eq(a: Self, b: Self) -> bool;
 }
 trait Num : Add + Sub + Mul + Div + Mod + CmpEq {}
 

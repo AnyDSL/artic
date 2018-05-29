@@ -137,6 +137,11 @@ void IfExpr::bind(NameBinder& ctx) const {
     if (if_false) ctx.bind(*if_false);
 }
 
+void WhileExpr::bind(NameBinder& ctx) const {
+    ctx.bind(*cond);
+    ctx.bind(*body);
+}
+
 void ErrorExpr::bind(NameBinder&) const {}
 
 void TypedPtrn::bind(NameBinder& ctx) const {

@@ -53,6 +53,7 @@ private:
     Ptr<ast::AddrOfExpr>    parse_addr_of_expr();
     Ptr<ast::DerefExpr>     parse_deref_expr();
     Ptr<ast::IfExpr>        parse_if_expr();
+    Ptr<ast::WhileExpr>     parse_while_expr();
     Ptr<ast::Expr>          parse_primary_expr();
     Ptr<ast::UnaryExpr>     parse_prefix_expr();
     Ptr<ast::UnaryExpr>     parse_postfix_expr(Ptr<ast::Expr>&&);

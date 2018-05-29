@@ -362,6 +362,11 @@ const artic::Type* IfExpr::infer(TypeInference& ctx) const {
     return ctx.infer(*if_true, ctx.type_table().unit_type());
 }
 
+const artic::Type* WhileExpr::infer(TypeInference& ctx) const {
+    ctx.infer(*cond, ctx.type_table().prim_type(artic::PrimType::I1));
+    return ctx.infer(*body, ctx.type_table().tuple_type({}));
+}
+
 const artic::Type* ErrorExpr::infer(TypeInference& ctx) const {
     return ctx.type_table().error_type(loc);
 }

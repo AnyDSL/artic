@@ -21,6 +21,7 @@ namespace artic {
     f(Fn,  "fn") \
     f(If, "if") \
     f(Else, "else") \
+    f(While, "while") \
     f(For, "for") \
     f(Struct, "struct") \
     f(Trait, "trait") \

@@ -354,6 +354,7 @@ Ptr<ast::BlockExpr> Parser::parse_block_expr() {
             case Token::LParen:
             case Token::LBrace:
             case Token::If:
+            case Token::While:
             case Token::And:
             case Token::Mul:
             case Token::Add:
@@ -474,6 +475,14 @@ Ptr<ast::IfExpr> Parser::parse_if_expr() {
     return make_ptr<ast::IfExpr>(tracker(), std::move(cond), std::move(if_true), std::move(if_false));
 }
 
+Ptr<ast::WhileExpr> Parser::parse_while_expr() {
+    Tracker tracker(this);
+    eat(Token::While);
+    auto cond = parse_expr();
+    auto body = parse_block_expr();
+    return make_ptr<ast::WhileExpr>(tracker(), std::move(cond), std::move(body));
+}
+
 Ptr<ast::Expr> Parser::parse_primary_expr() {
     Ptr<ast::Expr> expr;
     switch (ahead().tag()) {
@@ -507,9 +516,15 @@ Ptr<ast::Expr> Parser::parse_primary_expr() {
         case Token::Let:
             expr = std::move(parse_decl_expr());
             break;
-        case Token::If: expr = std::move(parse_if_expr()); break;
+        case Token::If:
+            expr = std::move(parse_if_expr());
+            break;
+        case Token::While:
+            expr = std::move(parse_while_expr());
+            break;
         default:
-            expr = std::move(parse_error_expr()); break;
+            expr = std::move(parse_error_expr());
+            break;
     }
     if (ahead().tag() == Token::Inc || ahead().tag() == Token::Dec)
         expr = std::move(parse_postfix_expr(std::move(expr)));

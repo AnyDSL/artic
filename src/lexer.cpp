@@ -15,6 +15,7 @@ std::unordered_map<std::string, Token::Tag> Lexer::keywords{
     std::make_pair("fn",      Token::Fn),
     std::make_pair("if",      Token::If),
     std::make_pair("else",    Token::Else),
+    std::make_pair("while",   Token::While),
     std::make_pair("for",     Token::For),
     std::make_pair("struct",  Token::Struct),
     std::make_pair("trait",   Token::Trait),

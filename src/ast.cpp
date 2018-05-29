@@ -55,6 +55,12 @@ Ptr<Expr> UnaryExpr::op_expr(const Loc& loc, Tag tag) {
     return make_ptr<PathExpr>(loc, tag_to_fn(loc, tag));
 }
 
+Ptr<Expr> UnaryExpr::arg_expr(const Loc& loc, Tag tag, Ptr<Expr>&& expr) {
+    if (is_inc(tag) || is_dec(tag))
+        return make_ptr<AddrOfExpr>(loc, std::move(expr), true);
+    return std::move(expr);
+}
+
 Path UnaryExpr::tag_to_fn(const Loc& loc, Tag tag) {
     switch (tag) {
         case Not:     return Path(loc, { Identifier(loc, "Not"), Identifier(loc, "not") }, {});

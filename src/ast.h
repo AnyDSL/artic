@@ -448,6 +448,27 @@ struct IfExpr : public Expr {
     void print(Printer&) const override;
 };
 
+/// While loop expression.
+struct WhileExpr : public Expr {
+    Ptr<Expr> cond;
+    Ptr<BlockExpr> body;
+
+    WhileExpr(const Loc& loc,
+              Ptr<Expr>&& cond,
+              Ptr<BlockExpr>&& body)
+        : Expr(loc)
+        , cond(std::move(cond))
+        , body(std::move(body))
+    {}
+
+    const artic::Type* infer(TypeInference&) const override;
+    void bind(NameBinder&) const override;
+    void check(TypeChecker&) const override;
+    void print_head(Printer&) const override;
+    void print(Printer&) const override;
+};
+
+
 /// Unary expression (negation, increment, ...).
 struct UnaryExpr : public CallExpr {
     enum Tag {
@@ -463,7 +484,7 @@ struct UnaryExpr : public CallExpr {
     Tag tag;
 
     UnaryExpr(const Loc& loc, Tag tag, Ptr<Expr>&& expr)
-        : CallExpr(loc, op_expr(loc, tag), std::move(expr)), tag(tag)
+        : CallExpr(loc, op_expr(loc, tag), arg_expr(loc, tag, std::move(expr))), tag(tag)
     {}
 
     bool is_prefix() const { return !is_postfix(); }
@@ -472,7 +493,15 @@ struct UnaryExpr : public CallExpr {
 
     void print(Printer&) const override;
 
+    bool is_inc() const { return is_inc(tag); }
+    bool is_dec() const { return is_dec(tag); }
+
+    static bool is_inc(Tag tag) { return tag == PreInc || tag == PostInc; }
+    static bool is_dec(Tag tag) { return tag == PreDec || tag == PostDec; }
+
     static Ptr<Expr> op_expr(const Loc& loc, Tag);
+    static Ptr<Expr> arg_expr(const Loc& loc, Tag, Ptr<Expr>&&);
+
     static Path tag_to_fn(const Loc&, Tag);
     static std::string tag_to_string(Tag);
     static Tag tag_from_token(const Token&, bool);
