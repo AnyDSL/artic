@@ -497,7 +497,7 @@ struct BinaryExpr : public CallExpr {
                Tag tag,
                Ptr<Expr>&& left,
                Ptr<Expr>&& right)
-        : CallExpr(loc, op_expr(loc, tag), arg_expr(loc, std::move(left), std::move(right)))
+        : CallExpr(loc, op_expr(loc, tag), arg_expr(loc, tag, std::move(left), std::move(right)))
         , tag(tag)
     {}
 
@@ -515,7 +515,7 @@ struct BinaryExpr : public CallExpr {
     static int max_precedence();
 
     static Ptr<Expr> op_expr(const Loc&, Tag);
-    static Ptr<Expr> arg_expr(const Loc&, Ptr<Expr>&&, Ptr<Expr>&&);
+    static Ptr<Expr> arg_expr(const Loc&, Tag, Ptr<Expr>&&, Ptr<Expr>&&);
     static Path tag_to_fn(const Loc&, Tag);
     static std::string tag_to_string(Tag);
     static Tag tag_from_token(const Token&);

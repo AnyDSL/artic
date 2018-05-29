@@ -77,6 +77,8 @@ Ptr<ast::FnDecl> Parser::parse_fn_decl() {
     Ptr<Expr> body;
     if (ahead().tag() == Token::LBrace)
         body = std::move(parse_block_expr());
+    else
+        expect(Token::Semi);
 
     auto fn = make_ptr<ast::FnExpr>(tracker(), std::move(param), std::move(body));
     return make_ptr<ast::FnDecl>(tracker(), std::move(id), std::move(fn), std::move(ret_type), std::move(type_params));
@@ -136,7 +138,11 @@ Ptr<ast::ImplDecl> Parser::parse_impl_decl() {
     auto trait = parse_type();
     expect(Token::For);
     auto type = parse_type();
-    auto decls = parse_trait_body();
+    PtrVector<ast::NamedDecl> decls;
+    if (ahead().tag() == Token::Semi)
+        eat(Token::Semi);
+    else
+        decls = std::move(parse_trait_body());
     return make_ptr<ast::ImplDecl>(tracker(), std::move(trait), std::move(type), std::move(decls), std::move(type_params));
 }
 
@@ -348,6 +354,8 @@ Ptr<ast::BlockExpr> Parser::parse_block_expr() {
             case Token::LParen:
             case Token::LBrace:
             case Token::If:
+            case Token::And:
+            case Token::Mul:
             case Token::Add:
             case Token::Sub:
             case Token::Inc:
@@ -429,14 +437,14 @@ Ptr<ast::AddrOfExpr> Parser::parse_addr_of_expr() {
         eat(Token::Mut);
         mut = true;
     }
-    auto expr = parse_expr();
+    auto expr = parse_primary_expr();
     return make_ptr<ast::AddrOfExpr>(tracker(), std::move(expr), mut);
 }
 
 Ptr<ast::DerefExpr> Parser::parse_deref_expr() {
     Tracker tracker(this);
     eat(Token::Mul);
-    auto expr = parse_expr();
+    auto expr = parse_primary_expr();
     return make_ptr<ast::DerefExpr>(tracker(), std::move(expr));
 }
 

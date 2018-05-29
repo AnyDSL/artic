@@ -63,6 +63,10 @@ struct AddrSpace {
         return other.locality == locality;
     }
 
+    bool operator < (const AddrSpace& other) const {
+        return other.locality == Generic;
+    }
+
     bool operator <= (const AddrSpace& other) const {
         return other.locality == locality ||
                other.locality == Generic;

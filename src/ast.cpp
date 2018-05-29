@@ -177,16 +177,20 @@ Ptr<Expr> BinaryExpr::op_expr(const Loc& loc, Tag tag) {
     return make_ptr<PathExpr>(loc, tag_to_fn(loc, tag));
 }
 
-Ptr<Expr> BinaryExpr::arg_expr(const Loc& loc, Ptr<Expr>&& left, Ptr<Expr>&& right) {
+Ptr<Expr> BinaryExpr::arg_expr(const Loc& loc, Tag tag, Ptr<Expr>&& left, Ptr<Expr>&& right) {
     PtrVector<Expr> args;
-    args.emplace_back(std::move(left));
+    if (has_eq(tag))
+        args.emplace_back(make_ptr<AddrOfExpr>(loc, std::move(left), true));
+    else
+        args.emplace_back(std::move(left));
+
     args.emplace_back(std::move(right));
     return make_ptr<TupleExpr>(loc, std::move(args));
 }
 
 Path BinaryExpr::tag_to_fn(const Loc& loc, Tag tag) {
     switch (tag) {
-        case Eq:      return Path(loc, { Identifier(loc, "Assign"),    Identifier(loc, "assign") }, {});
+        case Eq:      return Path(loc, { Identifier(loc, "assign") }, {});
         case AddEq:   return Path(loc, { Identifier(loc, "AssignAdd"), Identifier(loc, "assign_add") }, {});
         case SubEq:   return Path(loc, { Identifier(loc, "AssignSub"), Identifier(loc, "assign_sub") }, {});
         case MulEq:   return Path(loc, { Identifier(loc, "AssignMul"), Identifier(loc, "assign_mul") }, {});

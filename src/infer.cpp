@@ -18,17 +18,23 @@ const Type* TypeInference::unify(const Loc& loc, const Type* a, const Type* b) {
     // References
     auto ref_a = a->isa<RefType>();
     auto ref_b = b->isa<RefType>();
-    if (ref_a && !ref_b)
-        return unify(loc, ref_a->pointee(), b);
-    if (!ref_a && ref_b)
-        return unify(loc, a, ref_b->pointee());
+    if (ref_a && !ref_b) return unify(loc, ref_a->pointee(), b);
+    if (!ref_a && ref_b) return unify(loc, ref_b->pointee(), a);
     if (ref_a && ref_b) {
-        if (ref_a->mut != ref_b->mut ||
-            (!(ref_a->addr_space <= ref_b->addr_space) &&
-            (!(ref_b->addr_space <= ref_a->addr_space))))
-            return type_table().infer_error(loc, a, b);
-        auto min_addr_space = ref_a->addr_space <= ref_b->addr_space ? ref_a->addr_space : ref_b->addr_space;
-        return type_table().ref_type(unify(loc, ref_a->pointee(), ref_b->pointee()), min_addr_space, ref_a->mut);
+        auto pointee = unify(loc, ref_a->pointee(), ref_b->pointee());
+        auto addr_space = std::max(ref_a->addr_space, ref_b->addr_space);
+        auto mut = ref_a->mut | ref_b->mut;
+        return type_table().ref_type(pointee, addr_space, mut);
+    }
+
+    // Pointers
+    auto ptr_a = a->isa<PtrType>();
+    auto ptr_b = b->isa<PtrType>();
+    if (ptr_a && ptr_b) {
+        auto pointee = unify(loc, ptr_a->pointee(), ptr_b->pointee());
+        auto addr_space = std::max(ptr_a->addr_space, ptr_b->addr_space);
+        auto mut = ptr_a->mut | ptr_b->mut;
+        return type_table().ptr_type(pointee, addr_space, mut);
     }
 
     // Constrain unknowns
@@ -340,8 +346,10 @@ const artic::Type* AddrOfExpr::infer(TypeInference& ctx) const {
 
 const artic::Type* DerefExpr::infer(TypeInference& ctx) const {
     auto expr_type = ctx.infer(*expr);
+    if (auto ref_type = expr_type->isa<RefType>())
+        expr_type = ref_type->pointee();
     if (auto ptr_type = expr_type->isa<artic::PtrType>())
-        return ctx.type_table().ptr_type(ptr_type->pointee(), ptr_type->addr_space, ptr_type->mut);
+        return ctx.type_table().ref_type(ptr_type->pointee(), ptr_type->addr_space, ptr_type->mut);
     return ctx.type(*this);
 }
 
