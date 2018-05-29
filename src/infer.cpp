@@ -330,11 +330,19 @@ const artic::Type* CallExpr::infer(TypeInference& ctx) const {
 
 const artic::Type* AddrOfExpr::infer(TypeInference& ctx) const {
     auto expr_type = ctx.infer(*expr);
-    if (auto ref_type = expr_type->isa<RefType>()) {
+    if (auto ref_type = expr_type->isa<artic::RefType>()) {
         if (!mut || ref_type->mut)
             return ctx.type_table().ptr_type(ref_type->pointee(), AddrSpace::Generic, mut);
+        return ctx.type_table().error_type(loc);
     }
-    return ctx.type_table().error_type(loc);
+    return ctx.type(*this);
+}
+
+const artic::Type* DerefExpr::infer(TypeInference& ctx) const {
+    auto expr_type = ctx.infer(*expr);
+    if (auto ptr_type = expr_type->isa<artic::PtrType>())
+        return ctx.type_table().ptr_type(ptr_type->pointee(), ptr_type->addr_space, ptr_type->mut);
+    return ctx.type(*this);
 }
 
 const artic::Type* IfExpr::infer(TypeInference& ctx) const {

@@ -536,6 +536,20 @@ struct AddrOfExpr : public Expr {
     void print(Printer&) const override;
 };
 
+/// Pointer dereference expression.
+struct DerefExpr : public Expr {
+    Ptr<Expr> expr;
+
+    DerefExpr(const Loc& loc, Ptr<Expr>&& expr)
+        : Expr(loc), expr(std::move(expr))
+    {}
+
+    const artic::Type* infer(TypeInference&) const override;
+    void bind(NameBinder&) const override;
+    void check(TypeChecker&) const override;
+    void print(Printer&) const override;
+};
+
 /// Incorrect expression, as a result of parsing.
 struct ErrorExpr : public Expr {
     ErrorExpr(const Loc& loc)

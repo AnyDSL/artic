@@ -195,6 +195,11 @@ void AddrOfExpr::print(Printer& p) const {
     expr->print(p);
 }
 
+void DerefExpr::print(Printer& p) const {
+    p << '*';
+    expr->print(p);
+}
+
 void ErrorExpr::print(Printer& p) const {
     p << error_style("<invalid expression>");
 }

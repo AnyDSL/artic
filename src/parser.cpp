@@ -433,6 +433,13 @@ Ptr<ast::AddrOfExpr> Parser::parse_addr_of_expr() {
     return make_ptr<ast::AddrOfExpr>(tracker(), std::move(expr), mut);
 }
 
+Ptr<ast::DerefExpr> Parser::parse_deref_expr() {
+    Tracker tracker(this);
+    eat(Token::Mul);
+    auto expr = parse_expr();
+    return make_ptr<ast::DerefExpr>(tracker(), std::move(expr));
+}
+
 Ptr<ast::IfExpr> Parser::parse_if_expr() {
     Tracker tracker(this);
     eat(Token::If);
@@ -464,6 +471,9 @@ Ptr<ast::Expr> Parser::parse_primary_expr() {
     switch (ahead().tag()) {
         case Token::And:
             expr = std::move(parse_addr_of_expr());
+            break;
+        case Token::Mul:
+            expr = std::move(parse_deref_expr());
             break;
         case Token::Inc:
         case Token::Dec:

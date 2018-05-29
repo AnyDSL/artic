@@ -51,6 +51,7 @@ private:
     Ptr<ast::FnExpr>        parse_fn_expr(bool);
     Ptr<ast::CallExpr>      parse_call_expr(Ptr<ast::Expr>&&);
     Ptr<ast::AddrOfExpr>    parse_addr_of_expr();
+    Ptr<ast::DerefExpr>     parse_deref_expr();
     Ptr<ast::IfExpr>        parse_if_expr();
     Ptr<ast::Expr>          parse_primary_expr();
     Ptr<ast::UnaryExpr>     parse_prefix_expr();

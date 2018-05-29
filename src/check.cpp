@@ -137,6 +137,10 @@ void AddrOfExpr::check(TypeChecker& ctx) const {
     ctx.check(*expr);
 }
 
+void DerefExpr::check(TypeChecker& ctx) const {
+    ctx.check(*expr);
+}
+
 void IfExpr::check(TypeChecker& ctx) const {
     ctx.check(*cond);
     ctx.check(*if_true);

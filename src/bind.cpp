@@ -127,6 +127,10 @@ void AddrOfExpr::bind(NameBinder& ctx) const {
     ctx.bind(*expr);
 }
 
+void DerefExpr::bind(NameBinder& ctx) const {
+    ctx.bind(*expr);
+}
+
 void IfExpr::bind(NameBinder& ctx) const {
     ctx.bind(*cond);
     ctx.bind(*if_true);
