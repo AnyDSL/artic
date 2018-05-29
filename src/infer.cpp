@@ -255,6 +255,10 @@ const artic::Type* TypeApp::infer(TypeInference& ctx) const {
     return ctx.infer(path);
 }
 
+const artic::Type* PtrType::infer(TypeInference& ctx) const {
+    return ctx.type_table().ptr_type(ctx.infer(*pointee), addr_space, mut);
+}
+
 const artic::Type* SelfType::infer(TypeInference& ctx) const {
     return ctx.type_table().self_type();
 }
@@ -322,6 +326,15 @@ const artic::Type* CallExpr::infer(TypeInference& ctx) const {
     auto ret_type = ctx.type(*this);
     ctx.infer(*callee, ctx.type_table().fn_type(arg_type, ret_type));
     return ret_type;
+}
+
+const artic::Type* AddrOfExpr::infer(TypeInference& ctx) const {
+    auto expr_type = ctx.infer(*expr);
+    if (auto ref_type = expr_type->isa<RefType>()) {
+        if (!mut || ref_type->mut)
+            return ctx.type_table().ptr_type(ref_type->pointee(), AddrSpace::Generic, mut);
+    }
+    return ctx.type_table().error_type(loc);
 }
 
 const artic::Type* IfExpr::infer(TypeInference& ctx) const {

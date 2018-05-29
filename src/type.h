@@ -29,6 +29,7 @@ class Printer;
 class TypeTable;
 class UnknownType;
 
+/// Address space information for pointers/references.
 struct AddrSpace {
     enum Locality : uint32_t {
         Generic,
@@ -44,7 +45,7 @@ struct AddrSpace {
 
     std::string to_string() const {
         switch (locality) {
-            case Generic: return "generic";
+            case Generic: return "";
             case Private: return "private";
             case Shared:  return "shared";
             case Global:  return "global";
@@ -273,20 +274,40 @@ struct FnType : public TypeApp {
     void print(Printer&) const override;
 };
 
-struct RefType : public CompoundType {
+/// Base type for pointers and references.
+struct RefTypeBase : public CompoundType {
     AddrSpace addr_space;
     bool mut;
 
-    RefType(const Type* pointee, AddrSpace addr_space, bool mut)
+    RefTypeBase(const Type* pointee, AddrSpace addr_space, bool mut)
         : CompoundType({ pointee }), addr_space(addr_space), mut(mut)
     {}
 
     const Type* pointee() const { return args[0]; }
 
-    const CompoundType* rebuild(TypeTable&, Args&&) const override;
-
     uint32_t hash() const override;
     bool equals(const Type*) const override;
+};
+
+/// Reference type.
+struct RefType : public RefTypeBase {
+    RefType(const Type* pointee, AddrSpace addr_space, bool mut)
+        : RefTypeBase(pointee, addr_space, mut)
+    {}
+
+    const CompoundType* rebuild(TypeTable&, Args&&) const override;
+
+    void print(Printer&) const override;
+};
+
+/// Pointer type.
+struct PtrType : public RefTypeBase {
+    PtrType(const Type* pointee, AddrSpace addr_space, bool mut)
+        : RefTypeBase(pointee, addr_space, mut)
+    {}
+
+    const CompoundType* rebuild(TypeTable&, Args&&) const override;
+
     void print(Printer&) const override;
 };
 
@@ -424,6 +445,7 @@ public:
     const TupleType*    unit_type();
     const FnType*       fn_type(const Type*, const Type*);
     const RefType*      ref_type(const Type*, AddrSpace, bool);
+    const PtrType*      ptr_type(const Type*, AddrSpace, bool);
     const PolyType*     poly_type(size_t, const Type*);
     const SelfType*     self_type();
     const TypeVar*      type_var(uint32_t, TypeVar::Traits&& traits = TypeVar::Traits());

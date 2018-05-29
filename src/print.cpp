@@ -188,6 +188,13 @@ void BinaryExpr::print(Printer& p) const {
     print_op(right_operand());
 }
 
+void AddrOfExpr::print(Printer& p) const {
+    p << '&';
+    if (mut)
+        p << keyword_style("mut") << ' ';
+    expr->print(p);
+}
+
 void ErrorExpr::print(Printer& p) const {
     p << error_style("<invalid expression>");
 }
@@ -424,6 +431,14 @@ void TypeApp::print(Printer& p) const {
     path.print(p);
 }
 
+void PtrType::print(Printer& p) const {
+    p << '&';
+    if (mut) p << keyword_style("mut") << ' ';
+    if (addr_space.locality != AddrSpace::Generic)
+        p << keyword_style(addr_space.to_string()) << ' ';
+    pointee->print(p);
+}
+
 void SelfType::print(Printer& p) const {
     p << keyword_style("Self");
 }
@@ -483,9 +498,18 @@ void FnType::print(Printer& p) const {
 }
 
 void RefType::print(Printer& p) const {
+    p << keyword_style("ref") << ' ';
     if (mut) p << keyword_style("mut") << ' ';
-    p << keyword_style(addr_space.to_string()) << ' '
-      << keyword_style("ref") << ' ';
+    if (addr_space.locality != AddrSpace::Generic)
+        p << keyword_style(addr_space.to_string()) << ' ';
+    pointee()->print(p);
+}
+
+void PtrType::print(Printer& p) const {
+    p << '&';
+    if (mut) p << keyword_style("mut") << ' ';
+    if (addr_space.locality != AddrSpace::Generic)
+        p << keyword_style(addr_space.to_string()) << ' ';
     pointee()->print(p);
 }
 

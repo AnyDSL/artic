@@ -80,6 +80,10 @@ void TypeApp::check(TypeChecker& ctx) const {
     ctx.check(path);
 }
 
+void PtrType::check(TypeChecker& ctx) const {
+    ctx.check(*pointee);
+}
+
 void SelfType::check(TypeChecker&) const {}
 
 void ErrorType::check(TypeChecker&) const {}
@@ -127,6 +131,10 @@ void DeclExpr::check(TypeChecker& ctx) const {
 void CallExpr::check(TypeChecker& ctx) const {
     ctx.check(*callee);
     ctx.check(*arg);
+}
+
+void AddrOfExpr::check(TypeChecker& ctx) const {
+    ctx.check(*expr);
 }
 
 void IfExpr::check(TypeChecker& ctx) const {

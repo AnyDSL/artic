@@ -211,6 +211,25 @@ struct TypeApp : public Type {
     void print(Printer&) const override;
 };
 
+/// A pointer type.
+struct PtrType : public Type {
+    Ptr<Type> pointee;
+    AddrSpace addr_space;
+    bool mut;
+
+    PtrType(const Loc& loc, Ptr<Type>&& pointee, AddrSpace addr_space, bool mut)
+        : Type(loc)
+        , pointee(std::move(pointee))
+        , addr_space(addr_space)
+        , mut(mut)
+    {}
+
+    const artic::Type* infer(TypeInference&) const override;
+    void bind(NameBinder&) const override;
+    void check(TypeChecker&) const override;
+    void print(Printer&) const override;
+};
+
 /// The Self type.
 struct SelfType : public Type {
     SelfType(const Loc& loc)
@@ -500,6 +519,21 @@ struct BinaryExpr : public CallExpr {
     static Path tag_to_fn(const Loc&, Tag);
     static std::string tag_to_string(Tag);
     static Tag tag_from_token(const Token&);
+};
+
+/// Address-of expression.
+struct AddrOfExpr : public Expr {
+    Ptr<Expr> expr;
+    bool mut;
+
+    AddrOfExpr(const Loc& loc, Ptr<Expr>&& expr, bool mut)
+        : Expr(loc), expr(std::move(expr)), mut(mut)
+    {}
+
+    const artic::Type* infer(TypeInference&) const override;
+    void bind(NameBinder&) const override;
+    void check(TypeChecker&) const override;
+    void print(Printer&) const override;
 };
 
 /// Incorrect expression, as a result of parsing.

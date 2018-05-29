@@ -7,16 +7,19 @@
 namespace artic {
 
 std::unordered_map<std::string, Token::Tag> Lexer::keywords{
-    std::make_pair("let",    Token::Let),
-    std::make_pair("mut",    Token::Mut),
-    std::make_pair("fn",     Token::Fn),
-    std::make_pair("if",     Token::If),
-    std::make_pair("else",   Token::Else),
-    std::make_pair("for",    Token::For),
-    std::make_pair("struct", Token::Struct),
-    std::make_pair("trait",  Token::Trait),
-    std::make_pair("impl",   Token::Impl),
-    std::make_pair("Self",   Token::Self)
+    std::make_pair("let",     Token::Let),
+    std::make_pair("mut",     Token::Mut),
+    std::make_pair("global",  Token::Global),
+    std::make_pair("shared",  Token::Shared),
+    std::make_pair("private", Token::Private),
+    std::make_pair("fn",      Token::Fn),
+    std::make_pair("if",      Token::If),
+    std::make_pair("else",    Token::Else),
+    std::make_pair("for",     Token::For),
+    std::make_pair("struct",  Token::Struct),
+    std::make_pair("trait",   Token::Trait),
+    std::make_pair("impl",    Token::Impl),
+    std::make_pair("Self",    Token::Self)
 };
 
 bool Lexer::Utf8Buffer::fill(std::istream& is) {

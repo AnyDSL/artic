@@ -15,6 +15,9 @@ namespace artic {
     f(Lit, "<literal>") \
     f(Let, "let") \
     f(Mut, "mut") \
+    f(Global, "global") \
+    f(Shared, "shared") \
+    f(Private, "private") \
     f(Fn,  "fn") \
     f(If, "if") \
     f(Else, "else") \

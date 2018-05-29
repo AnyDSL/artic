@@ -421,6 +421,18 @@ Ptr<ast::CallExpr> Parser::parse_call_expr(Ptr<Expr>&& callee) {
     return make_ptr<ast::CallExpr>(tracker(), std::move(callee), std::move(args));
 }
 
+Ptr<ast::AddrOfExpr> Parser::parse_addr_of_expr() {
+    Tracker tracker(this);
+    eat(Token::And);
+    bool mut = false;
+    if (ahead().tag() == Token::Mut) {
+        eat(Token::Mut);
+        mut = true;
+    }
+    auto expr = parse_expr();
+    return make_ptr<ast::AddrOfExpr>(tracker(), std::move(expr), mut);
+}
+
 Ptr<ast::IfExpr> Parser::parse_if_expr() {
     Tracker tracker(this);
     eat(Token::If);
@@ -450,6 +462,9 @@ Ptr<ast::IfExpr> Parser::parse_if_expr() {
 Ptr<ast::Expr> Parser::parse_primary_expr() {
     Ptr<ast::Expr> expr;
     switch (ahead().tag()) {
+        case Token::And:
+            expr = std::move(parse_addr_of_expr());
+            break;
         case Token::Inc:
         case Token::Dec:
         case Token::Add:
@@ -539,6 +554,7 @@ Ptr<ast::Type> Parser::parse_type() {
         case Token::Self:   return parse_self_type();
         case Token::Id:     return parse_named_type();
         case Token::LParen: return parse_tuple_type();
+        case Token::And:    return parse_ptr_type();
         default:            return parse_error_type();
     }
 }
@@ -584,6 +600,19 @@ Ptr<ast::TypeApp> Parser::parse_type_app() {
     Tracker tracker(this);
     auto path = parse_path();
     return make_ptr<ast::TypeApp>(tracker(), std::move(path));
+}
+
+Ptr<ast::PtrType> Parser::parse_ptr_type() {
+    Tracker tracker(this);
+    eat(Token::And);
+    bool mut = false;
+    if (ahead().tag() == Token::Mut) {
+        eat(Token::Mut);
+        mut = true;
+    }
+    AddrSpace addr_space = parse_addr_space();
+    auto type = parse_type();
+    return make_ptr<ast::PtrType>(tracker(), std::move(type), addr_space, mut);
 }
 
 Ptr<ast::SelfType> Parser::parse_self_type() {
@@ -638,6 +667,15 @@ Literal Parser::parse_lit() {
         lit = ahead().literal();
     next();
     return lit;
+}
+
+AddrSpace Parser::parse_addr_space() {
+    switch (ahead().tag()) {
+        case Token::Global:  eat(Token::Global);  return AddrSpace::Global;
+        case Token::Shared:  eat(Token::Shared);  return AddrSpace::Shared;
+        case Token::Private: eat(Token::Private); return AddrSpace::Private;
+        default:             return AddrSpace::Generic;
+    }
 }
 
 PtrVector<ast::NamedDecl> Parser::parse_trait_body() {

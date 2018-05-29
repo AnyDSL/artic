@@ -63,6 +63,10 @@ void TypeApp::bind(NameBinder& ctx) const {
     ctx.bind(path);
 }
 
+void PtrType::bind(NameBinder& ctx) const {
+    ctx.bind(*pointee);
+}
+
 void SelfType::bind(NameBinder&) const {}
 
 void ErrorType::bind(NameBinder&) const {}
@@ -117,6 +121,10 @@ void DeclExpr::bind(NameBinder& ctx) const {
 void CallExpr::bind(NameBinder& ctx) const {
     ctx.bind(*callee);
     ctx.bind(*arg);
+}
+
+void AddrOfExpr::bind(NameBinder& ctx) const {
+    ctx.bind(*expr);
 }
 
 void IfExpr::bind(NameBinder& ctx) const {

@@ -50,6 +50,7 @@ private:
     Ptr<ast::DeclExpr>      parse_decl_expr();
     Ptr<ast::FnExpr>        parse_fn_expr(bool);
     Ptr<ast::CallExpr>      parse_call_expr(Ptr<ast::Expr>&&);
+    Ptr<ast::AddrOfExpr>    parse_addr_of_expr();
     Ptr<ast::IfExpr>        parse_if_expr();
     Ptr<ast::Expr>          parse_primary_expr();
     Ptr<ast::UnaryExpr>     parse_prefix_expr();
@@ -63,6 +64,7 @@ private:
     Ptr<ast::Type>          parse_tuple_type();
     Ptr<ast::FnType>        parse_fn_type();
     Ptr<ast::TypeApp>       parse_type_app();
+    Ptr<ast::PtrType>       parse_ptr_type();
     Ptr<ast::SelfType>      parse_self_type();
     Ptr<ast::ErrorType>     parse_error_type();
 
@@ -70,6 +72,8 @@ private:
     ast::Path               parse_path() { return parse_path(parse_id()); }
     ast::Identifier         parse_id();
     Literal                 parse_lit();
+
+    AddrSpace               parse_addr_space();
 
     PtrVector<ast::NamedDecl> parse_trait_body();
 

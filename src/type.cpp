@@ -96,8 +96,13 @@ uint32_t TraitType::hash() const {
     return hash_string(name);
 }
 
-uint32_t RefType::hash() const {
-    return hash_combine(pointee()->hash(), addr_space.hash(), uint32_t(mut));
+uint32_t RefTypeBase::hash() const {
+    return hash_combine(
+        typeid(*this).hash_code(),
+        pointee()->hash(),
+        addr_space.hash(),
+        uint32_t(mut)
+    );
 }
 
 uint32_t PolyType::hash() const {
@@ -155,11 +160,11 @@ bool TraitType::equals(const Type* t) const {
     return t->isa<TraitType>() && t->as<TraitType>()->name == name;
 }
 
-bool RefType::equals(const Type* t) const {
-    return t->isa<RefType>() &&
-           t->as<RefType>()->pointee() == pointee() &&
-           t->as<RefType>()->addr_space == addr_space &&
-           t->as<RefType>()->mut == mut;
+bool RefTypeBase::equals(const Type* t) const {
+    return typeid(*this) == typeid(*t) &&
+           t->as<RefTypeBase>()->pointee() == pointee() &&
+           t->as<RefTypeBase>()->addr_space == addr_space &&
+           t->as<RefTypeBase>()->mut == mut;
 }
 
 bool PolyType::equals(const Type* t) const {
@@ -211,6 +216,10 @@ const CompoundType* FnType::rebuild(TypeTable& table, Args&& new_args) const {
 
 const CompoundType* RefType::rebuild(TypeTable& table, Args&& new_args) const {
     return table.ref_type(new_args[0], addr_space, mut);
+}
+
+const CompoundType* PtrType::rebuild(TypeTable& table, Args&& new_args) const {
+    return table.ptr_type(new_args[0], addr_space, mut);
 }
 
 const CompoundType* PolyType::rebuild(TypeTable& table, Args&& new_args) const {
@@ -279,6 +288,10 @@ const FnType* TypeTable::fn_type(const Type* from, const Type* to) {
 
 const RefType* TypeTable::ref_type(const Type* pointee, AddrSpace addr_space, bool mut) {
     return new_type<RefType>(pointee, addr_space, mut);
+}
+
+const PtrType* TypeTable::ptr_type(const Type* pointee, AddrSpace addr_space, bool mut) {
+    return new_type<PtrType>(pointee, addr_space, mut);
 }
 
 const PolyType* TypeTable::poly_type(size_t num_vars, const Type* body) {
