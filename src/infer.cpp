@@ -10,6 +10,10 @@ void TypeInference::run(const ast::Program& program) {
     program.infer(*this);
 }
 
+inline bool compatible_refs(const RefTypeBase* a, const RefTypeBase* b) {
+    return (!a->mut || b->mut) && (a->addr_space == AddrSpace(AddrSpace::Generic) || a->addr_space == b->addr_space);
+}
+
 const Type* TypeInference::unify(const Loc& loc, const Type* a, const Type* b) {
     // Unifies types: returns the principal type for two given types
     a = find(a);
@@ -20,22 +24,14 @@ const Type* TypeInference::unify(const Loc& loc, const Type* a, const Type* b) {
     auto ref_b = b->isa<RefType>();
     if (ref_a && !ref_b) return unify(loc, ref_a->pointee(), b);
     if (!ref_a && ref_b) return unify(loc, ref_b->pointee(), a);
-    if (ref_a && ref_b) {
-        auto pointee = unify(loc, ref_a->pointee(), ref_b->pointee());
-        auto addr_space = std::max(ref_a->addr_space, ref_b->addr_space);
-        auto mut = ref_a->mut | ref_b->mut;
-        return type_table().ref_type(pointee, addr_space, mut);
-    }
+    if (ref_a && ref_b && compatible_refs(ref_b, ref_a))
+        return type_table().ref_type(unify(loc, ref_a->pointee(), ref_b->pointee()), ref_b->addr_space, ref_b->mut);
 
     // Pointers
     auto ptr_a = a->isa<PtrType>();
     auto ptr_b = b->isa<PtrType>();
-    if (ptr_a && ptr_b) {
-        auto pointee = unify(loc, ptr_a->pointee(), ptr_b->pointee());
-        auto addr_space = std::max(ptr_a->addr_space, ptr_b->addr_space);
-        auto mut = ptr_a->mut | ptr_b->mut;
-        return type_table().ptr_type(pointee, addr_space, mut);
-    }
+    if (ptr_a && ptr_b && compatible_refs(ptr_b, ptr_a))
+        return type_table().ptr_type(unify(loc, ptr_a->pointee(), ptr_b->pointee()), ptr_b->addr_space, ptr_b->mut);
 
     // Constrain unknowns
     auto unknown_a = a->isa<UnknownType>();
@@ -51,6 +47,17 @@ const Type* TypeInference::unify(const Loc& loc, const Type* a, const Type* b) {
     }
     if (poly_a) return type_table().poly_type(poly_a->num_vars, unify(loc, poly_a->body(), b));
     if (poly_b) return type_table().poly_type(poly_b->num_vars, unify(loc, poly_b->body(), a));
+
+    // Unification for functions
+    auto fn_a = a->isa<FnType>();
+    auto fn_b = b->isa<FnType>();
+    if (fn_a && fn_b) {
+        // Domain and codomain have inverted subtype relations
+        return type_table().fn_type(
+            unify(loc, fn_b->from(), fn_a->from()),
+            unify(loc, fn_a->to(), fn_b->to())
+        );
+    }
 
     // Unification for type constructors
     auto app_a = a->isa<TypeApp>();
@@ -338,16 +345,21 @@ const artic::Type* CallExpr::infer(TypeInference& ctx) const {
 
 const artic::Type* ProjExpr::infer(TypeInference& ctx) const {
     auto expr_type = ctx.infer(*expr);
-    if (auto ref_type = expr_type->isa<RefType>())
+    const artic::RefTypeBase* ref_base = ctx.type_table().ref_type(expr_type, AddrSpace::Generic, false);
+    if (auto ref_type = expr_type->isa<RefType>()) {
         expr_type = ref_type->pointee();
-    if (auto ptr_type = expr_type->isa<artic::PtrType>())
+        ref_base = ref_type;
+    }
+    if (auto ptr_type = expr_type->isa<artic::PtrType>()) {
         expr_type = ptr_type->pointee();
+        ref_base = ptr_type;
+    }
     if (auto struct_type = expr_type->isa<artic::StructType>()) {
         auto& members = struct_type->members(ctx.type_table());
         auto it = members.find(field.name);
         if (it == members.end())
             return ctx.type_table().error_type(loc);
-        return it->second;
+        return ctx.type_table().ref_type(it->second, ref_base->addr_space, ref_base->mut);
     }
     return ctx.type(*this);
 }
@@ -356,10 +368,12 @@ const artic::Type* AddrOfExpr::infer(TypeInference& ctx) const {
     auto expr_type = ctx.infer(*expr);
     if (auto ref_type = expr_type->isa<artic::RefType>()) {
         if (!mut || ref_type->mut)
-            return ctx.type_table().ptr_type(ref_type->pointee(), AddrSpace::Generic, mut);
+            return ctx.type_table().ptr_type(ref_type->pointee(), ref_type->addr_space, mut);
         return ctx.type_table().error_type(loc);
-    }
-    return ctx.type(*this);
+    } else if (expr_type->isa<UnknownType>())
+        return ctx.type(*this);
+    else
+        return ctx.type_table().error_type(loc);
 }
 
 const artic::Type* DerefExpr::infer(TypeInference& ctx) const {
@@ -368,7 +382,10 @@ const artic::Type* DerefExpr::infer(TypeInference& ctx) const {
         expr_type = ref_type->pointee();
     if (auto ptr_type = expr_type->isa<artic::PtrType>())
         return ctx.type_table().ref_type(ptr_type->pointee(), ptr_type->addr_space, ptr_type->mut);
-    return ctx.type(*this);
+    else if (expr_type->isa<UnknownType>())
+        return ctx.type(*this);
+    else
+        return ctx.type_table().error_type(loc);
 }
 
 const artic::Type* IfExpr::infer(TypeInference& ctx) const {
@@ -452,7 +469,7 @@ const artic::Type* PtrnDecl::infer(TypeInference& ctx) const {
 }
 
 const artic::Type* LetDecl::infer(TypeInference& ctx) const {
-    return init ? ctx.infer(*ptrn, ctx.infer(*init)) : ctx.infer(*ptrn);
+    return init ? ctx.infer(*init, ctx.infer(*ptrn)) : ctx.infer(*ptrn);
 }
 
 const artic::Type* FnDecl::infer_head(TypeInference& ctx) const {
