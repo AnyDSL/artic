@@ -8,34 +8,6 @@ fn pow<T: Mul, U: Num>(x: T, n: U) -> T {
         x * pow(x, n - 1)
     }
 }
-trait Add {
-    fn add(a: Self, b: Self) -> Self;
-}
-trait Sub {
-    fn sub(a: Self, b: Self) -> Self;
-}
-trait Mul {
-    fn mul(a: Self, b: Self) -> Self;
-}
-trait Div {
-    fn div(a: Self, b: Self) -> Self;
-}
-trait Mod {
-    fn mod(a: Self, b: Self) -> Self;
-}
-trait CmpEq {
-    fn cmp_eq(a: Self, b: Self) -> bool;
-}
-trait Num : Add + Sub + Mul + Div + Mod + CmpEq {}
-
-impl Add for i32 {}
-impl Sub for i32 {}
-impl Mul for i32 {}
-impl Div for i32 {}
-impl Mod for i32 {}
-impl CmpEq for i32 {}
-impl Num for i32 {}
-
 let _256 : i32 = pow(2 : i32, 8 : i32);
 let mut x = 42 : i32;
 let y = x + 5;

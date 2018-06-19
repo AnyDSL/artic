@@ -10,6 +10,10 @@ trait Div {
     fn div(a: Self, b: Self) -> Self;
 }
 
+trait Add {
+    fn add(a: Self, b: Self) -> Self;
+}
+
 trait Sub {
     fn sub(a: Self, b: Self) -> Self;
 }
@@ -42,8 +46,9 @@ trait CmpGT {
     fn cmp_gt(a: Self, b: Self) -> bool;
 }
 
-trait Num : Sub + Mul + Div + Mod + AssignMul + AssignDiv + PostDec + CmpGE + CmpEq + CmpLT + CmpGT {}
+trait Num : Add + Sub + Mul + Div + Mod + AssignMul + AssignDiv + PostDec + CmpGE + CmpEq + CmpLT + CmpGT {}
 
+impl Add for i32;
 impl Sub for i32;
 impl Mul for i32;
 impl Div for i32;
