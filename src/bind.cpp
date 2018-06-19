@@ -123,6 +123,11 @@ void CallExpr::bind(NameBinder& ctx) const {
     ctx.bind(*arg);
 }
 
+void ProjExpr::bind(NameBinder& ctx) const {
+    ctx.bind(*expr);
+    // Cannot bind field yet, need type inference
+}
+
 void AddrOfExpr::bind(NameBinder& ctx) const {
     ctx.bind(*expr);
 }

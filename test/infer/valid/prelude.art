@@ -1,0 +1,59 @@
+trait Mul {
+    fn mul(a: Self, b: Self) -> Self;
+}
+
+trait Mod {
+    fn mod(a: Self, b: Self) -> Self;
+}
+
+trait Div {
+    fn div(a: Self, b: Self) -> Self;
+}
+
+trait Sub {
+    fn sub(a: Self, b: Self) -> Self;
+}
+
+trait AssignMul {
+    fn assign_mul(ptr: &mut Self, val: Self) -> ();
+}
+
+trait AssignDiv {
+    fn assign_div(ptr: &mut Self, val: Self) -> ();
+}
+
+trait PostDec {
+    fn dec(ptr: &mut Self) -> ();
+}
+
+trait CmpEq {
+    fn cmp_eq(a: Self, b: Self) -> bool;
+}
+
+trait CmpGE {
+    fn cmp_ge(a: Self, b: Self) -> bool;
+}
+
+trait CmpLT {
+    fn cmp_lt(a: Self, b: Self) -> bool;
+}
+
+trait CmpGT {
+    fn cmp_gt(a: Self, b: Self) -> bool;
+}
+
+trait Num : Sub + Mul + Div + Mod + AssignMul + AssignDiv + PostDec + CmpGE + CmpEq + CmpLT + CmpGT {}
+
+impl Sub for i32;
+impl Mul for i32;
+impl Div for i32;
+impl Mod for i32;
+impl AssignMul for i32;
+impl AssignDiv for i32;
+impl PostDec for i32;
+impl CmpEq for i32;
+impl CmpGE for i32;
+impl CmpGT for i32;
+impl CmpLT for i32;
+impl Num for i32;
+

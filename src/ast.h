@@ -425,6 +425,25 @@ struct CallExpr : public Expr {
     void print(Printer&) const override;
 };
 
+/// Projection operator (.).
+struct ProjExpr : public Expr {
+    Ptr<Expr> expr;
+    Identifier field;
+
+    mutable std::shared_ptr<Symbol> symbol;
+
+    ProjExpr(const Loc& loc, Ptr<Expr>&& expr, Identifier&& field)
+        : Expr(loc)
+        , expr(std::move(expr))
+        , field(std::move(field))
+    {}
+
+    const artic::Type* infer(TypeInference&) const override;
+    void bind(NameBinder&) const override;
+    void check(TypeChecker&) const override;
+    void print(Printer&) const override;
+};
+
 /// If/Else expression (the else branch is optional).
 struct IfExpr : public Expr {
     Ptr<Expr> cond;

@@ -412,6 +412,9 @@ struct InferError : public ErrorType {
         : ErrorType(loc), left(left), right(right)
     {}
 
+    bool has(const std::function<bool (const Type*)>& pred) const override;
+    void all(std::unordered_set<const Type*>& set, const std::function<bool (const Type*)>& pred) const override;
+
     uint32_t hash() const override;
     bool equals(const Type*) const override;
 };

@@ -234,6 +234,12 @@ void CompoundType::all(std::unordered_set<const Type*>& set, const std::function
         arg->all(set, pred);
 }
 
+void InferError::all(std::unordered_set<const Type*>& set, const std::function<bool (const Type*)>& pred) const {
+    if (pred(this)) set.emplace(this);
+    left->all(set, pred);
+    right->all(set, pred);
+}
+
 // Has -----------------------------------------------------------------------------
 
 bool CompoundType::has(const std::function<bool (const Type*)>& pred) const {
@@ -242,6 +248,10 @@ bool CompoundType::has(const std::function<bool (const Type*)>& pred) const {
         if (arg->has(pred)) return true;
     }
     return false;
+}
+
+bool InferError::has(const std::function<bool (const Type*)>& pred) const {
+    return pred(this) || left->has(pred) || right->has(pred);
 }
 
 // Substitute ----------------------------------------------------------------------

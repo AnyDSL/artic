@@ -27,19 +27,19 @@ void TypeChecker::check(const ast::Node& node) {
         node.isa<ast::TypeParamList>())
         return;
 
-    if (node.type->has<UnknownType>()) {
-        error(node.loc, "cannot infer type for '{}'", node);
-        note(node.loc, "best inferred type is '{}'", *node.type);
-    } else if (node.type->has<ErrorType>()) {
+    if (node.type->has<ErrorType>()) {
         error(node.loc, "incorrect type for '{}'", node);
         for (auto& error : node.type->all<InferError>()) {
-            if (error->left->isa<ErrorType>() ||
-                error->right->isa<ErrorType>())
+            if (error->left->isa<InferError>() ||
+                error->right->isa<InferError>())
                 continue;
             note(error->loc,
                  "resulting from unification of '{}' and '{}'",
                  *error->left, *error->right);
         }
+    } else if (node.type->has<UnknownType>()) {
+        error(node.loc, "cannot infer type for '{}'", node);
+        note(node.loc, "best inferred type is '{}'", *node.type);
     }
 }
 
@@ -131,6 +131,10 @@ void DeclExpr::check(TypeChecker& ctx) const {
 void CallExpr::check(TypeChecker& ctx) const {
     ctx.check(*callee);
     ctx.check(*arg);
+}
+
+void ProjExpr::check(TypeChecker& ctx) const {
+    ctx.check(*expr);
 }
 
 void AddrOfExpr::check(TypeChecker& ctx) const {

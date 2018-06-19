@@ -282,6 +282,8 @@ const artic::Type* PathExpr::infer(TypeInference& ctx) const {
 }
 
 const artic::Type* LiteralExpr::infer(TypeInference& ctx) const {
+    if (lit.is_bool())
+        return ctx.type_table().prim_type(artic::PrimType::I1);
     return ctx.type(*this, { ctx.type_table().trait_type("Num", nullptr) });
 }
 
@@ -334,6 +336,22 @@ const artic::Type* CallExpr::infer(TypeInference& ctx) const {
     return ret_type;
 }
 
+const artic::Type* ProjExpr::infer(TypeInference& ctx) const {
+    auto expr_type = ctx.infer(*expr);
+    if (auto ref_type = expr_type->isa<RefType>())
+        expr_type = ref_type->pointee();
+    if (auto ptr_type = expr_type->isa<artic::PtrType>())
+        expr_type = ptr_type->pointee();
+    if (auto struct_type = expr_type->isa<artic::StructType>()) {
+        auto& members = struct_type->members(ctx.type_table());
+        auto it = members.find(field.name);
+        if (it == members.end())
+            return ctx.type_table().error_type(loc);
+        return it->second;
+    }
+    return ctx.type(*this);
+}
+
 const artic::Type* AddrOfExpr::infer(TypeInference& ctx) const {
     auto expr_type = ctx.infer(*expr);
     if (auto ref_type = expr_type->isa<artic::RefType>()) {
@@ -380,6 +398,8 @@ const artic::Type* IdPtrn::infer(TypeInference& ctx) const {
 }
 
 const artic::Type* LiteralPtrn::infer(TypeInference& ctx) const {
+    if (lit.is_bool())
+        return ctx.type_table().prim_type(artic::PrimType::I1);
     return ctx.type(*this, { ctx.type_table().trait_type("Num", nullptr) });
 }
 

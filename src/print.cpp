@@ -146,6 +146,11 @@ void CallExpr::print(Printer& p) const {
     print_parens(p, arg);
 }
 
+void ProjExpr::print(Printer& p) const {
+    expr->print(p);
+    p << '.' << field.name;
+}
+
 void IfExpr::print_head(Printer& p) const {
     p << keyword_style("if") << ' ';
     cond->print(p);

@@ -430,6 +430,13 @@ Ptr<ast::CallExpr> Parser::parse_call_expr(Ptr<Expr>&& callee) {
     return make_ptr<ast::CallExpr>(tracker(), std::move(callee), std::move(args));
 }
 
+Ptr<ast::ProjExpr> Parser::parse_proj_expr(Ptr<Expr>&& expr) {
+    Tracker tracker(this, expr->loc);
+    eat(Token::Dot);
+    auto id = parse_id();
+    return make_ptr<ast::ProjExpr>(tracker(), std::move(expr), std::move(id));
+}
+
 Ptr<ast::AddrOfExpr> Parser::parse_addr_of_expr() {
     Tracker tracker(this);
     eat(Token::And);
@@ -530,6 +537,8 @@ Ptr<ast::Expr> Parser::parse_primary_expr() {
         expr = std::move(parse_postfix_expr(std::move(expr)));
     while (ahead().tag() == Token::LParen)
         expr = std::move(parse_call_expr(std::move(expr)));
+    while (ahead().tag() == Token::Dot)
+        expr = std::move(parse_proj_expr(std::move(expr)));
     return parse_typed_expr(std::move(expr));
 }
 
