@@ -102,9 +102,9 @@ int main(int argc, char** argv) {
         Lexer lexer(file, is, logger);
         Parser parser(lexer, type_table, logger);
         auto module = parser.parse_program();
-        std::move(module->decls.begin(), module->decls.end(), std::back_inserter(program.decls));
         if (lexer.error_count + parser.error_count != 0)
             return 1;
+        program.concat(std::move(module));
     }
 
     NameBinder name_binder(logger);

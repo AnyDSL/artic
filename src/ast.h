@@ -934,6 +934,8 @@ struct Program : public Node {
         : Node(loc), decls(std::move(decls))
     {}
 
+    void concat(Ptr<Program>&& other);
+
     const artic::Type* infer(TypeInference&) const override;
     void bind(NameBinder&) const override;
     void check(TypeChecker&) const override;
