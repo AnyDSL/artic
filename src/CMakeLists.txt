@@ -1,3 +1,11 @@
+set(BACKEND emit.cpp)
+find_package(Thorin QUIET)
+if (Thorin_FOUND)
+    set(BACKEND emit_thorin.cpp)
+    include_directories(${Thorin_INCLUDE_DIRS})
+    link_libraries(${Thorin_LIBRARIES})
+endif()
+
 add_library(libartic
     ast.h
     ast.cpp
@@ -7,6 +15,7 @@ add_library(libartic
     cast.h
     check.cpp
     check.h
+    ${BACKEND}
     infer.cpp
     infer.h
     lexer.cpp

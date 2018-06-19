@@ -212,7 +212,6 @@ void FnDecl::check(TypeChecker& ctx) const {
     } else if (fn->param) {
         ctx.check(*fn->param);
     }
-    log::out << (const Node&)*this << " : " << *type << '\n';
 }
 
 void FieldDecl::check(TypeChecker& ctx) const {

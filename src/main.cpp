@@ -14,6 +14,10 @@
 
 using namespace artic;
 
+namespace artic {
+    void emit(const std::string&, const ast::Program&);
+}
+
 static void usage() {
     log::out << "Usage: artic [options] files...\n"
                 "Available options:\n"
@@ -89,7 +93,6 @@ int main(int argc, char** argv) {
     if (!opts.parse(argc, argv)) return 1;
 
     Logger logger(log::out);
-    Printer printer(log::out);
     TypeTable type_table;
 
     auto program = ast::Program(Loc(), PtrVector<ast::Decl>());
@@ -117,8 +120,7 @@ int main(int argc, char** argv) {
     if (!type_checker.run(program))
         return 1;
 
-    program.print(printer);
-    log::out << '\n';
-
+    auto module_name = "module";
+    emit(module_name, program);
     return 0;
 }
