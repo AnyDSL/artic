@@ -50,7 +50,7 @@ struct CodeGen {
             return type_map[type] = thorin_struct;
         } else if (auto tuple_type = type->isa<TupleType>()) {
             thorin::Array<const thorin::Type*> ops(tuple_type->args.size());
-            for (size_t i = 0; i < tuple_type->args.size(); ++i)
+            for (size_t i = 0; i < ops.size(); ++i)
                 ops[i] = convert(tuple_type->args[i]);
             return type_map[type] = world.tuple_type(ops);
         } else if (auto fn_type = type->isa<FnType>()) {
@@ -92,17 +92,37 @@ struct CodeGen {
             emit(*fn_expr->param, cont->param(1));
             auto ret = emit(*fn_expr->body);
             cur_bb->jump(cont->param(2), thorin::Defs{ cur_bb->param(0), ret }, loc_to_dbg(fn_expr->loc, "ret"));
+        } else if (decl.isa<ast::TraitDecl>()) {
+            // TODO
+        } else if (decl.isa<ast::ImplDecl>()) {
+            // TODO
         } else {
             assert(false);
         }
     }
 
     const thorin::Def* emit(const ast::Expr& expr) {
-        auto def_it = def_map.find(&expr);
-        if (def_it != def_map.end())
-            return def_it->second;
-
-        if (auto block_expr = expr.isa<ast::BlockExpr>()) {
+        if (auto lit_expr = expr.isa<ast::LiteralExpr>()) {
+            auto dbg = loc_to_dbg(lit_expr->loc, "");
+            switch (lit_expr->type->as<artic::PrimType>()->tag) {
+                case PrimType::I1:  return world.literal_bool(lit_expr->lit.as_bool(), dbg);
+                case PrimType::I8:  return world.literal_qs8 (lit_expr->lit.as_integer(), dbg);
+                case PrimType::I16: return world.literal_qs16(lit_expr->lit.as_integer(), dbg);
+                case PrimType::I32: return world.literal_qs32(lit_expr->lit.as_integer(), dbg);
+                case PrimType::I64: return world.literal_qs64(lit_expr->lit.as_integer(), dbg);
+                case PrimType::U8:  return world.literal_qu8 (lit_expr->lit.as_integer(), dbg);
+                case PrimType::U16: return world.literal_qu16(lit_expr->lit.as_integer(), dbg);
+                case PrimType::U32: return world.literal_qu32(lit_expr->lit.as_integer(), dbg);
+                case PrimType::U64: return world.literal_qu64(lit_expr->lit.as_integer(), dbg);
+                case PrimType::F32: return world.literal_qf32(lit_expr->lit.as_double(), dbg);
+                case PrimType::F64: return world.literal_qf64(lit_expr->lit.as_double(), dbg);
+                default:
+                    assert(false);
+                    return nullptr;
+            }
+        } else if (auto typed_expr = expr.isa<ast::TypedExpr>()) {
+            return emit(*typed_expr->expr);
+        } else if (auto block_expr = expr.isa<ast::BlockExpr>()) {
             for (auto& expr : block_expr->exprs) {
                 if (auto decl_expr = expr->isa<ast::DeclExpr>())
                     emit_head(*decl_expr->decl);
@@ -111,6 +131,13 @@ struct CodeGen {
             for (auto& expr : block_expr->exprs)
                 last = emit(*expr);
             return last;
+        } else if (auto tuple_expr = expr.isa<ast::TupleExpr>()) {
+            thorin::Array<const thorin::Def*> ops(tuple_expr->args.size());
+            for (size_t i = 0; i < ops.size(); ++i)
+                ops[i] = emit(*tuple_expr->args[i]);
+            return world.tuple(ops, loc_to_dbg(tuple_expr->loc, "tuple"));
+        } else if (auto path_expr = expr.isa<ast::PathExpr>()) {
+            return def_map[path_expr->path.elems.back().symbol->decls.front()];
         } else if (auto decl_expr = expr.isa<ast::DeclExpr>()) {
             emit(*decl_expr->decl);
             return world.tuple({});
