@@ -128,7 +128,10 @@ void BlockExpr::print(Printer& p) const {
         auto& expr = exprs[i];
         p << p.endl();
         expr->print(p);
-        if (i != n - 1 && !expr->isa<DeclExpr>() && !expr->isa<IfExpr>())
+        if (i != n - 1 &&
+            !expr->isa<DeclExpr>() &&
+            !expr->isa<IfExpr>()   &&
+            !expr->isa<WhileExpr>())
             p << ';';
     }
     p << p.unindent() << p.endl() << "}";
