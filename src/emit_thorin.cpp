@@ -8,13 +8,17 @@
 
 namespace artic {
 
+// Code generation using Thorin. The following assumptions are made:
+// * The first argument of a function is always the mem object
+// * The second argument of a function is its actual domain
+// * The third argument of a function is its return continuation
 struct CodeGen {
     CodeGen(const std::string& module_name, TypeTable& type_table)
         : type_table(type_table)
         , world(module_name)
     {}
 
-    const thorin::Debug loc_to_dbg(const Loc& loc, const std::string& name) {
+    const thorin::Debug loc_to_dbg(const Loc& loc, const std::string& name = "") {
         return thorin::Debug(thorin::Location(loc.file->c_str(), loc.begin_row, loc.begin_col, loc.end_row, loc.end_col), name);
     }
 
@@ -142,22 +146,34 @@ struct CodeGen {
         } else if (auto decl_expr = expr.isa<ast::DeclExpr>()) {
             emit(*decl_expr->decl);
             return world.tuple({});
+        } else if (auto call_expr = expr.isa<ast::CallExpr>()) {
+            auto callee = emit(*call_expr->callee);
+            auto arg = emit(*call_expr->arg);
+            auto ret_type = world.fn_type({ world.mem_type(), convert(call_expr->type) });
+            auto ret = world.continuation(ret_type, loc_to_dbg(call_expr->loc, "ret"));
+            cur_bb->jump(callee, thorin::Defs { cur_mem, arg, ret }, loc_to_dbg(call_expr->loc));
+            cur_bb = ret;
+            cur_mem = ret->param(0);
+            return ret->param(1);
         } else if (auto if_expr = expr.isa<ast::IfExpr>()) {
             auto cond = emit(*if_expr->cond);
             auto bb_type   = world.fn_type({});
             auto join_type = world.fn_type({ world.mem_type(), convert(if_expr->type) });
             auto if_true   = world.continuation(bb_type, loc_to_dbg(if_expr->if_true->loc, "if_true"));
             auto if_false  = world.continuation(bb_type, loc_to_dbg(if_expr->if_false ? if_expr->if_false->loc : if_expr->loc, "if_false"));
-            auto next      = world.continuation(join_type, loc_to_dbg(if_expr->loc, "next"));
+            auto next      = world.continuation(join_type, loc_to_dbg(if_expr->loc, "if_next"));
 
+            // Jump to either one of the branches, and save current memory object
             auto old_mem = cur_mem;
             cur_bb->jump(world.branch(), thorin::Defs { cond, if_true, if_false }, loc_to_dbg(if_expr->loc, "if"));
 
+            // Emit true branch
             cur_bb = if_true;
             cur_mem = old_mem;
             auto res_true = emit(*if_expr->if_true);
             cur_bb->jump(next, thorin::Defs { cur_mem, res_true });
 
+            // Emit false branch
             cur_bb  = if_false;
             cur_mem = old_mem;
             auto res_false = world.tuple({});
@@ -168,6 +184,30 @@ struct CodeGen {
             cur_bb  = next;
             cur_mem = next->param(0);
             return next->param(1);
+        } else if (auto while_expr = expr.isa<ast::WhileExpr>()) {
+            auto head_type = world.fn_type({ world.mem_type() });
+            auto bb_type = world.fn_type({});
+            auto head = world.continuation(head_type, loc_to_dbg(while_expr->loc, "while_head"));
+            auto body = world.continuation(bb_type, loc_to_dbg(while_expr->loc, "while_body"));
+            auto exit = world.continuation(bb_type, loc_to_dbg(while_expr->loc, "while_exit"));
+            cur_bb->jump(head, thorin::Defs { cur_mem }, loc_to_dbg(while_expr->loc));
+
+            // Emit head
+            cur_bb  = head;
+            cur_mem = head->param(0);
+            auto cond = emit(*while_expr->cond);
+            auto exit_mem = cur_mem;
+            cur_bb->jump(world.branch(), thorin::Defs { cond, body, exit }, loc_to_dbg(while_expr->loc, "while"));
+
+            // Emit body
+            cur_bb = body;
+            cur_mem = exit_mem;
+            emit(*while_expr->body);
+            cur_bb->jump(head, thorin::Defs { cur_mem });
+
+            cur_bb  = exit;
+            cur_mem = exit_mem;
+            return world.tuple({});
         } else if (auto fn_expr = expr.isa<ast::FnExpr>()) {
             auto type = convert(fn_expr->type)->as<thorin::FnType>();
             auto cont = world.continuation(type, thorin::CC::C, thorin::Intrinsic::None, loc_to_dbg(fn_expr->loc, "lambda"));
