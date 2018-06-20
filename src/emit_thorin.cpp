@@ -68,12 +68,18 @@ struct CodeGen {
 
     void emit(const ast::Ptrn& ptrn, const thorin::Def* def) {
         if (auto id_ptrn = ptrn.isa<ast::IdPtrn>()) {
-            def_map[id_ptrn->decl.get()] = def;
+            auto& decl = id_ptrn->decl;
+            auto frame_tuple = world.enter(cur_mem);
+            auto frame = world.extract(frame_tuple, thorin::u32(1));
+            auto slot = world.slot(convert(id_ptrn->type), frame, loc_to_dbg(id_ptrn->loc, decl->id.name));
+            cur_mem = world.extract(frame_tuple, thorin::u32(0));
+            cur_mem = world.store(cur_mem, slot, def, loc_to_dbg(id_ptrn->loc));
+            def_map[id_ptrn->decl.get()] = slot;
         } else if (auto typed_ptrn = ptrn.isa<ast::TypedPtrn>()) {
             emit(*typed_ptrn->ptrn, def);
         } else if (auto tuple_ptrn = ptrn.isa<ast::TuplePtrn>()) {
             for (size_t i = 0; i < tuple_ptrn->args.size(); ++i)
-                emit(*tuple_ptrn->args[i], world.extract(def, i));
+                emit(*tuple_ptrn->args[i], world.extract(def, i, loc_to_dbg(tuple_ptrn->loc)));
         } else {
             assert(false);
         }
@@ -81,15 +87,22 @@ struct CodeGen {
 
     void emit_head(const ast::Decl& decl) {
         if (auto fn_decl = decl.isa<ast::FnDecl>()) {
+            // Skip polymorphic functions, as they are built on the fly from the call site.
+            if (fn_decl->type->isa<PolyType>())
+                return;
             auto type = convert(fn_decl->type)->as<thorin::FnType>();
             auto cont = world.continuation(type, thorin::CC::C, thorin::Intrinsic::None, loc_to_dbg(fn_decl->loc, fn_decl->id.name));
-            cont->as_continuation()->make_external();
+            if (fn_decl->id.name == "main")
+                cont->as_continuation()->make_external();
             def_map[&decl] = cont;
         }
     }
 
     void emit(const ast::Decl& decl) {
         if (auto fn_decl = decl.isa<ast::FnDecl>()) {
+            // Skip polymorphic functions, as they are built on the fly from the call site.
+            if (fn_decl->type->isa<PolyType>())
+                return;
             auto cont = def_map[&decl]->as_continuation();
             THORIN_PUSH(cur_bb, cont);
             THORIN_PUSH(cur_mem, cont->param(0));
@@ -97,10 +110,25 @@ struct CodeGen {
             emit(*fn_expr->param, cont->param(1));
             auto ret = emit(*fn_expr->body);
             cur_bb->jump(cont->param(2), thorin::Defs { cur_mem, ret }, loc_to_dbg(fn_expr->loc, "ret"));
+        } else if (auto let_decl = decl.isa<ast::LetDecl>()) {
+            auto init = emit(*let_decl->init);
+            emit(*let_decl->ptrn, init);
         } else if (decl.isa<ast::TraitDecl>()) {
             // TODO
         } else if (decl.isa<ast::ImplDecl>()) {
             // TODO
+        } else {
+            assert(false);
+        }
+    }
+
+    const thorin::Def* emit_ptr(const ast::Expr& expr) {
+        if (auto path_expr = expr.isa<ast::PathExpr>()) {
+            auto decl = path_expr->path.elems.back().symbol->decls.front();
+            assert(decl->isa<ast::PtrnDecl>());
+            return def_map[decl];
+        } else if (auto deref_expr = expr.isa<ast::DerefExpr>()) {
+            return emit(*deref_expr->expr);
         } else {
             assert(false);
         }
@@ -142,19 +170,46 @@ struct CodeGen {
                 ops[i] = emit(*tuple_expr->args[i]);
             return world.tuple(ops, loc_to_dbg(tuple_expr->loc, "tuple"));
         } else if (auto path_expr = expr.isa<ast::PathExpr>()) {
-            return def_map[path_expr->path.elems.back().symbol->decls.front()];
+            auto decl = path_expr->path.elems.back().symbol->decls.front();
+            if (decl->isa<ast::PtrnDecl>()) {
+                auto load_tuple = world.load(cur_mem, def_map[decl], loc_to_dbg(path_expr->loc));
+                cur_mem = world.extract(load_tuple, thorin::u32(0));
+                return world.extract(load_tuple, thorin::u32(1));
+            } else
+                return def_map[decl];
+        } else if (auto addr_of_expr = expr.isa<ast::AddrOfExpr>()) {
+            if (addr_of_expr->expr->type->isa<RefType>())
+                return emit_ptr(*addr_of_expr->expr);
+            auto frame_tuple = world.enter(cur_mem);
+            auto frame = world.extract(frame_tuple, thorin::u32(1));
+            auto slot = world.slot(convert(addr_of_expr->expr->type), frame, loc_to_dbg(addr_of_expr->loc));
+            cur_mem = world.extract(frame_tuple, thorin::u32(0));
+            auto val = emit(*addr_of_expr->expr);
+            cur_mem = world.store(cur_mem, slot, val, loc_to_dbg(addr_of_expr->loc));
+            return slot;
         } else if (auto decl_expr = expr.isa<ast::DeclExpr>()) {
             emit(*decl_expr->decl);
             return world.tuple({});
         } else if (auto call_expr = expr.isa<ast::CallExpr>()) {
-            auto callee = emit(*call_expr->callee);
-            auto arg = emit(*call_expr->arg);
-            auto ret_type = world.fn_type({ world.mem_type(), convert(call_expr->type) });
-            auto ret = world.continuation(ret_type, loc_to_dbg(call_expr->loc, "ret"));
-            cur_bb->jump(callee, thorin::Defs { cur_mem, arg, ret }, loc_to_dbg(call_expr->loc));
-            cur_bb = ret;
-            cur_mem = ret->param(0);
-            return ret->param(1);
+            if (call_expr->isa<ast::BinaryExpr>() &&
+                call_expr->as<ast::BinaryExpr>()->tag == ast::BinaryExpr::Eq) {
+                // Assignment operator
+                auto arg = emit(*call_expr->arg);
+                auto ptr = world.extract(arg, thorin::u32(0));
+                auto val = world.extract(arg, thorin::u32(1));
+                cur_mem = world.store(cur_mem, ptr, val, loc_to_dbg(call_expr->loc));
+                return world.tuple({});
+            } else {
+                // General case for function calls
+                auto callee = emit(*call_expr->callee);
+                auto arg = emit(*call_expr->arg);
+                auto ret_type = world.fn_type({ world.mem_type(), convert(call_expr->type) });
+                auto ret = world.continuation(ret_type, loc_to_dbg(call_expr->loc, "ret"));
+                cur_bb->jump(callee, thorin::Defs { cur_mem, arg, ret }, loc_to_dbg(call_expr->loc));
+                cur_bb = ret;
+                cur_mem = ret->param(0);
+                return ret->param(1);
+            }
         } else if (auto if_expr = expr.isa<ast::IfExpr>()) {
             auto cond = emit(*if_expr->cond);
             auto bb_type   = world.fn_type({});
