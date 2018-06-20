@@ -124,21 +124,14 @@ void BlockExpr::print_head(Printer& p) const {
 
 void BlockExpr::print(Printer& p) const {
     p << '{' << p.indent();
-    for (size_t i = 0, n = exprs.size(); i < n; i++) {
-        auto& expr = exprs[i];
+    for (size_t i = 0, n = stmts.size(); i < n; i++) {
+        auto& stmt = stmts[i];
         p << p.endl();
-        expr->print(p);
-        if (i != n - 1 &&
-            !expr->isa<DeclExpr>() &&
-            !expr->isa<IfExpr>()   &&
-            !expr->isa<WhileExpr>())
+        stmt->print(p);
+        if (i != n - 1 && stmt->need_semicolon())
             p << ';';
     }
     p << p.unindent() << p.endl() << "}";
-}
-
-void DeclExpr::print(Printer& p) const {
-    decl->print(p);
 }
 
 void CallExpr::print(Printer& p) const {

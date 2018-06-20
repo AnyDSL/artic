@@ -106,16 +106,12 @@ void FnExpr::bind(NameBinder& ctx) const {
 
 void BlockExpr::bind(NameBinder& ctx) const {
     ctx.push_scope();
-    for (auto& expr : exprs) {
-        if (auto decl_expr = expr->isa<DeclExpr>())
-            ctx.bind_head(*decl_expr->decl);
+    for (auto& stmt : stmts) {
+        if (auto decl_stmt = stmt->isa<DeclStmt>())
+            ctx.bind_head(*decl_stmt->decl);
     }
-    for (auto& expr : exprs) ctx.bind(*expr);
+    for (auto& stmt : stmts) ctx.bind(*stmt);
     ctx.pop_scope();
-}
-
-void DeclExpr::bind(NameBinder& ctx) const {
-    ctx.bind(*decl);
 }
 
 void CallExpr::bind(NameBinder& ctx) const {

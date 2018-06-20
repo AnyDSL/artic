@@ -39,6 +39,10 @@ private:
     Ptr<ast::Ptrn>          parse_tuple_ptrn();
     Ptr<ast::ErrorPtrn>     parse_error_ptrn();
 
+    Ptr<ast::Stmt>          parse_stmt();
+    Ptr<ast::DeclStmt>      parse_decl_stmt();
+    Ptr<ast::ExprStmt>      parse_expr_stmt();
+
     Ptr<ast::Expr>          parse_expr();
     Ptr<ast::Expr>          parse_typed_expr(Ptr<ast::Expr>&&);
     Ptr<ast::PathExpr>      parse_path_expr();
@@ -47,7 +51,6 @@ private:
     Ptr<ast::StructExpr>    parse_struct_expr(Ptr<ast::Expr>&&);
     Ptr<ast::Expr>          parse_tuple_expr();
     Ptr<ast::BlockExpr>     parse_block_expr();
-    Ptr<ast::DeclExpr>      parse_decl_expr();
     Ptr<ast::FnExpr>        parse_fn_expr(bool);
     Ptr<ast::CallExpr>      parse_call_expr(Ptr<ast::Expr>&&);
     Ptr<ast::ProjExpr>      parse_proj_expr(Ptr<ast::Expr>&&);

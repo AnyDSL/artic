@@ -94,6 +94,14 @@ struct Type : public Node {
     bool is_tuple() const;
 };
 
+/// Base class for statements.
+struct Stmt : public Node {
+    Stmt(const Loc& loc) : Node(loc) {}
+
+    /// Returns true if the statement must end with a semicolon.
+    virtual bool need_semicolon() const;
+};
+
 /// Base class for expressions.
 struct Expr : public Node {
     Expr(const Loc& loc) : Node(loc) {}
@@ -254,6 +262,36 @@ struct ErrorType : public Type {
     void print(Printer&) const override;
 };
 
+// Statements ----------------------------------------------------------------------
+
+// Statement containing a declaration.
+struct DeclStmt : public Stmt {
+    Ptr<Decl> decl;
+
+    DeclStmt(const Loc& loc, Ptr<Decl>&& decl)
+        : Stmt(loc), decl(std::move(decl))
+    {}
+
+    const artic::Type* infer(TypeInference&) const override;
+    void bind(NameBinder&) const override;
+    void check(TypeChecker&) const override;
+    void print(Printer&) const override;
+};
+
+// Statement containing a declaration.
+struct ExprStmt : public Stmt {
+    Ptr<Expr> expr;
+
+    ExprStmt(const Loc& loc, Ptr<Expr>&& expr)
+        : Stmt(loc), expr(std::move(expr))
+    {}
+
+    const artic::Type* infer(TypeInference&) const override;
+    void bind(NameBinder&) const override;
+    void check(TypeChecker&) const override;
+    void print(Printer&) const override;
+};
+
 // Expressions ---------------------------------------------------------------------
 
 /// Manually typed expression.
@@ -379,30 +417,16 @@ struct FnExpr : public Expr {
 
 /// Block of code, whose result is the last expression in the block.
 struct BlockExpr : public Expr {
-    PtrVector<Expr> exprs;
+    PtrVector<Stmt> stmts;
 
-    BlockExpr(const Loc& loc, PtrVector<Expr>&& exprs)
-        : Expr(loc), exprs(std::move(exprs))
+    BlockExpr(const Loc& loc, PtrVector<Stmt>&& stmts)
+        : Expr(loc), stmts(std::move(stmts))
     {}
 
     const artic::Type* infer(TypeInference&) const override;
     void bind(NameBinder&) const override;
     void check(TypeChecker&) const override;
     void print_head(Printer&) const override;
-    void print(Printer&) const override;
-};
-
-/// Expression containing a declaration.
-struct DeclExpr : public Expr {
-    Ptr<Decl> decl;
-
-    DeclExpr(const Loc& loc, Ptr<Decl>&& decl)
-        : Expr(loc), decl(std::move(decl))
-    {}
-
-    const artic::Type* infer(TypeInference&) const override;
-    void bind(NameBinder&) const override;
-    void check(TypeChecker&) const override;
     void print(Printer&) const override;
 };
 

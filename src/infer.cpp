@@ -322,18 +322,12 @@ const artic::Type* FnExpr::infer(TypeInference& ctx) const {
 }
 
 const artic::Type* BlockExpr::infer(TypeInference& ctx) const {
-    for (auto& expr : exprs) {
-        if (auto decl_expr = expr->isa<DeclExpr>())
-            ctx.infer_head(*decl_expr->decl);
+    for (auto& stmt : stmts) {
+        if (auto decl_stmt = stmt->isa<DeclStmt>())
+            ctx.infer_head(*decl_stmt->decl);
     }
-    for (size_t i = 0, n = exprs.size(); i < n; i++)
-        ctx.infer(*exprs[i]);
-    return exprs.empty() ? ctx.type_table().unit_type() : exprs.back()->type;
-}
-
-const artic::Type* DeclExpr::infer(TypeInference& ctx) const {
-    ctx.infer(*decl);
-    return ctx.type_table().unit_type();
+    for (auto& stmt : stmts) ctx.infer(*stmt);
+    return stmts.empty() ? ctx.type_table().unit_type() : stmts.back()->type;
 }
 
 const artic::Type* CallExpr::infer(TypeInference& ctx) const {

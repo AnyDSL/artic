@@ -121,11 +121,7 @@ void FnExpr::check(TypeChecker& ctx) const {
 }
 
 void BlockExpr::check(TypeChecker& ctx) const {
-    for (auto& expr : exprs) ctx.check(*expr);
-}
-
-void DeclExpr::check(TypeChecker& ctx) const {
-    ctx.check(*decl);
+    for (auto& stmt : stmts) ctx.check(*stmt);
 }
 
 void CallExpr::check(TypeChecker& ctx) const {

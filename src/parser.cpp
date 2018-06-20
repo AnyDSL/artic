@@ -284,6 +284,27 @@ Ptr<ast::ErrorPtrn> Parser::parse_error_ptrn() {
     return make_ptr<ast::ErrorPtrn>(tracker());
 }
 
+// Statements ----------------------------------------------------------------------
+
+Ptr<ast::Stmt> Parser::parse_stmt() {
+    if (ahead().tag() == Token::Let ||
+        ahead().tag() == Token::Fn)
+        return parse_decl_stmt();
+    return parse_expr_stmt();
+}
+
+Ptr<ast::DeclStmt> Parser::parse_decl_stmt() {
+    Tracker tracker(this);
+    auto decl = parse_decl();
+    return make_ptr<ast::DeclStmt>(tracker(), std::move(decl));
+}
+
+Ptr<ast::ExprStmt> Parser::parse_expr_stmt() {
+    Tracker tracker(this);
+    auto expr = parse_expr();
+    return make_ptr<ast::ExprStmt>(tracker(), std::move(expr));
+}
+
 // Expressions ---------------------------------------------------------------------
 
 Ptr<ast::Expr> Parser::parse_expr() {
@@ -345,7 +366,7 @@ Ptr<ast::Expr> Parser::parse_tuple_expr() {
 Ptr<ast::BlockExpr> Parser::parse_block_expr() {
     Tracker tracker(this);
     eat(Token::LBrace);
-    PtrVector<ast::Expr> exprs;
+    PtrVector<ast::Stmt> stmts;
     while (true) {
         switch (ahead().tag()) {
             case Token::Semi: eat(Token::Semi); continue;
@@ -363,7 +384,7 @@ Ptr<ast::BlockExpr> Parser::parse_block_expr() {
             case Token::Dec:
             case Token::Let:
             case Token::Fn:
-                exprs.emplace_back(parse_expr());
+                stmts.emplace_back(parse_stmt());
                 continue;
             default:
                 break;
@@ -371,13 +392,7 @@ Ptr<ast::BlockExpr> Parser::parse_block_expr() {
         break;
     }
     expect(Token::RBrace);
-    return make_ptr<ast::BlockExpr>(tracker(), std::move(exprs));
-}
-
-Ptr<ast::DeclExpr> Parser::parse_decl_expr() {
-    Tracker tracker(this);
-    auto decl = parse_decl();
-    return make_ptr<ast::DeclExpr>(tracker(), std::move(decl));
+    return make_ptr<ast::BlockExpr>(tracker(), std::move(stmts));
 }
 
 Ptr<ast::FnExpr> Parser::parse_fn_expr(bool nested) {
@@ -518,10 +533,6 @@ Ptr<ast::Expr> Parser::parse_primary_expr() {
         case Token::OrOr:
         case Token::Or:
             expr = std::move(parse_fn_expr(false));
-            break;
-        case Token::Fn:
-        case Token::Let:
-            expr = std::move(parse_decl_expr());
             break;
         case Token::If:
             expr = std::move(parse_if_expr());
