@@ -182,7 +182,7 @@ void StructPtrn::check(TypeChecker& ctx) const {
 }
 
 void TuplePtrn::check(TypeChecker& ctx) const {
-    for (auto& arg : args) arg->check(ctx);
+    for (auto& arg : args) ctx.check(*arg);
 }
 
 void ErrorPtrn::check(TypeChecker&) const {}
@@ -206,12 +206,9 @@ void LetDecl::check(TypeChecker& ctx) const {
 
 void FnDecl::check(TypeChecker& ctx) const {
     if (type_params) ctx.check(*type_params);
-    if (ret_type) ctx.check(*ret_type);
-    if (fn->body) {
-        ctx.check(*fn->body);
-    } else if (fn->param) {
-        ctx.check(*fn->param);
-    }
+    if (ret_type)  ctx.check(*ret_type);
+    if (fn->body)  ctx.check(*fn->body);
+    if (fn->param) ctx.check(*fn->param);
 }
 
 void FieldDecl::check(TypeChecker& ctx) const {

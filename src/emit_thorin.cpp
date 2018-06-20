@@ -239,6 +239,7 @@ void emit(const std::string& module_name, TypeTable& type_table, const ast::Prog
             cg.emit_head(*decl->as<ast::FnDecl>());
         cg.emit(*decl);
     }
+    cg.world.opt();
     cg.world.dump();
 }
 
