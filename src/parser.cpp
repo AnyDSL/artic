@@ -368,14 +368,23 @@ Ptr<ast::BlockExpr> Parser::parse_block_expr() {
     eat(Token::LBrace);
     PtrVector<ast::Stmt> stmts;
     while (true) {
+        Ptr<ast::Expr> expr;
         switch (ahead().tag()) {
-            case Token::Semi: eat(Token::Semi); continue;
+            case Token::Semi:
+                eat(Token::Semi);
+                continue;
+            case Token::If:
+            case Token::While:
+                if (ahead().tag() == Token::If)
+                    expr = std::move(parse_if_expr());
+                else if (ahead().tag() == Token::While)
+                    expr = std::move(parse_while_expr());
+                stmts.emplace_back(make_ptr<ast::ExprStmt>(expr->loc, std::move(expr)));
+                continue;
             case Token::Id:
             case Token::Lit:
             case Token::LParen:
             case Token::LBrace:
-            case Token::If:
-            case Token::While:
             case Token::And:
             case Token::Mul:
             case Token::Add:
@@ -508,12 +517,8 @@ Ptr<ast::WhileExpr> Parser::parse_while_expr() {
 Ptr<ast::Expr> Parser::parse_primary_expr() {
     Ptr<ast::Expr> expr;
     switch (ahead().tag()) {
-        case Token::And:
-            expr = std::move(parse_addr_of_expr());
-            break;
-        case Token::Mul:
-            expr = std::move(parse_deref_expr());
-            break;
+        case Token::And: expr = std::move(parse_addr_of_expr()); break;
+        case Token::Mul: expr = std::move(parse_deref_expr());   break;
         case Token::Inc:
         case Token::Dec:
         case Token::Add:
@@ -534,12 +539,8 @@ Ptr<ast::Expr> Parser::parse_primary_expr() {
         case Token::Or:
             expr = std::move(parse_fn_expr(false));
             break;
-        case Token::If:
-            expr = std::move(parse_if_expr());
-            break;
-        case Token::While:
-            expr = std::move(parse_while_expr());
-            break;
+        case Token::If:    expr = std::move(parse_if_expr());    break;
+        case Token::While: expr = std::move(parse_while_expr()); break;
         default:
             expr = std::move(parse_error_expr());
             break;
