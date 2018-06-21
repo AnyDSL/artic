@@ -80,6 +80,12 @@ struct CodeGen {
         } else if (auto tuple_ptrn = ptrn.isa<ast::TuplePtrn>()) {
             for (size_t i = 0; i < tuple_ptrn->args.size(); ++i)
                 emit(*tuple_ptrn->args[i], world.extract(def, i, loc_to_dbg(tuple_ptrn->loc)));
+        } else if (auto field_ptrn = ptrn.isa<ast::FieldPtrn>()) {
+            if (!field_ptrn->is_etc())
+                emit(*field_ptrn->ptrn, def);
+        } else if (auto struct_ptrn = ptrn.isa<ast::StructPtrn>()) {
+            for (auto& field : struct_ptrn->fields)
+                emit(*field, world.extract(def, thorin::u32(field->index)));
         } else {
             assert(false);
         }
@@ -113,6 +119,8 @@ struct CodeGen {
         } else if (auto let_decl = decl.isa<ast::LetDecl>()) {
             auto init = emit(*let_decl->init);
             emit(*let_decl->ptrn, init);
+        } else if (decl.isa<ast::StructDecl>()) {
+            // TODO
         } else if (decl.isa<ast::TraitDecl>()) {
             // TODO
         } else if (decl.isa<ast::ImplDecl>()) {
@@ -196,6 +204,27 @@ struct CodeGen {
             auto val = emit(*addr_of_expr->expr);
             cur_mem = world.store(cur_mem, slot, val, loc_to_dbg(addr_of_expr->loc));
             return slot;
+        } else if (auto deref_expr = expr.isa<ast::DerefExpr>()) {
+            auto ptr = emit(*deref_expr->expr);
+            auto load_tuple = world.load(cur_mem, ptr, loc_to_dbg(deref_expr->loc));
+            cur_mem = world.extract(load_tuple, thorin::u32(0));
+            return world.extract(load_tuple, thorin::u32(1));
+        } else if (auto field_expr = expr.isa<ast::FieldExpr>()) {
+            return emit(*field_expr->expr);
+        } else if (auto struct_expr = expr.isa<ast::StructExpr>()) {
+            auto struct_type = struct_expr->type->as<StructType>();
+            auto struct_decl = struct_type->decl;
+            thorin::Array<const thorin::Def*> args(struct_decl->fields.size());
+            for (auto& field : struct_expr->fields)
+                args[field->index] = emit(*field);
+            return world.struct_agg(convert(struct_type)->as<thorin::StructType>(), args, loc_to_dbg(struct_expr->loc));
+        } else if (auto proj_expr = expr.isa<ast::ProjExpr>()) {
+            auto ptr = emit_ptr(*proj_expr->expr);
+            auto dbg = loc_to_dbg(proj_expr->loc);
+            auto field_ptr = world.lea(ptr, world.literal_qs32(proj_expr->index, dbg), dbg);
+            auto load_tuple = world.load(cur_mem, field_ptr, dbg);
+            cur_mem = world.extract(load_tuple, thorin::u32(0));
+            return world.extract(load_tuple, thorin::u32(1));
         } else if (auto call_expr = expr.isa<ast::CallExpr>()) {
             if (call_expr->isa<ast::BinaryExpr>() &&
                 call_expr->as<ast::BinaryExpr>()->tag == ast::BinaryExpr::Eq) {
@@ -279,6 +308,7 @@ struct CodeGen {
             cur_bb->jump(cont->param(2), thorin::Defs { cur_mem, ret }, loc_to_dbg(fn_expr->loc, "ret"));
             return cont;
         } else {
+            expr.dump();
             assert(false);
             return nullptr;
         }

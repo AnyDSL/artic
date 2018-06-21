@@ -204,6 +204,7 @@ const artic::Type* infer_struct(TypeInference& ctx, const Loc& loc, const artic:
     for (size_t i = 0, n = has_etc ? fields.size() - 1 : fields.size(); i < n; i++) {
         auto& field = fields[i];
         auto it = members.find(field->id.name);
+        field->index = std::distance(members.begin(), it);
         ctx.infer(*field, it != members.end() ? it->second : ctx.type_table().error_type(loc));
     }
     return struct_type;
@@ -361,6 +362,7 @@ const artic::Type* ProjExpr::infer(TypeInference& ctx) const {
         auto it = members.find(field.name);
         if (it == members.end())
             return ctx.type_table().error_type(loc);
+        index = std::distance(members.begin(), it);
         return ctx.type_table().ref_type(it->second, ref_base->addr_space, ref_base->mut);
     }
     return ctx.type(*this);

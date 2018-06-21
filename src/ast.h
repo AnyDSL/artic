@@ -351,6 +351,8 @@ struct FieldExpr : public Expr {
     Identifier id;
     Ptr<Expr> expr;
 
+    mutable size_t index;
+
     FieldExpr(const Loc& loc,
               Identifier&& id,
               Ptr<Expr>&& expr)
@@ -458,7 +460,7 @@ struct ProjExpr : public Expr {
     Ptr<Expr> expr;
     Identifier field;
 
-    mutable std::shared_ptr<Symbol> symbol;
+    mutable size_t index;
 
     ProjExpr(const Loc& loc, Ptr<Expr>&& expr, Identifier&& field)
         : Expr(loc)
@@ -893,6 +895,8 @@ struct LiteralPtrn : public Ptrn {
 struct FieldPtrn : public Ptrn {
     Identifier id;
     Ptr<Ptrn> ptrn;
+
+    mutable size_t index;
 
     FieldPtrn(const Loc& loc, Identifier&& id, Ptr<Ptrn>&& ptrn)
         : Ptrn(loc), id(std::move(id)), ptrn(std::move(ptrn))
