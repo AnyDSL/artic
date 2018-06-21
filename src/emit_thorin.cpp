@@ -12,6 +12,11 @@ namespace artic {
 // * The first argument of a function is always the mem object
 // * The second argument of a function is its actual domain
 // * The third argument of a function is its return continuation
+// Since support for polymorphism is lacking in the current version
+// of Thorin, polymorphic functions are emitted separately. This is
+// done by specializing them on demand from their call sites.
+// The code generator maintains a map of specialized functions to
+// ensure termination in the case of polymorphic recursive functions.
 struct CodeGen {
     CodeGen(const std::string& module_name, TypeTable& type_table)
         : type_table(type_table)
