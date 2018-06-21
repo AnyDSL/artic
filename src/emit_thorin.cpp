@@ -22,6 +22,18 @@ struct CodeGen {
         return thorin::Debug(thorin::Location(loc.file->c_str(), loc.begin_row, loc.begin_col, loc.end_row, loc.end_col), name);
     }
 
+    thorin::AddrSpace convert(const artic::AddrSpace addr_space) {
+        switch (addr_space.locality) {
+            case AddrSpace::Generic:  return thorin::AddrSpace::Generic;
+            case AddrSpace::Shared:   return thorin::AddrSpace::Shared;
+            case AddrSpace::Private:  return thorin::AddrSpace::Generic;
+            case AddrSpace::Global:   return thorin::AddrSpace::Global;
+            default:
+                assert(false);
+                return thorin::AddrSpace::Generic;
+        }
+    }
+
     const thorin::Type* convert(const artic::Type* type) {
         auto type_it = type_map.find(type);
         if (type_it != type_map.end())
@@ -57,6 +69,8 @@ struct CodeGen {
             for (size_t i = 0; i < ops.size(); ++i)
                 ops[i] = convert(tuple_type->args[i]);
             return type_map[type] = world.tuple_type(ops);
+        } else if (auto ptr_type = type->isa<PtrType>()) {
+            return world.ptr_type(convert(ptr_type->pointee()), 1, -1, convert(ptr_type->addr_space));
         } else if (auto fn_type = type->isa<FnType>()) {
             auto mem = world.mem_type();
             return world.fn_type({ mem, convert(fn_type->from()), world.fn_type({ mem, convert(fn_type->to()) })});
@@ -146,8 +160,22 @@ struct CodeGen {
             return def_map[decl];
         } else if (auto deref_expr = expr.isa<ast::DerefExpr>()) {
             return emit(*deref_expr->expr);
+        } else if (auto proj_expr = expr.isa<ast::ProjExpr>()) {
+            auto expr_type = proj_expr->expr->type;
+            if (auto ref_type = expr_type->isa<RefType>())
+                expr_type = ref_type->pointee();
+            auto ptr = expr_type->isa<PtrType>() ? emit(*proj_expr->expr) : emit_ptr(*proj_expr->expr);
+            auto dbg = loc_to_dbg(proj_expr->loc);
+            return world.lea(ptr, world.literal_qs32(proj_expr->index, dbg), dbg);
         } else {
-            assert(false);
+            auto dbg = loc_to_dbg(expr.loc);
+            auto frame_tuple = world.enter(cur_mem);
+            auto frame = world.extract(frame_tuple, thorin::u32(1));
+            auto slot = world.slot(convert(expr.type), frame, dbg);
+            cur_mem = world.extract(frame_tuple, thorin::u32(0));
+            auto val = emit(expr);
+            cur_mem = world.store(cur_mem, slot, val, dbg);
+            return slot;
         }
     }
 
@@ -195,15 +223,7 @@ struct CodeGen {
             } else
                 return def_map[decl];
         } else if (auto addr_of_expr = expr.isa<ast::AddrOfExpr>()) {
-            if (addr_of_expr->expr->type->isa<RefType>())
-                return emit_ptr(*addr_of_expr->expr);
-            auto frame_tuple = world.enter(cur_mem);
-            auto frame = world.extract(frame_tuple, thorin::u32(1));
-            auto slot = world.slot(convert(addr_of_expr->expr->type), frame, loc_to_dbg(addr_of_expr->loc));
-            cur_mem = world.extract(frame_tuple, thorin::u32(0));
-            auto val = emit(*addr_of_expr->expr);
-            cur_mem = world.store(cur_mem, slot, val, loc_to_dbg(addr_of_expr->loc));
-            return slot;
+            return emit_ptr(*addr_of_expr->expr);
         } else if (auto deref_expr = expr.isa<ast::DerefExpr>()) {
             auto ptr = emit(*deref_expr->expr);
             auto load_tuple = world.load(cur_mem, ptr, loc_to_dbg(deref_expr->loc));
@@ -219,10 +239,8 @@ struct CodeGen {
                 args[field->index] = emit(*field);
             return world.struct_agg(convert(struct_type)->as<thorin::StructType>(), args, loc_to_dbg(struct_expr->loc));
         } else if (auto proj_expr = expr.isa<ast::ProjExpr>()) {
-            auto ptr = emit_ptr(*proj_expr->expr);
-            auto dbg = loc_to_dbg(proj_expr->loc);
-            auto field_ptr = world.lea(ptr, world.literal_qs32(proj_expr->index, dbg), dbg);
-            auto load_tuple = world.load(cur_mem, field_ptr, dbg);
+            auto field_ptr = emit_ptr(*proj_expr);
+            auto load_tuple = world.load(cur_mem, field_ptr, loc_to_dbg(proj_expr->loc));
             cur_mem = world.extract(load_tuple, thorin::u32(0));
             return world.extract(load_tuple, thorin::u32(1));
         } else if (auto call_expr = expr.isa<ast::CallExpr>()) {
