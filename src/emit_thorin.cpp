@@ -35,6 +35,9 @@ struct CodeGen {
     }
 
     const thorin::Type* convert(const artic::Type* type) {
+        // Replace type variables by the provided arguments
+        type = type->substitute(type_table, var_map);
+
         auto type_it = type_map.find(type);
         if (type_it != type_map.end())
             return type_it->second;
@@ -105,12 +108,11 @@ struct CodeGen {
         }
     }
 
-    void emit_head(const ast::Decl& decl) {
+    void emit_head(const ast::Decl& decl, bool ignore_poly = true) {
         if (auto fn_decl = decl.isa<ast::FnDecl>()) {
-            // Skip polymorphic functions, as they are built on the fly from the call site.
-            if (fn_decl->type->isa<PolyType>())
+            if (ignore_poly && fn_decl->type_params)
                 return;
-            auto type = convert(fn_decl->type)->as<thorin::FnType>();
+            auto type = convert(fn_decl->type->inner())->as<thorin::FnType>();
             auto cont = world.continuation(type, thorin::CC::C, thorin::Intrinsic::None, loc_to_dbg(fn_decl->loc, fn_decl->id.name));
             if (fn_decl->id.name == "main")
                 cont->as_continuation()->make_external();
@@ -118,15 +120,14 @@ struct CodeGen {
         }
     }
 
-    void emit(const ast::Decl& decl) {
+    void emit(const ast::Decl& decl, bool ignore_poly = true) {
         if (auto fn_decl = decl.isa<ast::FnDecl>()) {
-            // Skip polymorphic functions, as they are built on the fly from the call site.
-            if (fn_decl->type->isa<PolyType>())
+            auto& fn_expr = fn_decl->fn;
+            if ((ignore_poly && fn_decl->type_params) || !fn_expr->body)
                 return;
             auto cont = def_map[&decl]->as_continuation();
             THORIN_PUSH(cur_bb, cont);
             THORIN_PUSH(cur_mem, cont->param(0));
-            auto& fn_expr = fn_decl->fn;
             emit(*fn_expr->param, cont->param(1));
             auto ret = emit(*fn_expr->body);
             cur_bb->jump(cont->param(2), thorin::Defs { cur_mem, ret }, loc_to_dbg(fn_expr->loc, "ret"));
@@ -220,8 +221,33 @@ struct CodeGen {
                 auto load_tuple = world.load(cur_mem, def_map[decl], loc_to_dbg(path_expr->loc));
                 cur_mem = world.extract(load_tuple, thorin::u32(0));
                 return world.extract(load_tuple, thorin::u32(1));
-            } else
-                return def_map[decl];
+            } else {
+                if (path_expr->path.type_args.empty())
+                    return def_map[decl];
+                SpecFn spec_fn;
+                spec_fn.fn_decl = decl->as<ast::FnDecl>();
+                spec_fn.args.resize(path_expr->path.type_args.size());
+
+                // Substitute the current type args into the path's type arguments
+                for (size_t i = 0; i < spec_fn.args.size(); ++i)
+                    spec_fn.args[i] = path_expr->path.type_args[i]->substitute(type_table, var_map);
+
+                // Lookup existing specialized function in the specialization map
+                auto spec_it = spec_map.find(spec_fn);
+                if (spec_it != spec_map.end())
+                    return spec_it->second;
+
+                // Otherwise, generate specialized version
+                std::unordered_map<const artic::Type*, const artic::Type*> vars;
+                for (size_t i = 0; i < spec_fn.args.size(); ++i)
+                    vars.emplace(type_table.type_var(i), spec_fn.args[i]);
+                THORIN_PUSH(var_map, vars);
+                emit_head(*decl, false);
+                auto cont = def_map[decl]->as_continuation();
+                spec_map[spec_fn] = cont;
+                emit(*decl, false);
+                return cont;
+            }
         } else if (auto addr_of_expr = expr.isa<ast::AddrOfExpr>()) {
             return emit_ptr(*addr_of_expr->expr);
         } else if (auto deref_expr = expr.isa<ast::DerefExpr>()) {
@@ -326,15 +352,35 @@ struct CodeGen {
             cur_bb->jump(cont->param(2), thorin::Defs { cur_mem, ret }, loc_to_dbg(fn_expr->loc, "ret"));
             return cont;
         } else {
-            expr.dump();
             assert(false);
             return nullptr;
         }
     }
 
+    // Specialized version of a polymorphic function for a given set of type arguments
+    struct SpecFn {
+        const ast::FnDecl* fn_decl;
+        std::vector<const artic::Type*> args;
+
+        bool operator == (const SpecFn& other) const {
+            return fn_decl == other.fn_decl && args == other.args;
+        }
+
+        struct Hash {
+            size_t operator () (const SpecFn& fn) const {
+                return hash_combine(hash_init(),
+                    hash_ptr(fn.fn_decl),
+                    hash_list(fn.args, [] (auto arg) { return hash_ptr(arg); })
+                );
+            }
+        };
+    };
+
     TypeTable& type_table;
+    std::unordered_map<SpecFn, thorin::Continuation*, SpecFn::Hash> spec_map;
     std::unordered_map<const artic::Type*, const thorin::Type*> type_map;
     std::unordered_map<const ast::Node*,   const thorin::Def*>  def_map;
+    std::unordered_map<const artic::Type*, const artic::Type*>  var_map;
 
     thorin::World world;
     thorin::Continuation* cur_bb;

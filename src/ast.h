@@ -771,6 +771,8 @@ struct StructDecl : public NamedDecl {
         , fields(std::move(fields))
     {}
 
+    size_t field_index(const std::string&) const;
+
     const artic::Type* infer_head(TypeInference&) const override;
     const artic::Type* infer(TypeInference&) const override;
     void bind_head(NameBinder&) const override;

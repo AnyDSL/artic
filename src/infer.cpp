@@ -199,12 +199,20 @@ namespace ast {
 
 template <typename FieldVector>
 const artic::Type* infer_struct(TypeInference& ctx, const Loc& loc, const artic::StructType* struct_type, const FieldVector& fields, bool has_etc) {
-    auto& members = struct_type->members(ctx.type_table());
     // Infer all fields
+    for (auto& field : fields)
+        ctx.infer(*field);
+
+    // Exit if the structure has not been analyzed yet
+    auto struct_decl = struct_type->decl;
+    if (!struct_decl->fields.front()->Node::type)
+        return struct_type;
+
+    auto& members = struct_type->members(ctx.type_table());
     for (size_t i = 0, n = has_etc ? fields.size() - 1 : fields.size(); i < n; i++) {
         auto& field = fields[i];
         auto it = members.find(field->id.name);
-        field->index = std::distance(members.begin(), it);
+        field->index = struct_decl->field_index(field->id.name);
         ctx.infer(*field, it != members.end() ? it->second : ctx.type_table().error_type(loc));
     }
     return struct_type;
@@ -311,10 +319,6 @@ const artic::Type* StructExpr::infer(TypeInference& ctx) const {
     auto expr_type = ctx.infer(*expr, ctx.type(*this));
     if (auto struct_type = expr_type->isa<StructType>())
         return infer_struct(ctx, loc, struct_type, fields, false);
-    else {
-        for (auto& field : fields)
-            ctx.infer(*field);
-    }
     return expr_type;
 }
 
@@ -433,10 +437,6 @@ const artic::Type* StructPtrn::infer(TypeInference& ctx) const {
     auto expr_type = ctx.infer(path);
     if (auto struct_type = expr_type->isa<StructType>())
         return infer_struct(ctx, loc, struct_type, fields, has_etc());
-    else {
-        for (auto& field : fields)
-            ctx.infer(*field);
-    }
     return expr_type;
 }
 

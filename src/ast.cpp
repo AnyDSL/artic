@@ -317,6 +317,13 @@ BinaryExpr::Tag BinaryExpr::tag_from_token(const Token& token) {
     }
 }
 
+size_t StructDecl::field_index(const std::string& name) const {
+    auto it = std::find_if(fields.begin(), fields.end(), [name] (auto& field) {
+        return field->id.name == name;
+    });
+    return std::distance(fields.begin(), it);
+}
+
 void Program::concat(Ptr<Program>&& other) {
     auto n = decls.size();
     decls.resize(n + other->decls.size());
