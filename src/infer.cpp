@@ -473,7 +473,10 @@ const artic::Type* PtrnDecl::infer(TypeInference& ctx) const {
 }
 
 const artic::Type* LetDecl::infer(TypeInference& ctx) const {
-    return init ? ctx.infer(*init, ctx.infer(*ptrn)) : ctx.infer(*ptrn);
+    auto ptrn_type = ctx.infer(*ptrn);
+    if (init)
+        ctx.infer(*init, ptrn_type);
+    return ctx.type_table().tuple_type({});
 }
 
 const artic::Type* FnDecl::infer_head(TypeInference& ctx) const {

@@ -12,9 +12,11 @@ namespace artic {
 // * The first argument of a function is always the mem object
 // * The second argument of a function is its actual domain
 // * The third argument of a function is its return continuation
+//
 // Since support for polymorphism is lacking in the current version
 // of Thorin, polymorphic functions are emitted separately. This is
 // done by specializing them on demand from their call sites.
+//
 // The code generator maintains a map of specialized functions to
 // ensure termination in the case of polymorphic recursive functions.
 struct CodeGen {
@@ -113,6 +115,11 @@ struct CodeGen {
         }
     }
 
+    const thorin::Def* lookup(const ast::Decl* decl) {
+        assert(def_map.count(decl));
+        return def_map[decl];
+    }
+
     void emit_head(const ast::Decl& decl, bool ignore_poly = true) {
         if (auto fn_decl = decl.isa<ast::FnDecl>()) {
             if (ignore_poly && fn_decl->type_params)
@@ -130,14 +137,14 @@ struct CodeGen {
             auto& fn_expr = fn_decl->fn;
             if ((ignore_poly && fn_decl->type_params) || !fn_expr->body)
                 return;
-            auto cont = def_map[&decl]->as_continuation();
+            auto cont = lookup(&decl)->as_continuation();
             THORIN_PUSH(cur_bb, cont);
             THORIN_PUSH(cur_mem, cont->param(0));
             emit(*fn_expr->param, cont->param(1));
             auto ret = emit(*fn_expr->body);
             cur_bb->jump(cont->param(2), thorin::Defs { cur_mem, ret }, loc_to_dbg(fn_expr->loc, "ret"));
         } else if (auto let_decl = decl.isa<ast::LetDecl>()) {
-            auto init = emit(*let_decl->init);
+            auto init = let_decl->init ? emit(*let_decl->init) : world.bottom(convert(let_decl->ptrn->type));
             emit(*let_decl->ptrn, init);
         } else if (decl.isa<ast::StructDecl>()) {
             // TODO
@@ -163,7 +170,7 @@ struct CodeGen {
         if (auto path_expr = expr.isa<ast::PathExpr>()) {
             auto decl = path_expr->path.elems.back().symbol->decls.front();
             assert(decl->isa<ast::PtrnDecl>());
-            return def_map[decl];
+            return lookup(decl);
         } else if (auto deref_expr = expr.isa<ast::DerefExpr>()) {
             return emit(*deref_expr->expr);
         } else if (auto proj_expr = expr.isa<ast::ProjExpr>()) {
@@ -223,12 +230,12 @@ struct CodeGen {
         } else if (auto path_expr = expr.isa<ast::PathExpr>()) {
             auto decl = path_expr->path.elems.back().symbol->decls.front();
             if (decl->isa<ast::PtrnDecl>()) {
-                auto load_tuple = world.load(cur_mem, def_map[decl], loc_to_dbg(path_expr->loc));
+                auto load_tuple = world.load(cur_mem, lookup(decl), loc_to_dbg(path_expr->loc));
                 cur_mem = world.extract(load_tuple, thorin::u32(0));
                 return world.extract(load_tuple, thorin::u32(1));
             } else {
                 if (path_expr->path.type_args.empty())
-                    return def_map[decl];
+                    return lookup(decl);
                 SpecFn spec_fn;
                 spec_fn.fn_decl = decl->as<ast::FnDecl>();
                 spec_fn.args.resize(path_expr->path.type_args.size());
@@ -248,7 +255,7 @@ struct CodeGen {
                     vars.emplace(type_table.type_var(i), spec_fn.args[i]);
                 THORIN_PUSH(var_map, vars);
                 emit_head(*decl, false);
-                auto cont = def_map[decl]->as_continuation();
+                auto cont = lookup(decl)->as_continuation();
                 spec_map[spec_fn] = cont;
                 emit(*decl, false);
                 return cont;
