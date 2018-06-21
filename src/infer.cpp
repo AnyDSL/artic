@@ -280,6 +280,14 @@ const artic::Type* ErrorType::infer(TypeInference& ctx) const {
     return ctx.type_table().error_type(loc);
 }
 
+const artic::Type* DeclStmt::infer(TypeInference& ctx) const {
+    return ctx.infer(*decl);
+}
+
+const artic::Type* ExprStmt::infer(TypeInference& ctx) const {
+    return ctx.infer(*expr);
+}
+
 const artic::Type* TypedExpr::infer(TypeInference& ctx) const {
     return ctx.infer(*expr, ctx.infer(*type));
 }

@@ -71,6 +71,14 @@ void SelfType::bind(NameBinder&) const {}
 
 void ErrorType::bind(NameBinder&) const {}
 
+void DeclStmt::bind(NameBinder& ctx) const {
+    ctx.bind(*decl);
+}
+
+void ExprStmt::bind(NameBinder& ctx) const {
+    ctx.bind(*expr);
+}
+
 void TypedExpr::bind(NameBinder& ctx) const {
     ctx.bind(*expr);
     ctx.bind(*type);

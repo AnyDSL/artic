@@ -99,7 +99,7 @@ struct Stmt : public Node {
     Stmt(const Loc& loc) : Node(loc) {}
 
     /// Returns true if the statement must end with a semicolon.
-    virtual bool need_semicolon() const;
+    virtual bool need_semicolon() const = 0;
 };
 
 /// Base class for expressions.
@@ -272,6 +272,8 @@ struct DeclStmt : public Stmt {
         : Stmt(loc), decl(std::move(decl))
     {}
 
+    bool need_semicolon() const override;
+
     const artic::Type* infer(TypeInference&) const override;
     void bind(NameBinder&) const override;
     void check(TypeChecker&) const override;
@@ -285,6 +287,8 @@ struct ExprStmt : public Stmt {
     ExprStmt(const Loc& loc, Ptr<Expr>&& expr)
         : Stmt(loc), expr(std::move(expr))
     {}
+
+    bool need_semicolon() const override;
 
     const artic::Type* infer(TypeInference&) const override;
     void bind(NameBinder&) const override;

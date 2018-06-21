@@ -17,6 +17,7 @@ if (WIN32)
     # By default, Windows console does not support ANSI escape codes
     set(COLOR_TTY_AVAILABLE FALSE)
 endif ()
-set(COLORIZE_OUTPUT ${COLOR_TTY_AVAILABLE} CACHE BOOL "Set to TRUE to enable colorized output. Requires an ANSI compliant terminal.")
+set(COLORIZE ${COLOR_TTY_AVAILABLE} CACHE BOOL "Set to TRUE to enable colorized output. Requires an ANSI compliant terminal.")
+set(NO_BACKEND FALSE CACHE BOOL "Disable the backend to speed up compilation and debugging.")
 
 add_subdirectory(src)

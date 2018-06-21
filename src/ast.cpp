@@ -51,6 +51,14 @@ PrimType::Tag PrimType::tag_from_token(const Token& token) {
     return it != tag_map.end() ? it->second : Error;
 }
 
+bool DeclStmt::need_semicolon() const {
+    return false;
+}
+
+bool ExprStmt::need_semicolon() const {
+    return !expr->isa<IfExpr>() && !expr->isa<WhileExpr>();
+}
+
 Ptr<Expr> UnaryExpr::op_expr(const Loc& loc, Tag tag) {
     return make_ptr<PathExpr>(loc, tag_to_fn(loc, tag));
 }

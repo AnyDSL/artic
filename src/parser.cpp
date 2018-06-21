@@ -290,6 +290,11 @@ Ptr<ast::Stmt> Parser::parse_stmt() {
     if (ahead().tag() == Token::Let ||
         ahead().tag() == Token::Fn)
         return parse_decl_stmt();
+    Tracker tracker(this);
+    if (ahead().tag() == Token::If)
+        return make_ptr<ast::ExprStmt>(tracker(), parse_if_expr());
+    if (ahead().tag() == Token::While)
+        return make_ptr<ast::ExprStmt>(tracker(), parse_while_expr());
     return parse_expr_stmt();
 }
 
@@ -375,12 +380,6 @@ Ptr<ast::BlockExpr> Parser::parse_block_expr() {
                 continue;
             case Token::If:
             case Token::While:
-                if (ahead().tag() == Token::If)
-                    expr = std::move(parse_if_expr());
-                else if (ahead().tag() == Token::While)
-                    expr = std::move(parse_while_expr());
-                stmts.emplace_back(make_ptr<ast::ExprStmt>(expr->loc, std::move(expr)));
-                continue;
             case Token::Id:
             case Token::Lit:
             case Token::LParen:

@@ -122,6 +122,15 @@ struct CodeGen {
         }
     }
 
+    const thorin::Def* emit(const ast::Stmt& stmt) {
+        if (auto decl_stmt = stmt.isa<ast::DeclStmt>()) {
+            emit(*decl_stmt->decl);
+            return world.tuple({});
+        } else {
+            return emit(*stmt.as<ast::ExprStmt>()->expr);
+        }
+    }
+
     const thorin::Def* emit_ptr(const ast::Expr& expr) {
         if (auto path_expr = expr.isa<ast::PathExpr>()) {
             auto decl = path_expr->path.elems.back().symbol->decls.front();
@@ -156,13 +165,13 @@ struct CodeGen {
         } else if (auto typed_expr = expr.isa<ast::TypedExpr>()) {
             return emit(*typed_expr->expr);
         } else if (auto block_expr = expr.isa<ast::BlockExpr>()) {
-            for (auto& expr : block_expr->exprs) {
-                if (auto decl_expr = expr->isa<ast::DeclExpr>())
-                    emit_head(*decl_expr->decl);
+            for (auto& stmt : block_expr->stmts) {
+                if (auto decl_stmt = stmt->isa<ast::DeclStmt>())
+                    emit_head(*decl_stmt->decl);
             }
             auto last = world.tuple({});
-            for (auto& expr : block_expr->exprs)
-                last = emit(*expr);
+            for (auto& stmt : block_expr->stmts)
+                last = emit(*stmt);
             return last;
         } else if (auto tuple_expr = expr.isa<ast::TupleExpr>()) {
             thorin::Array<const thorin::Def*> ops(tuple_expr->args.size());
@@ -187,9 +196,6 @@ struct CodeGen {
             auto val = emit(*addr_of_expr->expr);
             cur_mem = world.store(cur_mem, slot, val, loc_to_dbg(addr_of_expr->loc));
             return slot;
-        } else if (auto decl_expr = expr.isa<ast::DeclExpr>()) {
-            emit(*decl_expr->decl);
-            return world.tuple({});
         } else if (auto call_expr = expr.isa<ast::CallExpr>()) {
             if (call_expr->isa<ast::BinaryExpr>() &&
                 call_expr->as<ast::BinaryExpr>()->tag == ast::BinaryExpr::Eq) {

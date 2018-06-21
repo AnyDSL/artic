@@ -88,6 +88,14 @@ void SelfType::check(TypeChecker&) const {}
 
 void ErrorType::check(TypeChecker&) const {}
 
+void DeclStmt::check(TypeChecker& ctx) const {
+    ctx.check(*decl);
+}
+
+void ExprStmt::check(TypeChecker& ctx) const {
+    ctx.check(*expr);
+}
+
 void TypedExpr::check(TypeChecker& ctx) const {
     ctx.check(*expr);
     ctx.check(*type);

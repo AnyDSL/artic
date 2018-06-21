@@ -48,6 +48,14 @@ void Path::print(Printer& p) const {
     }
 }
 
+void DeclStmt::print(Printer& p) const {
+    decl->print(p);
+}
+
+void ExprStmt::print(Printer& p) const {
+    expr->print(p);
+}
+
 void TypedExpr::print(Printer& p) const {
     expr->print(p);
     p << " : ";
