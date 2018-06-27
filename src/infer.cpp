@@ -82,7 +82,6 @@ const Type* TypeInference::join(const Loc& loc, const UnknownType* unknown_a, co
     if (!unknown_a || unknown_a == b) return b;
     assert(find(b) != find(unknown_a));
 
-    b->update_rank(unknown_a->rank);
     eqs_.emplace(unknown_a, Equation(loc, b));
 
     if (auto unknown_b = b->isa<UnknownType>()) {
@@ -141,7 +140,7 @@ const Type* TypeInference::subsume(const Loc& loc, const Type* type, std::vector
             if (var->index >= type_args.size())
                 type_args.resize(var->index + 1);
             if (!type_args[var->index])
-                type_args[var->index] = type_table().unknown_type(UnknownType::max_rank(), UnknownType::Traits(var->traits));
+                type_args[var->index] = type_table().unknown_type(UnknownType::Traits(var->traits));
             map.emplace(var, type_args[var->index]);
         }
 
@@ -153,7 +152,7 @@ const Type* TypeInference::subsume(const Loc& loc, const Type* type, std::vector
 const Type* TypeInference::rename(const Type* type) {
     std::unordered_map<const Type*, const Type*> map;
     for (auto& u : type->all<UnknownType>())
-        map.emplace(u, type_table().unknown_type(u->rank, UnknownType::Traits(u->traits)));
+        map.emplace(u, type_table().unknown_type(UnknownType::Traits(u->traits)));
     return type->substitute(type_table(), map);
 }
 
@@ -177,7 +176,7 @@ const Type* TypeInference::match_impl(const Loc& loc, const TraitType* trait, co
 
 const Type* TypeInference::type(const ast::Node& node, UnknownType::Traits&& traits) {
     if (!node.type)
-        node.type = type_table().unknown_type(node.rank, std::move(traits));
+        node.type = type_table().unknown_type(std::move(traits));
     return find(node.type);
 }
 
@@ -205,7 +204,7 @@ const artic::Type* infer_struct(TypeInference& ctx, const Loc& loc, const artic:
 
     // Exit if the structure has not been analyzed yet
     auto struct_decl = struct_type->decl;
-    if (!struct_decl->fields.front()->Node::type)
+    if (!struct_decl->fields.empty() && !struct_decl->fields.front()->Node::type)
         return struct_type;
 
     auto& members = struct_type->members(ctx.type_table());
@@ -236,10 +235,7 @@ const artic::Type* Path::infer(TypeInference& ctx) const {
             auto it = members.find(elems[i].id.name);
             if (it != members.end()) {
                 // Replace Self with an unknown bound to the trait
-                auto self = ctx.type_table().unknown_type(
-                    UnknownType::max_rank(),
-                    UnknownType::Traits { trait }
-                );
+                auto self = ctx.type_table().unknown_type(UnknownType::Traits { trait });
                 decl_type = ctx.replace_self(it->second, self);
                 break;
             }
@@ -465,7 +461,7 @@ const artic::Type* TypeParamList::infer(TypeInference& ctx) const {
     for (auto& param : params) ctx.infer(*param);
     return params.empty() || type
         ? ctx.type(*this)
-        : ctx.type_table().poly_type(params.size(), ctx.type_table().unknown_type(rank));
+        : ctx.type_table().poly_type(params.size(), ctx.type_table().unknown_type());
 }
 
 const artic::Type* PtrnDecl::infer(TypeInference& ctx) const {

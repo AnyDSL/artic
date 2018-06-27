@@ -14,11 +14,6 @@ const Type* Type::inner() const {
     return isa<PolyType>() ? as<PolyType>()->body() : this;
 }
 
-void Type::update_rank(uint32_t rank) const {
-    for (auto u : all<UnknownType>())
-        u->rank = std::min(u->rank, rank);
-}
-
 bool Type::is_nominal() const {
     return isa<TypeApp>() && as<TypeApp>()->is_nominal();
 }
@@ -326,8 +321,8 @@ const InferError* TypeTable::infer_error(const Loc& loc, const Type* left, const
     return new_type<InferError>(loc, left, right);
 }
 
-const UnknownType* TypeTable::unknown_type(uint32_t rank, UnknownType::Traits&& traits) {
-    unknowns_.emplace_back(new UnknownType(unknowns_.size(), rank, std::move(traits)));
+const UnknownType* TypeTable::unknown_type(UnknownType::Traits&& traits) {
+    unknowns_.emplace_back(new UnknownType(unknowns_.size(), std::move(traits)));
     return unknowns_.back();
 }
 

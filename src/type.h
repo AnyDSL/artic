@@ -86,8 +86,6 @@ struct Type : public Cast<Type> {
     /// Returns the body of a polymorphic type, or the type itself if it is not polymorphic.
     const Type* inner() const;
 
-    /// Updates the rank of the unknowns contained in the type.
-    void update_rank(uint32_t) const;
     /// Returns true iff the type is nominally typed.
     bool is_nominal() const;
 
@@ -369,27 +367,17 @@ struct UnknownType : public Type {
     /// Number that will be displayed when printing this type.
     uint32_t number;
 
-    /// The rank corresponds to the highest scope index to which this
-    /// unknown has been bound. If the current scope index is greater
-    /// than the rank of an unknown, then the unknown cannot be generalized
-    /// at this point, because it is bound somewhere in an enclosing scope.
-    /// See "Efficient ML Type Inference Using Ranked Type Variables",
-    /// by G. Kuan and D. MacQueen
-    mutable uint32_t rank;
-
     /// Set of traits attached to this unknown. When this unknown is generalized,
     /// they will be attached to the corresponding type variable.
     mutable Traits traits;
 
-    UnknownType(uint32_t number, uint32_t rank, Traits&& traits)
-        : number(number), rank(rank), traits(std::move(traits))
+    UnknownType(uint32_t number, Traits&& traits)
+        : number(number), traits(std::move(traits))
     {}
 
     uint32_t hash() const override;
     bool equals(const Type*) const override;
     void print(Printer&) const override;
-
-    static constexpr uint32_t max_rank() { return std::numeric_limits<uint32_t>::max(); }
 };
 
 /// Base class for type errors.
@@ -458,7 +446,7 @@ public:
     const TypeVar*      type_var(uint32_t, TypeVar::Traits&& traits = TypeVar::Traits());
     const ErrorType*    error_type(const Loc&);
     const InferError*   infer_error(const Loc&, const Type*, const Type*);
-    const UnknownType*  unknown_type(uint32_t rank = UnknownType::max_rank(), UnknownType::Traits&& traits = UnknownType::Traits());
+    const UnknownType*  unknown_type(UnknownType::Traits&& traits = UnknownType::Traits());
 
     const TypeSet& types() const { return types_; }
     const std::vector<const UnknownType*>& unknowns() const { return unknowns_; }

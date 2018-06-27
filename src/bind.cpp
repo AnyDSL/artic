@@ -9,12 +9,10 @@ bool NameBinder::run(const ast::Program& program) {
 }
 
 void NameBinder::bind_head(const ast::Decl& decl) {
-    decl.rank = scopes_.size();
     decl.bind_head(*this);
 }
 
 void NameBinder::bind(const ast::Node& node) {
-    node.rank = scopes_.size();
     node.bind(*this);
 }
 
