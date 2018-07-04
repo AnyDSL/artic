@@ -10,7 +10,7 @@ void TypeInference::run(const ast::Program& program) {
     program.infer(*this);
 }
 
-inline bool compatible_refs(const RefTypeBase* a, const RefTypeBase* b) {
+inline bool compatible_addrs(const AddrType* a, const AddrType* b) {
     return (!a->mut || b->mut) && (a->addr_space == AddrSpace(AddrSpace::Generic) || a->addr_space == b->addr_space);
 }
 
@@ -24,13 +24,13 @@ const Type* TypeInference::unify(const Loc& loc, const Type* a, const Type* b) {
     auto ref_b = b->isa<RefType>();
     if (ref_a && !ref_b) return unify(loc, ref_a->pointee(), b);
     if (!ref_a && ref_b) return unify(loc, ref_b->pointee(), a);
-    if (ref_a && ref_b && compatible_refs(ref_b, ref_a))
+    if (ref_a && ref_b && compatible_addrs(ref_b, ref_a))
         return type_table().ref_type(unify(loc, ref_a->pointee(), ref_b->pointee()), ref_b->addr_space, ref_b->mut);
 
     // Pointers
     auto ptr_a = a->isa<PtrType>();
     auto ptr_b = b->isa<PtrType>();
-    if (ptr_a && ptr_b && compatible_refs(ptr_b, ptr_a))
+    if (ptr_a && ptr_b && compatible_addrs(ptr_b, ptr_a))
         return type_table().ptr_type(unify(loc, ptr_a->pointee(), ptr_b->pointee()), ptr_b->addr_space, ptr_b->mut);
 
     // Constrain unknowns
@@ -231,14 +231,14 @@ const artic::Type* Path::infer(TypeInference& ctx) const {
     auto decl_type = decl->type;
     assert(decl_type);
     for (size_t i = 1; i < elems.size(); i++) {
-        if (auto trait = decl->type->isa<TraitType>()) {
-            auto& members = trait->members();
+        if (auto impl = decl->type->isa<ImplType>()) {
+            auto& members = impl->members(ctx.type_table());
             auto it = members.find(elems[i].id.name);
             if (it != members.end()) {
                 // Replace Self with an unknown bound to the trait
                 auto self = ctx.type_table().unknown_type(
                     UnknownType::max_rank(),
-                    UnknownType::Traits { trait }
+                    UnknownType::Traits { impl->trait() }
                 );
                 decl_type = ctx.replace_self(it->second, self);
                 break;
@@ -308,7 +308,7 @@ const artic::Type* PathExpr::infer(TypeInference& ctx) const {
 const artic::Type* LiteralExpr::infer(TypeInference& ctx) const {
     if (lit.is_bool())
         return ctx.type_table().prim_type(artic::PrimType::I1);
-    return ctx.type(*this, { ctx.type_table().trait_type("Num", nullptr) });
+    return ctx.type(*this, { ctx.type_table().trait_type("Num", {}, nullptr) });
 }
 
 const artic::Type* FieldExpr::infer(TypeInference& ctx) const {
@@ -352,14 +352,14 @@ const artic::Type* CallExpr::infer(TypeInference& ctx) const {
 
 const artic::Type* ProjExpr::infer(TypeInference& ctx) const {
     auto expr_type = ctx.infer(*expr);
-    const artic::RefTypeBase* ref_base = ctx.type_table().ref_type(expr_type, AddrSpace::Generic, false);
+    const artic::AddrType* addr_type = ctx.type_table().ref_type(expr_type, AddrSpace::Generic, false);
     if (auto ref_type = expr_type->isa<RefType>()) {
         expr_type = ref_type->pointee();
-        ref_base = ref_type;
+        addr_type = ref_type;
     }
     if (auto ptr_type = expr_type->isa<artic::PtrType>()) {
         expr_type = ptr_type->pointee();
-        ref_base = ptr_type;
+        addr_type = ptr_type;
     }
     if (auto struct_type = expr_type->isa<artic::StructType>()) {
         auto& members = struct_type->members(ctx.type_table());
@@ -367,7 +367,7 @@ const artic::Type* ProjExpr::infer(TypeInference& ctx) const {
         if (it == members.end())
             return ctx.type_table().error_type(loc);
         index = std::distance(members.begin(), it);
-        return ctx.type_table().ref_type(it->second, ref_base->addr_space, ref_base->mut);
+        return ctx.type_table().ref_type(it->second, addr_type->addr_space, addr_type->mut);
     }
     return ctx.type(*this);
 }
@@ -425,7 +425,7 @@ const artic::Type* IdPtrn::infer(TypeInference& ctx) const {
 const artic::Type* LiteralPtrn::infer(TypeInference& ctx) const {
     if (lit.is_bool())
         return ctx.type_table().prim_type(artic::PrimType::I1);
-    return ctx.type(*this, { ctx.type_table().trait_type("Num", nullptr) });
+    return ctx.type(*this, { ctx.type_table().trait_type("Num", {}, nullptr) });
 }
 
 const artic::Type* FieldPtrn::infer(TypeInference& ctx) const {
@@ -512,7 +512,7 @@ const artic::Type* StructDecl::infer(TypeInference& ctx) const {
 }
 
 const artic::Type* TraitDecl::infer_head(TypeInference& ctx) const {
-    return ctx.type_table().trait_type(std::string(id.name), this);
+    return ctx.type_table().trait_type(std::string(id.name), {}, this);
 }
 
 const artic::Type* TraitDecl::infer(TypeInference& ctx) const {
@@ -542,20 +542,8 @@ const artic::Type* ImplDecl::infer(TypeInference& ctx) const {
         ctx.infer_head(*decl);
 
     auto impl_type = ctx.infer(*type);
-    for (auto& decl : decls) {
-        const artic::Type* member_type = nullptr;
-
-        // Instantiate the trait with the given type to get the
-        // expected signature of implemented functions
-        if (auto trait_type = ctx.infer(*trait)->isa<TraitType>()) {
-            auto& members = trait_type->members();
-            auto it = members.find(decl->id.name);
-            if (it != members.end())
-                member_type = ctx.replace_self(it->second, impl_type);
-        }
-
-        ctx.infer(*decl, member_type);
-    }
+    for (auto& decl : decls)
+        ctx.infer(*decl);
     return ctx.type(*this);
 }
 

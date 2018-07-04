@@ -75,10 +75,6 @@ struct AddrSpace {
 
 /// Base class for all types.
 struct Type : public Cast<Type> {
-    /// Number of polymorphic quantifiers contained in the type.
-    /// Useful to generate new variable names.
-    uint32_t depth = 0;
-
     virtual ~Type() {}
 
     /// Returns true iff this type is a tuple.
@@ -141,12 +137,9 @@ struct CompoundType : public Type {
 
     CompoundType(Args&& args)
         : args(std::move(args))
-    {
-        for (auto arg : this->args)
-            depth = std::max(arg->depth, depth);
-    }
+    {}
 
-    const Type* substitute(TypeTable& table, std::unordered_map<const Type*, const Type*>& map) const override;
+    const Type* substitute(TypeTable&, std::unordered_map<const Type*, const Type*>&) const override;
     bool has(const std::function<bool (const Type*)>&) const override;
     void all(std::unordered_set<const Type*>&, const std::function<bool (const Type*)>&) const override;
 
@@ -197,53 +190,82 @@ struct TypeApp : public CompoundType {
     bool equals(const Type*) const override;
 };
 
-/// Structure type.
-struct StructType : public TypeApp {
+/// Base class for types that have members.
+struct RecordType : public TypeApp {
     typedef std::unordered_map<std::string, const Type*> Members;
     using TypeApp::Args;
+
+    RecordType(Args&& args)
+        : TypeApp(std::move(args))
+    {}
+
+    RecordType(std::string&& name, Args&& args)
+        : TypeApp(std::move(name), std::move(args))
+    {}
+
+    /// Lazily builds the members of the record.
+    virtual const Members& members(TypeTable&) const = 0;
+
+protected:
+    mutable Members members_;
+};
+
+/// Structure type.
+struct StructType : public RecordType {
+    using RecordType::Args;
+    using RecordType::Members;
 
     const ast::StructDecl* decl;
 
     StructType(std::string&& name, Args&& args, const ast::StructDecl* decl)
-        : TypeApp(std::move(name), std::move(args)), decl(decl)
+        : RecordType(std::move(name), std::move(args)), decl(decl)
     {}
 
+    const Members& members(TypeTable&) const override;
     const CompoundType* rebuild(TypeTable&, Args&&) const override;
 
     void print(Printer&) const override;
-
-    /// Lazily build the members of the structure.
-    const Members& members(TypeTable&) const;
-
-private:
-    mutable Members members_;
 };
 
 /// A trait is a structure containing a set of operations that are valid for a type.
-struct TraitType : public Type {
-    typedef std::unordered_map<std::string, const Type*> Members;
+struct TraitType : public TypeApp {
+    using TypeApp::Args;
 
-    std::string name;
     const ast::TraitDecl* decl;
     mutable std::unordered_set<const ast::ImplDecl*> impls;
     mutable std::unordered_set<const TraitType*> supers;
 
-    TraitType(std::string&& name, const ast::TraitDecl* decl)
-        : name(std::move(name)), decl(decl)
+    TraitType(std::string&& name, Args&& args, const ast::TraitDecl* decl)
+        : TypeApp(std::move(name), std::move(args)), decl(decl)
     {}
 
-    uint32_t hash() const override;
-    void print(Printer&) const override;
-    bool equals(const Type*) const override;
+    const Type* substitute(TypeTable&, std::unordered_map<const Type*, const Type*>&) const;
+    const CompoundType* rebuild(TypeTable&, Args&&) const override;
 
-    /// Lazily build the members of the trait.
-    const Members& members() const;
+    void print(Printer&) const override;
 
     /// Returns true if this trait is a subtrait of the given trait.
     bool subtrait(const TraitType*) const;
+};
 
-private:
-    mutable Members members_;
+/// An implementation is a pair made of a trait and a type.
+struct ImplType : public RecordType {
+    using RecordType::Args;
+    using RecordType::Members;
+
+    mutable const ast::ImplDecl* decl;
+
+    ImplType(const TraitType* trait, const Type* self)
+        : RecordType({ trait, self }), decl(nullptr)
+    {}
+
+    const TraitType* trait() const { return args[0]->as<TraitType>(); }
+    const Type* self() const { return args[1]; }
+
+    const Members& members(TypeTable&) const override;
+    const CompoundType* rebuild(TypeTable&, Args&&) const override;
+
+    void print(Printer&) const override;
 };
 
 /// Type of a tuple, made of the product of the types of its elements.
@@ -279,11 +301,11 @@ struct FnType : public TypeApp {
 };
 
 /// Base type for pointers and references.
-struct RefTypeBase : public CompoundType {
+struct AddrType : public CompoundType {
     AddrSpace addr_space;
     bool mut;
 
-    RefTypeBase(const Type* pointee, AddrSpace addr_space, bool mut)
+    AddrType(const Type* pointee, AddrSpace addr_space, bool mut)
         : CompoundType({ pointee }), addr_space(addr_space), mut(mut)
     {}
 
@@ -294,9 +316,9 @@ struct RefTypeBase : public CompoundType {
 };
 
 /// Reference type.
-struct RefType : public RefTypeBase {
+struct RefType : public AddrType {
     RefType(const Type* pointee, AddrSpace addr_space, bool mut)
-        : RefTypeBase(pointee, addr_space, mut)
+        : AddrType(pointee, addr_space, mut)
     {}
 
     const CompoundType* rebuild(TypeTable&, Args&&) const override;
@@ -305,9 +327,9 @@ struct RefType : public RefTypeBase {
 };
 
 /// Pointer type.
-struct PtrType : public RefTypeBase {
+struct PtrType : public AddrType {
     PtrType(const Type* pointee, AddrSpace addr_space, bool mut)
-        : RefTypeBase(pointee, addr_space, mut)
+        : AddrType(pointee, addr_space, mut)
     {}
 
     const CompoundType* rebuild(TypeTable&, Args&&) const override;
@@ -322,9 +344,7 @@ struct PolyType : public CompoundType {
 
     PolyType(size_t num_vars, const Type* body)
         : CompoundType({ body }), num_vars(num_vars)
-    {
-        depth = num_vars + body->depth;
-    }
+    {}
 
     const Type* body() const { return args[0]; }
 
@@ -335,7 +355,7 @@ struct PolyType : public CompoundType {
     void print(Printer&) const override;
 };
 
-/// The Self type, which represents the implementation type for a trait.
+/// The Self type, which represents the implicit type parameter of a trait.
 struct SelfType : public Type {
     SelfType() {}
 
@@ -434,7 +454,7 @@ private:
         }
     };
 
-    typedef std::unordered_set<const Type*, HashType, CmpType> TypeSet;
+    typedef std::unordered_set<const Type*, HashType, CmpType> Types;
 
 public:
     TypeTable() : unknowns_(0) {}
@@ -447,7 +467,8 @@ public:
 
     const PrimType*     prim_type(PrimType::Tag);
     const StructType*   struct_type(std::string&&, StructType::Args&&, const ast::StructDecl*);
-    const TraitType*    trait_type(std::string&&, const ast::TraitDecl*);
+    const TraitType*    trait_type(std::string&&, TraitType::Args&&, const ast::TraitDecl*);
+    const ImplType*     impl_type(const TraitType*, const Type*);
     const TupleType*    tuple_type(TupleType::Args&&);
     const TupleType*    unit_type();
     const FnType*       fn_type(const Type*, const Type*);
@@ -460,7 +481,7 @@ public:
     const InferError*   infer_error(const Loc&, const Type*, const Type*);
     const UnknownType*  unknown_type(uint32_t rank = UnknownType::max_rank(), UnknownType::Traits&& traits = UnknownType::Traits());
 
-    const TypeSet& types() const { return types_; }
+    const Types& types() const { return types_; }
     const std::vector<const UnknownType*>& unknowns() const { return unknowns_; }
 
 private:
@@ -477,7 +498,7 @@ private:
         return ptr;
     }
 
-    TypeSet types_;
+    Types types_;
     std::vector<const UnknownType*> unknowns_;
 };
 

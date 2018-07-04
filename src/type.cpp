@@ -51,7 +51,7 @@ bool TraitType::subtrait(const TraitType* super) const {
 
 // Members -------------------------------------------------------------------------
 
-const StructType::Members& StructType::members(TypeTable& type_table) const {
+const StructType::Members& StructType::members(TypeTable& table) const {
     if (members_.empty()) {
         assert(decl->type);
         assert(!decl->type_params || decl->type_params->params.size() == args.size());
@@ -61,19 +61,15 @@ const StructType::Members& StructType::members(TypeTable& type_table) const {
             map.emplace(decl->type_params->params[i]->type, args[i]);
         for (auto& field : decl->fields) {
             assert(field->Node::type);
-            members_.emplace(field->id.name, field->Node::type->substitute(type_table, map));
+            members_.emplace(field->id.name, field->Node::type->substitute(table, map));
         }
     }
     return members_;
 }
 
-const TraitType::Members& TraitType::members() const {
+const ImplType::Members& ImplType::members(TypeTable& table) const {
     if (members_.empty()) {
-        assert(decl->type);
-        for (auto& decl : decl->decls) {
-            assert(decl->type);
-            members_.emplace(decl->id.name, decl->type);
-        }
+        // TODO
     }
     return members_;
 }
@@ -92,11 +88,7 @@ uint32_t TypeApp::hash() const {
     );
 }
 
-uint32_t TraitType::hash() const {
-    return hash_string(name);
-}
-
-uint32_t RefTypeBase::hash() const {
+uint32_t AddrType::hash() const {
     return hash_combine(
         typeid(*this).hash_code(),
         pointee()->hash(),
@@ -156,15 +148,11 @@ bool TypeApp::equals(const Type* t) const {
     return false;
 }
 
-bool TraitType::equals(const Type* t) const {
-    return t->isa<TraitType>() && t->as<TraitType>()->name == name;
-}
-
-bool RefTypeBase::equals(const Type* t) const {
+bool AddrType::equals(const Type* t) const {
     return typeid(*this) == typeid(*t) &&
-           t->as<RefTypeBase>()->pointee() == pointee() &&
-           t->as<RefTypeBase>()->addr_space == addr_space &&
-           t->as<RefTypeBase>()->mut == mut;
+           t->as<AddrType>()->pointee() == pointee() &&
+           t->as<AddrType>()->addr_space == addr_space &&
+           t->as<AddrType>()->mut == mut;
 }
 
 bool PolyType::equals(const Type* t) const {
@@ -204,6 +192,14 @@ bool InferError::equals(const Type* t) const {
 
 const CompoundType* StructType::rebuild(TypeTable& table, Args&& new_args) const {
     return table.struct_type(std::string(name), std::move(new_args), decl);
+}
+
+const CompoundType* TraitType::rebuild(TypeTable& table, Args&& new_args) const {
+    return table.trait_type(std::string(name), std::move(new_args), decl);
+}
+
+const CompoundType* ImplType::rebuild(TypeTable& table, Args&& new_args) const {
+    return table.impl_type(new_args[0]->as<TraitType>(), new_args[1]);
 }
 
 const CompoundType* TupleType::rebuild(TypeTable& table, Args&& new_args) const {
@@ -270,6 +266,13 @@ const Type* CompoundType::substitute(TypeTable& table, std::unordered_map<const 
     return map[this] = rebuild(table, std::move(new_args));
 }
 
+const Type* TraitType::substitute(TypeTable& table, std::unordered_map<const Type*, const Type*>& map) const {
+    auto trait = CompoundType::substitute(table, map)->as<TraitType>();
+    for (auto super : supers)
+        trait->supers.insert(super->substitute(table, map)->as<TraitType>());
+    return trait;
+}
+
 // Type table ----------------------------------------------------------------------
 
 const PrimType* TypeTable::prim_type(PrimType::Tag tag) {
@@ -280,8 +283,12 @@ const StructType* TypeTable::struct_type(std::string&& name, StructType::Args&& 
     return new_type<StructType>(std::move(name), std::move(args), decl);
 }
 
-const TraitType* TypeTable::trait_type(std::string&& name, const ast::TraitDecl* decl) {
-    return new_type<TraitType>(std::move(name), decl);
+const TraitType* TypeTable::trait_type(std::string&& name, TraitType::Args&& args, const ast::TraitDecl* decl) {
+    return new_type<TraitType>(std::move(name), std::move(args), decl);
+}
+
+const ImplType* TypeTable::impl_type(const TraitType* trait, const Type* self) {
+    return new_type<ImplType>(trait, self);
 }
 
 const TupleType* TypeTable::tuple_type(TupleType::Args&& args) {
