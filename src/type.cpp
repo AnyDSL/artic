@@ -41,14 +41,6 @@ size_t FnType::num_args() const {
     return 1;
 }
 
-bool TraitType::subtrait(const TraitType* super) const {
-    if (super == this || supers.count(super))
-        return true;
-    return std::any_of(supers.begin(), supers.end(), [=] (auto trait) {
-        return trait->subtrait(super);
-    });
-}
-
 // Members -------------------------------------------------------------------------
 
 const StructType::Members& StructType::members(TypeTable& table) const {
@@ -264,13 +256,6 @@ const Type* CompoundType::substitute(TypeTable& table, std::unordered_map<const 
         return arg->substitute(table, map);
     });
     return map[this] = rebuild(table, std::move(new_args));
-}
-
-const Type* TraitType::substitute(TypeTable& table, std::unordered_map<const Type*, const Type*>& map) const {
-    auto trait = CompoundType::substitute(table, map)->as<TraitType>();
-    for (auto super : supers)
-        trait->supers.insert(super->substitute(table, map)->as<TraitType>());
-    return trait;
 }
 
 // Type table ----------------------------------------------------------------------

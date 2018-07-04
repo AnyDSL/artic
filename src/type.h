@@ -232,20 +232,14 @@ struct TraitType : public TypeApp {
     using TypeApp::Args;
 
     const ast::TraitDecl* decl;
-    mutable std::unordered_set<const ast::ImplDecl*> impls;
-    mutable std::unordered_set<const TraitType*> supers;
 
     TraitType(std::string&& name, Args&& args, const ast::TraitDecl* decl)
         : TypeApp(std::move(name), std::move(args)), decl(decl)
     {}
 
-    const Type* substitute(TypeTable&, std::unordered_map<const Type*, const Type*>&) const;
     const CompoundType* rebuild(TypeTable&, Args&&) const override;
 
     void print(Printer&) const override;
-
-    /// Returns true if this trait is a subtrait of the given trait.
-    bool subtrait(const TraitType*) const;
 };
 
 /// An implementation is a pair made of a trait and a type.

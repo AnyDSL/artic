@@ -85,33 +85,8 @@ const Type* TypeInference::join(const Loc& loc, const UnknownType* unknown_a, co
     b->update_rank(unknown_a->rank);
     eqs_.emplace(unknown_a, Equation(loc, b));
 
-    if (auto unknown_b = b->isa<UnknownType>()) {
+    if (auto unknown_b = b->isa<UnknownType>())
         unknown_b->traits.insert(unknown_a->traits.begin(), unknown_a->traits.end());
-    } else if (!unknown_a->traits.empty()) {
-        if (auto var_b = b->isa<TypeVar>()) {
-            // Check that the type variable satisfies all the required traits
-            for (auto trait : unknown_a->traits) {
-                bool satisfied = std::any_of(var_b->traits.begin(), var_b->traits.end(), [=] (auto var_trait) {
-                    return var_trait->subtrait(trait);
-                });
-                if (!satisfied)
-                    return type_table().infer_error(loc, unknown_a, b);
-            }
-        } else {
-            // Check that there exists an implementation of the trait for our type
-            for (auto trait : unknown_a->traits) {
-                if (auto matcher = match_impl(loc, trait, b)) {
-                    // Bind the type to the pattern, so as to encode any possible constraints.
-                    // Consider the following implementation:
-                    //     impl<T : Trait> OtherTrait for SomeType<T> { ... }
-                    // This forces T to carry the trait Trait. For this reason, we must unify here.
-                    unify(loc, matcher, b);
-                } else {
-                    return type_table().infer_error(loc, unknown_a, b);
-                }
-            }
-        }
-    }
 
     return b;
 }
@@ -148,31 +123,6 @@ const Type* TypeInference::subsume(const Loc& loc, const Type* type, std::vector
         return poly->substitute(type_table(), map)->as<PolyType>()->body();
     }
     return type;
-}
-
-const Type* TypeInference::rename(const Type* type) {
-    std::unordered_map<const Type*, const Type*> map;
-    for (auto& u : type->all<UnknownType>())
-        map.emplace(u, type_table().unknown_type(u->rank, UnknownType::Traits(u->traits)));
-    return type->substitute(type_table(), map);
-}
-
-const Type* TypeInference::replace_self(const Type* type, const Type* self) {
-    std::unordered_map<const Type*, const Type*> map;
-    map.emplace(type_table().self_type(), self);
-    return type->substitute(type_table(), map);
-}
-
-const Type* TypeInference::match_impl(const Loc& loc, const TraitType* trait, const Type* type) {
-    for (auto impl : trait->impls) {
-        std::vector<const Type*> args;
-        auto matcher = subsume(loc, impl->Node::type, args);
-        auto renamed = rename(type);
-        // Return the first implementation that matches
-        if (!unify(loc, matcher, renamed)->has<ErrorType>())
-            return matcher;
-    }
-    return nullptr;
 }
 
 const Type* TypeInference::type(const ast::Node& node, UnknownType::Traits&& traits) {
@@ -234,15 +184,8 @@ const artic::Type* Path::infer(TypeInference& ctx) const {
         if (auto impl = decl->type->isa<ImplType>()) {
             auto& members = impl->members(ctx.type_table());
             auto it = members.find(elems[i].id.name);
-            if (it != members.end()) {
-                // Replace Self with an unknown bound to the trait
-                auto self = ctx.type_table().unknown_type(
-                    UnknownType::max_rank(),
-                    UnknownType::Traits { impl->trait() }
-                );
-                decl_type = ctx.replace_self(it->second, self);
-                break;
-            }
+            if (it != members.end())
+               return it->second; 
         }
         return ctx.type_table().error_type(loc);
     }
@@ -517,11 +460,8 @@ const artic::Type* TraitDecl::infer_head(TypeInference& ctx) const {
 
 const artic::Type* TraitDecl::infer(TypeInference& ctx) const {
     auto trait_type = ctx.type(*this)->as<artic::TraitType>();
-    for (auto& super : supers) {
-        auto super_type = ctx.infer(*super);
-        if (auto super_trait = super_type->isa<artic::TraitType>())
-            trait_type->supers.emplace(super_trait);
-    }
+    for (auto& super : supers)
+        ctx.infer(*super);
     for (auto& decl : decls)
         ctx.infer_head(*decl);
     for (auto& decl : decls)
@@ -530,18 +470,18 @@ const artic::Type* TraitDecl::infer(TypeInference& ctx) const {
 }
 
 const artic::Type* ImplDecl::infer_head(TypeInference& ctx) const {
-    if (auto trait_type = ctx.infer(*trait)->isa<TraitType>())
-        trait_type->impls.emplace(this);
     auto poly_type = type_params ? ctx.infer(*type_params) : nullptr;
-    auto impl_type = ctx.infer(*type);
+    auto self_type = ctx.infer(*type);
+    auto trait_type = ctx.infer(*trait);
+    if (!trait_type->isa<artic::TraitType>())
+        return ctx.type_table().error_type(loc);
+    auto impl_type = ctx.type_table().impl_type(trait_type->as<artic::TraitType>(), self_type);
     return poly_type ? ctx.unify(loc, impl_type, poly_type) : impl_type;
 }
 
 const artic::Type* ImplDecl::infer(TypeInference& ctx) const {
     for (auto& decl : decls)
         ctx.infer_head(*decl);
-
-    auto impl_type = ctx.infer(*type);
     for (auto& decl : decls)
         ctx.infer(*decl);
     return ctx.type(*this);
