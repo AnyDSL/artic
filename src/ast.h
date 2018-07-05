@@ -45,15 +45,9 @@ struct Node : public Cast<Node> {
     /// Type assigned after type inference. Not all nodes are typeable.
     mutable const artic::Type* type;
 
-    /// Rank: index of the enclosing scope. Used during type inference
-    /// in order to generalize type variables. Assigned during name
-    /// binding. See UnknownType.
-    mutable uint32_t rank;
-
     Node(const Loc& loc)
         : loc(loc)
         , type(nullptr)
-        , rank(artic::UnknownType::max_rank())
     {}
 
     virtual ~Node() {}
@@ -784,14 +778,17 @@ struct StructDecl : public NamedDecl {
 
 /// Trait declaration.
 struct TraitDecl : public NamedDecl {
+    Ptr<TypeParamList> type_params;
     PtrVector<NamedDecl> decls;
     PtrVector<Type> supers;
 
     TraitDecl(const Loc& loc,
               Identifier&& id,
+              Ptr<TypeParamList>&& type_params,
               PtrVector<NamedDecl>&& decls,
               PtrVector<Type>&& supers)
         : NamedDecl(loc, std::move(id))
+        , type_params(std::move(type_params))
         , decls(std::move(decls))
         , supers(std::move(supers))
     {}

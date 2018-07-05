@@ -82,12 +82,7 @@ const Type* TypeInference::join(const Loc& loc, const UnknownType* unknown_a, co
     if (!unknown_a || unknown_a == b) return b;
     assert(find(b) != find(unknown_a));
 
-    b->update_rank(unknown_a->rank);
     eqs_.emplace(unknown_a, Equation(loc, b));
-
-    if (auto unknown_b = b->isa<UnknownType>())
-        unknown_b->traits.insert(unknown_a->traits.begin(), unknown_a->traits.end());
-
     return b;
 }
 
@@ -116,7 +111,7 @@ const Type* TypeInference::subsume(const Loc& loc, const Type* type, std::vector
             if (var->index >= type_args.size())
                 type_args.resize(var->index + 1);
             if (!type_args[var->index])
-                type_args[var->index] = type_table().unknown_type(UnknownType::max_rank(), UnknownType::Traits(var->traits));
+                type_args[var->index] = type_table().unknown_type();
             map.emplace(var, type_args[var->index]);
         }
 
@@ -125,9 +120,9 @@ const Type* TypeInference::subsume(const Loc& loc, const Type* type, std::vector
     return type;
 }
 
-const Type* TypeInference::type(const ast::Node& node, UnknownType::Traits&& traits) {
+const Type* TypeInference::type(const ast::Node& node) {
     if (!node.type)
-        node.type = type_table().unknown_type(node.rank, std::move(traits));
+        node.type = type_table().unknown_type();
     return find(node.type);
 }
 
@@ -251,7 +246,7 @@ const artic::Type* PathExpr::infer(TypeInference& ctx) const {
 const artic::Type* LiteralExpr::infer(TypeInference& ctx) const {
     if (lit.is_bool())
         return ctx.type_table().prim_type(artic::PrimType::I1);
-    return ctx.type(*this, { ctx.type_table().trait_type("Num", {}, nullptr) });
+    return ctx.type(*this);
 }
 
 const artic::Type* FieldExpr::infer(TypeInference& ctx) const {
@@ -368,7 +363,7 @@ const artic::Type* IdPtrn::infer(TypeInference& ctx) const {
 const artic::Type* LiteralPtrn::infer(TypeInference& ctx) const {
     if (lit.is_bool())
         return ctx.type_table().prim_type(artic::PrimType::I1);
-    return ctx.type(*this, { ctx.type_table().trait_type("Num", {}, nullptr) });
+    return ctx.type(*this);
 }
 
 const artic::Type* FieldPtrn::infer(TypeInference& ctx) const {
@@ -408,7 +403,7 @@ const artic::Type* TypeParamList::infer(TypeInference& ctx) const {
     for (auto& param : params) ctx.infer(*param);
     return params.empty() || type
         ? ctx.type(*this)
-        : ctx.type_table().poly_type(params.size(), ctx.type_table().unknown_type(rank));
+        : ctx.type_table().poly_type(params.size(), ctx.type_table().unknown_type());
 }
 
 const artic::Type* PtrnDecl::infer(TypeInference& ctx) const {
@@ -455,6 +450,13 @@ const artic::Type* StructDecl::infer(TypeInference& ctx) const {
 }
 
 const artic::Type* TraitDecl::infer_head(TypeInference& ctx) const {
+    if (type_params) {
+        auto poly_type = ctx.infer(*type_params);
+        TraitType::Args args;
+        for (auto& param : type_params->params)
+            args.emplace_back(param->type);
+        return ctx.unify(loc, poly_type, ctx.type_table().trait_type(std::string(id.name), std::move(args), this));
+    }
     return ctx.type_table().trait_type(std::string(id.name), {}, this);
 }
 

@@ -114,6 +114,11 @@ Ptr<ast::TraitDecl> Parser::parse_trait_decl() {
     Tracker tracker(this);
     eat(Token::Trait);
     auto id = parse_id();
+
+    Ptr<ast::TypeParamList> type_params;
+    if (ahead().tag() == Token::CmpLT)
+        type_params = std::move(parse_type_params());
+
     PtrVector<ast::Type> supers;
     if (ahead().tag() == Token::Colon) {
         eat(Token::Colon);
@@ -123,8 +128,9 @@ Ptr<ast::TraitDecl> Parser::parse_trait_decl() {
             eat(Token::Add);
         }
     }
+
     auto decls = parse_trait_body();
-    return make_ptr<ast::TraitDecl>(tracker(), std::move(id), std::move(decls), std::move(supers));
+    return make_ptr<ast::TraitDecl>(tracker(), std::move(id), std::move(type_params), std::move(decls), std::move(supers));
 }
 
 Ptr<ast::ImplDecl> Parser::parse_impl_decl() {

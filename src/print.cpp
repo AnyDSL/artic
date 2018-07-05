@@ -377,11 +377,14 @@ void FnDecl::print(Printer& p) const {
 }
 
 void TraitDecl::print_head(Printer& p) const {
-    p << keyword_style("trait") << ' ' << id.name << " { ... }";
+    p << keyword_style("trait") << ' ' << id.name;
+    if (type_params) type_params->print(p);
+    p << " { ... }";
 }
 
 void TraitDecl::print(Printer& p) const {
     p << keyword_style("trait") << ' ' << id.name;
+    if (type_params) type_params->print(p);
     if (!supers.empty()) {
         p << " : ";
         print_list(p, " + ", supers, [&] (auto& super) {

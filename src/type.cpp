@@ -14,11 +14,6 @@ const Type* Type::inner() const {
     return isa<PolyType>() ? as<PolyType>()->body() : this;
 }
 
-void Type::update_rank(uint32_t rank) const {
-    for (auto u : all<UnknownType>())
-        u->rank = std::min(u->rank, rank);
-}
-
 bool Type::is_nominal() const {
     return isa<TypeApp>() && as<TypeApp>()->is_nominal();
 }
@@ -61,7 +56,17 @@ const StructType::Members& StructType::members(TypeTable& table) const {
 
 const ImplType::Members& ImplType::members(TypeTable& table) const {
     if (members_.empty()) {
-        // TODO
+        assert(trait()->decl);
+        std::unordered_map<const Type*, const Type*> map;
+        for (size_t i = 0; i < trait()->args.size(); ++i) {
+            auto& param = trait()->decl->type_params->params[i];
+            map.emplace(param->type, trait()->args[i]);
+        }
+        map.emplace(table.self_type(), self());
+        for (auto& field : trait()->decl->decls) {
+            assert(field->Node::type);
+            members_.emplace(field->id.name, field->Node::type->substitute(table, map));
+        }
     }
     return members_;
 }
@@ -318,8 +323,8 @@ const InferError* TypeTable::infer_error(const Loc& loc, const Type* left, const
     return new_type<InferError>(loc, left, right);
 }
 
-const UnknownType* TypeTable::unknown_type(uint32_t rank, UnknownType::Traits&& traits) {
-    unknowns_.emplace_back(new UnknownType(unknowns_.size(), rank, std::move(traits)));
+const UnknownType* TypeTable::unknown_type() {
+    unknowns_.emplace_back(new UnknownType(unknowns_.size()));
     return unknowns_.back();
 }
 

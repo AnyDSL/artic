@@ -9,12 +9,10 @@ bool NameBinder::run(const ast::Program& program) {
 }
 
 void NameBinder::bind_head(const ast::Decl& decl) {
-    decl.rank = scopes_.size();
     decl.bind_head(*this);
 }
 
 void NameBinder::bind(const ast::Node& node) {
-    node.rank = scopes_.size();
     node.bind(*this);
 }
 
@@ -234,8 +232,9 @@ void TraitDecl::bind_head(NameBinder& ctx) const {
 }
 
 void TraitDecl::bind(NameBinder& ctx) const {
-    for (auto& super : supers) ctx.bind(*super);
     ctx.push_scope();
+    if (type_params) ctx.bind(*type_params);
+    for (auto& super : supers) ctx.bind(*super);
     for (auto& decl : decls) ctx.bind(*decl);
     ctx.pop_scope();
 }
