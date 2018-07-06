@@ -98,12 +98,8 @@ void Path::check(TypeChecker& ctx) const {
     for (auto& elem : elems) {
         if (auto impl_type = elem.type->isa<ImplType>()) {
             ctx.match_impl(loc, impl_type);
-            if (!impl_type->decl) {
-                ctx.error(loc, "no implementation of trait ",
-                    *impl_type->trait()->as<artic::Type>(),
-                    " found for type ",
-                    *impl_type->self());
-            }
+            if (!impl_type->decl)
+                ctx.error(loc, "no implementation of trait '{}' found for type '{}'", *impl_type->trait()->as<artic::Type>(), *impl_type->self());
         }
     }
     for (auto& arg : args) ctx.check(*arg);
