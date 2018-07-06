@@ -22,8 +22,7 @@ public:
     void check(const ast::Node&);
     template <typename Fields>
     void check_struct(const Loc&, const StructType*, const Fields&, bool);
-
-    void match_impl(const Loc&, const ImplType*);
+    void check_impl(const Loc&, const ImplType*);
 
     TypeTable& type_table() { return type_inference_.type_table(); }
     TypeInference& type_inference() { return type_inference_; }

@@ -187,6 +187,7 @@ Ptr<ast::Ptrn> Parser::parse_ptrn(bool only_types) {
     // Anonymous patterns only made of types
     if (only_types) {
         switch (ahead().tag()) {
+            case Token::And:
             case Token::Self:
             case Token::Id:
                 {

@@ -20,7 +20,7 @@ public:
 private:
     struct Utf8Buffer {
         char buf[4];
-        int count;
+        size_t count;
 
         Utf8Buffer()
             : buf{0, 0, 0, 0}, count(0)

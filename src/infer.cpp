@@ -177,11 +177,13 @@ const artic::Type* Path::Elem::infer(TypeInference& ctx, const artic::Type* base
 const artic::Type* Path::infer_first(TypeInference& ctx) const {
     auto decl = symbol->decls.front();
     if (auto trait_decl = decl->isa<TraitDecl>()) {
-        auto trait_type = ctx.subsume(loc, trait_decl->type, trait_args)->isa<TraitType>();
-        if (!trait_type)
-            return nullptr;
-        self_type = self_type ? self_type : ctx.type_table().unknown_type();
-        return ctx.type_table().impl_type(trait_type, self_type);
+        if (elems.size() > 1) {
+            auto trait_type = ctx.subsume(loc, trait_decl->type, trait_args)->isa<TraitType>();
+            if (!trait_type)
+                return nullptr;
+            self_type = self_type ? self_type : ctx.type_table().unknown_type();
+            return ctx.type_table().impl_type(trait_type, self_type);
+        }
     } else if (auto ptrn_decl = decl->isa<PtrnDecl>()) {
         return ctx.type_table().ref_type(ptrn_decl->type, AddrSpace(AddrSpace::Generic), ptrn_decl->mut);
     }
@@ -486,10 +488,10 @@ const artic::Type* TraitDecl::infer(TypeInference& ctx) const {
 const artic::Type* ImplDecl::infer_head(TypeInference& ctx) const {
     auto poly_type = type_params ? ctx.infer(*type_params) : nullptr;
     auto self_type = ctx.infer(*type);
-    auto impl_type = ctx.infer(*trait)->isa<ImplType>();
-    if (!impl_type)
+    auto trait_type = ctx.infer(*trait)->isa<TraitType>();
+    if (!trait_type)
         return ctx.type_table().error_type(loc);
-    ctx.unify(loc, impl_type->self(), self_type);
+    auto impl_type = ctx.type_table().impl_type(trait_type, self_type);
     return poly_type ? ctx.unify(loc, impl_type, poly_type) : impl_type;
 }
 

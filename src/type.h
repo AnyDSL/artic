@@ -82,9 +82,6 @@ struct Type : public Cast<Type> {
     /// Returns the body of a polymorphic type, or the type itself if it is not polymorphic.
     const Type* inner() const;
 
-    /// Returns true iff the type is nominally typed.
-    bool is_nominal() const;
-
     /// Applies a substitution to this type.
     virtual const Type* substitute(TypeTable&, std::unordered_map<const Type*, const Type*>& map) const;
 
@@ -227,6 +224,7 @@ struct StructType : public RecordType {
 
 /// A trait is a structure containing a set of operations that are valid for a type.
 struct TraitType : public TypeApp {
+    typedef std::unordered_set<const TraitType*> Supers;
     using TypeApp::Args;
 
     const ast::TraitDecl* decl;
@@ -235,9 +233,15 @@ struct TraitType : public TypeApp {
         : TypeApp(std::move(name), std::move(args)), decl(decl)
     {}
 
+    const Supers& supers(TypeTable&) const;
+    bool subtrait(TypeTable&, const TraitType*) const;
+
     const CompoundType* rebuild(TypeTable&, Args&&) const override;
 
     void print(Printer&) const override;
+
+protected:
+    mutable Supers supers_;
 };
 
 /// An implementation is a pair made of a trait and a type.

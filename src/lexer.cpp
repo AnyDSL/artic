@@ -25,10 +25,10 @@ std::unordered_map<std::string, Token::Tag> Lexer::keywords{
 
 bool Lexer::Utf8Buffer::fill(std::istream& is) {
     if (count < 4) {
-        int n = 4 - count;
+        auto n = 4 - count;
         is.read(buf + count, n);
         count += is.gcount();
-        return is.gcount() == n;
+        return is.gcount() == std::streamsize(n);
     }
     return true;
 }

@@ -14,10 +14,6 @@ const Type* Type::inner() const {
     return isa<PolyType>() ? as<PolyType>()->body() : this;
 }
 
-bool Type::is_nominal() const {
-    return isa<TypeApp>() && as<TypeApp>()->is_nominal();
-}
-
 bool TypeApp::is_nominal() const {
     return name != "";
 }
@@ -36,7 +32,12 @@ size_t FnType::num_args() const {
     return 1;
 }
 
-// Members -------------------------------------------------------------------------
+bool TraitType::subtrait(TypeTable& table, const TraitType* trait) const {
+    return supers(table).count(trait) ||
+           std::any_of(supers_.begin(), supers_.end(), [&] (auto super) { return super->subtrait(table, trait); });
+}
+
+// Members/Supers ------------------------------------------------------------------
 
 const StructType::Members& StructType::members(TypeTable& table) const {
     if (members_.empty()) {
@@ -52,6 +53,20 @@ const StructType::Members& StructType::members(TypeTable& table) const {
         }
     }
     return members_;
+}
+
+const TraitType::Supers& TraitType::supers(TypeTable& table) const {
+    if (supers_.empty()) {
+        assert(decl);
+        std::unordered_map<const Type*, const Type*> map;
+        for (size_t i = 0; i < args.size(); ++i) {
+            auto& param = decl->type_params->params[i];
+            map.emplace(param->type, args[i]);
+        }
+        for (auto& super : decl->supers)
+            supers_.emplace(super->type->substitute(table, map)->as<TraitType>());
+    }
+    return supers_;
 }
 
 const ImplType::Members& ImplType::members(TypeTable& table) const {
