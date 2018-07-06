@@ -170,7 +170,7 @@ void WhileExpr::check(TypeChecker& ctx) const {
 void ErrorExpr::check(TypeChecker&) const {}
 
 void TypedPtrn::check(TypeChecker& ctx) const {
-    ctx.check(*ptrn);
+    if (ptrn) ctx.check(*ptrn);
     ctx.check(*type);
 }
 

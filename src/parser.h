@@ -21,7 +21,7 @@ public:
 private:
     Ptr<ast::Decl>          parse_decl();
     Ptr<ast::LetDecl>       parse_let_decl();
-    Ptr<ast::FnDecl>        parse_fn_decl();
+    Ptr<ast::FnDecl>        parse_fn_decl(bool);
     Ptr<ast::FieldDecl>     parse_field_decl();
     Ptr<ast::StructDecl>    parse_struct_decl();
     Ptr<ast::TraitDecl>     parse_trait_decl();
@@ -30,13 +30,13 @@ private:
     Ptr<ast::TypeParamList> parse_type_params();
     Ptr<ast::ErrorDecl>     parse_error_decl();
 
-    Ptr<ast::Ptrn>          parse_ptrn();
+    Ptr<ast::Ptrn>          parse_ptrn(bool only_types = false);
     Ptr<ast::Ptrn>          parse_typed_ptrn(Ptr<ast::Ptrn>&&);
     Ptr<ast::IdPtrn>        parse_id_ptrn(ast::Identifier&&, bool);
     Ptr<ast::LiteralPtrn>   parse_literal_ptrn();
     Ptr<ast::FieldPtrn>     parse_field_ptrn();
     Ptr<ast::StructPtrn>    parse_struct_ptrn(ast::Identifier&&);
-    Ptr<ast::Ptrn>          parse_tuple_ptrn();
+    Ptr<ast::Ptrn>          parse_tuple_ptrn(bool);
     Ptr<ast::ErrorPtrn>     parse_error_ptrn();
 
     Ptr<ast::Stmt>          parse_stmt();
@@ -81,7 +81,7 @@ private:
 
     AddrSpace               parse_addr_space();
 
-    PtrVector<ast::NamedDecl> parse_trait_body();
+    PtrVector<ast::NamedDecl> parse_trait_or_impl_body(bool);
 
     struct Tracker {
         const Parser* parser;

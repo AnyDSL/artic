@@ -28,7 +28,7 @@ Ptr<ast::Program> Parser::parse_program() {
 Ptr<ast::Decl> Parser::parse_decl() {
     switch (ahead().tag()) {
         case Token::Let:    return parse_let_decl();
-        case Token::Fn:     return parse_fn_decl();
+        case Token::Fn:     return parse_fn_decl(false);
         case Token::Struct: return parse_struct_decl();
         case Token::Trait:  return parse_trait_decl();
         case Token::Impl:   return parse_impl_decl();
@@ -51,7 +51,7 @@ Ptr<ast::LetDecl> Parser::parse_let_decl() {
     return make_ptr<LetDecl>(tracker(), std::move(ptrn), std::move(init));
 }
 
-Ptr<ast::FnDecl> Parser::parse_fn_decl() {
+Ptr<ast::FnDecl> Parser::parse_fn_decl(bool only_types) {
     Tracker tracker(this);
     eat(Token::Fn);
 
@@ -62,7 +62,7 @@ Ptr<ast::FnDecl> Parser::parse_fn_decl() {
 
     Ptr<Ptrn> param;
     if (ahead().tag() == Token::LParen) {
-        param = std::move(parse_tuple_ptrn());
+        param = std::move(parse_tuple_ptrn(only_types));
         expect_binder("function parameter", param);
     } else {
         error(ahead().loc(), "parameter list expected in function definition");
@@ -75,7 +75,7 @@ Ptr<ast::FnDecl> Parser::parse_fn_decl() {
     }
 
     Ptr<Expr> body;
-    if (ahead().tag() == Token::LBrace)
+    if (!only_types && ahead().tag() == Token::LBrace)
         body = std::move(parse_block_expr());
     else
         expect(Token::Semi);
@@ -129,7 +129,7 @@ Ptr<ast::TraitDecl> Parser::parse_trait_decl() {
         }
     }
 
-    auto decls = parse_trait_body();
+    auto decls = parse_trait_or_impl_body(false);
     return make_ptr<ast::TraitDecl>(tracker(), std::move(id), std::move(type_params), std::move(decls), std::move(supers));
 }
 
@@ -144,11 +144,7 @@ Ptr<ast::ImplDecl> Parser::parse_impl_decl() {
     auto trait = parse_type();
     expect(Token::For);
     auto type = parse_type();
-    PtrVector<ast::NamedDecl> decls;
-    if (ahead().tag() == Token::Semi)
-        eat(Token::Semi);
-    else
-        decls = std::move(parse_trait_body());
+    auto decls = std::move(parse_trait_or_impl_body(true));
     return make_ptr<ast::ImplDecl>(tracker(), std::move(trait), std::move(type), std::move(decls), std::move(type_params));
 }
 
@@ -187,19 +183,36 @@ Ptr<ast::ErrorDecl> Parser::parse_error_decl() {
 
 // Patterns ------------------------------------------------------------------------
 
-Ptr<ast::Ptrn> Parser::parse_ptrn() {
+Ptr<ast::Ptrn> Parser::parse_ptrn(bool only_types) {
+    // Anonymous patterns only made of types
+    if (only_types) {
+        switch (ahead().tag()) {
+            case Token::Self:
+            case Token::Id:
+                {
+                    Tracker tracker(this);
+                    auto type = parse_type();
+                    return make_ptr<ast::TypedPtrn>(tracker(), nullptr, std::move(type));
+                }
+            case Token::LParen:
+                return parse_tuple_ptrn(true);
+            default:
+                break;
+        }
+        return parse_error_ptrn();
+    }
+
     Ptr<ast::Ptrn> ptrn;
     switch (ahead().tag()) {
         case Token::Id:
             {
                 auto id = parse_id();
-                if (ahead().tag() == Token::Dot ||
+                if (ahead().tag() == Token::DblColon ||
                     ahead().tag() == Token::CmpLT ||
-                    ahead().tag() == Token::LBrace) {
+                    ahead().tag() == Token::LBrace)
                     ptrn = std::move(parse_struct_ptrn(std::move(id)));
-                } else {
+                else
                     ptrn = std::move(parse_id_ptrn(std::move(id), false));
-                }
             }
             break;
         case Token::Mut:
@@ -208,7 +221,7 @@ Ptr<ast::Ptrn> Parser::parse_ptrn() {
                 ptrn = std::move(parse_id_ptrn(parse_id(), true));
             }
             break;
-        case Token::LParen: ptrn = std::move(parse_tuple_ptrn());   break;
+        case Token::LParen: ptrn = std::move(parse_tuple_ptrn(false));   break;
         case Token::Lit:    ptrn = std::move(parse_literal_ptrn()); break;
         default:            ptrn = std::move(parse_error_ptrn());   break;
     }
@@ -271,12 +284,12 @@ Ptr<ast::StructPtrn> Parser::parse_struct_ptrn(Identifier&& id) {
     return make_ptr<ast::StructPtrn>(tracker(), std::move(path), std::move(fields));
 }
 
-Ptr<ast::Ptrn> Parser::parse_tuple_ptrn() {
+Ptr<ast::Ptrn> Parser::parse_tuple_ptrn(bool only_types) {
     Tracker tracker(this);
     eat(Token::LParen);
     PtrVector<Ptrn> args;
     parse_list(Token::RParen, Token::Comma, [&] {
-        args.emplace_back(parse_ptrn());
+        args.emplace_back(parse_ptrn(only_types));
     });
     return args.size() == 1
         ? std::move(args[0])
@@ -737,12 +750,12 @@ AddrSpace Parser::parse_addr_space() {
     }
 }
 
-PtrVector<ast::NamedDecl> Parser::parse_trait_body() {
+PtrVector<ast::NamedDecl> Parser::parse_trait_or_impl_body(bool impl) {
     PtrVector<NamedDecl> decls;
     expect(Token::LBrace);
     parse_list(Token::RBrace, Token::Semi, [&] {
         if (ahead().tag() == Token::Fn)
-            decls.emplace_back(parse_fn_decl());
+            decls.emplace_back(parse_fn_decl(!impl));
         else {
             error(ahead().loc(), "function declaration expected");
             next();

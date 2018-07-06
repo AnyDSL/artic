@@ -38,10 +38,8 @@ void NameBinder::insert_symbol(const ast::NamedDecl& decl) {
 namespace ast {
 
 void Path::bind(NameBinder& ctx) const {
-    // Bind only the outermost element, since other elements
-    // require type-inference to be bound
-    elems[0].symbol = ctx.find_symbol(elems[0].id.name);
-    if (!elems[0].symbol)
+    symbol = ctx.find_symbol(elems[0].id.name);
+    if (!symbol)
         ctx.error(elems[0].id.loc, "unknown identifier '{}'", elems[0].id.name);
     for (auto& arg : args) ctx.bind(*arg);
 }
@@ -152,7 +150,7 @@ void WhileExpr::bind(NameBinder& ctx) const {
 void ErrorExpr::bind(NameBinder&) const {}
 
 void TypedPtrn::bind(NameBinder& ctx) const {
-    ctx.bind(*ptrn);
+    if (ptrn) ctx.bind(*ptrn);
     ctx.bind(*type);
 }
 

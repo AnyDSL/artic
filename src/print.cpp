@@ -233,8 +233,10 @@ void ErrorExpr::print(Printer& p) const {
 }
 
 void TypedPtrn::print(Printer& p) const {
-    ptrn->print(p);
-    p << " : ";
+    if (ptrn) {
+        ptrn->print(p);
+        p << " : ";
+    }
     type->print(p);
 }
 
@@ -394,10 +396,11 @@ void TraitDecl::print(Printer& p) const {
     p << " {";
     if (!decls.empty()) {
         p << p.indent();
-        print_list(p, ";", decls, [&] (auto& decl) {
+        for (auto& decl : decls) {
             p << p.endl();
             decl->print(p);
-        });
+            p << ';';
+        }
         p << p.unindent() << p.endl();
     }
     p << '}';
@@ -521,7 +524,7 @@ void TraitType::print(Printer& p) const {
 void ImplType::print(Printer& p) const {
     p << keyword_style("impl") << ' ';
     trait()->print(p);
-    p << " for ";
+    p << ' ' << keyword_style("for") << ' ';
     self()->print(p);
 }
 

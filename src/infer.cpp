@@ -150,7 +150,8 @@ const artic::Type* infer_struct(TypeInference& ctx, const Loc& loc, const artic:
 
     // Exit if the structure has not been analyzed yet
     auto struct_decl = struct_type->decl;
-    if (!struct_decl->fields.front()->Node::type)
+    if (!struct_decl->fields.empty() &&
+        !struct_decl->fields.front()->Node::type)
         return struct_type;
 
     auto& members = struct_type->members(ctx.type_table());
@@ -163,36 +164,46 @@ const artic::Type* infer_struct(TypeInference& ctx, const Loc& loc, const artic:
     return struct_type;
 }
 
-const artic::Type* Path::infer(TypeInference& ctx) const {
-    // Do not subsume twice, as subsumption introduces unknowns
-    if (type)
-        return type;
+const artic::Type* Path::Elem::infer(TypeInference& ctx, const artic::Type* base) const {
+    if (auto impl_type = base->isa<ImplType>()) {
+        auto& members = impl_type->members(ctx.type_table());
+        auto it = members.find(id.name);
+        if (it != members.end())
+            return it->second;
+    }
+    return nullptr;
+} 
 
-    auto symbol = elems.front().symbol;
+const artic::Type* Path::infer_first(TypeInference& ctx) const {
+    auto decl = symbol->decls.front();
+    if (auto trait_decl = decl->isa<TraitDecl>()) {
+        auto trait_type = ctx.subsume(loc, trait_decl->type, trait_args)->isa<TraitType>();
+        if (!trait_type)
+            return nullptr;
+        self_type = self_type ? self_type : ctx.type_table().unknown_type();
+        return ctx.type_table().impl_type(trait_type, self_type);
+    } else if (auto ptrn_decl = decl->isa<PtrnDecl>()) {
+        return ctx.type_table().ref_type(ptrn_decl->type, AddrSpace(AddrSpace::Generic), ptrn_decl->mut);
+    }
+    return decl->type;
+}
+
+const artic::Type* Path::infer(TypeInference& ctx) const {
     if (!symbol)
         return ctx.type_table().error_type(loc);
 
-    auto decl = symbol->decls.front();
-    auto decl_type = decl->type;
-    assert(decl_type);
-    for (size_t i = 1; i < elems.size(); i++) {
-        if (auto impl = decl->type->isa<ImplType>()) {
-            auto& members = impl->members(ctx.type_table());
-            auto it = members.find(elems[i].id.name);
-            if (it != members.end())
-               return it->second; 
-        }
-        return ctx.type_table().error_type(loc);
+    for (size_t i = 0; i < elems.size(); ++i) {
+        auto elem_type = i == 0 ? infer_first(ctx) : elems[i].infer(ctx, elems[i - 1].type);
+        if (!elem_type)
+            return ctx.type_table().error_type(loc);
+        elems[i].type = elems[i].type ? ctx.unify(loc, elems[i].type, elem_type) : elem_type;
     }
+    auto last_type = elems.back().type;
 
     type_args.resize(std::max(type_args.size(), args.size()));
     for (size_t i = 0; i < args.size(); i++)
         type_args[i] = ctx.infer(*args[i]);
-
-    auto subsumed = ctx.subsume(loc, decl_type, type_args);
-    if (auto ptrn_decl = decl->isa<PtrnDecl>())
-        return ctx.type_table().ref_type(subsumed, AddrSpace(AddrSpace::Generic), ptrn_decl->mut);
-    return subsumed;
+    return ctx.subsume(loc, last_type, type_args);
 }
 
 const artic::Type* PrimType::infer(TypeInference& ctx) const {
@@ -353,7 +364,8 @@ const artic::Type* ErrorExpr::infer(TypeInference& ctx) const {
 }
 
 const artic::Type* TypedPtrn::infer(TypeInference& ctx) const {
-    return ctx.infer(*ptrn, ctx.infer(*type));
+    auto ptrn_type = ctx.infer(*type);
+    return ptrn ? ctx.infer(*ptrn, ptrn_type) : ptrn_type;
 }
 
 const artic::Type* IdPtrn::infer(TypeInference& ctx) const {
@@ -474,10 +486,10 @@ const artic::Type* TraitDecl::infer(TypeInference& ctx) const {
 const artic::Type* ImplDecl::infer_head(TypeInference& ctx) const {
     auto poly_type = type_params ? ctx.infer(*type_params) : nullptr;
     auto self_type = ctx.infer(*type);
-    auto trait_type = ctx.infer(*trait);
-    if (!trait_type->isa<artic::TraitType>())
+    auto impl_type = ctx.infer(*trait)->isa<ImplType>();
+    if (!impl_type)
         return ctx.type_table().error_type(loc);
-    auto impl_type = ctx.type_table().impl_type(trait_type->as<artic::TraitType>(), self_type);
+    ctx.unify(loc, impl_type->self(), self_type);
     return poly_type ? ctx.unify(loc, impl_type, poly_type) : impl_type;
 }
 

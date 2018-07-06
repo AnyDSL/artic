@@ -80,7 +80,7 @@ Path UnaryExpr::tag_to_fn(const Loc& loc, Tag tag) {
         case PreDec:  return Path(loc, { Identifier(loc, "PreDec"),  Identifier(loc, "dec") }, {});
         default:
             assert(false);
-            return Path(loc, Identifier(loc, ""), {});
+            return Path(loc, { Identifier(loc, "") }, {});
     }
 }
 
@@ -235,7 +235,7 @@ Path BinaryExpr::tag_to_fn(const Loc& loc, Tag tag) {
         case CmpNE:   return Path(loc, { Identifier(loc, "CmpNE"), Identifier(loc, "cmp_ne") }, {});
         default:
             assert(false);
-            return Path(loc, Identifier(loc, ""), {});
+            return Path(loc, { Identifier(loc, "") }, {});
     }
 }
 
@@ -334,7 +334,7 @@ void Program::concat(Ptr<Program>&& other) {
 // Refutable patterns --------------------------------------------------------------
 
 bool TypedPtrn::is_refutable() const {
-    return ptrn->is_refutable();
+    return ptrn && ptrn->is_refutable();
 }
 
 bool IdPtrn::is_refutable() const {
