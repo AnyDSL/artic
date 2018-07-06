@@ -46,7 +46,7 @@ trait CmpGT {
     fn cmp_gt(Self, Self) -> bool;
 }
 
-trait Cmp : CmpGE + CmpEq + CmpLT + CmpGT {} 
+trait Cmp : CmpGE + CmpEq + CmpLT + CmpGT {}
 trait Num : Add + Sub + Mul + Div + Mod + AssignMul + AssignDiv + PostDec + Cmp {}
 
 impl Add for i32 {}
