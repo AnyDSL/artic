@@ -140,13 +140,11 @@ void TypeInference::infer_head(const ast::Decl& decl) {
         decl.type = decl.type ? unify(decl.loc, type, decl.type) : type;
 }
 
-namespace ast {
-
-template <typename FieldVector>
-const artic::Type* infer_struct(TypeInference& ctx, const Loc& loc, const artic::StructType* struct_type, const FieldVector& fields, bool has_etc) {
+template <typename Fields>
+const Type* TypeInference::infer_struct(const Loc& loc, const StructType* struct_type, const Fields& fields, bool has_etc) {
     // Infer all fields
     for (auto& field : fields)
-        ctx.infer(*field);
+        infer(*field);
 
     // Exit if the structure has not been analyzed yet
     auto struct_decl = struct_type->decl;
@@ -154,15 +152,17 @@ const artic::Type* infer_struct(TypeInference& ctx, const Loc& loc, const artic:
         !struct_decl->fields.front()->Node::type)
         return struct_type;
 
-    auto& members = struct_type->members(ctx.type_table());
+    auto& members = struct_type->members(type_table());
     for (size_t i = 0, n = has_etc ? fields.size() - 1 : fields.size(); i < n; i++) {
         auto& field = fields[i];
         auto it = members.find(field->id.name);
         field->index = struct_decl->field_index(field->id.name);
-        ctx.infer(*field, it != members.end() ? it->second : ctx.type_table().error_type(loc));
+        infer(*field, it != members.end() ? it->second : type_table().error_type(loc));
     }
     return struct_type;
 }
+
+namespace ast {
 
 const artic::Type* Path::Elem::infer(TypeInference& ctx, const artic::Type* base) const {
     if (auto impl_type = base->isa<ImplType>()) {
@@ -267,7 +267,7 @@ const artic::Type* FieldExpr::infer(TypeInference& ctx) const {
 const artic::Type* StructExpr::infer(TypeInference& ctx) const {
     auto expr_type = ctx.infer(*expr, ctx.type(*this));
     if (auto struct_type = expr_type->isa<StructType>())
-        return infer_struct(ctx, loc, struct_type, fields, false);
+        return ctx.infer_struct(loc, struct_type, fields, false);
     return expr_type;
 }
 
@@ -386,7 +386,7 @@ const artic::Type* FieldPtrn::infer(TypeInference& ctx) const {
 const artic::Type* StructPtrn::infer(TypeInference& ctx) const {
     auto expr_type = ctx.infer(path);
     if (auto struct_type = expr_type->isa<StructType>())
-        return infer_struct(ctx, loc, struct_type, fields, has_etc());
+        return ctx.infer_struct(loc, struct_type, fields, has_etc());
     return expr_type;
 }
 

@@ -19,8 +19,8 @@ namespace artic {
 }
 
 static void usage() {
-    log::out << "Usage: artic [options] files...\n"
-                "Available options:\n"
+    log::out << "usage: artic [options] files...\n"
+                "options:\n"
                 "          --version  Displays the version number\n"
                 "    -h    --help     Displays this message\n";
 }
@@ -78,7 +78,7 @@ struct ProgramOptions {
                     version();
                     return false;
                 } else {
-                    log::error("Unknown option '{}'", argv[i]);
+                    log::error("unknown option '{}'", argv[i]);
                 }
             } else
                 files.push_back(argv[i]);
@@ -99,7 +99,7 @@ int main(int argc, char** argv) {
     for (auto& file : opts.files) {
         std::ifstream is(file);
         if (!is) {
-            log::error("Cannot open file '{}'", file);
+            log::error("cannot open file '{}'", file);
             return 1;
         }
         Lexer lexer(file, is, logger);

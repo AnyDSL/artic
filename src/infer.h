@@ -28,6 +28,9 @@ public:
     const Type* infer(const ast::Node&, const Type* expected = nullptr);
     void infer_head(const ast::Decl&);
 
+    template <typename Fields>
+    const Type* infer_struct(const Loc&, const StructType*, const Fields&, bool);
+
     TypeTable& type_table() { return type_table_; }
 
 private:

@@ -6,6 +6,17 @@
 namespace artic {
 
 bool TypeChecker::run(const ast::Program& program) {
+    // Fill the map from trait to implementations
+    for (auto& decl : program.decls) {
+        if (auto impl_decl = decl->isa<ast::ImplDecl>()) {
+            auto impl_type = impl_decl->Node::type->inner()->isa<ImplType>();
+            if (!impl_type)
+                continue;
+            auto trait_decl = impl_type->trait()->decl;
+            trait_to_impls_.emplace(trait_decl, impl_decl);
+        }
+    }
+
     program.check(*this);
     return error_count == 0;
 }
@@ -16,6 +27,8 @@ void TypeChecker::check(const ast::Node& node) {
     // Propagate any remaining unknown before checking
     node.type = type_inference().unify(node.loc, node.type, node.type);
     if (auto path = node.isa<ast::Path>()) {
+        for (auto& elem: path->elems)
+            elem.type = type_inference().unify(node.loc, elem.type, elem.type);
         for (auto& arg : path->type_args)
             arg = type_inference().unify(node.loc, arg, arg);
     }
@@ -50,11 +63,9 @@ void TypeChecker::check(const ast::Node& node) {
     }
 }
 
-namespace ast {
-
-template <typename FieldVector>
-void check_struct(TypeChecker& ctx, const Loc& loc, const artic::StructType* struct_type, const FieldVector& fields, bool has_etc) {
-    auto& members = struct_type->members(ctx.type_table());
+template <typename Fields>
+void TypeChecker::check_struct(const Loc& loc, const StructType* struct_type, const Fields& fields, bool has_etc) {
+    auto& members = struct_type->members(type_table());
 
     // Make sure all fields are set
     if (!has_etc) {
@@ -64,11 +75,37 @@ void check_struct(TypeChecker& ctx, const Loc& loc, const artic::StructType* str
             }) == fields.end();
         });
         if (not_set != members.end())
-            ctx.error(loc, "missing initializer for field '{}'", not_set->first);
+            error(loc, "missing initializer for field '{}'", not_set->first);
     }
 }
 
+void TypeChecker::match_impl(const Loc& loc, const ImplType* impl_type) {
+    auto trait_decl = impl_type->trait()->decl;
+    auto range = trait_to_impls_.equal_range(trait_decl);
+    for (auto it = range.first; it != range.second; ++it) {
+        std::vector<const Type*> args;
+        auto other_impl_type = type_inference().subsume(loc, it->second->Node::type, args);
+        if (!type_inference().unify(loc, impl_type, other_impl_type)->has<ErrorType>()) {
+            impl_type->decl = it->second;
+            break;
+        }
+    }
+}
+
+namespace ast {
+
 void Path::check(TypeChecker& ctx) const {
+    for (auto& elem : elems) {
+        if (auto impl_type = elem.type->isa<ImplType>()) {
+            ctx.match_impl(loc, impl_type);
+            if (!impl_type->decl) {
+                ctx.error(loc, "no implementation of trait ",
+                    *impl_type->trait()->as<artic::Type>(),
+                    " found for type ",
+                    *impl_type->self());
+            }
+        }
+    }
     for (auto& arg : args) ctx.check(*arg);
 }
 
@@ -123,7 +160,7 @@ void StructExpr::check(TypeChecker& ctx) const {
     for (auto& field : fields) ctx.check(*field);
 
     if (auto struct_type = type->isa<StructType>())
-        check_struct(ctx, loc, struct_type, fields, false);
+        ctx.check_struct(loc, struct_type, fields, false);
 }
 
 void TupleExpr::check(TypeChecker& ctx) const {
@@ -189,7 +226,7 @@ void StructPtrn::check(TypeChecker& ctx) const {
     for (auto& field : fields) ctx.check(*field);
 
     if (auto struct_type = type->isa<StructType>())
-        check_struct(ctx, loc, struct_type, fields, has_etc());
+        ctx.check_struct(loc, struct_type, fields, has_etc());
 }
 
 void TuplePtrn::check(TypeChecker& ctx) const {
