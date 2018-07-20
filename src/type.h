@@ -405,6 +405,7 @@ struct UnknownType : public Type {
 
     UnknownType(uint32_t number)
         : number(number)
+
     {}
 
     uint32_t hash() const override;
