@@ -168,7 +168,7 @@ struct CodeGen {
 
     const thorin::Def* emit_ptr(const ast::Expr& expr) {
         if (auto path_expr = expr.isa<ast::PathExpr>()) {
-            auto decl = path_expr->path.elems.back().symbol->decls.front();
+            auto decl = path_expr->path.symbol->decls.front();
             assert(decl->isa<ast::PtrnDecl>());
             return lookup(decl);
         } else if (auto deref_expr = expr.isa<ast::DerefExpr>()) {
@@ -228,7 +228,7 @@ struct CodeGen {
                 ops[i] = emit(*tuple_expr->args[i]);
             return world.tuple(ops, loc_to_dbg(tuple_expr->loc, "tuple"));
         } else if (auto path_expr = expr.isa<ast::PathExpr>()) {
-            auto decl = path_expr->path.elems.back().symbol->decls.front();
+            auto decl = path_expr->path.symbol->decls.front();
             if (decl->isa<ast::PtrnDecl>()) {
                 auto load_tuple = world.load(cur_mem, lookup(decl), loc_to_dbg(path_expr->loc));
                 cur_mem = world.extract(load_tuple, thorin::u32(0));

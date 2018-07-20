@@ -3,6 +3,7 @@
 
 #include "type.h"
 #include "ast.h"
+#include "infer.h"
 
 namespace artic {
 
