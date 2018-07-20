@@ -30,6 +30,8 @@ struct CodeGen {
     }
 
     void register_std_impls() {
+        auto true_def = world.literal_bool(true, thorin::Debug{});
+
         auto register_binop = [&] (const std::string& name, const Type* prim_type, auto f) {
             auto impl_type   = type_table.impl_type(type_table.trait_type(std::string(name), {}, nullptr), prim_type);
             auto impl_decl   = impl_type->decl(type_inference);
@@ -38,6 +40,7 @@ struct CodeGen {
             auto binop_type  = world.fn_type({ world.mem_type(), world.tuple_type({ thorin_prim, thorin_prim }), world.fn_type({ world.mem_type(), thorin_prim }) });
             auto binop_fn    = world.continuation(binop_type, loc_to_dbg(impl_decl->loc, name));
             auto arg         = binop_fn->param(1);
+            binop_fn->set_filter({ true_def, true_def, true_def });
             binop_fn->jump(binop_fn->param(2), { binop_fn->param(0), f(world.extract(arg, thorin::u32(0)), world.extract(arg, thorin::u32(1))) });
             std_impls[impl_type] = binop_fn;
         };
@@ -50,6 +53,7 @@ struct CodeGen {
             auto cmpop_type  = world.fn_type({ world.mem_type(), world.tuple_type({ thorin_prim, thorin_prim }), world.fn_type({ world.mem_type(), world.type_bool() }) });
             auto cmpop_fn    = world.continuation(cmpop_type, loc_to_dbg(impl_decl->loc, name));
             auto arg         = cmpop_fn->param(1);
+            cmpop_fn->set_filter({ true_def, true_def, true_def });
             cmpop_fn->jump(cmpop_fn->param(2), { cmpop_fn->param(0), f(world.extract(arg, thorin::u32(0)), world.extract(arg, thorin::u32(1))) });
             std_impls[impl_type] = cmpop_fn;
         };
@@ -145,6 +149,8 @@ struct CodeGen {
         } else if (auto fn_type = type->isa<FnType>()) {
             auto mem = world.mem_type();
             return world.fn_type({ mem, convert(fn_type->from()), world.fn_type({ mem, convert(fn_type->to()) })});
+        } else if (auto ref_type = type->isa<RefType>()) {
+            return convert(ref_type->pointee());
         } else {
             assert(false);
             return nullptr;

@@ -26,7 +26,7 @@ Once built, Artic can be run with the following command:
 
     bin/artic [files]
 
-For most programs, a [file](https://github.com/AnyDSL/artic/tree/master/test/infer/valid) that contains the standard definitions is required.
+For most programs, a [file](https://github.com/AnyDSL/artic/tree/master/test/infer/valid/prelude.art) that contains the standard definitions is required.
 If those definitions are not provided, the program will not typecheck.
 
 ## Syntax

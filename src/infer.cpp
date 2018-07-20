@@ -292,7 +292,7 @@ const artic::Type* TupleExpr::infer(TypeInference& ctx) const {
 
 const artic::Type* FnExpr::infer(TypeInference& ctx) const {
     auto param_type = ctx.infer(*param);
-    auto body_type = ctx.infer(*body);
+    auto body_type  = ctx.infer(*body);
     return ctx.type_table().fn_type(param_type, body_type);
 }
 
