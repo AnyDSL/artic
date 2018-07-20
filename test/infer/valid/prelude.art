@@ -1,80 +1,63 @@
-trait Mul {
-    fn mul(Self, Self) -> Self;
-}
+trait Add { fn add(Self, Self) -> Self; }
+trait Sub { fn sub(Self, Self) -> Self; }
+trait Mul { fn mul(Self, Self) -> Self; }
+trait Div { fn div(Self, Self) -> Self; }
+trait Mod { fn mod(Self, Self) -> Self; }
+trait And { fn and(Self, Self) -> Self; }
+trait Or  { fn or (Self, Self) -> Self; }
+trait Xor { fn xor(Self, Self) -> Self; }
 
-trait Mod {
-    fn mod(Self, Self) -> Self;
-}
+trait CmpEq { fn cmp_eq(Self, Self) -> bool; }
+trait CmpNE { fn cmp_ne(Self, Self) -> bool; }
+trait CmpGT { fn cmp_gt(Self, Self) -> bool; }
+trait CmpGE { fn cmp_ge(Self, Self) -> bool; }
+trait CmpLT { fn cmp_lt(Self, Self) -> bool; }
+trait CmpLE { fn cmp_le(Self, Self) -> bool; }
 
-trait Div {
-    fn div(Self, Self) -> Self;
-}
-
-trait Add {
-    fn add(Self, Self) -> Self;
-}
-
-trait Sub {
-    fn sub(Self, Self) -> Self;
-}
-
-trait AssignMul {
-    fn assign_mul(&mut Self, Self) -> ();
-}
-
-trait AssignDiv {
-    fn assign_div(&mut Self, Self) -> ();
-}
-
-trait PostDec {
-    fn dec(&mut Self) -> ();
-}
-
-trait CmpEq {
-    fn cmp_eq(Self, Self) -> bool;
-}
-
-trait CmpGE {
-    fn cmp_ge(Self, Self) -> bool;
-}
-
-trait CmpLT {
-    fn cmp_lt(Self, Self) -> bool;
-}
-
-trait CmpGT {
-    fn cmp_gt(Self, Self) -> bool;
-}
+trait AssignMul { fn assign_mul(&mut Self, Self) -> (); }
+trait AssignDiv { fn assign_div(&mut Self, Self) -> (); }
+trait PostDec { fn dec(&mut Self) -> (); }
 
 trait Cmp : CmpGE + CmpEq + CmpLT + CmpGT {}
 trait Num : Add + Sub + Mul + Div + Mod + AssignMul + AssignDiv + PostDec + Cmp {}
 
-impl Add for i32 {}
-impl Sub for i32 {}
-impl Mul for i32 {}
-impl Div for i32 {}
-impl Mod for i32 {}
-impl CmpEq for i32 {}
-impl CmpGE for i32 {}
-impl CmpGT for i32 {}
-impl CmpLT for i32 {}
-impl AssignMul for i32 {}
-impl AssignDiv for i32 {}
-impl PostDec for i32 {}
-impl Num for i32 {}
+impl Add        for i32 {}
+impl Sub        for i32 {}
+impl Mul        for i32 {}
+impl Div        for i32 {}
+impl Mod        for i32 {}
+impl And        for i32 {}
+impl Or         for i32 {}
+impl Xor        for i32 {}
+impl CmpEq      for i32 {}
+impl CmpNE      for i32 {}
+impl CmpGT      for i32 {}
+impl CmpGE      for i32 {}
+impl CmpLT      for i32 {}
+impl CmpLE      for i32 {}
+impl AssignMul  for i32 {}
+impl AssignDiv  for i32 {}
+impl PostDec    for i32 {}
+impl Num        for i32 {}
 
-impl Add for i64 {}
-impl Sub for i64 {}
-impl Mul for i64 {}
-impl Div for i64 {}
-impl Mod for i64 {}
-impl CmpEq for i64 {}
-impl CmpGE for i64 {}
-impl CmpGT for i64 {}
-impl CmpLT for i64 {}
-impl AssignMul for i64 {}
-impl AssignDiv for i64 {}
-impl PostDec for i64 {}
-impl Num for i64 {}
+impl Add        for i64 {}
+impl Sub        for i64 {}
+impl Mul        for i64 {}
+impl Div        for i64 {}
+impl Mod        for i64 {}
+impl And        for i64 {}
+impl Or         for i64 {}
+impl Xor        for i64 {}
+impl CmpEq      for i64 {}
+impl CmpNE      for i64 {}
+impl CmpGT      for i64 {}
+impl CmpGE      for i64 {}
+impl CmpLT      for i64 {}
+impl CmpLE      for i64 {}
+impl AssignMul  for i64 {}
+impl AssignDiv  for i64 {}
+impl PostDec    for i64 {}
+impl Num        for i64 {}
+
 
 fn assign<T>(ptr: &mut T, val: T) -> ();

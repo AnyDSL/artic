@@ -119,10 +119,12 @@ struct Path : public Node {
         Identifier id;
 
         mutable const artic::Type* type;
+        mutable const artic::Type* self_type;
+        mutable std::vector<const artic::Type*> type_args;
 
         Elem() : Elem(Identifier()) {}
         Elem(Identifier&& id)
-            : id(std::move(id)), type(nullptr)
+            : id(std::move(id)), type(nullptr), self_type(nullptr)
         {}
 
         const artic::Type* infer(TypeInference&, const artic::Type*) const;
@@ -131,12 +133,9 @@ struct Path : public Node {
     PtrVector<Type> args;
 
     mutable std::shared_ptr<Symbol> symbol;
-    mutable const artic::Type* self_type;
-    mutable std::vector<const artic::Type*> trait_args;
-    mutable std::vector<const artic::Type*> type_args;
 
     Path(const Loc& loc, std::vector<Elem>&& elems, PtrVector<Type>&& args)
-        : Node(loc), elems(std::move(elems)), args(std::move(args)), self_type(nullptr)
+        : Node(loc), elems(std::move(elems)), args(std::move(args))
     {}
 
     const artic::Type* infer_first(TypeInference&) const;

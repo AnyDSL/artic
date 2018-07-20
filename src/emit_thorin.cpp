@@ -1,5 +1,6 @@
 #include "ast.h"
 #include "type.h"
+#include "infer.h"
 
 #include <thorin/world.h>
 #include <thorin/irbuilder.h>
@@ -20,16 +21,77 @@ namespace artic {
 // The code generator maintains a map of specialized functions to
 // ensure termination in the case of polymorphic recursive functions.
 struct CodeGen {
-    CodeGen(const std::string& module_name, TypeTable& type_table)
-        : type_table(type_table)
+    CodeGen(const std::string& module_name, TypeInference& type_inference)
+        : type_inference(type_inference)
+        , type_table(type_inference.type_table())
         , world(module_name)
-    {}
+    {
+        register_std_impls();
+    }
+
+    void register_std_impls() {
+        auto register_binop = [&] (const std::string& name, const Type* prim_type, auto f) {
+            auto impl_type   = type_table.impl_type(type_table.trait_type(std::string(name), {}, nullptr), prim_type);
+            auto impl_decl   = impl_type->decl(type_inference);
+            assert(impl_decl);
+            auto thorin_prim = convert(prim_type);
+            auto binop_type  = world.fn_type({ world.mem_type(), world.tuple_type({ thorin_prim, thorin_prim }), world.fn_type({ world.mem_type(), thorin_prim }) });
+            auto binop_fn    = world.continuation(binop_type, loc_to_dbg(impl_decl->loc, name));
+            auto arg         = binop_fn->param(1);
+            binop_fn->jump(binop_fn->param(2), { binop_fn->param(0), f(world.extract(arg, thorin::u32(0)), world.extract(arg, thorin::u32(1))) });
+            std_impls[impl_type] = binop_fn;
+        };
+
+        auto register_cmpop = [&] (const std::string& name, const Type* prim_type, auto f) {
+            auto impl_type   = type_table.impl_type(type_table.trait_type(std::string(name), {}, nullptr), prim_type);
+            auto impl_decl   = impl_type->decl(type_inference);
+            assert(impl_decl);
+            auto thorin_prim = convert(prim_type);
+            auto cmpop_type  = world.fn_type({ world.mem_type(), world.tuple_type({ thorin_prim, thorin_prim }), world.fn_type({ world.mem_type(), world.type_bool() }) });
+            auto cmpop_fn    = world.continuation(cmpop_type, loc_to_dbg(impl_decl->loc, name));
+            auto arg         = cmpop_fn->param(1);
+            cmpop_fn->jump(cmpop_fn->param(2), { cmpop_fn->param(0), f(world.extract(arg, thorin::u32(0)), world.extract(arg, thorin::u32(1))) });
+            std_impls[impl_type] = cmpop_fn;
+        };
+
+        PrimType::Tag all_tags[] = {
+            // TODO: Enable other primitive types (requires a fully fledged prelude)
+/*#define TAG(t, n, ty) PrimType::t,
+        PRIM_TAGS(TAG)
+#undef TAG*/
+            PrimType::I64,
+            PrimType::I32
+        };
+
+        for (size_t i = 0, n = sizeof(all_tags) / sizeof(all_tags[0]); i < n; ++i) {
+            auto prim_type = type_table.prim_type(all_tags[i]);
+            register_cmpop("CmpEq", prim_type, [&] (auto a, auto b) { return world.cmp_eq(a, b); } );
+            register_cmpop("CmpNE", prim_type, [&] (auto a, auto b) { return world.cmp_ne(a, b); } );
+            if (all_tags[i] != PrimType::I1) {
+                register_binop("Add", prim_type, [&] (auto a, auto b) { return world.arithop_add(a, b); } );
+                register_binop("Sub", prim_type, [&] (auto a, auto b) { return world.arithop_sub(a, b); } );
+                register_binop("Mul", prim_type, [&] (auto a, auto b) { return world.arithop_mul(a, b); } );
+                register_binop("Div", prim_type, [&] (auto a, auto b) { return world.arithop_div(a, b); } );
+                register_cmpop("CmpGT", prim_type, [&] (auto a, auto b) { return world.cmp_gt(a, b); } );
+                register_cmpop("CmpGE", prim_type, [&] (auto a, auto b) { return world.cmp_ge(a, b); } );
+                register_cmpop("CmpLT", prim_type, [&] (auto a, auto b) { return world.cmp_lt(a, b); } );
+                register_cmpop("CmpLE", prim_type, [&] (auto a, auto b) { return world.cmp_le(a, b); } );
+            }
+            if (all_tags[i] != PrimType::F32 && all_tags[i] != PrimType::F64) {
+                // TODO: Add FMOD for floating point types?
+                register_binop("Mod", prim_type, [&] (auto a, auto b) { return world.arithop_rem(a, b); } );
+                register_binop("And", prim_type, [&] (auto a, auto b) { return world.arithop_and(a, b); } );
+                register_binop("Or" , prim_type, [&] (auto a, auto b) { return world.arithop_or (a, b); } );
+                register_binop("Xor", prim_type, [&] (auto a, auto b) { return world.arithop_xor(a, b); } );
+            }
+        }
+    }
 
     const thorin::Debug loc_to_dbg(const Loc& loc, const std::string& name = "") {
         return thorin::Debug(thorin::Location(loc.file->c_str(), loc.begin_row, loc.begin_col, loc.end_row, loc.end_col), name);
     }
 
-    thorin::AddrSpace convert(const artic::AddrSpace addr_space) {
+    thorin::AddrSpace convert(const AddrSpace addr_space) {
         switch (addr_space.locality) {
             case AddrSpace::Generic:  return thorin::AddrSpace::Generic;
             case AddrSpace::Shared:   return thorin::AddrSpace::Shared;
@@ -41,7 +103,7 @@ struct CodeGen {
         }
     }
 
-    const thorin::Type* convert(const artic::Type* type) {
+    const thorin::Type* convert(const Type* type) {
         // Replace type variables by the provided arguments
         type = type->substitute(type_table, var_map);
 
@@ -68,11 +130,10 @@ struct CodeGen {
             }
         } else if (auto struct_type = type->isa<StructType>()) {
             auto& members = struct_type->members(type_table);
-            auto thorin_struct = world.struct_type(struct_type->name, members.size());
-            for (size_t i = 0; i < struct_type->decl->fields.size(); ++i) {
-                auto& field = struct_type->decl->fields[i];
-                thorin_struct->set(i, convert(members.at(field->id.name)));
-            }
+            auto struct_decl = struct_type->decl;
+            auto thorin_struct = world.struct_type(struct_decl->id.name, members.size());
+            for (size_t i = 0; i < members.size(); ++i)
+                thorin_struct->set(i, convert(members.at(struct_decl->fields[i]->id.name)));
             return type_map[type] = thorin_struct;
         } else if (auto tuple_type = type->isa<TupleType>()) {
             thorin::Array<const thorin::Type*> ops(tuple_type->args.size());
@@ -90,6 +151,26 @@ struct CodeGen {
         }
     }
 
+    const thorin::Def* emit(const Literal& lit, const Type* type, const Loc& loc) {
+        auto dbg = loc_to_dbg(loc);
+        switch (type->substitute(type_table, var_map)->as<PrimType>()->tag) {
+            case PrimType::I1:  return world.literal_bool(lit.as_bool(), dbg);
+            case PrimType::I8:  return world.literal_qs8 (lit.as_integer(), dbg);
+            case PrimType::I16: return world.literal_qs16(lit.as_integer(), dbg);
+            case PrimType::I32: return world.literal_qs32(lit.as_integer(), dbg);
+            case PrimType::I64: return world.literal_qs64(lit.as_integer(), dbg);
+            case PrimType::U8:  return world.literal_qu8 (lit.as_integer(), dbg);
+            case PrimType::U16: return world.literal_qu16(lit.as_integer(), dbg);
+            case PrimType::U32: return world.literal_qu32(lit.as_integer(), dbg);
+            case PrimType::U64: return world.literal_qu64(lit.as_integer(), dbg);
+            case PrimType::F32: return world.literal_qf32(lit.as_double(), dbg);
+            case PrimType::F64: return world.literal_qf64(lit.as_double(), dbg);
+            default:
+                assert(false);
+                return nullptr;
+        }
+    }
+
     void emit(const ast::Ptrn& ptrn, const thorin::Def* def) {
         if (auto id_ptrn = ptrn.isa<ast::IdPtrn>()) {
             auto& decl = id_ptrn->decl;
@@ -98,7 +179,7 @@ struct CodeGen {
             auto slot = world.slot(convert(id_ptrn->type), frame, loc_to_dbg(id_ptrn->loc, decl->id.name));
             cur_mem = world.extract(frame_tuple, thorin::u32(0));
             cur_mem = world.store(cur_mem, slot, def, loc_to_dbg(id_ptrn->loc));
-            def_map[id_ptrn->decl.get()] = slot;
+            decl_map[id_ptrn->decl.get()] = slot;
         } else if (auto typed_ptrn = ptrn.isa<ast::TypedPtrn>()) {
             emit(*typed_ptrn->ptrn, def);
         } else if (auto tuple_ptrn = ptrn.isa<ast::TuplePtrn>()) {
@@ -115,12 +196,12 @@ struct CodeGen {
         }
     }
 
-    const thorin::Def* lookup(const ast::Decl* decl) {
-        assert(def_map.count(decl));
-        return def_map[decl];
-    }
+    void emit(const ast::Decl& decl, bool ignore_poly = true) {
+        // Try to find the corresponding monomorphic declaration in the map.
+        MonoDecl mono_decl(&decl, var_map);
+        if (decl_map.find(mono_decl) != decl_map.end())
+            return;
 
-    void emit_head(const ast::Decl& decl, bool ignore_poly = true) {
         if (auto fn_decl = decl.isa<ast::FnDecl>()) {
             if (ignore_poly && fn_decl->type_params)
                 return;
@@ -128,32 +209,16 @@ struct CodeGen {
             auto cont = world.continuation(type, thorin::CC::C, thorin::Intrinsic::None, loc_to_dbg(fn_decl->loc, fn_decl->id.name));
             if (fn_decl->id.name == "main")
                 cont->as_continuation()->make_external();
-            def_map[&decl] = cont;
-        }
-    }
+            decl_map[mono_decl] = cont;
 
-    void emit(const ast::Decl& decl, bool ignore_poly = true) {
-        if (auto fn_decl = decl.isa<ast::FnDecl>()) {
-            auto& fn_expr = fn_decl->fn;
-            if ((ignore_poly && fn_decl->type_params) || !fn_expr->body)
-                return;
-            auto cont = lookup(&decl)->as_continuation();
             THORIN_PUSH(cur_bb, cont);
             THORIN_PUSH(cur_mem, cont->param(0));
-            emit(*fn_expr->param, cont->param(1));
-            auto ret = emit(*fn_expr->body);
-            cur_bb->jump(cont->param(2), thorin::Defs { cur_mem, ret }, loc_to_dbg(fn_expr->loc, "ret"));
+            emit(*fn_decl->fn->param, cont->param(1));
+            auto ret = emit(*fn_decl->fn->body);
+            cur_bb->jump(cont->param(2), thorin::Defs { cur_mem, ret }, loc_to_dbg(fn_decl->loc, "ret"));
         } else if (auto let_decl = decl.isa<ast::LetDecl>()) {
             auto init = let_decl->init ? emit(*let_decl->init) : world.bottom(convert(let_decl->ptrn->type));
             emit(*let_decl->ptrn, init);
-        } else if (decl.isa<ast::StructDecl>()) {
-            // TODO
-        } else if (decl.isa<ast::TraitDecl>()) {
-            // TODO
-        } else if (decl.isa<ast::ImplDecl>()) {
-            // TODO
-        } else {
-            assert(false);
         }
     }
 
@@ -170,7 +235,7 @@ struct CodeGen {
         if (auto path_expr = expr.isa<ast::PathExpr>()) {
             auto decl = path_expr->path.symbol->decls.front();
             assert(decl->isa<ast::PtrnDecl>());
-            return lookup(decl);
+            return decl_map[decl];
         } else if (auto deref_expr = expr.isa<ast::DerefExpr>()) {
             return emit(*deref_expr->expr);
         } else if (auto proj_expr = expr.isa<ast::ProjExpr>()) {
@@ -194,30 +259,10 @@ struct CodeGen {
 
     const thorin::Def* emit(const ast::Expr& expr) {
         if (auto lit_expr = expr.isa<ast::LiteralExpr>()) {
-            auto dbg = loc_to_dbg(lit_expr->loc, "");
-            switch (lit_expr->type->as<artic::PrimType>()->tag) {
-                case PrimType::I1:  return world.literal_bool(lit_expr->lit.as_bool(), dbg);
-                case PrimType::I8:  return world.literal_qs8 (lit_expr->lit.as_integer(), dbg);
-                case PrimType::I16: return world.literal_qs16(lit_expr->lit.as_integer(), dbg);
-                case PrimType::I32: return world.literal_qs32(lit_expr->lit.as_integer(), dbg);
-                case PrimType::I64: return world.literal_qs64(lit_expr->lit.as_integer(), dbg);
-                case PrimType::U8:  return world.literal_qu8 (lit_expr->lit.as_integer(), dbg);
-                case PrimType::U16: return world.literal_qu16(lit_expr->lit.as_integer(), dbg);
-                case PrimType::U32: return world.literal_qu32(lit_expr->lit.as_integer(), dbg);
-                case PrimType::U64: return world.literal_qu64(lit_expr->lit.as_integer(), dbg);
-                case PrimType::F32: return world.literal_qf32(lit_expr->lit.as_double(), dbg);
-                case PrimType::F64: return world.literal_qf64(lit_expr->lit.as_double(), dbg);
-                default:
-                    assert(false);
-                    return nullptr;
-            }
+            return emit(lit_expr->lit, lit_expr->type, lit_expr->loc);            
         } else if (auto typed_expr = expr.isa<ast::TypedExpr>()) {
             return emit(*typed_expr->expr);
         } else if (auto block_expr = expr.isa<ast::BlockExpr>()) {
-            for (auto& stmt : block_expr->stmts) {
-                if (auto decl_stmt = stmt->isa<ast::DeclStmt>())
-                    emit_head(*decl_stmt->decl);
-            }
             auto last = world.tuple({});
             for (auto& stmt : block_expr->stmts)
                 last = emit(*stmt);
@@ -228,38 +273,51 @@ struct CodeGen {
                 ops[i] = emit(*tuple_expr->args[i]);
             return world.tuple(ops, loc_to_dbg(tuple_expr->loc, "tuple"));
         } else if (auto path_expr = expr.isa<ast::PathExpr>()) {
-            auto decl = path_expr->path.symbol->decls.front();
+            auto& path = path_expr->path;
+            auto decl = path.symbol->decls.front();
+
+            // Only an identifier
             if (decl->isa<ast::PtrnDecl>()) {
-                auto load_tuple = world.load(cur_mem, lookup(decl), loc_to_dbg(path_expr->loc));
+                assert(path.elems.size() == 1 && path.elems.front().type_args.empty());
+                auto load_tuple = world.load(cur_mem, decl_map[decl], loc_to_dbg(path_expr->loc));
                 cur_mem = world.extract(load_tuple, thorin::u32(0));
                 return world.extract(load_tuple, thorin::u32(1));
-            } else {
-                if (path_expr->path.type_args.empty())
-                    return lookup(decl);
-                SpecFn spec_fn;
-                spec_fn.fn_decl = decl->as<ast::FnDecl>();
-                spec_fn.args.resize(path_expr->path.type_args.size());
-
-                // Substitute the current type args into the path's type arguments
-                for (size_t i = 0; i < spec_fn.args.size(); ++i)
-                    spec_fn.args[i] = path_expr->path.type_args[i]->substitute(type_table, var_map);
-
-                // Lookup existing specialized function in the specialization map
-                auto spec_it = spec_map.find(spec_fn);
-                if (spec_it != spec_map.end())
-                    return spec_it->second;
-
-                // Otherwise, generate specialized version
-                std::unordered_map<const artic::Type*, const artic::Type*> vars;
-                for (size_t i = 0; i < spec_fn.args.size(); ++i)
-                    vars.emplace(type_table.type_var(i), spec_fn.args[i]);
-                THORIN_PUSH(var_map, vars);
-                emit_head(*decl, false);
-                auto cont = lookup(decl)->as_continuation();
-                spec_map[spec_fn] = cont;
-                emit(*decl, false);
-                return cont;
             }
+
+            std::unordered_map<const Type*, const Type*> arg_map;
+            if (decl->isa<ast::TraitDecl>()) {
+                auto impl_type = path.elems.front().type->substitute(type_table, var_map)->as<ImplType>();
+
+                // Check if the implementation is built-in
+                auto impl_it = std_impls.find(impl_type);
+                if (impl_it != std_impls.end())
+                    return impl_it->second;
+
+                auto impl_decl = impl_type->decl(type_inference);
+                assert(impl_decl);
+                if (impl_decl->type_params) {
+                    for (size_t i = 0; i < impl_decl->type_params->params.size(); ++i)
+                        arg_map.emplace(impl_decl->type_params->params[i]->type, impl_type->impl_args(type_inference)[i]);
+                }
+
+                // Get the member
+                auto member_name = path.elems.back().id.name;
+                auto member_it = std::find_if(impl_decl->decls.begin(), impl_decl->decls.end(), [&] (auto& decl) { return decl->id.name == member_name; });
+                assert(member_it != impl_decl->decls.end());
+                decl = member_it->get();
+            }
+
+            if (auto fn_decl = decl->isa<ast::FnDecl>()) {
+                for (size_t i = 0; i < path.elems.back().type_args.size(); ++i) {
+                    // Note that we need to substitute the variables that might be present in the type arguments!
+                    auto arg = path.elems.back().type_args[i]->substitute(type_table, var_map);
+                    arg_map.emplace(fn_decl->type_params->params[i]->type, arg);
+                }
+            }
+
+            THORIN_PUSH(var_map, arg_map);
+            emit(*decl, false);
+            return decl_map[MonoDecl(decl, arg_map)];
         } else if (auto addr_of_expr = expr.isa<ast::AddrOfExpr>()) {
             return emit_ptr(*addr_of_expr->expr);
         } else if (auto deref_expr = expr.isa<ast::DerefExpr>()) {
@@ -369,43 +427,49 @@ struct CodeGen {
         }
     }
 
-    // Specialized version of a polymorphic function for a given set of type arguments
-    struct SpecFn {
-        const ast::FnDecl* fn_decl;
-        std::vector<const artic::Type*> args;
+    // Monomorphized version of a polymorphic declaration with a given type substitution
+    struct MonoDecl {
+        const ast::Decl* decl;
+        std::unordered_map<const Type*, const Type*> var_map;
 
-        bool operator == (const SpecFn& other) const {
-            return fn_decl == other.fn_decl && args == other.args;
+        MonoDecl(const ast::Decl* decl)
+            : MonoDecl(decl, {})
+        {}
+
+        MonoDecl(const ast::Decl* decl, const std::unordered_map<const Type*, const Type*>& var_map)
+            : decl(decl), var_map(var_map)
+        {}
+
+        bool operator == (const MonoDecl& other) const {
+            return decl == other.decl && var_map == other.var_map;
         }
 
         struct Hash {
-            size_t operator () (const SpecFn& fn) const {
+            size_t operator () (const MonoDecl& mono_decl) const {
                 return hash_combine(hash_init(),
-                    hash_ptr(fn.fn_decl),
-                    hash_list(fn.args, [] (auto arg) { return hash_ptr(arg); })
+                    hash_ptr(mono_decl.decl),
+                    hash_list(mono_decl.var_map, [] (auto& pair) { return hash_combine(hash_ptr(pair.first), hash_ptr(pair.second)); })
                 );
             }
         };
     };
 
+    TypeInference& type_inference;
     TypeTable& type_table;
-    std::unordered_map<SpecFn, thorin::Continuation*, SpecFn::Hash> spec_map;
-    std::unordered_map<const artic::Type*, const thorin::Type*> type_map;
-    std::unordered_map<const ast::Node*,   const thorin::Def*>  def_map;
-    std::unordered_map<const artic::Type*, const artic::Type*>  var_map;
+    std::unordered_map<const ImplType*, const thorin::Def*> std_impls;
+    std::unordered_map<MonoDecl, const thorin::Def*, MonoDecl::Hash> decl_map;
+    std::unordered_map<const Type*, const thorin::Type*> type_map;
+    std::unordered_map<const Type*, const Type*> var_map;
 
     thorin::World world;
     thorin::Continuation* cur_bb;
     const thorin::Def* cur_mem;
 };
 
-void emit(const std::string& module_name, TypeTable& type_table, const ast::Program& program) {
-    CodeGen cg(module_name, type_table);
-    for (auto& decl : program.decls) {
-        if (decl->isa<ast::FnDecl>())
-            cg.emit_head(*decl->as<ast::FnDecl>());
+void emit(const std::string& module_name, TypeInference& type_inference, const ast::Program& program) {
+    CodeGen cg(module_name, type_inference);
+    for (auto& decl : program.decls)
         cg.emit(*decl);
-    }
     cg.world.opt();
     cg.world.dump();
 }

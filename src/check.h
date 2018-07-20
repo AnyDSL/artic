@@ -29,7 +29,6 @@ public:
 
 private:
     TypeInference& type_inference_;
-    std::unordered_multimap<const ast::TraitDecl*, const ast::ImplDecl*> trait_to_impls_;
 };
 
 } // namespace artic

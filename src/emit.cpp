@@ -6,7 +6,7 @@
 
 namespace artic {
 
-void emit(const std::string&, TypeTable&, const ast::Program& program) {
+void emit(const std::string&, TypeInference& type_inference, const ast::Program& program) {
     // Default backend: does nothing but pretty print the program on the screen
     Printer printer(log::out);
     program.print(printer);

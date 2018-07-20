@@ -27,6 +27,7 @@ namespace ast {
 
 class Printer;
 class TypeTable;
+class TypeInference;
 class UnknownType;
 
 /// Address space information for pointers/references.
@@ -249,10 +250,8 @@ struct ImplType : public RecordType {
     using RecordType::Args;
     using RecordType::Members;
 
-    mutable const ast::ImplDecl* decl;
-
     ImplType(const TraitType* trait, const Type* self)
-        : RecordType({ trait, self }), decl(nullptr)
+        : RecordType({ trait, self }), decl_(nullptr)
     {}
 
     const TraitType* trait() const { return args[0]->as<TraitType>(); }
@@ -262,6 +261,25 @@ struct ImplType : public RecordType {
     const CompoundType* rebuild(TypeTable&, Args&&) const override;
 
     void print(Printer&) const override;
+
+    /// Returns the declaration site for this implementation, or nullptr if none can be found.
+    const ast::ImplDecl* decl(TypeInference& infer) const {
+        match_impl(infer);
+        return decl_;
+    }
+    /// Returns the arguments of the implementation declaration
+    /// e.g. impl<A> Foo for A {} has a parameter A, which corresponds to
+    /// the argument i32 in the type ImplType(Foo, i32)
+    const std::vector<const Type*>& impl_args(TypeInference& infer) const {
+        match_impl(infer);
+        return impl_args_;
+    }
+
+protected:
+    void match_impl(TypeInference&) const;
+
+    mutable const ast::ImplDecl* decl_;
+    mutable std::vector<const Type*> impl_args_;
 };
 
 /// Type of a tuple, made of the product of the types of its elements.

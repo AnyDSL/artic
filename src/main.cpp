@@ -15,7 +15,7 @@
 using namespace artic;
 
 namespace artic {
-    void emit(const std::string&, TypeTable&, const ast::Program&);
+    void emit(const std::string&, TypeInference&, const ast::Program&);
 }
 
 static void usage() {
@@ -121,6 +121,6 @@ int main(int argc, char** argv) {
         return 1;
 
     auto module_name = "module";
-    emit(module_name, type_table, program);
+    emit(module_name, type_inference, program);
     return 0;
 }

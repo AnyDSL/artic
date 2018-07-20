@@ -87,6 +87,25 @@ const ImplType::Members& ImplType::members(TypeTable& table) const {
     return members_;
 }
 
+// Match implementation ------------------------------------------------------------
+
+void ImplType::match_impl(TypeInference& infer) const {
+    if (!decl_) {
+        auto range = infer.trait_to_impls_.equal_range(trait()->decl);
+        for (auto it = range.first; it != range.second; ++it) {
+            auto loc = it->second->loc;
+            auto other = infer.subsume(loc, it->second->Node::type, impl_args_);
+            if (!infer.unify(loc, this, other)->has<ErrorType>()) {
+                for (auto& arg : impl_args_)
+                    arg = infer.unify(loc, arg, arg);
+                decl_ = it->second;
+                return;
+            }
+            impl_args_.clear();
+        }
+    }
+}
+
 // Hash ----------------------------------------------------------------------------
 
 uint32_t PrimType::hash() const {

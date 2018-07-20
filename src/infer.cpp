@@ -8,6 +8,17 @@ namespace artic {
 
 void TypeInference::run(const ast::Program& program) {
     program.infer(*this);
+
+    // Fill the map from trait to implementations
+    for (auto& decl : program.decls) {
+        if (auto impl_decl = decl->isa<ast::ImplDecl>()) {
+            auto impl_type = impl_decl->Node::type->inner()->isa<ImplType>();
+            if (!impl_type)
+                continue;
+            auto trait_decl = impl_type->trait()->decl;
+            trait_to_impls_.emplace(trait_decl, impl_decl);
+        }
+    }
 }
 
 inline bool compatible_addrs(const AddrType* a, const AddrType* b) {
@@ -178,11 +189,11 @@ const artic::Type* Path::infer_first(TypeInference& ctx) const {
     auto decl = symbol->decls.front();
     if (auto trait_decl = decl->isa<TraitDecl>()) {
         if (elems.size() > 1) {
-            auto trait_type = ctx.subsume(loc, trait_decl->type, trait_args)->isa<TraitType>();
+            auto trait_type = ctx.subsume(loc, trait_decl->type, elems.front().type_args)->isa<TraitType>();
             if (!trait_type)
                 return nullptr;
-            self_type = self_type ? self_type : ctx.type_table().unknown_type();
-            return ctx.type_table().impl_type(trait_type, self_type);
+            elems.front().self_type = elems.front().self_type ? elems.front().self_type : ctx.type_table().unknown_type();
+            return ctx.type_table().impl_type(trait_type, elems.front().self_type);
         }
     } else if (auto ptrn_decl = decl->isa<PtrnDecl>()) {
         return ctx.type_table().ref_type(ptrn_decl->type, AddrSpace(AddrSpace::Generic), ptrn_decl->mut);
@@ -202,10 +213,10 @@ const artic::Type* Path::infer(TypeInference& ctx) const {
     }
     auto last_type = elems.back().type;
 
-    type_args.resize(std::max(type_args.size(), args.size()));
+    elems.back().type_args.resize(std::max(elems.back().type_args.size(), args.size()));
     for (size_t i = 0; i < args.size(); i++)
-        type_args[i] = ctx.infer(*args[i]);
-    return ctx.subsume(loc, last_type, type_args);
+        elems.back().type_args[i] = ctx.infer(*args[i]);
+    return ctx.subsume(loc, last_type, elems.back().type_args);
 }
 
 const artic::Type* PrimType::infer(TypeInference& ctx) const {

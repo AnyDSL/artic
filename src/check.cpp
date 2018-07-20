@@ -6,17 +6,6 @@
 namespace artic {
 
 bool TypeChecker::run(const ast::Program& program) {
-    // Fill the map from trait to implementations
-    for (auto& decl : program.decls) {
-        if (auto impl_decl = decl->isa<ast::ImplDecl>()) {
-            auto impl_type = impl_decl->Node::type->inner()->isa<ImplType>();
-            if (!impl_type)
-                continue;
-            auto trait_decl = impl_type->trait()->decl;
-            trait_to_impls_.emplace(trait_decl, impl_decl);
-        }
-    }
-
     program.check(*this);
     return error_count == 0;
 }
@@ -27,10 +16,11 @@ void TypeChecker::check(const ast::Node& node) {
     // Propagate any remaining unknown before checking
     node.type = type_inference().unify(node.loc, node.type, node.type);
     if (auto path = node.isa<ast::Path>()) {
-        for (auto& elem: path->elems)
+        for (auto& elem: path->elems) {
             elem.type = type_inference().unify(node.loc, elem.type, elem.type);
-        for (auto& arg : path->type_args)
-            arg = type_inference().unify(node.loc, arg, arg);
+            for (auto& arg : elem.type_args)
+                arg = type_inference().unify(node.loc, arg, arg);
+        }
     }
 
     // Check the node
@@ -85,18 +75,8 @@ void TypeChecker::check_impl(const Loc& loc, const ImplType* impl_type) {
             return;
         if (std::any_of(type_var->traits.begin(), type_var->traits.end(), [&] (auto trait) { return trait->subtrait(type_table(), impl_type->trait()); }))
             return;
-    } else {
-        auto trait_decl = impl_type->trait()->decl;
-        auto range = trait_to_impls_.equal_range(trait_decl);
-        for (auto it = range.first; it != range.second; ++it) {
-            std::vector<const Type*> args;
-            auto other_impl_type = type_inference().subsume(loc, it->second->Node::type, args);
-            if (!type_inference().unify(loc, impl_type, other_impl_type)->has<ErrorType>()) {
-                impl_type->decl = it->second;
-                return;
-            }
-        }
-    }
+    } else if (impl_type->decl(type_inference()))
+        return;
 
     error(loc, "no implementation of trait '{}' found for type '{}'", *impl_type->trait()->as<artic::Type>(), *impl_type->self());
 }

@@ -46,6 +46,9 @@ private:
 
     std::unordered_map<const Type*, Equation> eqs_;
     TypeTable& type_table_;
+
+    std::unordered_multimap<const ast::TraitDecl*, const ast::ImplDecl*> trait_to_impls_;
+    friend class ImplType;
 };
 
 } // namespace artic
