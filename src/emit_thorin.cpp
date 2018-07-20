@@ -153,7 +153,8 @@ struct CodeGen {
 
     const thorin::Def* emit(const Literal& lit, const Type* type, const Loc& loc) {
         auto dbg = loc_to_dbg(loc);
-        switch (type->substitute(type_table, var_map)->as<PrimType>()->tag) {
+        type = type->substitute(type_table, var_map);
+        switch (type->as<PrimType>()->tag) {
             case PrimType::I1:  return world.literal_bool(lit.as_bool(), dbg);
             case PrimType::I8:  return world.literal_qs8 (lit.as_integer(), dbg);
             case PrimType::I16: return world.literal_qs16(lit.as_integer(), dbg);
@@ -211,11 +212,13 @@ struct CodeGen {
                 cont->as_continuation()->make_external();
             decl_map[mono_decl] = cont;
 
-            THORIN_PUSH(cur_bb, cont);
-            THORIN_PUSH(cur_mem, cont->param(0));
-            emit(*fn_decl->fn->param, cont->param(1));
-            auto ret = emit(*fn_decl->fn->body);
-            cur_bb->jump(cont->param(2), thorin::Defs { cur_mem, ret }, loc_to_dbg(fn_decl->loc, "ret"));
+            if (fn_decl->fn->body) {
+                THORIN_PUSH(cur_bb, cont);
+                THORIN_PUSH(cur_mem, cont->param(0));
+                emit(*fn_decl->fn->param, cont->param(1));
+                auto ret = emit(*fn_decl->fn->body);
+                cur_bb->jump(cont->param(2), thorin::Defs { cur_mem, ret }, loc_to_dbg(fn_decl->loc, "ret"));
+            }
         } else if (auto let_decl = decl.isa<ast::LetDecl>()) {
             auto init = let_decl->init ? emit(*let_decl->init) : world.bottom(convert(let_decl->ptrn->type));
             emit(*let_decl->ptrn, init);
