@@ -105,14 +105,10 @@ struct CodeGen {
             std_impls[impl_type] = unop_fn;
         };
 
-
         PrimType::Tag all_tags[] = {
-            // TODO: Enable other primitive types (requires a fully fledged prelude)
-/*#define TAG(t, n, ty) PrimType::t,
+#define TAG(t, n, ty) PrimType::t,
         PRIM_TAGS(TAG)
-#undef TAG*/
-            PrimType::I64,
-            PrimType::I32
+#undef TAG
         };
 
         for (size_t i = 0, n = sizeof(all_tags) / sizeof(all_tags[0]); i < n; ++i) {
@@ -122,10 +118,12 @@ struct CodeGen {
             if (all_tags[i] != PrimType::I1) {
                 register_unop("Pos", prim_type, [&] (auto a) { return a; } );
                 register_unop("Neg", prim_type, [&] (auto a) { return world.arithop_minus(a); } );
-                register_unop_assign("PreInc",  prim_type, true,  [&] (auto a) { return world.arithop_add(a, world.one(a->type())); } );
-                register_unop_assign("PostInc", prim_type, false, [&] (auto a) { return world.arithop_add(a, world.one(a->type())); } );
-                register_unop_assign("PreDec",  prim_type, true,  [&] (auto a) { return world.arithop_sub(a, world.one(a->type())); } );
-                register_unop_assign("PostDec", prim_type, false, [&] (auto a) { return world.arithop_sub(a, world.one(a->type())); } );
+                if (all_tags[i] != PrimType::F32 && all_tags[i] != PrimType::F64) {
+                    register_unop_assign("PreInc",  prim_type, true,  [&] (auto a) { return world.arithop_add(a, world.one(a->type())); } );
+                    register_unop_assign("PostInc", prim_type, false, [&] (auto a) { return world.arithop_add(a, world.one(a->type())); } );
+                    register_unop_assign("PreDec",  prim_type, true,  [&] (auto a) { return world.arithop_sub(a, world.one(a->type())); } );
+                    register_unop_assign("PostDec", prim_type, false, [&] (auto a) { return world.arithop_sub(a, world.one(a->type())); } );
+                }
                 register_binop("Add", prim_type, [&] (auto a, auto b) { return world.arithop_add(a, b); } );
                 register_binop("Sub", prim_type, [&] (auto a, auto b) { return world.arithop_sub(a, b); } );
                 register_binop("Mul", prim_type, [&] (auto a, auto b) { return world.arithop_mul(a, b); } );
