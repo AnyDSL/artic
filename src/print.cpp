@@ -375,7 +375,8 @@ void FnDecl::print(Printer& p) const {
     if (fn->body) {
         p << ' ';
         fn->body->print(p);
-    }
+    } else
+        p << ';';
 }
 
 void TraitDecl::print_head(Printer& p) const {
