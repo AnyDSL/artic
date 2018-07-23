@@ -32,6 +32,18 @@ struct CodeGen {
     void register_std_impls() {
         auto true_def = world.literal_bool(true, thorin::Debug{});
 
+        auto register_unop = [&] (const std::string& name, const Type* prim_type, auto f) {
+            auto impl_type   = type_table.impl_type(type_table.trait_type(std::string(name), {}, nullptr), prim_type);
+            auto impl_decl   = impl_type->decl(type_inference);
+            assert(impl_decl);
+            auto thorin_prim = convert(prim_type);
+            auto unop_type   = world.fn_type({ world.mem_type(), thorin_prim, world.fn_type({ world.mem_type(), thorin_prim }) });
+            auto unop_fn     = world.continuation(unop_type, loc_to_dbg(impl_decl->loc, name));
+            unop_fn->set_filter({ true_def, true_def, true_def });
+            unop_fn->jump(unop_fn->param(2), { unop_fn->param(0), f(unop_fn->param(1)) });
+            std_impls[impl_type] = unop_fn;
+        };
+
         auto register_binop = [&] (const std::string& name, const Type* prim_type, auto f) {
             auto impl_type   = type_table.impl_type(type_table.trait_type(std::string(name), {}, nullptr), prim_type);
             auto impl_decl   = impl_type->decl(type_inference);
@@ -58,6 +70,42 @@ struct CodeGen {
             std_impls[impl_type] = cmpop_fn;
         };
 
+        auto register_binop_assign = [&] (const std::string& name, const Type* prim_type, auto f) {
+            auto impl_type   = type_table.impl_type(type_table.trait_type(std::string(name), {}, nullptr), prim_type);
+            auto impl_decl   = impl_type->decl(type_inference);
+            assert(impl_decl);
+            auto thorin_prim = convert(prim_type);
+            auto ptr_prim    = world.ptr_type(thorin_prim);
+            auto binop_type  = world.fn_type({ world.mem_type(), world.tuple_type({ ptr_prim, thorin_prim }), world.fn_type({ world.mem_type(), world.tuple_type({}) }) });
+            auto binop_fn    = world.continuation(binop_type, loc_to_dbg(impl_decl->loc, name));
+            auto arg         = binop_fn->param(1);
+            auto ptr         = world.extract(arg, thorin::u32(0));
+            auto load        = world.load(binop_fn->param(0), ptr);
+            auto val         = f(world.extract(load, thorin::u32(1)), world.extract(arg, thorin::u32(1)));
+            auto store       = world.store(world.extract(load, thorin::u32(0)), ptr, val);
+            binop_fn->set_filter({ true_def, true_def, true_def });
+            binop_fn->jump(binop_fn->param(2), { store, world.tuple({}) });
+            std_impls[impl_type] = binop_fn;
+        };
+
+        auto register_unop_assign = [&] (const std::string& name, const Type* prim_type, bool pre, auto f) {
+            auto impl_type   = type_table.impl_type(type_table.trait_type(std::string(name), {}, nullptr), prim_type);
+            auto impl_decl   = impl_type->decl(type_inference);
+            assert(impl_decl);
+            auto thorin_prim = convert(prim_type);
+            auto ptr_prim    = world.ptr_type(thorin_prim);
+            auto unop_type   = world.fn_type({ world.mem_type(), ptr_prim, world.fn_type({ world.mem_type(), thorin_prim }) });
+            auto unop_fn     = world.continuation(unop_type, loc_to_dbg(impl_decl->loc, name));
+            auto load        = world.load(unop_fn->param(0), unop_fn->param(1));
+            auto pre_val     = world.extract(load, thorin::u32(1));
+            auto val         = f(pre_val);
+            auto store       = world.store(world.extract(load, thorin::u32(0)), unop_fn->param(1), val);
+            unop_fn->set_filter({ true_def, true_def, true_def });
+            unop_fn->jump(unop_fn->param(2), { store, pre ? pre_val : val });
+            std_impls[impl_type] = unop_fn;
+        };
+
+
         PrimType::Tag all_tags[] = {
             // TODO: Enable other primitive types (requires a fully fledged prelude)
 /*#define TAG(t, n, ty) PrimType::t,
@@ -72,21 +120,42 @@ struct CodeGen {
             register_cmpop("CmpEq", prim_type, [&] (auto a, auto b) { return world.cmp_eq(a, b); } );
             register_cmpop("CmpNE", prim_type, [&] (auto a, auto b) { return world.cmp_ne(a, b); } );
             if (all_tags[i] != PrimType::I1) {
+                register_unop("Pos", prim_type, [&] (auto a) { return a; } );
+                register_unop("Neg", prim_type, [&] (auto a) { return world.arithop_minus(a); } );
+                register_unop_assign("PreInc",  prim_type, true,  [&] (auto a) { return world.arithop_add(a, world.one(a->type())); } );
+                register_unop_assign("PostInc", prim_type, false, [&] (auto a) { return world.arithop_add(a, world.one(a->type())); } );
+                register_unop_assign("PreDec",  prim_type, true,  [&] (auto a) { return world.arithop_sub(a, world.one(a->type())); } );
+                register_unop_assign("PostDec", prim_type, false, [&] (auto a) { return world.arithop_sub(a, world.one(a->type())); } );
                 register_binop("Add", prim_type, [&] (auto a, auto b) { return world.arithop_add(a, b); } );
                 register_binop("Sub", prim_type, [&] (auto a, auto b) { return world.arithop_sub(a, b); } );
                 register_binop("Mul", prim_type, [&] (auto a, auto b) { return world.arithop_mul(a, b); } );
                 register_binop("Div", prim_type, [&] (auto a, auto b) { return world.arithop_div(a, b); } );
+                register_binop_assign("AssignAdd", prim_type, [&] (auto a, auto b) { return world.arithop_add(a, b); } );
+                register_binop_assign("AssignSub", prim_type, [&] (auto a, auto b) { return world.arithop_sub(a, b); } );
+                register_binop_assign("AssignMul", prim_type, [&] (auto a, auto b) { return world.arithop_mul(a, b); } );
+                register_binop_assign("AssignDiv", prim_type, [&] (auto a, auto b) { return world.arithop_div(a, b); } );
                 register_cmpop("CmpGT", prim_type, [&] (auto a, auto b) { return world.cmp_gt(a, b); } );
                 register_cmpop("CmpGE", prim_type, [&] (auto a, auto b) { return world.cmp_ge(a, b); } );
                 register_cmpop("CmpLT", prim_type, [&] (auto a, auto b) { return world.cmp_lt(a, b); } );
                 register_cmpop("CmpLE", prim_type, [&] (auto a, auto b) { return world.cmp_le(a, b); } );
             }
             if (all_tags[i] != PrimType::F32 && all_tags[i] != PrimType::F64) {
-                // TODO: Add FMOD for floating point types?
-                register_binop("Mod", prim_type, [&] (auto a, auto b) { return world.arithop_rem(a, b); } );
+                register_unop("Not", prim_type, [&] (auto a) { return world.arithop_not(a); } );
                 register_binop("And", prim_type, [&] (auto a, auto b) { return world.arithop_and(a, b); } );
                 register_binop("Or" , prim_type, [&] (auto a, auto b) { return world.arithop_or (a, b); } );
                 register_binop("Xor", prim_type, [&] (auto a, auto b) { return world.arithop_xor(a, b); } );
+                register_binop_assign("AssignAnd", prim_type, [&] (auto a, auto b) { return world.arithop_and(a, b); } );
+                register_binop_assign("AssignOr" , prim_type, [&] (auto a, auto b) { return world.arithop_or (a, b); } );
+                register_binop_assign("AssignXor", prim_type, [&] (auto a, auto b) { return world.arithop_xor(a, b); } );
+                if (all_tags[i] != PrimType::I1) {
+                    // TODO: Add FMOD for floating point types?
+                    register_binop("Mod", prim_type, [&] (auto a, auto b) { return world.arithop_rem(a, b); } );
+                    register_binop("LShft", prim_type, [&] (auto a, auto b) { return world.arithop_shl(a, b); } );
+                    register_binop("RShft", prim_type, [&] (auto a, auto b) { return world.arithop_shr(a, b); } );
+                    register_binop_assign("AssignMod", prim_type, [&] (auto a, auto b) { return world.arithop_rem(a, b); } );
+                    register_binop_assign("AssignLShft", prim_type, [&] (auto a, auto b) { return world.arithop_shl(a, b); } );
+                    register_binop_assign("AssignRShft", prim_type, [&] (auto a, auto b) { return world.arithop_shr(a, b); } );
+                }
             }
         }
     }
@@ -349,25 +418,62 @@ struct CodeGen {
             cur_mem = world.extract(load_tuple, thorin::u32(0));
             return world.extract(load_tuple, thorin::u32(1));
         } else if (auto call_expr = expr.isa<ast::CallExpr>()) {
-            if (call_expr->isa<ast::BinaryExpr>() &&
-                call_expr->as<ast::BinaryExpr>()->tag == ast::BinaryExpr::Eq) {
-                // Assignment operator
-                auto arg = emit(*call_expr->arg);
-                auto ptr = world.extract(arg, thorin::u32(0));
-                auto val = world.extract(arg, thorin::u32(1));
-                cur_mem = world.store(cur_mem, ptr, val, loc_to_dbg(call_expr->loc));
-                return world.tuple({});
-            } else {
-                // General case for function calls
-                auto callee = emit(*call_expr->callee);
-                auto arg = emit(*call_expr->arg);
-                auto ret_type = world.fn_type({ world.mem_type(), convert(call_expr->type) });
-                auto ret = world.continuation(ret_type, loc_to_dbg(call_expr->loc, "ret"));
-                cur_bb->jump(callee, thorin::Defs { cur_mem, arg, ret }, loc_to_dbg(call_expr->loc));
-                cur_bb = ret;
-                cur_mem = ret->param(0);
-                return ret->param(1);
+            auto tuple_arg   = call_expr->arg->isa<ast::TupleExpr>();
+            auto callee_path = call_expr->callee->isa<ast::PathExpr>();
+            if (tuple_arg && callee_path && tuple_arg->args.size() == 2 && callee_path->path.elems.size() == 1) {
+                if (callee_path->path.elems[0].id.name == "assign") {
+                    // Assignment operator
+                    auto ptr = emit(*tuple_arg->args[0]);
+                    auto val = emit(*tuple_arg->args[1]);
+                    cur_mem = world.store(cur_mem, ptr, val, loc_to_dbg(call_expr->loc));
+                    return world.tuple({});
+                } else if (callee_path->path.elems[0].id.name == "logic_and") {
+                    // Logical AND
+                    auto bb_type   = world.fn_type({});
+                    auto join_type = world.fn_type({ world.mem_type(), world.type_bool() });
+                    auto and_true  = world.continuation(bb_type, loc_to_dbg(call_expr->loc, "and_true"));
+                    auto and_false = world.continuation(bb_type, loc_to_dbg(call_expr->loc, "and_false"));
+                    auto next      = world.continuation(join_type, loc_to_dbg(call_expr->loc, "and_next"));
+
+                    auto left = emit(*tuple_arg->args[0]);
+                    cur_bb->jump(world.branch(), thorin::Defs { left, and_true, and_false }, loc_to_dbg(call_expr->loc, "and"));
+                    and_false->jump(next, thorin::Defs { cur_mem, world.literal_bool(false, thorin::Debug {}) });
+
+                    cur_bb = and_true;
+                    auto right = emit(*tuple_arg->args[1]);
+                    cur_bb->jump(next, thorin::Defs { cur_mem, right });
+
+                    cur_bb  = next;
+                    cur_mem = next->param(0);
+                } else if (callee_path->path.elems[0].id.name == "logic_or") {
+                    // Logical OR
+                    auto bb_type   = world.fn_type({});
+                    auto join_type = world.fn_type({ world.mem_type(), world.type_bool() });
+                    auto or_true  = world.continuation(bb_type, loc_to_dbg(call_expr->loc, "or_true"));
+                    auto or_false = world.continuation(bb_type, loc_to_dbg(call_expr->loc, "or_false"));
+                    auto next     = world.continuation(join_type, loc_to_dbg(call_expr->loc, "or_next"));
+
+                    auto left = emit(*tuple_arg->args[0]);
+                    cur_bb->jump(world.branch(), thorin::Defs { left, or_true, or_false }, loc_to_dbg(call_expr->loc, "or"));
+                    or_true->jump(next, thorin::Defs { cur_mem, world.literal_bool(true, thorin::Debug {}) });
+
+                    cur_bb = or_false;
+                    auto right = emit(*tuple_arg->args[1]);
+                    cur_bb->jump(next, thorin::Defs { cur_mem, right });
+
+                    cur_bb  = next;
+                    cur_mem = next->param(0);
+                }
             }
+            // General case for function calls
+            auto callee = emit(*call_expr->callee);
+            auto arg = emit(*call_expr->arg);
+            auto ret_type = world.fn_type({ world.mem_type(), convert(call_expr->type) });
+            auto ret = world.continuation(ret_type, loc_to_dbg(call_expr->loc, "ret"));
+            cur_bb->jump(callee, thorin::Defs { cur_mem, arg, ret }, loc_to_dbg(call_expr->loc));
+            cur_bb = ret;
+            cur_mem = ret->param(0);
+            return ret->param(1);
         } else if (auto if_expr = expr.isa<ast::IfExpr>()) {
             auto cond = emit(*if_expr->cond);
             auto bb_type   = world.fn_type({});

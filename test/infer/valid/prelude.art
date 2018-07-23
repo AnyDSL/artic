@@ -1,3 +1,15 @@
+// Unary operators
+
+trait Not { fn not(Self) -> Self; }
+trait Neg { fn neg(Self) -> Self; }
+trait Pos { fn pos(Self) -> Self; }
+trait PreInc  { fn pre_inc (&mut Self) -> Self; }
+trait PostInc { fn post_inc(&mut Self) -> Self; }
+trait PreDec  { fn pre_dec (&mut Self) -> Self; }
+trait PostDec { fn post_dec(&mut Self) -> Self; }
+
+// Binary operators
+
 trait Add { fn add(Self, Self) -> Self; }
 trait Sub { fn sub(Self, Self) -> Self; }
 trait Mul { fn mul(Self, Self) -> Self; }
@@ -6,6 +18,10 @@ trait Mod { fn mod(Self, Self) -> Self; }
 trait And { fn and(Self, Self) -> Self; }
 trait Or  { fn or (Self, Self) -> Self; }
 trait Xor { fn xor(Self, Self) -> Self; }
+trait LShft { fn lshft(Self, Self) -> Self; }
+trait RShft { fn rshft(Self, Self) -> Self; }
+
+// Comparison operators
 
 trait CmpEq { fn cmp_eq(Self, Self) -> bool; }
 trait CmpNE { fn cmp_ne(Self, Self) -> bool; }
@@ -14,50 +30,102 @@ trait CmpGE { fn cmp_ge(Self, Self) -> bool; }
 trait CmpLT { fn cmp_lt(Self, Self) -> bool; }
 trait CmpLE { fn cmp_le(Self, Self) -> bool; }
 
+// Assignment operators
+
+trait AssignAdd { fn assign_add(&mut Self, Self) -> (); }
+trait AssignSub { fn assign_sub(&mut Self, Self) -> (); }
 trait AssignMul { fn assign_mul(&mut Self, Self) -> (); }
 trait AssignDiv { fn assign_div(&mut Self, Self) -> (); }
-trait PostDec { fn dec(&mut Self) -> (); }
+trait AssignMod { fn assign_mod(&mut Self, Self) -> (); }
+trait AssignAnd { fn assign_and(&mut Self, Self) -> (); }
+trait AssignOr  { fn assign_or (&mut Self, Self) -> (); }
+trait AssignXor { fn assign_xor(&mut Self, Self) -> (); }
+trait AssignLShft { fn assign_lshft(&mut Self, Self) -> (); }
+trait AssignRShft { fn assign_rshft(&mut Self, Self) -> (); }
 
+// Super traits
+
+trait Dec : PreDec + PostDec {}
+trait Inc : PreInc + PostInc {}
+trait Bit : And + Or + Xor {}
+trait Shft : LShft + RShft {}
 trait Cmp : CmpGE + CmpEq + CmpLT + CmpGT {}
-trait Num : Add + Sub + Mul + Div + Mod + AssignMul + AssignDiv + PostDec + Cmp {}
+trait Num : Neg + Pos + Add + Sub + Mul + Div + AssignAdd + AssignSub + AssignMul + AssignDiv + Dec + Inc + Cmp {}
 
-impl Add        for i32 {}
-impl Sub        for i32 {}
-impl Mul        for i32 {}
-impl Div        for i32 {}
-impl Mod        for i32 {}
-impl And        for i32 {}
-impl Or         for i32 {}
-impl Xor        for i32 {}
-impl CmpEq      for i32 {}
-impl CmpNE      for i32 {}
-impl CmpGT      for i32 {}
-impl CmpGE      for i32 {}
-impl CmpLT      for i32 {}
-impl CmpLE      for i32 {}
-impl AssignMul  for i32 {}
-impl AssignDiv  for i32 {}
-impl PostDec    for i32 {}
-impl Num        for i32 {}
+impl Not         for i32 {}
+impl Neg         for i32 {}
+impl Pos         for i32 {}
+impl PreInc      for i32 {}
+impl PostInc     for i32 {}
+impl PreDec      for i32 {}
+impl PostDec     for i32 {}
+impl Add         for i32 {}
+impl Sub         for i32 {}
+impl Mul         for i32 {}
+impl Div         for i32 {}
+impl Mod         for i32 {}
+impl And         for i32 {}
+impl Or          for i32 {}
+impl Xor         for i32 {}
+impl LShft       for i32 {}
+impl RShft       for i32 {}
+impl CmpEq       for i32 {}
+impl CmpNE       for i32 {}
+impl CmpGT       for i32 {}
+impl CmpGE       for i32 {}
+impl CmpLT       for i32 {}
+impl CmpLE       for i32 {}
+impl AssignAdd   for i32 {}
+impl AssignSub   for i32 {}
+impl AssignMul   for i32 {}
+impl AssignDiv   for i32 {}
+impl AssignMod   for i32 {}
+impl AssignAnd   for i32 {}
+impl AssignOr    for i32 {}
+impl AssignXor   for i32 {}
+impl AssignLShft for i32 {}
+impl AssignRShft for i32 {}
+impl Cmp         for i32 {}
+impl Shft        for i32 {}
+impl Num         for i32 {}
 
-impl Add        for i64 {}
-impl Sub        for i64 {}
-impl Mul        for i64 {}
-impl Div        for i64 {}
-impl Mod        for i64 {}
-impl And        for i64 {}
-impl Or         for i64 {}
-impl Xor        for i64 {}
-impl CmpEq      for i64 {}
-impl CmpNE      for i64 {}
-impl CmpGT      for i64 {}
-impl CmpGE      for i64 {}
-impl CmpLT      for i64 {}
-impl CmpLE      for i64 {}
-impl AssignMul  for i64 {}
-impl AssignDiv  for i64 {}
-impl PostDec    for i64 {}
-impl Num        for i64 {}
+impl Not         for i64 {}
+impl Neg         for i64 {}
+impl Pos         for i64 {}
+impl PreInc      for i64 {}
+impl PostInc     for i64 {}
+impl PreDec      for i64 {}
+impl PostDec     for i64 {}
+impl Add         for i64 {}
+impl Sub         for i64 {}
+impl Mul         for i64 {}
+impl Div         for i64 {}
+impl Mod         for i64 {}
+impl And         for i64 {}
+impl Or          for i64 {}
+impl Xor         for i64 {}
+impl LShft       for i64 {}
+impl RShft       for i64 {}
+impl CmpEq       for i64 {}
+impl CmpNE       for i64 {}
+impl CmpGT       for i64 {}
+impl CmpGE       for i64 {}
+impl CmpLT       for i64 {}
+impl CmpLE       for i64 {}
+impl AssignAdd   for i64 {}
+impl AssignSub   for i64 {}
+impl AssignMul   for i64 {}
+impl AssignDiv   for i64 {}
+impl AssignMod   for i64 {}
+impl AssignAnd   for i64 {}
+impl AssignOr    for i64 {}
+impl AssignXor   for i64 {}
+impl AssignLShft for i64 {}
+impl AssignRShft for i64 {}
+impl Cmp         for i64 {}
+impl Shft        for i64 {}
+impl Num         for i64 {}
 
-
+fn logic_and(a: bool, b: bool) -> bool;
+fn logic_or(a: bool, b: bool) -> bool;
 fn assign<T>(ptr: &mut T, val: T) -> ();
