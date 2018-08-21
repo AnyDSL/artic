@@ -74,10 +74,10 @@ Path UnaryExpr::tag_to_fn(const Loc& loc, Tag tag) {
         case Not:     return Path(loc, { Identifier(loc, "Not"), Identifier(loc, "not") }, {});
         case Plus:    return Path(loc, { Identifier(loc, "Pos"), Identifier(loc, "pos") }, {});
         case Minus:   return Path(loc, { Identifier(loc, "Neg"), Identifier(loc, "neg") }, {});
-        case PostInc: return Path(loc, { Identifier(loc, "PostInc"), Identifier(loc, "inc") }, {});
-        case PreInc:  return Path(loc, { Identifier(loc, "PreInc"),  Identifier(loc, "inc") }, {});
-        case PostDec: return Path(loc, { Identifier(loc, "PostDec"), Identifier(loc, "dec") }, {});
-        case PreDec:  return Path(loc, { Identifier(loc, "PreDec"),  Identifier(loc, "dec") }, {});
+        case PostInc: return Path(loc, { Identifier(loc, "PostInc"), Identifier(loc, "post_inc") }, {});
+        case PreInc:  return Path(loc, { Identifier(loc, "PreInc"),  Identifier(loc, "pre_inc" ) }, {});
+        case PostDec: return Path(loc, { Identifier(loc, "PostDec"), Identifier(loc, "post_dec") }, {});
+        case PreDec:  return Path(loc, { Identifier(loc, "PreDec"),  Identifier(loc, "pre_dec" ) }, {});
         default:
             assert(false);
             return Path(loc, { Identifier(loc, "") }, {});

@@ -50,7 +50,7 @@ trait Inc : PreInc + PostInc {}
 trait Bit : And + Or + Xor {}
 trait Shft : LShft + RShft {}
 trait Cmp : CmpGE + CmpEq + CmpLT + CmpGT {}
-trait Num : Neg + Pos + Add + Sub + Mul + Div + AssignAdd + AssignSub + AssignMul + AssignDiv + Cmp {}
+trait Num : Neg + Pos + Inc + Dec + Add + Sub + Mul + Div + Mod + AssignAdd + AssignSub + AssignMul + AssignDiv + AssignMod + Cmp {}
 
 impl Not         for bool {}
 impl And         for bool {}
