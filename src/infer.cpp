@@ -302,7 +302,7 @@ const artic::Type* BlockExpr::infer(TypeInference& ctx) const {
             ctx.infer_head(*decl_stmt->decl);
     }
     for (auto& stmt : stmts) ctx.infer(*stmt);
-    return stmts.empty() ? ctx.type_table().unit_type() : stmts.back()->type;
+    return stmts.empty() || last_semi ? ctx.type_table().unit_type() : stmts.back()->type;
 }
 
 const artic::Type* CallExpr::infer(TypeInference& ctx) const {

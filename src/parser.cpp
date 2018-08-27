@@ -393,10 +393,12 @@ Ptr<ast::BlockExpr> Parser::parse_block_expr() {
     Tracker tracker(this);
     eat(Token::LBrace);
     PtrVector<ast::Stmt> stmts;
+    bool last_semi = false;
     while (true) {
         Ptr<ast::Expr> expr;
         switch (ahead().tag()) {
             case Token::Semi:
+                last_semi = true;
                 eat(Token::Semi);
                 continue;
             case Token::If:
@@ -413,6 +415,7 @@ Ptr<ast::BlockExpr> Parser::parse_block_expr() {
             case Token::Dec:
             case Token::Let:
             case Token::Fn:
+                last_semi = false;
                 stmts.emplace_back(parse_stmt());
                 continue;
             default:
@@ -421,7 +424,7 @@ Ptr<ast::BlockExpr> Parser::parse_block_expr() {
         break;
     }
     expect(Token::RBrace);
-    return make_ptr<ast::BlockExpr>(tracker(), std::move(stmts));
+    return make_ptr<ast::BlockExpr>(tracker(), std::move(stmts), last_semi);
 }
 
 Ptr<ast::FnExpr> Parser::parse_fn_expr(bool nested) {

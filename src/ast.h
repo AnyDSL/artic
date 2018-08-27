@@ -417,9 +417,10 @@ struct FnExpr : public Expr {
 /// Block of code, whose result is the last expression in the block.
 struct BlockExpr : public Expr {
     PtrVector<Stmt> stmts;
+    bool last_semi;
 
-    BlockExpr(const Loc& loc, PtrVector<Stmt>&& stmts)
-        : Expr(loc), stmts(std::move(stmts))
+    BlockExpr(const Loc& loc, PtrVector<Stmt>&& stmts, bool last_semi)
+        : Expr(loc), stmts(std::move(stmts)), last_semi(last_semi)
     {}
 
     const artic::Type* infer(TypeInference&) const override;
