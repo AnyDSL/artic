@@ -24,6 +24,7 @@ public:
 
     const Type* subsume(const Loc& loc, const Type*, std::vector<const Type*>&);
 
+    const Type* default_type(const ast::Node&, const Literal&);
     const Type* type(const ast::Node&);
     const Type* infer(const ast::Node&, const Type* expected = nullptr);
     void infer_head(const ast::Decl&);
@@ -46,6 +47,8 @@ private:
 
     std::unordered_map<const Type*, Equation> eqs_;
     TypeTable& type_table_;
+    bool defaulting_;
+    bool todo_;
 
     std::unordered_multimap<const ast::TraitDecl*, const ast::ImplDecl*> trait_to_impls_;
     friend class ImplType;

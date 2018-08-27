@@ -347,7 +347,7 @@ struct CodeGen {
             auto last = world.tuple({});
             for (auto& stmt : block_expr->stmts)
                 last = emit(*stmt);
-            return last;
+            return block_expr->last_semi ? world.tuple({}) : last;
         } else if (auto tuple_expr = expr.isa<ast::TupleExpr>()) {
             thorin::Array<const thorin::Def*> ops(tuple_expr->args.size());
             for (size_t i = 0; i < ops.size(); ++i)

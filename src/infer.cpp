@@ -7,7 +7,18 @@
 namespace artic {
 
 void TypeInference::run(const ast::Program& program) {
-    program.infer(*this);
+    defaulting_ = false;
+    do {
+        todo_ = false;
+        program.infer(*this);
+    } while (todo_);
+
+    // Set default types for literals that cannot be inferred
+    defaulting_ = true;
+    do {
+        todo_ = false;
+        program.infer(*this);
+    } while (todo_);
 
     // Fill the map from trait to implementations
     for (auto& decl : program.decls) {
@@ -97,9 +108,9 @@ const Type* TypeInference::unify(const Loc& loc, const Type* a, const Type* b) {
 
 const Type* TypeInference::join(const Loc& loc, const UnknownType* unknown_a, const Type* b) {
     // Adds a type equation that maps type 'from' to type 'to'
-    if (!unknown_a || unknown_a == b) return b;
+    if (unknown_a == b) return b;
     assert(find(b) != find(unknown_a));
-
+    todo_ = true;
     eqs_.emplace(unknown_a, Equation(loc, b));
     return b;
 }
@@ -111,6 +122,7 @@ const Type* TypeInference::find(const Type* type) {
     if (it != eqs_.end()) {
         auto next = find(it->second.type);
         // Path compression
+        todo_ |= it->second.type != next;
         it->second = Equation(it->second.loc, next);
         return next;
     }
@@ -128,14 +140,22 @@ const Type* TypeInference::subsume(const Loc& loc, const Type* type, std::vector
         for (auto var : type->all<TypeVar>()) {
             if (var->index >= type_args.size())
                 type_args.resize(var->index + 1);
-            if (!type_args[var->index])
-                type_args[var->index] = type_table().unknown_type();
-            map.emplace(var, type_args[var->index]);
+            auto& arg = type_args[var->index];
+            if (!arg)
+                arg = type_table().unknown_type();
+            arg = unify(loc, arg, arg);
+            map.emplace(var, arg);
         }
 
         return poly->substitute(type_table(), map)->as<PolyType>()->body();
     }
     return type;
+}
+
+const Type* TypeInference::default_type(const ast::Node& node, const Literal& lit) {
+    if (defaulting_ && node.type->isa<UnknownType>())
+        return type_table().prim_type(lit.is_double() ? PrimType::F64 : PrimType::U32);
+    return type(node);
 }
 
 const Type* TypeInference::type(const ast::Node& node) {
@@ -277,7 +297,7 @@ const artic::Type* PathExpr::infer(TypeInference& ctx) const {
 const artic::Type* LiteralExpr::infer(TypeInference& ctx) const {
     if (lit.is_bool())
         return ctx.type_table().prim_type(artic::PrimType::I1);
-    return ctx.type(*this);
+    return ctx.default_type(*this, lit);
 }
 
 const artic::Type* FieldExpr::infer(TypeInference& ctx) const {
@@ -409,7 +429,7 @@ const artic::Type* IdPtrn::infer(TypeInference& ctx) const {
 const artic::Type* LiteralPtrn::infer(TypeInference& ctx) const {
     if (lit.is_bool())
         return ctx.type_table().prim_type(artic::PrimType::I1);
-    return ctx.type(*this);
+    return ctx.default_type(*this, lit);
 }
 
 const artic::Type* FieldPtrn::infer(TypeInference& ctx) const {
