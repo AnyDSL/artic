@@ -50,6 +50,13 @@ const Type* TypeInference::unify(const Loc& loc, const Type* a, const Type* b) {
     if (unknown_a) return join(loc, unknown_a, b);
     if (unknown_b) return join(loc, unknown_b, a);
 
+    // Continuations (needs to be after unknowns, for cases like a = fn () -> ! and b = fn () -> ?)
+    auto no_ret_a = a->isa<NoRetType>();
+    auto no_ret_b = b->isa<NoRetType>();
+    if (no_ret_a && no_ret_b)  return no_ret_a;
+    if (no_ret_a && !no_ret_b) return b;
+    if (no_ret_b && !no_ret_a) return a;
+
     // Polymorphic types
     auto poly_a = a->isa<PolyType>();
     auto poly_b = b->isa<PolyType>();
@@ -291,8 +298,9 @@ const artic::Type* TupleExpr::infer(TypeInference& ctx) const {
 }
 
 const artic::Type* FnExpr::infer(TypeInference& ctx) const {
+    ret_type = ret_type ? ret_type : ctx.type_table().unknown_type();
     auto param_type = ctx.infer(*param);
-    auto body_type  = ctx.infer(*body);
+    auto body_type  = ctx.infer(*body, ret_type);
     return ctx.type_table().fn_type(param_type, body_type);
 }
 
@@ -370,6 +378,19 @@ const artic::Type* IfExpr::infer(TypeInference& ctx) const {
 const artic::Type* WhileExpr::infer(TypeInference& ctx) const {
     ctx.infer(*cond, ctx.type_table().prim_type(artic::PrimType::I1));
     return ctx.infer(*body, ctx.type_table().tuple_type({}));
+}
+
+const artic::Type* BreakExpr::infer(TypeInference& ctx) const {
+    return ctx.type_table().fn_type(ctx.type_table().unit_type(), ctx.type_table().no_ret_type());
+}
+
+const artic::Type* ContinueExpr::infer(TypeInference& ctx) const {
+    return ctx.type_table().fn_type(ctx.type_table().unit_type(), ctx.type_table().no_ret_type());
+}
+
+const artic::Type* ReturnExpr::infer(TypeInference& ctx) const {
+    assert(fn && fn->ret_type);
+    return ctx.type_table().fn_type(fn->ret_type, ctx.type_table().no_ret_type());
 }
 
 const artic::Type* ErrorExpr::infer(TypeInference& ctx) const {

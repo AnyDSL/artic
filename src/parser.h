@@ -58,6 +58,9 @@ private:
     Ptr<ast::DerefExpr>     parse_deref_expr();
     Ptr<ast::IfExpr>        parse_if_expr();
     Ptr<ast::WhileExpr>     parse_while_expr();
+    Ptr<ast::BreakExpr>     parse_break_expr();
+    Ptr<ast::ContinueExpr>  parse_continue_expr();
+    Ptr<ast::ReturnExpr>    parse_return_expr();
     Ptr<ast::Expr>          parse_primary_expr();
     Ptr<ast::UnaryExpr>     parse_prefix_expr();
     Ptr<ast::UnaryExpr>     parse_postfix_expr(Ptr<ast::Expr>&&);
@@ -74,8 +77,8 @@ private:
     Ptr<ast::SelfType>      parse_self_type();
     Ptr<ast::ErrorType>     parse_error_type();
 
-    ast::Path               parse_path(ast::Identifier&&);
-    ast::Path               parse_path() { return parse_path(parse_id()); }
+    ast::Path               parse_path(ast::Identifier&&, bool);
+    ast::Path               parse_path(bool allow_types = true) { return parse_path(parse_id(), allow_types); }
     ast::Identifier         parse_id();
     Literal                 parse_lit();
 

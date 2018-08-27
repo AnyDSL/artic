@@ -164,6 +164,13 @@ struct PrimType : public Type {
     void print(Printer&) const override;
 };
 
+/// No return type (for continuations like return/break/continue)
+struct NoRetType : public Type {
+    uint32_t hash() const override;
+    bool equals(const Type*) const override;
+    void print(Printer&) const override;
+};
+
 /// Type application (e.g. tuples, functions, ...).
 struct TypeApp : public CompoundType {
     using CompoundType::Args;
@@ -467,6 +474,7 @@ public:
     }
 
     const PrimType*     prim_type(PrimType::Tag);
+    const NoRetType*    no_ret_type();
     const StructType*   struct_type(std::string&&, StructType::Args&&, const ast::StructDecl*);
     const TraitType*    trait_type(std::string&&, TraitType::Args&&, const ast::TraitDecl*);
     const ImplType*     impl_type(const TraitType*, const Type*);

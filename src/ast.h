@@ -399,12 +399,15 @@ struct FnExpr : public Expr {
     Ptr<Ptrn> param;
     Ptr<Expr> body;
 
+    mutable const artic::Type* ret_type;
+
     FnExpr(const Loc& loc,
            Ptr<Ptrn>&& param,
            Ptr<Expr>&& body)
         : Expr(loc)
         , param(std::move(param))
         , body(std::move(body))
+        , ret_type(nullptr)
     {}
 
     const artic::Type* infer(TypeInference&) const override;
@@ -491,17 +494,23 @@ struct IfExpr : public Expr {
     void print(Printer&) const override;
 };
 
-/// While loop expression.
-struct WhileExpr : public Expr {
-    Ptr<Expr> cond;
+/// Base class for loop expressions (while, for)
+struct LoopExpr : public Expr {
     Ptr<BlockExpr> body;
+
+    LoopExpr(const Loc& loc, Ptr<BlockExpr>&& body)
+        : Expr(loc), body(std::move(body))
+    {}
+};
+
+/// While loop expression.
+struct WhileExpr : public LoopExpr {
+    Ptr<Expr> cond;
 
     WhileExpr(const Loc& loc,
               Ptr<Expr>&& cond,
               Ptr<BlockExpr>&& body)
-        : Expr(loc)
-        , cond(std::move(cond))
-        , body(std::move(body))
+        : LoopExpr(loc, std::move(body)), cond(std::move(cond))
     {}
 
     const artic::Type* infer(TypeInference&) const override;
@@ -511,6 +520,47 @@ struct WhileExpr : public Expr {
     void print(Printer&) const override;
 };
 
+/// Break expression.
+struct BreakExpr : public Expr {
+    mutable const LoopExpr* loop;
+
+    BreakExpr(const Loc& loc)
+        : Expr(loc)
+    {}
+
+    const artic::Type* infer(TypeInference&) const override;
+    void bind(NameBinder&) const override;
+    void check(TypeChecker&) const override;
+    void print(Printer&) const override;
+};
+
+/// Break expression.
+struct ContinueExpr : public Expr {
+    mutable const LoopExpr* loop;
+
+    ContinueExpr(const Loc& loc)
+        : Expr(loc)
+    {}
+
+    const artic::Type* infer(TypeInference&) const override;
+    void bind(NameBinder&) const override;
+    void check(TypeChecker&) const override;
+    void print(Printer&) const override;
+};
+
+/// Break expression.
+struct ReturnExpr : public Expr {
+    mutable const FnExpr* fn;
+
+    ReturnExpr(const Loc& loc)
+        : Expr(loc)
+    {}
+
+    const artic::Type* infer(TypeInference&) const override;
+    void bind(NameBinder&) const override;
+    void check(TypeChecker&) const override;
+    void print(Printer&) const override;
+};
 
 /// Unary expression (negation, increment, ...).
 struct UnaryExpr : public CallExpr {

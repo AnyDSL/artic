@@ -103,7 +103,9 @@ void FnExpr::bind(NameBinder& ctx) const {
     ctx.push_scope();
     if (param) ctx.bind(*param);
     ctx.push_scope();
+    auto old = ctx.push_fn(this);
     ctx.bind(*body);
+    ctx.pop_fn(old);
     ctx.pop_scope();
     ctx.pop_scope();
 }
@@ -144,7 +146,27 @@ void IfExpr::bind(NameBinder& ctx) const {
 
 void WhileExpr::bind(NameBinder& ctx) const {
     ctx.bind(*cond);
+    auto old = ctx.push_loop(this);
     ctx.bind(*body);
+    ctx.pop_loop(old);
+}
+
+void BreakExpr::bind(NameBinder& ctx) const {
+    loop = ctx.cur_loop();
+    if (!loop)
+        ctx.error(loc, "use of '{}' outside of a loop", *this->as<Node>());
+}
+
+void ContinueExpr::bind(NameBinder& ctx) const {
+    loop = ctx.cur_loop();
+    if (!loop)
+        ctx.error(loc, "use of '{}' outside of a loop", *this->as<Node>());
+}
+
+void ReturnExpr::bind(NameBinder& ctx) const {
+    fn = ctx.cur_fn();
+    if (!fn)
+        ctx.error(loc, "use of '{}' outside of a function", *this->as<Node>());
 }
 
 void ErrorExpr::bind(NameBinder&) const {}

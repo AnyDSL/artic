@@ -185,6 +185,17 @@ void WhileExpr::print(Printer& p) const {
     body->print(p);
 }
 
+void BreakExpr::print(Printer& p) const {
+    p << keyword_style("break");
+}
+
+void ContinueExpr::print(Printer& p) const {
+    p << keyword_style("continue");
+}
+
+void ReturnExpr::print(Printer& p) const {
+    p << keyword_style("return");
+}
 
 void UnaryExpr::print(Printer& p) const {
     auto& op = is_inc() || is_dec() ? operand()->as<AddrOfExpr>()->expr : operand();
@@ -505,6 +516,10 @@ void Node::dump() const {
 
 void PrimType::print(Printer& p) const {
     p << keyword_style(ast::PrimType::tag_to_string(ast::PrimType::Tag(tag)));
+}
+
+void NoRetType::print(Printer& p) const {
+    p << '!';
 }
 
 void StructType::print(Printer& p) const {

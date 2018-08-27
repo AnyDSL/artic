@@ -23,6 +23,9 @@ namespace artic {
     f(Else, "else") \
     f(While, "while") \
     f(For, "for") \
+    f(Break, "break") \
+    f(Continue, "continue") \
+    f(Return, "return") \
     f(Struct, "struct") \
     f(Trait, "trait") \
     f(Impl, "impl") \

@@ -15,7 +15,12 @@ class Expr;
 /// Binds identifiers to the nodes of the AST.
 class NameBinder : public Logger {
 public:
-    NameBinder(const Logger& log = Logger()) : Logger(log) { push_scope(); }
+    NameBinder(const Logger& log = Logger())
+        : Logger(log), cur_fn_(nullptr), cur_loop_(nullptr)
+    {
+        push_scope();
+    }
+
     ~NameBinder() { pop_scope(); }
 
     /// Performs name binding on a whole program.
@@ -24,6 +29,22 @@ public:
 
     void bind_head(const ast::Decl&);
     void bind(const ast::Node&);
+
+    const ast::FnExpr* cur_fn() const { return cur_fn_; }
+    const ast::FnExpr* push_fn(const ast::FnExpr* fn) {
+        auto old = cur_fn_;
+        cur_fn_ = fn;
+        return old;
+    }
+    void pop_fn(const ast::FnExpr* fn) { cur_fn_ = fn; }
+
+    const ast::LoopExpr* cur_loop() const { return cur_loop_; }
+    const ast::LoopExpr* push_loop(const ast::LoopExpr* loop) {
+        auto old = cur_loop_;
+        cur_loop_ = loop;
+        return old;
+    }
+    void pop_loop(const ast::LoopExpr* loop) { cur_loop_ = loop; }
 
     void push_scope() { scopes_.emplace_back(); }
     void pop_scope()  { scopes_.pop_back(); }
@@ -37,6 +58,8 @@ public:
     }
 
 private:
+    const ast::FnExpr*   cur_fn_;
+    const ast::LoopExpr* cur_loop_;
     std::vector<SymbolTable> scopes_;
 };
 

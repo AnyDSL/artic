@@ -270,7 +270,7 @@ Ptr<ast::FieldPtrn> Parser::parse_field_ptrn() {
 
 Ptr<ast::StructPtrn> Parser::parse_struct_ptrn(Identifier&& id) {
     Tracker tracker(this, id.loc);
-    Path path = parse_path(std::move(id));
+    Path path = parse_path(std::move(id), true);
 
     expect(Token::LBrace);
     PtrVector<ast::FieldPtrn> fields;
@@ -349,7 +349,7 @@ Ptr<ast::Expr> Parser::parse_typed_expr(Ptr<Expr>&& expr) {
 
 Ptr<ast::PathExpr> Parser::parse_path_expr() {
     Tracker tracker(this);
-    auto path = parse_path();
+    auto path = parse_path(false);
     return make_ptr<ast::PathExpr>(tracker(), std::move(path));
 }
 
@@ -403,6 +403,9 @@ Ptr<ast::BlockExpr> Parser::parse_block_expr() {
                 continue;
             case Token::If:
             case Token::While:
+            case Token::Break:
+            case Token::Continue:
+            case Token::Return:
             case Token::Id:
             case Token::Lit:
             case Token::LParen:
@@ -537,6 +540,24 @@ Ptr<ast::WhileExpr> Parser::parse_while_expr() {
     return make_ptr<ast::WhileExpr>(tracker(), std::move(cond), std::move(body));
 }
 
+Ptr<ast::BreakExpr> Parser::parse_break_expr() {
+    Tracker tracker(this);
+    eat(Token::Break);
+    return make_ptr<ast::BreakExpr>(tracker());
+}
+
+Ptr<ast::ContinueExpr> Parser::parse_continue_expr() {
+    Tracker tracker(this);
+    eat(Token::Continue);
+    return make_ptr<ast::ContinueExpr>(tracker());
+}
+
+Ptr<ast::ReturnExpr> Parser::parse_return_expr() {
+    Tracker tracker(this);
+    eat(Token::Return);
+    return make_ptr<ast::ReturnExpr>(tracker());
+}
+
 Ptr<ast::Expr> Parser::parse_primary_expr() {
     Ptr<ast::Expr> expr;
     switch (ahead().tag()) {
@@ -562,8 +583,11 @@ Ptr<ast::Expr> Parser::parse_primary_expr() {
         case Token::Or:
             expr = std::move(parse_fn_expr(false));
             break;
-        case Token::If:    expr = std::move(parse_if_expr());    break;
-        case Token::While: expr = std::move(parse_while_expr()); break;
+        case Token::If:       expr = std::move(parse_if_expr());       break;
+        case Token::While:    expr = std::move(parse_while_expr());    break;
+        case Token::Break:    expr = std::move(parse_break_expr());    break;
+        case Token::Continue: expr = std::move(parse_continue_expr()); break;
+        case Token::Return:   expr = std::move(parse_return_expr());   break;
         default:
             expr = std::move(parse_error_expr());
             break;
@@ -705,7 +729,7 @@ Ptr<ast::ErrorType> Parser::parse_error_type() {
     return make_ptr<ast::ErrorType>(tracker());
 }
 
-ast::Path Parser::parse_path(ast::Identifier&& id) {
+ast::Path Parser::parse_path(ast::Identifier&& id, bool allow_types) {
     Tracker tracker(this, id.loc);
     std::vector<ast::Path::Elem> elems;
 
@@ -716,7 +740,7 @@ ast::Path Parser::parse_path(ast::Identifier&& id) {
     }
 
     PtrVector<ast::Type> args;
-    if (ahead().tag() == Token::CmpLT) {
+    if (allow_types && ahead().tag() == Token::CmpLT) {
         eat(Token::CmpLT);
         parse_list(Token::CmpGT, Token::Comma, [&] {
             args.emplace_back(parse_type());

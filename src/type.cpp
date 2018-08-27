@@ -109,7 +109,11 @@ void ImplType::match_impl(TypeInference& infer) const {
 // Hash ----------------------------------------------------------------------------
 
 uint32_t PrimType::hash() const {
-    return uint32_t(tag);
+    return hash_combine(hash_init(), uint32_t(tag));
+}
+
+uint32_t NoRetType::hash() const {
+    return hash_combine(hash_init(), typeid(*this).hash_code());
 }
 
 uint32_t TypeApp::hash() const {
@@ -134,7 +138,7 @@ uint32_t PolyType::hash() const {
 }
 
 uint32_t SelfType::hash() const {
-    return uint32_t(-1);
+    return hash_combine(hash_init(), typeid(*this).hash_code());
 }
 
 uint32_t TypeVar::hash() const {
@@ -161,6 +165,10 @@ uint32_t InferError::hash() const {
 
 bool PrimType::equals(const Type* t) const {
     return t->isa<PrimType>() && t->as<PrimType>()->tag == tag;
+}
+
+bool NoRetType::equals(const Type* t) const {
+    return t->isa<NoRetType>();
 }
 
 bool TypeApp::equals(const Type* t) const {
@@ -302,6 +310,10 @@ const Type* CompoundType::substitute(TypeTable& table, std::unordered_map<const 
 
 const PrimType* TypeTable::prim_type(PrimType::Tag tag) {
     return new_type<PrimType>(tag);
+}
+
+const NoRetType* TypeTable::no_ret_type() {
+    return new_type<NoRetType>();
 }
 
 const StructType* TypeTable::struct_type(std::string&& name, StructType::Args&& args, const ast::StructDecl* decl) {

@@ -155,7 +155,13 @@ void FnExpr::check(TypeChecker& ctx) const {
 }
 
 void BlockExpr::check(TypeChecker& ctx) const {
-    for (auto& stmt : stmts) ctx.check(*stmt);
+    for (size_t i = 0, n = stmts.size(); i < n; ++i) {
+        ctx.check(*stmts[i]);
+
+        auto stmt_type = stmts[i]->type;
+        if (stmt_type->isa<NoRetType>() && (i != n - 1 || last_semi))
+            ctx.error(stmts[i]->loc, "expression '{}' does not return; following statements are unreachable", *stmts[i]->as<Node>());
+    }
 }
 
 void CallExpr::check(TypeChecker& ctx) const {
@@ -185,6 +191,10 @@ void WhileExpr::check(TypeChecker& ctx) const {
     ctx.check(*cond);
     ctx.check(*body);
 }
+
+void BreakExpr::check(TypeChecker&) const {}
+void ContinueExpr::check(TypeChecker&) const {}
+void ReturnExpr::check(TypeChecker&) const {}
 
 void ErrorExpr::check(TypeChecker&) const {}
 
