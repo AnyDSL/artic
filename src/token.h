@@ -75,6 +75,8 @@ namespace artic {
     f(CmpGT, ">") \
     f(CmpEq, "==") \
     f(CmpNE, "!=") \
+    f(At, "@") \
+    f(QMark, "?") \
     f(End, "<eof>")
 
 struct Literal {

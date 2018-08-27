@@ -65,6 +65,7 @@ private:
     Ptr<ast::UnaryExpr>     parse_prefix_expr();
     Ptr<ast::UnaryExpr>     parse_postfix_expr(Ptr<ast::Expr>&&);
     Ptr<ast::Expr>          parse_binary_expr(Ptr<ast::Expr>&&, int);
+    Ptr<ast::KnownExpr>     parse_known_expr();
     Ptr<ast::ErrorExpr>     parse_error_expr();
 
     Ptr<ast::Type>          parse_type();
@@ -76,6 +77,8 @@ private:
     Ptr<ast::PtrType>       parse_ptr_type();
     Ptr<ast::SelfType>      parse_self_type();
     Ptr<ast::ErrorType>     parse_error_type();
+
+    Ptr<ast::Filter>        parse_filter();
 
     ast::Path               parse_path(ast::Identifier&&, bool);
     ast::Path               parse_path(bool allow_types = true) { return parse_path(parse_id(), allow_types); }

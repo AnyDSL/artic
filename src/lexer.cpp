@@ -166,6 +166,9 @@ Token Lexer::next() {
             return Token(loc_, Token::Not);
         }
 
+        if (accept('@')) return Token(loc_, Token::At);
+        if (accept('?')) return Token(loc_, Token::QMark);
+
         if (std::isdigit(peek()) || peek() == '.') {
             auto lit = parse_literal();
             return Token(loc_, str_, lit);

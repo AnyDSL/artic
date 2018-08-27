@@ -146,6 +146,22 @@ struct Path : public Node {
     void print(Printer&) const override;
 };
 
+// Filter --------------------------------------------------------------------------
+
+/// A partial evaluation filter
+struct Filter : public Node {
+    Ptr<Expr> expr;
+
+    Filter(const Loc& loc, Ptr<Expr>&& expr)
+        : Node(loc), expr(std::move(expr))
+    {}
+
+    const artic::Type* infer(TypeInference&) const override;
+    void bind(NameBinder&) const override;
+    void check(TypeChecker&) const override;
+    void print(Printer&) const override;
+};
+
 // Types ---------------------------------------------------------------------------
 
 /// Primitive type (integer, float, ...).
@@ -357,6 +373,7 @@ struct FieldExpr : public Expr {
     const artic::Type* infer(TypeInference&) const override;
     void bind(NameBinder&) const override;
     void check(TypeChecker&) const override;
+    void print_head(Printer&) const override;
     void print(Printer&) const override;
 };
 
@@ -396,15 +413,18 @@ struct TupleExpr : public Expr {
 
 /// Anonymous function expression.
 struct FnExpr : public Expr {
-    Ptr<Ptrn> param;
-    Ptr<Expr> body;
+    Ptr<Filter> filter;
+    Ptr<Ptrn>   param;
+    Ptr<Expr>   body;
 
     mutable const artic::Type* ret_type;
 
     FnExpr(const Loc& loc,
+           Ptr<Filter>&& filter,
            Ptr<Ptrn>&& param,
            Ptr<Expr>&& body)
         : Expr(loc)
+        , filter(std::move(filter))
         , param(std::move(param))
         , body(std::move(body))
         , ret_type(nullptr)
@@ -663,6 +683,20 @@ struct DerefExpr : public Expr {
     Ptr<Expr> expr;
 
     DerefExpr(const Loc& loc, Ptr<Expr>&& expr)
+        : Expr(loc), expr(std::move(expr))
+    {}
+
+    const artic::Type* infer(TypeInference&) const override;
+    void bind(NameBinder&) const override;
+    void check(TypeChecker&) const override;
+    void print(Printer&) const override;
+};
+
+/// Partial evaluation '?' operator
+struct KnownExpr : public Expr {
+    Ptr<Expr> expr;
+
+    KnownExpr(const Loc& loc, Ptr<Expr>&& expr)
         : Expr(loc), expr(std::move(expr))
     {}
 

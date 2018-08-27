@@ -246,6 +246,11 @@ const artic::Type* Path::infer(TypeInference& ctx) const {
     return ctx.subsume(loc, last_type, elems.back().type_args);
 }
 
+const artic::Type* Filter::infer(TypeInference& ctx) const {
+    if (expr) ctx.infer(*expr, ctx.type_table().prim_type(artic::PrimType::I1));
+    return ctx.type(*this);
+}
+
 const artic::Type* PrimType::infer(TypeInference& ctx) const {
     return ctx.type_table().prim_type(artic::PrimType::Tag(tag));
 }
@@ -318,6 +323,8 @@ const artic::Type* TupleExpr::infer(TypeInference& ctx) const {
 }
 
 const artic::Type* FnExpr::infer(TypeInference& ctx) const {
+    if (filter) ctx.infer(*filter);
+
     ret_type = ret_type ? ret_type : ctx.type_table().unknown_type();
     auto param_type = ctx.infer(*param);
     auto body_type  = ctx.infer(*body, ret_type);
@@ -411,6 +418,11 @@ const artic::Type* ContinueExpr::infer(TypeInference& ctx) const {
 const artic::Type* ReturnExpr::infer(TypeInference& ctx) const {
     assert(fn && fn->ret_type);
     return ctx.type_table().fn_type(fn->ret_type, ctx.type_table().no_ret_type());
+}
+
+const artic::Type* KnownExpr::infer(TypeInference& ctx) const {
+    ctx.infer(*expr);
+    return ctx.type_table().prim_type(artic::PrimType::I1);
 }
 
 const artic::Type* ErrorExpr::infer(TypeInference& ctx) const {

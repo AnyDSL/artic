@@ -48,6 +48,15 @@ void Path::print(Printer& p) const {
     }
 }
 
+void Filter::print(Printer& p) const {
+    p << '@';
+    if (expr) {
+        p << '(';
+        expr->print(p);
+        p << ") ";
+    }
+}
+
 void DeclStmt::print(Printer& p) const {
     decl->print(p);
 }
@@ -68,6 +77,11 @@ void PathExpr::print(Printer& p) const {
 
 void LiteralExpr::print(Printer& p) const {
     p << std::showpoint << literal_style(lit.box);
+}
+
+void FieldExpr::print_head(Printer& p) const {
+    p << id.name << ": ";
+    expr->print_head(p);
 }
 
 void FieldExpr::print(Printer& p) const {
@@ -236,6 +250,11 @@ void AddrOfExpr::print(Printer& p) const {
 
 void DerefExpr::print(Printer& p) const {
     p << '*';
+    expr->print(p);
+}
+
+void KnownExpr::print(Printer& p) const {
+    p << '?';
     expr->print(p);
 }
 

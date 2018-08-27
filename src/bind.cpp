@@ -44,6 +44,10 @@ void Path::bind(NameBinder& ctx) const {
     for (auto& arg : args) ctx.bind(*arg);
 }
 
+void Filter::bind(NameBinder& ctx) const {
+    if (expr) ctx.bind(*expr);
+}
+
 void PrimType::bind(NameBinder&) const {}
 
 void TupleType::bind(NameBinder& ctx) const {
@@ -101,7 +105,8 @@ void TupleExpr::bind(NameBinder& ctx) const {
 
 void FnExpr::bind(NameBinder& ctx) const {
     ctx.push_scope();
-    if (param) ctx.bind(*param);
+    if (param)  ctx.bind(*param);
+    if (filter) ctx.bind(*filter);
     ctx.push_scope();
     auto old = ctx.push_fn(this);
     ctx.bind(*body);
@@ -167,6 +172,10 @@ void ReturnExpr::bind(NameBinder& ctx) const {
     fn = ctx.cur_fn();
     if (!fn)
         ctx.error(loc, "use of '{}' outside of a function", *this->as<Node>());
+}
+
+void KnownExpr::bind(NameBinder& ctx) const {
+    ctx.bind(*expr);
 }
 
 void ErrorExpr::bind(NameBinder&) const {}

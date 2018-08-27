@@ -274,6 +274,25 @@ struct CodeGen {
         }
     }
 
+    const thorin::Def* emit(const ast::Filter& filter) {
+        if (filter.expr)
+            return emit(*filter.expr);
+        return world.literal_bool(true, thorin::Debug());
+    }
+
+    void emit_fn_body(const ast::FnExpr& fn_expr, thorin::Continuation* cont) {
+        THORIN_PUSH(cur_bb, cont);
+        THORIN_PUSH(cur_mem, cont->param(0));
+        THORIN_PUSH(cur_return, cont->param(2));
+        emit(*fn_expr.param, cont->param(1));
+        if (fn_expr.filter) {
+            auto filter_val = emit(*fn_expr.filter);
+            cont->set_filter({ filter_val, filter_val, filter_val });
+        }
+        auto ret = emit(*fn_expr.body);
+        cur_bb->jump(cont->param(2), thorin::Defs { cur_mem, ret }, loc_to_dbg(fn_expr.loc, "ret"));
+    }
+
     void emit(const ast::Decl& decl, bool ignore_poly = true) {
         // Try to find the corresponding monomorphic declaration in the map.
         MonoDecl mono_decl(&decl, var_map);
@@ -288,15 +307,8 @@ struct CodeGen {
             if (fn_decl->id.name == "main")
                 cont->as_continuation()->make_external();
             decl_map[mono_decl] = cont;
-
-            if (fn_decl->fn->body) {
-                THORIN_PUSH(cur_bb, cont);
-                THORIN_PUSH(cur_mem, cont->param(0));
-                THORIN_PUSH(cur_return, cont->param(2));
-                emit(*fn_decl->fn->param, cont->param(1));
-                auto ret = emit(*fn_decl->fn->body);
-                cur_bb->jump(cont->param(2), thorin::Defs { cur_mem, ret }, loc_to_dbg(fn_decl->loc, "ret"));
-            }
+            if (fn_decl->fn->body)
+                emit_fn_body(*fn_decl->fn, cont);
         } else if (auto let_decl = decl.isa<ast::LetDecl>()) {
             auto init = let_decl->init ? emit(*let_decl->init) : world.bottom(convert(let_decl->ptrn->type));
             emit(*let_decl->ptrn, init);
@@ -549,12 +561,7 @@ struct CodeGen {
         } else if (auto fn_expr = expr.isa<ast::FnExpr>()) {
             auto type = convert(fn_expr->type)->as<thorin::FnType>();
             auto cont = world.continuation(type, thorin::CC::C, thorin::Intrinsic::None, loc_to_dbg(fn_expr->loc, "lambda"));
-            THORIN_PUSH(cur_bb, cont);
-            THORIN_PUSH(cur_mem, cont->param(0));
-            THORIN_PUSH(cur_return, cont->param(2));
-            emit(*fn_expr->param, cont->param(1));
-            auto ret = emit(*fn_expr->body);
-            if (cur_bb) cur_bb->jump(cont->param(2), thorin::Defs { cur_mem, ret }, loc_to_dbg(fn_expr->loc, "ret"));
+            emit_fn_body(*fn_expr, cont);
             return cont;
         } else if (expr.isa<ast::BreakExpr>()) {
             return cur_break;
@@ -562,6 +569,8 @@ struct CodeGen {
             return cur_continue;
         } else if (expr.isa<ast::ReturnExpr>()) {
             return cur_return;
+        } else if (auto known_expr = expr.isa<ast::KnownExpr>()) {
+            return world.known(emit(*known_expr->expr), loc_to_dbg(known_expr->loc));
         } else {
             assert(false);
             return nullptr;

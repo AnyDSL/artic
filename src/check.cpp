@@ -81,6 +81,10 @@ void Path::check(TypeChecker& ctx) const {
     for (auto& arg : args) ctx.check(*arg);
 }
 
+void Filter::check(TypeChecker& ctx) const {
+    ctx.check(*expr);
+}
+
 void PrimType::check(TypeChecker&) const {}
 
 void TupleType::check(TypeChecker& ctx) const {
@@ -185,6 +189,10 @@ void WhileExpr::check(TypeChecker& ctx) const {
 void BreakExpr::check(TypeChecker&) const {}
 void ContinueExpr::check(TypeChecker&) const {}
 void ReturnExpr::check(TypeChecker&) const {}
+
+void KnownExpr::check(TypeChecker& ctx) const {
+    ctx.check(*expr);
+}
 
 void ErrorExpr::check(TypeChecker&) const {}
 

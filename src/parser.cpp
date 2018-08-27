@@ -55,6 +55,10 @@ Ptr<ast::FnDecl> Parser::parse_fn_decl(bool only_types) {
     Tracker tracker(this);
     eat(Token::Fn);
 
+    Ptr<ast::Filter> filter;
+    if (ahead().tag() == Token::At)
+        filter = std::move(parse_filter());
+
     auto id = parse_id();
     Ptr<TypeParamList> type_params;
     if (ahead().tag() == Token::CmpLT)
@@ -80,7 +84,7 @@ Ptr<ast::FnDecl> Parser::parse_fn_decl(bool only_types) {
     else
         expect(Token::Semi);
 
-    auto fn = make_ptr<ast::FnExpr>(tracker(), std::move(param), std::move(body));
+    auto fn = make_ptr<ast::FnExpr>(tracker(), std::move(filter), std::move(param), std::move(body));
     return make_ptr<ast::FnDecl>(tracker(), std::move(id), std::move(fn), std::move(ret_type), std::move(type_params));
 }
 
@@ -410,6 +414,7 @@ Ptr<ast::BlockExpr> Parser::parse_block_expr() {
             case Token::Lit:
             case Token::LParen:
             case Token::LBrace:
+            case Token::Or:
             case Token::And:
             case Token::Mul:
             case Token::Add:
@@ -432,6 +437,11 @@ Ptr<ast::BlockExpr> Parser::parse_block_expr() {
 
 Ptr<ast::FnExpr> Parser::parse_fn_expr(bool nested) {
     Tracker tracker(this);
+
+    // Parse filter
+    Ptr<ast::Filter> filter;
+    if (ahead().tag() == Token::At)
+        filter = std::move(parse_filter());
 
     // Parse arguments
     Ptr<ast::Ptrn> ptrn;
@@ -471,7 +481,7 @@ Ptr<ast::FnExpr> Parser::parse_fn_expr(bool nested) {
         }
         body = std::move(parse_expr());
     }
-    return make_ptr<ast::FnExpr>(tracker(), std::move(ptrn), std::move(body));
+    return make_ptr<ast::FnExpr>(tracker(), std::move(filter), std::move(ptrn), std::move(body));
 }
 
 Ptr<ast::CallExpr> Parser::parse_call_expr(Ptr<Expr>&& callee) {
@@ -561,8 +571,9 @@ Ptr<ast::ReturnExpr> Parser::parse_return_expr() {
 Ptr<ast::Expr> Parser::parse_primary_expr() {
     Ptr<ast::Expr> expr;
     switch (ahead().tag()) {
-        case Token::And: expr = std::move(parse_addr_of_expr()); break;
-        case Token::Mul: expr = std::move(parse_deref_expr());   break;
+        case Token::And:   expr = std::move(parse_addr_of_expr()); break;
+        case Token::Mul:   expr = std::move(parse_deref_expr());   break;
+        case Token::QMark: expr = std::move(parse_known_expr());   break;
         case Token::Inc:
         case Token::Dec:
         case Token::Add:
@@ -579,6 +590,7 @@ Ptr<ast::Expr> Parser::parse_primary_expr() {
                  ahead(1).tag() == Token::RBrace))
                 expr = std::move(parse_struct_expr(std::move(expr)));
             break;
+        case Token::At:
         case Token::OrOr:
         case Token::Or:
             expr = std::move(parse_fn_expr(false));
@@ -637,6 +649,13 @@ Ptr<ast::Expr> Parser::parse_binary_expr(Ptr<ast::Expr>&& left, int max_prec) {
         left = std::move(make_ptr<ast::BinaryExpr>(tracker(), tag, std::move(left), std::move(right)));
     }
     return std::move(left);
+}
+
+Ptr<ast::KnownExpr> Parser::parse_known_expr() {
+    Tracker tracker(this);
+    eat(Token::QMark);
+    auto expr = parse_expr();
+    return make_ptr<ast::KnownExpr>(tracker(), std::move(expr));
 }
 
 Ptr<ast::ErrorExpr> Parser::parse_error_expr() {
@@ -727,6 +746,18 @@ Ptr<ast::ErrorType> Parser::parse_error_type() {
     error(ahead().loc(), "expected type, got '{}'", ahead().string());
     next();
     return make_ptr<ast::ErrorType>(tracker());
+}
+
+Ptr<ast::Filter> Parser::parse_filter() {
+    Tracker tracker(this);
+    eat(Token::At);
+    Ptr<Expr> expr;
+    if (ahead().tag() == Token::LParen) {
+        eat(Token::LParen);
+        expr = std::move(parse_expr());
+        expect(Token::RParen);
+    }
+    return make_ptr<ast::Filter>(tracker(), std::move(expr));
 }
 
 ast::Path Parser::parse_path(ast::Identifier&& id, bool allow_types) {
