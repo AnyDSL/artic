@@ -15,13 +15,14 @@
 using namespace artic;
 
 namespace artic {
-    void emit(const std::string&, TypeInference&, const ast::Program&);
+    void emit(const std::string&, size_t, TypeInference&, const ast::Program&);
 }
 
 static void usage() {
     log::out << "usage: artic [options] files...\n"
                 "options:\n"
                 "          --version  Displays the version number\n"
+                "    -On              Sets the optimization level (n = 0, 1, 2, or 3)\n"
                 "    -h    --help     Displays this message\n";
 }
 
@@ -54,6 +55,7 @@ static void version() {
 
 struct ProgramOptions {
     std::vector<std::string> files;
+    size_t opt_level = 0;
 
     inline bool matches(const char* a, const char* opt) {
         return !strcmp(a, opt);
@@ -77,6 +79,14 @@ struct ProgramOptions {
                 } else if (matches(argv[i], "--version")) {
                     version();
                     return false;
+                } else if (matches(argv[i], "-O0")) {
+                    opt_level = 0;
+                } else if (matches(argv[i], "-O1")) {
+                    opt_level = 1;
+                } else if (matches(argv[i], "-O2")) {
+                    opt_level = 2;
+                } else if (matches(argv[i], "-O3")) {
+                    opt_level = 3;
                 } else {
                     log::error("unknown option '{}'", argv[i]);
                 }
@@ -121,6 +131,6 @@ int main(int argc, char** argv) {
         return 1;
 
     auto module_name = "module";
-    emit(module_name, type_inference, program);
+    emit(module_name, opts.opt_level, type_inference, program);
     return 0;
 }

@@ -610,11 +610,12 @@ struct CodeGen {
     const thorin::Def*          cur_mem;
 };
 
-void emit(const std::string& module_name, TypeInference& type_inference, const ast::Program& program) {
+void emit(const std::string& module_name, size_t opt_level, TypeInference& type_inference, const ast::Program& program) {
     CodeGen cg(module_name, type_inference);
     for (auto& decl : program.decls)
         cg.emit(*decl);
-    cg.world.opt();
+    if (opt_level == 1) cg.world.cleanup();
+    if (opt_level >= 2) cg.world.opt();
     cg.world.dump();
 }
 
