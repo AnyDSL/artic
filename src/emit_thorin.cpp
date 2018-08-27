@@ -203,9 +203,11 @@ struct CodeGen {
             auto& members = struct_type->members(type_table);
             auto struct_decl = struct_type->decl;
             auto thorin_struct = world.struct_type(struct_decl->id.name, members.size());
+            // Put structure in map before calling convert()
+            type_map[type] = thorin_struct;
             for (size_t i = 0; i < members.size(); ++i)
                 thorin_struct->set(i, convert(members.at(struct_decl->fields[i]->id.name)));
-            return type_map[type] = thorin_struct;
+            return thorin_struct;
         } else if (auto tuple_type = type->isa<TupleType>()) {
             thorin::Array<const thorin::Type*> ops(tuple_type->args.size());
             for (size_t i = 0; i < ops.size(); ++i)
