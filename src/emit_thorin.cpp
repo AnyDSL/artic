@@ -231,18 +231,20 @@ struct CodeGen {
     const thorin::Def* emit(const Literal& lit, const Type* type, const Loc& loc) {
         auto dbg = loc_to_dbg(loc);
         type = type->substitute(type_table, var_map);
+        auto double_value  = [=] () -> double   { return lit.is_double()  ? lit.as_double()  : lit.as_integer(); };
+        auto integer_value = [=] () -> uint64_t { return lit.is_integer() ? lit.as_integer() : lit.as_double();  };
         switch (type->as<PrimType>()->tag) {
             case PrimType::I1:  return world.literal_bool(lit.as_bool(), dbg);
-            case PrimType::I8:  return world.literal_qs8 (lit.as_integer(), dbg);
-            case PrimType::I16: return world.literal_qs16(lit.as_integer(), dbg);
-            case PrimType::I32: return world.literal_qs32(lit.as_integer(), dbg);
-            case PrimType::I64: return world.literal_qs64(lit.as_integer(), dbg);
-            case PrimType::U8:  return world.literal_qu8 (lit.as_integer(), dbg);
-            case PrimType::U16: return world.literal_qu16(lit.as_integer(), dbg);
-            case PrimType::U32: return world.literal_qu32(lit.as_integer(), dbg);
-            case PrimType::U64: return world.literal_qu64(lit.as_integer(), dbg);
-            case PrimType::F32: return world.literal_qf32(lit.as_double(), dbg);
-            case PrimType::F64: return world.literal_qf64(lit.as_double(), dbg);
+            case PrimType::I8:  return world.literal_qs8 (integer_value(), dbg);
+            case PrimType::I16: return world.literal_qs16(integer_value(), dbg);
+            case PrimType::I32: return world.literal_qs32(integer_value(), dbg);
+            case PrimType::I64: return world.literal_qs64(integer_value(), dbg);
+            case PrimType::U8:  return world.literal_qu8 (integer_value(), dbg);
+            case PrimType::U16: return world.literal_qu16(integer_value(), dbg);
+            case PrimType::U32: return world.literal_qu32(integer_value(), dbg);
+            case PrimType::U64: return world.literal_qu64(integer_value(), dbg);
+            case PrimType::F32: return world.literal_qf32(double_value(), dbg);
+            case PrimType::F64: return world.literal_qf64(double_value(), dbg);
             default:
                 assert(false);
                 return nullptr;
