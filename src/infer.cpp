@@ -328,7 +328,7 @@ const artic::Type* ProjExpr::infer(TypeInference& ctx) const {
         auto it = members.find(field.name);
         if (it == members.end())
             return ctx.type_table().error_type(loc);
-        index = std::distance(members.begin(), it);
+        index = struct_type->decl->field_index(field.name);
         return ctx.type_table().ref_type(it->second, addr_type->addr_space, addr_type->mut);
     }
     return ctx.type(*this);
