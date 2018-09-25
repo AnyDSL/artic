@@ -353,7 +353,7 @@ Ptr<ast::Expr> Parser::parse_typed_expr(Ptr<Expr>&& expr) {
 
 Ptr<ast::PathExpr> Parser::parse_path_expr() {
     Tracker tracker(this);
-    auto path = parse_path(false);
+    auto path = parse_path(true);
     return make_ptr<ast::PathExpr>(tracker(), std::move(path));
 }
 
@@ -606,10 +606,10 @@ Ptr<ast::Expr> Parser::parse_primary_expr() {
     }
     if (ahead().tag() == Token::Inc || ahead().tag() == Token::Dec)
         expr = std::move(parse_postfix_expr(std::move(expr)));
-    while (ahead().tag() == Token::Dot)
-        expr = std::move(parse_proj_expr(std::move(expr)));
     while (ahead().tag() == Token::LParen)
         expr = std::move(parse_call_expr(std::move(expr)));
+    while (ahead().tag() == Token::Dot)
+        expr = std::move(parse_proj_expr(std::move(expr)));
     return parse_typed_expr(std::move(expr));
 }
 

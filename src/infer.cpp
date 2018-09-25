@@ -154,7 +154,7 @@ const Type* TypeInference::subsume(const Loc& loc, const Type* type, std::vector
 
 const Type* TypeInference::default_type(const ast::Node& node, const Literal& lit) {
     if (defaulting_ && node.type->isa<UnknownType>())
-        return type_table().prim_type(lit.is_double() ? PrimType::F64 : PrimType::U32);
+        return type_table().prim_type(lit.is_double() ? PrimType::F32 : PrimType::I32);
     return type(node);
 }
 
