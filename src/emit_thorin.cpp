@@ -3,7 +3,6 @@
 #include "infer.h"
 
 #include <thorin/world.h>
-#include <thorin/irbuilder.h>
 
 #include <string>
 
