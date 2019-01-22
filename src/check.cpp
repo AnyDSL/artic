@@ -224,7 +224,10 @@ void FieldPtrn::check(TypeChecker& ctx) const {
 
 void StructPtrn::check(TypeChecker& ctx) const {
     ctx.check(path);
-    for (auto& field : fields) ctx.check(*field);
+    for (auto& field : fields) {
+        if (!field->is_etc())
+            ctx.check(*field);
+    }
 
     if (auto struct_type = type->isa<StructType>())
         ctx.check_struct(loc, struct_type, fields, has_etc());
