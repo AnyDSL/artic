@@ -579,6 +579,27 @@ struct WhileExpr : public LoopExpr {
     void print(Printer&) const override;
 };
 
+/// For loop expression.
+struct ForExpr : public LoopExpr {
+    Ptr<Ptrn> ptrn;
+    Ptr<CallExpr> expr;
+
+    ForExpr(const Loc& loc,
+            Ptr<Ptrn>&& ptrn,
+            Ptr<CallExpr>&& expr,
+            Ptr<BlockExpr>&& body)
+        : LoopExpr(loc, std::move(body))
+        , ptrn(std::move(ptrn))
+        , expr(std::move(expr))
+    {}
+
+    const artic::Type* infer(TypeInference&) const override;
+    void bind(NameBinder&) const override;
+    void check(TypeChecker&) const override;
+    void print_head(Printer&) const override;
+    void print(Printer&) const override;
+};
+
 /// Break expression.
 struct BreakExpr : public Expr {
     mutable const LoopExpr* loop;

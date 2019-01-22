@@ -56,7 +56,10 @@ bool DeclStmt::need_semicolon() const {
 }
 
 bool ExprStmt::need_semicolon() const {
-    return !expr->isa<IfExpr>() && !expr->isa<WhileExpr>();
+    return !expr->isa<IfExpr>() &&
+           !expr->isa<MatchExpr>() &&
+           !expr->isa<WhileExpr>() &&
+           !expr->isa<ForExpr>();
 }
 
 Ptr<Expr> UnaryExpr::op_expr(const Loc& loc, Tag tag) {

@@ -24,6 +24,7 @@ namespace artic {
     f(Match, "match") \
     f(While, "while") \
     f(For, "for") \
+    f(In, "in") \
     f(Break, "break") \
     f(Continue, "continue") \
     f(Return, "return") \

@@ -421,6 +421,19 @@ const artic::Type* WhileExpr::infer(TypeInference& ctx) const {
     return ctx.infer(*body, ctx.type_table().tuple_type({}));
 }
 
+const artic::Type* ForExpr::infer(TypeInference& ctx) const {
+    auto loop_type = ctx.type(*this);
+    auto ptrn_type = ctx.infer(*ptrn);
+    if (!expr)
+        return loop_type;
+    auto arg_type  = ctx.infer(*expr->arg);
+    auto body_type = ctx.type_table().fn_type(ptrn_type, ctx.infer(*body));
+    auto iter_type = ctx.type_table().fn_type(arg_type, loop_type);
+    auto callee_type = ctx.type_table().fn_type(body_type, iter_type);
+    ctx.infer(*expr->callee, callee_type);
+    return loop_type;
+}
+
 const artic::Type* BreakExpr::infer(TypeInference& ctx) const {
     return ctx.type_table().fn_type(ctx.type_table().unit_type(), ctx.type_table().no_ret_type());
 }

@@ -296,7 +296,7 @@ struct CodeGen {
 
     void emit(const ast::Decl& decl, bool ignore_poly = true) {
         // Try to find the corresponding monomorphic declaration in the map.
-        MonoDecl mono_decl(&decl, var_map);
+        MonoDecl mono_decl(&decl, type_args);
         if (decl_map.find(mono_decl) != decl_map.end())
             return;
 
@@ -408,6 +408,7 @@ struct CodeGen {
                 return world.extract(load_tuple, thorin::u32(1));
             }
 
+            std::vector<const Type*> args;
             std::unordered_map<const Type*, const Type*> arg_map;
             if (decl->isa<ast::TraitDecl>()) {
                 auto impl_type = path.elems.front().type->substitute(type_table, var_map)->as<ImplType>();
@@ -420,8 +421,11 @@ struct CodeGen {
                 auto impl_decl = impl_type->decl(type_inference);
                 assert(impl_decl);
                 if (impl_decl->type_params) {
-                    for (size_t i = 0; i < impl_decl->type_params->params.size(); ++i)
-                        arg_map.emplace(impl_decl->type_params->params[i]->type, impl_type->impl_args(type_inference)[i]);
+                    for (size_t i = 0; i < impl_decl->type_params->params.size(); ++i) {
+                        auto arg = impl_type->impl_args(type_inference)[i];
+                        arg_map.emplace(impl_decl->type_params->params[i]->type, arg);
+                        args.emplace_back(arg);
+                    }
                 }
 
                 // Get the member
@@ -436,12 +440,14 @@ struct CodeGen {
                     // Note that we need to substitute the variables that might be present in the type arguments!
                     auto arg = path.elems.back().type_args[i]->substitute(type_table, var_map);
                     arg_map.emplace(fn_decl->type_params->params[i]->type, arg);
+                    args.emplace_back(arg);
                 }
             }
 
+            THORIN_PUSH(type_args, args);
             THORIN_PUSH(var_map, arg_map);
             emit(*decl, false);
-            return decl_map[MonoDecl(decl, arg_map)];
+            return decl_map[MonoDecl(decl, type_args)];
         } else if (auto addr_of_expr = expr.isa<ast::AddrOfExpr>()) {
             return emit_ptr(*addr_of_expr->expr);
         } else if (auto deref_expr = expr.isa<ast::DerefExpr>()) {
@@ -619,6 +625,35 @@ struct CodeGen {
             cur_bb  = brk;
             cur_mem = brk->param(0);
             return world.tuple({});
+        } else if (auto for_expr = expr.isa<ast::ForExpr>()) {
+            auto arg_type = convert(for_expr->expr->arg->type);
+            auto body_type = convert(for_expr->body->type);
+            auto loop_type = convert(for_expr->type);
+            auto brk_type = world.fn_type({ world.mem_type(), loop_type });
+            auto body_fn_type = world.fn_type({ world.mem_type(), convert(for_expr->ptrn->type), world.fn_type({ world.mem_type(), body_type }) });
+            auto iter_type = world.fn_type({ world.mem_type(), arg_type, world.fn_type({ world.mem_type(), loop_type }) });
+            auto iter_cont_type = world.fn_type({ world.mem_type(), iter_type });
+            auto brk  = world.continuation(brk_type, loc_to_dbg(for_expr->loc, "for_break"));
+            auto body_fn = world.continuation(body_fn_type, loc_to_dbg(for_expr->loc, "for_body"));
+            auto iter_cont = world.continuation(iter_cont_type, loc_to_dbg(for_expr->expr->loc, "iter_cont"));
+
+            auto callee = emit(*for_expr->expr->callee);
+            auto arg = emit(*for_expr->expr->arg);
+            cur_bb->jump(callee, thorin::Defs { cur_mem, body_fn, iter_cont }, loc_to_dbg(for_expr->expr->loc));
+            iter_cont->jump(iter_cont->param(1), thorin::Defs { iter_cont->param(0), arg, brk }, loc_to_dbg(for_expr->expr->loc));
+
+            // Emit the loop body as function
+            cur_bb = body_fn;
+            cur_mem = body_fn->param(0);
+            auto cont = body_fn->param(2);
+            THORIN_PUSH(cur_break, brk);
+            THORIN_PUSH(cur_continue, cont);
+            auto res_body = emit(*for_expr->body);
+            body_fn->jump(cont, thorin::Defs { cur_mem, res_body }, loc_to_dbg(for_expr->body->loc));
+
+            cur_bb = brk;
+            cur_mem = brk->param(0);
+            return brk->param(1);
         } else if (auto fn_expr = expr.isa<ast::FnExpr>()) {
             auto type = convert(fn_expr->type)->as<thorin::FnType>();
             auto cont = world.continuation(type, thorin::CC::C, thorin::Intrinsic::None, loc_to_dbg(fn_expr->loc, "lambda"));
@@ -641,25 +676,25 @@ struct CodeGen {
     // Monomorphized version of a polymorphic declaration with a given type substitution
     struct MonoDecl {
         const ast::Decl* decl;
-        std::unordered_map<const Type*, const Type*> var_map;
+        std::vector<const Type*> type_args;
 
         MonoDecl(const ast::Decl* decl)
             : MonoDecl(decl, {})
         {}
 
-        MonoDecl(const ast::Decl* decl, const std::unordered_map<const Type*, const Type*>& var_map)
-            : decl(decl), var_map(var_map)
+        MonoDecl(const ast::Decl* decl, const std::vector<const Type*>& type_args)
+            : decl(decl), type_args(type_args)
         {}
 
         bool operator == (const MonoDecl& other) const {
-            return decl == other.decl && var_map == other.var_map;
+            return decl == other.decl && type_args == other.type_args;
         }
 
         struct Hash {
             size_t operator () (const MonoDecl& mono_decl) const {
                 return hash_combine(hash_init(),
                     hash_ptr(mono_decl.decl),
-                    hash_list(mono_decl.var_map, [] (auto& pair) { return hash_combine(hash_ptr(pair.first), hash_ptr(pair.second)); })
+                    hash_list(mono_decl.type_args, [] (auto type) { return hash_ptr(type); })
                 );
             }
         };
@@ -671,11 +706,12 @@ struct CodeGen {
     std::unordered_map<MonoDecl, const thorin::Def*, MonoDecl::Hash> decl_map;
     std::unordered_map<const Type*, const thorin::Type*> type_map;
     std::unordered_map<const Type*, const Type*> var_map;
+    std::vector<const Type*> type_args;
 
     thorin::World world;
     thorin::Continuation* cur_bb;
     const thorin::Continuation* cur_break;
-    const thorin::Continuation* cur_continue;
+    const thorin::Def*          cur_continue;
     const thorin::Param*        cur_return;
     const thorin::Def*          cur_mem;
 };

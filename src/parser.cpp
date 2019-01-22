@@ -410,6 +410,7 @@ Ptr<ast::BlockExpr> Parser::parse_block_expr() {
             case Token::If:
             case Token::Match:
             case Token::While:
+            case Token::For:
             case Token::Break:
             case Token::Continue:
             case Token::Return:
@@ -573,6 +574,19 @@ Ptr<ast::WhileExpr> Parser::parse_while_expr() {
     return make_ptr<ast::WhileExpr>(tracker(), std::move(cond), std::move(body));
 }
 
+Ptr<ast::ForExpr> Parser::parse_for_expr() {
+    Tracker tracker(this);
+    eat(Token::For);
+    auto ptrn = parse_ptrn();
+    expect(Token::In);
+    auto expr = parse_expr();
+    Ptr<ast::CallExpr> call(expr.release()->isa<ast::CallExpr>());
+    if (!call)
+        error(ahead().loc(), "invalid for loop expression");
+    auto body = parse_block_expr();
+    return make_ptr<ast::ForExpr>(tracker(), std::move(ptrn), std::move(call), std::move(body));
+}
+
 Ptr<ast::BreakExpr> Parser::parse_break_expr() {
     Tracker tracker(this);
     eat(Token::Break);
@@ -621,6 +635,7 @@ Ptr<ast::Expr> Parser::parse_primary_expr() {
         case Token::If:       expr = std::move(parse_if_expr());       break;
         case Token::Match:    expr = std::move(parse_match_expr());    break;
         case Token::While:    expr = std::move(parse_while_expr());    break;
+        case Token::For:      expr = std::move(parse_for_expr());      break;
         case Token::Break:    expr = std::move(parse_break_expr());    break;
         case Token::Continue: expr = std::move(parse_continue_expr()); break;
         case Token::Return:   expr = std::move(parse_return_expr());   break;

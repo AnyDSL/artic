@@ -116,6 +116,8 @@ void TupleExpr::print(Printer& p) const {
 }
 
 void FnExpr::print_head(Printer& p) const {
+    if (filter)
+        filter->print(p);
     p << '|';
     if (auto tuple = param->isa<TuplePtrn>()) {
         print_list(p, ", ", tuple->args, [&] (auto& a) {
@@ -128,6 +130,8 @@ void FnExpr::print_head(Printer& p) const {
 }
 
 void FnExpr::print(Printer& p) const {
+    if (filter)
+        filter->print(p);
     p << '|';
     if (auto tuple = param->isa<TuplePtrn>()) {
         print_list(p, ", ", tuple->args, [&] (auto& a) {
@@ -220,6 +224,23 @@ void WhileExpr::print_head(Printer& p) const {
 void WhileExpr::print(Printer& p) const {
     p << keyword_style("while") << ' ';
     cond->print(p);
+    p << ' ';
+    body->print(p);
+}
+
+void ForExpr::print_head(Printer& p) const {
+    p << keyword_style("for") << ' ';
+    ptrn->print(p);
+    p << ' ' << keyword_style("in") << ' ';
+    expr->print(p);
+    p << " { ... }";
+}
+
+void ForExpr::print(Printer& p) const {
+    p << keyword_style("for") << ' ';
+    ptrn->print(p);
+    p << ' ' << keyword_style("in") << ' ';
+    expr->print(p);
     p << ' ';
     body->print(p);
 }
@@ -404,7 +425,10 @@ void LetDecl::print(Printer& p) const {
 }
 
 void FnDecl::print_head(Printer& p) const {
-    p << keyword_style("fn") << " " << id.name;
+    p << keyword_style("fn") << ' ';
+    if (fn->filter)
+       fn->filter->print(p);
+    p << id.name;
 
     if (type_params) type_params->print(p);
     print_parens(p, fn->param);
@@ -417,7 +441,10 @@ void FnDecl::print_head(Printer& p) const {
 }
 
 void FnDecl::print(Printer& p) const {
-    p << keyword_style("fn") << " " << id.name;
+    p << keyword_style("fn") << ' ';
+    if (fn->filter)
+       fn->filter->print(p);
+    p << id.name;
 
     if (type_params) type_params->print(p);
     print_parens(p, fn->param);

@@ -197,6 +197,15 @@ void WhileExpr::check(TypeChecker& ctx) const {
     ctx.check(*body);
 }
 
+void ForExpr::check(TypeChecker& ctx) const {
+    ctx.check(*ptrn);
+    if (expr) {
+        ctx.check(*expr->callee);
+        ctx.check(*expr->arg);
+    }
+    ctx.check(*body);
+}
+
 void BreakExpr::check(TypeChecker&) const {}
 void ContinueExpr::check(TypeChecker&) const {}
 void ReturnExpr::check(TypeChecker&) const {}
