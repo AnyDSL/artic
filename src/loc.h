@@ -32,7 +32,7 @@ struct Loc {
             uint32_t(end_col));
     }
 
-    Loc() {}
+    Loc() = default;
     Loc(std::shared_ptr<std::string> file, int row, int col)
         : Loc(file, row, col, row, col)
     {}
