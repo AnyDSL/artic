@@ -21,6 +21,7 @@ namespace artic {
     f(Fn,  "fn") \
     f(If, "if") \
     f(Else, "else") \
+    f(Match, "match") \
     f(While, "while") \
     f(For, "for") \
     f(Break, "break") \
@@ -44,6 +45,7 @@ namespace artic {
     f(Colon, ":") \
     f(Eq, "=") \
     f(Arrow, "->") \
+    f(FatArrow, "=>") \
     f(Inc, "++") \
     f(Dec, "--") \
     f(AddEq, "+=") \

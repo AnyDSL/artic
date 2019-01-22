@@ -181,6 +181,17 @@ void IfExpr::check(TypeChecker& ctx) const {
     if (if_false) ctx.check(*if_false);
 }
 
+void CaseExpr::check(TypeChecker& ctx) const {
+    ctx.check(*ptrn);
+    ctx.check(*expr);
+}
+
+void MatchExpr::check(TypeChecker& ctx) const {
+    ctx.check(*arg);
+    for (auto& case_ : cases)
+        ctx.check(*case_);
+}
+
 void WhileExpr::check(TypeChecker& ctx) const {
     ctx.check(*cond);
     ctx.check(*body);

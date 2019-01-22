@@ -186,6 +186,31 @@ void IfExpr::print(Printer& p) const {
     }
 }
 
+void CaseExpr::print(Printer& p) const {
+    ptrn->print(p);
+    p << " => ";
+    expr->print(p);
+}
+
+void MatchExpr::print_head(Printer& p) const {
+    p << keyword_style("match") << ' ';
+    arg->print(p);
+    p << " ...";
+}
+
+void MatchExpr::print(Printer& p) const {
+    p << keyword_style("match") << ' ';
+    arg->print(p);
+    p << " {" << p.indent();
+    for (size_t i = 0, n = cases.size(); i < n; i++) {
+        p << p.endl();
+        cases[i]->print(p);
+        if (i != n - 1)
+            p << ",";
+    }
+    p << p.unindent() << p.endl() << "}";
+}
+
 void WhileExpr::print_head(Printer& p) const {
     p << keyword_style("while") << ' ';
     cond->print(p);

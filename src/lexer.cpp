@@ -15,6 +15,7 @@ std::unordered_map<std::string, Token::Tag> Lexer::keywords{
     std::make_pair("fn",       Token::Fn),
     std::make_pair("if",       Token::If),
     std::make_pair("else",     Token::Else),
+    std::make_pair("match",    Token::Match),
     std::make_pair("while",    Token::While),
     std::make_pair("for",      Token::For),
     std::make_pair("break",    Token::Break),
@@ -99,6 +100,7 @@ Token Lexer::next() {
         }
         if (accept('=')) {
             if (accept('=')) return Token(loc_, Token::CmpEq);
+            if (accept('>')) return Token(loc_, Token::FatArrow);
             return Token(loc_, Token::Eq);
         }
         if (accept('<')) {

@@ -318,6 +318,8 @@ Ptr<ast::Stmt> Parser::parse_stmt() {
     Tracker tracker(this);
     if (ahead().tag() == Token::If)
         return make_ptr<ast::ExprStmt>(tracker(), parse_if_expr());
+    if (ahead().tag() == Token::Match)
+        return make_ptr<ast::ExprStmt>(tracker(), parse_match_expr());
     if (ahead().tag() == Token::While)
         return make_ptr<ast::ExprStmt>(tracker(), parse_while_expr());
     return parse_expr_stmt();
@@ -406,6 +408,7 @@ Ptr<ast::BlockExpr> Parser::parse_block_expr() {
                 eat(Token::Semi);
                 continue;
             case Token::If:
+            case Token::Match:
             case Token::While:
             case Token::Break:
             case Token::Continue:
@@ -542,6 +545,26 @@ Ptr<ast::IfExpr> Parser::parse_if_expr() {
     return make_ptr<ast::IfExpr>(tracker(), std::move(cond), std::move(if_true), std::move(if_false));
 }
 
+Ptr<ast::CaseExpr> Parser::parse_case_expr() {
+    Tracker tracker(this);
+    auto ptrn = parse_ptrn();
+    expect(Token::FatArrow);
+    auto expr = parse_expr();
+    return make_ptr<ast::CaseExpr>(tracker(), std::move(ptrn), std::move(expr));
+}
+
+Ptr<ast::MatchExpr> Parser::parse_match_expr() {
+    Tracker tracker(this);
+    eat(Token::Match);
+    auto arg = parse_expr();
+    expect(Token::LBrace);
+    PtrVector<ast::CaseExpr> cases;
+    parse_list(Token::RBrace, Token::Comma, [&] {
+        cases.emplace_back(parse_case_expr());
+    });
+    return make_ptr<ast::MatchExpr>(tracker(), std::move(arg), std::move(cases));
+}
+
 Ptr<ast::WhileExpr> Parser::parse_while_expr() {
     Tracker tracker(this);
     eat(Token::While);
@@ -596,6 +619,7 @@ Ptr<ast::Expr> Parser::parse_primary_expr() {
             expr = std::move(parse_fn_expr(false));
             break;
         case Token::If:       expr = std::move(parse_if_expr());       break;
+        case Token::Match:    expr = std::move(parse_match_expr());    break;
         case Token::While:    expr = std::move(parse_while_expr());    break;
         case Token::Break:    expr = std::move(parse_break_expr());    break;
         case Token::Continue: expr = std::move(parse_continue_expr()); break;

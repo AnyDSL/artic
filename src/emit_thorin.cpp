@@ -325,6 +325,36 @@ struct CodeGen {
         }
     }
 
+    const thorin::Def* emit_cond(const ast::Ptrn& ptrn, const thorin::Def* arg) {
+        if (auto typed_ptrn = ptrn.isa<ast::TypedPtrn>()) {
+            return emit_cond(*typed_ptrn->ptrn, arg);
+        } else if (ptrn.isa<ast::IdPtrn>()) {
+            return world.literal_bool(true, thorin::Debug());
+        } else if (auto lit_ptrn = ptrn.isa<ast::LiteralPtrn>()) {
+            auto lit = emit(lit_ptrn->lit, lit_ptrn->type, lit_ptrn->loc);
+            return world.cmp_eq(arg, lit, loc_to_dbg(lit_ptrn->loc));
+        } else if (auto field_ptrn = ptrn.isa<ast::FieldPtrn>()) {
+            if (field_ptrn->is_etc())
+                return world.literal_bool(true, thorin::Debug());
+            return emit_cond(*field_ptrn->ptrn, arg);
+        } else if (auto struct_ptrn = ptrn.isa<ast::StructPtrn>()) {
+            auto cond = world.literal_bool(true, thorin::Debug());
+            for (auto& field : struct_ptrn->fields) {
+                auto field_arg = world.extract(arg, thorin::u32(field->index));
+                cond = world.arithop_and(cond, emit_cond(*field, field_arg));
+            }
+            return cond;
+        } else if (auto tuple_ptrn = ptrn.isa<ast::TuplePtrn>()) {
+            auto cond = world.literal_bool(true, thorin::Debug());
+            for (size_t i = 0, n = tuple_ptrn->args.size(); i < n; ++i)
+                cond = world.arithop_and(cond, emit_cond(*tuple_ptrn->args[i], world.extract(arg, thorin::u32(i))));
+            return cond;
+        } else {
+            assert(false);
+            return nullptr;
+        }
+    }
+
     const thorin::Def* emit_ptr(const ast::Expr& expr) {
         if (auto path_expr = expr.isa<ast::PathExpr>()) {
             auto decl = path_expr->path.symbol->decls.front();
@@ -528,6 +558,36 @@ struct CodeGen {
 
             cur_bb  = next;
             cur_mem = next->param(0);
+            return next->param(1);
+        } else if (auto match_expr = expr.isa<ast::MatchExpr>()) {
+            auto arg = emit(*match_expr->arg);
+            auto match_type = convert(match_expr->type);
+            auto bb_type = world.fn_type({});
+            auto join_type = world.fn_type({ world.mem_type(), match_type });
+            auto next = world.continuation(join_type, loc_to_dbg(match_expr->loc, "match_next"));
+
+            for (auto& case_ : match_expr->cases) {
+                auto case_true  = world.continuation(bb_type, loc_to_dbg(case_->loc, "case_true"));
+                auto case_false = world.continuation(bb_type, loc_to_dbg(case_->loc, "case_false"));
+                auto cond = emit_cond(*case_->ptrn, arg);
+                cur_bb->jump(world.branch(), thorin::Defs { cond, case_true, case_false }, loc_to_dbg(case_->loc, "case"));
+
+                // Emit true case
+                auto old_mem = cur_mem;
+                cur_bb = case_true;
+                auto res_case = emit(*case_->expr);
+                if (cur_bb) cur_bb->jump(next, thorin::Defs { cur_mem, res_case });
+
+                // Emit remaining tests
+                cur_bb = case_false;
+                cur_mem = old_mem;
+            }
+
+            // Handle unspecified cases
+            cur_bb->jump(next, thorin::Defs { cur_mem, world.bottom(match_type) });
+
+            cur_mem = next->param(0);
+            cur_bb = next;
             return next->param(1);
         } else if (auto while_expr = expr.isa<ast::WhileExpr>()) {
             auto cont_type = world.fn_type({ world.mem_type(), world.unit() });

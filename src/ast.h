@@ -514,6 +514,45 @@ struct IfExpr : public Expr {
     void print(Printer&) const override;
 };
 
+/// Case within a match expression.
+struct CaseExpr : public Expr {
+    Ptr<Ptrn> ptrn;
+    Ptr<Expr> expr;
+
+    CaseExpr(const Loc& loc,
+             Ptr<Ptrn>&& ptrn,
+             Ptr<Expr>&& expr)
+        : Expr(loc)
+        , ptrn(std::move(ptrn))
+        , expr(std::move(expr))
+    {}
+
+    const artic::Type* infer(TypeInference&) const override;
+    void bind(NameBinder&) const override;
+    void check(TypeChecker&) const override;
+    void print(Printer&) const override;
+};
+
+/// Match expression.
+struct MatchExpr : public Expr {
+    Ptr<Expr> arg;
+    PtrVector<CaseExpr> cases;
+
+    MatchExpr(const Loc& loc,
+              Ptr<Expr>&& arg,
+              PtrVector<CaseExpr>&& cases)
+        : Expr(loc)
+        , arg(std::move(arg))
+        , cases(std::move(cases))
+    {}
+
+    const artic::Type* infer(TypeInference&) const override;
+    void bind(NameBinder&) const override;
+    void check(TypeChecker&) const override;
+    void print_head(Printer&) const override;
+    void print(Printer&) const override;
+};
+
 /// Base class for loop expressions (while, for)
 struct LoopExpr : public Expr {
     Ptr<BlockExpr> body;

@@ -402,6 +402,20 @@ const artic::Type* IfExpr::infer(TypeInference& ctx) const {
     return ctx.infer(*if_true, ctx.type_table().unit_type());
 }
 
+const artic::Type* CaseExpr::infer(TypeInference& ctx) const {
+    return ctx.infer(*expr);
+}
+
+const artic::Type* MatchExpr::infer(TypeInference& ctx) const {
+    auto arg_type = ctx.infer(*arg);
+    auto expr_type = ctx.type(*this);
+    for (auto& case_ : cases) {
+        ctx.infer(*case_->ptrn, arg_type);
+        ctx.infer(*case_, expr_type);
+    }
+    return expr_type;
+}
+
 const artic::Type* WhileExpr::infer(TypeInference& ctx) const {
     ctx.infer(*cond, ctx.type_table().prim_type(artic::PrimType::I1));
     return ctx.infer(*body, ctx.type_table().tuple_type({}));

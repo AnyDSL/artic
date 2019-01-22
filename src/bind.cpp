@@ -149,6 +149,19 @@ void IfExpr::bind(NameBinder& ctx) const {
     if (if_false) ctx.bind(*if_false);
 }
 
+void CaseExpr::bind(NameBinder& ctx) const {
+    ctx.push_scope();
+    ctx.bind(*ptrn);
+    ctx.bind(*expr);
+    ctx.pop_scope();
+}
+
+void MatchExpr::bind(NameBinder& ctx) const {
+    ctx.bind(*arg);
+    for (auto& case_ : cases)
+        ctx.bind(*case_);
+}
+
 void WhileExpr::bind(NameBinder& ctx) const {
     ctx.bind(*cond);
     auto old = ctx.push_loop(this);
