@@ -645,10 +645,14 @@ Ptr<ast::Expr> Parser::parse_primary_expr() {
     }
     if (ahead().tag() == Token::Inc || ahead().tag() == Token::Dec)
         expr = std::move(parse_postfix_expr(std::move(expr)));
-    while (ahead().tag() == Token::LParen)
-        expr = std::move(parse_call_expr(std::move(expr)));
-    while (ahead().tag() == Token::Dot)
-        expr = std::move(parse_proj_expr(std::move(expr)));
+    while (true) {
+        if (ahead().tag() == Token::LParen)
+            expr = std::move(parse_call_expr(std::move(expr)));
+        else if (ahead().tag() == Token::Dot)
+            expr = std::move(parse_proj_expr(std::move(expr)));
+        else
+            break;
+    }
     return parse_typed_expr(std::move(expr));
 }
 
