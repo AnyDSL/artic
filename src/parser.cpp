@@ -355,7 +355,7 @@ Ptr<ast::Expr> Parser::parse_typed_expr(Ptr<Expr>&& expr) {
 
 Ptr<ast::PathExpr> Parser::parse_path_expr() {
     Tracker tracker(this);
-    auto path = parse_path(true);
+    auto path = parse_path(false);
     return make_ptr<ast::PathExpr>(tracker(), std::move(path));
 }
 
