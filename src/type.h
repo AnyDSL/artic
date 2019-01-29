@@ -302,6 +302,19 @@ struct TupleType : public TypeApp {
     void print(Printer&) const override;
 };
 
+/// Type of an array, containing the type of its elements.
+struct ArrayType : public TypeApp {
+    ArrayType(const Type* elem)
+        : TypeApp({ elem })
+    {}
+
+    const Type* elem() const { return args[0]; }
+
+    const CompoundType* rebuild(TypeTable&, Args&&) const override;
+
+    void print(Printer&) const override;
+};
+
 /// Function type with domain and codomain types (multi-argument functions use tuple types for the domain).
 struct FnType : public TypeApp {
     using TypeApp::Args;
@@ -480,6 +493,7 @@ public:
     const ImplType*     impl_type(const TraitType*, const Type*);
     const TupleType*    tuple_type(TupleType::Args&&);
     const TupleType*    unit_type();
+    const ArrayType*    array_type(const Type*);
     const FnType*       fn_type(const Type*, const Type*);
     const RefType*      ref_type(const Type*, AddrSpace, bool);
     const PtrType*      ptr_type(const Type*, AddrSpace, bool);

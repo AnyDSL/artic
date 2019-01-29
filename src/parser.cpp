@@ -713,12 +713,13 @@ Ptr<ast::ErrorExpr> Parser::parse_error_expr() {
 Ptr<ast::Type> Parser::parse_type() {
     Ptr<ast::Type> type;
     switch (ahead().tag()) {
-        case Token::Fn:     return parse_fn_type();
-        case Token::Self:   return parse_self_type();
-        case Token::Id:     return parse_named_type();
-        case Token::LParen: return parse_tuple_type();
-        case Token::And:    return parse_ptr_type();
-        default:            return parse_error_type();
+        case Token::Fn:       return parse_fn_type();
+        case Token::Self:     return parse_self_type();
+        case Token::Id:       return parse_named_type();
+        case Token::LParen:   return parse_tuple_type();
+        case Token::LBracket: return parse_array_type();
+        case Token::And:      return parse_ptr_type();
+        default:              return parse_error_type();
     }
 }
 
@@ -745,6 +746,14 @@ Ptr<ast::Type> Parser::parse_tuple_type() {
     return args.size() == 1
         ? std::move(args[0])
         : make_ptr<ast::TupleType>(tracker(), std::move(args));
+}
+
+Ptr<ast::ArrayType> Parser::parse_array_type() {
+    Tracker tracker(this);
+    eat(Token::LBracket);
+    auto elem = parse_type();
+    expect(Token::RBracket);
+    return make_ptr<ast::ArrayType>(tracker(), std::move(elem));
 }
 
 Ptr<ast::FnType> Parser::parse_fn_type() {

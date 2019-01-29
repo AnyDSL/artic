@@ -75,6 +75,7 @@ private:
     Ptr<ast::Type>          parse_named_type();
     Ptr<ast::PrimType>      parse_prim_type(ast::PrimType::Tag);
     Ptr<ast::Type>          parse_tuple_type();
+    Ptr<ast::ArrayType>     parse_array_type();
     Ptr<ast::FnType>        parse_fn_type();
     Ptr<ast::TypeApp>       parse_type_app();
     Ptr<ast::PtrType>       parse_ptr_type();

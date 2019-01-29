@@ -54,6 +54,10 @@ void TupleType::bind(NameBinder& ctx) const {
     for (auto& arg : args) ctx.bind(*arg);
 }
 
+void ArrayType::bind(NameBinder& ctx) const {
+    ctx.bind(*elem);
+}
+
 void FnType::bind(NameBinder& ctx) const {
     ctx.bind(*from);
     if (to) ctx.bind(*to);

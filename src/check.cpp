@@ -91,6 +91,10 @@ void TupleType::check(TypeChecker& ctx) const {
     for (auto& arg : args) ctx.check(*arg);
 }
 
+void ArrayType::check(TypeChecker& ctx) const {
+    ctx.check(*elem);
+}
+
 void FnType::check(TypeChecker& ctx) const {
     ctx.check(*from);
     ctx.check(*to);

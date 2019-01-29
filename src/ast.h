@@ -202,6 +202,20 @@ struct TupleType : public Type {
     void print(Printer&) const override;
 };
 
+/// Array type (unsized).
+struct ArrayType : public Type {
+    Ptr<Type> elem;
+
+    ArrayType(const Loc& loc, Ptr<Type>&& elem)
+        : Type(loc), elem(std::move(elem))
+    {}
+
+    const artic::Type* infer(TypeInference&) const override;
+    void bind(NameBinder&) const override;
+    void check(TypeChecker&) const override;
+    void print(Printer&) const override;
+};
+
 /// Function type, consisting of domain and codomain types.
 struct FnType : public Type {
     Ptr<Type> from;

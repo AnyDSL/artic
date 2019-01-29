@@ -540,6 +540,12 @@ void TupleType::print(Printer& p) const {
     p << ')';
 }
 
+void ArrayType::print(Printer& p) const {
+    p << '[';
+    elem->print(p);
+    p << ']';
+}
+
 void FnType::print(Printer& p) const {
     p << keyword_style("fn") << ' ';
     print_parens(p, from);
@@ -621,6 +627,12 @@ void TupleType::print(Printer& p) const {
         arg->print(p);
     });
     p << ')';
+}
+
+void ArrayType::print(Printer& p) const {
+    p << '[';
+    elem()->print(p);
+    p << ']';
 }
 
 void FnType::print(Printer& p) const {

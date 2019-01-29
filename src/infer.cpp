@@ -263,6 +263,10 @@ const artic::Type* TupleType::infer(TypeInference& ctx) const {
     return ctx.type_table().tuple_type(std::move(types));
 }
 
+const artic::Type* ArrayType::infer(TypeInference& ctx) const {
+    return ctx.type_table().array_type(ctx.infer(*elem));
+}
+
 const artic::Type* FnType::infer(TypeInference& ctx) const {
     return ctx.type_table().fn_type(ctx.infer(*from), ctx.infer(*to));
 }

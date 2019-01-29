@@ -246,6 +246,10 @@ const CompoundType* TupleType::rebuild(TypeTable& table, Args&& new_args) const 
     return table.tuple_type(std::move(new_args));
 }
 
+const CompoundType* ArrayType::rebuild(TypeTable& table, Args&& new_args) const {
+    return table.array_type(new_args[0]);
+}
+
 const CompoundType* FnType::rebuild(TypeTable& table, Args&& new_args) const {
     return table.fn_type(new_args[0], new_args[1]);
 }
@@ -334,6 +338,10 @@ const TupleType* TypeTable::tuple_type(TupleType::Args&& args) {
 
 const TupleType* TypeTable::unit_type() {
     return new_type<TupleType>(std::vector<const Type*>{});
+}
+
+const ArrayType* TypeTable::array_type(const Type* elem) {
+    return new_type<ArrayType>(elem);
 }
 
 const FnType* TypeTable::fn_type(const Type* from, const Type* to) {
