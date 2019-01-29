@@ -463,7 +463,7 @@ struct CodeGen {
             thorin::Array<const thorin::Def*> args(struct_decl->fields.size());
             for (auto& field : struct_expr->fields)
                 args[field->index] = emit(*field);
-            return world.sigma(convert(struct_type), args, loc_to_dbg(struct_expr->loc));
+            return world.tuple(convert(struct_type), args, loc_to_dbg(struct_expr->loc));
         } else if (auto proj_expr = expr.isa<ast::ProjExpr>()) {
             auto field_ptr = emit_ptr(*proj_expr);
             auto load_tuple = world.load(cur_mem, field_ptr, loc_to_dbg(proj_expr->loc));
