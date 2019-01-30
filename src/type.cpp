@@ -40,18 +40,18 @@ bool TraitType::subtrait(TypeTable& table, const TraitType* trait) const {
 
 // Update --------------------------------------------------------------------------
 
-void StructType::update(const Type* type) const {
+void StructType::update(const Type* type) {
     auto struct_decl = type->as<StructType>()->decl;
     assert(!decl || !struct_decl || struct_decl == decl);
     if (struct_decl && !decl)
-        const_cast<StructType*>(this)->decl = struct_decl;
+        decl = struct_decl;
 }
 
-void TraitType::update(const Type* type) const {
+void TraitType::update(const Type* type) {
     auto trait_decl = type->as<TraitType>()->decl;
     assert(!decl || !trait_decl || trait_decl == decl);
     if (trait_decl && !decl)
-        const_cast<TraitType*>(this)->decl = trait_decl;
+        decl = trait_decl;
 }
 
 // Members/Supers ------------------------------------------------------------------

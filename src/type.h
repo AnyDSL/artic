@@ -115,7 +115,7 @@ struct Type : public Cast<Type> {
     }
 
     /// Update mutable fields when the object is reconstructed.
-    virtual void update(const Type*) const {}
+    virtual void update(const Type*) {}
     /// Computes a hash value for the type.
     virtual uint32_t hash() const = 0;
     /// Test for structural equality with another type.
@@ -229,7 +229,7 @@ struct StructType : public RecordType {
     const Members& members(TypeTable&) const override;
     const CompoundType* rebuild(TypeTable&, Args&&) const override;
 
-    void update(const Type*) const override;
+    void update(const Type*) override;
     void print(Printer&) const override;
 };
 
@@ -249,7 +249,7 @@ struct TraitType : public TypeApp {
 
     const CompoundType* rebuild(TypeTable&, Args&&) const override;
 
-    void update(const Type*) const override;
+    void update(const Type*) override;
     void print(Printer&) const override;
 
 protected:
@@ -515,7 +515,7 @@ private:
         auto it = types_.find(&t);
         if (it != types_.end()) {
             assert(t.equals(*it));
-            (*it)->update(&t);
+            const_cast<Type*>(*it)->update(&t);
             return (*it)->template as<T>();
         }
         const T* ptr = new T(std::move(t));
