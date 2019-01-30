@@ -354,9 +354,21 @@ const artic::Type* BlockExpr::infer(TypeInference& ctx) const {
 
 const artic::Type* CallExpr::infer(TypeInference& ctx) const {
     auto arg_type = ctx.infer(*arg);
-    auto ret_type = ctx.type(*this);
-    ctx.infer(*callee, ctx.type_table().fn_type(arg_type, ret_type));
-    return ret_type;
+    auto callee_type = ctx.infer(*callee);
+    auto ref_type = callee_type->isa<RefType>();
+    if (ref_type)
+        callee_type = ref_type->pointee();
+    if (callee_type->inner()->isa<artic::FnType>()) {
+        auto ret_type = ctx.type(*this);
+        ctx.unify(loc, callee_type, ctx.type_table().fn_type(arg_type, ret_type));
+        return ret_type;
+    } else if (callee_type->isa<artic::ArrayType>()) {
+        elem_type = elem_type ? elem_type : ctx.type_table().unknown_type();
+        auto res_type = ref_type ? ctx.type_table().ref_type(elem_type, ref_type->addr_space, ref_type->mut) : elem_type;
+        ctx.unify(loc, callee_type, ctx.type_table().array_type(elem_type));
+        return res_type;
+    }
+    return ctx.type(*this);
 }
 
 const artic::Type* ProjExpr::infer(TypeInference& ctx) const {

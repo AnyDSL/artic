@@ -488,6 +488,8 @@ struct CallExpr : public Expr {
     Ptr<Expr> callee;
     Ptr<Expr> arg;
 
+    mutable const artic::Type* elem_type;
+
     CallExpr(const Loc& loc,
              Ptr<Expr>&& callee,
              Ptr<Expr>&& arg)
