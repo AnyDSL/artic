@@ -77,7 +77,11 @@ void TypeChecker::check_impl(const Loc& loc, const ImplType* impl_type) {
 
 void TypeChecker::check_lit(const Loc& loc, const Literal& lit, const Type* type) {
     if (!lit.is_bool())
-        check_impl(loc, type_table().impl_type(num_trait, type));
+        check_num(loc, type);
+}
+
+void TypeChecker::check_num(const Loc& loc, const Type* type) {
+    check_impl(loc, type_table().impl_type(num_trait, type));
 }
 
 namespace ast {
@@ -180,6 +184,8 @@ void BlockExpr::check(TypeChecker& ctx) const {
 void CallExpr::check(TypeChecker& ctx) const {
     ctx.check(*callee);
     ctx.check(*arg);
+    if (callee->type->isa<artic::ArrayType>())
+        ctx.check_num(loc, arg->type);
 }
 
 void ProjExpr::check(TypeChecker& ctx) const {
