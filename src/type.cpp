@@ -158,10 +158,9 @@ uint32_t SelfType::hash() const {
 }
 
 uint32_t TypeVar::hash() const {
-    return hash_combine(hash_init(), index,
-        hash_list(traits, [] (auto& t) {
-            return hash_string(t->name);
-        })
+    return hash_combine(hash_init(),
+        index, hash_string(name),
+        hash_list(traits, [] (auto& t) { return t->hash(); })
     );
 }
 
@@ -382,8 +381,8 @@ const SelfType* TypeTable::self_type() {
     return new_type<SelfType>();
 }
 
-const TypeVar* TypeTable::type_var(uint32_t index, TypeVar::Traits&& traits) {
-    return new_type<TypeVar>(index, std::move(traits));
+const TypeVar* TypeTable::type_var(uint32_t index, std::string&& name, TypeVar::Traits&& traits) {
+    return new_type<TypeVar>(index, std::move(name), std::move(traits));
 }
 
 const ErrorType* TypeTable::error_type(const Loc& loc) {

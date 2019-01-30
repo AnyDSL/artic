@@ -525,7 +525,7 @@ const artic::Type* TypeParam::infer(TypeInference& ctx) const {
             return ctx.type_table().error_type(loc);
         traits.emplace(trait);
     }
-    return ctx.type_table().type_var(index, std::move(traits));
+    return ctx.type_table().type_var(index, std::string(id.name), std::move(traits));
 }
 
 const artic::Type* TypeParamList::infer(TypeInference& ctx) const {

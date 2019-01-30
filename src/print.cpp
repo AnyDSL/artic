@@ -672,14 +672,8 @@ void PolyType::print(Printer& p) const {
         return var1->index < var2->index;
     });
     for (size_t i = 0, n = std::min(vars.size(), num_vars); i < n; i++) {
-        p << type_var_style(p.var_name(i));
         assert(vars[i]->index == i);
-        if (!vars[i]->traits.empty()) {
-            p << " : ";
-            print_list(p, " + ", vars[i]->traits, [&] (auto& trait) {
-                p << trait->name;
-            });
-        }
+        vars[i]->print(p);
         if (i != n - 1) p << ", ";
     }
     p << "> ";
@@ -691,7 +685,13 @@ void SelfType::print(Printer& p) const {
 }
 
 void TypeVar::print(Printer& p) const {
-    p << type_var_style(p.var_name(index));
+    p << type_var_style(name);
+    if (!traits.empty()) {
+        p << " : ";
+        print_list(p, " + ", traits, [&] (auto& trait) {
+            p << trait->name;
+        });
+    }
 }
 
 void UnknownType::print(Printer& p) const {

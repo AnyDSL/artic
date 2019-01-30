@@ -408,11 +408,13 @@ struct TypeVar : public Type {
 
     /// Index of the type variable.
     uint32_t index;
+    /// Name of the variable.
+    std::string name;
     /// Set of traits attached to the variable.
     Traits traits;
 
-    TypeVar(uint32_t index, Traits&& traits)
-        : index(index), traits(std::move(traits))
+    TypeVar(uint32_t index, std::string&& name, Traits&& traits)
+        : index(index), name(std::move(name)), traits(std::move(traits))
     {}
 
     uint32_t hash() const override;
@@ -500,7 +502,7 @@ public:
     const PtrType*      ptr_type(const Type*, AddrSpace, bool);
     const PolyType*     poly_type(size_t, const Type*);
     const SelfType*     self_type();
-    const TypeVar*      type_var(uint32_t, TypeVar::Traits&& traits = TypeVar::Traits());
+    const TypeVar*      type_var(uint32_t, std::string&&, TypeVar::Traits&& traits = TypeVar::Traits());
     const ErrorType*    error_type(const Loc&);
     const InferError*   infer_error(const Loc&, const Type*, const Type*);
     const UnknownType*  unknown_type();

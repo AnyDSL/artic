@@ -21,8 +21,6 @@ struct Printer {
     static constexpr Unindent unindent() { return Unindent(); }
 
     log::Output& out;
-    std::vector<std::string> var_names;
-
     size_t level = 0;   ///< Initial indentation level
     std::string tab;    ///< String used as tabulation symbol
 
@@ -37,15 +35,6 @@ struct Printer {
         out << '\n';
         for (size_t i = 0; i < level; i++) out << tab;
         return *this;
-    }
-
-    std::string var_name(size_t i) {
-        if (var_names.empty()) {
-            return "T" + std::to_string(i);
-        } else {
-            assert(i < var_names.size());
-            return var_names[i];
-        }
     }
 };
 
