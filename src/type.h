@@ -114,6 +114,8 @@ struct Type : public Cast<Type> {
         return result;
     }
 
+    /// Update mutable fields when the object is reconstructed.
+    virtual void update(const Type*) const {}
     /// Computes a hash value for the type.
     virtual uint32_t hash() const = 0;
     /// Test for structural equality with another type.
@@ -227,6 +229,7 @@ struct StructType : public RecordType {
     const Members& members(TypeTable&) const override;
     const CompoundType* rebuild(TypeTable&, Args&&) const override;
 
+    void update(const Type*) const override;
     void print(Printer&) const override;
 };
 
@@ -246,6 +249,7 @@ struct TraitType : public TypeApp {
 
     const CompoundType* rebuild(TypeTable&, Args&&) const override;
 
+    void update(const Type*) const override;
     void print(Printer&) const override;
 
 protected:
@@ -418,14 +422,11 @@ struct TypeVar : public Type {
 
 /// Unknown type in a set of type equations.
 struct UnknownType : public Type {
-    typedef std::unordered_set<const TraitType*> Traits;
-
     /// Number that will be displayed when printing this type.
     uint32_t number;
 
     UnknownType(uint32_t number)
         : number(number)
-
     {}
 
     uint32_t hash() const override;
@@ -514,6 +515,7 @@ private:
         auto it = types_.find(&t);
         if (it != types_.end()) {
             assert(t.equals(*it));
+            (*it)->update(&t);
             return (*it)->template as<T>();
         }
         const T* ptr = new T(std::move(t));

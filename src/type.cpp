@@ -38,6 +38,22 @@ bool TraitType::subtrait(TypeTable& table, const TraitType* trait) const {
            std::any_of(supers_.begin(), supers_.end(), [&] (auto super) { return super->subtrait(table, trait); });
 }
 
+// Update --------------------------------------------------------------------------
+
+void StructType::update(const Type* type) const {
+    auto struct_decl = type->as<StructType>()->decl;
+    assert(!decl || !struct_decl || struct_decl == decl);
+    if (struct_decl && !decl)
+        const_cast<StructType*>(this)->decl = struct_decl;
+}
+
+void TraitType::update(const Type* type) const {
+    auto trait_decl = type->as<TraitType>()->decl;
+    assert(!decl || !trait_decl || trait_decl == decl);
+    if (trait_decl && !decl)
+        const_cast<TraitType*>(this)->decl = trait_decl;
+}
+
 // Members/Supers ------------------------------------------------------------------
 
 const StructType::Members& StructType::members(TypeTable& table) const {

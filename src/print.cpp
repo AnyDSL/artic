@@ -490,7 +490,6 @@ void TraitDecl::print(Printer& p) const {
         for (auto& decl : decls) {
             p << p.endl();
             decl->print(p);
-            p << ';';
         }
         p << p.unindent() << p.endl();
     }

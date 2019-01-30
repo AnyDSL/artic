@@ -28,6 +28,8 @@ void TypeChecker::check(const ast::Node& node) {
         node.isa<ast::TypeParamList>())
         return;
 
+    // Check if the type contains any type inference error,
+    // and emit a detailed diagnostic of all the unification steps.
     if (node.type->has<ErrorType>()) {
         error(node.loc, "incorrect type for '{}'", node);
         for (auto& error : node.type->all<InferError>()) {
@@ -71,6 +73,11 @@ void TypeChecker::check_impl(const Loc& loc, const ImplType* impl_type) {
         return;
 
     error(loc, "no implementation of trait '{}' found for type '{}'", *impl_type->trait()->as<artic::Type>(), *impl_type->self());
+}
+
+void TypeChecker::check_lit(const Loc& loc, const Literal& lit, const Type* type) {
+    if (!lit.is_bool())
+        check_impl(loc, type_table().impl_type(num_trait, type));
 }
 
 namespace ast {
@@ -131,7 +138,9 @@ void PathExpr::check(TypeChecker& ctx) const {
     ctx.check(path);
 }
 
-void LiteralExpr::check(TypeChecker&) const {}
+void LiteralExpr::check(TypeChecker& ctx) const {
+    ctx.check_lit(loc, lit, type);
+}
 
 void FieldExpr::check(TypeChecker& ctx) const {
     ctx.check(*expr);
@@ -235,7 +244,9 @@ void IdPtrn::check(TypeChecker& ctx) const {
     ctx.check(*decl);
 }
 
-void LiteralPtrn::check(TypeChecker&) const {}
+void LiteralPtrn::check(TypeChecker& ctx) const {
+    ctx.check_lit(loc, lit, type);
+}
 
 void FieldPtrn::check(TypeChecker& ctx) const {
     if (ptrn) ctx.check(*ptrn);
