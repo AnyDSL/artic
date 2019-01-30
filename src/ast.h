@@ -425,6 +425,22 @@ struct TupleExpr : public Expr {
     void print(Printer&) const override;
 };
 
+/// Array expression.
+struct ArrayExpr : public Expr {
+    PtrVector<Expr> elems;
+
+    mutable const artic::Type* elem_type;
+
+    ArrayExpr(const Loc& loc, PtrVector<Expr>&& elems)
+        : Expr(loc), elems(std::move(elems)), elem_type(nullptr)
+    {}
+
+    const artic::Type* infer(TypeInference&) const override;
+    void bind(NameBinder&) const override;
+    void check(TypeChecker&) const override;
+    void print(Printer&) const override;
+};
+
 /// Anonymous function expression.
 struct FnExpr : public Expr {
     Ptr<Filter> filter;

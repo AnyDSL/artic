@@ -50,6 +50,7 @@ private:
     Ptr<ast::FieldExpr>     parse_field_expr();
     Ptr<ast::StructExpr>    parse_struct_expr(Ptr<ast::Expr>&&);
     Ptr<ast::Expr>          parse_tuple_expr();
+    Ptr<ast::ArrayExpr>     parse_array_expr();
     Ptr<ast::BlockExpr>     parse_block_expr();
     Ptr<ast::FnExpr>        parse_fn_expr(bool);
     Ptr<ast::CallExpr>      parse_call_expr(Ptr<ast::Expr>&&);

@@ -326,6 +326,13 @@ const artic::Type* TupleExpr::infer(TypeInference& ctx) const {
     return ctx.type_table().tuple_type(std::move(type_args));
 }
 
+const artic::Type* ArrayExpr::infer(TypeInference& ctx) const {
+    elem_type = elem_type ? elem_type : ctx.type_table().unknown_type();
+    for (auto& elem : elems)
+        ctx.infer(*elem, elem_type);
+    return ctx.type_table().array_type(elem_type);
+}
+
 const artic::Type* FnExpr::infer(TypeInference& ctx) const {
     if (filter) ctx.infer(*filter);
 

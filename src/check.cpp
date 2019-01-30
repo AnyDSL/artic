@@ -21,6 +21,7 @@ void TypeChecker::check(const ast::Node& node) {
     // every faulty sub-expression.
     if (node.isa<ast::BlockExpr>() ||
         node.isa<ast::TupleExpr>() ||
+        node.isa<ast::ArrayExpr>() ||
         node.isa<ast::StructExpr>() ||
         node.isa<ast::TuplePtrn>() ||
         node.isa<ast::StructPtrn>() ||
@@ -31,7 +32,8 @@ void TypeChecker::check(const ast::Node& node) {
         error(node.loc, "incorrect type for '{}'", node);
         for (auto& error : node.type->all<InferError>()) {
             if (error->left->isa<InferError>() ||
-                error->right->isa<InferError>())
+                error->right->isa<InferError>() ||
+                error->as<Type>()->has<UnknownType>())
                 continue;
             note(error->loc,
                  "resulting from unification of '{}' and '{}'",
@@ -145,6 +147,10 @@ void StructExpr::check(TypeChecker& ctx) const {
 
 void TupleExpr::check(TypeChecker& ctx) const {
     for (auto& arg : args) ctx.check(*arg);
+}
+
+void ArrayExpr::check(TypeChecker& ctx) const {
+    for (auto& elem : elems) ctx.check(*elem);
 }
 
 void FnExpr::check(TypeChecker& ctx) const {

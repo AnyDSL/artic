@@ -115,6 +115,14 @@ void TupleExpr::print(Printer& p) const {
     p << ')';
 }
 
+void ArrayExpr::print(Printer& p) const {
+    p << '[';
+    print_list(p, ", ", elems, [&] (auto& a) {
+        a->print(p);
+    });
+    p << ']';
+}
+
 void FnExpr::print_head(Printer& p) const {
     if (filter)
         filter->print(p);

@@ -395,6 +395,16 @@ Ptr<ast::Expr> Parser::parse_tuple_expr() {
         : make_ptr<ast::TupleExpr>(tracker(), std::move(args));
 }
 
+Ptr<ast::ArrayExpr> Parser::parse_array_expr() {
+    Tracker tracker(this);
+    eat(Token::LBracket);
+    PtrVector<ast::Expr> elems;
+    parse_list(Token::RBracket, Token::Comma, [&] {
+        elems.emplace_back(parse_expr());
+    });
+    return make_ptr<ast::ArrayExpr>(tracker(), std::move(elems));
+}
+
 Ptr<ast::BlockExpr> Parser::parse_block_expr() {
     Tracker tracker(this);
     eat(Token::LBrace);
@@ -417,6 +427,7 @@ Ptr<ast::BlockExpr> Parser::parse_block_expr() {
             case Token::Id:
             case Token::Lit:
             case Token::LParen:
+            case Token::LBracket:
             case Token::LBrace:
             case Token::Or:
             case Token::And:
@@ -617,9 +628,10 @@ Ptr<ast::Expr> Parser::parse_primary_expr() {
         case Token::Sub:
             expr = std::move(parse_prefix_expr());
             break;
-        case Token::LBrace: expr = std::move(parse_block_expr());   break;
-        case Token::LParen: expr = std::move(parse_tuple_expr());   break;
-        case Token::Lit:    expr = std::move(parse_literal_expr()); break;
+        case Token::LBrace:   expr = std::move(parse_block_expr());   break;
+        case Token::LParen:   expr = std::move(parse_tuple_expr());   break;
+        case Token::LBracket: expr = std::move(parse_array_expr());   break;
+        case Token::Lit:      expr = std::move(parse_literal_expr()); break;
         case Token::Id:
             expr = std::move(parse_path_expr());
             if (ahead(0).tag() == Token::LBrace &&

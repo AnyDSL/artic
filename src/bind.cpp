@@ -107,6 +107,10 @@ void TupleExpr::bind(NameBinder& ctx) const {
     for (auto& arg : args) ctx.bind(*arg);
 }
 
+void ArrayExpr::bind(NameBinder& ctx) const {
+    for (auto& elem : elems) ctx.bind(*elem);
+}
+
 void FnExpr::bind(NameBinder& ctx) const {
     ctx.push_scope();
     if (param)  ctx.bind(*param);
