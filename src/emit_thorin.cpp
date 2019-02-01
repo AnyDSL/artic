@@ -29,7 +29,7 @@ struct CodeGen {
     }
 
     void register_std_impls() {
-        auto true_def = world.literal_bool(true, thorin::Debug{});
+        auto true_def = world.lit_bool(true, thorin::Debug{});
 
         auto register_unop = [&] (const std::string& name, const Type* prim_type, auto f) {
             auto impl_type   = type_table.impl_type(type_table.trait_type(std::string(name), {}, nullptr), prim_type);
@@ -158,7 +158,7 @@ struct CodeGen {
     }
 
     const thorin::Debug loc_to_dbg(const Loc& loc, const std::string& name = "") {
-        return thorin::Debug(thorin::Location(loc.file->c_str(), loc.begin_row, loc.begin_col, loc.end_row, loc.end_col), name);
+        return thorin::Debug(thorin::Loc(loc.file->c_str(), loc.begin_row, loc.begin_col, loc.end_row, loc.end_col), name);
     }
 
     thorin::AddrSpace convert(const AddrSpace addr_space) {
@@ -213,7 +213,7 @@ struct CodeGen {
                 ops[i] = convert(tuple_type->args[i]);
             return type_map[type] = world.sigma(ops);
         } else if (auto ptr_type = type->isa<PtrType>()) {
-            return world.ptr_type(convert(ptr_type->pointee()), 1, -1, convert(ptr_type->addr_space));
+            return world.ptr_type(convert(ptr_type->pointee()), -1, convert(ptr_type->addr_space));
         } else if (auto fn_type = type->isa<FnType>()) {
             auto mem = world.mem_type();
             if (fn_type->to()->isa<NoRetType>())
@@ -233,17 +233,17 @@ struct CodeGen {
         auto double_value  = [=] () -> double   { return lit.is_double()  ? lit.as_double()  : lit.as_integer(); };
         auto integer_value = [=] () -> uint64_t { return lit.is_integer() ? lit.as_integer() : lit.as_double();  };
         switch (type->as<PrimType>()->tag) {
-            case PrimType::I1:  return world.literal_bool(lit.as_bool(), dbg);
-            case PrimType::I8:  return world.literal_qs8 (integer_value(), dbg);
-            case PrimType::I16: return world.literal_qs16(integer_value(), dbg);
-            case PrimType::I32: return world.literal_qs32(integer_value(), dbg);
-            case PrimType::I64: return world.literal_qs64(integer_value(), dbg);
-            case PrimType::U8:  return world.literal_qu8 (integer_value(), dbg);
-            case PrimType::U16: return world.literal_qu16(integer_value(), dbg);
-            case PrimType::U32: return world.literal_qu32(integer_value(), dbg);
-            case PrimType::U64: return world.literal_qu64(integer_value(), dbg);
-            case PrimType::F32: return world.literal_qf32(double_value(), dbg);
-            case PrimType::F64: return world.literal_qf64(double_value(), dbg);
+            case PrimType::I1:  return world.lit_bool(lit.as_bool(), dbg);
+            case PrimType::I8:  return world.lit_qs8 (integer_value(), dbg);
+            case PrimType::I16: return world.lit_qs16(integer_value(), dbg);
+            case PrimType::I32: return world.lit_qs32(integer_value(), dbg);
+            case PrimType::I64: return world.lit_qs64(integer_value(), dbg);
+            case PrimType::U8:  return world.lit_qu8 (integer_value(), dbg);
+            case PrimType::U16: return world.lit_qu16(integer_value(), dbg);
+            case PrimType::U32: return world.lit_qu32(integer_value(), dbg);
+            case PrimType::U64: return world.lit_qu64(integer_value(), dbg);
+            case PrimType::F32: return world.lit_qf32(double_value(), dbg);
+            case PrimType::F64: return world.lit_qf64(double_value(), dbg);
             default:
                 assert(false);
                 return nullptr;
@@ -278,7 +278,7 @@ struct CodeGen {
     const thorin::Def* emit(const ast::Filter& filter) {
         if (filter.expr)
             return emit(*filter.expr);
-        return world.literal_bool(true, thorin::Debug());
+        return world.lit_bool(true, thorin::Debug());
     }
 
     void emit_fn_body(const ast::FnExpr& fn_expr, thorin::Lam* cont) {
@@ -329,23 +329,23 @@ struct CodeGen {
         if (auto typed_ptrn = ptrn.isa<ast::TypedPtrn>()) {
             return emit_cond(*typed_ptrn->ptrn, arg);
         } else if (ptrn.isa<ast::IdPtrn>()) {
-            return world.literal_bool(true, thorin::Debug());
+            return world.lit_bool(true, thorin::Debug());
         } else if (auto lit_ptrn = ptrn.isa<ast::LiteralPtrn>()) {
             auto lit = emit(lit_ptrn->lit, lit_ptrn->type, lit_ptrn->loc);
             return world.cmp_eq(arg, lit, loc_to_dbg(lit_ptrn->loc));
         } else if (auto field_ptrn = ptrn.isa<ast::FieldPtrn>()) {
             if (field_ptrn->is_etc())
-                return world.literal_bool(true, thorin::Debug());
+                return world.lit_bool(true, thorin::Debug());
             return emit_cond(*field_ptrn->ptrn, arg);
         } else if (auto struct_ptrn = ptrn.isa<ast::StructPtrn>()) {
-            auto cond = world.literal_bool(true, thorin::Debug());
+            auto cond = world.lit_bool(true, thorin::Debug());
             for (auto& field : struct_ptrn->fields) {
                 auto field_arg = world.extract(arg, thorin::u32(field->index));
                 cond = world.arithop_and(cond, emit_cond(*field, field_arg));
             }
             return cond;
         } else if (auto tuple_ptrn = ptrn.isa<ast::TuplePtrn>()) {
-            auto cond = world.literal_bool(true, thorin::Debug());
+            auto cond = world.lit_bool(true, thorin::Debug());
             for (size_t i = 0, n = tuple_ptrn->args.size(); i < n; ++i)
                 cond = world.arithop_and(cond, emit_cond(*tuple_ptrn->args[i], world.extract(arg, thorin::u32(i))));
             return cond;
@@ -368,7 +368,7 @@ struct CodeGen {
                 expr_type = ref_type->pointee();
             auto ptr = expr_type->isa<PtrType>() ? emit(*proj_expr->expr) : emit_ptr(*proj_expr->expr);
             auto dbg = loc_to_dbg(proj_expr->loc);
-            return world.lea(ptr, world.literal_qs32(proj_expr->index, dbg), dbg);
+            return world.lea(ptr, world.lit_qs32(proj_expr->index, dbg), dbg);
         } else {
             auto dbg = loc_to_dbg(expr.loc);
             auto frame_tuple = world.enter(cur_mem);
@@ -498,7 +498,7 @@ struct CodeGen {
 
                     auto left = emit(*tuple_arg->args[0]);
                     cur_bb->app(world.branch(), thorin::Defs { left, and_true, and_false }, loc_to_dbg(call_expr->loc, "and"));
-                    and_false->app(next, thorin::Defs { cur_mem, world.literal_bool(false, thorin::Debug {}) });
+                    and_false->app(next, thorin::Defs { cur_mem, world.lit_bool(false, thorin::Debug {}) });
 
                     cur_bb = and_true;
                     auto right = emit(*tuple_arg->args[1]);
@@ -516,7 +516,7 @@ struct CodeGen {
 
                     auto left = emit(*tuple_arg->args[0]);
                     cur_bb->app(world.branch(), thorin::Defs { left, or_true, or_false }, loc_to_dbg(call_expr->loc, "or"));
-                    or_true->app(next, thorin::Defs { cur_mem, world.literal_bool(true, thorin::Debug {}) });
+                    or_true->app(next, thorin::Defs { cur_mem, world.lit_bool(true, thorin::Debug {}) });
 
                     cur_bb = or_false;
                     auto right = emit(*tuple_arg->args[1]);

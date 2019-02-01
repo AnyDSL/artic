@@ -28,12 +28,13 @@ add_library(libartic
     token.h
     type.cpp
     type.h)
-set_target_properties(libartic PROPERTIES PREFIX "")
+set_target_properties(libartic PROPERTIES PREFIX "" CXX_STANDARD 14)
 
 add_executable(artic main.cpp ${BACKEND})
 target_compile_definitions(artic PUBLIC -DARTIC_VERSION_MAJOR=${PROJECT_VERSION_MAJOR})
 target_compile_definitions(artic PUBLIC -DARTIC_VERSION_MINOR=${PROJECT_VERSION_MINOR})
 target_link_libraries(artic libartic)
+set_target_properties(artic PROPERTIES CXX_STANDARD 17)
 
 if (${COLORIZE})
     target_compile_definitions(artic PUBLIC -DCOLORIZE)
