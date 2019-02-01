@@ -20,10 +20,10 @@ namespace artic {
 // The code generator maintains a map of specialized functions to
 // ensure termination in the case of polymorphic recursive functions.
 struct CodeGen {
-    CodeGen(const std::string& module_name, TypeInference& type_inference)
+    CodeGen(const std::string& module_name, const Loc& loc, TypeInference& type_inference)
         : type_inference(type_inference)
         , type_table(type_inference.type_table())
-        , world(module_name)
+        , world(loc_to_dbg(loc, module_name))
     {
         register_std_impls();
     }
@@ -158,7 +158,7 @@ struct CodeGen {
     }
 
     const thorin::Debug loc_to_dbg(const Loc& loc, const std::string& name = "") {
-        return thorin::Debug(thorin::Loc(loc.file->c_str(), loc.begin_row, loc.begin_col, loc.end_row, loc.end_col), name);
+        return thorin::Debug(thorin::Loc(loc.file ? loc.file->c_str() : "", loc.begin_row, loc.begin_col, loc.end_row, loc.end_col), name);
     }
 
     thorin::AddrSpace convert(const AddrSpace addr_space) {
@@ -213,7 +213,7 @@ struct CodeGen {
                 ops[i] = convert(tuple_type->args[i]);
             return type_map[type] = world.sigma(ops);
         } else if (auto ptr_type = type->isa<PtrType>()) {
-            return world.ptr_type(convert(ptr_type->pointee()), -1, convert(ptr_type->addr_space));
+            return world.ptr_type(convert(ptr_type->pointee()), convert(ptr_type->addr_space));
         } else if (auto fn_type = type->isa<FnType>()) {
             auto mem = world.mem_type();
             if (fn_type->to()->isa<NoRetType>())
@@ -728,7 +728,7 @@ struct CodeGen {
 };
 
 void emit(const std::string& module_name, size_t opt_level, TypeInference& type_inference, const ast::Program& program) {
-    CodeGen cg(module_name, type_inference);
+    CodeGen cg(module_name, program.loc, type_inference);
     for (auto& decl : program.decls)
         cg.emit(*decl);
     if (opt_level == 1) cg.world.cleanup();
