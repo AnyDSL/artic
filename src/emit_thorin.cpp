@@ -408,8 +408,7 @@ struct CodeGen {
                 return world.extract(load_tuple, thorin::u32(1));
             }
 
-            std::vector<const Type*> args;
-            std::unordered_map<const Type*, const Type*> arg_map;
+            size_t num_vars = 0;
             if (decl->isa<ast::TraitDecl>()) {
                 auto impl_type = path.elems.front().type->substitute(type_table, var_map)->as<ImplType>();
 
@@ -422,9 +421,10 @@ struct CodeGen {
                 assert(impl_decl);
                 if (impl_decl->type_params) {
                     for (size_t i = 0; i < impl_decl->type_params->params.size(); ++i) {
+                        auto var = impl_decl->type_params->params[i]->type->as<TypeVar>();
                         auto arg = impl_type->impl_args(type_inference)[i];
-                        arg_map.emplace(impl_decl->type_params->params[i]->type, arg);
-                        args.emplace_back(arg);
+                        type_args.emplace_back(var, arg);
+                        num_vars++;
                     }
                 }
 
@@ -438,16 +438,25 @@ struct CodeGen {
             if (auto fn_decl = decl->isa<ast::FnDecl>()) {
                 for (size_t i = 0; i < path.elems.back().type_args.size(); ++i) {
                     // Note that we need to substitute the variables that might be present in the type arguments!
+                    auto var = fn_decl->type_params->params[i]->type->as<TypeVar>();
                     auto arg = path.elems.back().type_args[i]->substitute(type_table, var_map);
-                    arg_map.emplace(fn_decl->type_params->params[i]->type, arg);
-                    args.emplace_back(arg);
+                    type_args.emplace_back(var, arg);
+                    num_vars++;
                 }
             }
 
-            THORIN_PUSH(type_args, args);
-            THORIN_PUSH(var_map, arg_map);
-            emit(*decl, false);
-            return decl_map[MonoDecl(decl, type_args)];
+            if (num_vars > 0) {
+                auto vars = var_map;
+                for (size_t i = type_args.size() - num_vars; i < type_args.size(); ++i)
+                    vars.emplace(type_args[i].first, type_args[i].second);
+                THORIN_PUSH(var_map, vars);
+                emit(*decl, false);
+            } else {
+                emit(*decl, false);
+            }
+            auto res = decl_map[MonoDecl(decl, type_args)];
+            type_args.resize(type_args.size() - num_vars);
+            return res;
         } else if (auto addr_of_expr = expr.isa<ast::AddrOfExpr>()) {
             return emit_ptr(*addr_of_expr->expr);
         } else if (auto deref_expr = expr.isa<ast::DerefExpr>()) {
@@ -676,13 +685,13 @@ struct CodeGen {
     // Monomorphized version of a polymorphic declaration with a given type substitution
     struct MonoDecl {
         const ast::Decl* decl;
-        std::vector<const Type*> type_args;
+        std::vector<std::pair<const TypeVar*, const Type*>> type_args;
 
         MonoDecl(const ast::Decl* decl)
             : MonoDecl(decl, {})
         {}
 
-        MonoDecl(const ast::Decl* decl, const std::vector<const Type*>& type_args)
+        MonoDecl(const ast::Decl* decl, const std::vector<std::pair<const TypeVar*, const Type*>>& type_args)
             : decl(decl), type_args(type_args)
         {}
 
@@ -694,7 +703,9 @@ struct CodeGen {
             size_t operator () (const MonoDecl& mono_decl) const {
                 return hash_combine(hash_init(),
                     hash_ptr(mono_decl.decl),
-                    hash_list(mono_decl.type_args, [] (auto type) { return hash_ptr(type); })
+                    hash_list(mono_decl.type_args, [] (auto& pair) {
+                        return hash_combine(hash_ptr(pair.first), hash_ptr(pair.second));
+                    })
                 );
             }
         };
@@ -706,7 +717,7 @@ struct CodeGen {
     std::unordered_map<MonoDecl, const thorin::Def*, MonoDecl::Hash> decl_map;
     std::unordered_map<const Type*, const thorin::Def*> type_map;
     std::unordered_map<const Type*, const Type*> var_map;
-    std::vector<const Type*> type_args;
+    std::vector<std::pair<const TypeVar*, const Type*>> type_args;
 
     thorin::World world;
     thorin::Lam* cur_bb;
