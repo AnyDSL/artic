@@ -23,7 +23,7 @@ struct CodeGen {
     CodeGen(const std::string& module_name, const Loc& loc, TypeInference& type_inference)
         : type_inference(type_inference)
         , type_table(type_inference.type_table())
-        , world(loc_to_dbg(loc, module_name))
+        , world(0, loc_to_dbg(loc, module_name))
     {
         register_std_impls();
     }
@@ -118,10 +118,10 @@ struct CodeGen {
                 register_unop("Pos", prim_type, [&] (auto a) { return a; } );
                 register_unop("Neg", prim_type, [&] (auto a) { return world.arithop_minus(a); } );
                 if (all_tags[i] != PrimType::F32 && all_tags[i] != PrimType::F64) {
-                    register_unop_assign("PreInc",  prim_type, true,  [&] (auto a) { return world.arithop_add(a, world.one(a->type())); } );
-                    register_unop_assign("PostInc", prim_type, false, [&] (auto a) { return world.arithop_add(a, world.one(a->type())); } );
-                    register_unop_assign("PreDec",  prim_type, true,  [&] (auto a) { return world.arithop_sub(a, world.one(a->type())); } );
-                    register_unop_assign("PostDec", prim_type, false, [&] (auto a) { return world.arithop_sub(a, world.one(a->type())); } );
+                    register_unop_assign("PreInc",  prim_type, true,  [&] (auto a) { return world.arithop_add(a, world.lit_one(a->type())); } );
+                    register_unop_assign("PostInc", prim_type, false, [&] (auto a) { return world.arithop_add(a, world.lit_one(a->type())); } );
+                    register_unop_assign("PreDec",  prim_type, true,  [&] (auto a) { return world.arithop_sub(a, world.lit_one(a->type())); } );
+                    register_unop_assign("PostDec", prim_type, false, [&] (auto a) { return world.arithop_sub(a, world.lit_one(a->type())); } );
                 }
                 register_binop("Add", prim_type, [&] (auto a, auto b) { return world.arithop_add(a, b); } );
                 register_binop("Sub", prim_type, [&] (auto a, auto b) { return world.arithop_sub(a, b); } );
