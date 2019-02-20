@@ -487,6 +487,16 @@ struct CodeGen {
             cur_mem = world.extract(load_tuple, thorin::u32(0));
             return world.extract(load_tuple, thorin::u32(1));
         } else if (auto call_expr = expr.isa<ast::CallExpr>()) {
+            auto callee_type = call_expr->callee->type;
+            if (auto ref_type = callee_type->isa<RefType>())
+                callee_type = ref_type->pointee();
+            if (callee_type->isa<ArrayType>()) {
+                // Array extract
+                auto dbg = loc_to_dbg(call_expr->loc, "elem");
+                auto array = world.extract(emit(*call_expr->callee), thorin::u32(1), dbg);
+                auto index = world.cast(array->type()->as<thorin::Variadic>()->arity(), emit(*call_expr->arg));
+                return world.extract(array, index, dbg);
+            }
             auto tuple_arg   = call_expr->arg->isa<ast::TupleExpr>();
             auto callee_path = call_expr->callee->isa<ast::PathExpr>();
             if (tuple_arg && callee_path && tuple_arg->args.size() == 2 && callee_path->path.elems.size() == 1) {
@@ -534,12 +544,6 @@ struct CodeGen {
                     cur_bb  = next;
                     cur_mem = next->param(0);
                 }
-            } else if (call_expr->callee->type->isa<ArrayType>()) {
-                // Array extract
-                auto dbg = loc_to_dbg(call_expr->loc, "elem");
-                auto array = world.extract(emit(*call_expr->callee), thorin::u32(1), dbg);
-                auto index = world.cast(array->type()->as<thorin::Variadic>()->arity(), emit(*call_expr->arg));
-                return world.extract(array, index, dbg);
             }
 
             auto callee = emit(*call_expr->callee);
@@ -672,6 +676,7 @@ struct CodeGen {
             auto cont = body_fn->param(2);
             THORIN_PUSH(cur_break, brk);
             THORIN_PUSH(cur_continue, cont);
+            emit(*for_expr->ptrn, body_fn->param(1));
             auto res_body = emit(*for_expr->body);
             body_fn->app(cont, thorin::Defs { cur_mem, res_body }, loc_to_dbg(for_expr->body->loc));
 
