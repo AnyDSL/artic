@@ -306,7 +306,7 @@ struct CodeGen {
             auto type = convert(fn_decl->type->inner())->as<thorin::Pi>();
             auto cont = world.lam(type, thorin::CC::C, thorin::Intrinsic::None, loc_to_dbg(fn_decl->loc, fn_decl->id.name));
             if (fn_decl->id.name == "main")
-                cont->as_lam()->make_external();
+                cont->as<thorin::Lam>()->make_external();
             decl_map[mono_decl] = cont;
             if (fn_decl->fn->body)
                 emit_fn_body(*fn_decl->fn, cont);
