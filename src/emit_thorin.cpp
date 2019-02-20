@@ -490,6 +490,7 @@ struct CodeGen {
             auto tuple_arg   = call_expr->arg->isa<ast::TupleExpr>();
             auto callee_path = call_expr->callee->isa<ast::PathExpr>();
             if (tuple_arg && callee_path && tuple_arg->args.size() == 2 && callee_path->path.elems.size() == 1) {
+                // Handle intrinsic functions here
                 if (callee_path->path.elems[0].id.name == "assign") {
                     // Assignment operator
                     auto ptr = emit(*tuple_arg->args[0]);
@@ -533,6 +534,12 @@ struct CodeGen {
                     cur_bb  = next;
                     cur_mem = next->param(0);
                 }
+            } else if (call_expr->callee->type->isa<ArrayType>()) {
+                // Array extract
+                auto dbg = loc_to_dbg(call_expr->loc, "elem");
+                auto array = world.extract(emit(*call_expr->callee), thorin::u32(1), dbg);
+                auto index = world.cast(array->type()->as<thorin::Variadic>()->arity(), emit(*call_expr->arg));
+                return world.extract(array, index, dbg);
             }
 
             auto callee = emit(*call_expr->callee);
