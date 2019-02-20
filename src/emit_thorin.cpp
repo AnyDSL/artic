@@ -212,6 +212,9 @@ struct CodeGen {
             for (size_t i = 0; i < ops.size(); ++i)
                 ops[i] = convert(tuple_type->args[i]);
             return type_map[type] = world.sigma(ops);
+        } else if (auto array_type = type->isa<ArrayType>()) {
+            auto arity = world.kind_arity();
+            return world.sigma({ arity, world.variadic(world.var(arity, 0), convert(array_type->elem())) });
         } else if (auto ptr_type = type->isa<PtrType>()) {
             return world.ptr_type(convert(ptr_type->pointee()), convert(ptr_type->addr_space));
         } else if (auto fn_type = type->isa<FnType>()) {
@@ -396,6 +399,11 @@ struct CodeGen {
             for (size_t i = 0; i < ops.size(); ++i)
                 ops[i] = emit(*tuple_expr->args[i]);
             return world.tuple(ops, loc_to_dbg(tuple_expr->loc, "tuple"));
+        } else if (auto array_expr = expr.isa<ast::ArrayExpr>()) {
+            thorin::Array<const thorin::Def*> ops(array_expr->elems.size());
+            for (size_t i = 0; i < ops.size(); ++i)
+                ops[i] = emit(*array_expr->elems[i]);
+            return world.tuple(convert(expr.type), { world.lit_arity(array_expr->elems.size()), world.tuple(ops) });
         } else if (auto path_expr = expr.isa<ast::PathExpr>()) {
             auto& path = path_expr->path;
             auto decl = path.symbol->decls.front();
