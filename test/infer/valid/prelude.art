@@ -396,7 +396,7 @@ impl AssignDiv   for f64 {}
 impl Cmp         for f64 {}
 impl Num         for f64 {}
 
-fn range<T:Num>(body: fn (T) -> ()) -> fn (T, T) -> () {
+fn @range<T:Num>(body: fn (T) -> ()) -> fn (T, T) -> () {
     fn iter(a: T, b: T) -> () {
         if a < b {
             body(a);
