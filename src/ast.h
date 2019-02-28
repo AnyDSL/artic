@@ -43,11 +43,10 @@ struct Node : public Cast<Node> {
     Loc loc;
 
     /// Type assigned after type inference. Not all nodes are typeable.
-    mutable const artic::Type* type;
+    mutable const artic::Type* type = nullptr;
 
     Node(const Loc& loc)
         : loc(loc)
-        , type(nullptr)
     {}
 
     virtual ~Node() {}
@@ -118,13 +117,13 @@ struct Path : public Node {
     struct Elem {
         Identifier id;
 
-        mutable const artic::Type* type;
-        mutable const artic::Type* self_type;
+        mutable const artic::Type* type = nullptr;
+        mutable const artic::Type* self_type = nullptr;
         mutable std::vector<const artic::Type*> type_args;
 
         Elem() : Elem(Identifier()) {}
         Elem(Identifier&& id)
-            : id(std::move(id)), type(nullptr), self_type(nullptr)
+            : id(std::move(id))
         {}
 
         const artic::Type* infer(TypeInference&, const artic::Type*) const;
@@ -429,10 +428,10 @@ struct TupleExpr : public Expr {
 struct ArrayExpr : public Expr {
     PtrVector<Expr> elems;
 
-    mutable const artic::Type* elem_type;
+    mutable const artic::Type* elem_type = nullptr;
 
     ArrayExpr(const Loc& loc, PtrVector<Expr>&& elems)
-        : Expr(loc), elems(std::move(elems)), elem_type(nullptr)
+        : Expr(loc), elems(std::move(elems))
     {}
 
     const artic::Type* infer(TypeInference&) const override;
@@ -447,7 +446,7 @@ struct FnExpr : public Expr {
     Ptr<Ptrn>   param;
     Ptr<Expr>   body;
 
-    mutable const artic::Type* ret_type;
+    mutable const artic::Type* ret_type = nullptr;
 
     FnExpr(const Loc& loc,
            Ptr<Filter>&& filter,
@@ -457,7 +456,6 @@ struct FnExpr : public Expr {
         , filter(std::move(filter))
         , param(std::move(param))
         , body(std::move(body))
-        , ret_type(nullptr)
     {}
 
     const artic::Type* infer(TypeInference&) const override;
@@ -488,7 +486,7 @@ struct CallExpr : public Expr {
     Ptr<Expr> callee;
     Ptr<Expr> arg;
 
-    mutable const artic::Type* elem_type;
+    mutable const artic::Type* elem_type = nullptr;
 
     CallExpr(const Loc& loc,
              Ptr<Expr>&& callee,
@@ -634,7 +632,7 @@ struct ForExpr : public LoopExpr {
 
 /// Break expression.
 struct BreakExpr : public Expr {
-    mutable const LoopExpr* loop;
+    mutable const LoopExpr* loop = nullptr;
 
     BreakExpr(const Loc& loc)
         : Expr(loc)
@@ -648,7 +646,7 @@ struct BreakExpr : public Expr {
 
 /// Break expression.
 struct ContinueExpr : public Expr {
-    mutable const LoopExpr* loop;
+    mutable const LoopExpr* loop = nullptr;
 
     ContinueExpr(const Loc& loc)
         : Expr(loc)
@@ -662,7 +660,7 @@ struct ContinueExpr : public Expr {
 
 /// Break expression.
 struct ReturnExpr : public Expr {
-    mutable const FnExpr* fn;
+    mutable const FnExpr* fn = nullptr;
 
     ReturnExpr(const Loc& loc)
         : Expr(loc)
