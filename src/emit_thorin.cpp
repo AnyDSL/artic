@@ -401,13 +401,8 @@ struct CodeGen {
                 return;
             }
         }
-        auto bb_type    = world.cn();
-        auto expr_true  = world.lam(bb_type, loc_to_dbg(expr.loc, "expr_true"));
-        auto expr_false = world.lam(bb_type, loc_to_dbg(expr.loc, "expr_false"));
         auto cond = emit(expr);
-        cur_bb->app(world.branch(), thorin::Defs { cond, expr_true, expr_false }, loc_to_dbg(expr.loc));
-        expr_true->app(jump_true, { cur_mem });
-        expr_false->app(jump_false, { cur_mem });
+        cur_bb->branch(cond, jump_true, jump_false, cur_mem, loc_to_dbg(expr.loc));
     }
 
     const thorin::Def* emit(const ast::Expr& expr) {
@@ -533,38 +528,20 @@ struct CodeGen {
                     auto val = emit(*tuple_arg->args[1]);
                     cur_mem = world.store(cur_mem, ptr, val, loc_to_dbg(call_expr->loc));
                     return world.tuple({});
-                } else if (callee_path->path.elems[0].id.name == "logic_and") {
+                } else if (callee_path->path.elems[0].id.name == "logic_and" ||
+                           callee_path->path.elems[0].id.name == "logic_or") {
                     // Logical AND
-                    auto bb_type   = world.cn();
-                    auto join_type = world.cn({ world.mem_type(), world.type_bool() });
-                    auto and_true  = world.lam(bb_type, loc_to_dbg(call_expr->loc, "and_true"));
-                    auto and_false = world.lam(bb_type, loc_to_dbg(call_expr->loc, "and_false"));
-                    auto next      = world.lam(join_type, loc_to_dbg(call_expr->loc, "and_next"));
+                    auto bb_type    = world.cn({ world.mem_type() });
+                    auto join_type  = world.cn({ world.mem_type(), world.type_bool() });
+                    auto jump_true  = world.lam(bb_type, loc_to_dbg(call_expr->loc, "jump_true"));
+                    auto jump_false = world.lam(bb_type, loc_to_dbg(call_expr->loc, "jump_false"));
+                    auto next       = world.lam(join_type, loc_to_dbg(call_expr->loc, "next"));
+                    emit_branch(expr, jump_true, jump_false);
 
-                    auto left = emit(*tuple_arg->args[0]);
-                    cur_bb->app(world.branch(), thorin::Defs { left, and_true, and_false }, loc_to_dbg(call_expr->loc, "and"));
-                    and_false->app(next, thorin::Defs { cur_mem, world.lit_bool(false, thorin::Debug {}) });
-
-                    cur_bb = and_true;
-                    auto right = emit(*tuple_arg->args[1]);
-                    cur_bb->app(next, thorin::Defs { cur_mem, right });
-
-                    enter(next);
-                } else if (callee_path->path.elems[0].id.name == "logic_or") {
-                    // Logical OR
-                    auto bb_type   = world.cn();
-                    auto join_type = world.cn({ world.mem_type(), world.type_bool() });
-                    auto or_true  = world.lam(bb_type, loc_to_dbg(call_expr->loc, "or_true"));
-                    auto or_false = world.lam(bb_type, loc_to_dbg(call_expr->loc, "or_false"));
-                    auto next     = world.lam(join_type, loc_to_dbg(call_expr->loc, "or_next"));
-
-                    auto left = emit(*tuple_arg->args[0]);
-                    cur_bb->app(world.branch(), thorin::Defs { left, or_true, or_false }, loc_to_dbg(call_expr->loc, "or"));
-                    or_true->app(next, thorin::Defs { cur_mem, world.lit_bool(true, thorin::Debug {}) });
-
-                    cur_bb = or_false;
-                    auto right = emit(*tuple_arg->args[1]);
-                    cur_bb->app(next, thorin::Defs { cur_mem, right });
+                    enter(jump_true);
+                    jump_true ->app(next, thorin::Defs { cur_mem, world.lit_bool(true ) });
+                    enter(jump_false);
+                    jump_false->app(next, thorin::Defs { cur_mem, world.lit_bool(false) });
 
                     enter(next);
                 }
@@ -613,27 +590,26 @@ struct CodeGen {
             enter(next);
             return next->param(1);
         } else if (auto match_expr = expr.isa<ast::MatchExpr>()) {
-            auto arg = emit(*match_expr->arg);
+            auto arg        = emit(*match_expr->arg);
             auto match_type = convert(match_expr->type);
-            auto bb_type = world.cn();
-            auto join_type = world.cn({ world.mem_type(), match_type });
-            auto next = world.lam(join_type, loc_to_dbg(match_expr->loc, "match_next"));
+            auto bb_type    = world.cn({ world.mem_type() });
+            auto join_type  = world.cn({ world.mem_type(), match_type });
+            auto next       = world.lam(join_type, loc_to_dbg(match_expr->loc, "match_next"));
 
             for (auto& case_ : match_expr->cases) {
                 auto case_true  = world.lam(bb_type, loc_to_dbg(case_->loc, "case_true"));
                 auto case_false = world.lam(bb_type, loc_to_dbg(case_->loc, "case_false"));
                 auto cond = emit_cond(*case_->ptrn, arg);
-                cur_bb->app(world.branch(), thorin::Defs { cond, case_true, case_false }, loc_to_dbg(case_->loc, "case"));
+                cur_bb->branch(cond, case_true, case_false, cur_mem, loc_to_dbg(case_->loc, "case"));
 
                 // Emit true case
-                auto old_mem = cur_mem;
-                cur_bb = case_true;
+                enter(case_true);
                 auto res_case = emit(*case_->expr);
-                if (cur_bb) cur_bb->app(next, thorin::Defs { cur_mem, res_case });
+                if (cur_bb)
+                    cur_bb->app(next, thorin::Defs { cur_mem, res_case });
 
                 // Emit remaining tests
-                cur_bb = case_false;
-                cur_mem = old_mem;
+                enter(case_false);
             }
 
             // Handle unspecified cases
@@ -656,7 +632,7 @@ struct CodeGen {
 
             // Emit break
             enter(brk);
-            brk->app(exit, thorin::Defs { brk->param(0) }, loc_to_dbg(while_expr->loc));
+            brk->app(exit, thorin::Defs { cur_mem }, loc_to_dbg(while_expr->loc));
 
             // Emit body
             enter(body);
