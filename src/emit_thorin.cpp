@@ -261,12 +261,11 @@ struct CodeGen {
     void emit(const ast::Ptrn& ptrn, const thorin::Def* def) {
         if (auto id_ptrn = ptrn.isa<ast::IdPtrn>()) {
             auto& decl = id_ptrn->decl;
-            auto frame_tuple = world.enter(cur_mem);
-            auto frame = world.extract(frame_tuple, thorin::u32(1));
-            auto slot = world.slot(convert(id_ptrn->type), frame, loc_to_dbg(id_ptrn->loc, decl->id.name));
-            cur_mem = world.extract(frame_tuple, thorin::u32(0));
-            cur_mem = world.store(cur_mem, slot, def, loc_to_dbg(id_ptrn->loc));
-            decl_map[id_ptrn->decl.get()] = slot;
+            auto slot = world.slot(convert(id_ptrn->type), cur_mem, loc_to_dbg(id_ptrn->loc, decl->id.name));
+            cur_mem  = world.extract(slot, thorin::u32(0));
+            auto ptr = world.extract(slot, thorin::u32(1));
+            cur_mem = world.store(cur_mem, ptr, def, loc_to_dbg(id_ptrn->loc));
+            decl_map[id_ptrn->decl.get()] = ptr;
         } else if (auto typed_ptrn = ptrn.isa<ast::TypedPtrn>()) {
             emit(*typed_ptrn->ptrn, def);
         } else if (auto tuple_ptrn = ptrn.isa<ast::TuplePtrn>()) {
@@ -379,12 +378,11 @@ struct CodeGen {
             return world.lea(ptr, world.lit_qs32(proj_expr->index, dbg), dbg);
         } else {
             auto dbg = loc_to_dbg(expr.loc);
-            auto frame_tuple = world.enter(cur_mem);
-            auto frame = world.extract(frame_tuple, thorin::u32(1));
-            auto slot = world.slot(convert(expr.type), frame, dbg);
-            cur_mem = world.extract(frame_tuple, thorin::u32(0));
+            auto slot = world.slot(convert(expr.type), cur_mem, dbg);
+            cur_mem  = world.extract(slot, thorin::u32(0));
+            auto ptr = world.extract(slot, thorin::u32(1));
             auto val = emit(expr);
-            cur_mem = world.store(cur_mem, slot, val, dbg);
+            cur_mem = world.store(cur_mem, ptr, val, dbg);
             return slot;
         }
     }
@@ -407,7 +405,7 @@ struct CodeGen {
 
     const thorin::Def* emit(const ast::Expr& expr) {
         if (auto lit_expr = expr.isa<ast::LiteralExpr>()) {
-            return emit(lit_expr->lit, lit_expr->type, lit_expr->loc);            
+            return emit(lit_expr->lit, lit_expr->type, lit_expr->loc);
         } else if (auto typed_expr = expr.isa<ast::TypedExpr>()) {
             return emit(*typed_expr->expr);
         } else if (auto block_expr = expr.isa<ast::BlockExpr>()) {
