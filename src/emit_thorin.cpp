@@ -666,7 +666,7 @@ struct CodeGen {
             THORIN_PUSH(cur_continue, cont);
             emit(*for_expr->ptrn, body_fn->param(1));
             auto res_body = emit(*for_expr->body);
-            body_fn->app(cont, thorin::Defs { cur_mem, res_body }, loc_to_dbg(for_expr->body->loc));
+            cur_bb->app(cont, thorin::Defs { cur_mem, res_body }, loc_to_dbg(for_expr->body->loc));
 
             enter(brk);
             return brk->param(1);
