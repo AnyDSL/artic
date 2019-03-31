@@ -38,7 +38,7 @@ struct CodeGen {
             auto thorin_prim = convert(prim_type);
             auto unop_type   = world.cn({ world.mem_type(), thorin_prim, world.cn({ world.mem_type(), thorin_prim }) });
             auto unop_fn     = world.lam(unop_type, loc_to_dbg(impl_decl->loc, name));
-            unop_fn->set_filter({ true_def, true_def, true_def });
+            unop_fn->set_filter(true_def);
             unop_fn->app(unop_fn->param(2), { unop_fn->param(0), f(unop_fn->param(1)) });
             std_impls[impl_type] = unop_fn;
         };
@@ -51,7 +51,7 @@ struct CodeGen {
             auto binop_type  = world.cn({ world.mem_type(), world.sigma({ thorin_prim, thorin_prim }), world.cn({ world.mem_type(), thorin_prim }) });
             auto binop_fn    = world.lam(binop_type, loc_to_dbg(impl_decl->loc, name));
             auto arg         = binop_fn->param(1);
-            binop_fn->set_filter({ true_def, true_def, true_def });
+            binop_fn->set_filter(true_def);
             binop_fn->app(binop_fn->param(2), { binop_fn->param(0), f(world.extract(arg, thorin::u32(0)), world.extract(arg, thorin::u32(1))) });
             std_impls[impl_type] = binop_fn;
         };
@@ -64,7 +64,7 @@ struct CodeGen {
             auto cmpop_type  = world.cn({ world.mem_type(), world.sigma({ thorin_prim, thorin_prim }), world.cn({ world.mem_type(), world.type_bool() }) });
             auto cmpop_fn    = world.lam(cmpop_type, loc_to_dbg(impl_decl->loc, name));
             auto arg         = cmpop_fn->param(1);
-            cmpop_fn->set_filter({ true_def, true_def, true_def });
+            cmpop_fn->set_filter(true_def);
             cmpop_fn->app(cmpop_fn->param(2), { cmpop_fn->param(0), f(world.extract(arg, thorin::u32(0)), world.extract(arg, thorin::u32(1))) });
             std_impls[impl_type] = cmpop_fn;
         };
@@ -82,7 +82,7 @@ struct CodeGen {
             auto load        = world.load(binop_fn->param(0), ptr);
             auto val         = f(world.extract(load, thorin::u32(1)), world.extract(arg, thorin::u32(1)));
             auto store       = world.store(world.extract(load, thorin::u32(0)), ptr, val);
-            binop_fn->set_filter({ true_def, true_def, true_def });
+            binop_fn->set_filter(true_def);
             binop_fn->app(binop_fn->param(2), { store, world.tuple({}) });
             std_impls[impl_type] = binop_fn;
         };
@@ -99,7 +99,7 @@ struct CodeGen {
             auto pre_val     = world.extract(load, thorin::u32(1));
             auto val         = f(pre_val);
             auto store       = world.store(world.extract(load, thorin::u32(0)), unop_fn->param(1), val);
-            unop_fn->set_filter({ true_def, true_def, true_def });
+            unop_fn->set_filter(true_def);
             unop_fn->app(unop_fn->param(2), { store, pre ? pre_val : val });
             std_impls[impl_type] = unop_fn;
         };
@@ -293,10 +293,8 @@ struct CodeGen {
         THORIN_PUSH(cur_mem, cont->param(0));
         THORIN_PUSH(cur_return, cont->param(2));
         emit(*fn_expr.param, cont->param(1));
-        if (fn_expr.filter) {
-            auto filter_val = emit(*fn_expr.filter);
-            cont->set_filter({ filter_val, filter_val, filter_val });
-        }
+        if (fn_expr.filter)
+            cont->set_filter(emit(*fn_expr.filter));
         auto ret = emit(*fn_expr.body);
         cur_bb->app(cont->param(2), thorin::Defs { cur_mem, ret }, loc_to_dbg(fn_expr.loc, "ret"));
     }
