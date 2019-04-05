@@ -2,7 +2,9 @@
 #include "type.h"
 #include "infer.h"
 
+#include <thorin/rewrite.h>
 #include <thorin/world.h>
+#include <thorin/pass/optimize.h>
 
 #include <string>
 
@@ -736,8 +738,8 @@ void emit(const std::string& module_name, size_t opt_level, TypeInference& type_
     CodeGen cg(module_name, program.loc, type_inference);
     for (auto& decl : program.decls)
         cg.emit(*decl);
-    if (opt_level == 1) cg.world.cleanup();
-    if (opt_level >= 2) cg.world.opt();
+    if (opt_level == 1) cleanup(cg.world);
+    if (opt_level >= 2) optimize(cg.world);
     cg.world.dump();
 }
 
