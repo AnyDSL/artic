@@ -3,6 +3,12 @@
 
 namespace artic {
 
+inline size_t count_digits(size_t i) {
+    size_t n = 0;
+    while (i > 0) i /= 10, n++;
+    return n;
+}
+
 void Logger::show_diagnostic(log::Output& out, const Loc& loc, log::Style style, char underline) {
     auto loc_info = locator->data(*loc.file);
     if (!loc_info || !loc_info->covers(loc))

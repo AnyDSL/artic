@@ -222,12 +222,6 @@ struct Logger {
 
 private:
     void show_diagnostic(log::Output&, const Loc&, log::Style, char);
-
-    size_t count_digits(size_t i) {
-        size_t n = 0;
-        while (i > 0) i /= 10, n++;
-        return n;
-    }
 };
 
 } // namespace artic

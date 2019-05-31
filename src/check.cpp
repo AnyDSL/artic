@@ -16,18 +16,6 @@ void TypeChecker::check(const ast::Node& node) {
     // Check the node
     node.check(*this);
 
-    // Do not emit an error message for compound expressions,
-    // as an error message has already been emitted for each and
-    // every faulty sub-expression.
-    if (node.isa<ast::BlockExpr>() ||
-        node.isa<ast::TupleExpr>() ||
-        node.isa<ast::ArrayExpr>() ||
-        node.isa<ast::StructExpr>() ||
-        node.isa<ast::TuplePtrn>() ||
-        node.isa<ast::StructPtrn>() ||
-        node.isa<ast::TypeParamList>())
-        return;
-
     // Check if the type contains any type inference error,
     // and emit a detailed diagnostic of all the unification steps.
     if (node.type->has<ErrorType>()) {
