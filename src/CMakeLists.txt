@@ -20,6 +20,9 @@ add_library(libartic
     lexer.cpp
     lexer.h
     loc.h
+    locator.h
+    log.h
+    log.cpp
     parser.cpp
     parser.h
     print.cpp
@@ -28,7 +31,7 @@ add_library(libartic
     token.h
     type.cpp
     type.h)
-set_target_properties(libartic PROPERTIES PREFIX "" CXX_STANDARD 14)
+set_target_properties(libartic PROPERTIES PREFIX "" CXX_STANDARD 17)
 
 add_executable(artic main.cpp ${BACKEND})
 target_compile_definitions(artic PUBLIC -DARTIC_VERSION_MAJOR=${PROJECT_VERSION_MAJOR})

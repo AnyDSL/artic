@@ -4,6 +4,7 @@
 #include <fstream>
 #include <iostream>
 
+#include "locator.h"
 #include "lexer.h"
 #include "parser.h"
 #include "log.h"
@@ -102,11 +103,13 @@ int main(int argc, char** argv) {
     ProgramOptions opts;
     if (!opts.parse(argc, argv)) return 1;
 
-    Logger logger(log::out);
+    Locator locator;
+    Logger logger(log::err, log::log, log::out, &locator);
     TypeTable type_table;
 
     auto program = ast::Program(Loc(), PtrVector<ast::Decl>());
     for (auto& file : opts.files) {
+        locator.new_file(file);
         std::ifstream is(file);
         if (!is) {
             log::error("cannot open file '{}'", file);

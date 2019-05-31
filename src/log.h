@@ -4,6 +4,7 @@
 #include <iostream>
 #include <cstring>
 #include <cassert>
+#include <string_view>
 
 #ifdef COLORIZE
     #ifdef _WIN32
@@ -39,6 +40,23 @@ static Output err(std::cerr, false);
 static Output log(std::clog, false);
 static Output out(std::cout, false);
 #endif
+
+template <typename T>
+struct Fill {
+    T t;
+    size_t n;
+
+    Fill(const T& t, size_t n)
+        : t(t), n(n)
+    {}
+};
+
+template <typename T>
+inline std::ostream& operator << (std::ostream& os, const Fill<T>& f) {
+    for (size_t i = 0; i < f.n; ++i)
+        os << f.t;
+    return os;
+}
 
 enum Style {
     Normal = 0,
@@ -103,6 +121,11 @@ Stylized<T, Args...> style(const T& t, Args... args) {
     return Stylized<T, Args...>(t, args...);
 }
 
+template <typename T>
+Fill<T> fill(const T& t, size_t n) {
+    return Fill<T>(t, n);
+}
+
 template <bool new_line = true>
 void format(Output& out, const char* fmt) {
 #ifndef NDEBUG
@@ -142,6 +165,8 @@ void print(const char* fmt, const Args&... args) {
 
 } // namespace log
 
+class Locator;
+
 struct Logger {
     log::Output& err;
     log::Output& log;
@@ -149,14 +174,18 @@ struct Logger {
     size_t error_count;
     size_t warn_count;
 
+    Locator* locator;
+
     Logger(log::Output& err = log::err,
            log::Output& log = log::log,
-           log::Output& out = log::out)
+           log::Output& out = log::out,
+           Locator* locator = nullptr)
         : err(err)
         , log(log)
         , out(out)
         , error_count(0)
         , warn_count(0)
+        , locator(locator)
     {}
 
     /// Report an error at the given location in a source file.
@@ -167,6 +196,7 @@ struct Logger {
             log::style("error", log::Style::Red,   log::Style::Bold),
             log::style(loc,     log::Style::White, log::Style::Bold));
         log::format(err, fmt, args...);
+        if (locator) show_diagnostic(err, loc, log::Style::Red, '^');
     }
 
     /// Report a warning at the given location in a source file.
@@ -177,6 +207,7 @@ struct Logger {
             log::style("warning", log::Style::Yellow, log::Style::Bold),
             log::style(loc,       log::Style::White,  log::Style::Bold));
         log::format(log, fmt, args...);
+        if (locator) show_diagnostic(log, loc, log::Style::Yellow, '^');
     }
 
     /// Display a note corresponding to a specific location in a source file.
@@ -186,6 +217,16 @@ struct Logger {
             log::style("note", log::Style::Cyan,  log::Style::Bold),
             log::style(loc,    log::Style::White, log::Style::Bold));
         log::format(out, fmt, args...);
+        if (locator) show_diagnostic(out, loc, log::Style::Cyan, '-');
+    }
+
+private:
+    void show_diagnostic(log::Output&, const Loc&, log::Style, char);
+
+    size_t count_digits(size_t i) {
+        size_t n = 0;
+        while (i > 0) i /= 10, n++;
+        return n;
     }
 };
 
