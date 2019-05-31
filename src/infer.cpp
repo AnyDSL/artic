@@ -371,6 +371,14 @@ const artic::Type* CallExpr::infer(TypeInference& ctx) const {
     return ctx.type(*this);
 }
 
+const artic::Type* BinaryExpr::infer(TypeInference& ctx) const {
+    if (tag != AndAnd && tag != OrOr)
+        return CallExpr::infer(ctx);
+    auto bool_type = ctx.type_table().prim_type(artic::PrimType::I1);
+    ctx.infer(*arg, ctx.type_table().tuple_type({ bool_type, bool_type }));
+    return bool_type;
+}
+
 const artic::Type* ProjExpr::infer(TypeInference& ctx) const {
     auto expr_type = ctx.infer(*expr);
     const artic::AddrType* addr_type = ctx.type_table().ref_type(expr_type, AddrSpace::Generic, false);

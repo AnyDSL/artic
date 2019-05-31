@@ -738,6 +738,9 @@ struct BinaryExpr : public CallExpr {
     const Ptr<Expr>& left_operand() const { return arg->as<TupleExpr>()->args[0]; }
     const Ptr<Expr>& right_operand() const { return arg->as<TupleExpr>()->args[1]; }
 
+    const artic::Type* infer(TypeInference&) const override;
+    void bind(NameBinder&) const override;
+    void check(TypeChecker&) const override;
     void print(Printer&) const override;
 
     static bool has_eq(Tag);

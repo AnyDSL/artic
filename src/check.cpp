@@ -188,6 +188,13 @@ void CallExpr::check(TypeChecker& ctx) const {
         ctx.check_num(loc, arg->type);
 }
 
+void BinaryExpr::check(TypeChecker& ctx) const {
+    if (tag != AndAnd && tag != OrOr)
+        CallExpr::check(ctx);
+    else
+        ctx.check(*arg);
+}
+
 void ProjExpr::check(TypeChecker& ctx) const {
     ctx.check(*expr);
 }

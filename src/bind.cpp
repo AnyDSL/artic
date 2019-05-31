@@ -138,6 +138,13 @@ void CallExpr::bind(NameBinder& ctx) const {
     ctx.bind(*arg);
 }
 
+void BinaryExpr::bind(NameBinder& ctx) const {
+    if (tag != AndAnd && tag != OrOr)
+        CallExpr::bind(ctx);
+    else
+        ctx.bind(*arg);
+}
+
 void ProjExpr::bind(NameBinder& ctx) const {
     ctx.bind(*expr);
     // Cannot bind field yet, need type inference

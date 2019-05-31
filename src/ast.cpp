@@ -228,8 +228,8 @@ Path BinaryExpr::tag_to_fn(const Loc& loc, Tag tag) {
         case Xor:     return Path(loc, { Identifier(loc, "Xor"), Identifier(loc, "xor") }, {});
         case LShft:   return Path(loc, { Identifier(loc, "LShft"), Identifier(loc, "lshft") }, {});
         case RShft:   return Path(loc, { Identifier(loc, "RShft"), Identifier(loc, "rshft") }, {});
-        case AndAnd:  return Path(loc, { Identifier(loc, "logic_and") }, {});
-        case OrOr:    return Path(loc, { Identifier(loc, "logic_or")  }, {});
+        case AndAnd:  return Path(loc, { Identifier(loc, "&&") }, {});
+        case OrOr:    return Path(loc, { Identifier(loc, "||")  }, {});
         case CmpLT:   return Path(loc, { Identifier(loc, "CmpLT"), Identifier(loc, "cmp_lt") }, {});
         case CmpGT:   return Path(loc, { Identifier(loc, "CmpGT"), Identifier(loc, "cmp_gt") }, {});
         case CmpLE:   return Path(loc, { Identifier(loc, "CmpLE"), Identifier(loc, "cmp_le") }, {});

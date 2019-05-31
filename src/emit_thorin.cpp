@@ -518,17 +518,16 @@ struct CodeGen {
             }
             auto tuple_arg   = call_expr->arg->isa<ast::TupleExpr>();
             auto callee_path = call_expr->callee->isa<ast::PathExpr>();
-            if (tuple_arg && callee_path && tuple_arg->args.size() == 2 && callee_path->path.elems.size() == 1) {
-                // Handle intrinsic functions here
-                if (callee_path->path.elems[0].id.name == "assign") {
+            if (auto binary_expr = call_expr->isa<ast::BinaryExpr>()) {
+                if (binary_expr->tag == ast::BinaryExpr::Eq) {
                     // Assignment operator
                     auto ptr = emit(*tuple_arg->args[0]);
                     auto val = emit(*tuple_arg->args[1]);
                     cur_mem = world.store(cur_mem, ptr, val, loc_to_dbg(call_expr->loc));
                     return world.tuple({});
-                } else if (callee_path->path.elems[0].id.name == "logic_and" ||
-                           callee_path->path.elems[0].id.name == "logic_or") {
-                    // Logical AND
+                } else if (binary_expr->tag == ast::BinaryExpr::AndAnd ||
+                           binary_expr->tag == ast::BinaryExpr::OrOr) {
+                    // Logical AND/OR
                     auto bb_type    = world.cn({ world.mem_type() });
                     auto join_type  = world.cn({ world.mem_type(), world.type_bool() });
                     auto jump_true  = world.lam(bb_type, loc_to_dbg(call_expr->loc, "jump_true"));
@@ -542,9 +541,9 @@ struct CodeGen {
                     jump_false->app(next, thorin::Defs { cur_mem, world.lit_bool(false) });
 
                     enter(next);
+                    return next->param(1);
                 }
             }
-
             auto callee = emit(*call_expr->callee);
             auto arg = emit(*call_expr->arg);
 

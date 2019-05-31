@@ -406,6 +406,4 @@ fn @range<T:Num>(body: fn (T) -> ()) -> fn (T, T) -> () {
     iter
 }
 
-fn logic_and(a: bool, b: bool) -> bool;
-fn logic_or(a: bool, b: bool) -> bool;
 fn assign<T>(ptr: &mut T, val: T) -> ();
