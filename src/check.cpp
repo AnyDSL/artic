@@ -22,9 +22,11 @@ void TypeChecker::check(const ast::Node& node) {
                 error->right->isa<InferError>() ||
                 error->as<Type>()->has<UnknownType>())
                 continue;
-            note(error->loc,
-                 "resulting from unification of '{}' and '{}'",
-                 *error->left, *error->right);
+            if (error->loc != node.loc) {
+                note(error->loc,
+                    "resulting from unification of '{}' and '{}'",
+                    *error->left, *error->right);
+            }
         }
     } else if (node.type->has<UnknownType>()) {
         error(node.loc, "cannot infer type for '{}'", node);
