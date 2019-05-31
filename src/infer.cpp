@@ -37,9 +37,13 @@ inline bool compatible_addrs(const AddrType* a, const AddrType* b) {
 }
 
 const Type* TypeInference::unify(const Loc& loc, const Type* a, const Type* b) {
+    auto old_a = a;
+    auto old_b = b;
+    Loc loc_a, loc_b;
+
     // Unifies types: returns the principal type for two given types
-    a = find(a);
-    b = find(b);
+    std::tie(a, loc_a) = find(a);
+    std::tie(b, loc_b) = find(b);
 
     // References
     auto ref_a = a->isa<RefType>();
@@ -101,32 +105,38 @@ const Type* TypeInference::unify(const Loc& loc, const Type* a, const Type* b) {
         return app_a->rebuild(type_table(), std::move(args));
     }
 
-    if (a != b)
-        return type_table().infer_error(loc, a, b);
+    if (a != b) {
+        if (old_a != a)
+            return type_table().infer_error(loc_a, a, b);
+        else if (old_b != b)
+            return type_table().infer_error(loc_b, a, b);
+        else
+            return type_table().infer_error(loc, a, b);
+    }
     return a;
 }
 
 const Type* TypeInference::join(const Loc& loc, const UnknownType* unknown_a, const Type* b) {
     // Adds a type equation that maps type 'from' to type 'to'
     if (unknown_a == b) return b;
-    assert(find(b) != find(unknown_a));
+    assert(std::get<0>(find(b)) != std::get<0>(find(unknown_a)));
     todo_ = true;
     eqs_.emplace(unknown_a, Equation(loc, b));
     return b;
 }
 
-const Type* TypeInference::find(const Type* type) {
+std::tuple<const Type*, Loc> TypeInference::find(const Type* type) {
     // Propagates the type equations to find the most
     // precise type corresponding to the given type
     auto it = eqs_.find(type);
     if (it != eqs_.end()) {
-        auto next = find(it->second.type);
+        auto next = std::get<0>(find(it->second.type));
         // Path compression
         todo_ |= it->second.type != next;
         it->second = Equation(it->second.loc, next);
-        return next;
+        return std::make_tuple(next, it->second.loc);
     }
-    return type;
+    return std::make_tuple(type, Loc());
 }
 
 const Type* TypeInference::subsume(const Loc& loc, const Type* type, std::vector<const Type*>& type_args) {
@@ -162,7 +172,7 @@ const Type* TypeInference::default_type(const ast::Node& node, const Literal& li
 const Type* TypeInference::type(const ast::Node& node) {
     if (!node.type)
         node.type = type_table().unknown_type();
-    return find(node.type);
+    return std::get<0>(find(node.type));
 }
 
 const Type* TypeInference::infer(const ast::Node& node, const Type* expected) {

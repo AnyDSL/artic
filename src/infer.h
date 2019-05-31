@@ -2,6 +2,7 @@
 #define INFER_H
 
 #include <unordered_map>
+#include <tuple>
 
 #include "type.h"
 #include "ast.h"
@@ -20,7 +21,7 @@ public:
 
     const Type* unify(const Loc&, const Type*, const Type*);
     const Type* join(const Loc&, const UnknownType*, const Type*);
-    const Type* find(const Type*);
+    std::tuple<const Type*, Loc> find(const Type*);
 
     const Type* subsume(const Loc& loc, const Type*, std::vector<const Type*>&);
 

@@ -13,9 +13,6 @@ bool TypeChecker::run(const ast::Program& program) {
 void TypeChecker::check(const ast::Node& node) {
     assert(node.type);
 
-    // Check the node
-    node.check(*this);
-
     // Check if the type contains any type inference error,
     // and emit a detailed diagnostic of all the unification steps.
     if (node.type->has<ErrorType>()) {
@@ -32,6 +29,8 @@ void TypeChecker::check(const ast::Node& node) {
     } else if (node.type->has<UnknownType>()) {
         error(node.loc, "cannot infer type for '{}'", node);
         note(node.loc, "best inferred type is '{}'", *node.type);
+    } else {
+        node.check(*this);
     }
 }
 
