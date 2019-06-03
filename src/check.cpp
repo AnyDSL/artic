@@ -16,21 +16,28 @@ void TypeChecker::check(const ast::Node& node) {
     // Check if the type contains any type inference error,
     // and emit a detailed diagnostic of all the unification steps.
     if (node.type->has<ErrorType>()) {
-        error(node.loc, "incorrect type for '{}'", node);
-        for (auto& error : node.type->all<InferError>()) {
-            if (error->left->isa<InferError>() ||
-                error->right->isa<InferError>() ||
-                error->as<Type>()->has<UnknownType>())
+        error(node.loc, "type mismatch");
+        enable_diagnostics(false);
+        for (auto& error : node.type->all<ErrorType>()) {
+            if (error->has<UnknownType>())
                 continue;
-            if (error->loc != node.loc) {
+
+            if (auto infer_error = error->isa<InferError>()) {
+                if (infer_error->left->isa<InferError>() || infer_error->right->isa<InferError>())
+                    continue;
                 note(error->loc,
                     "resulting from unification of '{}' and '{}'",
-                    *error->left, *error->right);
+                    *infer_error->left, *infer_error->right);
+            } else {
+                note(error->loc, "originating from here");
             }
         }
+        enable_diagnostics();
     } else if (node.type->has<UnknownType>()) {
         error(node.loc, "cannot infer type for '{}'", node);
+        enable_diagnostics(false);
         note(node.loc, "best inferred type is '{}'", *node.type);
+        enable_diagnostics();
     } else {
         node.check(*this);
     }

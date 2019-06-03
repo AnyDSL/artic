@@ -9,7 +9,7 @@ inline size_t count_digits(size_t i) {
     return n;
 }
 
-void Logger::show_diagnostic(log::Output& out, const Loc& loc, log::Style style, char underline) {
+void Logger::diagnostic(log::Output& out, const Loc& loc, log::Style style, char underline) {
     auto loc_info = locator->data(*loc.file);
     if (!loc_info || !loc_info->covers(loc))
         return;

@@ -170,9 +170,7 @@ const Type* TypeInference::default_type(const ast::Node& node, const Literal& li
 }
 
 const Type* TypeInference::type(const ast::Node& node) {
-    if (!node.type)
-        node.type = type_table().unknown_type();
-    return std::get<0>(find(node.type));
+    return node.type ? node.type : node.type = type_table().unknown_type();
 }
 
 const Type* TypeInference::infer(const ast::Node& node, const Type* expected) {

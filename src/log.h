@@ -192,36 +192,58 @@ struct Logger {
     template <typename... Args>
     void error(const Loc& loc, const char* fmt, const Args&... args) {
         error_count++;
-        log::format<false>(err, "{} in {}: ",
-            log::style("error", log::Style::Red,   log::Style::Bold),
-            log::style(loc,     log::Style::White, log::Style::Bold));
-        log::format(err, fmt, args...);
-        if (locator) show_diagnostic(err, loc, log::Style::Red, '^');
+        if (diagnostics_enabled) {
+            log::format<false>(err, "{} in {}: ",
+                log::style("error", log::Style::Red,   log::Style::Bold),
+                log::style(loc,     log::Style::White, log::Style::Bold));
+            log::format(err, fmt, args...);
+            if (locator) diagnostic(err, loc, log::Style::Red, '^');
+        } else {
+            log::format<false>(err, "{}: ",
+                log::style("error", log::Style::Red,   log::Style::Bold));
+            log::format(err, fmt, args...);
+        }
     }
 
     /// Report a warning at the given location in a source file.
     template <typename... Args>
     void warn(const Loc& loc, const char* fmt, const Args&... args) {
         warn_count++;
-        log::format<false>(log, "{} in {}: ",
-            log::style("warning", log::Style::Yellow, log::Style::Bold),
-            log::style(loc,       log::Style::White,  log::Style::Bold));
-        log::format(log, fmt, args...);
-        if (locator) show_diagnostic(log, loc, log::Style::Yellow, '^');
+        if (diagnostics_enabled) {
+            log::format<false>(log, "{} in {}: ",
+                log::style("warning", log::Style::Yellow, log::Style::Bold),
+                log::style(loc,       log::Style::White,  log::Style::Bold));
+            log::format(log, fmt, args...);
+            if (locator) diagnostic(log, loc, log::Style::Yellow, '^');
+        } else {
+            log::format<false>(log, "{}: ",
+                log::style("warning", log::Style::Yellow, log::Style::Bold));
+            log::format(log, fmt, args...);
+        }
     }
 
     /// Display a note corresponding to a specific location in a source file.
     template <typename... Args>
     void note(const Loc& loc, const char* fmt, const Args&... args) {
-        log::format<false>(out, "{} in {}: ",
-            log::style("note", log::Style::Cyan,  log::Style::Bold),
-            log::style(loc,    log::Style::White, log::Style::Bold));
-        log::format(out, fmt, args...);
-        if (locator) show_diagnostic(out, loc, log::Style::Cyan, '-');
+        if (diagnostics_enabled) {
+            log::format<false>(out, "{} in {}: ",
+                log::style("note", log::Style::Cyan,  log::Style::Bold),
+                log::style(loc,    log::Style::White, log::Style::Bold));
+            log::format(out, fmt, args...);
+            if (locator) diagnostic(out, loc, log::Style::Cyan, '-');
+        } else {
+            log::format<false>(out, "{}: ",
+                log::style("note", log::Style::Cyan,  log::Style::Bold));
+            log::format(out, fmt, args...);
+        }
     }
 
+    void enable_diagnostics(bool enable = true) { diagnostics_enabled = enable; }
+
 private:
-    void show_diagnostic(log::Output&, const Loc&, log::Style, char);
+    void diagnostic(log::Output&, const Loc&, log::Style, char);
+
+    bool diagnostics_enabled = true;
 };
 
 } // namespace artic
