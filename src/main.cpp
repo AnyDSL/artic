@@ -109,12 +109,14 @@ int main(int argc, char** argv) {
 
     auto program = ast::Program(Loc(), PtrVector<ast::Decl>());
     for (auto& file : opts.files) {
-        locator.new_file(file);
         std::ifstream is(file);
         if (!is) {
             log::error("cannot open file '{}'", file);
             return 1;
         }
+        locator.register_file(file,
+            std::string(std::istreambuf_iterator<char>(is),
+                        std::istreambuf_iterator<char>()));
         Lexer lexer(file, is, logger);
         Parser parser(lexer, type_table, logger);
         auto module = parser.parse_program();

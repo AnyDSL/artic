@@ -10,8 +10,6 @@
 
 namespace artic {
 
-class Locator;
-
 /// Generates a stream of tokens for the Parser.
 class Lexer : public Logger {
 public:
@@ -30,7 +28,7 @@ private:
 
         bool empty() const { return count == 0; }
         bool fill(std::istream&);
-        uint32_t decode(Locator*);
+        uint32_t decode();
     };
 
     void eat();

@@ -3,7 +3,6 @@
 #include <utf8.h>
 
 #include "lexer.h"
-#include "locator.h"
 
 namespace artic {
 
@@ -40,10 +39,9 @@ bool Lexer::Utf8Buffer::fill(std::istream& is) {
     return true;
 }
 
-uint32_t Lexer::Utf8Buffer::decode(Locator* locator) {
+uint32_t Lexer::Utf8Buffer::decode() {
     auto it = buf;
     auto code = utf8::unchecked::next(it);
-    if (locator) locator->write(buf, it - buf);
     count = buf + count - it;
     std::copy(it, it + count, buf);
     return code;
@@ -61,8 +59,6 @@ Lexer::Lexer(const std::string& filename, std::istream& is, const Logger& log)
     , loc_(std::make_shared<std::string>(filename), 1, 0)
     , eof_(false), code_(0)
 {
-    if (locator) locator->new_line();
-
     // Read UTF8 byte order mark
     char bytes[3];
     std::fill_n(bytes, 3, std::char_traits<char>::eof());
@@ -208,9 +204,7 @@ void Lexer::eat() {
         loc_.end_col++;
     }
     eof_  = !buf_.fill(stream_) && buf_.empty();
-    code_ = eof_ ? 0 : buf_.decode(locator);
-    if (code_ == '\n' && locator)
-        locator->new_line();
+    code_ = eof_ ? 0 : buf_.decode();
 }
 
 void Lexer::eat_spaces() {
