@@ -78,23 +78,49 @@ Type TypeChecker::infer_tuple(const Args& args) {
 
 namespace ast {
 
-artic::Type Node::check(TypeChecker& checker, artic::Type type) const {
+artic::Type Node::check(TypeChecker& checker, artic::Type expected) const {
     // By default, try to infer, and then check that types match
-    return checker.expect(loc, checker.infer(*this), type);
+    auto blob = checker.infer(*this);
+    return checker.expect(loc, checker.infer(*this), expected);
 }
 
 artic::Type Node::infer(TypeChecker& checker) const {
     return checker.cannot_infer(loc, "expression");
 }
 
+artic::Type Path::infer(TypeChecker& checker) const {
+    if (!symbol || symbol->decls.empty())
+        return checker.error_type();
+    return checker.infer(*symbol->decls.front());
+}
+
+artic::Type PrimType::infer(TypeChecker& checker) const {
+    return checker.prim_type(static_cast<artic::PrimType::Tag>(tag));
+}
+
 artic::Type TupleType::infer(TypeChecker& checker) const {
     return checker.infer_tuple(args);
 }
 
+artic::Type ExprStmt::infer(TypeChecker& checker) const {
+    return checker.infer(*expr);
+}
+
+artic::Type ExprStmt::check(TypeChecker& checker, artic::Type expected) const {
+    return checker.check(*expr, expected);
+}
+
+artic::Type PathExpr::infer(TypeChecker& checker) const {
+    return checker.infer(path);
+}
+
 artic::Type FnExpr::infer(TypeChecker& checker) const {
     auto body_type = ret_type ? checker.infer(*ret_type) : artic::Type();
-    if (body || body_type)
-        return checker.fn_type(checker.infer(*param), body_type ? checker.check(*body, body_type) : checker.infer(*body));
+    if (body || body_type) {
+        auto param_type = checker.infer(*param);
+        body_type = body_type ? checker.check(*body, body_type) : checker.infer(*body);
+        return checker.fn_type(param_type, body_type);
+    }
     return checker.cannot_infer(loc, "function");
 }
 
@@ -122,6 +148,10 @@ artic::Type BlockExpr::check(TypeChecker& checker, artic::Type expected) const {
     return expected;
 }
 
+artic::Type PtrnDecl::check(TypeChecker& checker, artic::Type expected) const {
+    return expected;
+}
+
 artic::Type FnDecl::infer(TypeChecker& checker) const {
     // TODO: Type params
     return checker.infer(*fn);
@@ -131,8 +161,8 @@ artic::Type TypedPtrn::infer(TypeChecker& checker) const {
     return checker.check(*ptrn, checker.infer(*type));
 }
 
-artic::Type IdPtrn::check(TypeChecker&, artic::Type expected) const {
-    return expected;
+artic::Type IdPtrn::check(TypeChecker& checker, artic::Type expected) const {
+    return checker.check(*decl, expected);
 }
 
 artic::Type TuplePtrn::infer(TypeChecker& checker) const {

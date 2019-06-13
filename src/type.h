@@ -119,7 +119,9 @@ public:
         return false;
     }
 
-    operator bool () const { return def_; }
+    operator bool () const { return def(); }
+    bool operator == (const Type& other) const { return other.def() == def(); }
+    bool operator != (const Type& other) const { return other.def() != def(); }
 
     virtual void print(Printer&) const;
     void dump() const;
@@ -127,6 +129,8 @@ public:
 protected:
     const thorin::Def* def_;
 };
+
+log::Output& operator << (log::Output&, const Type&);
 
 using PrimTypeMatcher  = thorin::MatchAnd<thorin::IsType, thorin::MatchTag<thorin::Node_PrimType_bool, thorin::Node_PrimType_qf64>>;
 using TupleTypeMatcher = thorin::MatchAnd<thorin::IsType, thorin::MatchTagExact<thorin::Node_Sigma>>;

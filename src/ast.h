@@ -127,6 +127,7 @@ struct Path : public Node {
         : Node(loc), elems(std::move(elems)), args(std::move(args))
     {}
 
+    artic::Type infer(TypeChecker&) const override;
     void bind(NameBinder&) const override;
     void print(Printer&) const override;
 };
@@ -170,6 +171,7 @@ struct PrimType : public Type {
         : Type(loc), tag(tag)
     {}
 
+    artic::Type infer(TypeChecker&) const override;
     void bind(NameBinder&) const override;
     void print(Printer&) const override;
 
@@ -288,6 +290,8 @@ struct ExprStmt : public Stmt {
 
     bool need_semicolon() const override;
 
+    artic::Type infer(TypeChecker&) const override;
+    artic::Type check(TypeChecker&, artic::Type) const override;
     void bind(NameBinder&) const override;
     void print(Printer&) const override;
 };
@@ -317,6 +321,7 @@ struct PathExpr : public Expr {
         : Expr(loc), path(std::move(path))
     {}
 
+    artic::Type infer(TypeChecker&) const override;
     void bind(NameBinder&) const override;
     void print(Printer&) const override;
 };
@@ -776,6 +781,7 @@ struct PtrnDecl : public NamedDecl {
         : NamedDecl(loc, std::move(id)), mut(mut)
     {}
 
+    artic::Type check(TypeChecker&, artic::Type) const override;
     void bind(NameBinder&) const override;
     void print(Printer&) const override;
 };

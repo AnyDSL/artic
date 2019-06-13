@@ -67,7 +67,7 @@ void ExprStmt::print(Printer& p) const {
 
 void TypedExpr::print(Printer& p) const {
     expr->print(p);
-    p << " : ";
+    p << ": ";
     type->print(p);
 }
 
@@ -269,7 +269,7 @@ void ErrorExpr::print(Printer& p) const {
 void TypedPtrn::print(Printer& p) const {
     if (ptrn) {
         ptrn->print(p);
-        p << " : ";
+        p << ": ";
     }
     type->print(p);
 }
