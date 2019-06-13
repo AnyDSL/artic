@@ -90,8 +90,6 @@ private:
     ast::Identifier         parse_id();
     Literal                 parse_lit();
 
-    AddrSpace               parse_addr_space();
-
     PtrVector<ast::NamedDecl> parse_trait_or_impl_body(bool);
 
     struct Tracker {
@@ -188,8 +186,6 @@ private:
     Lexer& lexer_;
     TypeTable& type_table_;
     Loc prev_;
-
-    std::vector<std::unordered_map<std::string, const TypeVar*>> type_vars_;
 };
 
 } // namespace artic

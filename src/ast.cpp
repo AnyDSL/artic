@@ -13,17 +13,17 @@ bool Ptrn::is_tuple() const { return isa<TuplePtrn>(); }
 
 std::string PrimType::tag_to_string(Tag tag) {
     switch (tag) {
-        case I1:  return "bool";
-        case I8:  return "i8";
-        case I16: return "i16";
-        case I32: return "i32";
-        case I64: return "i64";
-        case U8:  return "u8";
-        case U16: return "u16";
-        case U32: return "u32";
-        case U64: return "u64";
-        case F32: return "f32";
-        case F64: return "f64";
+        case Bool: return "bool";
+        case I8:   return "i8";
+        case I16:  return "i16";
+        case I32:  return "i32";
+        case I64:  return "i64";
+        case U8:   return "u8";
+        case U16:  return "u16";
+        case U32:  return "u32";
+        case U64:  return "u64";
+        case F32:  return "f32";
+        case F64:  return "f64";
         default:
             assert(false);
             return "";
@@ -32,7 +32,7 @@ std::string PrimType::tag_to_string(Tag tag) {
 
 PrimType::Tag PrimType::tag_from_token(const Token& token) {
     static std::unordered_map<std::string, Tag> tag_map{
-        std::make_pair("bool", I1),
+        std::make_pair("bool", Bool),
 
         std::make_pair("i8",  I8),
         std::make_pair("i16", I16),

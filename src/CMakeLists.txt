@@ -1,22 +1,17 @@
-set(BACKEND emit.cpp)
-find_package(Thorin QUIET)
-if (NOT ${NO_BACKEND} AND Thorin_FOUND)
-    set(BACKEND emit_thorin.cpp)
-    include_directories(${Thorin_INCLUDE_DIRS})
-    link_libraries(${Thorin_LIBRARIES})
-endif()
+find_package(Thorin)
 
 add_library(libartic
     ast.h
     ast.cpp
     bind.cpp
     bind.h
-    box.h
     cast.h
-    check.cpp
+    #check.cpp
     check.h
-    infer.cpp
-    infer.h
+    #emit.cpp
+    emit.h
+    #infer.cpp
+    #infer.h
     lexer.cpp
     lexer.h
     loc.h
@@ -29,15 +24,17 @@ add_library(libartic
     print.h
     symbol.h
     token.h
-    type.cpp
     type.h)
+
 set_target_properties(libartic PROPERTIES PREFIX "" CXX_STANDARD 17)
+target_include_directories(libartic PUBLIC ${Thorin_INCLUDE_DIRS})
+target_link_libraries(libartic ${Thorin_LIBRARIES})
 
 add_executable(artic main.cpp ${BACKEND})
-target_compile_definitions(artic PUBLIC -DARTIC_VERSION_MAJOR=${PROJECT_VERSION_MAJOR})
-target_compile_definitions(artic PUBLIC -DARTIC_VERSION_MINOR=${PROJECT_VERSION_MINOR})
-target_link_libraries(artic libartic)
 set_target_properties(artic PROPERTIES CXX_STANDARD 17)
+target_compile_definitions(artic PUBLIC -DARTIC_VERSION_MAJOR=${PROJECT_VERSION_MAJOR} -DARTIC_VERSION_MINOR=${PROJECT_VERSION_MINOR})
+target_include_directories(artic PUBLIC ${Thorin_INCLUDE_DIRS})
+target_link_libraries(artic libartic ${Thorin_LIBRARIES})
 
 if (${COLORIZE})
     target_compile_definitions(artic PUBLIC -DCOLORIZE)

@@ -2,9 +2,12 @@
 #define TOKEN_H
 
 #include <string>
+#include <ostream>
+#include <cassert>
+
+#include <thorin/util/types.h>
 
 #include "loc.h"
-#include "box.h"
 #include "hash.h"
 
 namespace artic {
@@ -83,21 +86,38 @@ namespace artic {
     f(End, "<eof>")
 
 struct Literal {
-    Box box;
+    enum Tag {
+        Double,
+        Integer,
+        Bool
+    };
+    Tag tag;
+    thorin::Box box;
 
-    bool is_double()  const { return box.tag == Box::F64; }
-    bool is_integer() const { return box.tag == Box::U64; }
-    bool is_bool()    const { return box.tag == Box::I1; }
+    bool is_double()  const { return tag == Double; }
+    bool is_integer() const { return tag == Integer; }
+    bool is_bool()    const { return tag == Bool; }
 
-    double as_double()    const { return box.f64; }
-    uint64_t as_integer() const { return box.u64; }
-    bool as_bool()        const { return box.i1; }
+    double as_double()    const { return box.get_f64(); }
+    uint64_t as_integer() const { return box.get_u64(); }
+    bool as_bool()        const { return box.get_bool(); }
 
     Literal() {}
-    Literal(uint64_t i) : box(i) {}
-    Literal(double d)   : box(d) {}
-    Literal(bool b)     : box(b) {}
+    Literal(uint64_t i) : box(i), tag(Integer) {}
+    Literal(double d)   : box(d), tag(Double) {}
+    Literal(bool b)     : box(b), tag(Bool) {}
 };
+
+std::ostream& operator << (std::ostream& os, const Literal& lit) {
+    switch (lit.tag) {
+        case Literal::Double:  return os << lit.as_double();
+        case Literal::Integer: return os << lit.as_integer();
+        case Literal::Bool:    return os << lit.as_bool();
+        default:
+            assert(false);
+            return os;
+    }
+}
 
 struct Token {
 public:

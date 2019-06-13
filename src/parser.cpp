@@ -794,9 +794,8 @@ Ptr<ast::PtrType> Parser::parse_ptr_type() {
         eat(Token::Mut);
         mut = true;
     }
-    AddrSpace addr_space = parse_addr_space();
     auto type = parse_type();
-    return make_ptr<ast::PtrType>(tracker(), std::move(type), addr_space, mut);
+    return make_ptr<ast::PtrType>(tracker(), std::move(type), mut);
 }
 
 Ptr<ast::SelfType> Parser::parse_self_type() {
@@ -863,15 +862,6 @@ Literal Parser::parse_lit() {
         lit = ahead().literal();
     next();
     return lit;
-}
-
-AddrSpace Parser::parse_addr_space() {
-    switch (ahead().tag()) {
-        case Token::Global:  eat(Token::Global);  return AddrSpace::Global;
-        case Token::Shared:  eat(Token::Shared);  return AddrSpace::Shared;
-        case Token::Private: eat(Token::Private); return AddrSpace::Private;
-        default:             return AddrSpace::Generic;
-    }
 }
 
 PtrVector<ast::NamedDecl> Parser::parse_trait_or_impl_body(bool impl) {

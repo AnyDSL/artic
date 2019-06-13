@@ -10,14 +10,10 @@
 #include "log.h"
 #include "print.h"
 #include "bind.h"
-#include "infer.h"
 #include "check.h"
+#include "emit.h"
 
 using namespace artic;
-
-namespace artic {
-    void emit(const std::string&, size_t, TypeInference&, const ast::Program&);
-}
 
 static void usage() {
     log::out << "usage: artic [options] files...\n"
@@ -103,9 +99,12 @@ int main(int argc, char** argv) {
     ProgramOptions opts;
     if (!opts.parse(argc, argv)) return 1;
 
+    thorin::World world(0);
+
     Locator locator;
     Logger logger(log::err, log::log, log::out, &locator);
-    TypeTable type_table;
+
+    TypeTable type_table(world);
 
     auto program = ast::Program(Loc(), PtrVector<ast::Decl>());
     for (auto& file : opts.files) {
@@ -126,16 +125,15 @@ int main(int argc, char** argv) {
     }
 
     NameBinder name_binder(logger);
-    TypeInference type_inference(type_table);
-    TypeChecker type_checker(type_inference, logger);
+    TypeChecker type_checker(logger);
 
     if (!name_binder.run(program))
         return 1;
-    type_inference.run(program);
     if (!type_checker.run(program))
         return 1;
 
     auto module_name = "module";
-    emit(module_name, opts.opt_level, type_inference, program);
+    Emitter emitter;
+    emitter.emit(module_name, opts.opt_level, program);
     return 0;
 }

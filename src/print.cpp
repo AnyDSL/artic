@@ -76,7 +76,7 @@ void PathExpr::print(Printer& p) const {
 }
 
 void LiteralExpr::print(Printer& p) const {
-    p << std::showpoint << literal_style(lit.box);
+    p << std::showpoint << literal_style(lit);
 }
 
 void FieldExpr::print_head(Printer& p) const {
@@ -329,7 +329,7 @@ void IdPtrn::print(Printer& p) const {
 }
 
 void LiteralPtrn::print(Printer& p) const {
-    p << std::showpoint << literal_style(lit.box);
+    p << std::showpoint << literal_style(lit);
 }
 
 void FieldPtrn::print(Printer& p) const {
@@ -569,8 +569,6 @@ void TypeApp::print(Printer& p) const {
 void PtrType::print(Printer& p) const {
     p << '&';
     if (mut) p << keyword_style("mut") << ' ';
-    if (addr_space.locality != AddrSpace::Generic)
-        p << keyword_style(addr_space.to_string()) << ' ';
     pointee->print(p);
 }
 
@@ -599,103 +597,41 @@ void Node::dump() const {
 // Types ---------------------------------------------------------------------------
 
 void PrimType::print(Printer& p) const {
-    p << keyword_style(ast::PrimType::tag_to_string(ast::PrimType::Tag(tag)));
+    p << keyword_style(ast::PrimType::tag_to_string(ast::PrimType::Tag(tag())));
 }
 
 void NoRetType::print(Printer& p) const {
     p << '!';
 }
 
-void StructType::print(Printer& p) const {
-    p << name;
-    if (!args.empty()) {
-        p << '<';
-        print_list(p, ", ", args, [&] (auto arg) {
-            arg->print(p);
-        });
-        p << '>';
-    }
-}
-
-void TraitType::print(Printer& p) const {
-    p << name;
-}
-
-void ImplType::print(Printer& p) const {
-    p << keyword_style("impl") << ' ';
-    trait()->print(p);
-    p << ' ' << keyword_style("for") << ' ';
-    self()->print(p);
-}
-
 void TupleType::print(Printer& p) const {
     p << '(';
-    print_list(p, ", ", args, [&] (auto arg) {
-        arg->print(p);
-    });
+    for (size_t i = 0; i < num_args(); ++i) {
+        arg(i).print(p);
+        if (i != num_args() - 1)
+            p << ", ";
+    }
     p << ')';
 }
 
 void ArrayType::print(Printer& p) const {
     p << '[';
-    elem()->print(p);
+    elem().print(p);
     p << ']';
 }
 
 void FnType::print(Printer& p) const {
     p << keyword_style("fn");
-    print_parens(p, from());
+    auto dom = from();
+    print_parens(p, &dom);
     p << " -> ";
-    to()->print(p);
-}
-
-void RefType::print(Printer& p) const {
-    p << keyword_style("ref") << ' ';
-    if (mut) p << keyword_style("mut") << ' ';
-    if (addr_space.locality != AddrSpace::Generic)
-        p << keyword_style(addr_space.to_string()) << ' ';
-    pointee()->print(p);
+    to().print(p);
 }
 
 void PtrType::print(Printer& p) const {
     p << '&';
-    if (mut) p << keyword_style("mut") << ' ';
-    if (addr_space.locality != AddrSpace::Generic)
-        p << keyword_style(addr_space.to_string()) << ' ';
-    pointee()->print(p);
-}
-
-void PolyType::print(Printer& p) const {
-    p << keyword_style("for") << '<';
-    auto vars = body()->all<TypeVar>();
-    std::sort(vars.begin(), vars.end(), [] (auto& var1, auto& var2) {
-        return var1->index < var2->index;
-    });
-    for (size_t i = 0, n = std::min(vars.size(), num_vars); i < n; i++) {
-        assert(vars[i]->index == i);
-        vars[i]->print(p);
-        if (i != n - 1) p << ", ";
-    }
-    p << "> ";
-    body()->print(p);
-}
-
-void SelfType::print(Printer& p) const {
-    p << keyword_style("Self");
-}
-
-void TypeVar::print(Printer& p) const {
-    p << type_var_style(name);
-    if (!traits.empty()) {
-        p << " : ";
-        print_list(p, " + ", traits, [&] (auto& trait) {
-            p << trait->name;
-        });
-    }
-}
-
-void UnknownType::print(Printer& p) const {
-    p << error_style("?") << number;
+    if (is_mut()) p << keyword_style("mut") << ' ';
+    pointee().print(p);
 }
 
 void ErrorType::print(Printer& p) const {
