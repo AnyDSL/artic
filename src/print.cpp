@@ -79,19 +79,9 @@ void LiteralExpr::print(Printer& p) const {
     p << std::showpoint << literal_style(lit);
 }
 
-void FieldExpr::print_head(Printer& p) const {
-    p << id.name << ": ";
-    expr->print_head(p);
-}
-
 void FieldExpr::print(Printer& p) const {
     p << id.name << ": ";
     expr->print(p);
-}
-
-void StructExpr::print_head(Printer& p) const {
-    expr->print(p);
-    p << " { ... }";
 }
 
 void StructExpr::print(Printer& p) const {
@@ -123,20 +113,6 @@ void ArrayExpr::print(Printer& p) const {
     p << ']';
 }
 
-void FnExpr::print_head(Printer& p) const {
-    if (filter)
-        filter->print(p);
-    p << '|';
-    if (auto tuple = param->isa<TuplePtrn>()) {
-        print_list(p, ", ", tuple->args, [&] (auto& a) {
-            a->print(p);
-        });
-    } else {
-        param->print(p);
-    }
-    p << "| ...";
-}
-
 void FnExpr::print(Printer& p) const {
     if (filter)
         filter->print(p);
@@ -149,11 +125,11 @@ void FnExpr::print(Printer& p) const {
         param->print(p);
     }
     p << "| ";
+    if (ret_type) {
+        p << "-> ";
+        ret_type->print(p);
+    }
     body->print(p);
-}
-
-void BlockExpr::print_head(Printer& p) const {
-    p << "{ ... }";
 }
 
 void BlockExpr::print(Printer& p) const {
@@ -181,12 +157,6 @@ void ProjExpr::print(Printer& p) const {
     p << '.' << field.name;
 }
 
-void IfExpr::print_head(Printer& p) const {
-    p << keyword_style("if") << ' ';
-    cond->print(p);
-    p << " ...";
-}
-
 void IfExpr::print(Printer& p) const {
     p << keyword_style("if") << ' ';
     cond->print(p);
@@ -204,12 +174,6 @@ void CaseExpr::print(Printer& p) const {
     expr->print(p);
 }
 
-void MatchExpr::print_head(Printer& p) const {
-    p << keyword_style("match") << ' ';
-    arg->print(p);
-    p << " ...";
-}
-
 void MatchExpr::print(Printer& p) const {
     p << keyword_style("match") << ' ';
     arg->print(p);
@@ -223,25 +187,11 @@ void MatchExpr::print(Printer& p) const {
     p << p.unindent() << p.endl() << "}";
 }
 
-void WhileExpr::print_head(Printer& p) const {
-    p << keyword_style("while") << ' ';
-    cond->print(p);
-    p << " { ... }";
-}
-
 void WhileExpr::print(Printer& p) const {
     p << keyword_style("while") << ' ';
     cond->print(p);
     p << ' ';
     body->print(p);
-}
-
-void ForExpr::print_head(Printer& p) const {
-    p << keyword_style("for") << ' ';
-    ptrn->print(p);
-    p << ' ' << keyword_style("in") << ' ';
-    expr->print(p);
-    p << " { ... }";
 }
 
 void ForExpr::print(Printer& p) const {
@@ -341,11 +291,6 @@ void FieldPtrn::print(Printer& p) const {
     }
 }
 
-void StructPtrn::print_head(Printer& p) const {
-    path.print(p);
-    p << " { ... }";
-}
-
 void StructPtrn::print(Printer& p) const {
     path.print(p);
     p << " {";
@@ -396,12 +341,6 @@ void FieldDecl::print(Printer& p) const {
     type->print(p);
 }
 
-void StructDecl::print_head(Printer& p) const {
-    p << keyword_style("struct") << ' ' << id.name;
-    if (type_params) type_params->print(p);
-    p << " { ... }";
-}
-
 void StructDecl::print(Printer& p) const {
     p << keyword_style("struct") << ' ' << id.name;
     if (type_params) type_params->print(p);
@@ -432,22 +371,6 @@ void LetDecl::print(Printer& p) const {
     p << ';';
 }
 
-void FnDecl::print_head(Printer& p) const {
-    p << keyword_style("fn") << ' ';
-    if (fn->filter)
-       fn->filter->print(p);
-    p << id.name;
-
-    if (type_params) type_params->print(p);
-    print_parens(p, fn->param);
-
-    if (ret_type) {
-        p << " -> ";
-        ret_type->print(p);
-    }
-    p << " { ... }";
-}
-
 void FnDecl::print(Printer& p) const {
     p << keyword_style("fn") << ' ';
     if (fn->filter)
@@ -457,9 +380,9 @@ void FnDecl::print(Printer& p) const {
     if (type_params) type_params->print(p);
     print_parens(p, fn->param);
 
-    if (ret_type) {
+    if (fn->ret_type) {
         p << " -> ";
-        ret_type->print(p);
+        fn->ret_type->print(p);
     }
 
     if (fn->body) {
@@ -467,12 +390,6 @@ void FnDecl::print(Printer& p) const {
         fn->body->print(p);
     } else
         p << ';';
-}
-
-void TraitDecl::print_head(Printer& p) const {
-    p << keyword_style("trait") << ' ' << id.name;
-    if (type_params) type_params->print(p);
-    p << " { ... }";
 }
 
 void TraitDecl::print(Printer& p) const {
@@ -494,16 +411,6 @@ void TraitDecl::print(Printer& p) const {
         p << p.unindent() << p.endl();
     }
     p << '}';
-}
-
-void ImplDecl::print_head(Printer& p) const {
-    p << keyword_style("impl");
-    if (type_params) type_params->print(p);
-    p << ' ';
-    trait->print(p);
-    p << ' ' << keyword_style("for") << ' ';
-    type->print(p);
-    p << " { ... }";
 }
 
 void ImplDecl::print(Printer& p) const {
@@ -582,7 +489,7 @@ void ErrorType::print(Printer& p) const {
 
 log::Output& operator << (log::Output& out, const Node& node) {
     Printer p(out);
-    node.print_head(p);
+    node.print(p);
     return out;
 }
 
@@ -596,12 +503,19 @@ void Node::dump() const {
 
 // Types ---------------------------------------------------------------------------
 
-void PrimType::print(Printer& p) const {
-    p << keyword_style(ast::PrimType::tag_to_string(ast::PrimType::Tag(tag())));
+void Type::print(Printer& p) const {
+         if (isa<PrimType>())  as<PrimType>().print(p);
+    else if (isa<TupleType>()) as<TupleType>().print(p);
+    else if (isa<ArrayType>()) as<ArrayType>().print(p);
+    else if (isa<PtrType>())   as<PtrType>().print(p);
+    else if (isa<FnType>())    as<FnType>().print(p);
+    else if (isa<NoRetType>()) as<NoRetType>().print(p);
+    else if (isa<ErrorType>()) as<ErrorType>().print(p);
+    else assert(false);
 }
 
-void NoRetType::print(Printer& p) const {
-    p << '!';
+void PrimType::print(Printer& p) const {
+    p << keyword_style(ast::PrimType::tag_to_string(ast::PrimType::Tag(tag())));
 }
 
 void TupleType::print(Printer& p) const {
@@ -632,6 +546,10 @@ void PtrType::print(Printer& p) const {
     p << '&';
     if (is_mut()) p << keyword_style("mut") << ' ';
     pointee().print(p);
+}
+
+void NoRetType::print(Printer& p) const {
+    p << '!';
 }
 
 void ErrorType::print(Printer& p) const {

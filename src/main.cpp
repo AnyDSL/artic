@@ -99,12 +99,8 @@ int main(int argc, char** argv) {
     ProgramOptions opts;
     if (!opts.parse(argc, argv)) return 1;
 
-    thorin::World world(0);
-
     Locator locator;
     Logger logger(log::err, log::log, log::out, &locator);
-
-    TypeTable type_table(world);
 
     auto program = ast::Program(Loc(), PtrVector<ast::Decl>());
     for (auto& file : opts.files) {
@@ -117,7 +113,7 @@ int main(int argc, char** argv) {
             std::string(std::istreambuf_iterator<char>(is),
                         std::istreambuf_iterator<char>()));
         Lexer lexer(file, is, logger);
-        Parser parser(lexer, type_table, logger);
+        Parser parser(lexer, logger);
         auto module = parser.parse_program();
         if (lexer.error_count + parser.error_count != 0)
             return 1;
@@ -125,7 +121,9 @@ int main(int argc, char** argv) {
     }
 
     NameBinder name_binder(logger);
-    TypeChecker type_checker(logger);
+
+    thorin::World world(0);
+    TypeChecker type_checker(world, logger);
 
     if (!name_binder.run(program))
         return 1;

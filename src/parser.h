@@ -12,7 +12,7 @@ namespace artic {
 /// Generates an AST from a stream of tokens.
 class Parser : public Logger {
 public:
-    Parser(Lexer&, TypeTable&, const Logger& log = Logger());
+    Parser(Lexer&, const Logger& log = Logger());
 
     /// Parses a program read from Lexer object.
     /// Errors are reported by the Logger.
@@ -184,7 +184,6 @@ private:
 
     Token ahead_[max_ahead];
     Lexer& lexer_;
-    TypeTable& type_table_;
     Loc prev_;
 };
 

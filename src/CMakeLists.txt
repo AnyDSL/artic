@@ -6,12 +6,10 @@ add_library(libartic
     bind.cpp
     bind.h
     cast.h
-    #check.cpp
+    check.cpp
     check.h
     #emit.cpp
     emit.h
-    #infer.cpp
-    #infer.h
     lexer.cpp
     lexer.h
     loc.h

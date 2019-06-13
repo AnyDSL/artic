@@ -6,329 +6,123 @@
 namespace artic {
 
 bool TypeChecker::run(const ast::Program& program) {
-    program.check(*this);
+    program.infer(*this);
     return error_count == 0;
 }
 
-void TypeChecker::check(const ast::Node& node) {
-    assert(node.type);
+bool TypeChecker::types_match(Type type, Type expected) {
+    return type == expected;
+}
 
-    // Check if the type contains any type inference error,
-    // and emit a detailed diagnostic of all the unification steps.
-    if (node.type->has<ErrorType>()) {
-        error(node.loc, "type mismatch");
-        enable_diagnostics(false);
-        for (auto& error : node.type->all<ErrorType>()) {
-            if (error->has<UnknownType>())
-                continue;
+bool TypeChecker::should_emit_error(Type type) {
+    return !type.contains(error_type());
+}
 
-            if (auto infer_error = error->isa<InferError>()) {
-                if (infer_error->left->isa<InferError>() || infer_error->right->isa<InferError>())
-                    continue;
-                note(error->loc,
-                    "resulting from unification of '{}' and '{}'",
-                    *infer_error->left, *infer_error->right);
-            } else {
-                note(error->loc, "originating from here");
-            }
-        }
-        enable_diagnostics();
-    } else if (node.type->has<UnknownType>()) {
-        error(node.loc, "cannot infer type for '{}'", node);
-        enable_diagnostics(false);
-        note(node.loc, "best inferred type is '{}'", *node.type);
-        enable_diagnostics();
-    } else {
-        node.check(*this);
+artic::Type TypeChecker::expect(const Loc& loc, const std::string& msg, Type type, Type expected) {
+    if (!types_match(type, expected) && should_emit_error(type)) {
+        error(loc, "expected type '{}', but got {} with type '{}'", expected, msg, type);
+        return expected;
     }
+    return type;
 }
 
-template <typename Fields>
-void TypeChecker::check_struct(const Loc& loc, const StructType* struct_type, const Fields& fields, bool has_etc) {
-    auto& members = struct_type->members(type_table());
+artic::Type TypeChecker::expect(const Loc& loc, const std::string& msg, Type expected) {
+    error(loc, "expected type '{}', but got {}", expected, msg);
+    return expected;
+}
 
-    // Make sure all fields are set
-    if (!has_etc) {
-        auto not_set = std::find_if(members.begin(), members.end(), [&] (auto& member) {
-            return std::find_if(fields.begin(), fields.end(), [&] (auto& field) {
-                return member.first == field->id.name;
-            }) == fields.end();
-        });
-        if (not_set != members.end())
-            error(loc, "missing initializer for field '{}'", not_set->first);
+artic::Type TypeChecker::expect(const Loc& loc, Type type, Type expected) {
+    if (!types_match(type, expected) && should_emit_error(type)) {
+        error(loc, "expected type '{}', but got type '{}'", expected, type);
+        return expected;
     }
+    return type;
 }
 
-void TypeChecker::check_impl(const Loc& loc, const ImplType* impl_type) {
-    if (auto type_var = impl_type->self()->isa<TypeVar>()) {
-        if (type_var->traits.count(impl_type->trait()))
-            return;
-        if (std::any_of(type_var->traits.begin(), type_var->traits.end(), [&] (auto trait) { return trait->subtrait(type_table(), impl_type->trait()); }))
-            return;
-    } else if (impl_type->decl(type_inference()))
-        return;
-
-    error(loc, "no implementation of trait '{}' found for type '{}'", *impl_type->trait()->as<artic::Type>(), *impl_type->self());
+artic::Type TypeChecker::cannot_infer(const Loc& loc, const std::string& msg) {
+    error(loc, "cannot infer type for {}", msg);
+    return error_type();
 }
 
-void TypeChecker::check_lit(const Loc& loc, const Literal& lit, const Type* type) {
-    if (!lit.is_bool())
-        check_num(loc, type);
+Type TypeChecker::check(const ast::Node& node, Type type) {
+    assert(!node.type); // Nodes can only be visited once
+    return node.type = node.check(*this, type);
 }
 
-void TypeChecker::check_num(const Loc& loc, const Type* type) {
-    check_impl(loc, type_table().impl_type(num_trait, type));
+Type TypeChecker::infer(const ast::Node& node) {
+    if (node.type)
+        return node.type;
+    return node.type = node.infer(*this);
+}
+
+template <typename Args>
+Type TypeChecker::check_tuple(const Loc& loc, const std::string& msg, const Args& args, Type expected) {
+    if (!expected.isa<TupleType>())
+        return expect(loc, msg, expected);
+    if (args.size() != expected.as<TupleType>().num_args()) {
+        error(loc, "expected {} argument(s) in {}, but got {}", expected.as<TupleType>().num_args(), msg, args.size());
+        return error_type();
+    }
+    for (size_t i = 0; i < args.size(); ++i)
+        check(*args[i], expected.as<TupleType>().arg(i));
+    return expected;
 }
 
 namespace ast {
 
-void Path::check(TypeChecker& ctx) const {
-    for (auto& elem : elems) {
-        if (auto impl_type = elem.type->isa<ImplType>())
-            ctx.check_impl(loc, impl_type);
-    }
-    for (auto& arg : args) ctx.check(*arg);
+artic::Type Node::check(TypeChecker& checker, artic::Type type) const {
+    // By default, try to infer, and then check that types match
+    return checker.expect(loc, checker.infer(*this), type);
 }
 
-void Filter::check(TypeChecker& ctx) const {
-    ctx.check(*expr);
+artic::Type Node::infer(TypeChecker& checker) const {
+    return checker.cannot_infer(loc, "expression");
 }
 
-void PrimType::check(TypeChecker&) const {}
-
-void TupleType::check(TypeChecker& ctx) const {
-    for (auto& arg : args) ctx.check(*arg);
+artic::Type FnExpr::infer(TypeChecker& checker) const {
+    auto body_type = ret_type ? checker.infer(*ret_type) : artic::Type();
+    if (body || body_type)
+        return checker.fn_type(checker.infer(*param), body_type ? checker.check(*body, body_type) : checker.infer(*body));
+    return checker.cannot_infer(loc, "function");
 }
 
-void ArrayType::check(TypeChecker& ctx) const {
-    ctx.check(*elem);
+artic::Type FnExpr::check(TypeChecker& checker, artic::Type expected) const {
+    if (!expected.isa<artic::FnType>())
+        return checker.expect(loc, "anonymous function", expected);
+    checker.check(*param, expected.as<artic::FnType>().from());
+    checker.check(*body,  expected.as<artic::FnType>().to());
+    return expected;
 }
 
-void FnType::check(TypeChecker& ctx) const {
-    ctx.check(*from);
-    ctx.check(*to);
+artic::Type FnDecl::infer(TypeChecker& checker) const {
+    // TODO: Type params
+    return checker.infer(*fn);
 }
 
-void TypeApp::check(TypeChecker& ctx) const {
-    ctx.check(path);
+artic::Type TypedPtrn::infer(TypeChecker& checker) const {
+    return checker.check(*ptrn, checker.infer(*type));
 }
 
-void PtrType::check(TypeChecker& ctx) const {
-    ctx.check(*pointee);
+artic::Type IdPtrn::check(TypeChecker&, artic::Type expected) const {
+    return expected;
 }
 
-void SelfType::check(TypeChecker&) const {}
-
-void ErrorType::check(TypeChecker&) const {}
-
-void DeclStmt::check(TypeChecker& ctx) const {
-    ctx.check(*decl);
+artic::Type TuplePtrn::infer(TypeChecker& checker) const {
+    thorin::Array<artic::Type> arg_types(args.size());
+    for (size_t i = 0; i < args.size(); ++i)
+        arg_types[i] = checker.infer(*args[i]);
+    return checker.tuple_type(arg_types);
 }
 
-void ExprStmt::check(TypeChecker& ctx) const {
-    ctx.check(*expr);
+artic::Type TuplePtrn::check(TypeChecker& checker, artic::Type expected) const {
+    return checker.check_tuple(loc, "tuple pattern", args, expected);
 }
 
-void TypedExpr::check(TypeChecker& ctx) const {
-    ctx.check(*expr);
-    ctx.check(*type);
-}
-
-void PathExpr::check(TypeChecker& ctx) const {
-    ctx.check(path);
-}
-
-void LiteralExpr::check(TypeChecker& ctx) const {
-    ctx.check_lit(loc, lit, type);
-}
-
-void FieldExpr::check(TypeChecker& ctx) const {
-    ctx.check(*expr);
-}
-
-void StructExpr::check(TypeChecker& ctx) const {
-    ctx.check(*expr);
-    for (auto& field : fields) ctx.check(*field);
-
-    if (auto struct_type = type->isa<StructType>())
-        ctx.check_struct(loc, struct_type, fields, false);
-}
-
-void TupleExpr::check(TypeChecker& ctx) const {
-    for (auto& arg : args) ctx.check(*arg);
-}
-
-void ArrayExpr::check(TypeChecker& ctx) const {
-    for (auto& elem : elems) ctx.check(*elem);
-}
-
-void FnExpr::check(TypeChecker& ctx) const {
-    ctx.check(*param);
-    ctx.check(*body);
-}
-
-void BlockExpr::check(TypeChecker& ctx) const {
-    for (size_t i = 0, n = stmts.size(); i < n; ++i) {
-        ctx.check(*stmts[i]);
-
-        auto stmt_type = stmts[i]->type;
-        if (stmt_type->isa<NoRetType>() && (i != n - 1 || last_semi))
-            ctx.error(stmts[i]->loc, "expression '{}' does not return; following statements are unreachable", *stmts[i]->as<Node>());
-    }
-}
-
-void CallExpr::check(TypeChecker& ctx) const {
-    ctx.check(*callee);
-    ctx.check(*arg);
-    if (callee->type->isa<artic::ArrayType>())
-        ctx.check_num(loc, arg->type);
-}
-
-void BinaryExpr::check(TypeChecker& ctx) const {
-    if (tag != AndAnd && tag != OrOr)
-        CallExpr::check(ctx);
-    else
-        ctx.check(*arg);
-}
-
-void ProjExpr::check(TypeChecker& ctx) const {
-    ctx.check(*expr);
-}
-
-void AddrOfExpr::check(TypeChecker& ctx) const {
-    ctx.check(*expr);
-}
-
-void DerefExpr::check(TypeChecker& ctx) const {
-    ctx.check(*expr);
-}
-
-void IfExpr::check(TypeChecker& ctx) const {
-    ctx.check(*cond);
-    ctx.check(*if_true);
-    if (if_false) ctx.check(*if_false);
-}
-
-void CaseExpr::check(TypeChecker& ctx) const {
-    ctx.check(*ptrn);
-    ctx.check(*expr);
-}
-
-void MatchExpr::check(TypeChecker& ctx) const {
-    ctx.check(*arg);
-    for (auto& case_ : cases)
-        ctx.check(*case_);
-}
-
-void WhileExpr::check(TypeChecker& ctx) const {
-    ctx.check(*cond);
-    ctx.check(*body);
-}
-
-void ForExpr::check(TypeChecker& ctx) const {
-    ctx.check(*ptrn);
-    if (expr) {
-        ctx.check(*expr->callee);
-        ctx.check(*expr->arg);
-    }
-    ctx.check(*body);
-}
-
-void BreakExpr::check(TypeChecker&) const {}
-void ContinueExpr::check(TypeChecker&) const {}
-void ReturnExpr::check(TypeChecker&) const {}
-
-void KnownExpr::check(TypeChecker& ctx) const {
-    ctx.check(*expr);
-}
-
-void ErrorExpr::check(TypeChecker&) const {}
-
-void TypedPtrn::check(TypeChecker& ctx) const {
-    if (ptrn) ctx.check(*ptrn);
-    ctx.check(*type);
-}
-
-void IdPtrn::check(TypeChecker& ctx) const {
-    ctx.check(*decl);
-}
-
-void LiteralPtrn::check(TypeChecker& ctx) const {
-    ctx.check_lit(loc, lit, type);
-}
-
-void FieldPtrn::check(TypeChecker& ctx) const {
-    if (ptrn) ctx.check(*ptrn);
-}
-
-void StructPtrn::check(TypeChecker& ctx) const {
-    ctx.check(path);
-    for (auto& field : fields) {
-        if (!field->is_etc())
-            ctx.check(*field);
-    }
-
-    if (auto struct_type = type->isa<StructType>())
-        ctx.check_struct(loc, struct_type, fields, has_etc());
-}
-
-void TuplePtrn::check(TypeChecker& ctx) const {
-    for (auto& arg : args) ctx.check(*arg);
-}
-
-void ErrorPtrn::check(TypeChecker&) const {}
-
-void TypeParam::check(TypeChecker& ctx) const {
-    for (auto& bound : bounds)
-        ctx.check(*bound);
-}
-
-void TypeParamList::check(TypeChecker& ctx) const {
-    for (auto& param : params) ctx.check(*param);
-}
-
-void PtrnDecl::check(TypeChecker&) const {}
-
-void LetDecl::check(TypeChecker& ctx) const {
-    if (init)
-        ctx.check(*init);
-    ctx.check(*ptrn);
-}
-
-void FnDecl::check(TypeChecker& ctx) const {
-    if (type_params) ctx.check(*type_params);
-    if (ret_type)  ctx.check(*ret_type);
-    if (fn->body)  ctx.check(*fn->body);
-    if (fn->param) ctx.check(*fn->param);
-}
-
-void FieldDecl::check(TypeChecker& ctx) const {
-    ctx.check(*type);
-}
-
-void StructDecl::check(TypeChecker& ctx) const {
-    if (type_params) ctx.check(*type_params);
-    for (auto& field : fields) ctx.check(*field);
-}
-
-void TraitDecl::check(TypeChecker& ctx) const {
+artic::Type Program::infer(TypeChecker& checker) const {
     for (auto& decl : decls)
-        ctx.check(*decl);
-}
-
-void ImplDecl::check(TypeChecker& ctx) const {
-    if (type_params) ctx.check(*type_params);
-    ctx.check(*trait);
-    ctx.check(*type);
-    for (auto& decl : decls)
-        ctx.check(*decl);
-}
-
-void ErrorDecl::check(TypeChecker&) const {}
-
-void Program::check(TypeChecker& ctx) const {
-    for (auto& decl : decls)
-        ctx.check(*decl);
+        checker.infer(*decl);
+    // TODO: Return proper type for the module
+    return artic::Type();
 }
 
 } // namespace ast

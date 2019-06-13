@@ -98,12 +98,26 @@ public:
         return T::match(def()) ? T(def()) : T(nullptr);
     }
     template <typename T>
-    T as() const { assert(isa<T>()); return T(def); }
+    T as() const { assert(isa<T>()); return T(def()); }
 
     inline bool is_tuple() const;
     inline bool is_array() const;
     inline bool is_ptr()   const;
     inline bool is_fn()    const;
+
+    bool is_nominal() const { return false; } // TODO
+
+    bool contains(Type type) const {
+        if (type.def() == def())
+            return true;
+        if (is_nominal())
+            return false;
+        for (auto op : def()->ops()) {
+            if (Type(op).contains(type))
+                return true;
+        }
+        return false;
+    }
 
     operator bool () const { return def_; }
 
@@ -168,7 +182,8 @@ private:
     TupleType(const thorin::Def* def)
         : Type(def)
     {}
-    TupleType(thorin::World& world, std::vector<Type>&& args) {
+    TupleType(thorin::World& world, thorin::ArrayRef<Type> args) {
+        // TODO: Fix this in Thorin
         thorin::Array<const thorin::Def*> ops(args.size());
         std::transform(args.begin(), args.end(), ops.begin(), [] (Type type) {
             return type.def();
@@ -198,7 +213,7 @@ private:
 
 class PtrType : public Type, public PtrTypeMatcher {
 public:
-    bool is_mut()  const { /*TODO*/ return false; }
+    bool is_mut()  const { return false; } // TODO
     Type pointee() const { return Type(def()->as<thorin::PtrType>()->pointee()); }
 
     void print(Printer&) const override;
@@ -281,7 +296,7 @@ public:
     PrimType prim_type(PrimType::Tag tag) {
         return PrimType(world_, tag);
     }
-    Type tuple_type(std::vector<Type>&& args) {
+    Type tuple_type(thorin::ArrayRef<Type> args) {
         if (args.size() == 1) return args[0];
         return TupleType(world_, std::move(args));
     }

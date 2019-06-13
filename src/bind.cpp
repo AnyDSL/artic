@@ -113,8 +113,9 @@ void ArrayExpr::bind(NameBinder& ctx) const {
 
 void FnExpr::bind(NameBinder& ctx) const {
     ctx.push_scope();
-    if (param)  ctx.bind(*param);
-    if (filter) ctx.bind(*filter);
+    if (param)    ctx.bind(*param);
+    if (ret_type) ctx.bind(*ret_type);
+    if (filter)   ctx.bind(*filter);
     ctx.push_scope();
     auto old = ctx.push_fn(this);
     ctx.bind(*body);
@@ -271,7 +272,6 @@ void FnDecl::bind(NameBinder& ctx) const {
     ctx.push_scope();
 
     if (type_params) ctx.bind(*type_params);
-    if (ret_type)    ctx.bind(*ret_type);
 
     if (fn->body) ctx.bind(*fn);
     else          ctx.bind(*fn->param);

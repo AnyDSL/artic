@@ -7,8 +7,8 @@ using namespace artic::ast;
 
 namespace artic {
 
-Parser::Parser(Lexer& lexer, TypeTable& type_table, const Logger& log)
-    : Logger(log), lexer_(lexer), type_table_(type_table)
+Parser::Parser(Lexer& lexer, const Logger& log)
+    : Logger(log), lexer_(lexer)
 {
     for (int i = 0; i < max_ahead; i++)
         next();
@@ -84,8 +84,8 @@ Ptr<ast::FnDecl> Parser::parse_fn_decl(bool only_types) {
     else
         expect(Token::Semi);
 
-    auto fn = make_ptr<ast::FnExpr>(tracker(), std::move(filter), std::move(param), std::move(body));
-    return make_ptr<ast::FnDecl>(tracker(), std::move(id), std::move(fn), std::move(ret_type), std::move(type_params));
+    auto fn = make_ptr<ast::FnExpr>(tracker(), std::move(filter), std::move(param), std::move(ret_type), std::move(body));
+    return make_ptr<ast::FnDecl>(tracker(), std::move(id), std::move(fn), std::move(type_params));
 }
 
 Ptr<ast::FieldDecl> Parser::parse_field_decl() {
@@ -496,7 +496,7 @@ Ptr<ast::FnExpr> Parser::parse_fn_expr(bool nested) {
         }
         body = std::move(parse_expr());
     }
-    return make_ptr<ast::FnExpr>(tracker(), std::move(filter), std::move(ptrn), std::move(body));
+    return make_ptr<ast::FnExpr>(tracker(), std::move(filter), std::move(ptrn), std::move(ret_type), std::move(body));
 }
 
 Ptr<ast::CallExpr> Parser::parse_call_expr(Ptr<Expr>&& callee) {

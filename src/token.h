@@ -108,7 +108,7 @@ struct Literal {
     Literal(bool b)     : box(b), tag(Bool) {}
 };
 
-std::ostream& operator << (std::ostream& os, const Literal& lit) {
+inline std::ostream& operator << (std::ostream& os, const Literal& lit) {
     switch (lit.tag) {
         case Literal::Double:  return os << lit.as_double();
         case Literal::Integer: return os << lit.as_integer();
