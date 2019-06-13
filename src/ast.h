@@ -530,9 +530,9 @@ struct MatchExpr : public Expr {
 
 /// Base class for loop expressions (while, for)
 struct LoopExpr : public Expr {
-    Ptr<BlockExpr> body;
+    Ptr<Expr> body;
 
-    LoopExpr(const Loc& loc, Ptr<BlockExpr>&& body)
+    LoopExpr(const Loc& loc, Ptr<Expr>&& body)
         : Expr(loc), body(std::move(body))
     {}
 };
@@ -543,7 +543,7 @@ struct WhileExpr : public LoopExpr {
 
     WhileExpr(const Loc& loc,
               Ptr<Expr>&& cond,
-              Ptr<BlockExpr>&& body)
+              Ptr<Expr>&& body)
         : LoopExpr(loc, std::move(body)), cond(std::move(cond))
     {}
 
@@ -559,7 +559,7 @@ struct ForExpr : public LoopExpr {
     ForExpr(const Loc& loc,
             Ptr<Ptrn>&& ptrn,
             Ptr<CallExpr>&& expr,
-            Ptr<BlockExpr>&& body)
+            Ptr<Expr>&& body)
         : LoopExpr(loc, std::move(body))
         , ptrn(std::move(ptrn))
         , expr(std::move(expr))

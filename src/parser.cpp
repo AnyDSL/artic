@@ -537,22 +537,20 @@ Ptr<ast::IfExpr> Parser::parse_if_expr() {
     auto cond = parse_expr();
 
     Ptr<ast::Expr> if_true;
-    if (ahead().tag() == Token::LBrace) {
+    if (ahead().tag() == Token::LBrace)
         if_true = std::move(parse_block_expr());
-    } else {
+    else
         if_true = std::move(parse_error_expr());
-    }
 
     Ptr<ast::Expr> if_false;
     if (ahead().tag() == Token::Else) {
         eat(Token::Else);
-        if (ahead().tag() == Token::If) {
+        if (ahead().tag() == Token::If)
             if_false = std::move(parse_if_expr());
-        } else if (ahead().tag() == Token::LBrace) {
+        else if (ahead().tag() == Token::LBrace)
             if_false = std::move(parse_block_expr());
-        } else {
+        else
             if_false = std::move(parse_error_expr());
-        }
     }
     return make_ptr<ast::IfExpr>(tracker(), std::move(cond), std::move(if_true), std::move(if_false));
 }
@@ -581,7 +579,11 @@ Ptr<ast::WhileExpr> Parser::parse_while_expr() {
     Tracker tracker(this);
     eat(Token::While);
     auto cond = parse_expr();
-    auto body = parse_block_expr();
+    Ptr<Expr> body;
+    if (ahead().tag() == Token::LBrace)
+        body = std::move(parse_block_expr());
+    else
+        body = std::move(parse_error_expr());
     return make_ptr<ast::WhileExpr>(tracker(), std::move(cond), std::move(body));
 }
 
@@ -594,7 +596,11 @@ Ptr<ast::ForExpr> Parser::parse_for_expr() {
     Ptr<ast::CallExpr> call(expr.release()->isa<ast::CallExpr>());
     if (!call)
         error(ahead().loc(), "invalid for loop expression");
-    auto body = parse_block_expr();
+    Ptr<Expr> body;
+    if (ahead().tag() == Token::LBrace)
+        body = std::move(parse_block_expr());
+    else
+        body = std::move(parse_error_expr());
     return make_ptr<ast::ForExpr>(tracker(), std::move(ptrn), std::move(call), std::move(body));
 }
 
@@ -636,7 +642,7 @@ Ptr<ast::Expr> Parser::parse_primary_expr() {
             expr = std::move(parse_path_expr());
             if (ahead(0).tag() == Token::LBrace &&
                 ((ahead(1).tag() == Token::Id && ahead(2).tag() == Token::Colon) ||
-                 ahead(1).tag() == Token::RBrace))
+                 (ahead(1).tag() == Token::RBrace && ahead(2).tag() == Token::Dot)))
                 expr = std::move(parse_struct_expr(std::move(expr)));
             break;
         case Token::At:
