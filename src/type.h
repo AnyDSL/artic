@@ -297,31 +297,18 @@ public:
         : world_(world)
     {}
 
-    PrimType prim_type(PrimType::Tag tag) {
-        return PrimType(world_, tag);
-    }
     Type tuple_type(thorin::ArrayRef<Type> args) {
         if (args.size() == 1) return args[0];
         return TupleType(world_, std::move(args));
     }
-    TupleType unit_type() {
-        return TupleType(world_, {});
-    }
-    ArrayType array_type(Type elem) {
-        return ArrayType(world_, elem);
-    }
-    PtrType ptr_type(Type pointee, bool mut) {
-        return PtrType(world_, pointee, mut);
-    }
-    FnType fn_type(Type from, Type to) {
-        return FnType(world_, from, to);
-    }
-    NoRetType no_ret_type() {
-        return NoRetType(world_);
-    }
-    ErrorType error_type() {
-        return ErrorType(world_);
-    }
+
+    PrimType prim_type(PrimType::Tag tag)    { return PrimType(world_, tag); }
+    TupleType unit_type()                    { return TupleType(world_, {}); }
+    ArrayType array_type(Type elem)          { return ArrayType(world_, elem); }
+    PtrType ptr_type(Type pointee, bool mut) { return PtrType(world_, pointee, mut); }
+    FnType fn_type(Type from, Type to)       { return FnType(world_, from, to); }
+    NoRetType no_ret_type()                  { return NoRetType(world_);}
+    ErrorType error_type()                   { return ErrorType(world_); }
 
 private:
     thorin::World& world_;
