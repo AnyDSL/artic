@@ -68,6 +68,14 @@ Type TypeChecker::check_tuple(const Loc& loc, const std::string& msg, const Args
     return expected;
 }
 
+template <typename Args>
+Type TypeChecker::infer_tuple(const Args& args) {
+    thorin::Array<artic::Type> arg_types(args.size());
+    for (size_t i = 0; i < args.size(); ++i)
+        arg_types[i] = infer(*args[i]);
+    return tuple_type(arg_types);
+}
+
 namespace ast {
 
 artic::Type Node::check(TypeChecker& checker, artic::Type type) const {
@@ -77,6 +85,10 @@ artic::Type Node::check(TypeChecker& checker, artic::Type type) const {
 
 artic::Type Node::infer(TypeChecker& checker) const {
     return checker.cannot_infer(loc, "expression");
+}
+
+artic::Type TupleType::infer(TypeChecker& checker) const {
+    return checker.infer_tuple(args);
 }
 
 artic::Type FnExpr::infer(TypeChecker& checker) const {
@@ -94,6 +106,22 @@ artic::Type FnExpr::check(TypeChecker& checker, artic::Type expected) const {
     return expected;
 }
 
+artic::Type BlockExpr::infer(TypeChecker& checker) const {
+    if (stmts.empty())
+        return checker.unit_type();
+    for (size_t i = 0; i < stmts.size() - 1; ++i)
+        checker.check(*stmts[i], checker.unit_type());
+    return checker.infer(*stmts.back());
+}
+
+artic::Type BlockExpr::check(TypeChecker& checker, artic::Type expected) const {
+    if (stmts.empty())
+        return checker.unit_type();
+    for (size_t i = 0; i < stmts.size(); ++i)
+        checker.check(*stmts[i], i == stmts.size() - 1 ? expected : checker.unit_type());
+    return expected;
+}
+
 artic::Type FnDecl::infer(TypeChecker& checker) const {
     // TODO: Type params
     return checker.infer(*fn);
@@ -108,10 +136,7 @@ artic::Type IdPtrn::check(TypeChecker&, artic::Type expected) const {
 }
 
 artic::Type TuplePtrn::infer(TypeChecker& checker) const {
-    thorin::Array<artic::Type> arg_types(args.size());
-    for (size_t i = 0; i < args.size(); ++i)
-        arg_types[i] = checker.infer(*args[i]);
-    return checker.tuple_type(arg_types);
+    return checker.infer_tuple(args);
 }
 
 artic::Type TuplePtrn::check(TypeChecker& checker, artic::Type expected) const {

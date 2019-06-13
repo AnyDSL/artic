@@ -300,6 +300,9 @@ public:
         if (args.size() == 1) return args[0];
         return TupleType(world_, std::move(args));
     }
+    TupleType unit_type() {
+        return TupleType(world_, {});
+    }
     ArrayType array_type(Type elem) {
         return ArrayType(world_, elem);
     }

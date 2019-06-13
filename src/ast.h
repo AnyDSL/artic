@@ -185,6 +185,7 @@ struct TupleType : public Type {
         : Type(loc), args(std::move(args))
     {}
 
+    artic::Type infer(TypeChecker&) const override;
     void bind(NameBinder&) const override;
     void print(Printer&) const override;
 };
@@ -428,6 +429,8 @@ struct BlockExpr : public Expr {
         : Expr(loc), stmts(std::move(stmts)), last_semi(last_semi)
     {}
 
+    artic::Type infer(TypeChecker&) const override;
+    artic::Type check(TypeChecker&, artic::Type) const override;
     void bind(NameBinder&) const override;
     void print(Printer&) const override;
 };
