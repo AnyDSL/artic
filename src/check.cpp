@@ -193,7 +193,7 @@ artic::Type BlockExpr::infer(TypeChecker& checker) const {
 
 artic::Type BlockExpr::check(TypeChecker& checker, artic::Type expected) const {
     if (stmts.empty())
-        return checker.unit_type();
+        return checker.expect(loc, "block expression", checker.unit_type(), expected);
     for (size_t i = 0; i < stmts.size() - 1; ++i) {
         auto stmt_type = checker.check(*stmts[i], checker.unit_type());
         if (stmt_type.isa<artic::NoRetType>())
