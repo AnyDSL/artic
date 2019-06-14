@@ -200,6 +200,7 @@ struct ArrayType : public Type {
         : Type(loc), elem(std::move(elem))
     {}
 
+    artic::Type infer(TypeChecker&) const override;
     void bind(NameBinder&) const override;
     void print(Printer&) const override;
 };
@@ -213,6 +214,7 @@ struct FnType : public Type {
         : Type(loc), from(std::move(from)), to(std::move(to))
     {}
 
+    artic::Type infer(TypeChecker&) const override;
     void bind(NameBinder&) const override;
     void print(Printer&) const override;
 };
@@ -382,6 +384,8 @@ struct TupleExpr : public Expr {
         : Expr(loc), args(std::move(args))
     {}
 
+    artic::Type infer(TypeChecker&) const override;
+    artic::Type check(TypeChecker&, artic::Type) const override;
     void bind(NameBinder&) const override;
     void print(Printer&) const override;
 };
@@ -396,6 +400,8 @@ struct ArrayExpr : public Expr {
         : Expr(loc), elems(std::move(elems))
     {}
 
+    artic::Type infer(TypeChecker&) const override;
+    artic::Type check(TypeChecker&, artic::Type) const override;
     void bind(NameBinder&) const override;
     void print(Printer&) const override;
 };
@@ -453,6 +459,7 @@ struct CallExpr : public Expr {
         , arg(std::move(arg))
     {}
 
+    artic::Type infer(TypeChecker&) const override;
     void bind(NameBinder&) const override;
     void print(Printer&) const override;
 };
@@ -490,6 +497,8 @@ struct IfExpr : public Expr {
         , if_false(std::move(if_false))
     {}
 
+    artic::Type infer(TypeChecker&) const override;
+    artic::Type check(TypeChecker&, artic::Type) const override;
     void bind(NameBinder&) const override;
     void print(Printer&) const override;
 };
@@ -547,6 +556,7 @@ struct WhileExpr : public LoopExpr {
         : LoopExpr(loc, std::move(body)), cond(std::move(cond))
     {}
 
+    artic::Type infer(TypeChecker&) const override;
     void bind(NameBinder&) const override;
     void print(Printer&) const override;
 };
@@ -577,6 +587,7 @@ struct BreakExpr : public Expr {
         : Expr(loc)
     {}
 
+    artic::Type infer(TypeChecker&) const override;
     void bind(NameBinder&) const override;
     void print(Printer&) const override;
 };
@@ -589,6 +600,7 @@ struct ContinueExpr : public Expr {
         : Expr(loc)
     {}
 
+    artic::Type infer(TypeChecker&) const override;
     void bind(NameBinder&) const override;
     void print(Printer&) const override;
 };
@@ -601,6 +613,7 @@ struct ReturnExpr : public Expr {
         : Expr(loc)
     {}
 
+    artic::Type infer(TypeChecker&) const override;
     void bind(NameBinder&) const override;
     void print(Printer&) const override;
 };

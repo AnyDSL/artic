@@ -11,7 +11,7 @@ bool TypeChecker::run(const ast::Program& program) {
 }
 
 bool TypeChecker::types_match(Type type, Type expected) {
-    return type == expected;
+    return type == expected || type.isa<NoRetType>();
 }
 
 bool TypeChecker::should_emit_error(Type type) {
@@ -102,6 +102,14 @@ artic::Type TupleType::infer(TypeChecker& checker) const {
     return checker.infer_tuple(args);
 }
 
+artic::Type ArrayType::infer(TypeChecker& checker) const {
+    return checker.array_type(checker.infer(*elem));
+}
+
+artic::Type FnType::infer(TypeChecker& checker) const {
+    return checker.fn_type(checker.infer(*from), checker.infer(*to));
+}
+
 artic::Type ExprStmt::infer(TypeChecker& checker) const {
     return checker.infer(*expr);
 }
@@ -112,6 +120,32 @@ artic::Type ExprStmt::check(TypeChecker& checker, artic::Type expected) const {
 
 artic::Type PathExpr::infer(TypeChecker& checker) const {
     return checker.infer(path);
+}
+
+artic::Type TupleExpr::infer(TypeChecker& checker) const {
+    return checker.infer_tuple(args);
+}
+
+artic::Type TupleExpr::check(TypeChecker& checker, artic::Type expected) const {
+    return checker.check_tuple(loc, "tuple expression", args, expected);
+}
+
+artic::Type ArrayExpr::infer(TypeChecker& checker) const {
+    if (elems.empty())
+        return checker.cannot_infer(loc, "array expression");
+    auto elem_type = checker.infer(*elems.front());
+    for (size_t i = 1; i < elems.size(); ++i)
+        checker.check(*elems[i], elem_type);
+    return checker.array_type(elem_type);
+}
+
+artic::Type ArrayExpr::check(TypeChecker& checker, artic::Type expected) const {
+    if (!expected.isa<artic::ArrayType>())
+        return checker.expect(loc, "array expression", expected);
+    auto elem_type = expected.as<artic::ArrayType>().elem();
+    for (auto& elem : elems)
+        checker.check(*elem, elem_type);
+    return checker.array_type(elem_type);
 }
 
 artic::Type FnExpr::infer(TypeChecker& checker) const {
@@ -146,6 +180,57 @@ artic::Type BlockExpr::check(TypeChecker& checker, artic::Type expected) const {
     for (size_t i = 0; i < stmts.size(); ++i)
         checker.check(*stmts[i], i == stmts.size() - 1 ? expected : checker.unit_type());
     return expected;
+}
+
+artic::Type CallExpr::infer(TypeChecker& checker) const {
+    auto callee_type = checker.infer(*callee);
+    if (auto fn_type = callee_type.isa<artic::FnType>()) {
+        // TODO: Polymorphic functions
+        checker.check(*arg, fn_type.from());
+        return fn_type.to();
+    } else if (callee_type.isa<artic::ArrayType>()) {
+        // TODO
+        return checker.error_type();
+    } else {
+        if (!callee_type.isa<artic::ErrorType>())
+            checker.error(loc, "expected function or array type in call expression, but got '{}'", callee_type);
+        return checker.error_type();
+    }
+}
+
+artic::Type IfExpr::infer(TypeChecker& checker) const {
+    checker.check(*cond, checker.prim_type(artic::PrimType::Bool));
+    if (if_false)
+        return checker.check(*if_false, checker.infer(*if_true));
+    return checker.check(*if_true, checker.unit_type());
+}
+
+artic::Type IfExpr::check(TypeChecker& checker, artic::Type expected) const {
+    checker.check(*cond, checker.prim_type(artic::PrimType::Bool));
+    checker.check(*if_true, expected);
+    checker.check(*if_false, expected);
+    return expected;
+}
+
+artic::Type WhileExpr::infer(TypeChecker& checker) const {
+    checker.check(*cond, checker.prim_type(artic::PrimType::Bool));
+    return checker.check(*body, checker.unit_type());
+}
+
+artic::Type BreakExpr::infer(TypeChecker& checker) const {
+    return checker.fn_type(checker.unit_type(), checker.no_ret_type());
+}
+
+artic::Type ContinueExpr::infer(TypeChecker& checker) const {
+    return checker.fn_type(checker.unit_type(), checker.no_ret_type());
+}
+
+artic::Type ReturnExpr::infer(TypeChecker& checker) const {
+    // This error has been reported by the NameBinder already
+    if (!fn || !fn->type.isa<artic::FnType>())
+        return checker.error_type();
+    auto fn_type = fn->type.as<artic::FnType>();
+    return checker.fn_type(fn_type.from(), checker.no_ret_type());
 }
 
 artic::Type PtrnDecl::check(TypeChecker& checker, artic::Type expected) const {
