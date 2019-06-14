@@ -192,13 +192,7 @@ void WhileExpr::bind(NameBinder& ctx) const {
 }
 
 void ForExpr::bind(NameBinder& ctx) const {
-    if (expr) ctx.bind(*expr);
-    ctx.push_scope();
-    ctx.bind(*ptrn);
-    auto old = ctx.push_loop(this);
     ctx.bind(*body);
-    ctx.pop_loop(old);
-    ctx.pop_scope();
 }
 
 void BreakExpr::bind(NameBinder& ctx) const {

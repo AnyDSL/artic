@@ -128,6 +128,7 @@ void FnExpr::print(Printer& p) const {
     if (ret_type) {
         p << "-> ";
         ret_type->print(p);
+        p << ' ';
     }
     body->print(p);
 }
@@ -195,12 +196,16 @@ void WhileExpr::print(Printer& p) const {
 }
 
 void ForExpr::print(Printer& p) const {
+    auto call = body->as<ast::CallExpr>();
+    auto& iter = call->callee->as<ast::CallExpr>()->callee;
+    auto lambda = call->callee->as<ast::CallExpr>()->arg->as<ast::FnExpr>();
     p << keyword_style("for") << ' ';
-    ptrn->print(p);
+    lambda->param->print(p);
     p << ' ' << keyword_style("in") << ' ';
-    expr->print(p);
+    iter->print(p);
+    call->arg->print(p);
     p << ' ';
-    body->print(p);
+    lambda->body->print(p);
 }
 
 void BreakExpr::print(Printer& p) const {

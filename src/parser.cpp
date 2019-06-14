@@ -602,7 +602,11 @@ Ptr<ast::ForExpr> Parser::parse_for_expr() {
         body = std::move(parse_block_expr());
     else
         body = std::move(parse_error_expr());
-    return make_ptr<ast::ForExpr>(tracker(), std::move(ptrn), std::move(call), std::move(body));
+
+    auto lambda = make_ptr<ast::FnExpr>(tracker(), nullptr, std::move(ptrn), nullptr, std::move(body));
+    Ptr<ast::Expr> callee(call->callee.release());
+    call->callee = make_ptr<ast::CallExpr>(tracker(), std::move(callee), std::move(lambda));
+    return make_ptr<ast::ForExpr>(tracker(), std::move(call));
 }
 
 Ptr<ast::BreakExpr> Parser::parse_break_expr() {

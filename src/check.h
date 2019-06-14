@@ -34,6 +34,7 @@ public:
     Type check_tuple(const Loc&, const std::string&, const Args&, Type);
     template <typename Args>
     Type infer_tuple(const Args&);
+    Type infer_call(const ast::CallExpr&);
 };
 
 } // namespace artic

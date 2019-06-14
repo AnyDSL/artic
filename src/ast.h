@@ -565,18 +565,11 @@ struct WhileExpr : public LoopExpr {
 
 /// For loop expression.
 struct ForExpr : public LoopExpr {
-    Ptr<Ptrn> ptrn;
-    Ptr<CallExpr> expr;
-
-    ForExpr(const Loc& loc,
-            Ptr<Ptrn>&& ptrn,
-            Ptr<CallExpr>&& expr,
-            Ptr<Expr>&& body)
-        : LoopExpr(loc, std::move(body))
-        , ptrn(std::move(ptrn))
-        , expr(std::move(expr))
+    ForExpr(const Loc& loc, Ptr<CallExpr>&& call)
+        : LoopExpr(loc, std::move(call))
     {}
 
+    artic::Type infer(TypeChecker&) const override;
     void bind(NameBinder&) const override;
     void print(Printer&) const override;
 };

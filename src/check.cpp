@@ -78,6 +78,22 @@ Type TypeChecker::infer_tuple(const Args& args) {
     return tuple_type(arg_types);
 }
 
+Type TypeChecker::infer_call(const ast::CallExpr& call) {
+    auto callee_type = infer(*call.callee);
+    if (auto fn_type = callee_type.isa<artic::FnType>()) {
+        // TODO: Polymorphic functions
+        check(*call.arg, fn_type.from());
+        return fn_type.to();
+    } else if (callee_type.isa<artic::ArrayType>()) {
+        // TODO
+        return error_type();
+    } else {
+        if (!callee_type.isa<artic::ErrorType>())
+            error(call.callee->loc, "expected function or array type in call expression, but got '{}'", callee_type);
+        return error_type();
+    }
+}
+
 namespace ast {
 
 artic::Type Node::check(TypeChecker& checker, artic::Type expected) const {
@@ -176,15 +192,15 @@ artic::Type FnExpr::infer(TypeChecker& checker) const {
 artic::Type FnExpr::check(TypeChecker& checker, artic::Type expected) const {
     if (!expected.isa<artic::FnType>())
         return checker.expect(loc, "anonymous function", expected);
-    checker.check(*param, expected.as<artic::FnType>().from());
-    return checker.check(*body, expected.as<artic::FnType>().to());
-}
+    auto param_type = checker.check(*param, expected.as<artic::FnType>().from());
+    auto body_type  = checker.check(*body, expected.as<artic::FnType>().to());
+    return checker.fn_type(param_type, body_type);}
 
 artic::Type BlockExpr::infer(TypeChecker& checker) const {
     if (stmts.empty())
         return checker.unit_type();
     for (size_t i = 0; i < stmts.size() - 1; ++i) {
-        auto stmt_type = checker.check(*stmts[i], checker.unit_type()).isa<NoRetType>();
+        auto stmt_type = checker.check(*stmts[i], checker.unit_type());
         if (stmt_type.isa<artic::NoRetType>())
             return checker.unreachable_code(stmts[i]->loc, stmts[i + 1]->loc, stmts.back()->loc);
     }
@@ -203,19 +219,7 @@ artic::Type BlockExpr::check(TypeChecker& checker, artic::Type expected) const {
 }
 
 artic::Type CallExpr::infer(TypeChecker& checker) const {
-    auto callee_type = checker.infer(*callee);
-    if (auto fn_type = callee_type.isa<artic::FnType>()) {
-        // TODO: Polymorphic functions
-        checker.check(*arg, fn_type.from());
-        return fn_type.to();
-    } else if (callee_type.isa<artic::ArrayType>()) {
-        // TODO
-        return checker.error_type();
-    } else {
-        if (!callee_type.isa<artic::ErrorType>())
-            checker.error(loc, "expected function or array type in call expression, but got '{}'", callee_type);
-        return checker.error_type();
-    }
+    return checker.infer_call(*this);
 }
 
 artic::Type IfExpr::infer(TypeChecker& checker) const {
@@ -237,6 +241,10 @@ artic::Type WhileExpr::infer(TypeChecker& checker) const {
     checker.check(*cond, checker.prim_type(artic::PrimType::Bool));
     checker.check(*body, checker.unit_type());
     return checker.unit_type();
+}
+
+artic::Type ForExpr::infer(TypeChecker& checker) const {
+    return checker.infer_call(*body->as<CallExpr>());
 }
 
 artic::Type BreakExpr::infer(TypeChecker& checker) const {
