@@ -70,6 +70,12 @@ struct MatchManyOr<Matcher> {
 template <typename Left, typename Right>
 using MatchOr = MatchManyOr<Left, Right>;
 
+struct IsLiteral {
+    static bool match(const Def* def) {
+        return def->isa<Lit>();
+    }
+};
+
 using IsKind  = MatchType<MatchTagExact<Node_Universe>>;
 using IsType  = MatchType<MatchTagExact<Node_KindStar>>;
 using IsValue = MatchType<IsType>;
@@ -165,7 +171,10 @@ protected:
 log::Output& operator << (log::Output&, const Type&);
 
 using PrimTypeMatcher  = thorin::MatchAnd<thorin::IsType, thorin::MatchTag<thorin::Node_PrimType_bool, thorin::Node_PrimType_qf64>>;
-using TupleTypeMatcher = thorin::MatchAnd<thorin::IsType, thorin::MatchTagExact<thorin::Node_Sigma>>;
+// Tuples are either sigmas or arrays of fixed size
+using TupleTypeMatcher = thorin::MatchAnd<thorin::IsType,
+      thorin::MatchOr<thorin::MatchTagExact<thorin::Node_Sigma>,
+                      thorin::MatchAnd<thorin::MatchTagExact<thorin::Node_Variadic>, thorin::MatchOp<0, thorin::IsLiteral>>>>;
 using ArrayTypeMatcher = thorin::MatchAnd<thorin::IsType, thorin::MatchTagExact<thorin::Node_Variadic>>;
 using PtrTypeMatcher   = thorin::MatchAnd<thorin::IsType, thorin::MatchTagExact<thorin::Node_PtrType>>;
 using FnTypeMatcher    = thorin::MatchAnd<thorin::IsType, thorin::MatchTagExact<thorin::Node_Pi>>;
@@ -207,8 +216,8 @@ private:
 
 class TupleType : public Type, public TupleTypeMatcher {
 public:
-    size_t num_args() const { return def()->num_ops(); }
-    Type arg(size_t i) const { return Type(def()->op(i)); }
+    size_t num_args() const  { return def()->isa<thorin::Variadic>() ? thorin::as_lit<thorin::u64>(def()->as<thorin::Variadic>()->arity()) : def()->num_ops(); }
+    Type arg(size_t i) const { return def()->isa<thorin::Variadic>() ? def()->as<thorin::Variadic>()->body() : def()->op(i); }
 
     bool operator < (Type) const;
     void print(Printer&) const;
