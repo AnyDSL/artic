@@ -21,26 +21,32 @@ bool TypeChecker::should_emit_error(Type type) {
 artic::Type TypeChecker::expect(const Loc& loc, const std::string& msg, Type type, Type expected) {
     if (!types_match(type, expected) && should_emit_error(type)) {
         error(loc, "expected type '{}', but got {} with type '{}'", expected, msg, type);
-        return expected;
+        return error_type();
     }
     return type;
 }
 
 artic::Type TypeChecker::expect(const Loc& loc, const std::string& msg, Type expected) {
     error(loc, "expected type '{}', but got {}", expected, msg);
-    return expected;
+    return error_type();
 }
 
 artic::Type TypeChecker::expect(const Loc& loc, Type type, Type expected) {
     if (!types_match(type, expected) && should_emit_error(type)) {
         error(loc, "expected type '{}', but got type '{}'", expected, type);
-        return expected;
+        return error_type();
     }
     return type;
 }
 
 artic::Type TypeChecker::cannot_infer(const Loc& loc, const std::string& msg) {
     error(loc, "cannot infer type for {}", msg);
+    return error_type();
+}
+
+artic::Type TypeChecker::unreachable_code(const Loc& before, const Loc& first, const Loc& last) {
+    error(Loc(first, last), "unreachable code");
+    note(before, "after this statement");
     return error_type();
 }
 
@@ -162,24 +168,29 @@ artic::Type FnExpr::check(TypeChecker& checker, artic::Type expected) const {
     if (!expected.isa<artic::FnType>())
         return checker.expect(loc, "anonymous function", expected);
     checker.check(*param, expected.as<artic::FnType>().from());
-    checker.check(*body,  expected.as<artic::FnType>().to());
-    return expected;
+    return checker.check(*body, expected.as<artic::FnType>().to());
 }
 
 artic::Type BlockExpr::infer(TypeChecker& checker) const {
     if (stmts.empty())
         return checker.unit_type();
-    for (size_t i = 0; i < stmts.size() - 1; ++i)
-        checker.check(*stmts[i], checker.unit_type());
+    for (size_t i = 0; i < stmts.size() - 1; ++i) {
+        auto stmt_type = checker.check(*stmts[i], checker.unit_type()).isa<NoRetType>();
+        if (stmt_type.isa<artic::NoRetType>() && i != stmts.size() - 1)
+            return checker.unreachable_code(stmts[i]->loc, stmts[i + 1]->loc, stmts.back()->loc);
+    }
     return checker.infer(*stmts.back());
 }
 
 artic::Type BlockExpr::check(TypeChecker& checker, artic::Type expected) const {
     if (stmts.empty())
         return checker.unit_type();
-    for (size_t i = 0; i < stmts.size(); ++i)
-        checker.check(*stmts[i], i == stmts.size() - 1 ? expected : checker.unit_type());
-    return expected;
+    for (size_t i = 0; i < stmts.size(); ++i) {
+        auto stmt_type = checker.check(*stmts[i], i == stmts.size() - 1 ? expected : checker.unit_type());
+        if (stmt_type.isa<artic::NoRetType>() && i != stmts.size() - 1)
+            return checker.unreachable_code(stmts[i]->loc, stmts[i + 1]->loc, stmts.back()->loc);
+    }
+    return stmts.back()->type;
 }
 
 artic::Type CallExpr::infer(TypeChecker& checker) const {
@@ -207,9 +218,10 @@ artic::Type IfExpr::infer(TypeChecker& checker) const {
 
 artic::Type IfExpr::check(TypeChecker& checker, artic::Type expected) const {
     checker.check(*cond, checker.prim_type(artic::PrimType::Bool));
-    checker.check(*if_true, expected);
-    checker.check(*if_false, expected);
-    return expected;
+    auto true_type = checker.check(*if_true, expected);
+    if (if_false)
+        return checker.check(*if_false, true_type);
+    return true_type;
 }
 
 artic::Type WhileExpr::infer(TypeChecker& checker) const {

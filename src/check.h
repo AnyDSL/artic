@@ -25,6 +25,7 @@ public:
     artic::Type expect(const Loc&, const std::string&, Type);
     artic::Type expect(const Loc&, Type, Type);
     artic::Type cannot_infer(const Loc&, const std::string&);
+    artic::Type unreachable_code(const Loc&, const Loc&, const Loc&);
 
     Type check(const ast::Node&, Type);
     Type infer(const ast::Node&);

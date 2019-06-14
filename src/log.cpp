@@ -34,11 +34,12 @@ void Logger::diagnostic(log::Output& out, const Loc& loc, log::Style style, char
     );
     bool multiline = loc.begin_row != loc.end_row;
     if (multiline) {
-        log::format<false>(out, "{}\n{} {}{}\n{}{}\n{}{} {}{}{}\n{} {}{}\n",
+        log::format<false>(out, "{}\n{} {}{}{}\n{}{}\n{}{} {}{}{}\n{} {}{}\n",
             log::style(std::string_view(begin_line_loc, begin_line_end - begin_line_loc), style, log::Style::Bold),
             log::fill(' ', indent),
             log::style('|', style, log::Style::Bold),
-            log::style(log::fill(underline, loc_info->line_size(loc.begin_row)), style, log::Style::Bold),
+            log::fill(' ', loc.begin_col - 1),
+            log::style(log::fill(underline, loc_info->line_size(loc.begin_row) + 1 - loc.begin_col), style, log::Style::Bold),
             log::fill(' ', indent > 3 ? indent - 3 : 0),
             log::style("...", log::Style::White, log::Style::Bold),
             log::fill(' ', indent - count_digits(loc.end_row)),

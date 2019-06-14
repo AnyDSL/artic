@@ -4,6 +4,7 @@
 #include <string>
 #include <ostream>
 #include <memory>
+#include <cassert>
 
 #include "hash.h"
 
@@ -43,6 +44,15 @@ struct Loc {
         , end_row(erow)
         , end_col(ecol)
     {}
+    Loc(const Loc& first, const Loc& last)
+        : file(first.file)
+        , begin_row(first.begin_row)
+        , begin_col(first.begin_col)
+        , end_row(last.end_row)
+        , end_col(last.end_col)
+    {
+        assert(first.file == last.file);
+    }
 
     Loc begin() const { return Loc(file, begin_row, begin_col, begin_row, begin_col); }
     Loc end() const { return Loc(file, end_row, end_col, end_row, end_col); }
