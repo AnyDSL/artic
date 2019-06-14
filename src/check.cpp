@@ -82,7 +82,6 @@ namespace ast {
 
 artic::Type Node::check(TypeChecker& checker, artic::Type expected) const {
     // By default, try to infer, and then check that types match
-    auto blob = checker.infer(*this);
     return checker.expect(loc, checker.infer(*this), expected);
 }
 
@@ -258,7 +257,7 @@ artic::Type ReturnExpr::infer(TypeChecker& checker) const {
 
 // Declarations --------------------------------------------------------------------
 
-artic::Type PtrnDecl::check(TypeChecker& checker, artic::Type expected) const {
+artic::Type PtrnDecl::check(TypeChecker&, artic::Type expected) const {
     return expected;
 }
 

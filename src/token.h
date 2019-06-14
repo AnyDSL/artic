@@ -103,9 +103,9 @@ struct Literal {
     bool as_bool()        const { return box.get_bool(); }
 
     Literal() {}
-    Literal(uint64_t i) : box(i), tag(Integer) {}
-    Literal(double d)   : box(d), tag(Double) {}
-    Literal(bool b)     : box(b), tag(Bool) {}
+    Literal(uint64_t i) : tag(Integer), box(i) {}
+    Literal(double d)   : tag(Double),  box(d) {}
+    Literal(bool b)     : tag(Bool),    box(b) {}
 };
 
 inline std::ostream& operator << (std::ostream& os, const Literal& lit) {

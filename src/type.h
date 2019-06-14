@@ -102,10 +102,10 @@ public:
     template <typename T>
     T as() const { assert(isa<T>()); return T(def()); }
 
-    inline bool is_tuple() const;
-    inline bool is_array() const;
-    inline bool is_ptr()   const;
-    inline bool is_fn()    const;
+    bool is_tuple() const;
+    bool is_array() const;
+    bool is_ptr()   const;
+    bool is_fn()    const;
 
     static Type join(Type type, Type other) {
         if (type == other)
@@ -190,7 +190,7 @@ public:
 
     Tag tag() const { return static_cast<Tag>(def()->tag()); }
 
-    bool operator < (Type other) const { return false; }
+    bool operator < (Type) const;
     void print(Printer&) const;
 
 private:
@@ -210,7 +210,7 @@ public:
     size_t num_args() const { return def()->num_ops(); }
     Type arg(size_t i) const { return Type(def()->op(i)); }
 
-    bool operator < (Type other) const { return false; }
+    bool operator < (Type) const;
     void print(Printer&) const;
 
 private:
@@ -234,7 +234,7 @@ class ArrayType : public Type, public ArrayTypeMatcher {
 public:
     Type elem() const { return Type(def()->as<thorin::Variadic>()->body()); }
 
-    bool operator < (Type other) const { return false; }
+    bool operator < (Type) const;
     void print(Printer&) const;
 
 private:
@@ -254,7 +254,7 @@ public:
     bool is_mut()  const { return false; } // TODO
     Type pointee() const { return Type(def()->as<thorin::PtrType>()->pointee()); }
 
-    bool operator < (Type other) const { return false; }
+    bool operator < (Type) const;
     void print(Printer&) const;
 
 private:
@@ -264,7 +264,7 @@ private:
     PtrType(const thorin::Def* def)
         : Type(def)
     {}
-    PtrType(thorin::World& world, Type pointee, bool mut)
+    PtrType(thorin::World& world, Type pointee, bool)
         : PtrType(world.ptr_type(pointee.def()))
     {}
 };
@@ -274,7 +274,7 @@ public:
     Type from() const { return Type(def()->as<thorin::Pi>()->domain()); }
     Type to()   const { return Type(def()->as<thorin::Pi>()->codomain()); }
 
-    bool operator < (Type other) const { return false; }
+    bool operator < (Type) const;
     void print(Printer&) const;
 
 private:
@@ -291,7 +291,7 @@ private:
 
 class NoRetType : public Type, public NoRetTypeMatcher {
 public:
-    bool operator < (Type other) const { return true; }
+    bool operator < (Type) const;
     void print(Printer&) const;
 
 private:
@@ -308,7 +308,7 @@ private:
 
 class ErrorType : public Type, public ErrorTypeMatcher {
 public:
-    bool operator < (Type other) const { return false; }
+    bool operator < (Type) const;
     void print(Printer&) const;
 
 private:
@@ -323,10 +323,18 @@ private:
     {}
 };
 
-bool Type::is_tuple() const { return isa<TupleType>(); }
-bool Type::is_array() const { return isa<ArrayType>(); }
-bool Type::is_ptr()   const { return isa<PtrType>(); }
-bool Type::is_fn()    const { return isa<FnType>(); }
+inline bool Type::is_tuple() const { return isa<TupleType>(); }
+inline bool Type::is_array() const { return isa<ArrayType>(); }
+inline bool Type::is_ptr()   const { return isa<PtrType>(); }
+inline bool Type::is_fn()    const { return isa<FnType>(); }
+
+inline bool PrimType ::operator < (Type other) const { return other.isa<ErrorType>(); }
+inline bool TupleType::operator < (Type other) const { return other.isa<ErrorType>(); }
+inline bool ArrayType::operator < (Type other) const { return other.isa<ErrorType>(); }
+inline bool PtrType  ::operator < (Type other) const { return other.isa<ErrorType>(); }
+inline bool FnType   ::operator < (Type other) const { return other.isa<ErrorType>(); }
+inline bool NoRetType::operator < (Type      ) const { return true; }
+inline bool ErrorType::operator < (Type      ) const { return false; }
 
 template <class F>
 typename std::result_of<F(Type)>::type Type::dispatch(const Type* t, F f) {
