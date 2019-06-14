@@ -1,7 +1,9 @@
 #ifndef TYPE_H
 #define TYPE_H
 
+#include <type_traits>
 #include <algorithm>
+#include <cassert>
 #include <vector>
 
 #include <thorin/world.h>
@@ -105,6 +107,28 @@ public:
     inline bool is_ptr()   const;
     inline bool is_fn()    const;
 
+    static Type join(Type type, Type other) {
+        if (type == other)
+            return type;
+        else if (other < type)
+            return other;
+        else if (type < other)
+            return type;
+        else
+            return Type();
+    }
+
+    static Type meet(Type type, Type other) {
+        if (type == other)
+            return type;
+        else if (type < other)
+            return other;
+        else if (other < type)
+            return type;
+        else
+            return Type();
+    }
+
     bool is_nominal() const { return false; } // TODO
 
     bool contains(Type type) const {
@@ -123,10 +147,18 @@ public:
     bool operator == (const Type& other) const { return other.def() == def(); }
     bool operator != (const Type& other) const { return other.def() != def(); }
 
-    virtual void print(Printer&) const;
+    bool operator < (Type other) const {
+        return dispatch(this, [&] (auto type) { return type < other; });
+    }
+    void print(Printer& p) const {
+        dispatch(this, [&] (auto type) { type.print(p); });
+    }
     void dump() const;
 
 protected:
+    template <class F>
+    static typename std::result_of<F(Type)>::type dispatch(const Type*, F f);
+
     const thorin::Def* def_;
 };
 
@@ -156,8 +188,10 @@ public:
         F64  = thorin::Node_PrimType_qf64,
     };
 
-    void print(Printer&) const override;
     Tag tag() const { return static_cast<Tag>(def()->tag()); }
+
+    bool operator < (Type other) const { return false; }
+    void print(Printer&) const;
 
 private:
     friend class TypeTable;
@@ -176,8 +210,8 @@ public:
     size_t num_args() const { return def()->num_ops(); }
     Type arg(size_t i) const { return Type(def()->op(i)); }
 
-    void print(Printer&) const override;
-    static constexpr thorin::NodeTag tag() { return thorin::Node_Sigma; }
+    bool operator < (Type other) const { return false; }
+    void print(Printer&) const;
 
 private:
     friend class TypeTable;
@@ -200,8 +234,8 @@ class ArrayType : public Type, public ArrayTypeMatcher {
 public:
     Type elem() const { return Type(def()->as<thorin::Variadic>()->body()); }
 
-    void print(Printer&) const override;
-    static constexpr thorin::NodeTag tag() { return thorin::Node_Variadic; }
+    bool operator < (Type other) const { return false; }
+    void print(Printer&) const;
 
 private:
     friend class TypeTable;
@@ -220,7 +254,8 @@ public:
     bool is_mut()  const { return false; } // TODO
     Type pointee() const { return Type(def()->as<thorin::PtrType>()->pointee()); }
 
-    void print(Printer&) const override;
+    bool operator < (Type other) const { return false; }
+    void print(Printer&) const;
 
 private:
     friend class TypeTable;
@@ -239,7 +274,8 @@ public:
     Type from() const { return Type(def()->as<thorin::Pi>()->domain()); }
     Type to()   const { return Type(def()->as<thorin::Pi>()->codomain()); }
 
-    void print(Printer&) const override;
+    bool operator < (Type other) const { return false; }
+    void print(Printer&) const;
 
 private:
     friend class TypeTable;
@@ -255,7 +291,8 @@ private:
 
 class NoRetType : public Type, public NoRetTypeMatcher {
 public:
-    void print(Printer&) const override;
+    bool operator < (Type other) const { return true; }
+    void print(Printer&) const;
 
 private:
     friend class TypeTable;
@@ -271,8 +308,8 @@ private:
 
 class ErrorType : public Type, public ErrorTypeMatcher {
 public:
-    void print(Printer&) const override;
-    static constexpr thorin::NodeTag tag() { return thorin::Node_Top; }
+    bool operator < (Type other) const { return false; }
+    void print(Printer&) const;
 
 private:
     friend class TypeTable;
@@ -290,6 +327,18 @@ bool Type::is_tuple() const { return isa<TupleType>(); }
 bool Type::is_array() const { return isa<ArrayType>(); }
 bool Type::is_ptr()   const { return isa<PtrType>(); }
 bool Type::is_fn()    const { return isa<FnType>(); }
+
+template <class F>
+typename std::result_of<F(Type)>::type Type::dispatch(const Type* t, F f) {
+         if (t->template isa<PrimType>())  return f(t->template as<PrimType>() );
+    else if (t->template isa<TupleType>()) return f(t->template as<TupleType>());
+    else if (t->template isa<ArrayType>()) return f(t->template as<ArrayType>());
+    else if (t->template isa<PtrType>())   return f(t->template as<PtrType>()  );
+    else if (t->template isa<FnType>())    return f(t->template as<FnType>()   );
+    else if (t->template isa<NoRetType>()) return f(t->template as<NoRetType>());
+    else if (t->template isa<ErrorType>()) return f(t->template as<ErrorType>());
+    else assert(false);
+}
 
 class TypeTable {
 public:

@@ -503,17 +503,6 @@ void Node::dump() const {
 
 // Types ---------------------------------------------------------------------------
 
-void Type::print(Printer& p) const {
-         if (isa<PrimType>())  as<PrimType>().print(p);
-    else if (isa<TupleType>()) as<TupleType>().print(p);
-    else if (isa<ArrayType>()) as<ArrayType>().print(p);
-    else if (isa<PtrType>())   as<PtrType>().print(p);
-    else if (isa<FnType>())    as<FnType>().print(p);
-    else if (isa<NoRetType>()) as<NoRetType>().print(p);
-    else if (isa<ErrorType>()) as<ErrorType>().print(p);
-    else assert(false);
-}
-
 void PrimType::print(Printer& p) const {
     p << keyword_style(ast::PrimType::tag_to_string(ast::PrimType::Tag(tag())));
 }

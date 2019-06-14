@@ -278,6 +278,8 @@ struct DeclStmt : public Stmt {
 
     bool need_semicolon() const override;
 
+    artic::Type infer(TypeChecker&) const override;
+    artic::Type check(TypeChecker&, artic::Type) const override;
     void bind(NameBinder&) const override;
     void print(Printer&) const override;
 };
@@ -810,6 +812,7 @@ struct LetDecl : public Decl {
         , init(std::move(init))
     {}
 
+    artic::Type infer(TypeChecker&) const override;
     void bind(NameBinder&) const override;
     void print(Printer&) const override;
 };

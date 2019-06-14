@@ -10,20 +10,16 @@ bool TypeChecker::run(const ast::Program& program) {
     return error_count == 0;
 }
 
-bool TypeChecker::types_match(Type type, Type expected) {
-    return type == expected || type.isa<NoRetType>();
-}
-
 bool TypeChecker::should_emit_error(Type type) {
     return !type.contains(error_type());
 }
 
 artic::Type TypeChecker::expect(const Loc& loc, const std::string& msg, Type type, Type expected) {
-    if (!types_match(type, expected) && should_emit_error(type)) {
+    if (auto meet = Type::meet(type, expected))
+        return meet;
+    if (should_emit_error(type))
         error(loc, "expected type '{}', but got {} with type '{}'", expected, msg, type);
-        return error_type();
-    }
-    return type;
+    return error_type();
 }
 
 artic::Type TypeChecker::expect(const Loc& loc, const std::string& msg, Type expected) {
@@ -32,11 +28,11 @@ artic::Type TypeChecker::expect(const Loc& loc, const std::string& msg, Type exp
 }
 
 artic::Type TypeChecker::expect(const Loc& loc, Type type, Type expected) {
-    if (!types_match(type, expected) && should_emit_error(type)) {
+    if (auto meet = Type::meet(type, expected))
+        return meet;
+    if (should_emit_error(type))
         error(loc, "expected type '{}', but got type '{}'", expected, type);
-        return error_type();
-    }
-    return type;
+    return error_type();
 }
 
 artic::Type TypeChecker::cannot_infer(const Loc& loc, const std::string& msg) {
@@ -100,6 +96,8 @@ artic::Type Path::infer(TypeChecker& checker) const {
     return checker.infer(*symbol->decls.front());
 }
 
+// Types ---------------------------------------------------------------------------
+
 artic::Type PrimType::infer(TypeChecker& checker) const {
     return checker.prim_type(static_cast<artic::PrimType::Tag>(tag));
 }
@@ -116,6 +114,16 @@ artic::Type FnType::infer(TypeChecker& checker) const {
     return checker.fn_type(checker.infer(*from), checker.infer(*to));
 }
 
+// Statements ----------------------------------------------------------------------
+
+artic::Type DeclStmt::infer(TypeChecker& checker) const {
+    return checker.infer(*decl);
+}
+
+artic::Type DeclStmt::check(TypeChecker& checker, artic::Type expected) const {
+    return checker.check(*decl, expected);
+}
+
 artic::Type ExprStmt::infer(TypeChecker& checker) const {
     return checker.infer(*expr);
 }
@@ -123,6 +131,8 @@ artic::Type ExprStmt::infer(TypeChecker& checker) const {
 artic::Type ExprStmt::check(TypeChecker& checker, artic::Type expected) const {
     return checker.check(*expr, expected);
 }
+
+// Expressions ---------------------------------------------------------------------
 
 artic::Type PathExpr::infer(TypeChecker& checker) const {
     return checker.infer(path);
@@ -176,7 +186,7 @@ artic::Type BlockExpr::infer(TypeChecker& checker) const {
         return checker.unit_type();
     for (size_t i = 0; i < stmts.size() - 1; ++i) {
         auto stmt_type = checker.check(*stmts[i], checker.unit_type()).isa<NoRetType>();
-        if (stmt_type.isa<artic::NoRetType>() && i != stmts.size() - 1)
+        if (stmt_type.isa<artic::NoRetType>())
             return checker.unreachable_code(stmts[i]->loc, stmts[i + 1]->loc, stmts.back()->loc);
     }
     return checker.infer(*stmts.back());
@@ -185,12 +195,12 @@ artic::Type BlockExpr::infer(TypeChecker& checker) const {
 artic::Type BlockExpr::check(TypeChecker& checker, artic::Type expected) const {
     if (stmts.empty())
         return checker.unit_type();
-    for (size_t i = 0; i < stmts.size(); ++i) {
-        auto stmt_type = checker.check(*stmts[i], i == stmts.size() - 1 ? expected : checker.unit_type());
-        if (stmt_type.isa<artic::NoRetType>() && i != stmts.size() - 1)
+    for (size_t i = 0; i < stmts.size() - 1; ++i) {
+        auto stmt_type = checker.check(*stmts[i], checker.unit_type());
+        if (stmt_type.isa<artic::NoRetType>())
             return checker.unreachable_code(stmts[i]->loc, stmts[i + 1]->loc, stmts.back()->loc);
     }
-    return stmts.back()->type;
+    return checker.check(*stmts.back(), expected);
 }
 
 artic::Type CallExpr::infer(TypeChecker& checker) const {
@@ -226,7 +236,8 @@ artic::Type IfExpr::check(TypeChecker& checker, artic::Type expected) const {
 
 artic::Type WhileExpr::infer(TypeChecker& checker) const {
     checker.check(*cond, checker.prim_type(artic::PrimType::Bool));
-    return checker.check(*body, checker.unit_type());
+    checker.check(*body, checker.unit_type());
+    return checker.unit_type();
 }
 
 artic::Type BreakExpr::infer(TypeChecker& checker) const {
@@ -245,14 +256,23 @@ artic::Type ReturnExpr::infer(TypeChecker& checker) const {
     return checker.fn_type(fn_type.from(), checker.no_ret_type());
 }
 
+// Declarations --------------------------------------------------------------------
+
 artic::Type PtrnDecl::check(TypeChecker& checker, artic::Type expected) const {
     return expected;
+}
+
+artic::Type LetDecl::infer(TypeChecker& checker) const {
+    checker.check(*ptrn, checker.infer(*init));
+    return checker.unit_type();
 }
 
 artic::Type FnDecl::infer(TypeChecker& checker) const {
     // TODO: Type params
     return checker.infer(*fn);
 }
+
+// Patterns ------------------------------------------------------------------------
 
 artic::Type TypedPtrn::infer(TypeChecker& checker) const {
     return checker.check(*ptrn, checker.infer(*type));
