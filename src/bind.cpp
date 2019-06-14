@@ -48,6 +48,8 @@ void Filter::bind(NameBinder& ctx) const {
     if (expr) ctx.bind(*expr);
 }
 
+// Types ---------------------------------------------------------------------------
+
 void PrimType::bind(NameBinder&) const {}
 
 void TupleType::bind(NameBinder& ctx) const {
@@ -75,6 +77,8 @@ void SelfType::bind(NameBinder&) const {}
 
 void ErrorType::bind(NameBinder&) const {}
 
+// Statements ----------------------------------------------------------------------
+
 void DeclStmt::bind(NameBinder& ctx) const {
     ctx.bind(*decl);
 }
@@ -82,6 +86,8 @@ void DeclStmt::bind(NameBinder& ctx) const {
 void ExprStmt::bind(NameBinder& ctx) const {
     ctx.bind(*expr);
 }
+
+// Expressions ---------------------------------------------------------------------
 
 void TypedExpr::bind(NameBinder& ctx) const {
     ctx.bind(*expr);
@@ -219,6 +225,8 @@ void KnownExpr::bind(NameBinder& ctx) const {
 
 void ErrorExpr::bind(NameBinder&) const {}
 
+// Patterns ------------------------------------------------------------------------
+
 void TypedPtrn::bind(NameBinder& ctx) const {
     if (ptrn) ctx.bind(*ptrn);
     ctx.bind(*type);
@@ -244,6 +252,8 @@ void TuplePtrn::bind(NameBinder& ctx) const {
 }
 
 void ErrorPtrn::bind(NameBinder&) const {}
+
+// Declarations --------------------------------------------------------------------
 
 void TypeParam::bind(NameBinder& ctx) const {
     for (auto& bound : bounds)
