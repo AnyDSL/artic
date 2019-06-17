@@ -1,6 +1,8 @@
 #ifndef CHECK_H
 #define CHECK_H
 
+#include <unordered_set>
+
 #include "ast.h"
 #include "log.h"
 #include "type.h"
@@ -18,7 +20,9 @@ public:
     /// Returns true on success, otherwise false.
     bool run(const ast::Program&);
 
-    bool types_match(Type, Type);
+    bool enter_decl(const ast::Decl* decl);
+    void exit_decl(const ast::Decl* decl);
+
     bool should_emit_error(Type);
 
     artic::Type expect(const Loc&, const std::string&, Type, Type);
@@ -37,6 +41,9 @@ public:
     template <typename Args>
     Type infer_tuple(const Args&);
     Type infer_call(const ast::CallExpr&);
+
+private:
+    std::unordered_set<const ast::Decl*> decls_;
 };
 
 } // namespace artic

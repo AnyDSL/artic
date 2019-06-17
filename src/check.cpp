@@ -10,6 +10,19 @@ bool TypeChecker::run(const ast::Program& program) {
     return error_count == 0;
 }
 
+bool TypeChecker::enter_decl(const ast::Decl* decl) {
+    auto [_, success] = decls_.emplace(decl);
+    if (!success) {
+        error(decl->loc, "cannot infer type for recursive declaration");
+        return false;
+    }
+    return true;
+}
+
+void TypeChecker::exit_decl(const ast::Decl* decl) {
+    decls_.erase(decl);
+}
+
 bool TypeChecker::should_emit_error(Type type) {
     return !type.contains(error_type());
 }
@@ -75,6 +88,7 @@ Type TypeChecker::check_lit(const Loc& loc, const Literal& lit, Type expected) {
     if (!expected.isa<PrimType>())
         return expect(loc, "literal", expected);
     if (lit.is_integer()) {
+        // Allow integer literals to be typed with an integer or floating point type
         switch (expected.as<PrimType>().tag()) {
             case PrimType::I8:
             case PrimType::I16:
@@ -91,6 +105,7 @@ Type TypeChecker::check_lit(const Loc& loc, const Literal& lit, Type expected) {
                 return expect(loc, "integer literal", expected);
         }
     } else if (lit.is_double()) {
+        // Allow floating point literals to be typed with any floating point type
         switch (expected.as<PrimType>().tag()) {
             case PrimType::F32:
             case PrimType::F64:
@@ -353,7 +368,11 @@ artic::Type LetDecl::infer(TypeChecker& checker) const {
 
 artic::Type FnDecl::infer(TypeChecker& checker) const {
     // TODO: Type params
-    return checker.infer(*fn);
+    if (!checker.enter_decl(this))
+        return checker.error_type();
+    auto type = checker.infer(*fn);
+    checker.exit_decl(this);
+    return type;
 }
 
 // Patterns ------------------------------------------------------------------------
@@ -368,6 +387,12 @@ artic::Type LiteralPtrn::infer(TypeChecker& checker) const {
 
 artic::Type LiteralPtrn::check(TypeChecker& checker, artic::Type expected) const {
     return checker.check_lit(loc, lit, expected);
+}
+
+artic::Type IdPtrn::infer(TypeChecker& checker) const {
+    // Needed because the error type will be attached to the decl,
+    // which is what is connected to the uses of the identifier.
+    return checker.infer(*decl);
 }
 
 artic::Type IdPtrn::check(TypeChecker& checker, artic::Type expected) const {

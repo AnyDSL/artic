@@ -952,6 +952,7 @@ struct IdPtrn : public Ptrn {
 
     bool is_refutable() const override;
 
+    artic::Type infer(TypeChecker&) const override;
     artic::Type check(TypeChecker&, artic::Type) const override;
     void bind(NameBinder&) const override;
     void print(Printer&) const override;
