@@ -313,6 +313,7 @@ struct TypedExpr : public Expr {
         , type(std::move(type))
     {}
 
+    artic::Type infer(TypeChecker&) const override;
     void bind(NameBinder&) const override;
     void print(Printer&) const override;
 };

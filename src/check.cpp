@@ -23,7 +23,8 @@ artic::Type TypeChecker::expect(const Loc& loc, const std::string& msg, Type typ
 }
 
 artic::Type TypeChecker::expect(const Loc& loc, const std::string& msg, Type expected) {
-    error(loc, "expected type '{}', but got {}", expected, msg);
+    if (should_emit_error(expected))
+        error(loc, "expected type '{}', but got {}", expected, msg);
     return error_type();
 }
 
@@ -199,10 +200,13 @@ artic::Type ExprStmt::check(TypeChecker& checker, artic::Type expected) const {
 
 // Expressions ---------------------------------------------------------------------
 
+artic::Type TypedExpr::infer(TypeChecker& checker) const {
+    return checker.check(*expr, checker.infer(*type));
+}
+
 artic::Type PathExpr::infer(TypeChecker& checker) const {
     return checker.infer(path);
 }
-
 
 artic::Type LiteralExpr::infer(TypeChecker& checker) const {
     return checker.infer_lit(loc, lit);
