@@ -30,6 +30,8 @@ public:
     Type check(const ast::Node&, Type);
     Type infer(const ast::Node&);
 
+    Type infer_lit(const Loc&, const Literal&);
+    Type check_lit(const Loc&, const Literal&, Type);
     template <typename Args>
     Type check_tuple(const Loc&, const std::string&, const Args&, Type);
     template <typename Args>

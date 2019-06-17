@@ -338,6 +338,8 @@ struct LiteralExpr : public Expr {
         : Expr(loc), lit(lit)
     {}
 
+    artic::Type infer(TypeChecker&) const override;
+    artic::Type check(TypeChecker&, artic::Type) const override;
     void bind(NameBinder&) const override;
     void print(Printer&) const override;
 };
@@ -535,6 +537,8 @@ struct MatchExpr : public Expr {
         , cases(std::move(cases))
     {}
 
+    artic::Type infer(TypeChecker&) const override;
+    artic::Type check(TypeChecker&, artic::Type) const override;
     void bind(NameBinder&) const override;
     void print(Printer&) const override;
 };
@@ -962,6 +966,8 @@ struct LiteralPtrn : public Ptrn {
 
     bool is_refutable() const override;
 
+    artic::Type infer(TypeChecker&) const override;
+    artic::Type check(TypeChecker&, artic::Type) const override;
     void bind(NameBinder&) const override;
     void print(Printer&) const override;
 };

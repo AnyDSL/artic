@@ -57,6 +57,56 @@ Type TypeChecker::infer(const ast::Node& node) {
     return node.type = node.infer(*this);
 }
 
+Type TypeChecker::infer_lit(const Loc&, const Literal& lit) {
+    if (lit.is_integer())
+        return prim_type(PrimType::I32);
+    else if (lit.is_double())
+        return prim_type(PrimType::F64);
+    else if (lit.is_bool())
+        return prim_type(PrimType::Bool);
+    else {
+        assert(false);
+        return error_type();
+    }
+}
+
+Type TypeChecker::check_lit(const Loc& loc, const Literal& lit, Type expected) {
+    if (!expected.isa<PrimType>())
+        return expect(loc, "literal", expected);
+    if (lit.is_integer()) {
+        switch (expected.as<PrimType>().tag()) {
+            case PrimType::I8:
+            case PrimType::I16:
+            case PrimType::I32:
+            case PrimType::I64:
+            case PrimType::U8:
+            case PrimType::U16:
+            case PrimType::U32:
+            case PrimType::U64:
+            case PrimType::F32:
+            case PrimType::F64:
+                return expected;
+            default:
+                return expect(loc, "integer literal", expected);
+        }
+    } else if (lit.is_double()) {
+        switch (expected.as<PrimType>().tag()) {
+            case PrimType::F32:
+            case PrimType::F64:
+                return expected;
+            default:
+                return expect(loc, "floating point literal", expected);
+        }
+    } else if (lit.is_bool()) {
+        if (expected.as<PrimType>().tag() != PrimType::Bool)
+            return expect(loc, "boolean literal", expected);
+        return expected;
+    } else {
+        assert(false);
+        return error_type();
+    }
+}
+
 template <typename Args>
 Type TypeChecker::check_tuple(const Loc& loc, const std::string& msg, const Args& args, Type expected) {
     if (!expected.isa<TupleType>())
@@ -153,6 +203,15 @@ artic::Type PathExpr::infer(TypeChecker& checker) const {
     return checker.infer(path);
 }
 
+
+artic::Type LiteralExpr::infer(TypeChecker& checker) const {
+    return checker.infer_lit(loc, lit);
+}
+
+artic::Type LiteralExpr::check(TypeChecker& checker, artic::Type expected) const {
+    return checker.check_lit(loc, lit, expected);
+}
+
 artic::Type TupleExpr::infer(TypeChecker& checker) const {
     return checker.infer_tuple(args);
 }
@@ -237,6 +296,20 @@ artic::Type IfExpr::check(TypeChecker& checker, artic::Type expected) const {
     return true_type;
 }
 
+artic::Type MatchExpr::infer(TypeChecker& checker) const {
+    return check(checker, nullptr);
+}
+
+artic::Type MatchExpr::check(TypeChecker& checker, artic::Type expected) const {
+    auto arg_type = checker.infer(*arg);
+    artic::Type type = expected;
+    for (auto& case_ : cases) {
+        checker.check(*case_->ptrn, arg_type);
+        type = type ? checker.check(*case_->expr, type) : checker.infer(*case_->expr);
+    }
+    return type ? type : checker.cannot_infer(loc, "match expression");
+}
+
 artic::Type WhileExpr::infer(TypeChecker& checker) const {
     checker.check(*cond, checker.prim_type(artic::PrimType::Bool));
     checker.check(*body, checker.unit_type());
@@ -283,6 +356,14 @@ artic::Type FnDecl::infer(TypeChecker& checker) const {
 
 artic::Type TypedPtrn::infer(TypeChecker& checker) const {
     return checker.check(*ptrn, checker.infer(*type));
+}
+
+artic::Type LiteralPtrn::infer(TypeChecker& checker) const {
+    return checker.infer_lit(loc, lit);
+}
+
+artic::Type LiteralPtrn::check(TypeChecker& checker, artic::Type expected) const {
+    return checker.check_lit(loc, lit, expected);
 }
 
 artic::Type IdPtrn::check(TypeChecker& checker, artic::Type expected) const {
