@@ -69,7 +69,6 @@ public:
         return best;
     }
 
-
 private:
     const ast::FnExpr*   cur_fn_;
     const ast::LoopExpr* cur_loop_;
