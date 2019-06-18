@@ -61,6 +61,7 @@ inline std::ostream& operator << (std::ostream& os, const Fill<T>& f) {
 enum Style {
     Normal = 0,
     Bold = 1,
+    Italic = 3,
     Underline = 4,
     Black = 30,
     Red = 31,

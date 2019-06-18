@@ -33,13 +33,13 @@ void TypeChecker::explain_no_ret_type(Type type, Type expected) {
     if ((type && type.contains(no_ret)) || expected.contains(no_ret)) {
         note("the type '{}' indicates a {} or {} type, used to denote the return type of functions like '{}', '{}', or '{}'",
              (const Type&)no_ret,
-             log::style("bottom", log::Style::Bold),
-             log::style("no-return", log::Style::Bold),
+             log::style("bottom", log::Style::Italic),
+             log::style("no-return", log::Style::Italic),
              keyword_style("break"),
              keyword_style("continue"),
              keyword_style("return"));
         note("this error {} indicate that you forgot to add parentheses '()' to call one of those functions",
-            log::style("may", log::Style::Bold));
+            log::style("may", log::Style::Italic));
     }
 }
 

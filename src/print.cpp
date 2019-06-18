@@ -538,7 +538,7 @@ void PtrType::print(Printer& p) const {
 }
 
 void NoRetType::print(Printer& p) const {
-    p << '!';
+    p << keyword_style('!');
 }
 
 void ErrorType::print(Printer& p) const {
