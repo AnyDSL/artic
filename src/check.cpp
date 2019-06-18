@@ -1,6 +1,7 @@
 #include <algorithm>
 
 #include "check.h"
+#include "print.h"
 #include "log.h"
 
 namespace artic {
@@ -27,25 +28,46 @@ bool TypeChecker::should_emit_error(Type type) {
     return !type.contains(error_type());
 }
 
+void TypeChecker::explain_no_ret_type(Type type, Type expected) {
+    auto no_ret = no_ret_type();
+    if ((type && type.contains(no_ret)) || expected.contains(no_ret)) {
+        note("the type '{}' indicates a {} or {} type, used to denote the return type of functions like '{}', '{}', or '{}'",
+             (const Type&)no_ret,
+             log::style("bottom", log::Style::Bold),
+             log::style("no-return", log::Style::Bold),
+             keyword_style("break"),
+             keyword_style("continue"),
+             keyword_style("return"));
+        note("this error {} indicate that you forgot to add parentheses '()' to call one of those functions",
+            log::style("may", log::Style::Bold));
+    }
+}
+
 artic::Type TypeChecker::expect(const Loc& loc, const std::string& msg, Type type, Type expected) {
     if (auto meet = Type::meet(type, expected))
         return meet;
-    if (should_emit_error(type))
+    if (should_emit_error(type)) {
         error(loc, "expected type '{}', but got {} with type '{}'", expected, msg, type);
+        explain_no_ret_type(type, expected);
+    }
     return error_type();
 }
 
 artic::Type TypeChecker::expect(const Loc& loc, const std::string& msg, Type expected) {
-    if (should_emit_error(expected))
+    if (should_emit_error(expected)) {
         error(loc, "expected type '{}', but got {}", expected, msg);
+        explain_no_ret_type(nullptr, expected);
+    }
     return error_type();
 }
 
 artic::Type TypeChecker::expect(const Loc& loc, Type type, Type expected) {
     if (auto meet = Type::meet(type, expected))
         return meet;
-    if (should_emit_error(type))
+    if (should_emit_error(type)) {
         error(loc, "expected type '{}', but got type '{}'", expected, type);
+        explain_no_ret_type(type, expected);
+    }
     return error_type();
 }
 

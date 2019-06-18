@@ -34,7 +34,7 @@ bool Lexer::Utf8Buffer::fill(std::istream& is) {
         is.read(buf + count, n);
         size_t read = is.gcount();
         count += read;
-        return read == std::streamsize(n);
+        return read == size_t(n);
     }
     return true;
 }

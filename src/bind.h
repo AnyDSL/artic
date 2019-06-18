@@ -56,6 +56,19 @@ public:
         }
         return nullptr;
     }
+    std::shared_ptr<Symbol> find_similar_symbol(const std::string& name) {
+        size_t min = 5; // Tolerate up to 5 differences
+        std::shared_ptr<Symbol> best;
+        for (auto it = scopes_.rbegin(); it != scopes_.rend(); it++) {
+            auto pair = it->find_similar(name, min);
+            if (pair.second) {
+                min  = pair.first;
+                best = pair.second;
+            }
+        }
+        return best;
+    }
+
 
 private:
     const ast::FnExpr*   cur_fn_;

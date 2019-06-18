@@ -7,11 +7,6 @@
 
 namespace artic {
 
-template <typename T> auto error_style(const T& t)    -> decltype(log::style(t, log::Style())) { return log::style(t, log::Style::Red);   }
-template <typename T> auto keyword_style(const T& t)  -> decltype(log::style(t, log::Style())) { return log::style(t, log::Style::Green); }
-template <typename T> auto literal_style(const T& t)  -> decltype(log::style(t, log::Style())) { return log::style(t, log::Style::Blue);  }
-template <typename T> auto type_var_style(const T& t) -> decltype(log::style(t, log::Style(), log::Style())) { return log::style(t, log::Style::Bold, log::Style::White);  }
-
 template <typename L, typename S, typename F>
 void print_list(Printer& p, const S& sep, const L& list, F f) {
     for (auto it = list.begin(); it != list.end(); ++it) {

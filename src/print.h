@@ -10,6 +10,10 @@
 
 namespace artic {
 
+template <typename T> auto error_style(const T& t)    -> decltype(log::style(t, log::Style())) { return log::style(t, log::Style::Red);   }
+template <typename T> auto keyword_style(const T& t)  -> decltype(log::style(t, log::Style())) { return log::style(t, log::Style::Green); }
+template <typename T> auto literal_style(const T& t)  -> decltype(log::style(t, log::Style())) { return log::style(t, log::Style::Blue);  }
+
 /// Utility class to print AST nodes and types in a human readable form.
 struct Printer {
     struct Endl {};

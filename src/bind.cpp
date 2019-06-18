@@ -39,8 +39,13 @@ namespace ast {
 
 void Path::bind(NameBinder& binder) const {
     symbol = binder.find_symbol(elems[0].id.name);
-    if (!symbol)
+    if (!symbol) {
         binder.error(elems[0].id.loc, "unknown identifier '{}'", elems[0].id.name);
+        if (auto similar = binder.find_similar_symbol(elems[0].id.name)) {
+            auto decl = similar->decls.front();
+            binder.note("possible suggestion is '{}'", decl->id.name);
+        }
+    }
     for (auto& arg : args) binder.bind(*arg);
 }
 

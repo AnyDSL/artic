@@ -24,6 +24,7 @@ public:
     void exit_decl(const ast::Decl* decl);
 
     bool should_emit_error(Type);
+    void explain_no_ret_type(Type, Type);
 
     artic::Type expect(const Loc&, const std::string&, Type, Type);
     artic::Type expect(const Loc&, const std::string&, Type);
