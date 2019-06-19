@@ -240,10 +240,14 @@ struct Logger {
     /// Report a warning.
     template <typename... Args>
     void warn(const char* fmt, const Args&... args) {
-        warn_count++;
-        log::format<false>(log, "{}: ",
-            log::style("warning", log::Style::Yellow, log::Style::Bold));
-        log::format(log, fmt, args...);
+        if (strict)
+            error(fmt, args...);
+        else {
+            warn_count++;
+            log::format<false>(log, "{}: ",
+                log::style("warning", log::Style::Yellow, log::Style::Bold));
+            log::format(log, fmt, args...);
+        }
     }
 
     /// Display a note.
