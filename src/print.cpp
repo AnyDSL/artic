@@ -71,7 +71,7 @@ void PathExpr::print(Printer& p) const {
 }
 
 void LiteralExpr::print(Printer& p) const {
-    p << std::showpoint << literal_style(lit);
+    p << std::showpoint << log::literal_style(lit);
 }
 
 void FieldExpr::print(Printer& p) const {
@@ -154,12 +154,12 @@ void ProjExpr::print(Printer& p) const {
 }
 
 void IfExpr::print(Printer& p) const {
-    p << keyword_style("if") << ' ';
+    p << log::keyword_style("if") << ' ';
     cond->print(p);
     p << ' ';
     if_true->print(p);
     if (if_false) {
-        p << ' ' << keyword_style("else") << ' ';
+        p << ' ' << log::keyword_style("else") << ' ';
         if_false->print(p);
     }
 }
@@ -171,7 +171,7 @@ void CaseExpr::print(Printer& p) const {
 }
 
 void MatchExpr::print(Printer& p) const {
-    p << keyword_style("match") << ' ';
+    p << log::keyword_style("match") << ' ';
     arg->print(p);
     p << " {" << p.indent();
     for (size_t i = 0, n = cases.size(); i < n; i++) {
@@ -184,7 +184,7 @@ void MatchExpr::print(Printer& p) const {
 }
 
 void WhileExpr::print(Printer& p) const {
-    p << keyword_style("while") << ' ';
+    p << log::keyword_style("while") << ' ';
     cond->print(p);
     p << ' ';
     body->print(p);
@@ -194,9 +194,9 @@ void ForExpr::print(Printer& p) const {
     auto call = body->as<ast::CallExpr>();
     auto& iter = call->callee->as<ast::CallExpr>()->callee;
     auto lambda = call->callee->as<ast::CallExpr>()->arg->as<ast::FnExpr>();
-    p << keyword_style("for") << ' ';
+    p << log::keyword_style("for") << ' ';
     lambda->param->print(p);
-    p << ' ' << keyword_style("in") << ' ';
+    p << ' ' << log::keyword_style("in") << ' ';
     iter->print(p);
     call->arg->print(p);
     p << ' ';
@@ -204,15 +204,15 @@ void ForExpr::print(Printer& p) const {
 }
 
 void BreakExpr::print(Printer& p) const {
-    p << keyword_style("break");
+    p << log::keyword_style("break");
 }
 
 void ContinueExpr::print(Printer& p) const {
-    p << keyword_style("continue");
+    p << log::keyword_style("continue");
 }
 
 void ReturnExpr::print(Printer& p) const {
-    p << keyword_style("return");
+    p << log::keyword_style("return");
 }
 
 void UnaryExpr::print(Printer& p) const {
@@ -248,7 +248,7 @@ void BinaryExpr::print(Printer& p) const {
 void AddrOfExpr::print(Printer& p) const {
     p << '&';
     if (mut)
-        p << keyword_style("mut") << ' ';
+        p << log::keyword_style("mut") << ' ';
     expr->print(p);
 }
 
@@ -263,7 +263,7 @@ void KnownExpr::print(Printer& p) const {
 }
 
 void ErrorExpr::print(Printer& p) const {
-    p << error_style("<invalid expression>");
+    p << log::error_style("<invalid expression>");
 }
 
 void TypedPtrn::print(Printer& p) const {
@@ -279,7 +279,7 @@ void IdPtrn::print(Printer& p) const {
 }
 
 void LiteralPtrn::print(Printer& p) const {
-    p << std::showpoint << literal_style(lit);
+    p << std::showpoint << log::literal_style(lit);
 }
 
 void FieldPtrn::print(Printer& p) const {
@@ -313,7 +313,7 @@ void TuplePtrn::print(Printer& p) const {
 }
 
 void ErrorPtrn::print(Printer& p) const {
-    p << error_style("<invalid pattern>");
+    p << log::error_style("<invalid pattern>");
 }
 
 void TypeParam::print(Printer& p) const {
@@ -342,7 +342,7 @@ void FieldDecl::print(Printer& p) const {
 }
 
 void StructDecl::print(Printer& p) const {
-    p << keyword_style("struct") << ' ' << id.name;
+    p << log::keyword_style("struct") << ' ' << id.name;
     if (type_params) type_params->print(p);
     p << " {";
     if (!fields.empty()) {
@@ -357,12 +357,12 @@ void StructDecl::print(Printer& p) const {
 }
 
 void PtrnDecl::print(Printer& p) const {
-    if (mut) p << keyword_style("mut") << ' ';
+    if (mut) p << log::keyword_style("mut") << ' ';
     p << id.name;
 }
 
 void LetDecl::print(Printer& p) const {
-    p << keyword_style("let") << " ";
+    p << log::keyword_style("let") << " ";
     ptrn->print(p);
     if (init) {
         p << " = ";
@@ -372,7 +372,7 @@ void LetDecl::print(Printer& p) const {
 }
 
 void FnDecl::print(Printer& p) const {
-    p << keyword_style("fn") << ' ';
+    p << log::keyword_style("fn") << ' ';
     if (fn->filter)
        fn->filter->print(p);
     p << id.name;
@@ -393,7 +393,7 @@ void FnDecl::print(Printer& p) const {
 }
 
 void TraitDecl::print(Printer& p) const {
-    p << keyword_style("trait") << ' ' << id.name;
+    p << log::keyword_style("trait") << ' ' << id.name;
     if (type_params) type_params->print(p);
     if (!supers.empty()) {
         p << " : ";
@@ -414,11 +414,11 @@ void TraitDecl::print(Printer& p) const {
 }
 
 void ImplDecl::print(Printer& p) const {
-    p << keyword_style("impl");
+    p << log::keyword_style("impl");
     if (type_params) type_params->print(p);
     p << ' ';
     trait->print(p);
-    p << ' ' << keyword_style("for") << ' ';
+    p << ' ' << log::keyword_style("for") << ' ';
     type->print(p);
     p << " {";
     if (!decls.empty()) {
@@ -433,7 +433,7 @@ void ImplDecl::print(Printer& p) const {
 }
 
 void ErrorDecl::print(Printer& p) const {
-    p << error_style("<invalid declaration>");
+    p << log::error_style("<invalid declaration>");
 }
 
 void Program::print(Printer& p) const {
@@ -443,7 +443,7 @@ void Program::print(Printer& p) const {
 }
 
 void PrimType::print(Printer& p) const {
-    p << keyword_style(tag_to_string(tag));
+    p << log::keyword_style(tag_to_string(tag));
 }
 
 void TupleType::print(Printer& p) const {
@@ -461,7 +461,7 @@ void ArrayType::print(Printer& p) const {
 }
 
 void FnType::print(Printer& p) const {
-    p << keyword_style("fn") << ' ';
+    p << log::keyword_style("fn") << ' ';
     print_parens(p, from);
     if (to) {
         p << " -> ";
@@ -475,16 +475,16 @@ void TypeApp::print(Printer& p) const {
 
 void PtrType::print(Printer& p) const {
     p << '&';
-    if (mut) p << keyword_style("mut") << ' ';
+    if (mut) p << log::keyword_style("mut") << ' ';
     pointee->print(p);
 }
 
 void SelfType::print(Printer& p) const {
-    p << keyword_style("Self");
+    p << log::keyword_style("Self");
 }
 
 void ErrorType::print(Printer& p) const {
-    p << error_style("<invalid type>");
+    p << log::error_style("<invalid type>");
 }
 
 log::Output& operator << (log::Output& out, const Node& node) {
@@ -504,7 +504,7 @@ void Node::dump() const {
 // Types ---------------------------------------------------------------------------
 
 void PrimType::print(Printer& p) const {
-    p << keyword_style(ast::PrimType::tag_to_string(ast::PrimType::Tag(tag())));
+    p << log::keyword_style(ast::PrimType::tag_to_string(ast::PrimType::Tag(tag())));
 }
 
 void TupleType::print(Printer& p) const {
@@ -524,7 +524,7 @@ void ArrayType::print(Printer& p) const {
 }
 
 void FnType::print(Printer& p) const {
-    p << keyword_style("fn");
+    p << log::keyword_style("fn");
     auto dom = from();
     print_parens(p, &dom);
     p << " -> ";
@@ -533,16 +533,16 @@ void FnType::print(Printer& p) const {
 
 void PtrType::print(Printer& p) const {
     p << '&';
-    if (is_mut()) p << keyword_style("mut") << ' ';
+    if (is_mut()) p << log::keyword_style("mut") << ' ';
     pointee().print(p);
 }
 
 void NoRetType::print(Printer& p) const {
-    p << keyword_style('!');
+    p << log::keyword_style('!');
 }
 
 void ErrorType::print(Printer& p) const {
-    p << error_style("<invalid type>");
+    p << log::error_style("<invalid type>");
 }
 
 log::Output& operator << (log::Output& out, const Type& type) {

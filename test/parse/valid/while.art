@@ -1,0 +1,8 @@
+fn test() {
+    while true {
+        break()
+    }
+    while false {
+        continue()
+    }
+}

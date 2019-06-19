@@ -1,6 +1,0 @@
-fn const<T, U>(x: T) -> fn (U) -> T {
-    fn inner(y: U) -> T {
-        x
-    }
-    inner
-}

@@ -1,0 +1,6 @@
+trait Num {
+    fn add(Self, Self) -> Self;
+    fn sub(Self, Self) -> Self;
+    fn mul(Self, Self) -> Self;
+    fn div(Self, Self) -> Self;
+}

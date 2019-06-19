@@ -127,6 +127,10 @@ Fill<T> fill(const T& t, size_t n) {
     return Fill<T>(t, n);
 }
 
+template <typename T> auto error_style(const T& t)    -> decltype(log::style(t, log::Style(), log::Style())) { return log::style(t, log::Style::Red, log::Style::Bold); }
+template <typename T> auto keyword_style(const T& t)  -> decltype(log::style(t, log::Style())) { return log::style(t, log::Style::Green); }
+template <typename T> auto literal_style(const T& t)  -> decltype(log::style(t, log::Style())) { return log::style(t, log::Style::Blue);  }
+
 template <bool new_line = true>
 void format(Output& out, const char* fmt) {
 #ifndef NDEBUG
@@ -156,12 +160,8 @@ void format(Output& out, const char* fmt, const T& t, const Args&... args) {
 
 template <bool new_line = true, typename... Args>
 void error(const char* fmt, const Args&... args) {
+    log::format<false>(err, "{}: ", error_style("error"));
     log::format<new_line>(err, fmt, args...);
-}
-
-template <bool new_line = true, typename... Args>
-void print(const char* fmt, const Args&... args) {
-    log::format<new_line>(out, fmt, args...);
 }
 
 } // namespace log

@@ -18,9 +18,17 @@ using namespace artic;
 static void usage() {
     log::out << "usage: artic [options] files...\n"
                 "options:\n"
-                "          --version  Displays the version number\n"
-                "    -On              Sets the optimization level (n = 0, 1, 2, or 3)\n"
-                "    -h    --help     Displays this message\n";
+                "           --version            Displays the version number\n"
+                "           --test      <name>   Runs a particular test (see available tests below)\n"
+                "           --strict             Sets warnings as errors\n"
+                "           --invert             Inverts the return code\n"
+                "    -On                         Sets the optimization level (n = 0, 1, 2, or 3)\n"
+                "    -h     --help               Displays this message\n"
+                "\n"
+                "tests:\n"
+                "    parse                       Runs parsing only\n"
+                "    bind                        Runs parsing and name binding\n"
+                "    check                       Runs parsing, name binding, and type-checking\n";
 }
 
 static void version() {
@@ -50,16 +58,42 @@ static void version() {
              <<  " (" << build << ")\n";
 }
 
+enum class Test {
+    None,
+    Parse,
+    Bind,
+    Check
+};
+
 struct ProgramOptions {
     std::vector<std::string> files;
+    Test test = Test::None;
+    bool strict = false;
+    bool invert = false;
     size_t opt_level = 0;
 
-    inline bool matches(const char* a, const char* opt) {
-        return !strcmp(a, opt);
+    inline bool matches(const char* arg, const char* opt) {
+        return !strcmp(arg, opt);
     }
 
-    inline bool matches(const char* a, const char* opt1, const char* opt2) {
-        return !strcmp(a, opt1) || !strcmp(a, opt2);
+    inline bool matches(const char* arg, const char* opt1, const char* opt2) {
+        return !strcmp(arg, opt1) || !strcmp(arg, opt2);
+    }
+
+    inline bool check_dup(const char* opt, bool dup) {
+        if (dup) {
+            log::error("option '{}' specified more than once", opt);
+            return false;
+        }
+        return true;
+    }
+
+    inline bool check_arg(const char* opt, int argc, int i) {
+        if (i + 1 >= argc) {
+            log::error("missing argument for '{}'", opt);
+            return false;
+        }
+        return true;
     }
 
     bool parse(int argc, char** argv) {
@@ -76,6 +110,30 @@ struct ProgramOptions {
                 } else if (matches(argv[i], "--version")) {
                     version();
                     return false;
+                } else if (matches(argv[i], "--invert")) {
+                    if (invert) {
+                        log::error("option '{}' specified twice", argv[i]);
+                        return false;
+                    }
+                    invert = true;
+                } else if (matches(argv[i], "--strict")) {
+                    if (!check_dup(argv[i], strict))
+                        return false;
+                    strict = true;
+                } else if (matches(argv[i], "--test")) {
+                    if (!check_dup(argv[i], test != Test::None) || !check_arg(argv[i], argc, i))
+                        return false;
+                    std::string name = argv[++i];
+                    if (name == "parse") {
+                        test = Test::Parse;
+                    } else if (name == "bind") {
+                        test = Test::Bind;
+                    } else if (name == "check") {
+                        test = Test::Check;
+                    } else {
+                        log::error("unknown test name '{}'", argv[i]);
+                        return false;
+                    }
                 } else if (matches(argv[i], "-O0")) {
                     opt_level = 0;
                 } else if (matches(argv[i], "-O1")) {
@@ -86,6 +144,7 @@ struct ProgramOptions {
                     opt_level = 3;
                 } else {
                     log::error("unknown option '{}'", argv[i]);
+                    return false;
                 }
             } else
                 files.push_back(argv[i]);
@@ -97,7 +156,16 @@ struct ProgramOptions {
 
 int main(int argc, char** argv) {
     ProgramOptions opts;
-    if (!opts.parse(argc, argv)) return 1;
+    if (!opts.parse(argc, argv))
+        return EXIT_FAILURE;
+
+    if (opts.files.empty()) {
+        log::error("no input files");
+        return EXIT_FAILURE;
+    }
+    auto exit_code = [&] (bool ok) {
+        return ok ^ opts.invert ? EXIT_SUCCESS : EXIT_FAILURE;
+    };
 
     Locator locator;
     Logger logger(log::err, log::log, log::out, &locator);
@@ -107,7 +175,7 @@ int main(int argc, char** argv) {
         std::ifstream is(file);
         if (!is) {
             log::error("cannot open file '{}'", file);
-            return 1;
+            return exit_code(false);
         }
         locator.register_file(file,
             std::string(std::istreambuf_iterator<char>(is),
@@ -116,9 +184,12 @@ int main(int argc, char** argv) {
         Parser parser(lexer, logger);
         auto module = parser.parse_program();
         if (lexer.error_count + parser.error_count != 0)
-            return 1;
+            return exit_code(false);
         program.concat(std::move(module));
     }
+
+    if (opts.test == Test::Parse)
+        return exit_code(true);
 
     NameBinder name_binder(logger);
 
@@ -126,12 +197,16 @@ int main(int argc, char** argv) {
     TypeChecker type_checker(world, logger);
 
     if (!name_binder.run(program))
-        return 1;
+        return exit_code(false);
+    if (opts.test == Test::Bind)
+        return exit_code(true);
     if (!type_checker.run(program))
-        return 1;
+        return exit_code(false);
+    if (opts.test == Test::Check)
+        return exit_code(true);
 
     auto module_name = "module";
     Emitter emitter;
     emitter.emit(module_name, opts.opt_level, program);
-    return 0;
+    return exit_code(true);
 }

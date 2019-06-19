@@ -1,0 +1,9 @@
+struct A {
+    a: i32,
+    b: f32
+}
+
+struct B[T, U] {
+    a: T,
+    b: U
+}

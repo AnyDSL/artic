@@ -35,9 +35,9 @@ void TypeChecker::explain_no_ret_type(Type type, Type expected) {
              (const Type&)no_ret,
              log::style("bottom", log::Style::Italic),
              log::style("no-return", log::Style::Italic),
-             keyword_style("break"),
-             keyword_style("continue"),
-             keyword_style("return"));
+             log::keyword_style("break"),
+             log::keyword_style("continue"),
+             log::keyword_style("return"));
         note("this error {} indicate that you forgot to add parentheses '()' to call one of those functions",
             log::style("may", log::Style::Italic));
     }

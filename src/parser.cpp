@@ -61,7 +61,7 @@ Ptr<ast::FnDecl> Parser::parse_fn_decl(bool only_types) {
 
     auto id = parse_id();
     Ptr<TypeParamList> type_params;
-    if (ahead().tag() == Token::CmpLT)
+    if (ahead().tag() == Token::LBracket)
         type_params = std::move(parse_type_params());
 
     Ptr<Ptrn> param;
@@ -81,8 +81,6 @@ Ptr<ast::FnDecl> Parser::parse_fn_decl(bool only_types) {
     Ptr<Expr> body;
     if (!only_types && ahead().tag() == Token::LBrace)
         body = std::move(parse_block_expr());
-    else
-        expect(Token::Semi);
 
     auto fn = make_ptr<ast::FnExpr>(tracker(), std::move(filter), std::move(param), std::move(ret_type), std::move(body));
     return make_ptr<ast::FnDecl>(tracker(), std::move(id), std::move(fn), std::move(type_params));
@@ -102,7 +100,7 @@ Ptr<ast::StructDecl> Parser::parse_struct_decl() {
     auto id = parse_id();
 
     Ptr<ast::TypeParamList> type_params;
-    if (ahead().tag() == Token::CmpLT)
+    if (ahead().tag() == Token::LBracket)
         type_params = std::move(parse_type_params());
 
     PtrVector<ast::FieldDecl> fields;
@@ -120,7 +118,7 @@ Ptr<ast::TraitDecl> Parser::parse_trait_decl() {
     auto id = parse_id();
 
     Ptr<ast::TypeParamList> type_params;
-    if (ahead().tag() == Token::CmpLT)
+    if (ahead().tag() == Token::LBracket)
         type_params = std::move(parse_type_params());
 
     PtrVector<ast::Type> supers;
@@ -142,7 +140,7 @@ Ptr<ast::ImplDecl> Parser::parse_impl_decl() {
     eat(Token::Impl);
 
     Ptr<ast::TypeParamList> type_params;
-    if (ahead().tag() == Token::CmpLT)
+    if (ahead().tag() == Token::LBracket)
         type_params = std::move(parse_type_params());
 
     auto trait = parse_type();
@@ -169,10 +167,10 @@ Ptr<ast::TypeParam> Parser::parse_type_param(size_t index) {
 
 Ptr<ast::TypeParamList> Parser::parse_type_params() {
     Tracker tracker(this);
-    eat(Token::CmpLT);
+    eat(Token::LBracket);
     PtrVector<ast::TypeParam> type_params;
     size_t index = 0;
-    parse_list(Token::CmpGT, Token::Comma, [&] {
+    parse_list(Token::RBracket, Token::Comma, [&] {
         type_params.emplace_back(parse_type_param(index++));
     });
     return make_ptr<ast::TypeParamList>(tracker(), std::move(type_params));
@@ -214,7 +212,7 @@ Ptr<ast::Ptrn> Parser::parse_ptrn(bool only_types) {
             {
                 auto id = parse_id();
                 if (ahead().tag() == Token::DblColon ||
-                    ahead().tag() == Token::CmpLT ||
+                    ahead().tag() == Token::LBracket ||
                     ahead().tag() == Token::LBrace)
                     ptrn = std::move(parse_struct_ptrn(std::move(id)));
                 else
@@ -845,8 +843,8 @@ ast::Path Parser::parse_path(ast::Identifier&& id, bool allow_types) {
     }
 
     PtrVector<ast::Type> args;
-    if (allow_types && ahead().tag() == Token::CmpLT) {
-        eat(Token::CmpLT);
+    if (allow_types && ahead().tag() == Token::LBracket) {
+        eat(Token::LBracket);
         parse_list(Token::CmpGT, Token::Comma, [&] {
             args.emplace_back(parse_type());
         });

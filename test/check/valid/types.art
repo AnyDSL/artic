@@ -1,0 +1,11 @@
+let _ = true : bool;
+let _ = 1 : i8; 
+let _ = 1 : i16;
+let _ = 1 : i32;
+let _ = 1 : i64;
+let _ = 1 : u8;
+let _ = 1 : u16;
+let _ = 1 : u32;
+let _ = 1 : u64;
+let _ = 1.0 : f32;
+let _ = 1.0 : f64;
