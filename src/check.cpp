@@ -100,6 +100,10 @@ Type TypeChecker::infer_lit(const Loc&, const Literal& lit) {
         return prim_type(PrimType::F64);
     else if (lit.is_bool())
         return prim_type(PrimType::Bool);
+    else if (lit.is_char())
+        return prim_type(PrimType::U8);
+    else if (lit.is_string())
+        return array_type(prim_type(PrimType::U8));
     else {
         assert(false);
         return error_type();
@@ -107,9 +111,9 @@ Type TypeChecker::infer_lit(const Loc&, const Literal& lit) {
 }
 
 Type TypeChecker::check_lit(const Loc& loc, const Literal& lit, Type expected) {
-    if (!expected.isa<PrimType>())
-        return expect(loc, "literal", expected);
     if (lit.is_integer()) {
+        if (!expected.isa<PrimType>())
+            return expect(loc, "integer literal", expected);
         // Allow integer literals to be typed with an integer or floating point type
         switch (expected.as<PrimType>().tag()) {
             case PrimType::I8:
@@ -127,6 +131,8 @@ Type TypeChecker::check_lit(const Loc& loc, const Literal& lit, Type expected) {
                 return expect(loc, "integer literal", expected);
         }
     } else if (lit.is_double()) {
+        if (!expected.isa<PrimType>())
+            return expect(loc, "floating point literal", expected);
         // Allow floating point literals to be typed with any floating point type
         switch (expected.as<PrimType>().tag()) {
             case PrimType::F32:
@@ -136,12 +142,14 @@ Type TypeChecker::check_lit(const Loc& loc, const Literal& lit, Type expected) {
                 return expect(loc, "floating point literal", expected);
         }
     } else if (lit.is_bool()) {
-        if (expected.as<PrimType>().tag() != PrimType::Bool)
-            return expect(loc, "boolean literal", expected);
-        return expected;
+        return expect(loc, "boolean literal", prim_type(PrimType::Bool), expected);
+    } else if (lit.is_char()) {
+        return expect(loc, "character literal", prim_type(PrimType::U8), expected);
+    } else if (lit.is_string()) {
+        return expect(loc, "string literal", array_type(prim_type(PrimType::U8)), expected);
     } else {
         assert(false);
-        return error_type();
+        return expected;
     }
 }
 

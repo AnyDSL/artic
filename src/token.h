@@ -124,7 +124,9 @@ inline std::ostream& operator << (std::ostream& os, const Literal& lit) {
     switch (lit.tag) {
         case Literal::Double:  return os << lit.as_double();
         case Literal::Integer: return os << lit.as_integer();
-        case Literal::Bool:    return os << lit.as_bool();
+        case Literal::Bool:    return os << (lit.as_bool() ? "true" : "false");
+        case Literal::Char:    return os << '\'' << lit.as_char() << '\'';
+        case Literal::String:  return os << '\"' << lit.as_string() << '\"';
         default:
             assert(false);
             return os;
