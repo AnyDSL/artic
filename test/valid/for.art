@@ -1,0 +1,12 @@
+fn range(_body: fn(i32) -> ()) -> fn(i32, i32) -> () {
+    |_, _| { /* ... */ }
+}
+
+fn test() {
+    for _i in range(0, 5) {
+        break()
+    }
+    for _i in range(0, 5) {
+        continue()
+    }
+}

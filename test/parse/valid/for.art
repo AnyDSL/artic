@@ -1,8 +1,0 @@
-fn test() {
-    for i in range(0, 5) {
-        break()
-    }
-    for i in range(0, 5) {
-        continue()
-    }
-}

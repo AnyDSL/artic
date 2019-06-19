@@ -1,12 +1,14 @@
 fn test() {
     let _ = if true { 1 } else { 34 };
-    if false {
+    let _ = if false {
         false
     } else if false {
         true
     } else if true {
         false
-    }
+    } else {
+        true
+    };
     if true {
         ()
     } else {

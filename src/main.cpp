@@ -19,16 +19,11 @@ static void usage() {
     log::out << "usage: artic [options] files...\n"
                 "options:\n"
                 "           --version            Displays the version number\n"
-                "           --test      <name>   Runs a particular test (see available tests below)\n"
+                "           --check              Only performs type-checking\n"
                 "           --strict             Sets warnings as errors\n"
                 "           --invert             Inverts the return code\n"
                 "    -On                         Sets the optimization level (n = 0, 1, 2, or 3)\n"
-                "    -h     --help               Displays this message\n"
-                "\n"
-                "tests:\n"
-                "    parse                       Runs parsing only\n"
-                "    bind                        Runs parsing and name binding\n"
-                "    check                       Runs parsing, name binding, and type-checking\n";
+                "    -h     --help               Displays this message\n";
 }
 
 static void version() {
@@ -58,16 +53,9 @@ static void version() {
              <<  " (" << build << ")\n";
 }
 
-enum class Test {
-    None,
-    Parse,
-    Bind,
-    Check
-};
-
 struct ProgramOptions {
     std::vector<std::string> files;
-    Test test = Test::None;
+    bool check = false;
     bool strict = false;
     bool invert = false;
     size_t opt_level = 0;
@@ -83,14 +71,6 @@ struct ProgramOptions {
     inline bool check_dup(const char* opt, bool dup) {
         if (dup) {
             log::error("option '{}' specified more than once", opt);
-            return false;
-        }
-        return true;
-    }
-
-    inline bool check_arg(const char* opt, int argc, int i) {
-        if (i + 1 >= argc) {
-            log::error("missing argument for '{}'", opt);
             return false;
         }
         return true;
@@ -120,20 +100,10 @@ struct ProgramOptions {
                     if (!check_dup(argv[i], strict))
                         return false;
                     strict = true;
-                } else if (matches(argv[i], "--test")) {
-                    if (!check_dup(argv[i], test != Test::None) || !check_arg(argv[i], argc, i))
+                } else if (matches(argv[i], "--check")) {
+                    if (!check_dup(argv[i], check))
                         return false;
-                    std::string name = argv[++i];
-                    if (name == "parse") {
-                        test = Test::Parse;
-                    } else if (name == "bind") {
-                        test = Test::Bind;
-                    } else if (name == "check") {
-                        test = Test::Check;
-                    } else {
-                        log::error("unknown test name '{}'", argv[i]);
-                        return false;
-                    }
+                    check = true;
                 } else if (matches(argv[i], "-O0")) {
                     opt_level = 0;
                 } else if (matches(argv[i], "-O1")) {
@@ -188,9 +158,6 @@ int main(int argc, char** argv) {
         program.concat(std::move(module));
     }
 
-    if (opts.test == Test::Parse)
-        return exit_code(true);
-
     NameBinder name_binder(logger);
 
     thorin::World world(0);
@@ -198,11 +165,9 @@ int main(int argc, char** argv) {
 
     if (!name_binder.run(program))
         return exit_code(false);
-    if (opts.test == Test::Bind)
-        return exit_code(true);
     if (!type_checker.run(program))
         return exit_code(false);
-    if (opts.test == Test::Check)
+    if (opts.check)
         return exit_code(true);
 
     auto module_name = "module";
