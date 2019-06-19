@@ -66,7 +66,7 @@ public:
 
 protected:
     template <class F>
-    static typename std::result_of<F(Type)>::type dispatch(const Type*, F f);
+    static typename std::invoke_result<F, Type>::type dispatch(const Type*, F f);
 
     const thorin::Def* def_;
 };
@@ -241,7 +241,7 @@ inline bool Type::is_ptr()   const { return isa<PtrType>(); }
 inline bool Type::is_fn()    const { return isa<FnType>(); }
 
 template <class F>
-typename std::result_of<F(Type)>::type Type::dispatch(const Type* t, F f) {
+typename std::invoke_result<F, Type>::type Type::dispatch(const Type* t, F f) {
          if (t->template isa<PrimType>())  return f(t->template as<PrimType>() );
     else if (t->template isa<TupleType>()) return f(t->template as<TupleType>());
     else if (t->template isa<ArrayType>()) return f(t->template as<ArrayType>());

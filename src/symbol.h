@@ -2,6 +2,7 @@
 #define SYMBOL_H
 
 #include <unordered_map>
+#include <type_traits>
 #include <memory>
 
 namespace artic {
@@ -29,8 +30,8 @@ struct SymbolTable {
         return nullptr;
     }
 
-    template <typename DistanceFn>
-    std::pair<size_t, std::shared_ptr<Symbol>> find_similar(const std::string& name, size_t min, DistanceFn distance) {
+    template <typename T, typename DistanceFn>
+    std::pair<T, std::shared_ptr<Symbol>> find_similar(const std::string& name, T min, DistanceFn distance) {
         std::shared_ptr<Symbol> best;
         for (auto& symbol : symbols) {
             auto d = distance(symbol.first, name, min);
