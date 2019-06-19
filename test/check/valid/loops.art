@@ -1,0 +1,13 @@
+fn range(body: fn(i32) -> ()) -> fn (i32, i32) -> () {
+    |_, _| {}
+}
+fn test() {
+    while true {
+        let _ : i32 = if false { break } else { 1 };
+        continue()
+    }
+    for i in range(0, 5) {
+        let _ : i32 = if false { break() } else { 1 };
+        continue()
+    }
+}

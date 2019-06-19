@@ -44,9 +44,11 @@ void TypeChecker::explain_no_ret_type(Type type, Type expected) {
 }
 
 artic::Type TypeChecker::expect(const Loc& loc, const std::string& msg, Type type, Type expected) {
-    if (auto meet = Type::meet(type, expected))
-        return meet;
-    if (should_emit_error(type)) {
+    if (type == expected || expected.isa<NoRetType>())
+        return type;
+    if (type.isa<NoRetType>())
+        return expected;
+    if (should_emit_error(type) && should_emit_error(expected)) {
         error(loc, "expected type '{}', but got {} with type '{}'", expected, msg, type);
         explain_no_ret_type(type, expected);
     }
@@ -62,9 +64,11 @@ artic::Type TypeChecker::expect(const Loc& loc, const std::string& msg, Type exp
 }
 
 artic::Type TypeChecker::expect(const Loc& loc, Type type, Type expected) {
-    if (auto meet = Type::meet(type, expected))
-        return meet;
-    if (should_emit_error(type)) {
+    if (type == expected || expected.isa<NoRetType>())
+        return type;
+    if (type.isa<NoRetType>())
+        return expected;
+    if (should_emit_error(type) && should_emit_error(expected)) {
         error(loc, "expected type '{}', but got type '{}'", expected, type);
         explain_no_ret_type(type, expected);
     }
@@ -111,6 +115,8 @@ Type TypeChecker::infer_lit(const Loc&, const Literal& lit) {
 }
 
 Type TypeChecker::check_lit(const Loc& loc, const Literal& lit, Type expected) {
+    if (expected.isa<NoRetType>())
+        return infer_lit(loc, lit);
     if (lit.is_integer()) {
         if (!expected.isa<PrimType>())
             return expect(loc, "integer literal", expected);

@@ -113,29 +113,7 @@ public:
     bool is_ptr()   const;
     bool is_fn()    const;
 
-    static Type join(Type type, Type other) {
-        if (type == other)
-            return type;
-        else if (other < type)
-            return other;
-        else if (type < other)
-            return type;
-        else
-            return Type();
-    }
-
-    static Type meet(Type type, Type other) {
-        if (type == other)
-            return type;
-        else if (type < other)
-            return other;
-        else if (other < type)
-            return type;
-        else
-            return Type();
-    }
-
-    bool is_nominal() const { return false; } // TODO
+    bool is_nominal() const { return def()->isa_nominal(); }
 
     bool contains(Type type) const {
         if (type.def() == def())
@@ -153,9 +131,6 @@ public:
     bool operator == (const Type& other) const { return other.def() == def(); }
     bool operator != (const Type& other) const { return other.def() != def(); }
 
-    bool operator < (Type other) const {
-        return dispatch(this, [&] (auto type) { return type < other; });
-    }
     void print(Printer& p) const {
         dispatch(this, [&] (auto type) { type.print(p); });
     }
@@ -336,14 +311,6 @@ inline bool Type::is_tuple() const { return isa<TupleType>(); }
 inline bool Type::is_array() const { return isa<ArrayType>(); }
 inline bool Type::is_ptr()   const { return isa<PtrType>(); }
 inline bool Type::is_fn()    const { return isa<FnType>(); }
-
-inline bool PrimType ::operator < (Type other) const { return other.isa<ErrorType>(); }
-inline bool TupleType::operator < (Type other) const { return other.isa<ErrorType>(); }
-inline bool ArrayType::operator < (Type other) const { return other.isa<ErrorType>(); }
-inline bool PtrType  ::operator < (Type other) const { return other.isa<ErrorType>(); }
-inline bool FnType   ::operator < (Type other) const { return other.isa<ErrorType>(); }
-inline bool NoRetType::operator < (Type      ) const { return true; }
-inline bool ErrorType::operator < (Type      ) const { return false; }
 
 template <class F>
 typename std::result_of<F(Type)>::type Type::dispatch(const Type* t, F f) {

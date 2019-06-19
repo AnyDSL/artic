@@ -197,7 +197,14 @@ void WhileExpr::bind(NameBinder& binder) const {
 }
 
 void ForExpr::bind(NameBinder& binder) const {
-    binder.bind(*body);
+    // The call expression looks like:
+    // iterate(|i| { ... })(...)
+    // continue() and break() should only be available to the lambda
+    auto call = body->as<CallExpr>();
+    auto old = binder.push_loop(this);
+    binder.bind(*call->callee);
+    binder.pop_loop(old);
+    binder.bind(*call->arg);
 }
 
 void BreakExpr::bind(NameBinder& binder) const {

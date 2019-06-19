@@ -15,3 +15,4 @@ add_test(NAME parse_invalid_string  COMMAND artic --invert --test parse ${PROJEC
 
 # Type checking
 add_test(NAME check_valid_types    COMMAND artic --test check ${PROJECT_SOURCE_DIR}/test/check/valid/types.art)
+add_test(NAME check_valid_loops    COMMAND artic --test check ${PROJECT_SOURCE_DIR}/test/check/valid/loops.art)
