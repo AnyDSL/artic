@@ -47,7 +47,7 @@ public:
     void pop_loop(const ast::LoopExpr* loop) { cur_loop_ = loop; }
 
     void push_scope() { scopes_.emplace_back(); }
-    void pop_scope()  { scopes_.pop_back(); }
+    void pop_scope();
     void insert_symbol(const ast::NamedDecl&);
 
     std::shared_ptr<Symbol> find_symbol(const std::string& name) {
@@ -57,10 +57,10 @@ public:
         return nullptr;
     }
     std::shared_ptr<Symbol> find_similar_symbol(const std::string& name) {
-        size_t min = 5; // Tolerate up to 5 differences
+        auto min = levenshtein_threshold();
         std::shared_ptr<Symbol> best;
         for (auto it = scopes_.rbegin(); it != scopes_.rend(); it++) {
-            auto pair = it->find_similar(name, min);
+            auto pair = it->find_similar(name, min, distance);
             if (pair.second) {
                 min  = pair.first;
                 best = pair.second;
@@ -70,6 +70,20 @@ public:
     }
 
 private:
+    static constexpr size_t levenshtein_threshold() { return 3; }
+    static size_t distance(const std::string& a, const std::string& b, size_t max) {
+        return levenshtein(a, b, a.size(), b.size(), max);
+    }
+    static size_t levenshtein(const std::string& a, const std::string& b, size_t i, size_t j, size_t max) {
+        if (max == 0 || i == 0 || j == 0)
+            return std::max(i, j);
+        auto d1 = levenshtein(a, b, i, j - 1, max - 1) + 1;
+        auto d2 = levenshtein(a, b, i - 1, j, max - 1) + 1;
+        size_t v = a[i - 1] != b[j - 1];
+        auto d3 = levenshtein(a, b, i - 1, j - 1, max - v) + v;
+        return std::min(d1, std::min(d2, d3));
+    }
+
     const ast::FnExpr*   cur_fn_;
     const ast::LoopExpr* cur_loop_;
     std::vector<SymbolTable> scopes_;

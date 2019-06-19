@@ -16,12 +16,28 @@ void NameBinder::bind(const ast::Node& node) {
     node.bind(*this);
 }
 
+void NameBinder::pop_scope() {
+    for (auto& pair : scopes_.back().symbols) {
+        auto decl = pair.second->decls.front();
+        if (pair.second.use_count() <= 1 &&
+            !decl->isa<ast::FnDecl>() &&
+            !decl->isa<ast::StructDecl>() &&
+            !decl->isa<ast::FieldDecl>() &&
+            !decl->isa<ast::TraitDecl>()) {
+            warn(decl->loc, "unused identifier '{}'", pair.first);
+            note("prefix unused identifiers with '_'");
+        }
+    }
+    scopes_.pop_back();
+}
+
 void NameBinder::insert_symbol(const ast::NamedDecl& decl) {
     assert(!scopes_.empty());
     auto& name = decl.id.name;
+    assert(!name.empty());
 
     // Do not bind anonymous variables
-    if (name == "_") return;
+    if (name[0] == '_') return;
 
     auto shadow_symbol = find_symbol(name);
     if (!scopes_.back().insert(name, Symbol(&decl))) {
@@ -38,12 +54,16 @@ void NameBinder::insert_symbol(const ast::NamedDecl& decl) {
 namespace ast {
 
 void Path::bind(NameBinder& binder) const {
-    symbol = binder.find_symbol(elems[0].id.name);
-    if (!symbol) {
-        binder.error(elems[0].id.loc, "unknown identifier '{}'", elems[0].id.name);
-        if (auto similar = binder.find_similar_symbol(elems[0].id.name)) {
-            auto decl = similar->decls.front();
-            binder.note("possible suggestion is '{}'", decl->id.name);
+    if (elems[0].id.name[0] == '_')
+        binder.error(elems[0].id.loc, "identifiers beginning with '_' cannot be referenced");
+    else {
+        symbol = binder.find_symbol(elems[0].id.name);
+        if (!symbol) {
+            binder.error(elems[0].id.loc, "unknown identifier '{}'", elems[0].id.name);
+            if (auto similar = binder.find_similar_symbol(elems[0].id.name)) {
+                auto decl = similar->decls.front();
+                binder.note("possible suggestion is '{}'", decl->id.name);
+            }
         }
     }
     for (auto& arg : args) binder.bind(*arg);

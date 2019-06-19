@@ -176,17 +176,20 @@ struct Logger {
     size_t warn_count;
 
     Locator* locator;
+    bool strict;
 
     Logger(log::Output& err = log::err,
            log::Output& log = log::log,
            log::Output& out = log::out,
-           Locator* locator = nullptr)
+           Locator* locator = nullptr,
+           bool strict = false)
         : err(err)
         , log(log)
         , out(out)
         , error_count(0)
         , warn_count(0)
         , locator(locator)
+        , strict(strict)
     {}
 
     /// Report an error at the given location in a source file.
@@ -203,12 +206,16 @@ struct Logger {
     /// Report a warning at the given location in a source file.
     template <typename... Args>
     void warn(const Loc& loc, const char* fmt, const Args&... args) {
-        warn_count++;
-        log::format<false>(log, "{} in {}: ",
-            log::style("warning", log::Style::Yellow, log::Style::Bold),
-            log::style(loc,       log::Style::White,  log::Style::Bold));
-        log::format(log, fmt, args...);
-        if (diagnostics_enabled && locator) diagnostic(log, loc, log::Style::Yellow, '^');
+        if (strict)
+            error(loc, fmt, args...);
+        else {
+            warn_count++;
+            log::format<false>(log, "{} in {}: ",
+                log::style("warning", log::Style::Yellow, log::Style::Bold),
+                log::style(loc,       log::Style::White,  log::Style::Bold));
+            log::format(log, fmt, args...);
+            if (diagnostics_enabled && locator) diagnostic(log, loc, log::Style::Yellow, '^');
+        }
     }
 
     /// Display a note corresponding to a specific location in a source file.

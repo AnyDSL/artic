@@ -168,7 +168,7 @@ int main(int argc, char** argv) {
     };
 
     Locator locator;
-    Logger logger(log::err, log::log, log::out, &locator);
+    Logger logger(log::err, log::log, log::out, &locator, opts.strict);
 
     auto program = ast::Program(Loc(), PtrVector<ast::Decl>());
     for (auto& file : opts.files) {
