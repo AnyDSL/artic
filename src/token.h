@@ -6,7 +6,6 @@
 #include <cassert>
 
 #include "loc.h"
-#include "hash.h"
 
 namespace artic {
 
@@ -177,7 +176,6 @@ public:
 
     bool operator == (const Token& token) const { return token.loc_ == loc_ && token.str_ == str_; }
     bool operator != (const Token& token) const { return token.loc_ != loc_ || token.str_ != str_; }
-    uint32_t hash() const { return hash_combine(loc_.hash(), hash_string(str_)); }
 
     static std::string tag_to_string(Tag tag) {
         switch (tag) {

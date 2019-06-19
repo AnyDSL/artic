@@ -6,8 +6,6 @@
 #include <memory>
 #include <cassert>
 
-#include "hash.h"
-
 namespace artic {
 
 /// Source file location.
@@ -24,14 +22,6 @@ struct Loc {
                loc.end_col == end_col;
     }
     bool operator != (const Loc& loc) const { return !(*this == loc); }
-
-    uint32_t hash() const {
-        return hash_combine(hash_init(),
-            uint32_t(begin_row),
-            uint32_t(begin_col),
-            uint32_t(end_row),
-            uint32_t(end_col));
-    }
 
     Loc() = default;
     Loc(std::shared_ptr<std::string> file, int row, int col)
