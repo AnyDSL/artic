@@ -172,6 +172,29 @@ Token Lexer::next() {
 
         if (accept('@')) return Token(loc_, Token::At);
         if (accept('?')) return Token(loc_, Token::QMark);
+        if (accept('\'')) {
+            if (!eof() && peek() != '\n') {
+                auto c = peek();
+                eat();
+                if (c & 0xFFFFFF80) {
+                    error(loc_, "UTF8 character '{}' does not fit in one byte", utf8_to_string(c));
+                    note("use a string (delimited by '\"'), instead of a character");
+                }
+                if (accept('\''))
+                    return Token(loc_, str_, Literal(uint8_t(c)));
+            }
+            error(loc_, "unterminated character literal");
+            return Token(loc_, Token::Error, str_);
+        }
+        if (accept('\"')) {
+            while (!eof() && peek() != '\n' && peek() != '\"') accept();
+            if (eof() || peek() == '\n' || !accept('\"')) {
+                error(loc_, "unterminated string literal");
+                return Token(loc_, Token::Error, str_);
+            }
+            assert(str_.size() >= 2);
+            return Token(loc_, str_, Literal(str_.substr(1, str_.size() - 2)));
+        }
 
         if (std::isdigit(peek()) || peek() == '.') {
             auto lit = parse_literal();

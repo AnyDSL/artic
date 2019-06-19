@@ -5,8 +5,6 @@
 #include <ostream>
 #include <cassert>
 
-#include <thorin/util/types.h>
-
 #include "loc.h"
 #include "hash.h"
 
@@ -87,25 +85,39 @@ namespace artic {
 
 struct Literal {
     enum Tag {
+        Char,
+        String,
         Double,
         Integer,
         Bool
     };
     Tag tag;
-    thorin::Box box;
+    std::string string;
+    union {
+        uint8_t  char_;
+        bool     bool_;
+        double   double_;
+        uint64_t integer;
+    };
 
-    bool is_double()  const { return tag == Double; }
+    bool is_double()  const { return tag == Double;  }
     bool is_integer() const { return tag == Integer; }
-    bool is_bool()    const { return tag == Bool; }
+    bool is_bool()    const { return tag == Bool;    }
+    bool is_char()    const { return tag == Char;    }
+    bool is_string()  const { return tag == String;  }
 
-    double as_double()    const { return box.get_f64(); }
-    uint64_t as_integer() const { return box.get_u64(); }
-    bool as_bool()        const { return box.get_bool(); }
+    double      as_double()  const { assert(is_double());  return double_; }
+    uint64_t    as_integer() const { assert(is_integer()); return integer; }
+    bool        as_bool()    const { assert(is_bool());    return bool_;   }
+    uint8_t     as_char()    const { assert(is_char());    return char_;   }
+    std::string as_string()  const { assert(is_string());  return string;  }
 
-    Literal() {}
-    Literal(uint64_t i) : tag(Integer), box(i) {}
-    Literal(double d)   : tag(Double),  box(d) {}
-    Literal(bool b)     : tag(Bool),    box(b) {}
+    Literal() = default;
+    Literal(uint64_t i)    : tag(Integer), integer(i) {}
+    Literal(double d)      : tag(Double),  double_(d) {}
+    Literal(bool b)        : tag(Bool),    bool_(b)   {}
+    Literal(uint8_t c)     : tag(Char),    char_(c)   {}
+    Literal(std::string s) : tag(String),  string(s)  {}
 };
 
 inline std::ostream& operator << (std::ostream& os, const Literal& lit) {
@@ -127,18 +139,26 @@ public:
 #undef TAG
     };
 
+    /// Constructor for invalid tokens
     Token(const Loc& loc = Loc())
         : Token(loc, Error)
     {}
 
-    Token(const Loc& loc, Tag tag, bool new_line = false)
-        : loc_(loc), tag_(tag), new_line_(new_line), str_(tag_to_string(tag))
+    /// Constructor for regular tokens, taking a string (e.g. for error messages)
+    Token(const Loc& loc, Tag tag, const std::string& str)
+        : loc_(loc), tag_(tag), str_(str)
+    {}
+    /// Constructor for regular tokens
+    Token(const Loc& loc, Tag tag)
+        : Token(loc, tag, tag_to_string(tag))
     {}
 
+    /// Constructor for literal tokens
     Token(const Loc& loc, const std::string& str, const Literal& lit)
         : loc_(loc), tag_(Lit), lit_(lit), str_(str)
     {}
 
+    /// Constructor for identifiers
     Token(const Loc& loc, const std::string& str)
         : loc_(loc), tag_(Id), str_(str)
     {}
@@ -147,8 +167,6 @@ public:
     const Literal& literal() const { assert(is_literal()); return lit_; }
     const std::string& identifier() const { assert(is_identifier()); return str_; }
     const std::string& string() const { return str_; }
-
-    bool is_newline() const { return new_line_; }
 
     bool is_identifier() const { return tag_ == Id; }
     bool is_literal() const { return tag_ == Lit; }
@@ -172,10 +190,7 @@ public:
 private:
     Loc loc_;
     Tag tag_;
-    union {
-        Literal lit_;
-        bool new_line_;
-    };
+    Literal lit_;
     std::string str_;
 };
 

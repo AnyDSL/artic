@@ -10,5 +10,8 @@ add_test(NAME parse_valid_for      COMMAND artic --test parse ${PROJECT_SOURCE_D
 add_test(NAME parse_valid_struct   COMMAND artic --test parse ${PROJECT_SOURCE_DIR}/test/parse/valid/struct.art)
 add_test(NAME parse_valid_trait    COMMAND artic --test parse ${PROJECT_SOURCE_DIR}/test/parse/valid/trait.art)
 
+add_test(NAME parse_invalid_comment COMMAND artic --invert --test parse ${PROJECT_SOURCE_DIR}/test/parse/invalid/comment.art)
+add_test(NAME parse_invalid_string  COMMAND artic --invert --test parse ${PROJECT_SOURCE_DIR}/test/parse/invalid/string.art)
+
 # Type checking
 add_test(NAME check_valid_types    COMMAND artic --test check ${PROJECT_SOURCE_DIR}/test/check/valid/types.art)
