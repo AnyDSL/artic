@@ -384,9 +384,15 @@ artic::Type ContinueExpr::infer(TypeChecker& checker) const {
 }
 
 artic::Type ReturnExpr::infer(TypeChecker& checker) const {
-    // This error has been reported by the NameBinder already
-    if (!fn || !fn->type.isa<artic::FnType>())
+    if (!fn || !fn->type || !fn->type.isa<artic::FnType>()) {
+        // Other errors have been reported by the NameBinder already
+        if (!fn->type) {
+            checker.error(loc, "cannot infer the type of '{}'", log::keyword_style("return"));
+            if (fn)
+                checker.note(fn->loc, "try annotating the return type of this function");
+        }
         return checker.error_type();
+    }
     auto fn_type = fn->type.as<artic::FnType>();
     return checker.fn_type(fn_type.from(), checker.no_ret_type());
 }

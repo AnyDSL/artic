@@ -12,3 +12,5 @@ add_test(NAME valid_loops    COMMAND artic --check ${PROJECT_SOURCE_DIR}/test/va
 
 add_test(NAME invalid_comment COMMAND artic --invert --check ${PROJECT_SOURCE_DIR}/test/invalid/comment.art)
 add_test(NAME invalid_string  COMMAND artic --invert --check ${PROJECT_SOURCE_DIR}/test/invalid/string.art)
+add_test(NAME invalid_return  COMMAND artic --invert --check ${PROJECT_SOURCE_DIR}/test/invalid/return.art)
+add_test(NAME invalid_rec     COMMAND artic --invert --check ${PROJECT_SOURCE_DIR}/test/invalid/rec.art)
