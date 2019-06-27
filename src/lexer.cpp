@@ -173,13 +173,15 @@ Token Lexer::next() {
         if (accept('@')) return Token(loc_, Token::At);
         if (accept('?')) return Token(loc_, Token::QMark);
         if (accept('\'')) {
-            if (!eof() && peek() != '\n') {
+            if (!eof()) {
                 auto c = peek();
                 eat();
                 if (c & 0xFFFFFF80) {
                     error(loc_, "UTF8 character '{}' does not fit in one byte", utf8_to_string(c));
                     note("use a string (delimited by '\"'), instead of a character");
                 }
+                if (c == '\n')
+                    error(loc_, "multiline characteri literals are not allowed");
                 if (accept('\''))
                     return Token(loc_, str_, Literal(uint8_t(c)));
             }
@@ -187,8 +189,8 @@ Token Lexer::next() {
             return Token(loc_, Token::Error, str_);
         }
         if (accept('\"')) {
-            while (!eof() && peek() != '\n' && peek() != '\"') accept();
-            if (eof() || peek() == '\n' || !accept('\"')) {
+            while (!eof() && peek() != '\"') accept();
+            if (eof() || !accept('\"')) {
                 error(loc_, "unterminated string literal");
                 return Token(loc_, Token::Error, str_);
             }

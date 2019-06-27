@@ -1,11 +1,10 @@
 # Artic
 
 A replacement for [Impala](https://github.com/AnyDSL/impala).
-The goal of the project is to provide more advanced language features (polymorphism, traits) without breaking compatibility with existing Impala code.
 
 ## Building
 
-A compiler that supports C++14 and CMake are required to build the project. Use the following commands to build the program:
+A compiler that supports C++17 and CMake are required to build the project. Use the following commands to build the program:
 
     mkdir build
     cd build
