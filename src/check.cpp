@@ -43,7 +43,15 @@ void TypeChecker::explain_no_ret_type(Type type, Type expected) {
     }
 }
 
-artic::Type TypeChecker::expect(const Loc& loc, const std::string& msg, Type type, Type expected) {
+Type TypeChecker::unwrap_ref(Type type) {
+    if (auto ref_type = type.isa<RefType>())
+        return ref_type.pointee();
+    return type;
+}
+
+Type TypeChecker::expect(const Loc& loc, const std::string& msg, Type type, Type expected) {
+    assert(!expected.isa<RefType>());
+    type = unwrap_ref(type);
     if (type == expected || expected.isa<NoRetType>())
         return type;
     if (type.isa<NoRetType>())
@@ -55,7 +63,7 @@ artic::Type TypeChecker::expect(const Loc& loc, const std::string& msg, Type typ
     return error_type();
 }
 
-artic::Type TypeChecker::expect(const Loc& loc, const std::string& msg, Type expected) {
+Type TypeChecker::expect(const Loc& loc, const std::string& msg, Type expected) {
     if (should_emit_error(expected)) {
         error(loc, "expected type '{}', but got {}", expected, msg);
         explain_no_ret_type(nullptr, expected);
@@ -63,7 +71,9 @@ artic::Type TypeChecker::expect(const Loc& loc, const std::string& msg, Type exp
     return error_type();
 }
 
-artic::Type TypeChecker::expect(const Loc& loc, Type type, Type expected) {
+Type TypeChecker::expect(const Loc& loc, Type type, Type expected) {
+    assert(!expected.isa<RefType>());
+    type = unwrap_ref(type);
     if (type == expected || expected.isa<NoRetType>())
         return type;
     if (type.isa<NoRetType>())
@@ -75,12 +85,12 @@ artic::Type TypeChecker::expect(const Loc& loc, Type type, Type expected) {
     return error_type();
 }
 
-artic::Type TypeChecker::cannot_infer(const Loc& loc, const std::string& msg) {
+Type TypeChecker::cannot_infer(const Loc& loc, const std::string& msg) {
     error(loc, "cannot infer type for {}", msg);
     return error_type();
 }
 
-artic::Type TypeChecker::unreachable_code(const Loc& before, const Loc& first, const Loc& last) {
+Type TypeChecker::unreachable_code(const Loc& before, const Loc& first, const Loc& last) {
     error(Loc(first, last), "unreachable code");
     note(before, "after this statement");
     return error_type();
@@ -95,6 +105,21 @@ Type TypeChecker::infer(const ast::Node& node) {
     if (node.type)
         return node.type;
     return node.type = node.infer(*this);
+}
+
+bool TypeChecker::check_ref(const ast::Node& node) {
+    assert(node.type);
+    if (!node.type.isa<RefType>()) {
+        error(node.loc, "expression or identifier is not mutable");
+        if (auto path_expr = node.isa<ast::PathExpr>()) {
+            if (path_expr->path.elems.size() == 1 && path_expr->path.symbol) {
+                auto decl = path_expr->path.symbol->decls.front();
+                note(decl->loc, "try declaring this identifier as '{} {}'", log::keyword_style("ref"), decl->id.name);
+            }
+        }
+        return false;
+    }
+    return true;
 }
 
 Type TypeChecker::infer_lit(const Loc&, const Literal& lit) {
@@ -176,7 +201,7 @@ template <typename Args>
 Type TypeChecker::infer_tuple(const Args& args) {
     thorin::Array<artic::Type> arg_types(args.size());
     for (size_t i = 0; i < args.size(); ++i)
-        arg_types[i] = infer(*args[i]);
+        arg_types[i] = unwrap_ref(infer(*args[i]));
     return tuple_type(arg_types);
 }
 
@@ -318,7 +343,8 @@ artic::Type BlockExpr::infer(TypeChecker& checker) const {
         if (stmt_type.isa<artic::NoRetType>())
             return checker.unreachable_code(stmts[i]->loc, stmts[i + 1]->loc, stmts.back()->loc);
     }
-    return checker.infer(*stmts.back());
+    auto last_type = checker.unwrap_ref(checker.infer(*stmts.back()));
+    return last_semi ? checker.unit_type() : last_type;
 }
 
 artic::Type BlockExpr::check(TypeChecker& checker, artic::Type expected) const {
@@ -329,7 +355,11 @@ artic::Type BlockExpr::check(TypeChecker& checker, artic::Type expected) const {
         if (stmt_type.isa<artic::NoRetType>())
             return checker.unreachable_code(stmts[i]->loc, stmts[i + 1]->loc, stmts.back()->loc);
     }
-    return checker.check(*stmts.back(), expected);
+    if (last_semi) {
+        auto last_type = checker.check(*stmts.back(), checker.unit_type());
+        return checker.expect(loc, "block expression", last_type, expected);
+    }
+    return checker.unwrap_ref(checker.check(*stmts.back(), expected));
 }
 
 artic::Type CallExpr::infer(TypeChecker& checker) const {
@@ -397,14 +427,27 @@ artic::Type ReturnExpr::infer(TypeChecker& checker) const {
     return checker.fn_type(fn_type.from(), checker.no_ret_type());
 }
 
+artic::Type BinaryExpr::infer(TypeChecker& checker) const {
+    auto left_type  = checker.unwrap_ref(checker.infer(*left));
+    auto right_type = checker.unwrap_ref(checker.check(*right, left_type));
+    if (has_eq()) {
+        checker.check_ref(*left);
+        return checker.unit_type();
+    }
+    return right_type;
+}
+
 // Declarations --------------------------------------------------------------------
 
-artic::Type PtrnDecl::check(TypeChecker&, artic::Type expected) const {
-    return expected;
+artic::Type PtrnDecl::check(TypeChecker& checker, artic::Type expected) const {
+    return ref ? checker.ref_type(expected) : expected;
 }
 
 artic::Type LetDecl::infer(TypeChecker& checker) const {
-    checker.check(*ptrn, checker.infer(*init));
+    if (init)
+        checker.check(*ptrn, checker.infer(*init));
+    else
+        checker.infer(*ptrn);
     return checker.unit_type();
 }
 
@@ -415,6 +458,11 @@ artic::Type FnDecl::infer(TypeChecker& checker) const {
     auto type = checker.infer(*fn);
     checker.exit_decl(this);
     return type;
+}
+
+artic::Type FnDecl::check(TypeChecker& checker, artic::Type expected) const {
+    assert(expected == checker.unit_type());
+    return infer(checker);
 }
 
 // Patterns ------------------------------------------------------------------------

@@ -94,10 +94,6 @@ void TypeApp::bind(NameBinder& binder) const {
     binder.bind(path);
 }
 
-void PtrType::bind(NameBinder& binder) const {
-    binder.bind(*pointee);
-}
-
 void SelfType::bind(NameBinder&) const {}
 
 void ErrorType::bind(NameBinder&) const {}
@@ -170,24 +166,18 @@ void CallExpr::bind(NameBinder& binder) const {
     binder.bind(*arg);
 }
 
+void UnaryExpr::bind(NameBinder& binder) const {
+    binder.bind(*arg);
+}
+
 void BinaryExpr::bind(NameBinder& binder) const {
-    if (tag != AndAnd && tag != OrOr)
-        CallExpr::bind(binder);
-    else
-        binder.bind(*arg);
+    binder.bind(*left);
+    binder.bind(*right);
 }
 
 void ProjExpr::bind(NameBinder& binder) const {
     binder.bind(*expr);
     // Cannot bind field yet, need type inference
-}
-
-void AddrOfExpr::bind(NameBinder& binder) const {
-    binder.bind(*expr);
-}
-
-void DerefExpr::bind(NameBinder& binder) const {
-    binder.bind(*expr);
 }
 
 void IfExpr::bind(NameBinder& binder) const {

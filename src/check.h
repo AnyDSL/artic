@@ -26,6 +26,8 @@ public:
     bool should_emit_error(Type);
     void explain_no_ret_type(Type, Type);
 
+    Type unwrap_ref(Type);
+
     artic::Type expect(const Loc&, const std::string&, Type, Type);
     artic::Type expect(const Loc&, const std::string&, Type);
     artic::Type expect(const Loc&, Type, Type);
@@ -35,6 +37,7 @@ public:
     Type check(const ast::Node&, Type);
     Type infer(const ast::Node&);
 
+    bool check_ref(const ast::Node&);
     Type infer_lit(const Loc&, const Literal&);
     Type check_lit(const Loc&, const Literal&, Type);
     template <typename Args>

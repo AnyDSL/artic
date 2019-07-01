@@ -129,15 +129,19 @@ void FnExpr::print(Printer& p) const {
 }
 
 void BlockExpr::print(Printer& p) const {
-    p << '{' << p.indent();
-    for (size_t i = 0, n = stmts.size(); i < n; i++) {
-        auto& stmt = stmts[i];
-        p << p.endl();
-        stmt->print(p);
-        if ((i != n - 1 && stmt->need_semicolon()) || last_semi)
-            p << ';';
+    if (stmts.empty())
+        p << "{}";
+    else {
+        p << '{' << p.indent();
+        for (size_t i = 0, n = stmts.size(); i < n; i++) {
+            auto& stmt = stmts[i];
+            p << p.endl();
+            stmt->print(p);
+            if ((i != n - 1 && stmt->need_semicolon()) || (i == n - 1 && last_semi))
+                p << ';';
+        }
+        p << p.unindent() << p.endl() << "}";
     }
-    p << p.unindent() << p.endl() << "}";
 }
 
 void CallExpr::print(Printer& p) const {
@@ -216,13 +220,12 @@ void ReturnExpr::print(Printer& p) const {
 }
 
 void UnaryExpr::print(Printer& p) const {
-    auto& op = is_inc() || is_dec() ? operand()->as<AddrOfExpr>()->expr : operand();
     if (is_postfix()) {
-        op->print(p);
+        arg->print(p);
         p << tag_to_string(tag);
     } else {
         p << tag_to_string(tag);
-        op->print(p);
+        arg->print(p);
     }
 }
 
@@ -236,25 +239,9 @@ void BinaryExpr::print(Printer& p) const {
         else
             e->print(p);
     };
-    if (has_eq()) {
-        print_op(left_operand()->as<AddrOfExpr>()->expr);
-    } else {
-        print_op(left_operand());
-    }
+    print_op(left);
     p << " " << tag_to_string(tag) << " ";
-    print_op(right_operand());
-}
-
-void AddrOfExpr::print(Printer& p) const {
-    p << '&';
-    if (mut)
-        p << log::keyword_style("mut") << ' ';
-    expr->print(p);
-}
-
-void DerefExpr::print(Printer& p) const {
-    p << '*';
-    expr->print(p);
+    print_op(right);
 }
 
 void KnownExpr::print(Printer& p) const {
@@ -357,7 +344,7 @@ void StructDecl::print(Printer& p) const {
 }
 
 void PtrnDecl::print(Printer& p) const {
-    if (mut) p << log::keyword_style("mut") << ' ';
+    if (ref) p << log::keyword_style("ref") << ' ';
     p << id.name;
 }
 
@@ -473,12 +460,6 @@ void TypeApp::print(Printer& p) const {
     path.print(p);
 }
 
-void PtrType::print(Printer& p) const {
-    p << '&';
-    if (mut) p << log::keyword_style("mut") << ' ';
-    pointee->print(p);
-}
-
 void SelfType::print(Printer& p) const {
     p << log::keyword_style("Self");
 }
@@ -531,9 +512,8 @@ void FnType::print(Printer& p) const {
     to().print(p);
 }
 
-void PtrType::print(Printer& p) const {
-    p << '&';
-    if (is_mut()) p << log::keyword_style("mut") << ' ';
+void RefType::print(Printer& p) const {
+    p << log::keyword_style("ref") << ' ';
     pointee().print(p);
 }
 

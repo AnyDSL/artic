@@ -219,9 +219,9 @@ Ptr<ast::Ptrn> Parser::parse_ptrn(bool only_types) {
                     ptrn = std::move(parse_id_ptrn(std::move(id), false));
             }
             break;
-        case Token::Mut:
+        case Token::Ref:
             {
-                eat(Token::Mut);
+                eat(Token::Ref);
                 ptrn = std::move(parse_id_ptrn(parse_id(), true));
             }
             break;
@@ -511,25 +511,6 @@ Ptr<ast::ProjExpr> Parser::parse_proj_expr(Ptr<Expr>&& expr) {
     return make_ptr<ast::ProjExpr>(tracker(), std::move(expr), std::move(id));
 }
 
-Ptr<ast::AddrOfExpr> Parser::parse_addr_of_expr() {
-    Tracker tracker(this);
-    eat(Token::And);
-    bool mut = false;
-    if (ahead().tag() == Token::Mut) {
-        eat(Token::Mut);
-        mut = true;
-    }
-    auto expr = parse_primary_expr();
-    return make_ptr<ast::AddrOfExpr>(tracker(), std::move(expr), mut);
-}
-
-Ptr<ast::DerefExpr> Parser::parse_deref_expr() {
-    Tracker tracker(this);
-    eat(Token::Mul);
-    auto expr = parse_primary_expr();
-    return make_ptr<ast::DerefExpr>(tracker(), std::move(expr));
-}
-
 Ptr<ast::IfExpr> Parser::parse_if_expr() {
     Tracker tracker(this);
     eat(Token::If);
@@ -628,15 +609,13 @@ Ptr<ast::ReturnExpr> Parser::parse_return_expr() {
 Ptr<ast::Expr> Parser::parse_primary_expr() {
     Ptr<ast::Expr> expr;
     switch (ahead().tag()) {
-        case Token::And:   expr = std::move(parse_addr_of_expr()); break;
-        case Token::Mul:   expr = std::move(parse_deref_expr());   break;
-        case Token::QMark: expr = std::move(parse_known_expr());   break;
         case Token::Inc:
         case Token::Dec:
         case Token::Add:
         case Token::Sub:
             expr = std::move(parse_prefix_expr());
             break;
+        case Token::QMark:    expr = std::move(parse_known_expr());   break;
         case Token::LBrace:   expr = std::move(parse_block_expr());   break;
         case Token::LParen:   expr = std::move(parse_tuple_expr());   break;
         case Token::LBracket: expr = std::move(parse_array_expr());   break;
@@ -739,7 +718,6 @@ Ptr<ast::Type> Parser::parse_type() {
         case Token::Id:       return parse_named_type();
         case Token::LParen:   return parse_tuple_type();
         case Token::LBracket: return parse_array_type();
-        case Token::And:      return parse_ptr_type();
         default:              return parse_error_type();
     }
 }
@@ -793,18 +771,6 @@ Ptr<ast::TypeApp> Parser::parse_type_app() {
     Tracker tracker(this);
     auto path = parse_path();
     return make_ptr<ast::TypeApp>(tracker(), std::move(path));
-}
-
-Ptr<ast::PtrType> Parser::parse_ptr_type() {
-    Tracker tracker(this);
-    eat(Token::And);
-    bool mut = false;
-    if (ahead().tag() == Token::Mut) {
-        eat(Token::Mut);
-        mut = true;
-    }
-    auto type = parse_type();
-    return make_ptr<ast::PtrType>(tracker(), std::move(type), mut);
 }
 
 Ptr<ast::SelfType> Parser::parse_self_type() {

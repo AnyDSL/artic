@@ -231,21 +231,6 @@ struct TypeApp : public Type {
     void print(Printer&) const override;
 };
 
-/// A pointer type.
-struct PtrType : public Type {
-    Ptr<Type> pointee;
-    bool mut;
-
-    PtrType(const Loc& loc, Ptr<Type>&& pointee, bool mut)
-        : Type(loc)
-        , pointee(std::move(pointee))
-        , mut(mut)
-    {}
-
-    void bind(NameBinder&) const override;
-    void print(Printer&) const override;
-};
-
 /// The Self type.
 struct SelfType : public Type {
     SelfType(const Loc& loc)
@@ -619,7 +604,7 @@ struct ReturnExpr : public Expr {
 };
 
 /// Unary expression (negation, increment, ...).
-struct UnaryExpr : public CallExpr {
+struct UnaryExpr : public Expr {
     enum Tag {
         Not,
         Plus,
@@ -631,15 +616,16 @@ struct UnaryExpr : public CallExpr {
         Error
     };
     Tag tag;
+    Ptr<Expr> arg;
 
-    UnaryExpr(const Loc& loc, Tag tag, Ptr<Expr>&& expr)
-        : CallExpr(loc, op_expr(loc, tag), arg_expr(loc, tag, std::move(expr))), tag(tag)
+    UnaryExpr(const Loc& loc, Tag tag, Ptr<Expr>&& arg)
+        : Expr(loc), tag(tag), arg(std::move(arg))
     {}
 
     bool is_prefix() const { return !is_postfix(); }
     bool is_postfix() const { return tag == PostInc || tag == PostDec; }
-    const Ptr<Expr>& operand() const { return arg; }
 
+    void bind(NameBinder&) const override;
     void print(Printer&) const override;
 
     bool is_inc() const { return is_inc(tag); }
@@ -648,16 +634,12 @@ struct UnaryExpr : public CallExpr {
     static bool is_inc(Tag tag) { return tag == PreInc || tag == PostInc; }
     static bool is_dec(Tag tag) { return tag == PreDec || tag == PostDec; }
 
-    static Ptr<Expr> op_expr(const Loc& loc, Tag);
-    static Ptr<Expr> arg_expr(const Loc& loc, Tag, Ptr<Expr>&&);
-
-    static Path tag_to_fn(const Loc&, Tag);
     static std::string tag_to_string(Tag);
     static Tag tag_from_token(const Token&, bool);
 };
 
 /// Binary expression (addition, logical operations, ...).
-struct BinaryExpr : public CallExpr {
+struct BinaryExpr : public Expr {
     enum Tag {
         Eq, AddEq, SubEq, MulEq, DivEq, ModEq,
         LShftEq, RShftEq,
@@ -670,20 +652,20 @@ struct BinaryExpr : public CallExpr {
         Error
     };
     Tag tag;
+    Ptr<Expr> left;
+    Ptr<Expr> right;
 
     BinaryExpr(const Loc& loc,
                Tag tag,
                Ptr<Expr>&& left,
                Ptr<Expr>&& right)
-        : CallExpr(loc, op_expr(loc, tag), arg_expr(loc, tag, std::move(left), std::move(right)))
-        , tag(tag)
+        : Expr(loc), tag(tag), left(std::move(left)), right(std::move(right))
     {}
 
     bool has_cmp() const { return has_cmp(tag); }
     bool has_eq() const { return has_eq(tag); }
-    const Ptr<Expr>& left_operand() const { return arg->as<TupleExpr>()->args[0]; }
-    const Ptr<Expr>& right_operand() const { return arg->as<TupleExpr>()->args[1]; }
 
+    artic::Type infer(TypeChecker&) const override;
     void bind(NameBinder&) const override;
     void print(Printer&) const override;
 
@@ -693,36 +675,8 @@ struct BinaryExpr : public CallExpr {
     static int precedence(Tag);
     static int max_precedence();
 
-    static Ptr<Expr> op_expr(const Loc&, Tag);
-    static Ptr<Expr> arg_expr(const Loc&, Tag, Ptr<Expr>&&, Ptr<Expr>&&);
-    static Path tag_to_fn(const Loc&, Tag);
     static std::string tag_to_string(Tag);
     static Tag tag_from_token(const Token&);
-};
-
-/// Address-of expression.
-struct AddrOfExpr : public Expr {
-    Ptr<Expr> expr;
-    bool mut;
-
-    AddrOfExpr(const Loc& loc, Ptr<Expr>&& expr, bool mut)
-        : Expr(loc), expr(std::move(expr)), mut(mut)
-    {}
-
-    void bind(NameBinder&) const override;
-    void print(Printer&) const override;
-};
-
-/// Pointer dereference expression.
-struct DerefExpr : public Expr {
-    Ptr<Expr> expr;
-
-    DerefExpr(const Loc& loc, Ptr<Expr>&& expr)
-        : Expr(loc), expr(std::move(expr))
-    {}
-
-    void bind(NameBinder&) const override;
-    void print(Printer&) const override;
 };
 
 /// Partial evaluation '?' operator
@@ -788,10 +742,10 @@ struct TypeParamList : public Decl {
 
 /// Pattern binding associated with an identifier.
 struct PtrnDecl : public NamedDecl {
-    bool mut;
+    bool ref;
 
-    PtrnDecl(const Loc& loc, Identifier&& id, bool mut = false)
-        : NamedDecl(loc, std::move(id)), mut(mut)
+    PtrnDecl(const Loc& loc, Identifier&& id, bool ref = false)
+        : NamedDecl(loc, std::move(id)), ref(ref)
     {}
 
     artic::Type check(TypeChecker&, artic::Type) const override;
@@ -830,6 +784,7 @@ struct FnDecl : public NamedDecl {
     {}
 
     artic::Type infer(TypeChecker&) const override;
+    artic::Type check(TypeChecker&, artic::Type) const override;
     void bind_head(NameBinder&) const override;
     void bind(NameBinder&) const override;
     void print(Printer&) const override;
