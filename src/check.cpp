@@ -207,15 +207,37 @@ Type TypeChecker::infer_tuple(const Args& args) {
 
 Type TypeChecker::infer_call(const ast::CallExpr& call) {
     auto callee_type = infer(*call.callee);
-    if (auto fn_type = callee_type.isa<artic::FnType>()) {
+    if (auto fn_type = callee_type.isa<FnType>()) {
         // TODO: Polymorphic functions
         check(*call.arg, fn_type.from());
         return fn_type.to();
-    } else if (callee_type.isa<artic::ArrayType>()) {
-        // TODO
-        return error_type();
+    } else if (auto array_type = callee_type.isa<ArrayType>()) {
+        auto index_type = infer(*call.arg);
+        bool valid_index = false;
+        if (auto prim_type = index_type.isa<PrimType>()) {
+            switch (index_type.as<PrimType>().tag()) {
+                case PrimType::I8:
+                case PrimType::I16:
+                case PrimType::I32:
+                case PrimType::I64:
+                case PrimType::U8:
+                case PrimType::U16:
+                case PrimType::U32:
+                case PrimType::U64:
+                    valid_index = true;
+                    break;
+                default:
+                    break;
+            }
+        }
+        if (!valid_index) {
+            if (!index_type.isa<ErrorType>())
+                error(call.arg->loc, "integer type expected as array index, but got '{}'", index_type);
+            return error_type();
+        }
+        return ref_type(array_type.elem());
     } else {
-        if (!callee_type.isa<artic::ErrorType>())
+        if (!callee_type.isa<ErrorType>())
             error(call.callee->loc, "expected function or array type in call expression, but got '{}'", callee_type);
         return error_type();
     }
