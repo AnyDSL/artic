@@ -219,6 +219,19 @@ struct FnType : public Type {
     void print(Printer&) const override;
 };
 
+struct PtrType : public Type {
+    Ptr<Type> pointee;
+    bool mut;
+
+    PtrType(const Loc& loc, Ptr<Type>&& pointee, bool mut)
+        : Type(loc), pointee(std::move(pointee)), mut(mut)
+    {}
+
+    artic::Type infer(TypeChecker&) const override;
+    void bind(NameBinder&) const override;
+    void print(Printer&) const override;
+};
+
 /// A type application.
 struct TypeApp : public Type {
     Path path;

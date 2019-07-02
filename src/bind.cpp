@@ -90,6 +90,10 @@ void FnType::bind(NameBinder& binder) const {
     if (to) binder.bind(*to);
 }
 
+void PtrType::bind(NameBinder& binder) const {
+    binder.bind(*pointee);
+}
+
 void TypeApp::bind(NameBinder& binder) const {
     binder.bind(path);
 }

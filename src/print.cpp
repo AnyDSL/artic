@@ -456,6 +456,13 @@ void FnType::print(Printer& p) const {
     }
 }
 
+void PtrType::print(Printer& p) const {
+    p << '&';
+    if (mut)
+        p << log::keyword_style("mut") << ' ';
+    pointee->print(p);
+}
+
 void TypeApp::print(Printer& p) const {
     path.print(p);
 }
@@ -512,8 +519,10 @@ void FnType::print(Printer& p) const {
     to().print(p);
 }
 
-void RefType::print(Printer& p) const {
-    p << log::keyword_style("ref") << ' ';
+void PtrType::print(Printer& p) const {
+    p << '&';
+    if (mut())
+        p << log::keyword_style("mut") << ' ';
     pointee().print(p);
 }
 

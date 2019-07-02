@@ -14,7 +14,7 @@ namespace artic {
     f(Id, "<identifier>") \
     f(Lit, "<literal>") \
     f(Let, "let") \
-    f(Ref, "ref") \
+    f(Mut, "mut") \
     f(Fn,  "fn") \
     f(If, "if") \
     f(Else, "else") \

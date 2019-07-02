@@ -26,7 +26,7 @@ public:
     bool should_emit_error(Type);
     void explain_no_ret_type(Type, Type);
 
-    Type unwrap_ref(Type);
+    bool check_mut(const ast::Node&);
 
     artic::Type expect(const Loc&, const std::string&, Type, Type);
     artic::Type expect(const Loc&, const std::string&, Type);

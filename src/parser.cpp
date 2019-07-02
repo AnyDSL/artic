@@ -219,9 +219,9 @@ Ptr<ast::Ptrn> Parser::parse_ptrn(bool only_types) {
                     ptrn = std::move(parse_id_ptrn(std::move(id), false));
             }
             break;
-        case Token::Ref:
+        case Token::Mut:
             {
-                eat(Token::Ref);
+                eat(Token::Mut);
                 ptrn = std::move(parse_id_ptrn(parse_id(), true));
             }
             break;
@@ -718,6 +718,7 @@ Ptr<ast::Type> Parser::parse_type() {
         case Token::Id:       return parse_named_type();
         case Token::LParen:   return parse_tuple_type();
         case Token::LBracket: return parse_array_type();
+        case Token::And:      return parse_ptr_type();
         default:              return parse_error_type();
     }
 }
@@ -765,6 +766,18 @@ Ptr<ast::FnType> Parser::parse_fn_type() {
         to = std::move(parse_type());
     }
     return make_ptr<ast::FnType>(tracker(), std::move(from), std::move(to));
+}
+
+Ptr<ast::PtrType> Parser::parse_ptr_type() {
+    Tracker tracker(this);
+    eat(Token::And);
+    bool mut = false;
+    if (ahead().tag() == Token::Mut) {
+        eat(Token::Mut);
+        mut = true;
+    }
+    auto pointee = parse_type();
+    return make_ptr<ast::PtrType>(tracker(), std::move(pointee), mut);
 }
 
 Ptr<ast::TypeApp> Parser::parse_type_app() {

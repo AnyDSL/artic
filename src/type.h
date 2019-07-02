@@ -58,7 +58,19 @@ public:
     void print(Printer& p) const {
         dispatch(this, [&] (auto type) { type.print(p); });
     }
+    bool operator <= (const Type& other) const {
+        return dispatch(this, [&] (auto type) { return type <= other; });
+    }
     void dump() const;
+
+    static Type join(Type a, Type b) {
+        if (a <= b)
+            return b;
+        else if (b <= a)
+            return a;
+        else
+            return Type();
+    }
 
 protected:
     template <class F>
@@ -75,7 +87,7 @@ using TupleTypeMatcher = thorin::MatchAnd<thorin::IsType,
       thorin::MatchOr<thorin::MatchTagExact<thorin::Node_Sigma>,
                       thorin::MatchAnd<thorin::MatchTagExact<thorin::Node_Variadic>, thorin::MatchOp<0, thorin::IsLiteral>>>>;
 using ArrayTypeMatcher = thorin::MatchAnd<thorin::IsType, thorin::MatchTagExact<thorin::Node_Variadic>>;
-using RefTypeMatcher   = thorin::MatchAnd<thorin::IsType, thorin::MatchTagExact<thorin::Node_PtrType>>;
+using PtrTypeMatcher   = thorin::MatchAnd<thorin::IsType, thorin::MatchTagExact<thorin::Node_PtrType>>;
 using FnTypeMatcher    = thorin::MatchAnd<thorin::IsType, thorin::MatchTagExact<thorin::Node_Pi>>;
 using NoRetTypeMatcher = thorin::MatchAnd<thorin::IsType, thorin::MatchTagExact<thorin::Node_Bot>>;
 using ErrorTypeMatcher = thorin::MatchAnd<thorin::IsType, thorin::MatchTagExact<thorin::Node_Top>>;
@@ -98,6 +110,7 @@ public:
 
     Tag tag() const { return static_cast<Tag>(def()->tag()); }
 
+    bool operator <= (const Type& other) const { return other.def() == def(); }
     void print(Printer&) const;
 
 private:
@@ -117,6 +130,18 @@ public:
     size_t num_args() const  { return def()->isa<thorin::Variadic>() ? thorin::as_lit<thorin::u64>(def()->as<thorin::Variadic>()->arity()) : def()->num_ops(); }
     Type arg(size_t i) const { return def()->isa<thorin::Variadic>() ? def()->as<thorin::Variadic>()->body() : def()->op(i); }
 
+    bool operator <= (const Type& other) const {
+        if (auto tuple_type = other.isa<TupleType>()) {
+            if (tuple_type.num_args() != num_args())
+                return false;
+            for (size_t i = 0; i < num_args(); ++i) {
+                if (!(arg(i) <= tuple_type.arg(i)))
+                    return false;
+            }
+            return true;
+        }
+        return false;
+    }
     void print(Printer&) const;
 
 private:
@@ -140,6 +165,11 @@ class ArrayType : public Type, public ArrayTypeMatcher {
 public:
     Type elem() const { return Type(def()->as<thorin::Variadic>()->body()); }
 
+    bool operator <= (const Type& other) const {
+        if (auto array_type = other.isa<ArrayType>())
+            return elem() <= array_type.elem();
+        return false;
+    }
     void print(Printer&) const;
 
 private:
@@ -154,21 +184,27 @@ private:
     {}
 };
 
-class RefType : public Type, public RefTypeMatcher {
+class PtrType : public Type, public PtrTypeMatcher {
 public:
+    bool mut() const { return true; } // TODO
     Type pointee() const { return Type(def()->as<thorin::PtrType>()->pointee()); }
 
+    bool operator <= (const Type& other) const {
+        if (auto ptr_type = other.isa<PtrType>())
+            return pointee() <= ptr_type.pointee();
+        return false;
+    }
     void print(Printer&) const;
 
 private:
     friend class TypeTable;
     friend class Type;
 
-    RefType(const thorin::Def* def)
+    PtrType(const thorin::Def* def)
         : Type(def)
     {}
-    RefType(thorin::World& world, Type pointee)
-        : RefType(world.ptr_type(pointee.def()))
+    PtrType(thorin::World& world, Type pointee, bool)
+        : PtrType(world.ptr_type(pointee.def()))
     {}
 };
 
@@ -177,6 +213,11 @@ public:
     Type from() const { return Type(def()->as<thorin::Pi>()->domain()); }
     Type to()   const { return Type(def()->as<thorin::Pi>()->codomain()); }
 
+    bool operator <= (const Type& other) const {
+        if (auto fn_type = other.isa<FnType>())
+            return fn_type.from() <= from() && to() <= fn_type.to();
+        return false;
+    }
     void print(Printer&) const;
 
 private:
@@ -193,6 +234,7 @@ private:
 
 class NoRetType : public Type, public NoRetTypeMatcher {
 public:
+    bool operator <= (const Type&) const { return true; }
     void print(Printer&) const;
 
 private:
@@ -209,6 +251,7 @@ private:
 
 class ErrorType : public Type, public ErrorTypeMatcher {
 public:
+    bool operator <= (const Type& other) const { return other.def() == def(); }
     void print(Printer&) const;
 
 private:
@@ -230,7 +273,7 @@ typename std::invoke_result<F, Type>::type Type::dispatch(const Type* t, F f) {
          if (t->template isa<PrimType>())  return f(t->template as<PrimType>() );
     else if (t->template isa<TupleType>()) return f(t->template as<TupleType>());
     else if (t->template isa<ArrayType>()) return f(t->template as<ArrayType>());
-    else if (t->template isa<RefType>())   return f(t->template as<RefType>()  );
+    else if (t->template isa<PtrType>())   return f(t->template as<PtrType>()  );
     else if (t->template isa<FnType>())    return f(t->template as<FnType>()   );
     else if (t->template isa<NoRetType>()) return f(t->template as<NoRetType>());
     else if (t->template isa<ErrorType>()) return f(t->template as<ErrorType>());
@@ -248,13 +291,13 @@ public:
         return TupleType(world_, std::move(args));
     }
 
-    PrimType prim_type(PrimType::Tag tag) { return PrimType(world_, tag); }
-    TupleType unit_type()                 { return TupleType(world_, {}); }
-    ArrayType array_type(Type elem)       { return ArrayType(world_, elem); }
-    RefType ref_type(Type pointee)        { return RefType(world_, pointee); }
-    FnType fn_type(Type from, Type to)    { return FnType(world_, from, to); }
-    NoRetType no_ret_type()               { return NoRetType(world_);}
-    ErrorType error_type()                { return ErrorType(world_); }
+    PrimType prim_type(PrimType::Tag tag)     { return PrimType(world_, tag); }
+    TupleType unit_type()                     { return TupleType(world_, {}); }
+    ArrayType array_type(Type elem)           { return ArrayType(world_, elem); }
+    PtrType ptr_type(Type pointee, bool mut)  { return PtrType(world_, pointee, mut); }
+    FnType fn_type(Type from, Type to)        { return FnType(world_, from, to); }
+    NoRetType no_ret_type()                   { return NoRetType(world_);}
+    ErrorType error_type()                    { return ErrorType(world_); }
 
 private:
     thorin::World& world_;
