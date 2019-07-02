@@ -171,6 +171,8 @@ fn main() -> () {
 
 To improve performance, _escape analysis_ should be run on mutable variables to determine when they can live on the stack, and when they cannot.
 
+> In my opinion, point 4 (manual control from Impala) is mandatory for many application scenarios like double buffering, data doesn't fit on device, or when only a part of the data is required. Which makes this is a show stopper if we don't have it.  
+
 ## Pointers and Garbage Collection
 
 The language should be constrained so that the garbage collection system can work. In particular, we need to prevent taking the address of the field of a structure or the element of an array:
