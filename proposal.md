@@ -156,7 +156,7 @@ In practice, this means that:
 1. Memory is allocated with a `alloc()`, a function that allocates memory on the *host*,
 2. When a device region is encountered, such as with `nvvm` or `cuda`, the compiler should call the GC/runtime to translate pointers from the host to the device,
 3. The GC should be informed of the type of accesses done by the kernel on the device, so that it knows if the memory is dirty and needs to be copied back to the device or not.
-(4. Ideally, the garbage collector should be controllable from Impala, so that the programmer can decide to only transfer part of an array, for instance)
+4. Ideally, the garbage collector should be controllable from Impala, so that the programmer can decide to only transfer part of an array, for instance
 
 With this approach, the following code will work out the box and have the expected behaviour.
 
