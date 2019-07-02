@@ -66,9 +66,9 @@ Module 3:
 fn use_sort_on_gpu_twice(len: i32) {
     let data = alloc_gpu[Data](len);
     fill_data_gpu(data);
-    sort_data_on_gpu(data, len);
+    sort_data_on_gpu(data, len); // used once
     /* ... */
-    sort_data_on_gpu(data, len);
+    sort_data_on_gpu(data, len); // used once more (copying is then wasteful)
 }
 ```
 
@@ -147,7 +147,7 @@ fn main(ptr: &mut [i32] for nvvm) -> () {
 }
 ```
 
-This means that operations with side effects now have an additional _effect_ type: The assignment `x(index) = 5` should have type '() for nvvm` if `x` is of type `&[i32] for nvvm`.
+This means that operations with side effects now have an additional _effect_ type: The assignment `x(index) = 5` should have type `() for nvvm` if `x` is of type `&[i32] for nvvm`.
 The additional complexity and the fact that not all problems are fixed by this approach makes this solution impractical at best.
 
 Instead of relying on types, we suggest to implement a Garbage Collection (GC) system in the runtime. This GC is anyway necessary for closures (see point above).
@@ -156,7 +156,7 @@ In practice, this means that:
 1. Memory is allocated with a `alloc()`, a function that allocates memory on the *host*,
 2. When a device region is encountered, such as with `nvvm` or `cuda`, the compiler should call the GC/runtime to translate pointers from the host to the device,
 3. The GC should be informed of the type of accesses done by the kernel on the device, so that it knows if the memory is dirty and needs to be copied back to the device or not.
-(4. Ideally, the garbage collector should be controllable from Impala, so that the programmer can decide to only transfer part of an array, for instance)
+4. Ideally, the garbage collector should be controllable from Impala, so that the programmer can decide to only transfer part of an array, for instance
 
 With this approach, the following code will work out the box and have the expected behaviour.
 
@@ -169,7 +169,7 @@ fn main() -> () {
 }
 ```
 
-To improve performance, escape analysis should be run on mutable variables to determine when they can live on the stack, and when they cannot.
+To improve performance, _escape analysis_ should be run on mutable variables to determine when they can live on the stack, and when they cannot.
 
 ## Pointers and Garbage Collection
 
