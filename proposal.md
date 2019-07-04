@@ -138,7 +138,7 @@ fn sort_data_on_gpu[dev: device](data: &mut [Data] for dev, len: i32) -> () {
 ```
 
 Looking at this code, it appears clearly that this solution does not scale with more complex kernels and several input/output buffers.
-Additionally, a type-system based approach requires an effect system too, so as to prevent the program fro being correct:
+Additionally, a type-system based approach requires an effect system too, so as to prevent the program from being correct:
 
 ```rust
 fn main(ptr: &mut [i32] for nvvm) -> () {
@@ -156,7 +156,7 @@ In practice, this means that:
 1. Memory is allocated with a `alloc()`, a function that allocates memory on the *host*,
 2. When a device region is encountered, such as with `nvvm` or `cuda`, the compiler should call the GC/runtime to translate pointers from the host to the device,
 3. The GC should be informed of the type of accesses done by the kernel on the device, so that it knows if the memory is dirty and needs to be copied back to the device or not.
-4. Ideally, the garbage collector should be controllable from Impala, so that the programmer can decide to only transfer part of an array, for instance
+4. The garbage collector should be controllable from Impala, so that the programmer can decide to only transfer part of an array, for instance
 
 With this approach, the following code will work out the box and have the expected behaviour.
 
@@ -170,6 +170,57 @@ fn main() -> () {
 ```
 
 To improve performance, _escape analysis_ should be run on mutable variables to determine when they can live on the stack, and when they cannot.
+
+> In my opinion, point 4 (manual control from Impala) is mandatory for many application scenarios like double buffering, data doesn't fit on device, or when only a part of the data is required. Which makes this is a show stopper if we don't have it.
+
+> I feel this point is important too, but I also see that we do not have the need for this _right now_. Additionally, double buffering should work without it, unless you want something much more complicated than:
+
+```rust
+fn main(n: i32) -> () {
+    // allocate two buffers
+    let bufs = [alloc[i32](n), alloc[i32](n)];
+    for j in range(0, 10) {
+        // choose buffers depending on iteration
+        let buf1 = bufs[j & 1];
+        let buf2 = bufs[(j + 1) & 1];
+        with work_item in nvvm(/* ... */) {
+            let id = work_item.gidx();
+            buf1(id) = buf2(id);
+        }
+    }
+}
+```
+
+> There are also other important issues like scheduling copies early (e.g. while another kernel is running), or manual triggering of a garbage collection, that will require annotations from the programmer. I believe we can somehow implement a `gc` module that does this.
+
+```rust
+import gc;
+
+fn main(n: i32) -> () {
+    let buf1 = alloc[i32](n);
+    let buf2 = alloc[i32](n);
+    gc::collect(); // manual GC collection, frees buf1 as it is not used anymore, but not buf2
+    for i in range(0, n) {
+        buf2(i) = i;
+    }
+    gc::update(buf2, nvvm); // update the NVVM version of the buffer right now
+    
+    // do some other work that *does not* involve buf2
+    // ...
+
+    // at this point, the buffer is probably copied already and
+    // the runtime only has to translate the pointers, no copy is necessary
+    with work_item in nvvm(/* ... */) {
+        let id = work_item.gidx();
+        buf2(id) = id;
+    }
+    
+    // for a partial copy, we need to do the following:
+    gc::mark_as_clean(buf2, nvvm); // tell the GC the NVVM buffer is up-to-date (effectively clear any dirty range)
+    gc::mark_as_dirty(buf2, from, to, nvvm); // tell the gc the range [from, to] is dirty on the NVVM device
+    gc::update(buf2, nvvm); // perform the copy only on [from, to]
+}
+```
 
 ## Pointers and Garbage Collection
 
