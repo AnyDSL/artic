@@ -302,6 +302,4 @@ Consider the following call to the function `do_math` defined above:
 do_math[i32](5, 8)
 ```
 
-In this example, the compiler has to check that there is an implementation for Num[i32] because of the constraint `Num[T]` present in the type of the function.
-To encode this in Thorin IR, we recommend using a function of type: `Pi T: * . Num[T] -> (T, T) -> T` where `A -> B` is `Pi _: A. B`.
-For functions without constraints, we recommend to use an empty tuple as constraint argument: For instance, `fn poly[T](t: T) -> T { t }` would be typed as `Pi T: *. () -> T -> T`.
+In this example, the compiler has to check that there is an implementation for `Num[i32]` because of the constraint `Num[T]` present in the type of the function.
