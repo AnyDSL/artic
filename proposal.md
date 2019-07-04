@@ -199,3 +199,58 @@ fn main() -> () {
 
 In this example, the type of `x` is inferred from its use after the declaration. Since bidirectional type inference is a local type inference algorithm, it will only use the declaration site of `x` to determine its type, and will thus reject this program, since the declaration does not give a type.
 We believe this does not happen too often in Impala programs, and the added benefits of getting better error messages and having a more robust type checking algorithm are more important than this simple limitation.
+
+Regarding traits and overloading, it makes sense to find a solution that allows local type inference and minimizes friction for operator overloading.
+Ideally, it would be nice to let the compiler deduce operators like `+`, `-`, `/` for polymorphic function arguments, as in this example:
+
+```rust
+fn do_math[T](plus: fn (T, T) -> T, minus: fn (T, T) -> T, div: fn (T, T) -> T, x: T, y: T) -> T {
+    plus(x, minus(y, div(x, y))
+}
+```
+
+Here, we cannot directly use `+`, because by default `+` only works on primitive types: There is right now no type-system mechanism to indicate the constraint that there exists a `+` with type `fn (T, T) -> T`. 
+We therefore introduce a concept similar to Scala's _implicits_, reusing the syntax for traits in Rust:
+
+```rust
+/// This is our trait, similar to an abstract class in Scala
+trait Num[T] {
+    add: fn (T, T) -> T,
+    sub: fn (T, T) -> T,
+    mul: fn (T, T) -> T,
+    div: fn (T, T) -> T
+}
+
+/// This is the implementation of that trait for the type i32
+impl Num[i32] {
+    add: |x, y| x + y,
+    sub: |x, y| x + y,
+    mul: |x, y| x + y,
+    div: |x, y| x + y
+}
+
+/// Our function can now have a constraint on T
+fn do_math[T with Num[T]](x: T, y: T) -> T {
+    Num[T]::add(x, Num[T]::sub(y, Num[T]::div(x, y)))
+}
+```
+
+To allow the user to write proper math, we can further let the expression `x + y` be translated into `Num[typeof(x)]::add(x, y)` internally, if the types of `x` or `y` are not primitive types.
+The function `do_math` above is then equivalent to the following code (with unnecessary parentheses to show how expressions are grouped):
+
+```rust
+fn do_math[T with Num[T]](x: T, y: T) -> T {
+    x + (y - (x / y))
+}
+```
+
+At the call site, the type inference algorithms only has to verify that all the constraints are satisfied.
+Consider the following call to the function `do_math` defined above:
+
+```rust
+do_math[i32](5, 8)
+```
+
+In this example, the compiler has to check that there is an implementation for Num[i32] because of the constraint `Num[T]` present in the type of the function.
+To encode this in Thorin IR, we recommend using a function of type: `Pi T: * . Num[T] -> (T, T) -> T` where `A -> B` is `Pi _: A. B`.
+For functions without constraints, we recommend to use an empty tuple as constraint argument: For instance, `fn poly[T](t: T) -> T { t }` would be typed as `Pi T: *. () -> T -> T`.
