@@ -451,7 +451,7 @@ artic::Type BinaryExpr::infer(TypeChecker& checker) const {
 
 // Declarations --------------------------------------------------------------------
 
-artic::Type PtrnDecl::check(TypeChecker& checker, artic::Type expected) const {
+artic::Type PtrnDecl::check(TypeChecker&, artic::Type expected) const {
     return expected;
 }
 

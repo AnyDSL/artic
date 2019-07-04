@@ -244,16 +244,6 @@ struct TypeApp : public Type {
     void print(Printer&) const override;
 };
 
-/// The Self type.
-struct SelfType : public Type {
-    SelfType(const Loc& loc)
-        : Type(loc)
-    {}
-
-    void bind(NameBinder&) const override;
-    void print(Printer&) const override;
-};
-
 /// Type resulting from a parsing error.
 struct ErrorType : public Type {
     ErrorType(const Loc& loc)
@@ -755,10 +745,10 @@ struct TypeParamList : public Decl {
 
 /// Pattern binding associated with an identifier.
 struct PtrnDecl : public NamedDecl {
-    bool ref;
+    bool mut;
 
-    PtrnDecl(const Loc& loc, Identifier&& id, bool ref = false)
-        : NamedDecl(loc, std::move(id)), ref(ref)
+    PtrnDecl(const Loc& loc, Identifier&& id, bool mut = false)
+        : NamedDecl(loc, std::move(id)), mut(mut)
     {}
 
     artic::Type check(TypeChecker&, artic::Type) const override;
@@ -864,20 +854,14 @@ struct TraitDecl : public NamedDecl {
 /// Implementation for a trait.
 struct ImplDecl : public Decl {
     Ptr<Type> trait;
-    Ptr<Type> type;
     PtrVector<NamedDecl> decls;
-    Ptr<TypeParamList> type_params;
 
     ImplDecl(const Loc& loc,
              Ptr<Type>&& trait,
-             Ptr<Type>&& type,
-             PtrVector<NamedDecl>&& decls,
-             Ptr<TypeParamList>&& type_params)
+             PtrVector<NamedDecl>&& decls)
         : Decl(loc)
         , trait(std::move(trait))
-        , type(std::move(type))
         , decls(std::move(decls))
-        , type_params(std::move(type_params))
     {}
 
     void bind(NameBinder&) const override;

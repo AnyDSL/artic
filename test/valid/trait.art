@@ -1,6 +1,6 @@
-trait Num {
-    fn add(Self, Self) -> Self;
-    fn sub(Self, Self) -> Self;
-    fn mul(Self, Self) -> Self;
-    fn div(Self, Self) -> Self;
+trait Num[T] {
+    fn add(T, T) -> T;
+    fn sub(T, T) -> T;
+    fn mul(T, T) -> T;
+    fn div(T, T) -> T;
 }

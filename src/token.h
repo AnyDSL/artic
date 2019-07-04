@@ -28,7 +28,6 @@ namespace artic {
     f(Struct, "struct") \
     f(Trait, "trait") \
     f(Impl, "impl") \
-    f(Self, "Self") \
     f(LParen, "(") \
     f(RParen, ")") \
     f(LBrace, "{") \

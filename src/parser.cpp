@@ -139,15 +139,9 @@ Ptr<ast::ImplDecl> Parser::parse_impl_decl() {
     Tracker tracker(this);
     eat(Token::Impl);
 
-    Ptr<ast::TypeParamList> type_params;
-    if (ahead().tag() == Token::LBracket)
-        type_params = std::move(parse_type_params());
-
     auto trait = parse_type();
-    expect(Token::For);
-    auto type = parse_type();
     auto decls = std::move(parse_trait_or_impl_body(true));
-    return make_ptr<ast::ImplDecl>(tracker(), std::move(trait), std::move(type), std::move(decls), std::move(type_params));
+    return make_ptr<ast::ImplDecl>(tracker(), std::move(trait), std::move(decls));
 }
 
 Ptr<ast::TypeParam> Parser::parse_type_param(size_t index) {
@@ -191,7 +185,6 @@ Ptr<ast::Ptrn> Parser::parse_ptrn(bool only_types) {
         switch (ahead().tag()) {
             case Token::Fn:
             case Token::And:
-            case Token::Self:
             case Token::Id:
                 {
                     Tracker tracker(this);
@@ -714,7 +707,6 @@ Ptr<ast::Type> Parser::parse_type() {
     Ptr<ast::Type> type;
     switch (ahead().tag()) {
         case Token::Fn:       return parse_fn_type();
-        case Token::Self:     return parse_self_type();
         case Token::Id:       return parse_named_type();
         case Token::LParen:   return parse_tuple_type();
         case Token::LBracket: return parse_array_type();
@@ -784,12 +776,6 @@ Ptr<ast::TypeApp> Parser::parse_type_app() {
     Tracker tracker(this);
     auto path = parse_path();
     return make_ptr<ast::TypeApp>(tracker(), std::move(path));
-}
-
-Ptr<ast::SelfType> Parser::parse_self_type() {
-    Tracker tracker(this);
-    eat(Token::Self);
-    return make_ptr<ast::SelfType>(tracker());
 }
 
 Ptr<ast::ErrorType> Parser::parse_error_type() {

@@ -98,8 +98,6 @@ void TypeApp::bind(NameBinder& binder) const {
     binder.bind(path);
 }
 
-void SelfType::bind(NameBinder&) const {}
-
 void ErrorType::bind(NameBinder&) const {}
 
 // Statements ----------------------------------------------------------------------
@@ -337,12 +335,8 @@ void TraitDecl::bind(NameBinder& binder) const {
 }
 
 void ImplDecl::bind(NameBinder& binder) const {
-    binder.push_scope();
-    if (type_params) binder.bind(*type_params);
     binder.bind(*trait);
-    binder.bind(*type);
     for (auto& decl : decls) binder.bind(*decl);
-    binder.pop_scope();
 }
 
 void ErrorDecl::bind(NameBinder&) const {}

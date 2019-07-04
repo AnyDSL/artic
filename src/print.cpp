@@ -344,7 +344,7 @@ void StructDecl::print(Printer& p) const {
 }
 
 void PtrnDecl::print(Printer& p) const {
-    if (ref) p << log::keyword_style("ref") << ' ';
+    if (mut) p << log::keyword_style("mut") << ' ';
     p << id.name;
 }
 
@@ -402,11 +402,8 @@ void TraitDecl::print(Printer& p) const {
 
 void ImplDecl::print(Printer& p) const {
     p << log::keyword_style("impl");
-    if (type_params) type_params->print(p);
     p << ' ';
     trait->print(p);
-    p << ' ' << log::keyword_style("for") << ' ';
-    type->print(p);
     p << " {";
     if (!decls.empty()) {
         p << p.indent();
@@ -465,10 +462,6 @@ void PtrType::print(Printer& p) const {
 
 void TypeApp::print(Printer& p) const {
     path.print(p);
-}
-
-void SelfType::print(Printer& p) const {
-    p << log::keyword_style("Self");
 }
 
 void ErrorType::print(Printer& p) const {

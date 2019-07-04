@@ -1,0 +1,12 @@
+fn alloc() -> (fn () -> i32, fn (i32) -> ()) {
+    let mut x : i32;
+    fn rd() { x }
+    fn wr(y: i32) { x = y }
+    (rd, wr)
+}
+
+fn main() -> i32 {
+    let (rd, wr) = alloc();
+    wr(0);
+    rd()
+}
