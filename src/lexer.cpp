@@ -164,7 +164,8 @@ Token Lexer::next() {
                 error(loc_.begin() + 1, "unterminated string literal");
                 return Token(loc_);
             }
-            return Token(loc_, str_, Literal(str_));
+            assert(str_.size() >= 2);
+            return Token(loc_, str_, Literal(str_.substr(1, str_.size() - 2)));
         }
 
         if (std::isdigit(peek()) || peek() == '.') {
@@ -297,7 +298,7 @@ void Lexer::append() {
 bool Lexer::accept(uint8_t c) {
     if (peek() == c) {
         assert(cur_.size == 1);
-        eat();
+        append();
         return true;
     }
     return false;
