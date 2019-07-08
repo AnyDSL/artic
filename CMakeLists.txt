@@ -8,6 +8,13 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
+# Compile for code coverage in Debug mode
+list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake/modules)
+if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+    include(CodeCoverage)
+    append_coverage_compiler_flags()
+endif()
+
 include_directories(contrib/half/include)
 include_directories(contrib/utf8-cpp/source)
 
