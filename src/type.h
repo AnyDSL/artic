@@ -84,13 +84,13 @@ log::Output& operator << (log::Output&, const Type&);
 using PrimTypeMatcher  = thorin::MatchAnd<thorin::IsType, thorin::MatchTag<thorin::Node_PrimType_bool, thorin::Node_PrimType_qf64>>;
 // Tuples are either sigmas or arrays of fixed size
 using TupleTypeMatcher = thorin::MatchAnd<thorin::IsType,
-      thorin::MatchOr<thorin::MatchTagExact<thorin::Node_Sigma>,
-                      thorin::MatchAnd<thorin::MatchTagExact<thorin::Node_Variadic>, thorin::MatchOp<0, thorin::IsLiteral>>>>;
-using ArrayTypeMatcher = thorin::MatchAnd<thorin::IsType, thorin::MatchTagExact<thorin::Node_Variadic>>;
-using PtrTypeMatcher   = thorin::MatchAnd<thorin::IsType, thorin::MatchTagExact<thorin::Node_PtrType>>;
-using FnTypeMatcher    = thorin::MatchAnd<thorin::IsType, thorin::MatchTagExact<thorin::Node_Pi>>;
-using NoRetTypeMatcher = thorin::MatchAnd<thorin::IsType, thorin::MatchTagExact<thorin::Node_Bot>>;
-using ErrorTypeMatcher = thorin::MatchAnd<thorin::IsType, thorin::MatchTagExact<thorin::Node_Top>>;
+      thorin::MatchOr<thorin::MatchTag<thorin::Node_Sigma>,
+                      thorin::MatchAnd<thorin::MatchTag<thorin::Node_Variadic>, thorin::MatchOp<0, thorin::IsLiteral>>>>;
+using ArrayTypeMatcher = thorin::MatchAnd<thorin::IsType, thorin::MatchTag<thorin::Node_Variadic>>;
+using PtrTypeMatcher   = thorin::MatchAnd<thorin::IsType, thorin::MatchTag<thorin::Node_PtrType>>;
+using FnTypeMatcher    = thorin::MatchAnd<thorin::IsType, thorin::MatchTag<thorin::Node_Pi>>;
+using NoRetTypeMatcher = thorin::MatchAnd<thorin::IsType, thorin::MatchTag<thorin::Node_Bot>>;
+using ErrorTypeMatcher = thorin::MatchAnd<thorin::IsType, thorin::MatchTag<thorin::Node_Top>>;
 
 class PrimType : public Type, public PrimTypeMatcher {
 public:
