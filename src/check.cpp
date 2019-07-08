@@ -473,6 +473,9 @@ artic::Type FnDecl::infer(TypeChecker& checker) const {
 }
 
 artic::Type FnDecl::check(TypeChecker& checker, artic::Type expected) const {
+    // Inside a block expression, statements are expected to type as ()
+    // So we ignore the expected type here
+    (void)expected;
     assert(expected == checker.unit_type());
     return infer(checker);
 }

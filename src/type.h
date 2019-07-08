@@ -277,7 +277,10 @@ typename std::invoke_result<F, Type>::type Type::dispatch(const Type* t, F f) {
     else if (t->template isa<FnType>())    return f(t->template as<FnType>()   );
     else if (t->template isa<NoRetType>()) return f(t->template as<NoRetType>());
     else if (t->template isa<ErrorType>()) return f(t->template as<ErrorType>());
-    else assert(false);
+    else {
+        assert(false);
+        return typename std::invoke_result<F, Type>::type();
+    }
 }
 
 class TypeTable {
