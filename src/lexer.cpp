@@ -176,10 +176,11 @@ Token Lexer::next() {
                     error(loc_, "UTF8 character '{}' does not fit in one byte", utf8_to_string(c));
                     note("use a string (delimited by '\"'), instead of a character");
                 }
-                if (c == '\n')
-                    error(loc_, "multiline characteri literals are not allowed");
-                if (accept('\''))
+                if (accept('\'')) {
+                    if (c == '\n')
+                        error(loc_, "multiline character literals are not allowed");
                     return Token(loc_, str_, Literal(uint8_t(c)));
+                }
             }
             error(loc_, "unterminated character literal");
             return Token(loc_, Token::Error, str_);
