@@ -10,6 +10,21 @@
 
 namespace artic {
 
+namespace utf8 {
+    inline bool is_bom(const uint8_t* bytes) {
+        return bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF;
+    }
+    inline constexpr size_t min_bytes() { return 2; }
+    inline constexpr size_t max_bytes() { return 4; }
+    inline bool is_begin(uint8_t c) { return (c & 0x80) != 0; }
+    inline bool is_valid(uint8_t c) { return (c & 0xC0) == 0x80; }
+    inline size_t count_bytes(uint8_t c) {
+        size_t n = 0;
+        while (c & 0x80 && n <= max_bytes()) c <<= 1, n++;
+        return n;
+    }
+}
+
 /// Generates a stream of tokens for the Parser.
 class Lexer : public Logger {
 public:
@@ -18,17 +33,9 @@ public:
     Token next();
 
 private:
-    struct Utf8Buffer {
-        char buf[4];
-        size_t count;
-
-        Utf8Buffer()
-            : buf{0, 0, 0, 0}, count(0)
-        {}
-
-        bool empty() const { return count == 0; }
-        bool fill(std::istream&);
-        uint32_t decode();
+    struct Utf8Char {
+        uint8_t bytes[utf8::max_bytes()] = {0, 0, 0, 0};
+        size_t  size = 1;
     };
 
     void eat();
@@ -36,19 +43,16 @@ private:
     void eat_comments();
     Literal parse_literal();
 
-    void accept();
-    bool accept(uint32_t);
-    bool accept(const std::string&);
+    void append();
+    bool accept(uint8_t);
 
-    uint32_t peek() const { return code_; }
-    bool eof() const { return eof_; }
+    uint8_t peek(size_t i = 0) const { return cur_.bytes[i]; }
+    bool eof() const { return stream_.eof(); }
 
     std::istream& stream_;
 
     Loc loc_;
-    bool eof_;
-    uint32_t code_;
-    Utf8Buffer buf_;
+    Utf8Char cur_;
     std::string str_;
 
     static std::unordered_map<std::string, Token::Tag> keywords;

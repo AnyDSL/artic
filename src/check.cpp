@@ -345,13 +345,14 @@ artic::Type FnExpr::check(TypeChecker& checker, artic::Type expected) const {
         return checker.expect(loc, "anonymous function", expected);
     auto param_type = checker.check(*param, expected.as<artic::FnType>().from());
     auto body_type  = checker.check(*body, expected.as<artic::FnType>().to());
-    return checker.fn_type(param_type, body_type);}
+    return checker.fn_type(param_type, body_type);
+}
 
 artic::Type BlockExpr::infer(TypeChecker& checker) const {
     if (stmts.empty())
         return checker.unit_type();
     for (size_t i = 0; i < stmts.size() - 1; ++i) {
-        auto stmt_type = checker.check(*stmts[i], checker.unit_type());
+        auto stmt_type = checker.infer(*stmts[i]);
         if (stmt_type.isa<artic::NoRetType>())
             return checker.unreachable_code(stmts[i]->loc, stmts[i + 1]->loc, stmts.back()->loc);
     }
@@ -363,7 +364,7 @@ artic::Type BlockExpr::check(TypeChecker& checker, artic::Type expected) const {
     if (stmts.empty())
         return checker.expect(loc, "block expression", checker.unit_type(), expected);
     for (size_t i = 0; i < stmts.size() - 1; ++i) {
-        auto stmt_type = checker.check(*stmts[i], checker.unit_type());
+        auto stmt_type = checker.infer(*stmts[i]);
         if (stmt_type.isa<artic::NoRetType>())
             return checker.unreachable_code(stmts[i]->loc, stmts[i + 1]->loc, stmts.back()->loc);
     }
@@ -426,17 +427,19 @@ artic::Type ContinueExpr::infer(TypeChecker& checker) const {
 }
 
 artic::Type ReturnExpr::infer(TypeChecker& checker) const {
-    if (!fn || !fn->type || !fn->type.isa<artic::FnType>()) {
-        // Other errors have been reported by the NameBinder already
-        if (!fn->type) {
-            checker.error(loc, "cannot infer the type of '{}'", log::keyword_style("return"));
-            if (fn)
-                checker.note(fn->loc, "try annotating the return type of this function");
-        }
-        return checker.error_type();
+    if (fn) {
+        artic::Type arg_type;
+        if (fn->type && fn->type.isa<artic::FnType>())
+            arg_type = fn->type.as<artic::FnType>().to();
+        else if (fn->ret_type && fn->ret_type->type)
+            arg_type = fn->ret_type->type;
+        if (arg_type)
+           return checker.fn_type(arg_type, checker.no_ret_type());
     }
-    auto fn_type = fn->type.as<artic::FnType>();
-    return checker.fn_type(fn_type.from(), checker.no_ret_type());
+    checker.error(loc, "cannot infer the type of '{}'", log::keyword_style("return"));
+    if (fn)
+        checker.note(fn->loc, "try annotating the return type of this function");
+    return checker.error_type();
 }
 
 artic::Type BinaryExpr::infer(TypeChecker& checker) const {

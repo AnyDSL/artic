@@ -46,6 +46,9 @@ struct Loc {
 
     Loc begin() const { return Loc(file, begin_row, begin_col, begin_row, begin_col); }
     Loc end() const { return Loc(file, end_row, end_col, end_row, end_col); }
+
+    Loc operator + (int col) const { return Loc(file, begin_row, begin_col, end_row, end_col + col); }
+    Loc operator - (int col) const { return Loc(file, begin_row, begin_col - col, end_row, end_col); }
 };
 
 inline std::ostream& operator << (std::ostream& os, const Loc& loc) {

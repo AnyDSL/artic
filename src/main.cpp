@@ -55,6 +55,7 @@ static void version() {
 
 struct ProgramOptions {
     std::vector<std::string> files;
+    bool exit = false;
     bool check = false;
     bool strict = false;
     bool invert = false;
@@ -86,10 +87,12 @@ struct ProgramOptions {
             if (argv[i][0] == '-') {
                 if (matches(argv[i], "-h", "--help")) {
                     usage();
-                    return false;
+                    exit = true;
+                    return true;
                 } else if (matches(argv[i], "--version")) {
                     version();
-                    return false;
+                    exit = true;
+                    return true;
                 } else if (matches(argv[i], "--invert")) {
                     if (invert) {
                         log::error("option '{}' specified twice", argv[i]);
@@ -128,6 +131,8 @@ int main(int argc, char** argv) {
     ProgramOptions opts;
     if (!opts.parse(argc, argv))
         return EXIT_FAILURE;
+    if (opts.exit)
+        return EXIT_SUCCESS;
 
     if (opts.files.empty()) {
         log::error("no input files");

@@ -7,9 +7,8 @@
 #include <cassert>
 #include <limits>
 
-#include <utf8.h>
-
 #include "loc.h"
+#include "lexer.h"
 
 namespace artic {
 
@@ -29,8 +28,8 @@ struct LocatorInfo {
     const char* at(size_t row, size_t col = std::numeric_limits<size_t>::max()) const {
         const char* line = data.c_str() + lines[row - 1];
         const char* end  = data.c_str() + lines[row] - 1;
-        for (size_t i = 0; i < col - 1 && line != end; ++i)
-            utf8::unchecked::next(line);
+        for (size_t i = 0; i < col - 1 && line < end; ++i)
+            line = eat(line);
         return line;
     }
 
@@ -39,7 +38,7 @@ struct LocatorInfo {
         const char* end  = data.c_str() + lines[row] - 1;
         size_t size = 0;
         for (; line != end; ++size)
-            utf8::unchecked::next(line);
+            line = eat(line);
         return size;
     }
 
@@ -48,9 +47,22 @@ struct LocatorInfo {
     }
 
 private:
+    const char* eat(const char* line) const {
+        if (!utf8::is_begin(*line))
+            return line + 1;
+        size_t n = utf8::count_bytes(*line);
+        if (n < utf8::min_bytes() || n > utf8::max_bytes())
+            return line + 1;
+        for (size_t j = 1; j < n; ++j) {
+            if (!utf8::is_valid(line[j]))
+                return line + 1;
+        }
+        return line + n;
+    }
+
     void setup() {
         size_t i = 0;
-        if (data.size() >= 3 && utf8::starts_with_bom(data.c_str(), data.c_str() + 3))
+        if (data.size() >= 3 && utf8::is_bom(reinterpret_cast<const uint8_t*>(data.c_str())))
             i += 3;
         lines.push_back(i);
         for (; i < data.size(); ++i) {

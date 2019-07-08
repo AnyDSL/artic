@@ -1,6 +1,5 @@
 #include <utility>
 #include <algorithm>
-#include <utf8.h>
 
 #include "lexer.h"
 
@@ -24,42 +23,15 @@ std::unordered_map<std::string, Token::Tag> Lexer::keywords{
     std::make_pair("impl",     Token::Impl)
 };
 
-bool Lexer::Utf8Buffer::fill(std::istream& is) {
-    if (count < 4) {
-        auto n = 4 - count;
-        is.read(buf + count, n);
-        size_t read = is.gcount();
-        count += read;
-        return read == size_t(n);
-    }
-    return true;
-}
-
-uint32_t Lexer::Utf8Buffer::decode() {
-    auto it = buf;
-    auto code = utf8::unchecked::next(it);
-    count = buf + count - it;
-    std::copy(it, it + count, buf);
-    return code;
-}
-
-inline std::string utf8_to_string(uint32_t code) {
-    char res[5] = {0, 0, 0, 0, 0};
-    utf8::unchecked::append(code, res);
-    return std::string(res);
-}
-
 Lexer::Lexer(const std::string& filename, std::istream& is, const Logger& log)
     : Logger(log)
     , stream_(is)
     , loc_(std::make_shared<std::string>(filename), 1, 0)
-    , eof_(false), code_(0)
 {
-    // Read UTF8 byte order mark
-    char bytes[3];
-    std::fill_n(bytes, 3, std::char_traits<char>::eof());
-    stream_.read(bytes, 3);
-    if (!utf8::starts_with_bom(bytes, bytes + 3)) {
+    // Read UTF-8 byte order mark (if any)
+    uint8_t bytes[] = { 0, 0, 0 };
+    stream_.read((char*)bytes, 3);
+    if (!utf8::is_bom(bytes)) {
         stream_.clear();
         stream_.seekg(0);
     }
@@ -171,28 +143,28 @@ Token Lexer::next() {
         if (accept('\'')) {
             if (!eof()) {
                 auto c = peek();
-                eat();
-                if (c & 0xFFFFFF80) {
-                    error(loc_, "UTF8 character '{}' does not fit in one byte", utf8_to_string(c));
-                    note("use a string (delimited by '\"'), instead of a character");
-                }
+                bool utf8 = cur_.size != 1;
+                append();
                 if (accept('\'')) {
+                    if (utf8) {
+                        error(loc_, "UTF-8 character '{}' does not fit in one byte", str_);
+                        note("use a string (delimited by '\"'), instead of a character");
+                    }
                     if (c == '\n')
                         error(loc_, "multiline character literals are not allowed");
                     return Token(loc_, str_, Literal(uint8_t(c)));
                 }
             }
-            error(loc_, "unterminated character literal");
-            return Token(loc_, Token::Error, str_);
+            error(loc_.begin() + 1, "unterminated character literal");
+            return Token(loc_);
         }
         if (accept('\"')) {
-            while (!eof() && peek() != '\"') accept();
+            while (!eof() && peek() != '\"') append();
             if (eof() || !accept('\"')) {
-                error(loc_, "unterminated string literal");
-                return Token(loc_, Token::Error, str_);
+                error(loc_.begin() + 1, "unterminated string literal");
+                return Token(loc_);
             }
-            assert(str_.size() >= 2);
-            return Token(loc_, str_, Literal(str_.substr(1, str_.size() - 2)));
+            return Token(loc_, str_, Literal(str_));
         }
 
         if (std::isdigit(peek()) || peek() == '.') {
@@ -201,8 +173,8 @@ Token Lexer::next() {
         }
 
         if (std::isalpha(peek()) || peek() == '_') {
-            accept();
-            while (std::isalnum(peek()) || peek() == '_') accept();
+            append();
+            while (std::isalnum(peek()) || peek() == '_') append();
 
             if (str_ == "true")  return Token(loc_, str_, true);
             if (str_ == "false") return Token(loc_, str_, false);
@@ -212,21 +184,43 @@ Token Lexer::next() {
             return Token(loc_, key_it->second);
         }
 
-        error(loc_, "unknown token '{}'", utf8_to_string(peek()));
-        eat();
+        append();
+        error(loc_, "unknown token '{}'", str_);
         return Token(loc_);
     }
 }
 
 void Lexer::eat() {
-    if (code_ == '\n') {
+    if (cur_.bytes[0] == '\n') {
         loc_.end_row++;
         loc_.end_col = 1;
     } else {
         loc_.end_col++;
     }
-    eof_  = !buf_.fill(stream_) && buf_.empty();
-    code_ = eof_ ? 0 : buf_.decode();
+
+    cur_.bytes[0] = stream_.get();
+    cur_.size = eof() ? 0 : 1;
+    if (cur_.size > 0 && utf8::is_begin(cur_.bytes[0])) {
+        bool ok = true;
+        cur_.size = utf8::count_bytes(cur_.bytes[0]);
+        if (eof() || cur_.size < utf8::min_bytes() || cur_.size > utf8::max_bytes()) {
+            ok = false;
+            cur_.size = 1;
+        }
+        size_t read = 0;
+        for (size_t i = 1; i < cur_.size; ++i, ++read) {
+            uint8_t c = stream_.get();
+            ok &= !eof() && utf8::is_valid(c);
+            if (!ok)
+                break;
+            cur_.bytes[i] = c;
+        }
+        if (!ok) {
+            cur_.size = 1;
+            stream_.seekg(-std::streamoff(read), std::istream::cur); // Rollback read chars.
+            error(Loc(loc_.file, loc_.end_row, loc_.end_col, loc_.end_row, loc_.end_col + 1), "invalid UTF-8 character");
+        }
+    }
 }
 
 void Lexer::eat_spaces() {
@@ -252,7 +246,7 @@ Literal Lexer::parse_literal() {
         while (std::isdigit(peek()) ||
                (base == 16 && peek() >= 'a' && peek() <= 'f') ||
                (base == 16 && peek() >= 'A' && peek() <= 'F')) {
-            accept();
+            append();
         }
     };
 
@@ -294,23 +288,19 @@ Literal Lexer::parse_literal() {
     return Literal(uint64_t(strtoull(digit_ptr, nullptr, base)));
 }
 
-void Lexer::accept() {
-    str_ += utf8_to_string(peek());
+void Lexer::append() {
+    for (size_t i = 0; i < cur_.size; ++i)
+        str_ += cur_.bytes[i];
     eat();
 }
 
-bool Lexer::accept(uint32_t c) {
+bool Lexer::accept(uint8_t c) {
     if (peek() == c) {
-        accept();
+        assert(cur_.size == 1);
+        eat();
         return true;
     }
     return false;
-}
-
-bool Lexer::accept(const std::string& str) {
-    auto it = str.begin();
-    while (it != str.end() && accept(*(it++))) ;
-    return it == str.end() && (eof() || !(peek() == '_' || std::isalnum(peek())));
 }
 
 } // namespace artic
