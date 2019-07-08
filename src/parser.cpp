@@ -3,8 +3,6 @@
 #include "parser.h"
 #include "print.h"
 
-using namespace artic::ast;
-
 namespace artic {
 
 Parser::Parser(Lexer& lexer, const Logger& log)
@@ -42,13 +40,13 @@ Ptr<ast::LetDecl> Parser::parse_let_decl() {
 
     auto ptrn = parse_ptrn();
     expect_binder("let declaration", ptrn);
-    Ptr<Expr> init;
+    Ptr<ast::Expr> init;
     if (ahead().tag() == Token::Eq) {
         eat(Token::Eq);
         init = std::move(parse_expr());
     }
     expect(Token::Semi);
-    return make_ptr<LetDecl>(tracker(), std::move(ptrn), std::move(init));
+    return make_ptr<ast::LetDecl>(tracker(), std::move(ptrn), std::move(init));
 }
 
 Ptr<ast::FnDecl> Parser::parse_fn_decl(bool only_types) {
@@ -60,11 +58,11 @@ Ptr<ast::FnDecl> Parser::parse_fn_decl(bool only_types) {
         filter = std::move(parse_filter());
 
     auto id = parse_id();
-    Ptr<TypeParamList> type_params;
+    Ptr<ast::TypeParamList> type_params;
     if (ahead().tag() == Token::LBracket)
         type_params = std::move(parse_type_params());
 
-    Ptr<Ptrn> param;
+    Ptr<ast::Ptrn> param;
     if (ahead().tag() == Token::LParen) {
         param = std::move(parse_tuple_ptrn(only_types));
         expect_binder("function parameter", param);
@@ -78,7 +76,7 @@ Ptr<ast::FnDecl> Parser::parse_fn_decl(bool only_types) {
         ret_type = std::move(parse_type());
     }
 
-    Ptr<Expr> body;
+    Ptr<ast::Expr> body;
     if (!only_types && ahead().tag() == Token::LBrace)
         body = std::move(parse_block_expr());
 
@@ -235,7 +233,7 @@ Ptr<ast::Ptrn> Parser::parse_typed_ptrn(Ptr<ast::Ptrn>&& ptrn) {
     return std::move(ptrn);
 }
 
-Ptr<ast::IdPtrn> Parser::parse_id_ptrn(Identifier&& id, bool mut) {
+Ptr<ast::IdPtrn> Parser::parse_id_ptrn(ast::Identifier&& id, bool mut) {
     Tracker tracker(this, id.loc);
     auto decl = make_ptr<ast::PtrnDecl>(tracker(), std::move(id), mut);
     return make_ptr<ast::IdPtrn>(tracker(), std::move(decl));
@@ -249,7 +247,7 @@ Ptr<ast::LiteralPtrn> Parser::parse_literal_ptrn() {
 
 Ptr<ast::FieldPtrn> Parser::parse_field_ptrn() {
     Tracker tracker(this);
-    Identifier id;
+    ast::Identifier id;
     Ptr<ast::Ptrn> ptrn;
     if (ahead().tag() == Token::Dots) {
         id.name = "...";
@@ -263,9 +261,9 @@ Ptr<ast::FieldPtrn> Parser::parse_field_ptrn() {
     return make_ptr<ast::FieldPtrn>(tracker(), std::move(id), std::move(ptrn));
 }
 
-Ptr<ast::StructPtrn> Parser::parse_struct_ptrn(Identifier&& id) {
+Ptr<ast::StructPtrn> Parser::parse_struct_ptrn(ast::Identifier&& id) {
     Tracker tracker(this, id.loc);
-    Path path = parse_path(std::move(id), true);
+    ast::Path path = parse_path(std::move(id), true);
 
     expect(Token::LBrace);
     PtrVector<ast::FieldPtrn> fields;
@@ -284,7 +282,7 @@ Ptr<ast::StructPtrn> Parser::parse_struct_ptrn(Identifier&& id) {
 Ptr<ast::Ptrn> Parser::parse_tuple_ptrn(bool only_types) {
     Tracker tracker(this);
     eat(Token::LParen);
-    PtrVector<Ptrn> args;
+    PtrVector<ast::Ptrn> args;
     parse_list(Token::RParen, Token::Comma, [&] {
         args.emplace_back(parse_ptrn(only_types));
     });
@@ -332,10 +330,10 @@ Ptr<ast::ExprStmt> Parser::parse_expr_stmt() {
 
 Ptr<ast::Expr> Parser::parse_expr() {
     auto expr = parse_primary_expr();
-    return parse_binary_expr(std::move(expr), BinaryExpr::max_precedence());
+    return parse_binary_expr(std::move(expr), ast::BinaryExpr::max_precedence());
 }
 
-Ptr<ast::Expr> Parser::parse_typed_expr(Ptr<Expr>&& expr) {
+Ptr<ast::Expr> Parser::parse_typed_expr(Ptr<ast::Expr>&& expr) {
     if (ahead().tag() == Token::Colon) {
         Tracker tracker(this, expr->loc);
         eat(Token::Colon);
@@ -364,7 +362,7 @@ Ptr<ast::FieldExpr> Parser::parse_field_expr() {
     return make_ptr<ast::FieldExpr>(tracker(), std::move(id), std::move(expr));
 }
 
-Ptr<ast::StructExpr> Parser::parse_struct_expr(Ptr<Expr>&& expr) {
+Ptr<ast::StructExpr> Parser::parse_struct_expr(Ptr<ast::Expr>&& expr) {
     Tracker tracker(this);
     eat(Token::LBrace);
     PtrVector<ast::FieldExpr> fields;
@@ -470,7 +468,7 @@ Ptr<ast::FnExpr> Parser::parse_fn_expr(bool nested) {
         }
     } else {
         eat(Token::OrOr);
-        ptrn = std::move(make_ptr<ast::TuplePtrn>(tracker(), PtrVector<Ptrn>{}));
+        ptrn = std::move(make_ptr<ast::TuplePtrn>(tracker(), PtrVector<ast::Ptrn>{}));
     }
     expect_binder("anonymous function parameter", ptrn);
 
@@ -491,13 +489,13 @@ Ptr<ast::FnExpr> Parser::parse_fn_expr(bool nested) {
     return make_ptr<ast::FnExpr>(tracker(), std::move(filter), std::move(ptrn), std::move(ret_type), std::move(body));
 }
 
-Ptr<ast::CallExpr> Parser::parse_call_expr(Ptr<Expr>&& callee) {
+Ptr<ast::CallExpr> Parser::parse_call_expr(Ptr<ast::Expr>&& callee) {
     Tracker tracker(this, callee->loc);
     auto args = parse_tuple_expr();
     return make_ptr<ast::CallExpr>(tracker(), std::move(callee), std::move(args));
 }
 
-Ptr<ast::ProjExpr> Parser::parse_proj_expr(Ptr<Expr>&& expr) {
+Ptr<ast::ProjExpr> Parser::parse_proj_expr(Ptr<ast::Expr>&& expr) {
     Tracker tracker(this, expr->loc);
     eat(Token::Dot);
     auto id = parse_id();
@@ -552,7 +550,7 @@ Ptr<ast::WhileExpr> Parser::parse_while_expr() {
     Tracker tracker(this);
     eat(Token::While);
     auto cond = parse_expr();
-    Ptr<Expr> body;
+    Ptr<ast::Expr> body;
     if (ahead().tag() == Token::LBrace)
         body = std::move(parse_block_expr());
     else
@@ -569,7 +567,7 @@ Ptr<ast::ForExpr> Parser::parse_for_expr() {
     Ptr<ast::CallExpr> call(expr.release()->isa<ast::CallExpr>());
     if (!call)
         error(ahead().loc(), "invalid for loop expression");
-    Ptr<Expr> body;
+    Ptr<ast::Expr> body;
     if (ahead().tag() == Token::LBrace)
         body = std::move(parse_block_expr());
     else
@@ -788,7 +786,7 @@ Ptr<ast::ErrorType> Parser::parse_error_type() {
 Ptr<ast::Filter> Parser::parse_filter() {
     Tracker tracker(this);
     eat(Token::At);
-    Ptr<Expr> expr;
+    Ptr<ast::Expr> expr;
     if (ahead().tag() == Token::LParen) {
         eat(Token::LParen);
         expr = std::move(parse_expr());
@@ -825,7 +823,7 @@ ast::Identifier Parser::parse_id() {
     else
         error(ahead().loc(), "expected identifier, got '{}'", ahead().string());
     next();
-    return Identifier(tracker(), std::move(ident));
+    return ast::Identifier(tracker(), std::move(ident));
 }
 
 Literal Parser::parse_lit() {
@@ -839,7 +837,7 @@ Literal Parser::parse_lit() {
 }
 
 PtrVector<ast::NamedDecl> Parser::parse_trait_or_impl_body(bool impl) {
-    PtrVector<NamedDecl> decls;
+    PtrVector<ast::NamedDecl> decls;
     expect(Token::LBrace);
     parse_list(Token::RBrace, Token::Semi, [&] {
         if (ahead().tag() == Token::Fn)
