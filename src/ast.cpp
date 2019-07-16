@@ -250,13 +250,6 @@ size_t StructDecl::field_index(const std::string& name) const {
     return std::distance(fields.begin(), it);
 }
 
-void Program::concat(Ptr<Program>&& other) {
-    auto n = decls.size();
-    decls.resize(n + other->decls.size());
-    std::move(other->decls.begin(), other->decls.end(), decls.begin() + n);
-    other.reset();
-}
-
 // Refutable patterns --------------------------------------------------------------
 
 bool TypedPtrn::is_refutable() const {

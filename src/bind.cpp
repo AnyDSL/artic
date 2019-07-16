@@ -3,8 +3,8 @@
 
 namespace artic {
 
-bool NameBinder::run(const ast::Program& program) {
-    bind(program);
+bool NameBinder::run(const ast::ModDecl& mod) {
+    bind(mod);
     return error_count == 0;
 }
 
@@ -339,12 +339,19 @@ void ImplDecl::bind(NameBinder& binder) const {
     for (auto& decl : decls) binder.bind(*decl);
 }
 
-void ErrorDecl::bind(NameBinder&) const {}
+void ModDecl::bind_head(NameBinder& binder) const {
+    if (id.name != "")
+        binder.insert_symbol(*this);
+}
 
-void Program::bind(NameBinder& binder) const {
+void ModDecl::bind(NameBinder& binder) const {
+    binder.push_scope();
     for (auto& decl : decls) binder.bind_head(*decl);
     for (auto& decl : decls) binder.bind(*decl);
+    binder.pop_scope();
 }
+
+void ErrorDecl::bind(NameBinder&) const {}
 
 } // namespace ast
 

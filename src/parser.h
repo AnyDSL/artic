@@ -14,9 +14,9 @@ class Parser : public Logger {
 public:
     Parser(Lexer&, const Logger& log = Logger());
 
-    /// Parses a program read from Lexer object.
+    /// Parses a program read from the Lexer object.
     /// Errors are reported by the Logger.
-    Ptr<ast::Program>       parse_program();
+    Ptr<ast::ModDecl> parse();
 
 private:
     Ptr<ast::Decl>          parse_decl();
@@ -28,6 +28,7 @@ private:
     Ptr<ast::ImplDecl>      parse_impl_decl();
     Ptr<ast::TypeParam>     parse_type_param(size_t);
     Ptr<ast::TypeParamList> parse_type_params();
+    Ptr<ast::ModDecl>       parse_mod_decl();
     Ptr<ast::ErrorDecl>     parse_error_decl();
 
     Ptr<ast::Ptrn>          parse_ptrn(bool only_types = false);

@@ -416,14 +416,19 @@ void ImplDecl::print(Printer& p) const {
     p << '}';
 }
 
-void ErrorDecl::print(Printer& p) const {
-    p << log::error_style("<invalid declaration>");
-}
-
-void Program::print(Printer& p) const {
+void ModDecl::print(Printer& p) const {
+    bool anon = id.name == "";
+    if (!anon)
+        p << log::keyword_style("mod") << ' ' << id.name << " {" << p.indent() << p.endl();
     print_list(p, p.endl(), decls, [&] (auto& decl) {
         decl->print(p);
     });
+    if (!anon)
+        p << p.unindent() << p.endl() << "}";
+}
+
+void ErrorDecl::print(Printer& p) const {
+    p << log::error_style("<invalid declaration>");
 }
 
 void PrimType::print(Printer& p) const {

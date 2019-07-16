@@ -1,17 +1,8 @@
 #include <vector>
 #include <string>
-#include <cstring>
-#include <fstream>
-#include <iostream>
 
-#include "locator.h"
-#include "lexer.h"
-#include "parser.h"
 #include "log.h"
-#include "print.h"
-#include "bind.h"
-#include "check.h"
-#include "emit.h"
+#include "driver.h"
 
 using namespace artic;
 
@@ -59,7 +50,7 @@ struct ProgramOptions {
     bool check = false;
     bool strict = false;
     bool invert = false;
-    size_t opt_level = 0;
+    unsigned opt_level = 0;
 
     inline bool matches(const char* arg, const char* opt) {
         return !strcmp(arg, opt);
@@ -138,45 +129,13 @@ int main(int argc, char** argv) {
         log::error("no input files");
         return EXIT_FAILURE;
     }
-    auto exit_code = [&] (bool ok) {
-        return ok ^ opts.invert ? EXIT_SUCCESS : EXIT_FAILURE;
-    };
 
-    Locator locator;
-    Logger logger(log::err, log::log, log::out, &locator, opts.strict);
+    Driver driver(Driver::Options()
+        .strict(opts.strict)
+        .opt_level(opts.opt_level)
+    );
 
-    auto program = ast::Program(Loc(), PtrVector<ast::Decl>());
-    for (auto& file : opts.files) {
-        std::ifstream is(file);
-        if (!is) {
-            log::error("cannot open file '{}'", file);
-            return exit_code(false);
-        }
-        locator.register_file(file,
-            std::string(std::istreambuf_iterator<char>(is),
-                        std::istreambuf_iterator<char>()));
-        Lexer lexer(file, is, logger);
-        Parser parser(lexer, logger);
-        auto module = parser.parse_program();
-        if (lexer.error_count + parser.error_count != 0)
-            return exit_code(false);
-        program.concat(std::move(module));
-    }
-
-    NameBinder name_binder(logger);
-
-    thorin::World world(0);
-    TypeChecker type_checker(world, logger);
-
-    if (!name_binder.run(program))
-        return exit_code(false);
-    if (!type_checker.run(program))
-        return exit_code(false);
-    if (opts.check)
-        return exit_code(true);
-
-    auto module_name = "module";
-    Emitter emitter;
-    emitter.emit(module_name, opts.opt_level, program);
-    return exit_code(true);
+    bool status = driver.compile(opts.files);
+    log::err << driver.log();
+    return status ^ opts.invert ? EXIT_SUCCESS : EXIT_FAILURE;
 }

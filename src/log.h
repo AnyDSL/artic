@@ -192,6 +192,8 @@ struct Logger {
         , strict(strict)
     {}
 
+    virtual ~Logger() {}
+
     /// Report an error at the given location in a source file.
     template <typename... Args>
     void error(const Loc& loc, const char* fmt, const Args&... args) {

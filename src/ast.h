@@ -868,6 +868,21 @@ struct ImplDecl : public Decl {
     void print(Printer&) const override;
 };
 
+/// Module definition.
+struct ModDecl : public NamedDecl {
+    PtrVector<Decl> decls;
+
+    ModDecl(const Loc& loc, Identifier&& id, PtrVector<Decl>&& decls)
+        : NamedDecl(loc, std::move(id)), decls(std::move(decls))
+    {}
+
+    artic::Type infer(TypeChecker&) const override;
+    void bind_head(NameBinder&) const override;
+    void bind(NameBinder&) const override;
+    void print(Printer&) const override;
+};
+
+
 /// Incorrect declaration, coming from parsing.
 struct ErrorDecl : public Decl {
     ErrorDecl(const Loc& loc) : Decl(loc) {}
@@ -982,21 +997,6 @@ struct ErrorPtrn : public Ptrn {
 
     bool is_refutable() const override;
 
-    void bind(NameBinder&) const override;
-    void print(Printer&) const override;
-};
-
-/// Complete program.
-struct Program : public Node {
-    PtrVector<Decl> decls;
-
-    Program(const Loc& loc, PtrVector<Decl>&& decls)
-        : Node(loc), decls(std::move(decls))
-    {}
-
-    void concat(Ptr<Program>&& other);
-
-    artic::Type infer(TypeChecker&) const override;
     void bind(NameBinder&) const override;
     void print(Printer&) const override;
 };

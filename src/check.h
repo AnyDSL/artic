@@ -18,7 +18,7 @@ public:
 
     /// Performs type checking on a whole program.
     /// Returns true on success, otherwise false.
-    bool run(const ast::Program&);
+    bool run(const ast::ModDecl&);
 
     bool enter_decl(const ast::Decl* decl);
     void exit_decl(const ast::Decl* decl);

@@ -25,7 +25,7 @@ public:
 
     /// Performs name binding on a whole program.
     /// Returns true on success, otherwise false.
-    bool run(const ast::Program&);
+    bool run(const ast::ModDecl&);
 
     void bind_head(const ast::Decl&);
     void bind(const ast::Node&);

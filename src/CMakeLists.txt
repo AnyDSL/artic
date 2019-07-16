@@ -8,6 +8,8 @@ add_library(libartic
     cast.h
     check.cpp
     check.h
+    driver.cpp
+    driver.h
     #emit.cpp
     emit.h
     lexer.cpp

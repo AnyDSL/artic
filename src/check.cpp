@@ -6,8 +6,8 @@
 
 namespace artic {
 
-bool TypeChecker::run(const ast::Program& program) {
-    program.infer(*this);
+bool TypeChecker::run(const ast::ModDecl& module) {
+    module.infer(*this);
     return error_count == 0;
 }
 
@@ -483,6 +483,13 @@ artic::Type FnDecl::check(TypeChecker& checker, artic::Type expected) const {
     return infer(checker);
 }
 
+artic::Type ModDecl::infer(TypeChecker& checker) const {
+    for (auto& decl : decls)
+        checker.infer(*decl);
+    // TODO: Return proper type for the module
+    return artic::Type();
+}
+
 // Patterns ------------------------------------------------------------------------
 
 artic::Type TypedPtrn::infer(TypeChecker& checker) const {
@@ -513,13 +520,6 @@ artic::Type TuplePtrn::infer(TypeChecker& checker) const {
 
 artic::Type TuplePtrn::check(TypeChecker& checker, artic::Type expected) const {
     return checker.check_tuple(loc, "tuple pattern", args, expected);
-}
-
-artic::Type Program::infer(TypeChecker& checker) const {
-    for (auto& decl : decls)
-        checker.infer(*decl);
-    // TODO: Return proper type for the module
-    return artic::Type();
 }
 
 } // namespace ast

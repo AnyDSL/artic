@@ -12,13 +12,12 @@ Parser::Parser(Lexer& lexer, const Logger& log)
         next();
 }
 
-Ptr<ast::Program> Parser::parse_program() {
+Ptr<ast::ModDecl> Parser::parse() {
     Tracker tracker(this);
     PtrVector<ast::Decl> decls;
-    while (ahead().tag() != Token::End) {
+    while (ahead().tag() != Token::End)
         decls.emplace_back(parse_decl());
-    }
-    return make_ptr<ast::Program>(tracker(), std::move(decls));
+    return make_ptr<ast::ModDecl>(tracker(), ast::Identifier(), std::move(decls));
 }
 
 // Declarations --------------------------------------------------------------------
@@ -30,6 +29,7 @@ Ptr<ast::Decl> Parser::parse_decl() {
         case Token::Struct: return parse_struct_decl();
         case Token::Trait:  return parse_trait_decl();
         case Token::Impl:   return parse_impl_decl();
+        case Token::Mod:    return parse_mod_decl();
         default:            return parse_error_decl();
     }
 }
@@ -166,6 +166,20 @@ Ptr<ast::TypeParamList> Parser::parse_type_params() {
         type_params.emplace_back(parse_type_param(index++));
     });
     return make_ptr<ast::TypeParamList>(tracker(), std::move(type_params));
+}
+
+Ptr<ast::ModDecl> Parser::parse_mod_decl() {
+    Tracker tracker(this);
+    eat(Token::Mod);
+    auto id = parse_id();
+    PtrVector<ast::Decl> decls;
+    expect(Token::LBrace);
+    while (ahead().tag() != Token::End &&
+           ahead().tag() != Token::RBrace) {
+        decls.emplace_back(parse_decl());
+    }
+    expect(Token::RBrace);
+    return make_ptr<ast::ModDecl>(tracker(), std::move(id), std::move(decls));
 }
 
 Ptr<ast::ErrorDecl> Parser::parse_error_decl() {
