@@ -94,7 +94,7 @@ fn sort_data_on_gpu[dev: device](data: &mut [Data] for dev, len: i32) -> () {
     // Is 'data' on the GPU? No idea.
     // Will just alloc a copy and work on it.
     if dev != nvvm {
-        let data_gpu = alloc_gpu[nvvm, Data](i32);
+        let data_gpu = alloc_gpu[nvvm, Data](len);
         copy(data, data_gpu); // copy host->device
         with work_item in nvvm(/* ... */) {
             sort_data(data_gpu, len);
@@ -117,7 +117,7 @@ Module 2:
 fn sort_data_on_gpu[dev: device](data: &mut [Data] for dev, len: i32) -> () {
     let mut data_on_nvvm = data; // types as &mut [Data] for dev
     if dev != nvvm {
-        let data_gpu = alloc_gpu[nvvm, Data](i32); // types as &mut [Data] for nvvm
+        let data_gpu = alloc_gpu[nvvm, Data](len); // types as &mut [Data] for nvvm
         copy(data, data_gpu); // copy host->device
         // This assignment would fail
         // data_on_nvvm_or_not = data_gpu;
@@ -160,7 +160,7 @@ In practice, this means that:
 
 With this approach, the following code will work out the box and have the expected behaviour.
 
-```
+```rust
 fn main() -> () {
     let mut a = 5;
     with work_item in nvvm(grid, block) {
@@ -177,8 +177,8 @@ To improve performance, _escape analysis_ should be run on mutable variables to 
 
 ```rust
 fn main(n: i32) -> () {
-    // allocate two buffers
-    let bufs = [alloc[i32](n), alloc[i32](n)];
+    // allocate two arrays
+    let bufs = [array[i32](n), array[i32](n)];
     for j in range(0, 10) {
         // choose buffers depending on iteration
         let buf1 = bufs[j & 1];
@@ -197,8 +197,8 @@ fn main(n: i32) -> () {
 import gc;
 
 fn main(n: i32) -> () {
-    let buf1 = alloc[i32](n);
-    let buf2 = alloc[i32](n);
+    let buf1 = array[i32](n);
+    let buf2 = array[i32](n);
     gc::collect(); // manual GC collection, frees buf1 as it is not used anymore, but not buf2
     for i in range(0, n) {
         buf2(i) = i;
@@ -233,6 +233,24 @@ f(&s)   // allowed
 let mut array = [1, 2, 3, 4];
 f(&array(5)) // rejected, cannot take the address of an element
 f(&array)    // allowed
+```
+
+We should define 2 functions for allocation:
+
+```rust
+fn alloc[T]() -> &mut T;
+fn array[T](u64) -> [T];
+```
+
+Slices should be a built-in type, so that the compiler can automatically partially transfer arrays (instead of using `gc::mark_as_dirty` manually):
+
+```rust
+let r : slice[i32] = array[i32](n).slice(0, n / 2);
+// Here, the compiler knows that this is a slice so the array is only partially transfered
+with work_item in nvvm(/* ... */) {
+    let id = work_item.gidx();
+    r(id) = id;
+}
 ```
 
 ## Polymorphism
