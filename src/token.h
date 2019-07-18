@@ -28,6 +28,7 @@ namespace artic {
     f(Struct, "struct") \
     f(Trait, "trait") \
     f(Impl, "impl") \
+    f(Mod, "mod") \
     f(LParen, "(") \
     f(RParen, ")") \
     f(LBrace, "{") \
@@ -49,7 +50,7 @@ namespace artic {
     f(SubEq, "-=") \
     f(MulEq, "*=") \
     f(DivEq, "/=") \
-    f(ModEq, "%=") \
+    f(RemEq, "%=") \
     f(LShftEq, "<<=") \
     f(RShftEq, ">>=") \
     f(AndEq, "&=") \
@@ -59,7 +60,7 @@ namespace artic {
     f(Sub, "-") \
     f(Mul, "*") \
     f(Div, "/") \
-    f(Mod, "%") \
+    f(Rem, "%") \
     f(LShft, "<<") \
     f(RShft, ">>") \
     f(And, "&") \

@@ -11,9 +11,9 @@ namespace artic {
 
 class Emitter {
 public:
-    void emit(const std::string&, size_t /*opt_level*/, const ast::Program& program) {
+    void emit(const std::string&, size_t /*opt_level*/, const ast::ModDecl& module) {
         Printer printer(log::out);
-        program.print(printer);
+        module.print(printer);
         log::out << '\n';
     }
 };

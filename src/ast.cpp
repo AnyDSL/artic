@@ -97,7 +97,7 @@ bool BinaryExpr::has_eq(Tag tag) {
         case SubEq:
         case MulEq:
         case DivEq:
-        case ModEq:
+        case RemEq:
         case AndEq:
         case OrEq:
         case XorEq:
@@ -125,7 +125,7 @@ int BinaryExpr::precedence(Tag tag) {
     switch (tag) {
         case Mul:
         case Div:
-        case Mod:
+        case Rem:
             return 1;
         case Add:
         case Sub:
@@ -150,7 +150,7 @@ int BinaryExpr::precedence(Tag tag) {
         case SubEq:
         case MulEq:
         case DivEq:
-        case ModEq:
+        case RemEq:
         case AndEq:
         case OrEq:
         case XorEq:
@@ -172,7 +172,7 @@ std::string BinaryExpr::tag_to_string(Tag tag) {
         case SubEq: return "-=";
         case MulEq: return "*=";
         case DivEq: return "/=";
-        case ModEq: return "%=";
+        case RemEq: return "%=";
         case AndEq: return "&=";
         case OrEq:  return "|=";
         case XorEq: return "^=";
@@ -183,7 +183,7 @@ std::string BinaryExpr::tag_to_string(Tag tag) {
         case Sub: return "-";
         case Mul: return "*";
         case Div: return "/";
-        case Mod: return "%";
+        case Rem: return "%";
         case And: return "&";
         case Or:  return "|";
         case Xor: return "^";
@@ -212,7 +212,7 @@ BinaryExpr::Tag BinaryExpr::tag_from_token(const Token& token) {
         case Token::SubEq: return SubEq;
         case Token::MulEq: return MulEq;
         case Token::DivEq: return DivEq;
-        case Token::ModEq: return ModEq;
+        case Token::RemEq: return RemEq;
         case Token::AndEq: return AndEq;
         case Token::OrEq: return OrEq;
         case Token::XorEq: return XorEq;
@@ -223,7 +223,7 @@ BinaryExpr::Tag BinaryExpr::tag_from_token(const Token& token) {
         case Token::Sub: return Sub;
         case Token::Mul: return Mul;
         case Token::Div: return Div;
-        case Token::Mod: return Mod;
+        case Token::Rem: return Rem;
         case Token::And: return And;
         case Token::Or: return Or;
         case Token::Xor: return Xor;

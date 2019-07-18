@@ -20,7 +20,8 @@ std::unordered_map<std::string, Token::Tag> Lexer::keywords{
     std::make_pair("return",   Token::Return),
     std::make_pair("struct",   Token::Struct),
     std::make_pair("trait",    Token::Trait),
-    std::make_pair("impl",     Token::Impl)
+    std::make_pair("impl",     Token::Impl),
+    std::make_pair("mod",      Token::Mod)
 };
 
 Lexer::Lexer(const std::string& filename, std::istream& is, const Logger& log)
@@ -115,8 +116,8 @@ Token Lexer::next() {
             return Token(loc_, Token::Div);
         }
         if (accept('%')) {
-            if (accept('=')) return Token(loc_, Token::ModEq);
-            return Token(loc_, Token::Mod);
+            if (accept('=')) return Token(loc_, Token::RemEq);
+            return Token(loc_, Token::Rem);
         }
         if (accept('&')) {
             if (accept('&')) return Token(loc_, Token::AndAnd);

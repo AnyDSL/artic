@@ -644,10 +644,10 @@ struct UnaryExpr : public Expr {
 /// Binary expression (addition, logical operations, ...).
 struct BinaryExpr : public Expr {
     enum Tag {
-        Eq, AddEq, SubEq, MulEq, DivEq, ModEq,
+        Eq, AddEq, SubEq, MulEq, DivEq, RemEq,
         LShftEq, RShftEq,
         AndEq, OrEq, XorEq,
-        Add, Sub, Mul, Div, Mod,
+        Add, Sub, Mul, Div, Rem,
         LShft, RShft,
         And, Or, Xor,
         AndAnd, OrOr,
@@ -871,6 +871,10 @@ struct ImplDecl : public Decl {
 /// Module definition.
 struct ModDecl : public NamedDecl {
     PtrVector<Decl> decls;
+
+    explicit ModDecl()
+        : NamedDecl(Loc(), Identifier())
+    {}
 
     ModDecl(const Loc& loc, Identifier&& id, PtrVector<Decl>&& decls)
         : NamedDecl(loc, std::move(id)), decls(std::move(decls))

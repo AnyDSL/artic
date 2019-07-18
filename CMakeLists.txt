@@ -15,9 +15,6 @@ if (CMAKE_BUILD_TYPE STREQUAL "Debug")
     append_coverage_compiler_flags()
 endif()
 
-include_directories(contrib/half/include)
-include_directories(contrib/utf8-cpp/source)
-
 set(COLOR_TTY_AVAILABLE TRUE)
 if (WIN32)
     # By default, Windows console does not support ANSI escape codes
