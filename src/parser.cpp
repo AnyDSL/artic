@@ -822,7 +822,7 @@ ast::Path Parser::parse_path(ast::Identifier&& id, bool allow_types) {
     PtrVector<ast::Type> args;
     if (allow_types && ahead().tag() == Token::LBracket) {
         eat(Token::LBracket);
-        parse_list(Token::CmpGT, Token::Comma, [&] {
+        parse_list(Token::RBracket, Token::Comma, [&] {
             args.emplace_back(parse_type());
         });
     }
