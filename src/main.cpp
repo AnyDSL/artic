@@ -147,14 +147,19 @@ struct MemBuf : public std::streambuf {
     }
 };
 
-std::optional<std::string> read_file(const std::string& file) {
+static std::optional<std::string> read_file(const std::string& file) {
     std::ifstream is(file);
     if (!is)
         return std::nullopt;
-    return std::make_optional(std::string(
-        std::istreambuf_iterator<char>(is),
-        std::istreambuf_iterator<char>()
-    ));
+    // Try/catch needed in case file is a directory (throws exception upon read)
+    try {
+        return std::make_optional(std::string(
+            std::istreambuf_iterator<char>(is),
+            std::istreambuf_iterator<char>()
+        ));
+    } catch (...) {
+        return std::nullopt;
+    }
 }
 
 int main(int argc, char** argv) {
