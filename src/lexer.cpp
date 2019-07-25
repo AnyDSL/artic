@@ -148,7 +148,7 @@ Token Lexer::next() {
                 append();
                 if (accept('\'')) {
                     if (utf8) {
-                        error(loc_, "UTF-8 character '{}' does not fit in one byte", str_);
+                        error(loc_, "UTF-8 character {} does not fit in one byte", str_);
                         note("use a string (delimited by '\"'), instead of a character");
                     }
                     if (c == '\n')
