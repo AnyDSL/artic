@@ -468,9 +468,11 @@ artic::Type LetDecl::infer(TypeChecker& checker) const {
 
 artic::Type FnDecl::infer(TypeChecker& checker) const {
     // TODO: Type params
+    if (fn->ret_type)
+        type = checker.fn_type(checker.infer(*fn->param), checker.infer(*fn->ret_type));
     if (!checker.enter_decl(this))
         return checker.error_type();
-    auto type = checker.infer(*fn);
+    type = checker.infer(*fn);
     checker.exit_decl(this);
     return type;
 }

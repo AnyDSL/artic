@@ -24,8 +24,6 @@ add_test(NAME invalid_literals    COMMAND artic --invert ${PROJECT_SOURCE_DIR}/t
 add_test(NAME invalid_similar     COMMAND artic --invert ${PROJECT_SOURCE_DIR}/test/invalid/similar.art)
 add_test(NAME invalid_string      COMMAND artic --invert ${PROJECT_SOURCE_DIR}/test/invalid/string.art)
 add_test(NAME invalid_bind        COMMAND artic --invert ${PROJECT_SOURCE_DIR}/test/invalid/bind.art)
-add_test(NAME invalid_return      COMMAND artic --invert ${PROJECT_SOURCE_DIR}/test/invalid/return.art)
-add_test(NAME invalid_rec         COMMAND artic --invert ${PROJECT_SOURCE_DIR}/test/invalid/rec.art)
 add_test(NAME invalid_unreachable COMMAND artic --invert ${PROJECT_SOURCE_DIR}/test/invalid/unreachable.art)
 add_test(NAME invalid_uninferable COMMAND artic --invert ${PROJECT_SOURCE_DIR}/test/invalid/uninferable.art)
 add_test(NAME invalid_noret       COMMAND artic --invert ${PROJECT_SOURCE_DIR}/test/invalid/noret.art)
