@@ -81,34 +81,66 @@ protected:
 
 log::Output& operator << (log::Output&, const Type&);
 
-using PrimTypeMatcher  = thorin::MatchAnd<thorin::IsType, thorin::MatchTag<thorin::Node_PrimType_bool, thorin::Node_PrimType_qf64>>;
+using PrimTypeMatcher  = thorin::MatchAnd<thorin::IsType,
+      thorin::MatchOr<
+        thorin::MatchTag<thorin::Tag::Bool>,
+        thorin::MatchTag<thorin::Tag::Sint>,
+        thorin::MatchTag<thorin::Tag::Uint>,
+        thorin::MatchTag<thorin::Tag::Real>>>;
 // Tuples are either sigmas or arrays of fixed size
 using TupleTypeMatcher = thorin::MatchAnd<thorin::IsType,
-      thorin::MatchOr<thorin::MatchTag<thorin::Node_Sigma>,
-                      thorin::MatchAnd<thorin::MatchTag<thorin::Node_Variadic>, thorin::MatchOp<0, thorin::IsLiteral>>>>;
-using ArrayTypeMatcher = thorin::MatchAnd<thorin::IsType, thorin::MatchTag<thorin::Node_Variadic>>;
-using PtrTypeMatcher   = thorin::MatchAnd<thorin::IsType, thorin::MatchTag<thorin::Node_PtrType>>;
-using FnTypeMatcher    = thorin::MatchAnd<thorin::IsType, thorin::MatchTag<thorin::Node_Pi>>;
-using NoRetTypeMatcher = thorin::MatchAnd<thorin::IsType, thorin::MatchTag<thorin::Node_Bot>>;
-using ErrorTypeMatcher = thorin::MatchAnd<thorin::IsType, thorin::MatchTag<thorin::Node_Top>>;
+      thorin::MatchOr<thorin::MatchTag<thorin::Tag::Sigma>,
+                      thorin::MatchAnd<thorin::MatchTag<thorin::Tag::Variadic>, thorin::MatchOp<0, thorin::IsLiteral>>>>;
+using ArrayTypeMatcher = thorin::MatchAnd<thorin::IsType, thorin::MatchTag<thorin::Tag::Variadic>>;
+using PtrTypeMatcher   = thorin::MatchAnd<thorin::IsType, thorin::MatchTag<thorin::Tag::Ptr>>;
+using FnTypeMatcher    = thorin::MatchAnd<thorin::IsType, thorin::MatchTag<thorin::Tag::Pi>>;
+using NoRetTypeMatcher = thorin::MatchAnd<thorin::IsType, thorin::MatchTag<thorin::Tag::Bot>>;
+using ErrorTypeMatcher = thorin::MatchAnd<thorin::IsType, thorin::MatchTag<thorin::Tag::Top>>;
 
 class PrimType : public Type, public PrimTypeMatcher {
 public:
     enum Tag {
-        Bool = thorin::Node_PrimType_bool,
-        I8   = thorin::Node_PrimType_qs8,
-        I16  = thorin::Node_PrimType_qs16,
-        I32  = thorin::Node_PrimType_qs32,
-        I64  = thorin::Node_PrimType_qs64,
-        U8   = thorin::Node_PrimType_qu8,
-        U16  = thorin::Node_PrimType_qu16,
-        U32  = thorin::Node_PrimType_qu32,
-        U64  = thorin::Node_PrimType_qu64,
-        F32  = thorin::Node_PrimType_qf32,
-        F64  = thorin::Node_PrimType_qf64,
+        Bool,
+        I8,
+        I16,
+        I32,
+        I64,
+        U8,
+        U16,
+        U32,
+        U64,
+        F32,
+        F64
     };
 
-    Tag tag() const { return static_cast<Tag>(def()->tag()); }
+    Tag tag() const {
+        if (auto sint = def()->isa<thorin::Sint>()) {
+            switch (sint->lit_num_bits()) {
+                case 8:  return I8;
+                case 16: return I16;
+                case 32: return I32;
+                case 64: return I64;
+                default:
+                    assert(false);
+                    return Bool;
+            }
+        } else if (auto uint = def()->isa<thorin::Uint>()) {
+            switch (uint->lit_num_bits()) {
+                case 8:  return U8;
+                case 16: return U16;
+                case 32: return U32;
+                case 64: return U64;
+                default:
+                    assert(false);
+                    return Bool;
+            }
+        } else if (auto real = def()->isa<thorin::Real>()) {
+            return real->lit_num_bits() == 32 ? F32 : F64;
+        } else {
+            assert(def()->isa<thorin::Bool>());
+            return Bool;
+        }
+    }
 
     bool operator <= (const Type& other) const { return other.def() == def(); }
     void print(Printer&) const;
@@ -117,11 +149,30 @@ private:
     friend class TypeTable;
     friend class Type;
 
+    const thorin::Def* def_from_tag(thorin::World& world, Tag tag) {
+        switch (tag) {
+            case Bool: return world.type_bool();
+            case I8:   return world.type_sint(8,  true);
+            case I16:  return world.type_sint(16, true);
+            case I32:  return world.type_sint(32, true);
+            case I64:  return world.type_sint(64, true);
+            case U8:   return world.type_uint(8,  true);
+            case U16:  return world.type_uint(16, true);
+            case U32:  return world.type_uint(32, true);
+            case U64:  return world.type_uint(64, true);
+            case F32:  return world.type_real(32, true);
+            case F64:  return world.type_real(64, true);
+            default:
+                assert(false);
+                return NULL;
+        }
+    }
+
     PrimType(const thorin::Def* def)
         : Type(def)
     {}
     PrimType(thorin::World& world, Tag tag)
-        : Type(static_cast<const thorin::Def*>(world.type(static_cast<thorin::PrimTypeTag>(tag))))
+        : Type(def_from_tag(world, tag))
     {}
 };
 
@@ -187,7 +238,7 @@ private:
 class PtrType : public Type, public PtrTypeMatcher {
 public:
     bool mut() const { return true; } // TODO
-    Type pointee() const { return Type(def()->as<thorin::PtrType>()->pointee()); }
+    Type pointee() const { return Type(def()->as<thorin::Ptr>()->pointee()); }
 
     bool operator <= (const Type& other) const {
         if (auto ptr_type = other.isa<PtrType>())
@@ -204,7 +255,7 @@ private:
         : Type(def)
     {}
     PtrType(thorin::World& world, Type pointee, bool)
-        : PtrType(world.ptr_type(pointee.def()))
+        : PtrType(world.type_ptr(pointee.def()))
     {}
 };
 
