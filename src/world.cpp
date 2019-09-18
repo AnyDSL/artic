@@ -4,59 +4,48 @@
 namespace artic {
 
 namespace log {
-    Output& operator << (Output& out, const Type& type) {
-        if (auto pi = type.isa<thorin::Pi>()) {
-            bool parens = pi->domain()->isa<thorin::Sigma>();
-            out << log::keyword_style("fn") << " ";
-            if (!parens) out << '(';
-            out << *pi->domain();
-            if (!parens) out << ')';
-            out << " -> " << *pi->codomain();
-        } else if (auto sigma = type.isa<thorin::Sigma>()) {
-            out << '(';
-            for (size_t i = 0, n = sigma->num_ops(); i < n; ++i) {
-                out << *sigma->op(i);
-                if (i != n - 1)
-                    out << ", ";
-            }
-            out << ')';
-        } else if (auto variadic = type.isa<thorin::Variadic>()) {
-            // 2 cases:
-            // - The size is known, in which case it's a tuple,
-            // - The size is unknown, in which case it's an array
-            if (auto arity = variadic->arity()->isa<thorin::Lit>()) {
-                out << '(';
-                for (size_t i = 0, n = arity->get<thorin::nat_t>(); i < n; ++i) {
-                    out << *variadic->body();
-                    if (i != n - 1)
-                        out << ", ";
-                }
-                out << ')';
-            } else {
-                out << '[' << *variadic->body() << ']';
-            }
-        } else if (type.isa<thorin::Bot>()) {
-           out << log::keyword_style("!"); 
-        } else if (type.isa<thorin::Top>()) {
-            out << log::error_style("invalid type");
-        } else {
-            auto app = type.as<thorin::App>();
-            auto [axiom, _] = thorin::get_axiom(app);
-            auto w = thorin::as_lit<thorin::nat_t>(app->arg());
-            assert(axiom);
-            switch (axiom->tag()) {
-                case thorin::Tag::Int:  out << log::keyword_style("bool"); break;
-                case Tag::SInt:         out << log::keyword_style("i" + std::to_string(w)); break;
-                case Tag::UInt:         out << log::keyword_style("u" + std::to_string(w)); break;
-                case thorin::Tag::Real: out << log::keyword_style("f" + std::to_string(w)); break;
-                default:
-                    assert(false);
-                    break;
-            }
+
+Output& operator << (Output& out, const Type& type) {
+    if (auto pi = type.isa<thorin::Pi>()) {
+        bool parens = pi->domain()->isa<thorin::Sigma>();
+        out << log::keyword_style("fn") << " ";
+        if (!parens) out << '(';
+        out << *pi->domain();
+        if (!parens) out << ')';
+        out << " -> " << *pi->codomain();
+    } else if (auto sigma = type.isa<thorin::Sigma>()) {
+        out << '(';
+        for (size_t i = 0, n = sigma->num_ops(); i < n; ++i) {
+            out << *sigma->op(i);
+            if (i != n - 1)
+                out << ", ";
         }
-        return out;
+        out << ')';
+    } else if (auto variadic = type.isa<thorin::Variadic>()) {
+        out << '[' << *variadic->body() << ']';
+    } else if (type.isa<thorin::Bot>()) {
+       out << log::keyword_style("!"); 
+    } else if (type.isa<thorin::Top>()) {
+        out << log::error_style("invalid type");
+    } else {
+        auto app = type.as<thorin::App>();
+        auto [axiom, _] = thorin::get_axiom(app);
+        auto w = thorin::as_lit<thorin::nat_t>(app->arg());
+        assert(axiom);
+        switch (axiom->tag()) {
+            case thorin::Tag::Int:  out << log::keyword_style("bool"); break;
+            case Tag::SInt:         out << log::keyword_style("i" + std::to_string(w)); break;
+            case Tag::UInt:         out << log::keyword_style("u" + std::to_string(w)); break;
+            case thorin::Tag::Real: out << log::keyword_style("f" + std::to_string(w)); break;
+            default:
+                assert(false);
+                break;
+        }
     }
+    return out;
 }
+
+} // namespace log
 
 inline bool is_axiom(const Type* type, thorin::tag_t tag) {
     auto [axiom, _] = thorin::get_axiom(type);
