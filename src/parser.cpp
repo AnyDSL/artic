@@ -466,9 +466,9 @@ Ptr<ast::FnExpr> Parser::parse_fn_expr(bool nested) {
     Ptr<ast::Ptrn> ptrn;
     bool parse_nested = false;
     if (ahead().tag() == Token::Or || nested) {
+        Tracker arg_tracker(this);
         if (!nested) eat(Token::Or);
 
-        Tracker arg_tracker(this);
         PtrVector<ast::Ptrn> args;
         parse_nested = parse_list(
             std::array<Token::Tag, 2>{ Token::Or, Token::OrOr },

@@ -2,7 +2,6 @@
 
 #include "print.h"
 #include "log.h"
-#include "type.h"
 #include "ast.h"
 
 namespace artic {
@@ -486,58 +485,5 @@ void Node::dump() const {
 }
 
 } // namespace ast
-
-// Types ---------------------------------------------------------------------------
-
-void PrimType::print(Printer& p) const {
-    p << log::keyword_style(ast::PrimType::tag_to_string(ast::PrimType::Tag(tag())));
-}
-
-void TupleType::print(Printer& p) const {
-    p << '(';
-    for (size_t i = 0; i < num_args(); ++i) {
-        arg(i).print(p);
-        if (i != num_args() - 1)
-            p << ", ";
-    }
-    p << ')';
-}
-
-void ArrayType::print(Printer& p) const {
-    p << '[';
-    elem().print(p);
-    p << ']';
-}
-
-void FnType::print(Printer& p) const {
-    p << log::keyword_style("fn");
-    auto dom = from();
-    print_parens(p, &dom);
-    p << " -> ";
-    to().print(p);
-}
-
-void PtrType::print(Printer& p) const {
-    p << '&';
-    if (mut())
-        p << log::keyword_style("mut") << ' ';
-    pointee().print(p);
-}
-
-void NoRetType::print(Printer& p) const {
-    p << log::keyword_style('!');
-}
-
-void ErrorType::print(Printer& p) const {
-    p << log::error_style("<invalid type>");
-}
-
-log::Output& operator << (log::Output& out, const Type& type) {
-    Printer p(out);
-    type.print(p);
-    return out;
-}
-
-void Type::dump() const { log::out << *this << '\n'; }
 
 } // namespace artic

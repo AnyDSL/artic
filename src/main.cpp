@@ -213,7 +213,7 @@ int main(int argc, char** argv) {
     }
 
     NameBinder name_binder(logger);
-    thorin::World world(0);
+    World world;
     TypeChecker type_checker(world, logger);
 
     if (!name_binder.run(program))

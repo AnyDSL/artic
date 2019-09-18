@@ -22,7 +22,8 @@ add_library(libartic
     print.h
     symbol.h
     token.h
-    type.h)
+    world.cpp
+    world.h)
 
 set_target_properties(libartic PROPERTIES PREFIX "" CXX_STANDARD 17)
 target_include_directories(libartic PUBLIC ${Thorin_INCLUDE_DIRS})

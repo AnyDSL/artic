@@ -2,7 +2,6 @@
 #define EMIT_H
 
 #include "ast.h"
-#include "type.h"
 #include "print.h"
 
 #include <string>
