@@ -427,7 +427,7 @@ const artic::Type* BinaryExpr::infer(TypeChecker& checker) const {
         checker.check_mut(*left);
         return checker.world().sigma();
     }
-    return right_type;
+    return has_cmp() ? checker.world().type_bool() : right_type;
 }
 
 // Declarations --------------------------------------------------------------------
