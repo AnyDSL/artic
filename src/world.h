@@ -39,11 +39,10 @@ public:
     const Type* type_error() { return top(kind_star()); }
     const Type* type_no_ret() { return bot(kind_star()); }
 
-    const Type* type_struct(const std::string& name, size_t num_vars, size_t num_fields) {
+    Type* type_struct(const std::string& name, size_t num_vars, size_t num_fields) {
         if (num_vars == 0)
             return axiom(nullptr, kind_star(), num_fields, Tag::StructType, 0, { name });
-        thorin::Array<const thorin::Def*> domains(num_vars);
-        std::fill(&domains[0], &domains[num_vars], kind_star());
+        thorin::Array<const thorin::Def*> domains(num_vars, kind_star());
         return axiom(nullptr, pi(tuple(domains), kind_star()), num_fields, Tag::StructType, 0, { name });
     }
 

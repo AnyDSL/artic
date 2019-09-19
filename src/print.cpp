@@ -32,14 +32,14 @@ namespace ast {
 void Path::print(Printer& p) const {
     print_list(p, "::", elems, [&] (auto& e) {
         p << e.id.name;
+        if (!e.args.empty()) {
+            p << '[';
+            print_list(p, ", ", e.args, [&] (auto& arg) {
+                arg->print(p);
+            });
+            p << ']';
+        }
     });
-    if (!args.empty()) {
-        p << '<';
-        print_list(p, ", ", args, [&] (auto& arg) {
-            arg->print(p);
-        });
-        p << '>';
-    }
 }
 
 void Filter::print(Printer& p) const {
@@ -314,11 +314,11 @@ void TypeParam::print(Printer& p) const {
 
 void TypeParamList::print(Printer& p) const {
     if (!params.empty()) {
-        p << '<';
+        p << '[';
         print_list(p, ", ", params, [&] (auto& param) {
             param->print(p);
         });
-        p << '>';
+        p << ']';
     }
 }
 

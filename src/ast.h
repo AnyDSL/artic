@@ -112,19 +112,18 @@ struct Ptrn : public Node {
 struct Path : public Node {
     struct Elem {
         Identifier id;
+        PtrVector<Type> args;
 
-        Elem() : Elem(Identifier()) {}
-        Elem(Identifier&& id)
-            : id(std::move(id))
+        Elem(Identifier&& id, PtrVector<Type>&& args)
+            : id(std::move(id)), args(std::move(args))
         {}
     };
     std::vector<Elem> elems;
-    PtrVector<Type> args;
 
     mutable std::shared_ptr<Symbol> symbol;
 
-    Path(const Loc& loc, std::vector<Elem>&& elems, PtrVector<Type>&& args)
-        : Node(loc), elems(std::move(elems)), args(std::move(args))
+    Path(const Loc& loc, std::vector<Elem>&& elems)
+        : Node(loc), elems(std::move(elems))
     {}
 
     const artic::Type* infer(TypeChecker&) const override;
@@ -240,6 +239,7 @@ struct TypeApp : public Type {
         : Type(loc), path(std::move(path))
     {}
 
+    const artic::Type* infer(TypeChecker&) const override;
     void bind(NameBinder&) const override;
     void print(Printer&) const override;
 };
@@ -727,6 +727,7 @@ struct TypeParam : public NamedDecl {
         : NamedDecl(loc, std::move(id)), index(index), bounds(std::move(bounds))
     {}
 
+    const artic::Type* check(TypeChecker&, const artic::Type*) const override;
     void bind(NameBinder&) const override;
     void print(Printer&) const override;
 };
@@ -739,6 +740,7 @@ struct TypeParamList : public Decl {
         : Decl(loc), params(std::move(params))
     {}
 
+    const artic::Type* check(TypeChecker&, const artic::Type*) const override;
     void bind(NameBinder&) const override;
     void print(Printer&) const override;
 };
@@ -804,6 +806,7 @@ struct FieldDecl : public NamedDecl {
         , type(std::move(type))
     {}
 
+    const artic::Type* infer(TypeChecker&) const override;
     void bind(NameBinder&) const override;
     void print(Printer&) const override;
 };
@@ -824,6 +827,7 @@ struct StructDecl : public NamedDecl {
 
     size_t field_index(const std::string&) const;
 
+    const artic::Type* infer(TypeChecker&) const override;
     void bind_head(NameBinder&) const override;
     void bind(NameBinder&) const override;
     void print(Printer&) const override;

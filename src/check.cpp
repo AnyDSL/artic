@@ -242,6 +242,10 @@ const artic::Type* PtrType::infer(TypeChecker& checker) const {
     return checker.world().type_ptr(checker.infer(*pointee));
 }
 
+const artic::Type* TypeApp::infer(TypeChecker& checker) const {
+    return checker.infer(path);
+}
+
 // Statements ----------------------------------------------------------------------
 
 const artic::Type* DeclStmt::infer(TypeChecker& checker) const {
@@ -428,6 +432,20 @@ const artic::Type* BinaryExpr::infer(TypeChecker& checker) const {
 
 // Declarations --------------------------------------------------------------------
 
+const artic::Type* TypeParam::check(TypeChecker&, const artic::Type* expected) const {
+    return expected;
+}
+
+const artic::Type* TypeParamList::check(TypeChecker& checker, const artic::Type* expected) const {
+    if (params.size() == 1)
+        checker.check(*params.back(), expected);
+    else {
+        for (size_t i = 0; i < params.size(); ++i)
+            checker.check(*params[i], checker.world().extract(expected, i));
+    }
+    return expected;
+}
+
 const artic::Type* PtrnDecl::check(TypeChecker&, const artic::Type* expected) const {
     return expected;
 }
@@ -457,6 +475,21 @@ const artic::Type* FnDecl::check(TypeChecker& checker, const artic::Type* expect
     (void)expected;
     assert(expected == checker.world().sigma());
     return infer(checker);
+}
+
+const artic::Type* FieldDecl::infer(TypeChecker& checker) const {
+    return checker.infer(*type);
+}
+
+const artic::Type* StructDecl::infer(TypeChecker& checker) const {
+    auto struct_type = checker.world().type_struct(id.name, type_params ? type_params->params.size() : 0, fields.size());
+    if (type_params)
+        checker.check(*type_params, struct_type->param());
+    // Set the type before entering the fields
+    type = struct_type;
+    for (size_t i = 0; i < fields.size(); ++i)
+        struct_type->set(i, checker.infer(*fields[i]));
+    return struct_type;
 }
 
 const artic::Type* ModDecl::infer(TypeChecker& checker) const {

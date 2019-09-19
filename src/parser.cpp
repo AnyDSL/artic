@@ -813,20 +813,22 @@ ast::Path Parser::parse_path(ast::Identifier&& id, bool allow_types) {
     Tracker tracker(this, id.loc);
     std::vector<ast::Path::Elem> elems;
 
-    elems.emplace_back(std::move(id));
-    while (ahead().tag() == Token::DblColon) {
+    do {
+        PtrVector<ast::Type> args;
+        if (allow_types && ahead().tag() == Token::LBracket) {
+            eat(Token::LBracket);
+            parse_list(Token::RBracket, Token::Comma, [&] {
+                args.emplace_back(parse_type());
+            });
+        }
+        elems.emplace_back(std::move(id), std::move(args));
+        if (ahead().tag() != Token::DblColon)
+            break;
         eat(Token::DblColon);
-        elems.emplace_back(parse_id());
-    }
+        id = std::move(parse_id());
+    } while (true) ;
 
-    PtrVector<ast::Type> args;
-    if (allow_types && ahead().tag() == Token::LBracket) {
-        eat(Token::LBracket);
-        parse_list(Token::RBracket, Token::Comma, [&] {
-            args.emplace_back(parse_type());
-        });
-    }
-    return ast::Path(tracker(), std::move(elems), std::move(args));
+    return ast::Path(tracker(), std::move(elems));
 }
 
 ast::Identifier Parser::parse_id() {

@@ -54,19 +54,25 @@ void NameBinder::insert_symbol(const ast::NamedDecl& decl) {
 namespace ast {
 
 void Path::bind(NameBinder& binder) const {
-    if (elems[0].id.name[0] == '_')
-        binder.error(elems[0].id.loc, "identifiers beginning with '_' cannot be referenced");
+    // Bind the first element of the path
+    auto& first = elems.front();
+    if (first.id.name[0] == '_')
+        binder.error(first.id.loc, "identifiers beginning with '_' cannot be referenced");
     else {
-        symbol = binder.find_symbol(elems[0].id.name);
+        symbol = binder.find_symbol(first.id.name);
         if (!symbol) {
-            binder.error(elems[0].id.loc, "unknown identifier '{}'", elems[0].id.name);
-            if (auto similar = binder.find_similar_symbol(elems[0].id.name)) {
+            binder.error(first.id.loc, "unknown identifier '{}'", first.id.name);
+            if (auto similar = binder.find_similar_symbol(first.id.name)) {
                 auto decl = similar->decls.front();
                 binder.note("possible suggestion is '{}'", decl->id.name);
             }
         }
     }
-    for (auto& arg : args) binder.bind(*arg);
+    // Bind the type arguments of each element
+    for (auto& elem : elems) {
+        for (auto& arg : elem.args)
+            binder.bind(*arg);
+    }
 }
 
 void Filter::bind(NameBinder& binder) const {

@@ -23,6 +23,14 @@ Output& operator << (Output& out, const Type& type) {
         out << ')';
     } else if (auto variadic = type.isa<thorin::Variadic>()) {
         out << '[' << *variadic->body() << ']';
+    } else if (auto axiom = type.isa<thorin::Axiom>()) {
+        if (axiom->tag() == Tag::StructType)
+            out << log::keyword_style("struct");
+        else if (axiom->tag() == Tag::EnumType)
+            out << log::keyword_style("enum");
+        else
+            assert(false);
+        out << ' ' << axiom->name();
     } else if (type.isa<thorin::Bot>()) {
        out << log::keyword_style("!"); 
     } else if (type.isa<thorin::Top>()) {
@@ -38,7 +46,16 @@ Output& operator << (Output& out, const Type& type) {
             case Tag::UInt:         out << log::keyword_style("u" + std::to_string(w)); break;
             case thorin::Tag::Real: out << log::keyword_style("f" + std::to_string(w)); break;
             default:
-                assert(false);
+                out << *axiom << '[';
+                if (auto tuple = app->arg()->isa<thorin::Tuple>()) {
+                    for (size_t i = 0, n = tuple->num_ops(); i < n; ++i) {
+                        out << tuple->op(i);
+                        if (i != n - 1)
+                            out << ", ";
+                    }
+                } else
+                    out << *app->arg();
+                out << ']';
                 break;
         }
     }
