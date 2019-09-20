@@ -288,7 +288,7 @@ Ptr<ast::StructPtrn> Parser::parse_struct_ptrn(ast::Identifier&& id) {
     // Make sure the ... sign appears only as the last field of the pattern
     auto etc = std::find_if(fields.begin(), fields.end(), [] (auto& field) { return field->is_etc(); });
     if (etc != fields.end() && etc != fields.end() - 1)
-        error(ahead().loc(), "'...' can only be used at the end of a structure pattern"); 
+        error((*etc)->loc, "'...' can only be used at the end of a structure pattern");
 
     return make_ptr<ast::StructPtrn>(tracker(), std::move(path), std::move(fields));
 }
