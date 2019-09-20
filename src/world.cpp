@@ -71,16 +71,11 @@ Output& operator << (Output& out, const Type& type) {
 
 } // namespace log
 
-inline bool is_axiom(const Type* type, thorin::tag_t tag) {
-    auto [axiom, _] = thorin::get_axiom(type);
-    return axiom && axiom->tag() == tag;
-}
-
 bool is_no_ret_type(const Type* type) { return type->isa<thorin::Bot>(); }
-bool is_bool_type(const Type* type) { return is_axiom(type, thorin::Tag::Int); }
-bool is_sint_type(const Type* type) { return is_axiom(type, Tag::SInt); } 
-bool is_uint_type(const Type* type) { return is_axiom(type, Tag::UInt); } 
-bool is_real_type(const Type* type) { return is_axiom(type, thorin::Tag::Real); } 
+bool is_bool_type(const Type* type) { return thorin::isa<thorin::Tag::Int >(type); }
+bool is_sint_type(const Type* type) { return thorin::isa<Tag::SInt        >(type); }
+bool is_uint_type(const Type* type) { return thorin::isa<Tag::UInt        >(type); }
+bool is_real_type(const Type* type) { return thorin::isa<thorin::Tag::Real>(type); }
 
 bool is_subtype(const Type* a, const Type* b) {
     if (a == b || a->isa<thorin::Bot>() || b->isa<thorin::Top>())
