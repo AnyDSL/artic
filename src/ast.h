@@ -348,23 +348,28 @@ struct FieldExpr : public Expr {
         , expr(std::move(expr))
     {}
 
+    const artic::Type* check(TypeChecker&, const artic::Type*) const override;
     void bind(NameBinder&) const override;
     void print(Printer&) const override;
 };
 
 /// Structure expression.
 struct StructExpr : public Expr {
+    Loc fields_loc;
     Ptr<Expr> expr;
     PtrVector<FieldExpr> fields;
 
     StructExpr(const Loc& loc,
+               const Loc& fields_loc,
                Ptr<Expr>&& expr,
                PtrVector<FieldExpr>&& fields)
         : Expr(loc)
+        , fields_loc(fields_loc)
         , expr(std::move(expr))
         , fields(std::move(fields))
     {}
 
+    const artic::Type* infer(TypeChecker&) const override;
     void bind(NameBinder&) const override;
     void print(Printer&) const override;
 };

@@ -377,13 +377,14 @@ Ptr<ast::FieldExpr> Parser::parse_field_expr() {
 }
 
 Ptr<ast::StructExpr> Parser::parse_struct_expr(Ptr<ast::Expr>&& expr) {
-    Tracker tracker(this);
+    Tracker tracker(this, expr->loc);
+    Tracker fields_tracker(this);
     eat(Token::LBrace);
     PtrVector<ast::FieldExpr> fields;
     parse_list(Token::RBrace, Token::Comma, [&] {
         fields.emplace_back(parse_field_expr());
     });
-    return make_ptr<ast::StructExpr>(tracker(), std::move(expr), std::move(fields));
+    return make_ptr<ast::StructExpr>(tracker(), fields_tracker(), std::move(expr), std::move(fields));
 }
 
 Ptr<ast::Expr> Parser::parse_tuple_expr() {
@@ -522,10 +523,19 @@ Ptr<ast::IfExpr> Parser::parse_if_expr() {
     auto cond = parse_expr();
 
     Ptr<ast::Expr> if_true;
-    if (ahead().tag() == Token::LBrace)
-        if_true = std::move(parse_block_expr());
-    else
-        if_true = std::move(parse_error_expr());
+
+    // Resolve the ambiguity: if x {} else {}
+    // where this is parsed as if (x {}) ...
+    if (cond->isa<ast::StructExpr>() && cond->as<ast::StructExpr>()->fields.empty()) {
+        auto struct_expr = cond->as<ast::StructExpr>();
+        if_true = std::move(make_ptr<ast::BlockExpr>(struct_expr->fields_loc, PtrVector<ast::Stmt>{}, false));
+        cond = std::move(struct_expr->expr);
+    } else {
+        if (ahead().tag() == Token::LBrace)
+            if_true = std::move(parse_block_expr());
+        else
+            if_true = std::move(parse_error_expr());
+    }
 
     Ptr<ast::Expr> if_false;
     if (ahead().tag() == Token::Else) {
@@ -628,8 +638,7 @@ Ptr<ast::Expr> Parser::parse_primary_expr() {
         case Token::Id:
             expr = std::move(parse_path_expr());
             if (ahead(0).tag() == Token::LBrace &&
-                ((ahead(1).tag() == Token::Id && ahead(2).tag() == Token::Colon) ||
-                 (ahead(1).tag() == Token::RBrace && ahead(2).tag() == Token::Dot)))
+                ((ahead(1).tag() == Token::Id && ahead(2).tag() == Token::Colon) || ahead(1).tag() == Token::RBrace))
                 expr = std::move(parse_struct_expr(std::move(expr)));
             break;
         case Token::At:

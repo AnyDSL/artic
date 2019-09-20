@@ -78,7 +78,7 @@ Output& operator << (Output& out, const Type& type) {
                 out << *axiom << '[';
                 if (auto tuple = app->arg()->isa<thorin::Tuple>()) {
                     for (size_t i = 0, n = tuple->num_ops(); i < n; ++i) {
-                        out << tuple->op(i);
+                        out << *tuple->op(i);
                         if (i != n - 1)
                             out << ", ";
                     }

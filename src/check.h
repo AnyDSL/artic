@@ -34,6 +34,8 @@ public:
     const Type* expect(const Loc&, const std::string&, const Type*, const Type*);
     const Type* expect(const Loc&, const std::string&, const Type*);
     const Type* expect(const Loc&, const Type*, const Type*);
+    const Type* struct_expected(const Loc&, const Type*);
+    const Type* unknown_field(const Loc&, const Type*, const std::string&);
     const Type* cannot_infer(const Loc&, const std::string&);
     const Type* unreachable_code(const Loc&, const Loc&, const Loc&);
 
@@ -47,6 +49,8 @@ public:
     const Type* check_tuple(const Loc&, const std::string&, const Args&, const Type*);
     template <typename Args>
     const Type* infer_tuple(const Args&);
+    template <typename Fields>
+    const Type* check_fields(const Loc&, const Type*, const Type*, const Fields&, bool, const std::string&);
     const Type* infer_call(const ast::CallExpr&);
 
     World& world() { return world_; }
