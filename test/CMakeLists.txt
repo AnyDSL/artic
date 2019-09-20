@@ -27,6 +27,7 @@ add_test(NAME invalid_bind        COMMAND artic --invert ${PROJECT_SOURCE_DIR}/t
 add_test(NAME invalid_unreachable COMMAND artic --invert ${PROJECT_SOURCE_DIR}/test/invalid/unreachable.art)
 add_test(NAME invalid_uninferable COMMAND artic --invert ${PROJECT_SOURCE_DIR}/test/invalid/uninferable.art)
 add_test(NAME invalid_noret       COMMAND artic --invert ${PROJECT_SOURCE_DIR}/test/invalid/noret.art)
+add_test(NAME invalid_structs     COMMAND artic --invert ${PROJECT_SOURCE_DIR}/test/invalid/structs.art)
 #add_test(NAME invalid_mut         COMMAND artic --invert ${PROJECT_SOURCE_DIR}/test/invalid/mut.art)
 
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
