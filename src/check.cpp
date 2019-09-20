@@ -202,7 +202,15 @@ const artic::Type* Node::infer(TypeChecker& checker) const {
 const artic::Type* Path::infer(TypeChecker& checker) const {
     if (!symbol || symbol->decls.empty())
         return checker.world().type_error();
-    return checker.infer(*symbol->decls.front());
+    auto& elem = elems.front();
+    auto type = checker.infer(*symbol->decls.front());
+    if (!elem.args.empty()) {
+        thorin::Array<const artic::Type*> type_args(elem.args.size());
+        for (size_t i = 0, n = type_args.size(); i < n; ++i)
+            type_args[i] = checker.infer(*elem.args[i]);
+        type = checker.world().app(type, checker.world().tuple(type_args));
+    }
+    return type;
 }
 
 // Types ---------------------------------------------------------------------------

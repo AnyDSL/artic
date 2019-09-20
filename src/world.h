@@ -43,7 +43,7 @@ public:
         if (num_vars == 0)
             return axiom(nullptr, kind_star(), num_fields, Tag::StructType, 0, { name });
         thorin::Array<const thorin::Def*> domains(num_vars, kind_star());
-        return axiom(nullptr, pi(tuple(domains), kind_star()), num_fields, Tag::StructType, 0, { name });
+        return axiom(nullptr, pi(sigma(domains), kind_star()), num_fields, Tag::StructType, 0, { name });
     }
 
     // TODO: Enums

@@ -38,13 +38,20 @@ Output& operator << (Output& out, const Type& type) {
     } else {
         auto app = type.as<thorin::App>();
         auto [axiom, _] = thorin::get_axiom(app);
-        auto w = thorin::as_lit<thorin::nat_t>(app->arg());
         assert(axiom);
         switch (axiom->tag()) {
-            case thorin::Tag::Int:  out << log::keyword_style("bool"); break;
-            case Tag::SInt:         out << log::keyword_style("i" + std::to_string(w)); break;
-            case Tag::UInt:         out << log::keyword_style("u" + std::to_string(w)); break;
-            case thorin::Tag::Real: out << log::keyword_style("f" + std::to_string(w)); break;
+            case thorin::Tag::Int:
+                out << log::keyword_style("bool");
+                break;
+            case Tag::SInt:
+            case Tag::UInt:
+            case thorin::Tag::Real:
+                {
+                    auto width = thorin::as_lit<thorin::nat_t>(app->arg());
+                    auto prefix = axiom->tag() == Tag::SInt ? "i" : axiom->tag() == Tag::UInt ? "u" : "f";
+                    out << log::keyword_style(prefix + std::to_string(width));
+                }
+                break;
             default:
                 out << *axiom << '[';
                 if (auto tuple = app->arg()->isa<thorin::Tuple>()) {
