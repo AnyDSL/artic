@@ -348,6 +348,8 @@ struct FieldExpr : public Expr {
         , expr(std::move(expr))
     {}
 
+    bool is_etc() const { return false; }
+
     const artic::Type* check(TypeChecker&, const artic::Type*) const override;
     void bind(NameBinder&) const override;
     void print(Printer&) const override;

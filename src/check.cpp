@@ -196,6 +196,8 @@ const Type* TypeChecker::check_fields(const Loc& loc, const Type* struct_type, c
     size_t num_fields = struct_type->meta()->type()->lit_arity();
     thorin::Array<bool> seen(num_fields, false);
     for (size_t i = 0; i < fields.size(); ++i) {
+        if (fields[i]->is_etc())
+            continue;
         auto index = find_member(struct_type, fields[i]->id.name);
         if (!index)
             return unknown_field(fields[i]->loc, struct_type, fields[i]->id.name);
