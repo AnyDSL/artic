@@ -11,7 +11,7 @@ bool TypeChecker::run(const ast::ModDecl& module) {
     return error_count == 0;
 }
 
-std::optional<size_t> TypeChecker::find_member(const Type* type, const std::string& member) {
+std::optional<size_t> TypeChecker::find_field(const Type* type, const std::string& member) {
     auto meta = type->meta();
     assert(meta);
     auto name = world().tuple_str(member);
@@ -196,9 +196,10 @@ const Type* TypeChecker::check_fields(const Loc& loc, const Type* struct_type, c
     size_t num_fields = struct_type->meta()->type()->lit_arity();
     thorin::Array<bool> seen(num_fields, false);
     for (size_t i = 0; i < fields.size(); ++i) {
+        // Skip the field if it is '...'
         if (fields[i]->is_etc())
             continue;
-        auto index = find_member(struct_type, fields[i]->id.name);
+        auto index = find_field(struct_type, fields[i]->id.name);
         if (!index)
             return unknown_field(fields[i]->loc, struct_type, fields[i]->id.name);
         if (seen[*index]) {
@@ -206,11 +207,13 @@ const Type* TypeChecker::check_fields(const Loc& loc, const Type* struct_type, c
             return world().type_error();
         }
         seen[*index] = true;
+        // Rewrite the field type if the structure has type arguments
         auto field_type = struct_type->op(*index);
         if (app)
             field_type = thorin::rewrite(field_type, struct_type->as_nominal()->param(), app->as<thorin::App>()->arg());
         check(*fields[i], field_type);
     }
+    // Check that all fields have been specified, unless '...' was used
     if (!etc && !std::all_of(seen.begin(), seen.end(), [] (bool b) { return b; })) {
         for (size_t i = 0; i < num_fields; ++i) {
             if (!seen[i])
@@ -440,7 +443,7 @@ const artic::Type* ProjExpr::infer(TypeChecker& checker) const {
     if (!is_struct_type(expr_type))
         return checker.struct_expected(loc, expr_type);
     auto struct_type = expr_type->as_nominal();
-    if (auto index = checker.find_member(struct_type, field.name)) {
+    if (auto index = checker.find_field(struct_type, field.name)) {
         if (!app)
             return struct_type->op(*index);
         return thorin::rewrite(struct_type->op(*index), struct_type->param(), app->arg());

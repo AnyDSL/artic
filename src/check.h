@@ -21,7 +21,7 @@ public:
     /// Returns true on success, otherwise false.
     bool run(const ast::ModDecl&);
 
-    std::optional<size_t> find_member(const Type*, const std::string&);
+    std::optional<size_t> find_field(const Type*, const std::string&);
 
     bool enter_decl(const ast::Decl*);
     void exit_decl(const ast::Decl*);
