@@ -14,7 +14,7 @@ namespace artic {
 class TypeChecker : public Logger {
 public:
     TypeChecker(World& world, const Logger& log = Logger())
-        : world_(world), Logger(log)
+        : Logger(log), world_(world)
     {}
 
     /// Performs type checking on a whole program.

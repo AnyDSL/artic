@@ -129,7 +129,7 @@ const Type* TypeChecker::infer_lit(const Loc&, const Literal& lit) {
     else if (lit.is_char())
         return world().type_uint(8);
     else if (lit.is_string())
-        return world().unsafe_variadic(world().type_uint(8));
+        return world().variadic_unsafe(world().type_uint(8));
     else {
         assert(false);
         return world().type_error();
@@ -152,7 +152,7 @@ const Type* TypeChecker::check_lit(const Loc& loc, const Literal& lit, const Typ
     } else if (lit.is_char()) {
         return expect(loc, "character literal", world().type_uint(8), expected);
     } else if (lit.is_string()) {
-        return expect(loc, "string literal", world().unsafe_variadic(world().type_uint(8)), expected);
+        return expect(loc, "string literal", world().variadic_unsafe(world().type_uint(8)), expected);
     } else {
         assert(false);
         return expected;
@@ -252,7 +252,7 @@ const artic::Type* TupleType::infer(TypeChecker& checker) const {
 }
 
 const artic::Type* ArrayType::infer(TypeChecker& checker) const {
-    return checker.world().unsafe_variadic(checker.infer(*elem));
+    return checker.world().variadic_unsafe(checker.infer(*elem));
 }
 
 const artic::Type* FnType::infer(TypeChecker& checker) const {
@@ -317,7 +317,7 @@ const artic::Type* ArrayExpr::infer(TypeChecker& checker) const {
     auto elem_type = checker.infer(*elems.front());
     for (size_t i = 1; i < elems.size(); ++i)
         checker.check(*elems[i], elem_type);
-    return checker.world().unsafe_variadic(elem_type);
+    return checker.world().variadic_unsafe(elem_type);
 }
 
 const artic::Type* ArrayExpr::check(TypeChecker& checker, const artic::Type* expected) const {
@@ -326,7 +326,7 @@ const artic::Type* ArrayExpr::check(TypeChecker& checker, const artic::Type* exp
     auto elem_type = expected->as<thorin::Variadic>()->body();
     for (auto& elem : elems)
         checker.check(*elem, elem_type);
-    return checker.world().unsafe_variadic(elem_type);
+    return checker.world().variadic_unsafe(elem_type);
 }
 
 const artic::Type* FnExpr::infer(TypeChecker& checker) const {
