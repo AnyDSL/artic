@@ -969,6 +969,7 @@ struct FieldPtrn : public Ptrn {
     bool is_refutable() const override;
     bool is_etc() const { return !ptrn; }
 
+    const artic::Type* check(TypeChecker&, const artic::Type*) const override;
     void bind(NameBinder&) const override;
     void print(Printer&) const override;
 };
@@ -985,6 +986,7 @@ struct StructPtrn : public Ptrn {
     bool is_refutable() const override;
     bool has_etc() const { return !fields.empty() && fields.back()->is_etc(); }
 
+    const artic::Type* infer(TypeChecker&) const override;
     void bind(NameBinder&) const override;
     void print(Printer&) const override;
 };

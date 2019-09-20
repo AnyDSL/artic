@@ -57,8 +57,7 @@ Output& operator << (Output& out, const Type& type) {
        out << log::keyword_style("!"); 
     } else if (type.isa<thorin::Top>()) {
         out << log::error_style("invalid type");
-    } else {
-        auto app = type.as<thorin::App>();
+    } else if (auto app = type.isa<thorin::App>()) {
         auto [axiom, _] = thorin::get_axiom(app);
         assert(axiom);
         switch (axiom->tag()) {
@@ -87,6 +86,8 @@ Output& operator << (Output& out, const Type& type) {
                 out << ']';
                 break;
         }
+    } else {
+        out << type.name();
     }
     return out;
 }

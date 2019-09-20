@@ -530,7 +530,7 @@ const artic::Type* TypeParamList::check(TypeChecker& checker, const artic::Type*
         checker.check(*params.back(), expected);
     else {
         for (size_t i = 0; i < params.size(); ++i)
-            checker.check(*params[i], checker.world().extract(expected, i));
+            checker.check(*params[i], checker.world().extract(expected, i, { params[i]->id.name }));
     }
     return expected;
 }
@@ -572,8 +572,10 @@ const artic::Type* FieldDecl::infer(TypeChecker& checker) const {
 
 const artic::Type* StructDecl::infer(TypeChecker& checker) const {
     auto struct_type = checker.world().type_struct(*this);
-    if (type_params)
-        checker.check(*type_params, struct_type->param());
+    if (type_params) {
+        thorin::Debug dbg { type_params->params.size() == 1 ? type_params->params[0]->id.name : "" };
+        checker.check(*type_params, struct_type->param(dbg));
+    }
     // Set the type before entering the fields
     type = struct_type;
     for (size_t i = 0; i < fields.size(); ++i)
@@ -610,6 +612,20 @@ const artic::Type* IdPtrn::infer(TypeChecker& checker) const {
 
 const artic::Type* IdPtrn::check(TypeChecker& checker, const artic::Type* expected) const {
     return checker.check(*decl, expected);
+}
+
+const artic::Type* FieldPtrn::check(TypeChecker& checker, const artic::Type* expected) const {
+    return checker.check(*ptrn, expected);
+}
+
+const artic::Type* StructPtrn::infer(TypeChecker& checker) const {
+    auto path_type = checker.infer(path);
+    auto app = path_type->isa<thorin::App>();
+    if (app)
+        path_type = std::get<0>(get_axiom(app));
+    if (!is_struct_type(path_type))
+        return checker.struct_expected(loc, path_type);
+    return checker.check_fields(loc, path_type->as_nominal(), app, fields, has_etc(), "pattern");
 }
 
 const artic::Type* TuplePtrn::infer(TypeChecker& checker) const {
