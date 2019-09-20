@@ -1,0 +1,21 @@
+let mut a : A;
+let mut b : B[i32];
+let mut c : C[i32, i64];
+struct A {
+    x: i32,
+    y: i64
+}
+struct B[T] {
+    x: T,
+    y: i64
+}
+struct C[T, U] {
+    x: T,
+    y: U
+}
+let _ : i32 = a.x;
+let _ : i64 = a.y;
+let _ : i32 = b.x;
+let _ : i64 = b.y;
+let _ : i32 = c.x;
+let _ : i64 = c.y;

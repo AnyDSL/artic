@@ -1,5 +1,7 @@
 #include <algorithm>
 
+#include <thorin/rewrite.h>
+
 #include "check.h"
 
 namespace artic {
@@ -7,6 +9,17 @@ namespace artic {
 bool TypeChecker::run(const ast::ModDecl& module) {
     module.infer(*this);
     return error_count == 0;
+}
+
+std::optional<size_t> TypeChecker::find_member(const Type* type, const std::string& member) {
+    auto meta = type->meta();
+    assert(meta);
+    auto name = world().tuple_str(member);
+    for (size_t i = 0, n = meta->type()->lit_arity(); i < n; ++i) {
+        if (name == meta->out(i))
+            return i;
+    }
+    return std::nullopt;
 }
 
 bool TypeChecker::enter_decl(const ast::Decl* decl) {
@@ -365,6 +378,26 @@ const artic::Type* CallExpr::infer(TypeChecker& checker) const {
     return checker.infer_call(*this);
 }
 
+const artic::Type* ProjExpr::infer(TypeChecker& checker) const {
+    auto expr_type = checker.infer(*expr);
+    auto app = expr_type->isa<thorin::App>();
+    if (app)
+        expr_type = std::get<0>(thorin::get_axiom(app));
+    if (!is_struct_type(expr_type)) {
+        checker.error(loc, "structure type expected, but got '{}'", *expr_type);
+        return checker.world().type_error();
+    }
+    auto struct_type = expr_type->as_nominal();
+    if (auto index = checker.find_member(struct_type, field.name)) {
+        if (!app)
+            return struct_type->op(*index);
+        return thorin::rewrite(struct_type->op(*index), struct_type->param(), app->arg());
+    } else {
+        checker.error(loc, "no field named '{}' in '{}'", field.name, *struct_type);
+        return checker.world().type_error();
+    }
+}
+
 const artic::Type* IfExpr::infer(TypeChecker& checker) const {
     checker.check(*cond, checker.world().type_bool());
     if (if_false)
@@ -490,7 +523,7 @@ const artic::Type* FieldDecl::infer(TypeChecker& checker) const {
 }
 
 const artic::Type* StructDecl::infer(TypeChecker& checker) const {
-    auto struct_type = checker.world().type_struct(id.name, type_params ? type_params->params.size() : 0, fields.size());
+    auto struct_type = checker.world().type_struct(*this);
     if (type_params)
         checker.check(*type_params, struct_type->param());
     // Set the type before entering the fields

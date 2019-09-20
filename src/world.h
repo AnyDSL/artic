@@ -11,6 +11,10 @@
 
 namespace artic {
 
+namespace ast {
+    struct StructDecl;
+}
+
 namespace Tag {
     enum : thorin::tag_t {
         SInt = thorin::Tag::Max,
@@ -39,14 +43,7 @@ public:
     const Type* type_error() { return top(kind_star()); }
     const Type* type_no_ret() { return bot(kind_star()); }
 
-    Type* type_struct(const std::string& name, size_t num_vars, size_t num_fields) {
-        if (num_vars == 0)
-            return axiom(nullptr, kind_star(), num_fields, Tag::StructType, 0, { name });
-        thorin::Array<const thorin::Def*> domains(num_vars, kind_star());
-        return axiom(nullptr, pi(sigma(domains), kind_star()), num_fields, Tag::StructType, 0, { name });
-    }
-
-    // TODO: Enums
+    Type* type_struct(const ast::StructDecl& decl);
 
 private:
     const thorin::Def* sint_;
@@ -59,6 +56,7 @@ namespace log {
 }
 
 bool is_no_ret_type(const Type*);
+bool is_struct_type(const Type*);
 bool is_bool_type(const Type*);
 bool is_sint_type(const Type*);
 bool is_uint_type(const Type*);

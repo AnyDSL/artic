@@ -470,6 +470,7 @@ struct ProjExpr : public Expr {
         , field(std::move(field))
     {}
 
+    const artic::Type* infer(TypeChecker&) const override;
     void bind(NameBinder&) const override;
     void print(Printer&) const override;
 };

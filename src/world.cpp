@@ -1,7 +1,29 @@
 #include "world.h"
 #include "log.h"
+#include "ast.h"
 
 namespace artic {
+
+Type* World::type_struct(const ast::StructDecl& decl) {
+    auto num_vars = decl.type_params ? decl.type_params->params.size() : 0;
+    auto num_fields = decl.fields.size();
+    thorin::Array<const thorin::Def*> field_names(num_fields, [&] (size_t i) {
+        return tuple_str(decl.fields[i]->id.name);
+    });
+    auto debug = thorin::Debug(
+        decl.id.name,
+        *decl.loc.file,
+        decl.loc.begin_row,
+        decl.loc.begin_col,
+        decl.loc.end_row,
+        decl.loc.end_col,
+        tuple(field_names)
+    );
+    if (num_vars == 0)
+        return axiom(nullptr, kind_star(), num_fields, Tag::StructType, 0, debug);
+    thorin::Array<const thorin::Def*> domains(num_vars, kind_star());
+    return axiom(nullptr, pi(sigma(domains), kind_star()), num_fields, Tag::StructType, 0, debug);
+}
 
 namespace log {
 
@@ -72,6 +94,7 @@ Output& operator << (Output& out, const Type& type) {
 } // namespace log
 
 bool is_no_ret_type(const Type* type) { return type->isa<thorin::Bot>(); }
+bool is_struct_type(const Type* type) { return type->isa<thorin::Axiom>() && type->as<thorin::Axiom>()->tag() == Tag::StructType; }
 bool is_bool_type(const Type* type) { return thorin::isa<thorin::Tag::Int >(type); }
 bool is_sint_type(const Type* type) { return thorin::isa<Tag::SInt        >(type); }
 bool is_uint_type(const Type* type) { return thorin::isa<Tag::UInt        >(type); }
