@@ -9,7 +9,7 @@ add_test(NAME valid_match    COMMAND artic ${PROJECT_SOURCE_DIR}/test/valid/matc
 add_test(NAME valid_if       COMMAND artic ${PROJECT_SOURCE_DIR}/test/valid/if.art)
 add_test(NAME valid_while    COMMAND artic ${PROJECT_SOURCE_DIR}/test/valid/while.art)
 add_test(NAME valid_for      COMMAND artic ${PROJECT_SOURCE_DIR}/test/valid/for.art)
-#add_test(NAME valid_struct   COMMAND artic ${PROJECT_SOURCE_DIR}/test/valid/struct.art)
+add_test(NAME valid_structs  COMMAND artic ${PROJECT_SOURCE_DIR}/test/valid/structs.art)
 #add_test(NAME valid_trait    COMMAND artic ${PROJECT_SOURCE_DIR}/test/valid/trait.art)
 add_test(NAME valid_types    COMMAND artic ${PROJECT_SOURCE_DIR}/test/valid/types.art)
 add_test(NAME valid_loops    COMMAND artic ${PROJECT_SOURCE_DIR}/test/valid/loops.art)

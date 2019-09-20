@@ -1,0 +1,17 @@
+struct B {
+    a: A,
+    b: i32
+}
+struct A {
+    c: C[i32],
+    d: D[i32, i64]
+}
+struct C[T] {
+    t: T,
+    u: i32
+}
+struct D[T, U] {
+    t: T,
+    u: U,
+    v: i32
+}
