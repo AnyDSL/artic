@@ -4,6 +4,15 @@
 
 namespace artic {
 
+Type* World::type_forall(const ast::FnDecl& decl) {
+    assert(decl.type_params);
+    auto num_vars = decl.type_params->params.size();
+    thorin::Array<const thorin::Def*> domains(num_vars, kind_star());
+    auto forall = pi(kind_star());
+    forall->set(0, sigma(domains));
+    return forall;
+}
+
 Type* World::type_struct(const ast::StructDecl& decl) {
     auto num_vars = decl.type_params ? decl.type_params->params.size() : 0;
     auto num_fields = decl.fields.size();

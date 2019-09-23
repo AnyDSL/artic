@@ -12,6 +12,7 @@
 namespace artic {
 
 namespace ast {
+    struct FnDecl;
     struct StructDecl;
 }
 
@@ -43,7 +44,8 @@ public:
     const Type* type_error() { return top(kind_star()); }
     const Type* type_no_ret() { return bot(kind_star()); }
 
-    Type* type_struct(const ast::StructDecl& decl);
+    Type* type_forall(const ast::FnDecl&);
+    Type* type_struct(const ast::StructDecl&);
 
 private:
     const thorin::Def* sint_;

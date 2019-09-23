@@ -238,7 +238,6 @@ const Type* TypeChecker::check_fields(const Loc& loc, const Type* struct_type, c
 const Type* TypeChecker::infer_call(const ast::CallExpr& call) {
     auto callee_type = infer(*call.callee);
     if (auto pi = callee_type->isa<thorin::Pi>()) {
-        // TODO: Polymorphic functions
         check(*call.arg, pi->domain());
         return pi->codomain();
     } else if (auto variadic = callee_type->isa<thorin::Variadic>()) {
@@ -276,7 +275,8 @@ const artic::Type* Path::infer(TypeChecker& checker) const {
     if (auto ptrn_decl = symbol->decls.front()->isa<PtrnDecl>())
         mut = ptrn_decl->mut;
     // Apply type arguments (if any)
-    if (type->type() != checker.world().kind_star()) {
+    if ((type->isa<thorin::Axiom>() && type->type() != checker.world().kind_star()) ||
+        type->isa_nominal<thorin::Pi>()) {
         if (!elem.args.empty()) {
             thorin::Array<const artic::Type*> type_args(elem.args.size());
             for (size_t i = 0, n = type_args.size(); i < n; ++i)
@@ -284,9 +284,11 @@ const artic::Type* Path::infer(TypeChecker& checker) const {
             type = checker.world().app(type, checker.world().tuple(type_args));
         } else {
             checker.error(loc, "missing type arguments");
+            return checker.world().type_error();
         }
     } else if (!elem.args.empty()) {
         checker.error(loc, "type arguments are not allowed here");
+        return checker.world().type_error();
     }
     return type;
 }
@@ -504,7 +506,7 @@ const artic::Type* MatchExpr::check(TypeChecker& checker, const artic::Type* exp
 
 const artic::Type* WhileExpr::infer(TypeChecker& checker) const {
     checker.check(*cond, checker.world().type_bool());
-    checker.check(*body, checker.world().sigma());
+    checker.infer(*body);
     return checker.world().sigma();
 }
 
@@ -534,6 +536,15 @@ const artic::Type* ReturnExpr::infer(TypeChecker& checker) const {
     if (fn)
         checker.note(fn->loc, "try annotating the return type of this function");
     return checker.world().type_error();
+}
+
+const artic::Type* UnaryExpr::infer(TypeChecker& checker) const {
+    auto arg_type = checker.infer(*arg);
+    if (is_inc() || is_dec()) {
+        checker.check_mut(*arg);
+        return arg_type;
+    }
+    return arg_type;
 }
 
 const artic::Type* BinaryExpr::infer(TypeChecker& checker) const {
@@ -575,14 +586,27 @@ const artic::Type* LetDecl::infer(TypeChecker& checker) const {
 }
 
 const artic::Type* FnDecl::infer(TypeChecker& checker) const {
-    // TODO: Type params
-    if (fn->ret_type)
-        type = checker.world().pi(checker.infer(*fn->param), checker.infer(*fn->ret_type));
+    artic::Type* forall = nullptr;
+    if (type_params) {
+        forall = checker.world().type_forall(*this);
+        checker.check(*type_params, forall->param());
+    }
+    if (fn->ret_type) {
+        auto fn_type = checker.world().pi(checker.infer(*fn->param), checker.infer(*fn->ret_type));
+        if (forall) {
+            forall->set(1, fn_type);
+            type = forall;
+        } else {
+            type = fn_type;
+        }
+    }
     if (!checker.enter_decl(this))
         return checker.world().type_error();
-    type = checker.infer(*fn);
+    auto fn_type = checker.infer(*fn);
+    if (forall)
+        forall->set(1, fn_type);
     checker.exit_decl(this);
-    return type;
+    return forall ? forall : fn_type;
 }
 
 const artic::Type* FnDecl::check(TypeChecker& checker, const artic::Type* expected) const {

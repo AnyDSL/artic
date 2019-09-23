@@ -637,6 +637,7 @@ struct UnaryExpr : public Expr {
     bool is_prefix() const { return !is_postfix(); }
     bool is_postfix() const { return tag == PostInc || tag == PostDec; }
 
+    const artic::Type* infer(TypeChecker&) const override;
     void bind(NameBinder&) const override;
     void print(Printer&) const override;
 
