@@ -31,7 +31,7 @@ add_test(NAME invalid_uninferable COMMAND artic --invert ${PROJECT_SOURCE_DIR}/t
 add_test(NAME invalid_noret       COMMAND artic --invert ${PROJECT_SOURCE_DIR}/test/invalid/noret.art)
 add_test(NAME invalid_structs1    COMMAND artic --invert ${PROJECT_SOURCE_DIR}/test/invalid/structs1.art)
 add_test(NAME invalid_structs2    COMMAND artic --invert ${PROJECT_SOURCE_DIR}/test/invalid/structs2.art)
-#add_test(NAME invalid_mut         COMMAND artic --invert ${PROJECT_SOURCE_DIR}/test/invalid/mut.art)
+add_test(NAME invalid_mut         COMMAND artic --invert ${PROJECT_SOURCE_DIR}/test/invalid/mut.art)
 
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
     setup_target_for_coverage_gcovr_html(NAME coverage EXECUTABLE ctest -j ${PROCESSOR_COUNT} DEPENDENCIES artic)

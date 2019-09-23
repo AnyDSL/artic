@@ -49,7 +49,7 @@ void TypeChecker::explain_no_ret(const Type* type, const Type* expected) {
              log::keyword_style("break"),
              log::keyword_style("continue"),
              log::keyword_style("return"));
-        note("this error {} indicate that you forgot to add parentheses '()' to call one of those functions",
+        note("this error {} indicate that you forgot to add parentheses '()' in the call to one of those functions",
             log::style("may", log::Style::Italic));
     }
 }
@@ -116,18 +116,30 @@ const Type* TypeChecker::infer(const ast::Node& node) {
 }
 
 bool TypeChecker::check_mut(const ast::Node& node) {
-    assert(node.type);
-    if (false) {
-        error(node.loc, "expression or identifier is not mutable");
-        if (auto path_expr = node.isa<ast::PathExpr>()) {
-            if (path_expr->path.elems.size() == 1 && path_expr->path.symbol) {
-                auto decl = path_expr->path.symbol->decls.front();
-                note(decl->loc, "try declaring this identifier as '{} {}'", log::keyword_style("ref"), decl->id.name);
+    auto* cur = &node;
+    const ast::Decl* decl = nullptr;
+    while (true) {
+        assert(cur->type);
+        if (auto path_expr = cur->isa<ast::PathExpr>()) {
+            if (path_expr->path.mut)
+                return true;
+            if (path_expr->path.symbol && !path_expr->path.symbol->decls.empty())
+                decl = path_expr->path.symbol->decls.front();
+        } else if (auto proj_expr = cur->isa<ast::ProjExpr>()) {
+            cur = proj_expr->expr.get();
+            continue;
+        } else if (auto call_expr = cur->isa<ast::CallExpr>()) {
+            if (call_expr->callee->type->isa<thorin::Variadic>()) {
+                cur = call_expr->callee.get();
+                continue;
             }
         }
-        return false;
+        break;
     }
-    return true;
+    error(node.loc, "assignment to a non-mutable expression");
+    if (decl)
+        note(decl->loc, "this error {} be solved by adding the '{}' qualifier to this symbol", log::style("may", log::Style::Italic), log::keyword_style("mut"));
+    return false;
 }
 
 const Type* TypeChecker::infer_lit(const Loc&, const Literal& lit) {
@@ -260,11 +272,21 @@ const artic::Type* Path::infer(TypeChecker& checker) const {
         return checker.world().type_error();
     auto& elem = elems.front();
     auto type = checker.infer(*symbol->decls.front());
-    if (!elem.args.empty()) {
-        thorin::Array<const artic::Type*> type_args(elem.args.size());
-        for (size_t i = 0, n = type_args.size(); i < n; ++i)
-            type_args[i] = checker.infer(*elem.args[i]);
-        type = checker.world().app(type, checker.world().tuple(type_args));
+    // Set the path as mutable if it refers to a mutable symbol
+    if (auto ptrn_decl = symbol->decls.front()->isa<PtrnDecl>())
+        mut = ptrn_decl->mut;
+    // Apply type arguments (if any)
+    if (type->type() != checker.world().kind_star()) {
+        if (!elem.args.empty()) {
+            thorin::Array<const artic::Type*> type_args(elem.args.size());
+            for (size_t i = 0, n = type_args.size(); i < n; ++i)
+                type_args[i] = checker.infer(*elem.args[i]);
+            type = checker.world().app(type, checker.world().tuple(type_args));
+        } else {
+            checker.error(loc, "missing type arguments");
+        }
+    } else if (!elem.args.empty()) {
+        checker.error(loc, "type arguments are not allowed here");
     }
     return type;
 }

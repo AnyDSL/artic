@@ -121,6 +121,7 @@ struct Path : public Node {
     std::vector<Elem> elems;
 
     mutable std::shared_ptr<Symbol> symbol;
+    mutable bool mut = false; // Set during type-checking
 
     Path(const Loc& loc, std::vector<Elem>&& elems)
         : Node(loc), elems(std::move(elems))
