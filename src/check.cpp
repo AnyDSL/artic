@@ -11,7 +11,7 @@ bool TypeChecker::run(const ast::ModDecl& module) {
     return error_count == 0;
 }
 
-std::optional<size_t> TypeChecker::find_field(const Type* type, const std::string& member) {
+std::optional<size_t> TypeChecker::find_member(const Type* type, const std::string& member) {
     auto meta = type->meta();
     assert(meta);
     auto name = world().tuple_str(member);
@@ -88,7 +88,7 @@ const Type* TypeChecker::struct_expected(const Loc& loc, const artic::Type* type
     return world().type_error();
 }
 
-const Type* TypeChecker::unknown_field(const Loc& loc, const Type* struct_type, const std::string& field) {
+const Type* TypeChecker::unknown_member(const Loc& loc, const Type* struct_type, const std::string& field) {
     error(loc, "no field '{}' in '{}'", field, *struct_type);
     return world().type_error();
 }
@@ -237,9 +237,9 @@ const Type* TypeChecker::check_fields(const Loc& loc, const Type* struct_type, c
         // Skip the field if it is '...'
         if (fields[i]->is_etc())
             continue;
-        auto index = find_field(struct_type, fields[i]->id.name);
+        auto index = find_member(struct_type, fields[i]->id.name);
         if (!index)
-            return unknown_field(fields[i]->loc, struct_type, fields[i]->id.name);
+            return unknown_member(fields[i]->loc, struct_type, fields[i]->id.name);
         if (seen[*index]) {
             error(loc, "field '{}' specified more than once", fields[i]->id.name);
             return world().type_error();
@@ -275,29 +275,52 @@ const artic::Type* Node::infer(TypeChecker& checker) const {
 const artic::Type* Path::infer(TypeChecker& checker) const {
     if (!symbol || symbol->decls.empty())
         return checker.world().type_error();
-    auto& elem = elems.front();
     auto type = checker.infer(*symbol->decls.front());
     // Set the path as mutable if it refers to a mutable symbol
     if (auto ptrn_decl = symbol->decls.front()->isa<PtrnDecl>())
         mut = ptrn_decl->mut;
-    // Apply type arguments (if any)
-    bool is_poly_ctor = type->type() != checker.world().kind_star();
-    bool is_poly_fn   = type->isa_nominal<thorin::Pi>();
-    if (is_poly_ctor || is_poly_fn) {
-        if (!elem.args.empty()) {
-            thorin::Array<const artic::Type*> type_args(elem.args.size());
-            for (size_t i = 0, n = type_args.size(); i < n; ++i)
-                type_args[i] = checker.infer(*elem.args[i]);
-            type = is_poly_ctor
-                ? checker.world().app(type, checker.world().tuple(type_args))
-                : thorin::rewrite(type->as<thorin::Pi>()->codomain(), type->as_nominal<thorin::Pi>()->param(), checker.world().tuple(type_args));
-        } else {
-            checker.error(loc, "missing type arguments");
+
+    // Inspect every element of the path
+    for (size_t i = 0; i < elems.size(); ++i) {
+        auto& elem = elems[i];
+
+        // Apply type arguments (if any)
+        bool is_poly_ctor = type->type() != checker.world().kind_star();
+        bool is_poly_fn   = type->isa_nominal<thorin::Pi>();
+        if (is_poly_ctor || is_poly_fn) {
+            if (!elem.args.empty()) {
+                thorin::Array<const artic::Type*> type_args(elem.args.size());
+                for (size_t i = 0, n = type_args.size(); i < n; ++i)
+                    type_args[i] = checker.infer(*elem.args[i]);
+                type = is_poly_ctor
+                    ? checker.world().app(type, checker.world().tuple(type_args))
+                    : thorin::rewrite(type->as<thorin::Pi>()->codomain(), type->as_nominal<thorin::Pi>()->param(), checker.world().tuple(type_args));
+            } else {
+                checker.error(elem.loc, "missing type arguments");
+                return checker.world().type_error();
+            }
+        } else if (!elem.args.empty()) {
+            checker.error(elem.loc, "type arguments are not allowed here");
             return checker.world().type_error();
         }
-    } else if (!elem.args.empty()) {
-        checker.error(loc, "type arguments are not allowed here");
-        return checker.world().type_error();
+
+        // Perform a lookup inside the current object if the path is not finished
+        if (i != elems.size() - 1) {
+            auto& member = elems[i + 1].id.name;
+            // TODO: Modules
+            if (thorin::isa<Tag::EnumType>(type)) {
+                auto app = type->isa<thorin::App>();
+                if (app) type = app->callee();
+                
+                auto index = checker.find_member(type, member);
+                if (!index)
+                    return checker.unknown_member(elem.loc, type, member);
+                type = app ? thorin::rewrite(type->op(*index), type->as_nominal()->param(), app->arg()) : type->op(*index);
+            } else {
+                checker.error(elem.loc, "operator '::' not allowed on type '{}'", *type);
+                return checker.world().type_error();
+            }
+        }
     }
     return type;
 }
@@ -386,8 +409,7 @@ const artic::Type* FieldExpr::check(TypeChecker& checker, const artic::Type* exp
 const artic::Type* StructExpr::infer(TypeChecker& checker) const {
     auto expr_type = checker.infer(*expr);
     auto app = expr_type->isa<thorin::App>();
-    if (app)
-        expr_type = std::get<0>(get_axiom(app));
+    if (app) expr_type = app->callee();
     if (!is_struct_type(expr_type))
         return checker.struct_expected(loc, expr_type);
     return checker.check_fields(loc, expr_type->as_nominal(), app, fields, false, "expression");
@@ -471,17 +493,14 @@ const artic::Type* CallExpr::infer(TypeChecker& checker) const {
 const artic::Type* ProjExpr::infer(TypeChecker& checker) const {
     auto expr_type = checker.infer(*expr);
     auto app = expr_type->isa<thorin::App>();
-    if (app)
-        expr_type = std::get<0>(thorin::get_axiom(app));
+    if (app) expr_type = app->callee();
     if (!is_struct_type(expr_type))
         return checker.struct_expected(loc, expr_type);
     auto struct_type = expr_type->as_nominal();
-    if (auto index = checker.find_field(struct_type, field.name)) {
-        if (!app)
-            return struct_type->op(*index);
-        return thorin::rewrite(struct_type->op(*index), struct_type->param(), app->arg());
-    } else
-        return checker.unknown_field(loc, struct_type, field.name);
+    if (auto index = checker.find_member(struct_type, field.name))
+        return app ? thorin::rewrite(struct_type->op(*index), struct_type->param(), app->arg()) : struct_type->op(*index);
+    else
+        return checker.unknown_member(loc, struct_type, field.name);
 }
 
 const artic::Type* IfExpr::infer(TypeChecker& checker) const {
@@ -699,8 +718,7 @@ const artic::Type* FieldPtrn::check(TypeChecker& checker, const artic::Type* exp
 const artic::Type* StructPtrn::infer(TypeChecker& checker) const {
     auto path_type = checker.infer(path);
     auto app = path_type->isa<thorin::App>();
-    if (app)
-        path_type = std::get<0>(get_axiom(app));
+    if (app) path_type = app->callee();
     if (!is_struct_type(path_type))
         return checker.struct_expected(loc, path_type);
     return checker.check_fields(loc, path_type->as_nominal(), app, fields, has_etc(), "pattern");

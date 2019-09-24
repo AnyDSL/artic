@@ -113,6 +113,7 @@ Output& operator << (Output& out, const Type& type) {
 
 bool is_no_ret_type(const Type* type) { return type->isa<thorin::Bot>(); }
 bool is_struct_type(const Type* type) { return type->isa<thorin::Axiom>() && type->as<thorin::Axiom>()->tag() == Tag::StructType; }
+bool is_enum_type(const Type* type) { return type->isa<thorin::Axiom>() && type->as<thorin::Axiom>()->tag() == Tag::EnumType; }
 bool is_bool_type(const Type* type) { return thorin::isa<thorin::Tag::Int >(type); }
 bool is_sint_type(const Type* type) { return thorin::isa<Tag::SInt        >(type); }
 bool is_uint_type(const Type* type) { return thorin::isa<Tag::UInt        >(type); }

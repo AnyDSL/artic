@@ -813,9 +813,11 @@ Ptr<ast::Filter> Parser::parse_filter() {
 
 ast::Path Parser::parse_path(ast::Identifier&& id, bool allow_types) {
     Tracker tracker(this, id.loc);
-    std::vector<ast::Path::Elem> elems;
+    Loc prev_loc = id.loc;
 
+    std::vector<ast::Path::Elem> elems;
     do {
+        Tracker elem_tracker(this, prev_loc);
         PtrVector<ast::Type> args;
         if (allow_types && ahead().tag() == Token::LBracket) {
             eat(Token::LBracket);
@@ -823,10 +825,11 @@ ast::Path Parser::parse_path(ast::Identifier&& id, bool allow_types) {
                 args.emplace_back(parse_type());
             });
         }
-        elems.emplace_back(std::move(id), std::move(args));
+        elems.emplace_back(elem_tracker(), std::move(id), std::move(args));
         if (ahead().tag() != Token::DblColon)
             break;
         eat(Token::DblColon);
+        prev_loc = ahead().loc();
         id = std::move(parse_id());
     } while (true) ;
 

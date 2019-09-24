@@ -111,11 +111,12 @@ struct Ptrn : public Node {
 /// A path of the form A::B::C<T1, T2, ..., TN>
 struct Path : public Node {
     struct Elem {
+        Loc loc;
         Identifier id;
         PtrVector<Type> args;
 
-        Elem(Identifier&& id, PtrVector<Type>&& args)
-            : id(std::move(id)), args(std::move(args))
+        Elem(const Loc& loc, Identifier&& id, PtrVector<Type>&& args)
+            : loc(loc), id(std::move(id)), args(std::move(args))
         {}
     };
     std::vector<Elem> elems;
