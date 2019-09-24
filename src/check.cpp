@@ -275,13 +275,16 @@ const artic::Type* Path::infer(TypeChecker& checker) const {
     if (auto ptrn_decl = symbol->decls.front()->isa<PtrnDecl>())
         mut = ptrn_decl->mut;
     // Apply type arguments (if any)
-    if ((type->isa<thorin::Axiom>() && type->type() != checker.world().kind_star()) ||
-        type->isa_nominal<thorin::Pi>()) {
+    bool is_poly_struct = is_struct_type(type) && type->type() != checker.world().kind_star();
+    bool is_poly_fn     = type->isa_nominal<thorin::Pi>();
+    if (is_poly_struct || is_poly_fn) {
         if (!elem.args.empty()) {
             thorin::Array<const artic::Type*> type_args(elem.args.size());
             for (size_t i = 0, n = type_args.size(); i < n; ++i)
                 type_args[i] = checker.infer(*elem.args[i]);
-            type = checker.world().app(type, checker.world().tuple(type_args));
+            type = is_poly_struct
+                ? checker.world().app(type, checker.world().tuple(type_args))
+                : thorin::rewrite(type->as<thorin::Pi>()->codomain(), type->as_nominal<thorin::Pi>()->param(), checker.world().tuple(type_args));
         } else {
             checker.error(loc, "missing type arguments");
             return checker.world().type_error();
