@@ -1,0 +1,53 @@
+fn range(body: fn (i32) -> ()) -> fn (i32, i32) -> () {
+    fn loop(beg: i32, end: i32) -> () {
+        if beg < end {
+            body(beg);
+            loop(beg + 1, end)
+        }
+    }
+    loop
+}
+
+fn sort[T](array: MutArray[T], less: fn (T, T) -> bool) {
+    for i in range(1, array.len) {
+        let elem = array.read(i);
+        let mut j = i - 1;
+        while j >= 0 && less(elem, array.read(j)) {
+            array.write(j + 1, array.read(j));
+            j--
+        }
+        array.write(j + 1, elem)
+    }
+}
+
+struct MutArray[T] {
+    read:  fn (i32) -> T,
+    write: fn (i32, T) -> (),
+    len:   i32
+}
+
+struct Array[T] {
+    read:  fn (i32) -> T,
+    len:   i32
+}
+
+fn mut_array_to_array[T](array: MutArray[T]) {
+    Array[T] {
+        read: array.read,
+        len:  array.len
+    }
+}
+
+fn make_array[T](x: [T], len: i32) {
+    Array[T] {
+        read: |i| x(i),
+        len:  len
+    }
+}
+
+fn main() -> [i32] {
+    let mut array = [1, 2, 3, 4];
+    array(0) = 5;
+    sort[i32](MutArray[i32] { read: |i| array(i), write: |i, y| array(i) = y, len: 4 }, |x, y| x < y);
+    array
+}

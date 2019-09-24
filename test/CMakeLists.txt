@@ -12,11 +12,11 @@ add_test(NAME valid_for      COMMAND artic ${PROJECT_SOURCE_DIR}/test/valid/for.
 add_test(NAME valid_structs1 COMMAND artic ${PROJECT_SOURCE_DIR}/test/valid/structs1.art)
 add_test(NAME valid_structs2 COMMAND artic ${PROJECT_SOURCE_DIR}/test/valid/structs2.art)
 add_test(NAME valid_structs3 COMMAND artic ${PROJECT_SOURCE_DIR}/test/valid/structs3.art)
-#add_test(NAME valid_trait    COMMAND artic ${PROJECT_SOURCE_DIR}/test/valid/trait.art)
 add_test(NAME valid_types    COMMAND artic ${PROJECT_SOURCE_DIR}/test/valid/types.art)
 add_test(NAME valid_loops    COMMAND artic ${PROJECT_SOURCE_DIR}/test/valid/loops.art)
 add_test(NAME valid_mut      COMMAND artic ${PROJECT_SOURCE_DIR}/test/valid/mut.art)
 add_test(NAME valid_array    COMMAND artic ${PROJECT_SOURCE_DIR}/test/valid/array.art)
+add_test(NAME valid_sort     COMMAND artic ${PROJECT_SOURCE_DIR}/test/valid/sort.art)
 
 add_test(NAME invalid_comment     COMMAND artic --invert ${PROJECT_SOURCE_DIR}/test/invalid/comment.art)
 add_test(NAME invalid_utf8        COMMAND artic --invert ${PROJECT_SOURCE_DIR}/test/invalid/utf8.art)

@@ -1,6 +1,0 @@
-trait Num[T] {
-    fn add(T, T) -> T;
-    fn sub(T, T) -> T;
-    fn mul(T, T) -> T;
-    fn div(T, T) -> T;
-}
