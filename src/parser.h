@@ -21,23 +21,23 @@ public:
 private:
     Ptr<ast::Decl>          parse_decl();
     Ptr<ast::LetDecl>       parse_let_decl();
-    Ptr<ast::FnDecl>        parse_fn_decl(bool);
+    Ptr<ast::FnDecl>        parse_fn_decl();
     Ptr<ast::FieldDecl>     parse_field_decl();
     Ptr<ast::StructDecl>    parse_struct_decl();
     Ptr<ast::OptionDecl>    parse_option_decl();
     Ptr<ast::EnumDecl>      parse_enum_decl();
-    Ptr<ast::TypeParam>     parse_type_param(size_t);
+    Ptr<ast::TypeParam>     parse_type_param();
     Ptr<ast::TypeParamList> parse_type_params();
     Ptr<ast::ModDecl>       parse_mod_decl();
     Ptr<ast::ErrorDecl>     parse_error_decl();
 
-    Ptr<ast::Ptrn>          parse_ptrn(bool only_types = false);
+    Ptr<ast::Ptrn>          parse_ptrn();
     Ptr<ast::Ptrn>          parse_typed_ptrn(Ptr<ast::Ptrn>&&);
     Ptr<ast::IdPtrn>        parse_id_ptrn(ast::Identifier&&, bool);
     Ptr<ast::LiteralPtrn>   parse_literal_ptrn();
     Ptr<ast::FieldPtrn>     parse_field_ptrn();
     Ptr<ast::StructPtrn>    parse_struct_ptrn(ast::Identifier&&);
-    Ptr<ast::Ptrn>          parse_tuple_ptrn(bool);
+    Ptr<ast::Ptrn>          parse_tuple_ptrn();
     Ptr<ast::ErrorPtrn>     parse_error_ptrn();
 
     Ptr<ast::Stmt>          parse_stmt();
