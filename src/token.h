@@ -26,8 +26,7 @@ namespace artic {
     f(Continue, "continue") \
     f(Return, "return") \
     f(Struct, "struct") \
-    f(Trait, "trait") \
-    f(Impl, "impl") \
+    f(Enum, "enum") \
     f(Mod, "mod") \
     f(LParen, "(") \
     f(RParen, ")") \

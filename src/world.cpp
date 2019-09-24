@@ -14,24 +14,32 @@ Type* World::type_forall(const ast::FnDecl& decl) {
 }
 
 Type* World::type_struct(const ast::StructDecl& decl) {
-    auto num_vars = decl.type_params ? decl.type_params->params.size() : 0;
-    auto num_fields = decl.fields.size();
-    thorin::Array<const thorin::Def*> field_names(num_fields, [&] (size_t i) {
-        return tuple_str(decl.fields[i]->id.name);
+    return type_struct_or_enum(Tag::StructType, decl, decl.fields);
+}
+
+Type* World::type_enum(const ast::EnumDecl& decl) {
+    return type_struct_or_enum(Tag::EnumType, decl, decl.options);
+}
+
+template <typename StructOrEnum, typename FieldsOrOptions>
+Type* World::type_struct_or_enum(thorin::tag_t tag, const StructOrEnum& struct_or_enum, const FieldsOrOptions& fields_or_options) {
+    auto num_vars = struct_or_enum.type_params ? struct_or_enum.type_params->params.size() : 0;
+    thorin::Array<const thorin::Def*> names(fields_or_options.size(), [&] (size_t i) {
+        return tuple_str(fields_or_options[i]->id.name);
     });
     auto debug = thorin::Debug(
-        decl.id.name,
-        *decl.loc.file,
-        decl.loc.begin_row,
-        decl.loc.begin_col,
-        decl.loc.end_row,
-        decl.loc.end_col,
-        tuple(field_names)
+        struct_or_enum.id.name,
+        *struct_or_enum.loc.file,
+        struct_or_enum.loc.begin_row,
+        struct_or_enum.loc.begin_col,
+        struct_or_enum.loc.end_row,
+        struct_or_enum.loc.end_col,
+        tuple(names)
     );
     if (num_vars == 0)
-        return axiom(nullptr, kind_star(), num_fields, Tag::StructType, 0, debug);
+        return axiom(nullptr, kind_star(), fields_or_options.size(), tag, 0, debug);
     thorin::Array<const thorin::Def*> domains(num_vars, kind_star());
-    return axiom(nullptr, pi(sigma(domains), kind_star()), num_fields, Tag::StructType, 0, debug);
+    return axiom(nullptr, pi(sigma(domains), kind_star()), fields_or_options.size(), tag, 0, debug);
 }
 
 namespace log {

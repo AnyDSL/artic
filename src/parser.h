@@ -24,8 +24,8 @@ private:
     Ptr<ast::FnDecl>        parse_fn_decl(bool);
     Ptr<ast::FieldDecl>     parse_field_decl();
     Ptr<ast::StructDecl>    parse_struct_decl();
-    Ptr<ast::TraitDecl>     parse_trait_decl();
-    Ptr<ast::ImplDecl>      parse_impl_decl();
+    Ptr<ast::OptionDecl>    parse_option_decl();
+    Ptr<ast::EnumDecl>      parse_enum_decl();
     Ptr<ast::TypeParam>     parse_type_param(size_t);
     Ptr<ast::TypeParamList> parse_type_params();
     Ptr<ast::ModDecl>       parse_mod_decl();
@@ -87,8 +87,6 @@ private:
     ast::Path               parse_path(bool allow_types = true) { return parse_path(parse_id(), allow_types); }
     ast::Identifier         parse_id();
     Literal                 parse_lit();
-
-    PtrVector<ast::NamedDecl> parse_trait_or_impl_body(bool);
 
     struct Tracker {
         const Parser* parser;

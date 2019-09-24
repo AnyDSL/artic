@@ -115,6 +115,72 @@ const Type* TypeChecker::infer(const ast::Node& node) {
     return node.type = node.infer(*this);
 }
 
+const Type* TypeChecker::infer(const ast::CallExpr& call) {
+    auto callee_type = infer(*call.callee);
+    if (auto pi = callee_type->isa<thorin::Pi>()) {
+        check(*call.arg, pi->domain());
+        return pi->codomain();
+    } else if (auto variadic = callee_type->isa<thorin::Variadic>()) {
+        auto index_type = infer(*call.arg);
+        if (!is_uint_type(index_type) && !is_sint_type(index_type)) {
+            if (should_emit_error(index_type))
+                error(call.arg->loc, "integer type expected as array index, but got '{}'", *index_type);
+            return world().type_error();
+        }
+        return variadic->body();
+    } else {
+        if (should_emit_error(callee_type))
+            error(call.callee->loc, "expected function or array type in call expression, but got '{}'", *callee_type);
+        return world().type_error();
+    }
+}
+
+const Type* TypeChecker::check(const ast::TypeParamList& type_params, Type* parent) {
+    // If there is only one parameter, set its name
+    thorin::Debug dbg { type_params.params.size() == 1 ? type_params.params[0]->id.name : "" };
+    return check(type_params, parent->param(dbg));
+}
+
+const Type* TypeChecker::infer(const Loc&, const Literal& lit) {
+    if (lit.is_integer())
+        return world().type_sint(32);
+    else if (lit.is_double())
+        return world().type_real(64);
+    else if (lit.is_bool())
+        return world().type_bool();
+    else if (lit.is_char())
+        return world().type_uint(8);
+    else if (lit.is_string())
+        return world().variadic_unsafe(world().type_uint(8));
+    else {
+        assert(false);
+        return world().type_error();
+    }
+}
+
+const Type* TypeChecker::check(const Loc& loc, const Literal& lit, const Type* expected) {
+    if (is_no_ret_type(expected))
+        return infer(loc, lit);
+    if (lit.is_integer()) {
+        if (!is_sint_type(expected) && !is_uint_type(expected) && !is_real_type(expected))
+            return expect(loc, "integer literal", expected);
+        return expected;
+    } else if (lit.is_double()) {
+        if (!is_real_type(expected))
+            return expect(loc, "floating point literal", expected);
+        return expected;
+    } else if (lit.is_bool()) {
+        return expect(loc, "boolean literal", world().type_bool(), expected);
+    } else if (lit.is_char()) {
+        return expect(loc, "character literal", world().type_uint(8), expected);
+    } else if (lit.is_string()) {
+        return expect(loc, "string literal", world().variadic_unsafe(world().type_uint(8)), expected);
+    } else {
+        assert(false);
+        return expected;
+    }
+}
+
 bool TypeChecker::check_mut(const ast::Node& node) {
     auto* cur = &node;
     const ast::Decl* decl = nullptr;
@@ -140,46 +206,6 @@ bool TypeChecker::check_mut(const ast::Node& node) {
     if (decl)
         note(decl->loc, "this error {} be solved by adding the '{}' qualifier to this symbol", log::style("may", log::Style::Italic), log::keyword_style("mut"));
     return false;
-}
-
-const Type* TypeChecker::infer_lit(const Loc&, const Literal& lit) {
-    if (lit.is_integer())
-        return world().type_sint(32);
-    else if (lit.is_double())
-        return world().type_real(64);
-    else if (lit.is_bool())
-        return world().type_bool();
-    else if (lit.is_char())
-        return world().type_uint(8);
-    else if (lit.is_string())
-        return world().variadic_unsafe(world().type_uint(8));
-    else {
-        assert(false);
-        return world().type_error();
-    }
-}
-
-const Type* TypeChecker::check_lit(const Loc& loc, const Literal& lit, const Type* expected) {
-    if (is_no_ret_type(expected))
-        return infer_lit(loc, lit);
-    if (lit.is_integer()) {
-        if (!is_sint_type(expected) && !is_uint_type(expected) && !is_real_type(expected))
-            return expect(loc, "integer literal", expected);
-        return expected;
-    } else if (lit.is_double()) {
-        if (!is_real_type(expected))
-            return expect(loc, "floating point literal", expected);
-        return expected;
-    } else if (lit.is_bool()) {
-        return expect(loc, "boolean literal", world().type_bool(), expected);
-    } else if (lit.is_char()) {
-        return expect(loc, "character literal", world().type_uint(8), expected);
-    } else if (lit.is_string()) {
-        return expect(loc, "string literal", world().variadic_unsafe(world().type_uint(8)), expected);
-    } else {
-        assert(false);
-        return expected;
-    }
 }
 
 template <typename Args>
@@ -235,26 +261,6 @@ const Type* TypeChecker::check_fields(const Loc& loc, const Type* struct_type, c
     return app ? app : struct_type;
 }
 
-const Type* TypeChecker::infer_call(const ast::CallExpr& call) {
-    auto callee_type = infer(*call.callee);
-    if (auto pi = callee_type->isa<thorin::Pi>()) {
-        check(*call.arg, pi->domain());
-        return pi->codomain();
-    } else if (auto variadic = callee_type->isa<thorin::Variadic>()) {
-        auto index_type = infer(*call.arg);
-        if (!is_uint_type(index_type) && !is_sint_type(index_type)) {
-            if (should_emit_error(index_type))
-                error(call.arg->loc, "integer type expected as array index, but got '{}'", *index_type);
-            return world().type_error();
-        }
-        return variadic->body();
-    } else {
-        if (should_emit_error(callee_type))
-            error(call.callee->loc, "expected function or array type in call expression, but got '{}'", *callee_type);
-        return world().type_error();
-    }
-}
-
 namespace ast {
 
 const artic::Type* Node::check(TypeChecker& checker, const artic::Type* expected) const {
@@ -275,14 +281,14 @@ const artic::Type* Path::infer(TypeChecker& checker) const {
     if (auto ptrn_decl = symbol->decls.front()->isa<PtrnDecl>())
         mut = ptrn_decl->mut;
     // Apply type arguments (if any)
-    bool is_poly_struct = is_struct_type(type) && type->type() != checker.world().kind_star();
-    bool is_poly_fn     = type->isa_nominal<thorin::Pi>();
-    if (is_poly_struct || is_poly_fn) {
+    bool is_poly_ctor = type->type() != checker.world().kind_star();
+    bool is_poly_fn   = type->isa_nominal<thorin::Pi>();
+    if (is_poly_ctor || is_poly_fn) {
         if (!elem.args.empty()) {
             thorin::Array<const artic::Type*> type_args(elem.args.size());
             for (size_t i = 0, n = type_args.size(); i < n; ++i)
                 type_args[i] = checker.infer(*elem.args[i]);
-            type = is_poly_struct
+            type = is_poly_ctor
                 ? checker.world().app(type, checker.world().tuple(type_args))
                 : thorin::rewrite(type->as<thorin::Pi>()->codomain(), type->as_nominal<thorin::Pi>()->param(), checker.world().tuple(type_args));
         } else {
@@ -366,11 +372,11 @@ const artic::Type* PathExpr::infer(TypeChecker& checker) const {
 }
 
 const artic::Type* LiteralExpr::infer(TypeChecker& checker) const {
-    return checker.infer_lit(loc, lit);
+    return checker.infer(loc, lit);
 }
 
 const artic::Type* LiteralExpr::check(TypeChecker& checker, const artic::Type* expected) const {
-    return checker.check_lit(loc, lit, expected);
+    return checker.check(loc, lit, expected);
 }
 
 const artic::Type* FieldExpr::check(TypeChecker& checker, const artic::Type* expected) const {
@@ -459,7 +465,7 @@ const artic::Type* BlockExpr::check(TypeChecker& checker, const artic::Type* exp
 }
 
 const artic::Type* CallExpr::infer(TypeChecker& checker) const {
-    return checker.infer_call(*this);
+    return checker.infer(*this);
 }
 
 const artic::Type* ProjExpr::infer(TypeChecker& checker) const {
@@ -514,7 +520,7 @@ const artic::Type* WhileExpr::infer(TypeChecker& checker) const {
 }
 
 const artic::Type* ForExpr::infer(TypeChecker& checker) const {
-    return checker.infer_call(*body->as<CallExpr>());
+    return checker.infer(*body->as<CallExpr>());
 }
 
 const artic::Type* BreakExpr::infer(TypeChecker& checker) const {
@@ -626,15 +632,33 @@ const artic::Type* FieldDecl::infer(TypeChecker& checker) const {
 
 const artic::Type* StructDecl::infer(TypeChecker& checker) const {
     auto struct_type = checker.world().type_struct(*this);
-    if (type_params) {
-        thorin::Debug dbg { type_params->params.size() == 1 ? type_params->params[0]->id.name : "" };
-        checker.check(*type_params, struct_type->param(dbg));
-    }
+    if (type_params) checker.check(*type_params, struct_type);
     // Set the type before entering the fields
     type = struct_type;
     for (size_t i = 0; i < fields.size(); ++i)
         struct_type->set(i, checker.infer(*fields[i]));
     return struct_type;
+}
+
+const artic::Type* OptionDecl::check(TypeChecker&, const artic::Type* expected) const {
+    return expected;
+}
+
+const artic::Type* EnumDecl::infer(TypeChecker& checker) const {
+    auto enum_type = checker.world().type_enum(*this);
+    if (type_params) checker.check(*type_params, enum_type);
+    // Set the type before entering the options
+    type = enum_type;
+    for (size_t i = 0; i < options.size(); ++i) {
+        auto applied_type = type_params
+            ? checker.world().app(enum_type, type_params->type)
+            : enum_type;
+        auto option_type = options[i]->param
+            ? checker.world().pi(checker.infer(*options[i]->param), applied_type)
+            : applied_type;
+        enum_type->set(i, checker.check(*options[i], option_type));
+    }
+    return enum_type;
 }
 
 const artic::Type* ModDecl::infer(TypeChecker& checker) const {
@@ -651,11 +675,11 @@ const artic::Type* TypedPtrn::infer(TypeChecker& checker) const {
 }
 
 const artic::Type* LiteralPtrn::infer(TypeChecker& checker) const {
-    return checker.infer_lit(loc, lit);
+    return checker.infer(loc, lit);
 }
 
 const artic::Type* LiteralPtrn::check(TypeChecker& checker, const artic::Type* expected) const {
-    return checker.check_lit(loc, lit, expected);
+    return checker.check(loc, lit, expected);
 }
 
 const artic::Type* IdPtrn::infer(TypeChecker& checker) const {

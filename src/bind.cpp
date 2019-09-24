@@ -23,7 +23,8 @@ void NameBinder::pop_scope() {
             !decl->isa<ast::FnDecl>() &&
             !decl->isa<ast::StructDecl>() &&
             !decl->isa<ast::FieldDecl>() &&
-            !decl->isa<ast::TraitDecl>()) {
+            !decl->isa<ast::EnumDecl>() &&
+            !decl->isa<ast::OptionDecl>()) {
             warn(decl->loc, "unused identifier '{}'", pair.first);
             note("prefix unused identifiers with '_'");
         }
@@ -328,21 +329,20 @@ void StructDecl::bind(NameBinder& binder) const {
     binder.pop_scope();
 }
 
-void TraitDecl::bind_head(NameBinder& binder) const {
+void OptionDecl::bind(NameBinder& binder) const {
+    if (param) binder.bind(*param);
     binder.insert_symbol(*this);
 }
 
-void TraitDecl::bind(NameBinder& binder) const {
-    binder.push_scope();
-    if (type_params) binder.bind(*type_params);
-    for (auto& super : supers) binder.bind(*super);
-    for (auto& decl : decls) binder.bind(*decl);
-    binder.pop_scope();
+void EnumDecl::bind_head(NameBinder& binder) const {
+    binder.insert_symbol(*this);
 }
 
-void ImplDecl::bind(NameBinder& binder) const {
-    binder.bind(*trait);
-    for (auto& decl : decls) binder.bind(*decl);
+void EnumDecl::bind(NameBinder& binder) const {
+    binder.push_scope();
+    if (type_params) binder.bind(*type_params);
+    for (auto& option : options) binder.bind(*option);
+    binder.pop_scope();
 }
 
 void ModDecl::bind_head(NameBinder& binder) const {

@@ -322,26 +322,6 @@ void TypeParamList::print(Printer& p) const {
     }
 }
 
-void FieldDecl::print(Printer& p) const {
-    p << id.name << ": ";
-    type->print(p);
-}
-
-void StructDecl::print(Printer& p) const {
-    p << log::keyword_style("struct") << ' ' << id.name;
-    if (type_params) type_params->print(p);
-    p << " {";
-    if (!fields.empty()) {
-       p << p.indent();
-        print_list(p, ',', fields, [&] (auto& f) {
-            p << p.endl();
-            f->print(p);
-        });
-        p << p.unindent() << p.endl();
-    }
-    p << '}';
-}
-
 void PtrnDecl::print(Printer& p) const {
     if (mut) p << log::keyword_style("mut") << ' ';
     p << id.name;
@@ -378,37 +358,41 @@ void FnDecl::print(Printer& p) const {
         p << ';';
 }
 
-void TraitDecl::print(Printer& p) const {
-    p << log::keyword_style("trait") << ' ' << id.name;
+void FieldDecl::print(Printer& p) const {
+    p << id.name << ": ";
+    type->print(p);
+}
+
+void StructDecl::print(Printer& p) const {
+    p << log::keyword_style("struct") << ' ' << id.name;
     if (type_params) type_params->print(p);
-    if (!supers.empty()) {
-        p << " : ";
-        print_list(p, " + ", supers, [&] (auto& super) {
-                super->print(p);
-        });
-    }
     p << " {";
-    if (!decls.empty()) {
+    if (!fields.empty()) {
         p << p.indent();
-        for (auto& decl : decls) {
+        print_list(p, ',', fields, [&] (auto& f) {
             p << p.endl();
-            decl->print(p);
-        }
+            f->print(p);
+        });
         p << p.unindent() << p.endl();
     }
     p << '}';
 }
 
-void ImplDecl::print(Printer& p) const {
-    p << log::keyword_style("impl");
-    p << ' ';
-    trait->print(p);
+void OptionDecl::print(Printer& p) const {
+    p << id.name;
+    if (param)
+        param->print(p);
+}
+
+void EnumDecl::print(Printer& p) const {
+    p << log::keyword_style("enum") << ' ' << id.name;
+    if (type_params) type_params->print(p);
     p << " {";
-    if (!decls.empty()) {
+    if (!options.empty()) {
         p << p.indent();
-        print_list(p, ";", decls, [&] (auto& decl) {
+        print_list(p, ',', options, [&] (auto& o) {
             p << p.endl();
-            decl->print(p);
+            o->print(p);
         });
         p << p.unindent() << p.endl();
     }

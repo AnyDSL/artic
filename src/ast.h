@@ -835,49 +835,44 @@ struct StructDecl : public NamedDecl {
         , fields(std::move(fields))
     {}
 
-    size_t field_index(const std::string&) const;
-
     const artic::Type* infer(TypeChecker&) const override;
     void bind_head(NameBinder&) const override;
     void bind(NameBinder&) const override;
     void print(Printer&) const override;
 };
 
-/// Trait declaration.
-struct TraitDecl : public NamedDecl {
-    Ptr<TypeParamList> type_params;
-    PtrVector<NamedDecl> decls;
-    PtrVector<Type> supers;
+/// Enumeration option declaration.
+struct OptionDecl : public NamedDecl {
+    Ptr<Type> param;
 
-    TraitDecl(const Loc& loc,
-              Identifier&& id,
-              Ptr<TypeParamList>&& type_params,
-              PtrVector<NamedDecl>&& decls,
-              PtrVector<Type>&& supers)
+    OptionDecl(const Loc& loc,
+               Identifier&& id,
+               Ptr<Type>&& param)
         : NamedDecl(loc, std::move(id))
-        , type_params(std::move(type_params))
-        , decls(std::move(decls))
-        , supers(std::move(supers))
+        , param(std::move(param))
     {}
 
-    void bind_head(NameBinder&) const override;
+    const artic::Type* check(TypeChecker&, const artic::Type*) const override;
     void bind(NameBinder&) const override;
     void print(Printer&) const override;
 };
 
-/// Implementation for a trait.
-struct ImplDecl : public Decl {
-    Ptr<Type> trait;
-    PtrVector<NamedDecl> decls;
+/// Enumeration declaration.
+struct EnumDecl : public NamedDecl {
+    Ptr<TypeParamList> type_params;
+    PtrVector<OptionDecl> options;
 
-    ImplDecl(const Loc& loc,
-             Ptr<Type>&& trait,
-             PtrVector<NamedDecl>&& decls)
-        : Decl(loc)
-        , trait(std::move(trait))
-        , decls(std::move(decls))
+    EnumDecl(const Loc& loc,
+             Identifier&& id,
+             Ptr<TypeParamList>&& type_params,
+             PtrVector<OptionDecl>&& options)
+        : NamedDecl(loc, std::move(id))
+        , type_params(std::move(type_params))
+        , options(std::move(options))
     {}
 
+    const artic::Type* infer(TypeChecker&) const override;
+    void bind_head(NameBinder&) const override;
     void bind(NameBinder&) const override;
     void print(Printer&) const override;
 };
@@ -899,7 +894,6 @@ struct ModDecl : public NamedDecl {
     void bind(NameBinder&) const override;
     void print(Printer&) const override;
 };
-
 
 /// Incorrect declaration, coming from parsing.
 struct ErrorDecl : public Decl {

@@ -27,8 +27,7 @@ Ptr<ast::Decl> Parser::parse_decl() {
         case Token::Let:    return parse_let_decl();
         case Token::Fn:     return parse_fn_decl(false);
         case Token::Struct: return parse_struct_decl();
-        case Token::Trait:  return parse_trait_decl();
-        case Token::Impl:   return parse_impl_decl();
+        case Token::Enum:   return parse_enum_decl();
         case Token::Mod:    return parse_mod_decl();
         default:            return parse_error_decl();
     }
@@ -110,36 +109,30 @@ Ptr<ast::StructDecl> Parser::parse_struct_decl() {
     return make_ptr<ast::StructDecl>(tracker(), std::move(id), std::move(type_params), std::move(fields));
 }
 
-Ptr<ast::TraitDecl> Parser::parse_trait_decl() {
+Ptr<ast::OptionDecl> Parser::parse_option_decl() {
     Tracker tracker(this);
-    eat(Token::Trait);
+    auto id = parse_id();
+    Ptr<ast::Type> param;
+    if (ahead().tag() == Token::LParen)
+        param = std::move(parse_tuple_type());
+    return make_ptr<ast::OptionDecl>(tracker(), std::move(id), std::move(param));
+}
+
+Ptr<ast::EnumDecl> Parser::parse_enum_decl() {
+    Tracker tracker(this);
+    eat(Token::Enum);
     auto id = parse_id();
 
     Ptr<ast::TypeParamList> type_params;
     if (ahead().tag() == Token::LBracket)
         type_params = std::move(parse_type_params());
 
-    PtrVector<ast::Type> supers;
-    if (ahead().tag() == Token::Colon) {
-        eat(Token::Colon);
-        while (true) {
-            supers.emplace_back(parse_type());
-            if (ahead().tag() != Token::Add) break;
-            eat(Token::Add);
-        }
-    }
-
-    auto decls = parse_trait_or_impl_body(false);
-    return make_ptr<ast::TraitDecl>(tracker(), std::move(id), std::move(type_params), std::move(decls), std::move(supers));
-}
-
-Ptr<ast::ImplDecl> Parser::parse_impl_decl() {
-    Tracker tracker(this);
-    eat(Token::Impl);
-
-    auto trait = parse_type();
-    auto decls = std::move(parse_trait_or_impl_body(true));
-    return make_ptr<ast::ImplDecl>(tracker(), std::move(trait), std::move(decls));
+    PtrVector<ast::OptionDecl> options;
+    expect(Token::LBrace);
+    parse_list(Token::RBrace, Token::Comma, [&] {
+        options.emplace_back(parse_option_decl());
+    });
+    return make_ptr<ast::EnumDecl>(tracker(), std::move(id), std::move(type_params), std::move(options));
 }
 
 Ptr<ast::TypeParam> Parser::parse_type_param(size_t index) {
@@ -859,20 +852,6 @@ Literal Parser::parse_lit() {
         lit = ahead().literal();
     next();
     return lit;
-}
-
-PtrVector<ast::NamedDecl> Parser::parse_trait_or_impl_body(bool impl) {
-    PtrVector<ast::NamedDecl> decls;
-    expect(Token::LBrace);
-    parse_list(Token::RBrace, Token::Semi, [&] {
-        if (ahead().tag() == Token::Fn)
-            decls.emplace_back(parse_fn_decl(!impl));
-        else {
-            error(ahead().loc(), "function declaration expected");
-            next();
-        }
-    });
-    return decls;
 }
 
 } // namespace artic

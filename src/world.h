@@ -14,6 +14,7 @@ namespace artic {
 namespace ast {
     struct FnDecl;
     struct StructDecl;
+    struct EnumDecl;
 }
 
 namespace Tag {
@@ -46,8 +47,12 @@ public:
 
     Type* type_forall(const ast::FnDecl&);
     Type* type_struct(const ast::StructDecl&);
+    Type* type_enum(const ast::EnumDecl&);
 
 private:
+    template <typename StructOrEnum, typename FieldsOrOptions>
+    Type* type_struct_or_enum(thorin::tag_t, const StructOrEnum&, const FieldsOrOptions&);
+
     const thorin::Def* sint_;
     const thorin::Def* uint_;
 };

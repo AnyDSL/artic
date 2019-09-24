@@ -29,8 +29,6 @@ public:
     bool should_emit_error(const Type*);
     void explain_no_ret(const Type*, const Type*);
 
-    bool check_mut(const ast::Node&);
-
     const Type* expect(const Loc&, const std::string&, const Type*, const Type*);
     const Type* expect(const Loc&, const std::string&, const Type*);
     const Type* expect(const Loc&, const Type*, const Type*);
@@ -42,16 +40,20 @@ public:
     const Type* check(const ast::Node&, const Type*);
     const Type* infer(const ast::Node&);
 
-    bool check_ref(const ast::Node&);
-    const Type* infer_lit(const Loc&, const Literal&);
-    const Type* check_lit(const Loc&, const Literal&, const Type*);
+    const Type* infer(const ast::CallExpr&);
+    const Type* check(const ast::TypeParamList&, Type*);
+
+    const Type* infer(const Loc&, const Literal&);
+    const Type* check(const Loc&, const Literal&, const Type*);
+
+    bool check_mut(const ast::Node&);
+
     template <typename Args>
     const Type* check_tuple(const Loc&, const std::string&, const Args&, const Type*);
     template <typename Args>
     const Type* infer_tuple(const Args&);
     template <typename Fields>
     const Type* check_fields(const Loc&, const Type*, const Type*, const Fields&, bool, const std::string&);
-    const Type* infer_call(const ast::CallExpr&);
 
     World& world() { return world_; }
 
