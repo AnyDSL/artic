@@ -528,6 +528,16 @@ const artic::Type* MatchExpr::check(TypeChecker& checker, const artic::Type* exp
         checker.check(*case_->ptrn, arg_type);
         type = type ? checker.check(*case_->expr, type) : checker.infer(*case_->expr);
     }
+    bool refutable = true;
+    for (size_t i = 0, n = cases.size(); i < cases.size(); ++i) {
+        refutable &= cases[i]->ptrn->is_refutable();
+        if (i != n - 1 && !refutable) {
+            checker.warn(cases[i]->loc, "subsequent cases are never executed");
+            break;
+        }
+    }
+    if (refutable)
+        checker.error(loc, "match expression is not complete");
     return type ? type : checker.cannot_infer(loc, "match expression");
 }
 
