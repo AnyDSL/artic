@@ -1,0 +1,29 @@
+enum E {
+    A, B(i32)
+}
+enum F[T] {
+    A, B(T)
+}
+enum G[T, U] {
+    A, B(T, U)
+}
+
+fn main() -> i64 {
+    match E::A { _ => 1 };
+    match E::A {
+        E::A => 1,
+        E::B(5) => 2,
+        _ => 3
+    };
+    match F[i32]::A {
+       F[i32]::A => 1,
+       F[i32]::B(5) => 2,
+        _ => 3
+    };
+    match G[i32, i64]::A {
+       G[i32, i64]::A => 1,
+       G[i32, i64]::B(5, 6) => 2,
+       G[i32, i64]::B(5, z) => z + 2,
+        _ => 3
+    }
+}

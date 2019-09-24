@@ -12,6 +12,8 @@ add_test(NAME valid_for      COMMAND artic ${PROJECT_SOURCE_DIR}/test/valid/for.
 add_test(NAME valid_structs1 COMMAND artic ${PROJECT_SOURCE_DIR}/test/valid/structs1.art)
 add_test(NAME valid_structs2 COMMAND artic ${PROJECT_SOURCE_DIR}/test/valid/structs2.art)
 add_test(NAME valid_structs3 COMMAND artic ${PROJECT_SOURCE_DIR}/test/valid/structs3.art)
+add_test(NAME valid_enums1   COMMAND artic ${PROJECT_SOURCE_DIR}/test/valid/enums1.art)
+add_test(NAME valid_enums2   COMMAND artic ${PROJECT_SOURCE_DIR}/test/valid/enums2.art)
 add_test(NAME valid_types    COMMAND artic ${PROJECT_SOURCE_DIR}/test/valid/types.art)
 add_test(NAME valid_loops    COMMAND artic ${PROJECT_SOURCE_DIR}/test/valid/loops.art)
 add_test(NAME valid_mut      COMMAND artic ${PROJECT_SOURCE_DIR}/test/valid/mut.art)
@@ -31,6 +33,8 @@ add_test(NAME invalid_uninferable COMMAND artic --invert ${PROJECT_SOURCE_DIR}/t
 add_test(NAME invalid_noret       COMMAND artic --invert ${PROJECT_SOURCE_DIR}/test/invalid/noret.art)
 add_test(NAME invalid_structs1    COMMAND artic --invert ${PROJECT_SOURCE_DIR}/test/invalid/structs1.art)
 add_test(NAME invalid_structs2    COMMAND artic --invert ${PROJECT_SOURCE_DIR}/test/invalid/structs2.art)
+add_test(NAME invalid_enums1      COMMAND artic --invert ${PROJECT_SOURCE_DIR}/test/invalid/enums1.art)
+add_test(NAME invalid_enums2      COMMAND artic --invert ${PROJECT_SOURCE_DIR}/test/invalid/enums2.art)
 add_test(NAME invalid_mut         COMMAND artic --invert ${PROJECT_SOURCE_DIR}/test/invalid/mut.art)
 
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
