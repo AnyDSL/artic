@@ -988,6 +988,22 @@ struct StructPtrn : public Ptrn {
     void print(Printer&) const override;
 };
 
+/// A pattern that matches against enumerations.
+struct EnumPtrn : public Ptrn {
+    Path path;
+    Ptr<Ptrn> arg;
+
+    EnumPtrn(const Loc& loc, Path&& path, Ptr<Ptrn>&& arg)
+        : Ptrn(loc), path(std::move(path)), arg(std::move(arg))
+    {}
+
+    bool is_refutable() const override;
+
+    const artic::Type* infer(TypeChecker&) const override;
+    void bind(NameBinder&) const override;
+    void print(Printer&) const override;
+};
+
 /// A pattern that matches against tuples.
 struct TuplePtrn : public Ptrn {
     PtrVector<Ptrn> args;

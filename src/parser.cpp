@@ -191,9 +191,13 @@ Ptr<ast::Ptrn> Parser::parse_ptrn() {
                 auto id = parse_id();
                 if (ahead().tag() == Token::DblColon ||
                     ahead().tag() == Token::LBracket ||
-                    ahead().tag() == Token::LBrace)
-                    ptrn = std::move(parse_struct_ptrn(std::move(id)));
-                else
+                    ahead().tag() == Token::LBrace) {
+                    auto path = parse_path(std::move(id), true);
+                    if (ahead().tag() == Token::LBrace)
+                        ptrn = std::move(parse_struct_ptrn(std::move(path)));
+                    else
+                        ptrn = std::move(parse_enum_ptrn(std::move(path)));
+                } else
                     ptrn = std::move(parse_id_ptrn(std::move(id), false));
             }
             break;
@@ -248,9 +252,8 @@ Ptr<ast::FieldPtrn> Parser::parse_field_ptrn() {
     return make_ptr<ast::FieldPtrn>(tracker(), std::move(id), std::move(ptrn));
 }
 
-Ptr<ast::StructPtrn> Parser::parse_struct_ptrn(ast::Identifier&& id) {
-    Tracker tracker(this, id.loc);
-    ast::Path path = parse_path(std::move(id), true);
+Ptr<ast::StructPtrn> Parser::parse_struct_ptrn(ast::Path&& path) {
+    Tracker tracker(this, path.loc);
 
     expect(Token::LBrace);
     PtrVector<ast::FieldPtrn> fields;
@@ -264,6 +267,16 @@ Ptr<ast::StructPtrn> Parser::parse_struct_ptrn(ast::Identifier&& id) {
         error((*etc)->loc, "'...' can only be used at the end of a structure pattern");
 
     return make_ptr<ast::StructPtrn>(tracker(), std::move(path), std::move(fields));
+}
+
+Ptr<ast::EnumPtrn> Parser::parse_enum_ptrn(ast::Path&& path) {
+    Tracker tracker(this, path.loc);
+
+    Ptr<ast::Ptrn> arg;
+    if (ahead().tag() == Token::LParen)
+        arg = std::move(parse_tuple_ptrn());
+
+    return make_ptr<ast::EnumPtrn>(tracker(), std::move(path), std::move(arg));
 }
 
 Ptr<ast::Ptrn> Parser::parse_tuple_ptrn() {

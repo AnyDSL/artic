@@ -32,7 +32,7 @@ public:
     const Type* expect(const Loc&, const std::string&, const Type*, const Type*);
     const Type* expect(const Loc&, const std::string&, const Type*);
     const Type* expect(const Loc&, const Type*, const Type*);
-    const Type* struct_expected(const Loc&, const Type*);
+    const Type* type_expected(const Loc&, const Type*, const std::string&);
     const Type* unknown_member(const Loc&, const Type*, const std::string&);
     const Type* cannot_infer(const Loc&, const std::string&);
     const Type* unreachable_code(const Loc&, const Loc&, const Loc&);

@@ -265,6 +265,10 @@ bool StructPtrn::is_refutable() const {
     return std::any_of(fields.begin(), fields.end(), [&] (auto& field) { return field->is_refutable(); });
 }
 
+bool EnumPtrn::is_refutable() const {
+    return true;
+}
+
 bool TuplePtrn::is_refutable() const {
     return std::any_of(args.begin(), args.end(), [&] (auto& arg) { return arg->is_refutable(); });
 }

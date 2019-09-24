@@ -82,9 +82,9 @@ const Type* TypeChecker::expect(const Loc& loc, const Type* type, const Type* ex
     return world().type_error();
 }
 
-const Type* TypeChecker::struct_expected(const Loc& loc, const artic::Type* type) {
+const Type* TypeChecker::type_expected(const Loc& loc, const artic::Type* type, const std::string& name) {
     if (should_emit_error(type))
-        error(loc, "structure type expected, but got '{}'", *type);
+        error(loc, "{} type expected, but got '{}'", name, *type);
     return world().type_error();
 }
 
@@ -308,10 +308,9 @@ const artic::Type* Path::infer(TypeChecker& checker) const {
         if (i != elems.size() - 1) {
             auto& member = elems[i + 1].id.name;
             // TODO: Modules
-            if (thorin::isa<Tag::EnumType>(type)) {
-                auto app = type->isa<thorin::App>();
-                if (app) type = app->callee();
-                
+            auto app = type->isa<thorin::App>();
+            if (app) type = app->callee();
+            if (is_enum_type(type)) {
                 auto index = checker.find_member(type, member);
                 if (!index)
                     return checker.unknown_member(elem.loc, type, member);
@@ -411,7 +410,7 @@ const artic::Type* StructExpr::infer(TypeChecker& checker) const {
     auto app = expr_type->isa<thorin::App>();
     if (app) expr_type = app->callee();
     if (!is_struct_type(expr_type))
-        return checker.struct_expected(loc, expr_type);
+        return checker.type_expected(loc, expr_type, "structure");
     return checker.check_fields(loc, expr_type->as_nominal(), app, fields, false, "expression");
 }
 
@@ -495,7 +494,7 @@ const artic::Type* ProjExpr::infer(TypeChecker& checker) const {
     auto app = expr_type->isa<thorin::App>();
     if (app) expr_type = app->callee();
     if (!is_struct_type(expr_type))
-        return checker.struct_expected(loc, expr_type);
+        return checker.type_expected(loc, expr_type, "structure");
     auto struct_type = expr_type->as_nominal();
     if (auto index = checker.find_member(struct_type, field.name))
         return app ? thorin::rewrite(struct_type->op(*index), struct_type->param(), app->arg()) : struct_type->op(*index);
@@ -720,8 +719,31 @@ const artic::Type* StructPtrn::infer(TypeChecker& checker) const {
     auto app = path_type->isa<thorin::App>();
     if (app) path_type = app->callee();
     if (!is_struct_type(path_type))
-        return checker.struct_expected(loc, path_type);
+        return checker.type_expected(loc, path_type, "structure");
     return checker.check_fields(loc, path_type->as_nominal(), app, fields, has_etc(), "pattern");
+}
+
+const artic::Type* EnumPtrn::infer(TypeChecker& checker) const {
+    auto path_type = checker.infer(path);
+    auto enum_type = path_type;
+    const artic::Type* param_type = nullptr;
+    if (auto pi = path_type->isa<thorin::Pi>()) {
+        // Some enumeration options are functions
+        param_type = pi->domain();
+        enum_type  = pi->codomain();
+    }
+    auto app = enum_type->isa<thorin::App>();
+    if (app) enum_type = app->callee();
+    if (!is_enum_type(enum_type))
+        return checker.type_expected(loc, enum_type, "enumeration");
+    if (arg) {
+        if (!param_type) {
+            checker.error(loc, "arguments expected after enumeration option");
+            return checker.world().type_error();
+        }
+        checker.check(*arg, param_type);
+    }
+    return app ? app : enum_type;
 }
 
 const artic::Type* TuplePtrn::infer(TypeChecker& checker) const {

@@ -290,6 +290,11 @@ void StructPtrn::print(Printer& p) const {
     p << "}";
 }
 
+void EnumPtrn::print(Printer& p) const {
+    path.print(p);
+    if (arg) print_parens(p, arg);
+}
+
 void TuplePtrn::print(Printer& p) const {
     p << '(';
     print_list(p, ", ", args, [&] (auto& arg) {

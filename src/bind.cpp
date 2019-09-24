@@ -272,6 +272,11 @@ void StructPtrn::bind(NameBinder& binder) const {
     for (auto& field : fields) binder.bind(*field);
 }
 
+void EnumPtrn::bind(NameBinder& binder) const {
+    binder.bind(path);
+    if (arg) binder.bind(*arg);
+}
+
 void TuplePtrn::bind(NameBinder& binder) const {
     for (auto& arg : args) binder.bind(*arg);
 }
