@@ -89,7 +89,7 @@ const Type* TypeChecker::type_expected(const Loc& loc, const artic::Type* type, 
 }
 
 const Type* TypeChecker::unknown_member(const Loc& loc, const Type* struct_type, const std::string& field) {
-    error(loc, "no field '{}' in '{}'", field, *struct_type);
+    error(loc, "no member '{}' in '{}'", field, *struct_type);
     return world().type_error();
 }
 
@@ -294,7 +294,7 @@ const artic::Type* Path::infer(TypeChecker& checker) const {
                     type_args[i] = checker.infer(*elem.args[i]);
                 type = is_poly_ctor
                     ? checker.world().app(type, checker.world().tuple(type_args))
-                    : thorin::rewrite(type->as<thorin::Pi>()->codomain(), type->as_nominal<thorin::Pi>()->param(), checker.world().tuple(type_args));
+                    : type->as<thorin::Pi>()->apply(checker.world().tuple(type_args));
             } else {
                 checker.error(elem.loc, "missing type arguments");
                 return checker.world().type_error();
@@ -309,6 +309,7 @@ const artic::Type* Path::infer(TypeChecker& checker) const {
             auto& member = elems[i + 1].id.name;
             // TODO: Modules
             auto app = type->isa<thorin::App>();
+            auto prev = type;
             if (app) type = app->callee();
             if (is_enum_type(type)) {
                 auto index = checker.find_member(type, member);
@@ -316,7 +317,7 @@ const artic::Type* Path::infer(TypeChecker& checker) const {
                     return checker.unknown_member(elem.loc, type, member);
                 type = app ? thorin::rewrite(type->op(*index), type->as_nominal()->param(), app->arg()) : type->op(*index);
             } else {
-                checker.error(elem.loc, "operator '::' not allowed on type '{}'", *type);
+                checker.error(elem.loc, "operator '::' not allowed on type '{}'", *prev);
                 return checker.world().type_error();
             }
         }
@@ -408,9 +409,10 @@ const artic::Type* FieldExpr::check(TypeChecker& checker, const artic::Type* exp
 const artic::Type* StructExpr::infer(TypeChecker& checker) const {
     auto expr_type = checker.infer(*expr);
     auto app = expr_type->isa<thorin::App>();
+    auto prev = expr_type;
     if (app) expr_type = app->callee();
     if (!is_struct_type(expr_type))
-        return checker.type_expected(loc, expr_type, "structure");
+        return checker.type_expected(expr->loc, prev, "structure");
     return checker.check_fields(loc, expr_type->as_nominal(), app, fields, false, "expression");
 }
 
@@ -492,9 +494,10 @@ const artic::Type* CallExpr::infer(TypeChecker& checker) const {
 const artic::Type* ProjExpr::infer(TypeChecker& checker) const {
     auto expr_type = checker.infer(*expr);
     auto app = expr_type->isa<thorin::App>();
+    auto prev = expr_type;
     if (app) expr_type = app->callee();
     if (!is_struct_type(expr_type))
-        return checker.type_expected(loc, expr_type, "structure");
+        return checker.type_expected(expr->loc, prev, "structure");
     auto struct_type = expr_type->as_nominal();
     if (auto index = checker.find_member(struct_type, field.name))
         return app ? thorin::rewrite(struct_type->op(*index), struct_type->param(), app->arg()) : struct_type->op(*index);
@@ -727,9 +730,10 @@ const artic::Type* FieldPtrn::check(TypeChecker& checker, const artic::Type* exp
 const artic::Type* StructPtrn::infer(TypeChecker& checker) const {
     auto path_type = checker.infer(path);
     auto app = path_type->isa<thorin::App>();
+    auto prev = path_type;
     if (app) path_type = app->callee();
     if (!is_struct_type(path_type))
-        return checker.type_expected(loc, path_type, "structure");
+        return checker.type_expected(path.loc, prev, "structure");
     return checker.check_fields(loc, path_type->as_nominal(), app, fields, has_etc(), "pattern");
 }
 
@@ -743,9 +747,10 @@ const artic::Type* EnumPtrn::infer(TypeChecker& checker) const {
         enum_type  = pi->codomain();
     }
     auto app = enum_type->isa<thorin::App>();
+    auto prev = enum_type;
     if (app) enum_type = app->callee();
     if (!is_enum_type(enum_type))
-        return checker.type_expected(loc, enum_type, "enumeration");
+        return checker.type_expected(path.loc, prev, "enumeration");
     if (arg) {
         if (!param_type) {
             checker.error(loc, "arguments expected after enumeration option");

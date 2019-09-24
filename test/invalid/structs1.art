@@ -1,2 +1,4 @@
 struct S[T] { t: T }
 let _ : S[i32] = 5;
+let a = 1;
+let _ = a.t;

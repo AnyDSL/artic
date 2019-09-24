@@ -1,0 +1,19 @@
+struct A {
+    x: i32,
+    y: i64
+}
+struct B[T] {
+    x: T,
+    y: i64
+}
+struct C[T, U] {
+    x: T,
+    y: U
+}
+
+fn Ax(A { x: x, ... }) { x }
+fn Ay(A { y: y, ... }) { y }
+fn Bx[T](B[T] { x: x, ... }) { x }
+fn By[T](B[T] { y: y, ... }) { y }
+fn Cx[T, U](C[T, U] { x: x, ... }) { x }
+fn Cy[T, U](C[T, U] { y: y, ... }) { y }
