@@ -11,6 +11,19 @@ bool TypeChecker::run(const ast::ModDecl& module) {
     return error_count == 0;
 }
 
+const Type* TypeChecker::struct_field(const Type* struct_type, const Type* app, size_t index) {
+    if (app) {
+        return thorin::rewrite(struct_type->as<thorin::Lam>()->body()->op(index),
+                               struct_type->as_nominal()->param(),
+                               app->as<thorin::App>()->arg());
+    }
+    return struct_type->op(index);
+}
+
+const Type* TypeChecker::enum_option(const Type* enum_type, const Type* app, size_t index) {
+    return nullptr; // TODO
+}
+
 std::optional<size_t> TypeChecker::find_member(const Type* type, const std::string& member) {
     auto meta = type->meta();
     assert(meta);
@@ -20,6 +33,15 @@ std::optional<size_t> TypeChecker::find_member(const Type* type, const std::stri
             return i;
     }
     return std::nullopt;
+}
+
+template <typename Pred>
+std::tuple<const Type*, const Type*> TypeChecker::match_app(const Type* type, Pred pred) {
+    if (auto app = type->isa<thorin::App>()) {
+        if (pred(app->callee()))
+            return std::make_tuple(app, app->callee());
+    }
+    return std::make_tuple(nullptr, pred(type) ? type : nullptr);
 }
 
 bool TypeChecker::enter_decl(const ast::Decl* decl) {
@@ -245,11 +267,7 @@ const Type* TypeChecker::check_fields(const Loc& loc, const Type* struct_type, c
             return world().type_error();
         }
         seen[*index] = true;
-        // Rewrite the field type if the structure has type arguments
-        auto field_type = struct_type->op(*index);
-        if (app)
-            field_type = thorin::rewrite(field_type, struct_type->as_nominal()->param(), app->as<thorin::App>()->arg());
-        check(*fields[i], field_type);
+        check(*fields[i], struct_field(struct_type, app, *index));
     }
     // Check that all fields have been specified, unless '...' was used
     if (!etc && !std::all_of(seen.begin(), seen.end(), [] (bool b) { return b; })) {
@@ -408,12 +426,10 @@ const artic::Type* FieldExpr::check(TypeChecker& checker, const artic::Type* exp
 
 const artic::Type* StructExpr::infer(TypeChecker& checker) const {
     auto expr_type = checker.infer(*expr);
-    auto app = expr_type->isa<thorin::App>();
-    auto prev = expr_type;
-    if (app) expr_type = app->callee();
-    if (!is_struct_type(expr_type))
-        return checker.type_expected(expr->loc, prev, "structure");
-    return checker.check_fields(loc, expr_type->as_nominal(), app, fields, false, "expression");
+    auto [app, struct_type] = checker.match_app(expr_type, is_struct_type);
+    if (!struct_type)
+        return checker.type_expected(expr->loc, expr_type, "structure");
+    return checker.check_fields(loc, struct_type, app, fields, false, "expression");
 }
 
 const artic::Type* TupleExpr::infer(TypeChecker& checker) const {
@@ -493,14 +509,11 @@ const artic::Type* CallExpr::infer(TypeChecker& checker) const {
 
 const artic::Type* ProjExpr::infer(TypeChecker& checker) const {
     auto expr_type = checker.infer(*expr);
-    auto app = expr_type->isa<thorin::App>();
-    auto prev = expr_type;
-    if (app) expr_type = app->callee();
-    if (!is_struct_type(expr_type))
-        return checker.type_expected(expr->loc, prev, "structure");
-    auto struct_type = expr_type->as_nominal();
+    auto [app, struct_type] = checker.match_app(expr_type, is_struct_type);
+    if (!struct_type)
+        return checker.type_expected(expr->loc, expr_type, "structure");
     if (auto index = checker.find_member(struct_type, field.name))
-        return app ? thorin::rewrite(struct_type->op(*index), struct_type->param(), app->arg()) : struct_type->op(*index);
+        return checker.struct_field(struct_type, app, *index);
     else
         return checker.unknown_member(loc, struct_type, field.name);
 }
@@ -663,11 +676,15 @@ const artic::Type* FieldDecl::infer(TypeChecker& checker) const {
 
 const artic::Type* StructDecl::infer(TypeChecker& checker) const {
     auto struct_type = checker.world().type_struct(*this);
-    if (type_params) checker.check(*type_params, struct_type);
+    auto sigma = struct_type;
+    if (type_params) {
+        checker.check(*type_params, struct_type);
+        sigma = struct_type->as<thorin::Lam>()->body()->as_nominal();
+    }
     // Set the type before entering the fields
     type = struct_type;
     for (size_t i = 0; i < fields.size(); ++i)
-        struct_type->set(i, checker.infer(*fields[i]));
+        sigma->set(i, checker.infer(*fields[i]));
     return struct_type;
 }
 
@@ -729,12 +746,10 @@ const artic::Type* FieldPtrn::check(TypeChecker& checker, const artic::Type* exp
 
 const artic::Type* StructPtrn::infer(TypeChecker& checker) const {
     auto path_type = checker.infer(path);
-    auto app = path_type->isa<thorin::App>();
-    auto prev = path_type;
-    if (app) path_type = app->callee();
-    if (!is_struct_type(path_type))
-        return checker.type_expected(path.loc, prev, "structure");
-    return checker.check_fields(loc, path_type->as_nominal(), app, fields, has_etc(), "pattern");
+    auto [app, struct_type] = checker.match_app(path_type, is_struct_type);
+    if (!struct_type)
+        return checker.type_expected(path.loc, path_type, "structure");
+    return checker.check_fields(loc, struct_type, app, fields, has_etc(), "pattern");
 }
 
 const artic::Type* EnumPtrn::infer(TypeChecker& checker) const {

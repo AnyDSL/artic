@@ -21,7 +21,12 @@ public:
     /// Returns true on success, otherwise false.
     bool run(const ast::ModDecl&);
 
+    const Type* struct_field(const Type*, const Type*, size_t);
+    const Type* enum_option(const Type*, const Type*, size_t);
     std::optional<size_t> find_member(const Type*, const std::string&);
+
+    template <typename Pred>
+    std::tuple<const Type*, const Type*> match_app(const Type*, Pred);
 
     bool enter_decl(const ast::Decl*);
     void exit_decl(const ast::Decl*);

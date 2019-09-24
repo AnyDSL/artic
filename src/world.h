@@ -20,9 +20,7 @@ namespace ast {
 namespace Tag {
     enum : thorin::tag_t {
         SInt = thorin::Tag::Max,
-        UInt,
-        StructType,
-        EnumType,
+        UInt
     };
 }
 
@@ -51,7 +49,7 @@ public:
 
 private:
     template <typename StructOrEnum, typename FieldsOrOptions>
-    Type* type_struct_or_enum(thorin::tag_t, const StructOrEnum&, const FieldsOrOptions&);
+    const thorin::Def* debug_info(const StructOrEnum&, const FieldsOrOptions&);
 
     const thorin::Def* sint_;
     const thorin::Def* uint_;

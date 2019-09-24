@@ -14,32 +14,35 @@ Type* World::type_forall(const ast::FnDecl& decl) {
 }
 
 Type* World::type_struct(const ast::StructDecl& decl) {
-    return type_struct_or_enum(Tag::StructType, decl, decl.fields);
+    auto dbg = debug_info(decl, decl.fields);
+    auto body = sigma(kind_star(), decl.fields.size(), dbg);
+    if (!decl.type_params)
+        return body;
+    thorin::Array<const thorin::Def*> domains(decl.type_params->params.size(), kind_star());
+    auto head = lam(pi(sigma(domains), kind_star()), dbg);
+    head->set_body(body);
+    return head;
 }
 
 Type* World::type_enum(const ast::EnumDecl& decl) {
-    return type_struct_or_enum(Tag::EnumType, decl, decl.options);
+    assert(false);
+    return nullptr; // TODO
 }
 
 template <typename StructOrEnum, typename FieldsOrOptions>
-Type* World::type_struct_or_enum(thorin::tag_t tag, const StructOrEnum& struct_or_enum, const FieldsOrOptions& fields_or_options) {
-    auto num_vars = struct_or_enum.type_params ? struct_or_enum.type_params->params.size() : 0;
+const thorin::Def* World::debug_info(const StructOrEnum& struct_or_enum, const FieldsOrOptions& fields_or_options) {
     thorin::Array<const thorin::Def*> names(fields_or_options.size(), [&] (size_t i) {
         return tuple_str(fields_or_options[i]->id.name);
     });
-    auto debug = thorin::Debug(
+    return debug({
         struct_or_enum.id.name,
         *struct_or_enum.loc.file,
-        struct_or_enum.loc.begin_row,
-        struct_or_enum.loc.begin_col,
-        struct_or_enum.loc.end_row,
-        struct_or_enum.loc.end_col,
+        thorin::nat_t(struct_or_enum.loc.begin_row),
+        thorin::nat_t(struct_or_enum.loc.begin_col),
+        thorin::nat_t(struct_or_enum.loc.end_row),
+        thorin::nat_t(struct_or_enum.loc.end_col),
         tuple(names)
-    );
-    if (num_vars == 0)
-        return axiom(nullptr, kind_star(), fields_or_options.size(), tag, 0, debug);
-    thorin::Array<const thorin::Def*> domains(num_vars, kind_star());
-    return axiom(nullptr, pi(sigma(domains), kind_star()), fields_or_options.size(), tag, 0, debug);
+    });
 }
 
 namespace log {
@@ -53,55 +56,56 @@ Output& operator << (Output& out, const Type& type) {
         if (!parens) out << ')';
         out << " -> " << *pi->codomain();
     } else if (auto sigma = type.isa<thorin::Sigma>()) {
-        out << '(';
-        for (size_t i = 0, n = sigma->num_ops(); i < n; ++i) {
-            out << *sigma->op(i);
-            if (i != n - 1)
-                out << ", ";
+        if (sigma->isa_nominal()) {
+            // Structure
+            out << log::keyword_style("struct") << ' ' << sigma->name();
+        } else {
+            // Regular tuple
+            out << '(';
+            for (size_t i = 0, n = sigma->num_ops(); i < n; ++i) {
+                out << *sigma->op(i);
+                if (i != n - 1)
+                    out << ", ";
+            }
+            out << ')';
         }
-        out << ')';
     } else if (auto variadic = type.isa<thorin::Variadic>()) {
         out << '[' << *variadic->body() << ']';
-    } else if (auto axiom = type.isa<thorin::Axiom>()) {
-        if (axiom->tag() == Tag::StructType)
-            out << log::keyword_style("struct");
-        else if (axiom->tag() == Tag::EnumType)
-            out << log::keyword_style("enum");
-        else
-            assert(false);
-        out << ' ' << axiom->name();
     } else if (type.isa<thorin::Bot>()) {
        out << log::keyword_style("!"); 
     } else if (type.isa<thorin::Top>()) {
         out << log::error_style("invalid type");
     } else if (auto app = type.isa<thorin::App>()) {
         auto [axiom, _] = thorin::get_axiom(app);
-        assert(axiom);
-        switch (axiom->tag()) {
-            case thorin::Tag::Int:
-                out << log::keyword_style("bool");
-                break;
-            case Tag::SInt:
-            case Tag::UInt:
-            case thorin::Tag::Real:
-                {
-                    auto width = thorin::as_lit<thorin::nat_t>(app->arg());
-                    auto prefix = axiom->tag() == Tag::SInt ? "i" : axiom->tag() == Tag::UInt ? "u" : "f";
-                    out << log::keyword_style(prefix + std::to_string(width));
-                }
-                break;
-            default:
-                out << *axiom << '[';
-                if (auto tuple = app->arg()->isa<thorin::Tuple>()) {
-                    for (size_t i = 0, n = tuple->num_ops(); i < n; ++i) {
-                        out << *tuple->op(i);
-                        if (i != n - 1)
-                            out << ", ";
+        if (axiom) {
+            switch (axiom->tag()) {
+                case thorin::Tag::Int:
+                    out << log::keyword_style("bool");
+                    break;
+                case Tag::SInt:
+                case Tag::UInt:
+                case thorin::Tag::Real:
+                    {
+                        auto width = thorin::as_lit<thorin::nat_t>(app->arg());
+                        auto prefix = axiom->tag() == Tag::SInt ? "i" : axiom->tag() == Tag::UInt ? "u" : "f";
+                        out << log::keyword_style(prefix + std::to_string(width));
                     }
-                } else
-                    out << *app->arg();
-                out << ']';
-                break;
+                    break;
+                default:
+                    assert(false);
+                    break;
+            }
+        } else {
+            out << app->callee()->name() << '[';
+            if (auto tuple = app->arg()->isa<thorin::Tuple>()) {
+                for (size_t i = 0, n = tuple->num_ops(); i < n; ++i) {
+                    out << *tuple->op(i);
+                    if (i != n - 1)
+                        out << ", ";
+                }
+            } else
+                out << *app->arg();
+            out << ']';
         }
     } else {
         out << type.name();
@@ -112,8 +116,8 @@ Output& operator << (Output& out, const Type& type) {
 } // namespace log
 
 bool is_no_ret_type(const Type* type) { return type->isa<thorin::Bot>(); }
-bool is_struct_type(const Type* type) { return type->isa<thorin::Axiom>() && type->as<thorin::Axiom>()->tag() == Tag::StructType; }
-bool is_enum_type(const Type* type) { return type->isa<thorin::Axiom>() && type->as<thorin::Axiom>()->tag() == Tag::EnumType; }
+bool is_struct_type(const Type* type) { return type->isa_nominal<thorin::Sigma>() || (type->isa_nominal<thorin::Lam>() && type->as<thorin::Lam>()->body()->isa<thorin::Sigma>()); }
+bool is_enum_type(const Type* type) { return false; } // TODO
 bool is_bool_type(const Type* type) { return thorin::isa<thorin::Tag::Int >(type); }
 bool is_sint_type(const Type* type) { return thorin::isa<Tag::SInt        >(type); }
 bool is_uint_type(const Type* type) { return thorin::isa<Tag::UInt        >(type); }
