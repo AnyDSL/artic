@@ -21,8 +21,8 @@ public:
     /// Returns true on success, otherwise false.
     bool run(const ast::ModDecl&);
 
-    const Type* struct_field(const Type*, const Type*, size_t);
-    const Type* enum_option(const Type*, const Type*, size_t);
+    const Type* field_type(const Type*, const Type*, size_t);
+    const Type* option_type(const Type*, const Type*, size_t);
     std::optional<size_t> find_member(const Type*, const std::string&);
 
     template <typename Pred>
@@ -37,10 +37,11 @@ public:
     const Type* expect(const Loc&, const std::string&, const Type*, const Type*);
     const Type* expect(const Loc&, const std::string&, const Type*);
     const Type* expect(const Loc&, const Type*, const Type*);
-    const Type* type_expected(const Loc&, const Type*, const std::string&);
-    const Type* unknown_member(const Loc&, const Type*, const std::string&);
-    const Type* cannot_infer(const Loc&, const std::string&);
-    const Type* unreachable_code(const Loc&, const Loc&, const Loc&);
+
+    const Type* error_type_expected(const Loc&, const Type*, const std::string&);
+    const Type* error_unknown_member(const Loc&, const Type*, const std::string&);
+    const Type* error_cannot_infer(const Loc&, const std::string&);
+    const Type* error_unreachable_code(const Loc&, const Loc&, const Loc&);
 
     const Type* check(const ast::Node&, const Type*);
     const Type* infer(const ast::Node&);

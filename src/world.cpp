@@ -25,8 +25,14 @@ Type* World::type_struct(const ast::StructDecl& decl) {
 }
 
 Type* World::type_enum(const ast::EnumDecl& decl) {
-    assert(false);
-    return nullptr; // TODO
+    auto dbg = debug_info(decl, decl.options);
+    auto body = union_(kind_star(), decl.options.size(), dbg);
+    if (!decl.type_params)
+        return body;
+    thorin::Array<const thorin::Def*> domains(decl.type_params->params.size(), kind_star());
+    auto head = lam(pi(sigma(domains), kind_star()), dbg);
+    head->set_body(body);
+    return head;
 }
 
 template <typename StructOrEnum, typename FieldsOrOptions>
@@ -69,6 +75,9 @@ Output& operator << (Output& out, const Type& type) {
             }
             out << ')';
         }
+    } else if (auto union_ = type.isa<thorin::Union>()) {
+        assert(union_->isa_nominal());
+        out << log::keyword_style("enum") << ' ' << union_->name();
     } else if (auto variadic = type.isa<thorin::Variadic>()) {
         out << '[' << *variadic->body() << ']';
     } else if (type.isa<thorin::Bot>()) {
@@ -118,12 +127,12 @@ Output& operator << (Output& out, const Type& type) {
 } // namespace log
 
 bool is_no_ret_type(const Type* type) { return type->isa<thorin::Bot>(); }
-bool is_struct_type(const Type* type) { return type->isa_nominal<thorin::Sigma>() || (type->isa_nominal<thorin::Lam>() && type->as<thorin::Lam>()->body()->isa<thorin::Sigma>()); }
-bool is_enum_type(const Type* type) { return false; } // TODO
-bool is_bool_type(const Type* type) { return thorin::isa<thorin::Tag::Int >(type); }
-bool is_sint_type(const Type* type) { return thorin::isa<Tag::SInt        >(type); }
-bool is_uint_type(const Type* type) { return thorin::isa<Tag::UInt        >(type); }
-bool is_real_type(const Type* type) { return thorin::isa<thorin::Tag::Real>(type); }
+bool is_struct_type(const Type* type) { return type->isa_nominal<thorin::Sigma>() || (type->isa_nominal<thorin::Lam>() && type->as<thorin::Lam>()->body()->isa_nominal<thorin::Sigma>()); }
+bool is_enum_type  (const Type* type) { return type->isa_nominal<thorin::Union>() || (type->isa_nominal<thorin::Lam>() && type->as<thorin::Lam>()->body()->isa_nominal<thorin::Union>()); }
+bool is_bool_type  (const Type* type) { return thorin::isa<thorin::Tag::Int >(type); }
+bool is_sint_type  (const Type* type) { return thorin::isa<Tag::SInt        >(type); }
+bool is_uint_type  (const Type* type) { return thorin::isa<Tag::UInt        >(type); }
+bool is_real_type  (const Type* type) { return thorin::isa<thorin::Tag::Real>(type); }
 
 bool is_subtype(const Type* a, const Type* b) {
     if (a == b || a->isa<thorin::Bot>() || b->isa<thorin::Top>())
