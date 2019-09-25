@@ -12,6 +12,7 @@ bool TypeChecker::run(const ast::ModDecl& module) {
 }
 
 const Type* TypeChecker::struct_field(const Type* struct_type, const Type* app, size_t index) {
+    // Retrieves the type of a structure field
     if (app) {
         return thorin::rewrite(struct_type->as<thorin::Lam>()->body()->op(index),
                                struct_type->as_nominal()->param(),
@@ -253,6 +254,7 @@ const Type* TypeChecker::infer_tuple(const Args& args) {
 
 template <typename Fields>
 const Type* TypeChecker::check_fields(const Loc& loc, const Type* struct_type, const Type* app, const Fields& fields, bool etc, const std::string& msg) {
+    auto expr_type = app ? app : struct_type;
     size_t num_fields = struct_type->meta()->type()->lit_arity();
     thorin::Array<bool> seen(num_fields, false);
     for (size_t i = 0; i < fields.size(); ++i) {
@@ -261,7 +263,7 @@ const Type* TypeChecker::check_fields(const Loc& loc, const Type* struct_type, c
             continue;
         auto index = find_member(struct_type, fields[i]->id.name);
         if (!index)
-            return unknown_member(fields[i]->loc, struct_type, fields[i]->id.name);
+            return unknown_member(fields[i]->loc, expr_type, fields[i]->id.name);
         if (seen[*index]) {
             error(loc, "field '{}' specified more than once", fields[i]->id.name);
             return world().type_error();
@@ -276,7 +278,7 @@ const Type* TypeChecker::check_fields(const Loc& loc, const Type* struct_type, c
                 error(loc, "missing field '{}' in structure {}", thorin::tuple2str(struct_type->meta()->out(i)), msg);
         }
     }
-    return app ? app : struct_type;
+    return expr_type;
 }
 
 namespace ast {
@@ -515,7 +517,7 @@ const artic::Type* ProjExpr::infer(TypeChecker& checker) const {
     if (auto index = checker.find_member(struct_type, field.name))
         return checker.struct_field(struct_type, app, *index);
     else
-        return checker.unknown_member(loc, struct_type, field.name);
+        return checker.unknown_member(loc, expr_type, field.name);
 }
 
 const artic::Type* IfExpr::infer(TypeChecker& checker) const {

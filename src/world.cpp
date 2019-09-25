@@ -96,7 +96,7 @@ Output& operator << (Output& out, const Type& type) {
                     break;
             }
         } else {
-            out << app->callee()->name() << '[';
+            out << *app->callee() << '[';
             if (auto tuple = app->arg()->isa<thorin::Tuple>()) {
                 for (size_t i = 0, n = tuple->num_ops(); i < n; ++i) {
                     out << *tuple->op(i);
@@ -107,6 +107,8 @@ Output& operator << (Output& out, const Type& type) {
                 out << *app->arg();
             out << ']';
         }
+    } else if (auto lam = type.isa<thorin::Lam>()) {
+        out << *lam->body();
     } else {
         out << type.name();
     }
