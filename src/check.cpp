@@ -356,6 +356,14 @@ const artic::Type* Path::infer(TypeChecker& checker) const {
     return type;
 }
 
+// Filter --------------------------------------------------------------------------
+
+const artic::Type* Filter::check(TypeChecker& checker, const artic::Type* expected) const {
+    if (expr)
+        checker.check(*expr, expected);
+    return expected;
+}
+
 // Types ---------------------------------------------------------------------------
 
 const artic::Type* PrimType::infer(TypeChecker& checker) const {
@@ -472,10 +480,13 @@ const artic::Type* ArrayExpr::check(TypeChecker& checker, const artic::Type* exp
 }
 
 const artic::Type* FnExpr::infer(TypeChecker& checker) const {
+    auto param_type = checker.infer(*param);
+    if (filter)
+        checker.check(*filter, checker.world().type_bool());
     auto body_type = ret_type ? checker.infer(*ret_type) : nullptr;
     if (body || body_type) {
-        auto param_type = checker.infer(*param);
-        body_type = body_type ? checker.check(*body, body_type) : checker.infer(*body);
+        if (body)
+            body_type = body_type ? checker.check(*body, body_type) : checker.infer(*body);
         return checker.world().pi(param_type, body_type);
     }
     return checker.error_cannot_infer(loc, "function");

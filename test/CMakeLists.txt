@@ -20,6 +20,7 @@ add_test(NAME valid_loops    COMMAND artic ${PROJECT_SOURCE_DIR}/test/valid/loop
 add_test(NAME valid_mut      COMMAND artic ${PROJECT_SOURCE_DIR}/test/valid/mut.art)
 add_test(NAME valid_array    COMMAND artic ${PROJECT_SOURCE_DIR}/test/valid/array.art)
 add_test(NAME valid_sort     COMMAND artic ${PROJECT_SOURCE_DIR}/test/valid/sort.art)
+add_test(NAME valid_filter   COMMAND artic ${PROJECT_SOURCE_DIR}/test/valid/filter.art)
 
 add_test(NAME invalid_comment     COMMAND artic --invert ${PROJECT_SOURCE_DIR}/test/invalid/comment.art)
 add_test(NAME invalid_utf8        COMMAND artic --invert ${PROJECT_SOURCE_DIR}/test/invalid/utf8.art)
@@ -38,6 +39,7 @@ add_test(NAME invalid_structs3    COMMAND artic --invert ${PROJECT_SOURCE_DIR}/t
 add_test(NAME invalid_enums1      COMMAND artic --invert ${PROJECT_SOURCE_DIR}/test/invalid/enums1.art)
 add_test(NAME invalid_enums2      COMMAND artic --invert ${PROJECT_SOURCE_DIR}/test/invalid/enums2.art)
 add_test(NAME invalid_mut         COMMAND artic --invert ${PROJECT_SOURCE_DIR}/test/invalid/mut.art)
+add_test(NAME invalid_filter      COMMAND artic --invert ${PROJECT_SOURCE_DIR}/test/invalid/filter.art)
 
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
     setup_target_for_coverage_gcovr_html(NAME coverage EXECUTABLE ctest -j ${PROCESSOR_COUNT} DEPENDENCIES artic)

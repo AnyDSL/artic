@@ -143,6 +143,7 @@ struct Filter : public Node {
         : Node(loc), expr(std::move(expr))
     {}
 
+    const artic::Type* check(TypeChecker&, const artic::Type*) const override;
     void bind(NameBinder&) const override;
     void print(Printer&) const override;
 };
