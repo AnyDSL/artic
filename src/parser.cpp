@@ -419,12 +419,13 @@ Ptr<ast::BlockExpr> Parser::parse_block_expr() {
             case Token::LBracket:
             case Token::LBrace:
             case Token::Or:
-            case Token::And:
             case Token::Mul:
+            case Token::Not:
             case Token::Add:
             case Token::Sub:
             case Token::Inc:
             case Token::Dec:
+            case Token::QMark:
             case Token::Let:
             case Token::Fn:
                 if (!last_semi && !stmts.empty() && stmts.back()->need_semicolon())
@@ -611,13 +612,13 @@ Ptr<ast::Expr> Parser::parse_primary_expr() {
     Ptr<ast::Expr> expr;
     switch (ahead().tag()) {
         case Token::Not:
-        case Token::Inc:
-        case Token::Dec:
         case Token::Add:
         case Token::Sub:
+        case Token::Inc:
+        case Token::Dec:
+        case Token::QMark:
             expr = std::move(parse_prefix_expr());
             break;
-        case Token::QMark:    expr = std::move(parse_known_expr());   break;
         case Token::LBrace:   expr = std::move(parse_block_expr());   break;
         case Token::LParen:   expr = std::move(parse_tuple_expr());   break;
         case Token::LBracket: expr = std::move(parse_array_expr());   break;
@@ -693,13 +694,6 @@ Ptr<ast::Expr> Parser::parse_binary_expr(Ptr<ast::Expr>&& left, int max_prec) {
         left = std::move(make_ptr<ast::BinaryExpr>(tracker(), tag, std::move(left), std::move(right)));
     }
     return std::move(left);
-}
-
-Ptr<ast::KnownExpr> Parser::parse_known_expr() {
-    Tracker tracker(this);
-    eat(Token::QMark);
-    auto expr = parse_expr();
-    return make_ptr<ast::KnownExpr>(tracker(), std::move(expr));
 }
 
 Ptr<ast::ErrorExpr> Parser::parse_error_expr() {

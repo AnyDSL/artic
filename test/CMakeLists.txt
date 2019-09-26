@@ -30,6 +30,7 @@ add_test(NAME valid_array    COMMAND artic ${PROJECT_SOURCE_DIR}/test/valid/arra
 add_test(NAME valid_sort     COMMAND artic ${PROJECT_SOURCE_DIR}/test/valid/sort.art)
 add_test(NAME valid_filter   COMMAND artic ${PROJECT_SOURCE_DIR}/test/valid/filter.art)
 add_test(NAME valid_ops      COMMAND artic ${PROJECT_SOURCE_DIR}/test/valid/ops.art)
+add_test(NAME valid_mod      COMMAND artic ${PROJECT_SOURCE_DIR}/test/valid/mod.art)
 
 add_test(NAME invalid_comment     COMMAND artic --invert ${PROJECT_SOURCE_DIR}/test/invalid/comment.art)
 add_test(NAME invalid_utf8        COMMAND artic --invert ${PROJECT_SOURCE_DIR}/test/invalid/utf8.art)

@@ -627,6 +627,7 @@ struct UnaryExpr : public Expr {
         PostInc,
         PreDec,
         PostDec,
+        Known,
         Error
     };
     Tag tag;
@@ -692,18 +693,6 @@ struct BinaryExpr : public Expr {
 
     static std::string tag_to_string(Tag);
     static Tag tag_from_token(const Token&);
-};
-
-/// Partial evaluation '?' operator
-struct KnownExpr : public Expr {
-    Ptr<Expr> expr;
-
-    KnownExpr(const Loc& loc, Ptr<Expr>&& expr)
-        : Expr(loc), expr(std::move(expr))
-    {}
-
-    void bind(NameBinder&) const override;
-    void print(Printer&) const override;
 };
 
 /// Incorrect expression, as a result of parsing.

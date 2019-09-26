@@ -73,6 +73,8 @@ std::string UnaryExpr::tag_to_string(Tag tag) {
         case PostDec:
         case PreDec:
             return "--";
+        case Known:
+            return "?";
         default:
             assert(false);
             return "";
@@ -81,11 +83,12 @@ std::string UnaryExpr::tag_to_string(Tag tag) {
 
 UnaryExpr::Tag UnaryExpr::tag_from_token(const Token& token, bool prefix) {
     switch (token.tag()) {
-        case Token::Not: return Not;
-        case Token::Add: return Plus;
-        case Token::Sub: return Minus;
-        case Token::Inc: return prefix ? PreInc : PostInc;
-        case Token::Dec: return prefix ? PreDec : PostDec;
+        case Token::Not:   return Not;
+        case Token::Add:   return Plus;
+        case Token::Sub:   return Minus;
+        case Token::Inc:   return prefix ? PreInc : PostInc;
+        case Token::Dec:   return prefix ? PreDec : PostDec;
+        case Token::QMark: return Known;
         default: return Error;
     }
 }

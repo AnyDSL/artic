@@ -617,6 +617,8 @@ const artic::Type* ReturnExpr::infer(TypeChecker& checker) const {
 
 const artic::Type* UnaryExpr::infer(TypeChecker& checker) const {
     auto arg_type = checker.infer(*arg);
+    if (tag == Known)
+        return checker.world().type_bool();
     if (is_inc() || is_dec()) {
         checker.check_mut(*arg);
         return arg_type;

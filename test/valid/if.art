@@ -17,4 +17,6 @@ fn test() {
     if true {
         ()
     }
+    let x = true;
+    if x {} else {}
 }

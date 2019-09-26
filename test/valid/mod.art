@@ -1,0 +1,8 @@
+mod A {
+    fn f() {}
+    fn g(i: i32, j: i32) {}
+}
+mod B {
+    fn f() {}
+    fn g(i: i32, j: i32) {}
+}

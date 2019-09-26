@@ -242,11 +242,6 @@ void BinaryExpr::print(Printer& p) const {
     print_op(right);
 }
 
-void KnownExpr::print(Printer& p) const {
-    p << '?';
-    expr->print(p);
-}
-
 void ErrorExpr::print(Printer& p) const {
     p << log::error_style("<invalid expression>");
 }
