@@ -661,7 +661,7 @@ Ptr<ast::UnaryExpr> Parser::parse_prefix_expr() {
     Tracker tracker(this);
     auto tag = ast::UnaryExpr::tag_from_token(ahead(), true);
     next();
-    auto expr = parse_expr();
+    auto expr = parse_primary_expr();
     return make_ptr<ast::UnaryExpr>(tracker(), tag, std::move(expr));
 }
 

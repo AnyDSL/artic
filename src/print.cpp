@@ -219,13 +219,12 @@ void ReturnExpr::print(Printer& p) const {
 }
 
 void UnaryExpr::print(Printer& p) const {
-    if (is_postfix()) {
+    if (is_prefix())  p << tag_to_string(tag);
+    if (arg->isa<PathExpr>() || arg->isa<LiteralExpr>())
         arg->print(p);
-        p << tag_to_string(tag);
-    } else {
-        p << tag_to_string(tag);
-        arg->print(p);
-    }
+    else
+        print_parens(p, arg);
+    if (is_postfix()) p << tag_to_string(tag);
 }
 
 void BinaryExpr::print(Printer& p) const {
