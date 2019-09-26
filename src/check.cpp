@@ -16,7 +16,8 @@ const Type* TypeChecker::field_type(const Type* struct_type, const Type* app, si
     if (app) {
         return thorin::rewrite(struct_type->as<thorin::Lam>()->body()->op(index),
                                struct_type->as_nominal()->param(),
-                               app->as<thorin::App>()->arg());
+                               app->as<thorin::App>()->arg(),
+                               false);
     }
     return struct_type->op(index);
 }
@@ -27,7 +28,8 @@ const Type* TypeChecker::option_type(const Type* enum_type, const Type* app, siz
     if (app) {
         param = thorin::rewrite(enum_type->as<thorin::Lam>()->body()->op(index),
                                 enum_type->as_nominal()->param(),
-                                app->as<thorin::App>()->arg());
+                                app->as<thorin::App>()->arg(),
+                                false);
     } else {
         param = enum_type->op(index);
     }

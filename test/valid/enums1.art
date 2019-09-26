@@ -8,7 +8,7 @@ enum G[T] {
     A, B(T)
 }
 enum H[T, U] {
-    A, B(T, U)
+    A, B(T, U), C(H[T, U])
 }
 let _ : E = E::A;
 let _ : E = E::B;
@@ -21,3 +21,5 @@ let _ : fn (i32) -> G[i32] = G[i32]::B;
 let _ : H[i32, i64] = H[i32, i64]::A;
 let _ : H[i32, i64] = H[i32, i64]::B(1, 2);
 let _ : fn (i32, i64) -> H[i32, i64] = H[i32, i64]::B;
+let _ = H[i32, f32]::C(H[i32, f32]::A);
+let _ = H[i32, f32]::C(H[i32, f32]::C(H[i32, f32]::A));
