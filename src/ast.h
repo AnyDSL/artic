@@ -716,14 +716,11 @@ struct NamedDecl : public Decl {
     {}
 };
 
-/// Type parameter, introduced by the operator <>.
+/// Type parameter, introduced by the operator [].
 struct TypeParam : public NamedDecl {
-    PtrVector<Type> bounds;
-
     TypeParam(const Loc& loc,
-              Identifier&& id,
-              PtrVector<Type>&& bounds)
-        : NamedDecl(loc, std::move(id)), bounds(std::move(bounds))
+              Identifier&& id)
+        : NamedDecl(loc, std::move(id))
     {}
 
     const artic::Type* check(TypeChecker&, const artic::Type*) const override;
@@ -731,7 +728,7 @@ struct TypeParam : public NamedDecl {
     void print(Printer&) const override;
 };
 
-/// Type parameter list, of the form <T : A, U : B, ...>
+/// Type parameter list, of the form [T, U, ...]
 struct TypeParamList : public Decl {
     PtrVector<TypeParam> params;
 

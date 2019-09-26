@@ -303,12 +303,6 @@ void ErrorPtrn::print(Printer& p) const {
 
 void TypeParam::print(Printer& p) const {
     p << id.name;
-    if (!bounds.empty()) {
-        p << " : ";
-        print_list(p, " + ", bounds, [&] (auto& bound) {
-            bound->print(p);
-        });
-    }
 }
 
 void TypeParamList::print(Printer& p) const {

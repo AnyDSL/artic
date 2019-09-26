@@ -138,16 +138,7 @@ Ptr<ast::EnumDecl> Parser::parse_enum_decl() {
 Ptr<ast::TypeParam> Parser::parse_type_param() {
     Tracker tracker(this);
     auto id = parse_id();
-    PtrVector<ast::Type> bounds;
-    if (ahead().tag() == Token::Colon) {
-        eat(Token::Colon);
-        while (true) {
-            bounds.emplace_back(parse_type());
-            if (ahead().tag() != Token::Add) break;
-            eat(Token::Add);
-        }
-    }
-    return make_ptr<ast::TypeParam>(tracker(), std::move(id), std::move(bounds));
+    return make_ptr<ast::TypeParam>(tracker(), std::move(id));
 }
 
 Ptr<ast::TypeParamList> Parser::parse_type_params() {

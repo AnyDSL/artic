@@ -282,8 +282,6 @@ void ErrorPtrn::bind(NameBinder&) const {}
 // Declarations --------------------------------------------------------------------
 
 void TypeParam::bind(NameBinder& binder) const {
-    for (auto& bound : bounds)
-        binder.bind(*bound);
     binder.insert_symbol(*this);
 }
 
