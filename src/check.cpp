@@ -13,12 +13,8 @@ bool TypeChecker::run(const ast::ModDecl& module) {
 
 const Type* TypeChecker::field_type(const Type* struct_type, const Type* app, size_t index) {
     // Retrieves the type of a structure field
-    if (app) {
-        return thorin::rewrite(struct_type->as<thorin::Lam>()->body()->op(index),
-                               struct_type->as_nominal()->param(),
-                               app->as<thorin::App>()->arg(),
-                               false);
-    }
+    if (app)
+        return thorin::rewrite(struct_type->as_nominal(), app->as<thorin::App>()->arg())->op(index);
     return struct_type->op(index);
 }
 
@@ -26,10 +22,7 @@ const Type* TypeChecker::option_type(const Type* enum_type, const Type* app, siz
     // Retrieves the type of a enumeration option
     const Type* param = nullptr;
     if (app) {
-        param = thorin::rewrite(enum_type->as<thorin::Lam>()->body()->op(index),
-                                enum_type->as_nominal()->param(),
-                                app->as<thorin::App>()->arg(),
-                                false);
+        param = thorin::rewrite(enum_type->as_nominal(), app->as<thorin::App>()->arg())->op(index);
     } else {
         param = enum_type->op(index);
     }
