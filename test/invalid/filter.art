@@ -1,0 +1,2 @@
+fn @(1) do_this() {}
+fn @("abc") do_that() {}

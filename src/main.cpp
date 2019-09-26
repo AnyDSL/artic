@@ -91,10 +91,8 @@ struct ProgramOptions {
                     exit = true;
                     return true;
                 } else if (matches(argv[i], "--invert")) {
-                    if (invert) {
-                        log::error("option '{}' specified twice", argv[i]);
+                    if (!check_dup(argv[i], invert))
                         return false;
-                    }
                     invert = true;
                 } else if (matches(argv[i], "--strict")) {
                     if (!check_dup(argv[i], strict))
@@ -168,11 +166,6 @@ int main(int argc, char** argv) {
         return EXIT_FAILURE;
     if (opts.exit)
         return EXIT_SUCCESS;
-
-    if (opts.files.empty()) {
-        log::error("no input files");
-        return EXIT_FAILURE;
-    }
 
     if (opts.files.empty()) {
         log::error("no input files");

@@ -610,6 +610,7 @@ Ptr<ast::ReturnExpr> Parser::parse_return_expr() {
 Ptr<ast::Expr> Parser::parse_primary_expr() {
     Ptr<ast::Expr> expr;
     switch (ahead().tag()) {
+        case Token::Not:
         case Token::Inc:
         case Token::Dec:
         case Token::Add:

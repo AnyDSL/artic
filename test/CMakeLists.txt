@@ -1,6 +1,14 @@
 add_test(NAME version COMMAND artic --version)
 add_test(NAME help    COMMAND artic --help)
 
+add_test(NAME dup_invert  COMMAND artic --invert --invert)
+add_test(NAME dup_strict  COMMAND artic --strict --strict)
+add_test(NAME unknown_opt COMMAND artic --unknown-opt)
+add_test(NAME empty_files COMMAND artic --strict)
+add_test(NAME cannot_open COMMAND artic file-that-hopefully-does-not-exist.insane-extension)
+add_test(NAME open_dir    COMMAND artic ${CMAKE_CURRENT_BINARY_DIR})
+set_tests_properties(dup_invert dup_strict unknown_opt empty_files cannot_open open_dir PROPERTIES WILL_FAIL TRUE)
+
 add_test(NAME valid_literals COMMAND artic ${PROJECT_SOURCE_DIR}/test/valid/literals.art)
 add_test(NAME valid_string   COMMAND artic ${PROJECT_SOURCE_DIR}/test/valid/string.art)
 add_test(NAME valid_comments COMMAND artic ${PROJECT_SOURCE_DIR}/test/valid/comments.art)
@@ -21,6 +29,7 @@ add_test(NAME valid_mut      COMMAND artic ${PROJECT_SOURCE_DIR}/test/valid/mut.
 add_test(NAME valid_array    COMMAND artic ${PROJECT_SOURCE_DIR}/test/valid/array.art)
 add_test(NAME valid_sort     COMMAND artic ${PROJECT_SOURCE_DIR}/test/valid/sort.art)
 add_test(NAME valid_filter   COMMAND artic ${PROJECT_SOURCE_DIR}/test/valid/filter.art)
+add_test(NAME valid_ops      COMMAND artic ${PROJECT_SOURCE_DIR}/test/valid/ops.art)
 
 add_test(NAME invalid_comment     COMMAND artic --invert ${PROJECT_SOURCE_DIR}/test/invalid/comment.art)
 add_test(NAME invalid_utf8        COMMAND artic --invert ${PROJECT_SOURCE_DIR}/test/invalid/utf8.art)

@@ -1,0 +1,17 @@
+fn pow(x: i32, n: i32) -> i32 {
+    if n == 0 {
+        1
+    } else if n % 2 == 0 {
+        let y = pow(x, n / 2);
+        y * y
+    } else {
+        x * pow(x, n - 1)
+    }
+}
+
+fn @(pow(c, 3) == k && c != k) do_this(c: i32, k: i32) {
+    c + k
+} 
+fn @do_that(c: i32, k: i32) {
+    c + k
+} 
