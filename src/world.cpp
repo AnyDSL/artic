@@ -4,6 +4,14 @@
 
 namespace artic {
 
+const Type* World::type_fn(const Type* from, const Type* to) {
+    return pi(sigma({ type_mem(), from }), sigma({ type_mem(), to }));
+}
+
+const Type* World::type_cn(const Type* from) {
+    return pi(sigma({ type_mem(), from }), bot_star());
+}
+
 Type* World::type_forall(const ast::FnDecl& decl) {
     assert(decl.type_params);
     auto num_vars = decl.type_params->params.size();
@@ -55,12 +63,12 @@ namespace log {
 
 Output& operator << (Output& out, const Type& type) {
     if (auto pi = type.isa<thorin::Pi>()) {
-        bool parens = pi->domain()->isa<thorin::Sigma>();
+        bool parens = pi->domain(1)->isa<thorin::Sigma>();
         out << log::keyword_style("fn") << " ";
         if (!parens) out << '(';
-        out << *pi->domain();
+        out << *pi->domain(1);
         if (!parens) out << ')';
-        out << " -> " << *pi->codomain();
+        out << " -> " << *pi->codomain(1);
     } else if (auto sigma = type.isa<thorin::Sigma>()) {
         if (sigma->isa_nominal()) {
             // Structure
