@@ -30,16 +30,6 @@ const thorin::Def* Emitter::enter(thorin::Lam* bb) {
     return bb->num_params() > 1 ? bb->param(1) : nullptr;
 }
 
-const thorin::Def* Emitter::call(const thorin::Def* callee, const thorin::Def* arg, thorin::Debug dbg) {
-    auto callee_pi = callee->type()->as<thorin::Pi>();
-    auto ret_type = callee_pi->domain(callee_pi->num_domains() - 1)->as<thorin::Pi>();
-    auto ret = world_.lam(ret_type, dbg);
-    bb_->app(callee, { mem_, arg, ret });
-    bb_ = ret;
-    mem_ = ret->param(0);
-    return ret->param(1);
-}
-
 const thorin::Def* Emitter::jump(thorin::Lam* callee, const thorin::Def* arg) {
     if (arg)
         bb_->app(callee, { mem_, arg });

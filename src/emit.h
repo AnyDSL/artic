@@ -19,7 +19,6 @@ public:
 
 private:
     const thorin::Def* enter(thorin::Lam*);
-    const thorin::Def* call(const thorin::Def*, const thorin::Def*, thorin::Debug);
     const thorin::Def* jump(thorin::Lam*, const thorin::Def* arg = nullptr);
 
     World& world_;
