@@ -1,20 +1,30 @@
 #ifndef EMIT_H
 #define EMIT_H
 
-#include "ast.h"
-#include "print.h"
-
 #include <string>
+
+#include "ast.h"
+#include "world.h"
 
 namespace artic {
 
 class Emitter {
 public:
-    void emit(const std::string&, size_t /*opt_level*/, const ast::ModDecl& module) {
-        Printer printer(log::out);
-        module.print(printer);
-        log::out << '\n';
-    }
+    Emitter(World& world);
+
+    void run(const ast::ModDecl&);
+
+    const thorin::Def* emit_head(const ast::Decl&);
+    const thorin::Def* emit(const ast::Node&);
+
+private:
+    const thorin::Def* enter(thorin::Lam*);
+    const thorin::Def* call(const thorin::Def*, const thorin::Def*, thorin::Debug);
+    const thorin::Def* jump(thorin::Lam*, const thorin::Def* arg = nullptr);
+
+    World& world_;
+    thorin::Lam* bb_;
+    const thorin::Def* mem_;
 };
 
 } // namespace artic

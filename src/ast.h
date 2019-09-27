@@ -15,7 +15,7 @@ namespace artic {
 class Printer;
 class NameBinder;
 class TypeChecker;
-class TypeInference;
+class Emitter;
 
 template <typename T> using Ptr = std::unique_ptr<T>;
 template <typename T> using PtrVector = std::vector<std::unique_ptr<T>>;
@@ -44,6 +44,8 @@ struct Node : public Cast<Node> {
 
     /// Type assigned after type inference. Not all nodes are typeable.
     mutable const artic::Type* type = nullptr;
+    /// IR definition assigned after IR emission.
+    mutable const thorin::Def* def = nullptr;
 
     Node(const Loc& loc)
         : loc(loc)
@@ -57,6 +59,8 @@ struct Node : public Cast<Node> {
     virtual const artic::Type* infer(TypeChecker&) const;
     /// Checks that the node types and has the given type.
     virtual const artic::Type* check(TypeChecker&, const artic::Type*) const;
+    /// Emits an IR definition for this node.
+    virtual const thorin::Def* emit(Emitter&) const;
     /// Prints the node with the given formatting parameters.
     virtual void print(Printer&) const = 0;
 
@@ -74,6 +78,8 @@ struct Decl : public Node {
 
     /// Binds the declaration to its AST node, without entering sub-AST nodes.
     virtual void bind_head(NameBinder&) const {}
+    /// Emits a nominal IR definition for this AST node, without emitting its operands.
+    virtual const thorin::Def* emit_head(Emitter&) const { return nullptr; }
 };
 
 /// Base class for types.
@@ -765,6 +771,7 @@ struct LetDecl : public Decl {
         , init(std::move(init))
     {}
 
+    const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) const override;
     void bind(NameBinder&) const override;
     void print(Printer&) const override;
@@ -784,6 +791,8 @@ struct FnDecl : public NamedDecl {
         , type_params(std::move(type_params))
     {}
 
+    const thorin::Def* emit_head(Emitter&) const override;
+    const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) const override;
     const artic::Type* check(TypeChecker&, const artic::Type*) const override;
     void bind_head(NameBinder&) const override;
@@ -821,6 +830,8 @@ struct StructDecl : public NamedDecl {
         , fields(std::move(fields))
     {}
 
+    const thorin::Def* emit_head(Emitter&) const override;
+    const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) const override;
     void bind_head(NameBinder&) const override;
     void bind(NameBinder&) const override;
@@ -857,6 +868,8 @@ struct EnumDecl : public NamedDecl {
         , options(std::move(options))
     {}
 
+    const thorin::Def* emit_head(Emitter&) const override;
+    const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) const override;
     void bind_head(NameBinder&) const override;
     void bind(NameBinder&) const override;
@@ -875,6 +888,8 @@ struct ModDecl : public NamedDecl {
         : NamedDecl(loc, std::move(id)), decls(std::move(decls))
     {}
 
+    const thorin::Def* emit_head(Emitter&) const override;
+    const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) const override;
     void bind_head(NameBinder&) const override;
     void bind(NameBinder&) const override;

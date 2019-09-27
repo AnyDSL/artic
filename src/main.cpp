@@ -215,7 +215,7 @@ int main(int argc, char** argv) {
         return exit_code(false);
 
     auto module_name = "module";
-    Emitter emitter;
-    emitter.emit(module_name, opts.opt_level, program);
+    Emitter emitter(world);
+    emitter.run(program);
     return exit_code(true);
 }
