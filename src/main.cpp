@@ -227,7 +227,6 @@ int main(int argc, char** argv) {
         log::out << "\n";
     }
 
-    auto module_name = "module";
     Emitter emitter(world);
     emitter.run(program);
     return exit_code(true);
