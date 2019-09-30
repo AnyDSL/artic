@@ -156,7 +156,7 @@ const Type* TypeChecker::infer(const ast::CallExpr& call) {
                 error(call.arg->loc, "integer type expected as array index, but got '{}'", *index_type);
             return world().type_error();
         }
-        return variadic->body();
+        return variadic->codomain();
     } else {
         if (should_emit_error(callee_type))
             error(call.callee->loc, "expected function or array type in call expression, but got '{}'", *callee_type);
@@ -466,7 +466,7 @@ const artic::Type* ArrayExpr::infer(TypeChecker& checker) const {
 const artic::Type* ArrayExpr::check(TypeChecker& checker, const artic::Type* expected) const {
     if (!expected->isa<thorin::Variadic>())
         return checker.expect(loc, "array expression", expected);
-    auto elem_type = expected->as<thorin::Variadic>()->body();
+    auto elem_type = expected->as<thorin::Variadic>()->codomain();
     for (auto& elem : elems)
         checker.check(*elem, elem_type);
     return checker.world().variadic_unsafe(elem_type);

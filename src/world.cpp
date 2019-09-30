@@ -79,7 +79,7 @@ Output& operator << (Output& out, const Type& type) {
         assert(union_->isa_nominal());
         out << log::keyword_style("enum") << ' ' << union_->name();
     } else if (auto variadic = type.isa<thorin::Variadic>()) {
-        out << '[' << *variadic->body() << ']';
+        out << '[' << *variadic->codomain() << ']';
     } else if (type.isa<thorin::Bot>()) {
        out << log::keyword_style("!"); 
     } else if (type.isa<thorin::Top>()) {
@@ -150,7 +150,7 @@ bool is_subtype(const Type* a, const Type* b) {
         return is_subtype(pi_a->codomain(), pi_b->codomain()) && is_subtype(pi_b->domain(), pi_a->domain());
     }
     if (auto variadic_a = a->isa<thorin::Variadic>(), variadic_b = b->isa<thorin::Variadic>(); variadic_a && variadic_b) {
-        return variadic_a->arity() == variadic_b->arity() && is_subtype(variadic_a->body(), variadic_b->body());
+        return variadic_a->arity() == variadic_b->arity() && is_subtype(variadic_a->codomain(), variadic_b->codomain());
     }
     return false;
 }
