@@ -12,6 +12,7 @@
 namespace artic {
 
 namespace ast {
+    struct Node;
     struct FnDecl;
     struct StructDecl;
     struct EnumDecl;
@@ -40,20 +41,16 @@ public:
 
     const Type* type_sint(thorin::nat_t w) { return app(sint_, lit_nat(w)); }
     const Type* type_uint(thorin::nat_t w) { return app(uint_, lit_nat(w)); }
-    const Type* type_error() { return top(kind_star()); }
-    const Type* type_no_ret() { return bot(kind_star()); }
-
-    const Type* type_fn(const Type*, const Type*);
-    const Type* type_cn(const Type*);
+    const Type* type_error() { return top_star(); }
+    const Type* type_no_ret() { return bot_star(); }
 
     Type* type_forall(const ast::FnDecl&);
     Type* type_struct(const ast::StructDecl&);
     Type* type_enum(const ast::EnumDecl&);
 
-private:
-    template <typename StructOrEnum, typename FieldsOrOptions>
-    const thorin::Def* debug_info(const StructOrEnum&, const FieldsOrOptions&);
+    const thorin::Def* debug_info(const ast::Node&, const thorin::Def* meta = nullptr);
 
+private:
     const thorin::Def* sint_;
     const thorin::Def* uint_;
 };

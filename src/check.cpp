@@ -28,7 +28,7 @@ const Type* TypeChecker::option_type(const Type* enum_type, const Type* app, siz
     }
     if (param == world().sigma())
         return app ? app : enum_type;
-    return world().type_fn(param, app ? app : enum_type);
+    return world().pi_mem(param, app ? app : enum_type);
 }
 
 std::optional<size_t> TypeChecker::find_member(const Type* type, const std::string& member) {
@@ -298,6 +298,8 @@ const artic::Type* Node::infer(TypeChecker& checker) const {
     return checker.error_cannot_infer(loc, "expression");
 }
 
+// Path ----------------------------------------------------------------------------
+
 const artic::Type* Path::infer(TypeChecker& checker) const {
     if (!symbol || symbol->decls.empty())
         return checker.world().type_error();
@@ -387,7 +389,7 @@ const artic::Type* ArrayType::infer(TypeChecker& checker) const {
 }
 
 const artic::Type* FnType::infer(TypeChecker& checker) const {
-    return checker.world().type_fn(checker.infer(*from), checker.infer(*to));
+    return checker.world().pi_mem(checker.infer(*from), checker.infer(*to));
 }
 
 const artic::Type* PtrType::infer(TypeChecker& checker) const {
@@ -480,7 +482,7 @@ const artic::Type* FnExpr::infer(TypeChecker& checker) const {
     if (body || body_type) {
         if (body)
             body_type = body_type ? checker.check(*body, body_type) : checker.infer(*body);
-        return checker.world().type_fn(param_type, body_type);
+        return checker.world().pi_mem(param_type, body_type);
     }
     return checker.error_cannot_infer(loc, "function");
 }
@@ -490,7 +492,7 @@ const artic::Type* FnExpr::check(TypeChecker& checker, const artic::Type* expect
         return checker.expect(loc, "anonymous function", expected);
     auto param_type = checker.check(*param, expected->as<thorin::Pi>()->domain(1));
     auto body_type  = checker.check(*body, expected->as<thorin::Pi>()->codomain(1));
-    return checker.world().type_fn(param_type, body_type);
+    return checker.world().pi_mem(param_type, body_type);
 }
 
 const artic::Type* BlockExpr::infer(TypeChecker& checker) const {
@@ -585,22 +587,22 @@ const artic::Type* ForExpr::infer(TypeChecker& checker) const {
 }
 
 const artic::Type* BreakExpr::infer(TypeChecker& checker) const {
-    return checker.world().type_cn(checker.world().sigma());
+    return checker.world().cn_mem(checker.world().sigma());
 }
 
 const artic::Type* ContinueExpr::infer(TypeChecker& checker) const {
-    return checker.world().type_cn(checker.world().sigma());
+    return checker.world().cn_mem(checker.world().sigma());
 }
 
 const artic::Type* ReturnExpr::infer(TypeChecker& checker) const {
     if (fn) {
         const artic::Type* arg_type = nullptr;
         if (fn->type && fn->type->isa<thorin::Pi>())
-            arg_type = fn->type->as<thorin::Pi>()->codomain();
+            arg_type = fn->type->as<thorin::Pi>()->codomain(1);
         else if (fn->ret_type && fn->ret_type->type)
             arg_type = fn->ret_type->type;
         if (arg_type)
-           return checker.world().type_cn(arg_type);
+           return checker.world().cn_mem(arg_type);
     }
     checker.error(loc, "cannot infer the type of '{}'", log::keyword_style("return"));
     if (fn)
@@ -664,7 +666,7 @@ const artic::Type* FnDecl::infer(TypeChecker& checker) const {
         checker.check(*type_params, forall->param());
     }
     if (fn->ret_type) {
-        auto fn_type = checker.world().type_fn(checker.infer(*fn->param), checker.infer(*fn->ret_type));
+        auto fn_type = checker.world().pi_mem(checker.infer(*fn->param), checker.infer(*fn->ret_type));
         if (forall) {
             forall->set(1, fn_type);
             type = forall;

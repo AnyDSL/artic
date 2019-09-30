@@ -54,6 +54,8 @@ void NameBinder::insert_symbol(const ast::NamedDecl& decl) {
 
 namespace ast {
 
+// Path ----------------------------------------------------------------------------
+
 void Path::bind(NameBinder& binder) const {
     // Bind the first element of the path
     auto& first = elems.front();
@@ -75,6 +77,8 @@ void Path::bind(NameBinder& binder) const {
             binder.bind(*arg);
     }
 }
+
+// Filter --------------------------------------------------------------------------
 
 void Filter::bind(NameBinder& binder) const {
     if (expr) binder.bind(*expr);

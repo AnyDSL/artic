@@ -109,7 +109,12 @@ struct Ptrn : public Node {
     Ptrn(const Loc& loc) : Node(loc) {}
 
     bool is_tuple() const;
+
+    /// Returns whether the pattern is refutable (i.e. does not always match against a value).
     virtual bool is_refutable() const = 0;
+
+    /// Emits IR for the pattern, given a value to match against.
+    virtual void emit(Emitter&, const thorin::Def*) const;
 };
 
 // Path ----------------------------------------------------------------------------
@@ -134,6 +139,7 @@ struct Path : public Node {
         : Node(loc), elems(std::move(elems))
     {}
 
+    const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) const override;
     void bind(NameBinder&) const override;
     void print(Printer&) const override;
@@ -275,6 +281,7 @@ struct DeclStmt : public Stmt {
 
     bool need_semicolon() const override;
 
+    const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) const override;
     const artic::Type* check(TypeChecker&, const artic::Type*) const override;
     void bind(NameBinder&) const override;
@@ -291,6 +298,7 @@ struct ExprStmt : public Stmt {
 
     bool need_semicolon() const override;
 
+    const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) const override;
     const artic::Type* check(TypeChecker&, const artic::Type*) const override;
     void bind(NameBinder&) const override;
@@ -310,6 +318,7 @@ struct TypedExpr : public Expr {
         , type(std::move(type))
     {}
 
+    const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) const override;
     void bind(NameBinder&) const override;
     void print(Printer&) const override;
@@ -323,6 +332,7 @@ struct PathExpr : public Expr {
         : Expr(loc), path(std::move(path))
     {}
 
+    const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) const override;
     void bind(NameBinder&) const override;
     void print(Printer&) const override;
@@ -434,6 +444,7 @@ struct FnExpr : public Expr {
         , body(std::move(body))
     {}
 
+    const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) const override;
     const artic::Type* check(TypeChecker&, const artic::Type*) const override;
     void bind(NameBinder&) const override;
@@ -449,6 +460,7 @@ struct BlockExpr : public Expr {
         : Expr(loc), stmts(std::move(stmts)), last_semi(last_semi)
     {}
 
+    const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) const override;
     const artic::Type* check(TypeChecker&, const artic::Type*) const override;
     void bind(NameBinder&) const override;
@@ -917,6 +929,7 @@ struct TypedPtrn : public Ptrn {
 
     bool is_refutable() const override;
 
+    void emit(Emitter&, const thorin::Def*) const override;
     const artic::Type* infer(TypeChecker&) const override;
     void bind(NameBinder&) const override;
     void print(Printer&) const override;
@@ -932,6 +945,7 @@ struct IdPtrn : public Ptrn {
 
     bool is_refutable() const override;
 
+    void emit(Emitter&, const thorin::Def*) const override;
     const artic::Type* infer(TypeChecker&) const override;
     const artic::Type* check(TypeChecker&, const artic::Type*) const override;
     void bind(NameBinder&) const override;
@@ -1016,6 +1030,7 @@ struct TuplePtrn : public Ptrn {
 
     bool is_refutable() const override;
 
+    void emit(Emitter&, const thorin::Def*) const override;
     const artic::Type* infer(TypeChecker&) const override;
     const artic::Type* check(TypeChecker&, const artic::Type*) const override;
     void bind(NameBinder&) const override;

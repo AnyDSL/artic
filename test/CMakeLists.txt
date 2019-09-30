@@ -25,6 +25,7 @@ add_test(NAME valid_enums1   COMMAND artic --print ${PROJECT_SOURCE_DIR}/test/va
 add_test(NAME valid_enums2   COMMAND artic --print ${PROJECT_SOURCE_DIR}/test/valid/enums2.art)
 add_test(NAME valid_types    COMMAND artic --print ${PROJECT_SOURCE_DIR}/test/valid/types.art)
 add_test(NAME valid_loops    COMMAND artic --print ${PROJECT_SOURCE_DIR}/test/valid/loops.art)
+add_test(NAME valid_return   COMMAND artic --print ${PROJECT_SOURCE_DIR}/test/valid/return.art)
 add_test(NAME valid_mut      COMMAND artic --print ${PROJECT_SOURCE_DIR}/test/valid/mut.art)
 add_test(NAME valid_array    COMMAND artic --print ${PROJECT_SOURCE_DIR}/test/valid/array.art)
 add_test(NAME valid_sort     COMMAND artic --print ${PROJECT_SOURCE_DIR}/test/valid/sort.art)
