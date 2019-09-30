@@ -40,7 +40,7 @@ const thorin::Def* Emitter::emit_fn(const ast::FnExpr& fn, thorin::Debug dbg) {
     auto lam = world().lam(cn_type, dbg);
     // TODO: Remove this
     lam->make_external();
-    return fn.def = world().op_cps2ds(lam);
+    return fn.def = world().cps2ds(lam);
 }
 
 const thorin::Def* Emitter::enter(thorin::Lam* bb) {
@@ -120,7 +120,7 @@ const thorin::Def* FnExpr::emit(Emitter& emitter) const {
         // but anonymous functions have to be created here.
         emitter.emit_fn(*this, emitter.world().debug_info(*this));
     }
-    auto lam = def->as<thorin::App>()->arg()->as_nominal<thorin::Lam>();
+    auto lam = def->as<thorin::CPS2DS>()->cps()->as_nominal<thorin::Lam>();
     if (param)
         emitter.emit(*param, lam->param(1, emitter.world().debug_info(*param)));
     if (body) {
