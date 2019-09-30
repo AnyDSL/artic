@@ -43,6 +43,9 @@ public:
     const Type* type_error() { return top(kind_star()); }
     const Type* type_no_ret() { return bot(kind_star()); }
 
+    const Type* type_fn(const Type*, const Type*);
+    const Type* type_cn(const Type*);
+
     Type* type_forall(const ast::FnDecl&);
     Type* type_struct(const ast::StructDecl&);
     Type* type_enum(const ast::EnumDecl&);

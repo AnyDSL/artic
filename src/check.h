@@ -21,6 +21,8 @@ public:
     /// Returns true on success, otherwise false.
     bool run(const ast::ModDecl&);
 
+    World& world() { return world_; }
+
     const Type* field_type(const Type*, const Type*, size_t);
     const Type* option_type(const Type*, const Type*, size_t);
     std::optional<size_t> find_member(const Type*, const std::string&);
@@ -30,9 +32,6 @@ public:
 
     bool enter_decl(const ast::Decl*);
     void exit_decl(const ast::Decl*);
-
-    bool should_emit_error(const Type*);
-    void explain_no_ret(const Type*, const Type*);
 
     const Type* expect(const Loc&, const std::string&, const Type*, const Type*);
     const Type* expect(const Loc&, const std::string&, const Type*);
@@ -61,9 +60,10 @@ public:
     template <typename Fields>
     const Type* check_fields(const Loc&, const Type*, const Type*, const Fields&, bool, const std::string&);
 
-    World& world() { return world_; }
-
 private:
+    bool should_emit_error(const Type*);
+    void explain_no_ret(const Type*, const Type*);
+
     World& world_;
     std::unordered_set<const ast::Decl*> decls_;
 };

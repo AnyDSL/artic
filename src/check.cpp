@@ -28,7 +28,7 @@ const Type* TypeChecker::option_type(const Type* enum_type, const Type* app, siz
     }
     if (param == world().sigma())
         return app ? app : enum_type;
-    return world().pi(param, app ? app : enum_type);
+    return world().type_fn(param, app ? app : enum_type);
 }
 
 std::optional<size_t> TypeChecker::find_member(const Type* type, const std::string& member) {
@@ -147,8 +147,8 @@ const Type* TypeChecker::infer(const ast::Node& node) {
 const Type* TypeChecker::infer(const ast::CallExpr& call) {
     auto callee_type = infer(*call.callee);
     if (auto pi = callee_type->isa<thorin::Pi>()) {
-        check(*call.arg, pi->domain());
-        return pi->codomain();
+        check(*call.arg, pi->domain(1));
+        return pi->codomain(1);
     } else if (auto variadic = callee_type->isa<thorin::Variadic>()) {
         auto index_type = infer(*call.arg);
         if (!is_uint_type(index_type) && !is_sint_type(index_type)) {
@@ -387,7 +387,7 @@ const artic::Type* ArrayType::infer(TypeChecker& checker) const {
 }
 
 const artic::Type* FnType::infer(TypeChecker& checker) const {
-    return checker.world().pi(checker.infer(*from), checker.infer(*to));
+    return checker.world().type_fn(checker.infer(*from), checker.infer(*to));
 }
 
 const artic::Type* PtrType::infer(TypeChecker& checker) const {
@@ -480,7 +480,7 @@ const artic::Type* FnExpr::infer(TypeChecker& checker) const {
     if (body || body_type) {
         if (body)
             body_type = body_type ? checker.check(*body, body_type) : checker.infer(*body);
-        return checker.world().pi(param_type, body_type);
+        return checker.world().type_fn(param_type, body_type);
     }
     return checker.error_cannot_infer(loc, "function");
 }
@@ -488,9 +488,9 @@ const artic::Type* FnExpr::infer(TypeChecker& checker) const {
 const artic::Type* FnExpr::check(TypeChecker& checker, const artic::Type* expected) const {
     if (!expected->isa<thorin::Pi>())
         return checker.expect(loc, "anonymous function", expected);
-    auto param_type = checker.check(*param, expected->as<thorin::Pi>()->domain());
-    auto body_type  = checker.check(*body, expected->as<thorin::Pi>()->codomain());
-    return checker.world().pi(param_type, body_type);
+    auto param_type = checker.check(*param, expected->as<thorin::Pi>()->domain(1));
+    auto body_type  = checker.check(*body, expected->as<thorin::Pi>()->codomain(1));
+    return checker.world().type_fn(param_type, body_type);
 }
 
 const artic::Type* BlockExpr::infer(TypeChecker& checker) const {
@@ -585,11 +585,11 @@ const artic::Type* ForExpr::infer(TypeChecker& checker) const {
 }
 
 const artic::Type* BreakExpr::infer(TypeChecker& checker) const {
-    return checker.world().pi(checker.world().sigma(), checker.world().type_no_ret());
+    return checker.world().type_cn(checker.world().sigma());
 }
 
 const artic::Type* ContinueExpr::infer(TypeChecker& checker) const {
-    return checker.world().pi(checker.world().sigma(), checker.world().type_no_ret());
+    return checker.world().type_cn(checker.world().sigma());
 }
 
 const artic::Type* ReturnExpr::infer(TypeChecker& checker) const {
@@ -600,7 +600,7 @@ const artic::Type* ReturnExpr::infer(TypeChecker& checker) const {
         else if (fn->ret_type && fn->ret_type->type)
             arg_type = fn->ret_type->type;
         if (arg_type)
-           return checker.world().pi(arg_type, checker.world().type_no_ret());
+           return checker.world().type_cn(arg_type);
     }
     checker.error(loc, "cannot infer the type of '{}'", log::keyword_style("return"));
     if (fn)
@@ -664,7 +664,7 @@ const artic::Type* FnDecl::infer(TypeChecker& checker) const {
         checker.check(*type_params, forall->param());
     }
     if (fn->ret_type) {
-        auto fn_type = checker.world().pi(checker.infer(*fn->param), checker.infer(*fn->ret_type));
+        auto fn_type = checker.world().type_fn(checker.infer(*fn->param), checker.infer(*fn->ret_type));
         if (forall) {
             forall->set(1, fn_type);
             type = forall;
@@ -776,8 +776,8 @@ const artic::Type* EnumPtrn::infer(TypeChecker& checker) const {
     const artic::Type* param_type = nullptr;
     if (auto pi = path_type->isa<thorin::Pi>()) {
         // Some enumeration options are functions
-        param_type = pi->domain();
-        enum_type  = pi->codomain();
+        param_type = pi->domain(1);
+        enum_type  = pi->codomain(1);
     }
     auto app = enum_type->isa<thorin::App>();
     auto prev = enum_type;

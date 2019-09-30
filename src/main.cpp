@@ -8,6 +8,7 @@
 #include "locator.h"
 #include "lexer.h"
 #include "parser.h"
+#include "print.h"
 #include "bind.h"
 #include "check.h"
 #include "emit.h"
@@ -20,6 +21,7 @@ static void usage() {
                 "           --version            Displays the version number\n"
                 "           --strict             Sets warnings as errors\n"
                 "           --invert             Inverts the return code\n"
+                "           --print              Prints the AST after parsing.\n"
                 "    -On                         Sets the optimization level (n = 0, 1, 2, or 3)\n"
                 "    -h     --help               Displays this message\n";
 }
@@ -56,6 +58,7 @@ struct ProgramOptions {
     bool exit = false;
     bool strict = false;
     bool invert = false;
+    bool print = false;
     unsigned opt_level = 0;
 
     inline bool matches(const char* arg, const char* opt) {
@@ -98,6 +101,10 @@ struct ProgramOptions {
                     if (!check_dup(argv[i], strict))
                         return false;
                     strict = true;
+                } else if (matches(argv[i], "--print")) {
+                    if (!check_dup(argv[i], print))
+                        return false;
+                    print = true;
                 } else if (matches(argv[i], "-O0")) {
                     opt_level = 0;
                 } else if (matches(argv[i], "-O1")) {
@@ -214,8 +221,14 @@ int main(int argc, char** argv) {
     if (!type_checker.run(program))
         return exit_code(false);
 
+    if (opts.print) {
+        Printer p(log::out);
+        program.print(p);
+        log::out << "\n";
+    }
+
     auto module_name = "module";
-    Emitter emitter;
-    emitter.emit(module_name, opts.opt_level, program);
+    Emitter emitter(world);
+    emitter.run(program);
     return exit_code(true);
 }

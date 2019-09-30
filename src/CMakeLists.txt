@@ -8,7 +8,7 @@ add_library(libartic
     cast.h
     check.cpp
     check.h
-    #emit.cpp
+    emit.cpp
     emit.h
     lexer.cpp
     lexer.h
