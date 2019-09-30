@@ -403,6 +403,7 @@ struct TupleExpr : public Expr {
         : Expr(loc), args(std::move(args))
     {}
 
+    const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) const override;
     const artic::Type* check(TypeChecker&, const artic::Type*) const override;
     void bind(NameBinder&) const override;

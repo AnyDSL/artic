@@ -11,6 +11,8 @@ Emitter::Emitter(World& world)
 
 void Emitter::run(const ast::ModDecl& mod) {
     mod.emit(*this);
+    // TODO: Remove this
+    world().dump();
 }
 
 const thorin::Def* Emitter::emit_head(const ast::Decl& decl) {
@@ -36,6 +38,8 @@ const thorin::Def* Emitter::emit_fn(const ast::FnExpr& fn, thorin::Debug dbg) {
         world().cn({ world().type_mem(), pi->codomain(1) })
     });
     auto lam = world().lam(cn_type, dbg);
+    // TODO: Remove this
+    lam->make_external();
     return fn.def = world().op_cps2ds(lam);
 }
 
@@ -46,6 +50,7 @@ const thorin::Def* Emitter::enter(thorin::Lam* bb) {
 }
 
 const thorin::Def* Emitter::jump(thorin::Lam* callee, const thorin::Def* arg) {
+    assert(bb_);
     if (arg)
         bb_->app(callee, { mem_, arg });
     else
@@ -120,9 +125,17 @@ const thorin::Def* FnExpr::emit(Emitter& emitter) const {
         emitter.emit(*param, lam->param(1, emitter.world().debug_info(*param)));
     if (body) {
         emitter.enter(lam);
-        lam->app(lam->ret_param(), { emitter.emit(*body) });
+        auto res = emitter.emit(*body);
+        lam->app(lam->ret_param(), { emitter.mem(), res });
     }
     return def;
+}
+
+const thorin::Def* TupleExpr::emit(Emitter& emitter) const {
+    thorin::Array<const thorin::Def*> defs(args.size(), [&] (size_t i) {
+        return emitter.emit(*args[i]);
+    });
+    return emitter.world().tuple(defs);
 }
 
 const thorin::Def* BlockExpr::emit(Emitter& emitter) const {

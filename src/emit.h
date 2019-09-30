@@ -14,6 +14,7 @@ public:
 
     void run(const ast::ModDecl&);
 
+    const thorin::Def* mem() const { return mem_; }
     World& world() { return world_; }
 
     const thorin::Def* emit_head(const ast::Decl&);
