@@ -126,7 +126,7 @@ const thorin::Def* FnExpr::emit(Emitter& emitter) const {
     if (body) {
         emitter.enter(lam);
         auto res = emitter.emit(*body);
-        lam->app(lam->ret_param(), { emitter.mem(), res });
+        emitter.bb()->app(lam->ret_param(), { emitter.mem(), res });
     }
     return def;
 }
@@ -147,6 +147,24 @@ const thorin::Def* BlockExpr::emit(Emitter& emitter) const {
 
 const thorin::Def* CallExpr::emit(Emitter& emitter) const {
     return emitter.call(emitter.emit(*callee), emitter.emit(*arg));
+}
+
+const thorin::Def* IfExpr::emit(Emitter& emitter) const {
+    auto t = emitter.world().lam(emitter.world().type_bb(), emitter.world().debug_info(*if_true, "if_true"));
+    auto f = emitter.world().lam(emitter.world().type_bb(), emitter.world().debug_info(if_false ? *if_false : *this->as<Expr>(), "if_false"));
+    auto j = emitter.world().lam(emitter.world().type_bb(type), emitter.world().debug_info(*this, "if_join"));
+    emitter.bb()->branch(emitter.emit(*cond), t, f, emitter.mem());
+    emitter.enter(t);
+    auto res_t = emitter.emit(*if_true);
+    emitter.jump(j, res_t);
+    emitter.enter(f);
+    if (if_false) {
+        auto res_f = emitter.emit(*if_false);
+        emitter.jump(j, res_f);
+    } else {
+        emitter.jump(j, emitter.world().tuple());
+    }
+    return emitter.enter(j);
 }
 
 const thorin::Def* ReturnExpr::emit(Emitter&) const {

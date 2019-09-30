@@ -15,7 +15,7 @@ Type* World::type_forall(const ast::FnDecl& decl) {
 
 Type* World::type_struct(const ast::StructDecl& decl) {
     thorin::Array<const thorin::Def*> names(decl.fields.size(), [&] (size_t i) { return tuple_str(decl.fields[i]->id.name); });
-    auto dbg = debug_info(decl, tuple(names));
+    auto dbg = debug_info(decl, decl.id.name, tuple(names));
     auto body = sigma(kind_star(), decl.fields.size(), dbg);
     if (!decl.type_params)
         return body;
@@ -27,7 +27,7 @@ Type* World::type_struct(const ast::StructDecl& decl) {
 
 Type* World::type_enum(const ast::EnumDecl& decl) {
     thorin::Array<const thorin::Def*> names(decl.options.size(), [&] (size_t i) { return tuple_str(decl.options[i]->id.name); });
-    auto dbg = debug_info(decl, tuple(names));
+    auto dbg = debug_info(decl, decl.id.name, tuple(names));
     auto body = union_(kind_star(), decl.options.size(), dbg);
     if (!decl.type_params)
         return body;
@@ -37,19 +37,25 @@ Type* World::type_enum(const ast::EnumDecl& decl) {
     return head;
 }
 
-const thorin::Def* World::debug_info(const ast::Node& node, const thorin::Def* meta) {
-    std::string name;
-    if (auto decl = node.isa<ast::NamedDecl>())
-        name = decl->id.name;
-    else if (auto ptrn = node.isa<ast::Ptrn>()) {
-        while (ptrn) {
-            if (auto id = ptrn->isa<ast::IdPtrn>()) {
-                name = id->decl->id.name;
-            } else if (auto typed = ptrn->isa<ast::TypedPtrn>()) {
-                ptrn = typed->ptrn.get();
-                continue;
+const thorin::Pi* World::type_bb(const Type* arg) {
+    return arg ? cn({ type_mem(), arg }) : bb_;
+}
+
+const thorin::Def* World::debug_info(const ast::Node& node, std::string name, const thorin::Def* meta) {
+    if (name == "") {
+        // Try to find a name for the node
+        if (auto decl = node.isa<ast::NamedDecl>())
+            name = decl->id.name;
+        else if (auto ptrn = node.isa<ast::Ptrn>()) {
+            while (ptrn) {
+                if (auto id = ptrn->isa<ast::IdPtrn>()) {
+                    name = id->decl->id.name;
+                } else if (auto typed = ptrn->isa<ast::TypedPtrn>()) {
+                    ptrn = typed->ptrn.get();
+                    continue;
+                }
+                break;
             }
-            break;
         }
     }
     return debug({

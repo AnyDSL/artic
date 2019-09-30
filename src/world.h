@@ -35,6 +35,7 @@ public:
         : thorin::World(cur_gid, name, false)
     {
         auto p = pi(type_nat(), kind_star());
+        bb_   = cn(type_mem());
         sint_ = axiom(p, Tag::SInt, 0, { "sint" });
         uint_ = axiom(p, Tag::UInt, 0, { "uint" });
     }
@@ -48,9 +49,12 @@ public:
     Type* type_struct(const ast::StructDecl&);
     Type* type_enum(const ast::EnumDecl&);
 
-    const thorin::Def* debug_info(const ast::Node&, const thorin::Def* meta = nullptr);
+    const thorin::Pi* type_bb(const Type* arg = nullptr);
+
+    const thorin::Def* debug_info(const ast::Node&, std::string name = "", const thorin::Def* meta = nullptr);
 
 private:
+    const thorin::Pi* bb_;
     const thorin::Def* sint_;
     const thorin::Def* uint_;
 };

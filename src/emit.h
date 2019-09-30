@@ -14,6 +14,7 @@ public:
 
     void run(const ast::ModDecl&);
 
+    thorin::Lam* bb() const { return bb_; }
     const thorin::Def* mem() const { return mem_; }
     World& world() { return world_; }
 
