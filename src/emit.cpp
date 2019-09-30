@@ -36,7 +36,7 @@ const thorin::Def* Emitter::emit_fn(const ast::FnExpr& fn, thorin::Debug dbg) {
         world().cn({ world().type_mem(), pi->codomain(1) })
     });
     auto lam = world().lam(cn_type, dbg);
-    return world().op_cps2ds(lam);
+    return fn.def = world().op_cps2ds(lam);
 }
 
 const thorin::Def* Emitter::enter(thorin::Lam* bb) {
@@ -55,17 +55,31 @@ const thorin::Def* Emitter::jump(thorin::Lam* callee, const thorin::Def* arg) {
     return callee->num_params() > 1 ? callee->param(1) : nullptr;
 }
 
+const thorin::Def* Emitter::call(const thorin::Def* callee, const thorin::Def* arg, thorin::Debug dbg) {
+    auto res = world().app(callee, { mem_, arg }, dbg);
+    if (res->type()->isa<thorin::Bot>()) {
+        // This is a call to a continuation
+        mem_ = nullptr;
+        bb_  = nullptr;
+        return res;
+    } else {
+        // This is a regular function call
+        mem_ = world().extract(res, thorin::u64(0));
+        return world().extract(res, thorin::u64(1));
+    }
+}
+
 namespace ast {
 
 // TODO: Remove those once every class has an implementation
 
 const thorin::Def* Node::emit(Emitter&) const {
-    assert(false);
+    assert(false && "TODO");
     return nullptr;
 }
 
 void Ptrn::emit(Emitter&, const thorin::Def*) const {
-    assert(false);
+    assert(false && "TODO");
 }
 
 // Path ----------------------------------------------------------------------------
@@ -97,19 +111,17 @@ const thorin::Def* PathExpr::emit(Emitter& emitter) const {
 
 const thorin::Def* FnExpr::emit(Emitter& emitter) const {
     if (!def) {
-        // FnDecl sets the def to a valid continuation,
+        // FnDecl already calls emit_fn so this->def != nullptr,
         // but anonymous functions have to be created here.
-        def = emitter.emit_fn(*this, emitter.world().debug_info(*this));
+        emitter.emit_fn(*this, emitter.world().debug_info(*this));
     }
-    auto fn = def->as<thorin::App>()->arg()->as_nominal<thorin::Lam>();
+    auto lam = def->as<thorin::App>()->arg()->as_nominal<thorin::Lam>();
     if (param)
-        emitter.emit(*param, fn->param(1, emitter.world().debug_info(*param)));
+        emitter.emit(*param, lam->param(1, emitter.world().debug_info(*param)));
     if (body) {
-        emitter.enter(fn);
-        fn->app(fn->ret_param(), { emitter.emit(*body) });
+        emitter.enter(lam);
+        lam->app(lam->ret_param(), { emitter.emit(*body) });
     }
-    fn->dump_head();
-    fn->dump_body();
     return def;
 }
 
@@ -118,6 +130,15 @@ const thorin::Def* BlockExpr::emit(Emitter& emitter) const {
     for (auto& stmt : stmts)
         last = emitter.emit(*stmt);
     return !last || last_semi ? emitter.world().tuple() : last;
+}
+
+const thorin::Def* CallExpr::emit(Emitter& emitter) const {
+    return emitter.call(emitter.emit(*callee), emitter.emit(*arg));
+}
+
+const thorin::Def* ReturnExpr::emit(Emitter&) const {
+    auto lam = fn->def->as<thorin::App>()->arg()->as_nominal<thorin::Lam>();
+    return lam->ret_param();
 }
 
 // Declarations --------------------------------------------------------------------
@@ -129,7 +150,7 @@ const thorin::Def* LetDecl::emit(Emitter&) const {
 
 const thorin::Def* FnDecl::emit_head(Emitter& emitter) const {
     // TODO: Polymorphic functions
-    return fn->def = emitter.emit_fn(*fn, emitter.world().debug_info(*this));
+    return emitter.emit_fn(*fn, emitter.world().debug_info(*this));
 }
 
 const thorin::Def* FnDecl::emit(Emitter& emitter) const {

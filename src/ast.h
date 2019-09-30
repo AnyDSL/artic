@@ -480,6 +480,7 @@ struct CallExpr : public Expr {
         , arg(std::move(arg))
     {}
 
+    const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) const override;
     void bind(NameBinder&) const override;
     void print(Printer&) const override;
@@ -630,6 +631,7 @@ struct ReturnExpr : public Expr {
         : Expr(loc)
     {}
 
+    const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) const override;
     void bind(NameBinder&) const override;
     void print(Printer&) const override;
