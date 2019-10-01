@@ -22,10 +22,10 @@ public:
     const thorin::Def* emit(const ast::Node&);
     void emit(const ast::Ptrn&, const thorin::Def*);
 
-    const thorin::Def* emit_fn(const ast::FnExpr&, thorin::Debug dbg = {});
+    thorin::Lam* emit_lam(const thorin::Pi*, thorin::Debug dbg = {});
 
     const thorin::Def* enter(thorin::Lam*);
-    const thorin::Def* jump(thorin::Lam*, const thorin::Def* arg = nullptr);
+    const thorin::Def* jump(thorin::Lam*, const thorin::Def* arg = nullptr, thorin::Debug dbg = {});
     const thorin::Def* call(const thorin::Def*, const thorin::Def*, thorin::Debug dbg = {});
 
 private:

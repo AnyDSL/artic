@@ -600,6 +600,12 @@ struct ForExpr : public LoopExpr {
         : LoopExpr(loc, std::move(call))
     {}
 
+    const CallExpr* call()     const { return body->as<CallExpr>(); }
+    const FnExpr*   lambda()   const { return call()->callee->as<CallExpr>()->arg->as<FnExpr>(); }
+    const Expr*     iterator() const { return call()->callee->as<CallExpr>()->callee.get(); }
+    const Expr*     range()    const { return call()->arg.get(); }
+
+    const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) const override;
     void bind(NameBinder&) const override;
     void print(Printer&) const override;

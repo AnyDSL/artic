@@ -9,6 +9,8 @@
 #include <thorin/world.h>
 #include <thorin/def.h>
 
+#include "loc.h"
+
 namespace artic {
 
 namespace ast {
@@ -51,7 +53,8 @@ public:
 
     const thorin::Pi* type_bb(const Type* arg = nullptr);
 
-    const thorin::Def* debug_info(const ast::Node&, std::string name = "", const thorin::Def* meta = nullptr);
+    const thorin::Def* debug_info(const Loc&, const std::string name = "", const thorin::Def* meta = nullptr);
+    const thorin::Def* debug_info(const ast::Node&, const thorin::Def* meta = nullptr);
 
 private:
     const thorin::Pi* bb_;

@@ -29,18 +29,15 @@ void Emitter::emit(const ast::Ptrn& ptrn, const thorin::Def* value) {
     ptrn.def = value;
 }
 
-const thorin::Def* Emitter::emit_fn(const ast::FnExpr& fn, thorin::Debug dbg) {
+thorin::Lam* Emitter::emit_lam(const thorin::Pi* pi, thorin::Debug dbg) {
     // Create a continuation and convert it to direct-style.
-    auto pi = fn.type->as<thorin::Pi>();
     auto cn_type = world().cn({
         world().type_mem(),
         pi->domain(1),
         world().cn({ world().type_mem(), pi->codomain(1) })
     });
     auto lam = world().lam(cn_type, dbg);
-    // TODO: Remove this
-    lam->make_external();
-    return fn.def = world().cps2ds(lam);
+    return lam;
 }
 
 const thorin::Def* Emitter::enter(thorin::Lam* bb) {
@@ -49,12 +46,12 @@ const thorin::Def* Emitter::enter(thorin::Lam* bb) {
     return bb->num_params() > 1 ? bb->param(1) : nullptr;
 }
 
-const thorin::Def* Emitter::jump(thorin::Lam* callee, const thorin::Def* arg) {
+const thorin::Def* Emitter::jump(thorin::Lam* callee, const thorin::Def* arg, thorin::Debug dbg) {
     if (bb_) {
         if (arg)
-            bb_->app(callee, { mem_, arg });
+            bb_->app(callee, { mem_, arg }, dbg);
         else
-            bb_->app(callee, { mem_ });
+            bb_->app(callee, { mem_ }, dbg);
     }
     bb_ = callee;
     mem_ = callee->param(0);
@@ -62,6 +59,7 @@ const thorin::Def* Emitter::jump(thorin::Lam* callee, const thorin::Def* arg) {
 }
 
 const thorin::Def* Emitter::call(const thorin::Def* callee, const thorin::Def* arg, thorin::Debug dbg) {
+    assert(bb_);
     auto res = world().app(callee, { mem_, arg }, dbg);
     if (res->type()->isa<thorin::Bot>()) {
         // This is a call to a continuation
@@ -137,20 +135,22 @@ const thorin::Def* LiteralExpr::emit(Emitter& emitter) const {
 }
 
 const thorin::Def* FnExpr::emit(Emitter& emitter) const {
-    if (!def) {
-        // FnDecl already calls emit_fn so this->def != nullptr,
-        // but anonymous functions have to be created here.
-        emitter.emit_fn(*this, emitter.world().debug_info(*this));
-    }
-    auto lam = def->as<thorin::CPS2DS>()->cps()->as_nominal<thorin::Lam>();
+    // FnDecl already sets this->def, but anonymous functions have to be created here.
+    auto lam = def
+        ? def->as<thorin::CPS2DS>()->cps()->as_nominal<thorin::Lam>()
+        : emitter.emit_lam(type->as<thorin::Pi>(), emitter.world().debug_info(*this));
+    // Remember the previous basic-block in order to be able to restore it after emitting this function
+    auto old_bb = emitter.bb();
+    emitter.enter(lam);
     if (param)
         emitter.emit(*param, lam->param(1, emitter.world().debug_info(*param)));
     if (body) {
-        emitter.enter(lam);
         auto res = emitter.emit(*body);
-        emitter.bb()->app(lam->ret_param(), { emitter.mem(), res });
+        emitter.bb()->app(lam->ret_param(emitter.world().debug_info(loc, "ret")), { emitter.mem(), res });
     }
-    return def;
+    // Restore previous basic-block
+    if (old_bb) emitter.enter(old_bb);
+    return emitter.world().cps2ds(lam);
 }
 
 const thorin::Def* TupleExpr::emit(Emitter& emitter) const {
@@ -172,17 +172,17 @@ const thorin::Def* CallExpr::emit(Emitter& emitter) const {
 }
 
 const thorin::Def* IfExpr::emit(Emitter& emitter) const {
-    auto t = emitter.world().lam(emitter.world().type_bb(), emitter.world().debug_info(*if_true, "if_true"));
-    auto f = emitter.world().lam(emitter.world().type_bb(), emitter.world().debug_info(if_false ? *if_false : *this->as<Expr>(), "if_false"));
-    auto j = emitter.world().lam(emitter.world().type_bb(type), emitter.world().debug_info(*this, "if_join"));
-    emitter.bb()->branch(emitter.emit(*cond), t, f, emitter.mem());
+    auto t = emitter.world().lam(emitter.world().type_bb(), emitter.world().debug_info(if_true->loc, "if_true"));
+    auto f = emitter.world().lam(emitter.world().type_bb(), emitter.world().debug_info(if_false ? if_false->loc : loc, "if_false"));
+    auto j = emitter.world().lam(emitter.world().type_bb(type), emitter.world().debug_info(loc, "if_join"));
+    emitter.bb()->branch(emitter.emit(*cond), t, f, emitter.mem(), emitter.world().debug_info(cond->loc));
 
     emitter.enter(t);
-    emitter.jump(j, emitter.emit(*if_true));
+    emitter.jump(j, emitter.emit(*if_true), emitter.world().debug_info(if_true->loc));
 
     emitter.enter(f);
     if (if_false)
-        emitter.jump(j, emitter.emit(*if_false));
+        emitter.jump(j, emitter.emit(*if_false), emitter.world().debug_info(*if_false));
     else
         emitter.jump(j, emitter.world().tuple());
 
@@ -190,21 +190,48 @@ const thorin::Def* IfExpr::emit(Emitter& emitter) const {
 }
 
 const thorin::Def* WhileExpr::emit(Emitter& emitter) const {
-    auto hd  = emitter.world().lam(emitter.world().type_bb(), emitter.world().debug_info(*this, "while_head"));
-    auto bd  = emitter.world().lam(emitter.world().type_bb(), emitter.world().debug_info(*this, "while_body"));
-    auto brk = emitter.world().lam(emitter.world().type_bb(), emitter.world().debug_info(*this, "while_break"));
+    auto hd  = emitter.world().lam(emitter.world().type_bb(), emitter.world().debug_info(loc, "while_head"));
+    auto bd  = emitter.world().lam(emitter.world().type_bb(), emitter.world().debug_info(loc, "while_body"));
+    auto brk = emitter.world().lam(emitter.world().type_bb(), emitter.world().debug_info(loc, "while_break"));
     continue_ = hd;
     break_ = brk;
 
     emitter.jump(hd);
-    hd->branch(emitter.emit(*cond), bd, brk, emitter.mem());
+    hd->branch(emitter.emit(*cond), bd, brk, emitter.mem(), emitter.world().debug_info(cond->loc));
 
     emitter.enter(bd);
     emitter.emit(*body);
-    emitter.jump(hd);
+    emitter.jump(hd, emitter.world().debug_info(body->loc));
 
-    emitter.enter(brk);
-    return emitter.world().tuple();
+    return emitter.enter(brk);
+}
+
+const thorin::Def* ForExpr::emit(Emitter& emitter) const {
+    // The expression is a call that looks like this: (iterate(|...| { ... }))(range)
+    // We translate it into CPS, so that we have:
+    // (ds2cps (iterate (|..., cont| { ... }))) (range, brk)
+
+    // Create a stub for the for loop body and break/continue
+    auto bd = emitter.emit_lam(lambda()->type->as<thorin::Pi>(), emitter.world().debug_info(loc, "for_body"));
+    auto cnt = bd->ret_param(emitter.world().debug_info(loc, "for_continue"));
+    auto brk_type = emitter.world().type_bb(call()->callee->type->as<thorin::Pi>()->codomain(1));
+    auto brk = emitter.world().lam(brk_type, emitter.world().debug_info(loc, "for_break"));
+
+    // Emit the innermost call: iterate(|..., cont| { ... })
+    auto iterate = emitter.emit(*iterator());
+    auto [mem, inner] = emitter.world().app(iterate, { emitter.mem(), emitter.world().cps2ds(bd) }, emitter.world().debug_info(loc))->split<2>();
+    // Convert the resulting DS function into CPS and call it with the range
+    emitter.bb()->app(emitter.world().ds2cps(inner), { mem, emitter.emit(*range()), brk });
+
+    continue_ = cnt;
+    break_    = brk;
+
+    emitter.enter(bd);
+    auto res = emitter.emit(*lambda()->body);
+    if (emitter.bb())
+        emitter.call(cnt, res, emitter.world().debug_info(loc));
+
+    return emitter.enter(brk);
 }
 
 const thorin::Def* BreakExpr::emit(Emitter&) const {
@@ -224,14 +251,17 @@ const thorin::Def* ReturnExpr::emit(Emitter&) const {
 
 // Declarations --------------------------------------------------------------------
 
-const thorin::Def* LetDecl::emit(Emitter&) const {
-    // TODO
-    return nullptr;
+const thorin::Def* LetDecl::emit(Emitter& emitter) const {
+    emitter.emit(*ptrn, init ? emitter.emit(*init) : emitter.world().bot(ptrn->type));
+    return emitter.world().tuple();
 }
 
 const thorin::Def* FnDecl::emit_head(Emitter& emitter) const {
     // TODO: Polymorphic functions
-    return emitter.emit_fn(*fn, emitter.world().debug_info(*this));
+    auto lam = emitter.emit_lam(fn->type->as<thorin::Pi>(), emitter.world().debug_info(*this));
+    // TODO: Remove this
+    lam->make_external();
+    return fn->def = emitter.world().cps2ds(lam);
 }
 
 const thorin::Def* FnDecl::emit(Emitter& emitter) const {

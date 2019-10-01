@@ -678,6 +678,7 @@ const artic::Type* FnDecl::infer(TypeChecker& checker) const {
         : checker.infer(*fn);
     if (forall)
         forall->set(1, fn_type);
+    fn->type = fn_type;
     type = forall ? forall : fn_type;
     if (fn->ret_type)
         checker.check(*fn->body, fn_type->as<thorin::Pi>()->codomain(1));
