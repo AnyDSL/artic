@@ -277,9 +277,11 @@ Ptr<ast::Ptrn> Parser::parse_tuple_ptrn(Token::Tag beg, Token::Tag end) {
     parse_list(end, Token::Comma, [&] {
         args.emplace_back(parse_ptrn());
     });
-    return args.size() == 1
-        ? std::move(args[0])
-        : make_ptr<ast::TuplePtrn>(tracker(), std::move(args));
+    if (args.size() == 1) {
+        args[0]->loc = tracker();
+        return std::move(args[0]);
+    }
+    return make_ptr<ast::TuplePtrn>(tracker(), std::move(args));
 }
 
 Ptr<ast::ErrorPtrn> Parser::parse_error_ptrn() {
@@ -371,9 +373,11 @@ Ptr<ast::Expr> Parser::parse_tuple_expr() {
     parse_list(Token::RParen, Token::Comma, [&] {
         args.emplace_back(parse_expr());
     });
-    return args.size() == 1
-        ? std::move(args[0])
-        : make_ptr<ast::TupleExpr>(tracker(), std::move(args));
+    if (args.size() == 1) {
+        args[0]->loc = tracker();
+        return std::move(args[0]);
+    }
+    return make_ptr<ast::TupleExpr>(tracker(), std::move(args));
 }
 
 Ptr<ast::ArrayExpr> Parser::parse_array_expr() {
@@ -544,7 +548,8 @@ Ptr<ast::ForExpr> Parser::parse_for_expr() {
     Tracker tracker(this);
     auto ptrn = parse_tuple_ptrn(Token::For, Token::In);
     auto expr = parse_expr();
-    Ptr<ast::CallExpr> call(expr.release()->isa<ast::CallExpr>());
+    auto call_loc = expr->loc;
+    Ptr<ast::CallExpr> call(expr->isa<ast::CallExpr>() ? expr.release()->as<ast::CallExpr>() : nullptr);
     if (!call)
         error(ahead().loc(), "invalid for loop expression");
     Ptr<ast::Expr> body;
@@ -553,9 +558,12 @@ Ptr<ast::ForExpr> Parser::parse_for_expr() {
     else
         body = std::move(parse_error_expr());
 
-    auto lambda = make_ptr<ast::FnExpr>(tracker(), nullptr, std::move(ptrn), nullptr, std::move(body));
+    auto lambda_loc = body->loc;
+    // Cannot use body->loc directly because std::move(body) might be executed first
+    auto lambda = make_ptr<ast::FnExpr>(lambda_loc, nullptr, std::move(ptrn), nullptr, std::move(body));
+
     Ptr<ast::Expr> callee(call->callee.release());
-    call->callee = make_ptr<ast::CallExpr>(tracker(), std::move(callee), std::move(lambda));
+    call->callee = make_ptr<ast::CallExpr>(call_loc, std::move(callee), std::move(lambda));
     return make_ptr<ast::ForExpr>(tracker(), std::move(call));
 }
 
@@ -706,9 +714,11 @@ Ptr<ast::Type> Parser::parse_tuple_type() {
     parse_list(Token::RParen, Token::Comma, [&] {
         args.emplace_back(parse_type());
     });
-    return args.size() == 1
-        ? std::move(args[0])
-        : make_ptr<ast::TupleType>(tracker(), std::move(args));
+    if (args.size() == 1) {
+        args[0]->loc = tracker();
+        return std::move(args[0]);
+    }
+    return make_ptr<ast::TupleType>(tracker(), std::move(args));
 }
 
 Ptr<ast::ArrayType> Parser::parse_array_type() {
