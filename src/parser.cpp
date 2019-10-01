@@ -270,11 +270,11 @@ Ptr<ast::EnumPtrn> Parser::parse_enum_ptrn(ast::Path&& path) {
     return make_ptr<ast::EnumPtrn>(tracker(), std::move(path), std::move(arg));
 }
 
-Ptr<ast::Ptrn> Parser::parse_tuple_ptrn() {
+Ptr<ast::Ptrn> Parser::parse_tuple_ptrn(Token::Tag beg, Token::Tag end) {
     Tracker tracker(this);
-    eat(Token::LParen);
+    eat(beg);
     PtrVector<ast::Ptrn> args;
-    parse_list(Token::RParen, Token::Comma, [&] {
+    parse_list(end, Token::Comma, [&] {
         args.emplace_back(parse_ptrn());
     });
     return args.size() == 1
@@ -542,9 +542,7 @@ Ptr<ast::WhileExpr> Parser::parse_while_expr() {
 
 Ptr<ast::ForExpr> Parser::parse_for_expr() {
     Tracker tracker(this);
-    eat(Token::For);
-    auto ptrn = parse_ptrn();
-    expect(Token::In);
+    auto ptrn = parse_tuple_ptrn(Token::For, Token::In);
     auto expr = parse_expr();
     Ptr<ast::CallExpr> call(expr.release()->isa<ast::CallExpr>());
     if (!call)

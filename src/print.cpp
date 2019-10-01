@@ -194,14 +194,13 @@ void WhileExpr::print(Printer& p) const {
 }
 
 void ForExpr::print(Printer& p) const {
-    auto call = body->as<ast::CallExpr>();
-    auto& iter = call->callee->as<ast::CallExpr>()->callee;
-    auto lambda = call->callee->as<ast::CallExpr>()->arg->as<ast::FnExpr>();
+    auto& iter = call()->callee->as<ast::CallExpr>()->callee;
+    auto lambda = call()->callee->as<ast::CallExpr>()->arg->as<ast::FnExpr>();
     p << log::keyword_style("for") << ' ';
     lambda->param->print(p);
     p << ' ' << log::keyword_style("in") << ' ';
     iter->print(p);
-    call->arg->print(p);
+    call()->arg->print(p);
     p << ' ';
     lambda->body->print(p);
 }

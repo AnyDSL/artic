@@ -149,6 +149,7 @@ const thorin::Def* FnExpr::emit(Emitter& emitter) const {
         emitter.bb()->app(lam->ret_param(emitter.world().debug_info(loc, "ret")), { emitter.mem(), res });
     }
     // Restore previous basic-block
+    // TODO: Remove 'if' when the module system is implemented
     if (old_bb) emitter.enter(old_bb);
     return emitter.world().cps2ds(lam);
 }
@@ -209,12 +210,12 @@ const thorin::Def* WhileExpr::emit(Emitter& emitter) const {
 }
 
 const thorin::Def* ForExpr::emit(Emitter& emitter) const {
-    // The expression is a call that looks like this: (iterator(|...| { ... }))(range)
+    // The expression is a call that looks like this: (iter(|...| { ... }))(range)
     // We translate it into CPS, so that we have:
-    // (ds2cps (iterate (|..., cont| { ... }))) (range, brk)
-    auto iterator = call()->callee->as<CallExpr>()->callee.get();
-    auto lambda   = call()->callee->as<CallExpr>()->arg->as<FnExpr>();
-    auto range    = call()->arg.get();
+    // (ds2cps (iter(|..., cont| { ... }))) (range, brk)
+    auto iter   = call()->callee->as<CallExpr>()->callee.get();
+    auto lambda = call()->callee->as<CallExpr>()->arg->as<FnExpr>();
+    auto range  = call()->arg.get();
 
     // Create a stub for the for loop body and break/continue
     auto bd = emitter.emit_lam(lambda->type->as<thorin::Pi>(), emitter.world().debug_info(loc, "for_body"));
@@ -222,9 +223,9 @@ const thorin::Def* ForExpr::emit(Emitter& emitter) const {
     auto brk_type = emitter.world().type_bb(call()->callee->type->as<thorin::Pi>()->codomain(1));
     auto brk = emitter.world().lam(brk_type, emitter.world().debug_info(loc, "for_break"));
 
-    // Emit the innermost call: iterator(|..., cont| { ... })
-    auto iterator_def = emitter.emit(*iterator);
-    auto inner = emitter.call(iterator_def, emitter.world().cps2ds(bd), emitter.world().debug_info(loc));
+    // Emit the innermost call: iter(|..., cont| { ... })
+    auto iter_def = emitter.emit(*iter);
+    auto inner = emitter.call(iter_def, emitter.world().cps2ds(bd), emitter.world().debug_info(loc));
     // Convert the resulting DS function into CPS and call it with the range
     auto range_def = emitter.emit(*range);
     emitter.bb()->app(emitter.world().ds2cps(inner), { emitter.mem(), range_def, brk });
