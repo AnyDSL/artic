@@ -33,9 +33,10 @@ using Types = thorin::Defs;
 
 class World : public thorin::World {
 public:
-    World(uint32_t cur_gid = 0, const std::string& name = "")
-        : thorin::World(cur_gid, name, false)
+    World(const std::string& name = "")
+        : thorin::World(name)
     {
+        do_tuple2pack(false);
         auto p = pi(type_nat(), kind_star());
         bb_   = cn(type_mem());
         sint_ = axiom(p, Tag::SInt, 0, { "sint" });
