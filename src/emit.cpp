@@ -175,7 +175,8 @@ const thorin::Def* IfExpr::emit(Emitter& emitter) const {
     auto t = emitter.world().lam(emitter.world().type_bb(), emitter.world().debug_info(if_true->loc, "if_true"));
     auto f = emitter.world().lam(emitter.world().type_bb(), emitter.world().debug_info(if_false ? if_false->loc : loc, "if_false"));
     auto j = emitter.world().lam(emitter.world().type_bb(type), emitter.world().debug_info(loc, "if_join"));
-    emitter.bb()->branch(emitter.emit(*cond), t, f, emitter.mem(), emitter.world().debug_info(cond->loc));
+    auto c = emitter.emit(*cond);
+    emitter.bb()->branch(c, t, f, emitter.mem(), emitter.world().debug_info(cond->loc));
 
     emitter.enter(t);
     emitter.jump(j, emitter.emit(*if_true), emitter.world().debug_info(if_true->loc));
@@ -197,7 +198,8 @@ const thorin::Def* WhileExpr::emit(Emitter& emitter) const {
     break_ = brk;
 
     emitter.jump(hd);
-    hd->branch(emitter.emit(*cond), bd, brk, emitter.mem(), emitter.world().debug_info(cond->loc));
+    auto c = emitter.emit(*cond);
+    hd->branch(c, bd, brk, emitter.mem(), emitter.world().debug_info(cond->loc));
 
     emitter.enter(bd);
     emitter.emit(*body);
@@ -207,27 +209,31 @@ const thorin::Def* WhileExpr::emit(Emitter& emitter) const {
 }
 
 const thorin::Def* ForExpr::emit(Emitter& emitter) const {
-    // The expression is a call that looks like this: (iterate(|...| { ... }))(range)
+    // The expression is a call that looks like this: (iterator(|...| { ... }))(range)
     // We translate it into CPS, so that we have:
     // (ds2cps (iterate (|..., cont| { ... }))) (range, brk)
+    auto iterator = call()->callee->as<CallExpr>()->callee.get();
+    auto lambda   = call()->callee->as<CallExpr>()->arg->as<FnExpr>();
+    auto range    = call()->arg.get();
 
     // Create a stub for the for loop body and break/continue
-    auto bd = emitter.emit_lam(lambda()->type->as<thorin::Pi>(), emitter.world().debug_info(loc, "for_body"));
+    auto bd = emitter.emit_lam(lambda->type->as<thorin::Pi>(), emitter.world().debug_info(loc, "for_body"));
     auto cnt = bd->ret_param(emitter.world().debug_info(loc, "for_continue"));
     auto brk_type = emitter.world().type_bb(call()->callee->type->as<thorin::Pi>()->codomain(1));
     auto brk = emitter.world().lam(brk_type, emitter.world().debug_info(loc, "for_break"));
 
-    // Emit the innermost call: iterate(|..., cont| { ... })
-    auto iterate = emitter.emit(*iterator());
-    auto [mem, inner] = emitter.world().app(iterate, { emitter.mem(), emitter.world().cps2ds(bd) }, emitter.world().debug_info(loc))->split<2>();
+    // Emit the innermost call: iterator(|..., cont| { ... })
+    auto iterator_def = emitter.emit(*iterator);
+    auto inner = emitter.call(iterator_def, emitter.world().cps2ds(bd), emitter.world().debug_info(loc));
     // Convert the resulting DS function into CPS and call it with the range
-    emitter.bb()->app(emitter.world().ds2cps(inner), { mem, emitter.emit(*range()), brk });
+    auto range_def = emitter.emit(*range);
+    emitter.bb()->app(emitter.world().ds2cps(inner), { emitter.mem(), range_def, brk });
 
     continue_ = cnt;
     break_    = brk;
 
     emitter.enter(bd);
-    auto res = emitter.emit(*lambda()->body);
+    auto res = emitter.emit(*lambda->body);
     if (emitter.bb())
         emitter.call(cnt, res, emitter.world().debug_info(loc));
 

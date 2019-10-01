@@ -593,11 +593,39 @@ const artic::Type* ForExpr::infer(TypeChecker& checker) const {
 }
 
 const artic::Type* BreakExpr::infer(TypeChecker& checker) const {
-    return checker.world().cn_mem(checker.world().sigma());
+    const artic::Type* domain = nullptr;
+    if (loop->isa<WhileExpr>())
+        domain = checker.world().sigma();
+    else if (auto for_ = loop->isa<ForExpr>()) {
+        auto type = for_->call()->callee->as<CallExpr>()->callee->type;
+        if (type && type->isa<thorin::Pi>()) {
+            type = type->as<thorin::Pi>()->codomain(1);
+            if (type->isa<thorin::Pi>())
+                domain = type->as<thorin::Pi>()->codomain(1);
+        }
+        if (!domain)
+            return checker.error_cannot_infer(loc, "break expression");
+    } else
+        assert(false);
+    return checker.world().cn_mem(domain);
 }
 
 const artic::Type* ContinueExpr::infer(TypeChecker& checker) const {
-    return checker.world().cn_mem(checker.world().sigma());
+    const artic::Type* domain = nullptr;
+    if (loop->isa<WhileExpr>())
+        domain = checker.world().sigma();
+    else if (auto for_ = loop->isa<ForExpr>()) {
+        auto type = for_->call()->callee->as<CallExpr>()->callee->type;
+        if (type && type->isa<thorin::Pi>()) {
+            type = type->as<thorin::Pi>()->domain(1);
+            if (type->isa<thorin::Pi>())
+                domain = type->as<thorin::Pi>()->codomain(1);
+        }
+        if (!domain)
+            return checker.error_cannot_infer(loc, "continue expression");
+    } else
+        assert(false);
+    return checker.world().cn_mem(domain);
 }
 
 const artic::Type* ReturnExpr::infer(TypeChecker& checker) const {
