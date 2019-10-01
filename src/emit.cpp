@@ -146,7 +146,8 @@ const thorin::Def* FnExpr::emit(Emitter& emitter) const {
         emitter.emit(*param, lam->param(1, emitter.world().debug_info(*param)));
     if (body) {
         auto res = emitter.emit(*body);
-        emitter.bb()->app(lam->ret_param(emitter.world().debug_info(loc, "ret")), { emitter.mem(), res });
+        if (emitter.bb())
+            emitter.call(lam->ret_param(emitter.world().debug_info(loc, "ret")), res);
     }
     // Restore previous basic-block
     // TODO: Remove 'if' when the module system is implemented
@@ -256,7 +257,7 @@ const thorin::Def* ContinueExpr::emit(Emitter&) const {
 }
 
 const thorin::Def* ReturnExpr::emit(Emitter&) const {
-    auto lam = fn->def->as<thorin::App>()->arg()->as_nominal<thorin::Lam>();
+    auto lam = fn->def->as<thorin::CPS2DS>()->cps()->as_nominal<thorin::Lam>();
     return lam->ret_param();
 }
 
