@@ -162,6 +162,10 @@ const thorin::Def* TupleExpr::emit(Emitter& emitter) const {
 }
 
 const thorin::Def* BlockExpr::emit(Emitter& emitter) const {
+    for (auto& stmt : stmts) {
+        if (auto decl_stmt = stmt->isa<DeclStmt>())
+            emitter.emit_head(*decl_stmt->decl);
+    }
     const thorin::Def* last = nullptr;
     for (auto& stmt : stmts)
         last = emitter.emit(*stmt);
