@@ -50,11 +50,12 @@ const thorin::Def* Emitter::enter(thorin::Lam* bb) {
 }
 
 const thorin::Def* Emitter::jump(thorin::Lam* callee, const thorin::Def* arg) {
-    assert(bb_);
-    if (arg)
-        bb_->app(callee, { mem_, arg });
-    else
-        bb_->app(callee, { mem_ });
+    if (bb_) {
+        if (arg)
+            bb_->app(callee, { mem_, arg });
+        else
+            bb_->app(callee, { mem_ });
+    }
     bb_ = callee;
     mem_ = callee->param(0);
     return callee->num_params() > 1 ? callee->param(1) : nullptr;
@@ -64,6 +65,7 @@ const thorin::Def* Emitter::call(const thorin::Def* callee, const thorin::Def* a
     auto res = world().app(callee, { mem_, arg }, dbg);
     if (res->type()->isa<thorin::Bot>()) {
         // This is a call to a continuation
+        bb_->set(world().lit_false(), res);
         mem_ = nullptr;
         bb_  = nullptr;
         return res;
@@ -114,6 +116,26 @@ const thorin::Def* PathExpr::emit(Emitter& emitter) const {
     return emitter.emit(path);
 }
 
+const thorin::Def* LiteralExpr::emit(Emitter& emitter) const {
+    if (is_bool_type(type)) {
+        return lit.as_bool() ? emitter.world().lit_true() : emitter.world().lit_false();
+    } else if (is_sint_type(type)) {
+        assert(false && "TODO");
+        return nullptr;
+    } else if (is_uint_type(type)) {
+        assert(false && "TODO");
+        return nullptr;
+    } else if (is_real_type(type)) {
+        switch (*thorin::get_width(type)) {
+            case 32: return emitter.world().lit(type, thorin::r32(lit.as_double()), emitter.world().debug_info(*this));
+            case 64: return emitter.world().lit(type, thorin::r64(lit.as_double()), emitter.world().debug_info(*this));
+            default: break;
+        }
+    }
+    assert(false);
+    return nullptr;
+}
+
 const thorin::Def* FnExpr::emit(Emitter& emitter) const {
     if (!def) {
         // FnDecl already calls emit_fn so this->def != nullptr,
@@ -154,17 +176,45 @@ const thorin::Def* IfExpr::emit(Emitter& emitter) const {
     auto f = emitter.world().lam(emitter.world().type_bb(), emitter.world().debug_info(if_false ? *if_false : *this->as<Expr>(), "if_false"));
     auto j = emitter.world().lam(emitter.world().type_bb(type), emitter.world().debug_info(*this, "if_join"));
     emitter.bb()->branch(emitter.emit(*cond), t, f, emitter.mem());
+
     emitter.enter(t);
-    auto res_t = emitter.emit(*if_true);
-    emitter.jump(j, res_t);
+    emitter.jump(j, emitter.emit(*if_true));
+
     emitter.enter(f);
-    if (if_false) {
-        auto res_f = emitter.emit(*if_false);
-        emitter.jump(j, res_f);
-    } else {
+    if (if_false)
+        emitter.jump(j, emitter.emit(*if_false));
+    else
         emitter.jump(j, emitter.world().tuple());
-    }
+
     return emitter.enter(j);
+}
+
+const thorin::Def* WhileExpr::emit(Emitter& emitter) const {
+    auto hd  = emitter.world().lam(emitter.world().type_bb(), emitter.world().debug_info(*this, "while_head"));
+    auto bd  = emitter.world().lam(emitter.world().type_bb(), emitter.world().debug_info(*this, "while_body"));
+    auto brk = emitter.world().lam(emitter.world().type_bb(), emitter.world().debug_info(*this, "while_break"));
+    continue_ = hd;
+    break_ = brk;
+
+    emitter.jump(hd);
+    hd->branch(emitter.emit(*cond), bd, brk, emitter.mem());
+
+    emitter.enter(bd);
+    emitter.emit(*body);
+    emitter.jump(hd);
+
+    emitter.enter(brk);
+    return emitter.world().tuple();
+}
+
+const thorin::Def* BreakExpr::emit(Emitter&) const {
+    assert(loop);
+    return loop->break_;
+}
+
+const thorin::Def* ContinueExpr::emit(Emitter&) const {
+    assert(loop);
+    return loop->continue_;
 }
 
 const thorin::Def* ReturnExpr::emit(Emitter&) const {

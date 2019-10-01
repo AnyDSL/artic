@@ -498,22 +498,7 @@ Ptr<ast::ProjExpr> Parser::parse_proj_expr(Ptr<ast::Expr>&& expr) {
 Ptr<ast::IfExpr> Parser::parse_if_expr() {
     Tracker tracker(this);
     eat(Token::If);
-    auto cond = parse_expr();
-
-    Ptr<ast::Expr> if_true;
-
-    // Resolve the ambiguity: if x {} else {}
-    // where this is parsed as if (x {}) ...
-    if (cond->isa<ast::StructExpr>() && cond->as<ast::StructExpr>()->fields.empty()) {
-        auto struct_expr = cond->as<ast::StructExpr>();
-        if_true = std::move(make_ptr<ast::BlockExpr>(struct_expr->fields_loc, PtrVector<ast::Stmt>{}, false));
-        cond = std::move(struct_expr->expr);
-    } else {
-        if (ahead().tag() == Token::LBrace)
-            if_true = std::move(parse_block_expr());
-        else
-            if_true = std::move(parse_error_expr());
-    }
+    auto [cond, if_true] = parse_cond_and_block();
 
     Ptr<ast::Expr> if_false;
     if (ahead().tag() == Token::Else) {
@@ -551,12 +536,7 @@ Ptr<ast::MatchExpr> Parser::parse_match_expr() {
 Ptr<ast::WhileExpr> Parser::parse_while_expr() {
     Tracker tracker(this);
     eat(Token::While);
-    auto cond = parse_expr();
-    Ptr<ast::Expr> body;
-    if (ahead().tag() == Token::LBrace)
-        body = std::move(parse_block_expr());
-    else
-        body = std::move(parse_error_expr());
+    auto [cond, body] = parse_cond_and_block();
     return make_ptr<ast::WhileExpr>(tracker(), std::move(cond), std::move(body));
 }
 
@@ -834,6 +814,25 @@ Literal Parser::parse_lit() {
         lit = ahead().literal();
     next();
     return lit;
+}
+
+std::pair<Ptr<ast::Expr>, Ptr<ast::Expr>> Parser::parse_cond_and_block() {
+    auto cond = parse_expr();
+    Ptr<ast::Expr> block;
+
+    // Resolve the ambiguity: x {} ...
+    // where this is parsed as (x {}) ...
+    if (cond->isa<ast::StructExpr>() && cond->as<ast::StructExpr>()->fields.empty()) {
+        auto struct_expr = cond->as<ast::StructExpr>();
+        block = std::move(make_ptr<ast::BlockExpr>(struct_expr->fields_loc, PtrVector<ast::Stmt>{}, false));
+        cond = std::move(struct_expr->expr);
+    } else {
+        if (ahead().tag() == Token::LBrace)
+            block = std::move(parse_block_expr());
+        else
+            block = std::move(parse_error_expr());
+    }
+    return std::make_pair(std::move(cond), std::move(block));
 }
 
 } // namespace artic

@@ -59,6 +59,8 @@ public:
     const Type* infer_tuple(const Args&);
     template <typename Fields>
     const Type* check_fields(const Loc&, const Type*, const Type*, const Fields&, bool, const std::string&);
+    template <typename Stmts>
+    void check_block(const Loc&, const Stmts&, bool);
 
 private:
     bool should_emit_error(const Type*);

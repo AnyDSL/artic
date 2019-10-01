@@ -14,7 +14,7 @@ fn sort[T](array: MutArray[T], less: fn (T, T) -> bool) {
         let mut j = i - 1;
         while j >= 0 && less(elem, array.read(j)) {
             array.write(j + 1, array.read(j));
-            j--
+            j--;
         }
         array.write(j + 1, elem)
     }

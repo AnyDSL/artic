@@ -88,6 +88,8 @@ private:
     ast::Identifier         parse_id();
     Literal                 parse_lit();
 
+    std::pair<Ptr<ast::Expr>, Ptr<ast::Expr>> parse_cond_and_block();
+
     struct Tracker {
         const Parser* parser;
         int begin_row, begin_col;

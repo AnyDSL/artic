@@ -287,6 +287,17 @@ const Type* TypeChecker::check_fields(const Loc& loc, const Type* struct_type, c
     return expr_type;
 }
 
+template <typename Stmts>
+void TypeChecker::check_block(const Loc& loc, const Stmts& stmts, bool last_semi) {
+    assert(!stmts.empty());
+    for (size_t i = 0, n = stmts.size(); i < n - 1; ++i) {
+        if (is_no_ret_type(stmts[i]->type))
+            error_unreachable_code(stmts[i]->loc, stmts[i + 1]->loc, stmts.back()->loc);
+    }
+    if (last_semi && is_no_ret_type(stmts.back()->type))
+        error_unreachable_code(stmts.back()->loc, stmts.back()->loc.end(), loc.end());
+}
+
 namespace ast {
 
 const artic::Type* Node::check(TypeChecker& checker, const artic::Type* expected) const {
@@ -489,37 +500,31 @@ const artic::Type* FnExpr::infer(TypeChecker& checker) const {
 
 const artic::Type* FnExpr::check(TypeChecker& checker, const artic::Type* expected) const {
     if (!expected->isa<thorin::Pi>())
-        return checker.expect(loc, "anonymous function", expected);
+        return checker.expect(loc, "function", expected);
     auto param_type = checker.check(*param, expected->as<thorin::Pi>()->domain(1));
-    auto body_type  = checker.check(*body, expected->as<thorin::Pi>()->codomain(1));
+    auto body_type  = checker.check(*body, ret_type ? checker.infer(*ret_type) : expected->as<thorin::Pi>()->codomain(1));
+    if (ret_type)
+        checker.expect(ret_type->loc, "function", body_type, expected->as<thorin::Pi>()->codomain(1));
     return checker.world().pi_mem(param_type, body_type);
 }
 
 const artic::Type* BlockExpr::infer(TypeChecker& checker) const {
     if (stmts.empty())
         return checker.world().sigma();
-    for (size_t i = 0; i < stmts.size() - 1; ++i) {
-        auto stmt_type = checker.infer(*stmts[i]);
-        if (is_no_ret_type(stmt_type))
-            return checker.error_unreachable_code(stmts[i]->loc, stmts[i + 1]->loc, stmts.back()->loc);
-    }
-    auto last_type = checker.infer(*stmts.back());
-    return last_semi ? checker.world().sigma() : last_type;
+    for (auto& stmt : stmts)
+        checker.infer(*stmt);
+    checker.check_block(loc, stmts, last_semi);
+    return last_semi ? checker.world().sigma() : stmts.back()->type;
 }
 
 const artic::Type* BlockExpr::check(TypeChecker& checker, const artic::Type* expected) const {
     if (stmts.empty())
         return checker.expect(loc, "block expression", checker.world().sigma(), expected);
-    for (size_t i = 0; i < stmts.size() - 1; ++i) {
-        auto stmt_type = checker.infer(*stmts[i]);
-        if (is_no_ret_type(stmt_type))
-            return checker.error_unreachable_code(stmts[i]->loc, stmts[i + 1]->loc, stmts.back()->loc);
-    }
-    if (last_semi) {
-        auto last_type = checker.check(*stmts.back(), checker.world().sigma());
-        return checker.expect(loc, "block expression", last_type, expected);
-    }
-    return checker.check(*stmts.back(), expected);
+    for (size_t i = 0; i < stmts.size() - 1; ++i)
+        checker.infer(*stmts[i]);
+    auto last_type = last_semi ? checker.infer(*stmts.back()) : checker.check(*stmts.back(), expected);
+    checker.check_block(loc, stmts, last_semi);
+    return last_semi ? checker.expect(loc, "block expression", checker.world().sigma(), expected) : last_type;
 }
 
 const artic::Type* CallExpr::infer(TypeChecker& checker) const {
@@ -578,7 +583,8 @@ const artic::Type* MatchExpr::check(TypeChecker& checker, const artic::Type* exp
 
 const artic::Type* WhileExpr::infer(TypeChecker& checker) const {
     checker.check(*cond, checker.world().type_bool());
-    checker.infer(*body);
+    // Using infer mode here would cause the type system to allow code such as: while true { break }
+    checker.check(*body, checker.world().sigma());
     return checker.world().sigma();
 }
 
@@ -665,22 +671,18 @@ const artic::Type* FnDecl::infer(TypeChecker& checker) const {
         forall = checker.world().type_forall(*this);
         checker.check(*type_params, forall->param());
     }
-    if (fn->ret_type) {
-        auto fn_type = checker.world().pi_mem(checker.infer(*fn->param), checker.infer(*fn->ret_type));
-        if (forall) {
-            forall->set(1, fn_type);
-            type = forall;
-        } else {
-            type = fn_type;
-        }
-    }
     if (!checker.enter_decl(this))
         return checker.world().type_error();
-    auto fn_type = checker.infer(*fn);
+    const artic::Type* fn_type = fn->ret_type
+        ? checker.world().pi_mem(checker.infer(*fn->param), checker.infer(*fn->ret_type))
+        : checker.infer(*fn);
     if (forall)
         forall->set(1, fn_type);
+    type = forall ? forall : fn_type;
+    if (fn->ret_type)
+        checker.check(*fn->body, fn_type->as<thorin::Pi>()->codomain(1));
     checker.exit_decl(this);
-    return forall ? forall : fn_type;
+    return type;
 }
 
 const artic::Type* FnDecl::check(TypeChecker& checker, const artic::Type* expected) const {

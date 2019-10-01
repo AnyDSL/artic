@@ -346,6 +346,7 @@ struct LiteralExpr : public Expr {
         : Expr(loc), lit(lit)
     {}
 
+    const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) const override;
     const artic::Type* check(TypeChecker&, const artic::Type*) const override;
     void bind(NameBinder&) const override;
@@ -568,6 +569,10 @@ struct MatchExpr : public Expr {
 struct LoopExpr : public Expr {
     Ptr<Expr> body;
 
+    // Set during IR emission
+    mutable const thorin::Def* break_ = nullptr;
+    mutable const thorin::Def* continue_ = nullptr;
+
     LoopExpr(const Loc& loc, Ptr<Expr>&& body)
         : Expr(loc), body(std::move(body))
     {}
@@ -583,6 +588,7 @@ struct WhileExpr : public LoopExpr {
         : LoopExpr(loc, std::move(body)), cond(std::move(cond))
     {}
 
+    const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) const override;
     void bind(NameBinder&) const override;
     void print(Printer&) const override;
@@ -607,6 +613,7 @@ struct BreakExpr : public Expr {
         : Expr(loc)
     {}
 
+    const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) const override;
     void bind(NameBinder&) const override;
     void print(Printer&) const override;
@@ -620,6 +627,7 @@ struct ContinueExpr : public Expr {
         : Expr(loc)
     {}
 
+    const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) const override;
     void bind(NameBinder&) const override;
     void print(Printer&) const override;
