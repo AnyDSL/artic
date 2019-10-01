@@ -59,7 +59,9 @@ const thorin::Def* Emitter::jump(thorin::Lam* callee, const thorin::Def* arg, th
 }
 
 const thorin::Def* Emitter::call(const thorin::Def* callee, const thorin::Def* arg, thorin::Debug dbg) {
-    assert(bb_);
+    // If the basic-block is not set, then the memory object isn't valid either
+    if (!bb_) return nullptr;
+
     auto res = world().app(callee, { mem_, arg }, dbg);
     if (res->type()->isa<thorin::Bot>()) {
         // This is a call to a continuation
@@ -146,8 +148,7 @@ const thorin::Def* FnExpr::emit(Emitter& emitter) const {
         emitter.emit(*param, lam->param(1, emitter.world().debug_info(*param)));
     if (body) {
         auto res = emitter.emit(*body);
-        if (emitter.bb())
-            emitter.call(lam->ret_param(emitter.world().debug_info(loc, "ret")), res);
+        emitter.call(lam->ret_param(emitter.world().debug_info(loc, "ret")), res);
     }
     // Restore previous basic-block
     // TODO: Remove 'if' when the module system is implemented
@@ -233,15 +234,15 @@ const thorin::Def* ForExpr::emit(Emitter& emitter) const {
     auto inner = emitter.call(iter_def, emitter.world().cps2ds(bd), emitter.world().debug_info(loc));
     // Convert the resulting DS function into CPS and call it with the range
     auto range_def = emitter.emit(*range);
-    emitter.bb()->app(emitter.world().ds2cps(inner), { emitter.mem(), range_def, brk });
+    if (emitter.bb())
+        emitter.bb()->app(emitter.world().ds2cps(inner), { emitter.mem(), range_def, brk });
 
     continue_ = cnt;
     break_    = brk;
 
     emitter.enter(bd);
     auto res = emitter.emit(*lambda->body);
-    if (emitter.bb())
-        emitter.call(cnt, res, emitter.world().debug_info(loc));
+    emitter.call(cnt, res, emitter.world().debug_info(loc));
 
     return emitter.enter(brk);
 }
