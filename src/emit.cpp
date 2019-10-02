@@ -21,6 +21,18 @@ const thorin::Def* Emitter::update_mem(const thorin::Def* def) {
     return res;
 }
 
+const thorin::Def* Emitter::alloc(const thorin::Def* type, thorin::Debug dbg) {
+    return update_mem(world().op_alloc(type, mem(), dbg));
+}
+
+const thorin::Def* Emitter::load(const thorin::Def* ptr, thorin::Debug dbg) {
+    return update_mem(world().op_load(mem(), ptr, dbg));
+}
+
+void Emitter::store(const thorin::Def* ptr, const thorin::Def* val, thorin::Debug dbg) {
+    mem_ = world().op_store(mem(), ptr, val, dbg);
+}
+
 const thorin::Def* Emitter::emit_head(const ast::Decl& decl) {
     assert(!decl.def);
     return decl.def = decl.emit_head(*this);
@@ -28,6 +40,19 @@ const thorin::Def* Emitter::emit_head(const ast::Decl& decl) {
 
 const thorin::Def* Emitter::emit(const ast::Node& node) {
     return node.def = node.emit(*this);
+}
+
+const thorin::Def* Emitter::emit(const ast::Expr& expr, bool mut) {
+    return expr.def = expr.emit(*this, mut);
+}
+
+std::pair<const thorin::Def*, const thorin::Def*> Emitter::deref(const Loc& loc, const thorin::Def* def) {
+    if (thorin::isa<thorin::Tag::Ptr>(def->type())) {
+        auto val = load(def, world().debug_info(loc));
+        return std::make_pair(def, val);
+    } else {
+        return std::make_pair(nullptr, def);
+    }
 }
 
 void Emitter::emit(const ast::Ptrn& ptrn, const thorin::Def* value) {
@@ -82,6 +107,17 @@ const thorin::Def* Emitter::call(const thorin::Def* callee, const thorin::Def* a
     }
 }
 
+void Emitter::call(const thorin::Def* callee, const thorin::Def* arg, const thorin::Def* ret, thorin::Debug dbg) {
+    // This is a CPS call
+    if (bb_)
+        bb_->app(callee, { mem(), arg, ret }, dbg);
+}
+
+void Emitter::branch(const thorin::Def* c, const thorin::Def* t, const thorin::Def* f, thorin::Debug dbg) {
+    if (bb_)
+        bb_->branch(c, t, f, mem(), dbg);
+}
+
 namespace ast {
 
 // TODO: Remove those once every class has an implementation
@@ -98,7 +134,7 @@ void Ptrn::emit(Emitter&, const thorin::Def*) const {
 // Path ----------------------------------------------------------------------------
 
 const thorin::Def* Path::emit(Emitter&) const {
-    // TODO: Enums/Module paths
+    assert(elems.size() == 1 && "TODO");
     return symbol->decls.front()->def;
 }
 
@@ -114,12 +150,27 @@ const thorin::Def* ExprStmt::emit(Emitter& emitter) const {
 
 // Expressions ---------------------------------------------------------------------
 
-const thorin::Def* TypedExpr::emit(Emitter& emitter) const {
-    return emitter.emit(*expr);
+const thorin::Def* MutableExpr::emit(Emitter& emitter) const {
+    return emitter.emit(*this, false);
 }
 
-const thorin::Def* PathExpr::emit(Emitter& emitter) const {
-    return emitter.emit(path);
+const thorin::Def* ImmutableExpr::emit(Emitter& emitter, bool mut) const {
+    assert(!mut);
+    return emitter.emit(*this);
+}
+
+const thorin::Def* TypedExpr::emit(Emitter& emitter, bool mut) const {
+    return emitter.emit(*expr, mut);
+}
+
+const thorin::Def* PathExpr::emit(Emitter& emitter, bool mut) const {
+    auto ptr = emitter.emit(path);
+    if (mut)
+        return ptr;
+    else {
+        auto [_, val] = emitter.deref(loc, ptr);
+        return val;
+    }
 }
 
 const thorin::Def* LiteralExpr::emit(Emitter& emitter) const {
@@ -155,17 +206,14 @@ const thorin::Def* FnExpr::emit(Emitter& emitter) const {
         ? def->as<thorin::CPS2DS>()->cps()->as_nominal<thorin::Lam>()
         : emitter.emit_lam(type->as<thorin::Pi>(), emitter.world().debug_info(*this));
     // Remember the previous basic-block in order to be able to restore it after emitting this function
-    auto old_bb = emitter.bb();
+    auto state = emitter.push_state();
     emitter.enter(lam);
     if (param)
         emitter.emit(*param, lam->param(1, emitter.world().debug_info(*param)));
     if (body) {
         auto res = emitter.emit(*body);
-        emitter.call(lam->ret_param(emitter.world().debug_info(loc, "ret")), res);
+        emitter.call(lam->ret_param(emitter.world().debug_info(loc, "ret")), res, {});
     }
-    // Restore previous basic-block
-    // TODO: Remove 'if' when the module system is implemented
-    if (old_bb) emitter.enter(old_bb);
     return emitter.world().cps2ds(lam);
 }
 
@@ -187,8 +235,14 @@ const thorin::Def* BlockExpr::emit(Emitter& emitter) const {
     return !last || last_semi ? emitter.world().tuple() : last;
 }
 
-const thorin::Def* CallExpr::emit(Emitter& emitter) const {
-    return emitter.call(emitter.emit(*callee), emitter.emit(*arg));
+const thorin::Def* ProjExpr::emit(Emitter& emitter, bool mut) const {
+    assert(false && "TODO");
+    return nullptr;
+}
+
+const thorin::Def* CallExpr::emit(Emitter& emitter, bool mut) const {
+    // TODO: Arrays
+    return emitter.call(emitter.emit(*callee), emitter.emit(*arg), emitter.world().debug_info(*this));
 }
 
 const thorin::Def* IfExpr::emit(Emitter& emitter) const {
@@ -196,7 +250,7 @@ const thorin::Def* IfExpr::emit(Emitter& emitter) const {
     auto f = emitter.world().lam(emitter.world().type_bb(), emitter.world().debug_info(if_false ? if_false->loc : loc, "if_false"));
     auto j = emitter.world().lam(emitter.world().type_bb(type), emitter.world().debug_info(loc, "if_join"));
     auto c = emitter.emit(*cond);
-    emitter.bb()->branch(c, t, f, emitter.mem(), emitter.world().debug_info(cond->loc));
+    emitter.branch(c, t, f, emitter.world().debug_info(cond->loc));
 
     emitter.enter(t);
     emitter.jump(j, emitter.emit(*if_true), emitter.world().debug_info(if_true->loc));
@@ -219,7 +273,7 @@ const thorin::Def* WhileExpr::emit(Emitter& emitter) const {
 
     emitter.jump(hd);
     auto c = emitter.emit(*cond);
-    hd->branch(c, bd, brk, emitter.mem(), emitter.world().debug_info(cond->loc));
+    emitter.branch(c, bd, brk, emitter.world().debug_info(cond->loc));
 
     emitter.enter(bd);
     emitter.emit(*body);
@@ -247,8 +301,7 @@ const thorin::Def* ForExpr::emit(Emitter& emitter) const {
     auto inner = emitter.call(iter_def, emitter.world().cps2ds(bd), emitter.world().debug_info(loc));
     // Convert the resulting DS function into CPS and call it with the range
     auto range_def = emitter.emit(*range);
-    if (emitter.bb())
-        emitter.bb()->app(emitter.world().ds2cps(inner), { emitter.mem(), range_def, brk });
+    emitter.call(emitter.world().ds2cps(inner), range_def, brk, emitter.world().debug_info(*this));
 
     continue_ = cnt;
     break_    = brk;
@@ -275,13 +328,35 @@ const thorin::Def* ReturnExpr::emit(Emitter&) const {
     return lam->ret_param();
 }
 
+const thorin::Def* UnaryExpr::emit(Emitter& emitter) const {
+    auto [p, v] = emitter.deref(arg->loc, emitter.emit(*arg, is_inc() || is_dec()));
+    auto dbg = emitter.world().debug_info(*this);
+    auto sint = is_sint_type(type);
+    auto wmode = sint ? thorin::WMode::nsw : thorin::WMode::none;
+    switch (tag) {
+        case Plus:  return v;
+        case Minus: return emitter.world().op_WOp_minus(wmode, v, dbg);
+        case Known: return emitter.world().op(thorin::PE::known, v, dbg);
+        default:
+            assert(false);
+            break;
+    }
+    return nullptr;
+}
+
 const thorin::Def* BinaryExpr::emit(Emitter& emitter) const {
-    auto l = emitter.emit(*left);
+    // Handle assignment separately
+    if (tag == Eq) {
+        emitter.store(emitter.emit(*left, true), emitter.emit(*right), emitter.world().debug_info(*this));
+        return emitter.world().tuple();
+    }
+
+    auto [p, l] = emitter.deref(left->loc, emitter.emit(*left, has_eq()));
     auto r = emitter.emit(*right);
     auto dbg = emitter.world().debug_info(*this);
     const thorin::Def* res = nullptr;
     if (is_bool_type(type)) {
-        switch (tag) {
+        switch (remove_eq(tag)) {
             case And: res = emitter.world().op(thorin::IOp::iand, l, r, dbg); break;
             case Or:  res = emitter.world().op(thorin::IOp::ior,  l, r, dbg); break;
             case Xor: res = emitter.world().op(thorin::IOp::ixor, l, r, dbg); break;
@@ -290,7 +365,7 @@ const thorin::Def* BinaryExpr::emit(Emitter& emitter) const {
                 break;
         }
     } else if (is_real_type(type)) {
-        switch (tag) {
+        switch (remove_eq(tag)) {
             case Add: res = emitter.world().op(thorin::ROp::add, l, r, dbg); break;
             case Sub: res = emitter.world().op(thorin::ROp::sub, l, r, dbg); break;
             case Mul: res = emitter.world().op(thorin::ROp::mul, l, r, dbg); break;
@@ -303,7 +378,7 @@ const thorin::Def* BinaryExpr::emit(Emitter& emitter) const {
     } else {
         auto sint = is_sint_type(type);
         auto wmode = sint ? thorin::WMode::nsw : thorin::WMode::none;
-        switch (tag) {
+        switch (remove_eq(tag)) {
             case Add:   res = emitter.world().op(thorin::WOp::add, wmode, l, r, dbg); break;
             case Sub:   res = emitter.world().op(thorin::WOp::sub, wmode, l, r, dbg); break;
             case Mul:   res = emitter.world().op(thorin::WOp::mul, wmode, l, r, dbg); break;
@@ -319,6 +394,8 @@ const thorin::Def* BinaryExpr::emit(Emitter& emitter) const {
                 break;
         }
     }
+    if (p)
+        emitter.store(p, res, dbg);
     return res;
 }
 
@@ -381,9 +458,14 @@ void TypedPtrn::emit(Emitter& emitter, const thorin::Def* value) const {
     return emitter.emit(*ptrn, value);
 }
 
-void IdPtrn::emit(Emitter&, const thorin::Def* value) const {
-    // TODO: Mutable decls.
-    decl->def = value;
+void IdPtrn::emit(Emitter& emitter, const thorin::Def* value) const {
+    if (decl->mut) {
+        auto dbg = emitter.world().debug_info(*this);
+        decl->def = emitter.alloc(thorin::as<thorin::Tag::Ptr>(type)->arg(0), dbg);
+        emitter.store(decl->def, value, dbg);
+    } else {
+        decl->def = value;
+    }
 }
 
 void TuplePtrn::emit(Emitter& emitter, const thorin::Def* value) const {

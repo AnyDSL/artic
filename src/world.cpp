@@ -122,6 +122,9 @@ Output& operator << (Output& out, const Type& type) {
                         }
                     }
                     break;
+                case thorin::Tag::Ptr:
+                    out << log::keyword_style("mut") << ' ' << *app->arg(0);
+                    break;
                 default:
                     assert(false);
                     break;

@@ -82,6 +82,23 @@ UnaryExpr::Tag UnaryExpr::tag_from_token(const Token& token, bool prefix) {
     }
 }
 
+BinaryExpr::Tag BinaryExpr::remove_eq(Tag tag) {
+    switch (tag) {
+        case AddEq:   return Add;
+        case SubEq:   return Sub;
+        case MulEq:   return Mul;
+        case DivEq:   return Div;
+        case RemEq:   return Rem;
+        case AndEq:   return And;
+        case OrEq:    return Or;
+        case XorEq:   return Xor;
+        case LShftEq: return LShft;
+        case RShftEq: return RShft;
+        default:
+            return tag;
+    }
+}
+
 bool BinaryExpr::has_eq(Tag tag) {
     switch (tag) {
         case Eq:

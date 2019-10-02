@@ -104,6 +104,11 @@ struct Expr : public Node {
     Expr(const Loc& loc) : Node(loc) {}
 
     bool is_tuple() const;
+
+    /// Emits the expression, optionally as a pointer when required.
+    virtual const thorin::Def* emit(Emitter&, bool) const = 0;
+    /// Infers the type of the expression, and optionally checks if it is mutable.
+    virtual const artic::Type* infer(TypeChecker&, bool) const = 0;
     /// Returns true if the expression has a side effect.
     virtual bool has_side_effect() const { return false; }
 };
@@ -116,7 +121,6 @@ struct Ptrn : public Node {
 
     /// Returns whether the pattern is refutable (i.e. does not always match against a value).
     virtual bool is_refutable() const = 0;
-
     /// Emits IR for the pattern, given a value to match against.
     virtual void emit(Emitter&, const thorin::Def*) const;
 };
@@ -137,7 +141,6 @@ struct Path : public Node {
     std::vector<Elem> elems;
 
     mutable std::shared_ptr<Symbol> symbol;
-    mutable bool mut = false; // Set during type-checking
 
     Path(const Loc& loc, std::vector<Elem>&& elems)
         : Node(loc), elems(std::move(elems))
@@ -313,45 +316,65 @@ struct ExprStmt : public Stmt {
 
 // Expressions ---------------------------------------------------------------------
 
+/// Base class for expressions that can be mutable.
+struct MutableExpr : public Expr {
+    MutableExpr(const Loc& loc)
+        : Expr(loc)
+    {}
+
+    const thorin::Def* emit(Emitter&) const override;
+    const artic::Type* infer(TypeChecker&) const override;
+};
+
+/// Base class for expressions that are immutable.
+struct ImmutableExpr : public Expr {
+    ImmutableExpr(const Loc& loc)
+        : Expr(loc)
+    {}
+
+    const thorin::Def* emit(Emitter&, bool) const override;
+    const artic::Type* infer(TypeChecker&, bool) const override;
+};
+
 /// Manually typed expression.
-struct TypedExpr : public Expr {
+struct TypedExpr : public MutableExpr {
     Ptr<Expr> expr;
     Ptr<Type> type;
 
     TypedExpr(const Loc& loc, Ptr<Expr>&& expr, Ptr<Type>&& type)
-        : Expr(loc)
+        : MutableExpr(loc)
         , expr(std::move(expr))
         , type(std::move(type))
     {}
 
     bool has_side_effect() const override;
 
-    const thorin::Def* emit(Emitter&) const override;
-    const artic::Type* infer(TypeChecker&) const override;
+    const thorin::Def* emit(Emitter&, bool) const override;
+    const artic::Type* infer(TypeChecker&, bool) const override;
     void bind(NameBinder&) const override;
     void print(Printer&) const override;
 };
 
 /// Expression made of a path to an identifier.
-struct PathExpr : public Expr {
+struct PathExpr : public MutableExpr {
     Path path;
 
     PathExpr(const Loc& loc, Path&& path)
-        : Expr(loc), path(std::move(path))
+        : MutableExpr(loc), path(std::move(path))
     {}
 
-    const thorin::Def* emit(Emitter&) const override;
-    const artic::Type* infer(TypeChecker&) const override;
+    const thorin::Def* emit(Emitter&, bool) const override;
+    const artic::Type* infer(TypeChecker&, bool) const override;
     void bind(NameBinder&) const override;
     void print(Printer&) const override;
 };
 
 /// Expression made of a literal.
-struct LiteralExpr : public Expr {
+struct LiteralExpr : public ImmutableExpr {
     Literal lit;
 
     LiteralExpr(const Loc& loc, const Literal& lit)
-        : Expr(loc), lit(lit)
+        : ImmutableExpr(loc), lit(lit)
     {}
 
     const thorin::Def* emit(Emitter&) const override;
@@ -362,7 +385,7 @@ struct LiteralExpr : public Expr {
 };
 
 /// Field expression, part of a structure expression.
-struct FieldExpr : public Expr {
+struct FieldExpr : public ImmutableExpr {
     Identifier id;
     Ptr<Expr> expr;
 
@@ -371,7 +394,7 @@ struct FieldExpr : public Expr {
     FieldExpr(const Loc& loc,
               Identifier&& id,
               Ptr<Expr>&& expr)
-        : Expr(loc)
+        : ImmutableExpr(loc)
         , id(std::move(id))
         , expr(std::move(expr))
     {}
@@ -385,7 +408,7 @@ struct FieldExpr : public Expr {
 };
 
 /// Structure expression.
-struct StructExpr : public Expr {
+struct StructExpr : public ImmutableExpr {
     Loc fields_loc;
     Ptr<Expr> expr;
     PtrVector<FieldExpr> fields;
@@ -394,7 +417,7 @@ struct StructExpr : public Expr {
                const Loc& fields_loc,
                Ptr<Expr>&& expr,
                PtrVector<FieldExpr>&& fields)
-        : Expr(loc)
+        : ImmutableExpr(loc)
         , fields_loc(fields_loc)
         , expr(std::move(expr))
         , fields(std::move(fields))
@@ -408,11 +431,11 @@ struct StructExpr : public Expr {
 };
 
 /// Expression enclosed by parenthesis and made of several expressions separated by commas.
-struct TupleExpr : public Expr {
+struct TupleExpr : public ImmutableExpr {
     PtrVector<Expr> args;
 
     TupleExpr(const Loc& loc, PtrVector<Expr>&& args)
-        : Expr(loc), args(std::move(args))
+        : ImmutableExpr(loc), args(std::move(args))
     {}
 
     bool has_side_effect() const override;
@@ -425,13 +448,13 @@ struct TupleExpr : public Expr {
 };
 
 /// Array expression.
-struct ArrayExpr : public Expr {
+struct ArrayExpr : public ImmutableExpr {
     PtrVector<Expr> elems;
 
     mutable const artic::Type* elem_type;
 
     ArrayExpr(const Loc& loc, PtrVector<Expr>&& elems)
-        : Expr(loc), elems(std::move(elems))
+        : ImmutableExpr(loc), elems(std::move(elems))
     {}
 
     bool has_side_effect() const override;
@@ -443,7 +466,7 @@ struct ArrayExpr : public Expr {
 };
 
 /// Anonymous function expression.
-struct FnExpr : public Expr {
+struct FnExpr : public ImmutableExpr {
     Ptr<Filter> filter;
     Ptr<Ptrn>   param;
     Ptr<Type>   ret_type;
@@ -454,7 +477,7 @@ struct FnExpr : public Expr {
            Ptr<Ptrn>&& param,
            Ptr<Type>&& ret_type,
            Ptr<Expr>&& body)
-        : Expr(loc)
+        : ImmutableExpr(loc)
         , filter(std::move(filter))
         , param(std::move(param))
         , ret_type(std::move(ret_type))
@@ -469,12 +492,12 @@ struct FnExpr : public Expr {
 };
 
 /// Block of code, whose result is the last expression in the block.
-struct BlockExpr : public Expr {
+struct BlockExpr : public ImmutableExpr {
     PtrVector<Stmt> stmts;
     bool last_semi;
 
     BlockExpr(const Loc& loc, PtrVector<Stmt>&& stmts, bool last_semi)
-        : Expr(loc), stmts(std::move(stmts)), last_semi(last_semi)
+        : ImmutableExpr(loc), stmts(std::move(stmts)), last_semi(last_semi)
     {}
 
     bool has_side_effect() const override;
@@ -487,48 +510,49 @@ struct BlockExpr : public Expr {
 };
 
 /// Function call with a single expression (can be a tuple) for the arguments.
-struct CallExpr : public Expr {
+struct CallExpr : public MutableExpr {
     Ptr<Expr> callee;
     Ptr<Expr> arg;
 
     CallExpr(const Loc& loc,
              Ptr<Expr>&& callee,
              Ptr<Expr>&& arg)
-        : Expr(loc)
+        : MutableExpr(loc)
         , callee(std::move(callee))
         , arg(std::move(arg))
     {}
 
     bool has_side_effect() const override;
 
-    const thorin::Def* emit(Emitter&) const override;
-    const artic::Type* infer(TypeChecker&) const override;
+    const thorin::Def* emit(Emitter&, bool) const override;
+    const artic::Type* infer(TypeChecker&, bool) const override;
     void bind(NameBinder&) const override;
     void print(Printer&) const override;
 };
 
 /// Projection operator (.).
-struct ProjExpr : public Expr {
+struct ProjExpr : public MutableExpr {
     Ptr<Expr> expr;
     Identifier field;
 
     mutable size_t index;
 
     ProjExpr(const Loc& loc, Ptr<Expr>&& expr, Identifier&& field)
-        : Expr(loc)
+        : MutableExpr(loc)
         , expr(std::move(expr))
         , field(std::move(field))
     {}
 
     bool has_side_effect() const override;
 
-    const artic::Type* infer(TypeChecker&) const override;
+    const thorin::Def* emit(Emitter&, bool) const override;
+    const artic::Type* infer(TypeChecker&, bool) const override;
     void bind(NameBinder&) const override;
     void print(Printer&) const override;
 };
 
 /// If/Else expression (the else branch is optional).
-struct IfExpr : public Expr {
+struct IfExpr : public ImmutableExpr {
     Ptr<Expr> cond;
     Ptr<Expr> if_true;
     Ptr<Expr> if_false;
@@ -537,7 +561,7 @@ struct IfExpr : public Expr {
            Ptr<Expr>&& cond,
            Ptr<Expr>&& if_true,
            Ptr<Expr>&& if_false)
-        : Expr(loc)
+        : ImmutableExpr(loc)
         , cond(std::move(cond))
         , if_true(std::move(if_true))
         , if_false(std::move(if_false))
@@ -553,14 +577,14 @@ struct IfExpr : public Expr {
 };
 
 /// Case within a match expression.
-struct CaseExpr : public Expr {
+struct CaseExpr : public ImmutableExpr {
     Ptr<Ptrn> ptrn;
     Ptr<Expr> expr;
 
     CaseExpr(const Loc& loc,
              Ptr<Ptrn>&& ptrn,
              Ptr<Expr>&& expr)
-        : Expr(loc)
+        : ImmutableExpr(loc)
         , ptrn(std::move(ptrn))
         , expr(std::move(expr))
     {}
@@ -572,14 +596,14 @@ struct CaseExpr : public Expr {
 };
 
 /// Match expression.
-struct MatchExpr : public Expr {
+struct MatchExpr : public ImmutableExpr {
     Ptr<Expr> arg;
     PtrVector<CaseExpr> cases;
 
     MatchExpr(const Loc& loc,
               Ptr<Expr>&& arg,
               PtrVector<CaseExpr>&& cases)
-        : Expr(loc)
+        : ImmutableExpr(loc)
         , arg(std::move(arg))
         , cases(std::move(cases))
     {}
@@ -593,7 +617,7 @@ struct MatchExpr : public Expr {
 };
 
 /// Base class for loop expressions (while, for)
-struct LoopExpr : public Expr {
+struct LoopExpr : public ImmutableExpr {
     Ptr<Expr> body;
 
     // Set during IR emission
@@ -601,7 +625,7 @@ struct LoopExpr : public Expr {
     mutable const thorin::Def* continue_ = nullptr;
 
     LoopExpr(const Loc& loc, Ptr<Expr>&& body)
-        : Expr(loc), body(std::move(body))
+        : ImmutableExpr(loc), body(std::move(body))
     {}
 };
 
@@ -640,11 +664,11 @@ struct ForExpr : public LoopExpr {
 };
 
 /// Break expression.
-struct BreakExpr : public Expr {
+struct BreakExpr : public ImmutableExpr {
     mutable const LoopExpr* loop = nullptr;
 
     BreakExpr(const Loc& loc)
-        : Expr(loc)
+        : ImmutableExpr(loc)
     {}
 
     const thorin::Def* emit(Emitter&) const override;
@@ -654,11 +678,11 @@ struct BreakExpr : public Expr {
 };
 
 /// Break expression.
-struct ContinueExpr : public Expr {
+struct ContinueExpr : public ImmutableExpr {
     mutable const LoopExpr* loop = nullptr;
 
     ContinueExpr(const Loc& loc)
-        : Expr(loc)
+        : ImmutableExpr(loc)
     {}
 
     const thorin::Def* emit(Emitter&) const override;
@@ -668,11 +692,11 @@ struct ContinueExpr : public Expr {
 };
 
 /// Break expression.
-struct ReturnExpr : public Expr {
+struct ReturnExpr : public ImmutableExpr {
     mutable const FnExpr* fn = nullptr;
 
     ReturnExpr(const Loc& loc)
-        : Expr(loc)
+        : ImmutableExpr(loc)
     {}
 
     const thorin::Def* emit(Emitter&) const override;
@@ -682,7 +706,7 @@ struct ReturnExpr : public Expr {
 };
 
 /// Unary expression (negation, increment, ...).
-struct UnaryExpr : public Expr {
+struct UnaryExpr : public ImmutableExpr {
     enum Tag {
         Not,
         Plus,
@@ -698,7 +722,7 @@ struct UnaryExpr : public Expr {
     Ptr<Expr> arg;
 
     UnaryExpr(const Loc& loc, Tag tag, Ptr<Expr>&& arg)
-        : Expr(loc), tag(tag), arg(std::move(arg))
+        : ImmutableExpr(loc), tag(tag), arg(std::move(arg))
     {}
 
     bool is_prefix() const { return !is_postfix(); }
@@ -706,6 +730,7 @@ struct UnaryExpr : public Expr {
 
     bool has_side_effect() const override;
 
+    const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) const override;
     void bind(NameBinder&) const override;
     void print(Printer&) const override;
@@ -721,7 +746,7 @@ struct UnaryExpr : public Expr {
 };
 
 /// Binary expression (addition, logical operations, ...).
-struct BinaryExpr : public Expr {
+struct BinaryExpr : public ImmutableExpr {
     enum Tag {
         Eq, AddEq, SubEq, MulEq, DivEq, RemEq,
         LShftEq, RShftEq,
@@ -741,7 +766,7 @@ struct BinaryExpr : public Expr {
                Tag tag,
                Ptr<Expr>&& left,
                Ptr<Expr>&& right)
-        : Expr(loc), tag(tag), left(std::move(left)), right(std::move(right))
+        : ImmutableExpr(loc), tag(tag), left(std::move(left)), right(std::move(right))
     {}
 
     bool has_cmp() const { return has_cmp(tag); }
@@ -754,6 +779,7 @@ struct BinaryExpr : public Expr {
     void bind(NameBinder&) const override;
     void print(Printer&) const override;
 
+    static Tag remove_eq(Tag);
     static bool has_eq(Tag);
     static bool has_cmp(Tag);
 
@@ -765,9 +791,9 @@ struct BinaryExpr : public Expr {
 };
 
 /// Incorrect expression, as a result of parsing.
-struct ErrorExpr : public Expr {
+struct ErrorExpr : public ImmutableExpr {
     ErrorExpr(const Loc& loc)
-        : Expr(loc)
+        : ImmutableExpr(loc)
     {}
 
     void bind(NameBinder&) const override;

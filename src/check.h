@@ -40,18 +40,18 @@ public:
     const Type* error_type_expected(const Loc&, const Type*, const std::string&);
     const Type* error_unknown_member(const Loc&, const Type*, const std::string&);
     const Type* error_cannot_infer(const Loc&, const std::string&);
-    const Type* error_unreachable_code(const Loc&, const Loc&, const Loc&);
+    const Type* error_unreachable(const Loc&, const Loc&, const Loc&);
+    const Type* error_immutable(const Loc&);
 
     const Type* check(const ast::Node&, const Type*);
     const Type* infer(const ast::Node&);
+    const Type* infer(const ast::Expr&, bool);
 
-    const Type* infer(const ast::CallExpr&);
+    const Type* infer(const ast::CallExpr&, bool);
     const Type* check(const ast::TypeParamList&, Type*);
 
     const Type* infer(const Loc&, const Literal&);
     const Type* check(const Loc&, const Literal&, const Type*);
-
-    bool check_mut(const ast::Node&);
 
     template <typename Args>
     const Type* check_tuple(const Loc&, const std::string&, const Args&, const Type*);

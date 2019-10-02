@@ -127,9 +127,14 @@ const Type* TypeChecker::error_cannot_infer(const Loc& loc, const std::string& m
     return world().type_error();
 }
 
-const Type* TypeChecker::error_unreachable_code(const Loc& before, const Loc& first, const Loc& last) {
+const Type* TypeChecker::error_unreachable(const Loc& before, const Loc& first, const Loc& last) {
     error(Loc(first, last), "unreachable code");
     note(before, "after this statement");
+    return world().type_error();
+}
+
+const Type* TypeChecker::error_immutable(const Loc& loc) {
+    error(loc, "assignment to a non-mutable expression");
     return world().type_error();
 }
 
@@ -144,8 +149,13 @@ const Type* TypeChecker::infer(const ast::Node& node) {
     return node.type = node.infer(*this);
 }
 
-const Type* TypeChecker::infer(const ast::CallExpr& call) {
-    auto callee_type = infer(*call.callee);
+const Type* TypeChecker::infer(const ast::Expr& expr, bool mut) {
+    assert(!expr.type);
+    return expr.type = expr.infer(*this, mut);
+}
+
+const Type* TypeChecker::infer(const ast::CallExpr& call, bool mut) {
+    auto callee_type = infer(*call.callee, mut);
     if (auto pi = callee_type->isa<thorin::Pi>()) {
         check(*call.arg, pi->domain(1));
         return pi->codomain(1);
@@ -210,33 +220,6 @@ const Type* TypeChecker::check(const Loc& loc, const Literal& lit, const Type* e
     }
 }
 
-bool TypeChecker::check_mut(const ast::Node& node) {
-    auto* cur = &node;
-    const ast::Decl* decl = nullptr;
-    while (true) {
-        assert(cur->type);
-        if (auto path_expr = cur->isa<ast::PathExpr>()) {
-            if (path_expr->path.mut)
-                return true;
-            if (path_expr->path.symbol && !path_expr->path.symbol->decls.empty())
-                decl = path_expr->path.symbol->decls.front();
-        } else if (auto proj_expr = cur->isa<ast::ProjExpr>()) {
-            cur = proj_expr->expr.get();
-            continue;
-        } else if (auto call_expr = cur->isa<ast::CallExpr>()) {
-            if (call_expr->callee->type->isa<thorin::Variadic>()) {
-                cur = call_expr->callee.get();
-                continue;
-            }
-        }
-        break;
-    }
-    error(node.loc, "assignment to a non-mutable expression");
-    if (decl)
-        note(decl->loc, "this error {} be solved by adding the '{}' qualifier to this symbol", log::style("may", log::Style::Italic), log::keyword_style("mut"));
-    return false;
-}
-
 template <typename Args>
 const Type* TypeChecker::check_tuple(const Loc& loc, const std::string& msg, const Args& args, const Type* expected) {
     if (!expected->isa<thorin::Sigma>())
@@ -293,12 +276,12 @@ void TypeChecker::check_block(const Loc& loc, const Stmts& stmts, bool last_semi
     // Make sure there is no unreachable code and warn about statements with no effect
     for (size_t i = 0, n = stmts.size(); i < n - 1; ++i) {
         if (is_no_ret_type(stmts[i]->type))
-            error_unreachable_code(stmts[i]->loc, stmts[i + 1]->loc, stmts.back()->loc);
+            error_unreachable(stmts[i]->loc, stmts[i + 1]->loc, stmts.back()->loc);
         else if (!stmts[i]->has_side_effect())
             warn(stmts[i]->loc, "statement with no effect");
     }
     if (last_semi && is_no_ret_type(stmts.back()->type))
-        error_unreachable_code(stmts.back()->loc, stmts.back()->loc.end(), loc.end());
+        error_unreachable(stmts.back()->loc, stmts.back()->loc.end(), loc.end());
 }
 
 namespace ast {
@@ -318,9 +301,6 @@ const artic::Type* Path::infer(TypeChecker& checker) const {
     if (!symbol || symbol->decls.empty())
         return checker.world().type_error();
     auto type = checker.infer(*symbol->decls.front());
-    // Set the path as mutable if it refers to a mutable symbol
-    if (auto ptrn_decl = symbol->decls.front()->isa<PtrnDecl>())
-        mut = ptrn_decl->mut;
 
     // Inspect every element of the path
     for (size_t i = 0; i < elems.size(); ++i) {
@@ -434,12 +414,26 @@ const artic::Type* ExprStmt::check(TypeChecker& checker, const artic::Type* expe
 
 // Expressions ---------------------------------------------------------------------
 
-const artic::Type* TypedExpr::infer(TypeChecker& checker) const {
-    return checker.check(*expr, checker.infer(*type));
+const artic::Type* MutableExpr::infer(TypeChecker& checker) const {
+    return checker.infer(*this, false);
 }
 
-const artic::Type* PathExpr::infer(TypeChecker& checker) const {
-    return checker.infer(path);
+const artic::Type* ImmutableExpr::infer(TypeChecker& checker, bool mut) const {
+    return mut ? checker.error_immutable(loc) : checker.infer(*this);
+}
+
+const artic::Type* TypedExpr::infer(TypeChecker& checker, bool mut) const {
+    if (!mut)
+        return checker.check(*expr, checker.infer(*type));
+    return checker.expect(loc, checker.infer(*expr, mut), checker.infer(*type));
+}
+
+const artic::Type* PathExpr::infer(TypeChecker& checker, bool mut) const {
+    auto type = checker.infer(path);
+    if (auto ptr = thorin::isa<thorin::Tag::Ptr>(type))
+        return ptr->arg()->out(0);
+    else
+        return mut ? checker.error_immutable(loc) : type;
 }
 
 const artic::Type* LiteralExpr::infer(TypeChecker& checker) const {
@@ -530,12 +524,12 @@ const artic::Type* BlockExpr::check(TypeChecker& checker, const artic::Type* exp
     return last_semi ? checker.expect(loc, "block expression", checker.world().sigma(), expected) : last_type;
 }
 
-const artic::Type* CallExpr::infer(TypeChecker& checker) const {
-    return checker.infer(*this);
+const artic::Type* CallExpr::infer(TypeChecker& checker, bool mut) const {
+    return checker.infer(*this, mut);
 }
 
-const artic::Type* ProjExpr::infer(TypeChecker& checker) const {
-    auto expr_type = checker.infer(*expr);
+const artic::Type* ProjExpr::infer(TypeChecker& checker, bool mut) const {
+    auto expr_type = checker.infer(*expr, mut);
     auto [app, struct_type] = checker.match_app(expr_type, is_struct_type);
     if (!struct_type)
         return checker.error_type_expected(expr->loc, expr_type, "structure");
@@ -647,24 +641,20 @@ const artic::Type* ReturnExpr::infer(TypeChecker& checker) const {
 }
 
 const artic::Type* UnaryExpr::infer(TypeChecker& checker) const {
-    auto arg_type = checker.infer(*arg);
+    auto arg_type = checker.infer(*arg, is_inc() || is_dec());
     if (tag == Known)
         return checker.world().type_bool();
-    if (is_inc() || is_dec()) {
-        checker.check_mut(*arg);
-        return arg_type;
-    }
     return arg_type;
 }
 
 const artic::Type* BinaryExpr::infer(TypeChecker& checker) const {
-    auto left_type  = checker.infer(*left);
+    auto left_type  = checker.infer(*left, has_eq());
     auto right_type = checker.check(*right, left_type);
-    if (has_eq()) {
-        checker.check_mut(*left);
+    if (has_eq())
         return checker.world().sigma();
-    }
-    return has_cmp() ? checker.world().type_bool() : right_type;
+    if (has_cmp())
+        return checker.world().type_bool();
+    return right_type;
 }
 
 // Declarations --------------------------------------------------------------------
@@ -683,8 +673,8 @@ const artic::Type* TypeParamList::check(TypeChecker& checker, const artic::Type*
     return expected;
 }
 
-const artic::Type* PtrnDecl::check(TypeChecker&, const artic::Type* expected) const {
-    return expected;
+const artic::Type* PtrnDecl::check(TypeChecker& checker, const artic::Type* expected) const {
+    return mut ? checker.world().type_ptr(expected) : expected;
 }
 
 const artic::Type* LetDecl::infer(TypeChecker& checker) const {
