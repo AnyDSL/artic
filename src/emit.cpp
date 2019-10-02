@@ -338,10 +338,14 @@ const thorin::Def* UnaryExpr::emit(Emitter& emitter) const {
         case Minus: return emitter.world().op_WOp_minus(wmode, v, dbg);
         case Known: return emitter.world().op(thorin::PE::known, v, dbg);
         default:
-            assert(false);
-            break;
+            {
+                assert(p);
+                assert(is_inc() || is_dec());
+                auto res = emitter.world().op(is_inc() ? thorin::WOp::add : thorin::WOp::sub, wmode, v, emitter.world().lit(type, 1), dbg);
+                emitter.store(p, res, dbg);
+                return is_prefix() ? res : v;
+            }
     }
-    return nullptr;
 }
 
 const thorin::Def* BinaryExpr::emit(Emitter& emitter) const {
@@ -460,9 +464,8 @@ void TypedPtrn::emit(Emitter& emitter, const thorin::Def* value) const {
 
 void IdPtrn::emit(Emitter& emitter, const thorin::Def* value) const {
     if (decl->mut) {
-        auto dbg = emitter.world().debug_info(*this);
-        decl->def = emitter.alloc(thorin::as<thorin::Tag::Ptr>(type)->arg(0), dbg);
-        emitter.store(decl->def, value, dbg);
+        decl->def = emitter.alloc(thorin::as<thorin::Tag::Ptr>(type)->arg(0), emitter.world().debug_info(*this));
+        emitter.store(decl->def, value, {});
     } else {
         decl->def = value;
     }
