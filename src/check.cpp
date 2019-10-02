@@ -151,7 +151,7 @@ const Type* TypeChecker::infer(const ast::CallExpr& call) {
         return pi->codomain(1);
     } else if (auto variadic = callee_type->isa<thorin::Variadic>()) {
         auto index_type = infer(*call.arg);
-        if (!is_uint_type(index_type) && !is_sint_type(index_type)) {
+        if (!is_sint_type(index_type) && !is_int_type(index_type)) {
             if (should_emit_error(index_type))
                 error(call.arg->loc, "integer type expected as array index, but got '{}'", *index_type);
             return world().type_error();
@@ -178,9 +178,9 @@ const Type* TypeChecker::infer(const Loc&, const Literal& lit) {
     else if (lit.is_bool())
         return world().type_bool();
     else if (lit.is_char())
-        return world().type_uint(8);
+        return world().type_int(8);
     else if (lit.is_string())
-        return world().variadic_unsafe(world().type_uint(8));
+        return world().variadic_unsafe(world().type_int(8));
     else {
         assert(false);
         return world().type_error();
@@ -191,7 +191,7 @@ const Type* TypeChecker::check(const Loc& loc, const Literal& lit, const Type* e
     if (is_no_ret_type(expected))
         return infer(loc, lit);
     if (lit.is_integer()) {
-        if (!is_sint_type(expected) && !is_uint_type(expected) && !is_real_type(expected))
+        if (!is_sint_type(expected) && !is_int_type(expected) && !is_real_type(expected))
             return expect(loc, "integer literal", expected);
         return expected;
     } else if (lit.is_double()) {
@@ -201,9 +201,9 @@ const Type* TypeChecker::check(const Loc& loc, const Literal& lit, const Type* e
     } else if (lit.is_bool()) {
         return expect(loc, "boolean literal", world().type_bool(), expected);
     } else if (lit.is_char()) {
-        return expect(loc, "character literal", world().type_uint(8), expected);
+        return expect(loc, "character literal", world().type_int(8), expected);
     } else if (lit.is_string()) {
-        return expect(loc, "string literal", world().variadic_unsafe(world().type_uint(8)), expected);
+        return expect(loc, "string literal", world().variadic_unsafe(world().type_int(8)), expected);
     } else {
         assert(false);
         return expected;
@@ -382,10 +382,10 @@ const artic::Type* PrimType::infer(TypeChecker& checker) const {
         case I16:  return checker.world().type_sint(16); break;
         case I32:  return checker.world().type_sint(32); break;
         case I64:  return checker.world().type_sint(64); break;
-        case U8:   return checker.world().type_uint(8);  break;
-        case U16:  return checker.world().type_uint(16); break;
-        case U32:  return checker.world().type_uint(32); break;
-        case U64:  return checker.world().type_uint(64); break;
+        case U8:   return checker.world().type_int(8);   break;
+        case U16:  return checker.world().type_int(16);  break;
+        case U32:  return checker.world().type_int(32);  break;
+        case U64:  return checker.world().type_int(64);  break;
         case F32:  return checker.world().type_real(32); break;
         case F64:  return checker.world().type_real(64); break;
         default:

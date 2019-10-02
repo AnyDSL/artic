@@ -110,15 +110,16 @@ Output& operator << (Output& out, const Type& type) {
         if (axiom) {
             switch (axiom->tag()) {
                 case thorin::Tag::Int:
-                    out << log::keyword_style("bool");
-                    break;
-                case Tag::SInt:
-                case Tag::UInt:
+                case thorin::Tag::SInt:
                 case thorin::Tag::Real:
                     {
                         auto width = thorin::as_lit<thorin::nat_t>(app->arg());
-                        auto prefix = axiom->tag() == Tag::SInt ? "i" : axiom->tag() == Tag::UInt ? "u" : "f";
-                        out << log::keyword_style(prefix + std::to_string(width));
+                        if (width == 1)
+                            out << log::keyword_style("bool");
+                        else {
+                            auto prefix = axiom->tag() == thorin::Tag::SInt ? "i" : axiom->tag() == thorin::Tag::Int ? "u" : "f";
+                            out << log::keyword_style(prefix + std::to_string(width));
+                        }
                     }
                     break;
                 default:
@@ -150,9 +151,9 @@ Output& operator << (Output& out, const Type& type) {
 bool is_no_ret_type(const Type* type) { return type->isa<thorin::Bot>(); }
 bool is_struct_type(const Type* type) { return type->isa_nominal<thorin::Sigma>() || (type->isa_nominal<thorin::Lam>() && type->as<thorin::Lam>()->body()->isa_nominal<thorin::Sigma>()); }
 bool is_enum_type  (const Type* type) { return type->isa_nominal<thorin::Union>() || (type->isa_nominal<thorin::Lam>() && type->as<thorin::Lam>()->body()->isa_nominal<thorin::Union>()); }
-bool is_bool_type  (const Type* type) { return thorin::isa<thorin::Tag::Int >(type); }
-bool is_sint_type  (const Type* type) { return thorin::isa<Tag::SInt        >(type); }
-bool is_uint_type  (const Type* type) { return thorin::isa<Tag::UInt        >(type); }
+bool is_bool_type  (const Type* type) { return thorin::isa<thorin::Tag::Int >(type) && *thorin::get_width(type) == 1; }
+bool is_int_type   (const Type* type) { return thorin::isa<thorin::Tag::Int >(type) && *thorin::get_width(type) != 1; }
+bool is_sint_type  (const Type* type) { return thorin::isa<thorin::Tag::SInt>(type); }
 bool is_real_type  (const Type* type) { return thorin::isa<thorin::Tag::Real>(type); }
 
 bool is_subtype(const Type* a, const Type* b) {

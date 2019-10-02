@@ -117,20 +117,27 @@ const thorin::Def* PathExpr::emit(Emitter& emitter) const {
 }
 
 const thorin::Def* LiteralExpr::emit(Emitter& emitter) const {
-    if (is_bool_type(type)) {
+    if (lit.is_bool()) {
         return lit.as_bool() ? emitter.world().lit_true() : emitter.world().lit_false();
-    } else if (is_sint_type(type)) {
-        assert(false && "TODO");
-        return nullptr;
-    } else if (is_uint_type(type)) {
-        assert(false && "TODO");
-        return nullptr;
-    } else if (is_real_type(type)) {
+    } else if (lit.is_integer()) {
+        return emitter.world().lit(type, thorin::u64(lit.as_integer()), emitter.world().debug_info(*this));
+    } else if (lit.is_char()) {
+        return emitter.world().lit(type, thorin::u64(lit.as_char()), emitter.world().debug_info(*this));
+    } else if (lit.is_double()) {
         switch (*thorin::get_width(type)) {
             case 32: return emitter.world().lit(type, thorin::r32(lit.as_double()), emitter.world().debug_info(*this));
             case 64: return emitter.world().lit(type, thorin::r64(lit.as_double()), emitter.world().debug_info(*this));
             default: break;
         }
+    } else if (lit.is_string()) {
+        auto str = lit.as_string();
+        auto dbg = emitter.world().debug_info(*this);
+        auto char_type = type->as<thorin::Variadic>()->codomain();
+        thorin::Array<const thorin::Def*> chars(str.length() + 1);
+        for (size_t i = 0, n = str.length(); i < n; ++i)
+            chars[i] = emitter.world().lit(char_type, thorin::u64(str[i]), dbg);
+        chars.back() = emitter.world().lit(char_type, thorin::u64(0), dbg);
+        return emitter.world().tuple(chars, dbg);
     }
     assert(false);
     return nullptr;

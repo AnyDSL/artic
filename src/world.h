@@ -20,13 +20,6 @@ namespace ast {
     struct EnumDecl;
 }
 
-namespace Tag {
-    enum : thorin::tag_t {
-        SInt = thorin::Tag::Max,
-        UInt
-    };
-}
-
 using Type = thorin::Def;
 using Node = thorin::Def;
 using Types = thorin::Defs;
@@ -37,14 +30,9 @@ public:
         : thorin::World(name)
     {
         do_tuple2pack(false);
-        auto p = pi(type_nat(), kind_star());
         bb_   = cn(type_mem());
-        sint_ = axiom(p, Tag::SInt, 0, { "sint" });
-        uint_ = axiom(p, Tag::UInt, 0, { "uint" });
     }
 
-    const Type* type_sint(thorin::nat_t w) { return app(sint_, lit_nat(w)); }
-    const Type* type_uint(thorin::nat_t w) { return app(uint_, lit_nat(w)); }
     const Type* type_error() { return top_star(); }
     const Type* type_no_ret() { return bot_star(); }
 
@@ -59,8 +47,6 @@ public:
 
 private:
     const thorin::Pi* bb_;
-    const thorin::Def* sint_;
-    const thorin::Def* uint_;
 };
 
 namespace log {
@@ -72,8 +58,8 @@ bool is_no_ret_type(const Type*);
 bool is_struct_type(const Type*);
 bool is_enum_type(const Type*);
 bool is_bool_type(const Type*);
+bool is_int_type(const Type*);
 bool is_sint_type(const Type*);
-bool is_uint_type(const Type*);
 bool is_real_type(const Type*);
 
 bool is_subtype(const Type*, const Type*);
