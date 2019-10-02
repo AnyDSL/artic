@@ -16,6 +16,8 @@ public:
 
     thorin::Lam* bb() const { return bb_; }
     const thorin::Def* mem() const { return mem_; }
+    const thorin::Def* update_mem(const thorin::Def*);
+
     World& world() { return world_; }
 
     const thorin::Def* emit_head(const ast::Decl&);

@@ -749,6 +749,7 @@ struct BinaryExpr : public Expr {
 
     bool has_side_effect() const override;
 
+    const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) const override;
     void bind(NameBinder&) const override;
     void print(Printer&) const override;

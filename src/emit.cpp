@@ -15,6 +15,12 @@ void Emitter::run(const ast::ModDecl& mod) {
     world().dump();
 }
 
+const thorin::Def* Emitter::update_mem(const thorin::Def* def) {
+    auto [mem, res] = def->split<2>();
+    mem_ = mem;
+    return res;
+}
+
 const thorin::Def* Emitter::emit_head(const ast::Decl& decl) {
     assert(!decl.def);
     return decl.def = decl.emit_head(*this);
@@ -267,6 +273,53 @@ const thorin::Def* ContinueExpr::emit(Emitter&) const {
 const thorin::Def* ReturnExpr::emit(Emitter&) const {
     auto lam = fn->def->as<thorin::CPS2DS>()->cps()->as_nominal<thorin::Lam>();
     return lam->ret_param();
+}
+
+const thorin::Def* BinaryExpr::emit(Emitter& emitter) const {
+    auto l = emitter.emit(*left);
+    auto r = emitter.emit(*right);
+    auto dbg = emitter.world().debug_info(*this);
+    const thorin::Def* res = nullptr;
+    if (is_bool_type(type)) {
+        switch (tag) {
+            case And: res = emitter.world().op(thorin::IOp::iand, l, r, dbg); break;
+            case Or:  res = emitter.world().op(thorin::IOp::ior,  l, r, dbg); break;
+            case Xor: res = emitter.world().op(thorin::IOp::ixor, l, r, dbg); break;
+            default:
+                assert(false);
+                break;
+        }
+    } else if (is_real_type(type)) {
+        switch (tag) {
+            case Add: res = emitter.world().op(thorin::ROp::add, l, r, dbg); break;
+            case Sub: res = emitter.world().op(thorin::ROp::sub, l, r, dbg); break;
+            case Mul: res = emitter.world().op(thorin::ROp::mul, l, r, dbg); break;
+            case Div: res = emitter.world().op(thorin::ROp::div, l, r, dbg); break;
+            case Rem: res = emitter.world().op(thorin::ROp::mod, l, r, dbg); break;
+            default:
+                assert(false);
+                break;
+        }
+    } else {
+        auto sint = is_sint_type(type);
+        auto wmode = sint ? thorin::WMode::nsw : thorin::WMode::none;
+        switch (tag) {
+            case Add:   res = emitter.world().op(thorin::WOp::add, wmode, l, r, dbg); break;
+            case Sub:   res = emitter.world().op(thorin::WOp::sub, wmode, l, r, dbg); break;
+            case Mul:   res = emitter.world().op(thorin::WOp::mul, wmode, l, r, dbg); break;
+            case Div:   res = emitter.update_mem(emitter.world().op(sint ? thorin::ZOp::sdiv : thorin::ZOp::udiv, emitter.mem(), l, r, dbg)); break;
+            case Rem:   res = emitter.update_mem(emitter.world().op(sint ? thorin::ZOp::smod : thorin::ZOp::umod, emitter.mem(), l, r, dbg)); break;
+            case LShft: res = emitter.world().op(thorin::WOp::shl, wmode, l, r, dbg);                      break;
+            case RShft: res = emitter.world().op(sint ? thorin::IOp::ashr : thorin::IOp::lshr, l, r, dbg); break;
+            case And:   res = emitter.world().op(thorin::IOp::iand, l, r, dbg); break;
+            case Or:    res = emitter.world().op(thorin::IOp::ior,  l, r, dbg); break;
+            case Xor:   res = emitter.world().op(thorin::IOp::ixor, l, r, dbg); break;
+            default:
+                assert(false);
+                break;
+        }
+    }
+    return res;
 }
 
 // Declarations --------------------------------------------------------------------
