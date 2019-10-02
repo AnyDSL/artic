@@ -290,9 +290,12 @@ const Type* TypeChecker::check_fields(const Loc& loc, const Type* struct_type, c
 template <typename Stmts>
 void TypeChecker::check_block(const Loc& loc, const Stmts& stmts, bool last_semi) {
     assert(!stmts.empty());
+    // Make sure there is no unreachable code and warn about statements with no effect
     for (size_t i = 0, n = stmts.size(); i < n - 1; ++i) {
         if (is_no_ret_type(stmts[i]->type))
             error_unreachable_code(stmts[i]->loc, stmts[i + 1]->loc, stmts.back()->loc);
+        else if (!stmts[i]->has_side_effect())
+            warn(stmts[i]->loc, "statement with no effect");
     }
     if (last_semi && is_no_ret_type(stmts.back()->type))
         error_unreachable_code(stmts.back()->loc, stmts.back()->loc.end(), loc.end());
@@ -584,8 +587,7 @@ const artic::Type* MatchExpr::check(TypeChecker& checker, const artic::Type* exp
 const artic::Type* WhileExpr::infer(TypeChecker& checker) const {
     checker.check(*cond, checker.world().type_bool());
     // Using infer mode here would cause the type system to allow code such as: while true { break }
-    checker.check(*body, checker.world().sigma());
-    return checker.world().sigma();
+    return checker.check(*body, checker.world().sigma());
 }
 
 const artic::Type* ForExpr::infer(TypeChecker& checker) const {

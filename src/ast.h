@@ -95,6 +95,8 @@ struct Stmt : public Node {
 
     /// Returns true if the statement must end with a semicolon.
     virtual bool need_semicolon() const = 0;
+    /// Returns true if the statement has a side effect.
+    virtual bool has_side_effect() const = 0;
 };
 
 /// Base class for expressions.
@@ -102,6 +104,8 @@ struct Expr : public Node {
     Expr(const Loc& loc) : Node(loc) {}
 
     bool is_tuple() const;
+    /// Returns true if the expression has a side effect.
+    virtual bool has_side_effect() const { return false; }
 };
 
 /// Pattern: An expression which does not need evaluation.
@@ -280,6 +284,7 @@ struct DeclStmt : public Stmt {
     {}
 
     bool need_semicolon() const override;
+    bool has_side_effect() const override;
 
     const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) const override;
@@ -297,6 +302,7 @@ struct ExprStmt : public Stmt {
     {}
 
     bool need_semicolon() const override;
+    bool has_side_effect() const override;
 
     const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) const override;
@@ -317,6 +323,8 @@ struct TypedExpr : public Expr {
         , expr(std::move(expr))
         , type(std::move(type))
     {}
+
+    bool has_side_effect() const override;
 
     const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) const override;
@@ -369,6 +377,7 @@ struct FieldExpr : public Expr {
     {}
 
     bool is_etc() const { return false; }
+    bool has_side_effect() const override;
 
     const artic::Type* check(TypeChecker&, const artic::Type*) const override;
     void bind(NameBinder&) const override;
@@ -391,6 +400,8 @@ struct StructExpr : public Expr {
         , fields(std::move(fields))
     {}
 
+    bool has_side_effect() const override;
+
     const artic::Type* infer(TypeChecker&) const override;
     void bind(NameBinder&) const override;
     void print(Printer&) const override;
@@ -403,6 +414,8 @@ struct TupleExpr : public Expr {
     TupleExpr(const Loc& loc, PtrVector<Expr>&& args)
         : Expr(loc), args(std::move(args))
     {}
+
+    bool has_side_effect() const override;
 
     const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) const override;
@@ -420,6 +433,8 @@ struct ArrayExpr : public Expr {
     ArrayExpr(const Loc& loc, PtrVector<Expr>&& elems)
         : Expr(loc), elems(std::move(elems))
     {}
+
+    bool has_side_effect() const override;
 
     const artic::Type* infer(TypeChecker&) const override;
     const artic::Type* check(TypeChecker&, const artic::Type*) const override;
@@ -462,6 +477,8 @@ struct BlockExpr : public Expr {
         : Expr(loc), stmts(std::move(stmts)), last_semi(last_semi)
     {}
 
+    bool has_side_effect() const override;
+
     const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) const override;
     const artic::Type* check(TypeChecker&, const artic::Type*) const override;
@@ -482,6 +499,8 @@ struct CallExpr : public Expr {
         , arg(std::move(arg))
     {}
 
+    bool has_side_effect() const override;
+
     const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) const override;
     void bind(NameBinder&) const override;
@@ -500,6 +519,8 @@ struct ProjExpr : public Expr {
         , expr(std::move(expr))
         , field(std::move(field))
     {}
+
+    bool has_side_effect() const override;
 
     const artic::Type* infer(TypeChecker&) const override;
     void bind(NameBinder&) const override;
@@ -522,6 +543,8 @@ struct IfExpr : public Expr {
         , if_false(std::move(if_false))
     {}
 
+    bool has_side_effect() const override;
+
     const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) const override;
     const artic::Type* check(TypeChecker&, const artic::Type*) const override;
@@ -542,6 +565,8 @@ struct CaseExpr : public Expr {
         , expr(std::move(expr))
     {}
 
+    bool has_side_effect() const override;
+
     void bind(NameBinder&) const override;
     void print(Printer&) const override;
 };
@@ -558,6 +583,8 @@ struct MatchExpr : public Expr {
         , arg(std::move(arg))
         , cases(std::move(cases))
     {}
+
+    bool has_side_effect() const override;
 
     const artic::Type* infer(TypeChecker&) const override;
     const artic::Type* check(TypeChecker&, const artic::Type*) const override;
@@ -588,6 +615,8 @@ struct WhileExpr : public LoopExpr {
         : LoopExpr(loc, std::move(body)), cond(std::move(cond))
     {}
 
+    bool has_side_effect() const override;
+
     const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) const override;
     void bind(NameBinder&) const override;
@@ -601,6 +630,8 @@ struct ForExpr : public LoopExpr {
     {}
 
     const CallExpr* call() const { return body->as<CallExpr>(); }
+
+    bool has_side_effect() const override;
 
     const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) const override;
@@ -673,6 +704,8 @@ struct UnaryExpr : public Expr {
     bool is_prefix() const { return !is_postfix(); }
     bool is_postfix() const { return tag == PostInc || tag == PostDec; }
 
+    bool has_side_effect() const override;
+
     const artic::Type* infer(TypeChecker&) const override;
     void bind(NameBinder&) const override;
     void print(Printer&) const override;
@@ -713,6 +746,8 @@ struct BinaryExpr : public Expr {
 
     bool has_cmp() const { return has_cmp(tag); }
     bool has_eq() const { return has_eq(tag); }
+
+    bool has_side_effect() const override;
 
     const artic::Type* infer(TypeChecker&) const override;
     void bind(NameBinder&) const override;

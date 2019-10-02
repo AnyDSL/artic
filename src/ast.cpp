@@ -51,17 +51,6 @@ PrimType::Tag PrimType::tag_from_token(const Token& token) {
     return it != tag_map.end() ? it->second : Error;
 }
 
-bool DeclStmt::need_semicolon() const {
-    return false;
-}
-
-bool ExprStmt::need_semicolon() const {
-    return !expr->isa<IfExpr>()    &&
-           !expr->isa<MatchExpr>() &&
-           !expr->isa<WhileExpr>() &&
-           !expr->isa<ForExpr>();
-}
-
 std::string UnaryExpr::tag_to_string(Tag tag) {
     switch (tag) {
         case Not:   return "!";
@@ -246,7 +235,90 @@ BinaryExpr::Tag BinaryExpr::tag_from_token(const Token& token) {
     }
 }
 
-// Refutable patterns --------------------------------------------------------------
+// Statements ----------------------------------------------------------------------
+
+bool DeclStmt::need_semicolon() const {
+    return false;
+}
+
+bool DeclStmt::has_side_effect() const {
+    return true;
+}
+
+bool ExprStmt::need_semicolon() const {
+    return !expr->isa<IfExpr>()    &&
+           !expr->isa<MatchExpr>() &&
+           !expr->isa<WhileExpr>() &&
+           !expr->isa<ForExpr>();
+}
+
+bool ExprStmt::has_side_effect() const {
+    return expr->has_side_effect();
+}
+
+// Expressions ---------------------------------------------------------------------
+
+bool TypedExpr::has_side_effect() const {
+    return expr->has_side_effect();
+}
+
+bool FieldExpr::has_side_effect() const {
+    return expr->has_side_effect();
+}
+
+bool StructExpr::has_side_effect() const {
+    return std::any_of(fields.begin(), fields.end(), [] (auto& field) { return field->has_side_effect(); });
+}
+
+bool TupleExpr::has_side_effect() const {
+    return std::any_of(args.begin(), args.end(), [] (auto& arg) { return arg->has_side_effect(); });
+}
+
+bool ArrayExpr::has_side_effect() const {
+    return std::any_of(elems.begin(), elems.end(), [] (auto& elem) { return elem->has_side_effect(); });
+}
+
+bool BlockExpr::has_side_effect() const {
+    return std::any_of(stmts.begin(), stmts.end(), [] (auto& stmt) { return stmt->has_side_effect(); });
+}
+
+bool CallExpr::has_side_effect() const {
+    return true;
+}
+
+bool ProjExpr::has_side_effect() const {
+    return expr->has_side_effect();
+}
+
+bool IfExpr::has_side_effect() const {
+    return cond->has_side_effect() || if_true->has_side_effect() || (if_false && if_false->has_side_effect());
+}
+
+bool CaseExpr::has_side_effect() const {
+    return expr->has_side_effect();
+}
+
+bool MatchExpr::has_side_effect() const {
+    return arg->has_side_effect() || std::any_of(cases.begin(), cases.end(), [] (auto& case_) { return case_->has_side_effect(); });
+}
+
+bool WhileExpr::has_side_effect() const {
+    return cond->has_side_effect() || body->has_side_effect();
+}
+
+bool ForExpr::has_side_effect() const {
+    return body->has_side_effect();
+}
+
+bool BinaryExpr::has_side_effect() const {
+    return has_eq() || left->has_side_effect() || right->has_side_effect();
+}
+
+bool UnaryExpr::has_side_effect() const {
+    return is_inc() || is_dec() || arg->has_side_effect();
+}
+
+// Patterns ------------------------------------------------------------------------
 
 bool TypedPtrn::is_refutable() const {
     return ptrn && ptrn->is_refutable();
@@ -265,7 +337,7 @@ bool FieldPtrn::is_refutable() const {
 }
 
 bool StructPtrn::is_refutable() const {
-    return std::any_of(fields.begin(), fields.end(), [&] (auto& field) { return field->is_refutable(); });
+    return std::any_of(fields.begin(), fields.end(), [] (auto& field) { return field->is_refutable(); });
 }
 
 bool EnumPtrn::is_refutable() const {
@@ -273,7 +345,7 @@ bool EnumPtrn::is_refutable() const {
 }
 
 bool TuplePtrn::is_refutable() const {
-    return std::any_of(args.begin(), args.end(), [&] (auto& arg) { return arg->is_refutable(); });
+    return std::any_of(args.begin(), args.end(), [] (auto& arg) { return arg->is_refutable(); });
 }
 
 bool ErrorPtrn::is_refutable() const {
