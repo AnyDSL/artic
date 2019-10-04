@@ -103,8 +103,8 @@ Output& operator << (Output& out, const Type& type) {
         if (variadic->domain()->isa<thorin::Top>())
             out << '[' << *variadic->codomain() << ']';
         else {
-            out << '[' << *variadic->codomain() << " * "
-                << thorin::as_lit<thorin::nat_t>(variadic->domain()) << ']';
+            out << '(' << *variadic->codomain() << " * "
+                << thorin::as_lit<thorin::nat_t>(variadic->domain()) << ')';
         }
     } else if (type.isa<thorin::Bot>()) {
        out << log::keyword_style("!"); 
@@ -119,12 +119,8 @@ Output& operator << (Output& out, const Type& type) {
                 case thorin::Tag::Real:
                     {
                         auto width = thorin::as_lit<thorin::nat_t>(app->arg());
-                        if (width == 1)
-                            out << log::keyword_style("bool");
-                        else {
-                            auto prefix = axiom->tag() == thorin::Tag::SInt ? "i" : axiom->tag() == thorin::Tag::Int ? "u" : "f";
-                            out << log::keyword_style(prefix + std::to_string(width));
-                        }
+                        auto prefix = axiom->tag() == thorin::Tag::SInt ? "i" : axiom->tag() == thorin::Tag::Int ? "u" : "f";
+                        out << log::keyword_style(prefix + std::to_string(width));
                     }
                     break;
                 case thorin::Tag::Ptr:
@@ -148,6 +144,9 @@ Output& operator << (Output& out, const Type& type) {
         }
     } else if (auto lam = type.isa<thorin::Lam>()) {
         out << *lam->body();
+    } else if (auto lit = type.isa<thorin::Lit>()) {
+        assert(lit->type()->isa<thorin::KindArity>() && lit->get<thorin::nat_t>() == 2);
+        out << log::keyword_style("bool");
     } else {
         out << type.name();
     }
