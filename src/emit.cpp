@@ -349,10 +349,21 @@ const thorin::Def* UnaryExpr::emit(Emitter& emitter) const {
 }
 
 const thorin::Def* BinaryExpr::emit(Emitter& emitter) const {
-    // Handle assignment separately
+    // Handle assignment/&&/|| separately
     if (tag == Eq) {
         emitter.store(emitter.emit(*left, true), emitter.emit(*right), emitter.world().debug_info(*this));
         return emitter.world().tuple();
+    } else if (tag == AndAnd || tag == OrOr) {
+        auto t = emitter.world().lam(emitter.world().type_bb(), emitter.world().debug_info(loc, tag == AndAnd ? "and_true"  : "or_true" ));
+        auto f = emitter.world().lam(emitter.world().type_bb(), emitter.world().debug_info(loc, tag == AndAnd ? "and_false" : "or_false"));
+        auto j = emitter.world().lam(emitter.world().type_bb(emitter.world().type_bool()), emitter.world().debug_info(loc, tag == AndAnd ? "and_join" : "or_join"));
+        auto l = emitter.emit(*left);
+        emitter.branch(l, t, f, emitter.world().debug_info(*this));
+        emitter.enter(t);
+        emitter.jump(j, tag == AndAnd ? emitter.emit(*right) : emitter.world().lit_true());
+        emitter.enter(f);
+        emitter.jump(j, tag == AndAnd ? emitter.world().lit_false() : emitter.emit(*right));
+        return emitter.enter(j);
     }
 
     auto [p, l] = emitter.deref(left->loc, emitter.emit(*left, has_eq()));
