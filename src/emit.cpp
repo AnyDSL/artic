@@ -241,8 +241,23 @@ const thorin::Def* ProjExpr::emit(Emitter& emitter, bool mut) const {
 }
 
 const thorin::Def* CallExpr::emit(Emitter& emitter, bool mut) const {
-    // TODO: Arrays
-    return emitter.call(emitter.emit(*callee), emitter.emit(*arg), emitter.world().debug_info(*this));
+    auto callee_type = callee->type;
+    if (is_mut_type(callee_type))
+        callee_type = thorin::as<thorin::Tag::Ptr>(callee_type)->arg()->out(0);
+    auto dbg = emitter.world().debug_info(*this);
+    if (auto variadic = callee_type->isa<thorin::Variadic>()) {
+        auto index = emitter.world().op_bitcast(variadic->domain(), emitter.emit(*arg));
+        if (mut) {
+            // Get a pointer to the array element
+            return emitter.world().op_lea(emitter.emit(*callee, true), index, dbg);
+        } else {
+            // Emit the array and get the index
+            return emitter.world().extract(emitter.emit(*callee), index, dbg);
+        }
+    } else {
+        // Emit the expression as a call
+        return emitter.call(emitter.emit(*callee), emitter.emit(*arg), dbg);
+    }
 }
 
 const thorin::Def* IfExpr::emit(Emitter& emitter) const {

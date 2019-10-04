@@ -172,7 +172,7 @@ const Type* TypeChecker::infer(const ast::CallExpr& call, bool mut) {
                 error(call.arg->loc, "integer type expected as array index, but got '{}'", *index_type);
             return world().type_error();
         }
-        return variadic->codomain();
+        return mut ? world().type_ptr(variadic->codomain()) : variadic->codomain();
     } else {
         if (should_emit_error(callee_type))
             error(call.callee->loc, "expected function or array type in call expression, but got '{}'", *callee_type);
