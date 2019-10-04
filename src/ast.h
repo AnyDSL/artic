@@ -461,6 +461,7 @@ struct ArrayExpr : public ImmutableExpr {
 
     bool has_side_effect() const override;
 
+    const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) const override;
     const artic::Type* check(TypeChecker&, const artic::Type*) const override;
     void bind(NameBinder&) const override;

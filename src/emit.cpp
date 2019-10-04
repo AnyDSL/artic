@@ -200,21 +200,11 @@ const thorin::Def* LiteralExpr::emit(Emitter& emitter) const {
     return nullptr;
 }
 
-const thorin::Def* FnExpr::emit(Emitter& emitter) const {
-    // FnDecl already sets this->def, but anonymous functions have to be created here.
-    auto lam = def
-        ? def->as<thorin::CPS2DS>()->cps()->as_nominal<thorin::Lam>()
-        : emitter.emit_lam(type->as<thorin::Pi>(), emitter.world().debug_info(*this));
-    // Remember the previous basic-block in order to be able to restore it after emitting this function
-    auto state = emitter.push_state();
-    emitter.enter(lam);
-    if (param)
-        emitter.emit(*param, lam->param(1, emitter.world().debug_info(*param)));
-    if (body) {
-        auto res = emitter.emit(*body);
-        emitter.call(lam->ret_param(emitter.world().debug_info(loc, "ret")), res, {});
-    }
-    return emitter.world().cps2ds(lam);
+const thorin::Def* ArrayExpr::emit(Emitter& emitter) const {
+    thorin::Array<const thorin::Def*> ops(elems.size(), [&] (size_t i) {
+        return emitter.emit(*elems[i]);
+    });
+    return emitter.world().tuple(type, ops);
 }
 
 const thorin::Def* FieldExpr::emit(Emitter& emitter) const {
@@ -236,6 +226,23 @@ const thorin::Def* TupleExpr::emit(Emitter& emitter) const {
     return emitter.world().tuple(defs);
 }
 
+const thorin::Def* FnExpr::emit(Emitter& emitter) const {
+    // FnDecl already sets this->def, but anonymous functions have to be created here.
+    auto lam = def
+        ? def->as<thorin::CPS2DS>()->cps()->as_nominal<thorin::Lam>()
+        : emitter.emit_lam(type->as<thorin::Pi>(), emitter.world().debug_info(*this));
+    // Remember the previous basic-block in order to be able to restore it after emitting this function
+    auto state = emitter.push_state();
+    emitter.enter(lam);
+    if (param)
+        emitter.emit(*param, lam->param(1, emitter.world().debug_info(*param)));
+    if (body) {
+        auto res = emitter.emit(*body);
+        emitter.call(lam->ret_param(emitter.world().debug_info(loc, "ret")), res, {});
+    }
+    return emitter.world().cps2ds(lam);
+}
+
 const thorin::Def* BlockExpr::emit(Emitter& emitter) const {
     for (auto& stmt : stmts) {
         if (auto decl_stmt = stmt->isa<DeclStmt>())
@@ -245,12 +252,6 @@ const thorin::Def* BlockExpr::emit(Emitter& emitter) const {
     for (auto& stmt : stmts)
         last = emitter.emit(*stmt);
     return !last || last_semi ? emitter.world().tuple() : last;
-}
-
-const thorin::Def* ProjExpr::emit(Emitter& emitter, bool mut) const {
-    auto value = emitter.emit(*expr, mut);
-    auto dbg = emitter.world().debug_info(*this);
-    return mut ? emitter.world().op_lea_unsafe(value, index, dbg) : emitter.world().extract(value, index, dbg);
 }
 
 const thorin::Def* CallExpr::emit(Emitter& emitter, bool mut) const {
@@ -271,6 +272,12 @@ const thorin::Def* CallExpr::emit(Emitter& emitter, bool mut) const {
         // Emit the expression as a call
         return emitter.call(emitter.emit(*callee), emitter.emit(*arg), dbg);
     }
+}
+
+const thorin::Def* ProjExpr::emit(Emitter& emitter, bool mut) const {
+    auto value = emitter.emit(*expr, mut);
+    auto dbg = emitter.world().debug_info(*this);
+    return mut ? emitter.world().op_lea_unsafe(value, index, dbg) : emitter.world().extract(value, index, dbg);
 }
 
 const thorin::Def* IfExpr::emit(Emitter& emitter) const {
