@@ -540,9 +540,10 @@ const artic::Type* ProjExpr::infer(TypeChecker& checker, bool mut) const {
     auto [app, struct_type] = checker.match_app(expr_type, is_struct_type);
     if (!struct_type)
         return checker.error_type_expected(expr->loc, expr_type, "structure");
-    if (auto index = checker.find_member(struct_type, field.name))
+    if (auto index = checker.find_member(struct_type, field.name)) {
+        this->index = *index;
         return checker.field_type(struct_type, app, *index);
-    else
+    } else
         return checker.error_unknown_member(loc, expr_type, field.name);
 }
 

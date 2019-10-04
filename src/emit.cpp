@@ -248,8 +248,9 @@ const thorin::Def* BlockExpr::emit(Emitter& emitter) const {
 }
 
 const thorin::Def* ProjExpr::emit(Emitter& emitter, bool mut) const {
-    assert(false && "TODO");
-    return nullptr;
+    auto value = emitter.emit(*expr, mut);
+    auto dbg = emitter.world().debug_info(*this);
+    return mut ? emitter.world().op_lea_unsafe(value, index, dbg) : emitter.world().extract(value, index, dbg);
 }
 
 const thorin::Def* CallExpr::emit(Emitter& emitter, bool mut) const {
