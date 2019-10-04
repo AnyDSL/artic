@@ -217,6 +217,18 @@ const thorin::Def* FnExpr::emit(Emitter& emitter) const {
     return emitter.world().cps2ds(lam);
 }
 
+const thorin::Def* FieldExpr::emit(Emitter& emitter) const {
+    return emitter.emit(*expr);
+}
+
+const thorin::Def* StructExpr::emit(Emitter& emitter) const {
+    auto value = emitter.world().bot(type);
+    auto dbg = emitter.world().debug_info(*this);
+    for (auto& field : fields)
+        value = emitter.world().insert(value, field->index, emitter.emit(*field), dbg);
+    return value;
+}
+
 const thorin::Def* TupleExpr::emit(Emitter& emitter) const {
     thorin::Array<const thorin::Def*> defs(args.size(), [&] (size_t i) {
         return emitter.emit(*args[i]);

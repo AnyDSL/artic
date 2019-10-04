@@ -32,11 +32,11 @@ const Type* TypeChecker::option_type(const Type* enum_type, const Type* app, siz
 }
 
 std::optional<size_t> TypeChecker::find_member(const Type* type, const std::string& member) {
-    auto meta = type->meta();
-    assert(meta);
     auto name = world().tuple_str(member);
-    for (size_t i = 0, n = meta->type()->lit_arity(); i < n; ++i) {
-        if (name == meta->out(i))
+    auto meta = type->meta();
+    for (size_t i = 0, n = num_members(type); i < n; ++i) {
+        auto member_name = n == 1 ? meta : meta->op(i);
+        if (name == member_name)
             return i;
     }
     return std::nullopt;
@@ -250,7 +250,7 @@ const Type* TypeChecker::infer_tuple(const Args& args) {
 template <typename Fields>
 const Type* TypeChecker::check_fields(const Loc& loc, const Type* struct_type, const Type* app, const Fields& fields, bool etc, const std::string& msg) {
     auto expr_type = app ? app : struct_type;
-    size_t num_fields = struct_type->meta()->type()->lit_arity();
+    size_t num_fields = num_members(struct_type);
     thorin::Array<bool> seen(num_fields, false);
     for (size_t i = 0; i < fields.size(); ++i) {
         // Skip the field if it is '...'
@@ -264,6 +264,7 @@ const Type* TypeChecker::check_fields(const Loc& loc, const Type* struct_type, c
             return world().type_error();
         }
         seen[*index] = true;
+        fields[i]->index = *index;
         check(*fields[i], field_type(struct_type, app, *index));
     }
     // Check that all fields have been specified, unless '...' was used

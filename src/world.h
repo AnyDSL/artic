@@ -63,6 +63,8 @@ bool is_sint_type(const Type*);
 bool is_real_type(const Type*);
 bool is_mut_type(const Type*);
 
+size_t num_members(const Type*);
+
 bool is_subtype(const Type*, const Type*);
 const Type* join(const Type*, const Type*);
 

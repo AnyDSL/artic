@@ -1,3 +1,5 @@
+struct E {}
+struct F { e: E }
 struct B {
     a: A,
     b: i32

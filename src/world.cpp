@@ -165,6 +165,14 @@ bool is_sint_type  (const Type* type) { return thorin::isa<thorin::Tag::SInt>(ty
 bool is_real_type  (const Type* type) { return thorin::isa<thorin::Tag::Real>(type); }
 bool is_mut_type   (const Type* type) { return thorin::isa<thorin::Tag::Ptr>(type); }
 
+size_t num_members(const Type* type) {
+    assert(type->meta());
+    // Field information is stored as a ("field1", "field2", ...)
+    // When there's only one field, it's just "field1"
+    auto variadic = type->meta()->type()->as<thorin::Variadic>();
+    return variadic->codomain()->isa<thorin::Variadic>() ? variadic->lit_arity() : 1;
+}
+
 bool is_subtype(const Type* a, const Type* b) {
     if (a == b || a->isa<thorin::Bot>() || b->isa<thorin::Top>())
         return true;
