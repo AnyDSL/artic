@@ -163,6 +163,7 @@ bool is_bool_type  (const Type* type) { return thorin::isa<thorin::Tag::Int >(ty
 bool is_int_type   (const Type* type) { return thorin::isa<thorin::Tag::Int >(type) && *thorin::get_width(type) != 1; }
 bool is_sint_type  (const Type* type) { return thorin::isa<thorin::Tag::SInt>(type); }
 bool is_real_type  (const Type* type) { return thorin::isa<thorin::Tag::Real>(type); }
+bool is_mut_type   (const Type* type) { return thorin::isa<thorin::Tag::Ptr>(type); }
 
 bool is_subtype(const Type* a, const Type* b) {
     if (a == b || a->isa<thorin::Bot>() || b->isa<thorin::Top>())

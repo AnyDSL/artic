@@ -61,6 +61,7 @@ bool is_bool_type(const Type*);
 bool is_int_type(const Type*);
 bool is_sint_type(const Type*);
 bool is_real_type(const Type*);
+bool is_mut_type(const Type*);
 
 bool is_subtype(const Type*, const Type*);
 const Type* join(const Type*, const Type*);

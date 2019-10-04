@@ -138,6 +138,12 @@ const Type* TypeChecker::error_immutable(const Loc& loc) {
     return world().type_error();
 }
 
+const Type* TypeChecker::deref(const Type* type) {
+    if (auto ptr = thorin::isa<thorin::Tag::Ptr>(type))
+        return ptr->arg()->out(0);
+    return type;
+}
+
 const Type* TypeChecker::check(const ast::Node& node, const Type* type) {
     assert(!node.type); // Nodes can only be visited once
     return node.type = node.check(*this, type);
@@ -430,8 +436,8 @@ const artic::Type* TypedExpr::infer(TypeChecker& checker, bool mut) const {
 
 const artic::Type* PathExpr::infer(TypeChecker& checker, bool mut) const {
     auto type = checker.infer(path);
-    if (auto ptr = thorin::isa<thorin::Tag::Ptr>(type))
-        return ptr->arg()->out(0);
+    if (is_mut_type(type))
+        return mut ? type : checker.deref(type);
     else
         return mut ? checker.error_immutable(loc) : type;
 }
@@ -641,14 +647,14 @@ const artic::Type* ReturnExpr::infer(TypeChecker& checker) const {
 }
 
 const artic::Type* UnaryExpr::infer(TypeChecker& checker) const {
-    auto arg_type = checker.infer(*arg, is_inc() || is_dec());
+    auto arg_type = checker.deref(checker.infer(*arg, is_inc() || is_dec()));
     if (tag == Known)
         return checker.world().type_bool();
     return arg_type;
 }
 
 const artic::Type* BinaryExpr::infer(TypeChecker& checker) const {
-    auto left_type  = checker.infer(*left, has_eq());
+    auto left_type  = checker.deref(checker.infer(*left, has_eq()));
     auto right_type = checker.check(*right, left_type);
     if (has_eq())
         return checker.world().sigma();
@@ -673,8 +679,8 @@ const artic::Type* TypeParamList::check(TypeChecker& checker, const artic::Type*
     return expected;
 }
 
-const artic::Type* PtrnDecl::check(TypeChecker& checker, const artic::Type* expected) const {
-    return mut ? checker.world().type_ptr(expected) : expected;
+const artic::Type* PtrnDecl::check(TypeChecker&, const artic::Type* expected) const {
+    return expected;
 }
 
 const artic::Type* LetDecl::infer(TypeChecker& checker) const {
@@ -780,7 +786,8 @@ const artic::Type* IdPtrn::infer(TypeChecker& checker) const {
 }
 
 const artic::Type* IdPtrn::check(TypeChecker& checker, const artic::Type* expected) const {
-    return checker.check(*decl, expected);
+    checker.check(*decl, decl->mut ? checker.world().type_ptr(expected) : expected);
+    return expected;
 }
 
 const artic::Type* FieldPtrn::check(TypeChecker& checker, const artic::Type* expected) const {

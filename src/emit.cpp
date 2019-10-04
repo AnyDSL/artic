@@ -475,7 +475,7 @@ void TypedPtrn::emit(Emitter& emitter, const thorin::Def* value) const {
 
 void IdPtrn::emit(Emitter& emitter, const thorin::Def* value) const {
     if (decl->mut) {
-        decl->def = emitter.alloc(thorin::as<thorin::Tag::Ptr>(type)->arg(0), emitter.world().debug_info(*this));
+        decl->def = emitter.alloc(thorin::as<thorin::Tag::Ptr>(decl->type)->arg(0), emitter.world().debug_info(*this));
         emitter.store(decl->def, value, {});
     } else {
         decl->def = value;
