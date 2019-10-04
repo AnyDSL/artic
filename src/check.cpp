@@ -138,10 +138,10 @@ const Type* TypeChecker::error_immutable(const Loc& loc) {
     return world().type_error();
 }
 
-const Type* TypeChecker::deref(const Type* type) {
+std::pair<const Type*, const Type*> TypeChecker::deref(const Type* type) {
     if (auto ptr = thorin::isa<thorin::Tag::Ptr>(type))
-        return ptr->arg()->out(0);
-    return type;
+        return std::make_pair(type, ptr->arg()->out(0));
+    return std::make_pair(nullptr, type);
 }
 
 const Type* TypeChecker::check(const ast::Node& node, const Type* type) {
@@ -161,7 +161,7 @@ const Type* TypeChecker::infer(const ast::Expr& expr, bool mut) {
 }
 
 const Type* TypeChecker::infer(const ast::CallExpr& call, bool mut) {
-    auto callee_type = infer(*call.callee, mut);
+    auto [_, callee_type] = deref(infer(*call.callee, mut));
     if (auto pi = callee_type->isa<thorin::Pi>()) {
         check(*call.arg, pi->domain(1));
         return pi->codomain(1);
@@ -437,7 +437,7 @@ const artic::Type* TypedExpr::infer(TypeChecker& checker, bool mut) const {
 const artic::Type* PathExpr::infer(TypeChecker& checker, bool mut) const {
     auto type = checker.infer(path);
     if (is_mut_type(type))
-        return mut ? type : checker.deref(type);
+        return mut ? type : std::get<1>(checker.deref(type));
     else
         return mut ? checker.error_immutable(loc) : type;
 }
@@ -647,14 +647,14 @@ const artic::Type* ReturnExpr::infer(TypeChecker& checker) const {
 }
 
 const artic::Type* UnaryExpr::infer(TypeChecker& checker) const {
-    auto arg_type = checker.deref(checker.infer(*arg, is_inc() || is_dec()));
+    auto [_, arg_type] = checker.deref(checker.infer(*arg, is_inc() || is_dec()));
     if (tag == Known)
         return checker.world().type_bool();
     return arg_type;
 }
 
 const artic::Type* BinaryExpr::infer(TypeChecker& checker) const {
-    auto left_type  = checker.deref(checker.infer(*left, has_eq()));
+    auto [_, left_type] = checker.deref(checker.infer(*left, has_eq()));
     auto right_type = checker.check(*right, left_type);
     if (has_eq())
         return checker.world().sigma();

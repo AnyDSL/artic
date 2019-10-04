@@ -43,7 +43,7 @@ public:
     const Type* error_unreachable(const Loc&, const Loc&, const Loc&);
     const Type* error_immutable(const Loc&);
 
-    const Type* deref(const Type*);
+    std::pair<const Type*, const Type*> deref(const Type*);
 
     const Type* check(const ast::Node&, const Type*);
     const Type* infer(const ast::Node&);

@@ -47,7 +47,7 @@ const thorin::Def* Emitter::emit(const ast::Expr& expr, bool mut) {
 }
 
 std::pair<const thorin::Def*, const thorin::Def*> Emitter::deref(const Loc& loc, const thorin::Def* def) {
-    if (thorin::isa<thorin::Tag::Ptr>(def->type())) {
+    if (is_mut_type(def->type())) {
         auto val = load(def, world().debug_info(loc));
         return std::make_pair(def, val);
     } else {
