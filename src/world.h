@@ -65,6 +65,15 @@ bool is_mut_type(const Type*);
 
 size_t num_members(const Type*);
 
+template <typename Pred>
+std::tuple<const Type*, const Type*> match_app(const Type* type, Pred pred) {
+    if (auto app = type->isa<thorin::App>()) {
+        if (pred(app->callee()))
+            return std::make_tuple(app, app->callee());
+    }
+    return std::make_tuple(nullptr, pred(type) ? type : nullptr);
+}
+
 bool is_subtype(const Type*, const Type*);
 const Type* join(const Type*, const Type*);
 

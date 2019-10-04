@@ -335,38 +335,123 @@ bool UnaryExpr::has_side_effect() const {
     return is_inc() || is_dec() || arg->has_side_effect();
 }
 
+// Match ---------------------------------------------------------------------------
+
+void MatchNode::set(const artic::Type* type) {
+    if (is_enum_type(type)) {
+        children.resize(type->lit_arity());
+    } else {
+        children.resize(2);
+    }
+}
+
+MatchNode* MatchNode::lit(const Literal& lit) const {
+    if (lit.is_bool())
+        return children[lit.as_bool() ? 1 : 0].get();
+    return children[0].get();
+}
+
+bool MatchNode::is_complete() const {
+    if (children.empty())
+        return true;
+    return std::all_of(children.begin(), children.end(), [] (auto& node) {
+        return node && node->is_complete();
+    });
+}
+
 // Patterns ------------------------------------------------------------------------
 
-bool TypedPtrn::is_refutable() const {
-    return ptrn && ptrn->is_refutable();
+bool TypedPtrn::is_trivial() const {
+    return ptrn->is_trivial();
 }
 
-bool IdPtrn::is_refutable() const {
-    return false;
+void TypedPtrn::match(std::vector<MatchNode*>& prev, std::vector<MatchNode*>& next) const {
+    ptrn->match(prev, next);
 }
 
-bool LiteralPtrn::is_refutable() const {
+bool IdPtrn::is_trivial() const {
     return true;
 }
 
-bool FieldPtrn::is_refutable() const {
-    return ptrn ? ptrn->is_refutable() : false;
+void IdPtrn::match(std::vector<MatchNode*>& prev, std::vector<MatchNode*>& next) const {
+    for (auto node : prev) {
+        node->set(type);
+        for (size_t i = 0, n = node->children.size(); i < n; ++i)
+            next.emplace_back(node->children[i].get());
+    }
 }
 
-bool StructPtrn::is_refutable() const {
-    return std::any_of(fields.begin(), fields.end(), [] (auto& field) { return field->is_refutable(); });
-}
-
-bool EnumPtrn::is_refutable() const {
-    return true;
-}
-
-bool TuplePtrn::is_refutable() const {
-    return std::any_of(args.begin(), args.end(), [] (auto& arg) { return arg->is_refutable(); });
-}
-
-bool ErrorPtrn::is_refutable() const {
+bool LiteralPtrn::is_trivial() const {
     return false;
+}
+
+void LiteralPtrn::match(std::vector<MatchNode*>& prev, std::vector<MatchNode*>& next) const {
+    for (auto node : prev) {
+        node->set(type);
+        next.emplace_back(node->lit(lit));
+    }
+}
+
+bool FieldPtrn::is_trivial() const {
+    return ptrn ? ptrn->is_trivial() : true;
+}
+
+void FieldPtrn::match(std::vector<MatchNode*>& prev, std::vector<MatchNode*>& next) const {
+    ptrn->match(prev, next);
+}
+
+bool StructPtrn::is_trivial() const {
+    return std::all_of(fields.begin(), fields.end(), [] (auto& field) { return field->is_trivial(); });
+}
+
+void StructPtrn::match(std::vector<MatchNode*>& prev, std::vector<MatchNode*>& next) const {
+    std::vector<FieldPtrn*> ptrns(fields.size());
+    for (size_t i = 0; i < fields.size(); ++i)
+        ptrns[i] = fields[i].get();
+    // Sort fields by their index
+    std::sort(ptrns.begin(), ptrns.end(), [] (auto a, auto b) {
+        return !a->ptrn || (b->ptrn && a->index < b->index);
+    });
+    // TODO: Deal with ... and 'holes'
+    assert(!has_etc());
+    for (auto ptrn : ptrns) {
+        next.clear();
+        ptrn->match(prev, next);
+        std::swap(prev, next);
+    }
+    std::swap(prev, next);
+}
+
+bool EnumPtrn::is_trivial() const {
+    return false;
+}
+
+void EnumPtrn::match(std::vector<MatchNode*>& prev, std::vector<MatchNode*>& next) const {
+    for (auto node : prev) {
+        node->set(type);
+        next.emplace_back(node->children[index].get());
+    }
+}
+
+bool TuplePtrn::is_trivial() const {
+    return std::all_of(args.begin(), args.end(), [] (auto& arg) { return arg->is_trivial(); });
+}
+
+void TuplePtrn::match(std::vector<MatchNode*>& prev, std::vector<MatchNode*>& next) const {
+    for (auto& arg : args) {
+        next.clear();
+        arg->match(prev, next);
+        std::swap(prev, next);
+    }
+    std::swap(prev, next);
+}
+
+bool ErrorPtrn::is_trivial() const {
+    return false;
+}
+
+void ErrorPtrn::match(std::vector<MatchNode*>&, std::vector<MatchNode*>&) const {
+    assert(false);
 }
 
 } // namespace ast

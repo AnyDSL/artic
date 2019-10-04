@@ -253,7 +253,7 @@ void ErrorExpr::bind(NameBinder&) const {}
 // Patterns ------------------------------------------------------------------------
 
 void TypedPtrn::bind(NameBinder& binder) const {
-    if (ptrn) binder.bind(*ptrn);
+    binder.bind(*ptrn);
     binder.bind(*type);
 }
 

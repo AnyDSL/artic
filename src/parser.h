@@ -157,7 +157,7 @@ private:
     }
 
     void expect_binder(const std::string& msg, const Ptr<ast::Ptrn>& ptrn) {
-        if (ptrn->is_refutable())
+        if (!ptrn->is_trivial())
             error(ptrn->loc, "invalid {}", msg);
     }
 

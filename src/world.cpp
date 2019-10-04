@@ -14,7 +14,10 @@ Type* World::type_forall(const ast::FnDecl& decl) {
 }
 
 Type* World::type_struct(const ast::StructDecl& decl) {
-    thorin::Array<const thorin::Def*> names(decl.fields.size(), [&] (size_t i) { return tuple_str(decl.fields[i]->id.name); });
+    thorin::Array<const thorin::Def*> names(decl.fields.size() + 1);
+    for (size_t i = 0, n = decl.fields.size(); i < n; ++i)
+        names[i] = tuple_str(decl.fields[i]->id.name);
+    names.back() = bot_star(); // Insert dummy value to make computing the number of fields easier
     auto dbg = debug_info(decl.loc, decl.id.name, tuple(names));
     auto body = sigma(kind_star(), decl.fields.size(), dbg);
     if (!decl.type_params)
@@ -26,7 +29,10 @@ Type* World::type_struct(const ast::StructDecl& decl) {
 }
 
 Type* World::type_enum(const ast::EnumDecl& decl) {
-    thorin::Array<const thorin::Def*> names(decl.options.size(), [&] (size_t i) { return tuple_str(decl.options[i]->id.name); });
+    thorin::Array<const thorin::Def*> names(decl.options.size() + 1);
+    for (size_t i = 0, n = decl.options.size(); i < n; ++i)
+        names[i] = tuple_str(decl.options[i]->id.name);
+    names.back() = bot_star(); // See above
     auto dbg = debug_info(decl.loc, decl.id.name, tuple(names));
     auto body = union_(kind_star(), decl.options.size(), dbg);
     if (!decl.type_params)
@@ -167,10 +173,7 @@ bool is_mut_type   (const Type* type) { return thorin::isa<thorin::Tag::Ptr>(typ
 
 size_t num_members(const Type* type) {
     assert(type->meta());
-    // Field information is stored as a ("field1", "field2", ...)
-    // When there's only one field, it's just "field1"
-    auto variadic = type->meta()->type()->as<thorin::Variadic>();
-    return variadic->codomain()->isa<thorin::Variadic>() ? variadic->lit_arity() : 1;
+    return type->meta()->type()->lit_arity() - 1;
 }
 
 bool is_subtype(const Type* a, const Type* b) {

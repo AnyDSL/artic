@@ -1,10 +1,9 @@
-let a = 1 * 2 + 33 / (-5);
-let b = (a >> (5 & 2)) - a;
-let c = (b ^ 6) << (+5);
-let d = !(c == 3) || (b >= 5 && a <= 5) || (c + 2 >= 6 && a < 9) || a != 3;
-let e = true == false || true != false || (1.0 % 2.0) == 1.0 || (true ^ false | true & false);
-
 fn test() -> bool {
+    let a = 1 * 2 + 33 / (-5);
+    let b = (a >> (5 & 2)) - a;
+    let c = (b ^ 6) << (+5);
+    let d = !(c == 3) || (b >= 5 && a <= 5) || (c + 2 >= 6 && a < 9) || a != 3;
+    let e = true == false || true != false || (1.0 % 2.0) == 1.0 || (true ^ false | true & false);
     let mut x = 2;
     x += 3;
     x -= 6;

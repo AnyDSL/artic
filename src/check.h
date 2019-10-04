@@ -27,9 +27,6 @@ public:
     const Type* option_type(const Type*, const Type*, size_t);
     std::optional<size_t> find_member(const Type*, const std::string&);
 
-    template <typename Pred>
-    std::tuple<const Type*, const Type*> match_app(const Type*, Pred);
-
     bool enter_decl(const ast::Decl*);
     void exit_decl(const ast::Decl*);
 

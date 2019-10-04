@@ -299,6 +299,13 @@ const thorin::Def* IfExpr::emit(Emitter& emitter) const {
     return emitter.enter(j);
 }
 
+const thorin::Def* MatchExpr::emit(Emitter& emitter) const {
+    auto a = emitter.emit(*arg);
+    auto [_, enum_type] = match_app(arg->type, is_enum_type);
+    assert(false && "TODO");
+    return nullptr;
+}
+
 const thorin::Def* WhileExpr::emit(Emitter& emitter) const {
     auto hd  = emitter.world().lam(emitter.world().type_bb(), emitter.world().debug_info(loc, "while_head"));
     auto bd  = emitter.world().lam(emitter.world().type_bb(), emitter.world().debug_info(loc, "while_body"));
