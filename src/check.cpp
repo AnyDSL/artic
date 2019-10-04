@@ -222,14 +222,14 @@ const Type* TypeChecker::check(const Loc& loc, const Literal& lit, const Type* e
 
 template <typename Args>
 const Type* TypeChecker::check_tuple(const Loc& loc, const std::string& msg, const Args& args, const Type* expected) {
-    if (!expected->isa<thorin::Sigma>())
+    if (!is_tuple_type(expected))
         return expect(loc, msg, expected);
-    if (args.size() != expected->num_ops()) {
-        error(loc, "expected {} argument(s) in {}, but got {}", expected->num_ops(), msg, args.size());
+    if (args.size() != expected->lit_arity()) {
+        error(loc, "expected {} argument(s) in {}, but got {}", expected->lit_arity(), msg, args.size());
         return world().type_error();
     }
     for (size_t i = 0; i < args.size(); ++i)
-        check(*args[i], expected->op(i));
+        check(*args[i], expected->isa<thorin::Variadic>() ? expected->as<thorin::Variadic>()->codomain() : expected->op(i));
     return expected;
 }
 

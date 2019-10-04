@@ -29,8 +29,7 @@ public:
     World(const std::string& name = "")
         : thorin::World(name)
     {
-        do_tuple2pack(false);
-        bb_   = cn(type_mem());
+        bb_ = cn(type_mem());
     }
 
     const Type* type_error() { return top_star(); }
@@ -57,6 +56,7 @@ namespace log {
 bool is_no_ret_type(const Type*);
 bool is_struct_type(const Type*);
 bool is_enum_type(const Type*);
+bool is_tuple_type(const Type*);
 bool is_bool_type(const Type*);
 bool is_int_type(const Type*);
 bool is_sint_type(const Type*);
