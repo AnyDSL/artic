@@ -128,10 +128,10 @@ const Type* TypeChecker::error_immutable(const Loc& loc) {
     return world().type_error();
 }
 
-std::pair<const Type*, const Type*> TypeChecker::deref(const Type* type) {
+const Type* TypeChecker::deref(const Type* type) {
     if (auto ptr = thorin::isa<thorin::Tag::Ptr>(type))
-        return std::make_pair(type, ptr->arg()->out(0));
-    return std::make_pair(nullptr, type);
+        return ptr->arg()->out(0);
+    return type;
 }
 
 const Type* TypeChecker::check(const ast::Node& node, const Type* type) {
@@ -151,7 +151,7 @@ const Type* TypeChecker::infer(const ast::Expr& expr, bool mut) {
 }
 
 const Type* TypeChecker::infer(const ast::CallExpr& call, bool mut) {
-    auto [_, callee_type] = deref(infer(*call.callee, mut));
+    auto callee_type = deref(infer(*call.callee, mut));
     if (auto pi = callee_type->isa<thorin::Pi>()) {
         check(*call.arg, pi->domain(1));
         return pi->codomain(1);
@@ -261,7 +261,7 @@ const Type* TypeChecker::check_fields(const Loc& loc, const Type* struct_type, c
     if (!etc && !std::all_of(seen.begin(), seen.end(), [] (bool b) { return b; })) {
         for (size_t i = 0; i < num_fields; ++i) {
             if (!seen[i])
-                error(loc, "missing field '{}' in structure {}", thorin::tuple2str(struct_type->meta()->out(i)), msg);
+                error(loc, "missing field '{}' in structure {}", thorin::tuple2str(struct_type->meta()->op(i)), msg);
         }
     }
     return expr_type;
@@ -333,7 +333,7 @@ const artic::Type* Path::infer(TypeChecker& checker) const {
                 if (!index)
                     return checker.error_unknown_member(elem.loc, type, member);
                 type = checker.option_type(enum_type, app, *index);
-                elem.index = *index;
+                elems[i + 1].index = *index;
             } else {
                 checker.error(elem.loc, "operator '::' not allowed on type '{}'", *type);
                 return checker.world().type_error();
@@ -429,7 +429,7 @@ const artic::Type* TypedExpr::infer(TypeChecker& checker, bool mut) const {
 const artic::Type* PathExpr::infer(TypeChecker& checker, bool mut) const {
     auto type = checker.infer(path);
     if (is_mut_type(type))
-        return mut ? type : std::get<1>(checker.deref(type));
+        return mut ? type : checker.deref(type);
     else
         return mut ? checker.error_immutable(loc) : type;
 }
@@ -640,14 +640,14 @@ const artic::Type* ReturnExpr::infer(TypeChecker& checker) const {
 }
 
 const artic::Type* UnaryExpr::infer(TypeChecker& checker) const {
-    auto [_, arg_type] = checker.deref(checker.infer(*arg, is_inc() || is_dec()));
+    auto arg_type = checker.deref(checker.infer(*arg, is_inc() || is_dec()));
     if (tag == Known)
         return checker.world().type_bool();
     return arg_type;
 }
 
 const artic::Type* BinaryExpr::infer(TypeChecker& checker) const {
-    auto [_, left_type] = checker.deref(checker.infer(*left, has_eq()));
+    auto left_type  = checker.deref(checker.infer(*left, has_eq()));
     auto right_type = checker.check(*right, left_type);
     if (has_eq())
         return checker.world().sigma();
