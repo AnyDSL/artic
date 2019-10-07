@@ -145,7 +145,7 @@ struct Ptrn : public Node {
 
 // Path ----------------------------------------------------------------------------
 
-/// A path of the form A::B::C<T1, T2, ..., TN>
+/// A path of the form A[T1, ..., TN]:: ... ::Z[U1, ..., UN]
 struct Path : public Node {
     struct Elem {
         Loc loc;
