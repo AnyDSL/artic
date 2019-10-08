@@ -165,7 +165,7 @@ bool is_no_ret_type(const Type* type) { return type->isa<thorin::Bot>(); }
 bool is_struct_type(const Type* type) { return type->isa_nominal<thorin::Sigma>() || (type->isa_nominal<thorin::Lam>() && type->as<thorin::Lam>()->body()->isa_nominal<thorin::Sigma>()); }
 bool is_enum_type  (const Type* type) { return type->isa_nominal<thorin::Union>() || (type->isa_nominal<thorin::Lam>() && type->as<thorin::Lam>()->body()->isa_nominal<thorin::Union>()); }
 bool is_tuple_type (const Type* type) { return type->isa<thorin::Sigma>() || (type->isa<thorin::Variadic>() && !type->as<thorin::Variadic>()->domain()->isa<thorin::Top>()); }
-bool is_bool_type  (const Type* type) { return thorin::isa<thorin::Tag::Int >(type) && *thorin::get_width(type) == 1; }
+bool is_bool_type  (const Type* type) { return type->isa<thorin::Lit>() && type->as<thorin::Lit>()->get<thorin::nat_t>() == 2; }
 bool is_int_type   (const Type* type) { return thorin::isa<thorin::Tag::Int >(type) && *thorin::get_width(type) != 1; }
 bool is_sint_type  (const Type* type) { return thorin::isa<thorin::Tag::SInt>(type); }
 bool is_real_type  (const Type* type) { return thorin::isa<thorin::Tag::Real>(type); }

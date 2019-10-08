@@ -70,22 +70,6 @@ struct Node : public Cast<Node> {
 
 log::Output& operator << (log::Output&, const Node&);
 
-// Match ---------------------------------------------------------------------------
-
-/// Helper structure to determine if a match expression is complete.
-struct MatchNode {
-    const thorin::Def* op;
-    PtrVector<MatchNode> children;
-
-    MatchNode(const thorin::Def* op)
-        : op(op)
-    {}
-
-    void set(const artic::Type*);
-    MatchNode* lit(const Literal& lit) const;
-    bool is_complete() const;
-};
-
 // Base AST nodes ------------------------------------------------------------------
 
 /// Base class for all declarations.
@@ -137,8 +121,6 @@ struct Ptrn : public Node {
 
     /// Returns true when the pattern is trivial (e.g. always matches).
     virtual bool is_trivial() const = 0;
-    /// Adds the pattern to the matching tree.
-    virtual void match(std::vector<MatchNode*>&, std::vector<MatchNode*>&) const = 0;
     /// Emits IR for the pattern, given a value to match against.
     virtual void emit(Emitter&, const thorin::Def*) const;
 };
@@ -1029,7 +1011,6 @@ struct TypedPtrn : public Ptrn {
     {}
 
     bool is_trivial() const override;
-    void match(std::vector<MatchNode*>&, std::vector<MatchNode*>&) const override;
 
     void emit(Emitter&, const thorin::Def*) const override;
     const artic::Type* infer(TypeChecker&) const override;
@@ -1046,7 +1027,6 @@ struct IdPtrn : public Ptrn {
     {}
 
     bool is_trivial() const override;
-    void match(std::vector<MatchNode*>&, std::vector<MatchNode*>&) const override;
 
     void emit(Emitter&, const thorin::Def*) const override;
     const artic::Type* infer(TypeChecker&) const override;
@@ -1064,7 +1044,6 @@ struct LiteralPtrn : public Ptrn {
     {}
 
     bool is_trivial() const override;
-    void match(std::vector<MatchNode*>&, std::vector<MatchNode*>&) const override;
 
     const artic::Type* infer(TypeChecker&) const override;
     const artic::Type* check(TypeChecker&, const artic::Type*) const override;
@@ -1086,7 +1065,6 @@ struct FieldPtrn : public Ptrn {
     bool is_etc() const { return !ptrn; }
 
     bool is_trivial() const override;
-    void match(std::vector<MatchNode*>&, std::vector<MatchNode*>&) const override;
 
     const artic::Type* check(TypeChecker&, const artic::Type*) const override;
     void bind(NameBinder&) const override;
@@ -1105,7 +1083,6 @@ struct StructPtrn : public Ptrn {
     bool has_etc() const { return !fields.empty() && fields.back()->is_etc(); }
 
     bool is_trivial() const override;
-    void match(std::vector<MatchNode*>&, std::vector<MatchNode*>&) const override;
 
     const artic::Type* infer(TypeChecker&) const override;
     void bind(NameBinder&) const override;
@@ -1124,7 +1101,6 @@ struct EnumPtrn : public Ptrn {
     {}
 
     bool is_trivial() const override;
-    void match(std::vector<MatchNode*>&, std::vector<MatchNode*>&) const override;
 
     const artic::Type* infer(TypeChecker&) const override;
     void bind(NameBinder&) const override;
@@ -1140,7 +1116,6 @@ struct TuplePtrn : public Ptrn {
     {}
 
     bool is_trivial() const override;
-    void match(std::vector<MatchNode*>&, std::vector<MatchNode*>&) const override;
 
     void emit(Emitter&, const thorin::Def*) const override;
     const artic::Type* infer(TypeChecker&) const override;
@@ -1154,7 +1129,6 @@ struct ErrorPtrn : public Ptrn {
     ErrorPtrn(const Loc& loc) : Ptrn(loc) {}
 
     bool is_trivial() const override;
-    void match(std::vector<MatchNode*>&, std::vector<MatchNode*>&) const override;
 
     void bind(NameBinder&) const override;
     void print(Printer&) const override;

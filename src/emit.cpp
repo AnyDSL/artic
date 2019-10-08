@@ -411,12 +411,46 @@ const thorin::Def* BinaryExpr::emit(Emitter& emitter) const {
     auto [p, l] = emitter.deref(left->loc, emitter.emit(*left, has_eq()));
     auto r = emitter.emit(*right);
     auto dbg = emitter.world().debug_info(*this);
+    if (has_cmp()) {
+        if (is_bool_type(left->type)) {
+            assert(false && "TODO");
+        } else if (is_int_type(left->type) || is_sint_type(left->type)) {
+            switch (tag) {
+                case CmpEq: return emitter.world().op(thorin::World::Cmp::eq, l, r, dbg);
+                case CmpNE: return emitter.world().op(thorin::World::Cmp::ne, l, r, dbg);
+                case CmpGE: return emitter.world().op(thorin::World::Cmp::ge, l, r, dbg);
+                case CmpGT: return emitter.world().op(thorin::World::Cmp::ge, l, r, dbg);
+                case CmpLE: return emitter.world().op(thorin::World::Cmp::le, l, r, dbg);
+                case CmpLT: return emitter.world().op(thorin::World::Cmp::le, l, r, dbg);
+                default:
+                    assert(false);
+                    return nullptr;
+            }
+        } else if (is_real_type(left->type)) {
+            auto rmode = thorin::RMode::fast; // TODO: set proper flags
+            switch (tag) {
+                case CmpEq: return emitter.world().op(thorin::RCmp::e,  rmode, l, r, dbg);
+                case CmpNE: return emitter.world().op(thorin::RCmp::ne, rmode, l, r, dbg);
+                case CmpGE: return emitter.world().op(thorin::RCmp::ge, rmode, l, r, dbg);
+                case CmpGT: return emitter.world().op(thorin::RCmp::g,  rmode, l, r, dbg);
+                case CmpLE: return emitter.world().op(thorin::RCmp::le, rmode, l, r, dbg);
+                case CmpLT: return emitter.world().op(thorin::RCmp::l,  rmode, l, r, dbg);
+                default:
+                    assert(false);
+                    return nullptr;
+            }
+        } else {
+            assert(false);
+            return nullptr;
+        }
+    }
+
     const thorin::Def* res = nullptr;
     if (is_bool_type(type)) {
         switch (remove_eq(tag)) {
-            case And: res = emitter.world().op(thorin::IOp::iand, l, r, dbg); break;
-            case Or:  res = emitter.world().op(thorin::IOp::ior,  l, r, dbg); break;
-            case Xor: res = emitter.world().op(thorin::IOp::ixor, l, r, dbg); break;
+            case And: res = emitter.world().extract_and(l, r, dbg); break;
+            case Or:  res = emitter.world().extract_or (l, r, dbg); break;
+            case Xor: res = emitter.world().extract_xor(l, r, dbg); break;
             default:
                 assert(false);
                 break;
