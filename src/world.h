@@ -57,6 +57,7 @@ bool is_no_ret_type(const Type*);
 bool is_struct_type(const Type*);
 bool is_enum_type(const Type*);
 bool is_tuple_type(const Type*);
+bool is_unit_type(const Type*);
 bool is_bool_type(const Type*);
 bool is_int_type(const Type*);
 bool is_sint_type(const Type*);
@@ -64,6 +65,8 @@ bool is_real_type(const Type*);
 bool is_mut_type(const Type*);
 
 size_t num_members(const Type*);
+const Type* member_type(const Type*, const Type*, size_t);
+const Type* option_type(const Type*, const Type*, size_t);
 
 template <typename Pred>
 std::tuple<const Type*, const Type*> match_app(const Type* type, Pred pred) {

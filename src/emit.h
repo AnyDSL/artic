@@ -27,6 +27,7 @@ public:
 
     const thorin::Def* emit_head(const ast::Decl&);
     const thorin::Def* emit(const ast::Node&);
+    const thorin::Def* emit(const Literal&, const Type*, thorin::Debug);
     const thorin::Def* emit(const ast::Expr&, bool);
     void emit(const ast::Ptrn&, const thorin::Def*);
 
@@ -37,6 +38,7 @@ public:
     const thorin::Def* call(const thorin::Def*, const thorin::Def*, thorin::Debug dbg); // DS
     void call(const thorin::Def*, const thorin::Def*, const thorin::Def*, thorin::Debug dbg); // CPS
     void branch(const thorin::Def*, const thorin::Def*, const thorin::Def*, thorin::Debug dbg);
+    void match(const thorin::Def*, thorin::Defs, thorin::Debug dbg);
 
 private:
     // Helper structure to remember the state of the emitter

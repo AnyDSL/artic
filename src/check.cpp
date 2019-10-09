@@ -1,7 +1,5 @@
 #include <algorithm>
 
-#include <thorin/rewrite.h>
-
 #include "check.h"
 
 namespace artic {
@@ -9,26 +7,6 @@ namespace artic {
 bool TypeChecker::run(const ast::ModDecl& module) {
     module.infer(*this);
     return error_count == 0;
-}
-
-const Type* TypeChecker::field_type(const Type* struct_type, const Type* app, size_t index) {
-    // Retrieves the type of a structure field
-    if (app)
-        return thorin::rewrite(struct_type->as_nominal(), app->as<thorin::App>()->arg())->op(index);
-    return struct_type->op(index);
-}
-
-const Type* TypeChecker::option_type(const Type* enum_type, const Type* app, size_t index) {
-    // Retrieves the type of a enumeration option
-    const Type* param = nullptr;
-    if (app) {
-        param = thorin::rewrite(enum_type->as_nominal(), app->as<thorin::App>()->arg())->op(index);
-    } else {
-        param = enum_type->op(index);
-    }
-    if (param == world().sigma())
-        return app ? app : enum_type;
-    return world().pi_mem(param, app ? app : enum_type);
 }
 
 std::optional<size_t> TypeChecker::find_member(const Type* type, const std::string& member) {
@@ -255,7 +233,7 @@ const Type* TypeChecker::check_fields(const Loc& loc, const Type* struct_type, c
         }
         seen[*index] = true;
         fields[i]->index = *index;
-        check(*fields[i], field_type(struct_type, app, *index));
+        check(*fields[i], member_type(struct_type, app, *index));
     }
     // Check that all fields have been specified, unless '...' was used
     if (!etc && !std::all_of(seen.begin(), seen.end(), [] (bool b) { return b; })) {
@@ -332,7 +310,7 @@ const artic::Type* Path::infer(TypeChecker& checker) const {
                 auto index = checker.find_member(enum_type, member);
                 if (!index)
                     return checker.error_unknown_member(elem.loc, type, member);
-                type = checker.option_type(enum_type, app, *index);
+                type = option_type(enum_type, app, *index);
                 elems[i + 1].index = *index;
             } else {
                 checker.error(elem.loc, "operator '::' not allowed on type '{}'", *type);
@@ -533,7 +511,7 @@ const artic::Type* ProjExpr::infer(TypeChecker& checker, bool mut) const {
         return checker.error_type_expected(expr->loc, expr_type, "structure");
     if (auto index = checker.find_member(struct_type, field.name)) {
         this->index = *index;
-        return checker.field_type(struct_type, app, *index);
+        return member_type(struct_type, app, *index);
     } else
         return checker.error_unknown_member(loc, expr_type, field.name);
 }
@@ -564,16 +542,6 @@ const artic::Type* MatchExpr::check(TypeChecker& checker, const artic::Type* exp
         checker.check(*case_->ptrn, arg_type);
         type = type ? checker.check(*case_->expr, type) : checker.infer(*case_->expr);
     }
-    bool trivial = false;
-    for (size_t i = 0, n = cases.size(); i < cases.size(); ++i) {
-        trivial |= cases[i]->ptrn->is_trivial();
-        if (i != n - 1 && trivial) {
-            checker.warn(cases[i]->loc, "subsequent cases are never executed");
-            break;
-        }
-    }
-    if (!trivial)
-        checker.error(loc, "match expression is not complete");
     return type ? type : checker.error_cannot_infer(loc, "match expression");
 }
 
@@ -809,12 +777,12 @@ const artic::Type* EnumPtrn::infer(TypeChecker& checker) const {
     if (app) enum_type = app->callee();
     if (!is_enum_type(enum_type))
         return checker.error_type_expected(path.loc, prev, "enumeration");
-    if (arg) {
+    if (arg_) {
         if (!param_type) {
             checker.error(loc, "arguments expected after enumeration option");
             return checker.world().type_error();
         }
-        checker.check(*arg, param_type);
+        checker.check(*arg_, param_type);
     }
     index = path.elems.back().index;
     return app ? app : enum_type;

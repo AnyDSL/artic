@@ -285,7 +285,7 @@ void StructPtrn::print(Printer& p) const {
 
 void EnumPtrn::print(Printer& p) const {
     path.print(p);
-    if (arg) print_parens(p, arg);
+    if (arg_) print_parens(p, arg_);
 }
 
 void TuplePtrn::print(Printer& p) const {

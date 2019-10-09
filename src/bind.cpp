@@ -274,7 +274,7 @@ void StructPtrn::bind(NameBinder& binder) const {
 
 void EnumPtrn::bind(NameBinder& binder) const {
     binder.bind(path);
-    if (arg) binder.bind(*arg);
+    if (arg_) binder.bind(*arg_);
 }
 
 void TuplePtrn::bind(NameBinder& binder) const {

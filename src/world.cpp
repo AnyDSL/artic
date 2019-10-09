@@ -2,6 +2,8 @@
 #include "log.h"
 #include "ast.h"
 
+#include <thorin/rewrite.h>
+
 namespace artic {
 
 Type* World::type_forall(const ast::FnDecl& decl) {
@@ -165,6 +167,7 @@ bool is_no_ret_type(const Type* type) { return type->isa<thorin::Bot>(); }
 bool is_struct_type(const Type* type) { return type->isa_nominal<thorin::Sigma>() || (type->isa_nominal<thorin::Lam>() && type->as<thorin::Lam>()->body()->isa_nominal<thorin::Sigma>()); }
 bool is_enum_type  (const Type* type) { return type->isa_nominal<thorin::Union>() || (type->isa_nominal<thorin::Lam>() && type->as<thorin::Lam>()->body()->isa_nominal<thorin::Union>()); }
 bool is_tuple_type (const Type* type) { return type->isa<thorin::Sigma>() || (type->isa<thorin::Variadic>() && !type->as<thorin::Variadic>()->domain()->isa<thorin::Top>()); }
+bool is_unit_type  (const Type* type) { return type->isa<thorin::Sigma>() && type->num_ops() == 0; }
 bool is_bool_type  (const Type* type) { return type->isa<thorin::Lit>() && type->as<thorin::Lit>()->get<thorin::nat_t>() == 2; }
 bool is_int_type   (const Type* type) { return thorin::isa<thorin::Tag::Int >(type) && *thorin::get_width(type) != 1; }
 bool is_sint_type  (const Type* type) { return thorin::isa<thorin::Tag::SInt>(type); }
@@ -175,6 +178,29 @@ size_t num_members(const Type* type) {
     assert(type->meta());
     return type->meta()->type()->lit_arity() - 1;
 }
+
+const Type* member_type(const Type* type, const Type* app, size_t index) {
+    // Retrieves the type of a structure field/enumeration member
+    assert(is_enum_type(type) || is_struct_type(type));
+    if (app)
+        return thorin::rewrite(type->as_nominal(), app->as<thorin::App>()->arg())->op(index);
+    return type->op(index);
+}
+
+const Type* option_type(const Type* enum_type, const Type* app, size_t index) {
+    // Retrieves the type of a enumeration *option*
+    assert(is_enum_type(enum_type));
+    const Type* param = nullptr;
+    if (app) {
+        param = thorin::rewrite(enum_type->as_nominal(), app->as<thorin::App>()->arg())->op(index);
+    } else {
+        param = enum_type->op(index);
+    }
+    if (is_unit_type(param))
+        return app ? app : enum_type;
+    return param->world().pi_mem(param, app ? app : enum_type);
+}
+
 
 bool is_subtype(const Type* a, const Type* b) {
     if (a == b || a->isa<thorin::Bot>() || b->isa<thorin::Top>())

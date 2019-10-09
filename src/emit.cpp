@@ -42,6 +42,32 @@ const thorin::Def* Emitter::emit(const ast::Node& node) {
     return node.def = node.emit(*this);
 }
 
+const thorin::Def* Emitter::emit(const Literal& lit, const Type* type, thorin::Debug dbg) {
+    if (lit.is_bool()) {
+        return lit.as_bool() ? world().lit_true() : world().lit_false();
+    } else if (lit.is_integer()) {
+        return world().lit(type, thorin::u64(lit.as_integer()), dbg);
+    } else if (lit.is_char()) {
+        return world().lit(type, thorin::u64(lit.as_char()), dbg);
+    } else if (lit.is_double()) {
+        switch (*thorin::get_width(type)) {
+            case 32: return world().lit(type, thorin::r32(lit.as_double()), dbg);
+            case 64: return world().lit(type, thorin::r64(lit.as_double()), dbg);
+            default: break;
+        }
+    } else if (lit.is_string()) {
+        auto str = lit.as_string();
+        auto char_type = type->as<thorin::Variadic>()->codomain();
+        thorin::Array<const thorin::Def*> chars(str.length() + 1);
+        for (size_t i = 0, n = str.length(); i < n; ++i)
+            chars[i] = world().lit(char_type, thorin::u64(str[i]), dbg);
+        chars.back() = world().lit(char_type, thorin::u64(0), dbg);
+        return world().tuple(chars, dbg);
+    }
+    assert(false);
+    return nullptr;
+}
+
 const thorin::Def* Emitter::emit(const ast::Expr& expr, bool mut) {
     return expr.def = expr.emit(*this, mut);
 }
@@ -118,6 +144,11 @@ void Emitter::branch(const thorin::Def* c, const thorin::Def* t, const thorin::D
         bb_->branch(c, t, f, mem(), dbg);
 }
 
+void Emitter::match(const thorin::Def* val, thorin::Defs cases, thorin::Debug dbg) {
+    if (bb_)
+        bb_->app(world().match_(val, cases, dbg), mem());
+}
+
 namespace ast {
 
 // TODO: Remove those once every class has an implementation
@@ -174,30 +205,7 @@ const thorin::Def* PathExpr::emit(Emitter& emitter, bool mut) const {
 }
 
 const thorin::Def* LiteralExpr::emit(Emitter& emitter) const {
-    if (lit.is_bool()) {
-        return lit.as_bool() ? emitter.world().lit_true() : emitter.world().lit_false();
-    } else if (lit.is_integer()) {
-        return emitter.world().lit(type, thorin::u64(lit.as_integer()), emitter.world().debug_info(*this));
-    } else if (lit.is_char()) {
-        return emitter.world().lit(type, thorin::u64(lit.as_char()), emitter.world().debug_info(*this));
-    } else if (lit.is_double()) {
-        switch (*thorin::get_width(type)) {
-            case 32: return emitter.world().lit(type, thorin::r32(lit.as_double()), emitter.world().debug_info(*this));
-            case 64: return emitter.world().lit(type, thorin::r64(lit.as_double()), emitter.world().debug_info(*this));
-            default: break;
-        }
-    } else if (lit.is_string()) {
-        auto str = lit.as_string();
-        auto dbg = emitter.world().debug_info(*this);
-        auto char_type = type->as<thorin::Variadic>()->codomain();
-        thorin::Array<const thorin::Def*> chars(str.length() + 1);
-        for (size_t i = 0, n = str.length(); i < n; ++i)
-            chars[i] = emitter.world().lit(char_type, thorin::u64(str[i]), dbg);
-        chars.back() = emitter.world().lit(char_type, thorin::u64(0), dbg);
-        return emitter.world().tuple(chars, dbg);
-    }
-    assert(false);
-    return nullptr;
+    return emitter.emit(lit, type, emitter.world().debug_info(*this));
 }
 
 const thorin::Def* ArrayExpr::emit(Emitter& emitter) const {
@@ -299,11 +307,23 @@ const thorin::Def* IfExpr::emit(Emitter& emitter) const {
     return emitter.enter(j);
 }
 
+const thorin::Def* CaseExpr::emit(Emitter& emitter) const {
+    auto case_ = emitter.world().ptrn(emitter.world().debug_info(*this));
+    auto lam = emitter.world().lam(emitter.world().type_bb(), emitter.world().debug_info(loc, "match_case"));
+    emitter.enter(lam);
+    case_->set(ptrn->emit(case_->param()), lam);
+    return case_;
+}
+
 const thorin::Def* MatchExpr::emit(Emitter& emitter) const {
-    auto a = emitter.emit(*arg);
-    auto [_, enum_type] = match_app(arg->type, is_enum_type);
-    assert(false && "TODO");
-    return nullptr;
+    auto join = emitter.world().lam(emitter.world().type_bb(type), emitter.world().debug_info(loc, "match_join"));
+    thorin::Array<const thorin::Def*> ptrns(cases.size(), [&] (size_t i) {
+        auto ptrn = cases[i]->emit(emitter);
+        emitter.jump(join, emitter.emit(*cases[i]->expr));
+        return ptrn;
+    });
+    emitter.match(emitter.emit(*arg), ptrns, emitter.world().debug_info(*this));
+    return emitter.enter(join);
 }
 
 const thorin::Def* WhileExpr::emit(Emitter& emitter) const {

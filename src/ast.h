@@ -3,6 +3,7 @@
 
 #include <memory>
 #include <vector>
+#include <optional>
 
 #include "loc.h"
 #include "cast.h"
@@ -16,6 +17,7 @@ class Printer;
 class NameBinder;
 class TypeChecker;
 class Emitter;
+struct Match;
 
 template <typename T> using Ptr = std::unique_ptr<T>;
 template <typename T> using PtrVector = std::vector<std::unique_ptr<T>>;
@@ -596,6 +598,7 @@ struct CaseExpr : public ImmutableExpr {
 
     bool has_side_effect() const override;
 
+    const thorin::Def* emit(Emitter&) const override;
     void bind(NameBinder&) const override;
     void print(Printer&) const override;
 };
@@ -1022,6 +1025,8 @@ struct TypedPtrn : public Ptrn {
 struct IdPtrn : public Ptrn {
     Ptr<PtrnDecl> decl;
 
+    mutable PtrVector<Ptrn> junk;
+
     IdPtrn(const Loc& loc, Ptr<PtrnDecl>&& decl)
         : Ptrn(loc), decl(std::move(decl))
     {}
@@ -1076,6 +1081,8 @@ struct StructPtrn : public Ptrn {
     Path path;
     PtrVector<FieldPtrn> fields;
 
+    mutable PtrVector<Ptrn> junk;
+
     StructPtrn(const Loc& loc, Path&& path, PtrVector<FieldPtrn>&& fields)
         : Ptrn(loc), path(std::move(path)), fields(std::move(fields))
     {}
@@ -1092,12 +1099,12 @@ struct StructPtrn : public Ptrn {
 /// A pattern that matches against enumerations.
 struct EnumPtrn : public Ptrn {
     Path path;
-    Ptr<Ptrn> arg;
+    Ptr<Ptrn> arg_;
 
     mutable size_t index;
 
-    EnumPtrn(const Loc& loc, Path&& path, Ptr<Ptrn>&& arg)
-        : Ptrn(loc), path(std::move(path)), arg(std::move(arg))
+    EnumPtrn(const Loc& loc, Path&& path, Ptr<Ptrn>&& arg_)
+        : Ptrn(loc), path(std::move(path)), arg_(std::move(arg_))
     {}
 
     bool is_trivial() const override;

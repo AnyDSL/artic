@@ -23,8 +23,6 @@ public:
 
     World& world() { return world_; }
 
-    const Type* field_type(const Type*, const Type*, size_t);
-    const Type* option_type(const Type*, const Type*, size_t);
     std::optional<size_t> find_member(const Type*, const std::string&);
 
     bool enter_decl(const ast::Decl*);
