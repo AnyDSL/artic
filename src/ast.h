@@ -124,7 +124,7 @@ struct Ptrn : public Node {
     /// Returns true when the pattern is trivial (e.g. always matches).
     virtual bool is_trivial() const = 0;
     /// Emits IR for the pattern, given a value to match against.
-    virtual void emit(Emitter&, const thorin::Def*) const;
+    virtual const thorin::Def* emit(Emitter&, const thorin::Def*) const;
 };
 
 // Path ----------------------------------------------------------------------------
@@ -1015,7 +1015,7 @@ struct TypedPtrn : public Ptrn {
 
     bool is_trivial() const override;
 
-    void emit(Emitter&, const thorin::Def*) const override;
+    const thorin::Def* emit(Emitter&, const thorin::Def*) const override;
     const artic::Type* infer(TypeChecker&) const override;
     void bind(NameBinder&) const override;
     void print(Printer&) const override;
@@ -1033,7 +1033,7 @@ struct IdPtrn : public Ptrn {
 
     bool is_trivial() const override;
 
-    void emit(Emitter&, const thorin::Def*) const override;
+    const thorin::Def* emit(Emitter&, const thorin::Def*) const override;
     const artic::Type* infer(TypeChecker&) const override;
     const artic::Type* check(TypeChecker&, const artic::Type*) const override;
     void bind(NameBinder&) const override;
@@ -1050,6 +1050,7 @@ struct LiteralPtrn : public Ptrn {
 
     bool is_trivial() const override;
 
+    const thorin::Def* emit(Emitter&, const thorin::Def*) const override;
     const artic::Type* infer(TypeChecker&) const override;
     const artic::Type* check(TypeChecker&, const artic::Type*) const override;
     void bind(NameBinder&) const override;
@@ -1124,7 +1125,7 @@ struct TuplePtrn : public Ptrn {
 
     bool is_trivial() const override;
 
-    void emit(Emitter&, const thorin::Def*) const override;
+    const thorin::Def* emit(Emitter&, const thorin::Def*) const override;
     const artic::Type* infer(TypeChecker&) const override;
     const artic::Type* check(TypeChecker&, const artic::Type*) const override;
     void bind(NameBinder&) const override;

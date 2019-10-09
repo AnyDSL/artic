@@ -107,12 +107,12 @@ Output& operator << (Output& out, const Type& type) {
     } else if (auto union_ = type.isa<thorin::Union>()) {
         assert(union_->isa_nominal());
         out << log::keyword_style("enum") << ' ' << union_->name();
-    } else if (auto variadic = type.isa<thorin::Variadic>()) {
-        if (variadic->domain()->isa<thorin::Top>())
-            out << '[' << *variadic->codomain() << ']';
+    } else if (auto arr = type.isa<thorin::Arr>()) {
+        if (arr->domain()->isa<thorin::Top>())
+            out << '[' << *arr->codomain() << ']';
         else {
-            out << '(' << *variadic->codomain() << " * "
-                << thorin::as_lit<thorin::nat_t>(variadic->domain()) << ')';
+            out << '(' << *arr->codomain() << " * "
+                << thorin::as_lit<thorin::nat_t>(arr->domain()) << ')';
         }
     } else if (type.isa<thorin::Bot>()) {
        out << log::keyword_style("!"); 
@@ -166,7 +166,7 @@ Output& operator << (Output& out, const Type& type) {
 bool is_no_ret_type(const Type* type) { return type->isa<thorin::Bot>(); }
 bool is_struct_type(const Type* type) { return type->isa_nominal<thorin::Sigma>() || (type->isa_nominal<thorin::Lam>() && type->as<thorin::Lam>()->body()->isa_nominal<thorin::Sigma>()); }
 bool is_enum_type  (const Type* type) { return type->isa_nominal<thorin::Union>() || (type->isa_nominal<thorin::Lam>() && type->as<thorin::Lam>()->body()->isa_nominal<thorin::Union>()); }
-bool is_tuple_type (const Type* type) { return type->isa<thorin::Sigma>() || (type->isa<thorin::Variadic>() && !type->as<thorin::Variadic>()->domain()->isa<thorin::Top>()); }
+bool is_tuple_type (const Type* type) { return type->isa<thorin::Sigma>() || (type->isa<thorin::Arr>() && !type->as<thorin::Arr>()->domain()->isa<thorin::Top>()); }
 bool is_unit_type  (const Type* type) { return type->isa<thorin::Sigma>() && type->num_ops() == 0; }
 bool is_bool_type  (const Type* type) { return type->isa<thorin::Lit>() && type->as<thorin::Lit>()->get<thorin::nat_t>() == 2; }
 bool is_int_type   (const Type* type) { return thorin::isa<thorin::Tag::Int >(type) && *thorin::get_width(type) != 1; }
@@ -217,8 +217,8 @@ bool is_subtype(const Type* a, const Type* b) {
     if (auto pi_a = a->isa<thorin::Pi>(), pi_b = b->isa<thorin::Pi>(); pi_a && pi_b) {
         return is_subtype(pi_a->codomain(), pi_b->codomain()) && is_subtype(pi_b->domain(), pi_a->domain());
     }
-    if (auto variadic_a = a->isa<thorin::Variadic>(), variadic_b = b->isa<thorin::Variadic>(); variadic_a && variadic_b) {
-        return variadic_a->arity() == variadic_b->arity() && is_subtype(variadic_a->codomain(), variadic_b->codomain());
+    if (auto arr_a = a->isa<thorin::Arr>(), arr_b = b->isa<thorin::Arr>(); arr_a && arr_b) {
+        return arr_a->arity() == arr_b->arity() && is_subtype(arr_a->codomain(), arr_b->codomain());
     }
     return false;
 }

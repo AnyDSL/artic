@@ -29,7 +29,7 @@ public:
     const thorin::Def* emit(const ast::Node&);
     const thorin::Def* emit(const Literal&, const Type*, thorin::Debug);
     const thorin::Def* emit(const ast::Expr&, bool);
-    void emit(const ast::Ptrn&, const thorin::Def*);
+    const thorin::Def* emit(const ast::Ptrn&, const thorin::Def*);
 
     thorin::Lam* emit_lam(const thorin::Pi*, thorin::Debug dbg = {});
 

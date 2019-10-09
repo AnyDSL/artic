@@ -133,14 +133,14 @@ const Type* TypeChecker::infer(const ast::CallExpr& call, bool mut) {
     if (auto pi = callee_type->isa<thorin::Pi>()) {
         check(*call.arg, pi->domain(1));
         return pi->codomain(1);
-    } else if (auto variadic = callee_type->isa<thorin::Variadic>()) {
+    } else if (auto arr = callee_type->isa<thorin::Arr>()) {
         auto index_type = infer(*call.arg);
         if (!is_sint_type(index_type) && !is_int_type(index_type)) {
             if (should_emit_error(index_type))
                 error(call.arg->loc, "integer type expected as array index, but got '{}'", *index_type);
             return world().type_error();
         }
-        return mut ? world().type_ptr(variadic->codomain()) : variadic->codomain();
+        return mut ? world().type_ptr(arr->codomain()) : arr->codomain();
     } else {
         if (should_emit_error(callee_type))
             error(call.callee->loc, "expected function or array type in call expression, but got '{}'", *callee_type);
@@ -164,7 +164,7 @@ const Type* TypeChecker::infer(const Loc&, const Literal& lit) {
     else if (lit.is_char())
         return world().type_int(8);
     else if (lit.is_string())
-        return world().variadic_unsafe(world().type_int(8));
+        return world().arr_unsafe(world().type_int(8));
     else {
         assert(false);
         return world().type_error();
@@ -187,7 +187,7 @@ const Type* TypeChecker::check(const Loc& loc, const Literal& lit, const Type* e
     } else if (lit.is_char()) {
         return expect(loc, "character literal", world().type_int(8), expected);
     } else if (lit.is_string()) {
-        return expect(loc, "string literal", world().variadic_unsafe(world().type_int(8)), expected);
+        return expect(loc, "string literal", world().arr_unsafe(world().type_int(8)), expected);
     } else {
         assert(false);
         return expected;
@@ -203,7 +203,7 @@ const Type* TypeChecker::check_tuple(const Loc& loc, const std::string& msg, con
         return world().type_error();
     }
     for (size_t i = 0; i < args.size(); ++i)
-        check(*args[i], expected->isa<thorin::Variadic>() ? expected->as<thorin::Variadic>()->codomain() : expected->op(i));
+        check(*args[i], expected->isa<thorin::Arr>() ? expected->as<thorin::Arr>()->codomain() : expected->op(i));
     return expected;
 }
 
@@ -355,7 +355,7 @@ const artic::Type* TupleType::infer(TypeChecker& checker) const {
 }
 
 const artic::Type* ArrayType::infer(TypeChecker& checker) const {
-    return checker.world().variadic_unsafe(checker.infer(*elem));
+    return checker.world().arr_unsafe(checker.infer(*elem));
 }
 
 const artic::Type* FnType::infer(TypeChecker& checker) const {
@@ -446,16 +446,16 @@ const artic::Type* ArrayExpr::infer(TypeChecker& checker) const {
     auto elem_type = checker.infer(*elems.front());
     for (size_t i = 1; i < elems.size(); ++i)
         checker.check(*elems[i], elem_type);
-    return checker.world().variadic_unsafe(elem_type);
+    return checker.world().arr_unsafe(elem_type);
 }
 
 const artic::Type* ArrayExpr::check(TypeChecker& checker, const artic::Type* expected) const {
-    if (!expected->isa<thorin::Variadic>())
+    if (!expected->isa<thorin::Arr>())
         return checker.expect(loc, "array expression", expected);
-    auto elem_type = expected->as<thorin::Variadic>()->codomain();
+    auto elem_type = expected->as<thorin::Arr>()->codomain();
     for (auto& elem : elems)
         checker.check(*elem, elem_type);
-    return checker.world().variadic_unsafe(elem_type);
+    return checker.world().arr_unsafe(elem_type);
 }
 
 const artic::Type* FnExpr::infer(TypeChecker& checker) const {

@@ -57,7 +57,7 @@ const thorin::Def* Emitter::emit(const Literal& lit, const Type* type, thorin::D
         }
     } else if (lit.is_string()) {
         auto str = lit.as_string();
-        auto char_type = type->as<thorin::Variadic>()->codomain();
+        auto char_type = type->as<thorin::Arr>()->codomain();
         thorin::Array<const thorin::Def*> chars(str.length() + 1);
         for (size_t i = 0, n = str.length(); i < n; ++i)
             chars[i] = world().lit(char_type, thorin::u64(str[i]), dbg);
@@ -81,9 +81,9 @@ std::pair<const thorin::Def*, const thorin::Def*> Emitter::deref(const Loc& loc,
     }
 }
 
-void Emitter::emit(const ast::Ptrn& ptrn, const thorin::Def* value) {
+const thorin::Def* Emitter::emit(const ast::Ptrn& ptrn, const thorin::Def* value) {
     ptrn.emit(*this, value);
-    ptrn.def = value;
+    return ptrn.def = value;
 }
 
 thorin::Lam* Emitter::emit_lam(const thorin::Pi* pi, thorin::Debug dbg) {
@@ -137,16 +137,22 @@ void Emitter::call(const thorin::Def* callee, const thorin::Def* arg, const thor
     // This is a CPS call
     if (bb_)
         bb_->app(callee, { mem(), arg, ret }, dbg);
+    bb_ = nullptr;
+    mem_ = nullptr;
 }
 
 void Emitter::branch(const thorin::Def* c, const thorin::Def* t, const thorin::Def* f, thorin::Debug dbg) {
     if (bb_)
         bb_->branch(c, t, f, mem(), dbg);
+    bb_ = nullptr;
+    mem_ = nullptr;
 }
 
 void Emitter::match(const thorin::Def* val, thorin::Defs cases, thorin::Debug dbg) {
     if (bb_)
-        bb_->app(world().match_(val, cases, dbg), mem());
+        bb_->match(val, cases, mem(), dbg);
+    bb_ = nullptr;
+    mem_ = nullptr;
 }
 
 namespace ast {
@@ -158,7 +164,7 @@ const thorin::Def* Node::emit(Emitter&) const {
     return nullptr;
 }
 
-void Ptrn::emit(Emitter&, const thorin::Def*) const {
+const thorin::Def* Ptrn::emit(Emitter&, const thorin::Def*) const {
     assert(false && "TODO");
 }
 
@@ -267,8 +273,8 @@ const thorin::Def* CallExpr::emit(Emitter& emitter, bool mut) const {
     if (is_mut_type(callee_type))
         callee_type = thorin::as<thorin::Tag::Ptr>(callee_type)->arg()->out(0);
     auto dbg = emitter.world().debug_info(*this);
-    if (auto variadic = callee_type->isa<thorin::Variadic>()) {
-        auto index = emitter.world().op_bitcast(variadic->domain(), emitter.emit(*arg));
+    if (auto arr = callee_type->isa<thorin::Arr>()) {
+        auto index = emitter.world().op_bitcast(arr->domain(), emitter.emit(*arg));
         if (mut) {
             // Get a pointer to the array element
             return emitter.world().op_lea(emitter.emit(*callee, true), index, dbg);
@@ -308,21 +314,24 @@ const thorin::Def* IfExpr::emit(Emitter& emitter) const {
 }
 
 const thorin::Def* CaseExpr::emit(Emitter& emitter) const {
-    auto case_ = emitter.world().ptrn(emitter.world().debug_info(*this));
-    auto lam = emitter.world().lam(emitter.world().type_bb(), emitter.world().debug_info(loc, "match_case"));
-    emitter.enter(lam);
-    case_->set(ptrn->emit(case_->param()), lam);
-    return case_;
+    return emitter.world().ptrn(emitter.world().case_(ptrn->type, emitter.world().type_bb()), emitter.world().debug_info(*this));
 }
 
 const thorin::Def* MatchExpr::emit(Emitter& emitter) const {
     auto join = emitter.world().lam(emitter.world().type_bb(type), emitter.world().debug_info(loc, "match_join"));
-    thorin::Array<const thorin::Def*> ptrns(cases.size(), [&] (size_t i) {
-        auto ptrn = cases[i]->emit(emitter);
+    thorin::Array<const thorin::Def*> ptrns(cases.size(), [&] (size_t i) { return emitter.emit(*cases[i]); });
+    emitter.match(emitter.emit(*arg), ptrns, emitter.world().debug_info(*this));
+
+    // Emit the contents and pattern of each case expression
+    for (size_t i = 0, n = cases.size(); i < n; ++i) {
+        auto ptrn = ptrns[i]->as_nominal<thorin::Ptrn>();
+        auto target = emitter.world().lam(emitter.world().type_bb(), emitter.world().debug_info(loc, "match_case"));
+        emitter.enter(target);
+        ptrn->set(emitter.emit(*cases[i]->ptrn, ptrn->param()), target);
         emitter.jump(join, emitter.emit(*cases[i]->expr));
         return ptrn;
-    });
-    emitter.match(emitter.emit(*arg), ptrns, emitter.world().debug_info(*this));
+    }
+
     return emitter.enter(join);
 }
 
@@ -565,22 +574,29 @@ const thorin::Def* ModDecl::emit(Emitter& emitter) const {
 
 // Patterns ------------------------------------------------------------------------
 
-void TypedPtrn::emit(Emitter& emitter, const thorin::Def* value) const {
+const thorin::Def* TypedPtrn::emit(Emitter& emitter, const thorin::Def* value) const {
     return emitter.emit(*ptrn, value);
 }
 
-void IdPtrn::emit(Emitter& emitter, const thorin::Def* value) const {
+const thorin::Def* IdPtrn::emit(Emitter& emitter, const thorin::Def* value) const {
     if (decl->mut) {
         decl->def = emitter.alloc(thorin::as<thorin::Tag::Ptr>(decl->type)->arg(0), emitter.world().debug_info(*this));
         emitter.store(decl->def, value, {});
     } else {
         decl->def = value;
     }
+    return decl->def;
 }
 
-void TuplePtrn::emit(Emitter& emitter, const thorin::Def* value) const {
-    for (size_t i = 0, n = args.size(); i < n; ++i)
-        emitter.emit(*args[i], emitter.world().extract(value, i, emitter.world().debug_info(*args[i])));
+const thorin::Def* LiteralPtrn::emit(Emitter& emitter, const thorin::Def*) const {
+    return emitter.emit(lit, type, emitter.world().debug_info(*this));
+}
+
+const thorin::Def* TuplePtrn::emit(Emitter& emitter, const thorin::Def* value) const {
+    thorin::Array<const thorin::Def*> defs(args.size(), [&] (size_t i) {
+        return emitter.emit(*args[i], emitter.world().extract(value, i, emitter.world().debug_info(*args[i])));
+    });
+    return emitter.world().tuple(defs);
 }
 
 } // namespace ast
