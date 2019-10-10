@@ -183,7 +183,7 @@ const Type* member_type(const Type* type, const Type* app, size_t index) {
     // Retrieves the type of a structure field/enumeration member
     assert(is_enum_type(type) || is_struct_type(type));
     if (app)
-        return thorin::rewrite(type->as_nominal(), app->as<thorin::App>()->arg())[index];
+        return thorin::rewrite(type->as_nominal(), app->as<thorin::App>()->arg(), index);
     return type->op(index);
 }
 
@@ -192,7 +192,7 @@ const Type* option_type(const Type* enum_type, const Type* app, size_t index) {
     assert(is_enum_type(enum_type));
     const Type* param = nullptr;
     if (app) {
-        param = thorin::rewrite(enum_type->as_nominal(), app->as<thorin::App>()->arg())[index];
+        param = thorin::rewrite(enum_type->as_nominal(), app->as<thorin::App>()->arg(), index);
     } else {
         param = enum_type->op(index);
     }
