@@ -86,8 +86,7 @@ std::pair<const thorin::Def*, const thorin::Def*> Emitter::deref(const Loc& loc,
 }
 
 const thorin::Def* Emitter::emit(const ast::Ptrn& ptrn, const thorin::Def* value) {
-    ptrn.emit(*this, value);
-    return ptrn.def = value;
+    return ptrn.def = ptrn.emit(*this, value);
 }
 
 thorin::Lam* Emitter::emit_lam(const thorin::Pi* pi, thorin::Debug dbg) {
