@@ -55,6 +55,7 @@ private:
         {}
 
         void incomplete_match(const thorin::Match*) override;
+        void redundant_match_case(const thorin::Match*, const thorin::Ptrn*) override;
 
     private:
         Logger& logger_;

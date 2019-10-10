@@ -80,9 +80,16 @@ const thorin::Def* World::debug_info(const ast::Node& node, const thorin::Def* m
     return debug_info(node.loc, name, meta);
 }
 
+inline Loc def_loc(const thorin::Def* def) {
+    return Loc(std::make_shared<std::string>(def->filename()), def->front_line(), def->front_col(), def->back_line(), def->back_col());
+}
+
 void World::ErrorHandler::incomplete_match(const thorin::Match* match) {
-    Loc loc(std::make_shared<std::string>(match->filename()), match->front_line(), match->front_col(), match->back_line(), match->back_col());
-    logger_.error(loc, "incomplete match expression");
+    logger_.error(def_loc(match), "incomplete match expression");
+}
+
+void World::ErrorHandler::redundant_match_case(const thorin::Match*, const thorin::Ptrn* ptrn) {
+    logger_.error(def_loc(ptrn), "redundant match case");
 }
 
 namespace log {
