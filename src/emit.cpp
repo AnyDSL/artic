@@ -15,10 +15,12 @@ Emitter::Emitter(World& world, size_t opt)
 void Emitter::run(const ast::ModDecl& mod) {
     mod.emit(*this);
     thorin::compile_ptrns(world());
-    if (opt_ == 3)
-        thorin::optimize(world());
-    // TODO: Remove this
-    world().dump();
+    if (world().error_count == 0) {
+        if (opt_ == 3)
+            thorin::optimize(world());
+        // TODO: Remove this
+        world().dump();
+    }
 }
 
 const thorin::Def* Emitter::update_mem(const thorin::Def* def) {

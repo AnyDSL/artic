@@ -126,7 +126,7 @@ struct ProgramOptions {
                 } else if (matches(argv[i], "-o")) {
                     if (!check_arg(argc, argv, i))
                         return false;
-                    module_name = argv[i++];
+                    module_name = argv[++i];
                 } else {
                     log::error("unknown option '{}'", argv[i]);
                     return false;
