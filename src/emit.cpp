@@ -1,17 +1,21 @@
 #include "emit.h"
 #include "ast.h"
 
+#include <thorin/pass/optimize.h>
+
 #include <string>
 
 namespace artic {
 
-Emitter::Emitter(World& world)
-    : world_(world), bb_(nullptr), mem_(nullptr)
+Emitter::Emitter(World& world, size_t opt)
+    : world_(world), opt_(opt), bb_(nullptr), mem_(nullptr)
 {}
 
 void Emitter::run(const ast::ModDecl& mod) {
     mod.emit(*this);
     // TODO: Remove this
+    if (opt_ == 3)
+        thorin::optimize(world());
     world().dump();
 }
 

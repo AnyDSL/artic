@@ -11,7 +11,7 @@ namespace artic {
 
 class Emitter {
 public:
-    Emitter(World& world);
+    Emitter(World& world, size_t);
 
     void run(const ast::ModDecl&);
 
@@ -61,6 +61,7 @@ public:
 
 private:
     World& world_;
+    size_t opt_;
     thorin::Lam* bb_;
     const thorin::Def* mem_;
 };

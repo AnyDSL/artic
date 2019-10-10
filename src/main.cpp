@@ -227,7 +227,7 @@ int main(int argc, char** argv) {
         log::out << "\n";
     }
 
-    Emitter emitter(world);
+    Emitter emitter(world, opts.opt_level);
     emitter.run(program);
     return exit_code(true);
 }
