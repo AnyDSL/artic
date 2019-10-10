@@ -23,6 +23,7 @@ static void usage() {
                 "           --invert             Inverts the return code\n"
                 "           --print              Prints the AST after parsing.\n"
                 "    -On                         Sets the optimization level (n = 0, 1, 2, or 3)\n"
+                "    -o <name>                   Sets the module name\n"
                 "    -h     --help               Displays this message\n";
 }
 
@@ -55,21 +56,30 @@ static void version() {
 
 struct ProgramOptions {
     std::vector<std::string> files;
+    std::string module_name = "";
     bool exit = false;
     bool strict = false;
     bool invert = false;
     bool print = false;
     unsigned opt_level = 0;
 
-    inline bool matches(const char* arg, const char* opt) {
+    bool matches(const char* arg, const char* opt) {
         return !strcmp(arg, opt);
     }
 
-    inline bool matches(const char* arg, const char* opt1, const char* opt2) {
+    bool matches(const char* arg, const char* opt1, const char* opt2) {
         return !strcmp(arg, opt1) || !strcmp(arg, opt2);
     }
 
-    inline bool check_dup(const char* opt, bool dup) {
+    bool check_arg(int argc, char** argv, int i) {
+        if (i + 1 >= argc) {
+            log::error("missing argument for option '{}'", argv[i]);
+            return false;
+        }
+        return true;
+    }
+
+    bool check_dup(const char* opt, bool dup) {
         if (dup) {
             log::error("option '{}' specified more than once", opt);
             return false;
@@ -113,6 +123,10 @@ struct ProgramOptions {
                     opt_level = 2;
                 } else if (matches(argv[i], "-O3")) {
                     opt_level = 3;
+                } else if (matches(argv[i], "-o")) {
+                    if (!check_arg(argc, argv, i))
+                        return false;
+                    module_name = argv[i++];
                 } else {
                     log::error("unknown option '{}'", argv[i]);
                     return false;
@@ -213,7 +227,7 @@ int main(int argc, char** argv) {
     }
 
     NameBinder name_binder(logger);
-    World world;
+    World world(opts.module_name, logger);
     TypeChecker type_checker(world, logger);
 
     if (!name_binder.run(program))

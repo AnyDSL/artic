@@ -2,6 +2,7 @@
 #include "ast.h"
 
 #include <thorin/pass/optimize.h>
+#include <thorin/transform/compile_ptrns.h>
 
 #include <string>
 
@@ -13,6 +14,7 @@ Emitter::Emitter(World& world, size_t opt)
 
 void Emitter::run(const ast::ModDecl& mod) {
     mod.emit(*this);
+    thorin::compile_ptrns(world());
     if (opt_ == 3)
         thorin::optimize(world());
     // TODO: Remove this
@@ -322,18 +324,23 @@ const thorin::Def* CaseExpr::emit(Emitter& emitter) const {
 
 const thorin::Def* MatchExpr::emit(Emitter& emitter) const {
     auto join = emitter.world().lam(emitter.world().type_bb(type), emitter.world().debug_info(loc, "match_join"));
-    thorin::Array<const thorin::Def*> ptrns(cases.size(), [&] (size_t i) { return emitter.emit(*cases[i]); });
-    emitter.match(emitter.emit(*arg), ptrns, emitter.world().debug_info(*this));
+    thorin::Array<const thorin::Def*> ptrns(cases.size(), [&] (size_t i) {
+        return emitter.emit(*cases[i]);
+    });
+    {
+        // Save the state so that the current basic block is not lost
+        auto state = emitter.push_state();
 
-    // Emit the contents and pattern of each case expression
-    for (size_t i = 0, n = cases.size(); i < n; ++i) {
-        auto ptrn = ptrns[i]->as_nominal<thorin::Ptrn>();
-        auto target = emitter.world().lam(emitter.world().type_bb(), emitter.world().debug_info(loc, "match_case"));
-        emitter.enter(target);
-        ptrn->set(emitter.emit(*cases[i]->ptrn, ptrn->param()), target);
-        emitter.jump(join, emitter.emit(*cases[i]->expr));
+        // Emit the contents and pattern of each case expression
+        for (size_t i = 0, n = cases.size(); i < n; ++i) {
+            auto ptrn = ptrns[i]->as_nominal<thorin::Ptrn>();
+            auto target = emitter.world().lam(emitter.world().type_bb(), emitter.world().debug_info(loc, "match_case"));
+            emitter.enter(target);
+            ptrn->set(emitter.emit(*cases[i]->ptrn, ptrn->param()), target);
+            emitter.jump(join, emitter.emit(*cases[i]->expr));
+        }
     }
-
+    emitter.match(emitter.emit(*arg), ptrns, emitter.world().debug_info(*this));
     return emitter.enter(join);
 }
 

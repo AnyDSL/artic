@@ -80,6 +80,11 @@ const thorin::Def* World::debug_info(const ast::Node& node, const thorin::Def* m
     return debug_info(node.loc, name, meta);
 }
 
+void World::ErrorHandler::incomplete_match(const thorin::Match* match) {
+    Loc loc(std::make_shared<std::string>(match->filename()), match->front_line(), match->front_col(), match->back_line(), match->back_col());
+    logger_.error(loc, "incomplete match expression");
+}
+
 namespace log {
 
 Output& operator << (Output& out, const Type& type) {

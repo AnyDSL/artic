@@ -7,9 +7,11 @@
 #include <vector>
 
 #include <thorin/world.h>
+#include <thorin/error.h>
 #include <thorin/def.h>
 
 #include "loc.h"
+#include "log.h"
 
 namespace artic {
 
@@ -24,12 +26,13 @@ using Type = thorin::Def;
 using Node = thorin::Def;
 using Types = thorin::Defs;
 
-class World : public thorin::World {
+class World : public thorin::World, public Logger {
 public:
-    World(const std::string& name = "")
-        : thorin::World(name)
+    World(const std::string& name = "", Logger log = Logger())
+        : thorin::World(name), Logger(log)
     {
         bb_ = cn(type_mem());
+        set(std::make_unique<ErrorHandler>(*this));
     }
 
     const Type* type_error() { return top_star(); }
@@ -45,6 +48,18 @@ public:
     const thorin::Def* debug_info(const ast::Node&, const thorin::Def* meta = nullptr);
 
 private:
+    class ErrorHandler : public thorin::ErrorHandler {
+    public:
+        ErrorHandler(Logger& logger)
+            : logger_(logger)
+        {}
+
+        void incomplete_match(const thorin::Match*) override;
+
+    private:
+        Logger& logger_;
+    };
+
     const thorin::Pi* bb_;
 };
 
