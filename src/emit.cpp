@@ -333,7 +333,6 @@ const thorin::Def* MatchExpr::emit(Emitter& emitter) const {
         emitter.enter(target);
         ptrn->set(emitter.emit(*cases[i]->ptrn, ptrn->param()), target);
         emitter.jump(join, emitter.emit(*cases[i]->expr));
-        return ptrn;
     }
 
     return emitter.enter(join);
