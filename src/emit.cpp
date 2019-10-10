@@ -13,9 +13,9 @@ Emitter::Emitter(World& world, size_t opt)
 
 void Emitter::run(const ast::ModDecl& mod) {
     mod.emit(*this);
-    // TODO: Remove this
     if (opt_ == 3)
         thorin::optimize(world());
+    // TODO: Remove this
     world().dump();
 }
 
@@ -480,9 +480,9 @@ const thorin::Def* BinaryExpr::emit(Emitter& emitter) const {
     const thorin::Def* res = nullptr;
     if (is_bool_type(type)) {
         switch (remove_eq(tag)) {
-            case And: res = emitter.world().extract_and(l, r, dbg); break;
-            case Or:  res = emitter.world().extract_or (l, r, dbg); break;
-            case Xor: res = emitter.world().extract_xor(l, r, dbg); break;
+            case And: res = emitter.world().extract(thorin::Bit::_and, l, r, dbg); break;
+            case Or:  res = emitter.world().extract(thorin::Bit::_or,  l, r, dbg); break;
+            case Xor: res = emitter.world().extract(thorin::Bit::_xor, l, r, dbg); break;
             default:
                 assert(false);
                 break;
@@ -507,11 +507,11 @@ const thorin::Def* BinaryExpr::emit(Emitter& emitter) const {
             case Mul:   res = emitter.world().op(thorin::WOp::mul, wmode, l, r, dbg); break;
             case Div:   res = emitter.update_mem(emitter.world().op(sint ? thorin::ZOp::sdiv : thorin::ZOp::udiv, emitter.mem(), l, r, dbg)); break;
             case Rem:   res = emitter.update_mem(emitter.world().op(sint ? thorin::ZOp::smod : thorin::ZOp::umod, emitter.mem(), l, r, dbg)); break;
-            case LShft: res = emitter.world().op(thorin::WOp::shl, wmode, l, r, dbg);                      break;
-            case RShft: res = emitter.world().op(sint ? thorin::IOp::ashr : thorin::IOp::lshr, l, r, dbg); break;
-            case And:   res = emitter.world().op(thorin::IOp::iand, l, r, dbg); break;
-            case Or:    res = emitter.world().op(thorin::IOp::ior,  l, r, dbg); break;
-            case Xor:   res = emitter.world().op(thorin::IOp::ixor, l, r, dbg); break;
+            case LShft: res = emitter.world().op(thorin::WOp::shl, wmode, l, r, dbg); break;
+            case RShft: res = emitter.world().op(sint ? thorin::Shr::a : thorin::Shr::l, l, r, dbg); break;
+            case And:   res = emitter.world().extract(thorin::Bit::_and, l, r, dbg); break;
+            case Or:    res = emitter.world().extract(thorin::Bit::_or,  l, r, dbg); break;
+            case Xor:   res = emitter.world().extract(thorin::Bit::_xor, l, r, dbg); break;
             default:
                 assert(false);
                 break;
