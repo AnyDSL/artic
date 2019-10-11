@@ -23,8 +23,6 @@ public:
 
     World& world() { return world_; }
 
-    std::optional<size_t> find_member(const Type*, const std::string&);
-
     bool enter_decl(const ast::Decl*);
     void exit_decl(const ast::Decl*);
 

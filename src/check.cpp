@@ -9,16 +9,6 @@ bool TypeChecker::run(const ast::ModDecl& module) {
     return error_count == 0;
 }
 
-std::optional<size_t> TypeChecker::find_member(const Type* type, const std::string& member) {
-    auto name = world().tuple_str(member);
-    auto meta = type->meta();
-    for (size_t i = 0, n = num_members(type); i < n; ++i) {
-        if (name == meta->op(i))
-            return i;
-    }
-    return std::nullopt;
-}
-
 bool TypeChecker::enter_decl(const ast::Decl* decl) {
     auto [_, success] = decls_.emplace(decl);
     if (!success) {
@@ -239,7 +229,7 @@ const Type* TypeChecker::check_fields(const Loc& loc, const Type* struct_type, c
     if (!etc && !std::all_of(seen.begin(), seen.end(), [] (bool b) { return b; })) {
         for (size_t i = 0; i < num_fields; ++i) {
             if (!seen[i])
-                error(loc, "missing field '{}' in structure {}", thorin::tuple2str(struct_type->meta()->op(i)), msg);
+                error(loc, "missing field '{}' in structure {}", member_name(struct_type, i), msg);
         }
     }
     return expr_type;
@@ -308,7 +298,7 @@ const artic::Type* Path::infer(TypeChecker& checker) const {
             // TODO: Modules
             auto [app, enum_type] = match_app(type, is_enum_type);
             if (enum_type) {
-                auto index = checker.find_member(enum_type, member);
+                auto index = find_member(enum_type, member);
                 if (!index)
                     return checker.error_unknown_member(elem.loc, type, member);
                 type = option_type(enum_type, app, *index);
@@ -510,7 +500,7 @@ const artic::Type* ProjExpr::infer(TypeChecker& checker, bool mut) const {
     auto [app, struct_type] = match_app(expr_type, is_struct_type);
     if (!struct_type)
         return checker.error_type_expected(expr->loc, expr_type, "structure");
-    if (auto index = checker.find_member(struct_type, field.name)) {
+    if (auto index = find_member(struct_type, field.name)) {
         this->index = *index;
         return member_type(struct_type, app, *index);
     } else

@@ -16,32 +16,30 @@ Type* World::type_forall(const ast::FnDecl& decl) {
 }
 
 Type* World::type_struct(const ast::StructDecl& decl) {
-    thorin::Array<const thorin::Def*> names(decl.fields.size() + 1);
+    thorin::Array<const thorin::Def*> names(decl.fields.size());
     for (size_t i = 0, n = decl.fields.size(); i < n; ++i)
         names[i] = tuple_str(decl.fields[i]->id.name);
-    names.back() = bot_star(); // Insert dummy value to make computing the number of fields easier
     auto dbg = debug_info(decl.loc, decl.id.name, tuple(names));
     auto body = sigma(kind_star(), decl.fields.size(), dbg);
     if (!decl.type_params)
         return body;
     thorin::Array<const thorin::Def*> domains(decl.type_params->params.size(), kind_star());
-    auto head = lam(pi(sigma(domains), kind_star()), dbg);
-    head->set_body(body);
+    auto head = lam(pi(sigma(domains), kind_star()), thorin::Debug());
+    head->set(lit_false(), body);
     return head;
 }
 
 Type* World::type_enum(const ast::EnumDecl& decl) {
-    thorin::Array<const thorin::Def*> names(decl.options.size() + 1);
+    thorin::Array<const thorin::Def*> names(decl.options.size());
     for (size_t i = 0, n = decl.options.size(); i < n; ++i)
         names[i] = tuple_str(decl.options[i]->id.name);
-    names.back() = bot_star(); // See above
     auto dbg = debug_info(decl.loc, decl.id.name, tuple(names));
     auto body = union_(kind_star(), decl.options.size(), dbg);
     if (!decl.type_params)
         return body;
     thorin::Array<const thorin::Def*> domains(decl.type_params->params.size(), kind_star());
-    auto head = lam(pi(sigma(domains), kind_star()), dbg);
-    head->set_body(body);
+    auto head = lam(pi(sigma(domains), kind_star()), thorin::Debug());
+    head->set(lit_false(), body);
     return head;
 }
 
@@ -187,15 +185,37 @@ bool is_real_type  (const Type* type) { return thorin::isa<thorin::Tag::Real>(ty
 bool is_mut_type   (const Type* type) { return thorin::isa<thorin::Tag::Ptr>(type); }
 
 size_t num_members(const Type* type) {
-    assert(type->meta());
-    return type->meta()->type()->lit_arity() - 1;
+    if (auto lam = type->isa<thorin::Lam>())
+        type = lam->body();
+    return type->lit_arity();
+}
+
+std::optional<size_t> find_member(const Type* type, const std::string& member) {
+    if (auto lam = type->isa<thorin::Lam>())
+        type = lam->body();
+    auto name = type->world().tuple_str(member);
+    auto meta = type->meta();
+    assert(meta && (type->isa<thorin::Sigma>() || type->isa<thorin::Union>()));
+    for (size_t i = 0, n = type->lit_arity(); i < n; ++i) {
+        auto op = n == 1 ? meta : meta->op(i);
+        if (name == op)
+            return i;
+    }
+    return std::nullopt;
+}
+
+std::string member_name(const Type* type, size_t index) {
+    if (auto lam = type->isa<thorin::Lam>())
+        type = lam->body();
+    assert(type->meta() && (type->isa<thorin::Sigma>() || type->isa<thorin::Union>()));
+    return thorin::tuple2str(type->lit_arity() == 1 ? type->meta() : type->meta()->op(index));
 }
 
 const Type* member_type(const Type* type, const Type* app, size_t index) {
     // Retrieves the type of a structure field/enumeration member
     assert(is_enum_type(type) || is_struct_type(type));
     if (app)
-        return thorin::rewrite(type->as_nominal(), app->as<thorin::App>()->arg(), index);
+        return thorin::rewrite(type->as_nominal(), app->as<thorin::App>()->arg(), 1)->op(index);
     return type->op(index);
 }
 
@@ -204,7 +224,7 @@ const Type* option_type(const Type* enum_type, const Type* app, size_t index) {
     assert(is_enum_type(enum_type));
     const Type* param = nullptr;
     if (app) {
-        param = thorin::rewrite(enum_type->as_nominal(), app->as<thorin::App>()->arg(), index);
+        param = thorin::rewrite(enum_type->as_nominal(), app->as<thorin::App>()->arg(), 1)->op(index);
     } else {
         param = enum_type->op(index);
     }
