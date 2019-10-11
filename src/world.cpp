@@ -101,7 +101,7 @@ Output& operator << (Output& out, const Type& type) {
         if (!parens) out << '(';
         out << *pi->domain(1);
         if (!parens) out << ')';
-        out << " -> " << *pi->codomain(1);
+        out << " -> " << *(is_no_ret_type(pi->codomain()) ? pi->codomain() : pi->codomain(1));
     } else if (auto sigma = type.isa<thorin::Sigma>()) {
         if (sigma->isa_nominal()) {
             // Structure
