@@ -132,7 +132,7 @@ const Type* TypeChecker::infer(const ast::CallExpr& call, bool mut) {
     auto callee_type = deref(infer(*call.callee, mut));
     if (auto pi = callee_type->isa<thorin::Pi>()) {
         check(*call.arg, pi->domain(1));
-        return pi->codomain(1);
+        return is_no_ret_type(pi->codomain()) ? pi->codomain() : pi->codomain(1);
     } else if (auto arr = callee_type->isa<thorin::Arr>()) {
         auto index_type = infer(*call.arg);
         if (!is_sint_type(index_type) && !is_int_type(index_type)) {
@@ -250,6 +250,7 @@ void TypeChecker::check_block(const Loc& loc, const Stmts& stmts, bool last_semi
     assert(!stmts.empty());
     // Make sure there is no unreachable code and warn about statements with no effect
     for (size_t i = 0, n = stmts.size(); i < n - 1; ++i) {
+        assert(stmts[i]->type);
         if (is_no_ret_type(stmts[i]->type))
             error_unreachable(stmts[i]->loc, stmts[i + 1]->loc, stmts.back()->loc);
         else if (!stmts[i]->has_side_effect())
