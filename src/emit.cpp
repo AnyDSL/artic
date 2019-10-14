@@ -14,7 +14,7 @@ Emitter::Emitter(World& world, size_t opt)
 
 void Emitter::run(const ast::ModDecl& mod) {
     mod.emit(*this);
-    //thorin::compile_ptrns(world());
+    thorin::compile_ptrns(world());
     if (world().error_count == 0) {
         if (opt_ == 3)
             thorin::optimize(world());
@@ -561,7 +561,7 @@ const thorin::Def* EnumDecl::emit_head(Emitter& emitter) const {
         auto dbg = emitter.world().debug_info(*options[i]);
         if (options[i]->param)
             return options[i]->def = emitter.world().lam(emitter.world().pi_mem(options[i]->type, type), dbg);
-        return options[i]->def = emitter.world().variant(type, emitter.world().lit_index(options.size(), i), emitter.world().tuple(), dbg);
+        return options[i]->def = emitter.world().insert(emitter.world().bot(type), emitter.world().lit_index(options.size(), i), emitter.world().tuple(), dbg);
     });
     return emitter.world().tuple(defs);
 }
@@ -570,7 +570,7 @@ const thorin::Def* EnumDecl::emit(Emitter& emitter) const {
     for (size_t i = 0, n = options.size(); i < n; ++i) {
         if (auto lam = options[i]->def->isa_nominal<thorin::Lam>()) {
             auto dbg = emitter.world().debug_info(*options[i]);
-            auto body = emitter.world().variant(type, emitter.world().lit_index(options.size(), i), lam->param(1), dbg);
+            auto body = emitter.world().insert(emitter.world().bot(type), emitter.world().lit_index(options.size(), i), lam->param(1), dbg);
             lam->set(emitter.world().lit_true(), emitter.world().tuple({ lam->param(0), body }));
         }
     }
@@ -612,14 +612,17 @@ const thorin::Def* LiteralPtrn::emit(Emitter& emitter, const thorin::Def*) const
 }
 
 const thorin::Def* FieldPtrn::emit(Emitter& emitter, const thorin::Def* value) const {
-    return ptrn ? ptrn->emit(emitter, value) : value;
+    assert(ptrn);
+    return ptrn->emit(emitter, value);
 }
 
 const thorin::Def* StructPtrn::emit(Emitter& emitter, const thorin::Def* value) const {
     auto dbg = emitter.world().debug_info(*this);
     thorin::Array<const thorin::Def*> defs(type->lit_arity(), nullptr);
-    for (auto& field : fields)
-        emitter.emit(*field, emitter.world().extract(value, field->index, emitter.world().debug_info(*field)));
+    for (auto& field : fields) {
+        if (field->ptrn)
+            defs[field->index] = emitter.emit(*field, emitter.world().extract(value, field->index, emitter.world().debug_info(*field)));
+    }
     // Fill in fields that are not inspected by the pattern
     for (size_t i = 0, n = defs.size(); i < n; ++i) {
         if (!defs[i])
@@ -631,7 +634,8 @@ const thorin::Def* StructPtrn::emit(Emitter& emitter, const thorin::Def* value) 
 const thorin::Def* EnumPtrn::emit(Emitter& emitter, const thorin::Def* value) const {
     auto dbg = emitter.world().debug_info(*this);
     auto lit_index = emitter.world().lit_index(type->lit_arity(), index);
-    return emitter.world().variant(type, lit_index, emitter.world().extract(value, lit_index, dbg), dbg);
+    auto arg_value = arg_ ? emitter.emit(*arg_, emitter.world().extract(value, lit_index, dbg)) : emitter.world().tuple();
+    return emitter.world().insert(emitter.world().bot(type), lit_index, arg_value, dbg);
 }
 
 const thorin::Def* TuplePtrn::emit(Emitter& emitter, const thorin::Def* value) const {
