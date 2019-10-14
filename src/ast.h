@@ -927,8 +927,6 @@ struct StructDecl : public NamedDecl {
         , fields(std::move(fields))
     {}
 
-    const thorin::Def* emit_head(Emitter&) const override;
-    const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) const override;
     void bind_head(NameBinder&) const override;
     void bind(NameBinder&) const override;

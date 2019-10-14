@@ -177,9 +177,12 @@ const thorin::Def* Ptrn::emit(Emitter&, const thorin::Def*) const {
 
 // Path ----------------------------------------------------------------------------
 
-const thorin::Def* Path::emit(Emitter&) const {
-    assert(elems.size() == 1 && "TODO");
-    return symbol->decls.front()->def;
+const thorin::Def* Path::emit(Emitter& emitter) const {
+    auto def = symbol->decls.front()->def;
+    auto dbg = emitter.world().debug_info(*this);
+    for (size_t i = 1; i < elems.size(); ++i)
+        def = emitter.world().extract(def, elems[i].index, dbg);
+    return def;
 }
 
 // Statements ----------------------------------------------------------------------
@@ -549,24 +552,25 @@ const thorin::Def* FnDecl::emit(Emitter& emitter) const {
     return emitter.emit(*fn);
 }
 
-const thorin::Def* StructDecl::emit_head(Emitter&) const {
-    // TODO
-    return nullptr;
+const thorin::Def* EnumDecl::emit_head(Emitter& emitter) const {
+    thorin::Array<const thorin::Def*> defs(options.size(), [&] (size_t i) -> const thorin::Def* {
+        auto dbg = emitter.world().debug_info(*options[i]);
+        if (options[i]->param)
+            return options[i]->def = emitter.world().lam(emitter.world().pi_mem(options[i]->type, type), dbg);
+        return options[i]->def = emitter.world().variant(type, emitter.world().lit_index(options.size(), i), emitter.world().tuple(), dbg);
+    });
+    return emitter.world().tuple(defs);
 }
 
-const thorin::Def* StructDecl::emit(Emitter&) const {
-    // TODO
-    return nullptr;
-}
-
-const thorin::Def* EnumDecl::emit_head(Emitter&) const {
-    // TODO
-    return nullptr;
-}
-
-const thorin::Def* EnumDecl::emit(Emitter&) const {
-    // TODO
-    return nullptr;
+const thorin::Def* EnumDecl::emit(Emitter& emitter) const {
+    for (size_t i = 0, n = options.size(); i < n; ++i) {
+        if (auto lam = options[i]->def->isa_nominal<thorin::Lam>()) {
+            auto dbg = emitter.world().debug_info(*options[i]);
+            auto body = emitter.world().variant(type, emitter.world().lit_index(options.size(), i), lam->param(1), dbg);
+            lam->set(emitter.world().lit_true(), emitter.world().tuple({ lam->param(0), body }));
+        }
+    }
+    return def;
 }
 
 const thorin::Def* ModDecl::emit_head(Emitter&) const {
