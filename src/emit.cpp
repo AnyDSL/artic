@@ -14,7 +14,7 @@ Emitter::Emitter(World& world, size_t opt)
 
 void Emitter::run(const ast::ModDecl& mod) {
     mod.emit(*this);
-    thorin::compile_ptrns(world());
+    //thorin::compile_ptrns(world());
     if (world().error_count == 0) {
         if (opt_ == 3)
             thorin::optimize(world());
@@ -552,6 +552,10 @@ const thorin::Def* FnDecl::emit(Emitter& emitter) const {
     return emitter.emit(*fn);
 }
 
+const thorin::Def* StructDecl::emit(Emitter&) const {
+    return nullptr;
+}
+
 const thorin::Def* EnumDecl::emit_head(Emitter& emitter) const {
     thorin::Array<const thorin::Def*> defs(options.size(), [&] (size_t i) -> const thorin::Def* {
         auto dbg = emitter.world().debug_info(*options[i]);
@@ -607,11 +611,34 @@ const thorin::Def* LiteralPtrn::emit(Emitter& emitter, const thorin::Def*) const
     return emitter.emit(lit, type, emitter.world().debug_info(*this));
 }
 
+const thorin::Def* FieldPtrn::emit(Emitter& emitter, const thorin::Def* value) const {
+    return ptrn ? ptrn->emit(emitter, value) : value;
+}
+
+const thorin::Def* StructPtrn::emit(Emitter& emitter, const thorin::Def* value) const {
+    auto dbg = emitter.world().debug_info(*this);
+    thorin::Array<const thorin::Def*> defs(type->lit_arity(), nullptr);
+    for (auto& field : fields)
+        emitter.emit(*field, emitter.world().extract(value, field->index, emitter.world().debug_info(*field)));
+    // Fill in fields that are not inspected by the pattern
+    for (size_t i = 0, n = defs.size(); i < n; ++i) {
+        if (!defs[i])
+            defs[i] = emitter.world().extract(value, i, dbg);
+    }
+    return emitter.world().tuple(type, defs, dbg);
+}
+
+const thorin::Def* EnumPtrn::emit(Emitter& emitter, const thorin::Def* value) const {
+    auto dbg = emitter.world().debug_info(*this);
+    auto lit_index = emitter.world().lit_index(type->lit_arity(), index);
+    return emitter.world().variant(type, lit_index, emitter.world().extract(value, lit_index, dbg), dbg);
+}
+
 const thorin::Def* TuplePtrn::emit(Emitter& emitter, const thorin::Def* value) const {
     thorin::Array<const thorin::Def*> defs(args.size(), [&] (size_t i) {
         return emitter.emit(*args[i], emitter.world().extract(value, i, emitter.world().debug_info(*args[i])));
     });
-    return emitter.world().tuple(defs);
+    return emitter.world().tuple(defs, emitter.world().debug_info(*this));
 }
 
 } // namespace ast

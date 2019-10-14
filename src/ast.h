@@ -927,6 +927,7 @@ struct StructDecl : public NamedDecl {
         , fields(std::move(fields))
     {}
 
+    const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) const override;
     void bind_head(NameBinder&) const override;
     void bind(NameBinder&) const override;
@@ -1069,6 +1070,7 @@ struct FieldPtrn : public Ptrn {
 
     bool is_trivial() const override;
 
+    const thorin::Def* emit(Emitter&, const thorin::Def*) const override;
     const artic::Type* check(TypeChecker&, const artic::Type*) const override;
     void bind(NameBinder&) const override;
     void print(Printer&) const override;
@@ -1089,6 +1091,7 @@ struct StructPtrn : public Ptrn {
 
     bool is_trivial() const override;
 
+    const thorin::Def* emit(Emitter&, const thorin::Def*) const override;
     const artic::Type* infer(TypeChecker&) const override;
     void bind(NameBinder&) const override;
     void print(Printer&) const override;
@@ -1107,6 +1110,7 @@ struct EnumPtrn : public Ptrn {
 
     bool is_trivial() const override;
 
+    const thorin::Def* emit(Emitter&, const thorin::Def*) const override;
     const artic::Type* infer(TypeChecker&) const override;
     void bind(NameBinder&) const override;
     void print(Printer&) const override;
