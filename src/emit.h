@@ -13,7 +13,7 @@ class Emitter {
 public:
     Emitter(World& world, size_t);
 
-    void run(const ast::ModDecl&);
+    bool run(const ast::ModDecl&);
 
     const thorin::Def* mem() const { assert(mem_); return mem_; }
     const thorin::Def* update_mem(const thorin::Def*);

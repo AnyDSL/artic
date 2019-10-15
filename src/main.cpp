@@ -242,6 +242,7 @@ int main(int argc, char** argv) {
     }
 
     Emitter emitter(world, opts.opt_level);
-    emitter.run(program);
+    if (!emitter.run(program))
+        return exit_code(false);
     return exit_code(true);
 }

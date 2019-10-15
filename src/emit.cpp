@@ -12,7 +12,7 @@ Emitter::Emitter(World& world, size_t opt)
     : world_(world), opt_(opt), bb_(nullptr), mem_(nullptr)
 {}
 
-void Emitter::run(const ast::ModDecl& mod) {
+bool Emitter::run(const ast::ModDecl& mod) {
     mod.emit(*this);
     thorin::compile_ptrns(world());
     if (world().error_count == 0) {
@@ -21,6 +21,7 @@ void Emitter::run(const ast::ModDecl& mod) {
         // TODO: Remove this
         world().dump();
     }
+    return world().error_count == 0;
 }
 
 const thorin::Def* Emitter::update_mem(const thorin::Def* def) {
@@ -618,7 +619,7 @@ const thorin::Def* TypedPtrn::emit(Emitter& emitter, const thorin::Def* value) c
 
 const thorin::Def* IdPtrn::emit(Emitter& emitter, const thorin::Def* value) const {
     if (decl->mut) {
-        decl->def = emitter.alloc(thorin::as<thorin::Tag::Ptr>(decl->type)->arg(0), emitter.world().debug_info(*this));
+        decl->def = emitter.alloc(thorin::as<thorin::Tag::Ptr>(decl->value_type)->arg(0), emitter.world().debug_info(*this));
         emitter.store(decl->def, value, {});
     } else {
         decl->def = value;
