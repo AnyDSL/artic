@@ -336,9 +336,8 @@ Ptr<ast::Expr> Parser::parse_typed_expr(Ptr<ast::Expr>&& expr) {
 }
 
 Ptr<ast::PathExpr> Parser::parse_path_expr() {
-    Tracker tracker(this);
     auto path = parse_path(true);
-    return make_ptr<ast::PathExpr>(tracker(), std::move(path));
+    return make_ptr<ast::PathExpr>(std::move(path));
 }
 
 Ptr<ast::LiteralExpr> Parser::parse_literal_expr() {
@@ -355,15 +354,15 @@ Ptr<ast::FieldExpr> Parser::parse_field_expr() {
     return make_ptr<ast::FieldExpr>(tracker(), std::move(id), std::move(expr));
 }
 
-Ptr<ast::StructExpr> Parser::parse_struct_expr(Ptr<ast::Expr>&& expr) {
-    Tracker tracker(this, expr->loc);
+Ptr<ast::StructExpr> Parser::parse_struct_expr(ast::Path&& path) {
+    Tracker tracker(this, path.loc);
     Tracker fields_tracker(this);
     eat(Token::LBrace);
     PtrVector<ast::FieldExpr> fields;
     parse_list(Token::RBrace, Token::Comma, [&] {
         fields.emplace_back(parse_field_expr());
     });
-    return make_ptr<ast::StructExpr>(tracker(), fields_tracker(), std::move(expr), std::move(fields));
+    return make_ptr<ast::StructExpr>(tracker(), fields_tracker(), std::move(path), std::move(fields));
 }
 
 Ptr<ast::Expr> Parser::parse_tuple_expr() {
@@ -604,7 +603,7 @@ Ptr<ast::Expr> Parser::parse_primary_expr() {
             expr = std::move(parse_path_expr());
             if (ahead(0).tag() == Token::LBrace &&
                 ((ahead(1).tag() == Token::Id && ahead(2).tag() == Token::Colon) || ahead(1).tag() == Token::RBrace))
-                expr = std::move(parse_struct_expr(std::move(expr)));
+                expr = std::move(parse_struct_expr(std::move(expr->as<ast::PathExpr>()->path)));
             break;
         case Token::At:
         case Token::OrOr:
@@ -833,7 +832,7 @@ std::pair<Ptr<ast::Expr>, Ptr<ast::Expr>> Parser::parse_cond_and_block() {
     if (cond->isa<ast::StructExpr>() && cond->as<ast::StructExpr>()->fields.empty()) {
         auto struct_expr = cond->as<ast::StructExpr>();
         block = std::move(make_ptr<ast::BlockExpr>(struct_expr->fields_loc, PtrVector<ast::Stmt>{}, false));
-        cond = std::move(struct_expr->expr);
+        cond = make_ptr<ast::PathExpr>(std::move(struct_expr->path));
     } else {
         if (ahead().tag() == Token::LBrace)
             block = std::move(parse_block_expr());

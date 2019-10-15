@@ -219,21 +219,6 @@ const Type* member_type(const Type* type, const Type* app, size_t index) {
     return type->op(index);
 }
 
-const Type* option_type(const Type* enum_type, const Type* app, size_t index) {
-    // Retrieves the type of a enumeration *option*
-    assert(is_enum_type(enum_type));
-    const Type* param = nullptr;
-    if (app) {
-        param = thorin::rewrite(enum_type->as_nominal(), app->as<thorin::App>()->arg(), 1)->op(index);
-    } else {
-        param = enum_type->op(index);
-    }
-    if (is_unit_type(param))
-        return app ? app : enum_type;
-    return param->world().pi_mem(param, app ? app : enum_type);
-}
-
-
 bool is_subtype(const Type* a, const Type* b) {
     if (a == b || a->isa<thorin::Bot>() || b->isa<thorin::Top>())
         return true;

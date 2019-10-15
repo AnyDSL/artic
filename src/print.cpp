@@ -79,7 +79,7 @@ void FieldExpr::print(Printer& p) const {
 }
 
 void StructExpr::print(Printer& p) const {
-    expr->print(p);
+    path.print(p);
     p << " {";
     if (!fields.empty()) {
         p << ' ';

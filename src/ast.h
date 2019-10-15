@@ -135,12 +135,14 @@ struct Path : public Node {
         Identifier id;
         PtrVector<Type> args;
 
-        mutable size_t index;
+        mutable size_t index = 0;
+        mutable const thorin::Def* type_args = nullptr;
 
         Elem(const Loc& loc, Identifier&& id, PtrVector<Type>&& args)
             : loc(loc), id(std::move(id)), args(std::move(args))
         {}
     };
+    bool value = true;
     std::vector<Elem> elems;
 
     mutable std::shared_ptr<Symbol> symbol;
@@ -262,7 +264,9 @@ struct TypeApp : public Type {
 
     TypeApp(const Loc& loc, Path&& path)
         : Type(loc), path(std::move(path))
-    {}
+    {
+        this->path.value = false;
+    }
 
     const artic::Type* infer(TypeChecker&) const override;
     void bind(NameBinder&) const override;
@@ -362,9 +366,11 @@ struct TypedExpr : public MutableExpr {
 struct PathExpr : public MutableExpr {
     Path path;
 
-    PathExpr(const Loc& loc, Path&& path)
-        : MutableExpr(loc), path(std::move(path))
-    {}
+    PathExpr(Path&& path)
+        : MutableExpr(path.loc), path(std::move(path))
+    {
+        this->path.value = true;
+    }
 
     const thorin::Def* emit(Emitter&, bool) const override;
     const artic::Type* infer(TypeChecker&, bool) const override;
@@ -414,18 +420,20 @@ struct FieldExpr : public ImmutableExpr {
 /// Structure expression.
 struct StructExpr : public ImmutableExpr {
     Loc fields_loc;
-    Ptr<Expr> expr;
+    Path path;
     PtrVector<FieldExpr> fields;
 
     StructExpr(const Loc& loc,
                const Loc& fields_loc,
-               Ptr<Expr>&& expr,
+               Path&& path,
                PtrVector<FieldExpr>&& fields)
         : ImmutableExpr(loc)
         , fields_loc(fields_loc)
-        , expr(std::move(expr))
+        , path(std::move(path))
         , fields(std::move(fields))
-    {}
+    {
+        this->path.value = false;
+    }
 
     bool has_side_effect() const override;
 
@@ -814,6 +822,11 @@ struct ErrorExpr : public ImmutableExpr {
 struct NamedDecl : public Decl {
     Identifier id;
 
+    mutable const artic::Type* value_type = nullptr;
+
+    /// Returns the type of the declaration value, if any.
+    virtual const artic::Type* value(TypeChecker&) const { return value_type; }
+
     NamedDecl(const Loc& loc, Identifier&& id)
         : Decl(loc), id(std::move(id))
     {}
@@ -967,6 +980,7 @@ struct EnumDecl : public NamedDecl {
     const thorin::Def* emit_head(Emitter&) const override;
     const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) const override;
+    const artic::Type* value(TypeChecker&) const override;
     void bind_head(NameBinder&) const override;
     void bind(NameBinder&) const override;
     void print(Printer&) const override;
@@ -1085,7 +1099,9 @@ struct StructPtrn : public Ptrn {
 
     StructPtrn(const Loc& loc, Path&& path, PtrVector<FieldPtrn>&& fields)
         : Ptrn(loc), path(std::move(path)), fields(std::move(fields))
-    {}
+    {
+        this->path.value = false;
+    }
 
     bool has_etc() const { return !fields.empty() && fields.back()->is_etc(); }
 

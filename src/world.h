@@ -83,9 +83,7 @@ bool is_mut_type(const Type*);
 size_t num_members(const Type*);
 std::optional<size_t> find_member(const Type*, const std::string&);
 std::string member_name(const Type*, size_t);
-
 const Type* member_type(const Type*, const Type*, size_t);
-const Type* option_type(const Type*, const Type*, size_t);
 
 template <typename Pred>
 std::tuple<const Type*, const Type*> match_app(const Type* type, Pred pred) {

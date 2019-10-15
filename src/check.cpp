@@ -102,6 +102,20 @@ const Type* TypeChecker::deref(const Type* type) {
     return type;
 }
 
+const Type* TypeChecker::lookup(const Loc& loc, const ast::NamedDecl& decl, bool value) {
+    if (value) {
+        if (!decl.value_type) {
+            decl.value_type = decl.value(*this);
+            if (!decl.value_type) {
+                decl.value_type = error_cannot_infer(loc, "identifier");
+                note(decl.loc, "defined here");
+            }
+        }
+        return decl.value_type;
+    }
+    return infer(decl);
+}
+
 const Type* TypeChecker::check(const ast::Node& node, const Type* type) {
     assert(!node.type); // Nodes can only be visited once
     return node.type = node.check(*this, type);
@@ -266,10 +280,14 @@ const artic::Type* Node::infer(TypeChecker& checker) const {
 const artic::Type* Path::infer(TypeChecker& checker) const {
     if (!symbol || symbol->decls.empty())
         return checker.world().type_error();
-    auto type = checker.infer(*symbol->decls.front());
+    auto type = checker.lookup(loc, *symbol->decls.front(), value);
+    if (!type) {
+        checker.error(elems[0].id.loc, "identifier cannot be used as a {}", value ? "value" : "type");
+        return checker.world().type_error();
+    }
 
     // Inspect every element of the path
-    for (size_t i = 0; i < elems.size(); ++i) {
+    for (size_t i = 0, n = elems.size(); i < n; ++i) {
         auto& elem = elems[i];
 
         // Apply type arguments (if any)
@@ -280,9 +298,10 @@ const artic::Type* Path::infer(TypeChecker& checker) const {
                 thorin::Array<const artic::Type*> type_args(elem.args.size());
                 for (size_t i = 0, n = type_args.size(); i < n; ++i)
                     type_args[i] = checker.infer(*elem.args[i]);
+                elem.type_args = checker.world().tuple(type_args);
                 type = is_poly_ctor
-                    ? checker.world().app(type, checker.world().tuple(type_args))
-                    : type->as<thorin::Pi>()->apply(checker.world().tuple(type_args));
+                    ? checker.world().app(type, elem.type_args)
+                    : type->as<thorin::Pi>()->apply(elem.type_args);
             } else {
                 checker.error(elem.loc, "missing type arguments");
                 return checker.world().type_error();
@@ -293,20 +312,14 @@ const artic::Type* Path::infer(TypeChecker& checker) const {
         }
 
         // Perform a lookup inside the current object if the path is not finished
-        if (i != elems.size() - 1) {
+        if (i != n - 1) {
             auto& member = elems[i + 1].id.name;
-            // TODO: Modules
-            auto [app, enum_type] = match_app(type, is_enum_type);
-            if (enum_type) {
-                auto index = find_member(enum_type, member);
-                if (!index)
-                    return checker.error_unknown_member(elem.loc, type, member);
-                type = option_type(enum_type, app, *index);
-                elems[i + 1].index = *index;
-            } else {
-                checker.error(elem.loc, "operator '::' not allowed on type '{}'", *type);
-                return checker.world().type_error();
-            }
+            auto index = find_member(type, member);
+            if (!index)
+                return checker.error_unknown_member(elem.loc, type, member);
+            assert(*index < type->num_ops());
+            type = type->op(*index);
+            elems[i + 1].index = *index;
         }
     }
     return type;
@@ -416,10 +429,10 @@ const artic::Type* FieldExpr::check(TypeChecker& checker, const artic::Type* exp
 }
 
 const artic::Type* StructExpr::infer(TypeChecker& checker) const {
-    auto expr_type = checker.infer(*expr);
-    auto [app, struct_type] = match_app(expr_type, is_struct_type);
+    auto path_type = checker.infer(path);
+    auto [app, struct_type] = match_app(path_type, is_struct_type);
     if (!struct_type)
-        return checker.error_type_expected(expr->loc, expr_type, "structure");
+        return checker.error_type_expected(path.loc, path_type, "structure");
     return checker.check_fields(loc, struct_type, app, fields, false, "expression");
 }
 
@@ -631,8 +644,9 @@ const artic::Type* TypeParamList::check(TypeChecker& checker, const artic::Type*
     return expected;
 }
 
-const artic::Type* PtrnDecl::check(TypeChecker&, const artic::Type* expected) const {
-    return expected;
+const artic::Type* PtrnDecl::check(TypeChecker& checker, const artic::Type* expected) const {
+    value_type = expected;
+    return checker.world().sigma();
 }
 
 const artic::Type* LetDecl::infer(TypeChecker& checker) const {
@@ -657,11 +671,11 @@ const artic::Type* FnDecl::infer(TypeChecker& checker) const {
     if (forall)
         forall->set(1, fn_type);
     fn->type = fn_type;
-    type = forall ? forall : fn_type;
+    value_type = forall ? forall : fn_type;
     if (fn->ret_type)
         checker.check(*fn->body, fn_type->as<thorin::Pi>()->codomain(1));
     checker.exit_decl(this);
-    return type;
+    return checker.world().sigma();
 }
 
 const artic::Type* FnDecl::check(TypeChecker& checker, const artic::Type* expected) const {
@@ -703,11 +717,31 @@ const artic::Type* EnumDecl::infer(TypeChecker& checker) const {
     }
     // Set the type before entering the options
     type = enum_type;
-    for (size_t i = 0; i < options.size(); ++i) {
+    for (size_t i = 0, n = options.size(); i < n; ++i) {
         auto option_type = options[i]->param ? checker.infer(*options[i]->param) : checker.world().sigma();
         union_->set(i, checker.check(*options[i], option_type));
     }
     return enum_type;
+}
+
+const artic::Type* EnumDecl::value(TypeChecker& checker) const {
+    // Build the _value_ type: A sigma made of all the constructors
+    auto type_app = checker.infer(*this);
+    auto union_ = type_app;
+    if (type_params) {
+        value_type = checker.world().pi(checker.world().kind_star());
+        value_type->as_nominal<thorin::Pi>()->set_domain(type->as<thorin::Lam>()->domain());
+        type_app = checker.world().app(type, value_type->as_nominal()->param()); 
+        union_ = type_app->reduce();
+    }
+    auto sigma = checker.world().sigma(options.size(), union_->debug());
+    for (size_t i = 0, n = options.size(); i < n; ++i)
+        sigma->set(i, options[i]->param ? checker.world().pi_mem(union_->op(i), type_app) : type_app);
+    if (value_type) {
+        value_type->as_nominal<thorin::Pi>()->set_codomain(sigma);
+        return value_type;
+    }
+    return sigma;
 }
 
 const artic::Type* ModDecl::infer(TypeChecker& checker) const {

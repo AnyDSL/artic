@@ -50,7 +50,7 @@ private:
     Ptr<ast::PathExpr>      parse_path_expr();
     Ptr<ast::LiteralExpr>   parse_literal_expr();
     Ptr<ast::FieldExpr>     parse_field_expr();
-    Ptr<ast::StructExpr>    parse_struct_expr(Ptr<ast::Expr>&&);
+    Ptr<ast::StructExpr>    parse_struct_expr(ast::Path&&);
     Ptr<ast::Expr>          parse_tuple_expr();
     Ptr<ast::ArrayExpr>     parse_array_expr();
     Ptr<ast::BlockExpr>     parse_block_expr();

@@ -38,6 +38,8 @@ public:
 
     const Type* deref(const Type*);
 
+    const Type* lookup(const Loc&, const ast::NamedDecl&, bool);
+
     const Type* check(const ast::Node&, const Type*);
     const Type* infer(const ast::Node&);
     const Type* infer(const ast::Expr&, bool);

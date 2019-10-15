@@ -139,7 +139,7 @@ void FieldExpr::bind(NameBinder& binder) const {
 }
 
 void StructExpr::bind(NameBinder& binder) const {
-    binder.bind(*expr);
+    binder.bind(path);
     for (auto& field : fields) binder.bind(*field);
 }
 
