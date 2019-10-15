@@ -579,7 +579,7 @@ const thorin::Def* EnumDecl::emit_head(Emitter& emitter) const {
             auto option = emitter.world().lam(emitter.world().pi_mem(union_->op(i), type), dbg);
             auto body = emitter.world().insert(emitter.world().bot(type_app), index, option->param(1), dbg);
             option->set(emitter.world().lit_true(), emitter.world().tuple({ option->param(0), body }));
-            return options[i]->def = option; 
+            return options[i]->def = option;
         }
         return options[i]->def = emitter.world().insert(emitter.world().bot(type_app), index, emitter.world().tuple(), dbg);
     });
@@ -652,7 +652,7 @@ const thorin::Def* StructPtrn::emit(Emitter& emitter, const thorin::Def* value) 
 
 const thorin::Def* EnumPtrn::emit(Emitter& emitter, const thorin::Def* value) const {
     auto dbg = emitter.world().debug_info(*this);
-    auto lit_index = emitter.world().lit_index(type->lit_arity(), index);
+    auto lit_index = emitter.world().lit_index(type->reduce()->lit_arity(), index);
     auto arg_value = arg_ ? emitter.emit(*arg_, emitter.world().extract(value, lit_index, dbg)) : emitter.world().tuple();
     return emitter.world().insert(emitter.world().bot(type), lit_index, arg_value, dbg);
 }
