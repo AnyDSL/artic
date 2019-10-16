@@ -174,6 +174,7 @@ const thorin::Def* Node::emit(Emitter&) const {
 
 const thorin::Def* Ptrn::emit(Emitter&, const thorin::Def*) const {
     assert(false && "TODO");
+    return nullptr;
 }
 
 // Path ----------------------------------------------------------------------------
@@ -329,7 +330,7 @@ const thorin::Def* IfExpr::emit(Emitter& emitter) const {
 }
 
 const thorin::Def* CaseExpr::emit(Emitter& emitter) const {
-    return emitter.world().ptrn(emitter.world().case_(ptrn->type, emitter.world().type_bb()), false, emitter.world().debug_info(*this));
+    return emitter.world().ptrn(emitter.world().case_(ptrn->type, emitter.world().type_bb()), emitter.world().debug_info(*this));
 }
 
 const thorin::Def* MatchExpr::emit(Emitter& emitter) const {
