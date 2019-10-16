@@ -94,7 +94,7 @@ const thorin::Def* Emitter::emit(const ast::Ptrn& ptrn, const thorin::Def* value
     return ptrn.def = ptrn.emit(*this, value);
 }
 
-thorin::Lam* Emitter::emit_lam(const thorin::Pi* pi, thorin::Debug dbg) {
+thorin::Lam* Emitter::emit_cps(const thorin::Pi* pi, thorin::Debug dbg) {
     // Create a continuation and convert it to direct-style.
     auto cn_type = world().cn({
         world().type_mem(),
@@ -181,6 +181,7 @@ const thorin::Def* Ptrn::emit(Emitter&, const thorin::Def*) const {
 
 const thorin::Def* Path::emit(Emitter& emitter) const {
     auto def = symbol->decls.front()->def;
+    assert(def);
     auto dbg = emitter.world().debug_info(*this);
     for (size_t i = 0, n = elems.size(); i < n; ++i) {
         if (elems[i].type_args)
@@ -260,7 +261,7 @@ const thorin::Def* FnExpr::emit(Emitter& emitter) const {
     // FnDecl already sets this->def, but anonymous functions have to be created here.
     auto lam = def
         ? def->as<thorin::CPS2DS>()->cps()->as_nominal<thorin::Lam>()
-        : emitter.emit_lam(type->as<thorin::Pi>(), emitter.world().debug_info(*this));
+        : emitter.emit_cps(type->as<thorin::Pi>(), emitter.world().debug_info(*this));
     // Remember the previous basic-block in order to be able to restore it after emitting this function
     auto state = emitter.push_state();
     emitter.enter(lam);
@@ -382,7 +383,7 @@ const thorin::Def* ForExpr::emit(Emitter& emitter) const {
     auto range  = call()->arg.get();
 
     // Create a stub for the for loop body and break/continue
-    auto bd = emitter.emit_lam(lambda->type->as<thorin::Pi>(), emitter.world().debug_info(loc, "for_body"));
+    auto bd = emitter.emit_cps(lambda->type->as<thorin::Pi>(), emitter.world().debug_info(loc, "for_body"));
     auto cnt = bd->ret_param(emitter.world().debug_info(loc, "for_continue"));
     auto brk_type = emitter.world().type_bb(call()->callee->type->as<thorin::Pi>()->codomain(1));
     auto brk = emitter.world().lam(brk_type, emitter.world().debug_info(loc, "for_break"));
@@ -398,6 +399,7 @@ const thorin::Def* ForExpr::emit(Emitter& emitter) const {
     break_    = brk;
 
     emitter.enter(bd);
+    emitter.emit(*lambda->param, bd->param(1, emitter.world().debug_info(*lambda->param)));
     auto res = emitter.emit(*lambda->body);
     emitter.call(cnt, res, emitter.world().debug_info(loc));
 
@@ -547,15 +549,26 @@ const thorin::Def* LetDecl::emit(Emitter& emitter) const {
 }
 
 const thorin::Def* FnDecl::emit_head(Emitter& emitter) const {
-    // TODO: Polymorphic functions
-    auto lam = emitter.emit_lam(fn->type->as<thorin::Pi>(), emitter.world().debug_info(*this));
-    // TODO: Remove this
-    lam->make_external();
-    return fn->def = emitter.world().cps2ds(lam);
+    if (type_params) {
+        auto lam = emitter.world().lam(value_type->as<thorin::Pi>(), emitter.world().debug_info(*this));
+        auto inner_type = value_type->apply(lam->param());
+        auto inner = emitter.world().cps2ds(emitter.emit_cps(inner_type->as<thorin::Pi>(), emitter.world().debug_info(*this)));
+        lam->set({ emitter.world().lit_true(), inner });
+        fn->def = inner;
+        // TODO: Remove this
+        lam->make_external();
+        return lam;
+    } else {
+        auto lam = emitter.emit_cps(fn->type->as<thorin::Pi>(), emitter.world().debug_info(*this));
+        // TODO: Remove this
+        lam->make_external();
+        return fn->def = emitter.world().cps2ds(lam);
+    }
 }
 
 const thorin::Def* FnDecl::emit(Emitter& emitter) const {
-    return emitter.emit(*fn);
+    emitter.emit(*fn);
+    return def;
 }
 
 const thorin::Def* StructDecl::emit(Emitter&) const {

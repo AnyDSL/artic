@@ -31,7 +31,7 @@ public:
     const thorin::Def* emit(const ast::Expr&, bool);
     const thorin::Def* emit(const ast::Ptrn&, const thorin::Def*);
 
-    thorin::Lam* emit_lam(const thorin::Pi*, thorin::Debug dbg = {});
+    thorin::Lam* emit_cps(const thorin::Pi*, thorin::Debug dbg = {});
 
     const thorin::Def* enter(thorin::Lam*);
     const thorin::Def* jump(thorin::Lam*, const thorin::Def* arg = nullptr, thorin::Debug dbg = {});
