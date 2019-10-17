@@ -1,0 +1,4 @@
+enum E { A, B(i32) }
+fn f(1) {}
+fn g(E::A) {}
+fn h(E::B(5)) {}
