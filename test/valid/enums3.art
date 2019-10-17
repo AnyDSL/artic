@@ -1,0 +1,12 @@
+enum K { A, B, C(bool), D(K) }
+struct T { x: bool, y: K }
+
+fn plop(t: T) {
+    match t {
+        T { x: true, y: K::A } => 5,
+        T { x: false, y: _ } => 6,
+        T { x: true, y: K::B } => 7,
+        T { x: true, y: K::C(_) } => 8,
+        T { x: true, y: K::D(_) } => 9
+    }
+}
