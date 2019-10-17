@@ -427,6 +427,7 @@ const thorin::Def* UnaryExpr::emit(Emitter& emitter) const {
     auto sint = is_sint_type(type);
     auto wmode = sint ? thorin::WMode::nsw : thorin::WMode::none;
     switch (tag) {
+        case Not:   return is_bool_type(type) ? emitter.world().extract_not(v, dbg) : emitter.world().op_bit_not(v, dbg);
         case Plus:  return v;
         case Minus: return emitter.world().op_WOp_minus(wmode, v, dbg);
         case Known: return emitter.world().op(thorin::PE::known, v, dbg);
@@ -464,7 +465,7 @@ const thorin::Def* BinaryExpr::emit(Emitter& emitter) const {
     auto dbg = emitter.world().debug_info(*this);
     if (has_cmp()) {
         if (is_bool_type(left->type)) {
-            assert(false && "TODO");
+            return emitter.world().extract_eq(l, r, dbg);
         } else if (is_int_type(left->type) || is_sint_type(left->type)) {
             switch (tag) {
                 case CmpEq: return emitter.world().op(thorin::World::Cmp::eq, l, r, dbg);
@@ -528,9 +529,9 @@ const thorin::Def* BinaryExpr::emit(Emitter& emitter) const {
             case Rem:   res = emitter.update_mem(emitter.world().op(sint ? thorin::ZOp::smod : thorin::ZOp::umod, emitter.mem(), l, r, dbg)); break;
             case LShft: res = emitter.world().op(thorin::WOp::shl, wmode, l, r, dbg); break;
             case RShft: res = emitter.world().op(sint ? thorin::Shr::a : thorin::Shr::l, l, r, dbg); break;
-            case And:   res = emitter.world().extract(thorin::Bit::_and, l, r, dbg); break;
-            case Or:    res = emitter.world().extract(thorin::Bit::_or,  l, r, dbg); break;
-            case Xor:   res = emitter.world().extract(thorin::Bit::_xor, l, r, dbg); break;
+            case And:   res = emitter.world().op(thorin::Bit::_and, l, r, dbg); break;
+            case Or:    res = emitter.world().op(thorin::Bit::_or,  l, r, dbg); break;
+            case Xor:   res = emitter.world().op(thorin::Bit::_xor, l, r, dbg); break;
             default:
                 assert(false);
                 break;
