@@ -628,6 +628,11 @@ const artic::Type* BinaryExpr::infer(TypeChecker& checker) const {
     return right_type;
 }
 
+const artic::Type* FilterExpr::infer(TypeChecker& checker, bool mut) const {
+    checker.check(*filter, checker.world().type_bool());
+    return checker.infer(*expr, mut);
+}
+
 // Declarations --------------------------------------------------------------------
 
 const artic::Type* TypeParam::check(TypeChecker&, const artic::Type* expected) const {

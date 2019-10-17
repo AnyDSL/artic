@@ -806,6 +806,25 @@ struct BinaryExpr : public ImmutableExpr {
     static Tag tag_from_token(const Token&);
 };
 
+/// Filter expression to force execution of calls.
+struct FilterExpr : public MutableExpr {
+    Ptr<Filter> filter;
+    Ptr<Expr> expr;
+
+    FilterExpr(const Loc& loc,
+               Ptr<ast::Filter>&& filter,
+               Ptr<Expr>&& expr)
+        : MutableExpr(loc)
+        , filter(std::move(filter))
+        , expr(std::move(expr))
+    {}
+
+    const thorin::Def* emit(Emitter&, bool) const override;
+    const artic::Type* infer(TypeChecker&, bool) const override;
+    void bind(NameBinder&) const override;
+    void print(Printer&) const override;
+};
+
 /// Incorrect expression, as a result of parsing.
 struct ErrorExpr : public ImmutableExpr {
     ErrorExpr(const Loc& loc)

@@ -54,7 +54,7 @@ private:
     Ptr<ast::Expr>          parse_tuple_expr();
     Ptr<ast::ArrayExpr>     parse_array_expr();
     Ptr<ast::BlockExpr>     parse_block_expr();
-    Ptr<ast::FnExpr>        parse_fn_expr(bool);
+    Ptr<ast::FnExpr>        parse_fn_expr(Ptr<ast::Filter>&&, bool);
     Ptr<ast::CallExpr>      parse_call_expr(Ptr<ast::Expr>&&);
     Ptr<ast::ProjExpr>      parse_proj_expr(Ptr<ast::Expr>&&);
     Ptr<ast::IfExpr>        parse_if_expr();
@@ -69,6 +69,7 @@ private:
     Ptr<ast::UnaryExpr>     parse_prefix_expr();
     Ptr<ast::UnaryExpr>     parse_postfix_expr(Ptr<ast::Expr>&&);
     Ptr<ast::Expr>          parse_binary_expr(Ptr<ast::Expr>&&, int);
+    Ptr<ast::FilterExpr>    parse_filter_expr(Ptr<ast::Filter>&&);
     Ptr<ast::ErrorExpr>     parse_error_expr();
 
     Ptr<ast::Type>          parse_type();

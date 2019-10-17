@@ -509,11 +509,11 @@ const thorin::Def* BinaryExpr::emit(Emitter& emitter) const {
         }
     } else if (is_real_type(type)) {
         switch (remove_eq(tag)) {
-            case Add: res = emitter.world().op(thorin::ROp::add, l, r, dbg); break;
-            case Sub: res = emitter.world().op(thorin::ROp::sub, l, r, dbg); break;
-            case Mul: res = emitter.world().op(thorin::ROp::mul, l, r, dbg); break;
-            case Div: res = emitter.world().op(thorin::ROp::div, l, r, dbg); break;
-            case Rem: res = emitter.world().op(thorin::ROp::mod, l, r, dbg); break;
+            case Add: res = emitter.world().op(thorin::ROp::add, thorin::RMode::fast, l, r, dbg); break;
+            case Sub: res = emitter.world().op(thorin::ROp::sub, thorin::RMode::fast, l, r, dbg); break;
+            case Mul: res = emitter.world().op(thorin::ROp::mul, thorin::RMode::fast, l, r, dbg); break;
+            case Div: res = emitter.world().op(thorin::ROp::div, thorin::RMode::fast, l, r, dbg); break;
+            case Rem: res = emitter.world().op(thorin::ROp::mod, thorin::RMode::fast, l, r, dbg); break;
             default:
                 assert(false);
                 break;
@@ -540,6 +540,10 @@ const thorin::Def* BinaryExpr::emit(Emitter& emitter) const {
     if (p)
         emitter.store(p, res, dbg);
     return res;
+}
+
+const thorin::Def* FilterExpr::emit(Emitter& emitter, bool mut) const {
+    return emitter.world().op(thorin::PE::run, emitter.emit(*expr, mut), emitter.world().debug_info(*this));
 }
 
 // Declarations --------------------------------------------------------------------

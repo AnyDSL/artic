@@ -412,6 +412,8 @@ Ptr<ast::BlockExpr> Parser::parse_block_expr() {
             case Token::LParen:
             case Token::LBracket:
             case Token::LBrace:
+            case Token::At:
+            case Token::OrOr:
             case Token::Or:
             case Token::Mul:
             case Token::Not:
@@ -436,13 +438,8 @@ Ptr<ast::BlockExpr> Parser::parse_block_expr() {
     return make_ptr<ast::BlockExpr>(tracker(), std::move(stmts), last_semi);
 }
 
-Ptr<ast::FnExpr> Parser::parse_fn_expr(bool nested) {
+Ptr<ast::FnExpr> Parser::parse_fn_expr(Ptr<ast::Filter>&& filter, bool nested) {
     Tracker tracker(this);
-
-    // Parse filter
-    Ptr<ast::Filter> filter;
-    if (ahead().tag() == Token::At)
-        filter = std::move(parse_filter());
 
     // Parse arguments
     Ptr<ast::Ptrn> ptrn;
@@ -462,9 +459,10 @@ Ptr<ast::FnExpr> Parser::parse_fn_expr(bool nested) {
         } else {
             ptrn = std::move(make_ptr<ast::TuplePtrn>(arg_tracker(), std::move(args)));
         }
-    } else {
-        eat(Token::OrOr);
+    } else if (ahead().tag() == Token::OrOr) {
         ptrn = std::move(make_ptr<ast::TuplePtrn>(tracker(), PtrVector<ast::Ptrn>{}));
+    } else {
+        ptrn = std::move(parse_error_ptrn());
     }
     expect_binder("anonymous function parameter", ptrn);
 
@@ -473,7 +471,7 @@ Ptr<ast::FnExpr> Parser::parse_fn_expr(bool nested) {
 
     // Nested lambdas (i.e. |x||y| x+y)
     if (parse_nested) {
-        body = std::move(parse_fn_expr(true));
+        body = std::move(parse_fn_expr(nullptr, true));
     } else {
         // Optional return type
         if (ahead().tag() == Token::Arrow) {
@@ -586,6 +584,7 @@ Ptr<ast::ReturnExpr> Parser::parse_return_expr() {
 
 Ptr<ast::Expr> Parser::parse_primary_expr() {
     Ptr<ast::Expr> expr;
+    Ptr<ast::Filter> filter;
     switch (ahead().tag()) {
         case Token::Not:
         case Token::Add:
@@ -606,9 +605,15 @@ Ptr<ast::Expr> Parser::parse_primary_expr() {
                 expr = std::move(parse_struct_expr(std::move(expr->as<ast::PathExpr>()->path)));
             break;
         case Token::At:
+            filter = std::move(parse_filter());
+            if (ahead().tag() != Token::OrOr &&
+                ahead().tag() != Token::Or) {
+                return parse_filter_expr(std::move(filter));
+            }
+            [[fallthrough]];
         case Token::OrOr:
         case Token::Or:
-            expr = std::move(parse_fn_expr(false));
+            expr = std::move(parse_fn_expr(std::move(filter), false));
             break;
         case Token::If:       expr = std::move(parse_if_expr());       break;
         case Token::Match:    expr = std::move(parse_match_expr());    break;
@@ -631,6 +636,8 @@ Ptr<ast::Expr> Parser::parse_primary_expr() {
         else
             break;
     }
+    if (filter)
+        error(filter->loc, "filters are not allowed here");
     return parse_typed_expr(std::move(expr));
 }
 
@@ -670,6 +677,12 @@ Ptr<ast::Expr> Parser::parse_binary_expr(Ptr<ast::Expr>&& left, int max_prec) {
         left = std::move(make_ptr<ast::BinaryExpr>(tracker(), tag, std::move(left), std::move(right)));
     }
     return std::move(left);
+}
+
+Ptr<ast::FilterExpr> Parser::parse_filter_expr(Ptr<ast::Filter>&& filter) {
+    Tracker tracker(this, filter->loc);
+    auto expr = parse_primary_expr();
+    return make_ptr<ast::FilterExpr>(tracker(), std::move(filter), std::move(expr));
 }
 
 Ptr<ast::ErrorExpr> Parser::parse_error_expr() {

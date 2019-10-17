@@ -241,6 +241,12 @@ void BinaryExpr::print(Printer& p) const {
     print_op(right);
 }
 
+void FilterExpr::print(Printer& p) const {
+    filter->print(p);
+    p << ' ';
+    expr->print(p);
+}
+
 void ErrorExpr::print(Printer& p) const {
     p << log::error_style("<invalid expression>");
 }

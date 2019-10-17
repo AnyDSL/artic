@@ -248,6 +248,11 @@ void ReturnExpr::bind(NameBinder& binder) const {
         binder.error(loc, "use of '{}' outside of a function", *this->as<Node>());
 }
 
+void FilterExpr::bind(NameBinder& binder) const {
+    binder.bind(*filter);
+    binder.bind(*expr);
+}
+
 void ErrorExpr::bind(NameBinder&) const {}
 
 // Patterns ------------------------------------------------------------------------
