@@ -125,7 +125,7 @@ Output& operator << (Output& out, const Type& type) {
                 << thorin::as_lit<thorin::nat_t>(arr->domain()) << ')';
         }
     } else if (type.isa<thorin::Bot>()) {
-       out << log::keyword_style("!"); 
+       out << log::keyword_style("!");
     } else if (type.isa<thorin::Top>()) {
         out << log::error_style("invalid type");
     } else if (auto app = type.isa<thorin::App>()) {
@@ -163,7 +163,7 @@ Output& operator << (Output& out, const Type& type) {
     } else if (auto lam = type.isa<thorin::Lam>()) {
         out << *lam->body();
     } else if (auto lit = type.isa<thorin::Lit>()) {
-        assert(lit->type()->isa<thorin::KindArity>() && lit->get<thorin::nat_t>() == 2);
+        assert(thorin::isa<thorin::Kind>(thorin::Kind::Tag::Arity, lit->type()) && lit->get<thorin::nat_t>() == 2);
         out << log::keyword_style("bool");
     } else {
         out << type.name();
