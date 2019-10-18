@@ -20,6 +20,7 @@ namespace ast {
     struct FnDecl;
     struct StructDecl;
     struct EnumDecl;
+    struct ModDecl;
 }
 
 using Type = thorin::Def;
@@ -41,6 +42,7 @@ public:
     Type* type_forall(const ast::FnDecl&);
     Type* type_struct(const ast::StructDecl&);
     Type* type_enum(const ast::EnumDecl&);
+    Type* type_mod(const ast::ModDecl&);
 
     const thorin::Pi* type_bb(const Type* arg = nullptr);
 

@@ -1009,6 +1009,8 @@ struct EnumDecl : public NamedDecl {
 struct ModDecl : public NamedDecl {
     PtrVector<Decl> decls;
 
+    mutable std::vector<const NamedDecl*> members;
+
     explicit ModDecl()
         : NamedDecl(Loc(), Identifier())
     {}
@@ -1017,9 +1019,12 @@ struct ModDecl : public NamedDecl {
         : NamedDecl(loc, std::move(id)), decls(std::move(decls))
     {}
 
+    void populate() const;
+
     const thorin::Def* emit_head(Emitter&) const override;
     const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) const override;
+    const artic::Type* value(TypeChecker&) const override;
     void bind_head(NameBinder&) const override;
     void bind(NameBinder&) const override;
     void print(Printer&) const override;

@@ -752,8 +752,17 @@ const artic::Type* EnumDecl::value(TypeChecker& checker) const {
 const artic::Type* ModDecl::infer(TypeChecker& checker) const {
     for (auto& decl : decls)
         checker.infer(*decl);
-    // TODO: Return proper type for the module
-    return nullptr;
+    return checker.world().sigma();
+}
+
+const artic::Type* ModDecl::value(TypeChecker& checker) const {
+    populate();
+    checker.infer(*this);
+    auto mod = checker.world().type_mod(*this);
+    auto ctor = checker.world().pi_mem(checker.world().sigma(), mod);
+    for (size_t i = 0, n = members.size(); i < n; ++i)
+        mod->set(i, members[i]->type);
+    return ctor;
 }
 
 // Patterns ------------------------------------------------------------------------

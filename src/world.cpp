@@ -43,6 +43,14 @@ Type* World::type_enum(const ast::EnumDecl& decl) {
     return head;
 }
 
+Type* World::type_mod(const ast::ModDecl& decl) {
+    thorin::Array<const thorin::Def*> names(decl.members.size());
+    for (size_t i = 0, n = decl.members.size(); i < n; ++i)
+        names[i] = tuple_str(decl.members[i]->id.name);
+    auto dbg = debug_info(decl.loc, decl.id.name, tuple(names));
+    return sigma(kind_star(), decl.members.size(), dbg);
+}
+
 const thorin::Pi* World::type_bb(const Type* arg) {
     return arg ? cn({ type_mem(), arg }) : bb_;
 }
