@@ -30,7 +30,8 @@ add_test(NAME valid_return   COMMAND artic --print ${PROJECT_SOURCE_DIR}/test/va
 add_test(NAME valid_mut      COMMAND artic --print ${PROJECT_SOURCE_DIR}/test/valid/mut.art)
 add_test(NAME valid_array    COMMAND artic --print ${PROJECT_SOURCE_DIR}/test/valid/array.art)
 add_test(NAME valid_sort     COMMAND artic --print ${PROJECT_SOURCE_DIR}/test/valid/sort.art)
-add_test(NAME valid_filter   COMMAND artic --print ${PROJECT_SOURCE_DIR}/test/valid/filter.art)
+add_test(NAME valid_filters1 COMMAND artic --print ${PROJECT_SOURCE_DIR}/test/valid/filters1.art)
+add_test(NAME valid_filters2 COMMAND artic --print ${PROJECT_SOURCE_DIR}/test/valid/filters2.art)
 add_test(NAME valid_ops      COMMAND artic --print ${PROJECT_SOURCE_DIR}/test/valid/ops.art)
 add_test(NAME valid_mod      COMMAND artic --print ${PROJECT_SOURCE_DIR}/test/valid/mod.art)
 
