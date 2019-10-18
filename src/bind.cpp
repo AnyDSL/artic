@@ -19,12 +19,7 @@ void NameBinder::bind(const ast::Node& node) {
 void NameBinder::pop_scope() {
     for (auto& pair : scopes_.back().symbols) {
         auto decl = pair.second->decls.front();
-        if (pair.second.use_count() <= 1 &&
-            !decl->isa<ast::FnDecl>() &&
-            !decl->isa<ast::StructDecl>() &&
-            !decl->isa<ast::FieldDecl>() &&
-            !decl->isa<ast::EnumDecl>() &&
-            !decl->isa<ast::OptionDecl>()) {
+        if (pair.second.use_count() <= 1 && !scopes_.back().top_level) {
             warn(decl->loc, "unused identifier '{}'", pair.first);
             note("prefix unused identifiers with '_'");
         }
@@ -359,7 +354,7 @@ void ModDecl::bind_head(NameBinder& binder) const {
 }
 
 void ModDecl::bind(NameBinder& binder) const {
-    binder.push_scope();
+    binder.push_scope(true);
     for (auto& decl : decls) binder.bind_head(*decl);
     for (auto& decl : decls) binder.bind(*decl);
     binder.pop_scope();

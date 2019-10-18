@@ -16,7 +16,7 @@ public:
     NameBinder(const Logger& log = Logger())
         : Logger(log), cur_fn_(nullptr), cur_loop_(nullptr)
     {
-        push_scope();
+        push_scope(true);
     }
 
     ~NameBinder() { pop_scope(); }
@@ -44,7 +44,7 @@ public:
     }
     void pop_loop(const ast::LoopExpr* loop) { cur_loop_ = loop; }
 
-    void push_scope() { scopes_.emplace_back(); }
+    void push_scope(bool top_level = false) { scopes_.emplace_back(top_level); }
     void pop_scope();
     void insert_symbol(const ast::NamedDecl&);
 

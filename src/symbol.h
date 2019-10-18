@@ -22,7 +22,12 @@ struct Symbol {
 
 /// Table containing a map from symbol name to declaration site.
 struct SymbolTable {
+    bool top_level;
     std::unordered_map<std::string, std::shared_ptr<Symbol>> symbols;
+
+    SymbolTable(bool top_level = false)
+        : top_level(top_level)
+    {}
 
     std::shared_ptr<Symbol> find(const std::string& name) {
         auto it = symbols.find(name);
