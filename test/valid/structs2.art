@@ -8,6 +8,7 @@ fn f () {
     let _ : i64 = b.y;
     let _ : i32 = c.x;
     let _ : i64 = c.y;
+    c.y = 5;
     c.y
 }
 struct A {

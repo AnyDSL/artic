@@ -510,12 +510,15 @@ const artic::Type* CallExpr::infer(TypeChecker& checker, bool mut) const {
 
 const artic::Type* ProjExpr::infer(TypeChecker& checker, bool mut) const {
     auto expr_type = checker.infer(*expr, mut);
+    if (mut)
+        expr_type = checker.deref(expr_type);
     auto [app, struct_type] = match_app(expr_type, is_struct_type);
     if (!struct_type)
         return checker.error_type_expected(expr->loc, expr_type, "structure");
     if (auto index = find_member(struct_type, field.name)) {
         this->index = *index;
-        return member_type(struct_type, app, *index);
+        auto result = member_type(struct_type, app, *index);
+        return mut ? checker.world().type_ptr(result) : result;
     } else
         return checker.error_unknown_member(loc, expr_type, field.name);
 }
