@@ -665,6 +665,12 @@ const artic::Type* LetDecl::infer(TypeChecker& checker) const {
     return checker.world().sigma();
 }
 
+const artic::Type* FnDecl::value(TypeChecker& checker) const {
+    if (!value_type)
+        checker.infer(*this);
+    return value_type;
+}
+
 const artic::Type* FnDecl::infer(TypeChecker& checker) const {
     artic::Type* forall = nullptr;
     if (type_params) {
@@ -733,6 +739,8 @@ const artic::Type* EnumDecl::infer(TypeChecker& checker) const {
 }
 
 const artic::Type* EnumDecl::value(TypeChecker& checker) const {
+    if (value_type)
+        return value_type;
     // Build the _value_ type: A sigma made of all the constructors
     auto type_app = checker.infer(*this);
     auto union_ = type_app;
@@ -749,7 +757,7 @@ const artic::Type* EnumDecl::value(TypeChecker& checker) const {
         value_type->as_nominal<thorin::Pi>()->set_codomain(sigma);
         return value_type;
     }
-    return sigma;
+    return value_type = sigma;
 }
 
 const artic::Type* ModDecl::infer(TypeChecker& checker) const {
@@ -759,13 +767,15 @@ const artic::Type* ModDecl::infer(TypeChecker& checker) const {
 }
 
 const artic::Type* ModDecl::value(TypeChecker& checker) const {
+    if (value_type)
+        return value_type;
     populate();
     checker.infer(*this);
     auto mod = checker.world().type_mod(*this);
     auto ctor = checker.world().pi_mem(checker.world().sigma(), mod);
     for (size_t i = 0, n = members.size(); i < n; ++i)
         mod->set(i, members[i]->type);
-    return ctor;
+    return value_type = ctor;
 }
 
 // Patterns ------------------------------------------------------------------------

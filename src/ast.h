@@ -922,6 +922,7 @@ struct FnDecl : public NamedDecl {
 
     const thorin::Def* emit_head(Emitter&) const override;
     const thorin::Def* emit(Emitter&) const override;
+    const artic::Type* value(TypeChecker&) const override;
     const artic::Type* infer(TypeChecker&) const override;
     const artic::Type* check(TypeChecker&, const artic::Type*) const override;
     void bind_head(NameBinder&) const override;

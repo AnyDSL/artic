@@ -7,3 +7,8 @@ fn test2() {
 
     }
 }
+
+fn f(c: bool, x: i32, y: i32) { if c { x } else { y } }
+fn g(c: bool) { if c { } else { } }
+fn h() -> () { j() }
+fn j() { }
