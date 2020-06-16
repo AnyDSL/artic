@@ -9,7 +9,10 @@ inline size_t count_digits(size_t i) {
     return n;
 }
 
-void Logger::diagnostic(log::Output& out, const Loc& loc, log::Style style, char underline) {
+void Logger::diagnostic(const Loc& loc, log::Style style, char underline) {
+    if (!diagnostics || !locator)
+        return;
+
     auto loc_info = locator->data(*loc.file);
     if (!loc_info || !loc_info->covers(loc))
         return;
@@ -24,7 +27,8 @@ void Logger::diagnostic(log::Output& out, const Loc& loc, log::Style style, char
     auto end_line_loc = loc_info->at(loc.end_row, loc.end_col);
     auto end_line_end = loc_info->at(loc.end_row);
 
-    log::format<false>(out, "{} {}\n{}{} {}{}",
+    log::format(out, " in {}\n", log::style(loc, log::Style::White, log::Style::Bold));
+    log::format(out, "{} {}\n{}{} {}{}",
         log::fill(' ', indent),
         log::style('|', style, log::Style::Bold),
         log::fill(' ', indent - count_digits(loc.begin_row)),
@@ -34,7 +38,7 @@ void Logger::diagnostic(log::Output& out, const Loc& loc, log::Style style, char
     );
     bool multiline = loc.begin_row != loc.end_row;
     if (multiline) {
-        log::format<false>(out, "{}\n{} {}{}{}\n{}{}\n{}{} {}{}{}\n{} {}{}\n",
+        log::format(out, "{}\n{} {}{}{}\n{}{}\n{}{} {}{}{}\n{} {}{}\n",
             log::style(std::string_view(begin_line_loc, begin_line_end - begin_line_loc), style, log::Style::Bold),
             log::fill(' ', indent),
             log::style('|', style, log::Style::Bold),
@@ -52,7 +56,7 @@ void Logger::diagnostic(log::Output& out, const Loc& loc, log::Style style, char
             log::style(log::fill(underline, loc.end_col - 1), style, log::Style::Bold)
         );
     } else {
-        log::format<false>(out, "{}{}\n{} {}{}{}\n",
+        log::format(out, "{}{}\n{} {}{}{}\n",
             log::style(std::string_view(begin_line_loc, end_line_loc - begin_line_loc), style, log::Style::Bold),
             std::string_view(end_line_loc, end_line_end - end_line_loc),
             log::fill(' ', indent),

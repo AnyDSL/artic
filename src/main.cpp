@@ -196,7 +196,7 @@ int main(int argc, char** argv) {
     }
 
     Locator locator;
-    Logger logger(log::err, log::log, log::out, &locator, opts.strict);
+    Logger logger(log::err, &locator, opts.strict);
 
     ast::ModDecl program;
     std::vector<std::string> contents;
@@ -231,6 +231,7 @@ int main(int argc, char** argv) {
 
     if (!name_binder.run(program))
         return EXIT_FAILURE;
+
     if (!type_checker.run(program))
         return EXIT_FAILURE;
 

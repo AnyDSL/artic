@@ -2,9 +2,10 @@ fn test1() -> () {
     return();
     ()
 }
-/*
+
 fn test2() -> () {
-    return();
-    let _ = 1;
-    ()
-}*/
+    while true {
+        break();
+        let _ = 1;
+    }
+}

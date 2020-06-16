@@ -34,11 +34,9 @@ struct Output {
 
 #ifdef COLORIZE
 static Output err(std::cerr, isatty(fileno(stderr)));
-static Output log(std::clog, isatty(fileno(stdout)));
 static Output out(std::cout, isatty(fileno(stdout)));
 #else
 static Output err(std::cerr, false);
-static Output log(std::clog, false);
 static Output out(std::cout, false);
 #endif
 
@@ -139,8 +137,7 @@ template <typename T> auto error_style(const T& t)    -> decltype(log::style(t, 
 template <typename T> auto keyword_style(const T& t)  -> decltype(log::style(t, log::Style())) { return log::style(t, log::Style::Green); }
 template <typename T> auto literal_style(const T& t)  -> decltype(log::style(t, log::Style())) { return log::style(t, log::Style::Blue);  }
 
-template <bool new_line = true>
-void format(Output& out, const char* fmt) {
+inline void format(Output& out, const char* fmt) {
 #ifndef NDEBUG
     auto ptr = fmt;
     while (auto p = strchr(ptr, '{')) {
@@ -152,10 +149,9 @@ void format(Output& out, const char* fmt) {
     }
 #endif
     out << fmt;
-    if (new_line) out.stream << std::endl;
 }
 
-template <bool new_line = true, typename T, typename... Args>
+template <typename T, typename... Args>
 void format(Output& out, const char* fmt, T&& t, Args&&... args) {
     auto ptr = fmt;
     auto p = strchr(ptr, '{');
@@ -163,13 +159,14 @@ void format(Output& out, const char* fmt, T&& t, Args&&... args) {
     assert(p != nullptr && "Missing argument to format");
     out.stream.write(ptr, p - ptr);
     out << t;
-    format<new_line>(out, strchr(p, '}') + 1, std::forward<Args&&>(args)...);
+    format(out, strchr(p, '}') + 1, std::forward<Args>(args)...);
 }
 
-template <bool new_line = true, typename... Args>
+template <typename... Args>
 void error(const char* fmt, Args&&... args) {
-    log::format<false>(err, "{}: ", error_style("error"));
-    log::format<new_line>(err, fmt, std::forward<Args&&>(args)...);
+    log::format(err, "{}: ", error_style("error"));
+    log::format(err, fmt, std::forward<Args>(args)...);
+    out.stream << std::endl;
 }
 
 } // namespace log
@@ -177,8 +174,6 @@ void error(const char* fmt, Args&&... args) {
 class Locator;
 
 struct Logger {
-    log::Output& err;
-    log::Output& log;
     log::Output& out;
     size_t error_count;
     size_t warn_count;
@@ -186,14 +181,11 @@ struct Logger {
     Locator* locator;
     bool strict;
 
-    Logger(log::Output& err = log::err,
-           log::Output& log = log::log,
-           log::Output& out = log::out,
-           Locator* locator = nullptr,
-           bool strict = false)
-        : err(err)
-        , log(log)
-        , out(out)
+    Logger(
+        log::Output& out = log::err,
+        Locator* locator = nullptr,
+        bool strict = false)
+        : out(out)
         , error_count(0)
         , warn_count(0)
         , locator(locator)
@@ -205,75 +197,66 @@ struct Logger {
     /// Report an error at the given location in a source file.
     template <typename... Args>
     void error(const Loc& loc, const char* fmt, Args&&... args) {
-        error_count++;
-        log::format<false>(err, "{} in {}: ",
-            log::style("error", log::Style::Red,   log::Style::Bold),
-            log::style(loc,     log::Style::White, log::Style::Bold));
-        log::format(err, fmt, std::forward<Args&&>(args)...);
-        if (diagnostics_enabled && locator) diagnostic(err, loc, log::Style::Red, '^');
+        error(fmt, std::forward<Args>(args)...);
+        diagnostic(loc, log::Style::Red, '^');
     }
 
     /// Report a warning at the given location in a source file.
     template <typename... Args>
     void warn(const Loc& loc, const char* fmt, Args&&... args) {
         if (strict)
-            error(loc, fmt, args...);
+            error(loc, fmt, std::forward<Args>(args)...);
         else {
-            warn_count++;
-            log::format<false>(log, "{} in {}: ",
-                log::style("warning", log::Style::Yellow, log::Style::Bold),
-                log::style(loc,       log::Style::White,  log::Style::Bold));
-            log::format(log, fmt, std::forward<Args&&>(args)...);
-            if (diagnostics_enabled && locator) diagnostic(log, loc, log::Style::Yellow, '^');
+            warn(fmt, std::forward<Args>(args)...);
+            diagnostic(loc, log::Style::Yellow, '^');
         }
     }
 
     /// Display a note corresponding to a specific location in a source file.
     template <typename... Args>
     void note(const Loc& loc, const char* fmt, Args&&... args) {
-        log::format<false>(out, "{} in {}: ",
-            log::style("note", log::Style::Cyan,  log::Style::Bold),
-            log::style(loc,    log::Style::White, log::Style::Bold));
-        log::format(out, fmt, std::forward<Args&&>(args)...);
-        if (diagnostics_enabled && locator) diagnostic(out, loc, log::Style::Cyan, '-');
+        note(fmt, std::forward<Args>(args)...);
+        diagnostic(loc, log::Style::Cyan, '-');
     }
 
     /// Report an error.
     template <typename... Args>
     void error(const char* fmt, Args&&... args) {
+        if (error_count > 0 || warn_count > 0)
+            out.stream << "\n";
         error_count++;
-        log::format<false>(err, "{}: ",
-            log::style("error", log::Style::Red,   log::Style::Bold));
-        log::format(err, fmt, std::forward<Args&&>(args)...);
+        log::format(out, "{}: ", log::style("error", log::Style::Red, log::Style::Bold));
+        log::format(out, fmt, std::forward<Args>(args)...);
+        out.stream << '\n';
     }
 
     /// Report a warning.
     template <typename... Args>
     void warn(const char* fmt, Args&&... args) {
         if (strict)
-            error(fmt, std::forward<Args&&>(args)...);
+            error(fmt, std::forward<Args>(args)...);
         else {
+            if (error_count > 0 || warn_count > 0)
+                out.stream << "\n";
             warn_count++;
-            log::format<false>(log, "{}: ",
-                log::style("warning", log::Style::Yellow, log::Style::Bold));
-            log::format(log, fmt, std::forward<Args&&>(args)...);
+            log::format(out, "{}: ", log::style("warning", log::Style::Yellow, log::Style::Bold));
+            log::format(out, fmt, std::forward<Args>(args)...);
+            out.stream << '\n';
         }
     }
 
     /// Display a note.
     template <typename... Args>
     void note(const char* fmt, Args&&... args) {
-        log::format<false>(out, "{}: ",
-            log::style("note", log::Style::Cyan,  log::Style::Bold));
-        log::format(out, fmt, std::forward<Args&&>(args)...);
+        log::format(out, "{}: ", log::style("note", log::Style::Cyan, log::Style::Bold));
+        log::format(out, fmt, std::forward<Args>(args)...);
+        out.stream << '\n';
     }
 
-    void enable_diagnostics(bool enable = true) { diagnostics_enabled = enable; }
+    bool diagnostics = true;
 
 private:
-    void diagnostic(log::Output&, const Loc&, log::Style, char);
-
-    bool diagnostics_enabled = true;
+    void diagnostic(const Loc&, log::Style, char);
 };
 
 } // namespace artic
