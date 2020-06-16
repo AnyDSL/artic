@@ -1,5 +1,5 @@
-#ifndef LOC_H
-#define LOC_H
+#ifndef ARTIC_LOC_H
+#define ARTIC_LOC_H
 
 #include <string>
 #include <ostream>
@@ -15,11 +15,12 @@ struct Loc {
     int end_row, end_col;
 
     bool operator == (const Loc& loc) const {
-        return loc.file == file &&
-               loc.begin_row == begin_row &&
-               loc.begin_col == begin_col &&
-               loc.end_row == end_row &&
-               loc.end_col == end_col;
+        return
+            loc.file == file &&
+            loc.begin_row == begin_row &&
+            loc.begin_col == begin_col &&
+            loc.end_row == end_row &&
+            loc.end_col == end_col;
     }
     bool operator != (const Loc& loc) const { return !(*this == loc); }
 
@@ -64,4 +65,4 @@ inline std::ostream& operator << (std::ostream& os, const Loc& loc) {
 
 } // namespace artic
 
-#endif // LOC_H
+#endif // ARTIC_LOC_H

@@ -1,11 +1,11 @@
-#ifndef CHECK_H
-#define CHECK_H
+#ifndef ARTIC_CHECK_H
+#define ARTIC_CHECK_H
 
 #include <unordered_set>
 #include <optional>
 
 #include "ast.h"
-#include "world.h"
+#include "types.h"
 #include "log.h"
 
 namespace artic {
@@ -13,15 +13,15 @@ namespace artic {
 /// Utility class to perform type checking.
 class TypeChecker : public Logger {
 public:
-    TypeChecker(World& world, const Logger& log = Logger())
-        : Logger(log), world_(world)
+    TypeChecker(TypeTable& type_table, const Logger& log = Logger())
+        : Logger(log), type_table(type_table)
     {}
+
+    TypeTable& type_table;
 
     /// Performs type checking on a whole program.
     /// Returns true on success, otherwise false.
     bool run(const ast::ModDecl&);
-
-    World& world() { return world_; }
 
     bool enter_decl(const ast::Decl*);
     void exit_decl(const ast::Decl*);
@@ -30,11 +30,11 @@ public:
     const Type* expect(const Loc&, const std::string&, const Type*);
     const Type* expect(const Loc&, const Type*, const Type*);
 
-    const Type* error_type_expected(const Loc&, const Type*, const std::string&);
-    const Type* error_unknown_member(const Loc&, const Type*, const std::string&);
-    const Type* error_cannot_infer(const Loc&, const std::string&);
-    const Type* error_unreachable(const Loc&, const Loc&, const Loc&);
-    const Type* error_immutable(const Loc&);
+    const Type* type_expected(const Loc&, const Type*, const std::string_view&);
+    const Type* unknown_member(const Loc&, const UserType*, const std::string_view&);
+    const Type* cannot_infer(const Loc&, const std::string&);
+    const Type* unreachable_code(const Loc&, const Loc&, const Loc&);
+    const Type* assignment_to_immutable(const Loc&);
 
     const Type* deref(const Type*);
 
@@ -45,7 +45,6 @@ public:
     const Type* infer(const ast::Expr&, bool);
 
     const Type* infer(const ast::CallExpr&, bool);
-    const Type* check(const ast::TypeParamList&, Type*);
 
     const Type* infer(const Loc&, const Literal&);
     const Type* check(const Loc&, const Literal&, const Type*);
@@ -55,7 +54,7 @@ public:
     template <typename Args>
     const Type* infer_tuple(const Args&);
     template <typename Fields>
-    const Type* check_fields(const Loc&, const Type*, const Type*, const Fields&, bool, const std::string&);
+    const Type* check_fields(const Loc&, const StructType*, const TypeApp*, const Fields&, bool, const std::string&);
     template <typename Stmts>
     void check_block(const Loc&, const Stmts&, bool);
 
@@ -63,10 +62,9 @@ private:
     bool should_emit_error(const Type*);
     void explain_no_ret(const Type*, const Type*);
 
-    World& world_;
     std::unordered_set<const ast::Decl*> decls_;
 };
 
 } // namespace artic
 
-#endif // CHECK_H
+#endif // ARTIC_CHECK_H

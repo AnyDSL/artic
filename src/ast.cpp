@@ -290,10 +290,11 @@ bool DeclStmt::has_side_effect() const {
 }
 
 bool ExprStmt::need_semicolon() const {
-    return !expr->isa<IfExpr>()    &&
-           !expr->isa<MatchExpr>() &&
-           !expr->isa<WhileExpr>() &&
-           !expr->isa<ForExpr>();
+    return
+        !expr->isa<IfExpr>()    &&
+        !expr->isa<MatchExpr>() &&
+        !expr->isa<WhileExpr>() &&
+        !expr->isa<ForExpr>();
 }
 
 bool ExprStmt::has_side_effect() const {
@@ -311,19 +312,27 @@ bool FieldExpr::has_side_effect() const {
 }
 
 bool StructExpr::has_side_effect() const {
-    return std::any_of(fields.begin(), fields.end(), [] (auto& field) { return field->has_side_effect(); });
+    return std::any_of(fields.begin(), fields.end(), [] (auto& field) {
+        return field->has_side_effect();
+    });
 }
 
 bool TupleExpr::has_side_effect() const {
-    return std::any_of(args.begin(), args.end(), [] (auto& arg) { return arg->has_side_effect(); });
+    return std::any_of(args.begin(), args.end(), [] (auto& arg) {
+        return arg->has_side_effect();
+    });
 }
 
 bool ArrayExpr::has_side_effect() const {
-    return std::any_of(elems.begin(), elems.end(), [] (auto& elem) { return elem->has_side_effect(); });
+    return std::any_of(elems.begin(), elems.end(), [] (auto& elem) {
+        return elem->has_side_effect();
+    });
 }
 
 bool BlockExpr::has_side_effect() const {
-    return std::any_of(stmts.begin(), stmts.end(), [] (auto& stmt) { return stmt->has_side_effect(); });
+    return std::any_of(stmts.begin(), stmts.end(), [] (auto& stmt) {
+        return stmt->has_side_effect();
+    });
 }
 
 bool CallExpr::has_side_effect() const {
@@ -335,7 +344,10 @@ bool ProjExpr::has_side_effect() const {
 }
 
 bool IfExpr::has_side_effect() const {
-    return cond->has_side_effect() || if_true->has_side_effect() || (if_false && if_false->has_side_effect());
+    return
+        cond->has_side_effect() ||
+        if_true->has_side_effect() ||
+        (if_false && if_false->has_side_effect());
 }
 
 bool CaseExpr::has_side_effect() const {
@@ -343,7 +355,11 @@ bool CaseExpr::has_side_effect() const {
 }
 
 bool MatchExpr::has_side_effect() const {
-    return arg->has_side_effect() || std::any_of(cases.begin(), cases.end(), [] (auto& case_) { return case_->has_side_effect(); });
+    return
+        arg->has_side_effect() ||
+        std::any_of(cases.begin(), cases.end(), [] (auto& case_) {
+            return case_->has_side_effect();
+        });
 }
 
 bool WhileExpr::has_side_effect() const {
@@ -381,7 +397,9 @@ bool FieldPtrn::is_trivial() const {
 }
 
 bool StructPtrn::is_trivial() const {
-    return std::all_of(fields.begin(), fields.end(), [] (auto& field) { return field->is_trivial(); });
+    return std::all_of(fields.begin(), fields.end(), [] (auto& field) {
+        return field->is_trivial();
+    });
 }
 
 bool EnumPtrn::is_trivial() const {

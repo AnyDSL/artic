@@ -1,5 +1,5 @@
-#ifndef PARSER_H
-#define PARSER_H
+#ifndef ARTIC_PARSER_H
+#define ARTIC_PARSER_H
 
 #include <array>
 
@@ -96,10 +96,11 @@ private:
         int begin_row, begin_col;
 
         Loc operator () () const {
-            return Loc(parser->prev_.file,
-                       begin_row, begin_col,
-                       parser->prev_.end_row,
-                       parser->prev_.end_col);
+            return Loc(
+                parser->prev_.file,
+                begin_row, begin_col,
+                parser->prev_.end_row,
+                parser->prev_.end_col);
         }
 
         Tracker(const Parser* parser, const Loc& loc)
@@ -125,7 +126,9 @@ private:
     }
 
     template <typename F>
-    void parse_list(Token::Tag end, Token::Tag sep, F f) { parse_list(std::array<Token::Tag, 1>{end}, std::array<Token::Tag, 1>{sep}, f); }
+    void parse_list(Token::Tag end, Token::Tag sep, F f) {
+        parse_list(std::array<Token::Tag, 1>{end}, std::array<Token::Tag, 1>{sep}, f);
+    }
 
     template <size_t N>
     size_t expect(std::array<Token::Tag, N> tags) {
@@ -188,4 +191,4 @@ private:
 
 } // namespace artic
 
-#endif // PARSER_H
+#endif // ARTIC_PARSER_H

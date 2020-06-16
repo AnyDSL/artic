@@ -1,5 +1,5 @@
-#ifndef BIND_NAMES_H
-#define BIND_NAMES_H
+#ifndef ARTIC_BIND_H
+#define ARTIC_BIND_H
 
 #include <unordered_map>
 #include <vector>
@@ -89,4 +89,4 @@ private:
 
 } // namespace artic
 
-#endif // BIND_NAMES_H
+#endif // ARTIC_BIND_H

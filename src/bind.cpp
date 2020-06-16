@@ -19,7 +19,10 @@ void NameBinder::bind(const ast::Node& node) {
 void NameBinder::pop_scope() {
     for (auto& pair : scopes_.back().symbols) {
         auto decl = pair.second->decls.front();
-        if (pair.second.use_count() <= 1 && !scopes_.back().top_level) {
+        if (pair.second.use_count() <= 1 &&
+            !scopes_.back().top_level &&
+            !decl->isa<ast::FieldDecl>() &&
+            !decl->isa<ast::OptionDecl>()) {
             warn(decl->loc, "unused identifier '{}'", pair.first);
             note("prefix unused identifiers with '_'");
         }
@@ -274,7 +277,7 @@ void StructPtrn::bind(NameBinder& binder) const {
 
 void EnumPtrn::bind(NameBinder& binder) const {
     binder.bind(path);
-    if (arg_) binder.bind(*arg_);
+    if (arg) binder.bind(*arg);
 }
 
 void TuplePtrn::bind(NameBinder& binder) const {

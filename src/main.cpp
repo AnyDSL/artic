@@ -20,7 +20,6 @@ static void usage() {
                 "options:\n"
                 "           --version            Displays the version number\n"
                 "           --strict             Sets warnings as errors\n"
-                "           --invert             Inverts the return code\n"
                 "           --print              Prints the AST after parsing.\n"
                 "    -On                         Sets the optimization level (n = 0, 1, 2, or 3)\n"
                 "    -o <name>                   Sets the module name\n"
@@ -142,7 +141,10 @@ struct ProgramOptions {
 // A read-only buffer from memory, not performing any copy.
 struct MemBuf : public std::streambuf {
     MemBuf(const std::string& str) {
-        setg(const_cast<char*>(str.data()), const_cast<char*>(str.data()), const_cast<char*>(str.data() + str.size()));
+        setg(
+            const_cast<char*>(str.data()),
+            const_cast<char*>(str.data()),
+            const_cast<char*>(str.data() + str.size()));
     }
 
     std::streampos seekoff(std::streamoff off, std::ios_base::seekdir way, std::ios_base::openmode) override {
@@ -192,9 +194,6 @@ int main(int argc, char** argv) {
         log::error("no input files");
         return EXIT_FAILURE;
     }
-    auto exit_code = [&] (bool ok) {
-        return ok ^ opts.invert ? EXIT_SUCCESS : EXIT_FAILURE;
-    };
 
     Locator locator;
     Logger logger(log::err, log::log, log::out, &locator, opts.strict);
@@ -217,7 +216,7 @@ int main(int argc, char** argv) {
         Parser parser(lexer, logger);
         auto module = parser.parse();
         if (lexer.error_count + parser.error_count != 0)
-            return exit_code(false);
+            return EXIT_FAILURE;
 
         program.decls.insert(
             program.decls.end(),
@@ -227,13 +226,13 @@ int main(int argc, char** argv) {
     }
 
     NameBinder name_binder(logger);
-    World world(opts.module_name, logger);
-    TypeChecker type_checker(world, logger);
+    TypeTable type_table;
+    TypeChecker type_checker(type_table, logger);
 
     if (!name_binder.run(program))
-        return exit_code(false);
+        return EXIT_FAILURE;
     if (!type_checker.run(program))
-        return exit_code(false);
+        return EXIT_FAILURE;
 
     if (opts.print) {
         Printer p(log::out);
@@ -241,8 +240,8 @@ int main(int argc, char** argv) {
         log::out << "\n";
     }
 
-    Emitter emitter(world, opts.opt_level);
+    Emitter emitter;
     if (!emitter.run(program))
-        return exit_code(false);
-    return exit_code(true);
+        return EXIT_FAILURE;
+    return EXIT_SUCCESS;
 }

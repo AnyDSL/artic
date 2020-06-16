@@ -1,5 +1,5 @@
-#ifndef LEXER_H
-#define LEXER_H
+#ifndef ARTIC_LEXER_H
+#define ARTIC_LEXER_H
 
 #include <unordered_map>
 #include <istream>
@@ -60,4 +60,4 @@ private:
 
 } // namespace artic
 
-#endif // LEXER_H
+#endif // ARTIC_LEXER_H

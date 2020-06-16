@@ -1,5 +1,5 @@
-#ifndef PRINT_H
-#define PRINT_H
+#ifndef ARTIC_PRINT_H
+#define ARTIC_PRINT_H
 
 #include <string>
 #include <iostream>
@@ -41,4 +41,4 @@ struct Printer {
 
 } // namespace artic
 
-#endif // PRINT_H
+#endif // ARTIC_PRINT_H

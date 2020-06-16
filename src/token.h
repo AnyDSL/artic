@@ -1,5 +1,5 @@
-#ifndef TOKEN_H
-#define TOKEN_H
+#ifndef ARTIC_TOKEN_H
+#define ARTIC_TOKEN_H
 
 #include <string>
 #include <ostream>
@@ -101,11 +101,12 @@ struct Literal {
     bool is_char()    const { return tag == Char;    }
     bool is_string()  const { return tag == String;  }
 
-    double      as_double()  const { assert(is_double());  return double_; }
-    uint64_t    as_integer() const { assert(is_integer()); return integer; }
-    bool        as_bool()    const { assert(is_bool());    return bool_;   }
-    uint8_t     as_char()    const { assert(is_char());    return char_;   }
-    std::string as_string()  const { assert(is_string());  return string;  }
+    double   as_double()  const { assert(is_double());  return double_; }
+    uint64_t as_integer() const { assert(is_integer()); return integer; }
+    bool     as_bool()    const { assert(is_bool());    return bool_;   }
+    uint8_t  as_char()    const { assert(is_char());    return char_;   }
+
+    const std::string& as_string() const { assert(is_string());  return string;  }
 
     Literal() = default;
     Literal(uint64_t i)    : tag(Integer), integer(i) {}
@@ -192,4 +193,4 @@ private:
 
 } // namespace artic
 
-#endif // TOKEN_H
+#endif // ARTIC_TOKEN_H

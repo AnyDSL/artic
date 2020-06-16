@@ -3,6 +3,7 @@
 #include "print.h"
 #include "log.h"
 #include "ast.h"
+#include "types.h"
 
 namespace artic {
 
@@ -291,7 +292,7 @@ void StructPtrn::print(Printer& p) const {
 
 void EnumPtrn::print(Printer& p) const {
     path.print(p);
-    if (arg_) print_parens(p, arg_);
+    if (arg) print_parens(p, arg);
 }
 
 void TuplePtrn::print(Printer& p) const {
@@ -466,5 +467,94 @@ void Node::dump() const {
 }
 
 } // namespace ast
+
+// Types ---------------------------------------------------------------------------
+
+void PrimType::print(Printer& p) const {
+    p << log::keyword_style(ast::PrimType::tag_to_string(tag));
+}
+
+void TupleType::print(Printer& p) const {
+    p << '(';
+    print_list(p, ", ", args, [&] (auto& a) {
+        a->print(p);
+    });
+    p << ')';
+}
+
+void SizedArrayType::print(Printer& p) const {
+    p << '[';
+    elem->print(p);
+    p << " * " << size << ']';
+}
+
+void UnsizedArrayType::print(Printer& p) const {
+    p << '[';
+    elem->print(p);
+    p << ']';
+}
+
+void PtrType::print(Printer& p) const {
+    p << '&';
+    pointee->print(p);
+}
+
+void FnType::print(Printer& p) const {
+    p << log::keyword_style("fn") << ' ';
+    if (!dom->isa<TupleType>()) p << '(';
+    dom->print(p);
+    if (!dom->isa<TupleType>()) p << ')';
+    p << " -> ";
+    codom->print(p);
+}
+
+void NoRetType::print(Printer& p) const {
+    p << '!';
+}
+
+void TypeError::print(Printer& p) const {
+    p << log::error_style("<invalid type>");
+}
+
+void TypeVar::print(Printer& p) const {
+    p << param.id.name;
+}
+
+void ForallType::print(Printer& p) const {
+    assert(decl.type_params);
+    p << log::keyword_style("forall");
+    decl.type_params->print(p);
+    p << "] ";
+    body->print(p);
+}
+
+void StructType::print(Printer& p) const {
+    p << log::keyword_style("struct") << ' ' << decl.id.name;
+}
+
+void EnumType::print(Printer& p) const {
+    p << log::keyword_style("enum") << ' ' << decl.id.name;
+}
+
+void TypeApp::print(Printer& p) const {
+    applied->print(p);
+    p << '[';
+    print_list(p, ", ", type_args, [&] (auto& a) {
+        a->print(p);
+    });
+    p << ']';
+}
+
+log::Output& operator << (log::Output& out, const Type& type) {
+    Printer p(out);
+    type.print(p);
+    return out;
+}
+
+void Type::dump() const {
+    Printer p(log::out);
+    print(p);
+    p << '\n';
+}
 
 } // namespace artic

@@ -1,5 +1,5 @@
-#ifndef LOCATOR_H
-#define LOCATOR_H
+#ifndef ARTIC_LOCATOR_H
+#define ARTIC_LOCATOR_H
 
 #include <unordered_map>
 #include <string>
@@ -96,4 +96,4 @@ private:
 
 } // namespace artic
 
-#endif // LOCATOR_H
+#endif // ARTIC_LOCATOR_H

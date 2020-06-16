@@ -1,19 +1,22 @@
-#ifndef AST_H
-#define AST_H
+#ifndef ARTIC_AST_H
+#define ARTIC_AST_H
 
 #include <memory>
 #include <vector>
 #include <optional>
 
 #include "loc.h"
+#include "log.h"
 #include "cast.h"
 #include "token.h"
 #include "symbol.h"
-#include "world.h"
+
+namespace thorin { class Def; }
 
 namespace artic {
 
-class Printer;
+struct Type;
+struct Printer;
 class NameBinder;
 class TypeChecker;
 class Emitter;
@@ -142,6 +145,7 @@ struct Path : public Node {
             : loc(loc), id(std::move(id)), args(std::move(args))
         {}
     };
+
     bool value = true;
     std::vector<Elem> elems;
 
@@ -400,9 +404,10 @@ struct FieldExpr : public ImmutableExpr {
 
     mutable size_t index;
 
-    FieldExpr(const Loc& loc,
-              Identifier&& id,
-              Ptr<Expr>&& expr)
+    FieldExpr(
+        const Loc& loc,
+        Identifier&& id,
+        Ptr<Expr>&& expr)
         : ImmutableExpr(loc)
         , id(std::move(id))
         , expr(std::move(expr))
@@ -423,10 +428,11 @@ struct StructExpr : public ImmutableExpr {
     Path path;
     PtrVector<FieldExpr> fields;
 
-    StructExpr(const Loc& loc,
-               const Loc& fields_loc,
-               Path&& path,
-               PtrVector<FieldExpr>&& fields)
+    StructExpr(
+        const Loc& loc,
+        const Loc& fields_loc,
+        Path&& path,
+        PtrVector<FieldExpr>&& fields)
         : ImmutableExpr(loc)
         , fields_loc(fields_loc)
         , path(std::move(path))
@@ -486,11 +492,12 @@ struct FnExpr : public ImmutableExpr {
     Ptr<Type>   ret_type;
     Ptr<Expr>   body;
 
-    FnExpr(const Loc& loc,
-           Ptr<Filter>&& filter,
-           Ptr<Ptrn>&& param,
-           Ptr<Type>&& ret_type,
-           Ptr<Expr>&& body)
+    FnExpr(
+        const Loc& loc,
+        Ptr<Filter>&& filter,
+        Ptr<Ptrn>&& param,
+        Ptr<Type>&& ret_type,
+        Ptr<Expr>&& body)
         : ImmutableExpr(loc)
         , filter(std::move(filter))
         , param(std::move(param))
@@ -528,9 +535,7 @@ struct CallExpr : public MutableExpr {
     Ptr<Expr> callee;
     Ptr<Expr> arg;
 
-    CallExpr(const Loc& loc,
-             Ptr<Expr>&& callee,
-             Ptr<Expr>&& arg)
+    CallExpr(const Loc& loc, Ptr<Expr>&& callee, Ptr<Expr>&& arg)
         : MutableExpr(loc)
         , callee(std::move(callee))
         , arg(std::move(arg))
@@ -571,10 +576,11 @@ struct IfExpr : public ImmutableExpr {
     Ptr<Expr> if_true;
     Ptr<Expr> if_false;
 
-    IfExpr(const Loc& loc,
-           Ptr<Expr>&& cond,
-           Ptr<Expr>&& if_true,
-           Ptr<Expr>&& if_false)
+    IfExpr(
+        const Loc& loc,
+        Ptr<Expr>&& cond,
+        Ptr<Expr>&& if_true,
+        Ptr<Expr>&& if_false)
         : ImmutableExpr(loc)
         , cond(std::move(cond))
         , if_true(std::move(if_true))
@@ -595,9 +601,7 @@ struct CaseExpr : public ImmutableExpr {
     Ptr<Ptrn> ptrn;
     Ptr<Expr> expr;
 
-    CaseExpr(const Loc& loc,
-             Ptr<Ptrn>&& ptrn,
-             Ptr<Expr>&& expr)
+    CaseExpr(const Loc& loc, Ptr<Ptrn>&& ptrn, Ptr<Expr>&& expr)
         : ImmutableExpr(loc)
         , ptrn(std::move(ptrn))
         , expr(std::move(expr))
@@ -615,9 +619,7 @@ struct MatchExpr : public ImmutableExpr {
     Ptr<Expr> arg;
     PtrVector<CaseExpr> cases;
 
-    MatchExpr(const Loc& loc,
-              Ptr<Expr>&& arg,
-              PtrVector<CaseExpr>&& cases)
+    MatchExpr(const Loc& loc, Ptr<Expr>&& arg, PtrVector<CaseExpr>&& cases)
         : ImmutableExpr(loc)
         , arg(std::move(arg))
         , cases(std::move(cases))
@@ -649,9 +651,7 @@ struct LoopExpr : public ImmutableExpr {
 struct WhileExpr : public LoopExpr {
     Ptr<Expr> cond;
 
-    WhileExpr(const Loc& loc,
-              Ptr<Expr>&& cond,
-              Ptr<Expr>&& body)
+    WhileExpr(const Loc& loc, Ptr<Expr>&& cond, Ptr<Expr>&& body)
         : LoopExpr(loc, std::move(body)), cond(std::move(cond))
     {}
 
@@ -778,10 +778,11 @@ struct BinaryExpr : public ImmutableExpr {
     Ptr<Expr> left;
     Ptr<Expr> right;
 
-    BinaryExpr(const Loc& loc,
-               Tag tag,
-               Ptr<Expr>&& left,
-               Ptr<Expr>&& right)
+    BinaryExpr(
+        const Loc& loc,
+        Tag tag,
+        Ptr<Expr>&& left,
+        Ptr<Expr>&& right)
         : ImmutableExpr(loc), tag(tag), left(std::move(left)), right(std::move(right))
     {}
 
@@ -811,9 +812,10 @@ struct FilterExpr : public MutableExpr {
     Ptr<Filter> filter;
     Ptr<Expr> expr;
 
-    FilterExpr(const Loc& loc,
-               Ptr<ast::Filter>&& filter,
-               Ptr<Expr>&& expr)
+    FilterExpr(
+        const Loc& loc,
+        Ptr<ast::Filter>&& filter,
+        Ptr<Expr>&& expr)
         : MutableExpr(loc)
         , filter(std::move(filter))
         , expr(std::move(expr))
@@ -841,11 +843,6 @@ struct ErrorExpr : public ImmutableExpr {
 struct NamedDecl : public Decl {
     Identifier id;
 
-    mutable const artic::Type* value_type = nullptr;
-
-    /// Returns the type of the declaration value, if any.
-    virtual const artic::Type* value(TypeChecker&) const { return value_type; }
-
     NamedDecl(const Loc& loc, Identifier&& id)
         : Decl(loc), id(std::move(id))
     {}
@@ -853,25 +850,23 @@ struct NamedDecl : public Decl {
 
 /// Type parameter, introduced by the operator [].
 struct TypeParam : public NamedDecl {
-    TypeParam(const Loc& loc,
-              Identifier&& id)
+    TypeParam(const Loc& loc, Identifier&& id)
         : NamedDecl(loc, std::move(id))
     {}
 
-    const artic::Type* check(TypeChecker&, const artic::Type*) const override;
+    const artic::Type* infer(TypeChecker&) const override;
     void bind(NameBinder&) const override;
     void print(Printer&) const override;
 };
 
 /// Type parameter list, of the form [T, U, ...]
-struct TypeParamList : public Decl {
+struct TypeParamList : public Node {
     PtrVector<TypeParam> params;
 
     TypeParamList(const Loc& loc, PtrVector<TypeParam>&& params)
-        : Decl(loc), params(std::move(params))
+        : Node(loc), params(std::move(params))
     {}
 
-    const artic::Type* check(TypeChecker&, const artic::Type*) const override;
     void bind(NameBinder&) const override;
     void print(Printer&) const override;
 };
@@ -911,10 +906,11 @@ struct FnDecl : public NamedDecl {
     Ptr<FnExpr> fn;
     Ptr<TypeParamList> type_params;
 
-    FnDecl(const Loc& loc,
-           Identifier&& id,
-           Ptr<FnExpr>&& fn,
-           Ptr<TypeParamList>&& type_params)
+    FnDecl(
+        const Loc& loc,
+        Identifier&& id,
+        Ptr<FnExpr>&& fn,
+        Ptr<TypeParamList>&& type_params)
         : NamedDecl(loc, std::move(id))
         , fn(std::move(fn))
         , type_params(std::move(type_params))
@@ -922,7 +918,6 @@ struct FnDecl : public NamedDecl {
 
     const thorin::Def* emit_head(Emitter&) const override;
     const thorin::Def* emit(Emitter&) const override;
-    const artic::Type* value(TypeChecker&) const override;
     const artic::Type* infer(TypeChecker&) const override;
     const artic::Type* check(TypeChecker&, const artic::Type*) const override;
     void bind_head(NameBinder&) const override;
@@ -934,9 +929,10 @@ struct FnDecl : public NamedDecl {
 struct FieldDecl : public NamedDecl {
     Ptr<Type> type;
 
-    FieldDecl(const Loc& loc,
-              Identifier&& id,
-              Ptr<Type>&& type)
+    FieldDecl(
+        const Loc& loc,
+        Identifier&& id,
+        Ptr<Type>&& type)
         : NamedDecl(loc, std::move(id))
         , type(std::move(type))
     {}
@@ -951,10 +947,11 @@ struct StructDecl : public NamedDecl {
     Ptr<TypeParamList> type_params;
     PtrVector<FieldDecl> fields;
 
-    StructDecl(const Loc& loc,
-               Identifier&& id,
-               Ptr<TypeParamList>&& type_params,
-               PtrVector<FieldDecl>&& fields)
+    StructDecl(
+        const Loc& loc,
+        Identifier&& id,
+        Ptr<TypeParamList>&& type_params,
+        PtrVector<FieldDecl>&& fields)
         : NamedDecl(loc, std::move(id))
         , type_params(std::move(type_params))
         , fields(std::move(fields))
@@ -971,9 +968,10 @@ struct StructDecl : public NamedDecl {
 struct OptionDecl : public NamedDecl {
     Ptr<Type> param;
 
-    OptionDecl(const Loc& loc,
-               Identifier&& id,
-               Ptr<Type>&& param)
+    OptionDecl(
+        const Loc& loc,
+        Identifier&& id,
+        Ptr<Type>&& param)
         : NamedDecl(loc, std::move(id))
         , param(std::move(param))
     {}
@@ -988,10 +986,11 @@ struct EnumDecl : public NamedDecl {
     Ptr<TypeParamList> type_params;
     PtrVector<OptionDecl> options;
 
-    EnumDecl(const Loc& loc,
-             Identifier&& id,
-             Ptr<TypeParamList>&& type_params,
-             PtrVector<OptionDecl>&& options)
+    EnumDecl(
+        const Loc& loc,
+        Identifier&& id,
+        Ptr<TypeParamList>&& type_params,
+        PtrVector<OptionDecl>&& options)
         : NamedDecl(loc, std::move(id))
         , type_params(std::move(type_params))
         , options(std::move(options))
@@ -1000,7 +999,6 @@ struct EnumDecl : public NamedDecl {
     const thorin::Def* emit_head(Emitter&) const override;
     const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) const override;
-    const artic::Type* value(TypeChecker&) const override;
     void bind_head(NameBinder&) const override;
     void bind(NameBinder&) const override;
     void print(Printer&) const override;
@@ -1025,7 +1023,6 @@ struct ModDecl : public NamedDecl {
     const thorin::Def* emit_head(Emitter&) const override;
     const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) const override;
-    const artic::Type* value(TypeChecker&) const override;
     void bind_head(NameBinder&) const override;
     void bind(NameBinder&) const override;
     void print(Printer&) const override;
@@ -1141,12 +1138,12 @@ struct StructPtrn : public Ptrn {
 /// A pattern that matches against enumerations.
 struct EnumPtrn : public Ptrn {
     Path path;
-    Ptr<Ptrn> arg_;
+    Ptr<Ptrn> arg;
 
     mutable size_t index;
 
-    EnumPtrn(const Loc& loc, Path&& path, Ptr<Ptrn>&& arg_)
-        : Ptrn(loc), path(std::move(path)), arg_(std::move(arg_))
+    EnumPtrn(const Loc& loc, Path&& path, Ptr<Ptrn>&& arg)
+        : Ptrn(loc), path(std::move(path)), arg(std::move(arg))
     {}
 
     bool is_trivial() const override;
@@ -1188,4 +1185,4 @@ struct ErrorPtrn : public Ptrn {
 
 } // namespace artic
 
-#endif // AST_H
+#endif // ARTIC_AST_H

@@ -1,5 +1,5 @@
-#ifndef CAST_H
-#define CAST_H
+#ifndef ARTIC_CAST_H
+#define ARTIC_CAST_H
 
 #include <cassert>
 #include <type_traits>
@@ -8,18 +8,22 @@ namespace artic {
 
 template <typename B, typename A>
 inline B as(A a) {
-    static_assert(std::is_base_of<typename std::remove_pointer<A>::type,
-                                  typename std::remove_pointer<B>::type>::value,
-                  "B is not a derived class of A");
+    static_assert(
+        std::is_base_of<
+            typename std::remove_pointer<A>::type,
+            typename std::remove_pointer<B>::type>::value,
+        "B is not a derived class of A");
     assert(dynamic_cast<B>(a) != nullptr && "Invalid conversion at runtime");
     return static_cast<B>(a);
 }
 
 template <typename B, typename A>
 inline B isa(A a) {
-    static_assert(std::is_base_of<typename std::remove_pointer<A>::type,
-                                  typename std::remove_pointer<B>::type>::value,
-                  "B is not a derived class of A");
+    static_assert(
+        std::is_base_of<
+            typename std::remove_pointer<A>::type,
+            typename std::remove_pointer<B>::type>::value,
+        "B is not a derived class of A");
     return dynamic_cast<B>(a);
 }
 
@@ -34,4 +38,4 @@ public:
 
 } // namespace artic
 
-#endif // CAST_H
+#endif // ARTIC_CAST_H

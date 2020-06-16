@@ -1,5 +1,3 @@
-find_package(Thorin)
-
 add_library(libartic
     ast.h
     ast.cpp
@@ -22,18 +20,15 @@ add_library(libartic
     print.h
     symbol.h
     token.h
-    world.cpp
-    world.h)
+    types.cpp
+    types.h)
 
 set_target_properties(libartic PROPERTIES PREFIX "" CXX_STANDARD 17)
-target_include_directories(libartic PUBLIC ${Thorin_INCLUDE_DIRS})
-target_link_libraries(libartic ${Thorin_LIBRARIES})
 
 add_executable(artic main.cpp ${BACKEND})
 set_target_properties(artic PROPERTIES CXX_STANDARD 17)
 target_compile_definitions(artic PUBLIC -DARTIC_VERSION_MAJOR=${PROJECT_VERSION_MAJOR} -DARTIC_VERSION_MINOR=${PROJECT_VERSION_MINOR})
-target_include_directories(artic PUBLIC ${Thorin_INCLUDE_DIRS})
-target_link_libraries(artic libartic ${Thorin_LIBRARIES})
+target_link_libraries(artic libartic)
 
 if (${COLORIZE})
     target_compile_definitions(artic PUBLIC -DCOLORIZE)

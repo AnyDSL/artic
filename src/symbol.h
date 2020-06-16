@@ -1,9 +1,11 @@
-#ifndef SYMBOL_H
-#define SYMBOL_H
+#ifndef ARTIC_SYMBOL_H
+#define ARTIC_SYMBOL_H
 
 #include <unordered_map>
 #include <type_traits>
 #include <memory>
+#include <vector>
+#include <string>
 
 namespace artic {
 
@@ -63,4 +65,4 @@ struct SymbolTable {
 
 } // namespace artic
 
-#endif // SYMBOL_H
+#endif // ARTIC_SYMBOL_H
