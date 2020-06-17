@@ -1,0 +1,8 @@
+fn f[T]() {
+    fn g[U]() {
+        let mut t : T;
+        let mut u : U;
+        (u, t)
+    }
+    g[T]
+}
