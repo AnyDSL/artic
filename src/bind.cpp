@@ -65,7 +65,7 @@ void Path::bind(NameBinder& binder) const {
             binder.error(first.id.loc, "unknown identifier '{}'", first.id.name);
             if (auto similar = binder.find_similar_symbol(first.id.name)) {
                 auto decl = similar->decls.front();
-                binder.note("possible suggestion is '{}'", decl->id.name);
+                binder.note("did you mean '{}'?", decl->id.name);
             }
         }
     }
