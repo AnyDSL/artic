@@ -255,7 +255,10 @@ struct StructType : public ComplexType {
     bool equals(const Type*) const override;
     size_t hash() const override;
 
-    const ast::TypeParamList* type_params() const override;
+    const ast::TypeParamList* type_params() const override {
+        return decl.type_params.get();
+    }
+
     std::optional<size_t> find_member(const std::string_view&) const override;
     const Type* member_type(size_t) const override;
     size_t member_count() const override;
@@ -275,7 +278,10 @@ struct EnumType : public ComplexType {
     bool equals(const Type*) const override;
     size_t hash() const override;
 
-    const ast::TypeParamList* type_params() const override;
+    const ast::TypeParamList* type_params() const override {
+        return decl.type_params.get();
+    }
+
     std::optional<size_t> find_member(const std::string_view&) const override;
     const Type* member_type(size_t) const override;
     size_t member_count() const override;
@@ -295,7 +301,9 @@ struct TypeAlias : public UserType {
     bool equals(const Type*) const override;
     size_t hash() const override;
 
-    const ast::TypeParamList* type_params() const override;
+    const ast::TypeParamList* type_params() const override {
+        return decl.type_params.get();
+    }
 
 private:
     TypeAlias(const ast::TypeDecl& decl)

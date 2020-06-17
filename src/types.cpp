@@ -6,18 +6,79 @@
 
 namespace artic {
 
-// Types ---------------------------------------------------------------------------
+// Equals ---------------------------------------------------------------------------
 
 bool PrimType::equals(const Type* other) const {
     return other->isa<PrimType>() && other->as<PrimType>()->tag == tag;
 }
 
-size_t PrimType::hash() const {
-    return fnv::Hash().combine(typeid(*this).hash_code()).combine(tag);
-}
-
 bool TupleType::equals(const Type* other) const {
     return other->isa<TupleType>() && other->as<TupleType>()->args == args;
+}
+
+bool SizedArrayType::equals(const Type* other) const {
+    return
+        other->isa<SizedArrayType>() &&
+        other->as<SizedArrayType>()->elem == elem &&
+        other->as<SizedArrayType>()->size == size;
+}
+
+bool UnsizedArrayType::equals(const Type* other) const {
+    return
+        other->isa<UnsizedArrayType>() &&
+        other->as<UnsizedArrayType>()->elem == elem;
+}
+
+bool PtrType::equals(const Type* other) const {
+    return other->isa<PtrType>() && other->as<PtrType>()->pointee == pointee;
+}
+
+bool FnType::equals(const Type* other) const {
+    return
+        other->isa<FnType>() &&
+        other->as<FnType>()->dom == dom &&
+        other->as<FnType>()->codom == codom;
+}
+
+bool NoRetType::equals(const Type* other) const {
+    return other->isa<NoRetType>();
+}
+
+bool TypeError::equals(const Type* other) const {
+    return other->isa<TypeError>();
+}
+
+bool TypeVar::equals(const Type* other) const {
+    return other == this;
+}
+
+bool ForallType::equals(const Type* other) const {
+    return other == this;
+}
+
+bool StructType::equals(const Type* other) const {
+    return other == this;
+}
+
+bool EnumType::equals(const Type* other) const {
+    return other == this;
+}
+
+bool TypeAlias::equals(const Type* other) const {
+    return other == this;
+}
+
+bool TypeApp::equals(const Type* other) const {
+    return
+        other->isa<TypeApp>() &&
+        other->as<TypeApp>()->applied == applied &&
+        other->as<TypeApp>()->type_args == type_args;
+}
+
+// Hash ----------------------------------------------------------------------------
+
+size_t PrimType::hash() const {
+    return fnv::Hash().combine(typeid(*this).hash_code()).combine(tag);
 }
 
 size_t TupleType::hash() const {
@@ -35,43 +96,11 @@ bool TupleType::contains(const Type* type) const {
         });
 }
 
-const Type* TupleType::replace(
-    TypeTable& type_table,
-    const std::unordered_map<const TypeVar*, const Type*>& map) const {
-    std::vector<const Type*> new_args(args.size());
-    for (size_t i = 0, n = args.size(); i < n; ++i)
-        new_args[i] = args[i]->replace(type_table, map);
-    return type_table.tuple_type(std::move(new_args));
-}
-
-bool ArrayType::contains(const Type* type) const {
-    return type == this || elem->contains(type);
-}
-
-bool SizedArrayType::equals(const Type* other) const {
-    return
-        other->isa<SizedArrayType>() &&
-        other->as<SizedArrayType>()->elem == elem &&
-        other->as<SizedArrayType>()->size == size;
-}
-
 size_t SizedArrayType::hash() const {
     return fnv::Hash()
         .combine(typeid(*this).hash_code())
         .combine(elem)
         .combine(size);
-}
-
-const Type* SizedArrayType::replace(
-    TypeTable& type_table,
-    const std::unordered_map<const TypeVar*, const Type*>& map) const {
-    return type_table.sized_array_type(elem->replace(type_table, map), size);
-}
-
-bool UnsizedArrayType::equals(const Type* other) const {
-    return
-        other->isa<UnsizedArrayType>() &&
-        other->as<UnsizedArrayType>()->elem == elem;
 }
 
 size_t UnsizedArrayType::hash() const {
@@ -80,37 +109,10 @@ size_t UnsizedArrayType::hash() const {
         .combine(elem);
 }
 
-const Type* UnsizedArrayType::replace(
-    TypeTable& type_table,
-    const std::unordered_map<const TypeVar*, const Type*>& map) const {
-    return type_table.unsized_array_type(elem->replace(type_table, map));
-}
-
-bool PtrType::equals(const Type* other) const {
-    return other->isa<PtrType>() && other->as<PtrType>()->pointee == pointee;
-}
-
 size_t PtrType::hash() const {
     return fnv::Hash()
         .combine(typeid(*this).hash_code())
         .combine(pointee);
-}
-
-bool PtrType::contains(const Type* type) const {
-    return type == this || pointee->contains(type);
-}
-
-const Type* PtrType::replace(
-    TypeTable& type_table,
-    const std::unordered_map<const TypeVar*, const Type*>& map) const {
-    return type_table.ptr_type(pointee->replace(type_table, map));
-}
-
-bool FnType::equals(const Type* other) const {
-    return
-        other->isa<FnType>() &&
-        other->as<FnType>()->dom == dom &&
-        other->as<FnType>()->codom == codom;
 }
 
 size_t FnType::hash() const {
@@ -120,38 +122,97 @@ size_t FnType::hash() const {
         .combine(codom);
 }
 
-bool FnType::contains(const Type* type) const {
-    return type == this || dom->contains(type) || codom->contains(type);
-}
-
-const Type* FnType::replace(
-    TypeTable& type_table,
-    const std::unordered_map<const TypeVar*, const Type*>& map) const {
-    return type_table.fn_type(dom->replace(type_table, map), codom->replace(type_table, map));
-}
-
-bool NoRetType::equals(const Type* other) const {
-    return other->isa<NoRetType>();
-}
-
 size_t NoRetType::hash() const {
     return fnv::Hash().combine(typeid(*this).hash_code());
-}
-
-bool TypeError::equals(const Type* other) const {
-    return other->isa<TypeError>();
 }
 
 size_t TypeError::hash() const {
     return fnv::Hash().combine(typeid(*this).hash_code());
 }
 
-bool TypeVar::equals(const Type* other) const {
-    return other == this;
-}
-
 size_t TypeVar::hash() const {
     return fnv::Hash().combine(&param);
+}
+
+size_t ForallType::hash() const {
+    return fnv::Hash().combine(&decl);
+}
+
+size_t StructType::hash() const {
+    return fnv::Hash().combine(&decl);
+}
+
+size_t EnumType::hash() const {
+    return fnv::Hash().combine(&decl);
+}
+
+size_t TypeAlias::hash() const {
+    return fnv::Hash().combine(&decl);
+}
+
+size_t TypeApp::hash() const {
+    auto h = fnv::Hash().combine(typeid(*this).hash_code()).combine(applied);
+    for (auto a : type_args)
+        h.combine(a);
+    return h;
+}
+
+// Contains ------------------------------------------------------------------------
+
+bool ArrayType::contains(const Type* type) const {
+    return type == this || elem->contains(type);
+}
+
+bool PtrType::contains(const Type* type) const {
+    return type == this || pointee->contains(type);
+}
+
+bool FnType::contains(const Type* type) const {
+    return type == this || dom->contains(type) || codom->contains(type);
+}
+
+bool TypeApp::contains(const Type* type) const {
+    return
+        type == this ||
+        applied->contains(type) ||
+        std::any_of(type_args.begin(), type_args.end(), [type] (auto a) {
+            return a->contains(type);
+        });
+}
+
+// Replace -------------------------------------------------------------------------
+
+const Type* TupleType::replace(
+    TypeTable& type_table,
+    const std::unordered_map<const TypeVar*, const Type*>& map) const {
+    std::vector<const Type*> new_args(args.size());
+    for (size_t i = 0, n = args.size(); i < n; ++i)
+        new_args[i] = args[i]->replace(type_table, map);
+    return type_table.tuple_type(std::move(new_args));
+}
+
+const Type* SizedArrayType::replace(
+    TypeTable& type_table,
+    const std::unordered_map<const TypeVar*, const Type*>& map) const {
+    return type_table.sized_array_type(elem->replace(type_table, map), size);
+}
+
+const Type* UnsizedArrayType::replace(
+    TypeTable& type_table,
+    const std::unordered_map<const TypeVar*, const Type*>& map) const {
+    return type_table.unsized_array_type(elem->replace(type_table, map));
+}
+
+const Type* PtrType::replace(
+    TypeTable& type_table,
+    const std::unordered_map<const TypeVar*, const Type*>& map) const {
+    return type_table.ptr_type(pointee->replace(type_table, map));
+}
+
+const Type* FnType::replace(
+    TypeTable& type_table,
+    const std::unordered_map<const TypeVar*, const Type*>& map) const {
+    return type_table.fn_type(dom->replace(type_table, map), codom->replace(type_table, map));
 }
 
 const Type* TypeVar::replace(
@@ -162,35 +223,16 @@ const Type* TypeVar::replace(
     return this;
 }
 
-const Type* ForallType::instantiate(TypeTable& type_table, const std::vector<const Type*>& args) const {
-    std::unordered_map<const TypeVar*, const Type*> map;
-    assert(decl.type_params && decl.type_params->params.size() == args.size());
-    for (size_t i = 0, n = args.size(); i < n; ++i) {
-        assert(decl.type_params->params[i]->type);
-        map.emplace(decl.type_params->params[i]->type->as<TypeVar>(), args[i]); 
-    }
-    return body->replace(type_table, map);
+const Type* TypeApp::replace(
+    TypeTable& type_table,
+    const std::unordered_map<const TypeVar*, const Type*>& map) const {
+    std::vector<const Type*> new_type_args(type_args.size());
+    for (size_t i = 0, n = type_args.size(); i < n; ++i)
+        new_type_args[i] = type_args[i]->replace(type_table, map);
+    return type_table.type_app(applied, std::move(new_type_args));
 }
 
-bool ForallType::equals(const Type* other) const {
-    return other == this;
-}
-
-size_t ForallType::hash() const {
-    return fnv::Hash().combine(&decl);
-}
-
-bool StructType::equals(const Type* other) const {
-    return other == this;
-}
-
-size_t StructType::hash() const {
-    return fnv::Hash().combine(&decl);
-}
-
-const ast::TypeParamList* StructType::type_params() const {
-    return decl.type_params.get();
-}
+// Members -------------------------------------------------------------------------
 
 std::optional<size_t> StructType::find_member(const std::string_view& name) const {
     auto it = std::find_if(
@@ -210,18 +252,6 @@ const Type* StructType::member_type(size_t i) const {
 
 size_t StructType::member_count() const {
     return decl.fields.size();
-}
-
-bool EnumType::equals(const Type* other) const {
-    return other == this;
-}
-
-size_t EnumType::hash() const {
-    return fnv::Hash().combine(&decl);
-}
-
-const ast::TypeParamList* EnumType::type_params() const {
-    return decl.type_params.get();
 }
 
 std::optional<size_t> EnumType::find_member(const std::string_view& name) const {
@@ -244,16 +274,16 @@ size_t EnumType::member_count() const {
     return decl.options.size();
 }
 
-bool TypeAlias::equals(const Type* other) const {
-    return other == this;
-}
+// Misc. ---------------------------------------------------------------------------
 
-size_t TypeAlias::hash() const {
-    return fnv::Hash().combine(&decl);
-}
-
-const ast::TypeParamList* TypeAlias::type_params() const {
-    return decl.type_params.get();
+const Type* ForallType::instantiate(TypeTable& type_table, const std::vector<const Type*>& args) const {
+    std::unordered_map<const TypeVar*, const Type*> map;
+    assert(decl.type_params && decl.type_params->params.size() == args.size());
+    for (size_t i = 0, n = args.size(); i < n; ++i) {
+        assert(decl.type_params->params[i]->type);
+        map.emplace(decl.type_params->params[i]->type->as<TypeVar>(), args[i]); 
+    }
+    return body->replace(type_table, map);
 }
 
 std::unordered_map<const TypeVar*, const Type*> TypeApp::replace_map(
@@ -267,38 +297,6 @@ std::unordered_map<const TypeVar*, const Type*> TypeApp::replace_map(
         map.emplace(type_params.params[i]->type->as<TypeVar>(), type_args[i]);
     }
     return map;
-}
-
-bool TypeApp::equals(const Type* other) const {
-    return
-        other->isa<TypeApp>() &&
-        other->as<TypeApp>()->applied == applied &&
-        other->as<TypeApp>()->type_args == type_args;
-}
-
-size_t TypeApp::hash() const {
-    auto h = fnv::Hash().combine(typeid(*this).hash_code()).combine(applied);
-    for (auto a : type_args)
-        h.combine(a);
-    return h;
-}
-
-bool TypeApp::contains(const Type* type) const {
-    return
-        type == this ||
-        applied->contains(type) ||
-        std::any_of(type_args.begin(), type_args.end(), [type] (auto a) {
-            return a->contains(type);
-        });
-}
-
-const Type* TypeApp::replace(
-    TypeTable& type_table,
-    const std::unordered_map<const TypeVar*, const Type*>& map) const {
-    std::vector<const Type*> new_type_args(type_args.size());
-    for (size_t i = 0, n = type_args.size(); i < n; ++i)
-        new_type_args[i] = type_args[i]->replace(type_table, map);
-    return type_table.type_app(applied, std::move(new_type_args));
 }
 
 // Helpers -------------------------------------------------------------------------
