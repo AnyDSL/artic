@@ -39,7 +39,7 @@ add_test(NAME valid_sort_nets  COMMAND artic --print ${PROJECT_SOURCE_DIR}/test/
 add_test(NAME valid_regex      COMMAND artic --print ${PROJECT_SOURCE_DIR}/test/valid/regex.art)
 
 function(add_failure_test)
-    cmake_parse_arguments(test "" "NAME;COMMAND" "" ${ARGN})
+    cmake_parse_arguments(test "" "NAME" "COMMAND" ${ARGN})
     add_test(NAME ${test_NAME} COMMAND ${test_COMMAND})
     set_tests_properties(${test_NAME} PROPERTIES WILL_FAIL TRUE)
 endfunction()
