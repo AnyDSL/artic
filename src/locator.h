@@ -13,6 +13,7 @@
 
 namespace artic {
 
+/// Represents a file in memory and allows access to the data by line and column.
 struct LocatorInfo {
     std::string_view data;
     std::vector<size_t> lines;
@@ -74,6 +75,9 @@ private:
     }
 };
 
+/// This class implements a system to determine the part of the original
+/// source file that is located at a given line and column position. This
+/// is used to display diagnostics that highlight error locations.
 class Locator {
 public:
     Locator()
