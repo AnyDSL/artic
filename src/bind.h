@@ -2,6 +2,7 @@
 #define ARTIC_BIND_H
 
 #include <unordered_map>
+#include <string_view>
 #include <vector>
 
 #include "symbol.h"
@@ -58,7 +59,7 @@ public:
         auto min = levenshtein_threshold();
         std::shared_ptr<Symbol> best;
         for (auto it = scopes_.rbegin(); it != scopes_.rend(); it++) {
-            auto pair = it->find_similar(name, min, distance);
+            auto pair = it->find_similar(name, min, levenshtein);
             if (pair.second) {
                 min  = pair.first;
                 best = pair.second;
@@ -68,17 +69,15 @@ public:
     }
 
 private:
+    // Levenshtein distance is used to suggest similar identifiers to the user
     static constexpr size_t levenshtein_threshold() { return 3; }
-    static size_t distance(const std::string& a, const std::string& b, size_t max) {
-        return levenshtein(a, b, a.size(), b.size(), max);
-    }
-    static size_t levenshtein(const std::string& a, const std::string& b, size_t i, size_t j, size_t max) {
-        if (max == 0 || i == 0 || j == 0)
-            return std::max(i, j);
-        auto d1 = levenshtein(a, b, i, j - 1, max - 1) + 1;
-        auto d2 = levenshtein(a, b, i - 1, j, max - 1) + 1;
-        size_t v = a[i - 1] != b[j - 1];
-        auto d3 = levenshtein(a, b, i - 1, j - 1, max - v) + v;
+    static size_t levenshtein(const std::string_view& a, const std::string_view& b, size_t max) {
+        if (max == 0 || a.empty() || b.empty())
+            return std::max(a.size(), b.size());
+        auto d = a.front() != b.front() ? 1 : 0;
+        auto d1 = levenshtein(a.substr(1), b, max - 1) + 1;
+        auto d2 = levenshtein(a, b.substr(1), max - 1) + 1;
+        auto d3 = levenshtein(a.substr(1), b.substr(1), max - d) + d;
         return std::min(d1, std::min(d2, d3));
     }
 
