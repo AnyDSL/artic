@@ -30,9 +30,9 @@ struct Vec4 {
     w: f32
 }
 
-fn @make_vec2(x: f32, y: f32) -> Vec2 { Vec2 { x: x, y: y } }
-fn @make_vec3(x: f32, y: f32, z: f32) -> Vec3 { Vec3 { x: x, y: y, z: z } }
-fn @make_vec4(x: f32, y: f32, z: f32, w: f32) -> Vec4 { Vec4 { x: x, y: y, z: z, w: w } }
+fn @make_vec2(x: f32, y: f32) -> Vec2 { Vec2 { x = x, y = y } }
+fn @make_vec3(x: f32, y: f32, z: f32) -> Vec3 { Vec3 { x = x, y = y, z = z } }
+fn @make_vec4(x: f32, y: f32, z: f32, w: f32) -> Vec4 { Vec4 { x = x, y = y, z = z, w = w } }
 
 fn @vec2_to_3(v: Vec2, z: f32) -> Vec3 { make_vec3(v.x, v.y, z) }
 fn @vec2_to_4(v: Vec2, z: f32, w: f32) -> Vec4 { make_vec4(v.x, v.y, z, w) }
@@ -102,23 +102,23 @@ fn @vec4_lerp(a: Vec4, b: Vec4, k: f32) -> Vec4 { vec4_zip(a, b, |x, y| lerp(x, 
 
 fn @vec2_lerp2(a: Vec2, b: Vec2, c: Vec2, u: f32, v: f32) -> Vec2 {
     Vec2 {
-        x: lerp2(a.x, b.x, c.x, u, v),
-        y: lerp2(a.y, b.y, c.y, u, v)
+        x = lerp2(a.x, b.x, c.x, u, v),
+        y = lerp2(a.y, b.y, c.y, u, v)
     }
 }
 fn @vec3_lerp2(a: Vec3, b: Vec3, c: Vec3, u: f32, v: f32) -> Vec3 {
     Vec3 {
-        x: lerp2(a.x, b.x, c.x, u, v),
-        y: lerp2(a.y, b.y, c.y, u, v),
-        z: lerp2(a.z, b.z, c.z, u, v)
+        x = lerp2(a.x, b.x, c.x, u, v),
+        y = lerp2(a.y, b.y, c.y, u, v),
+        z = lerp2(a.z, b.z, c.z, u, v)
     }
 }
 fn @vec4_lerp2(a: Vec4, b: Vec4, c: Vec4, u: f32, v: f32) -> Vec4 {
     Vec4 {
-        x: lerp2(a.x, b.x, c.x, u, v),
-        y: lerp2(a.y, b.y, c.y, u, v),
-        z: lerp2(a.z, b.z, c.z, u, v),
-        w: lerp2(a.w, b.w, c.w, u, v)
+        x = lerp2(a.x, b.x, c.x, u, v),
+        y = lerp2(a.y, b.y, c.y, u, v),
+        z = lerp2(a.z, b.z, c.z, u, v),
+        w = lerp2(a.w, b.w, c.w, u, v)
     }
 }
 

@@ -257,7 +257,7 @@ Ptr<ast::FieldPtrn> Parser::parse_field_ptrn() {
         eat(Token::Dots);
     } else {
         id = parse_id();
-        expect(Token::Colon);
+        expect(Token::Eq);
         ptrn = parse_ptrn();
     }
     return make_ptr<ast::FieldPtrn>(tracker(), std::move(id), std::move(ptrn));
@@ -369,7 +369,7 @@ Ptr<ast::LiteralExpr> Parser::parse_literal_expr() {
 Ptr<ast::FieldExpr> Parser::parse_field_expr() {
     Tracker tracker(this);
     auto id = parse_id();
-    expect(Token::Colon);
+    expect(Token::Eq);
     auto expr = parse_expr();
     return make_ptr<ast::FieldExpr>(tracker(), std::move(id), std::move(expr));
 }
@@ -621,7 +621,7 @@ Ptr<ast::Expr> Parser::parse_primary_expr() {
         case Token::Id:
             expr = parse_path_expr();
             if (ahead(0).tag() == Token::LBrace &&
-                ((ahead(1).tag() == Token::Id && ahead(2).tag() == Token::Colon) || ahead(1).tag() == Token::RBrace))
+                ((ahead(1).tag() == Token::Id && ahead(2).tag() == Token::Eq) || ahead(1).tag() == Token::RBrace))
                 expr = parse_struct_expr(std::move(expr->as<ast::PathExpr>()->path));
             break;
         case Token::At:

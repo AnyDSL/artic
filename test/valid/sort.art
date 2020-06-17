@@ -27,27 +27,27 @@ struct MutArray[T] {
 }
 
 struct Array[T] {
-    read:  fn (i32) -> T,
-    len:   i32
+    read: fn (i32) -> T,
+    len:  i32
 }
 
 fn mut_array_to_array[T](array: MutArray[T]) {
     Array[T] {
-        read: array.read,
-        len:  array.len
+        read = array.read,
+        len  = array.len
     }
 }
 
 fn make_array[T](x: [T], len: i32) {
     Array[T] {
-        read: |i| x(i),
-        len:  len
+        read = |i| x(i),
+        len  = len
     }
 }
 
 fn main() -> [i32] {
     let mut array = [1, 2, 3, 4];
     array(0) = 5;
-    sort[i32](MutArray[i32] { read: |i| array(i), write: |i, y| array(i) = y, len: 4 }, |x, y| x < y);
+    sort[i32](MutArray[i32] { read = |i| array(i), write = |i, y| array(i) = y, len = 4 }, |x, y| x < y);
     array
 }

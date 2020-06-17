@@ -11,17 +11,17 @@ struct C[T, U] {
     y: U
 }
 let _ : A = A { };
-let _ : A = A { x: 1 : i32 };
-let _ : A = A { y: 2 : i64 };
-let _ : A = A { x: 1 : i64, y: 2 : i64 };
-let _ : A = A { x: 1 : i32, y: 2 : i32 };
+let _ : A = A { x = 1 : i32 };
+let _ : A = A { y = 2 : i64 };
+let _ : A = A { x = 1 : i64, y = 2 : i64 };
+let _ : A = A { x = 1 : i32, y = 2 : i32 };
 let _ : B[i32] = B[i32] { };
-let _ : B[i32] = B[i32] { x: 1 : i32 };
-let _ : B[i32] = B[i32] { y: 2 : i64 };
-let _ : B[i32] = B[i32] { x: 1 : i64, y: 2 : i64 };
-let _ : B[i32] = B[i32] { x: 1 : i32, y: 2 : i32 };
+let _ : B[i32] = B[i32] { x = 1 : i32 };
+let _ : B[i32] = B[i32] { y = 2 : i64 };
+let _ : B[i32] = B[i32] { x = 1 : i64, y = 2 : i64 };
+let _ : B[i32] = B[i32] { x = 1 : i32, y = 2 : i32 };
 let _ : C[i32, i64] = C[i32, i64] { };
-let _ : C[i32, i64] = C[i32, i64] { x: 1 : i32 };
-let _ : C[i32, i64] = C[i32, i64] { y: 2 : i64 };
-let _ : C[i32, i64] = C[i32, i64] { x: 1 : i64, y: 2 : i64 };
-let _ : C[i32, i64] = C[i32, i64] { x: 1 : i32, y: 2 : i32 };
+let _ : C[i32, i64] = C[i32, i64] { x = 1 : i32 };
+let _ : C[i32, i64] = C[i32, i64] { y = 2 : i64 };
+let _ : C[i32, i64] = C[i32, i64] { x = 1 : i64, y = 2 : i64 };
+let _ : C[i32, i64] = C[i32, i64] { x = 1 : i32, y = 2 : i32 };
