@@ -25,10 +25,8 @@ Once built, Artic can be run with the following command:
 
     bin/artic [files]
 
-For most programs, a [file](https://github.com/AnyDSL/artic/tree/master/test/infer/valid/prelude.art) that contains the standard definitions is required.
-If those definitions are not provided, the program will not typecheck.
-
 ## Syntax
 
 The syntax follows [that of Impala](https://anydsl.github.io/Impala.html), whenever possible.
-On top of this, polymorphism and traits are supported.
+On top of this, polymorphism is supported.
+The list of changes will be added here once the project is in a stable state.
