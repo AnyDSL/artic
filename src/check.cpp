@@ -340,7 +340,9 @@ const artic::Type* TupleType::infer(TypeChecker& checker) const {
 }
 
 const artic::Type* ArrayType::infer(TypeChecker& checker) const {
-    return checker.type_table.unsized_array_type(checker.infer(*elem));
+    return size
+        ? checker.type_table.sized_array_type(checker.infer(*elem), *size)->as<artic::Type>()
+        : checker.type_table.unsized_array_type(checker.infer(*elem));
 }
 
 const artic::Type* FnType::infer(TypeChecker& checker) const {

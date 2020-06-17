@@ -222,12 +222,13 @@ struct TupleType : public Type {
     void print(Printer&) const override;
 };
 
-/// Array type (unsized).
+/// Array type (unsized or unsized).
 struct ArrayType : public Type {
     Ptr<Type> elem;
+    std::optional<size_t> size;
 
-    ArrayType(const Loc& loc, Ptr<Type>&& elem)
-        : Type(loc), elem(std::move(elem))
+    ArrayType(const Loc& loc, Ptr<Type>&& elem, std::optional<size_t> size)
+        : Type(loc), elem(std::move(elem)), size(size)
     {}
 
     const artic::Type* infer(TypeChecker&) const override;

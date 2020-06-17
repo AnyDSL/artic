@@ -757,8 +757,20 @@ Ptr<ast::ArrayType> Parser::parse_array_type() {
     Tracker tracker(this);
     eat(Token::LBracket);
     auto elem = parse_type();
+    std::optional<size_t> size;
+    if (ahead().tag() == Token::Mul) {
+        eat(Token::Mul);
+        if (ahead().tag() == Token::Lit && ahead().literal().is_integer()) {
+            size = ahead().literal().as_integer();
+            eat(Token::Lit);
+        } else {
+            error(ahead().loc(), "expected integer literal as array size");
+            if (ahead().tag() != Token::RBracket)
+                next();
+        }
+    }
     expect(Token::RBracket);
-    return make_ptr<ast::ArrayType>(tracker(), std::move(elem));
+    return make_ptr<ast::ArrayType>(tracker(), std::move(elem), size);
 }
 
 Ptr<ast::FnType> Parser::parse_fn_type() {
