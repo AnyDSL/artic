@@ -1,0 +1,2 @@
+struct S { i : i32 }
+let x = S;

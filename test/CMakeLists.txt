@@ -59,6 +59,7 @@ add_failure_test(NAME invalid_noret       COMMAND artic ${PROJECT_SOURCE_DIR}/te
 add_failure_test(NAME invalid_structs1    COMMAND artic ${PROJECT_SOURCE_DIR}/test/invalid/structs1.art)
 add_failure_test(NAME invalid_structs2    COMMAND artic ${PROJECT_SOURCE_DIR}/test/invalid/structs2.art)
 add_failure_test(NAME invalid_structs3    COMMAND artic ${PROJECT_SOURCE_DIR}/test/invalid/structs3.art)
+add_failure_test(NAME invalid_structs4    COMMAND artic ${PROJECT_SOURCE_DIR}/test/invalid/structs4.art)
 add_failure_test(NAME invalid_enums1      COMMAND artic ${PROJECT_SOURCE_DIR}/test/invalid/enums1.art)
 add_failure_test(NAME invalid_enums2      COMMAND artic ${PROJECT_SOURCE_DIR}/test/invalid/enums2.art)
 add_failure_test(NAME invalid_mut         COMMAND artic ${PROJECT_SOURCE_DIR}/test/invalid/mut.art)

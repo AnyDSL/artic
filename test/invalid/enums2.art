@@ -15,4 +15,8 @@ fn main() {
     match F[i32]::A { F[i32]::B(z) => z };
     match G[i32, i64]::A { G[i32, i64]::A => 1 };
     match G[i32, i64]::A { G[i32, i64]::B(z) => z };
+    match E::A {
+        E::A(1) => 1,
+        E::B => 2
+    }
 }

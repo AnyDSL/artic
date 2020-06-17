@@ -104,9 +104,10 @@ const Type* TypeChecker::deref(const Type* type) {
 
 const Type* TypeChecker::lookup(const Loc& loc, const ast::NamedDecl& decl, bool value) {
     // Looks up an identifier by inferring the declaration it is linked to.
+    auto type = infer(decl);
     if (value && decl.isa<ast::StructDecl>())
-        error(loc, "value expected");
-    return infer(decl);
+        error(loc, "value expected, but got type '{}'", *type);
+    return type;
 }
 
 const Type* TypeChecker::check(const ast::Node& node, const Type* type) {
@@ -787,10 +788,13 @@ const artic::Type* EnumPtrn::infer(TypeChecker& checker) const {
         return checker.type_expected(path.loc, enum_type, "enumeration");
     if (arg) {
         if (!param_type) {
-            checker.error(loc, "arguments expected after enumeration option");
+            checker.error(loc, "enumeration option takes no arguments");
             return checker.type_table.type_error();
         }
         checker.check(*arg, param_type);
+    } else if (param_type) {
+        checker.error(loc, "arguments expected after enumeration option");
+        return checker.type_table.type_error();
     }
     index = path.elems.back().index;
     return app ? app : enum_type;
