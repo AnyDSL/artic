@@ -196,7 +196,7 @@ int main(int argc, char** argv) {
     }
 
     Locator locator;
-    Logger logger(log::err, &locator, opts.strict);
+    Log log(log::err, &locator);
 
     ast::ModDecl program;
     std::vector<std::string> contents;
@@ -212,10 +212,10 @@ int main(int argc, char** argv) {
         MemBuf mem_buf(contents.back());
         std::istream is(&mem_buf);
 
-        Lexer lexer(file, is, logger);
-        Parser parser(lexer, logger);
+        Lexer lexer(log, file, is);
+        Parser parser(log, lexer);
         auto module = parser.parse();
-        if (lexer.error_count + parser.error_count != 0)
+        if (log.errors > 0)
             return EXIT_FAILURE;
 
         program.decls.insert(
@@ -225,9 +225,9 @@ int main(int argc, char** argv) {
         );
     }
 
-    NameBinder name_binder(logger);
+    NameBinder name_binder(log);
     TypeTable type_table;
-    TypeChecker type_checker(type_table, logger);
+    TypeChecker type_checker(log, type_table);
 
     if (!name_binder.run(program))
         return EXIT_FAILURE;

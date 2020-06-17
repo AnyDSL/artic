@@ -5,7 +5,7 @@ namespace artic {
 
 bool NameBinder::run(const ast::ModDecl& mod) {
     bind(mod);
-    return error_count == 0;
+    return errors == 0;
 }
 
 void NameBinder::bind_head(const ast::Decl& decl) {
@@ -349,6 +349,12 @@ void EnumDecl::bind(NameBinder& binder) const {
     if (type_params) binder.bind(*type_params);
     for (auto& option : options) binder.bind(*option);
     binder.pop_scope();
+}
+
+void TypeDecl::bind(NameBinder& binder) const {
+    binder.insert_symbol(*this);
+    if (type_params) binder.bind(*type_params);
+    binder.bind(*aliased_type);
 }
 
 void ModDecl::bind_head(NameBinder& binder) const {

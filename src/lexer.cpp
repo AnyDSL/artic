@@ -20,10 +20,11 @@ std::unordered_map<std::string, Token::Tag> Lexer::keywords{
     std::make_pair("return",   Token::Return),
     std::make_pair("struct",   Token::Struct),
     std::make_pair("enum",     Token::Enum),
+    std::make_pair("type",     Token::Type),
     std::make_pair("mod",      Token::Mod)
 };
 
-Lexer::Lexer(const std::string& filename, std::istream& is, const Logger& log)
+Lexer::Lexer(Log& log, const std::string& filename, std::istream& is)
     : Logger(log)
     , stream_(is)
     , loc_(std::make_shared<std::string>(filename), 1, 0)

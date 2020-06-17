@@ -34,6 +34,10 @@ add_test(NAME valid_filters2 COMMAND artic --print ${PROJECT_SOURCE_DIR}/test/va
 add_test(NAME valid_ops      COMMAND artic --print ${PROJECT_SOURCE_DIR}/test/valid/ops.art)
 add_test(NAME valid_mod      COMMAND artic --print ${PROJECT_SOURCE_DIR}/test/valid/mod.art)
 
+add_test(NAME valid_church_numerals     COMMAND artic --print ${PROJECT_SOURCE_DIR}/test/valid/church_numerals.art)
+add_test(NAME valid_sorting_networks    COMMAND artic --print ${PROJECT_SOURCE_DIR}/test/valid/sorting_networks.art)
+add_test(NAME valid_regular_expressions COMMAND artic --print ${PROJECT_SOURCE_DIR}/test/valid/sorting_networks.art)
+
 function(add_failure_test)
     cmake_parse_arguments(test "" "NAME;COMMAND" "" ${ARGN})
     add_test(NAME ${test_NAME} COMMAND ${test_COMMAND})

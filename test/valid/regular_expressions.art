@@ -1,0 +1,63 @@
+type Matcher = fn ([u8], i32) -> (bool, i32);
+
+fn @empty() -> Matcher = @|_, i| (true, i)
+fn @any()   -> Matcher = @|_, i| (true, i + 1)
+
+fn @one(c: u8) -> Matcher = @|str, i| {
+    if str(i) == c {
+        (true, i + 1)
+    } else {
+        (false, i)
+    }
+}
+
+fn @maybe(e: Matcher) -> Matcher = @|str, i| {
+    let (_, j) = e(str, i);
+    (true, j)
+}
+
+fn @many(e: Matcher) -> Matcher = @|str, i| {
+    let mut j = i;
+    while true {
+        let (ok, k) = e(str, j);
+        if !ok { break() }
+        j = k;
+    }
+    (true, j)
+}
+
+fn @and(a: Matcher, b: Matcher) -> Matcher = @|str, i| {
+    let (ok_a, j) = a(str, i);
+    if !ok_a { return(false, j) }
+    b(str, j)
+}
+
+fn @or(a: Matcher, b: Matcher) -> Matcher = @|str, i| {
+    let (ok_a, j) = a(str, i);
+    if ok_a { return(true, j) }
+    b(str, j)
+}
+
+fn @many1(e: Matcher) = and(e, many(e))
+
+fn @parse(regex: [u8]) {
+    fn @(?regex(i)) eat(cur: Matcher, prev: Matcher, i: i32) -> (Matcher, i32) {
+        match regex(i) {
+            '('  => {
+                let (next, j) = eat(empty(), empty(), i + 1);
+                eat(and(cur, prev), next, j)
+            },
+            ')'  => { (and(cur, prev), i + 1) },
+            '$'  => { (and(cur, prev), i)     },
+            '+'  => { let next = many1(prev); eat(cur, next, i + 1) },
+            '*'  => { let next = many(prev);  eat(cur, next, i + 1) },
+            '?'  => { let next = maybe(prev); eat(cur, next, i + 1) },
+            '.'  => { let next = any();       eat(and(cur, prev), next, i + 1) },
+            c    => { let next = one(c);      eat(and(cur, prev), next, i + 1) }
+        }
+    }
+    let (matcher, _) = eat(empty(), empty(), 0);
+    matcher
+}
+
+fn test() = parse("a*b+$")

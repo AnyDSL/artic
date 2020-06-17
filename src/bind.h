@@ -13,7 +13,7 @@ namespace artic {
 /// Binds identifiers to the nodes of the AST.
 class NameBinder : public Logger {
 public:
-    NameBinder(const Logger& log = Logger())
+    NameBinder(Log& log)
         : Logger(log), cur_fn_(nullptr), cur_loop_(nullptr)
     {
         push_scope(true);

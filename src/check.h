@@ -13,7 +13,7 @@ namespace artic {
 /// Utility class to perform type checking.
 class TypeChecker : public Logger {
 public:
-    TypeChecker(TypeTable& type_table, const Logger& log = Logger())
+    TypeChecker(Log& log, TypeTable& type_table)
         : Logger(log), type_table(type_table)
     {}
 

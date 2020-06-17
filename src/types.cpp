@@ -244,15 +244,29 @@ size_t EnumType::member_count() const {
     return decl.options.size();
 }
 
-const Type* TypeApp::member_type(TypeTable& type_table, size_t i) const {
+bool TypeAlias::equals(const Type* other) const {
+    return other == this;
+}
+
+size_t TypeAlias::hash() const {
+    return fnv::Hash().combine(&decl);
+}
+
+const ast::TypeParamList* TypeAlias::type_params() const {
+    return decl.type_params.get();
+}
+
+std::unordered_map<const TypeVar*, const Type*> TypeApp::replace_map(
+    const ast::TypeParamList& type_params,
+    const std::vector<const Type*>& type_args)
+{
     std::unordered_map<const TypeVar*, const Type*> map;
-    auto type_params = applied->type_params();
-    assert(type_params && type_params->params.size() == type_args.size());
+    assert(type_params.params.size() == type_args.size());
     for (size_t i = 0, n = type_args.size(); i < n; ++i) {
-        assert(type_params->params[i]->type);
-        map.emplace(type_params->params[i]->type->as<TypeVar>(), type_args[i]); 
+        assert(type_params.params[i]->type);
+        map.emplace(type_params.params[i]->type->as<TypeVar>(), type_args[i]);
     }
-    return applied->member_type(i)->replace(type_table, map);
+    return map;
 }
 
 bool TypeApp::equals(const Type* other) const {
@@ -419,7 +433,16 @@ const EnumType* TypeTable::enum_type(const ast::EnumDecl& decl) {
     return insert<EnumType>(decl);
 }
 
-const TypeApp* TypeTable::type_app(const UserType* applied, std::vector<const Type*>&& type_args) {
+const TypeAlias* TypeTable::type_alias(const ast::TypeDecl& decl) {
+    return insert<TypeAlias>(decl);
+}
+
+const Type* TypeTable::type_app(const UserType* applied, std::vector<const Type*>&& type_args) {
+    if (auto type_alias = applied->isa<TypeAlias>()) {
+        assert(type_alias->type_params() && type_alias->decl.aliased_type->type);
+        auto map = TypeApp::replace_map(*type_alias->type_params(), type_args);
+        return type_alias->decl.aliased_type->type->replace(*this, map);
+    }
     return insert<TypeApp>(applied, std::move(type_args));
 }
 

@@ -370,12 +370,16 @@ bool ForExpr::has_side_effect() const {
     return body->has_side_effect();
 }
 
+bool UnaryExpr::has_side_effect() const {
+    return is_inc() || is_dec() || arg->has_side_effect();
+}
+
 bool BinaryExpr::has_side_effect() const {
     return has_eq() || left->has_side_effect() || right->has_side_effect();
 }
 
-bool UnaryExpr::has_side_effect() const {
-    return is_inc() || is_dec() || arg->has_side_effect();
+bool FilterExpr::has_side_effect() const {
+    return expr->has_side_effect();
 }
 
 // Patterns ------------------------------------------------------------------------

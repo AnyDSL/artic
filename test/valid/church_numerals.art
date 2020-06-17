@@ -1,0 +1,5 @@
+let zero     = |_: fn () -> ()| {};
+let one      = |f: fn () -> ()| f();
+let two      = |f: fn () -> ()| { f(); f() };
+let add      = |a: fn (fn () -> ()) -> (), b: fn (fn () -> ()) -> ()| |f: fn () -> ()| { a(f); b(f); };
+let multiply = |a: fn (fn () -> ()) -> (), b: fn (fn () -> ()) -> ()| |f: fn () -> ()| { b(| | a(f)); };

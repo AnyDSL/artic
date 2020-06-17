@@ -239,12 +239,16 @@ private:
 /// Base class for user-declared types.
 struct UserType : public Type {
     virtual const ast::TypeParamList* type_params() const = 0;
+};
+
+/// Base class for complex, user-declared types.
+struct ComplexType : public UserType {
     virtual std::optional<size_t> find_member(const std::string_view&) const = 0;
     virtual const Type* member_type(size_t) const = 0;
     virtual size_t member_count() const = 0;
 };
 
-struct StructType : public UserType {
+struct StructType : public ComplexType {
     const ast::StructDecl& decl;
 
     void print(Printer&) const override;
@@ -264,7 +268,7 @@ private:
     friend class TypeTable;
 };
 
-struct EnumType : public UserType {
+struct EnumType : public ComplexType {
     const ast::EnumDecl& decl;
 
     void print(Printer&) const override;
@@ -284,14 +288,38 @@ private:
     friend class TypeTable;
 };
 
-/// An application of a user type with polymorphic parameters.
+struct TypeAlias : public UserType {
+    const ast::TypeDecl& decl;
+
+    void print(Printer&) const override;
+    bool equals(const Type*) const override;
+    size_t hash() const override;
+
+    const ast::TypeParamList* type_params() const override;
+
+private:
+    TypeAlias(const ast::TypeDecl& decl)
+        : decl(decl)
+    {}
+
+    friend class TypeTable;
+};
+
+/// An application of a complex type with polymorphic parameters.
 struct TypeApp : public Type {
     const UserType* applied; 
     std::vector<const Type*> type_args;
 
-    /// Returns the type of the given member of the user type, with any
-    /// polymorphic variable replaced by its corresponding type argument.
-    const Type* member_type(TypeTable&, size_t) const;
+    /// Gets the replacement map required to expand this type application.
+    std::unordered_map<const TypeVar*, const Type*> replace_map() const {
+        assert(applied->type_params());
+        return replace_map(*applied->type_params(), type_args);
+    }
+
+    /// Returns the type of the given member of the applied type, if it is a complex type.
+    const Type* member_type(TypeTable& type_table, size_t i) const {
+        return applied->as<ComplexType>()->member_type(i)->replace(type_table, replace_map());
+    }
 
     void print(Printer&) const override;
     bool equals(const Type*) const override;
@@ -302,6 +330,10 @@ struct TypeApp : public Type {
         TypeTable&,
         const std::unordered_map<const TypeVar*, const Type*>&)
         const override;
+
+    static std::unordered_map<const TypeVar*, const Type*> replace_map(
+        const ast::TypeParamList& type_params,
+        const std::vector<const Type*>& type_args);
 
 private:
     TypeApp(
@@ -348,7 +380,11 @@ public:
     const ForallType*       forall_type(const ast::FnDecl&);
     const StructType*       struct_type(const ast::StructDecl&);
     const EnumType*         enum_type(const ast::EnumDecl&);
-    const TypeApp*          type_app(const UserType*, std::vector<const Type*>&&);
+    const TypeAlias*        type_alias(const ast::TypeDecl&);
+
+    /// Creates a type application for structures/enumeration types,
+    /// or returns the type alias expanded with the given type arguments.
+    const Type* type_app(const UserType*, std::vector<const Type*>&&);
 
 private:
     template <typename T, typename... Args>

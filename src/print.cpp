@@ -397,6 +397,14 @@ void EnumDecl::print(Printer& p) const {
     p << '}';
 }
 
+void TypeDecl::print(Printer& p) const {
+    p << log::keyword_style("type") << ' ' <<  id.name;
+    if (type_params) type_params->print(p);
+    p << " = ";
+    aliased_type->print(p);
+    p << ';';
+}
+
 void ModDecl::print(Printer& p) const {
     bool anon = id.name == "";
     if (!anon)
@@ -529,11 +537,15 @@ void ForallType::print(Printer& p) const {
 }
 
 void StructType::print(Printer& p) const {
-    p << log::keyword_style("struct") << ' ' << decl.id.name;
+    p << decl.id.name;
 }
 
 void EnumType::print(Printer& p) const {
-    p << log::keyword_style("enum") << ' ' << decl.id.name;
+    p << decl.id.name;
+}
+
+void TypeAlias::print(Printer& p) const {
+    p << decl.id.name;
 }
 
 void TypeApp::print(Printer& p) const {

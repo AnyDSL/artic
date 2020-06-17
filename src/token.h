@@ -27,6 +27,7 @@ namespace artic {
     f(Return, "return") \
     f(Struct, "struct") \
     f(Enum, "enum") \
+    f(Type, "type") \
     f(Mod, "mod") \
     f(LParen, "(") \
     f(RParen, ")") \

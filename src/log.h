@@ -173,26 +173,28 @@ void error(const char* fmt, Args&&... args) {
 
 class Locator;
 
-struct Logger {
-    log::Output& out;
-    size_t error_count;
-    size_t warn_count;
-
-    Locator* locator;
-    bool strict;
-
-    Logger(
-        log::Output& out = log::err,
-        Locator* locator = nullptr,
-        bool strict = false)
-        : out(out)
-        , error_count(0)
-        , warn_count(0)
-        , locator(locator)
-        , strict(strict)
+struct Log {
+    Log(log::Output& out, Locator* locator = nullptr, size_t errors = 0, size_t warns = 0)
+        : out(out), locator(locator), errors(errors), warns(warns)
     {}
 
-    virtual ~Logger() {}
+    log::Output& out;
+    Locator* locator;
+    size_t errors;
+    size_t warns;
+};
+
+/// Base class for objects that have a log attached to them.
+struct Logger {
+    Log& log;
+    bool strict;
+    bool diagnostics;
+    size_t errors = 0;
+    size_t warns = 0;
+
+    Logger(Log& log, bool strict = false, bool diagnostics = true)
+        : log(log) , strict(strict), diagnostics(diagnostics)
+    {}
 
     /// Report an error at the given location in a source file.
     template <typename... Args>
@@ -222,12 +224,12 @@ struct Logger {
     /// Report an error.
     template <typename... Args>
     void error(const char* fmt, Args&&... args) {
-        if (error_count > 0 || warn_count > 0)
-            out.stream << "\n";
-        error_count++;
-        log::format(out, "{}: ", log::style("error", log::Style::Red, log::Style::Bold));
-        log::format(out, fmt, std::forward<Args>(args)...);
-        out.stream << '\n';
+        if (log.errors > 0 || log.warns > 0)
+            log.out.stream << "\n";
+        log.errors++, errors++;
+        log::format(log.out, "{}: ", log::style("error", log::Style::Red, log::Style::Bold));
+        log::format(log.out, fmt, std::forward<Args>(args)...);
+        log.out.stream << '\n';
     }
 
     /// Report a warning.
@@ -236,27 +238,28 @@ struct Logger {
         if (strict)
             error(fmt, std::forward<Args>(args)...);
         else {
-            if (error_count > 0 || warn_count > 0)
-                out.stream << "\n";
-            warn_count++;
-            log::format(out, "{}: ", log::style("warning", log::Style::Yellow, log::Style::Bold));
-            log::format(out, fmt, std::forward<Args>(args)...);
-            out.stream << '\n';
+            if (log.errors > 0 || log.warns > 0)
+                log.out.stream << "\n";
+            log.warns++, warns++;
+            log::format(log.out, "{}: ", log::style("warning", log::Style::Yellow, log::Style::Bold));
+            log::format(log.out, fmt, std::forward<Args>(args)...);
+            log.out.stream << '\n';
         }
     }
 
     /// Display a note.
     template <typename... Args>
     void note(const char* fmt, Args&&... args) {
-        log::format(out, "{}: ", log::style("note", log::Style::Cyan, log::Style::Bold));
-        log::format(out, fmt, std::forward<Args>(args)...);
-        out.stream << '\n';
+        log::format(log.out, "{}: ", log::style("note", log::Style::Cyan, log::Style::Bold));
+        log::format(log.out, fmt, std::forward<Args>(args)...);
+        log.out.stream << '\n';
     }
-
-    bool diagnostics = true;
 
 private:
     void diagnostic(const Loc&, log::Style, char);
+
+protected:
+    ~Logger() {}
 };
 
 } // namespace artic

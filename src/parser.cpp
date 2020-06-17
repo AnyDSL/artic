@@ -5,7 +5,7 @@
 
 namespace artic {
 
-Parser::Parser(Lexer& lexer, const Logger& log)
+Parser::Parser(Log& log, Lexer& lexer)
     : Logger(log), lexer_(lexer)
 {
     for (int i = 0; i < max_ahead; i++)
@@ -28,6 +28,7 @@ Ptr<ast::Decl> Parser::parse_decl() {
         case Token::Fn:     return parse_fn_decl();
         case Token::Struct: return parse_struct_decl();
         case Token::Enum:   return parse_enum_decl();
+        case Token::Type:   return parse_type_decl();
         case Token::Mod:    return parse_mod_decl();
         default:            return parse_error_decl();
     }
@@ -78,6 +79,10 @@ Ptr<ast::FnDecl> Parser::parse_fn_decl() {
     Ptr<ast::Expr> body;
     if (ahead().tag() == Token::LBrace)
         body = std::move(parse_block_expr());
+    else if (ahead().tag() == Token::Eq) {
+        eat(Token::Eq);
+        body = std::move(parse_expr());
+    }
 
     auto fn = make_ptr<ast::FnExpr>(tracker(), std::move(filter), std::move(param), std::move(ret_type), std::move(body));
     return make_ptr<ast::FnDecl>(tracker(), std::move(id), std::move(fn), std::move(type_params));
@@ -133,6 +138,21 @@ Ptr<ast::EnumDecl> Parser::parse_enum_decl() {
         options.emplace_back(parse_option_decl());
     });
     return make_ptr<ast::EnumDecl>(tracker(), std::move(id), std::move(type_params), std::move(options));
+}
+
+Ptr<ast::TypeDecl> Parser::parse_type_decl() {
+    Tracker tracker(this);
+    eat(Token::Type);
+    auto id = parse_id();
+
+    Ptr<ast::TypeParamList> type_params;
+    if (ahead().tag() == Token::LBracket)
+        type_params = std::move(parse_type_params());
+
+    expect(Token::Eq);
+    auto aliased_type = parse_type();
+    expect(Token::Semi);
+    return make_ptr<ast::TypeDecl>(tracker(), std::move(id), std::move(type_params), std::move(aliased_type));
 }
 
 Ptr<ast::TypeParam> Parser::parse_type_param() {

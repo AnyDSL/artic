@@ -6,7 +6,7 @@ namespace artic {
 
 bool TypeChecker::run(const ast::ModDecl& module) {
     module.infer(*this);
-    return error_count == 0;
+    return errors == 0;
 }
 
 bool TypeChecker::enter_decl(const ast::Decl* decl) {
@@ -459,6 +459,9 @@ const artic::Type* FnExpr::infer(TypeChecker& checker) const {
 const artic::Type* FnExpr::check(TypeChecker& checker, const artic::Type* expected) const {
     if (!expected->isa<artic::FnType>())
         return checker.expect(loc, "function", expected);
+    // Set the type of the expression before entering the body,
+    // in case `return` appears in it.
+    type = expected;
     auto param_type = checker.check(*param, expected->as<artic::FnType>()->dom);
     auto body_type  = checker.check(*body, ret_type ? checker.infer(*ret_type) : expected->as<artic::FnType>()->codom);
     if (ret_type)
@@ -709,6 +712,18 @@ const artic::Type* EnumDecl::infer(TypeChecker& checker) const {
             : checker.type_table.unit_type();
     }
     return enum_type;
+}
+
+const artic::Type* TypeDecl::infer(TypeChecker& checker) const {
+    if (type_params) {
+        auto type_alias = checker.type_table.type_alias(*this);
+        for (auto& param : type_params->params)
+            checker.infer(*param);
+        checker.infer(*aliased_type);
+        return type_alias;
+    }
+    // Directly expand non-polymorphic type aliases
+    return checker.infer(*aliased_type);
 }
 
 const artic::Type* ModDecl::infer(TypeChecker& checker) const {

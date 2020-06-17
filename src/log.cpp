@@ -10,10 +10,10 @@ inline size_t count_digits(size_t i) {
 }
 
 void Logger::diagnostic(const Loc& loc, log::Style style, char underline) {
-    if (!diagnostics || !locator)
+    if (!diagnostics || !log.locator)
         return;
 
-    auto loc_info = locator->data(*loc.file);
+    auto loc_info = log.locator->data(*loc.file);
     if (!loc_info || !loc_info->covers(loc))
         return;
 
@@ -27,8 +27,8 @@ void Logger::diagnostic(const Loc& loc, log::Style style, char underline) {
     auto end_line_loc = loc_info->at(loc.end_row, loc.end_col);
     auto end_line_end = loc_info->at(loc.end_row);
 
-    log::format(out, " in {}\n", log::style(loc, log::Style::White, log::Style::Bold));
-    log::format(out, "{} {}\n{}{} {}{}",
+    log::format(log.out, " in {}\n", log::style(loc, log::Style::White, log::Style::Bold));
+    log::format(log.out, "{} {}\n{}{} {}{}",
         log::fill(' ', indent),
         log::style('|', style, log::Style::Bold),
         log::fill(' ', indent - count_digits(loc.begin_row)),
@@ -38,7 +38,7 @@ void Logger::diagnostic(const Loc& loc, log::Style style, char underline) {
     );
     bool multiline = loc.begin_row != loc.end_row;
     if (multiline) {
-        log::format(out, "{}\n{} {}{}{}\n{}{}\n{}{} {}{}{}\n{} {}{}\n",
+        log::format(log.out, "{}\n{} {}{}{}\n{}{}\n{}{} {}{}{}\n{} {}{}\n",
             log::style(std::string_view(begin_line_loc, begin_line_end - begin_line_loc), style, log::Style::Bold),
             log::fill(' ', indent),
             log::style('|', style, log::Style::Bold),
@@ -56,7 +56,7 @@ void Logger::diagnostic(const Loc& loc, log::Style style, char underline) {
             log::style(log::fill(underline, loc.end_col - 1), style, log::Style::Bold)
         );
     } else {
-        log::format(out, "{}{}\n{} {}{}{}\n",
+        log::format(log.out, "{}{}\n{} {}{}{}\n",
             log::style(std::string_view(begin_line_loc, end_line_loc - begin_line_loc), style, log::Style::Bold),
             std::string_view(end_line_loc, end_line_end - end_line_loc),
             log::fill(' ', indent),

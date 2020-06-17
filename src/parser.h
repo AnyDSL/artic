@@ -12,7 +12,7 @@ namespace artic {
 /// Generates an AST from a stream of tokens.
 class Parser : public Logger {
 public:
-    Parser(Lexer&, const Logger& log = Logger());
+    Parser(Log& log, Lexer&);
 
     /// Parses a program read from the Lexer object.
     /// Errors are reported by the Logger.
@@ -26,6 +26,7 @@ private:
     Ptr<ast::StructDecl>    parse_struct_decl();
     Ptr<ast::OptionDecl>    parse_option_decl();
     Ptr<ast::EnumDecl>      parse_enum_decl();
+    Ptr<ast::TypeDecl>      parse_type_decl();
     Ptr<ast::TypeParam>     parse_type_param();
     Ptr<ast::TypeParamList> parse_type_params();
     Ptr<ast::ModDecl>       parse_mod_decl();

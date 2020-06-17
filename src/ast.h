@@ -821,6 +821,8 @@ struct FilterExpr : public MutableExpr {
         , expr(std::move(expr))
     {}
 
+    bool has_side_effect() const override;
+
     const thorin::Def* emit(Emitter&, bool) const override;
     const artic::Type* infer(TypeChecker&, bool) const override;
     void bind(NameBinder&) const override;
@@ -1000,6 +1002,26 @@ struct EnumDecl : public NamedDecl {
     const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) const override;
     void bind_head(NameBinder&) const override;
+    void bind(NameBinder&) const override;
+    void print(Printer&) const override;
+};
+
+/// Type alias declaration.
+struct TypeDecl : public NamedDecl {
+    Ptr<TypeParamList> type_params;
+    Ptr<Type> aliased_type;
+
+    TypeDecl(
+        const Loc& loc,
+        Identifier&& id,
+        Ptr<TypeParamList>&& type_params,
+        Ptr<Type>&& aliased_type)
+        : NamedDecl(loc, std::move(id))
+        , type_params(std::move(type_params))
+        , aliased_type(std::move(aliased_type))
+    {}
+
+    const artic::Type* infer(TypeChecker&) const override;
     void bind(NameBinder&) const override;
     void print(Printer&) const override;
 };

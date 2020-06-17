@@ -28,7 +28,7 @@ namespace utf8 {
 /// Generates a stream of tokens for the Parser.
 class Lexer : public Logger {
 public:
-    Lexer(const std::string& filename, std::istream& is, const Logger& log = Logger());
+    Lexer(Log& log, const std::string& filename, std::istream& is);
 
     Token next();
 
