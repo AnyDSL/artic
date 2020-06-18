@@ -11,16 +11,17 @@ namespace artic {
 /// Source file location.
 struct Loc {
     std::shared_ptr<std::string> file;
-    int begin_row, begin_col;
-    int end_row, end_col;
+    struct {
+        int row, col;
+    } begin, end;
 
     bool operator == (const Loc& loc) const {
         return
             loc.file == file &&
-            loc.begin_row == begin_row &&
-            loc.begin_col == begin_col &&
-            loc.end_row == end_row &&
-            loc.end_col == end_col;
+            loc.begin.row == begin.row &&
+            loc.begin.col == begin.col &&
+            loc.end.row == end.row &&
+            loc.end.col == end.col;
     }
     bool operator != (const Loc& loc) const { return !(*this == loc); }
 
@@ -30,34 +31,30 @@ struct Loc {
     {}
     Loc(std::shared_ptr<std::string> file, int brow, int bcol, int erow, int ecol)
         : file(file)
-        , begin_row(brow)
-        , begin_col(bcol)
-        , end_row(erow)
-        , end_col(ecol)
+        , begin { brow, bcol }
+        , end { erow, ecol }
     {}
     Loc(const Loc& first, const Loc& last)
         : file(first.file)
-        , begin_row(first.begin_row)
-        , begin_col(first.begin_col)
-        , end_row(last.end_row)
-        , end_col(last.end_col)
+        , begin(first.begin)
+        , end(last.end)
     {
         assert(first.file == last.file);
     }
 
-    Loc begin() const { return Loc(file, begin_row, begin_col, begin_row, begin_col); }
-    Loc end() const { return Loc(file, end_row, end_col, end_row, end_col); }
+    Loc begin_loc() const { return Loc(file, begin.row, begin.col, begin.row, begin.col); }
+    Loc end_loc() const { return Loc(file, end.row, end.col, end.row, end.col); }
 
-    Loc operator + (int col) const { return Loc(file, begin_row, begin_col, end_row, end_col + col); }
-    Loc operator - (int col) const { return Loc(file, begin_row, begin_col - col, end_row, end_col); }
+    Loc operator + (int col) const { return Loc(file, begin.row, begin.col, end.row, end.col + col); }
+    Loc operator - (int col) const { return Loc(file, begin.row, begin.col - col, end.row, end.col); }
 };
 
 inline std::ostream& operator << (std::ostream& os, const Loc& loc) {
     os << *loc.file << "(";
-    os << loc.begin_row << ", " << loc.begin_col;
-    if (loc.begin_row != loc.end_row ||
-        loc.begin_col != loc.end_col) {
-        os << " - " << loc.end_row << ", " << loc.end_col;
+    os << loc.begin.row << ", " << loc.begin.col;
+    if (loc.begin.row != loc.end.row ||
+        loc.begin.col != loc.end.col) {
+        os << " - " << loc.end.row << ", " << loc.end.col;
     }
     os << ")";
     return os;

@@ -44,8 +44,7 @@ Token Lexer::next() {
         eat_spaces();
 
         str_.clear();
-        loc_.begin_row = loc_.end_row;
-        loc_.begin_col = loc_.end_col;
+        loc_.begin = loc_.end;
 
         if (eof()) return Token(loc_, Token::End);
 
@@ -156,13 +155,13 @@ Token Lexer::next() {
                     return Token(loc_, str_, Literal(uint8_t(c)));
                 }
             }
-            error(loc_.begin() + 1, "unterminated character literal");
+            error(loc_.begin_loc() + 1, "unterminated character literal");
             return Token(loc_);
         }
         if (accept('\"')) {
             while (!eof() && peek() != '\"') append();
             if (eof() || !accept('\"')) {
-                error(loc_.begin() + 1, "unterminated string literal");
+                error(loc_.begin_loc() + 1, "unterminated string literal");
                 return Token(loc_);
             }
             assert(str_.size() >= 2);
@@ -194,10 +193,10 @@ Token Lexer::next() {
 
 void Lexer::eat() {
     if (cur_.bytes[0] == '\n') {
-        loc_.end_row++;
-        loc_.end_col = 1;
+        loc_.end.row++;
+        loc_.end.col = 1;
     } else {
-        loc_.end_col++;
+        loc_.end.col++;
     }
 
     cur_.bytes[0] = stream_.get();
@@ -220,7 +219,7 @@ void Lexer::eat() {
         if (!ok) {
             cur_.size = 1;
             stream_.seekg(-std::streamoff(read), std::istream::cur); // Rollback read chars.
-            error(Loc(loc_.file, loc_.end_row, loc_.end_col, loc_.end_row, loc_.end_col + 1), "invalid UTF-8 character");
+            error(Loc(loc_.file, loc_.end.row, loc_.end.col, loc_.end.row, loc_.end.col + 1), "invalid UTF-8 character");
         }
     }
 }

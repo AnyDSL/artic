@@ -13,6 +13,8 @@
 #include "check.h"
 #include "emit.h"
 
+#include <thorin/world.h>
+
 using namespace artic;
 
 static void usage() {
@@ -241,8 +243,10 @@ int main(int argc, char** argv) {
         log::out << "\n";
     }
 
-    Emitter emitter;
+    thorin::World world;
+    Emitter emitter(log, world);
     if (!emitter.run(program))
         return EXIT_FAILURE;
+    world.dump();
     return EXIT_SUCCESS;
 }

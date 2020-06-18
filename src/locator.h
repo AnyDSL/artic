@@ -45,7 +45,9 @@ struct LocatorInfo {
     }
 
     bool covers(const Loc& loc) const {
-        return size_t(loc.end_row) < lines.size() && at(loc.end_row, loc.end_col) != data.data() + data.size();
+        return
+            size_t(loc.end.row) < lines.size() &&
+            at(loc.end.row, loc.end.col) != data.data() + data.size();
     }
 
 private:

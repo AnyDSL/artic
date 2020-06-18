@@ -100,14 +100,14 @@ private:
             return Loc(
                 parser->prev_.file,
                 begin_row, begin_col,
-                parser->prev_.end_row,
-                parser->prev_.end_col);
+                parser->prev_.end.row,
+                parser->prev_.end.col);
         }
 
         Tracker(const Parser* parser, const Loc& loc)
             : parser(parser)
-            , begin_row(loc.begin_row)
-            , begin_col(loc.begin_col)
+            , begin_row(loc.begin.row)
+            , begin_col(loc.begin.col)
         {}
 
         Tracker(const Parser* parser)

@@ -252,7 +252,7 @@ void TypeChecker::check_block(const Loc& loc, const Stmts& stmts, bool last_semi
             warn(stmts[i]->loc, "statement with no effect");
     }
     if (last_semi && stmts.back()->type->template isa<NoRetType>())
-        unreachable_code(stmts.back()->loc, stmts.back()->loc.end(), loc.end());
+        unreachable_code(stmts.back()->loc, stmts.back()->loc.end_loc(), loc.end_loc());
 }
 
 namespace ast {

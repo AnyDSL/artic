@@ -10,10 +10,17 @@
 #include "cast.h"
 #include "ast.h"
 
+namespace thorin {
+    class TypeTable;
+    template <typename> class TypeBase;
+    using Type = TypeBase<TypeTable>;
+}
+
 namespace artic {
 
 class Printer;
 class TypeTable;
+class Emitter;
 struct TypeVar;
 
 /// Base class for all types. Types should be created by a `TypeTable`,
@@ -33,6 +40,8 @@ struct Type : public Cast<Type> {
         return this;
     }
 
+    virtual const thorin::Type* convert(Emitter&) const;
+
     /// Prints the type on the console, for debugging.
     void dump() const;
 
@@ -48,6 +57,8 @@ struct PrimType : public Type {
     void print(Printer&) const override;
     bool equals(const Type*) const override;
     size_t hash() const override;
+
+    const thorin::Type* convert(Emitter&) const override;
 
 private:
     PrimType(ast::PrimType::Tag tag)
@@ -68,6 +79,8 @@ struct TupleType : public Type {
         TypeTable&,
         const std::unordered_map<const TypeVar*, const Type*>&)
         const override;
+
+    const thorin::Type* convert(Emitter&) const override;
 
 private:
     TupleType(std::vector<const Type*>&& args)
@@ -101,6 +114,8 @@ struct SizedArrayType : public ArrayType {
         const std::unordered_map<const TypeVar*, const Type*>&)
         const override;
 
+    const thorin::Type* convert(Emitter&) const override;
+
 private:
     SizedArrayType(const Type* elem, size_t size)
         : ArrayType(elem), size(size)
@@ -119,6 +134,8 @@ struct UnsizedArrayType : public ArrayType {
         TypeTable&,
         const std::unordered_map<const TypeVar*, const Type*>&)
         const override;
+
+    const thorin::Type* convert(Emitter&) const override;
 
 private:
     UnsizedArrayType(const Type* elem)
@@ -140,6 +157,8 @@ struct PtrType : public Type {
         TypeTable&,
         const std::unordered_map<const TypeVar*, const Type*>&)
         const override;
+
+    const thorin::Type* convert(Emitter&) const override;
 
 private:
     PtrType(const Type* pointee)
@@ -163,6 +182,8 @@ struct FnType : public Type {
         TypeTable&,
         const std::unordered_map<const TypeVar*, const Type*>&)
         const override;
+
+    const thorin::Type* convert(Emitter&) const override;
 
 private:
     FnType(const Type* dom, const Type* codom)
@@ -255,6 +276,8 @@ struct StructType : public ComplexType {
     bool equals(const Type*) const override;
     size_t hash() const override;
 
+    const thorin::Type* convert(Emitter&) const override;
+
     const ast::TypeParamList* type_params() const override {
         return decl.type_params.get();
     }
@@ -277,6 +300,8 @@ struct EnumType : public ComplexType {
     void print(Printer&) const override;
     bool equals(const Type*) const override;
     size_t hash() const override;
+
+    const thorin::Type* convert(Emitter&) const override;
 
     const ast::TypeParamList* type_params() const override {
         return decl.type_params.get();

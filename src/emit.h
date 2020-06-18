@@ -5,11 +5,22 @@
 #include <cassert>
 
 #include "ast.h"
+#include "log.h"
+
+namespace thorin {
+    class World;
+}
 
 namespace artic {
 
-class Emitter {
+class Emitter : public Logger {
 public:
+    Emitter(Log& log, thorin::World& world)
+        : Logger(log), world(world)
+    {}
+
+    thorin::World& world;
+
     bool run(const ast::ModDecl&);
 };
 

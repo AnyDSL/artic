@@ -25,6 +25,10 @@ add_library(libartic
 
 set_target_properties(libartic PROPERTIES PREFIX "" CXX_STANDARD 17)
 
+find_package(Thorin REQUIRED)
+target_link_libraries(libartic PUBLIC ${Thorin_LIBRARIES})
+target_include_directories(libartic PUBLIC ${Thorin_INCLUDE_DIRS})
+
 add_executable(artic main.cpp ${BACKEND})
 set_target_properties(artic PROPERTIES CXX_STANDARD 17)
 target_compile_definitions(artic PUBLIC -DARTIC_VERSION_MAJOR=${PROJECT_VERSION_MAJOR} -DARTIC_VERSION_MINOR=${PROJECT_VERSION_MINOR})

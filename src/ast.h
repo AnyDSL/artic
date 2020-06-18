@@ -11,7 +11,9 @@
 #include "token.h"
 #include "symbol.h"
 
-namespace thorin { class Def; }
+namespace thorin {
+    class Def;
+}
 
 namespace artic {
 
