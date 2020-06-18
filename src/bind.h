@@ -24,30 +24,30 @@ public:
 
     /// Performs name binding on a whole program.
     /// Returns true on success, otherwise false.
-    bool run(const ast::ModDecl&);
+    bool run(ast::ModDecl&);
 
-    void bind_head(const ast::Decl&);
-    void bind(const ast::Node&);
+    void bind_head(ast::Decl&);
+    void bind(ast::Node&);
 
-    const ast::FnExpr* cur_fn() const { return cur_fn_; }
-    const ast::FnExpr* push_fn(const ast::FnExpr* fn) {
+    ast::FnExpr* cur_fn() const { return cur_fn_; }
+    ast::FnExpr* push_fn(ast::FnExpr* fn) {
         auto old = cur_fn_;
         cur_fn_ = fn;
         return old;
     }
-    void pop_fn(const ast::FnExpr* fn) { cur_fn_ = fn; }
+    void pop_fn(ast::FnExpr* fn) { cur_fn_ = fn; }
 
-    const ast::LoopExpr* cur_loop() const { return cur_loop_; }
-    const ast::LoopExpr* push_loop(const ast::LoopExpr* loop) {
+    ast::LoopExpr* cur_loop() const { return cur_loop_; }
+    ast::LoopExpr* push_loop(ast::LoopExpr* loop) {
         auto old = cur_loop_;
         cur_loop_ = loop;
         return old;
     }
-    void pop_loop(const ast::LoopExpr* loop) { cur_loop_ = loop; }
+    void pop_loop(ast::LoopExpr* loop) { cur_loop_ = loop; }
 
     void push_scope(bool top_level = false) { scopes_.emplace_back(top_level); }
     void pop_scope();
-    void insert_symbol(const ast::NamedDecl&);
+    void insert_symbol(ast::NamedDecl&);
 
     std::shared_ptr<Symbol> find_symbol(const std::string& name) {
         for (auto it = scopes_.rbegin(); it != scopes_.rend(); it++) {
@@ -81,8 +81,8 @@ private:
         return std::min(d1, std::min(d2, d3));
     }
 
-    const ast::FnExpr*   cur_fn_;
-    const ast::LoopExpr* cur_loop_;
+    ast::FnExpr*   cur_fn_;
+    ast::LoopExpr* cur_loop_;
     std::vector<SymbolTable> scopes_;
 };
 

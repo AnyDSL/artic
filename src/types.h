@@ -45,7 +45,7 @@ struct Type : public Cast<Type> {
     /// Prints the type on the console, for debugging.
     void dump() const;
 
-    const Type* join(const Type*) const;
+    bool subtype(const Type*) const;
 };
 
 log::Output& operator << (log::Output&, const Type&);
@@ -145,24 +145,47 @@ private:
     friend class TypeTable;
 };
 
-struct PtrType : public Type {
+/// Base type for pointer types.
+struct AddrType : public Type {
     const Type* pointee;
 
-    void print(Printer&) const override;
-    bool equals(const Type*) const override;
-    size_t hash() const override;
+    AddrType(const Type* pointee)
+        : pointee(pointee)
+    {}
+
     bool contains(const Type*) const override;
 
     const Type* replace(
         TypeTable&,
         const std::unordered_map<const TypeVar*, const Type*>&)
         const override;
+};
+
+/// A pointer type, as the result of taking the address of an object.
+struct PtrType : public AddrType {
+    void print(Printer&) const override;
+    bool equals(const Type*) const override;
+    size_t hash() const override;
 
     const thorin::Type* convert(Emitter&) const override;
 
 private:
     PtrType(const Type* pointee)
-        : pointee(pointee) 
+        : AddrType(pointee)
+    {}
+
+    friend class TypeTable;
+};
+
+/// The type of mutable identifiers or expressions.
+struct RefType : public AddrType {
+    void print(Printer&) const override;
+    bool equals(const Type*) const override;
+    size_t hash() const override;
+
+private:
+    RefType(const Type* pointee)
+        : AddrType(pointee)
     {}
 
     friend class TypeTable;
@@ -382,9 +405,9 @@ private:
 bool is_int_type(const Type*);
 bool is_float_type(const Type*);
 bool is_int_or_float_type(const Type*);
-bool is_bool_type(const Type*);
+bool is_prim_type(const Type*, ast::PrimType::Tag);
 bool is_unit_type(const Type*);
-const Type* join_types(const Type*, const Type*);
+inline bool is_bool_type(const Type* type) { return is_prim_type(type, ast::PrimType::Bool); }
 
 template <typename T>
 std::pair<const TypeApp*, const T*> match_app(const Type* type) {
@@ -405,6 +428,7 @@ public:
     const SizedArrayType*   sized_array_type(const Type*, size_t);
     const UnsizedArrayType* unsized_array_type(const Type*);
     const PtrType*          ptr_type(const Type*);
+    const RefType*          ref_type(const Type*);
     const FnType*           fn_type(const Type*, const Type*);
     const FnType*           cn_type(const Type*);
     const NoRetType*        no_ret_type();

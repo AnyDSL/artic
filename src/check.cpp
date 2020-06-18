@@ -41,30 +41,18 @@ void TypeChecker::explain_no_ret(const Type* type, const Type* expected) {
     }
 }
 
-const Type* TypeChecker::expect(const Loc& loc, const std::string& msg, const Type* type, const Type* expected) {
-    if (auto best = join_types(type, expected))
-        return best;
-    if (should_emit_error(type) && should_emit_error(expected)) {
-        error(loc, "expected type '{}', but got {} with type '{}'", *expected, msg, *type);
-        explain_no_ret(type, expected);
-    }
-    return type_table.type_error();
-}
-
-const Type* TypeChecker::expect(const Loc& loc, const std::string& msg, const Type* expected) {
-    if (should_emit_error(expected)) {
-        error(loc, "expected type '{}', but got {}", *expected, msg);
+const Type* TypeChecker::incompatible_types(const Loc& loc, const Type* type, const Type* expected) {
+    if (should_emit_error(expected) && should_emit_error(type)) {
+        error(loc, "expected type '{}', but got type '{}'", *expected, *type);
         explain_no_ret(nullptr, expected);
     }
     return type_table.type_error();
 }
 
-const Type* TypeChecker::expect(const Loc& loc, const Type* type, const Type* expected) {
-    if (auto best = join_types(type, expected))
-        return best;
-    if (should_emit_error(type) && should_emit_error(expected)) {
-        error(loc, "expected type '{}', but got type '{}'", *expected, *type);
-        explain_no_ret(type, expected);
+const Type* TypeChecker::incompatible_type(const Loc& loc, const std::string& msg, const Type* expected) {
+    if (should_emit_error(expected)) {
+        error(loc, "expected type '{}', but got {}", *expected, msg);
+        explain_no_ret(nullptr, expected);
     }
     return type_table.type_error();
 }
@@ -91,15 +79,16 @@ const Type* TypeChecker::unreachable_code(const Loc& before, const Loc& first, c
     return type_table.type_error();
 }
 
-const Type* TypeChecker::assignment_to_immutable(const Loc& loc) {
-    error(loc, "assignment to a non-mutable expression");
+const Type* TypeChecker::mutable_expected(const Loc& loc) {
+    error(loc, "mutable expression expected");
     return type_table.type_error();
 }
 
-const Type* TypeChecker::deref(const Type* type) {
-    if (auto ptr = type->isa<PtrType>())
-        return ptr->pointee;
-    return type;
+std::pair<const Type*, const Type*> TypeChecker::deref(const ast::Expr& expr) {
+    auto type = infer(expr);
+    if (auto ref_type = type->isa<RefType>())
+        return std::make_pair(ref_type, ref_type->pointee);
+    return std::make_pair(nullptr, type);
 }
 
 const Type* TypeChecker::lookup(const Loc& loc, const ast::NamedDecl& decl, bool value) {
@@ -110,9 +99,9 @@ const Type* TypeChecker::lookup(const Loc& loc, const ast::NamedDecl& decl, bool
     return type;
 }
 
-const Type* TypeChecker::check(const ast::Node& node, const Type* type) {
+const Type* TypeChecker::check(const ast::Node& node, const Type* expected) {
     assert(!node.type); // Nodes can only be visited once
-    return node.type = node.check(*this, type);
+    return node.type = node.check(*this, expected);
 }
 
 const Type* TypeChecker::infer(const ast::Node& node) {
@@ -121,29 +110,18 @@ const Type* TypeChecker::infer(const ast::Node& node) {
     return node.type = node.infer(*this);
 }
 
-const Type* TypeChecker::infer(const ast::Expr& expr, bool mut) {
-    assert(!expr.type);
-    return expr.type = expr.infer(*this, mut);
-}
-
-const Type* TypeChecker::infer(const ast::CallExpr& call, bool mut) {
-    auto callee_type = deref(infer(*call.callee, mut));
-    if (auto fn_type = callee_type->isa<FnType>()) {
-        check(*call.arg, fn_type->dom);
-        return fn_type->codom;
-    } else if (auto array_type = callee_type->isa<ArrayType>()) {
-        auto index_type = infer(*call.arg);
-        if (!is_int_type(index_type)) {
-            if (should_emit_error(index_type))
-                error(call.arg->loc, "integer type expected as array index, but got '{}'", *index_type);
-            return type_table.type_error();
+const Type* TypeChecker::infer(const ast::Ptrn& ptrn, const ast::Expr& expr) {
+    if (auto tuple_ptrn = ptrn.isa<ast::TuplePtrn>()) {
+        if (auto tuple_expr = expr.isa<ast::TupleExpr>()) {
+            if (tuple_ptrn->args.size() == tuple_expr->args.size()) {
+                for (size_t i = 0, n = tuple_expr->args.size(); i < n; ++i)
+                    infer(*tuple_ptrn->args[i], *tuple_expr->args[i]);
+            }
         }
-        return mut ? type_table.ptr_type(array_type->elem) : array_type->elem;
-    } else {
-        if (should_emit_error(callee_type))
-            error(call.callee->loc, "expected function or array type in call expression, but got '{}'", *callee_type);
-        return type_table.type_error();
+    } else if (auto typed_ptrn = ptrn.isa<ast::TypedPtrn>()) {
+        return ptrn.type = check(expr, check(*typed_ptrn->ptrn, infer(*typed_ptrn->type)));
     }
+    return check(ptrn, deref(expr).second);
 }
 
 const Type* TypeChecker::infer(const Loc&, const Literal& lit) {
@@ -171,22 +149,28 @@ const Type* TypeChecker::check(const Loc& loc, const Literal& lit, const Type* e
         return infer(loc, lit);
     if (lit.is_integer()) {
         if (!is_int_or_float_type(expected))
-            return expect(loc, "integer literal", expected);
+            return incompatible_type(loc, "integer literal", expected);
         return expected;
     } else if (lit.is_double()) {
         if (!is_float_type(expected))
-            return expect(loc, "floating point literal", expected);
+            return incompatible_type(loc, "floating point literal", expected);
         return expected;
     } else if (lit.is_bool()) {
-        return expect(loc, "boolean literal", type_table.bool_type(), expected);
+        if (!is_bool_type(expected))
+            return incompatible_type(loc, "boolean literal", expected);
+        return expected;
     } else if (lit.is_char()) {
-        return expect(loc, "character literal", type_table.prim_type(ast::PrimType::U8), expected);
+        if (!is_prim_type(expected, ast::PrimType::U8))
+            return incompatible_type(loc, "character literal", expected);
+        return expected;
     } else if (lit.is_string()) {
-        auto string_type = type_table.sized_array_type(type_table.prim_type(ast::PrimType::U8), lit.as_string().size() + 1);
-        return expect(loc, "string literal", string_type, expected);
+        auto type = infer(loc, lit)->as<SizedArrayType>();
+        if (!type->subtype(expected))
+            return incompatible_type(loc, "string literal", expected);
+        return expected;
     } else {
         assert(false);
-        return expected;
+        return type_table.type_error();
     }
 }
 
@@ -201,7 +185,7 @@ const Type* TypeChecker::check_tuple(const Loc& loc, const std::string& msg, con
             check(*args[i], tuple_type->args[i]);
         return expected;
     }
-    return expect(loc, msg, expected);
+    return incompatible_type(loc, msg, expected);
 }
 
 template <typename Args>
@@ -259,7 +243,17 @@ namespace ast {
 
 const artic::Type* Node::check(TypeChecker& checker, const artic::Type* expected) const {
     // By default, try to infer, and then check that types match
-    return checker.expect(loc, checker.infer(*this), expected);
+    auto type = checker.infer(*this);
+    if (type != expected) {
+        // When type checking patterns, the `expected` type is a lower bound (a capability)
+        // but for all other nodes it is an upper bound (a requirement).
+        if (isa<Ptrn>())
+            std::swap(type, expected);
+        if (type->subtype(expected))
+            return expected;
+        return checker.incompatible_types(loc, type, expected);
+    }
+    return expected;
 }
 
 const artic::Type* Node::infer(TypeChecker& checker) const {
@@ -282,16 +276,16 @@ const artic::Type* Path::infer(TypeChecker& checker) const {
         auto& elem = elems[i];
 
         // Apply type arguments (if any)
-        bool is_poly_type = type->isa<UserType>() && type->as<UserType>()->type_params();
-        bool is_poly_fn   = type->isa<ForallType>();
-        if (is_poly_type || is_poly_fn) {
+        auto user_type   = type->isa<artic::UserType>();
+        auto forall_type = type->isa<artic::ForallType>();
+        if ((user_type && user_type->type_params()) || forall_type) {
             if (!elem.args.empty()) {
                 std::vector<const artic::Type*> type_args(elem.args.size());
                 for (size_t i = 0, n = type_args.size(); i < n; ++i)
                     type_args[i] = checker.infer(*elem.args[i]);
-                type = is_poly_type
-                    ? checker.type_table.type_app(type->as<UserType>(), std::move(type_args))
-                    : type->as<ForallType>()->instantiate(checker.type_table, type_args);
+                type = user_type
+                    ? checker.type_table.type_app(user_type, std::move(type_args))
+                    : forall_type->instantiate(checker.type_table, type_args);
             } else {
                 checker.error(elem.loc, "missing type arguments");
                 return checker.type_table.type_error();
@@ -378,26 +372,12 @@ const artic::Type* ExprStmt::check(TypeChecker& checker, const artic::Type* expe
 
 // Expressions ---------------------------------------------------------------------
 
-const artic::Type* MutableExpr::infer(TypeChecker& checker) const {
-    return checker.infer(*this, false);
+const artic::Type* TypedExpr::infer(TypeChecker& checker) const {
+    return checker.check(*expr, checker.infer(*type));
 }
 
-const artic::Type* ImmutableExpr::infer(TypeChecker& checker, bool mut) const {
-    return mut ? checker.assignment_to_immutable(loc) : checker.infer(*this);
-}
-
-const artic::Type* TypedExpr::infer(TypeChecker& checker, bool mut) const {
-    if (!mut)
-        return checker.check(*expr, checker.infer(*type));
-    return checker.expect(loc, checker.infer(*expr, mut), checker.infer(*type));
-}
-
-const artic::Type* PathExpr::infer(TypeChecker& checker, bool mut) const {
-    auto type = checker.infer(path);
-    if (type->isa<artic::PtrType>())
-        return mut ? type : checker.deref(type);
-    else
-        return mut ? checker.assignment_to_immutable(loc) : type;
+const artic::Type* PathExpr::infer(TypeChecker& checker) const {
+    return checker.infer(path);
 }
 
 const artic::Type* LiteralExpr::infer(TypeChecker& checker) const {
@@ -439,10 +419,15 @@ const artic::Type* ArrayExpr::infer(TypeChecker& checker) const {
 
 const artic::Type* ArrayExpr::check(TypeChecker& checker, const artic::Type* expected) const {
     if (!expected->isa<artic::ArrayType>())
-        return checker.expect(loc, "array expression", expected);
+        return checker.incompatible_type(loc, "array expression", expected);
     auto elem_type = expected->as<artic::ArrayType>()->elem;
     for (auto& elem : elems)
         checker.check(*elem, elem_type);
+    if (auto sized_array_type = expected->isa<SizedArrayType>();
+        sized_array_type && elems.size() < sized_array_type->size) {
+        checker.error(loc, "expected {} array element(s), but got {}",
+            sized_array_type->size, elems.size());
+    }
     return expected;
 }
 
@@ -451,24 +436,26 @@ const artic::Type* FnExpr::infer(TypeChecker& checker) const {
     if (filter)
         checker.check(*filter, checker.type_table.bool_type());
     auto body_type = ret_type ? checker.infer(*ret_type) : nullptr;
-    if (body || body_type) {
-        if (body)
-            body_type = body_type ? checker.check(*body, body_type) : checker.infer(*body);
-        return checker.type_table.fn_type(param_type, body_type);
+    if (body) {
+        if (body_type)
+            checker.check(*body, body_type);
+        else
+            body_type = checker.deref(*body).second;
     }
-    return checker.cannot_infer(loc, "function");
+    return body_type
+        ? checker.type_table.fn_type(param_type, body_type)
+        : checker.cannot_infer(loc, "function");
 }
 
 const artic::Type* FnExpr::check(TypeChecker& checker, const artic::Type* expected) const {
     if (!expected->isa<artic::FnType>())
-        return checker.expect(loc, "function", expected);
+        return checker.incompatible_type(loc, "function", expected);
     // Set the type of the expression before entering the body,
     // in case `return` appears in it.
     type = expected;
+    auto codom = expected->as<artic::FnType>()->codom;
     auto param_type = checker.check(*param, expected->as<artic::FnType>()->dom);
-    auto body_type  = checker.check(*body, ret_type ? checker.infer(*ret_type) : expected->as<artic::FnType>()->codom);
-    if (ret_type)
-        checker.expect(ret_type->loc, "function", body_type, expected->as<artic::FnType>()->codom);
+    auto body_type  = checker.check(*body, ret_type ? checker.check(*ret_type, codom) : codom);
     return checker.type_table.fn_type(param_type, body_type);
 }
 
@@ -482,30 +469,52 @@ const artic::Type* BlockExpr::infer(TypeChecker& checker) const {
 }
 
 const artic::Type* BlockExpr::check(TypeChecker& checker, const artic::Type* expected) const {
-    if (stmts.empty())
-        return checker.expect(loc, "block expression", checker.type_table.unit_type(), expected);
+    if (stmts.empty()) {
+        if (!is_unit_type(expected))
+            return checker.incompatible_type(loc, "empty block expression", expected);
+        return expected;
+    }
     for (size_t i = 0; i < stmts.size() - 1; ++i)
         checker.infer(*stmts[i]);
     auto last_type = last_semi ? checker.infer(*stmts.back()) : checker.check(*stmts.back(), expected);
     checker.check_block(loc, stmts, last_semi);
-    return last_semi ? checker.expect(loc, "block expression", checker.type_table.unit_type(), expected) : last_type;
+    if (last_semi && !is_unit_type(expected)) {
+        checker.incompatible_type(loc, "block expression terminated by semicolon", expected);
+        checker.note("removing the last semicolon may solve this issue");
+        return checker.type_table.type_error();
+    }
+    return last_type;
 }
 
-const artic::Type* CallExpr::infer(TypeChecker& checker, bool mut) const {
-    return checker.infer(*this, mut);
+const artic::Type* CallExpr::infer(TypeChecker& checker) const {
+    auto [ref_type, callee_type] = checker.deref(*callee);
+    if (auto fn_type = callee_type->isa<artic::FnType>()) {
+        checker.check(*arg, fn_type->dom);
+        return fn_type->codom;
+    } else if (auto array_type = callee_type->isa<artic::ArrayType>()) {
+        auto index_type = checker.infer(*arg);
+        if (!is_int_type(index_type)) {
+            if (checker.should_emit_error(index_type))
+                checker.error(arg->loc, "integer type expected as array index, but got '{}'", *index_type);
+            return checker.type_table.type_error();
+        }
+        return ref_type ? checker.type_table.ref_type(array_type->elem) : array_type->elem;
+    } else {
+        if (checker.should_emit_error(callee_type))
+            checker.error(callee->loc, "expected function or array type in call expression, but got '{}'", *callee_type);
+        return checker.type_table.type_error();
+    }
 }
 
-const artic::Type* ProjExpr::infer(TypeChecker& checker, bool mut) const {
-    auto expr_type = checker.infer(*expr, mut);
-    if (mut)
-        expr_type = checker.deref(expr_type);
+const artic::Type* ProjExpr::infer(TypeChecker& checker) const {
+    auto [ref_type, expr_type] = checker.deref(*expr);
     auto [app, struct_type] = match_app<StructType>(expr_type);
     if (!struct_type)
         return checker.type_expected(expr->loc, expr_type, "structure");
     if (auto index = struct_type->find_member(field.name)) {
         this->index = *index;
         auto result = app ? app->member_type(checker.type_table, *index) : struct_type->member_type(*index);
-        return mut ? checker.type_table.ptr_type(result) : result;
+        return ref_type ? checker.type_table.ref_type(result) : result;
     } else
         return checker.unknown_member(loc, struct_type, field.name);
 }
@@ -546,7 +555,7 @@ const artic::Type* WhileExpr::infer(TypeChecker& checker) const {
 }
 
 const artic::Type* ForExpr::infer(TypeChecker& checker) const {
-    return checker.infer(*body->as<CallExpr>());
+    return checker.infer(*body);
 }
 
 const artic::Type* BreakExpr::infer(TypeChecker& checker) const {
@@ -610,25 +619,38 @@ const artic::Type* ReturnExpr::infer(TypeChecker& checker) const {
 }
 
 const artic::Type* UnaryExpr::infer(TypeChecker& checker) const {
-    auto arg_type = checker.deref(checker.infer(*arg, is_inc() || is_dec()));
+    auto [ref_type, arg_type] = checker.deref(*arg);
+    if (!ref_type && (tag == AddrOf || is_inc() || is_dec()))
+        return checker.mutable_expected(arg->loc);
     if (tag == Known)
         return checker.type_table.bool_type();
+    if (tag == AddrOf)
+        return checker.type_table.ptr_type(arg_type);
+    if (tag == Deref) {
+        if (auto ptr_type = arg_type->isa<artic::PtrType>())
+            return checker.type_table.ref_type(ptr_type->pointee);
+        checker.error(loc, "cannot dereference non-pointer type '{}'", *arg_type);
+        return checker.type_table.type_error();
+    }
     return arg_type;
 }
 
 const artic::Type* BinaryExpr::infer(TypeChecker& checker) const {
-    auto left_type  = checker.deref(checker.infer(*left, has_eq()));
+    auto [left_ref, left_type] = checker.deref(*left);
     auto right_type = checker.check(*right, left_type);
-    if (has_eq())
+    if (has_eq()) {
+        if (!left_ref)
+            return checker.mutable_expected(left->loc);
         return checker.type_table.unit_type();
+    }
     if (has_cmp())
         return checker.type_table.bool_type();
     return right_type;
 }
 
-const artic::Type* FilterExpr::infer(TypeChecker& checker, bool mut) const {
+const artic::Type* FilterExpr::infer(TypeChecker& checker) const {
     checker.check(*filter, checker.type_table.bool_type());
-    return checker.infer(*expr, mut);
+    return checker.infer(*expr);
 }
 
 // Declarations --------------------------------------------------------------------
@@ -643,7 +665,7 @@ const artic::Type* PtrnDecl::check(TypeChecker&, const artic::Type* expected) co
 
 const artic::Type* LetDecl::infer(TypeChecker& checker) const {
     if (init)
-        checker.check(*ptrn, checker.infer(*init));
+        checker.infer(*ptrn, *init);
     else
         checker.infer(*ptrn);
     return checker.type_table.unit_type();
@@ -756,7 +778,7 @@ const artic::Type* IdPtrn::infer(TypeChecker& checker) const {
 }
 
 const artic::Type* IdPtrn::check(TypeChecker& checker, const artic::Type* expected) const {
-    checker.check(*decl, decl->mut ? checker.type_table.ptr_type(expected) : expected);
+    checker.check(*decl, decl->mut ? checker.type_table.ref_type(expected) : expected);
     return expected;
 }
 

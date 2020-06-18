@@ -33,6 +33,10 @@ bool PtrType::equals(const Type* other) const {
     return other->isa<PtrType>() && other->as<PtrType>()->pointee == pointee;
 }
 
+bool RefType::equals(const Type* other) const {
+    return other->isa<RefType>() && other->as<RefType>()->pointee == pointee;
+}
+
 bool FnType::equals(const Type* other) const {
     return
         other->isa<FnType>() &&
@@ -88,14 +92,6 @@ size_t TupleType::hash() const {
     return h;
 }
 
-bool TupleType::contains(const Type* type) const {
-    return
-        type == this ||
-        std::any_of(args.begin(), args.end(), [type] (auto a) {
-            return a->contains(type);
-        });
-}
-
 size_t SizedArrayType::hash() const {
     return fnv::Hash()
         .combine(typeid(*this).hash_code())
@@ -110,6 +106,12 @@ size_t UnsizedArrayType::hash() const {
 }
 
 size_t PtrType::hash() const {
+    return fnv::Hash()
+        .combine(typeid(*this).hash_code())
+        .combine(pointee);
+}
+
+size_t RefType::hash() const {
     return fnv::Hash()
         .combine(typeid(*this).hash_code())
         .combine(pointee);
@@ -159,11 +161,19 @@ size_t TypeApp::hash() const {
 
 // Contains ------------------------------------------------------------------------
 
+bool TupleType::contains(const Type* type) const {
+    return
+        type == this ||
+        std::any_of(args.begin(), args.end(), [type] (auto a) {
+            return a->contains(type);
+        });
+}
+
 bool ArrayType::contains(const Type* type) const {
     return type == this || elem->contains(type);
 }
 
-bool PtrType::contains(const Type* type) const {
+bool AddrType::contains(const Type* type) const {
     return type == this || pointee->contains(type);
 }
 
@@ -203,7 +213,7 @@ const Type* UnsizedArrayType::replace(
     return type_table.unsized_array_type(elem->replace(type_table, map));
 }
 
-const Type* PtrType::replace(
+const Type* AddrType::replace(
     TypeTable& type_table,
     const std::unordered_map<const TypeVar*, const Type*>& map) const {
     return type_table.ptr_type(pointee->replace(type_table, map));
@@ -276,6 +286,24 @@ size_t EnumType::member_count() const {
 
 // Misc. ---------------------------------------------------------------------------
 
+bool Type::subtype(const Type* other) const {
+    if (this == other || isa<NoRetType>())
+        return true;
+    if (auto ref_type = isa<RefType>())
+        return ref_type->pointee->subtype(other);
+    if (auto sized_array_type = isa<SizedArrayType>()) {
+        if (auto other_array_type = other->isa<UnsizedArrayType>())
+            return sized_array_type->elem == other_array_type->elem;
+        // Sized arrays are subtypes of _smaller_ sized array
+        // (think of sized arrays as arrays of _at least_ some size)
+        if (auto other_array_type = other->isa<SizedArrayType>())
+            return
+                sized_array_type->elem == other_array_type->elem &&
+                other_array_type->size <= sized_array_type->size;
+    }
+    return false;
+}
+
 const Type* ForallType::instantiate(TypeTable& type_table, const std::vector<const Type*>& args) const {
     std::unordered_map<const TypeVar*, const Type*> map;
     assert(decl.type_params && decl.type_params->params.size() == args.size());
@@ -337,31 +365,12 @@ bool is_int_or_float_type(const Type* type) {
     return is_int_type(type) || is_float_type(type);
 }
 
-bool is_bool_type(const Type* type) {
-    return type->isa<PrimType>() && type->as<PrimType>()->tag == ast::PrimType::Bool;
+bool is_prim_type(const Type* type, ast::PrimType::Tag tag) {
+    return type->isa<PrimType>() && type->as<PrimType>()->tag == tag;
 }
 
 bool is_unit_type(const Type* type) {
     return type->isa<TupleType>() && type->as<TupleType>()->args.empty();
-}
-
-const Type* join_types(const Type* left, const Type* right) {
-    // Returns the join of two types according to the subtyping relation
-    if (left == right)
-        return left;
-    if (left->isa<NoRetType>())
-        return right;
-    if (right->isa<NoRetType>())
-        return left;
-    if (auto [l, r] = std::make_pair(left->isa<SizedArrayType>(), right->isa<UnsizedArrayType>()); l && r) {
-        if (l->elem == r->elem)
-            return r;
-    }
-    if (auto [l, r] = std::make_pair(left->isa<UnsizedArrayType>(), right->isa<SizedArrayType>()); l && r) {
-        if (l->elem == r->elem)
-            return l;
-    }
-    return nullptr;
 }
 
 // Type table ----------------------------------------------------------------------
@@ -397,6 +406,10 @@ const UnsizedArrayType* TypeTable::unsized_array_type(const Type* elem) {
 
 const PtrType* TypeTable::ptr_type(const Type* pointee) {
     return insert<PtrType>(pointee);
+}
+
+const RefType* TypeTable::ref_type(const Type* pointee) {
+    return insert<RefType>(pointee);
 }
 
 const FnType* TypeTable::fn_type(const Type* dom, const Type* codom) {

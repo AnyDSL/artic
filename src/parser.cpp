@@ -433,7 +433,7 @@ Ptr<ast::BlockExpr> Parser::parse_block_expr() {
             case Token::LBracket:
             case Token::LBrace:
             case Token::At:
-            case Token::OrOr:
+            case Token::LogicOr:
             case Token::Or:
             case Token::Mul:
             case Token::Not:
@@ -470,7 +470,7 @@ Ptr<ast::FnExpr> Parser::parse_fn_expr(Ptr<ast::Filter>&& filter, bool nested) {
 
         PtrVector<ast::Ptrn> args;
         parse_nested = parse_list(
-            std::array<Token::Tag, 2>{ Token::Or, Token::OrOr },
+            std::array<Token::Tag, 2>{ Token::Or, Token::LogicOr },
             std::array<Token::Tag, 1>{ Token::Comma }, [&] {
                 args.emplace_back(parse_ptrn());
             }) == 1;
@@ -479,7 +479,7 @@ Ptr<ast::FnExpr> Parser::parse_fn_expr(Ptr<ast::Filter>&& filter, bool nested) {
         } else {
             ptrn = make_ptr<ast::TuplePtrn>(arg_tracker(), std::move(args));
         }
-    } else if (ahead().tag() == Token::OrOr) {
+    } else if (ahead().tag() == Token::LogicOr) {
         ptrn = make_ptr<ast::TuplePtrn>(tracker(), PtrVector<ast::Ptrn>{});
     } else {
         ptrn = parse_error_ptrn();
@@ -611,6 +611,8 @@ Ptr<ast::Expr> Parser::parse_primary_expr() {
         case Token::Sub:
         case Token::Inc:
         case Token::Dec:
+        case Token::And:
+        case Token::Mul:
         case Token::QMark:
             expr = parse_prefix_expr();
             break;
@@ -626,12 +628,12 @@ Ptr<ast::Expr> Parser::parse_primary_expr() {
             break;
         case Token::At:
             filter = parse_filter();
-            if (ahead().tag() != Token::OrOr &&
+            if (ahead().tag() != Token::LogicOr &&
                 ahead().tag() != Token::Or) {
                 return parse_filter_expr(std::move(filter));
             }
             [[fallthrough]];
-        case Token::OrOr:
+        case Token::LogicOr:
         case Token::Or:
             expr = parse_fn_expr(std::move(filter), false);
             break;

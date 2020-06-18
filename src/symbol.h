@@ -15,11 +15,11 @@ namespace ast {
 
 /// Declaration site of a symbol.
 struct Symbol {
-    Symbol(const ast::NamedDecl* decl) : decls{ decl } {}
-    Symbol(std::vector<const ast::NamedDecl*>&& decls) : decls(std::move(decls)) {}
+    Symbol(ast::NamedDecl* decl) : decls{ decl } {}
+    Symbol(std::vector<ast::NamedDecl*>&& decls) : decls(std::move(decls)) {}
     virtual ~Symbol() {}
 
-    std::vector<const ast::NamedDecl*> decls;
+    std::vector<ast::NamedDecl*> decls;
 };
 
 /// Table containing a map from symbol name to declaration site.

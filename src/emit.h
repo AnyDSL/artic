@@ -9,6 +9,7 @@
 
 namespace thorin {
     class World;
+    class Continuation;
 }
 
 namespace artic {
@@ -20,8 +21,14 @@ public:
     {}
 
     thorin::World& world;
+    const thorin::Def* mem;
+    thorin::Continuation* cont;
 
     bool run(const ast::ModDecl&);
+
+    const thorin::Def* emit(const ast::Node&);
+    void emit(const ast::Ptrn&, const thorin::Def*);
+    const thorin::Def* emit(const ast::Node&, const Literal&);
 };
 
 } // namespace artic

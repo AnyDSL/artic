@@ -20,23 +20,63 @@ static thorin::Debug debug_info(const ast::NamedDecl& decl) {
     };
 }
 
+static thorin::Debug debug_info(const ast::Node& node) {
+    if (auto named_decl = node.isa<ast::NamedDecl>())
+        return debug_info(*named_decl);
+    return thorin::Debug {
+        thorin::Location(
+            node.loc.file->c_str(),
+            node.loc.begin.row,
+            node.loc.begin.col,
+            node.loc.end.row,
+            node.loc.end.col)
+    };
+}
+
 bool Emitter::run(const ast::ModDecl& mod) {
     mod.emit(*this);
     return errors == 0;
 }
 
+const thorin::Def* Emitter::emit(const ast::Node& node) {
+    if (node.def)
+        return node.def;
+    return node.def = node.emit(*this);
+}
+
+void Emitter::emit(const ast::Ptrn& ptrn, const thorin::Def* value) {
+    assert(!ptrn.def);
+    ptrn.emit(*this, value);
+}
+
+const thorin::Def* Emitter::emit(const ast::Node& node, const Literal& lit) {
+    switch (node.type->as<artic::PrimType>()->tag) {
+        case ast::PrimType::Bool: return world.literal_bool(lit.as_bool(),    debug_info(node));
+        case ast::PrimType::U8:   return world.literal_qu8 (lit.as_integer(), debug_info(node));
+        case ast::PrimType::U16:  return world.literal_qu16(lit.as_integer(), debug_info(node));
+        case ast::PrimType::U32:  return world.literal_qu32(lit.as_integer(), debug_info(node));
+        case ast::PrimType::U64:  return world.literal_qu64(lit.as_integer(), debug_info(node));
+        case ast::PrimType::I8:   return world.literal_qs8 (lit.as_integer(), debug_info(node));
+        case ast::PrimType::I16:  return world.literal_qs16(lit.as_integer(), debug_info(node));
+        case ast::PrimType::I32:  return world.literal_qs32(lit.as_integer(), debug_info(node));
+        case ast::PrimType::I64:  return world.literal_qs64(lit.as_integer(), debug_info(node));
+        case ast::PrimType::F32:  return world.literal_qf32(lit.as_double(),  debug_info(node));
+        case ast::PrimType::F64:  return world.literal_qf64(lit.as_double(),  debug_info(node));
+        default:
+            assert(false);
+            return nullptr;
+    }
+}
+
 namespace ast {
 
-// TODO: Remove those once every class has an implementation
-
 const thorin::Def* Node::emit(Emitter&) const {
-    assert(false && "TODO");
+    assert(false);
     return nullptr;
 }
 
-const thorin::Def* Ptrn::emit(Emitter&, const thorin::Def*) const {
-    assert(false && "TODO");
-    return nullptr;
+void Ptrn::emit(Emitter&, const thorin::Def*) const {
+    // Do nothing for patterns that are not irrefutable
 }
 
 // Path ----------------------------------------------------------------------------
@@ -57,25 +97,16 @@ const thorin::Def* ExprStmt::emit(Emitter& emitter) const {
 
 // Expressions ---------------------------------------------------------------------
 
-const thorin::Def* MutableExpr::emit(Emitter& emitter) const {
+const thorin::Def* TypedExpr::emit(Emitter& emitter) const {
     return nullptr;
 }
 
-const thorin::Def* ImmutableExpr::emit(Emitter& emitter, bool mut) const {
-    assert(!mut);
-    return nullptr;
-}
-
-const thorin::Def* TypedExpr::emit(Emitter& emitter, bool mut) const {
-    return nullptr;
-}
-
-const thorin::Def* PathExpr::emit(Emitter& emitter, bool mut) const {
+const thorin::Def* PathExpr::emit(Emitter& emitter) const {
     return nullptr;
 }
 
 const thorin::Def* LiteralExpr::emit(Emitter& emitter) const {
-    return nullptr;
+    return emitter.emit(*this, lit);
 }
 
 const thorin::Def* ArrayExpr::emit(Emitter& emitter) const {
@@ -102,11 +133,11 @@ const thorin::Def* BlockExpr::emit(Emitter& emitter) const {
     return nullptr;
 }
 
-const thorin::Def* CallExpr::emit(Emitter& emitter, bool mut) const {
+const thorin::Def* CallExpr::emit(Emitter& emitter) const {
     return nullptr;
 }
 
-const thorin::Def* ProjExpr::emit(Emitter& emitter, bool mut) const {
+const thorin::Def* ProjExpr::emit(Emitter& emitter) const {
     return nullptr;
 }
 
@@ -152,7 +183,7 @@ const thorin::Def* BinaryExpr::emit(Emitter& emitter) const {
     return nullptr;
 }
 
-const thorin::Def* FilterExpr::emit(Emitter& emitter, bool mut) const {
+const thorin::Def* FilterExpr::emit(Emitter& emitter) const {
     return nullptr;
 }
 
@@ -162,7 +193,7 @@ const thorin::Def* LetDecl::emit(Emitter& emitter) const {
     return nullptr;
 }
 
-const thorin::Def* FnDecl::emit_head(Emitter& emitter) const {
+const thorin::Def* FnDecl::emit(Emitter& emitter) const {
     if (type_params) {
         // Skip function declarations that have type parameters.
         // Such functions are emitted on-demand, from their call site,
@@ -170,20 +201,24 @@ const thorin::Def* FnDecl::emit_head(Emitter& emitter) const {
         // current version does not support polymorphism.
         return nullptr;
     }
-    return emitter.world.continuation(
+    auto cont = emitter.world.continuation(
         type->convert(emitter)->as<thorin::FnType>(),
         debug_info(*this));
-}
-
-const thorin::Def* FnDecl::emit(Emitter& emitter) const {
-    return nullptr;
+    if (!fn->body)
+        return cont;
+    emitter.cont = cont;
+    emitter.mem = cont->mem_param();
+    emitter.emit(*fn->param, cont->param(1));
+    cont->jump(
+        cont->ret_param(),
+        { emitter.mem, emitter.emit(*fn->body) },
+        debug_info(*fn->body));
+    // TODO: Remove this, it's only there so that the output is visible in the module dump.
+    cont->make_external();
+    return cont;
 }
 
 const thorin::Def* StructDecl::emit(Emitter&) const {
-    return nullptr;
-}
-
-const thorin::Def* EnumDecl::emit_head(Emitter& emitter) const {
     return nullptr;
 }
 
@@ -191,44 +226,37 @@ const thorin::Def* EnumDecl::emit(Emitter&) const {
     return nullptr;
 }
 
-const thorin::Def* ModDecl::emit_head(Emitter&) const {
-    return nullptr;
-}
-
 const thorin::Def* ModDecl::emit(Emitter& emitter) const {
-    for (auto& decl : decls) decl->emit_head(emitter);
-    for (auto& decl : decls) decl->emit(emitter);
+    for (auto& decl : decls)
+        emitter.emit(*decl);
     return nullptr;
 }
 
 // Patterns ------------------------------------------------------------------------
 
-const thorin::Def* TypedPtrn::emit(Emitter& emitter, const thorin::Def* value) const {
-    return nullptr;
+void TypedPtrn::emit(Emitter& emitter, const thorin::Def* value) const {
+    emitter.emit(*ptrn, value);
 }
 
-const thorin::Def* IdPtrn::emit(Emitter& emitter, const thorin::Def* value) const {
-    return nullptr;
+void IdPtrn::emit(Emitter& emitter, const thorin::Def* value) const {
+    assert(!decl->mut);
+    decl->def = value;
 }
 
-const thorin::Def* LiteralPtrn::emit(Emitter& emitter, const thorin::Def*) const {
-    return nullptr;
+void FieldPtrn::emit(Emitter& emitter, const thorin::Def* value) const {
+    emitter.emit(*ptrn, value);
 }
 
-const thorin::Def* FieldPtrn::emit(Emitter& emitter, const thorin::Def* value) const {
-    return nullptr;
+void StructPtrn::emit(Emitter& emitter, const thorin::Def* value) const {
+    for (auto& field : fields) {
+        if (!field->is_etc())
+            emitter.emit(*field, emitter.world.extract(value, field->index));
+    }
 }
 
-const thorin::Def* StructPtrn::emit(Emitter& emitter, const thorin::Def* value) const {
-    return nullptr;
-}
-
-const thorin::Def* EnumPtrn::emit(Emitter& emitter, const thorin::Def* value) const {
-    return nullptr;
-}
-
-const thorin::Def* TuplePtrn::emit(Emitter& emitter, const thorin::Def* value) const {
-    return nullptr;
+void TuplePtrn::emit(Emitter& emitter, const thorin::Def* value) const {
+    for (size_t i = 0, n = args.size(); i < n; ++i)
+        emitter.emit(*args[i], emitter.world.extract(value, i));
 }
 
 } // namespace ast

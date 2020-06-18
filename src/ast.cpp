@@ -62,8 +62,9 @@ std::string UnaryExpr::tag_to_string(Tag tag) {
         case PostDec:
         case PreDec:
             return "--";
-        case Known:
-            return "?";
+        case AddrOf: return "&";
+        case Deref:  return "*";
+        case Known:  return "?";
         default:
             assert(false);
             return "";
@@ -77,6 +78,8 @@ UnaryExpr::Tag UnaryExpr::tag_from_token(const Token& token, bool prefix) {
         case Token::Sub:   return Minus;
         case Token::Inc:   return prefix ? PreInc : PostInc;
         case Token::Dec:   return prefix ? PreDec : PostDec;
+        case Token::And:   return AddrOf;
+        case Token::Mul:   return Deref;
         case Token::QMark: return Known;
         default: return Error;
     }
@@ -152,8 +155,8 @@ int BinaryExpr::precedence(Tag tag) {
         case CmpEq:
         case CmpNE:
             return 7;
-        case AndAnd: return 8;
-        case OrOr: return 9;
+        case LogicAnd: return 8;
+        case LogicOr: return 9;
         case Eq:
         case AddEq:
         case SubEq:
@@ -199,8 +202,8 @@ std::string BinaryExpr::tag_to_string(Tag tag) {
         case LShft: return "<<";
         case RShft: return ">>";
 
-        case AndAnd: return "&&";
-        case OrOr:   return "||";
+        case LogicAnd: return "&&";
+        case LogicOr:   return "||";
 
         case CmpLT:  return "<";
         case CmpGT:  return ">";
@@ -239,8 +242,8 @@ BinaryExpr::Tag BinaryExpr::tag_from_token(const Token& token) {
         case Token::LShft: return LShft;
         case Token::RShft: return RShft;
 
-        case Token::AndAnd: return AndAnd;
-        case Token::OrOr:   return OrOr;
+        case Token::LogicAnd: return LogicAnd;
+        case Token::LogicOr:   return LogicOr;
 
         case Token::CmpLT: return CmpLT;
         case Token::CmpGT: return CmpGT;

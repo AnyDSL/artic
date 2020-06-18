@@ -507,6 +507,11 @@ void PtrType::print(Printer& p) const {
     pointee->print(p);
 }
 
+void RefType::print(Printer& p) const {
+    p << "reference to ";
+    pointee->print(p);
+}
+
 void FnType::print(Printer& p) const {
     p << log::keyword_style("fn") << ' ';
     if (!dom->isa<TupleType>()) p << '(';

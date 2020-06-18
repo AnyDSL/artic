@@ -26,7 +26,7 @@ class Emitter;
 template <typename T> using Ptr = std::unique_ptr<T>;
 template <typename T> using PtrVector = std::vector<std::unique_ptr<T>>;
 template <typename T, typename... Args>
-std::unique_ptr<T> make_ptr(Args... args) {
+std::unique_ptr<T> make_ptr(Args&&... args) {
     return std::make_unique<T>(std::forward<Args>(args)...);
 }
 
@@ -60,7 +60,7 @@ struct Node : public Cast<Node> {
     virtual ~Node() {}
 
     /// Binds identifiers to AST nodes.
-    virtual void bind(NameBinder&) const = 0;
+    virtual void bind(NameBinder&) = 0;
     /// Infers the type of the node.
     virtual const artic::Type* infer(TypeChecker&) const;
     /// Checks that the node types and has the given type.
@@ -83,9 +83,7 @@ struct Decl : public Node {
     Decl(const Loc& loc) : Node(loc) {}
 
     /// Binds the declaration to its AST node, without entering sub-AST nodes.
-    virtual void bind_head(NameBinder&) const {}
-    /// Emits a nominal IR definition for this AST node, without emitting its operands.
-    virtual const thorin::Def* emit_head(Emitter&) const { return nullptr; }
+    virtual void bind_head(NameBinder&) {}
 };
 
 /// Base class for types.
@@ -111,10 +109,6 @@ struct Expr : public Node {
 
     bool is_tuple() const;
 
-    /// Emits the expression, optionally as a pointer when required.
-    virtual const thorin::Def* emit(Emitter&, bool) const = 0;
-    /// Infers the type of the expression, and optionally checks if it is mutable.
-    virtual const artic::Type* infer(TypeChecker&, bool) const = 0;
     /// Returns true if the expression has a side effect.
     virtual bool has_side_effect() const { return false; }
 };
@@ -128,7 +122,7 @@ struct Ptrn : public Node {
     /// Returns true when the pattern is trivial (e.g. always matches).
     virtual bool is_trivial() const = 0;
     /// Emits IR for the pattern, given a value to match against.
-    virtual const thorin::Def* emit(Emitter&, const thorin::Def*) const;
+    virtual void emit(Emitter&, const thorin::Def*) const;
 };
 
 // Path ----------------------------------------------------------------------------
@@ -141,7 +135,6 @@ struct Path : public Node {
         PtrVector<Type> args;
 
         mutable size_t index = 0;
-        mutable const thorin::Def* type_args = nullptr;
 
         Elem(const Loc& loc, Identifier&& id, PtrVector<Type>&& args)
             : loc(loc), id(std::move(id)), args(std::move(args))
@@ -151,7 +144,7 @@ struct Path : public Node {
     bool value = true;
     std::vector<Elem> elems;
 
-    mutable std::shared_ptr<Symbol> symbol;
+    std::shared_ptr<Symbol> symbol;
 
     Path(const Loc& loc, std::vector<Elem>&& elems)
         : Node(loc), elems(std::move(elems))
@@ -159,7 +152,7 @@ struct Path : public Node {
 
     const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) const override;
-    void bind(NameBinder&) const override;
+    void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
 
@@ -174,7 +167,7 @@ struct Filter : public Node {
     {}
 
     const artic::Type* check(TypeChecker&, const artic::Type*) const override;
-    void bind(NameBinder&) const override;
+    void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
 
@@ -204,7 +197,7 @@ struct PrimType : public Type {
     {}
 
     const artic::Type* infer(TypeChecker&) const override;
-    void bind(NameBinder&) const override;
+    void bind(NameBinder&) override;
     void print(Printer&) const override;
 
     static std::string tag_to_string(Tag tag);
@@ -220,7 +213,7 @@ struct TupleType : public Type {
     {}
 
     const artic::Type* infer(TypeChecker&) const override;
-    void bind(NameBinder&) const override;
+    void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
 
@@ -234,7 +227,7 @@ struct ArrayType : public Type {
     {}
 
     const artic::Type* infer(TypeChecker&) const override;
-    void bind(NameBinder&) const override;
+    void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
 
@@ -248,7 +241,7 @@ struct FnType : public Type {
     {}
 
     const artic::Type* infer(TypeChecker&) const override;
-    void bind(NameBinder&) const override;
+    void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
 
@@ -261,7 +254,7 @@ struct PtrType : public Type {
     {}
 
     const artic::Type* infer(TypeChecker&) const override;
-    void bind(NameBinder&) const override;
+    void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
 
@@ -276,7 +269,7 @@ struct TypeApp : public Type {
     }
 
     const artic::Type* infer(TypeChecker&) const override;
-    void bind(NameBinder&) const override;
+    void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
 
@@ -286,7 +279,7 @@ struct ErrorType : public Type {
         : Type(loc)
     {}
 
-    void bind(NameBinder&) const override;
+    void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
 
@@ -306,7 +299,7 @@ struct DeclStmt : public Stmt {
     const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) const override;
     const artic::Type* check(TypeChecker&, const artic::Type*) const override;
-    void bind(NameBinder&) const override;
+    void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
 
@@ -324,84 +317,64 @@ struct ExprStmt : public Stmt {
     const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) const override;
     const artic::Type* check(TypeChecker&, const artic::Type*) const override;
-    void bind(NameBinder&) const override;
+    void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
 
 // Expressions ---------------------------------------------------------------------
 
-/// Base class for expressions that can be mutable.
-struct MutableExpr : public Expr {
-    MutableExpr(const Loc& loc)
-        : Expr(loc)
-    {}
-
-    const thorin::Def* emit(Emitter&) const override;
-    const artic::Type* infer(TypeChecker&) const override;
-};
-
-/// Base class for expressions that are immutable.
-struct ImmutableExpr : public Expr {
-    ImmutableExpr(const Loc& loc)
-        : Expr(loc)
-    {}
-
-    const thorin::Def* emit(Emitter&, bool) const override;
-    const artic::Type* infer(TypeChecker&, bool) const override;
-};
-
 /// Manually typed expression.
-struct TypedExpr : public MutableExpr {
+struct TypedExpr : public Expr {
     Ptr<Expr> expr;
     Ptr<Type> type;
 
     TypedExpr(const Loc& loc, Ptr<Expr>&& expr, Ptr<Type>&& type)
-        : MutableExpr(loc)
+        : Expr(loc)
         , expr(std::move(expr))
         , type(std::move(type))
     {}
 
     bool has_side_effect() const override;
 
-    const thorin::Def* emit(Emitter&, bool) const override;
-    const artic::Type* infer(TypeChecker&, bool) const override;
-    void bind(NameBinder&) const override;
+    const thorin::Def* emit(Emitter&) const override;
+    const artic::Type* infer(TypeChecker&) const override;
+    void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
 
 /// Expression made of a path to an identifier.
-struct PathExpr : public MutableExpr {
+struct PathExpr : public Expr {
     Path path;
 
     PathExpr(Path&& path)
-        : MutableExpr(path.loc), path(std::move(path))
+        : Expr(path.loc), path(std::move(path))
     {
         this->path.value = true;
     }
 
-    const thorin::Def* emit(Emitter&, bool) const override;
-    const artic::Type* infer(TypeChecker&, bool) const override;
-    void bind(NameBinder&) const override;
+    const thorin::Def* emit(Emitter&) const override;
+    const artic::Type* infer(TypeChecker&) const override;
+    void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
 
 /// Expression made of a literal.
-struct LiteralExpr : public ImmutableExpr {
+struct LiteralExpr : public Expr {
     Literal lit;
 
     LiteralExpr(const Loc& loc, const Literal& lit)
-        : ImmutableExpr(loc), lit(lit)
+        : Expr(loc), lit(lit)
     {}
 
     const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) const override;
     const artic::Type* check(TypeChecker&, const artic::Type*) const override;
-    void bind(NameBinder&) const override;
+    void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
 
 /// Field expression, part of a structure expression.
-struct FieldExpr : public ImmutableExpr {
+struct FieldExpr : public Expr {
     Identifier id;
     Ptr<Expr> expr;
 
@@ -411,7 +384,7 @@ struct FieldExpr : public ImmutableExpr {
         const Loc& loc,
         Identifier&& id,
         Ptr<Expr>&& expr)
-        : ImmutableExpr(loc)
+        : Expr(loc)
         , id(std::move(id))
         , expr(std::move(expr))
     {}
@@ -421,12 +394,12 @@ struct FieldExpr : public ImmutableExpr {
 
     const thorin::Def* emit(Emitter&) const override;
     const artic::Type* check(TypeChecker&, const artic::Type*) const override;
-    void bind(NameBinder&) const override;
+    void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
 
 /// Structure expression.
-struct StructExpr : public ImmutableExpr {
+struct StructExpr : public Expr {
     Loc fields_loc;
     Path path;
     PtrVector<FieldExpr> fields;
@@ -436,7 +409,7 @@ struct StructExpr : public ImmutableExpr {
         const Loc& fields_loc,
         Path&& path,
         PtrVector<FieldExpr>&& fields)
-        : ImmutableExpr(loc)
+        : Expr(loc)
         , fields_loc(fields_loc)
         , path(std::move(path))
         , fields(std::move(fields))
@@ -448,16 +421,16 @@ struct StructExpr : public ImmutableExpr {
 
     const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) const override;
-    void bind(NameBinder&) const override;
+    void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
 
 /// Expression enclosed by parenthesis and made of several expressions separated by commas.
-struct TupleExpr : public ImmutableExpr {
+struct TupleExpr : public Expr {
     PtrVector<Expr> args;
 
     TupleExpr(const Loc& loc, PtrVector<Expr>&& args)
-        : ImmutableExpr(loc), args(std::move(args))
+        : Expr(loc), args(std::move(args))
     {}
 
     bool has_side_effect() const override;
@@ -465,18 +438,18 @@ struct TupleExpr : public ImmutableExpr {
     const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) const override;
     const artic::Type* check(TypeChecker&, const artic::Type*) const override;
-    void bind(NameBinder&) const override;
+    void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
 
 /// Array expression.
-struct ArrayExpr : public ImmutableExpr {
+struct ArrayExpr : public Expr {
     PtrVector<Expr> elems;
 
-    mutable const artic::Type* elem_type;
+    const artic::Type* elem_type;
 
     ArrayExpr(const Loc& loc, PtrVector<Expr>&& elems)
-        : ImmutableExpr(loc), elems(std::move(elems))
+        : Expr(loc), elems(std::move(elems))
     {}
 
     bool has_side_effect() const override;
@@ -484,12 +457,12 @@ struct ArrayExpr : public ImmutableExpr {
     const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) const override;
     const artic::Type* check(TypeChecker&, const artic::Type*) const override;
-    void bind(NameBinder&) const override;
+    void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
 
 /// Anonymous function expression.
-struct FnExpr : public ImmutableExpr {
+struct FnExpr : public Expr {
     Ptr<Filter> filter;
     Ptr<Ptrn>   param;
     Ptr<Type>   ret_type;
@@ -501,7 +474,7 @@ struct FnExpr : public ImmutableExpr {
         Ptr<Ptrn>&& param,
         Ptr<Type>&& ret_type,
         Ptr<Expr>&& body)
-        : ImmutableExpr(loc)
+        : Expr(loc)
         , filter(std::move(filter))
         , param(std::move(param))
         , ret_type(std::move(ret_type))
@@ -511,17 +484,17 @@ struct FnExpr : public ImmutableExpr {
     const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) const override;
     const artic::Type* check(TypeChecker&, const artic::Type*) const override;
-    void bind(NameBinder&) const override;
+    void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
 
 /// Block of code, whose result is the last expression in the block.
-struct BlockExpr : public ImmutableExpr {
+struct BlockExpr : public Expr {
     PtrVector<Stmt> stmts;
     bool last_semi;
 
     BlockExpr(const Loc& loc, PtrVector<Stmt>&& stmts, bool last_semi)
-        : ImmutableExpr(loc), stmts(std::move(stmts)), last_semi(last_semi)
+        : Expr(loc), stmts(std::move(stmts)), last_semi(last_semi)
     {}
 
     bool has_side_effect() const override;
@@ -529,52 +502,52 @@ struct BlockExpr : public ImmutableExpr {
     const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) const override;
     const artic::Type* check(TypeChecker&, const artic::Type*) const override;
-    void bind(NameBinder&) const override;
+    void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
 
 /// Function call with a single expression (can be a tuple) for the arguments.
-struct CallExpr : public MutableExpr {
+struct CallExpr : public Expr {
     Ptr<Expr> callee;
     Ptr<Expr> arg;
 
     CallExpr(const Loc& loc, Ptr<Expr>&& callee, Ptr<Expr>&& arg)
-        : MutableExpr(loc)
+        : Expr(loc)
         , callee(std::move(callee))
         , arg(std::move(arg))
     {}
 
     bool has_side_effect() const override;
 
-    const thorin::Def* emit(Emitter&, bool) const override;
-    const artic::Type* infer(TypeChecker&, bool) const override;
-    void bind(NameBinder&) const override;
+    const thorin::Def* emit(Emitter&) const override;
+    const artic::Type* infer(TypeChecker&) const override;
+    void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
 
 /// Projection operator (.).
-struct ProjExpr : public MutableExpr {
+struct ProjExpr : public Expr {
     Ptr<Expr> expr;
     Identifier field;
 
     mutable size_t index;
 
     ProjExpr(const Loc& loc, Ptr<Expr>&& expr, Identifier&& field)
-        : MutableExpr(loc)
+        : Expr(loc)
         , expr(std::move(expr))
         , field(std::move(field))
     {}
 
     bool has_side_effect() const override;
 
-    const thorin::Def* emit(Emitter&, bool) const override;
-    const artic::Type* infer(TypeChecker&, bool) const override;
-    void bind(NameBinder&) const override;
+    const thorin::Def* emit(Emitter&) const override;
+    const artic::Type* infer(TypeChecker&) const override;
+    void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
 
 /// If/Else expression (the else branch is optional).
-struct IfExpr : public ImmutableExpr {
+struct IfExpr : public Expr {
     Ptr<Expr> cond;
     Ptr<Expr> if_true;
     Ptr<Expr> if_false;
@@ -584,7 +557,7 @@ struct IfExpr : public ImmutableExpr {
         Ptr<Expr>&& cond,
         Ptr<Expr>&& if_true,
         Ptr<Expr>&& if_false)
-        : ImmutableExpr(loc)
+        : Expr(loc)
         , cond(std::move(cond))
         , if_true(std::move(if_true))
         , if_false(std::move(if_false))
@@ -595,17 +568,17 @@ struct IfExpr : public ImmutableExpr {
     const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) const override;
     const artic::Type* check(TypeChecker&, const artic::Type*) const override;
-    void bind(NameBinder&) const override;
+    void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
 
 /// Case within a match expression.
-struct CaseExpr : public ImmutableExpr {
+struct CaseExpr : public Expr {
     Ptr<Ptrn> ptrn;
     Ptr<Expr> expr;
 
     CaseExpr(const Loc& loc, Ptr<Ptrn>&& ptrn, Ptr<Expr>&& expr)
-        : ImmutableExpr(loc)
+        : Expr(loc)
         , ptrn(std::move(ptrn))
         , expr(std::move(expr))
     {}
@@ -613,17 +586,17 @@ struct CaseExpr : public ImmutableExpr {
     bool has_side_effect() const override;
 
     const thorin::Def* emit(Emitter&) const override;
-    void bind(NameBinder&) const override;
+    void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
 
 /// Match expression.
-struct MatchExpr : public ImmutableExpr {
+struct MatchExpr : public Expr {
     Ptr<Expr> arg;
     PtrVector<CaseExpr> cases;
 
     MatchExpr(const Loc& loc, Ptr<Expr>&& arg, PtrVector<CaseExpr>&& cases)
-        : ImmutableExpr(loc)
+        : Expr(loc)
         , arg(std::move(arg))
         , cases(std::move(cases))
     {}
@@ -633,20 +606,20 @@ struct MatchExpr : public ImmutableExpr {
     const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) const override;
     const artic::Type* check(TypeChecker&, const artic::Type*) const override;
-    void bind(NameBinder&) const override;
+    void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
 
 /// Base class for loop expressions (while, for)
-struct LoopExpr : public ImmutableExpr {
+struct LoopExpr : public Expr {
     Ptr<Expr> body;
 
     // Set during IR emission
-    mutable const thorin::Def* break_ = nullptr;
-    mutable const thorin::Def* continue_ = nullptr;
+    const thorin::Def* break_ = nullptr;
+    const thorin::Def* continue_ = nullptr;
 
     LoopExpr(const Loc& loc, Ptr<Expr>&& body)
-        : ImmutableExpr(loc), body(std::move(body))
+        : Expr(loc), body(std::move(body))
     {}
 };
 
@@ -662,7 +635,7 @@ struct WhileExpr : public LoopExpr {
 
     const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) const override;
-    void bind(NameBinder&) const override;
+    void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
 
@@ -678,58 +651,60 @@ struct ForExpr : public LoopExpr {
 
     const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) const override;
-    void bind(NameBinder&) const override;
+    void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
 
 /// Break expression.
-struct BreakExpr : public ImmutableExpr {
-    mutable const LoopExpr* loop = nullptr;
+struct BreakExpr : public Expr {
+    const LoopExpr* loop = nullptr;
 
     BreakExpr(const Loc& loc)
-        : ImmutableExpr(loc)
+        : Expr(loc)
     {}
 
     const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) const override;
-    void bind(NameBinder&) const override;
+    void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
 
 /// Break expression.
-struct ContinueExpr : public ImmutableExpr {
-    mutable const LoopExpr* loop = nullptr;
+struct ContinueExpr : public Expr {
+    const LoopExpr* loop = nullptr;
 
     ContinueExpr(const Loc& loc)
-        : ImmutableExpr(loc)
+        : Expr(loc)
     {}
 
     const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) const override;
-    void bind(NameBinder&) const override;
+    void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
 
 /// Break expression.
-struct ReturnExpr : public ImmutableExpr {
-    mutable const FnExpr* fn = nullptr;
+struct ReturnExpr : public Expr {
+    const FnExpr* fn = nullptr;
 
     ReturnExpr(const Loc& loc)
-        : ImmutableExpr(loc)
+        : Expr(loc)
     {}
 
     const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) const override;
-    void bind(NameBinder&) const override;
+    void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
 
 /// Unary expression (negation, increment, ...).
-struct UnaryExpr : public ImmutableExpr {
+struct UnaryExpr : public Expr {
     enum Tag {
         Not,
         Plus,
         Minus,
+        AddrOf,
+        Deref,
         PreInc,
         PostInc,
         PreDec,
@@ -741,7 +716,7 @@ struct UnaryExpr : public ImmutableExpr {
     Ptr<Expr> arg;
 
     UnaryExpr(const Loc& loc, Tag tag, Ptr<Expr>&& arg)
-        : ImmutableExpr(loc), tag(tag), arg(std::move(arg))
+        : Expr(loc), tag(tag), arg(std::move(arg))
     {}
 
     bool is_prefix() const { return !is_postfix(); }
@@ -751,7 +726,7 @@ struct UnaryExpr : public ImmutableExpr {
 
     const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) const override;
-    void bind(NameBinder&) const override;
+    void bind(NameBinder&) override;
     void print(Printer&) const override;
 
     bool is_inc() const { return is_inc(tag); }
@@ -765,7 +740,7 @@ struct UnaryExpr : public ImmutableExpr {
 };
 
 /// Binary expression (addition, logical operations, ...).
-struct BinaryExpr : public ImmutableExpr {
+struct BinaryExpr : public Expr {
     enum Tag {
         Eq, AddEq, SubEq, MulEq, DivEq, RemEq,
         LShftEq, RShftEq,
@@ -773,7 +748,7 @@ struct BinaryExpr : public ImmutableExpr {
         Add, Sub, Mul, Div, Rem,
         LShft, RShft,
         And, Or, Xor,
-        AndAnd, OrOr,
+        LogicAnd, LogicOr,
         CmpLT, CmpGT, CmpLE, CmpGE, CmpEq, CmpNE,
         Error
     };
@@ -786,7 +761,7 @@ struct BinaryExpr : public ImmutableExpr {
         Tag tag,
         Ptr<Expr>&& left,
         Ptr<Expr>&& right)
-        : ImmutableExpr(loc), tag(tag), left(std::move(left)), right(std::move(right))
+        : Expr(loc), tag(tag), left(std::move(left)), right(std::move(right))
     {}
 
     bool has_cmp() const { return has_cmp(tag); }
@@ -796,7 +771,7 @@ struct BinaryExpr : public ImmutableExpr {
 
     const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) const override;
-    void bind(NameBinder&) const override;
+    void bind(NameBinder&) override;
     void print(Printer&) const override;
 
     static Tag remove_eq(Tag);
@@ -811,7 +786,7 @@ struct BinaryExpr : public ImmutableExpr {
 };
 
 /// Filter expression to force execution of calls.
-struct FilterExpr : public MutableExpr {
+struct FilterExpr : public Expr {
     Ptr<Filter> filter;
     Ptr<Expr> expr;
 
@@ -819,26 +794,26 @@ struct FilterExpr : public MutableExpr {
         const Loc& loc,
         Ptr<ast::Filter>&& filter,
         Ptr<Expr>&& expr)
-        : MutableExpr(loc)
+        : Expr(loc)
         , filter(std::move(filter))
         , expr(std::move(expr))
     {}
 
     bool has_side_effect() const override;
 
-    const thorin::Def* emit(Emitter&, bool) const override;
-    const artic::Type* infer(TypeChecker&, bool) const override;
-    void bind(NameBinder&) const override;
+    const thorin::Def* emit(Emitter&) const override;
+    const artic::Type* infer(TypeChecker&) const override;
+    void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
 
 /// Incorrect expression, as a result of parsing.
-struct ErrorExpr : public ImmutableExpr {
+struct ErrorExpr : public Expr {
     ErrorExpr(const Loc& loc)
-        : ImmutableExpr(loc)
+        : Expr(loc)
     {}
 
-    void bind(NameBinder&) const override;
+    void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
 
@@ -860,7 +835,7 @@ struct TypeParam : public NamedDecl {
     {}
 
     const artic::Type* infer(TypeChecker&) const override;
-    void bind(NameBinder&) const override;
+    void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
 
@@ -872,7 +847,7 @@ struct TypeParamList : public Node {
         : Node(loc), params(std::move(params))
     {}
 
-    void bind(NameBinder&) const override;
+    void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
 
@@ -885,7 +860,7 @@ struct PtrnDecl : public NamedDecl {
     {}
 
     const artic::Type* check(TypeChecker&, const artic::Type*) const override;
-    void bind(NameBinder&) const override;
+    void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
 
@@ -902,7 +877,7 @@ struct LetDecl : public Decl {
 
     const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) const override;
-    void bind(NameBinder&) const override;
+    void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
 
@@ -921,12 +896,11 @@ struct FnDecl : public NamedDecl {
         , type_params(std::move(type_params))
     {}
 
-    const thorin::Def* emit_head(Emitter&) const override;
     const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) const override;
     const artic::Type* check(TypeChecker&, const artic::Type*) const override;
-    void bind_head(NameBinder&) const override;
-    void bind(NameBinder&) const override;
+    void bind_head(NameBinder&) override;
+    void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
 
@@ -943,7 +917,7 @@ struct FieldDecl : public NamedDecl {
     {}
 
     const artic::Type* infer(TypeChecker&) const override;
-    void bind(NameBinder&) const override;
+    void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
 
@@ -964,8 +938,8 @@ struct StructDecl : public NamedDecl {
 
     const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) const override;
-    void bind_head(NameBinder&) const override;
-    void bind(NameBinder&) const override;
+    void bind_head(NameBinder&) override;
+    void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
 
@@ -982,7 +956,7 @@ struct OptionDecl : public NamedDecl {
     {}
 
     const artic::Type* check(TypeChecker&, const artic::Type*) const override;
-    void bind(NameBinder&) const override;
+    void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
 
@@ -1001,11 +975,10 @@ struct EnumDecl : public NamedDecl {
         , options(std::move(options))
     {}
 
-    const thorin::Def* emit_head(Emitter&) const override;
     const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) const override;
-    void bind_head(NameBinder&) const override;
-    void bind(NameBinder&) const override;
+    void bind_head(NameBinder&) override;
+    void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
 
@@ -1025,7 +998,7 @@ struct TypeDecl : public NamedDecl {
     {}
 
     const artic::Type* infer(TypeChecker&) const override;
-    void bind(NameBinder&) const override;
+    void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
 
@@ -1033,7 +1006,7 @@ struct TypeDecl : public NamedDecl {
 struct ModDecl : public NamedDecl {
     PtrVector<Decl> decls;
 
-    mutable std::vector<const NamedDecl*> members;
+    std::vector<const NamedDecl*> members;
 
     explicit ModDecl()
         : NamedDecl(Loc(), Identifier())
@@ -1045,11 +1018,10 @@ struct ModDecl : public NamedDecl {
 
     void populate() const;
 
-    const thorin::Def* emit_head(Emitter&) const override;
     const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) const override;
-    void bind_head(NameBinder&) const override;
-    void bind(NameBinder&) const override;
+    void bind_head(NameBinder&) override;
+    void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
 
@@ -1057,7 +1029,7 @@ struct ModDecl : public NamedDecl {
 struct ErrorDecl : public Decl {
     ErrorDecl(const Loc& loc) : Decl(loc) {}
 
-    void bind(NameBinder&) const override;
+    void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
 
@@ -1074,9 +1046,9 @@ struct TypedPtrn : public Ptrn {
 
     bool is_trivial() const override;
 
-    const thorin::Def* emit(Emitter&, const thorin::Def*) const override;
+    void emit(Emitter&, const thorin::Def*) const override;
     const artic::Type* infer(TypeChecker&) const override;
-    void bind(NameBinder&) const override;
+    void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
 
@@ -1084,18 +1056,16 @@ struct TypedPtrn : public Ptrn {
 struct IdPtrn : public Ptrn {
     Ptr<PtrnDecl> decl;
 
-    mutable PtrVector<Ptrn> junk;
-
     IdPtrn(const Loc& loc, Ptr<PtrnDecl>&& decl)
         : Ptrn(loc), decl(std::move(decl))
     {}
 
     bool is_trivial() const override;
 
-    const thorin::Def* emit(Emitter&, const thorin::Def*) const override;
+    void emit(Emitter&, const thorin::Def*) const override;
     const artic::Type* infer(TypeChecker&) const override;
     const artic::Type* check(TypeChecker&, const artic::Type*) const override;
-    void bind(NameBinder&) const override;
+    void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
 
@@ -1109,10 +1079,9 @@ struct LiteralPtrn : public Ptrn {
 
     bool is_trivial() const override;
 
-    const thorin::Def* emit(Emitter&, const thorin::Def*) const override;
     const artic::Type* infer(TypeChecker&) const override;
     const artic::Type* check(TypeChecker&, const artic::Type*) const override;
-    void bind(NameBinder&) const override;
+    void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
 
@@ -1131,9 +1100,9 @@ struct FieldPtrn : public Ptrn {
 
     bool is_trivial() const override;
 
-    const thorin::Def* emit(Emitter&, const thorin::Def*) const override;
+    void emit(Emitter&, const thorin::Def*) const override;
     const artic::Type* check(TypeChecker&, const artic::Type*) const override;
-    void bind(NameBinder&) const override;
+    void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
 
@@ -1141,8 +1110,6 @@ struct FieldPtrn : public Ptrn {
 struct StructPtrn : public Ptrn {
     Path path;
     PtrVector<FieldPtrn> fields;
-
-    mutable PtrVector<Ptrn> junk;
 
     StructPtrn(const Loc& loc, Path&& path, PtrVector<FieldPtrn>&& fields)
         : Ptrn(loc), path(std::move(path)), fields(std::move(fields))
@@ -1154,9 +1121,9 @@ struct StructPtrn : public Ptrn {
 
     bool is_trivial() const override;
 
-    const thorin::Def* emit(Emitter&, const thorin::Def*) const override;
+    void emit(Emitter&, const thorin::Def*) const override;
     const artic::Type* infer(TypeChecker&) const override;
-    void bind(NameBinder&) const override;
+    void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
 
@@ -1173,9 +1140,8 @@ struct EnumPtrn : public Ptrn {
 
     bool is_trivial() const override;
 
-    const thorin::Def* emit(Emitter&, const thorin::Def*) const override;
     const artic::Type* infer(TypeChecker&) const override;
-    void bind(NameBinder&) const override;
+    void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
 
@@ -1189,10 +1155,10 @@ struct TuplePtrn : public Ptrn {
 
     bool is_trivial() const override;
 
-    const thorin::Def* emit(Emitter&, const thorin::Def*) const override;
+    void emit(Emitter&, const thorin::Def*) const override;
     const artic::Type* infer(TypeChecker&) const override;
     const artic::Type* check(TypeChecker&, const artic::Type*) const override;
-    void bind(NameBinder&) const override;
+    void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
 
@@ -1202,7 +1168,7 @@ struct ErrorPtrn : public Ptrn {
 
     bool is_trivial() const override;
 
-    void bind(NameBinder&) const override;
+    void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
 

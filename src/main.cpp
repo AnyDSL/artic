@@ -243,10 +243,10 @@ int main(int argc, char** argv) {
         log::out << "\n";
     }
 
-    thorin::World world;
+    /*thorin::World world;
     Emitter emitter(log, world);
     if (!emitter.run(program))
         return EXIT_FAILURE;
-    world.dump();
+    world.dump();*/
     return EXIT_SUCCESS;
 }

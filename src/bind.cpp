@@ -3,16 +3,16 @@
 
 namespace artic {
 
-bool NameBinder::run(const ast::ModDecl& mod) {
+bool NameBinder::run(ast::ModDecl& mod) {
     bind(mod);
     return errors == 0;
 }
 
-void NameBinder::bind_head(const ast::Decl& decl) {
+void NameBinder::bind_head(ast::Decl& decl) {
     decl.bind_head(*this);
 }
 
-void NameBinder::bind(const ast::Node& node) {
+void NameBinder::bind(ast::Node& node) {
     node.bind(*this);
 }
 
@@ -30,7 +30,7 @@ void NameBinder::pop_scope() {
     scopes_.pop_back();
 }
 
-void NameBinder::insert_symbol(const ast::NamedDecl& decl) {
+void NameBinder::insert_symbol(ast::NamedDecl& decl) {
     assert(!scopes_.empty());
     auto& name = decl.id.name;
     assert(!name.empty());
@@ -54,7 +54,7 @@ namespace ast {
 
 // Path ----------------------------------------------------------------------------
 
-void Path::bind(NameBinder& binder) const {
+void Path::bind(NameBinder& binder) {
     // Bind the first element of the path
     auto& first = elems.front();
     if (first.id.name[0] == '_')
@@ -78,78 +78,78 @@ void Path::bind(NameBinder& binder) const {
 
 // Filter --------------------------------------------------------------------------
 
-void Filter::bind(NameBinder& binder) const {
+void Filter::bind(NameBinder& binder) {
     if (expr) binder.bind(*expr);
 }
 
 // Types ---------------------------------------------------------------------------
 
-void PrimType::bind(NameBinder&) const {}
+void PrimType::bind(NameBinder&) {}
 
-void TupleType::bind(NameBinder& binder) const {
+void TupleType::bind(NameBinder& binder) {
     for (auto& arg : args) binder.bind(*arg);
 }
 
-void ArrayType::bind(NameBinder& binder) const {
+void ArrayType::bind(NameBinder& binder) {
     binder.bind(*elem);
 }
 
-void FnType::bind(NameBinder& binder) const {
+void FnType::bind(NameBinder& binder) {
     binder.bind(*from);
     if (to) binder.bind(*to);
 }
 
-void PtrType::bind(NameBinder& binder) const {
+void PtrType::bind(NameBinder& binder) {
     binder.bind(*pointee);
 }
 
-void TypeApp::bind(NameBinder& binder) const {
+void TypeApp::bind(NameBinder& binder) {
     binder.bind(path);
 }
 
-void ErrorType::bind(NameBinder&) const {}
+void ErrorType::bind(NameBinder&) {}
 
 // Statements ----------------------------------------------------------------------
 
-void DeclStmt::bind(NameBinder& binder) const {
+void DeclStmt::bind(NameBinder& binder) {
     binder.bind(*decl);
 }
 
-void ExprStmt::bind(NameBinder& binder) const {
+void ExprStmt::bind(NameBinder& binder) {
     binder.bind(*expr);
 }
 
 // Expressions ---------------------------------------------------------------------
 
-void TypedExpr::bind(NameBinder& binder) const {
+void TypedExpr::bind(NameBinder& binder) {
     binder.bind(*expr);
     binder.bind(*type);
 }
 
-void PathExpr::bind(NameBinder& binder) const {
+void PathExpr::bind(NameBinder& binder) {
     binder.bind(path);
 }
 
-void LiteralExpr::bind(NameBinder&) const {}
+void LiteralExpr::bind(NameBinder&) {}
 
-void FieldExpr::bind(NameBinder& binder) const {
+void FieldExpr::bind(NameBinder& binder) {
     binder.bind(*expr);
 }
 
-void StructExpr::bind(NameBinder& binder) const {
+void StructExpr::bind(NameBinder& binder) {
     binder.bind(path);
     for (auto& field : fields) binder.bind(*field);
 }
 
-void TupleExpr::bind(NameBinder& binder) const {
+void TupleExpr::bind(NameBinder& binder) {
     for (auto& arg : args) binder.bind(*arg);
 }
 
-void ArrayExpr::bind(NameBinder& binder) const {
+void ArrayExpr::bind(NameBinder& binder) {
     for (auto& elem : elems) binder.bind(*elem);
 }
 
-void FnExpr::bind(NameBinder& binder) const {
+void FnExpr::bind(NameBinder& binder) {
     binder.push_scope();
     if (param)    binder.bind(*param);
     if (ret_type) binder.bind(*ret_type);
@@ -162,7 +162,7 @@ void FnExpr::bind(NameBinder& binder) const {
     binder.pop_scope();
 }
 
-void BlockExpr::bind(NameBinder& binder) const {
+void BlockExpr::bind(NameBinder& binder) {
     binder.push_scope();
     for (auto& stmt : stmts) {
         if (auto decl_stmt = stmt->isa<DeclStmt>())
@@ -172,52 +172,52 @@ void BlockExpr::bind(NameBinder& binder) const {
     binder.pop_scope();
 }
 
-void CallExpr::bind(NameBinder& binder) const {
+void CallExpr::bind(NameBinder& binder) {
     binder.bind(*callee);
     binder.bind(*arg);
 }
 
-void UnaryExpr::bind(NameBinder& binder) const {
+void UnaryExpr::bind(NameBinder& binder) {
     binder.bind(*arg);
 }
 
-void BinaryExpr::bind(NameBinder& binder) const {
+void BinaryExpr::bind(NameBinder& binder) {
     binder.bind(*left);
     binder.bind(*right);
 }
 
-void ProjExpr::bind(NameBinder& binder) const {
+void ProjExpr::bind(NameBinder& binder) {
     binder.bind(*expr);
     // Cannot bind field yet, need type inference
 }
 
-void IfExpr::bind(NameBinder& binder) const {
+void IfExpr::bind(NameBinder& binder) {
     binder.bind(*cond);
     binder.bind(*if_true);
     if (if_false) binder.bind(*if_false);
 }
 
-void CaseExpr::bind(NameBinder& binder) const {
+void CaseExpr::bind(NameBinder& binder) {
     binder.push_scope();
     binder.bind(*ptrn);
     binder.bind(*expr);
     binder.pop_scope();
 }
 
-void MatchExpr::bind(NameBinder& binder) const {
+void MatchExpr::bind(NameBinder& binder) {
     binder.bind(*arg);
     for (auto& case_ : cases)
         binder.bind(*case_);
 }
 
-void WhileExpr::bind(NameBinder& binder) const {
+void WhileExpr::bind(NameBinder& binder) {
     binder.bind(*cond);
     auto old = binder.push_loop(this);
     binder.bind(*body);
     binder.pop_loop(old);
 }
 
-void ForExpr::bind(NameBinder& binder) const {
+void ForExpr::bind(NameBinder& binder) {
     // The call expression looks like:
     // iterate(|i| { ... })(...)
     // continue() and break() should only be available to the lambda
@@ -228,88 +228,88 @@ void ForExpr::bind(NameBinder& binder) const {
     binder.bind(*call()->arg);
 }
 
-void BreakExpr::bind(NameBinder& binder) const {
+void BreakExpr::bind(NameBinder& binder) {
     loop = binder.cur_loop();
     if (!loop)
         binder.error(loc, "use of '{}' outside of a loop", *this->as<Node>());
 }
 
-void ContinueExpr::bind(NameBinder& binder) const {
+void ContinueExpr::bind(NameBinder& binder) {
     loop = binder.cur_loop();
     if (!loop)
         binder.error(loc, "use of '{}' outside of a loop", *this->as<Node>());
 }
 
-void ReturnExpr::bind(NameBinder& binder) const {
+void ReturnExpr::bind(NameBinder& binder) {
     fn = binder.cur_fn();
     if (!fn)
         binder.error(loc, "use of '{}' outside of a function", *this->as<Node>());
 }
 
-void FilterExpr::bind(NameBinder& binder) const {
+void FilterExpr::bind(NameBinder& binder) {
     binder.bind(*filter);
     binder.bind(*expr);
 }
 
-void ErrorExpr::bind(NameBinder&) const {}
+void ErrorExpr::bind(NameBinder&) {}
 
 // Patterns ------------------------------------------------------------------------
 
-void TypedPtrn::bind(NameBinder& binder) const {
+void TypedPtrn::bind(NameBinder& binder) {
     binder.bind(*ptrn);
     binder.bind(*type);
 }
 
-void IdPtrn::bind(NameBinder& binder) const {
+void IdPtrn::bind(NameBinder& binder) {
     binder.bind(*decl);
 }
 
-void LiteralPtrn::bind(NameBinder&) const {}
+void LiteralPtrn::bind(NameBinder&) {}
 
-void FieldPtrn::bind(NameBinder& binder) const {
+void FieldPtrn::bind(NameBinder& binder) {
     if (ptrn) binder.bind(*ptrn);
 }
 
-void StructPtrn::bind(NameBinder& binder) const {
+void StructPtrn::bind(NameBinder& binder) {
     binder.bind(path);
     for (auto& field : fields) binder.bind(*field);
 }
 
-void EnumPtrn::bind(NameBinder& binder) const {
+void EnumPtrn::bind(NameBinder& binder) {
     binder.bind(path);
     if (arg) binder.bind(*arg);
 }
 
-void TuplePtrn::bind(NameBinder& binder) const {
+void TuplePtrn::bind(NameBinder& binder) {
     for (auto& arg : args) binder.bind(*arg);
 }
 
-void ErrorPtrn::bind(NameBinder&) const {}
+void ErrorPtrn::bind(NameBinder&) {}
 
 // Declarations --------------------------------------------------------------------
 
-void TypeParam::bind(NameBinder& binder) const {
+void TypeParam::bind(NameBinder& binder) {
     binder.insert_symbol(*this);
 }
 
-void TypeParamList::bind(NameBinder& binder) const {
+void TypeParamList::bind(NameBinder& binder) {
     for (auto& param : params) binder.bind(*param);
 }
 
-void PtrnDecl::bind(NameBinder& binder) const {
+void PtrnDecl::bind(NameBinder& binder) {
     binder.insert_symbol(*this);
 }
 
-void LetDecl::bind(NameBinder& binder) const {
+void LetDecl::bind(NameBinder& binder) {
     if (init) binder.bind(*init);
     binder.bind(*ptrn);
 }
 
-void FnDecl::bind_head(NameBinder& binder) const {
+void FnDecl::bind_head(NameBinder& binder) {
     binder.insert_symbol(*this);
 }
 
-void FnDecl::bind(NameBinder& binder) const {
+void FnDecl::bind(NameBinder& binder) {
     binder.push_scope();
 
     if (type_params) binder.bind(*type_params);
@@ -319,57 +319,57 @@ void FnDecl::bind(NameBinder& binder) const {
     binder.pop_scope();
 }
 
-void FieldDecl::bind(NameBinder& binder) const {
+void FieldDecl::bind(NameBinder& binder) {
     binder.bind(*type);
     binder.insert_symbol(*this);
 }
 
-void StructDecl::bind_head(NameBinder& binder) const {
+void StructDecl::bind_head(NameBinder& binder) {
     binder.insert_symbol(*this);
 }
 
-void StructDecl::bind(NameBinder& binder) const {
+void StructDecl::bind(NameBinder& binder) {
     binder.push_scope();
     if (type_params) binder.bind(*type_params);
     for (auto& field : fields) binder.bind(*field);
     binder.pop_scope();
 }
 
-void OptionDecl::bind(NameBinder& binder) const {
+void OptionDecl::bind(NameBinder& binder) {
     if (param) binder.bind(*param);
     binder.insert_symbol(*this);
 }
 
-void EnumDecl::bind_head(NameBinder& binder) const {
+void EnumDecl::bind_head(NameBinder& binder) {
     binder.insert_symbol(*this);
 }
 
-void EnumDecl::bind(NameBinder& binder) const {
+void EnumDecl::bind(NameBinder& binder) {
     binder.push_scope();
     if (type_params) binder.bind(*type_params);
     for (auto& option : options) binder.bind(*option);
     binder.pop_scope();
 }
 
-void TypeDecl::bind(NameBinder& binder) const {
+void TypeDecl::bind(NameBinder& binder) {
     binder.insert_symbol(*this);
     if (type_params) binder.bind(*type_params);
     binder.bind(*aliased_type);
 }
 
-void ModDecl::bind_head(NameBinder& binder) const {
+void ModDecl::bind_head(NameBinder& binder) {
     if (id.name != "")
         binder.insert_symbol(*this);
 }
 
-void ModDecl::bind(NameBinder& binder) const {
+void ModDecl::bind(NameBinder& binder) {
     binder.push_scope(true);
     for (auto& decl : decls) binder.bind_head(*decl);
     for (auto& decl : decls) binder.bind(*decl);
     binder.pop_scope();
 }
 
-void ErrorDecl::bind(NameBinder&) const {}
+void ErrorDecl::bind(NameBinder&) {}
 
 } // namespace ast
 

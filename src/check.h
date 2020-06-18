@@ -26,25 +26,24 @@ public:
     bool enter_decl(const ast::Decl*);
     void exit_decl(const ast::Decl*);
 
-    const Type* expect(const Loc&, const std::string&, const Type*, const Type*);
-    const Type* expect(const Loc&, const std::string&, const Type*);
-    const Type* expect(const Loc&, const Type*, const Type*);
+    bool should_emit_error(const Type*);
+    void explain_no_ret(const Type*, const Type*);
 
+    const Type* incompatible_types(const Loc&, const Type*, const Type*);
+    const Type* incompatible_type(const Loc&, const std::string&, const Type*);
     const Type* type_expected(const Loc&, const Type*, const std::string_view&);
     const Type* unknown_member(const Loc&, const UserType*, const std::string_view&);
     const Type* cannot_infer(const Loc&, const std::string&);
     const Type* unreachable_code(const Loc&, const Loc&, const Loc&);
-    const Type* assignment_to_immutable(const Loc&);
+    const Type* mutable_expected(const Loc&);
 
-    const Type* deref(const Type*);
+    std::pair<const Type*, const Type*> deref(const ast::Expr&);
 
     const Type* lookup(const Loc&, const ast::NamedDecl&, bool);
 
     const Type* check(const ast::Node&, const Type*);
     const Type* infer(const ast::Node&);
-    const Type* infer(const ast::Expr&, bool);
-
-    const Type* infer(const ast::CallExpr&, bool);
+    const Type* infer(const ast::Ptrn&, const ast::Expr&);
 
     const Type* infer(const Loc&, const Literal&);
     const Type* check(const Loc&, const Literal&, const Type*);
@@ -59,9 +58,6 @@ public:
     void check_block(const Loc&, const Stmts&, bool);
 
 private:
-    bool should_emit_error(const Type*);
-    void explain_no_ret(const Type*, const Type*);
-
     std::unordered_set<const ast::Decl*> decls_;
 };
 

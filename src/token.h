@@ -64,9 +64,9 @@ namespace artic {
     f(LShft, "<<") \
     f(RShft, ">>") \
     f(And, "&") \
-    f(AndAnd, "&&") \
+    f(LogicAnd, "&&") \
     f(Or, "|") \
-    f(OrOr, "||") \
+    f(LogicOr, "||") \
     f(Xor, "^") \
     f(Not, "!") \
     f(CmpLE, "<=") \

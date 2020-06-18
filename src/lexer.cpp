@@ -119,12 +119,12 @@ Token Lexer::next() {
             return Token(loc_, Token::Rem);
         }
         if (accept('&')) {
-            if (accept('&')) return Token(loc_, Token::AndAnd);
+            if (accept('&')) return Token(loc_, Token::LogicAnd);
             if (accept('=')) return Token(loc_, Token::AndEq);
             return Token(loc_, Token::And);
         }
         if (accept('|')) {
-            if (accept('|')) return Token(loc_, Token::OrOr);
+            if (accept('|')) return Token(loc_, Token::LogicOr);
             if (accept('=')) return Token(loc_, Token::OrEq);
             return Token(loc_, Token::Or);
         }
