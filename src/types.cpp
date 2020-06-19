@@ -291,6 +291,10 @@ bool Type::subtype(const Type* other) const {
         return true;
     if (auto ref_type = isa<RefType>())
         return ref_type->pointee->subtype(other);
+    if (auto ptr_type = isa<PtrType>()) {
+        if (auto other_ptr_type = other->isa<PtrType>())
+            return ptr_type->pointee->subtype(other_ptr_type->pointee);
+    }
     if (auto sized_array_type = isa<SizedArrayType>()) {
         if (auto other_array_type = other->isa<UnsizedArrayType>())
             return sized_array_type->elem == other_array_type->elem;
