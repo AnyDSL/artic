@@ -197,12 +197,20 @@ const Type* TypeChecker::infer_tuple(const Args& args) {
 }
 
 template <typename Fields>
-const Type* TypeChecker::check_fields(const Loc& loc, const StructType* struct_type, const TypeApp* app, const Fields& fields, bool etc, const std::string& msg) {
+const Type* TypeChecker::check_fields(
+    const Loc& loc,
+    const StructType* struct_type,
+    const TypeApp* app,
+    const Fields& fields,
+    const std::string& msg) {
+    bool etc = false;
     std::vector<bool> seen(struct_type->decl.fields.size(), false);
     for (size_t i = 0; i < fields.size(); ++i) {
         // Skip the field if it is '...'
-        if (fields[i]->is_etc())
+        if (fields[i]->is_etc()) {
+            etc = true;
             continue;
+        }
         auto index = struct_type->find_member(fields[i]->id.name);
         if (!index)
             return unknown_member(fields[i]->loc, struct_type, fields[i]->id.name);
@@ -224,8 +232,7 @@ const Type* TypeChecker::check_fields(const Loc& loc, const StructType* struct_t
     return app ? app->as<Type>() : struct_type;
 }
 
-template <typename Stmts>
-void TypeChecker::check_block(const Loc& loc, const Stmts& stmts, bool last_semi) {
+void TypeChecker::check_block(const Loc& loc, const PtrVector<ast::Stmt>& stmts, bool last_semi) {
     assert(!stmts.empty());
     // Make sure there is no unreachable code and warn about statements with no effect
     for (size_t i = 0, n = stmts.size(); i < n - 1; ++i) {
@@ -397,7 +404,7 @@ const artic::Type* StructExpr::infer(TypeChecker& checker) const {
     auto [app, struct_type] = match_app<StructType>(path_type);
     if (!struct_type)
         return checker.type_expected(path.loc, path_type, "structure");
-    return checker.check_fields(loc, struct_type, app, fields, false, "expression");
+    return checker.check_fields(loc, struct_type, app, fields, "expression");
 }
 
 const artic::Type* TupleExpr::infer(TypeChecker& checker) const {
@@ -791,7 +798,7 @@ const artic::Type* StructPtrn::infer(TypeChecker& checker) const {
     auto [app, struct_type] = match_app<StructType>(path_type);
     if (!struct_type)
         return checker.type_expected(path.loc, path_type, "structure");
-    return checker.check_fields(loc, struct_type, app, fields, has_etc(), "pattern");
+    return checker.check_fields(loc, struct_type, app, fields, "pattern");
 }
 
 const artic::Type* EnumPtrn::infer(TypeChecker& checker) const {

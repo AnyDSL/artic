@@ -53,9 +53,8 @@ public:
     template <typename Args>
     const Type* infer_tuple(const Args&);
     template <typename Fields>
-    const Type* check_fields(const Loc&, const StructType*, const TypeApp*, const Fields&, bool, const std::string&);
-    template <typename Stmts>
-    void check_block(const Loc&, const Stmts&, bool);
+    const Type* check_fields(const Loc&, const StructType*, const TypeApp*, const Fields&, const std::string&);
+    void check_block(const Loc&, const PtrVector<ast::Stmt>&, bool);
 
 private:
     std::unordered_set<const ast::Decl*> decls_;
