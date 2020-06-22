@@ -39,28 +39,33 @@ bool Emitter::run(const ast::ModDecl& mod) {
 }
 
 void Emitter::enter(thorin::Continuation* cont) {
-    cont_ = cont;
-    mem_  = cont->mem_param();
+    state.cont = cont;
+    state.mem  = cont->mem_param();
 }
 
 void Emitter::jump(const thorin::Def* callee, const thorin::Def* arg, thorin::Debug debug) {
-    cont_->jump(callee, { mem_, arg }, debug);
+    state.cont->jump(callee, { state.mem, arg }, debug);
 }
 
 const thorin::Def* Emitter::alloc(const thorin::Type* type, thorin::Debug debug) {
-    auto pair = world.enter(mem_);
-    mem_ = world.extract(pair, thorin::u32(0));
+    auto pair = world.enter(state.mem);
+    state.mem = world.extract(pair, thorin::u32(0));
     return world.slot(type, world.extract(pair, thorin::u32(1)), debug);
 }
 
 void Emitter::store(const thorin::Def* ptr, const thorin::Def* value, thorin::Debug debug) {
-    mem_ = world.store(mem_, ptr, value, debug);
+    state.mem = world.store(state.mem, ptr, value, debug);
 }
 
 const thorin::Def* Emitter::load(const thorin::Def* ptr, thorin::Debug debug) {
-    auto pair = world.load(mem_, ptr, debug);
-    mem_ = world.extract(pair, thorin::u32(0));
+    auto pair = world.load(state.mem, ptr, debug);
+    state.mem = world.extract(pair, thorin::u32(0));
     return world.extract(pair, thorin::u32(1));
+}
+
+const thorin::Def* Emitter::deref(const ast::Expr& expr) {
+    auto def = emit(expr);
+    return expr.type->isa<RefType>() ? load(def, debug_info(expr)) : def;
 }
 
 const thorin::Def* Emitter::emit(const ast::Node& node) {
@@ -154,12 +159,20 @@ const thorin::Def* StructExpr::emit(Emitter& emitter) const {
 const thorin::Def* TupleExpr::emit(Emitter& emitter) const {
     thorin::Array<const thorin::Def*> ops(args.size());
     for (size_t i = 0, n = args.size(); i < n; ++i)
-        ops[i] = emitter.emit(*args[i]);
+        ops[i] = emitter.deref(*args[i]);
     return emitter.world.tuple(ops);
 }
 
 const thorin::Def* FnExpr::emit(Emitter& emitter) const {
-    return nullptr;
+    auto _ = emitter.save_state();
+    auto cont = emitter.world.continuation(
+        type->convert(emitter)->as<thorin::FnType>(),
+        debug_info(*this));
+    emitter.enter(cont);
+    emitter.emit(*param, cont->param(1));
+    auto value = emitter.emit(*body);
+    emitter.jump(cont->ret_param(), value);
+    return cont;
 }
 
 const thorin::Def* BlockExpr::emit(Emitter& emitter) const {

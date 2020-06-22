@@ -20,13 +20,35 @@ namespace artic {
 struct StructType;
 
 class Emitter : public Logger {
+private:
+    struct State {
+        const thorin::Def* mem;
+        thorin::Continuation* cont;
+    };
+
+    struct SavedState {
+        Emitter& emitter;
+        State state;
+
+        SavedState(Emitter& emitter)
+            : emitter(emitter), state(emitter.state)
+        {}
+        ~SavedState() {
+            emitter.state = state;
+        }
+    };
+
+    State state;
+
 public:
     Emitter(Log& log, thorin::World& world)
         : Logger(log), world(world)
     {}
 
     thorin::World& world;
+    /// A map of all structure types to avoid creating the same type several times
     std::unordered_map<const StructType*, const thorin::Type*> structs;
+    /// A map of the currently bound type variables
     std::unordered_map<const TypeVar*, const thorin::Type*> type_vars;
 
     bool run(const ast::ModDecl&);
@@ -37,13 +59,13 @@ public:
     void store(const thorin::Def*, const thorin::Def*, thorin::Debug = {});
     const thorin::Def* load(const thorin::Def*, thorin::Debug = {});
 
+    const thorin::Def* deref(const ast::Expr&);
+
     const thorin::Def* emit(const ast::Node&);
     void emit(const ast::Ptrn&, const thorin::Def*);
     const thorin::Def* emit(const ast::Node&, const Literal&);
 
-private:
-    const thorin::Def* mem_;
-    thorin::Continuation* cont_;
+    SavedState save_state() { return SavedState(*this); }
 };
 
 } // namespace artic
