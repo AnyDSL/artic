@@ -8,29 +8,23 @@
 
 namespace artic {
 
-static thorin::Debug debug_info(const ast::NamedDecl& decl) {
-    return thorin::Debug {
-        thorin::Location(
-            decl.loc.file->c_str(),
-            decl.loc.begin.row,
-            decl.loc.begin.col,
-            decl.loc.end.row,
-            decl.loc.end.col),
-        decl.id.name
-    };
+static thorin::Location location(const Loc& loc) {
+    return thorin::Location(
+        loc.file->c_str(),
+        loc.begin.row,
+        loc.begin.col,
+        loc.end.row,
+        loc.end.col);
 }
 
-static thorin::Debug debug_info(const ast::Node& node) {
-    if (auto named_decl = node.isa<ast::NamedDecl>())
+static thorin::Debug debug_info(const ast::NamedDecl& decl) {
+    return thorin::Debug { location(decl.loc), decl.id.name };
+}
+
+static thorin::Debug debug_info(const ast::Node& node, const std::string& name = "") {
+    if (auto named_decl = node.isa<ast::NamedDecl>(); named_decl && name == "")
         return debug_info(*named_decl);
-    return thorin::Debug {
-        thorin::Location(
-            node.loc.file->c_str(),
-            node.loc.begin.row,
-            node.loc.begin.col,
-            node.loc.end.row,
-            node.loc.end.col)
-    };
+    return thorin::Debug { location(node.loc), name };
 }
 
 bool Emitter::run(const ast::ModDecl& mod) {
@@ -38,13 +32,44 @@ bool Emitter::run(const ast::ModDecl& mod) {
     return errors == 0;
 }
 
+thorin::Continuation* Emitter::basic_block(thorin::Debug debug) {
+    return world.continuation(world.fn_type(), debug);
+}
+
+thorin::Continuation* Emitter::basic_block(const thorin::Type* param_type, thorin::Debug debug) {
+    auto type = param_type
+        ? world.fn_type({ world.mem_type(), param_type })
+        : world.fn_type({ world.mem_type() });
+    return world.continuation(type, debug);
+}
+
 void Emitter::enter(thorin::Continuation* cont) {
     state.cont = cont;
-    state.mem  = cont->mem_param();
+    if (cont->num_params() > 0)
+        state.mem = cont->param(0);
+}
+
+void Emitter::jump(const thorin::Def* callee, thorin::Debug debug) {
+    if (callee->type()->as<thorin::FnType>()->num_ops() > 0)
+        state.cont->jump(callee, { state.mem }, debug);
+    else
+        state.cont->jump(callee, {}, debug);
 }
 
 void Emitter::jump(const thorin::Def* callee, const thorin::Def* arg, thorin::Debug debug) {
     state.cont->jump(callee, { state.mem, arg }, debug);
+}
+
+const thorin::Def* Emitter::call(const thorin::Def* callee, const thorin::Def* arg, thorin::Debug debug) {
+    auto cont_type = callee->type()->as<thorin::FnType>()->op(2)->as<thorin::FnType>();
+    auto cont = world.continuation(cont_type, thorin::Debug("ret"));
+    state.cont->jump(callee, { state.mem, arg, cont }, debug);
+    enter(cont);
+    return cont->param(1);
+}
+
+void Emitter::branch(const thorin::Def* cond, const thorin::Def* branch_true, const thorin::Def* branch_false, thorin::Debug debug) {
+    state.cont->branch(cond, branch_true, branch_false, debug);
 }
 
 const thorin::Def* Emitter::alloc(const thorin::Type* type, thorin::Debug debug) {
@@ -132,6 +157,16 @@ const thorin::Def* ExprStmt::emit(Emitter& emitter) const {
 
 // Expressions ---------------------------------------------------------------------
 
+void Expr::emit(Emitter& emitter, thorin::Continuation* join_true, thorin::Continuation* join_false) const {
+    auto branch_true  = emitter.basic_block(debug_info(*this, "branch_true"));
+    auto branch_false = emitter.basic_block(debug_info(*this, "branch_false"));
+    emitter.branch(emitter.emit(*this), branch_true, branch_false);
+    emitter.enter(branch_true);
+    emitter.jump(join_true);
+    emitter.enter(branch_false);
+    emitter.jump(join_false);
+}
+
 const thorin::Def* TypedExpr::emit(Emitter& emitter) const {
     return emitter.emit(*expr);
 }
@@ -183,7 +218,9 @@ const thorin::Def* BlockExpr::emit(Emitter& emitter) const {
 }
 
 const thorin::Def* CallExpr::emit(Emitter& emitter) const {
-    return nullptr;
+    auto fn = emitter.deref(*callee);
+    auto value = emitter.deref(*arg);
+    return emitter.call(fn, value, debug_info(*this));
 }
 
 const thorin::Def* ProjExpr::emit(Emitter& emitter) const {
@@ -191,7 +228,21 @@ const thorin::Def* ProjExpr::emit(Emitter& emitter) const {
 }
 
 const thorin::Def* IfExpr::emit(Emitter& emitter) const {
-    return nullptr;
+    auto join = emitter.basic_block(type->convert(emitter), debug_info(*this, "if_join"));
+    auto join_true  = emitter.basic_block(nullptr, debug_info(*this, "join_true"));
+    auto join_false = emitter.basic_block(nullptr, debug_info(*this, "join_false"));
+    cond->emit(emitter, join_true, join_false);
+
+    emitter.enter(join_true);
+    auto true_value = emitter.emit(*if_true);
+    emitter.jump(join, true_value);
+
+    emitter.enter(join_false);
+    auto false_value = if_false ? emitter.emit(*if_false) : emitter.world.literal_bool(false, {});
+    emitter.jump(join, false_value);
+
+    emitter.enter(join);
+    return join->param(1);
 }
 
 const thorin::Def* CaseExpr::emit(Emitter& emitter) const {
@@ -228,7 +279,45 @@ const thorin::Def* UnaryExpr::emit(Emitter& emitter) const {
     return nullptr;
 }
 
+void BinaryExpr::emit(Emitter& emitter, thorin::Continuation* join_true, thorin::Continuation* join_false) const {
+    if (!is_logic())
+        Expr::emit(emitter, join_true, join_false);
+    else {
+        auto cond = emitter.emit(*left);
+        thorin::Continuation* next = nullptr;
+        // Note: We cannot really just use join_true and join_false in the branch,
+        // because the branch intrinsic requires both continuations to be of type `fn ()`.
+        if (tag == LogicAnd) {
+            auto branch_false = emitter.basic_block(debug_info(*this, "branch_false"));
+            next = emitter.basic_block(debug_info(*left, "and_true"));
+            emitter.branch(cond, next, branch_false, debug_info(*this));
+            emitter.enter(branch_false);
+            emitter.jump(join_false);
+        } else {
+            auto branch_true = emitter.basic_block(debug_info(*this, "branch_true"));
+            next = emitter.basic_block(debug_info(*left, "or_false"));
+            emitter.branch(cond, branch_true, next, debug_info(*this));
+            emitter.enter(branch_true);
+            emitter.jump(join_true);
+        } 
+        emitter.enter(next);
+        right->emit(emitter, join_true, join_false);
+    }
+}
+
 const thorin::Def* BinaryExpr::emit(Emitter& emitter) const {
+    if (is_logic()) {
+        auto join = emitter.basic_block(emitter.world.type_bool(), debug_info(*this, "join"));
+        auto join_true  = emitter.basic_block(debug_info(*this, "join_true"));
+        auto join_false = emitter.basic_block(debug_info(*this, "join_false"));
+        emit(emitter, join_true, join_false);
+        emitter.enter(join_true);
+        emitter.jump(join, emitter.world.literal_bool(true, {}));
+        emitter.enter(join_false);
+        emitter.jump(join, emitter.world.literal_bool(false, {}));
+        emitter.enter(join);
+        return join->param(1);
+    }
     return nullptr;
 }
 

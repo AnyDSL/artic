@@ -36,8 +36,12 @@ public:
     const Type* cannot_infer(const Loc&, const std::string&);
     const Type* unreachable_code(const Loc&, const Loc&, const Loc&);
     const Type* mutable_expected(const Loc&);
+    const Type* bad_arguments(const Loc&, const std::string&, size_t, size_t);
 
+    // These functions have to be used instead of check/infer
+    // for expressions that expect values instead of references.
     std::pair<const Type*, const Type*> deref(const ast::Expr&);
+    std::pair<const Type*, const Type*> deref(const ast::Expr&, const Type*);
 
     const Type* check(const ast::Node&, const Type*);
     const Type* infer(const ast::Node&);

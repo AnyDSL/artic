@@ -247,6 +247,10 @@ int main(int argc, char** argv) {
     Emitter emitter(log, world);
     if (!emitter.run(program))
         return EXIT_FAILURE;
+    if (opts.opt_level > 0)
+        world.cleanup();
+    if (opts.opt_level > 1)
+        world.opt();
     world.dump();
     return EXIT_SUCCESS;
 }

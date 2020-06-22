@@ -84,11 +84,23 @@ const Type* TypeChecker::mutable_expected(const Loc& loc) {
     return type_table.type_error();
 }
 
-std::pair<const Type*, const Type*> TypeChecker::deref(const ast::Expr& expr) {
-    auto type = infer(expr);
+const Type* TypeChecker::bad_arguments(const Loc& loc, const std::string& msg, size_t count, size_t expected) {
+    error(loc, "expected {} argument(s) in {}, but got {}", expected, msg, count);
+    return type_table.type_error();
+}
+
+static inline std::pair<const Type*, const Type*> remove_ref(const Type* type) {
     if (auto ref_type = type->isa<RefType>())
         return std::make_pair(ref_type, ref_type->pointee);
     return std::make_pair(nullptr, type);
+}
+
+std::pair<const Type*, const Type*> TypeChecker::deref(const ast::Expr& expr) {
+    return remove_ref(infer(expr));
+}
+
+std::pair<const Type*, const Type*> TypeChecker::deref(const ast::Expr& expr, const Type* expected) {
+    return remove_ref(check(expr, expected));
 }
 
 const Type* TypeChecker::check(const ast::Node& node, const Type* expected) {
@@ -159,25 +171,11 @@ const Type* TypeChecker::check(const Loc& loc, const Literal& lit, const Type* e
         auto type = infer(loc, lit)->as<SizedArrayType>();
         if (!type->subtype(expected))
             return incompatible_type(loc, "string literal", expected);
-        return expected;
+        return type;
     } else {
         assert(false);
         return type_table.type_error();
     }
-}
-
-template <typename Args>
-const Type* TypeChecker::check_tuple(const Loc& loc, const std::string& msg, const Args& args, const Type* expected) {
-    if (auto tuple_type = expected->isa<TupleType>()) {
-        if (args.size() != tuple_type->args.size()) {
-            error(loc, "expected {} argument(s) in {}, but got {}", tuple_type->args.size(), msg, args.size());
-            return type_table.type_error();
-        }
-        for (size_t i = 0; i < args.size(); ++i)
-            check(*args[i], tuple_type->args[i]);
-        return expected;
-    }
-    return incompatible_type(loc, msg, expected);
 }
 
 template <typename Fields>
@@ -241,10 +239,10 @@ const artic::Type* Node::check(TypeChecker& checker, const artic::Type* expected
         if (isa<Ptrn>())
             std::swap(type, expected);
         if (type->subtype(expected))
-            return expected;
+            return type;
         return checker.incompatible_types(loc, type, expected);
     }
-    return expected;
+    return type;
 }
 
 const artic::Type* Node::infer(TypeChecker& checker) const {
@@ -406,7 +404,15 @@ const artic::Type* TupleExpr::infer(TypeChecker& checker) const {
 }
 
 const artic::Type* TupleExpr::check(TypeChecker& checker, const artic::Type* expected) const {
-    return checker.check_tuple(loc, "tuple expression", args, expected);
+    if (auto tuple_type = expected->isa<artic::TupleType>()) {
+        if (args.size() != tuple_type->args.size())
+            return checker.bad_arguments(loc, "tuple expression", args.size(), tuple_type->args.size());
+        std::vector<const artic::Type*> types(args.size());
+        for (size_t i = 0, n = args.size(); i < n; ++i)
+            types[i] = checker.deref(*args[i], tuple_type->args[i]).second;
+        return expected;
+    }
+    return checker.incompatible_type(loc, "tuple expression", expected);
 }
 
 const artic::Type* ArrayExpr::infer(TypeChecker& checker) const {
@@ -484,6 +490,10 @@ const artic::Type* BlockExpr::check(TypeChecker& checker, const artic::Type* exp
         checker.note("removing the last semicolon may solve this issue");
         return checker.type_table.type_error();
     }
+    // If the last type is a no-return type (because of a call to return/continue/break),
+    // we need to return the expected type, and not the no-return type.
+    if (last_type != expected && last_type->isa<NoRetType>())
+        return expected;
     return last_type;
 }
 
@@ -638,7 +648,7 @@ const artic::Type* UnaryExpr::infer(TypeChecker& checker) const {
 
 const artic::Type* BinaryExpr::infer(TypeChecker& checker) const {
     auto [left_ref, left_type] = checker.deref(*left);
-    auto right_type = checker.check(*right, left_type);
+    auto right_type = checker.deref(*right, left_type).second;
     if (has_eq()) {
         if (!left_ref)
             return checker.mutable_expected(left->loc);
@@ -831,7 +841,14 @@ const artic::Type* TuplePtrn::infer(TypeChecker& checker) const {
 }
 
 const artic::Type* TuplePtrn::check(TypeChecker& checker, const artic::Type* expected) const {
-    return checker.check_tuple(loc, "tuple pattern", args, expected);
+    if (auto tuple_type = expected->isa<artic::TupleType>()) {
+        if (args.size() != tuple_type->args.size())
+            return checker.bad_arguments(loc, "tuple pattern", args.size(), tuple_type->args.size());
+        for (size_t i = 0, n = args.size(); i < n; ++i)
+            checker.check(*args[i], tuple_type->args[i]);
+        return expected;
+    }
+    return checker.incompatible_type(loc, "tuple pattern", expected);
 }
 
 } // namespace ast

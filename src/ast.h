@@ -13,6 +13,7 @@
 
 namespace thorin {
     class Def;
+    class Continuation;
 }
 
 namespace artic {
@@ -108,6 +109,9 @@ struct Expr : public Node {
     Expr(const Loc& loc) : Node(loc) {}
 
     bool is_tuple() const;
+
+    /// Emits a branch for boolean expressions.
+    virtual void emit(Emitter&, thorin::Continuation*, thorin::Continuation*) const;
 
     /// Returns true if the expression has a side effect.
     virtual bool has_side_effect() const { return false; }
@@ -766,9 +770,11 @@ struct BinaryExpr : public Expr {
 
     bool has_cmp() const { return has_cmp(tag); }
     bool has_eq() const { return has_eq(tag); }
+    bool is_logic() const { return tag == LogicAnd || tag == LogicOr; }
 
     bool has_side_effect() const override;
 
+    void emit(Emitter&, thorin::Continuation*, thorin::Continuation*) const override;
     const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) const override;
     void bind(NameBinder&) override;
