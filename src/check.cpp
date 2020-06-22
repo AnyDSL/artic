@@ -91,14 +91,6 @@ std::pair<const Type*, const Type*> TypeChecker::deref(const ast::Expr& expr) {
     return std::make_pair(nullptr, type);
 }
 
-const Type* TypeChecker::lookup(const Loc& loc, const ast::NamedDecl& decl, bool value) {
-    // Looks up an identifier by inferring the declaration it is linked to.
-    auto type = infer(decl);
-    if (value && decl.isa<ast::StructDecl>())
-        error(loc, "value expected, but got type '{}'", *type);
-    return type;
-}
-
 const Type* TypeChecker::check(const ast::Node& node, const Type* expected) {
     assert(!node.type); // Nodes can only be visited once
     return node.type = node.check(*this, expected);
@@ -188,14 +180,6 @@ const Type* TypeChecker::check_tuple(const Loc& loc, const std::string& msg, con
     return incompatible_type(loc, msg, expected);
 }
 
-template <typename Args>
-const Type* TypeChecker::infer_tuple(const Args& args) {
-    std::vector<const Type*> arg_types(args.size());
-    for (size_t i = 0; i < args.size(); ++i)
-        arg_types[i] = infer(*args[i]);
-    return type_table.tuple_type(std::move(arg_types));
-}
-
 template <typename Fields>
 const Type* TypeChecker::check_fields(
     const Loc& loc,
@@ -272,7 +256,11 @@ const artic::Type* Node::infer(TypeChecker& checker) const {
 const artic::Type* Path::infer(TypeChecker& checker) const {
     if (!symbol || symbol->decls.empty())
         return checker.type_table.type_error();
-    auto type = checker.lookup(loc, *symbol->decls.front(), value);
+    if (value && symbol->decls.front()->isa<StructDecl>()) {
+        checker.error(loc, "value expected, but got type '{}'", *type);
+        return checker.type_table.type_error();
+    }
+    auto type = checker.infer(*symbol->decls.front());
     if (!type) {
         checker.error(elems[0].id.loc, "identifier cannot be used as a {}", value ? "value" : "type");
         return checker.type_table.type_error();
@@ -338,7 +326,10 @@ const artic::Type* PrimType::infer(TypeChecker& checker) const {
 }
 
 const artic::Type* TupleType::infer(TypeChecker& checker) const {
-    return checker.infer_tuple(args);
+    std::vector<const artic::Type*> arg_types(args.size());
+    for (size_t i = 0; i < args.size(); ++i)
+        arg_types[i] = checker.infer(*args[i]);
+    return checker.type_table.tuple_type(std::move(arg_types));
 }
 
 const artic::Type* ArrayType::infer(TypeChecker& checker) const {
@@ -408,7 +399,10 @@ const artic::Type* StructExpr::infer(TypeChecker& checker) const {
 }
 
 const artic::Type* TupleExpr::infer(TypeChecker& checker) const {
-    return checker.infer_tuple(args);
+    std::vector<const artic::Type*> arg_types(args.size());
+    for (size_t i = 0; i < args.size(); ++i)
+        arg_types[i] = checker.deref(*args[i]).second;
+    return checker.type_table.tuple_type(std::move(arg_types));
 }
 
 const artic::Type* TupleExpr::check(TypeChecker& checker, const artic::Type* expected) const {
@@ -830,7 +824,10 @@ const artic::Type* EnumPtrn::infer(TypeChecker& checker) const {
 }
 
 const artic::Type* TuplePtrn::infer(TypeChecker& checker) const {
-    return checker.infer_tuple(args);
+    std::vector<const artic::Type*> arg_types(args.size());
+    for (size_t i = 0; i < args.size(); ++i)
+        arg_types[i] = checker.infer(*args[i]);
+    return checker.type_table.tuple_type(std::move(arg_types));
 }
 
 const artic::Type* TuplePtrn::check(TypeChecker& checker, const artic::Type* expected) const {

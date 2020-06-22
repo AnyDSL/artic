@@ -57,7 +57,7 @@ static void version() {
 
 struct ProgramOptions {
     std::vector<std::string> files;
-    std::string module_name = "";
+    std::string module_name = "module";
     bool exit = false;
     bool strict = false;
     bool invert = false;
@@ -243,10 +243,10 @@ int main(int argc, char** argv) {
         log::out << "\n";
     }
 
-    /*thorin::World world;
+    thorin::World world(opts.module_name);
     Emitter emitter(log, world);
     if (!emitter.run(program))
         return EXIT_FAILURE;
-    world.dump();*/
+    world.dump();
     return EXIT_SUCCESS;
 }

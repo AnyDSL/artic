@@ -39,8 +39,6 @@ public:
 
     std::pair<const Type*, const Type*> deref(const ast::Expr&);
 
-    const Type* lookup(const Loc&, const ast::NamedDecl&, bool);
-
     const Type* check(const ast::Node&, const Type*);
     const Type* infer(const ast::Node&);
     const Type* infer(const ast::Ptrn&, const ast::Expr&);
@@ -50,8 +48,6 @@ public:
 
     template <typename Args>
     const Type* check_tuple(const Loc&, const std::string&, const Args&, const Type*);
-    template <typename Args>
-    const Type* infer_tuple(const Args&);
     template <typename Fields>
     const Type* check_fields(const Loc&, const StructType*, const TypeApp*, const Fields&, const std::string&);
     void check_block(const Loc&, const PtrVector<ast::Stmt>&, bool);

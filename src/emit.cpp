@@ -38,6 +38,31 @@ bool Emitter::run(const ast::ModDecl& mod) {
     return errors == 0;
 }
 
+void Emitter::enter(thorin::Continuation* cont) {
+    cont_ = cont;
+    mem_  = cont->mem_param();
+}
+
+void Emitter::jump(const thorin::Def* callee, const thorin::Def* arg, thorin::Debug debug) {
+    cont_->jump(callee, { mem_, arg }, debug);
+}
+
+const thorin::Def* Emitter::alloc(const thorin::Type* type, thorin::Debug debug) {
+    auto pair = world.enter(mem_);
+    mem_ = world.extract(pair, thorin::u32(0));
+    return world.slot(type, world.extract(pair, thorin::u32(1)), debug);
+}
+
+void Emitter::store(const thorin::Def* ptr, const thorin::Def* value, thorin::Debug debug) {
+    mem_ = world.store(mem_, ptr, value, debug);
+}
+
+const thorin::Def* Emitter::load(const thorin::Def* ptr, thorin::Debug debug) {
+    auto pair = world.load(mem_, ptr, debug);
+    mem_ = world.extract(pair, thorin::u32(0));
+    return world.extract(pair, thorin::u32(1));
+}
+
 const thorin::Def* Emitter::emit(const ast::Node& node) {
     if (node.def)
         return node.def;
@@ -82,27 +107,32 @@ void Ptrn::emit(Emitter&, const thorin::Def*) const {
 // Path ----------------------------------------------------------------------------
 
 const thorin::Def* Path::emit(Emitter& emitter) const {
-    return nullptr;
+    auto def = symbol->decls.front()->def;
+    for (size_t i = 0, n = symbol->decls.size(); i < n; ++i) {
+        // TODO: Handle multiple path elements
+    }
+    return def;
 }
 
 // Statements ----------------------------------------------------------------------
 
 const thorin::Def* DeclStmt::emit(Emitter& emitter) const {
-    return nullptr;
+    emitter.emit(*decl);
+    return emitter.world.tuple({});
 }
 
 const thorin::Def* ExprStmt::emit(Emitter& emitter) const {
-    return nullptr;
+    return emitter.emit(*expr);
 }
 
 // Expressions ---------------------------------------------------------------------
 
 const thorin::Def* TypedExpr::emit(Emitter& emitter) const {
-    return nullptr;
+    return emitter.emit(*expr);
 }
 
 const thorin::Def* PathExpr::emit(Emitter& emitter) const {
-    return nullptr;
+    return emitter.emit(path);
 }
 
 const thorin::Def* LiteralExpr::emit(Emitter& emitter) const {
@@ -122,7 +152,10 @@ const thorin::Def* StructExpr::emit(Emitter& emitter) const {
 }
 
 const thorin::Def* TupleExpr::emit(Emitter& emitter) const {
-    return nullptr;
+    thorin::Array<const thorin::Def*> ops(args.size());
+    for (size_t i = 0, n = args.size(); i < n; ++i)
+        ops[i] = emitter.emit(*args[i]);
+    return emitter.world.tuple(ops);
 }
 
 const thorin::Def* FnExpr::emit(Emitter& emitter) const {
@@ -130,7 +163,10 @@ const thorin::Def* FnExpr::emit(Emitter& emitter) const {
 }
 
 const thorin::Def* BlockExpr::emit(Emitter& emitter) const {
-    return nullptr;
+    const thorin::Def* last = nullptr;
+    for (auto& stmt : stmts)
+        last = emitter.emit(*stmt);
+    return last && !last_semi ? last : emitter.world.tuple({});
 }
 
 const thorin::Def* CallExpr::emit(Emitter& emitter) const {
@@ -190,6 +226,9 @@ const thorin::Def* FilterExpr::emit(Emitter& emitter) const {
 // Declarations --------------------------------------------------------------------
 
 const thorin::Def* LetDecl::emit(Emitter& emitter) const {
+    emitter.emit(*ptrn, init
+        ? emitter.emit(*init)
+        : emitter.world.bottom(ptrn->type->convert(emitter)));
     return nullptr;
 }
 
@@ -206,13 +245,10 @@ const thorin::Def* FnDecl::emit(Emitter& emitter) const {
         debug_info(*this));
     if (!fn->body)
         return cont;
-    emitter.cont = cont;
-    emitter.mem = cont->mem_param();
+    emitter.enter(cont);
     emitter.emit(*fn->param, cont->param(1));
-    cont->jump(
-        cont->ret_param(),
-        { emitter.mem, emitter.emit(*fn->body) },
-        debug_info(*fn->body));
+    auto value = emitter.emit(*fn->body);
+    emitter.jump(cont->ret_param(), value, debug_info(*fn->body));
     // TODO: Remove this, it's only there so that the output is visible in the module dump.
     cont->make_external();
     return cont;
@@ -239,8 +275,13 @@ void TypedPtrn::emit(Emitter& emitter, const thorin::Def* value) const {
 }
 
 void IdPtrn::emit(Emitter& emitter, const thorin::Def* value) const {
-    assert(!decl->mut);
-    decl->def = value;
+    if (decl->mut) {
+        auto ptr = emitter.alloc(value->type(), debug_info(*decl));
+        emitter.store(ptr, value);
+        decl->def = ptr;
+    } else {
+        decl->def = value;
+    }
 }
 
 void FieldPtrn::emit(Emitter& emitter, const thorin::Def* value) const {
@@ -319,10 +360,12 @@ const thorin::Type* FnType::convert(Emitter& emitter) const {
 
 const thorin::Type* StructType::convert(Emitter& emitter) const {
     assert(!decl.type_params);
+    if (auto it = emitter.structs.find(this); it != emitter.structs.end())
+        return it->second;
     auto type = emitter.world.struct_type(decl.id.name, decl.fields.size());
     for (size_t i = 0, n = decl.fields.size(); i < n; ++i)
         type->set(i, decl.fields[i]->ast::Node::type->convert(emitter));
-    return type;
+    return emitter.structs[this] = type;
 }
 
 const thorin::Type* EnumType::convert(Emitter& emitter) const {
