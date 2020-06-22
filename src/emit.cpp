@@ -36,11 +36,12 @@ thorin::Continuation* Emitter::basic_block(thorin::Debug debug) {
     return world.continuation(world.fn_type(), debug);
 }
 
-thorin::Continuation* Emitter::basic_block(const thorin::Type* param_type, thorin::Debug debug) {
-    auto type = param_type
-        ? world.fn_type({ world.mem_type(), param_type })
-        : world.fn_type({ world.mem_type() });
-    return world.continuation(type, debug);
+thorin::Continuation* Emitter::basic_block_with_mem(thorin::Debug debug) {
+    return world.continuation(world.fn_type({ world.mem_type() }), debug);
+}
+
+thorin::Continuation* Emitter::basic_block_with_mem(const thorin::Type* param, thorin::Debug debug) {
+    return world.continuation(world.fn_type({ world.mem_type(), param }), debug);
 }
 
 void Emitter::enter(thorin::Continuation* cont) {
@@ -49,18 +50,16 @@ void Emitter::enter(thorin::Continuation* cont) {
         state.mem = cont->param(0);
 }
 
-void Emitter::jump(const thorin::Def* callee, thorin::Debug debug) {
-    if (callee->type()->as<thorin::FnType>()->num_ops() > 0)
-        state.cont->jump(callee, { state.mem }, debug);
-    else
-        state.cont->jump(callee, {}, debug);
-}
-
 void Emitter::jump(const thorin::Def* callee, const thorin::Def* arg, thorin::Debug debug) {
+    if (!state.cont)
+        return;
     state.cont->jump(callee, { state.mem, arg }, debug);
+    state.cont = nullptr;
 }
 
 const thorin::Def* Emitter::call(const thorin::Def* callee, const thorin::Def* arg, thorin::Debug debug) {
+    if (!state.cont)
+        return nullptr;
     auto cont_type = callee->type()->as<thorin::FnType>()->op(2)->as<thorin::FnType>();
     auto cont = world.continuation(cont_type, thorin::Debug("ret"));
     state.cont->jump(callee, { state.mem, arg, cont }, debug);
@@ -69,20 +68,26 @@ const thorin::Def* Emitter::call(const thorin::Def* callee, const thorin::Def* a
 }
 
 void Emitter::branch(const thorin::Def* cond, const thorin::Def* branch_true, const thorin::Def* branch_false, thorin::Debug debug) {
+    if (!state.cont)
+        return;
     state.cont->branch(cond, branch_true, branch_false, debug);
+    state.cont = nullptr;
 }
 
 const thorin::Def* Emitter::alloc(const thorin::Type* type, thorin::Debug debug) {
+    assert(state.mem);
     auto pair = world.enter(state.mem);
     state.mem = world.extract(pair, thorin::u32(0));
     return world.slot(type, world.extract(pair, thorin::u32(1)), debug);
 }
 
 void Emitter::store(const thorin::Def* ptr, const thorin::Def* value, thorin::Debug debug) {
+    assert(state.mem);
     state.mem = world.store(state.mem, ptr, value, debug);
 }
 
 const thorin::Def* Emitter::load(const thorin::Def* ptr, thorin::Debug debug) {
+    assert(state.mem);
     auto pair = world.load(state.mem, ptr, debug);
     state.mem = world.extract(pair, thorin::u32(0));
     return world.extract(pair, thorin::u32(1));
@@ -152,7 +157,7 @@ const thorin::Def* DeclStmt::emit(Emitter& emitter) const {
 }
 
 const thorin::Def* ExprStmt::emit(Emitter& emitter) const {
-    return emitter.emit(*expr);
+    return emitter.deref(*expr);
 }
 
 // Expressions ---------------------------------------------------------------------
@@ -160,11 +165,9 @@ const thorin::Def* ExprStmt::emit(Emitter& emitter) const {
 void Expr::emit(Emitter& emitter, thorin::Continuation* join_true, thorin::Continuation* join_false) const {
     auto branch_true  = emitter.basic_block(debug_info(*this, "branch_true"));
     auto branch_false = emitter.basic_block(debug_info(*this, "branch_false"));
+    branch_true->jump(join_true, { emitter.state.mem });
+    branch_false->jump(join_false, { emitter.state.mem });
     emitter.branch(emitter.deref(*this), branch_true, branch_false);
-    emitter.enter(branch_true);
-    emitter.jump(join_true);
-    emitter.enter(branch_false);
-    emitter.jump(join_false);
 }
 
 const thorin::Def* TypedExpr::emit(Emitter& emitter) const {
@@ -203,9 +206,11 @@ const thorin::Def* FnExpr::emit(Emitter& emitter) const {
     auto cont = emitter.world.continuation(
         type->convert(emitter)->as<thorin::FnType>(),
         debug_info(*this));
+    // Set the IR node before entering the body
+    def = cont;
     emitter.enter(cont);
     emitter.emit(*param, cont->param(1));
-    auto value = emitter.emit(*body);
+    auto value = emitter.deref(*body);
     emitter.jump(cont->ret_param(), value);
     return cont;
 }
@@ -220,17 +225,27 @@ const thorin::Def* BlockExpr::emit(Emitter& emitter) const {
 const thorin::Def* CallExpr::emit(Emitter& emitter) const {
     auto fn = emitter.deref(*callee);
     auto value = emitter.deref(*arg);
+    if (type->isa<artic::NoRetType>()) {
+        emitter.jump(fn, value, debug_info(*this));
+        return nullptr;
+    }
     return emitter.call(fn, value, debug_info(*this));
 }
 
 const thorin::Def* ProjExpr::emit(Emitter& emitter) const {
-    return nullptr;
+    if (type->isa<RefType>()) {
+        return emitter.world.lea(
+            emitter.emit(*expr),
+            emitter.world.literal_qu64(index, {}),
+            debug_info(*this));
+    }
+    return emitter.world.extract(emitter.emit(*expr), index, debug_info(*this));
 }
 
 const thorin::Def* IfExpr::emit(Emitter& emitter) const {
-    auto join = emitter.basic_block(type->convert(emitter), debug_info(*this, "if_join"));
-    auto join_true  = emitter.basic_block(nullptr, debug_info(*this, "join_true"));
-    auto join_false = emitter.basic_block(nullptr, debug_info(*this, "join_false"));
+    auto join = emitter.basic_block_with_mem(type->convert(emitter), debug_info(*this, "if_join"));
+    auto join_true  = emitter.basic_block_with_mem(debug_info(*this, "join_true"));
+    auto join_false = emitter.basic_block_with_mem(debug_info(*this, "join_false"));
     cond->emit(emitter, join_true, join_false);
 
     emitter.enter(join_true);
@@ -272,7 +287,7 @@ const thorin::Def* ContinueExpr::emit(Emitter&) const {
 }
 
 const thorin::Def* ReturnExpr::emit(Emitter&) const {
-    return nullptr;
+    return fn->def->as_continuation()->ret_param();
 }
 
 const thorin::Def* UnaryExpr::emit(Emitter& emitter) const {
@@ -290,15 +305,13 @@ void BinaryExpr::emit(Emitter& emitter, thorin::Continuation* join_true, thorin:
         if (tag == LogicAnd) {
             auto branch_false = emitter.basic_block(debug_info(*this, "branch_false"));
             next = emitter.basic_block(debug_info(*left, "and_true"));
+            branch_false->jump(join_false, { emitter.state.mem });
             emitter.branch(cond, next, branch_false, debug_info(*this));
-            emitter.enter(branch_false);
-            emitter.jump(join_false);
         } else {
             auto branch_true = emitter.basic_block(debug_info(*this, "branch_true"));
             next = emitter.basic_block(debug_info(*left, "or_false"));
+            branch_true->jump(join_true, { emitter.state.mem });
             emitter.branch(cond, branch_true, next, debug_info(*this));
-            emitter.enter(branch_true);
-            emitter.jump(join_true);
         } 
         emitter.enter(next);
         right->emit(emitter, join_true, join_false);
@@ -307,9 +320,9 @@ void BinaryExpr::emit(Emitter& emitter, thorin::Continuation* join_true, thorin:
 
 const thorin::Def* BinaryExpr::emit(Emitter& emitter) const {
     if (is_logic()) {
-        auto join = emitter.basic_block(emitter.world.type_bool(), debug_info(*this, "join"));
-        auto join_true  = emitter.basic_block(debug_info(*this, "join_true"));
-        auto join_false = emitter.basic_block(debug_info(*this, "join_false"));
+        auto join = emitter.basic_block_with_mem(emitter.world.type_bool(), debug_info(*this, "join"));
+        auto join_true  = emitter.basic_block_with_mem(debug_info(*this, "join_true"));
+        auto join_false = emitter.basic_block_with_mem(debug_info(*this, "join_false"));
         emit(emitter, join_true, join_false);
         emitter.enter(join_true);
         emitter.jump(join, emitter.world.literal_bool(true, {}));
@@ -347,9 +360,11 @@ const thorin::Def* FnDecl::emit(Emitter& emitter) const {
         debug_info(*this));
     if (!fn->body)
         return cont;
+    // Set the IR node before entering the body
+    fn->def = cont;
     emitter.enter(cont);
     emitter.emit(*fn->param, cont->param(1));
-    auto value = emitter.emit(*fn->body);
+    auto value = emitter.deref(*fn->body);
     emitter.jump(cont->ret_param(), value, debug_info(*fn->body));
     // TODO: Remove this, it's only there so that the output is visible in the module dump.
     cont->make_external();

@@ -359,11 +359,11 @@ const artic::Type* DeclStmt::check(TypeChecker& checker, const artic::Type* expe
 }
 
 const artic::Type* ExprStmt::infer(TypeChecker& checker) const {
-    return checker.infer(*expr);
+    return checker.deref(*expr).second;
 }
 
 const artic::Type* ExprStmt::check(TypeChecker& checker, const artic::Type* expected) const {
-    return checker.check(*expr, expected);
+    return checker.deref(*expr, expected).second;
 }
 
 // Expressions ---------------------------------------------------------------------
