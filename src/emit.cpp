@@ -160,7 +160,7 @@ const thorin::Def* ExprStmt::emit(Emitter& emitter) const {
 void Expr::emit(Emitter& emitter, thorin::Continuation* join_true, thorin::Continuation* join_false) const {
     auto branch_true  = emitter.basic_block(debug_info(*this, "branch_true"));
     auto branch_false = emitter.basic_block(debug_info(*this, "branch_false"));
-    emitter.branch(emitter.emit(*this), branch_true, branch_false);
+    emitter.branch(emitter.deref(*this), branch_true, branch_false);
     emitter.enter(branch_true);
     emitter.jump(join_true);
     emitter.enter(branch_false);
@@ -283,7 +283,7 @@ void BinaryExpr::emit(Emitter& emitter, thorin::Continuation* join_true, thorin:
     if (!is_logic())
         Expr::emit(emitter, join_true, join_false);
     else {
-        auto cond = emitter.emit(*left);
+        auto cond = emitter.deref(*left);
         thorin::Continuation* next = nullptr;
         // Note: We cannot really just use join_true and join_false in the branch,
         // because the branch intrinsic requires both continuations to be of type `fn ()`.
