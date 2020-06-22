@@ -256,11 +256,11 @@ const artic::Type* Node::infer(TypeChecker& checker) const {
 const artic::Type* Path::infer(TypeChecker& checker) const {
     if (!symbol || symbol->decls.empty())
         return checker.type_table.type_error();
+    auto type = checker.infer(*symbol->decls.front());
     if (value && symbol->decls.front()->isa<StructDecl>()) {
         checker.error(loc, "value expected, but got type '{}'", *type);
         return checker.type_table.type_error();
     }
-    auto type = checker.infer(*symbol->decls.front());
     if (!type) {
         checker.error(elems[0].id.loc, "identifier cannot be used as a {}", value ? "value" : "type");
         return checker.type_table.type_error();
