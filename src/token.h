@@ -75,6 +75,7 @@ namespace artic {
     f(CmpGT, ">") \
     f(CmpEq, "==") \
     f(CmpNE, "!=") \
+    f(Hash, "#") \
     f(At, "@") \
     f(QMark, "?") \
     f(End, "<eof>")

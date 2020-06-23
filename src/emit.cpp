@@ -523,8 +523,8 @@ const thorin::Def* FnDecl::emit(Emitter& emitter) const {
     emitter.emit(*fn->param, cont->param(1));
     auto value = emitter.deref(*fn->body);
     emitter.jump(cont->param(2), value, debug_info(*fn->body));
-    // TODO: Remove this, it's only there so that the output is visible in the module dump.
-    cont->make_external();
+    if (attrs && attrs->find("export"))
+        cont->make_external();
     return cont;
 }
 

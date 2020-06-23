@@ -52,6 +52,39 @@ void Filter::print(Printer& p) const {
     }
 }
 
+// Attributes ----------------------------------------------------------------------
+
+void BasicAttr::print(Printer& p) const {
+    p << name;
+}
+
+void PathAttr::print(Printer& p) const {
+    p << name << " = ";
+    path.print(p);
+}
+
+void LiteralAttr::print(Printer& p) const {
+    p << name << " = " << std::showpoint << log::literal_style(lit);
+}
+
+void ComplexAttr::print(Printer& p) const {
+    p << name << '(';
+    print_list(p, ", ", args, [&] (auto& a) {
+        a->print(p);
+    });
+    p << ')';
+}
+
+void AttrList::print(Printer& p) const {
+    p << "#[";
+    print_list(p, ", ", attrs, [&] (auto& a) {
+        a->print(p);
+    });
+    p << ']';
+}
+
+// Statements ----------------------------------------------------------------------
+
 void DeclStmt::print(Printer& p) const {
     decl->print(p);
 }
@@ -432,7 +465,15 @@ void TupleType::print(Printer& p) const {
     p << ')';
 }
 
-void ArrayType::print(Printer& p) const {
+void SizedArrayType::print(Printer& p) const {
+    p << '[';
+    elem->print(p);
+    p << " * ";
+    p << size;
+    p << ']';
+}
+
+void UnsizedArrayType::print(Printer& p) const {
     p << '[';
     elem->print(p);
     p << ']';

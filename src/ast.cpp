@@ -7,6 +7,14 @@ namespace artic {
 
 namespace ast {
 
+const Attr* AttrList::find(const std::string_view& name) const {
+    for (auto& attr : attrs) {
+        if (attr->name == name)
+            return attr.get();
+    }
+    return nullptr;
+}
+
 bool Type::is_tuple() const { return isa<TupleType>(); }
 bool Expr::is_tuple() const { return isa<TupleExpr>(); }
 bool Ptrn::is_tuple() const { return isa<TuplePtrn>(); }

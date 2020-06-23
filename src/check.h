@@ -40,6 +40,7 @@ public:
     const Type* unreachable_code(const Loc&, const Loc&, const Loc&);
     const Type* mutable_expected(const Loc&);
     const Type* bad_arguments(const Loc&, const std::string&, size_t, size_t);
+    void invalid_attr(const Loc&, const std::string&);
 
     // These functions have to be used instead of check/infer
     // for expressions that expect values instead of references.

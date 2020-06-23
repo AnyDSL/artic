@@ -3,7 +3,6 @@
 
 #include <memory>
 #include <vector>
-#include <optional>
 
 #include "loc.h"
 #include "log.h"
@@ -81,6 +80,8 @@ log::Output& operator << (log::Output&, const Node&);
 
 /// Base class for all declarations.
 struct Decl : public Node {
+    Ptr<struct AttrList> attrs;
+
     Decl(const Loc& loc) : Node(loc) {}
 
     /// Binds the declaration to its AST node, without entering sub-AST nodes.
@@ -175,6 +176,85 @@ struct Filter : public Node {
     void print(Printer&) const override;
 };
 
+// Attributes ----------------------------------------------------------------------
+
+/// Base class for all attributes.
+struct Attr : public Node {
+    std::string name;
+
+    Attr(const Loc& loc, std::string&& name)
+        : Node(loc), name(std::move(name))
+    {}
+
+    /// Checks that the attribute is well-formed.
+    virtual void check(TypeChecker&, const ast::Node*) const = 0;
+
+    void bind(NameBinder&) override;
+};
+
+/// Attribute without any value.
+struct BasicAttr : public Attr {
+    BasicAttr(const Loc& loc, std::string&& name)
+        : Attr(loc, std::move(name))
+    {}
+
+    void check(TypeChecker&, const ast::Node*) const override;
+    void print(Printer&) const;
+};
+
+/// Attribute with an associated path.
+struct PathAttr : public Attr {
+    Path path;
+
+    PathAttr(const Loc& loc, std::string&& name, Path&& path)
+        : Attr(loc, std::move(name)), path(std::move(path))
+    {}
+
+    void check(TypeChecker&, const ast::Node*) const override;
+    void bind(NameBinder&) override;
+    void print(Printer&) const;
+};
+
+/// Attribute with an associated literal.
+struct LiteralAttr : public Attr {
+    Literal lit;
+
+    LiteralAttr(const Loc& loc, std::string&& name, const Literal& lit)
+        : Attr(loc, std::move(name)), lit(lit)
+    {}
+
+    void check(TypeChecker&, const ast::Node*) const override;
+    void print(Printer&) const;
+};
+
+/// Attribute with a list of attribute arguments (e.g `allow(max_errors = 5, unused_identifiers)`).
+struct ComplexAttr : public Attr {
+    PtrVector<Attr> args;
+
+    ComplexAttr(const Loc& loc, std::string&& name, PtrVector<Attr>&& args)
+        : Attr(loc, std::move(name)), args(std::move(args))
+    {}
+
+    void check(TypeChecker&, const ast::Node*) const override;
+    void bind(NameBinder&) override;
+    void print(Printer&) const;
+};
+
+/// Attribute list for statement blocks, or function declarations.
+struct AttrList : public Node {
+    PtrVector<Attr> attrs;
+
+    AttrList(const Loc& loc, PtrVector<Attr>&& attrs)
+        : Node(loc), attrs(std::move(attrs))
+    {}
+
+    const Attr* find(const std::string_view&) const;
+
+    void check(TypeChecker&, const ast::Node*) const;
+    void bind(NameBinder&) override;
+    void print(Printer&) const;
+};
+
 // Types ---------------------------------------------------------------------------
 
 /// Primitive type (integer, float, ...).
@@ -221,17 +301,36 @@ struct TupleType : public Type {
     void print(Printer&) const override;
 };
 
-/// Array type (unsized or unsized).
+/// Base class for array types.
 struct ArrayType : public Type {
     Ptr<Type> elem;
-    std::optional<size_t> size;
 
-    ArrayType(const Loc& loc, Ptr<Type>&& elem, std::optional<size_t> size)
-        : Type(loc), elem(std::move(elem)), size(size)
+    ArrayType(const Loc& loc, Ptr<Type>&& elem)
+        : Type(loc), elem(std::move(elem))
+    {}
+
+    void bind(NameBinder&) override;
+};
+
+/// Sized array type.
+struct SizedArrayType : public ArrayType {
+    size_t size;
+
+    SizedArrayType(const Loc& loc, Ptr<Type>&& elem, size_t size)
+        : ArrayType(loc, std::move(elem)), size(size)
     {}
 
     const artic::Type* infer(TypeChecker&) const override;
-    void bind(NameBinder&) override;
+    void print(Printer&) const override;
+};
+
+/// Unsized array type.
+struct UnsizedArrayType : public ArrayType {
+    UnsizedArrayType(const Loc& loc, Ptr<Type>&& elem)
+        : ArrayType(loc, std::move(elem))
+    {}
+
+    const artic::Type* infer(TypeChecker&) const override;
     void print(Printer&) const override;
 };
 

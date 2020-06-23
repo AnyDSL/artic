@@ -82,6 +82,26 @@ void Filter::bind(NameBinder& binder) {
     if (expr) binder.bind(*expr);
 }
 
+// Attributes ----------------------------------------------------------------------
+
+void Attr::bind(NameBinder&) {
+    // Do nothing
+}
+
+void PathAttr::bind(NameBinder& binder) {
+    binder.bind(path);
+}
+
+void ComplexAttr::bind(NameBinder& binder) {
+    for (auto& arg : args)
+        binder.bind(*arg);
+}
+
+void AttrList::bind(NameBinder& binder) {
+    for (auto& attr : attrs)
+        binder.bind(*attr);
+}
+
 // Types ---------------------------------------------------------------------------
 
 void PrimType::bind(NameBinder&) {}

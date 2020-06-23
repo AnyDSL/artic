@@ -86,6 +86,10 @@ const Type* TypeChecker::bad_arguments(const Loc& loc, const std::string& msg, s
     return type_table.type_error();
 }
 
+void TypeChecker::invalid_attr(const Loc& loc, const std::string& name) {
+    error(loc, "invalid attribute '{}'", name);
+}
+
 // Helpers -------------------------------------------------------------------------
 
 static inline std::pair<const Type*, const Type*> remove_ref(const Type* type) {
@@ -316,6 +320,31 @@ const artic::Type* Filter::check(TypeChecker& checker, const artic::Type* expect
     return expected;
 }
 
+// Attributes ----------------------------------------------------------------------
+
+void BasicAttr::check(TypeChecker& checker, const ast::Node* node) const {
+    if (name == "export" && node->isa<FnDecl>())
+        return;
+    checker.invalid_attr(loc, name);
+}
+
+void PathAttr::check(TypeChecker& checker, const ast::Node*) const {
+    checker.invalid_attr(loc, name);
+}
+
+void LiteralAttr::check(TypeChecker& checker, const ast::Node*) const {
+    checker.invalid_attr(loc, name);
+}
+
+void ComplexAttr::check(TypeChecker& checker, const ast::Node*) const {
+    checker.invalid_attr(loc, name);
+}
+
+void AttrList::check(TypeChecker& checker, const ast::Node* parent) const {
+    for (auto& attr : attrs)
+        attr->check(checker, parent);
+}
+
 // Types ---------------------------------------------------------------------------
 
 const artic::Type* PrimType::infer(TypeChecker& checker) const {
@@ -329,10 +358,12 @@ const artic::Type* TupleType::infer(TypeChecker& checker) const {
     return checker.type_table.tuple_type(std::move(arg_types));
 }
 
-const artic::Type* ArrayType::infer(TypeChecker& checker) const {
-    return size
-        ? checker.type_table.sized_array_type(checker.infer(*elem), *size)->as<artic::Type>()
-        : checker.type_table.unsized_array_type(checker.infer(*elem));
+const artic::Type* SizedArrayType::infer(TypeChecker& checker) const {
+    return checker.type_table.sized_array_type(checker.infer(*elem), size);
+}
+
+const artic::Type* UnsizedArrayType::infer(TypeChecker& checker) const {
+    return checker.type_table.unsized_array_type(checker.infer(*elem));
 }
 
 const artic::Type* FnType::infer(TypeChecker& checker) const {
@@ -434,7 +465,7 @@ const artic::Type* ArrayExpr::check(TypeChecker& checker, const artic::Type* exp
     auto elem_type = expected->as<artic::ArrayType>()->elem;
     for (auto& elem : elems)
         checker.check(*elem, elem_type);
-    if (auto sized_array_type = expected->isa<SizedArrayType>();
+    if (auto sized_array_type = expected->isa<artic::SizedArrayType>();
         sized_array_type && elems.size() < sized_array_type->size) {
         checker.error(loc, "expected {} array element(s), but got {}",
             sized_array_type->size, elems.size());
@@ -674,11 +705,13 @@ const artic::Type* TypeParam::infer(TypeChecker& checker) const {
     return checker.type_table.type_var(*this);
 }
 
-const artic::Type* PtrnDecl::check(TypeChecker&, const artic::Type* expected) const {
+const artic::Type* PtrnDecl::check(TypeChecker& checker, const artic::Type* expected) const {
+    if (attrs) attrs->check(checker, this);
     return expected;
 }
 
 const artic::Type* LetDecl::infer(TypeChecker& checker) const {
+    if (attrs) attrs->check(checker, this);
     if (init)
         checker.infer(*ptrn, *init);
     else
@@ -687,6 +720,7 @@ const artic::Type* LetDecl::infer(TypeChecker& checker) const {
 }
 
 const artic::Type* FnDecl::infer(TypeChecker& checker) const {
+    if (attrs) attrs->check(checker, this);
     const artic::Type* forall = nullptr;
     if (type_params) {
         forall = checker.type_table.forall_type(*this);
@@ -722,6 +756,7 @@ const artic::Type* FieldDecl::infer(TypeChecker& checker) const {
 }
 
 const artic::Type* StructDecl::infer(TypeChecker& checker) const {
+    if (attrs) attrs->check(checker, this);
     auto struct_type = checker.type_table.struct_type(*this);
     if (type_params) {
         for (auto& param : type_params->params)
@@ -739,6 +774,7 @@ const artic::Type* OptionDecl::check(TypeChecker&, const artic::Type* expected) 
 }
 
 const artic::Type* EnumDecl::infer(TypeChecker& checker) const {
+    if (attrs) attrs->check(checker, this);
     auto enum_type = checker.type_table.enum_type(*this);
     if (type_params) {
         for (auto& param : type_params->params)
@@ -755,6 +791,7 @@ const artic::Type* EnumDecl::infer(TypeChecker& checker) const {
 }
 
 const artic::Type* TypeDecl::infer(TypeChecker& checker) const {
+    if (attrs) attrs->check(checker, this);
     if (type_params) {
         auto type_alias = checker.type_table.type_alias(*this);
         for (auto& param : type_params->params)
@@ -767,6 +804,7 @@ const artic::Type* TypeDecl::infer(TypeChecker& checker) const {
 }
 
 const artic::Type* ModDecl::infer(TypeChecker& checker) const {
+    if (attrs) attrs->check(checker, this);
     for (auto& decl : decls)
         checker.infer(*decl);
     return checker.type_table.unit_type();

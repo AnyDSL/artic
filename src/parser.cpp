@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <optional>
 
 #include "parser.h"
 #include "print.h"
@@ -23,15 +24,21 @@ Ptr<ast::ModDecl> Parser::parse() {
 // Declarations --------------------------------------------------------------------
 
 Ptr<ast::Decl> Parser::parse_decl() {
+    Ptr<ast::AttrList> attrs;
+    if (ahead().tag() == Token::Hash)
+        attrs = parse_attr_list();
+    Ptr<ast::Decl> decl;
     switch (ahead().tag()) {
-        case Token::Let:    return parse_let_decl();
-        case Token::Fn:     return parse_fn_decl();
-        case Token::Struct: return parse_struct_decl();
-        case Token::Enum:   return parse_enum_decl();
-        case Token::Type:   return parse_type_decl();
-        case Token::Mod:    return parse_mod_decl();
-        default:            return parse_error_decl();
+        case Token::Let:    decl = parse_let_decl();    break;
+        case Token::Fn:     decl = parse_fn_decl();     break;
+        case Token::Struct: decl = parse_struct_decl(); break;
+        case Token::Enum:   decl = parse_enum_decl();   break;
+        case Token::Type:   decl = parse_type_decl();   break;
+        case Token::Mod:    decl = parse_mod_decl();    break;
+        default:            decl = parse_error_decl();  break;
     }
+    decl->attrs = std::move(attrs);
+    return decl;
 }
 
 Ptr<ast::LetDecl> Parser::parse_let_decl() {
@@ -772,7 +779,9 @@ Ptr<ast::ArrayType> Parser::parse_array_type() {
         }
     }
     expect(Token::RBracket);
-    return make_ptr<ast::ArrayType>(tracker(), std::move(elem), size);
+    if (size)
+        return make_ptr<ast::SizedArrayType>(tracker(), std::move(elem), *size);
+    return make_ptr<ast::UnsizedArrayType>(tracker(), std::move(elem));
 }
 
 Ptr<ast::FnType> Parser::parse_fn_type() {
@@ -822,6 +831,49 @@ Ptr<ast::Filter> Parser::parse_filter() {
         expect(Token::RParen);
     }
     return make_ptr<ast::Filter>(tracker(), std::move(expr));
+}
+
+Ptr<ast::AttrList> Parser::parse_attr_list() {
+    Tracker tracker(this);
+    eat(Token::Hash);
+    expect(Token::LBracket);
+    PtrVector<ast::Attr> attrs;
+    parse_list(Token::RBracket, Token::Comma, [&] {
+        attrs.emplace_back(parse_attr());
+    });
+    return make_ptr<ast::AttrList>(tracker(), std::move(attrs));
+}
+
+Ptr<ast::Attr> Parser::parse_attr() {
+    Tracker tracker(this);
+    std::string name;
+    if (ahead().tag() == Token::Id)
+        name = ahead().identifier();
+    expect(Token::Id);
+
+    if (ahead().tag() == Token::Eq) {
+        eat(Token::Eq);
+        if (ahead().tag() == Token::Lit) {
+            auto lit = ahead().literal();
+            eat(Token::Lit);
+            return make_ptr<ast::LiteralAttr>(tracker(), std::move(name), lit);
+        } else if (ahead().tag() == Token::Id) {
+            auto path = parse_path();
+            return make_ptr<ast::PathAttr>(tracker(), std::move(name), std::move(path));
+        } else {
+            error(ahead().loc(), "expected attribute value, got '{}'", ahead().string());
+            return make_ptr<ast::BasicAttr>(tracker(), std::move(name));
+        }
+    } else if (ahead().tag() == Token::LParen) {
+        eat(Token::LParen);
+        PtrVector<ast::Attr> args;
+        parse_list(Token::RParen, Token::Comma, [&] {
+            args.emplace_back(parse_attr());
+        });
+        return make_ptr<ast::ComplexAttr>(tracker(), std::move(name), std::move(args));
+    } else {
+        return make_ptr<ast::BasicAttr>(tracker(), std::move(name));
+    }
 }
 
 ast::Path Parser::parse_path(ast::Identifier&& id, bool allow_types) {
