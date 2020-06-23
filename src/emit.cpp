@@ -205,15 +205,21 @@ const thorin::Def* LiteralExpr::emit(Emitter& emitter) const {
 }
 
 const thorin::Def* ArrayExpr::emit(Emitter& emitter) const {
-    return nullptr;
+    thorin::Array<const thorin::Def*> ops(elems.size());
+    for (size_t i = 0, n = elems.size(); i < n; ++i)
+        ops[i] = emitter.deref(*elems[i]);
+    return emitter.world.definite_array(ops, debug_info(*this));
 }
 
 const thorin::Def* FieldExpr::emit(Emitter& emitter) const {
-    return nullptr;
+    return emitter.deref(*expr);
 }
 
 const thorin::Def* StructExpr::emit(Emitter& emitter) const {
-    return nullptr;
+    auto value = emitter.world.bottom(type->convert(emitter));
+    for (auto& field : fields)
+        value = emitter.world.insert(value, field->index, emitter.emit(*field));
+    return value;
 }
 
 const thorin::Def* TupleExpr::emit(Emitter& emitter) const {

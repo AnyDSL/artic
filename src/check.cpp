@@ -389,7 +389,7 @@ const artic::Type* LiteralExpr::check(TypeChecker& checker, const artic::Type* e
 }
 
 const artic::Type* FieldExpr::check(TypeChecker& checker, const artic::Type* expected) const {
-    return checker.check(*expr, expected);
+    return checker.deref(*expr, expected).second;
 }
 
 const artic::Type* StructExpr::infer(TypeChecker& checker) const {
@@ -422,9 +422,9 @@ const artic::Type* TupleExpr::check(TypeChecker& checker, const artic::Type* exp
 const artic::Type* ArrayExpr::infer(TypeChecker& checker) const {
     if (elems.empty())
         return checker.cannot_infer(loc, "array expression");
-    auto elem_type = checker.infer(*elems.front());
+    auto elem_type = checker.deref(*elems.front()).second;
     for (size_t i = 1; i < elems.size(); ++i)
-        checker.check(*elems[i], elem_type);
+        checker.deref(*elems[i], elem_type);
     return checker.type_table.sized_array_type(elem_type, elems.size());
 }
 
