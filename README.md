@@ -32,13 +32,13 @@ On top of this, polymorphism is supported.
 Some notable changes compared to the syntax of Impala are:
 
  - The type inference algorithm is now bidirectional type checking, which means
-   that type information is propagated _locally_, not globally:
+   that type information is propagated _locally_, not globally. This gives improved
+   error messages and better support for advanced type system features, at the cost
+   of slightly more type annotations:
 ```rust
 let x = |i| i; // artic needs a type annotation on `i` or on `x`
 x(1) // impala would see this as a constraint that `x` is a function on integers
 ```
-   This trade-off gives better error messages and better support for advanced type
-   system features, at the cost of slightly more type annotations.
  - Non-refutable (always matching) patterns are allowed as function parameters:
 ```rust
 fn foo(x: f32, (y: f32, z: f32)) -> ... { ... }
