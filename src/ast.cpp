@@ -370,7 +370,7 @@ bool WhileExpr::has_side_effect() const {
 }
 
 bool ForExpr::has_side_effect() const {
-    return body->has_side_effect();
+    return call->has_side_effect();
 }
 
 bool UnaryExpr::has_side_effect() const {

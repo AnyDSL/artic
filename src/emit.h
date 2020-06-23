@@ -62,6 +62,7 @@ public:
     void jump(const thorin::Def*, thorin::Debug = {});
     void jump(const thorin::Def*, const thorin::Def*, thorin::Debug = {});
     const thorin::Def* call(const thorin::Def*, const thorin::Def*, thorin::Debug = {});
+    const thorin::Def* call(const thorin::Def*, const thorin::Def*, thorin::Continuation*, thorin::Debug = {});
     void branch(const thorin::Def*, const thorin::Def*, const thorin::Def*, thorin::Debug = {});
 
     const thorin::Def* alloc(const thorin::Type*, thorin::Debug = {});

@@ -570,7 +570,7 @@ const artic::Type* WhileExpr::infer(TypeChecker& checker) const {
 }
 
 const artic::Type* ForExpr::infer(TypeChecker& checker) const {
-    return checker.infer(*body);
+    return checker.infer(*call);
 }
 
 const artic::Type* BreakExpr::infer(TypeChecker& checker) const {
@@ -578,7 +578,7 @@ const artic::Type* BreakExpr::infer(TypeChecker& checker) const {
     if (loop->isa<WhileExpr>())
         domain = checker.type_table.unit_type();
     else if (auto for_ = loop->isa<ForExpr>()) {
-        auto type = for_->call()->callee->as<CallExpr>()->callee->type;
+        auto type = for_->call->callee->as<CallExpr>()->callee->type;
         if (type && type->isa<artic::FnType>()) {
             // The type of `break` is a continuation that takes as parameter
             // the return type of the called "range-like" function.
@@ -598,7 +598,7 @@ const artic::Type* ContinueExpr::infer(TypeChecker& checker) const {
     if (loop->isa<WhileExpr>())
         domain = checker.type_table.unit_type();
     else if (auto for_ = loop->isa<ForExpr>()) {
-        auto type = for_->call()->callee->as<CallExpr>()->callee->type;
+        auto type = for_->call->callee->as<CallExpr>()->callee->type;
         if (type && type->isa<artic::FnType>()) {
             // The type of `continue` is a continuation that takes as parameter
             // the return type of the loop body lambda function.

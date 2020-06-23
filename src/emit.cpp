@@ -75,6 +75,12 @@ const thorin::Def* Emitter::call(const thorin::Def* callee, const thorin::Def* a
         return nullptr;
     auto cont_type = callee->type()->as<thorin::FnType>()->op(2)->as<thorin::FnType>();
     auto cont = world.continuation(cont_type, thorin::Debug("cont"));
+    return call(callee, arg, cont, debug);
+}
+
+const thorin::Def* Emitter::call(const thorin::Def* callee, const thorin::Def* arg, thorin::Continuation* cont, thorin::Debug debug) {
+    if (!state.cont)
+        return nullptr;
     state.cont->jump(callee, { state.mem, arg, cont }, debug);
     enter(cont);
     return cont->param(1);
@@ -164,7 +170,7 @@ void Ptrn::emit(Emitter&, const thorin::Def*) const {
 // Path ----------------------------------------------------------------------------
 
 const thorin::Def* Path::emit(Emitter& emitter) const {
-    auto def = symbol->decls.front()->def;
+    auto def = emitter.emit(*symbol->decls.front());
     for (size_t i = 0, n = symbol->decls.size(); i < n; ++i) {
         // TODO: Handle multiple path elements
     }
@@ -240,7 +246,7 @@ const thorin::Def* FnExpr::emit(Emitter& emitter) const {
     emitter.enter(cont);
     emitter.emit(*param, cont->param(1));
     auto value = emitter.deref(*body);
-    emitter.jump(cont->ret_param(), value);
+    emitter.jump(cont->param(2), value);
     return cont;
 }
 
@@ -289,11 +295,13 @@ const thorin::Def* IfExpr::emit(Emitter& emitter) const {
     return join->param(1);
 }
 
-const thorin::Def* CaseExpr::emit(Emitter& emitter) const {
+const thorin::Def* CaseExpr::emit(Emitter&) const {
+    assert(false);
     return nullptr;
 }
 
-const thorin::Def* MatchExpr::emit(Emitter& emitter) const {
+const thorin::Def* MatchExpr::emit(Emitter&) const {
+    assert(false);
     return nullptr;
 }
 
@@ -324,7 +332,26 @@ const thorin::Def* WhileExpr::emit(Emitter& emitter) const {
 }
 
 const thorin::Def* ForExpr::emit(Emitter& emitter) const {
-    return nullptr;
+    // The call has the for `(range(|i| { ... }))(0, 10)`
+    auto body_fn = call->callee->as<CallExpr>()->arg->as<FnExpr>();
+    thorin::Continuation* body_cont = nullptr;
+
+    // Emit the loop body
+    {
+        auto _ = emitter.save_state();
+        body_cont = emitter.world.continuation(body_fn->type->convert(emitter)->as<thorin::FnType>(), debug_info(*body_fn, "for_body"));
+        break_ = emitter.basic_block_with_mem(type->convert(emitter), debug_info(*this, "for_break"));
+        continue_ = body_cont->param(2);
+        continue_->debug().set("for_continue");
+        emitter.enter(body_cont);
+        emitter.emit(*body_fn->param, body_cont->param(1));
+        emitter.jump(body_cont->param(2), emitter.deref(*body_fn->body));
+    }
+
+    // Emit the calls
+    auto inner_callee = emitter.deref(*call->callee->as<CallExpr>()->callee);
+    auto inner_call = emitter.call(inner_callee, body_cont, debug_info(*this, "inner_call"));
+    return emitter.call(inner_call, emitter.deref(*call->arg), break_->as_continuation(), debug_info(*this, "outer_call"));
 }
 
 const thorin::Def* BreakExpr::emit(Emitter&) const {
@@ -338,7 +365,7 @@ const thorin::Def* ContinueExpr::emit(Emitter&) const {
 }
 
 const thorin::Def* ReturnExpr::emit(Emitter&) const {
-    return fn->def->as_continuation()->ret_param();
+    return fn->def->as_continuation()->param(2);
 }
 
 const thorin::Def* UnaryExpr::emit(Emitter& emitter) const {
@@ -460,7 +487,8 @@ const thorin::Def* BinaryExpr::emit(Emitter& emitter) const {
     return res;
 }
 
-const thorin::Def* FilterExpr::emit(Emitter& emitter) const {
+const thorin::Def* FilterExpr::emit(Emitter&) const {
+    assert(false);
     return nullptr;
 }
 
@@ -474,6 +502,7 @@ const thorin::Def* LetDecl::emit(Emitter& emitter) const {
 }
 
 const thorin::Def* FnDecl::emit(Emitter& emitter) const {
+    auto _ = emitter.save_state();
     if (type_params) {
         // Skip function declarations that have type parameters.
         // Such functions are emitted on-demand, from their call site,
@@ -493,7 +522,7 @@ const thorin::Def* FnDecl::emit(Emitter& emitter) const {
     emitter.enter(cont);
     emitter.emit(*fn->param, cont->param(1));
     auto value = emitter.deref(*fn->body);
-    emitter.jump(cont->ret_param(), value, debug_info(*fn->body));
+    emitter.jump(cont->param(2), value, debug_info(*fn->body));
     // TODO: Remove this, it's only there so that the output is visible in the module dump.
     cont->make_external();
     return cont;
@@ -551,7 +580,7 @@ void TuplePtrn::emit(Emitter& emitter, const thorin::Def* value) const {
 
 // Types ---------------------------------------------------------------------------
 
-const thorin::Type* Type::convert(Emitter& emitter) const {
+const thorin::Type* Type::convert(Emitter&) const {
     // This is the default version of conversion for types that
     // are not convertible into thorin IR (e.g. polymorphic ones)
     assert(false);

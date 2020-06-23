@@ -616,23 +616,22 @@ struct MatchExpr : public Expr {
 
 /// Base class for loop expressions (while, for)
 struct LoopExpr : public Expr {
-    Ptr<Expr> body;
-
     // Set during IR emission
     mutable const thorin::Def* break_ = nullptr;
     mutable const thorin::Def* continue_ = nullptr;
 
-    LoopExpr(const Loc& loc, Ptr<Expr>&& body)
-        : Expr(loc), body(std::move(body))
+    LoopExpr(const Loc& loc)
+        : Expr(loc)
     {}
 };
 
 /// While loop expression.
 struct WhileExpr : public LoopExpr {
     Ptr<Expr> cond;
+    Ptr<Expr> body;
 
     WhileExpr(const Loc& loc, Ptr<Expr>&& cond, Ptr<Expr>&& body)
-        : LoopExpr(loc, std::move(body)), cond(std::move(cond))
+        : LoopExpr(loc), cond(std::move(cond)), body(std::move(body))
     {}
 
     bool has_side_effect() const override;
@@ -645,11 +644,11 @@ struct WhileExpr : public LoopExpr {
 
 /// For loop expression.
 struct ForExpr : public LoopExpr {
-    ForExpr(const Loc& loc, Ptr<CallExpr>&& call)
-        : LoopExpr(loc, std::move(call))
-    {}
+    Ptr<CallExpr> call;
 
-    const CallExpr* call() const { return body->as<CallExpr>(); }
+    ForExpr(const Loc& loc, Ptr<CallExpr>&& call)
+        : LoopExpr(loc), call(std::move(call))
+    {}
 
     bool has_side_effect() const override;
 

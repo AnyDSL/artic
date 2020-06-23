@@ -221,11 +221,11 @@ void ForExpr::bind(NameBinder& binder) {
     // The call expression looks like:
     // iterate(|i| { ... })(...)
     // continue() and break() should only be available to the lambda
-    binder.bind(*call()->callee->as<CallExpr>()->callee);
+    binder.bind(*call->callee->as<CallExpr>()->callee);
     auto old = binder.push_loop(this);
-    binder.bind(*call()->callee->as<CallExpr>()->arg);
+    binder.bind(*call->callee->as<CallExpr>()->arg);
     binder.pop_loop(old);
-    binder.bind(*call()->arg);
+    binder.bind(*call->arg);
 }
 
 void BreakExpr::bind(NameBinder& binder) {
