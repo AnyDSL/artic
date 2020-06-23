@@ -61,7 +61,7 @@ const thorin::Def* Emitter::call(const thorin::Def* callee, const thorin::Def* a
     if (!state.cont)
         return nullptr;
     auto cont_type = callee->type()->as<thorin::FnType>()->op(2)->as<thorin::FnType>();
-    auto cont = world.continuation(cont_type, thorin::Debug("ret"));
+    auto cont = world.continuation(cont_type, thorin::Debug("cont"));
     state.cont->jump(callee, { state.mem, arg, cont }, debug);
     enter(cont);
     return cont->param(1);
@@ -206,6 +206,7 @@ const thorin::Def* FnExpr::emit(Emitter& emitter) const {
     auto cont = emitter.world.continuation(
         type->convert(emitter)->as<thorin::FnType>(),
         debug_info(*this));
+    cont->param(2)->debug().set("ret");
     // Set the IR node before entering the body
     def = cont;
     emitter.enter(cont);
@@ -331,7 +332,42 @@ const thorin::Def* BinaryExpr::emit(Emitter& emitter) const {
         emitter.enter(join);
         return join->param(1);
     }
-    return nullptr;
+    const thorin::Def* lhs = nullptr;
+    const thorin::Def* ptr = nullptr;
+    if (has_eq()) {
+        ptr = emitter.emit(*left);
+        lhs = emitter.load(ptr, debug_info(*this));
+    } else {
+        lhs = emitter.emit(*left);
+    }
+    auto rhs = emitter.emit(*right);
+    const thorin::Def* res = nullptr;
+    switch (remove_eq(tag)) {
+        case Add:   res = emitter.world.arithop_add(lhs, rhs, debug_info(*this)); break;
+        case Sub:   res = emitter.world.arithop_sub(lhs, rhs, debug_info(*this)); break;
+        case Mul:   res = emitter.world.arithop_mul(lhs, rhs, debug_info(*this)); break;
+        case Div:   res = emitter.world.arithop_div(lhs, rhs, debug_info(*this)); break;
+        case Rem:   res = emitter.world.arithop_rem(lhs, rhs, debug_info(*this)); break;
+        case And:   res = emitter.world.arithop_and(lhs, rhs, debug_info(*this)); break;
+        case Or:    res = emitter.world.arithop_or (lhs, rhs, debug_info(*this)); break;
+        case Xor:   res = emitter.world.arithop_xor(lhs, rhs, debug_info(*this)); break;
+        case LShft: res = emitter.world.arithop_shl(lhs, rhs, debug_info(*this)); break;
+        case RShft: res = emitter.world.arithop_shr(lhs, rhs, debug_info(*this)); break;
+        case CmpEq: res = emitter.world.cmp_eq(lhs, rhs, debug_info(*this)); break;
+        case CmpNE: res = emitter.world.cmp_ne(lhs, rhs, debug_info(*this)); break;
+        case CmpGT: res = emitter.world.cmp_gt(lhs, rhs, debug_info(*this)); break;
+        case CmpLT: res = emitter.world.cmp_lt(lhs, rhs, debug_info(*this)); break;
+        case CmpGE: res = emitter.world.cmp_ge(lhs, rhs, debug_info(*this)); break;
+        case CmpLE: res = emitter.world.cmp_le(lhs, rhs, debug_info(*this)); break;
+        default:
+            assert(false);
+            return nullptr;
+    }
+    if (ptr) {
+        emitter.store(ptr, res, debug_info(*this));
+        return emitter.world.tuple({});
+    }
+    return res;
 }
 
 const thorin::Def* FilterExpr::emit(Emitter& emitter) const {
@@ -358,10 +394,12 @@ const thorin::Def* FnDecl::emit(Emitter& emitter) const {
     auto cont = emitter.world.continuation(
         type->convert(emitter)->as<thorin::FnType>(),
         debug_info(*this));
+    cont->param(2)->debug().set("ret");
     if (!fn->body)
         return cont;
     // Set the IR node before entering the body
-    fn->def = cont;
+    fn->def = def = cont;
+
     emitter.enter(cont);
     emitter.emit(*fn->param, cont->param(1));
     auto value = emitter.deref(*fn->body);
@@ -398,6 +436,8 @@ void IdPtrn::emit(Emitter& emitter, const thorin::Def* value) const {
         decl->def = ptr;
     } else {
         decl->def = value;
+        if (value->debug().name() == "")
+            value->debug().set(decl->id.name);
     }
 }
 
