@@ -193,9 +193,10 @@ const thorin::Def* ExprStmt::emit(Emitter& emitter) const {
 void Expr::emit(Emitter& emitter, thorin::Continuation* join_true, thorin::Continuation* join_false) const {
     auto branch_true  = emitter.basic_block(debug_info(*this, "branch_true"));
     auto branch_false = emitter.basic_block(debug_info(*this, "branch_false"));
+    auto cond = emitter.deref(*this);
     branch_true->jump(join_true, { emitter.state.mem });
     branch_false->jump(join_false, { emitter.state.mem });
-    emitter.branch(emitter.deref(*this), branch_true, branch_false);
+    emitter.branch(cond, branch_true, branch_false);
 }
 
 const thorin::Def* TypedExpr::emit(Emitter& emitter) const {
