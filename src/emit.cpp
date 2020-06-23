@@ -110,21 +110,30 @@ void Emitter::emit(const ast::Ptrn& ptrn, const thorin::Def* value) {
 }
 
 const thorin::Def* Emitter::emit(const ast::Node& node, const Literal& lit) {
-    switch (node.type->as<artic::PrimType>()->tag) {
-        case ast::PrimType::Bool: return world.literal_bool(lit.as_bool(),    debug_info(node));
-        case ast::PrimType::U8:   return world.literal_qu8 (lit.as_integer(), debug_info(node));
-        case ast::PrimType::U16:  return world.literal_qu16(lit.as_integer(), debug_info(node));
-        case ast::PrimType::U32:  return world.literal_qu32(lit.as_integer(), debug_info(node));
-        case ast::PrimType::U64:  return world.literal_qu64(lit.as_integer(), debug_info(node));
-        case ast::PrimType::I8:   return world.literal_qs8 (lit.as_integer(), debug_info(node));
-        case ast::PrimType::I16:  return world.literal_qs16(lit.as_integer(), debug_info(node));
-        case ast::PrimType::I32:  return world.literal_qs32(lit.as_integer(), debug_info(node));
-        case ast::PrimType::I64:  return world.literal_qs64(lit.as_integer(), debug_info(node));
-        case ast::PrimType::F32:  return world.literal_qf32(lit.as_double(),  debug_info(node));
-        case ast::PrimType::F64:  return world.literal_qf64(lit.as_double(),  debug_info(node));
-        default:
-            assert(false);
-            return nullptr;
+    if (auto prim_type = node.type->isa<artic::PrimType>()) {
+        switch (prim_type->tag) {
+            case ast::PrimType::U8:   return world.literal_qu8 (lit.is_integer() ? lit.as_integer() : lit.as_char(), debug_info(node));
+            case ast::PrimType::Bool: return world.literal_bool(lit.as_bool(),    debug_info(node));
+            case ast::PrimType::U16:  return world.literal_qu16(lit.as_integer(), debug_info(node));
+            case ast::PrimType::U32:  return world.literal_qu32(lit.as_integer(), debug_info(node));
+            case ast::PrimType::U64:  return world.literal_qu64(lit.as_integer(), debug_info(node));
+            case ast::PrimType::I8:   return world.literal_qs8 (lit.as_integer(), debug_info(node));
+            case ast::PrimType::I16:  return world.literal_qs16(lit.as_integer(), debug_info(node));
+            case ast::PrimType::I32:  return world.literal_qs32(lit.as_integer(), debug_info(node));
+            case ast::PrimType::I64:  return world.literal_qs64(lit.as_integer(), debug_info(node));
+            case ast::PrimType::F32:  return world.literal_qf32(lit.as_double(),  debug_info(node));
+            case ast::PrimType::F64:  return world.literal_qf64(lit.as_double(),  debug_info(node));
+            default:
+                assert(false);
+                return nullptr;
+        }
+    } else {
+        assert(lit.is_string());
+        thorin::Array<const thorin::Def*> ops(lit.as_string().size() + 1);
+        for (size_t i = 0, n = lit.as_string().size(); i < n; ++i)
+            ops[i] = world.literal_qu8(lit.as_string()[i], {});
+        ops.back() = world.literal_qu8(0, {});
+        return world.definite_array(ops, debug_info(node));
     }
 }
 
@@ -303,8 +312,12 @@ const thorin::Def* UnaryExpr::emit(Emitter& emitter) const {
     const thorin::Def* res = nullptr;
     switch (tag) {
         case Plus:    res = op;  break;
-        case Deref:   res = op;  break;
         case AddrOf:  res = ptr; break;
+        case Deref:
+            // The operand of a derefence operator must be a reference type,
+            // which is represented as a pointer type in Thorin IR.
+            res = op;
+            break;
         case Not:     res = emitter.world.arithop_not(op, debug_info(*this));   break;
         case Minus:   res = emitter.world.arithop_minus(op, debug_info(*this)); break;
         case Known:   res = emitter.world.known(op, debug_info(*this));         break;
