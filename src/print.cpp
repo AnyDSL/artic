@@ -384,7 +384,10 @@ void FnDecl::print(Printer& p) const {
     }
 
     if (fn->body) {
-        p << ' ';
+        if (fn->body->isa<BlockExpr>())
+            p << ' ';
+        else
+            p << " = ";
         fn->body->print(p);
     } else
         p << ';';
