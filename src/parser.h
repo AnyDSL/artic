@@ -39,14 +39,14 @@ private:
     Ptr<ast::FieldPtrn>     parse_field_ptrn();
     Ptr<ast::StructPtrn>    parse_struct_ptrn(ast::Path&&);
     Ptr<ast::EnumPtrn>      parse_enum_ptrn(ast::Path&&);
-    Ptr<ast::Ptrn>          parse_tuple_ptrn(Token::Tag beg = Token::LParen, Token::Tag end = Token::RParen);
+    Ptr<ast::Ptrn>          parse_tuple_ptrn(Token::Tag = Token::LParen, Token::Tag = Token::RParen);
     Ptr<ast::ErrorPtrn>     parse_error_ptrn();
 
     Ptr<ast::Stmt>          parse_stmt();
     Ptr<ast::DeclStmt>      parse_decl_stmt();
     Ptr<ast::ExprStmt>      parse_expr_stmt();
 
-    Ptr<ast::Expr>          parse_expr();
+    Ptr<ast::Expr>          parse_expr(bool = true);
     Ptr<ast::Expr>          parse_typed_expr(Ptr<ast::Expr>&&);
     Ptr<ast::PathExpr>      parse_path_expr();
     Ptr<ast::LiteralExpr>   parse_literal_expr();
@@ -66,7 +66,7 @@ private:
     Ptr<ast::BreakExpr>     parse_break_expr();
     Ptr<ast::ContinueExpr>  parse_continue_expr();
     Ptr<ast::ReturnExpr>    parse_return_expr();
-    Ptr<ast::Expr>          parse_primary_expr();
+    Ptr<ast::Expr>          parse_primary_expr(bool);
     Ptr<ast::UnaryExpr>     parse_prefix_expr();
     Ptr<ast::UnaryExpr>     parse_postfix_expr(Ptr<ast::Expr>&&);
     Ptr<ast::Expr>          parse_binary_expr(Ptr<ast::Expr>&&, int);

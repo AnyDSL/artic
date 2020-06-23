@@ -348,8 +348,8 @@ Ptr<ast::ExprStmt> Parser::parse_expr_stmt() {
 
 // Expressions ---------------------------------------------------------------------
 
-Ptr<ast::Expr> Parser::parse_expr() {
-    auto expr = parse_primary_expr();
+Ptr<ast::Expr> Parser::parse_expr(bool structs_allowed) {
+    auto expr = parse_primary_expr(structs_allowed);
     return parse_binary_expr(std::move(expr), ast::BinaryExpr::max_precedence());
 }
 
@@ -609,7 +609,7 @@ Ptr<ast::ReturnExpr> Parser::parse_return_expr() {
     return make_ptr<ast::ReturnExpr>(tracker());
 }
 
-Ptr<ast::Expr> Parser::parse_primary_expr() {
+Ptr<ast::Expr> Parser::parse_primary_expr(bool structs_allowed) {
     Ptr<ast::Expr> expr;
     Ptr<ast::Filter> filter;
     switch (ahead().tag()) {
@@ -629,8 +629,7 @@ Ptr<ast::Expr> Parser::parse_primary_expr() {
         case Token::Lit:      expr = parse_literal_expr(); break;
         case Token::Id:
             expr = parse_path_expr();
-            if (ahead(0).tag() == Token::LBrace &&
-                ((ahead(1).tag() == Token::Id && ahead(2).tag() == Token::Eq) || ahead(1).tag() == Token::RBrace))
+            if (structs_allowed && ahead(0).tag() == Token::LBrace)
                 expr = parse_struct_expr(std::move(expr->as<ast::PathExpr>()->path));
             break;
         case Token::At:
@@ -674,7 +673,7 @@ Ptr<ast::UnaryExpr> Parser::parse_prefix_expr() {
     Tracker tracker(this);
     auto tag = ast::UnaryExpr::tag_from_token(ahead(), true);
     next();
-    auto expr = parse_primary_expr();
+    auto expr = parse_primary_expr(true);
     return make_ptr<ast::UnaryExpr>(tracker(), tag, std::move(expr));
 }
 
@@ -695,7 +694,7 @@ Ptr<ast::Expr> Parser::parse_binary_expr(Ptr<ast::Expr>&& left, int max_prec) {
         if (prec > max_prec) break;
         next();
 
-        auto right = parse_primary_expr();
+        auto right = parse_primary_expr(true);
 
         auto next_tag = ast::BinaryExpr::tag_from_token(ahead());
         if (next_tag != ast::BinaryExpr::Error) {
@@ -710,7 +709,7 @@ Ptr<ast::Expr> Parser::parse_binary_expr(Ptr<ast::Expr>&& left, int max_prec) {
 
 Ptr<ast::FilterExpr> Parser::parse_filter_expr(Ptr<ast::Filter>&& filter) {
     Tracker tracker(this, filter->loc);
-    auto expr = parse_primary_expr();
+    auto expr = parse_primary_expr(true);
     return make_ptr<ast::FilterExpr>(tracker(), std::move(filter), std::move(expr));
 }
 
@@ -923,21 +922,12 @@ Literal Parser::parse_lit() {
 }
 
 std::pair<Ptr<ast::Expr>, Ptr<ast::Expr>> Parser::parse_cond_and_block() {
-    auto cond = parse_expr();
+    auto cond = parse_expr(false);
     Ptr<ast::Expr> block;
-
-    // Resolve the ambiguity: x {} ...
-    // where this is parsed as (x {}) ...
-    if (cond->isa<ast::StructExpr>() && cond->as<ast::StructExpr>()->fields.empty()) {
-        auto struct_expr = cond->as<ast::StructExpr>();
-        block = make_ptr<ast::BlockExpr>(struct_expr->fields_loc, PtrVector<ast::Stmt>{}, false);
-        cond = make_ptr<ast::PathExpr>(std::move(struct_expr->path));
-    } else {
-        if (ahead().tag() == Token::LBrace)
-            block = parse_block_expr();
-        else
-            block = parse_error_expr();
-    }
+    if (ahead().tag() == Token::LBrace)
+        block = parse_block_expr();
+    else
+        block = parse_error_expr();
     return std::make_pair(std::move(cond), std::move(block));
 }
 
