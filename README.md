@@ -41,7 +41,10 @@ x(1) // impala would see this as a constraint that `x` is a function on integers
 ```
  - Declarations can be annotated with attributes:
  ```rust
- #[export] // This function will be exported into the IR (and generated LLVM module)
+ // This function will be exported in the generated LLVM module.
+ // Note that only functions of order 1 (functions that do not take
+ // other functions as arguments) can be exported.
+ #[export]
  fn foo() = 1
  ```
  - Non-refutable (always matching) patterns are allowed as function parameters:
