@@ -619,8 +619,8 @@ struct LoopExpr : public Expr {
     Ptr<Expr> body;
 
     // Set during IR emission
-    const thorin::Def* break_ = nullptr;
-    const thorin::Def* continue_ = nullptr;
+    mutable const thorin::Def* break_ = nullptr;
+    mutable const thorin::Def* continue_ = nullptr;
 
     LoopExpr(const Loc& loc, Ptr<Expr>&& body)
         : Expr(loc), body(std::move(body))

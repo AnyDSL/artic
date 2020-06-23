@@ -50,6 +50,19 @@ void Emitter::enter(thorin::Continuation* cont) {
         state.mem = cont->param(0);
 }
 
+void Emitter::jump(const thorin::Def* callee, thorin::Debug debug) {
+    if (!state.cont)
+        return;
+    auto num_params = callee->type()->as<thorin::FnType>()->num_ops();
+    if (num_params == 1)
+        state.cont->jump(callee, { state.mem }, debug);
+    else {
+        assert(num_params == 0);
+        state.cont->jump(callee, {}, debug);
+    }
+    state.cont = nullptr;
+}
+
 void Emitter::jump(const thorin::Def* callee, const thorin::Def* arg, thorin::Debug debug) {
     if (!state.cont)
         return;
@@ -279,7 +292,29 @@ const thorin::Def* MatchExpr::emit(Emitter& emitter) const {
 }
 
 const thorin::Def* WhileExpr::emit(Emitter& emitter) const {
-    return nullptr;
+    auto while_head = emitter.basic_block_with_mem(debug_info(*this, "while_head"));
+    auto while_body = emitter.basic_block_with_mem(debug_info(*this, "while_body"));
+    auto while_exit = emitter.basic_block_with_mem(debug_info(*this, "while_exit"));
+    auto while_continue = emitter.basic_block_with_mem(emitter.world.unit(), debug_info(*this, "while_continue"));
+    auto while_break    = emitter.basic_block_with_mem(emitter.world.unit(), debug_info(*this, "while_break"));
+    emitter.jump(while_head);
+
+    emitter.enter(while_continue);
+    emitter.jump(while_head);
+    emitter.enter(while_break);
+    emitter.jump(while_exit);
+    break_ = while_break;
+    continue_ = while_continue;
+
+    emitter.enter(while_head);
+    cond->emit(emitter, while_body, while_exit);
+
+    emitter.enter(while_body);
+    emitter.emit(*body);
+    emitter.jump(while_head);
+
+    emitter.enter(while_exit);
+    return emitter.world.tuple({});
 }
 
 const thorin::Def* ForExpr::emit(Emitter& emitter) const {

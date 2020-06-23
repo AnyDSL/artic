@@ -59,6 +59,7 @@ public:
     thorin::Continuation* basic_block_with_mem(const thorin::Type*, thorin::Debug = {});
 
     void enter(thorin::Continuation*);
+    void jump(const thorin::Def*, thorin::Debug = {});
     void jump(const thorin::Def*, const thorin::Def*, thorin::Debug = {});
     const thorin::Def* call(const thorin::Def*, const thorin::Def*, thorin::Debug = {});
     void branch(const thorin::Def*, const thorin::Def*, const thorin::Def*, thorin::Debug = {});
