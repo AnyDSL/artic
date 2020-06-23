@@ -263,7 +263,7 @@ const thorin::Def* IfExpr::emit(Emitter& emitter) const {
     emitter.jump(join, true_value);
 
     emitter.enter(join_false);
-    auto false_value = if_false ? emitter.emit(*if_false) : emitter.world.literal_bool(false, {});
+    auto false_value = if_false ? emitter.emit(*if_false) : emitter.world.tuple({});
     emitter.jump(join, false_value);
 
     emitter.enter(join);
