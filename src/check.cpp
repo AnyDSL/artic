@@ -31,22 +31,17 @@ bool TypeChecker::should_emit_error(const Type* type) {
 void TypeChecker::explain_no_ret(const Type* type, const Type* expected) {
     auto no_ret = type_table.no_ret_type();
     if ((type && type->contains(no_ret)) || expected->contains(no_ret)) {
-        note("the type '{}' indicates a {} or {} type, used to denote the return type of functions like '{}', '{}', or '{}'",
-             *no_ret,
-             log::style("bottom", log::Style::Italic),
-             log::style("no-return", log::Style::Italic),
-             log::keyword_style("break"),
-             log::keyword_style("continue"),
-             log::keyword_style("return"));
-        note("this error {} indicate that you forgot to add parentheses '()' in the call to one of those functions",
-            log::style("may", log::Style::Italic));
+        note("did you forget to add parentheses '()' in a call to {}/{}/{}?",
+            log::keyword_style("break"),
+            log::keyword_style("continue"),
+            log::keyword_style("return"));
     }
 }
 
 const Type* TypeChecker::incompatible_types(const Loc& loc, const Type* type, const Type* expected) {
     if (should_emit_error(expected) && should_emit_error(type)) {
         error(loc, "expected type '{}', but got type '{}'", *expected, *type);
-        explain_no_ret(nullptr, expected);
+        explain_no_ret(type, expected);
     }
     return type_table.type_error();
 }
