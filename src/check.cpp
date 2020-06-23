@@ -22,6 +22,8 @@ void TypeChecker::exit_decl(const ast::Decl* decl) {
     decls_.erase(decl);
 }
 
+// Error messages ------------------------------------------------------------------
+
 bool TypeChecker::should_emit_error(const Type* type) {
     return !type->contains(type_table.type_error());
 }
@@ -88,6 +90,8 @@ const Type* TypeChecker::bad_arguments(const Loc& loc, const std::string& msg, s
     error(loc, "expected {} argument(s) in {}, but got {}", expected, msg, count);
     return type_table.type_error();
 }
+
+// Helpers -------------------------------------------------------------------------
 
 static inline std::pair<const Type*, const Type*> remove_ref(const Type* type) {
     if (auto ref_type = type->isa<RefType>())

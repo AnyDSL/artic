@@ -10,7 +10,7 @@
 
 namespace artic {
 
-/// Utility class to perform type checking.
+/// Utility class to perform bidirectional type checking.
 class TypeChecker : public Logger {
 public:
     TypeChecker(Log& log, TypeTable& type_table)
@@ -23,6 +23,9 @@ public:
     /// Returns true on success, otherwise false.
     bool run(const ast::ModDecl&);
 
+    // Should be called to avoid infinite recursion
+    // when inferring the type of recursive declarations
+    // such as functions/structures/enumerations.
     bool enter_decl(const ast::Decl*);
     void exit_decl(const ast::Decl*);
 
