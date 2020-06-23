@@ -31,6 +31,14 @@ The syntax follows [that of Impala](https://anydsl.github.io/Impala.html), whene
 On top of this, polymorphism is supported.
 Some notable changes compared to the syntax of Impala are:
 
+ - The type inference algorithm is now bidirectional type checking, which means
+   that type information is propagated _locally_, not globally:
+```rust
+let x = |i| i; // artic needs a type annotation on `i` or on `x`
+x(1) // impala would see this as a constraint that `x` is a function on integers
+```
+   This trade-off gives better error messages and better support for advanced type
+   system features, at the cost of slightly more type annotations.
  - Non-refutable (always matching) patterns are allowed as function parameters:
 ```rust
 fn foo(x: f32, (y: f32, z: f32)) -> ... { ... }
@@ -61,7 +69,7 @@ let x : i32 = (1 : i32) : i32;
 ```
  - Literals types are inferred depending on their context:
 ```rust
-let x : u8 = 1;  // x types as u8
-let y = 1;       // y types as i32 (default when no annotation is present)
-let z : f32 = 1; // z types as f32
+let x : u8 = 1;  // `x` types as u8
+let y = 1;       // `y` types as i32 (default when no annotation is present)
+let z : f32 = 1; // `z` types as f32
 ```
