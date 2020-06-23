@@ -350,11 +350,16 @@ const artic::Type* TypeApp::infer(TypeChecker& checker) const {
 // Statements ----------------------------------------------------------------------
 
 const artic::Type* DeclStmt::infer(TypeChecker& checker) const {
-    return checker.infer(*decl);
+    checker.infer(*decl);
+    return checker.type_table.unit_type();
 }
 
 const artic::Type* DeclStmt::check(TypeChecker& checker, const artic::Type* expected) const {
-    return checker.check(*decl, expected);
+    checker.infer(*decl);
+    auto type = checker.type_table.unit_type();
+    if (!type->subtype(expected))
+        return checker.incompatible_types(loc, type, expected);
+    return type;
 }
 
 const artic::Type* ExprStmt::infer(TypeChecker& checker) const {
