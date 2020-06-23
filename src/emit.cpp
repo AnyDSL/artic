@@ -292,7 +292,43 @@ const thorin::Def* ReturnExpr::emit(Emitter&) const {
 }
 
 const thorin::Def* UnaryExpr::emit(Emitter& emitter) const {
-    return nullptr;
+    const thorin::Def* op = nullptr;
+    const thorin::Def* ptr = nullptr;
+    if (is_inc() || is_dec()) {
+        ptr = emitter.emit(*arg);
+        op  = emitter.load(ptr, debug_info(*this));
+    } else {
+        op = emitter.deref(*arg);
+    }
+    const thorin::Def* res = nullptr;
+    switch (tag) {
+        case Plus:    res = op;  break;
+        case Deref:   res = op;  break;
+        case AddrOf:  res = ptr; break;
+        case Not:     res = emitter.world.arithop_not(op, debug_info(*this));   break;
+        case Minus:   res = emitter.world.arithop_minus(op, debug_info(*this)); break;
+        case Known:   res = emitter.world.known(op, debug_info(*this));         break;
+        case PreInc:
+        case PostInc: {
+            auto one = emitter.world.one(op->type());
+            res = emitter.world.arithop_add(op, one, debug_info(*this));
+            break;
+        }
+        case PreDec:
+        case PostDec: {
+            auto one = emitter.world.one(op->type());
+            res = emitter.world.arithop_sub(op, one, debug_info(*this));
+            break;
+        }
+        default:
+            assert(false);
+            return nullptr;
+    }
+    if (ptr) {
+        emitter.store(ptr, res, debug_info(*this));
+        return is_postfix() ? op : res;
+    }
+    return res;
 }
 
 void BinaryExpr::emit(Emitter& emitter, thorin::Continuation* join_true, thorin::Continuation* join_false) const {
@@ -313,7 +349,7 @@ void BinaryExpr::emit(Emitter& emitter, thorin::Continuation* join_true, thorin:
             next = emitter.basic_block(debug_info(*left, "or_false"));
             branch_true->jump(join_true, { emitter.state.mem });
             emitter.branch(cond, branch_true, next, debug_info(*this));
-        } 
+        }
         emitter.enter(next);
         right->emit(emitter, join_true, join_false);
     }
@@ -340,7 +376,7 @@ const thorin::Def* BinaryExpr::emit(Emitter& emitter) const {
     } else {
         lhs = emitter.emit(*left);
     }
-    auto rhs = emitter.emit(*right);
+    auto rhs = emitter.deref(*right);
     const thorin::Def* res = nullptr;
     switch (remove_eq(tag)) {
         case Add:   res = emitter.world.arithop_add(lhs, rhs, debug_info(*this)); break;
