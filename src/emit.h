@@ -19,6 +19,7 @@ namespace artic {
 
 struct StructType;
 
+/// Helper class for Thorin IR generation.
 class Emitter : public Logger {
 public:
     Emitter(Log& log, thorin::World& world)

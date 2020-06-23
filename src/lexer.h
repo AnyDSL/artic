@@ -11,13 +11,17 @@
 namespace artic {
 
 namespace utf8 {
+    /// Returns true if the given bytes start with a BOM.
     inline bool is_bom(const uint8_t* bytes) {
         return bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF;
     }
     inline constexpr size_t min_bytes() { return 2; }
     inline constexpr size_t max_bytes() { return 4; }
+    /// Returns true if the given character is the beginning of a multibyte character sequence.
     inline bool is_begin(uint8_t c) { return (c & 0x80) != 0; }
+    /// Returns true if the given character is a valid UTF-8 character.
     inline bool is_valid(uint8_t c) { return (c & 0xC0) == 0x80; }
+    /// Given the first character of a sequence, returns the number of bytes of the sequence.
     inline size_t count_bytes(uint8_t c) {
         size_t n = 0;
         while (c & 0x80 && n <= max_bytes()) c <<= 1, n++;
