@@ -477,6 +477,7 @@ const thorin::Def* BinaryExpr::emit(Emitter& emitter) const {
         case CmpLT: res = emitter.world.cmp_lt(lhs, rhs, debug_info(*this)); break;
         case CmpGE: res = emitter.world.cmp_ge(lhs, rhs, debug_info(*this)); break;
         case CmpLE: res = emitter.world.cmp_le(lhs, rhs, debug_info(*this)); break;
+        case Eq:    res = rhs; break;
         default:
             assert(false);
             return nullptr;
