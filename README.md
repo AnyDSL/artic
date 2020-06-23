@@ -39,6 +39,11 @@ Some notable changes compared to the syntax of Impala are:
 let x = |i| i; // artic needs a type annotation on `i` or on `x`
 x(1) // impala would see this as a constraint that `x` is a function on integers
 ```
+ - Declarations can be annotated with attributes:
+ ```rust
+ #[export]
+ fn foo() = 1
+ ```
  - Non-refutable (always matching) patterns are allowed as function parameters:
 ```rust
 fn foo(x: f32, (y: f32, z: f32)) -> ... { ... }
