@@ -19,7 +19,8 @@ namespace utf8 {
     inline constexpr size_t max_bytes() { return 4; }
     /// Returns true if the given character is the beginning of a multibyte character sequence.
     inline bool is_begin(uint8_t c) { return (c & 0x80) != 0; }
-    /// Returns true if the given character is a valid UTF-8 character.
+    /// Returns true if the given character is a valid UTF-8 byte in a multibyte sequence.
+    /// This function can be applied to all but the first character of a multibyte sequence.
     inline bool is_valid(uint8_t c) { return (c & 0xC0) == 0x80; }
     /// Given the first character of a sequence, returns the number of bytes of the sequence.
     inline size_t count_bytes(uint8_t c) {
