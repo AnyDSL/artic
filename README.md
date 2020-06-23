@@ -52,7 +52,8 @@ fn foo() -> i32 = 1
 ```rust
 fn foo() = 1
 ```
- - Structure patterns and expressions use the `=` sign instead of `:` to give values to their members:
+ - Structure patterns and expressions use the `=` sign instead of `:` to give values to their members
+   (this is for consistency with the use of `:` for type annotations, structure _types_ are not affected):
 ```rust
 let p = Pair { x = 1, y = 2 };
 match p {
