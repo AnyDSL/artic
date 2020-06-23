@@ -108,7 +108,7 @@ void LiteralExpr::print(Printer& p) const {
 }
 
 void FieldExpr::print(Printer& p) const {
-    p << id.name << ": ";
+    p << id.name << " = ";
     expr->print(p);
 }
 
@@ -305,7 +305,7 @@ void FieldPtrn::print(Printer& p) const {
     if (is_etc()) {
         p << "...";
     } else {
-        p << id.name << ": ";
+        p << id.name << " = ";
         ptrn->print(p);
     }
 }
