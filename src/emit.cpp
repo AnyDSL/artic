@@ -137,6 +137,7 @@ private:
     // Note: `nullptr`s are used to denote row elements that are not connected to any pattern
     using Row = std::pair<std::vector<const ast::Ptrn*>, const ast::CaseExpr*>;
     using Value = std::pair<const thorin::Def*, const Type*>;
+    using Cost = size_t;
 
     Emitter& emitter;
     const ast::MatchExpr& match;
