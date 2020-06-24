@@ -82,3 +82,16 @@ let x : u8 = 1;  // `x` types as u8
 let y = 1;       // `y` types as i32 (default when no annotation is present)
 let z : f32 = 1; // `z` types as f32
 ```
+ - Patterns are now compiled using decision trees. This means that the generated code will be
+   more efficient, but also that error messages for the completeness of a pattern are now more
+   accurate (less conservative). The following case expression is now legal:
+```rust
+match x {
+    (true, (_, true)) => 1,
+    (true, (_, false)) => 2,
+    (_, (1, _)) => 3,
+    (_, (_, false)) => 4,
+    (_, (_, true)) => 5
+    // impala would complain that this match is missing a default case
+}
+```
