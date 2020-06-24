@@ -27,8 +27,8 @@ public:
     {}
 
     struct State {
-        const thorin::Def* mem;
-        thorin::Continuation* cont;
+        const thorin::Def* mem = nullptr;
+        thorin::Continuation* cont = nullptr;
     };
 
     struct SavedState {
@@ -56,6 +56,7 @@ public:
 
     void redundant_case(const ast::CaseExpr&);
     void non_exhaustive_match(const ast::MatchExpr&);
+    void top_level_side_effect(const thorin::Debug&);
 
     thorin::Continuation* basic_block(thorin::Debug = {});
     thorin::Continuation* basic_block_with_mem(thorin::Debug = {});

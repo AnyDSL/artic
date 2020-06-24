@@ -109,7 +109,8 @@ public:
                 targets[count] = emitter.basic_block(debug_info(match, "match_case"));
                 count++;
             }
-            emitter.state.cont->match(values[col].first, otherwise, defs, targets, debug_info(match));
+            if (emitter.state.cont)
+                emitter.state.cont->match(values[col].first, otherwise, defs, targets, debug_info(match));
             remove_col(values, col);
             for (size_t i = 0, n = ctors.size(); i < n; ++i) {
                 auto& rows = ctors[defs[i]];
@@ -258,6 +259,17 @@ void Emitter::non_exhaustive_match(const ast::MatchExpr& match) {
     error(match.loc, "non exhaustive match expression");
 }
 
+void Emitter::top_level_side_effect(const thorin::Debug& debug) {
+    // Note: this is a limitation of Thorin
+    Loc loc(
+        std::make_shared<std::string>(debug.filename()),
+        debug.front_line(),
+        debug.front_col(),
+        debug.back_line(),
+        debug.back_col());
+    error(loc, "top-level statements with side-effects are not supported");
+}
+
 void Emitter::enter(thorin::Continuation* cont) {
     state.cont = cont;
     if (cont->num_params() > 0)
@@ -268,9 +280,11 @@ void Emitter::jump(const thorin::Def* callee, thorin::Debug debug) {
     if (!state.cont)
         return;
     auto num_params = callee->type()->as<thorin::FnType>()->num_ops();
-    if (num_params == 1)
+    if (num_params == 1) {
+        if (!state.mem)
+            return top_level_side_effect(debug);
         state.cont->jump(callee, { state.mem }, debug);
-    else {
+    } else {
         assert(num_params == 0);
         state.cont->jump(callee, {}, debug);
     }
@@ -280,6 +294,8 @@ void Emitter::jump(const thorin::Def* callee, thorin::Debug debug) {
 void Emitter::jump(const thorin::Def* callee, const thorin::Def* arg, thorin::Debug debug) {
     if (!state.cont)
         return;
+    if (!state.mem)
+        return top_level_side_effect(debug);
     state.cont->jump(callee, { state.mem, arg }, debug);
     state.cont = nullptr;
 }
