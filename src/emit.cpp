@@ -1,6 +1,7 @@
 #include "emit.h"
 #include "types.h"
 #include "ast.h"
+#include "print.h"
 
 #include <thorin/def.h>
 #include <thorin/type.h>
@@ -27,6 +28,211 @@ static thorin::Debug debug_info(const ast::Node& node, const std::string& name =
     return thorin::Debug { location(node.loc), name };
 }
 
+/// Pattern matching compiler inspired from
+/// "Compiling Pattern Matching to Good Decision Trees",
+/// by Luc Maranget.
+class PtrnCompiler {
+public:
+    PtrnCompiler(Emitter& emitter, const ast::MatchExpr& match)
+        : emitter(emitter), match(match), values { { emitter.deref(*match.arg), match.arg->type } }
+    {
+        for (auto& case_ : match.cases)
+            rows.emplace_back(std::vector<const ast::Ptrn*>{ case_->ptrn.get() }, case_.get());
+    }
+
+    void compile(const thorin::Def* target) {
+        assert(!rows.empty());
+#ifndef NDEBUG
+        for (auto& row : rows) {
+            assert(row.first.size() == values.size());
+        }
+#endif
+
+        expand();
+        if (values.empty()) {
+            rows.front().second->is_redundant = false;
+            auto value = emitter.emit(*rows.front().second);
+            emitter.jump(target, value, debug_info(*rows.front().second));
+            return;
+        }
+
+        // Map from constructor index (e.g. literal or enumeration option index, encoded as an integer) to row.
+        std::unordered_map<const thorin::Def*, std::vector<Row>> ctors;
+        std::vector<Row> wildcards;
+
+        auto col = pick_col();
+        for (size_t i = 0, n = rows.size(); i < n; ++i) {
+            if (!rows[i].first[col] || rows[i].first[col]->isa<ast::IdPtrn>()) {
+                // This is a wildcard ("catch all") pattern
+                if (rows[i].first[col])
+                    emitter.emit(*rows[i].first[col], values[col].first);
+                remove_col(rows[i].first, col);
+                wildcards.emplace_back(std::move(rows[i]));
+            } else if (auto literal_ptrn = rows[i].first[col]->isa<ast::LiteralPtrn>()) {
+                remove_col(rows[i].first, col);
+                ctors[emitter.emit(*literal_ptrn, literal_ptrn->lit)].emplace_back(std::move(rows[i]));
+            } else {
+                // For enum patterns, we need to add the argument of the enumeration to the row
+                auto enum_ptrn = rows[i].first[col]->as<ast::EnumPtrn>();
+                remove_col(rows[i].first, col);
+                rows[i].first.push_back(enum_ptrn->arg.get());
+                ctors[emitter.world.literal_qu64(enum_ptrn->index, {})].emplace_back(std::move(rows[i]));
+            }
+        }
+
+        if (is_bool_type(values[col].second)) {
+            auto match_true  = emitter.basic_block(debug_info(match, "match_true"));
+            auto match_false = emitter.basic_block(debug_info(match, "match_true"));
+            emitter.branch(values[col].first, match_true, match_false);
+
+            remove_col(values, col);
+            for (auto& ctor : ctors) {
+                auto _ = emitter.save_state();
+                emitter.enter(thorin::is_allset(ctor.first) ? match_true : match_false);
+                ctor.second.insert(ctor.second.end(), wildcards.begin(), wildcards.end());
+                PtrnCompiler(emitter, match, std::vector<Value>(values), std::move(ctor.second)).compile(target);
+            }
+            if (ctors.size() != 2) {
+                if (wildcards.empty())
+                    emitter.non_exhaustive_match(match);
+                // Enter the non-taken branch
+                emitter.enter(thorin::is_allset(ctors.begin()->first) ? match_false : match_true);
+                PtrnCompiler(emitter, match, std::move(values), std::move(wildcards)).compile(target);
+            }
+        } else if (is_int_type(values[col].second)) {
+            thorin::Array<const thorin::Def*> defs(ctors.size());
+            thorin::Array<thorin::Continuation*> targets(ctors.size());
+            auto otherwise = emitter.basic_block(debug_info(match, "match_otherwise"));
+            size_t count = 0;
+            for (auto ctor : ctors) {
+                defs[count] = ctor.first;
+                targets[count] = emitter.basic_block(debug_info(match, "match_case"));
+                count++;
+            }
+            emitter.state.cont->match(values[col].first, otherwise, defs, targets, debug_info(match));
+            remove_col(values, col);
+            for (size_t i = 0, n = ctors.size(); i < n; ++i) {
+                auto& rows = ctors[defs[i]];
+                auto _ = emitter.save_state();
+                emitter.enter(targets[i]);
+                rows.insert(rows.end(), wildcards.begin(), wildcards.end());
+                PtrnCompiler(emitter, match, std::vector<Value>(values), std::move(rows)).compile(target);
+            }
+            if (wildcards.empty())
+                emitter.non_exhaustive_match(match);
+            else {
+                emitter.enter(otherwise);
+                PtrnCompiler(emitter, match, std::move(values), std::move(wildcards)).compile(target);
+            }
+        } else if (auto [_, enum_type] = match_app<EnumType>(values[col].second); enum_type) {
+            assert(false);
+        } else {
+            // Must be a string
+            assert(false);
+        }
+    }
+
+private:
+    // Note: `nullptr`s are used to denote row elements that are not connected to any pattern
+    using Row = std::pair<std::vector<const ast::Ptrn*>, const ast::CaseExpr*>;
+    using Value = std::pair<const thorin::Def*, const Type*>;
+
+    Emitter& emitter;
+    const ast::MatchExpr& match;
+    std::vector<Row> rows;
+    std::vector<Value> values;
+
+    PtrnCompiler(
+        Emitter& emitter,
+        const ast::MatchExpr& match,
+        std::vector<Value>&& values,
+        std::vector<Row>&& rows)
+        : emitter(emitter)
+        , match(match)
+        , rows(std::move(rows))
+        , values(std::move(values))
+    {}
+
+    template <typename T>
+    static void remove_col(std::vector<T>& vector, size_t col) {
+        std::swap(vector[col], vector.back());
+        vector.pop_back();
+    }
+
+    size_t pick_col() const {
+        // TODO: Apply some heuristics to find a good column candidate
+        return 0;
+    }
+
+    // Transforms the rows such that tuples and structures are completely deconstructed
+    void expand() {
+        for (size_t i = 0; i < values.size();) {
+            auto type = values[i].second;
+            auto [type_app, struct_type] = match_app<StructType>(type);
+
+            // Can only expand tuples or structures
+            size_t member_count = 0;
+            if (struct_type) {
+                member_count = struct_type->member_count();
+            } else if (auto tuple_type = type->isa<TupleType>())
+                member_count = tuple_type->args.size();
+            else {
+                // Move to the next column
+                i++;
+                continue;
+            }
+
+            // Expand the patterns in this column, for each row
+            std::vector<const ast::Ptrn*> new_elems(member_count, nullptr);
+            for (auto& row : rows) {
+                if (row.first[i]) {
+                    if (auto struct_ptrn = row.first[i]->isa<ast::StructPtrn>()) {
+                        for (auto& field : struct_ptrn->fields)
+                            new_elems[field->index] = field->ptrn.get();
+                    } else if (auto tuple_ptrn = row.first[i]->isa<ast::TuplePtrn>()) {
+                        for (size_t j = 0; j < member_count; ++j)
+                            new_elems[j] = tuple_ptrn->args[j].get();
+                    } else {
+                        assert(row.first[i]->isa<ast::IdPtrn>());
+                        emitter.emit(*row.first[i], values[i].first);
+                    }
+                }
+                remove_col(row.first, i);
+                row.first.insert(row.first.end(), new_elems.begin(), new_elems.end());
+            }
+
+            // Expand the value to match against
+            std::vector<Value> new_values(member_count);
+            for (size_t j = 0; j < member_count; ++j) {
+                new_values[j].first  = emitter.world.extract(values[i].first, j, debug_info(*match.arg));
+                new_values[j].second =
+                    type_app    ? type_app->member_type(j)    :
+                    struct_type ? struct_type->member_type(j) :
+                    type->as<TupleType>()->args[j];
+            }
+            remove_col(values, i);
+            values.insert(values.end(), new_values.begin(), new_values.end());
+        }
+    }
+
+    // For debugging
+    void dump() {
+        Printer p(log::out);
+        for (auto& row : rows) {
+            for (auto& elem : row.first) {
+                if (elem)
+                    elem->print(p);
+                else
+                    p << '_';
+                p << ' ';
+            }
+            p << "=> ";
+            row.second->expr->print(p);
+            p << p.endl();
+        }
+    }
+};
+
 bool Emitter::run(const ast::ModDecl& mod) {
     mod.emit(*this);
     return errors == 0;
@@ -42,6 +248,14 @@ thorin::Continuation* Emitter::basic_block_with_mem(thorin::Debug debug) {
 
 thorin::Continuation* Emitter::basic_block_with_mem(const thorin::Type* param, thorin::Debug debug) {
     return world.continuation(world.fn_type({ world.mem_type(), param }), debug);
+}
+
+void Emitter::redundant_case(const ast::CaseExpr& case_) {
+    error(case_.loc, "redundant match case");
+}
+
+void Emitter::non_exhaustive_match(const ast::MatchExpr& match) {
+    error(match.loc, "non exhaustive match expression");
 }
 
 void Emitter::enter(thorin::Continuation* cont) {
@@ -161,11 +375,6 @@ namespace ast {
 const thorin::Def* Node::emit(Emitter&) const {
     assert(false);
     return nullptr;
-}
-
-void Ptrn::emit(Emitter&, const thorin::Def*) const {
-    // Patterns that are refutable should not be emitted with this method
-    assert(false);
 }
 
 // Path ----------------------------------------------------------------------------
@@ -297,14 +506,19 @@ const thorin::Def* IfExpr::emit(Emitter& emitter) const {
     return join->param(1);
 }
 
-const thorin::Def* CaseExpr::emit(Emitter&) const {
-    assert(false);
-    return nullptr;
+const thorin::Def* CaseExpr::emit(Emitter& emitter) const {
+    return emitter.emit(*expr);
 }
 
-const thorin::Def* MatchExpr::emit(Emitter&) const {
-    assert(false);
-    return nullptr;
+const thorin::Def* MatchExpr::emit(Emitter& emitter) const {
+    auto join = emitter.basic_block_with_mem(type->convert(emitter), debug_info(*this, "match_join"));
+    PtrnCompiler(emitter, *this).compile(join);
+    for (auto& case_ : cases) {
+        if (case_->is_redundant)
+            emitter.redundant_case(*case_);
+    }
+    emitter.enter(join);
+    return join->param(1);
 }
 
 const thorin::Def* WhileExpr::emit(Emitter& emitter) const {
@@ -526,6 +740,7 @@ const thorin::Def* FnDecl::emit(Emitter& emitter) const {
     emitter.emit(*fn->param, cont->param(1));
     auto value = emitter.deref(*fn->body);
     emitter.jump(cont->param(2), value, debug_info(*fn->body));
+
     if (attrs) {
         if (auto export_attr = attrs->find("export")) {
             cont->make_external();
@@ -551,6 +766,11 @@ const thorin::Def* ModDecl::emit(Emitter& emitter) const {
 }
 
 // Patterns ------------------------------------------------------------------------
+
+void Ptrn::emit(Emitter&, const thorin::Def*) const {
+    // Patterns that are refutable should not be emitted with this method
+    assert(false);
+}
 
 void TypedPtrn::emit(Emitter& emitter, const thorin::Def* value) const {
     emitter.emit(*ptrn, value);

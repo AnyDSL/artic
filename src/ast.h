@@ -678,6 +678,8 @@ struct CaseExpr : public Expr {
     Ptr<Ptrn> ptrn;
     Ptr<Expr> expr;
 
+    mutable bool is_redundant = true;
+
     CaseExpr(const Loc& loc, Ptr<Ptrn>&& ptrn, Ptr<Expr>&& expr)
         : Expr(loc)
         , ptrn(std::move(ptrn))

@@ -54,6 +54,9 @@ public:
 
     SavedState save_state() { return SavedState(*this); }
 
+    void redundant_case(const ast::CaseExpr&);
+    void non_exhaustive_match(const ast::MatchExpr&);
+
     thorin::Continuation* basic_block(thorin::Debug = {});
     thorin::Continuation* basic_block_with_mem(thorin::Debug = {});
     thorin::Continuation* basic_block_with_mem(const thorin::Type*, thorin::Debug = {});
