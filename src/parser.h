@@ -67,9 +67,9 @@ private:
     Ptr<ast::ContinueExpr>  parse_continue_expr();
     Ptr<ast::ReturnExpr>    parse_return_expr();
     Ptr<ast::Expr>          parse_primary_expr(bool);
-    Ptr<ast::UnaryExpr>     parse_prefix_expr();
+    Ptr<ast::UnaryExpr>     parse_prefix_expr(bool);
     Ptr<ast::UnaryExpr>     parse_postfix_expr(Ptr<ast::Expr>&&);
-    Ptr<ast::Expr>          parse_binary_expr(Ptr<ast::Expr>&&, int);
+    Ptr<ast::Expr>          parse_binary_expr(Ptr<ast::Expr>&&, bool, int);
     Ptr<ast::FilterExpr>    parse_filter_expr(Ptr<ast::Filter>&&);
     Ptr<ast::ErrorExpr>     parse_error_expr();
 
