@@ -164,7 +164,8 @@ const thorin::Def* Node::emit(Emitter&) const {
 }
 
 void Ptrn::emit(Emitter&, const thorin::Def*) const {
-    // Do nothing for patterns that are not irrefutable
+    // Patterns that are refutable should not be emitted with this method
+    assert(false);
 }
 
 // Path ----------------------------------------------------------------------------
