@@ -108,13 +108,19 @@ std::pair<const Type*, const Type*> TypeChecker::deref(const ast::Expr& expr, co
 
 const Type* TypeChecker::check(const ast::Node& node, const Type* expected) {
     assert(!node.type); // Nodes can only be visited once
-    return node.type = node.check(*this, expected);
+    node.type = node.check(*this, expected);
+    if (node.attrs)
+        node.attrs->check(*this, &node);
+    return node.type;
 }
 
 const Type* TypeChecker::infer(const ast::Node& node) {
     if (node.type)
         return node.type;
-    return node.type = node.infer(*this);
+    node.type = node.infer(*this);
+    if (node.attrs)
+        node.attrs->check(*this, &node);
+    return node.type;
 }
 
 const Type* TypeChecker::infer(const ast::Ptrn& ptrn, const ast::Expr& expr) {
@@ -205,7 +211,7 @@ const Type* TypeChecker::check_fields(
         }
         seen[*index] = true;
         fields[i]->index = *index;
-        check(*fields[i], app ? app->member_type(type_table, *index) : struct_type->member_type(*index));
+        check(*fields[i], app ? app->member_type(*index) : struct_type->member_type(*index));
     }
     // Check that all fields have been specified, unless '...' was used
     if (!etc && !std::all_of(seen.begin(), seen.end(), [] (bool b) { return b; })) {
@@ -229,6 +235,16 @@ void TypeChecker::check_block(const Loc& loc, const PtrVector<ast::Stmt>& stmts,
     }
     if (last_semi && stmts.back()->type->template isa<NoRetType>())
         unreachable_code(stmts.back()->loc, stmts.back()->loc.end_loc(), loc.end_loc());
+}
+
+void TypeChecker::check_attrs(const PtrVector<ast::Attr>& attrs) {
+    std::unordered_map<std::string_view, const ast::Attr*> seen;
+    for (auto& attr : attrs) {
+        if (!seen.emplace(attr->name, attr.get()).second) {
+            error(attr->loc, "redeclaration of attribute '{}'", attr->name);
+            note(seen[attr->name]->loc, "previously declared here");
+        }
+    }
 }
 
 namespace ast {
@@ -281,7 +297,7 @@ const artic::Type* Path::infer(TypeChecker& checker) const {
                     type_args[i] = checker.infer(*elem.args[i]);
                 type = user_type
                     ? checker.type_table.type_app(user_type, std::move(type_args))
-                    : forall_type->instantiate(checker.type_table, type_args);
+                    : forall_type->instantiate(type_args);
             } else {
                 checker.error(elem.loc, "missing type arguments");
                 return checker.type_table.type_error();
@@ -297,7 +313,7 @@ const artic::Type* Path::infer(TypeChecker& checker) const {
                 auto index = enum_type->find_member(elems[i + 1].id.name);
                 if (!index)
                     return checker.unknown_member(elem.loc, enum_type, elems[i + 1].id.name);
-                auto member = app ? app->member_type(checker.type_table, *index) : enum_type->member_type(*index);
+                auto member = app ? app->member_type(*index) : enum_type->member_type(*index);
                 auto codom = app ? app->as<artic::Type>() : enum_type;
                 type = is_unit_type(member)
                     ? codom 
@@ -322,10 +338,26 @@ const artic::Type* Filter::check(TypeChecker& checker, const artic::Type* expect
 
 // Attributes ----------------------------------------------------------------------
 
-void BasicAttr::check(TypeChecker& checker, const ast::Node* node) const {
-    if (name == "export" && node->isa<FnDecl>())
-        return;
-    checker.invalid_attr(loc, name);
+void NamedAttr::check(TypeChecker& checker, const ast::Node* node) const {
+    checker.check_attrs(args);
+    if (name == "export") {
+        if (auto fn_decl = node->isa<FnDecl>()) {
+            if (!fn_decl->type->isa<artic::FnType>())
+                checker.error(fn_decl->loc, "polymorphic functions cannot be exported");
+            else if (fn_decl->type->order() > 1)
+                checker.error(fn_decl->loc, "higher-order functions cannot be exported");
+            else {
+                for (auto& arg : args) {
+                    if (arg->name != "name")
+                        checker.error(arg->loc, "export only supports the 'name' attribute");
+                    else if (!arg->isa<LiteralAttr>() || !arg->as<LiteralAttr>()->lit.is_string())
+                        checker.error(arg->loc, "malformed 'name' attribute");
+                }
+            }
+        } else
+            checker.error(loc, "'export' is only valid for function declarations");
+    } else
+        checker.invalid_attr(loc, name);
 }
 
 void PathAttr::check(TypeChecker& checker, const ast::Node*) const {
@@ -336,11 +368,8 @@ void LiteralAttr::check(TypeChecker& checker, const ast::Node*) const {
     checker.invalid_attr(loc, name);
 }
 
-void ComplexAttr::check(TypeChecker& checker, const ast::Node*) const {
-    checker.invalid_attr(loc, name);
-}
-
 void AttrList::check(TypeChecker& checker, const ast::Node* parent) const {
+    checker.check_attrs(attrs);
     for (auto& attr : attrs)
         attr->check(checker, parent);
 }
@@ -559,7 +588,7 @@ const artic::Type* ProjExpr::infer(TypeChecker& checker) const {
         return checker.type_expected(expr->loc, expr_type, "structure");
     if (auto index = struct_type->find_member(field.name)) {
         this->index = *index;
-        auto result = app ? app->member_type(checker.type_table, *index) : struct_type->member_type(*index);
+        auto result = app ? app->member_type(*index) : struct_type->member_type(*index);
         return ref_type ? checker.type_table.ref_type(result) : result;
     } else
         return checker.unknown_member(loc, struct_type, field.name);
@@ -705,13 +734,11 @@ const artic::Type* TypeParam::infer(TypeChecker& checker) const {
     return checker.type_table.type_var(*this);
 }
 
-const artic::Type* PtrnDecl::check(TypeChecker& checker, const artic::Type* expected) const {
-    if (attrs) attrs->check(checker, this);
+const artic::Type* PtrnDecl::check(TypeChecker&, const artic::Type* expected) const {
     return expected;
 }
 
 const artic::Type* LetDecl::infer(TypeChecker& checker) const {
-    if (attrs) attrs->check(checker, this);
     if (init)
         checker.infer(*ptrn, *init);
     else
@@ -720,7 +747,6 @@ const artic::Type* LetDecl::infer(TypeChecker& checker) const {
 }
 
 const artic::Type* FnDecl::infer(TypeChecker& checker) const {
-    if (attrs) attrs->check(checker, this);
     const artic::Type* forall = nullptr;
     if (type_params) {
         forall = checker.type_table.forall_type(*this);
@@ -756,7 +782,6 @@ const artic::Type* FieldDecl::infer(TypeChecker& checker) const {
 }
 
 const artic::Type* StructDecl::infer(TypeChecker& checker) const {
-    if (attrs) attrs->check(checker, this);
     auto struct_type = checker.type_table.struct_type(*this);
     if (type_params) {
         for (auto& param : type_params->params)
@@ -774,7 +799,6 @@ const artic::Type* OptionDecl::check(TypeChecker&, const artic::Type* expected) 
 }
 
 const artic::Type* EnumDecl::infer(TypeChecker& checker) const {
-    if (attrs) attrs->check(checker, this);
     auto enum_type = checker.type_table.enum_type(*this);
     if (type_params) {
         for (auto& param : type_params->params)
@@ -791,7 +815,6 @@ const artic::Type* EnumDecl::infer(TypeChecker& checker) const {
 }
 
 const artic::Type* TypeDecl::infer(TypeChecker& checker) const {
-    if (attrs) attrs->check(checker, this);
     if (type_params) {
         auto type_alias = checker.type_table.type_alias(*this);
         for (auto& param : type_params->params)
@@ -804,7 +827,6 @@ const artic::Type* TypeDecl::infer(TypeChecker& checker) const {
 }
 
 const artic::Type* ModDecl::infer(TypeChecker& checker) const {
-    if (attrs) attrs->check(checker, this);
     for (auto& decl : decls)
         checker.infer(*decl);
     return checker.type_table.unit_type();

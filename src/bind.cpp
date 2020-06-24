@@ -92,7 +92,7 @@ void PathAttr::bind(NameBinder& binder) {
     binder.bind(path);
 }
 
-void ComplexAttr::bind(NameBinder& binder) {
+void NamedAttr::bind(NameBinder& binder) {
     for (auto& arg : args)
         binder.bind(*arg);
 }

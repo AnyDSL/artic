@@ -7,14 +7,6 @@ namespace artic {
 
 namespace ast {
 
-const Attr* AttrList::find(const std::string_view& name) const {
-    for (auto& attr : attrs) {
-        if (attr->name == name)
-            return attr.get();
-    }
-    return nullptr;
-}
-
 bool Type::is_tuple() const { return isa<TupleType>(); }
 bool Expr::is_tuple() const { return isa<TupleExpr>(); }
 bool Ptrn::is_tuple() const { return isa<TuplePtrn>(); }
@@ -288,6 +280,28 @@ static void populate(const Node& node, std::vector<const NamedDecl*> members) {
 void ModDecl::populate() const {
     for (auto& decl : decls)
         artic::ast::populate(*decl, members);
+}
+
+// Attributes ----------------------------------------------------------------------
+
+static const Attr* find(const PtrVector<Attr>& attrs, const std::string_view& name) {
+    for (auto& attr : attrs) {
+        if (attr->name == name)
+            return attr.get();
+    }
+    return nullptr;
+}
+
+const Attr* Attr::find(const std::string_view&) const {
+    return nullptr;
+}
+
+const Attr* NamedAttr::find(const std::string_view& name) const {
+    return ast::find(args, name);
+}
+
+const Attr* AttrList::find(const std::string_view& name) const {
+    return ast::find(attrs, name);
 }
 
 // Statements ----------------------------------------------------------------------

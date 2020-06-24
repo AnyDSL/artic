@@ -861,17 +861,17 @@ Ptr<ast::Attr> Parser::parse_attr() {
             return make_ptr<ast::PathAttr>(tracker(), std::move(name), std::move(path));
         } else {
             error(ahead().loc(), "expected attribute value, got '{}'", ahead().string());
-            return make_ptr<ast::BasicAttr>(tracker(), std::move(name));
+            return make_ptr<ast::NamedAttr>(tracker(), std::move(name), PtrVector<ast::Attr>());
         }
-    } else if (ahead().tag() == Token::LParen) {
-        eat(Token::LParen);
-        PtrVector<ast::Attr> args;
-        parse_list(Token::RParen, Token::Comma, [&] {
-            args.emplace_back(parse_attr());
-        });
-        return make_ptr<ast::ComplexAttr>(tracker(), std::move(name), std::move(args));
     } else {
-        return make_ptr<ast::BasicAttr>(tracker(), std::move(name));
+        PtrVector<ast::Attr> args;
+        if (ahead().tag() == Token::LParen) {
+            eat(Token::LParen);
+            parse_list(Token::RParen, Token::Comma, [&] {
+                args.emplace_back(parse_attr());
+            });
+        }
+        return make_ptr<ast::NamedAttr>(tracker(), std::move(name), std::move(args));
     }
 }
 

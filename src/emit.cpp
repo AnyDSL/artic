@@ -525,8 +525,13 @@ const thorin::Def* FnDecl::emit(Emitter& emitter) const {
     emitter.emit(*fn->param, cont->param(1));
     auto value = emitter.deref(*fn->body);
     emitter.jump(cont->param(2), value, debug_info(*fn->body));
-    if (attrs && attrs->find("export"))
-        cont->make_external();
+    if (attrs) {
+        if (auto export_attr = attrs->find("export")) {
+            cont->make_external();
+            if (auto name_attr = export_attr->find("name"))
+                cont->debug().set(name_attr->as<LiteralAttr>()->lit.as_string());
+        }
+    }
     return cont;
 }
 

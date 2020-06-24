@@ -1,5 +1,5 @@
-#ifndef ARTIC_TYPES_H 
-#define ARTIC_TYPES_H 
+#ifndef ARTIC_TYPES_H
+#define ARTIC_TYPES_H
 
 #include <cstddef>
 #include <vector>
@@ -18,7 +18,7 @@ namespace thorin {
 
 namespace artic {
 
-class Printer;
+struct Printer;
 class TypeTable;
 class Emitter;
 struct TypeVar;
@@ -28,19 +28,26 @@ struct TypeVar;
 /// comparable via pointer equality, as long as they were created with
 /// the same `TypeTable` object.
 struct Type : public Cast<Type> {
+    TypeTable& type_table;
+
+    Type(TypeTable& type_table)
+        : type_table(type_table)
+    {}
+
     virtual ~Type() {}
 
     virtual void print(Printer&) const = 0;
     virtual bool equals(const Type*) const = 0;
     virtual size_t hash() const = 0;
     virtual bool contains(const Type* type) const { return this == type; }
-    virtual const Type* replace(
-        TypeTable&,
-        const std::unordered_map<const TypeVar*, const Type*>&) const {
+    virtual const Type* replace(const std::unordered_map<const TypeVar*, const Type*>&) const {
         return this;
     }
 
     virtual const thorin::Type* convert(Emitter&) const;
+
+    /// Returns the number of times a function type constructor is present in the type.
+    virtual size_t order() const;
 
     /// Prints the type on the console, for debugging.
     void dump() const;
@@ -61,8 +68,8 @@ struct PrimType : public Type {
     const thorin::Type* convert(Emitter&) const override;
 
 private:
-    PrimType(ast::PrimType::Tag tag)
-        : tag(tag)
+    PrimType(TypeTable& type_table, ast::PrimType::Tag tag)
+        : Type(type_table), tag(tag)
     {}
 
     friend class TypeTable;
@@ -75,16 +82,15 @@ struct TupleType : public Type {
     bool equals(const Type*) const override;
     size_t hash() const override;
     bool contains(const Type*) const override;
-    const Type* replace(
-        TypeTable&,
-        const std::unordered_map<const TypeVar*, const Type*>&)
-        const override;
+    const Type* replace(const std::unordered_map<const TypeVar*, const Type*>&) const override;
 
     const thorin::Type* convert(Emitter&) const override;
 
+    size_t order() const override;
+
 private:
-    TupleType(std::vector<const Type*>&& args)
-        : args(std::move(args))
+    TupleType(TypeTable& type_table, std::vector<const Type*>&& args)
+        : Type(type_table), args(std::move(args))
     {}
 
     friend class TypeTable;
@@ -94,11 +100,12 @@ private:
 struct ArrayType : public Type {
     const Type* elem;
 
-    ArrayType(const Type* elem)
-        : elem(elem)
+    ArrayType(TypeTable& type_table, const Type* elem)
+        : Type(type_table), elem(elem)
     {}
 
     bool contains(const Type*) const override;
+    size_t order() const override;
 };
 
 /// An array whose size is known at compile-time.
@@ -109,16 +116,13 @@ struct SizedArrayType : public ArrayType {
     bool equals(const Type*) const override;
     size_t hash() const override;
 
-    const Type* replace(
-        TypeTable&,
-        const std::unordered_map<const TypeVar*, const Type*>&)
-        const override;
+    const Type* replace(const std::unordered_map<const TypeVar*, const Type*>&) const override;
 
     const thorin::Type* convert(Emitter&) const override;
 
 private:
-    SizedArrayType(const Type* elem, size_t size)
-        : ArrayType(elem), size(size)
+    SizedArrayType(TypeTable& type_table, const Type* elem, size_t size)
+        : ArrayType(type_table, elem), size(size)
     {}
 
     friend class TypeTable;
@@ -130,16 +134,13 @@ struct UnsizedArrayType : public ArrayType {
     bool equals(const Type*) const override;
     size_t hash() const override;
 
-    const Type* replace(
-        TypeTable&,
-        const std::unordered_map<const TypeVar*, const Type*>&)
-        const override;
+    const Type* replace(const std::unordered_map<const TypeVar*, const Type*>&) const override;
 
     const thorin::Type* convert(Emitter&) const override;
 
 private:
-    UnsizedArrayType(const Type* elem)
-        : ArrayType(elem)
+    UnsizedArrayType(TypeTable& type_table, const Type* elem)
+        : ArrayType(type_table, elem)
     {}
 
     friend class TypeTable;
@@ -149,16 +150,12 @@ private:
 struct AddrType : public Type {
     const Type* pointee;
 
-    AddrType(const Type* pointee)
-        : pointee(pointee)
+    AddrType(TypeTable& type_table, const Type* pointee)
+        : Type(type_table), pointee(pointee)
     {}
 
     bool contains(const Type*) const override;
-
-    const Type* replace(
-        TypeTable&,
-        const std::unordered_map<const TypeVar*, const Type*>&)
-        const override;
+    size_t order() const override;
 };
 
 /// A pointer type, as the result of taking the address of an object.
@@ -167,11 +164,13 @@ struct PtrType : public AddrType {
     bool equals(const Type*) const override;
     size_t hash() const override;
 
+    const Type* replace(const std::unordered_map<const TypeVar*, const Type*>&) const override;
+
     const thorin::Type* convert(Emitter&) const override;
 
 private:
-    PtrType(const Type* pointee)
-        : AddrType(pointee)
+    PtrType(TypeTable& type_table, const Type* pointee)
+        : AddrType(type_table, pointee)
     {}
 
     friend class TypeTable;
@@ -183,9 +182,11 @@ struct RefType : public AddrType {
     bool equals(const Type*) const override;
     size_t hash() const override;
 
+    const Type* replace(const std::unordered_map<const TypeVar*, const Type*>&) const override;
+
 private:
-    RefType(const Type* pointee)
-        : AddrType(pointee)
+    RefType(TypeTable& type_table, const Type* pointee)
+        : AddrType(type_table, pointee)
     {}
 
     friend class TypeTable;
@@ -201,16 +202,15 @@ struct FnType : public Type {
     size_t hash() const override;
     bool contains(const Type*) const override;
 
-    const Type* replace(
-        TypeTable&,
-        const std::unordered_map<const TypeVar*, const Type*>&)
-        const override;
+    const Type* replace(const std::unordered_map<const TypeVar*, const Type*>&) const override;
 
     const thorin::Type* convert(Emitter&) const override;
 
+    size_t order() const override;
+
 private:
-    FnType(const Type* dom, const Type* codom)
-        : dom(dom), codom(codom)
+    FnType(TypeTable& type_table, const Type* dom, const Type* codom)
+        : Type(type_table), dom(dom), codom(codom)
     {}
 
     friend class TypeTable;
@@ -222,8 +222,11 @@ struct NoRetType : public Type {
     bool equals(const Type*) const override;
     size_t hash() const override;
 
-protected:
-    NoRetType() = default;
+private:
+    NoRetType(TypeTable& type_table)
+        : Type(type_table)
+    {}
+
     friend class TypeTable;
 };
 
@@ -233,8 +236,11 @@ struct TypeError : public Type {
     bool equals(const Type*) const override;
     size_t hash() const override;
 
-protected:
-    TypeError() = default;
+private:
+    TypeError(TypeTable& type_table)
+        : Type(type_table)
+    {}
+
     friend class TypeTable;
 };
 
@@ -246,18 +252,15 @@ struct TypeVar : public Type {
     bool equals(const Type*) const override;
     size_t hash() const override;
 
-    const Type* replace(
-        TypeTable&,
-        const std::unordered_map<const TypeVar*, const Type*>&)
-        const override;
+    const Type* replace(const std::unordered_map<const TypeVar*, const Type*>&) const override;
 
 private:
-    TypeVar(const ast::TypeParam& param)
-        : param(param) 
+    TypeVar(TypeTable& type_table, const ast::TypeParam& param)
+        : Type(type_table), param(param)
     {}
 
     friend class TypeTable;
-}; 
+};
 
 /// Type of a polymorphic function.
 struct ForallType : public Type {
@@ -266,15 +269,15 @@ struct ForallType : public Type {
 
     /// Returns the type of the body with type variables
     /// substituted with the given arguments.
-    const Type* instantiate(TypeTable&, const std::vector<const Type*>&) const;
+    const Type* instantiate(const std::vector<const Type*>&) const;
 
     void print(Printer&) const override;
     bool equals(const Type*) const override;
     size_t hash() const override;
 
 private:
-    ForallType(const ast::FnDecl& decl)
-        : decl(decl)
+    ForallType(TypeTable& type_table, const ast::FnDecl& decl)
+        : Type(type_table), decl(decl)
     {}
 
     friend class TypeTable;
@@ -282,14 +285,24 @@ private:
 
 /// Base class for user-declared types.
 struct UserType : public Type {
+    UserType(TypeTable& type_table)
+        : Type(type_table)
+    {}
+
     virtual const ast::TypeParamList* type_params() const = 0;
 };
 
 /// Base class for complex, user-declared types.
 struct ComplexType : public UserType {
+    ComplexType(TypeTable& type_table)
+        : UserType(type_table)
+    {}
+
     virtual std::optional<size_t> find_member(const std::string_view&) const = 0;
     virtual const Type* member_type(size_t) const = 0;
     virtual size_t member_count() const = 0;
+
+    size_t order() const override;
 };
 
 struct StructType : public ComplexType {
@@ -310,8 +323,8 @@ struct StructType : public ComplexType {
     size_t member_count() const override;
 
 private:
-    StructType(const ast::StructDecl& decl)
-        : decl(decl)
+    StructType(TypeTable& type_table, const ast::StructDecl& decl)
+        : ComplexType(type_table), decl(decl)
     {}
 
     friend class TypeTable;
@@ -335,8 +348,8 @@ struct EnumType : public ComplexType {
     size_t member_count() const override;
 
 private:
-    EnumType(const ast::EnumDecl& decl)
-        : decl(decl)
+    EnumType(TypeTable& type_table, const ast::EnumDecl& decl)
+        : ComplexType(type_table), decl(decl)
     {}
 
     friend class TypeTable;
@@ -354,8 +367,8 @@ struct TypeAlias : public UserType {
     }
 
 private:
-    TypeAlias(const ast::TypeDecl& decl)
-        : decl(decl)
+    TypeAlias(TypeTable& type_table, const ast::TypeDecl& decl)
+        : UserType(type_table), decl(decl)
     {}
 
     friend class TypeTable;
@@ -363,7 +376,7 @@ private:
 
 /// An application of a complex type with polymorphic parameters.
 struct TypeApp : public Type {
-    const UserType* applied; 
+    const UserType* applied;
     std::vector<const Type*> type_args;
 
     /// Gets the replacement map required to expand this type application.
@@ -373,8 +386,8 @@ struct TypeApp : public Type {
     }
 
     /// Returns the type of the given member of the applied type, if it is a complex type.
-    const Type* member_type(TypeTable& type_table, size_t i) const {
-        return applied->as<ComplexType>()->member_type(i)->replace(type_table, replace_map());
+    const Type* member_type(size_t i) const {
+        return applied->as<ComplexType>()->member_type(i)->replace(replace_map());
     }
 
     void print(Printer&) const override;
@@ -382,20 +395,21 @@ struct TypeApp : public Type {
     size_t hash() const override;
     bool contains(const Type*) const override;
 
-    const Type* replace(
-        TypeTable&,
-        const std::unordered_map<const TypeVar*, const Type*>&)
-        const override;
+    const Type* replace(const std::unordered_map<const TypeVar*, const Type*>&) const override;
 
     static std::unordered_map<const TypeVar*, const Type*> replace_map(
         const ast::TypeParamList& type_params,
         const std::vector<const Type*>& type_args);
 
+    size_t order() const override;
+
 private:
     TypeApp(
-        const UserType* applied, 
+        TypeTable& type_table,
+        const UserType* applied,
         std::vector<const Type*>&& type_args)
-        : applied(applied)
+        : Type(type_table)
+        , applied(applied)
         , type_args(std::move(type_args))
     {}
 

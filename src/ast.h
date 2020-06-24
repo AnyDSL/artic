@@ -53,9 +53,14 @@ struct Node : public Cast<Node> {
     /// IR definition assigned after IR emission.
     mutable const thorin::Def* def = nullptr;
 
+    /// List of attributes associated with the node.
+    Ptr<struct AttrList> attrs;
+
     Node(const Loc& loc)
         : loc(loc)
     {}
+
+    Node(Node&&) = default;
 
     virtual ~Node() {}
 
@@ -80,8 +85,6 @@ log::Output& operator << (log::Output&, const Node&);
 
 /// Base class for all declarations.
 struct Decl : public Node {
-    Ptr<struct AttrList> attrs;
-
     Decl(const Loc& loc) : Node(loc) {}
 
     /// Binds the declaration to its AST node, without entering sub-AST nodes.
@@ -188,18 +191,10 @@ struct Attr : public Node {
 
     /// Checks that the attribute is well-formed.
     virtual void check(TypeChecker&, const ast::Node*) const = 0;
+    /// Finds the sub-attribute with the given name in this attribute.
+    virtual const Attr* find(const std::string_view&) const;
 
     void bind(NameBinder&) override;
-};
-
-/// Attribute without any value.
-struct BasicAttr : public Attr {
-    BasicAttr(const Loc& loc, std::string&& name)
-        : Attr(loc, std::move(name))
-    {}
-
-    void check(TypeChecker&, const ast::Node*) const override;
-    void print(Printer&) const;
 };
 
 /// Attribute with an associated path.
@@ -227,13 +222,16 @@ struct LiteralAttr : public Attr {
     void print(Printer&) const;
 };
 
-/// Attribute with a list of attribute arguments (e.g `allow(max_errors = 5, unused_identifiers)`).
-struct ComplexAttr : public Attr {
+/// Attribute with only a name, optionally followed by a list of attribute
+/// arguments (e.g `export`, or `allow(max_errors = 5, unused_identifiers)`).
+struct NamedAttr : public Attr {
     PtrVector<Attr> args;
 
-    ComplexAttr(const Loc& loc, std::string&& name, PtrVector<Attr>&& args)
+    NamedAttr(const Loc& loc, std::string&& name, PtrVector<Attr>&& args)
         : Attr(loc, std::move(name)), args(std::move(args))
     {}
+
+    const Attr* find(const std::string_view&) const override;
 
     void check(TypeChecker&, const ast::Node*) const override;
     void bind(NameBinder&) override;

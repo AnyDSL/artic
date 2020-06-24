@@ -54,10 +54,6 @@ void Filter::print(Printer& p) const {
 
 // Attributes ----------------------------------------------------------------------
 
-void BasicAttr::print(Printer& p) const {
-    p << name;
-}
-
 void PathAttr::print(Printer& p) const {
     p << name << " = ";
     path.print(p);
@@ -67,12 +63,15 @@ void LiteralAttr::print(Printer& p) const {
     p << name << " = " << std::showpoint << log::literal_style(lit);
 }
 
-void ComplexAttr::print(Printer& p) const {
-    p << name << '(';
-    print_list(p, ", ", args, [&] (auto& a) {
-        a->print(p);
-    });
-    p << ')';
+void NamedAttr::print(Printer& p) const {
+    p << name;
+    if (!args.empty()) {
+        p << '(';
+        print_list(p, ", ", args, [&] (auto& a) {
+            a->print(p);
+        });
+        p << ')';
+    }
 }
 
 void AttrList::print(Printer& p) const {
@@ -80,7 +79,7 @@ void AttrList::print(Printer& p) const {
     print_list(p, ", ", attrs, [&] (auto& a) {
         a->print(p);
     });
-    p << ']';
+    p << ']' << p.endl();
 }
 
 // Statements ----------------------------------------------------------------------
@@ -360,6 +359,7 @@ void PtrnDecl::print(Printer& p) const {
 }
 
 void LetDecl::print(Printer& p) const {
+    if (attrs) attrs->print(p);
     p << log::keyword_style("let") << " ";
     ptrn->print(p);
     if (init) {
@@ -370,6 +370,7 @@ void LetDecl::print(Printer& p) const {
 }
 
 void FnDecl::print(Printer& p) const {
+    if (attrs) attrs->print(p);
     p << log::keyword_style("fn") << ' ';
     if (fn->filter)
        fn->filter->print(p);
@@ -399,6 +400,7 @@ void FieldDecl::print(Printer& p) const {
 }
 
 void StructDecl::print(Printer& p) const {
+    if (attrs) attrs->print(p);
     p << log::keyword_style("struct") << ' ' << id.name;
     if (type_params) type_params->print(p);
     p << " {";
@@ -419,6 +421,7 @@ void OptionDecl::print(Printer& p) const {
 }
 
 void EnumDecl::print(Printer& p) const {
+    if (attrs) attrs->print(p);
     p << log::keyword_style("enum") << ' ' << id.name;
     if (type_params) type_params->print(p);
     p << " {";
@@ -434,6 +437,7 @@ void EnumDecl::print(Printer& p) const {
 }
 
 void TypeDecl::print(Printer& p) const {
+    if (attrs) attrs->print(p);
     p << log::keyword_style("type") << ' ' <<  id.name;
     if (type_params) type_params->print(p);
     p << " = ";
@@ -442,6 +446,7 @@ void TypeDecl::print(Printer& p) const {
 }
 
 void ModDecl::print(Printer& p) const {
+    if (attrs) attrs->print(p);
     bool anon = id.name == "";
     if (!anon)
         p << log::keyword_style("mod") << ' ' << id.name << " {" << p.indent() << p.endl();

@@ -192,54 +192,83 @@ bool TypeApp::contains(const Type* type) const {
 
 // Replace -------------------------------------------------------------------------
 
-const Type* TupleType::replace(
-    TypeTable& type_table,
-    const std::unordered_map<const TypeVar*, const Type*>& map) const {
+const Type* TupleType::replace(const std::unordered_map<const TypeVar*, const Type*>& map) const {
     std::vector<const Type*> new_args(args.size());
     for (size_t i = 0, n = args.size(); i < n; ++i)
-        new_args[i] = args[i]->replace(type_table, map);
+        new_args[i] = args[i]->replace(map);
     return type_table.tuple_type(std::move(new_args));
 }
 
-const Type* SizedArrayType::replace(
-    TypeTable& type_table,
-    const std::unordered_map<const TypeVar*, const Type*>& map) const {
-    return type_table.sized_array_type(elem->replace(type_table, map), size);
+const Type* SizedArrayType::replace(const std::unordered_map<const TypeVar*, const Type*>& map) const {
+    return type_table.sized_array_type(elem->replace(map), size);
 }
 
-const Type* UnsizedArrayType::replace(
-    TypeTable& type_table,
-    const std::unordered_map<const TypeVar*, const Type*>& map) const {
-    return type_table.unsized_array_type(elem->replace(type_table, map));
+const Type* UnsizedArrayType::replace(const std::unordered_map<const TypeVar*, const Type*>& map) const {
+    return type_table.unsized_array_type(elem->replace(map));
 }
 
-const Type* AddrType::replace(
-    TypeTable& type_table,
-    const std::unordered_map<const TypeVar*, const Type*>& map) const {
-    return type_table.ptr_type(pointee->replace(type_table, map));
+const Type* PtrType::replace(const std::unordered_map<const TypeVar*, const Type*>& map) const {
+    return type_table.ptr_type(pointee->replace(map));
 }
 
-const Type* FnType::replace(
-    TypeTable& type_table,
-    const std::unordered_map<const TypeVar*, const Type*>& map) const {
-    return type_table.fn_type(dom->replace(type_table, map), codom->replace(type_table, map));
+const Type* RefType::replace(const std::unordered_map<const TypeVar*, const Type*>& map) const {
+    return type_table.ptr_type(pointee->replace(map));
 }
 
-const Type* TypeVar::replace(
-    TypeTable&,
-    const std::unordered_map<const TypeVar*, const Type*>& map) const {
+const Type* FnType::replace(const std::unordered_map<const TypeVar*, const Type*>& map) const {
+    return type_table.fn_type(dom->replace(map), codom->replace(map));
+}
+
+const Type* TypeVar::replace(const std::unordered_map<const TypeVar*, const Type*>& map) const {
     if (auto it = map.find(this); it != map.end())
         return it->second;
     return this;
 }
 
-const Type* TypeApp::replace(
-    TypeTable& type_table,
-    const std::unordered_map<const TypeVar*, const Type*>& map) const {
+const Type* TypeApp::replace(const std::unordered_map<const TypeVar*, const Type*>& map) const {
     std::vector<const Type*> new_type_args(type_args.size());
     for (size_t i = 0, n = type_args.size(); i < n; ++i)
-        new_type_args[i] = type_args[i]->replace(type_table, map);
+        new_type_args[i] = type_args[i]->replace(map);
     return type_table.type_app(applied, std::move(new_type_args));
+}
+
+// Order ---------------------------------------------------------------------------
+
+size_t Type::order() const {
+    return 0;
+}
+
+size_t FnType::order() const {
+    return 1 + std::max(dom->order(), codom->order());
+}
+
+size_t TupleType::order() const {
+    size_t max_order = 0;
+    for (auto arg : args)
+        max_order = std::max(max_order, arg->order());
+    return max_order;
+}
+
+size_t ArrayType::order() const {
+    return elem->order();
+}
+
+size_t AddrType::order() const {
+    return pointee->order();
+}
+
+size_t ComplexType::order() const {
+    size_t max_order = 0;
+    for (size_t i = 0, n = member_count(); i < n; ++i)
+        max_order = std::max(max_order, member_type(i)->order());
+    return max_order;
+}
+
+size_t TypeApp::order() const {
+    size_t max_order = 0;
+    for (size_t i = 0, n = applied->as<ComplexType>()->member_count(); i < n; ++i)
+        max_order = std::max(max_order, member_type(i)->order());
+    return max_order;
 }
 
 // Members -------------------------------------------------------------------------
@@ -308,14 +337,14 @@ bool Type::subtype(const Type* other) const {
     return false;
 }
 
-const Type* ForallType::instantiate(TypeTable& type_table, const std::vector<const Type*>& args) const {
+const Type* ForallType::instantiate(const std::vector<const Type*>& args) const {
     std::unordered_map<const TypeVar*, const Type*> map;
     assert(decl.type_params && decl.type_params->params.size() == args.size());
     for (size_t i = 0, n = args.size(); i < n; ++i) {
         assert(decl.type_params->params[i]->type);
         map.emplace(decl.type_params->params[i]->type->as<TypeVar>(), args[i]); 
     }
-    return body->replace(type_table, map);
+    return body->replace(map);
 }
 
 std::unordered_map<const TypeVar*, const Type*> TypeApp::replace_map(
@@ -456,14 +485,14 @@ const Type* TypeTable::type_app(const UserType* applied, std::vector<const Type*
     if (auto type_alias = applied->isa<TypeAlias>()) {
         assert(type_alias->type_params() && type_alias->decl.aliased_type->type);
         auto map = TypeApp::replace_map(*type_alias->type_params(), type_args);
-        return type_alias->decl.aliased_type->type->replace(*this, map);
+        return type_alias->decl.aliased_type->type->replace(map);
     }
     return insert<TypeApp>(applied, std::move(type_args));
 }
 
 template <typename T, typename... Args>
 const T* TypeTable::insert(Args&&... args) {
-    T t(std::forward<Args>(args)...);
+    T t(*this, std::forward<Args>(args)...);
     if (auto it = types_.find(&t); it != types_.end())
         return (*it)->template as<T>();
     auto [it, _] = types_.emplace(new T(std::move(t)));
