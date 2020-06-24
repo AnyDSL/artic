@@ -4,16 +4,16 @@ A replacement for [Impala](https://github.com/AnyDSL/impala).
 
 ## Building
 
-A compiler that supports C++17 and CMake are required to build the project. Use the following commands to build the program:
+A compiler that supports C++17 and CMake are required to build the project.
+Additionally, this project depends on [Thorin](https://github.com/AnyDSL/thorin).
+Use the following commands to build the program:
 
     mkdir build
     cd build
-    cmake-gui ..
+    cmake .. -DThorin_DIR=<path/to/thorin>
     make -j
 
-To enable the backend based on [Thorin](https://github.com/AnyDSL/thorin), the path to Thorin must be specified when configuring the CMake build:
-
-    cmake -DThorin_DIR=...
+Note that `path/to/thorin` is usually `thorin/build/share/anydsl/cmake`.
 
 ## Status
 
