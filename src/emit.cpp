@@ -62,7 +62,7 @@ public:
 
         auto col = pick_col();
         for (size_t i = 0, n = rows.size(); i < n; ++i) {
-            if (!rows[i].first[col] || rows[i].first[col]->isa<ast::IdPtrn>()) {
+            if (is_wildcard(rows[i].first[col])) {
                 // This is a wildcard ("catch all") pattern
                 if (rows[i].first[col])
                     emitter.emit(*rows[i].first[col], values[col].first);
@@ -154,15 +154,59 @@ private:
         , values(std::move(values))
     {}
 
+    static bool is_wildcard(const ast::Ptrn* ptrn) {
+        return !ptrn || ptrn->isa<ast::IdPtrn>();
+    }
+
     template <typename T>
     static void remove_col(std::vector<T>& vector, size_t col) {
         std::swap(vector[col], vector.back());
         vector.pop_back();
     }
 
+    template <typename F>
+    void apply_heuristic(std::vector<bool>& enabled, const F& f) const {
+        std::vector<Cost> cost(values.size());
+        Cost min_cost = std::numeric_limits<Cost>::max();
+        for (size_t i = 0, n = values.size(); i < n; ++i) {
+            cost[i] = enabled[i] ? f(i) : std::numeric_limits<Cost>::min();
+            min_cost = std::min(min_cost, cost[i]);
+        }
+        for (size_t i = 0, n = values.size(); i < n; ++i)
+            enabled[i] = enabled[i] & (cost[i] == min_cost);
+    }
+
     size_t pick_col() const {
-        // TODO: Apply some heuristics to find a good column candidate
-        return 0;
+        // This applies the f, d and b heuristics, as suggested in the article listed above.
+        std::vector<bool> enabled(values.size(), true);
+        apply_heuristic(enabled, [this] (size_t i) -> Cost{
+            return is_wildcard(rows[0].first[i]) ? 1 : 0;
+        });
+        apply_heuristic(enabled, [this] (size_t i) -> Cost {
+            Cost cost = 0;
+            for (auto& row : rows)
+                cost += is_wildcard(row.first[i]) ? 1 : 0;
+            return cost;
+        });
+        apply_heuristic(enabled, [this] (size_t i) -> Cost {
+            std::unordered_set<const thorin::Def*> ctors;
+            for (auto& row : rows) {
+                if (auto enum_ptrn = row.first[i]->isa<ast::EnumPtrn>())
+                    ctors.emplace(emitter.world.literal_qu64(enum_ptrn->index, {}));
+                else if (auto literal_ptrn = row.first[i]->isa<ast::LiteralPtrn>())
+                    ctors.emplace(emitter.emit(*literal_ptrn, literal_ptrn->lit));
+            }
+            Cost branches = ctors.size() + 1;
+            // If the match expression is complete, then the default case can be omitted
+            if (is_bool_type(values[i].second) && ctors.size() == 2)
+                branches--;
+            else if (
+                auto [_, enum_type] = match_app<EnumType>(values[i].second);
+                enum_type && enum_type->member_count() == ctors.size())
+                branches--;
+            return branches;
+        });
+        return std::find(enabled.begin(), enabled.end(), true) - enabled.begin();
     }
 
     // Transforms the rows such that tuples and structures are completely deconstructed
