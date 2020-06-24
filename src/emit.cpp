@@ -170,8 +170,10 @@ private:
         std::vector<Cost> cost(values.size());
         Cost min_cost = std::numeric_limits<Cost>::max();
         for (size_t i = 0, n = values.size(); i < n; ++i) {
-            cost[i] = enabled[i] ? f(i) : std::numeric_limits<Cost>::min();
-            min_cost = std::min(min_cost, cost[i]);
+            if (enabled[i]) {
+                cost[i] = f(i);
+                min_cost = std::min(min_cost, cost[i]);
+            }
         }
         for (size_t i = 0, n = values.size(); i < n; ++i)
             enabled[i] = enabled[i] & (cost[i] == min_cost);
