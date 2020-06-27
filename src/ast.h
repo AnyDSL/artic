@@ -688,7 +688,6 @@ struct CaseExpr : public Expr {
 
     bool has_side_effect() const override;
 
-    const thorin::Def* emit(Emitter&) const override;
     void bind(NameBinder&) override;
     void print(Printer&) const override;
 };

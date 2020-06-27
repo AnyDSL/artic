@@ -49,14 +49,25 @@ public:
                 return is_wildcard(ptrn);
             }))
         {
+            // If the first row is made of only wildcards, it is a match
             rows.front().second->is_redundant = false;
             for (size_t i = 0, n = rows.front().first.size(); i < n; ++i) {
                 auto ptrn = rows.front().first[i];
+                // Emit names that are bound in this row
                 if (ptrn && ptrn->isa<ast::IdPtrn>())
                     emitter.emit(*ptrn, values[i].first);
             }
-            auto value = emitter.emit(*rows.front().second);
-            emitter.jump(target, value, debug_info(*rows.front().second));
+            auto& case_block = rows.front().second->def;
+            if (!case_block) {
+                // Generate a continuation for this case, if it does not exist
+                auto _ = emitter.save_state();
+                auto debug = debug_info(*rows.front().second);
+                auto cont  = emitter.basic_block_with_mem(debug);
+                emitter.enter(cont);
+                emitter.jump(target, emitter.emit(*rows.front().second->expr), debug);
+                case_block = cont;
+            }
+            emitter.jump(case_block);
             return;
         } else if (rows.empty()) {
             emitter.non_exhaustive_match(match);
@@ -103,6 +114,7 @@ public:
             }
         }
 
+        // Generate jumps to each constructor case
         bool no_default = is_complete(values[col].second, ctors.size());
         if (is_bool_type(values[col].second)) {
             auto match_true  = emitter.basic_block(debug_info(match, "match_true"));
@@ -662,10 +674,6 @@ const thorin::Def* IfExpr::emit(Emitter& emitter) const {
 
     emitter.enter(join);
     return join->param(1);
-}
-
-const thorin::Def* CaseExpr::emit(Emitter& emitter) const {
-    return emitter.emit(*expr);
 }
 
 const thorin::Def* MatchExpr::emit(Emitter& emitter) const {
