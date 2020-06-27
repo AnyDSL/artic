@@ -191,7 +191,7 @@ template <typename Fields>
 const Type* TypeChecker::check_fields(
     const Loc& loc,
     const StructType* struct_type,
-    const TypeApp* app,
+    const TypeApp* type_app,
     const Fields& fields,
     const std::string& msg) {
     bool etc = false;
@@ -211,7 +211,7 @@ const Type* TypeChecker::check_fields(
         }
         seen[*index] = true;
         fields[i]->index = *index;
-        check(*fields[i], app ? app->member_type(*index) : struct_type->member_type(*index));
+        check(*fields[i], type_app ? type_app->member_type(*index) : struct_type->member_type(*index));
     }
     // Check that all fields have been specified, unless '...' was used
     if (!etc && !std::all_of(seen.begin(), seen.end(), [] (bool b) { return b; })) {
@@ -220,7 +220,7 @@ const Type* TypeChecker::check_fields(
                 error(loc, "missing field '{}' in structure {}", struct_type->decl.fields[i]->id.name, msg);
         }
     }
-    return app ? app->as<Type>() : struct_type;
+    return type_app ? type_app->as<Type>() : struct_type;
 }
 
 void TypeChecker::check_block(const Loc& loc, const PtrVector<ast::Stmt>& stmts, bool last_semi) {
@@ -309,12 +309,12 @@ const artic::Type* Path::infer(TypeChecker& checker) const {
 
         // Perform a lookup inside the current object if the path is not finished
         if (i != n - 1) {
-            if (auto [app, enum_type] = match_app<EnumType>(type); enum_type) {
+            if (auto [type_app, enum_type] = match_app<EnumType>(type); enum_type) {
                 auto index = enum_type->find_member(elems[i + 1].id.name);
                 if (!index)
                     return checker.unknown_member(elem.loc, enum_type, elems[i + 1].id.name);
-                auto member = app ? app->member_type(*index) : enum_type->member_type(*index);
-                auto codom = app ? app->as<artic::Type>() : enum_type;
+                auto member = type_app ? type_app->member_type(*index) : enum_type->member_type(*index);
+                auto codom = type_app ? type_app->as<artic::Type>() : enum_type;
                 type = is_unit_type(member)
                     ? codom 
                     : checker.type_table.fn_type(member, codom);
@@ -349,7 +349,7 @@ void NamedAttr::check(TypeChecker& checker, const ast::Node* node) const {
             else {
                 for (auto& arg : args) {
                     if (arg->name != "name")
-                        checker.error(arg->loc, "export only supports the 'name' attribute");
+                        checker.error(arg->loc, "unsupported argument '{}'", arg->name);
                     else if (!arg->isa<LiteralAttr>() || !arg->as<LiteralAttr>()->lit.is_string())
                         checker.error(arg->loc, "malformed 'name' attribute");
                 }
@@ -454,10 +454,10 @@ const artic::Type* FieldExpr::check(TypeChecker& checker, const artic::Type* exp
 
 const artic::Type* StructExpr::infer(TypeChecker& checker) const {
     auto path_type = checker.infer(path);
-    auto [app, struct_type] = match_app<StructType>(path_type);
+    auto [type_app, struct_type] = match_app<StructType>(path_type);
     if (!struct_type)
         return checker.type_expected(path.loc, path_type, "structure");
-    return checker.check_fields(loc, struct_type, app, fields, "expression");
+    return checker.check_fields(loc, struct_type, type_app, fields, "expression");
 }
 
 const artic::Type* TupleExpr::infer(TypeChecker& checker) const {
@@ -583,12 +583,12 @@ const artic::Type* CallExpr::infer(TypeChecker& checker) const {
 
 const artic::Type* ProjExpr::infer(TypeChecker& checker) const {
     auto [ref_type, expr_type] = checker.deref(*expr);
-    auto [app, struct_type] = match_app<StructType>(expr_type);
+    auto [type_app, struct_type] = match_app<StructType>(expr_type);
     if (!struct_type)
         return checker.type_expected(expr->loc, expr_type, "structure");
     if (auto index = struct_type->find_member(field.name)) {
         this->index = *index;
-        auto result = app ? app->member_type(*index) : struct_type->member_type(*index);
+        auto result = type_app ? type_app->member_type(*index) : struct_type->member_type(*index);
         return ref_type ? checker.type_table.ref_type(result) : result;
     } else
         return checker.unknown_member(loc, struct_type, field.name);
@@ -863,10 +863,10 @@ const artic::Type* FieldPtrn::check(TypeChecker& checker, const artic::Type* exp
 
 const artic::Type* StructPtrn::infer(TypeChecker& checker) const {
     auto path_type = checker.infer(path);
-    auto [app, struct_type] = match_app<StructType>(path_type);
+    auto [type_app, struct_type] = match_app<StructType>(path_type);
     if (!struct_type)
         return checker.type_expected(path.loc, path_type, "structure");
-    return checker.check_fields(loc, struct_type, app, fields, "pattern");
+    return checker.check_fields(loc, struct_type, type_app, fields, "pattern");
 }
 
 const artic::Type* EnumPtrn::infer(TypeChecker& checker) const {

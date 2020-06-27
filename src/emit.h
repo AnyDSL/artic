@@ -9,6 +9,7 @@
 #include "ast.h"
 #include "types.h"
 #include "log.h"
+#include "hash.h"
 
 namespace thorin {
     class World;
@@ -25,6 +26,8 @@ public:
     Emitter(Log& log, thorin::World& world)
         : Logger(log), world(world)
     {}
+
+    thorin::World& world;
 
     struct State {
         const thorin::Def* mem = nullptr;
@@ -43,12 +46,32 @@ public:
         }
     };
 
-    thorin::World& world;
+    State state;
+
     /// A map of all structure types to avoid creating the same type several times
     std::unordered_map<const StructType*, const thorin::Type*> structs;
     /// A map of the currently bound type variables
     std::unordered_map<const TypeVar*, const thorin::Type*> type_vars;
-    State state;
+
+    struct Ctor {
+        size_t index;
+        const Type* type;
+    };
+
+    struct HashCtor {
+        size_t operator () (const Ctor& ctor) const {
+            return fnv::Hash().combine(ctor.index).combine(ctor.type);
+        }
+    };
+
+    struct CompareCtor {
+        bool operator () (const Ctor& left, const Ctor& right) const {
+            return left.index == right.index && left.type == right.type;
+        }
+    };
+
+    /// A map from enum type and variant index to variant constructor
+    std::unordered_map<Ctor, const thorin::Def*, HashCtor, CompareCtor> variant_ctors;
 
     bool run(const ast::ModDecl&);
 
@@ -61,6 +84,18 @@ public:
     thorin::Continuation* basic_block(thorin::Debug = {});
     thorin::Continuation* basic_block_with_mem(thorin::Debug = {});
     thorin::Continuation* basic_block_with_mem(const thorin::Type*, thorin::Debug = {});
+
+    const thorin::Def* ctor_index(const EnumType*, size_t);
+    const thorin::Def* ctor_index(const ast::EnumPtrn& enum_ptrn) {
+        return ctor_index(match_app<EnumType>(enum_ptrn.type).second, enum_ptrn.index);
+    }
+    const thorin::Def* ctor_index(const ast::LiteralPtrn&);
+    const thorin::Def* ctor_index(const ast::Ptrn& ptrn) {
+        if (auto enum_ptrn = ptrn.isa<ast::EnumPtrn>())
+            return ctor_index(*enum_ptrn);
+        else
+            return ctor_index(*ptrn.as<ast::LiteralPtrn>());
+    }
 
     void enter(thorin::Continuation*);
     void jump(const thorin::Def*, thorin::Debug = {});

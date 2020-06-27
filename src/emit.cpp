@@ -41,45 +41,69 @@ public:
     }
 
     void compile(const thorin::Def* target) {
-        assert(!rows.empty());
-#ifndef NDEBUG
-        for (auto& row : rows) {
-            assert(row.first.size() == values.size());
-        }
-#endif
-
         expand();
-        if (values.empty()) {
+        if (std::all_of(
+            rows.front().first.begin(),
+            rows.front().first.end(),
+            [] (const ast::Ptrn* ptrn) {
+                return is_wildcard(ptrn);
+            }))
+        {
             rows.front().second->is_redundant = false;
+            for (size_t i = 0, n = rows.front().first.size(); i < n; ++i) {
+                auto ptrn = rows.front().first[i];
+                if (ptrn && ptrn->isa<ast::IdPtrn>())
+                    emitter.emit(*ptrn, values[i].first);
+            }
             auto value = emitter.emit(*rows.front().second);
             emitter.jump(target, value, debug_info(*rows.front().second));
             return;
+        } else if (rows.empty()) {
+            emitter.non_exhaustive_match(match);
+            return;
         }
+
+#ifndef NDEBUG
+        for (auto& row : rows)
+            assert(row.first.size() == values.size());
+#endif
 
         // Map from constructor index (e.g. literal or enumeration option index, encoded as an integer) to row.
         std::unordered_map<const thorin::Def*, std::vector<Row>> ctors;
         std::vector<Row> wildcards;
 
         auto col = pick_col();
+        // First, collect constructors
+        for (auto& row : rows) {
+            if (!is_wildcard(row.first[col]))
+                ctors.emplace(emitter.ctor_index(*row.first[col]), std::vector<Row>());
+        }
+        // Then, build the new rows for each constructor case
         for (size_t i = 0, n = rows.size(); i < n; ++i) {
             if (is_wildcard(rows[i].first[col])) {
-                // This is a wildcard ("catch all") pattern
                 if (rows[i].first[col])
                     emitter.emit(*rows[i].first[col], values[col].first);
                 remove_col(rows[i].first, col);
+                for (auto& ctor : ctors) {
+                    ctor.second.push_back(rows[i]);
+                    if (auto [_, enum_type] = match_app<EnumType>(values[col].second); enum_type) {
+                        auto index = thorin::primlit_value<uint64_t>(ctor.first);
+                        if (!is_unit_type(enum_type->member_type(index)))
+                            ctor.second.back().first.push_back(nullptr);
+                    }
+                }
                 wildcards.emplace_back(std::move(rows[i]));
-            } else if (auto literal_ptrn = rows[i].first[col]->isa<ast::LiteralPtrn>()) {
-                remove_col(rows[i].first, col);
-                ctors[emitter.emit(*literal_ptrn, literal_ptrn->lit)].emplace_back(std::move(rows[i]));
             } else {
-                // For enum patterns, we need to add the argument of the enumeration to the row
-                auto enum_ptrn = rows[i].first[col]->as<ast::EnumPtrn>();
+                auto ptrn = rows[i].first[col];
+                auto enum_ptrn = ptrn->isa<ast::EnumPtrn>();
                 remove_col(rows[i].first, col);
-                rows[i].first.push_back(enum_ptrn->arg.get());
-                ctors[emitter.world.literal_qu64(enum_ptrn->index, {})].emplace_back(std::move(rows[i]));
+                if (enum_ptrn && enum_ptrn->arg)
+                    rows[i].first.push_back(enum_ptrn->arg.get());
+                ctors[emitter.ctor_index(*ptrn)].emplace_back(std::move(rows[i]));
             }
         }
 
+        bool no_default = is_complete(values[col].second, ctors.size());
         if (is_bool_type(values[col].second)) {
             auto match_true  = emitter.basic_block(debug_info(match, "match_true"));
             auto match_false = emitter.basic_block(debug_info(match, "match_true"));
@@ -89,46 +113,66 @@ public:
             for (auto& ctor : ctors) {
                 auto _ = emitter.save_state();
                 emitter.enter(thorin::is_allset(ctor.first) ? match_true : match_false);
-                ctor.second.insert(ctor.second.end(), wildcards.begin(), wildcards.end());
                 PtrnCompiler(emitter, match, std::vector<Value>(values), std::move(ctor.second)).compile(target);
             }
-            if (ctors.size() != 2) {
-                if (wildcards.empty())
-                    emitter.non_exhaustive_match(match);
-                // Enter the non-taken branch
+            if (!no_default) {
                 emitter.enter(thorin::is_allset(ctors.begin()->first) ? match_false : match_true);
                 PtrnCompiler(emitter, match, std::move(values), std::move(wildcards)).compile(target);
             }
-        } else if (is_int_type(values[col].second)) {
-            thorin::Array<const thorin::Def*> defs(ctors.size());
+        } else if (
+            auto [type_app, enum_type] = match_app<EnumType>(values[col].second);
+            enum_type || is_int_type(values[col].second))
+        {
             thorin::Array<thorin::Continuation*> targets(ctors.size());
+            thorin::Array<const thorin::Def*> defs(ctors.size());
             auto otherwise = emitter.basic_block(debug_info(match, "match_otherwise"));
+
             size_t count = 0;
-            for (auto ctor : ctors) {
+            for (auto& ctor : ctors) {
                 defs[count] = ctor.first;
                 targets[count] = emitter.basic_block(debug_info(match, "match_case"));
                 count++;
             }
-            if (emitter.state.cont)
-                emitter.state.cont->match(values[col].first, otherwise, defs, targets, debug_info(match));
+
+            if (emitter.state.cont) {
+                auto index = enum_type
+                    ? emitter.world.extract(values[col].first, thorin::u32(0))
+                    : values[col].first;
+                emitter.state.cont->match(
+                    index, otherwise,
+                    no_default ? defs.skip_back() : defs.ref(),
+                    no_default ? targets.skip_back() : targets.ref(),
+                    debug_info(match));
+            }
+            auto variant = enum_type ? emitter.world.extract(values[col].first, thorin::u32(1)) : nullptr;
             remove_col(values, col);
-            for (size_t i = 0, n = ctors.size(); i < n; ++i) {
+
+            for (size_t i = 0, n = targets.size(); i < n; ++i) {
                 auto& rows = ctors[defs[i]];
                 auto _ = emitter.save_state();
-                emitter.enter(targets[i]);
+                emitter.enter(i == n - 1 && no_default ? otherwise : targets[i]);
+
                 rows.insert(rows.end(), wildcards.begin(), wildcards.end());
-                PtrnCompiler(emitter, match, std::vector<Value>(values), std::move(rows)).compile(target);
+
+                auto new_values = values;
+                if (enum_type) {
+                    auto index = thorin::primlit_value<uint64_t>(defs[i]);
+                    auto type = type_app ? type_app->member_type(index) : enum_type->member_type(index);
+                    // If the constructor refers to an option that has a parameter,
+                    // we need to extract it and add it to the values, and add
+                    // a dummy pattern to all wildcard patterns.
+                    if (!is_unit_type(type))
+                        new_values.emplace_back(emitter.world.cast(type->convert(emitter), variant), type);
+                }
+
+                PtrnCompiler(emitter, match, std::move(new_values), std::move(rows)).compile(target);
             }
-            if (wildcards.empty())
-                emitter.non_exhaustive_match(match);
-            else {
+            if (!no_default && !wildcards.empty()) {
                 emitter.enter(otherwise);
                 PtrnCompiler(emitter, match, std::move(values), std::move(wildcards)).compile(target);
             }
-        } else if (auto [_, enum_type] = match_app<EnumType>(values[col].second); enum_type) {
-            assert(false);
         } else {
-            // Must be a string
+            // TODO: Implement non-integer/enum match expressions
             assert(false);
         }
     }
@@ -179,6 +223,16 @@ private:
             enabled[i] = enabled[i] & (cost[i] == min_cost);
     }
 
+    static bool is_complete(const Type* type, size_t ctor_count) {
+        if (is_bool_type(type) && ctor_count == 2)
+            return true;
+        else if (
+            auto [_, enum_type] = match_app<EnumType>(type);
+            enum_type && enum_type->member_count() == ctor_count)
+            return true;
+        return false;
+    }
+
     size_t pick_col() const {
         // This applies the f, d and b heuristics, as suggested in the article listed above.
         std::vector<bool> enabled(values.size(), true);
@@ -194,20 +248,11 @@ private:
         apply_heuristic(enabled, [this] (size_t i) -> Cost {
             std::unordered_set<const thorin::Def*> ctors;
             for (auto& row : rows) {
-                if (auto enum_ptrn = row.first[i]->isa<ast::EnumPtrn>())
-                    ctors.emplace(emitter.world.literal_qu64(enum_ptrn->index, {}));
-                else if (auto literal_ptrn = row.first[i]->isa<ast::LiteralPtrn>())
-                    ctors.emplace(emitter.emit(*literal_ptrn, literal_ptrn->lit));
+                if (!is_wildcard(row.first[i]))
+                    ctors.emplace(emitter.ctor_index(*row.first[i]));
             }
-            Cost branches = ctors.size() + 1;
             // If the match expression is complete, then the default case can be omitted
-            if (is_bool_type(values[i].second) && ctors.size() == 2)
-                branches--;
-            else if (
-                auto [_, enum_type] = match_app<EnumType>(values[i].second);
-                enum_type && enum_type->member_count() == ctors.size())
-                branches--;
-            return branches;
+            return is_complete(values[i].second, ctors.size()) ? ctors.size() : ctors.size() + 1;
         });
         return std::find(enabled.begin(), enabled.end(), true) - enabled.begin();
     }
@@ -264,22 +309,24 @@ private:
     }
 
     // For debugging
-    void dump() {
-        Printer p(log::out);
-        for (auto& row : rows) {
-            for (auto& elem : row.first) {
-                if (elem)
-                    elem->print(p);
-                else
-                    p << '_';
-                p << ' ';
-            }
-            p << "=> ";
-            row.second->expr->print(p);
-            p << p.endl();
-        }
-    }
+    void dump() const;
 };
+
+void PtrnCompiler::dump() const {
+    Printer p(log::out);
+    for (auto& row : rows) {
+        for (auto& elem : row.first) {
+            if (elem)
+                elem->print(p);
+            else
+                p << '_';
+            p << ' ';
+        }
+        p << "=> ";
+        row.second->expr->print(p);
+        p << p.endl();
+    }
+}
 
 bool Emitter::run(const ast::ModDecl& mod) {
     mod.emit(*this);
@@ -296,6 +343,18 @@ thorin::Continuation* Emitter::basic_block_with_mem(thorin::Debug debug) {
 
 thorin::Continuation* Emitter::basic_block_with_mem(const thorin::Type* param, thorin::Debug debug) {
     return world.continuation(world.fn_type({ world.mem_type(), param }), debug);
+}
+
+const thorin::Def* Emitter::ctor_index(const EnumType* enum_type, size_t index) {
+    return
+        enum_type->member_count() < (uintmax_t(1) <<  8) ? world.literal_qu8 (index, {}) :
+        enum_type->member_count() < (uintmax_t(1) << 16) ? world.literal_qu16(index, {}) :
+        enum_type->member_count() < (uintmax_t(1) << 32) ? world.literal_qu32(index, {}) :
+        world.literal_qu64(index, {});
+}
+
+const thorin::Def* Emitter::ctor_index(const ast::LiteralPtrn& lit) {
+    return emit(lit, lit.lit);
 }
 
 void Emitter::redundant_case(const ast::CaseExpr& case_) {
@@ -444,8 +503,44 @@ const thorin::Def* Node::emit(Emitter&) const {
 
 const thorin::Def* Path::emit(Emitter& emitter) const {
     auto def = emitter.emit(*symbol->decls.front());
-    for (size_t i = 0, n = symbol->decls.size(); i < n; ++i) {
-        // TODO: Handle multiple path elements
+    auto elem_type = symbol->decls.front()->type;
+    for (size_t i = 0, n = elems.size(); i < n - 1; ++i) {
+        if (auto [type_app, enum_type] = match_app<artic::EnumType>(elem_type); enum_type) {
+            // Find the variant constructor for that enum, if it exists
+            Emitter::Ctor ctor { elems[i + 1].index, type_app ? type_app->as<artic::Type>() : enum_type };
+            if (auto it = emitter.variant_ctors.find(ctor); it != emitter.variant_ctors.end())
+                return it->second;
+            auto index = emitter.ctor_index(enum_type, ctor.index);
+            auto variant_type = (type_app
+                ? type_app->convert(emitter)
+                : enum_type->convert(emitter))->op(1)->as<thorin::VariantType>();
+            auto param_type = type_app
+                ? type_app->member_type(ctor.index)
+                : enum_type->member_type(ctor.index);
+            if (is_unit_type(param_type)) {
+                // This is a constructor without parameters
+                return emitter.variant_ctors[ctor] =
+                    emitter.world.tuple({ index, emitter.world.variant(variant_type, emitter.world.tuple({})) });
+            } else {
+                // This is a constructor with parameters: return a function
+                auto cont = emitter.world.continuation(
+                    emitter.world.fn_type({
+                        emitter.world.mem_type(),
+                        param_type->convert(emitter),
+                        emitter.world.fn_type({
+                            emitter.world.mem_type(),
+                            emitter.world.tuple_type({ index->type(), variant_type })
+                        })
+                    }),
+                    debug_info(*enum_type->decl.options[ctor.index]));
+                auto ret_value = emitter.world.tuple({ index, emitter.world.variant(variant_type, cont->param(1)) });
+                cont->jump(cont->param(2), { cont->param(0), ret_value });
+                return emitter.variant_ctors[ctor] = cont;
+            }
+        } else {
+            // TODO: Implement modules and such
+            assert(false);
+        }
     }
     return def;
 }
@@ -940,7 +1035,12 @@ const thorin::Type* EnumType::convert(Emitter& emitter) const {
     thorin::Array<const thorin::Type*> ops(decl.options.size());
     for (size_t i = 0, n = decl.options.size(); i < n; ++i)
         ops[i] = decl.options[i]->type->convert(emitter);
-    return emitter.world.variant_type(ops);
+    auto index_type =
+        decl.options.size() < (size_t(1) << 8)  ? emitter.world.type_qu8()  :
+        decl.options.size() < (size_t(1) << 16) ? emitter.world.type_qu16() :
+        decl.options.size() < (size_t(1) << 32) ? emitter.world.type_qu32() :
+        emitter.world.type_qu64();
+    return emitter.world.tuple_type({ index_type, emitter.world.variant_type(ops) });
 }
 
 } // namespace artic
