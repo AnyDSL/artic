@@ -83,7 +83,7 @@ let y = 1;       // `y` types as i32 (default when no annotation is present)
 let z : f32 = 1; // `z` types as f32
 ```
  - Patterns are now compiled using decision trees. This means that the generated code will be
-   more efficient, but also that error messages for the completeness of a pattern are now more
+   more efficient, and also that error messages for the completeness of a pattern are now more
    accurate (less conservative). The following case expression is now legal:
 ```rust
 match x {
