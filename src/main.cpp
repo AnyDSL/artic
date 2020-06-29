@@ -14,6 +14,9 @@
 #include "emit.h"
 
 #include <thorin/world.h>
+#ifdef ENABLE_LLVM
+#include <thorin/be/llvm/llvm.h>
+#endif
 
 using namespace artic;
 
@@ -21,10 +24,16 @@ static void usage() {
     log::out << "usage: artic [options] files...\n"
                 "options:\n"
                 "           --version            Displays the version number\n"
+                "           --no-color           Disables colors in error messages\n"
                 "           --strict             Sets warnings as errors\n"
-                "           --print              Prints the AST after parsing.\n"
+                "           --print-ast          Prints the AST after parsing and type-checking\n"
+                "           --emit-thorin        Prints the Thorin IR after code generation\n"
+#ifdef ENABLE_LLVM
+                "           --emit-llvm          Emits LLVM IR in the output file\n"
+                "    -g     --debug              Enable debug information in the generated LLVM IR file\n"
+#endif
                 "    -On                         Sets the optimization level (n = 0, 1, 2, or 3)\n"
-                "    -o <name>                   Sets the module name\n"
+                "    -o <name>                   Sets the module name (defaults to 'module')\n"
                 "    -h     --help               Displays this message\n";
 }
 
@@ -59,9 +68,12 @@ struct ProgramOptions {
     std::vector<std::string> files;
     std::string module_name = "module";
     bool exit = false;
+    bool no_color = false;
     bool strict = false;
-    bool invert = false;
-    bool print = false;
+    bool debug = false;
+    bool print_ast = false;
+    bool emit_thorin = false;
+    bool emit_llvm = false;
     unsigned opt_level = 0;
 
     bool matches(const char* arg, const char* opt) {
@@ -104,18 +116,30 @@ struct ProgramOptions {
                     version();
                     exit = true;
                     return true;
-                } else if (matches(argv[i], "--invert")) {
-                    if (!check_dup(argv[i], invert))
+                } else if (matches(argv[i], "--no-color")) {
+                    if (!check_dup(argv[i], no_color))
                         return false;
-                    invert = true;
+                    no_color = true;
                 } else if (matches(argv[i], "--strict")) {
                     if (!check_dup(argv[i], strict))
                         return false;
                     strict = true;
-                } else if (matches(argv[i], "--print")) {
-                    if (!check_dup(argv[i], print))
+                } else if (matches(argv[i], "--debug")) {
+                    if (!check_dup(argv[i], debug))
                         return false;
-                    print = true;
+                    debug = true;
+                } else if (matches(argv[i], "--print-ast")) {
+                    if (!check_dup(argv[i], print_ast))
+                        return false;
+                    print_ast = true;
+                } else if (matches(argv[i], "--emit-thorin")) {
+                    if (!check_dup(argv[i], emit_thorin))
+                        return false;
+                    emit_thorin = true;
+                } else if (matches(argv[i], "--emit-llvm")) {
+                    if (!check_dup(argv[i], emit_llvm))
+                        return false;
+                    emit_llvm = true;
                 } else if (matches(argv[i], "-O0")) {
                     opt_level = 0;
                 } else if (matches(argv[i], "-O1")) {
@@ -192,6 +216,9 @@ int main(int argc, char** argv) {
     if (opts.exit)
         return EXIT_SUCCESS;
 
+    if (opts.no_color)
+        log::err.colorized = log::out.colorized = false;
+
     if (opts.files.empty()) {
         log::error("no input files");
         return EXIT_FAILURE;
@@ -237,7 +264,7 @@ int main(int argc, char** argv) {
     if (!type_checker.run(program))
         return EXIT_FAILURE;
 
-    if (opts.print) {
+    if (opts.print_ast) {
         Printer p(log::out);
         program.print(p);
         log::out << "\n";
@@ -251,6 +278,28 @@ int main(int argc, char** argv) {
         world.cleanup();
     if (opts.opt_level > 1)
         world.opt();
-    world.dump();
+    if (opts.emit_thorin)
+        world.dump();
+#ifdef ENABLE_LLVM
+    if (opts.emit_llvm) {
+        thorin::Backends backends(world);
+        auto emit_to_file = [&](thorin::CodeGen* cg, std::string ext) {
+            if (cg) {
+                auto name = opts.module_name + ext;
+                std::ofstream file(name);
+                if (!file)
+                    log::error("cannot open '{}' for writing", name);
+                else
+                    cg->emit(file, opts.opt_level, opts.debug);
+            }
+        };
+        emit_to_file(backends.cpu_cg.get(),    ".ll");
+        emit_to_file(backends.cuda_cg.get(),   ".cu");
+        emit_to_file(backends.nvvm_cg.get(),   ".nvvm");
+        emit_to_file(backends.opencl_cg.get(), ".cl");
+        emit_to_file(backends.amdgpu_cg.get(), ".amdgpu");
+        emit_to_file(backends.hls_cg.get(),    ".hls");
+    }
+#endif
     return EXIT_SUCCESS;
 }
