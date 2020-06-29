@@ -357,7 +357,8 @@ Ptr<ast::Expr> Parser::parse_typed_expr(Ptr<ast::Expr>&& expr) {
     if (ahead().tag() == Token::Colon) {
         Tracker tracker(this, expr->loc);
         eat(Token::Colon);
-        return make_ptr<ast::TypedExpr>(tracker(), std::move(expr), parse_type());
+        auto type = parse_type();
+        return make_ptr<ast::TypedExpr>(tracker(), std::move(expr), std::move(type));
     }
     return std::move(expr);
 }
