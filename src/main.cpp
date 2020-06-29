@@ -243,6 +243,7 @@ int main(int argc, char** argv) {
 
         Lexer lexer(log, file, is);
         Parser parser(log, lexer);
+        parser.strict = opts.strict;
         auto module = parser.parse();
         if (log.errors > 0)
             return EXIT_FAILURE;
@@ -255,8 +256,11 @@ int main(int argc, char** argv) {
     }
 
     NameBinder name_binder(log);
+    name_binder.strict = opts.strict;
+
     TypeTable type_table;
     TypeChecker type_checker(log, type_table);
+    type_checker.strict = opts.strict;
 
     if (!name_binder.run(program))
         return EXIT_FAILURE;
