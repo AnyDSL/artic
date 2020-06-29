@@ -753,6 +753,8 @@ const thorin::Def* ReturnExpr::emit(Emitter&) const {
 const thorin::Def* UnaryExpr::emit(Emitter& emitter) const {
     const thorin::Def* op = nullptr;
     const thorin::Def* ptr = nullptr;
+    if (tag == AddrOf)
+        return emitter.emit(*arg);
     if (is_inc() || is_dec()) {
         ptr = emitter.emit(*arg);
         op  = emitter.load(ptr, debug_info(*this));
@@ -762,12 +764,7 @@ const thorin::Def* UnaryExpr::emit(Emitter& emitter) const {
     const thorin::Def* res = nullptr;
     switch (tag) {
         case Plus:    res = op;  break;
-        case AddrOf:  res = ptr; break;
-        case Deref:
-            // The operand of a derefence operator must be a reference type,
-            // which is represented as a pointer type in Thorin IR.
-            res = op;
-            break;
+        case Deref:   res = op;  break;
         case Not:     res = emitter.world.arithop_not(op, debug_info(*this));   break;
         case Minus:   res = emitter.world.arithop_minus(op, debug_info(*this)); break;
         case Known:   res = emitter.world.known(op, debug_info(*this));         break;
