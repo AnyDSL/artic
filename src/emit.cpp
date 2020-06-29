@@ -764,7 +764,10 @@ const thorin::Def* UnaryExpr::emit(Emitter& emitter) const {
     const thorin::Def* res = nullptr;
     switch (tag) {
         case Plus:    res = op;  break;
-        case Deref:   res = op;  break;
+        case Deref:
+            // The operand must be a pointer, so we return it as a reference
+            res = op;
+            break;
         case Not:     res = emitter.world.arithop_not(op, debug_info(*this));   break;
         case Minus:   res = emitter.world.arithop_minus(op, debug_info(*this)); break;
         case Known:   res = emitter.world.known(op, debug_info(*this));         break;
