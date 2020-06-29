@@ -160,6 +160,8 @@ struct AddrType : public Type {
 
 /// A pointer type, as the result of taking the address of an object.
 struct PtrType : public AddrType {
+    bool mut;
+
     void print(Printer&) const override;
     bool equals(const Type*) const override;
     size_t hash() const override;
@@ -169,8 +171,8 @@ struct PtrType : public AddrType {
     const thorin::Type* convert(Emitter&) const override;
 
 private:
-    PtrType(TypeTable& type_table, const Type* pointee)
-        : AddrType(type_table, pointee)
+    PtrType(TypeTable& type_table, const Type* pointee, bool mut)
+        : AddrType(type_table, pointee), mut(mut)
     {}
 
     friend class TypeTable;
@@ -441,7 +443,7 @@ public:
     const TupleType*        tuple_type(std::vector<const Type*>&&);
     const SizedArrayType*   sized_array_type(const Type*, size_t);
     const UnsizedArrayType* unsized_array_type(const Type*);
-    const PtrType*          ptr_type(const Type*);
+    const PtrType*          ptr_type(const Type*, bool);
     const RefType*          ref_type(const Type*);
     const FnType*           fn_type(const Type*, const Type*);
     const FnType*           cn_type(const Type*);

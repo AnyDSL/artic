@@ -62,9 +62,11 @@ std::string UnaryExpr::tag_to_string(Tag tag) {
         case PostDec:
         case PreDec:
             return "--";
-        case AddrOf: return "&";
-        case Deref:  return "*";
-        case Known:  return "?";
+        case AddrOf:
+        case AddrOfMut:
+            return "&";
+        case Deref: return "*";
+        case Known: return "?";
         default:
             assert(false);
             return "";

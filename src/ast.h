@@ -805,6 +805,7 @@ struct UnaryExpr : public Expr {
         Plus,
         Minus,
         AddrOf,
+        AddrOfMut,
         Deref,
         PreInc,
         PostInc,

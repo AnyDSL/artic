@@ -674,6 +674,8 @@ Ptr<ast::UnaryExpr> Parser::parse_prefix_expr(bool allow_structs) {
     Tracker tracker(this);
     auto tag = ast::UnaryExpr::tag_from_token(ahead(), true);
     next();
+    if (tag == ast::UnaryExpr::AddrOf && ahead().tag() == Token::Mut)
+        tag = ast::UnaryExpr::AddrOfMut;
     auto expr = parse_primary_expr(allow_structs);
     return make_ptr<ast::UnaryExpr>(tracker(), tag, std::move(expr));
 }

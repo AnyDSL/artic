@@ -277,6 +277,7 @@ int main(int argc, char** argv) {
         log::out << "\n";
     }
 
+    return EXIT_SUCCESS;
     thorin::World world(opts.module_name);
     Emitter emitter(log, world);
     if (!emitter.run(program))
