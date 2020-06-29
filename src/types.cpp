@@ -327,12 +327,6 @@ bool Type::subtype(const Type* other) const {
     if (auto sized_array_type = isa<SizedArrayType>()) {
         if (auto other_array_type = other->isa<UnsizedArrayType>())
             return sized_array_type->elem == other_array_type->elem;
-        // Sized arrays are subtypes of _smaller_ sized array
-        // (think of sized arrays as arrays of _at least_ some size)
-        if (auto other_array_type = other->isa<SizedArrayType>())
-            return
-                sized_array_type->elem == other_array_type->elem &&
-                other_array_type->size <= sized_array_type->size;
     }
     return false;
 }

@@ -392,7 +392,10 @@ const artic::Type* SizedArrayType::infer(TypeChecker& checker) const {
 }
 
 const artic::Type* UnsizedArrayType::infer(TypeChecker& checker) const {
-    return checker.type_table.unsized_array_type(checker.infer(*elem));
+    auto type = checker.type_table.unsized_array_type(checker.infer(*elem));
+    checker.error(loc, "unsized array types cannot be used directly");
+    checker.note("use '{}' instead", *checker.type_table.ptr_type(type));
+    return checker.type_table.type_error();
 }
 
 const artic::Type* FnType::infer(TypeChecker& checker) const {
@@ -400,7 +403,12 @@ const artic::Type* FnType::infer(TypeChecker& checker) const {
 }
 
 const artic::Type* PtrType::infer(TypeChecker& checker) const {
-    return checker.type_table.ptr_type(checker.infer(*pointee));
+    const artic::Type* pointee_type = nullptr;
+    if (auto unsized_array_type = pointee->isa<UnsizedArrayType>())
+        pointee_type = checker.type_table.unsized_array_type(checker.infer(*unsized_array_type->elem));
+    else
+        pointee_type = checker.infer(*pointee);
+    return checker.type_table.ptr_type(pointee_type);
 }
 
 const artic::Type* TypeApp::infer(TypeChecker& checker) const {
@@ -495,7 +503,7 @@ const artic::Type* ArrayExpr::check(TypeChecker& checker, const artic::Type* exp
     for (auto& elem : elems)
         checker.check(*elem, elem_type);
     if (auto sized_array_type = expected->isa<artic::SizedArrayType>();
-        sized_array_type && elems.size() < sized_array_type->size) {
+        sized_array_type && elems.size() != sized_array_type->size) {
         checker.error(loc, "expected {} array element(s), but got {}",
             sized_array_type->size, elems.size());
     }

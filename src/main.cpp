@@ -23,6 +23,7 @@ using namespace artic;
 static void usage() {
     log::out << "usage: artic [options] files...\n"
                 "options:\n"
+                "    -h     --help               Displays this message\n"
                 "           --version            Displays the version number\n"
                 "           --no-color           Disables colors in error messages\n"
                 "           --strict             Sets warnings as errors\n"
@@ -32,9 +33,9 @@ static void usage() {
                 "           --emit-llvm          Emits LLVM IR in the output file\n"
                 "    -g     --debug              Enable debug information in the generated LLVM IR file\n"
 #endif
-                "    -On                         Sets the optimization level (n = 0, 1, 2, or 3)\n"
+                "    -On                         Sets the optimization level (n = 0, 1, 2, or 3, defaults to 0)\n"
                 "    -o <name>                   Sets the module name (defaults to 'module')\n"
-                "    -h     --help               Displays this message\n";
+                ;
 }
 
 static void version() {
@@ -124,7 +125,7 @@ struct ProgramOptions {
                     if (!check_dup(argv[i], strict))
                         return false;
                     strict = true;
-                } else if (matches(argv[i], "--debug")) {
+                } else if (matches(argv[i], "-g", "--debug")) {
                     if (!check_dup(argv[i], debug))
                         return false;
                     debug = true;
@@ -136,10 +137,12 @@ struct ProgramOptions {
                     if (!check_dup(argv[i], emit_thorin))
                         return false;
                     emit_thorin = true;
+#ifdef ENABLE_LLVM
                 } else if (matches(argv[i], "--emit-llvm")) {
                     if (!check_dup(argv[i], emit_llvm))
                         return false;
                     emit_llvm = true;
+#endif
                 } else if (matches(argv[i], "-O0")) {
                     opt_level = 0;
                 } else if (matches(argv[i], "-O1")) {
