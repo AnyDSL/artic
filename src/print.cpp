@@ -251,7 +251,11 @@ void ReturnExpr::print(Printer& p) const {
 }
 
 void UnaryExpr::print(Printer& p) const {
-    if (is_prefix())  p << tag_to_string(tag);
+    if (is_prefix()) {
+        p << tag_to_string(tag);
+        if (tag == AddrOfMut)
+           p << log::keyword_style("mut") << ' ';
+    }
     if (arg->isa<PathExpr>() || arg->isa<LiteralExpr>())
         arg->print(p);
     else
@@ -553,6 +557,8 @@ void UnsizedArrayType::print(Printer& p) const {
 
 void PtrType::print(Printer& p) const {
     p << '&';
+    if (mut)
+        p << log::keyword_style("mut") << ' ';
     pointee->print(p);
 }
 

@@ -38,14 +38,14 @@ fn mut_array_to_array[T](array: MutArray[T]) {
     }
 }
 
-fn make_array[T](x: [T], len: i32) {
+fn make_array[T](x: &[T], len: i32) {
     Array[T] {
         read = |i| x(i),
         len  = len
     }
 }
 
-fn main() -> [i32] {
+fn main() -> [i32 * 4] {
     let mut array = [1, 2, 3, 4];
     array(0) = 5;
     sort[i32](MutArray[i32] { read = |i| array(i), write = |i, y| array(i) = y, len = 4 }, |x, y| x < y);

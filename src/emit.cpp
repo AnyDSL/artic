@@ -639,13 +639,34 @@ const thorin::Def* BlockExpr::emit(Emitter& emitter) const {
 }
 
 const thorin::Def* CallExpr::emit(Emitter& emitter) const {
-    auto fn = emitter.deref(*callee);
-    auto value = emitter.deref(*arg);
-    if (type->isa<artic::NoRetType>()) {
-        emitter.jump(fn, value, debug_info(*this));
-        return nullptr;
+    auto callee_type = callee->type;
+    auto ref_type = callee_type->isa<artic::RefType>();
+    if (ref_type)
+        callee_type = ref_type->pointee;
+    auto ptr_type = callee_type->isa<artic::PtrType>();
+    if (ptr_type)
+        callee_type = ptr_type->pointee;
+    if (callee_type->isa<artic::FnType>()) {
+        // This is a function call
+        auto fn = emitter.deref(*callee);
+        if (ptr_type)
+            fn = emitter.load(fn, debug_info(*callee));
+        auto value = emitter.deref(*arg);
+        if (type->isa<artic::NoRetType>()) {
+            emitter.jump(fn, value, debug_info(*this));
+            return nullptr;
+        }
+        return emitter.call(fn, value, debug_info(*this));
+    } else {
+        auto array = emitter.emit(*callee);
+        if (ref_type && ptr_type->mut)
+            array = emitter.load(array, debug_info(*callee));
+        auto index = emitter.emit(*arg);
+        auto ptr = emitter.world.lea(array, index, debug_info(*this));
+        if (ptr_type->mut || ref_type)
+            return ptr;
+        return emitter.load(ptr, debug_info(*this));
     }
-    return emitter.call(fn, value, debug_info(*this));
 }
 
 const thorin::Def* ProjExpr::emit(Emitter& emitter) const {
@@ -753,6 +774,8 @@ const thorin::Def* ReturnExpr::emit(Emitter&) const {
 const thorin::Def* UnaryExpr::emit(Emitter& emitter) const {
     const thorin::Def* op = nullptr;
     const thorin::Def* ptr = nullptr;
+    if (tag == AddrOf)
+        return emitter.emit(*arg);
     if (is_inc() || is_dec()) {
         ptr = emitter.emit(*arg);
         op  = emitter.load(ptr, debug_info(*this));
@@ -762,10 +785,8 @@ const thorin::Def* UnaryExpr::emit(Emitter& emitter) const {
     const thorin::Def* res = nullptr;
     switch (tag) {
         case Plus:    res = op;  break;
-        case AddrOf:  res = ptr; break;
         case Deref:
-            // The operand of a derefence operator must be a reference type,
-            // which is represented as a pointer type in Thorin IR.
+            // The operand must be a pointer, so we return it as a reference
             res = op;
             break;
         case Not:     res = emitter.world.arithop_not(op, debug_info(*this));   break;

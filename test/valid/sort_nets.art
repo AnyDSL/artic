@@ -91,7 +91,7 @@ fn @bitonic_sort(n: i32, cmp_swap: fn (i32, i32) -> ()) -> () {
     sort(0, n, true)
 }
 
-fn test(mut e: [i32], use_bose_nelson: bool) = {
+fn test(e: &mut [i32], use_bose_nelson: bool) = {
     let network : SortingNetwork = if use_bose_nelson { bose_nelson_sort } else { bitonic_sort };
     network(2, @|i, j| {
         if e(i) < e(j) {

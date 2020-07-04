@@ -392,7 +392,10 @@ const artic::Type* SizedArrayType::infer(TypeChecker& checker) const {
 }
 
 const artic::Type* UnsizedArrayType::infer(TypeChecker& checker) const {
-    return checker.type_table.unsized_array_type(checker.infer(*elem));
+    auto type = checker.type_table.unsized_array_type(checker.infer(*elem));
+    checker.error(loc, "unsized array types cannot be used directly");
+    checker.note("use '{}' instead", *checker.type_table.ptr_type(type, false));
+    return checker.type_table.type_error();
 }
 
 const artic::Type* FnType::infer(TypeChecker& checker) const {
@@ -400,7 +403,12 @@ const artic::Type* FnType::infer(TypeChecker& checker) const {
 }
 
 const artic::Type* PtrType::infer(TypeChecker& checker) const {
-    return checker.type_table.ptr_type(checker.infer(*pointee));
+    const artic::Type* pointee_type = nullptr;
+    if (auto unsized_array_type = pointee->isa<UnsizedArrayType>())
+        pointee_type = checker.type_table.unsized_array_type(checker.infer(*unsized_array_type->elem));
+    else
+        pointee_type = checker.infer(*pointee);
+    return checker.type_table.ptr_type(pointee_type, mut);
 }
 
 const artic::Type* TypeApp::infer(TypeChecker& checker) const {
@@ -495,7 +503,7 @@ const artic::Type* ArrayExpr::check(TypeChecker& checker, const artic::Type* exp
     for (auto& elem : elems)
         checker.check(*elem, elem_type);
     if (auto sized_array_type = expected->isa<artic::SizedArrayType>();
-        sized_array_type && elems.size() < sized_array_type->size) {
+        sized_array_type && elems.size() != sized_array_type->size) {
         checker.error(loc, "expected {} array element(s), but got {}",
             sized_array_type->size, elems.size());
     }
@@ -563,6 +571,9 @@ const artic::Type* BlockExpr::check(TypeChecker& checker, const artic::Type* exp
 
 const artic::Type* CallExpr::infer(TypeChecker& checker) const {
     auto [ref_type, callee_type] = checker.deref(*callee);
+    auto ptr_type = callee_type->isa<artic::PtrType>();
+    if (ptr_type)
+        callee_type = ptr_type->pointee;
     if (auto fn_type = callee_type->isa<artic::FnType>()) {
         checker.check(*arg, fn_type->dom);
         return fn_type->codom;
@@ -573,7 +584,7 @@ const artic::Type* CallExpr::infer(TypeChecker& checker) const {
                 checker.error(arg->loc, "integer type expected as array index, but got '{}'", *index_type);
             return checker.type_table.type_error();
         }
-        return ref_type ? checker.type_table.ref_type(array_type->elem) : array_type->elem;
+        return ref_type || ptr_type->mut ? checker.type_table.ref_type(array_type->elem) : array_type->elem;
     } else {
         if (checker.should_emit_error(callee_type))
             checker.error(callee->loc, "expected function or array type in call expression, but got '{}'", *callee_type);
@@ -700,7 +711,9 @@ const artic::Type* UnaryExpr::infer(TypeChecker& checker) const {
     if (tag == Known)
         return checker.type_table.bool_type();
     if (tag == AddrOf)
-        return checker.type_table.ptr_type(arg_type);
+        return checker.type_table.ptr_type(arg_type, false);
+    if (tag == AddrOfMut)
+        return checker.type_table.ptr_type(arg_type, true);
     if (tag == Deref) {
         if (auto ptr_type = arg_type->isa<artic::PtrType>())
             return checker.type_table.ref_type(ptr_type->pointee);

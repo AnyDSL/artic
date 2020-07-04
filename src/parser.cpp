@@ -357,7 +357,8 @@ Ptr<ast::Expr> Parser::parse_typed_expr(Ptr<ast::Expr>&& expr) {
     if (ahead().tag() == Token::Colon) {
         Tracker tracker(this, expr->loc);
         eat(Token::Colon);
-        return make_ptr<ast::TypedExpr>(tracker(), std::move(expr), parse_type());
+        auto type = parse_type();
+        return make_ptr<ast::TypedExpr>(tracker(), std::move(expr), std::move(type));
     }
     return std::move(expr);
 }
@@ -673,6 +674,8 @@ Ptr<ast::UnaryExpr> Parser::parse_prefix_expr(bool allow_structs) {
     Tracker tracker(this);
     auto tag = ast::UnaryExpr::tag_from_token(ahead(), true);
     next();
+    if (tag == ast::UnaryExpr::AddrOf && ahead().tag() == Token::Mut)
+        tag = ast::UnaryExpr::AddrOfMut;
     auto expr = parse_primary_expr(allow_structs);
     return make_ptr<ast::UnaryExpr>(tracker(), tag, std::move(expr));
 }

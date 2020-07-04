@@ -30,7 +30,10 @@ bool UnsizedArrayType::equals(const Type* other) const {
 }
 
 bool PtrType::equals(const Type* other) const {
-    return other->isa<PtrType>() && other->as<PtrType>()->pointee == pointee;
+    return
+        other->isa<PtrType>() &&
+        other->as<PtrType>()->pointee == pointee &&
+        other->as<PtrType>()->mut == mut;
 }
 
 bool RefType::equals(const Type* other) const {
@@ -108,7 +111,8 @@ size_t UnsizedArrayType::hash() const {
 size_t PtrType::hash() const {
     return fnv::Hash()
         .combine(typeid(*this).hash_code())
-        .combine(pointee);
+        .combine(pointee)
+        .combine(mut);
 }
 
 size_t RefType::hash() const {
@@ -208,11 +212,11 @@ const Type* UnsizedArrayType::replace(const std::unordered_map<const TypeVar*, c
 }
 
 const Type* PtrType::replace(const std::unordered_map<const TypeVar*, const Type*>& map) const {
-    return type_table.ptr_type(pointee->replace(map));
+    return type_table.ptr_type(pointee->replace(map), mut);
 }
 
 const Type* RefType::replace(const std::unordered_map<const TypeVar*, const Type*>& map) const {
-    return type_table.ptr_type(pointee->replace(map));
+    return type_table.ref_type(pointee->replace(map));
 }
 
 const Type* FnType::replace(const std::unordered_map<const TypeVar*, const Type*>& map) const {
@@ -322,17 +326,11 @@ bool Type::subtype(const Type* other) const {
         return ref_type->pointee->subtype(other);
     if (auto ptr_type = isa<PtrType>()) {
         if (auto other_ptr_type = other->isa<PtrType>())
-            return ptr_type->pointee->subtype(other_ptr_type->pointee);
+            return ptr_type->pointee->subtype(other_ptr_type->pointee) && (!other_ptr_type->mut || ptr_type->mut);
     }
     if (auto sized_array_type = isa<SizedArrayType>()) {
         if (auto other_array_type = other->isa<UnsizedArrayType>())
             return sized_array_type->elem == other_array_type->elem;
-        // Sized arrays are subtypes of _smaller_ sized array
-        // (think of sized arrays as arrays of _at least_ some size)
-        if (auto other_array_type = other->isa<SizedArrayType>())
-            return
-                sized_array_type->elem == other_array_type->elem &&
-                other_array_type->size <= sized_array_type->size;
     }
     return false;
 }
@@ -437,8 +435,8 @@ const UnsizedArrayType* TypeTable::unsized_array_type(const Type* elem) {
     return insert<UnsizedArrayType>(elem);
 }
 
-const PtrType* TypeTable::ptr_type(const Type* pointee) {
-    return insert<PtrType>(pointee);
+const PtrType* TypeTable::ptr_type(const Type* pointee, bool mut) {
+    return insert<PtrType>(pointee, mut);
 }
 
 const RefType* TypeTable::ref_type(const Type* pointee) {

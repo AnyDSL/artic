@@ -10,4 +10,4 @@ let _ = 1 : u64;
 let _ = 1.0 : f32;
 let _ = 1.0 : f64;
 let _ = 'a' : u8;
-let _ = "abcd" : [u8];
+let _ = "abcd" : &[u8];
