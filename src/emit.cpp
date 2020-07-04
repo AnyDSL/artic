@@ -90,27 +90,27 @@ public:
                 ctors.emplace(emitter.ctor_index(*row.first[col]), std::vector<Row>());
         }
         // Then, build the new rows for each constructor case
-        for (size_t i = 0, n = rows.size(); i < n; ++i) {
-            if (is_wildcard(rows[i].first[col])) {
-                if (rows[i].first[col])
-                    emitter.emit(*rows[i].first[col], values[col].first);
-                remove_col(rows[i].first, col);
+        for (auto& row : rows) {
+            if (is_wildcard(row.first[col])) {
+                if (row.first[col])
+                    emitter.emit(*row.first[col], values[col].first);
+                remove_col(row.first, col);
                 for (auto& ctor : ctors) {
-                    ctor.second.push_back(rows[i]);
+                    ctor.second.push_back(row);
                     if (auto [_, enum_type] = match_app<EnumType>(values[col].second); enum_type) {
                         auto index = thorin::primlit_value<uint64_t>(ctor.first);
                         if (!is_unit_type(enum_type->member_type(index)))
                             ctor.second.back().first.push_back(nullptr);
                     }
                 }
-                wildcards.emplace_back(std::move(rows[i]));
+                wildcards.emplace_back(std::move(row));
             } else {
-                auto ptrn = rows[i].first[col];
+                auto ptrn = row.first[col];
                 auto enum_ptrn = ptrn->isa<ast::EnumPtrn>();
-                remove_col(rows[i].first, col);
+                remove_col(row.first, col);
                 if (enum_ptrn && enum_ptrn->arg)
-                    rows[i].first.push_back(enum_ptrn->arg.get());
-                ctors[emitter.ctor_index(*ptrn)].emplace_back(std::move(rows[i]));
+                    row.first.push_back(enum_ptrn->arg.get());
+                ctors[emitter.ctor_index(*ptrn)].emplace_back(std::move(row));
             }
         }
 
@@ -118,7 +118,7 @@ public:
         bool no_default = is_complete(values[col].second, ctors.size());
         if (is_bool_type(values[col].second)) {
             auto match_true  = emitter.basic_block(debug_info(match, "match_true"));
-            auto match_false = emitter.basic_block(debug_info(match, "match_true"));
+            auto match_false = emitter.basic_block(debug_info(match, "match_false"));
             emitter.branch(values[col].first, match_true, match_false);
 
             remove_col(values, col);
