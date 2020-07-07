@@ -581,7 +581,7 @@ const artic::Type* CallExpr::infer(TypeChecker& checker) const {
         auto index_type = checker.infer(*arg);
         if (!is_int_type(index_type))
             return checker.type_expected(arg->loc, index_type, "integer type");
-        return ref_type || ptr_type->mut ? checker.type_table.ref_type(array_type->elem) : array_type->elem;
+        return ref_type || (ptr_type && ptr_type->mut) ? checker.type_table.ref_type(array_type->elem) : array_type->elem;
     } else {
         return checker.type_expected(callee->loc, callee_type, "function or array");
     }

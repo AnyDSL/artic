@@ -659,11 +659,11 @@ const thorin::Def* CallExpr::emit(Emitter& emitter) const {
         return emitter.call(fn, value, debug_info(*this));
     } else {
         auto array = emitter.emit(*callee);
-        if (ref_type && ptr_type->mut)
+        if (ref_type && ptr_type && ptr_type->mut)
             array = emitter.load(array, debug_info(*callee));
         auto index = emitter.emit(*arg);
         auto ptr = emitter.world.lea(array, index, debug_info(*this));
-        if (ptr_type->mut || ref_type)
+        if (ref_type || (ptr_type && ptr_type->mut))
             return ptr;
         return emitter.load(ptr, debug_info(*this));
     }
