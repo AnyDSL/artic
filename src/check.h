@@ -55,8 +55,9 @@ public:
 
     template <typename Fields>
     const Type* check_fields(const Loc&, const StructType*, const TypeApp*, const Fields&, const std::string&);
-    void check_block(const Loc&, PtrVector<ast::Stmt>&, bool);
-    void check_attrs(PtrVector<ast::Attr>&);
+    void check_block(const Loc&, const PtrVector<ast::Stmt>&, bool);
+    void check_attrs(const PtrVector<ast::Attr>&);
+    bool check_filter(const ast::Expr&);
 
 private:
     std::unordered_set<const ast::Decl*> decls_;

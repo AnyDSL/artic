@@ -498,7 +498,7 @@ const thorin::Def* Node::emit(Emitter&) const {
 const thorin::Def* Path::emit(Emitter& emitter) const {
     auto def = emitter.emit(*symbol->decls.front());
     auto elem_type = symbol->decls.front()->type;
-    for (size_t i = 0, n = elems.size(); i < n - 1; ++i) {
+    for (size_t i = 0, n = elems.size(); i < n; ++i) {
         if (auto [type_app, enum_type] = match_app<artic::EnumType>(elem_type); enum_type) {
             // Find the variant constructor for that enum, if it exists
             Emitter::Ctor ctor { elems[i + 1].index, type_app ? type_app->as<artic::Type>() : enum_type };
@@ -536,10 +536,18 @@ const thorin::Def* Path::emit(Emitter& emitter) const {
             }
         } else {
             // TODO: Implement modules and such
-            assert(false);
+            assert(elems[i].args.empty());
         }
     }
     return def;
+}
+
+// Filter --------------------------------------------------------------------------
+
+const thorin::Def* Filter::emit(Emitter& emitter) const {
+    // The filter may contain side-effects
+    auto _ = emitter.save_state();
+    return expr ? emitter.emit(*expr) : emitter.world.literal_bool(true, {});
 }
 
 // Statements ----------------------------------------------------------------------
@@ -611,6 +619,8 @@ const thorin::Def* FnExpr::emit(Emitter& emitter) const {
     def = cont;
     emitter.enter(cont);
     emitter.emit(*param, cont->param(1));
+    if (filter)
+        cont->set_filter(thorin::Array<const thorin::Def*>(3, emitter.emit(*filter)));
     auto value = emitter.emit(*body);
     emitter.jump(cont->param(2), value);
     return cont;
@@ -764,9 +774,9 @@ const thorin::Def* UnaryExpr::emit(Emitter& emitter) const {
             // The operand must be a pointer, so we return it as a reference
             res = op;
             break;
-        case Not:     res = emitter.world.arithop_not(op, debug_info(*this));   break;
-        case Minus:   res = emitter.world.arithop_minus(op, debug_info(*this)); break;
-        case Known:   res = emitter.world.known(op, debug_info(*this));         break;
+        case Not:   res = emitter.world.arithop_not(op, debug_info(*this));   break;
+        case Minus: res = emitter.world.arithop_minus(op, debug_info(*this)); break;
+        case Known: res = emitter.world.known(op, debug_info(*this));         break;
         case PreInc:
         case PostInc: {
             auto one = emitter.world.one(op->type());
@@ -829,7 +839,7 @@ const thorin::Def* BinaryExpr::emit(Emitter& emitter) const {
     }
     const thorin::Def* lhs = nullptr;
     const thorin::Def* ptr = nullptr;
-    if (has_eq()) {
+    if (left->type->isa<artic::RefType>()) {
         ptr = emitter.emit(*left);
         lhs = emitter.load(ptr, debug_info(*this));
     } else {
@@ -859,16 +869,17 @@ const thorin::Def* BinaryExpr::emit(Emitter& emitter) const {
             assert(false);
             return nullptr;
     }
-    if (ptr) {
+    if (has_eq()) {
         emitter.store(ptr, res, debug_info(*this));
         return emitter.world.tuple({});
     }
     return res;
 }
 
-const thorin::Def* FilterExpr::emit(Emitter&) const {
-    assert(false);
-    return nullptr;
+const thorin::Def* FilterExpr::emit(Emitter& emitter) const {
+    if (filter && filter->expr)
+        emitter.error(filter->loc, "call-site filter expressions are not fully supported yet");
+    return emitter.world.run(emitter.emit(*expr), debug_info(*this));
 }
 
 const thorin::Def* ImplicitCastExpr::emit(Emitter& emitter) const {
@@ -881,7 +892,9 @@ const thorin::Def* ImplicitCastExpr::emit(Emitter& emitter) const {
         type = ref_type->pointee;
     }
     // This handles automatic address capture
-    if (auto ptr_type = this->type->isa<artic::PtrType>(); ptr_type && type->subtype(ptr_type->pointee)) {
+    if (auto ptr_type = this->type->isa<artic::PtrType>();
+        ptr_type && type->subtype(ptr_type->pointee))
+    {
         auto ptr = emitter.alloc(def->type(), debug_info(*this));
         emitter.store(ptr, def, debug_info(*this));
         def = ptr;
@@ -927,6 +940,8 @@ const thorin::Def* FnDecl::emit(Emitter& emitter) const {
 
     emitter.enter(cont);
     emitter.emit(*fn->param, cont->param(1));
+    if (fn->filter)
+        cont->set_filter(thorin::Array<const thorin::Def*>(3, emitter.emit(*fn->filter)));
     auto value = emitter.emit(*fn->body);
     emitter.jump(cont->param(2), value, debug_info(*fn->body));
 

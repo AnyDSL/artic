@@ -1,4 +1,4 @@
-fn pow(x: i32, n: i32) -> i32 {
+fn @(?n) pow(x: i32, n: i32) -> i32 {
     if n == 0 {
         1
     } else if n % 2 == 0 {
@@ -9,9 +9,11 @@ fn pow(x: i32, n: i32) -> i32 {
     }
 }
 
-fn @(pow(c, 3) == k && c != k) do_this(c: i32, k: i32) {
+fn @(?(k + 3) & ?c) do_this(c: i32, k: i32) {
+    pow(c, k + 3)
+} 
+fn @(?c | ?k) do_that(c: i32, k: i32) {
     c + k
 } 
-fn @do_that(c: i32, k: i32) {
-    c + k
-} 
+#[export]
+fn pow5(x: i32) = pow(x, 5)

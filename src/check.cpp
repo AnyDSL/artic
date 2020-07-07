@@ -245,7 +245,7 @@ const Type* TypeChecker::check_fields(
     return type_app ? type_app->as<Type>() : struct_type;
 }
 
-void TypeChecker::check_block(const Loc& loc, PtrVector<ast::Stmt>& stmts, bool last_semi) {
+void TypeChecker::check_block(const Loc& loc, const PtrVector<ast::Stmt>& stmts, bool last_semi) {
     assert(!stmts.empty());
     // Make sure there is no unreachable code and warn about statements with no effect
     for (size_t i = 0, n = stmts.size(); i < n - 1; ++i) {
@@ -259,7 +259,7 @@ void TypeChecker::check_block(const Loc& loc, PtrVector<ast::Stmt>& stmts, bool 
         unreachable_code(stmts.back()->loc, stmts.back()->loc.end_loc(), loc.end_loc());
 }
 
-void TypeChecker::check_attrs(PtrVector<ast::Attr>& attrs) {
+void TypeChecker::check_attrs(const PtrVector<ast::Attr>& attrs) {
     std::unordered_map<std::string_view, const ast::Attr*> seen;
     for (auto& attr : attrs) {
         if (!seen.emplace(attr->name, attr.get()).second) {
@@ -267,6 +267,31 @@ void TypeChecker::check_attrs(PtrVector<ast::Attr>& attrs) {
             note(seen[attr->name]->loc, "previously declared here");
         }
     }
+}
+
+bool TypeChecker::check_filter(const ast::Expr& expr) {
+    if (auto binary_expr = expr.isa<ast::BinaryExpr>()) {
+        if (!binary_expr->has_eq())
+            return check_filter(*binary_expr->left) && check_filter(*binary_expr->right);
+    } else if (auto unary_expr = expr.isa<ast::UnaryExpr>()) {
+        switch (unary_expr->tag) {
+            case ast::UnaryExpr::Not:
+            case ast::UnaryExpr::Plus:
+            case ast::UnaryExpr::Minus:
+            case ast::UnaryExpr::Known:
+                return check_filter(*unary_expr->arg);
+            default:
+                break;
+        }
+    } else if (auto call_expr = expr.isa<ast::CallExpr>()) {
+        return
+            remove_ref(call_expr->callee->type).second->isa<ArrayType>() &&
+            check_filter(*call_expr->callee) &&
+            check_filter(*call_expr->arg);
+    } else if (expr.isa<ast::LiteralExpr>() || expr.isa<ast::PathExpr>())
+        return true;
+    error(expr.loc, "unsupported expression in filter");
+    return false;
 }
 
 namespace ast {
@@ -346,8 +371,10 @@ const artic::Type* Path::infer(TypeChecker& checker) {
 // Filter --------------------------------------------------------------------------
 
 const artic::Type* Filter::check(TypeChecker& checker, const artic::Type* expected) {
-    if (expr)
+    if (expr) {
         checker.check(*expr, expected);
+        checker.check_filter(*expr);
+    }
     return expected;
 }
 
@@ -557,6 +584,8 @@ const artic::Type* FnExpr::check(TypeChecker& checker, const artic::Type* expect
     auto codom = expected->as<artic::FnType>()->codom;
     auto param_type = checker.check(*param, expected->as<artic::FnType>()->dom);
     auto body_type  = checker.coerce(body, ret_type ? checker.check(*ret_type, codom) : codom);
+    if (filter)
+        checker.check(*filter, checker.type_table.bool_type());
     return checker.type_table.fn_type(param_type, body_type);
 }
 
@@ -809,9 +838,15 @@ const artic::Type* FnDecl::infer(TypeChecker& checker) {
     }
     if (!checker.enter_decl(this))
         return checker.type_table.type_error();
-    const artic::Type* fn_type = fn->ret_type
-        ? checker.type_table.fn_type(checker.infer(*fn->param), checker.infer(*fn->ret_type))
-        : checker.infer(*fn);
+
+    const artic::Type* fn_type = nullptr;
+    if (fn->ret_type) {
+        fn_type = checker.type_table.fn_type(checker.infer(*fn->param), checker.infer(*fn->ret_type));
+        if (fn->filter)
+            checker.check(*fn->filter, checker.type_table.bool_type());
+    } else
+        fn_type = checker.infer(*fn);
+
     // Set the type of this function right now, in case
     // the `return` keyword is encountered in the body.
     type = forall ? forall : fn_type;

@@ -736,10 +736,14 @@ Ptr<ast::Expr> Parser::parse_binary_expr(Ptr<ast::Expr>&& left, bool allow_struc
     return std::move(left);
 }
 
-Ptr<ast::FilterExpr> Parser::parse_filter_expr(Ptr<ast::Filter>&& filter) {
+Ptr<ast::Expr> Parser::parse_filter_expr(Ptr<ast::Filter>&& filter) {
     Tracker tracker(this, filter->loc);
     auto expr = parse_primary_expr(true);
-    return make_ptr<ast::FilterExpr>(tracker(), std::move(filter), std::move(expr));
+    if (auto call_expr = expr->isa<ast::CallExpr>())
+        call_expr->callee = make_ptr<ast::FilterExpr>(tracker(), std::move(filter), std::move(call_expr->callee));
+    else
+        error(expr->loc, "invalid filter expression");
+    return expr;
 }
 
 Ptr<ast::ErrorExpr> Parser::parse_error_expr() {

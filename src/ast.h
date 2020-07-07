@@ -176,6 +176,7 @@ struct Filter : public Node {
         : Node(loc), expr(std::move(expr))
     {}
 
+    const thorin::Def* emit(Emitter&) const override;
     const artic::Type* check(TypeChecker&, const artic::Type*) override;
     void bind(NameBinder&) override;
     void print(Printer&) const override;
