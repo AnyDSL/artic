@@ -271,7 +271,7 @@ void TypeChecker::check_attrs(const PtrVector<ast::Attr>& attrs) {
 
 bool TypeChecker::check_filter(const ast::Expr& expr) {
     if (auto binary_expr = expr.isa<ast::BinaryExpr>()) {
-        if (!binary_expr->has_eq())
+        if (!binary_expr->has_eq() && !binary_expr->is_logic())
             return check_filter(*binary_expr->left) && check_filter(*binary_expr->right);
     } else if (auto unary_expr = expr.isa<ast::UnaryExpr>()) {
         switch (unary_expr->tag) {
