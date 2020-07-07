@@ -74,7 +74,9 @@ struct ProgramOptions {
     bool debug = false;
     bool print_ast = false;
     bool emit_thorin = false;
+#ifdef ENABLE_LLVM
     bool emit_llvm = false;
+#endif
     unsigned opt_level = 0;
 
     bool matches(const char* arg, const char* opt) {
@@ -277,7 +279,6 @@ int main(int argc, char** argv) {
         log::out << "\n";
     }
 
-    return EXIT_SUCCESS;
     thorin::World world(opts.module_name);
     Emitter emitter(log, world);
     if (!emitter.run(program))

@@ -858,7 +858,7 @@ const thorin::Def* BinaryExpr::emit(Emitter& emitter) const {
         ptr = emitter.emit(*left);
         lhs = emitter.load(ptr, debug_info(*this));
     } else {
-        lhs = emitter.emit(*left);
+        lhs = emitter.deref(*left);
     }
     auto rhs = emitter.deref(*right);
     const thorin::Def* res = nullptr;

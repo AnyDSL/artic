@@ -579,16 +579,11 @@ const artic::Type* CallExpr::infer(TypeChecker& checker) const {
         return fn_type->codom;
     } else if (auto array_type = callee_type->isa<artic::ArrayType>()) {
         auto index_type = checker.infer(*arg);
-        if (!is_int_type(index_type)) {
-            if (checker.should_emit_error(index_type))
-                checker.error(arg->loc, "integer type expected as array index, but got '{}'", *index_type);
-            return checker.type_table.type_error();
-        }
+        if (!is_int_type(index_type))
+            return checker.type_expected(arg->loc, index_type, "integer type");
         return ref_type || ptr_type->mut ? checker.type_table.ref_type(array_type->elem) : array_type->elem;
     } else {
-        if (checker.should_emit_error(callee_type))
-            checker.error(callee->loc, "expected function or array type in call expression, but got '{}'", *callee_type);
-        return checker.type_table.type_error();
+        return checker.type_expected(callee->loc, callee_type, "function or array");
     }
 }
 
