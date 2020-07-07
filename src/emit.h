@@ -48,8 +48,8 @@ public:
 
     State state;
 
-    /// A map of all structure types to avoid creating the same type several times
-    std::unordered_map<const StructType*, const thorin::Type*> structs;
+    /// A map of all types to avoid converting the same type several times
+    std::unordered_map<const Type*, const thorin::Type*> types;
     /// A map of the currently bound type variables
     std::unordered_map<const TypeVar*, const thorin::Type*> type_vars;
 
@@ -79,7 +79,6 @@ public:
 
     void redundant_case(const ast::CaseExpr&);
     void non_exhaustive_match(const ast::MatchExpr&);
-    void top_level_side_effect(const thorin::Debug&);
 
     thorin::Continuation* basic_block(thorin::Debug = {});
     thorin::Continuation* basic_block_with_mem(thorin::Debug = {});
@@ -107,8 +106,6 @@ public:
     const thorin::Def* alloc(const thorin::Type*, thorin::Debug = {});
     void store(const thorin::Def*, const thorin::Def*, thorin::Debug = {});
     const thorin::Def* load(const thorin::Def*, thorin::Debug = {});
-
-    const thorin::Def* deref(const ast::Expr&);
 
     const thorin::Def* emit(const ast::Node&);
     void emit(const ast::Ptrn&, const thorin::Def*);

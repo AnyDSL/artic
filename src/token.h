@@ -28,6 +28,7 @@ namespace artic {
     f(Struct, "struct") \
     f(Enum, "enum") \
     f(Type, "type") \
+    f(Static, "static") \
     f(Mod, "mod") \
     f(LParen, "(") \
     f(RParen, ")") \

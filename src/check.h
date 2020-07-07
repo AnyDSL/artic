@@ -21,7 +21,7 @@ public:
 
     /// Performs type checking on a whole program.
     /// Returns true on success, otherwise false.
-    bool run(const ast::ModDecl&);
+    bool run(ast::ModDecl&);
 
     // Should be called to avoid infinite recursion
     // when inferring the type of recursive declarations
@@ -41,23 +41,22 @@ public:
     const Type* mutable_expected(const Loc&);
     const Type* bad_arguments(const Loc&, const std::string&, size_t, size_t);
     void invalid_attr(const Loc&, const std::string&);
+    void unsized_type(const Loc&, const std::string_view&);
 
-    // These functions have to be used instead of check/infer
-    // for expressions that expect values instead of references.
-    std::pair<const Type*, const Type*> deref(const ast::Expr&);
-    std::pair<const Type*, const Type*> deref(const ast::Expr&, const Type*);
+    const Type* deref(Ptr<ast::Expr>&);
+    const Type* coerce(Ptr<ast::Expr>&, const Type*);
 
-    const Type* check(const ast::Node&, const Type*);
-    const Type* infer(const ast::Node&);
-    const Type* infer(const ast::Ptrn&, const ast::Expr&);
+    const Type* check(ast::Node&, const Type*);
+    const Type* infer(ast::Node&);
+    const Type* infer(ast::Ptrn&, Ptr<ast::Expr>&);
 
     const Type* infer(const Loc&, const Literal&);
     const Type* check(const Loc&, const Literal&, const Type*);
 
     template <typename Fields>
     const Type* check_fields(const Loc&, const StructType*, const TypeApp*, const Fields&, const std::string&);
-    void check_block(const Loc&, const PtrVector<ast::Stmt>&, bool);
-    void check_attrs(const PtrVector<ast::Attr>&);
+    void check_block(const Loc&, PtrVector<ast::Stmt>&, bool);
+    void check_attrs(PtrVector<ast::Attr>&);
 
 private:
     std::unordered_set<const ast::Decl*> decls_;

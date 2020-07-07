@@ -34,6 +34,7 @@ Ptr<ast::Decl> Parser::parse_decl() {
         case Token::Struct: decl = parse_struct_decl(); break;
         case Token::Enum:   decl = parse_enum_decl();   break;
         case Token::Type:   decl = parse_type_decl();   break;
+        case Token::Static: decl = parse_static_decl(); break;
         case Token::Mod:    decl = parse_mod_decl();    break;
         default:            decl = parse_error_decl();  break;
     }
@@ -162,6 +163,31 @@ Ptr<ast::TypeDecl> Parser::parse_type_decl() {
     return make_ptr<ast::TypeDecl>(tracker(), std::move(id), std::move(type_params), std::move(aliased_type));
 }
 
+Ptr<ast::StaticDecl> Parser::parse_static_decl() {
+    Tracker tracker(this);
+    eat(Token::Static);
+    bool mut = false;
+    if (ahead().tag() == Token::Mut) {
+        eat(Token::Mut);
+        mut = true;
+    }
+    auto id = parse_id();
+
+    Ptr<ast::Type> type;
+    if (ahead().tag() == Token::Colon) {
+        eat(Token::Colon);
+        type = parse_type();
+    }
+
+    Ptr<ast::Expr> init;
+    if (ahead().tag() == Token::Eq) {
+        eat(Token::Eq);
+        init = parse_expr();
+    }
+    expect(Token::Semi);
+    return make_ptr<ast::StaticDecl>(tracker(), std::move(id), std::move(type), std::move(init), mut);
+}
+
 Ptr<ast::TypeParam> Parser::parse_type_param() {
     Tracker tracker(this);
     auto id = parse_id();
@@ -184,9 +210,10 @@ Ptr<ast::ModDecl> Parser::parse_mod_decl() {
     auto id = parse_id();
     PtrVector<ast::Decl> decls;
     expect(Token::LBrace);
-    while (ahead().tag() != Token::End &&
-           ahead().tag() != Token::RBrace) {
+    while (ahead().tag() != Token::End && ahead().tag() != Token::RBrace) {
         decls.emplace_back(parse_decl());
+        if (decls.back()->isa<ast::LetDecl>())
+            error(decls.back()->loc, "let-statements are not allowed here");
     }
     expect(Token::RBrace);
     return make_ptr<ast::ModDecl>(tracker(), std::move(id), std::move(decls));
@@ -321,8 +348,7 @@ Ptr<ast::ErrorPtrn> Parser::parse_error_ptrn() {
 // Statements ----------------------------------------------------------------------
 
 Ptr<ast::Stmt> Parser::parse_stmt() {
-    if (ahead().tag() == Token::Let ||
-        ahead().tag() == Token::Fn)
+    if (ahead().tag() == Token::Let || ahead().tag() == Token::Fn)
         return parse_decl_stmt();
     Tracker tracker(this);
     if (ahead().tag() == Token::If)

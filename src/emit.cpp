@@ -34,7 +34,7 @@ static thorin::Debug debug_info(const ast::Node& node, const std::string& name =
 class PtrnCompiler {
 public:
     PtrnCompiler(Emitter& emitter, const ast::MatchExpr& match)
-        : emitter(emitter), match(match), values { { emitter.deref(*match.arg), match.arg->type } }
+        : emitter(emitter), match(match), values { { emitter.emit(*match.arg), match.arg->type } }
     {
         for (auto& case_ : match.cases)
             rows.emplace_back(std::vector<const ast::Ptrn*>{ case_->ptrn.get() }, case_.get());
@@ -377,17 +377,6 @@ void Emitter::non_exhaustive_match(const ast::MatchExpr& match) {
     error(match.loc, "non exhaustive match expression");
 }
 
-void Emitter::top_level_side_effect(const thorin::Debug& debug) {
-    // Note: this is a limitation of Thorin
-    Loc loc(
-        std::make_shared<std::string>(debug.filename()),
-        debug.front_line(),
-        debug.front_col(),
-        debug.back_line(),
-        debug.back_col());
-    error(loc, "top-level statements with side-effects are not supported");
-}
-
 void Emitter::enter(thorin::Continuation* cont) {
     state.cont = cont;
     if (cont->num_params() > 0)
@@ -399,8 +388,6 @@ void Emitter::jump(const thorin::Def* callee, thorin::Debug debug) {
         return;
     auto num_params = callee->type()->as<thorin::FnType>()->num_ops();
     if (num_params == 1) {
-        if (!state.mem)
-            return top_level_side_effect(debug);
         state.cont->jump(callee, { state.mem }, debug);
     } else {
         assert(num_params == 0);
@@ -412,8 +399,6 @@ void Emitter::jump(const thorin::Def* callee, thorin::Debug debug) {
 void Emitter::jump(const thorin::Def* callee, const thorin::Def* arg, thorin::Debug debug) {
     if (!state.cont)
         return;
-    if (!state.mem)
-        return top_level_side_effect(debug);
     state.cont->jump(callee, { state.mem, arg }, debug);
     state.cont = nullptr;
 }
@@ -460,11 +445,6 @@ const thorin::Def* Emitter::load(const thorin::Def* ptr, thorin::Debug debug) {
     return world.extract(pair, thorin::u32(1));
 }
 
-const thorin::Def* Emitter::deref(const ast::Expr& expr) {
-    auto def = emit(expr);
-    return expr.type->isa<RefType>() ? load(def, debug_info(expr)) : def;
-}
-
 const thorin::Def* Emitter::emit(const ast::Node& node) {
     if (node.def)
         return node.def;
@@ -488,8 +468,10 @@ const thorin::Def* Emitter::emit(const ast::Node& node, const Literal& lit) {
             case ast::PrimType::I16:  return world.literal_qs16(lit.as_integer(), debug_info(node));
             case ast::PrimType::I32:  return world.literal_qs32(lit.as_integer(), debug_info(node));
             case ast::PrimType::I64:  return world.literal_qs64(lit.as_integer(), debug_info(node));
-            case ast::PrimType::F32:  return world.literal_qf32(lit.as_double(),  debug_info(node));
-            case ast::PrimType::F64:  return world.literal_qf64(lit.as_double(),  debug_info(node));
+            case ast::PrimType::F32:
+                return world.literal_qf32(lit.is_double() ? lit.as_double() : lit.as_integer(), debug_info(node));
+            case ast::PrimType::F64:
+                return world.literal_qf64(lit.is_double() ? lit.as_double() : lit.as_integer(), debug_info(node));
             default:
                 assert(false);
                 return nullptr;
@@ -523,16 +505,18 @@ const thorin::Def* Path::emit(Emitter& emitter) const {
             if (auto it = emitter.variant_ctors.find(ctor); it != emitter.variant_ctors.end())
                 return it->second;
             auto index = emitter.ctor_index(enum_type, ctor.index);
-            auto variant_type = (type_app
+            auto converted_type = (type_app
                 ? type_app->convert(emitter)
-                : enum_type->convert(emitter))->op(1)->as<thorin::VariantType>();
+                : enum_type->convert(emitter))->as<thorin::StructType>();
+            auto variant_type = converted_type->op(1)->as<thorin::VariantType>();
             auto param_type = type_app
                 ? type_app->member_type(ctor.index)
                 : enum_type->member_type(ctor.index);
             if (is_unit_type(param_type)) {
                 // This is a constructor without parameters
                 return emitter.variant_ctors[ctor] =
-                    emitter.world.tuple({ index, emitter.world.variant(variant_type, emitter.world.tuple({})) });
+                    emitter.world.struct_agg(converted_type, {
+                        index, emitter.world.variant(variant_type, emitter.world.tuple({})) });
             } else {
                 // This is a constructor with parameters: return a function
                 auto cont = emitter.world.continuation(
@@ -541,11 +525,12 @@ const thorin::Def* Path::emit(Emitter& emitter) const {
                         param_type->convert(emitter),
                         emitter.world.fn_type({
                             emitter.world.mem_type(),
-                            emitter.world.tuple_type({ index->type(), variant_type })
+                            converted_type
                         })
                     }),
                     debug_info(*enum_type->decl.options[ctor.index]));
-                auto ret_value = emitter.world.tuple({ index, emitter.world.variant(variant_type, cont->param(1)) });
+                auto ret_value = emitter.world.struct_agg(converted_type, {
+                    index, emitter.world.variant(variant_type, cont->param(1)) });
                 cont->jump(cont->param(2), { cont->param(0), ret_value });
                 return emitter.variant_ctors[ctor] = cont;
             }
@@ -565,7 +550,7 @@ const thorin::Def* DeclStmt::emit(Emitter& emitter) const {
 }
 
 const thorin::Def* ExprStmt::emit(Emitter& emitter) const {
-    return emitter.deref(*expr);
+    return emitter.emit(*expr);
 }
 
 // Expressions ---------------------------------------------------------------------
@@ -573,7 +558,7 @@ const thorin::Def* ExprStmt::emit(Emitter& emitter) const {
 void Expr::emit(Emitter& emitter, thorin::Continuation* join_true, thorin::Continuation* join_false) const {
     auto branch_true  = emitter.basic_block(debug_info(*this, "branch_true"));
     auto branch_false = emitter.basic_block(debug_info(*this, "branch_false"));
-    auto cond = emitter.deref(*this);
+    auto cond = emitter.emit(*this);
     branch_true->jump(join_true, { emitter.state.mem });
     branch_false->jump(join_false, { emitter.state.mem });
     emitter.branch(cond, branch_true, branch_false);
@@ -594,12 +579,12 @@ const thorin::Def* LiteralExpr::emit(Emitter& emitter) const {
 const thorin::Def* ArrayExpr::emit(Emitter& emitter) const {
     thorin::Array<const thorin::Def*> ops(elems.size());
     for (size_t i = 0, n = elems.size(); i < n; ++i)
-        ops[i] = emitter.deref(*elems[i]);
+        ops[i] = emitter.emit(*elems[i]);
     return emitter.world.definite_array(ops, debug_info(*this));
 }
 
 const thorin::Def* FieldExpr::emit(Emitter& emitter) const {
-    return emitter.deref(*expr);
+    return emitter.emit(*expr);
 }
 
 const thorin::Def* StructExpr::emit(Emitter& emitter) const {
@@ -612,7 +597,7 @@ const thorin::Def* StructExpr::emit(Emitter& emitter) const {
 const thorin::Def* TupleExpr::emit(Emitter& emitter) const {
     thorin::Array<const thorin::Def*> ops(args.size());
     for (size_t i = 0, n = args.size(); i < n; ++i)
-        ops[i] = emitter.deref(*args[i]);
+        ops[i] = emitter.emit(*args[i]);
     return emitter.world.tuple(ops);
 }
 
@@ -626,7 +611,7 @@ const thorin::Def* FnExpr::emit(Emitter& emitter) const {
     def = cont;
     emitter.enter(cont);
     emitter.emit(*param, cont->param(1));
-    auto value = emitter.deref(*body);
+    auto value = emitter.emit(*body);
     emitter.jump(cont->param(2), value);
     return cont;
 }
@@ -639,19 +624,9 @@ const thorin::Def* BlockExpr::emit(Emitter& emitter) const {
 }
 
 const thorin::Def* CallExpr::emit(Emitter& emitter) const {
-    auto callee_type = callee->type;
-    auto ref_type = callee_type->isa<artic::RefType>();
-    if (ref_type)
-        callee_type = ref_type->pointee;
-    auto ptr_type = callee_type->isa<artic::PtrType>();
-    if (ptr_type)
-        callee_type = ptr_type->pointee;
-    if (callee_type->isa<artic::FnType>()) {
-        // This is a function call
-        auto fn = emitter.deref(*callee);
-        if (ptr_type)
-            fn = emitter.load(fn, debug_info(*callee));
-        auto value = emitter.deref(*arg);
+    if (callee->type->isa<artic::FnType>()) {
+        auto fn = emitter.emit(*callee);
+        auto value = emitter.emit(*arg);
         if (type->isa<artic::NoRetType>()) {
             emitter.jump(fn, value, debug_info(*this));
             return nullptr;
@@ -659,13 +634,13 @@ const thorin::Def* CallExpr::emit(Emitter& emitter) const {
         return emitter.call(fn, value, debug_info(*this));
     } else {
         auto array = emitter.emit(*callee);
-        if (ref_type && ptr_type && ptr_type->mut)
-            array = emitter.load(array, debug_info(*callee));
         auto index = emitter.emit(*arg);
-        auto ptr = emitter.world.lea(array, index, debug_info(*this));
-        if (ref_type || (ptr_type && ptr_type->mut))
-            return ptr;
-        return emitter.load(ptr, debug_info(*this));
+        if (array->type()->isa<thorin::PtrType>()) {
+            auto ptr = emitter.world.lea(array, index, debug_info(*this));
+            return type->isa<artic::RefType>() ? ptr : emitter.load(ptr, debug_info(*this));
+        } else {
+            return emitter.world.extract(array, index, debug_info(*this));
+        }
     }
 }
 
@@ -748,13 +723,13 @@ const thorin::Def* ForExpr::emit(Emitter& emitter) const {
         continue_->debug().set("for_continue");
         emitter.enter(body_cont);
         emitter.emit(*body_fn->param, body_cont->param(1));
-        emitter.jump(body_cont->param(2), emitter.deref(*body_fn->body));
+        emitter.jump(body_cont->param(2), emitter.emit(*body_fn->body));
     }
 
     // Emit the calls
-    auto inner_callee = emitter.deref(*call->callee->as<CallExpr>()->callee);
+    auto inner_callee = emitter.emit(*call->callee->as<CallExpr>()->callee);
     auto inner_call = emitter.call(inner_callee, body_cont, debug_info(*this, "inner_call"));
-    return emitter.call(inner_call, emitter.deref(*call->arg), break_->as_continuation(), debug_info(*this, "outer_call"));
+    return emitter.call(inner_call, emitter.emit(*call->arg), break_->as_continuation(), debug_info(*this, "outer_call"));
 }
 
 const thorin::Def* BreakExpr::emit(Emitter&) const {
@@ -780,7 +755,7 @@ const thorin::Def* UnaryExpr::emit(Emitter& emitter) const {
         ptr = emitter.emit(*arg);
         op  = emitter.load(ptr, debug_info(*this));
     } else {
-        op = emitter.deref(*arg);
+        op = emitter.emit(*arg);
     }
     const thorin::Def* res = nullptr;
     switch (tag) {
@@ -819,7 +794,7 @@ void BinaryExpr::emit(Emitter& emitter, thorin::Continuation* join_true, thorin:
     if (!is_logic())
         Expr::emit(emitter, join_true, join_false);
     else {
-        auto cond = emitter.deref(*left);
+        auto cond = emitter.emit(*left);
         thorin::Continuation* next = nullptr;
         // Note: We cannot really just use join_true and join_false in the branch,
         // because the branch intrinsic requires both continuations to be of type `fn ()`.
@@ -858,9 +833,9 @@ const thorin::Def* BinaryExpr::emit(Emitter& emitter) const {
         ptr = emitter.emit(*left);
         lhs = emitter.load(ptr, debug_info(*this));
     } else {
-        lhs = emitter.deref(*left);
+        lhs = emitter.emit(*left);
     }
-    auto rhs = emitter.deref(*right);
+    auto rhs = emitter.emit(*right);
     const thorin::Def* res = nullptr;
     switch (remove_eq(tag)) {
         case Add:   res = emitter.world.arithop_add(lhs, rhs, debug_info(*this)); break;
@@ -896,12 +871,39 @@ const thorin::Def* FilterExpr::emit(Emitter&) const {
     return nullptr;
 }
 
+const thorin::Def* ImplicitCastExpr::emit(Emitter& emitter) const {
+    auto def = emitter.emit(*expr);
+    auto type = expr->type;
+
+    // This handles the cast from reference to value
+    if (auto ref_type = type->isa<artic::RefType>()) {
+        def = emitter.load(def, debug_info(*this));
+        type = ref_type->pointee;
+    }
+    // This handles automatic address capture
+    if (auto ptr_type = this->type->isa<artic::PtrType>(); ptr_type && type->subtype(ptr_type->pointee)) {
+        auto ptr = emitter.alloc(def->type(), debug_info(*this));
+        emitter.store(ptr, def, debug_info(*this));
+        def = ptr;
+    }
+    // This handles conversion between pointer types (e.g. &[i32 * 4] to &[i32])
+    // and conversions between other types and the no-return type.
+    return def
+        ? emitter.world.cast(this->type->convert(emitter), def, debug_info(*this))
+        : emitter.world.bottom(this->type->convert(emitter));
+}
+
 // Declarations --------------------------------------------------------------------
 
 const thorin::Def* LetDecl::emit(Emitter& emitter) const {
     emitter.emit(*ptrn, init
         ? emitter.emit(*init)
         : emitter.world.bottom(ptrn->type->convert(emitter)));
+    return nullptr;
+}
+
+const thorin::Def* StaticDecl::emit(Emitter&) const {
+    assert(false);
     return nullptr;
 }
 
@@ -925,7 +927,7 @@ const thorin::Def* FnDecl::emit(Emitter& emitter) const {
 
     emitter.enter(cont);
     emitter.emit(*fn->param, cont->param(1));
-    auto value = emitter.deref(*fn->body);
+    auto value = emitter.emit(*fn->body);
     emitter.jump(cont->param(2), value, debug_info(*fn->body));
 
     if (attrs) {
@@ -943,6 +945,10 @@ const thorin::Def* StructDecl::emit(Emitter&) const {
 }
 
 const thorin::Def* EnumDecl::emit(Emitter&) const {
+    return nullptr;
+}
+
+const thorin::Def* TypeDecl::emit(Emitter&) const {
     return nullptr;
 }
 
@@ -1051,25 +1057,33 @@ const thorin::Type* FnType::convert(Emitter& emitter) const {
 
 const thorin::Type* StructType::convert(Emitter& emitter) const {
     assert(!decl.type_params);
-    if (auto it = emitter.structs.find(this); it != emitter.structs.end())
+    if (auto it = emitter.types.find(this); it != emitter.types.end())
         return it->second;
     auto type = emitter.world.struct_type(decl.id.name, decl.fields.size());
+    emitter.types[this] = type;
     for (size_t i = 0, n = decl.fields.size(); i < n; ++i)
         type->set(i, decl.fields[i]->ast::Node::type->convert(emitter));
-    return emitter.structs[this] = type;
+    return type;
 }
 
 const thorin::Type* EnumType::convert(Emitter& emitter) const {
     assert(!decl.type_params);
-    thorin::Array<const thorin::Type*> ops(decl.options.size());
+    if (auto it = emitter.types.find(this); it != emitter.types.end())
+        return it->second;
+    auto type = emitter.world.struct_type(decl.id.name, 2);
+    emitter.types[this] = type;
+    thorin::TypeSet types;
     for (size_t i = 0, n = decl.options.size(); i < n; ++i)
-        ops[i] = decl.options[i]->type->convert(emitter);
+        types.insert(decl.options[i]->type->convert(emitter));
+    thorin::Array<const thorin::Type*> ops(types.begin(), types.end());
     auto index_type =
         decl.options.size() < (size_t(1) << 8)  ? emitter.world.type_qu8()  :
         decl.options.size() < (size_t(1) << 16) ? emitter.world.type_qu16() :
         decl.options.size() < (size_t(1) << 32) ? emitter.world.type_qu32() :
         emitter.world.type_qu64();
-    return emitter.world.tuple_type({ index_type, emitter.world.variant_type(ops) });
+    type->set(0, index_type);
+    type->set(1, emitter.world.variant_type(ops));
+    return type;
 }
 
 } // namespace artic

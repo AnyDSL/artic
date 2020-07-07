@@ -334,6 +334,14 @@ bool TypedExpr::has_side_effect() const {
     return expr->has_side_effect();
 }
 
+bool LiteralExpr::is_constant() const {
+    return true;
+}
+
+bool PathExpr::is_constant() const {
+    return true;
+}
+
 bool FieldExpr::has_side_effect() const {
     return expr->has_side_effect();
 }
@@ -344,9 +352,21 @@ bool StructExpr::has_side_effect() const {
     });
 }
 
+bool StructExpr::is_constant() const {
+    return std::all_of(fields.begin(), fields.end(), [] (auto& field) {
+        return field->is_constant();
+    });
+}
+
 bool TupleExpr::has_side_effect() const {
     return std::any_of(args.begin(), args.end(), [] (auto& arg) {
         return arg->has_side_effect();
+    });
+}
+
+bool TupleExpr::is_constant() const {
+    return std::all_of(args.begin(), args.end(), [] (auto& arg) {
+        return arg->is_constant();
     });
 }
 
@@ -354,6 +374,16 @@ bool ArrayExpr::has_side_effect() const {
     return std::any_of(elems.begin(), elems.end(), [] (auto& elem) {
         return elem->has_side_effect();
     });
+}
+
+bool ArrayExpr::is_constant() const {
+    return std::all_of(elems.begin(), elems.end(), [] (auto& elem) {
+        return elem->is_constant();
+    });
+}
+
+bool FnExpr::is_constant() const {
+    return true;
 }
 
 bool BlockExpr::has_side_effect() const {
@@ -401,11 +431,23 @@ bool UnaryExpr::has_side_effect() const {
     return is_inc() || is_dec() || arg->has_side_effect();
 }
 
+bool UnaryExpr::is_constant() const {
+    return tag == Plus || tag == Minus || tag == AddrOf || tag == AddrOfMut || tag == Known;
+}
+
 bool BinaryExpr::has_side_effect() const {
     return has_eq() || left->has_side_effect() || right->has_side_effect();
 }
 
+bool BinaryExpr::is_constant() const {
+    return !has_eq() && left->is_constant() && right->is_constant();
+}
+
 bool FilterExpr::has_side_effect() const {
+    return expr->has_side_effect();
+}
+
+bool ImplicitCastExpr::has_side_effect() const {
     return expr->has_side_effect();
 }
 

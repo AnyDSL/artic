@@ -60,4 +60,4 @@ fn @parse(regex: &[u8]) {
     matcher
 }
 
-fn test() = parse("a*b+$")
+fn test(str: &[u8]) = parse("a*b+$")(str, 0)

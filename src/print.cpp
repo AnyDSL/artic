@@ -284,6 +284,12 @@ void FilterExpr::print(Printer& p) const {
     expr->print(p);
 }
 
+void ImplicitCastExpr::print(Printer& p) const {
+    p << "/* implicit cast to '" << *type << "' ( */";
+    expr->print(p);
+    p << "/* ) */";
+}
+
 void ErrorExpr::print(Printer& p) const {
     p << log::error_style("<invalid expression>");
 }
@@ -364,8 +370,25 @@ void PtrnDecl::print(Printer& p) const {
 
 void LetDecl::print(Printer& p) const {
     if (attrs) attrs->print(p);
-    p << log::keyword_style("let") << " ";
+    p << log::keyword_style("let") << ' ';
     ptrn->print(p);
+    if (init) {
+        p << " = ";
+        init->print(p);
+    }
+    p << ';';
+}
+
+void StaticDecl::print(Printer& p) const {
+    if (attrs) attrs->print(p);
+    p << log::keyword_style("static") << ' ';
+    if (mut)
+        p << log::keyword_style("mut") << ' ';
+    p << id.name;
+    if (type) {
+        p << ": ";
+        type->print(p);
+    }
     if (init) {
         p << " = ";
         init->print(p);

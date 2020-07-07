@@ -238,41 +238,87 @@ const Type* TypeApp::replace(const std::unordered_map<const TypeVar*, const Type
 
 // Order ---------------------------------------------------------------------------
 
-size_t Type::order() const {
+size_t Type::order(std::unordered_set<const Type*>&) const {
     return 0;
 }
 
-size_t FnType::order() const {
-    return 1 + std::max(dom->order(), codom->order());
+size_t FnType::order(std::unordered_set<const Type*>& seen) const {
+    return 1 + std::max(dom->order(seen), codom->order(seen));
 }
 
-size_t TupleType::order() const {
+size_t TupleType::order(std::unordered_set<const Type*>& seen) const {
     size_t max_order = 0;
     for (auto arg : args)
-        max_order = std::max(max_order, arg->order());
+        max_order = std::max(max_order, arg->order(seen));
     return max_order;
 }
 
-size_t ArrayType::order() const {
-    return elem->order();
+size_t ArrayType::order(std::unordered_set<const Type*>& seen) const {
+    return elem->order(seen);
 }
 
-size_t AddrType::order() const {
-    return pointee->order();
+size_t AddrType::order(std::unordered_set<const Type*>& seen) const {
+    return pointee->order(seen);
 }
 
-size_t ComplexType::order() const {
+size_t ComplexType::order(std::unordered_set<const Type*>& seen) const {
+    if (!seen.insert(this).second)
+        return 0;
     size_t max_order = 0;
     for (size_t i = 0, n = member_count(); i < n; ++i)
-        max_order = std::max(max_order, member_type(i)->order());
+        max_order = std::max(max_order, member_type(i)->order(seen));
     return max_order;
 }
 
-size_t TypeApp::order() const {
+size_t TypeApp::order(std::unordered_set<const Type*>& seen) const {
     size_t max_order = 0;
     for (size_t i = 0, n = applied->as<ComplexType>()->member_count(); i < n; ++i)
-        max_order = std::max(max_order, member_type(i)->order());
+        max_order = std::max(max_order, member_type(i)->order(seen));
     return max_order;
+}
+
+// Size ----------------------------------------------------------------------------
+
+bool Type::is_sized(std::unordered_set<const Type*>&) const {
+    return true;
+}
+
+bool FnType::is_sized(std::unordered_set<const Type*>& seen) const {
+    return dom->is_sized(seen) && codom->is_sized(seen);
+}
+
+bool TupleType::is_sized(std::unordered_set<const Type*>& seen) const {
+    for (auto arg : args) {
+        if (!arg->is_sized(seen))
+            return false;
+    }
+    return true;
+}
+
+bool ArrayType::is_sized(std::unordered_set<const Type*>& seen) const {
+    return elem->is_sized(seen);
+}
+
+bool AddrType::is_sized(std::unordered_set<const Type*>&) const {
+    return !pointee->isa<FnType>();
+}
+
+bool ComplexType::is_sized(std::unordered_set<const Type*>& seen) const {
+    if (!seen.insert(this).second)
+        return false;
+    for (size_t i = 0, n = member_count(); i < n; ++i) {
+        if (!member_type(i)->is_sized(seen))
+            return false;
+    }
+    return true;
+}
+
+bool TypeApp::is_sized(std::unordered_set<const Type*>& seen) const {
+    for (size_t i = 0, n = applied->as<ComplexType>()->member_count(); i < n; ++i) {
+        if (!member_type(i)->is_sized(seen))
+            return false;
+    }
+    return true;
 }
 
 // Members -------------------------------------------------------------------------
@@ -320,16 +366,28 @@ size_t EnumType::member_count() const {
 // Misc. ---------------------------------------------------------------------------
 
 bool Type::subtype(const Type* other) const {
+    // ! is the bottom type
     if (this == other || isa<NoRetType>())
         return true;
+    // ref U <= T if U <= T
     if (auto ref_type = isa<RefType>())
         return ref_type->pointee->subtype(other);
-    if (auto ptr_type = isa<PtrType>()) {
-        if (auto other_ptr_type = other->isa<PtrType>())
-            return ptr_type->pointee->subtype(other_ptr_type->pointee) && (!other_ptr_type->mut || ptr_type->mut);
+    if (auto other_ptr_type = other->isa<PtrType>()) {
+        if (other_ptr_type->pointee->isa<PtrType>())
+            return false;
+        // U <= &T if U <= T
+        if (!other_ptr_type->mut && subtype(other_ptr_type->pointee))
+            return true;
+        if (auto ptr_type = isa<PtrType>()) {
+            // &U <= &T if U <= T
+            // &mut U <= &T if U <= T
+            if (ptr_type->mut || !other_ptr_type->mut)
+                return ptr_type->pointee->subtype(other_ptr_type->pointee);
+        }
     }
-    if (auto sized_array_type = isa<SizedArrayType>()) {
-        if (auto other_array_type = other->isa<UnsizedArrayType>())
+    // [T * N] <= [T]
+    if (auto other_array_type = other->isa<UnsizedArrayType>()) {
+        if (auto sized_array_type = isa<SizedArrayType>())
             return sized_array_type->elem == other_array_type->elem;
     }
     return false;

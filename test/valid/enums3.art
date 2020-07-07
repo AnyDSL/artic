@@ -1,6 +1,7 @@
-enum K { A, B, C(bool), D(K) }
+enum K { A, B, C(bool), D(&K) }
 struct T { x: bool, y: K }
 
+#[export]
 fn plop(t: T) {
     match t {
         T { x = true,  y = K::A } => 5,

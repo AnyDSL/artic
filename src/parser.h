@@ -26,6 +26,7 @@ private:
     Ptr<ast::StructDecl>    parse_struct_decl();
     Ptr<ast::OptionDecl>    parse_option_decl();
     Ptr<ast::EnumDecl>      parse_enum_decl();
+    Ptr<ast::StaticDecl>    parse_static_decl();
     Ptr<ast::TypeDecl>      parse_type_decl();
     Ptr<ast::TypeParam>     parse_type_param();
     Ptr<ast::TypeParamList> parse_type_params();

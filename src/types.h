@@ -47,7 +47,18 @@ struct Type : public Cast<Type> {
     virtual const thorin::Type* convert(Emitter&) const;
 
     /// Returns the number of times a function type constructor is present in the type.
-    virtual size_t order() const;
+    virtual size_t order(std::unordered_set<const Type*>&) const;
+    size_t order() const {
+        std::unordered_set<const Type*> seen;
+        return order(seen);
+    }
+
+    /// Returns whether this type can be represented in memory or not.
+    virtual bool is_sized(std::unordered_set<const Type*>&) const;
+    bool is_sized() const {
+        std::unordered_set<const Type*> seen;
+        return is_sized(seen);
+    }
 
     /// Prints the type on the console, for debugging.
     void dump() const;
@@ -86,7 +97,8 @@ struct TupleType : public Type {
 
     const thorin::Type* convert(Emitter&) const override;
 
-    size_t order() const override;
+    size_t order(std::unordered_set<const Type*>&) const override;
+    bool is_sized(std::unordered_set<const Type*>&) const override;
 
 private:
     TupleType(TypeTable& type_table, std::vector<const Type*>&& args)
@@ -105,7 +117,8 @@ struct ArrayType : public Type {
     {}
 
     bool contains(const Type*) const override;
-    size_t order() const override;
+    size_t order(std::unordered_set<const Type*>&) const override;
+    bool is_sized(std::unordered_set<const Type*>&) const override;
 };
 
 /// An array whose size is known at compile-time.
@@ -155,7 +168,8 @@ struct AddrType : public Type {
     {}
 
     bool contains(const Type*) const override;
-    size_t order() const override;
+    size_t order(std::unordered_set<const Type*>&) const override;
+    bool is_sized(std::unordered_set<const Type*>&) const override;
 };
 
 /// A pointer type, as the result of taking the address of an object.
@@ -208,7 +222,8 @@ struct FnType : public Type {
 
     const thorin::Type* convert(Emitter&) const override;
 
-    size_t order() const override;
+    size_t order(std::unordered_set<const Type*>&) const override;
+    bool is_sized(std::unordered_set<const Type*>&) const override;
 
 private:
     FnType(TypeTable& type_table, const Type* dom, const Type* codom)
@@ -304,7 +319,8 @@ struct ComplexType : public UserType {
     virtual const Type* member_type(size_t) const = 0;
     virtual size_t member_count() const = 0;
 
-    size_t order() const override;
+    size_t order(std::unordered_set<const Type*>&) const override;
+    bool is_sized(std::unordered_set<const Type*>&) const override;
 };
 
 struct StructType : public ComplexType {
@@ -403,7 +419,8 @@ struct TypeApp : public Type {
         const ast::TypeParamList& type_params,
         const std::vector<const Type*>& type_args);
 
-    size_t order() const override;
+    size_t order(std::unordered_set<const Type*>&) const override;
+    bool is_sized(std::unordered_set<const Type*>&) const override;
 
 private:
     TypeApp(

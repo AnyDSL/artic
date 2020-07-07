@@ -271,6 +271,8 @@ void FilterExpr::bind(NameBinder& binder) {
     binder.bind(*expr);
 }
 
+void ImplicitCastExpr::bind(NameBinder&) {}
+
 void ErrorExpr::bind(NameBinder&) {}
 
 // Patterns ------------------------------------------------------------------------
@@ -323,6 +325,15 @@ void PtrnDecl::bind(NameBinder& binder) {
 void LetDecl::bind(NameBinder& binder) {
     if (init) binder.bind(*init);
     binder.bind(*ptrn);
+}
+
+void StaticDecl::bind_head(NameBinder& binder) {
+    binder.insert_symbol(*this);
+}
+
+void StaticDecl::bind(NameBinder& binder) {
+    if (type) binder.bind(*type);
+    if (init) binder.bind(*init);
 }
 
 void FnDecl::bind_head(NameBinder& binder) {
