@@ -270,8 +270,13 @@ void TypeChecker::check_attrs(const PtrVector<ast::Attr>& attrs) {
 }
 
 bool TypeChecker::check_filter(const ast::Expr& expr) {
+    bool is_logic_and = false;
+    bool is_logic_or  = false;
+    bool is_ref_type  = false;
     if (auto binary_expr = expr.isa<ast::BinaryExpr>()) {
-        if (!binary_expr->has_eq() && !binary_expr->is_logic())
+        is_logic_and = binary_expr->tag == ast::BinaryExpr::LogicAnd;
+        is_logic_or  = binary_expr->tag == ast::BinaryExpr::LogicOr;
+        if (!binary_expr->has_eq() && !is_logic_and && !is_logic_or)
             return check_filter(*binary_expr->left) && check_filter(*binary_expr->right);
     } else if (auto unary_expr = expr.isa<ast::UnaryExpr>()) {
         switch (unary_expr->tag) {
@@ -288,9 +293,20 @@ bool TypeChecker::check_filter(const ast::Expr& expr) {
             remove_ref(call_expr->callee->type).second->isa<ArrayType>() &&
             check_filter(*call_expr->callee) &&
             check_filter(*call_expr->arg);
-    } else if (expr.isa<ast::LiteralExpr>() || expr.isa<ast::PathExpr>())
+    } else if (expr.isa<ast::PathExpr>()) {
+        if (!expr.type->isa<RefType>())
+            return true;
+        is_ref_type = true;
+    } else if (expr.isa<ast::LiteralExpr>())
         return true;
+
     error(expr.loc, "unsupported expression in filter");
+    if (is_logic_or)
+        note("use '|' instead of '||'");
+    else if (is_logic_and)
+        note("use '&' instead of '&&'");
+    else if (is_ref_type)
+        note("cannot use mutable variables in filters");
     return false;
 }
 
