@@ -1183,8 +1183,6 @@ struct ModDecl : public NamedDecl {
         : NamedDecl(loc, std::move(id)), decls(std::move(decls))
     {}
 
-    void populate() const;
-
     const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) override;
     void bind_head(NameBinder&) override;

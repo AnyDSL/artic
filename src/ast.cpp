@@ -257,33 +257,6 @@ BinaryExpr::Tag BinaryExpr::tag_from_token(const Token& token) {
     }
 }
 
-static void populate(const Node& node, std::vector<const NamedDecl*> members) {
-    if (auto named_decl = node.isa<NamedDecl>()) {
-        members.push_back(named_decl);
-    } else if (auto let_decl = node.isa<LetDecl>()) {
-        populate(*let_decl->ptrn, members);
-    } else if (auto id_ptrn = node.isa<IdPtrn>()) {
-        populate(*id_ptrn->decl, members);
-    } else if (auto tuple_ptrn = node.isa<TuplePtrn>()) {
-        for (auto& arg : tuple_ptrn->args)
-            populate(*arg, members);
-    } else if (auto field_ptrn = node.isa<FieldPtrn>()) {
-        populate(*field_ptrn->ptrn, members);
-    } else if (auto struct_ptrn = node.isa<StructPtrn>()) {
-        for (auto& field : struct_ptrn->fields)
-            populate(*field, members);
-    } else if (auto typed_ptrn = node.isa<TypedPtrn>()) {
-        populate(*typed_ptrn->ptrn, members);
-    } else {
-        assert(false);
-    }
-}
-
-void ModDecl::populate() const {
-    for (auto& decl : decls)
-        artic::ast::populate(*decl, members);
-}
-
 // Attributes ----------------------------------------------------------------------
 
 static const Attr* find(const PtrVector<Attr>& attrs, const std::string_view& name) {
