@@ -97,3 +97,8 @@ match x {
     (_, (_, true)) => 5
 }
 ```
+ - The `@@` sign for call-site annotations has been replaced by `@`:
+```rust
+@@foo(1, x); // valid in impala, invalid with artic
+@foo(1, x); // valid in artic, invalid in impala
+```
