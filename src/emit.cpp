@@ -584,7 +584,8 @@ const thorin::Def* Filter::emit(Emitter& emitter) const {
 // Statements ----------------------------------------------------------------------
 
 const thorin::Def* DeclStmt::emit(Emitter& emitter) const {
-    emitter.emit(*decl);
+    if (!decl->isa<FnDecl>())
+        emitter.emit(*decl);
     return emitter.world.tuple({});
 }
 
@@ -953,13 +954,6 @@ const thorin::Def* StaticDecl::emit(Emitter&) const {
 
 const thorin::Def* FnDecl::emit(Emitter& emitter) const {
     auto _ = emitter.save_state();
-    if (type_params && emitter.type_vars.empty()) {
-        // Skip function declarations that have type parameters.
-        // Such functions are emitted on-demand, from their call site,
-        // where the type arguments are known, since Thorin in its
-        // current version does not support polymorphism.
-        return nullptr;
-    }
     const thorin::FnType* cont_type = nullptr;
     if (type_params) {
         cont_type = type->as<artic::ForallType>()->body->convert(emitter)->as<thorin::FnType>();
@@ -1019,8 +1013,12 @@ const thorin::Def* TypeDecl::emit(Emitter&) const {
 }
 
 const thorin::Def* ModDecl::emit(Emitter& emitter) const {
-    for (auto& decl : decls)
+    for (auto& decl : decls) {
+        // Do not emit function declarations that are polymorphic
+        if (auto fn_decl = decl->isa<FnDecl>(); fn_decl && fn_decl->type_params)
+            continue;
         emitter.emit(*decl);
+    }
     return nullptr;
 }
 
