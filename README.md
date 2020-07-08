@@ -17,7 +17,9 @@ Note that `path/to/thorin` is usually `thorin/build/share/anydsl/cmake`.
 
 ## Status
 
-Artic is currently under development, and is thus very likely to be unstable.
+Artic is in pre-alpha stage, which means that the basic functionality is implemented and that
+it can already be used to write small programs. However, some crucial functionality is missing,
+such as device intrinsics and built-ins, and there might be a couple of bugs that need fixing.
 
 ## Testing
 
