@@ -144,6 +144,8 @@ struct Path : public Node {
         Identifier id;
         PtrVector<Type> args;
 
+        // These members are set during type-checking
+        const artic::Type* type = nullptr;
         size_t index = 0;
 
         Elem(const Loc& loc, Identifier&& id, PtrVector<Type>&& args)
@@ -690,6 +692,7 @@ struct CaseExpr : public Expr {
     Ptr<Ptrn> ptrn;
     Ptr<Expr> expr;
 
+    // Set during emission by the pattern matching compiler
     mutable bool is_redundant = true;
 
     CaseExpr(const Loc& loc, Ptr<Ptrn>&& ptrn, Ptr<Expr>&& expr)

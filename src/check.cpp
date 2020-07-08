@@ -346,6 +346,7 @@ const artic::Type* Path::infer(TypeChecker& checker) {
             checker.error(elem.loc, "type arguments are not allowed here");
             return checker.type_table.type_error();
         }
+        elem.type = type;
 
         // Perform a lookup inside the current object if the path is not finished
         if (i != n - 1) {

@@ -50,8 +50,8 @@ public:
 
     /// A map of all types to avoid converting the same type several times
     std::unordered_map<const Type*, const thorin::Type*> types;
-    /// A map of the currently bound type variables
-    std::unordered_map<const TypeVar*, const thorin::Type*> type_vars;
+    /// A map from the currently bound type variables to monomorphic types
+    std::unordered_map<const TypeVar*, const Type*> type_vars;
 
     struct Ctor {
         size_t index;

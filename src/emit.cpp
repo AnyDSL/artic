@@ -84,11 +84,14 @@ public:
         std::vector<Row> wildcards;
 
         auto col = pick_col();
+        auto [type_app, enum_type] = match_app<EnumType>(values[col].second);
+
         // First, collect constructors
         for (auto& row : rows) {
             if (!is_wildcard(row.first[col]))
                 ctors.emplace(emitter.ctor_index(*row.first[col]), std::vector<Row>());
         }
+
         // Then, build the new rows for each constructor case
         for (auto& row : rows) {
             if (is_wildcard(row.first[col])) {
@@ -97,7 +100,7 @@ public:
                 remove_col(row.first, col);
                 for (auto& ctor : ctors) {
                     ctor.second.push_back(row);
-                    if (auto [_, enum_type] = match_app<EnumType>(values[col].second); enum_type) {
+                    if (enum_type) {
                         auto index = thorin::primlit_value<uint64_t>(ctor.first);
                         if (!is_unit_type(enum_type->member_type(index)))
                             ctor.second.back().first.push_back(nullptr);
@@ -131,10 +134,7 @@ public:
                 emitter.enter(thorin::is_allset(ctors.begin()->first) ? match_false : match_true);
                 PtrnCompiler(emitter, match, std::move(values), std::move(wildcards)).compile(target);
             }
-        } else if (
-            auto [type_app, enum_type] = match_app<EnumType>(values[col].second);
-            enum_type || is_int_type(values[col].second))
-        {
+        } else if (enum_type || is_int_type(values[col].second)) {
             thorin::Array<thorin::Continuation*> targets(ctors.size());
             thorin::Array<const thorin::Def*> defs(ctors.size());
             auto otherwise = emitter.basic_block(debug_info(match, "match_otherwise"));
@@ -163,8 +163,6 @@ public:
                 auto& rows = ctors[defs[i]];
                 auto _ = emitter.save_state();
                 emitter.enter(i == n - 1 && no_default ? otherwise : targets[i]);
-
-                rows.insert(rows.end(), wildcards.begin(), wildcards.end());
 
                 auto new_values = values;
                 if (enum_type) {
@@ -288,8 +286,8 @@ private:
             }
 
             // Expand the patterns in this column, for each row
-            std::vector<const ast::Ptrn*> new_elems(member_count, nullptr);
             for (auto& row : rows) {
+                std::vector<const ast::Ptrn*> new_elems(member_count, nullptr);
                 if (row.first[i]) {
                     if (auto struct_ptrn = row.first[i]->isa<ast::StructPtrn>()) {
                         for (auto& field : struct_ptrn->fields)
@@ -326,7 +324,12 @@ private:
 
 void PtrnCompiler::dump() const {
     Printer p(log::out);
-    for (auto& row : rows) {
+    p << "match ";
+    for (auto& value : values)
+        p.out << value.first << ' ';
+    p << '{' << p.indent() << p.endl();
+    for (size_t i = 0, n = rows.size(); i < n; ++i) {
+        auto& row = rows[i];
         for (auto& elem : row.first) {
             if (elem)
                 elem->print(p);
@@ -336,8 +339,11 @@ void PtrnCompiler::dump() const {
         }
         p << "=> ";
         row.second->expr->print(p);
-        p << p.endl();
+        if (i != n - 1)
+            p << p.endl();
     }
+    p << p.unindent() << p.endl();
+    p << '}' << p.endl();
 }
 
 bool Emitter::run(const ast::ModDecl& mod) {
@@ -497,9 +503,8 @@ const thorin::Def* Node::emit(Emitter&) const {
 
 const thorin::Def* Path::emit(Emitter& emitter) const {
     auto def = emitter.emit(*symbol->decls.front());
-    auto elem_type = symbol->decls.front()->type;
-    for (size_t i = 0, n = elems.size(); i < n; ++i) {
-        if (auto [type_app, enum_type] = match_app<artic::EnumType>(elem_type); enum_type) {
+    for (size_t i = 0, n = elems.size(); i < n - 1; ++i) {
+        if (auto [type_app, enum_type] = match_app<artic::EnumType>(elems[i].type); enum_type) {
             // Find the variant constructor for that enum, if it exists
             Emitter::Ctor ctor { elems[i + 1].index, type_app ? type_app->as<artic::Type>() : enum_type };
             if (auto it = emitter.variant_ctors.find(ctor); it != emitter.variant_ctors.end())
@@ -535,8 +540,7 @@ const thorin::Def* Path::emit(Emitter& emitter) const {
                 return emitter.variant_ctors[ctor] = cont;
             }
         } else {
-            // TODO: Implement modules and such
-            assert(elems[i].args.empty());
+            assert(false);
         }
     }
     return def;
@@ -1070,23 +1074,26 @@ const thorin::Type* FnType::convert(Emitter& emitter) const {
         emitter.world.fn_type({ emitter.world.mem_type(), codom->convert(emitter) })});
 }
 
-const thorin::Type* StructType::convert(Emitter& emitter) const {
-    assert(!decl.type_params);
-    if (auto it = emitter.types.find(this); it != emitter.types.end())
+const thorin::Type* TypeVar::convert(Emitter& emitter) const {
+    assert(emitter.type_vars.count(this));
+    return emitter.type_vars[this]->convert(emitter);
+}
+
+const thorin::Type* StructType::convert(Emitter& emitter, const Type* parent) const {
+    if (auto it = emitter.types.find(this); !decl.type_params && it != emitter.types.end())
         return it->second;
     auto type = emitter.world.struct_type(decl.id.name, decl.fields.size());
-    emitter.types[this] = type;
+    emitter.types[parent] = type;
     for (size_t i = 0, n = decl.fields.size(); i < n; ++i)
         type->set(i, decl.fields[i]->ast::Node::type->convert(emitter));
     return type;
 }
 
-const thorin::Type* EnumType::convert(Emitter& emitter) const {
-    assert(!decl.type_params);
-    if (auto it = emitter.types.find(this); it != emitter.types.end())
+const thorin::Type* EnumType::convert(Emitter& emitter, const Type* parent) const {
+    if (auto it = emitter.types.find(this); !decl.type_params && it != emitter.types.end())
         return it->second;
     auto type = emitter.world.struct_type(decl.id.name, 2);
-    emitter.types[this] = type;
+    emitter.types[parent] = type;
     thorin::TypeSet types;
     for (size_t i = 0, n = decl.options.size(); i < n; ++i)
         types.insert(decl.options[i]->type->convert(emitter));
@@ -1099,6 +1106,30 @@ const thorin::Type* EnumType::convert(Emitter& emitter) const {
     type->set(0, index_type);
     type->set(1, emitter.world.variant_type(ops));
     return type;
+}
+
+const thorin::Type* TypeAlias::convert(Emitter&, const Type*) const {
+    // This type should already have been replaced by
+    // its content during type-checking.
+    assert(false);
+    return nullptr;
+}
+
+const thorin::Type* TypeApp::convert(Emitter& emitter) const {
+    // Monomorphize this type by replacing bound type variables
+    auto mono_type = replace(emitter.type_vars)->as<TypeApp>();
+    if (auto it = emitter.types.find(mono_type); it != emitter.types.end())
+        return it->second;
+
+    // if S is struct S[A, B], and we see S[T, i32] with T = i64,
+    // then we should use the replacement map A = i64, B = i32.
+    auto map = mono_type->replace_map();
+
+    // Use the new type variable map when replacing the body
+    std::swap(emitter.type_vars, map);
+    auto result = applied->convert(emitter, mono_type);
+    std::swap(emitter.type_vars, map);
+    return result;
 }
 
 } // namespace artic

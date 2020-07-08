@@ -271,6 +271,8 @@ struct TypeVar : public Type {
 
     const Type* replace(const std::unordered_map<const TypeVar*, const Type*>&) const override;
 
+    const thorin::Type* convert(Emitter&) const override;
+
 private:
     TypeVar(TypeTable& type_table, const ast::TypeParam& param)
         : Type(type_table), param(param)
@@ -307,6 +309,11 @@ struct UserType : public Type {
     {}
 
     virtual const ast::TypeParamList* type_params() const = 0;
+    virtual const thorin::Type* convert(Emitter&, const Type*) const = 0;
+
+    const thorin::Type* convert(Emitter& emitter) const override {
+        return convert(emitter, this);
+    }
 };
 
 /// Base class for complex, user-declared types.
@@ -330,7 +337,8 @@ struct StructType : public ComplexType {
     bool equals(const Type*) const override;
     size_t hash() const override;
 
-    const thorin::Type* convert(Emitter&) const override;
+    using UserType::convert;
+    const thorin::Type* convert(Emitter&, const Type*) const override;
 
     const ast::TypeParamList* type_params() const override {
         return decl.type_params.get();
@@ -355,7 +363,8 @@ struct EnumType : public ComplexType {
     bool equals(const Type*) const override;
     size_t hash() const override;
 
-    const thorin::Type* convert(Emitter&) const override;
+    using UserType::convert;
+    const thorin::Type* convert(Emitter&, const Type*) const override;
 
     const ast::TypeParamList* type_params() const override {
         return decl.type_params.get();
@@ -383,6 +392,8 @@ struct TypeAlias : public UserType {
     const ast::TypeParamList* type_params() const override {
         return decl.type_params.get();
     }
+
+    const thorin::Type* convert(Emitter&, const Type*) const override;
 
 private:
     TypeAlias(TypeTable& type_table, const ast::TypeDecl& decl)
@@ -414,6 +425,8 @@ struct TypeApp : public Type {
     bool contains(const Type*) const override;
 
     const Type* replace(const std::unordered_map<const TypeVar*, const Type*>&) const override;
+
+    const thorin::Type* convert(Emitter&) const override;
 
     static std::unordered_map<const TypeVar*, const Type*> replace_map(
         const ast::TypeParamList& type_params,
