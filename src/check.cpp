@@ -331,7 +331,10 @@ const artic::Type* Path::infer(TypeChecker& checker) {
         auto user_type   = type->isa<artic::UserType>();
         auto forall_type = type->isa<artic::ForallType>();
         if ((user_type && user_type->type_params()) || forall_type) {
-            if (!elem.args.empty()) {
+            size_t type_param_count = user_type
+                ? user_type->type_params()->params.size()
+                : forall_type->decl.type_params->params.size();
+            if (type_param_count == elem.args.size()) {
                 std::vector<const artic::Type*> type_args(elem.args.size());
                 for (size_t i = 0, n = type_args.size(); i < n; ++i)
                     type_args[i] = checker.infer(*elem.args[i]);
@@ -339,7 +342,7 @@ const artic::Type* Path::infer(TypeChecker& checker) {
                     ? checker.type_table.type_app(user_type, std::move(type_args))
                     : forall_type->instantiate(type_args);
             } else {
-                checker.error(elem.loc, "missing type arguments");
+                checker.error(elem.loc, "expected {} type argument(s), but got {}", type_param_count, elem.args.size());
                 return checker.type_table.type_error();
             }
         } else if (!elem.args.empty()) {

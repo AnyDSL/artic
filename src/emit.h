@@ -48,30 +48,44 @@ public:
 
     State state;
 
-    /// A map of all types to avoid converting the same type several times
-    std::unordered_map<const Type*, const thorin::Type*> types;
-    /// A map from the currently bound type variables to monomorphic types
-    std::unordered_map<const TypeVar*, const Type*> type_vars;
-
     struct Ctor {
         size_t index;
         const Type* type;
     };
 
-    struct HashCtor {
+    struct MonoFn {
+        const ast::FnDecl* decl;
+        const thorin::Type* type;
+    };
+
+    struct Hash {
         size_t operator () (const Ctor& ctor) const {
             return fnv::Hash().combine(ctor.index).combine(ctor.type);
         }
-    };
-
-    struct CompareCtor {
-        bool operator () (const Ctor& left, const Ctor& right) const {
-            return left.index == right.index && left.type == right.type;
+        size_t operator () (const MonoFn& mono_fn) const {
+            return fnv::Hash().combine(mono_fn.decl).combine(mono_fn.type);
         }
     };
 
-    /// A map from enum type and variant index to variant constructor
-    std::unordered_map<Ctor, const thorin::Def*, HashCtor, CompareCtor> variant_ctors;
+    struct Compare {
+        bool operator () (const Ctor& left, const Ctor& right) const {
+            return left.index == right.index && left.type == right.type;
+        }
+        bool operator () (const MonoFn& left, const MonoFn& right) const {
+            return left.decl == right.decl && left.type == right.type;
+        }
+    };
+
+    /// Map of all types to avoid converting the same type several times.
+    std::unordered_map<const Type*, const thorin::Type*> types;
+    /// Map from the currently bound type variables to monomorphic types.
+    std::unordered_map<const TypeVar*, const Type*> type_vars;
+    /// Map from monomorphic function signature to emitted thorin function.
+    std::unordered_map<MonoFn, thorin::Continuation*, Hash, Compare> mono_fns;
+    /// Map from enum type and variant index to variant constructor.
+    std::unordered_map<Ctor, const thorin::Def*, Hash, Compare> variant_ctors;
+    /// Vector containing definitions that are generated while monomorphization.
+    std::vector<std::vector<const thorin::Def**>> poly_defs;
 
     bool run(const ast::ModDecl&);
 

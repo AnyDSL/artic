@@ -45,6 +45,7 @@ fn make_array[T](x: &[T], len: i32) {
     }
 }
 
+#[export]
 fn main() -> [i32 * 4] {
     let mut array = [1, 2, 3, 4];
     array(0) = 5;

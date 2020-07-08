@@ -86,12 +86,12 @@ let z : f32 = 1; // `z` types as f32
    more efficient, and also that error messages for the completeness of a pattern are now more
    accurate (less conservative). The following case expression is now legal:
 ```rust
+// impala would complain that this match is missing a default case
 match x {
     (true, (_, true)) => 1,
     (true, (_, false)) => 2,
     (_, (1, _)) => 3,
     (_, (_, false)) => 4,
     (_, (_, true)) => 5
-    // impala would complain that this match is missing a default case
 }
 ```

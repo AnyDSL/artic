@@ -454,6 +454,8 @@ const thorin::Def* Emitter::load(const thorin::Def* ptr, thorin::Debug debug) {
 const thorin::Def* Emitter::emit(const ast::Node& node) {
     if (node.def)
         return node.def;
+    if (!poly_defs.empty())
+        poly_defs.back().push_back(&node.def);
     return node.def = node.emit(*this);
 }
 
@@ -502,9 +504,34 @@ const thorin::Def* Node::emit(Emitter&) const {
 // Path ----------------------------------------------------------------------------
 
 const thorin::Def* Path::emit(Emitter& emitter) const {
-    auto def = emitter.emit(*symbol->decls.front());
-    for (size_t i = 0, n = elems.size(); i < n - 1; ++i) {
-        if (auto [type_app, enum_type] = match_app<artic::EnumType>(elems[i].type); enum_type) {
+    // Currently only supports paths of the form A/A::B/A[T, ...]/A[T, ...]::B
+    assert(elems.size() == 1 || elems.size() == 2);
+    for (size_t i = 0, n = elems.size(); i < n; ++i) {
+        if (n == 1) {
+            // If type arguments are present, this is a polymorphic application
+            std::unordered_map<const artic::TypeVar*, const artic::Type*> map;
+            auto decl = symbol->decls.front();
+            if (!elems[i].args.empty()) {
+                for (size_t i = 0, n = elems[i].args.size(); i < n; ++i) {
+                    auto var = decl->as<FnDecl>()->type_params->params[i]->type->as<artic::TypeVar>();
+                    auto type = elems[i].args[i]->type->replace(emitter.type_vars);
+                    map.emplace(var, type);
+                }
+                // We need to also add the caller's map in case the call is nested
+                map.insert(emitter.type_vars.begin(), emitter.type_vars.end());
+                std::swap(map, emitter.type_vars);
+            }
+            auto def = emitter.emit(*decl);
+            if (!elems[i].args.empty()) {
+                // Polymorphic nodes are emitted with the map from type variable
+                // to concrete type, which means that the emitted node cannot be
+                // kept around: Another instantiation may be using a different map,
+                // which would conflict with this one.
+                decl->def = nullptr;
+                std::swap(map, emitter.type_vars);
+            }
+            return def;
+        } else if (auto [type_app, enum_type] = match_app<artic::EnumType>(elems[i].type); enum_type) {
             // Find the variant constructor for that enum, if it exists
             Emitter::Ctor ctor { elems[i + 1].index, type_app ? type_app->as<artic::Type>() : enum_type };
             if (auto it = emitter.variant_ctors.find(ctor); it != emitter.variant_ctors.end())
@@ -539,11 +566,11 @@ const thorin::Def* Path::emit(Emitter& emitter) const {
                 cont->jump(cont->param(2), { cont->param(0), ret_value });
                 return emitter.variant_ctors[ctor] = cont;
             }
-        } else {
-            assert(false);
         }
     }
-    return def;
+
+    assert(false);
+    return nullptr;
 }
 
 // Filter --------------------------------------------------------------------------
@@ -926,16 +953,26 @@ const thorin::Def* StaticDecl::emit(Emitter&) const {
 
 const thorin::Def* FnDecl::emit(Emitter& emitter) const {
     auto _ = emitter.save_state();
-    if (type_params) {
+    if (type_params && emitter.type_vars.empty()) {
         // Skip function declarations that have type parameters.
         // Such functions are emitted on-demand, from their call site,
         // where the type arguments are known, since Thorin in its
         // current version does not support polymorphism.
         return nullptr;
     }
-    auto cont = emitter.world.continuation(
-        type->convert(emitter)->as<thorin::FnType>(),
-        debug_info(*this));
+    const thorin::FnType* cont_type = nullptr;
+    if (type_params) {
+        cont_type = type->as<artic::ForallType>()->body->convert(emitter)->as<thorin::FnType>();
+        // Try to find an existing monomorphized version of this function with that type
+        if (auto it = emitter.mono_fns.find(Emitter::MonoFn { this, cont_type }); it != emitter.mono_fns.end())
+            return it->second;
+        emitter.poly_defs.emplace_back();
+    } else {
+        cont_type = type->convert(emitter)->as<thorin::FnType>();
+    }
+    auto cont = emitter.world.continuation(cont_type, debug_info(*this));
+    emitter.mono_fns.emplace(Emitter::MonoFn { this, cont_type }, cont);
+
     cont->param(2)->debug().set("ret");
     if (!fn->body)
         return cont;
@@ -955,6 +992,16 @@ const thorin::Def* FnDecl::emit(Emitter& emitter) const {
             if (auto name_attr = export_attr->find("name"))
                 cont->debug().set(name_attr->as<LiteralAttr>()->lit.as_string());
         }
+    }
+
+    // Clear the thorin IR generated for this entire function
+    // if the function is polymorphic, so as to allow multiple
+    // instantiations with different types.
+    if (type_params) {
+        for (auto& def : emitter.poly_defs.back())
+            *def = nullptr;
+        emitter.poly_defs.pop_back();
+        fn->def = def = nullptr;
     }
     return cont;
 }

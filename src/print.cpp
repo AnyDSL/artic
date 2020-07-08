@@ -615,7 +615,7 @@ void ForallType::print(Printer& p) const {
     assert(decl.type_params);
     p << log::keyword_style("forall");
     decl.type_params->print(p);
-    p << "] ";
+    p << ' ';
     body->print(p);
 }
 
