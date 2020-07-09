@@ -29,15 +29,12 @@ bool UnsizedArrayType::equals(const Type* other) const {
         other->as<UnsizedArrayType>()->elem == elem;
 }
 
-bool PtrType::equals(const Type* other) const {
+bool AddrType::equals(const Type* other) const {
     return
-        other->isa<PtrType>() &&
-        other->as<PtrType>()->pointee == pointee &&
-        other->as<PtrType>()->mut == mut;
-}
-
-bool RefType::equals(const Type* other) const {
-    return other->isa<RefType>() && other->as<RefType>()->pointee == pointee;
+        typeid(*other) == typeid(*this) &&
+        other->isa<AddrType>() &&
+        other->as<AddrType>()->pointee == pointee &&
+        other->as<AddrType>()->mut == mut;
 }
 
 bool FnType::equals(const Type* other) const {
@@ -108,17 +105,11 @@ size_t UnsizedArrayType::hash() const {
         .combine(elem);
 }
 
-size_t PtrType::hash() const {
+size_t AddrType::hash() const {
     return fnv::Hash()
         .combine(typeid(*this).hash_code())
         .combine(pointee)
         .combine(mut);
-}
-
-size_t RefType::hash() const {
-    return fnv::Hash()
-        .combine(typeid(*this).hash_code())
-        .combine(pointee);
 }
 
 size_t FnType::hash() const {

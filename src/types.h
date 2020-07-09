@@ -168,6 +168,8 @@ struct AddrType : public Type {
         : Type(type_table), pointee(pointee), mut(mut)
     {}
 
+    bool equals(const Type*) const override;
+    size_t hash() const override;
     bool contains(const Type*) const override;
     size_t order(std::unordered_set<const Type*>&) const override;
     bool is_sized(std::unordered_set<const Type*>&) const override;
@@ -176,11 +178,7 @@ struct AddrType : public Type {
 /// A pointer type, as the result of taking the address of an object.
 struct PtrType : public AddrType {
     void print(Printer&) const override;
-    bool equals(const Type*) const override;
-    size_t hash() const override;
-
     const Type* replace(const std::unordered_map<const TypeVar*, const Type*>&) const override;
-
     const thorin::Type* convert(Emitter&) const override;
 
 private:
@@ -194,9 +192,6 @@ private:
 /// The type of mutable identifiers or expressions.
 struct RefType : public AddrType {
     void print(Printer&) const override;
-    bool equals(const Type*) const override;
-    size_t hash() const override;
-
     const Type* replace(const std::unordered_map<const TypeVar*, const Type*>&) const override;
 
 private:

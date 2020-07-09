@@ -586,6 +586,8 @@ void PtrType::print(Printer& p) const {
 }
 
 void RefType::print(Printer& p) const {
+    if (mut)
+        p << "mutable ";
     p << "reference to ";
     pointee->print(p);
 }

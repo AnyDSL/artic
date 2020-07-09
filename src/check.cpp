@@ -647,6 +647,8 @@ const artic::Type* CallExpr::infer(TypeChecker& checker) {
         // Accept pointers to arrays
         auto ptr_type = callee_type->isa<artic::PtrType>();
         if (ptr_type) {
+            // Create an implicit cast from the reference type to
+            // a pointer type, so as to de-reference the reference.
             if (ref_type)
                 checker.coerce(callee, callee_type);
             callee_type = ptr_type->pointee;
