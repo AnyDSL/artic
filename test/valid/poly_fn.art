@@ -1,0 +1,6 @@
+fn @select[T](c: bool, a: T, b: T) = if c { a } else { b }
+fn test() {
+    select[bool](true, false, true);
+    select[i32](true, 1, 2);
+    select[i32](true, 3, 4);
+}
