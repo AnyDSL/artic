@@ -5,6 +5,8 @@ struct C { i: i32 }
 fn test(x: &A) = x.b.c.i
 #[export]
 fn test2(x: &[A], i: i32) = x(i).b.c.i
-static x = "abcd";
+static s = "abcd";
 #[export]
-fn test3(i: i32) = x(i)
+fn test3(i: i32) = s(i)
+#[export]
+fn test4(i: i32) = (&[1, 2, 3, 4])(i)
