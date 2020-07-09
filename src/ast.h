@@ -441,6 +441,7 @@ struct TypedExpr : public Expr {
     {}
 
     bool has_side_effect() const override;
+    bool is_constant() const override;
 
     const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) override;

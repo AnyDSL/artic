@@ -307,6 +307,10 @@ bool TypedExpr::has_side_effect() const {
     return expr->has_side_effect();
 }
 
+bool TypedExpr::is_constant() const {
+    return expr->is_constant();
+}
+
 bool LiteralExpr::is_constant() const {
     return true;
 }

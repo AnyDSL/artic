@@ -947,9 +947,11 @@ const thorin::Def* LetDecl::emit(Emitter& emitter) const {
     return nullptr;
 }
 
-const thorin::Def* StaticDecl::emit(Emitter&) const {
-    assert(false);
-    return nullptr;
+const thorin::Def* StaticDecl::emit(Emitter& emitter) const {
+    auto value = init
+        ? emitter.emit(*init)
+        : emitter.world.bottom(Node::type->as<artic::RefType>()->pointee->convert(emitter));
+    return emitter.world.global(value, mut, debug_info(*this));
 }
 
 const thorin::Def* FnDecl::emit(Emitter& emitter) const {

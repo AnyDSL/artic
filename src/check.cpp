@@ -97,7 +97,7 @@ void TypeChecker::unsized_type(const Loc& loc, const std::string_view& msg) {
 
 // Helpers -------------------------------------------------------------------------
 
-static inline std::pair<const Type*, const Type*> remove_ref(const Type* type) {
+static inline std::pair<const RefType*, const Type*> remove_ref(const Type* type) {
     if (auto ref_type = type->isa<RefType>())
         return std::make_pair(ref_type, ref_type->pointee);
     return std::make_pair(nullptr, type);
@@ -272,7 +272,7 @@ void TypeChecker::check_attrs(const PtrVector<ast::Attr>& attrs) {
 bool TypeChecker::check_filter(const ast::Expr& expr) {
     bool is_logic_and = false;
     bool is_logic_or  = false;
-    bool is_ref_type  = false;
+    bool is_mutable   = false;
     if (auto binary_expr = expr.isa<ast::BinaryExpr>()) {
         is_logic_and = binary_expr->tag == ast::BinaryExpr::LogicAnd;
         is_logic_or  = binary_expr->tag == ast::BinaryExpr::LogicOr;
@@ -294,9 +294,10 @@ bool TypeChecker::check_filter(const ast::Expr& expr) {
             check_filter(*call_expr->callee) &&
             check_filter(*call_expr->arg);
     } else if (expr.isa<ast::PathExpr>()) {
-        if (!expr.type->isa<RefType>())
+        if (auto ref_type = expr.type->isa<RefType>(); ref_type && ref_type->mut)
+            is_mutable = true;
+        else
             return true;
-        is_ref_type = true;
     } else if (expr.isa<ast::LiteralExpr>())
         return true;
 
@@ -305,7 +306,7 @@ bool TypeChecker::check_filter(const ast::Expr& expr) {
         note("use '|' instead of '||'");
     else if (is_logic_and)
         note("use '&' instead of '&&'");
-    else if (is_ref_type)
+    else if (is_mutable)
         note("cannot use mutable variables in filters");
     return false;
 }
@@ -654,8 +655,8 @@ const artic::Type* CallExpr::infer(TypeChecker& checker) {
             auto index_type = checker.deref(arg);
             if (!is_int_type(index_type))
                 return checker.type_expected(arg->loc, index_type, "integer type");
-            return ref_type || (ptr_type && ptr_type->mut)
-                ? checker.type_table.ref_type(array_type->elem)
+            return ref_type || ptr_type
+                ? checker.type_table.ref_type(array_type->elem, ref_type ? ref_type->mut : ptr_type->mut)
                 : array_type->elem;
         } else {
             return checker.type_expected(callee->loc, callee_type, "function or array");
@@ -671,7 +672,7 @@ const artic::Type* ProjExpr::infer(TypeChecker& checker) {
     if (auto index = struct_type->find_member(field.name)) {
         this->index = *index;
         auto result = type_app ? type_app->member_type(*index) : struct_type->member_type(*index);
-        return ref_type ? checker.type_table.ref_type(result) : result;
+        return ref_type ? checker.type_table.ref_type(result, ref_type->mut) : result;
     } else
         return checker.unknown_member(loc, struct_type, field.name);
 }
@@ -777,7 +778,7 @@ const artic::Type* ReturnExpr::infer(TypeChecker& checker) {
 
 const artic::Type* UnaryExpr::infer(TypeChecker& checker) {
     auto [ref_type, arg_type] = remove_ref(checker.infer(*arg));
-    if (!ref_type && (tag == AddrOfMut || is_inc() || is_dec()))
+    if ((!ref_type || !ref_type->mut) && (tag == AddrOfMut || is_inc() || is_dec()))
         return checker.mutable_expected(arg->loc);
     if (tag == Known)
         return checker.type_table.bool_type();
@@ -787,7 +788,7 @@ const artic::Type* UnaryExpr::infer(TypeChecker& checker) {
         return checker.type_table.ptr_type(arg_type, true);
     if (tag == Deref) {
         if (auto ptr_type = arg_type->isa<artic::PtrType>())
-            return checker.type_table.ref_type(ptr_type->pointee);
+            return checker.type_table.ref_type(ptr_type->pointee, ptr_type->mut);
         checker.error(loc, "cannot dereference non-pointer type '{}'", *arg_type);
         return checker.type_table.type_error();
     }
@@ -798,7 +799,7 @@ const artic::Type* BinaryExpr::infer(TypeChecker& checker) {
     auto [left_ref, left_type] = remove_ref(checker.infer(*left));
     auto right_type = checker.coerce(right, left_type);
     if (has_eq()) {
-        if (!left_ref)
+        if (!left_ref || !left_ref->mut)
             return checker.mutable_expected(left->loc);
         return checker.type_table.unit_type();
     }
@@ -835,18 +836,19 @@ const artic::Type* LetDecl::infer(TypeChecker& checker) {
 const artic::Type* StaticDecl::infer(TypeChecker& checker) {
     if (!checker.enter_decl(this))
         return checker.type_table.type_error();
+    const artic::Type* value_type = nullptr;
     if (type) {
-        this->Node::type = checker.infer(*type);
+        value_type = checker.infer(*type);
         if (init)
-            checker.coerce(init, this->Node::type);
+            checker.coerce(init, value_type);
     } else if (init) {
-        this->Node::type = checker.deref(init);
+        value_type = checker.deref(init);
     } else
-        this->Node::type = checker.cannot_infer(loc, "static variable");
+        return checker.cannot_infer(loc, "static variable");
     if (init && !init->is_constant())
         checker.error(init->loc, "only constants are allowed as static variable initializers");
     checker.exit_decl(this);
-    return this->Node::type;
+    return checker.type_table.ref_type(value_type, mut);
 }
 
 const artic::Type* FnDecl::infer(TypeChecker& checker) {
@@ -962,7 +964,7 @@ const artic::Type* IdPtrn::infer(TypeChecker& checker) {
 }
 
 const artic::Type* IdPtrn::check(TypeChecker& checker, const artic::Type* expected) {
-    checker.check(*decl, decl->mut ? checker.type_table.ref_type(expected) : expected);
+    checker.check(*decl, decl->mut ? checker.type_table.ref_type(expected, true) : expected);
     return expected;
 }
 

@@ -162,9 +162,10 @@ private:
 /// Base type for pointer types.
 struct AddrType : public Type {
     const Type* pointee;
+    bool mut;
 
-    AddrType(TypeTable& type_table, const Type* pointee)
-        : Type(type_table), pointee(pointee)
+    AddrType(TypeTable& type_table, const Type* pointee, bool mut)
+        : Type(type_table), pointee(pointee), mut(mut)
     {}
 
     bool contains(const Type*) const override;
@@ -174,8 +175,6 @@ struct AddrType : public Type {
 
 /// A pointer type, as the result of taking the address of an object.
 struct PtrType : public AddrType {
-    bool mut;
-
     void print(Printer&) const override;
     bool equals(const Type*) const override;
     size_t hash() const override;
@@ -186,7 +185,7 @@ struct PtrType : public AddrType {
 
 private:
     PtrType(TypeTable& type_table, const Type* pointee, bool mut)
-        : AddrType(type_table, pointee), mut(mut)
+        : AddrType(type_table, pointee, mut)
     {}
 
     friend class TypeTable;
@@ -201,8 +200,8 @@ struct RefType : public AddrType {
     const Type* replace(const std::unordered_map<const TypeVar*, const Type*>&) const override;
 
 private:
-    RefType(TypeTable& type_table, const Type* pointee)
-        : AddrType(type_table, pointee)
+    RefType(TypeTable& type_table, const Type* pointee, bool mut)
+        : AddrType(type_table, pointee, mut)
     {}
 
     friend class TypeTable;
@@ -474,7 +473,7 @@ public:
     const SizedArrayType*   sized_array_type(const Type*, size_t);
     const UnsizedArrayType* unsized_array_type(const Type*);
     const PtrType*          ptr_type(const Type*, bool);
-    const RefType*          ref_type(const Type*);
+    const RefType*          ref_type(const Type*, bool);
     const FnType*           fn_type(const Type*, const Type*);
     const FnType*           cn_type(const Type*);
     const NoRetType*        no_ret_type();

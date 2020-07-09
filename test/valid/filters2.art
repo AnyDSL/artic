@@ -2,7 +2,9 @@ struct Math {
     sqrtf: fn (f32) -> f32
 }
 
-let math : Math;
+static math = Math {
+    sqrtf = |x| x
+};
 
 fn lerp(x: f32, y: f32, k: f32) -> f32 {
     x * ((1:f32) - k) + y * k

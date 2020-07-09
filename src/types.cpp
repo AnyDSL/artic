@@ -216,7 +216,7 @@ const Type* PtrType::replace(const std::unordered_map<const TypeVar*, const Type
 }
 
 const Type* RefType::replace(const std::unordered_map<const TypeVar*, const Type*>& map) const {
-    return type_table.ref_type(pointee->replace(map));
+    return type_table.ref_type(pointee->replace(map), mut);
 }
 
 const Type* FnType::replace(const std::unordered_map<const TypeVar*, const Type*>& map) const {
@@ -497,8 +497,8 @@ const PtrType* TypeTable::ptr_type(const Type* pointee, bool mut) {
     return insert<PtrType>(pointee, mut);
 }
 
-const RefType* TypeTable::ref_type(const Type* pointee) {
-    return insert<RefType>(pointee);
+const RefType* TypeTable::ref_type(const Type* pointee, bool mut) {
+    return insert<RefType>(pointee, mut);
 }
 
 const FnType* TypeTable::fn_type(const Type* dom, const Type* codom) {

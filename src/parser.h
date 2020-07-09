@@ -19,7 +19,7 @@ public:
     Ptr<ast::ModDecl> parse();
 
 private:
-    Ptr<ast::Decl>          parse_decl();
+    Ptr<ast::Decl>          parse_decl(bool = true);
     Ptr<ast::LetDecl>       parse_let_decl();
     Ptr<ast::FnDecl>        parse_fn_decl();
     Ptr<ast::FieldDecl>     parse_field_decl();
