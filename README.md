@@ -30,9 +30,20 @@ Once built, Artic can be run with the following command:
 ## Syntax
 
 The syntax follows [that of Impala](https://anydsl.github.io/Impala.html), whenever possible.
-On top of this, polymorphism is supported.
 Some notable changes compared to the syntax of Impala are:
 
+ - Polymorphism is now supported:
+```rust
+struct S[T] {
+    elem: T
+}
+fn select[T](cond: bool, a: T, b: T) -> T {
+    if cond { a } else { b }
+}
+fn main() -> i32 {
+    S[i32] { elem = select[i32](true, 0, 1) }.elem
+}
+```
  - The type inference algorithm is now bidirectional type checking, which means
    that type information is propagated _locally_, not globally. This gives improved
    error messages and better support for advanced type system features, at the cost
