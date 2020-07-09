@@ -459,6 +459,8 @@ struct PathExpr : public Expr {
         this->path.value = true;
     }
 
+    bool is_constant() const override;
+
     const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) override;
     void bind(NameBinder&) override;

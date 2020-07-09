@@ -311,6 +311,10 @@ bool TypedExpr::is_constant() const {
     return expr->is_constant();
 }
 
+bool PathExpr::is_constant() const {
+    return true;
+}
+
 bool LiteralExpr::is_constant() const {
     return true;
 }
