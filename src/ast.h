@@ -502,6 +502,7 @@ struct FieldExpr : public Expr {
 
     bool is_etc() const { return false; }
     bool has_side_effect() const override;
+    bool is_constant() const override;
 
     const thorin::Def* emit(Emitter&) const override;
     const artic::Type* check(TypeChecker&, const artic::Type*) override;

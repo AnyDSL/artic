@@ -323,6 +323,10 @@ bool FieldExpr::has_side_effect() const {
     return expr->has_side_effect();
 }
 
+bool FieldExpr::is_constant() const {
+    return expr->is_constant();
+}
+
 bool StructExpr::has_side_effect() const {
     return std::any_of(fields.begin(), fields.end(), [] (auto& field) {
         return field->has_side_effect();
