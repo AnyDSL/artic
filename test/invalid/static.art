@@ -1,0 +1,6 @@
+static x = y;
+static y = 0;
+static z = test;
+fn test() {
+    x + y + z()
+}

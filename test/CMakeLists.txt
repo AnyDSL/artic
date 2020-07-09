@@ -27,6 +27,7 @@ add_test(NAME valid_types      COMMAND artic --print-ast ${PROJECT_SOURCE_DIR}/t
 add_test(NAME valid_loops      COMMAND artic --print-ast ${PROJECT_SOURCE_DIR}/test/valid/loops.art)
 add_test(NAME valid_return     COMMAND artic --print-ast ${PROJECT_SOURCE_DIR}/test/valid/return.art)
 add_test(NAME valid_mut        COMMAND artic --print-ast ${PROJECT_SOURCE_DIR}/test/valid/mut.art)
+add_test(NAME valid_static     COMMAND artic --print-ast ${PROJECT_SOURCE_DIR}/test/valid/static.art)
 add_test(NAME valid_arrays1    COMMAND artic --print-ast ${PROJECT_SOURCE_DIR}/test/valid/arrays1.art)
 add_test(NAME valid_arrays2    COMMAND artic --print-ast ${PROJECT_SOURCE_DIR}/test/valid/arrays2.art)
 add_test(NAME valid_sort       COMMAND artic --print-ast ${PROJECT_SOURCE_DIR}/test/valid/sort.art)
@@ -66,6 +67,7 @@ add_failure_test(NAME invalid_enums1      COMMAND artic ${PROJECT_SOURCE_DIR}/te
 add_failure_test(NAME invalid_enums2      COMMAND artic ${PROJECT_SOURCE_DIR}/test/invalid/enums2.art)
 add_failure_test(NAME invalid_mut         COMMAND artic ${PROJECT_SOURCE_DIR}/test/invalid/mut.art)
 add_failure_test(NAME invalid_filter      COMMAND artic ${PROJECT_SOURCE_DIR}/test/invalid/filter.art)
+add_failure_test(NAME invalid_static      COMMAND artic ${PROJECT_SOURCE_DIR}/test/invalid/static.art)
 
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
     setup_target_for_coverage_gcovr_html(NAME coverage EXECUTABLE ctest -j ${PROCESSOR_COUNT} DEPENDENCIES artic)
