@@ -924,9 +924,13 @@ const thorin::Def* ImplicitCastExpr::emit(Emitter& emitter) const {
     if (auto ptr_type = this->type->isa<artic::PtrType>();
         ptr_type && type->subtype(ptr_type->pointee))
     {
-        auto ptr = emitter.alloc(def->type(), debug_info(*this));
-        emitter.store(ptr, def, debug_info(*this));
-        def = ptr;
+        if (expr->is_constant()) {
+            def = emitter.world.global(def, false, debug_info(*this));
+        } else {
+            auto ptr = emitter.alloc(def->type(), debug_info(*this));
+            emitter.store(ptr, def, debug_info(*this));
+            def = ptr;
+        }
     }
     // This handles conversion between pointer types (e.g. &[i32 * 4] to &[i32])
     // and conversions between other types and the no-return type.
