@@ -1,5 +1,6 @@
 static mut x = 1;
 static y = 0;
+static z = test;
 #[export]
 fn test() {
     x += y

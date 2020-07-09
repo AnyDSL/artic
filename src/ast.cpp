@@ -2,6 +2,7 @@
 #include <algorithm>
 
 #include "ast.h"
+#include "types.h"
 
 namespace artic {
 
@@ -312,7 +313,8 @@ bool TypedExpr::is_constant() const {
 }
 
 bool PathExpr::is_constant() const {
-    return true;
+    assert(type);
+    return !type->isa<artic::RefType>();
 }
 
 bool LiteralExpr::is_constant() const {
