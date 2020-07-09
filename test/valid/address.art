@@ -1,0 +1,10 @@
+struct A { b: B }
+struct B { c: C }
+struct C { i: i32 }
+#[export]
+fn test(x: &A) = x.b.c.i
+#[export]
+fn test2(x: &[A], i: i32) = x(i).b.c.i
+static x = "abcd";
+#[export]
+fn test3(i: i32) = x(i)

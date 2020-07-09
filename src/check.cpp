@@ -169,11 +169,11 @@ const Type* TypeChecker::infer(const Loc&, const Literal& lit) {
         return type_table.bool_type();
     else if (lit.is_char())
         return type_table.prim_type(ast::PrimType::U8);
-    else if (lit.is_string())
+    else if (lit.is_string()) {
         return type_table.sized_array_type(
             type_table.prim_type(ast::PrimType::U8),
             lit.as_string().size() + 1);
-    else {
+    } else {
         assert(false);
         return type_table.type_error();
     }
@@ -199,7 +199,7 @@ const Type* TypeChecker::check(const Loc& loc, const Literal& lit, const Type* e
             return incompatible_type(loc, "character literal", expected);
         return expected;
     } else if (lit.is_string()) {
-        auto type = infer(loc, lit)->as<SizedArrayType>();
+        auto type = infer(loc, lit);
         if (!type->subtype(expected))
             return incompatible_type(loc, "string literal", expected);
         return type;
@@ -510,7 +510,7 @@ const artic::Type* ExprStmt::check(TypeChecker& checker, const artic::Type* expe
 // Expressions ---------------------------------------------------------------------
 
 const artic::Type* TypedExpr::infer(TypeChecker& checker) {
-    return checker.check(*expr, checker.infer(*type));
+    return checker.coerce(expr, checker.infer(*type));
 }
 
 const artic::Type* PathExpr::infer(TypeChecker& checker) {
@@ -656,7 +656,7 @@ const artic::Type* CallExpr::infer(TypeChecker& checker) {
             if (!is_int_type(index_type))
                 return checker.type_expected(arg->loc, index_type, "integer type");
             return ref_type || ptr_type
-                ? checker.type_table.ref_type(array_type->elem, ref_type ? ref_type->mut : ptr_type->mut)
+                ? checker.type_table.ref_type(array_type->elem, ptr_type ? ptr_type->mut : ref_type->mut)
                 : array_type->elem;
         } else {
             return checker.type_expected(callee->loc, callee_type, "function or array");
@@ -666,13 +666,18 @@ const artic::Type* CallExpr::infer(TypeChecker& checker) {
 
 const artic::Type* ProjExpr::infer(TypeChecker& checker) {
     auto [ref_type, expr_type] = remove_ref(checker.infer(*expr));
+    auto ptr_type = expr_type->isa<artic::PtrType>();
+    if (ptr_type)
+        expr_type = ptr_type->pointee;
     auto [type_app, struct_type] = match_app<StructType>(expr_type);
     if (!struct_type)
         return checker.type_expected(expr->loc, expr_type, "structure");
     if (auto index = struct_type->find_member(field.name)) {
         this->index = *index;
         auto result = type_app ? type_app->member_type(*index) : struct_type->member_type(*index);
-        return ref_type ? checker.type_table.ref_type(result, ref_type->mut) : result;
+        return ref_type || ptr_type
+            ? checker.type_table.ref_type(result, ptr_type ? ptr_type->mut : ref_type->mut)
+            : result;
     } else
         return checker.unknown_member(loc, struct_type, field.name);
 }

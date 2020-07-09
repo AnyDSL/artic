@@ -37,6 +37,7 @@ add_test(NAME valid_ops        COMMAND artic --print-ast ${PROJECT_SOURCE_DIR}/t
 add_test(NAME valid_mod        COMMAND artic --print-ast ${PROJECT_SOURCE_DIR}/test/valid/mod.art)
 add_test(NAME valid_poly_fn    COMMAND artic --print-ast ${PROJECT_SOURCE_DIR}/test/valid/poly_fn.art)
 add_test(NAME valid_nested_fns COMMAND artic --print-ast ${PROJECT_SOURCE_DIR}/test/valid/nested_fns.art)
+add_test(NAME valid_address    COMMAND artic --print-ast ${PROJECT_SOURCE_DIR}/test/valid/address.art)
 add_test(NAME valid_church     COMMAND artic --print-ast ${PROJECT_SOURCE_DIR}/test/valid/church.art)
 add_test(NAME valid_sort_nets  COMMAND artic --print-ast ${PROJECT_SOURCE_DIR}/test/valid/sort_nets.art)
 add_test(NAME valid_regex      COMMAND artic --print-ast ${PROJECT_SOURCE_DIR}/test/valid/regex.art)

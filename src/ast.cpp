@@ -315,10 +315,6 @@ bool LiteralExpr::is_constant() const {
     return true;
 }
 
-bool PathExpr::is_constant() const {
-    return true;
-}
-
 bool FieldExpr::has_side_effect() const {
     return expr->has_side_effect();
 }
@@ -413,7 +409,14 @@ bool UnaryExpr::has_side_effect() const {
 }
 
 bool UnaryExpr::is_constant() const {
-    return tag == Plus || tag == Minus || tag == AddrOf || tag == AddrOfMut || tag == Known;
+    switch (tag) {
+        case Plus:
+        case Minus:
+        case Known:
+            return arg->is_constant();
+        default:
+            return false;
+    }
 }
 
 bool BinaryExpr::has_side_effect() const {

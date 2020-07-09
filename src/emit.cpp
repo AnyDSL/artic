@@ -677,12 +677,9 @@ const thorin::Def* CallExpr::emit(Emitter& emitter) const {
     } else {
         auto array = emitter.emit(*callee);
         auto index = emitter.emit(*arg);
-        if (array->type()->isa<thorin::PtrType>()) {
-            auto ptr = emitter.world.lea(array, index, debug_info(*this));
-            return type->isa<artic::RefType>() ? ptr : emitter.load(ptr, debug_info(*this));
-        } else {
-            return emitter.world.extract(array, index, debug_info(*this));
-        }
+        return type->isa<artic::RefType>()
+            ? emitter.world.lea(array, index, debug_info(*this))
+            : emitter.world.extract(array, index, debug_info(*this));
     }
 }
 
