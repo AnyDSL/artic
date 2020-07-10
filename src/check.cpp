@@ -819,6 +819,10 @@ const artic::Type* UnaryExpr::infer(TypeChecker& checker) {
         checker.error(loc, "cannot dereference non-pointer type '{}'", *arg_type);
         return checker.type_table.type_error();
     }
+    if (tag == Plus || tag == Minus || tag == Not || tag == Known) {
+        // Dereference the argument
+        checker.coerce(arg, arg_type);
+    }
     return arg_type;
 }
 
