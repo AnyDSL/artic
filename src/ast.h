@@ -930,6 +930,27 @@ struct FilterExpr : public Expr {
     void print(Printer&) const override;
 };
 
+/// Explicit cast using the `as` operator.
+struct CastExpr : public Expr {
+    Ptr<Expr> expr;
+    Ptr<Type> type;
+
+    CastExpr(
+        const Loc& loc,
+        Ptr<Expr>&& expr,
+        Ptr<Type>&& type)
+        : Expr(loc), expr(std::move(expr)), type(std::move(type))
+    {}
+
+    bool has_side_effect() const override;
+    bool is_constant() const override;
+
+    const thorin::Def* emit(Emitter&) const override;
+    const artic::Type* infer(TypeChecker&) override;
+    void bind(NameBinder&) override;
+    void print(Printer&) const override;
+};
+
 /// Implicit cast expression, inserted during type-checking.
 struct ImplicitCastExpr : public Expr {
     Ptr<Expr> expr;

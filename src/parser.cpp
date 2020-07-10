@@ -691,6 +691,8 @@ Ptr<ast::Expr> Parser::parse_primary_expr(bool allow_structs) {
             expr = parse_call_expr(std::move(expr));
         else if (ahead().tag() == Token::Dot)
             expr = parse_proj_expr(std::move(expr));
+        else if (ahead().tag() == Token::As)
+            expr = parse_cast_expr(std::move(expr));
         else
             break;
     }
@@ -749,6 +751,13 @@ Ptr<ast::Expr> Parser::parse_filter_expr(Ptr<ast::Filter>&& filter) {
     else
         error(expr->loc, "invalid filter expression");
     return expr;
+}
+
+Ptr<ast::CastExpr> Parser::parse_cast_expr(Ptr<ast::Expr>&& expr) {
+    Tracker tracker(this, expr->loc);
+    eat(Token::As);
+    auto type = parse_type();
+    return make_ptr<ast::CastExpr>(tracker(), std::move(expr), std::move(type));
 }
 
 Ptr<ast::ErrorExpr> Parser::parse_error_expr() {

@@ -271,6 +271,11 @@ void FilterExpr::bind(NameBinder& binder) {
     binder.bind(*expr);
 }
 
+void CastExpr::bind(NameBinder& binder) {
+    binder.bind(*expr);
+    binder.bind(*type);
+}
+
 void ImplicitCastExpr::bind(NameBinder&) {}
 
 void ErrorExpr::bind(NameBinder&) {}

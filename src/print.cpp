@@ -254,7 +254,7 @@ void UnaryExpr::print(Printer& p) const {
     if (is_prefix()) {
         p << tag_to_string(tag);
         if (tag == AddrOfMut)
-           p << log::keyword_style("mut") << ' ';
+            p << log::keyword_style("mut") << ' ';
     }
     if (arg->isa<PathExpr>() || arg->isa<LiteralExpr>())
         arg->print(p);
@@ -267,8 +267,8 @@ void BinaryExpr::print(Printer& p) const {
     auto prec = BinaryExpr::precedence(tag);
     auto print_op = [prec, &p] (const Ptr<Expr>& e) {
         if (e->isa<IfExpr>() ||
-            (e->isa<BinaryExpr>() &&
-             BinaryExpr::precedence(e->as<BinaryExpr>()->tag) > prec))
+                (e->isa<BinaryExpr>() &&
+                 BinaryExpr::precedence(e->as<BinaryExpr>()->tag) > prec))
             print_parens(p, e);
         else
             e->print(p);
@@ -282,6 +282,12 @@ void FilterExpr::print(Printer& p) const {
     filter->print(p);
     p << ' ';
     expr->print(p);
+}
+
+void CastExpr::print(Printer& p) const {
+    expr->print(p);
+    p << ' ' << log::keyword_style("as") << ' ';
+    type->print(p);
 }
 
 void ImplicitCastExpr::print(Printer& p) const {

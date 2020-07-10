@@ -822,6 +822,39 @@ const artic::Type* FilterExpr::infer(TypeChecker& checker) {
     return checker.infer(*expr);
 }
 
+const artic::Type* CastExpr::infer(TypeChecker& checker) {
+    auto expected = checker.infer(*type);
+    auto type = checker.deref(expr);
+    if (type == expected) {
+        checker.warn(loc, "useless cast");
+        checker.note("source and destination types are the same");
+        return expected;
+    }
+
+    bool allow_ptr = false;
+    bool allow_int = false;
+    bool allow_float = false;
+    if (expected->isa<artic::PtrType>()) {
+        allow_ptr = true;
+        allow_int = true;
+    } else if (is_int_type(expected)) {
+        allow_ptr = true;
+        allow_int = true;
+        allow_float = true;
+    } else if (is_float_type(expected)) {
+        allow_int = true;
+        allow_float = true;
+    }
+    if (allow_ptr && type->isa<artic::PtrType>())
+        return expected;
+    if (allow_int && is_int_type(type))
+        return expected;
+    if (allow_float && is_float_type(type))
+        return expected;
+    checker.error(loc, "invalid cast from '{}' to '{}'", *type, *expected);
+    return checker.type_table.type_error();
+}
+
 // Declarations --------------------------------------------------------------------
 
 const artic::Type* TypeParam::infer(TypeChecker& checker) {

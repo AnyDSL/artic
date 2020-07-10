@@ -72,6 +72,7 @@ private:
     Ptr<ast::UnaryExpr>     parse_postfix_expr(Ptr<ast::Expr>&&);
     Ptr<ast::Expr>          parse_binary_expr(Ptr<ast::Expr>&&, bool, int);
     Ptr<ast::Expr>          parse_filter_expr(Ptr<ast::Filter>&&);
+    Ptr<ast::CastExpr>      parse_cast_expr(Ptr<ast::Expr>&&);
     Ptr<ast::ErrorExpr>     parse_error_expr();
 
     Ptr<ast::Type>          parse_type();

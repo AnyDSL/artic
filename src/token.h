@@ -15,6 +15,7 @@ namespace artic {
     f(Lit, "<literal>") \
     f(Let, "let") \
     f(Mut, "mut") \
+    f(As, "as") \
     f(Fn,  "fn") \
     f(If, "if") \
     f(Else, "else") \

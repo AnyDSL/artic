@@ -437,6 +437,14 @@ bool FilterExpr::has_side_effect() const {
     return expr->has_side_effect();
 }
 
+bool CastExpr::has_side_effect() const {
+    return expr->has_side_effect();
+}
+
+bool CastExpr::is_constant() const {
+    return expr->is_constant();
+}
+
 bool ImplicitCastExpr::has_side_effect() const {
     return expr->has_side_effect();
 }

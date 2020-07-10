@@ -925,6 +925,10 @@ const thorin::Def* FilterExpr::emit(Emitter& emitter) const {
     return emitter.world.run(emitter.emit(*expr), debug_info(*this));
 }
 
+const thorin::Def* CastExpr::emit(Emitter& emitter) const {
+    return emitter.world.cast(Node::type->convert(emitter), emitter.emit(*expr), debug_info(*this));
+}
+
 const thorin::Def* ImplicitCastExpr::emit(Emitter& emitter) const {
     auto def = emitter.emit(*expr);
     auto type = expr->type;
