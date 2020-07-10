@@ -14,6 +14,9 @@
 #include "emit.h"
 
 #include <thorin/world.h>
+#ifndef NDEBUG
+#include <thorin/util/log.h>
+#endif
 #ifdef ENABLE_LLVM
 #include <thorin/be/llvm/llvm.h>
 #endif
@@ -279,6 +282,9 @@ int main(int argc, char** argv) {
         log::out << "\n";
     }
 
+#ifndef NDEBUG
+    thorin::Log::set(thorin::Log::Warn, &std::cerr);
+#endif
     thorin::World world(opts.module_name);
     Emitter emitter(log, world);
     if (!emitter.run(program))
