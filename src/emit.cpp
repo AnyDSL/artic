@@ -395,6 +395,9 @@ const thorin::FnType* Emitter::continuation_type_with_mem(const thorin::Type* fr
 }
 
 const thorin::FnType* Emitter::function_type_with_mem(const thorin::Type* from, const thorin::Type* to) {
+    // Flatten one level of tuples in the domain and codomain:
+    // If the input is `fn (i32, i64) -> (f32, f64)`, we produce the
+    // thorin type `fn (mem, i32, i64, fn (mem, f32, f64))`.
     if (auto tuple_type = from->isa<thorin::TupleType>()) {
         thorin::Array<const thorin::Type*> types(2 + tuple_type->num_ops());
         types[0] = world.mem_type();
@@ -1166,27 +1169,7 @@ const thorin::Type* PtrType::convert(Emitter& emitter) const {
 }
 
 const thorin::Type* FnType::convert(Emitter& emitter) const {
-    // Flatten one level of tuples in the domain and codomain:
-    // If the input is `fn (i32, i64) -> (f32, f64)`, we produce the
-    // thorin type `fn (mem, i32, i64, fn (mem, f32, f64))`.
-    std::vector<const thorin::Type*> ops;
-    ops.push_back(emitter.world.mem_type());
-    if (auto tuple_type = dom->isa<TupleType>()) {
-        for (auto arg : tuple_type->args)
-            ops.push_back(arg->convert(emitter));
-    } else
-        ops.push_back(dom->convert(emitter));
-    if (codom->isa<NoRetType>())
-        return emitter.world.fn_type(ops);
-    else if (auto tuple_type = codom->isa<TupleType>()) {
-        std::vector<const thorin::Type*> ret_ops;
-        ret_ops.push_back(emitter.world.mem_type());
-        for (auto arg : tuple_type->args)
-            ret_ops.push_back(arg->convert(emitter));
-        ops.push_back(emitter.world.fn_type(ret_ops));
-    } else
-        ops.push_back(emitter.world.fn_type({ emitter.world.mem_type(), codom->convert(emitter) }));
-    return emitter.world.fn_type(ops);
+    return emitter.function_type_with_mem(dom->convert(emitter), codom->convert(emitter));
 }
 
 const thorin::Type* TypeVar::convert(Emitter& emitter) const {
