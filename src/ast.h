@@ -212,7 +212,7 @@ struct PathAttr : public Attr {
 
     void check(TypeChecker&, const ast::Node*) override;
     void bind(NameBinder&) override;
-    void print(Printer&) const;
+    void print(Printer&) const override;
 };
 
 /// Attribute with an associated literal.
@@ -224,7 +224,7 @@ struct LiteralAttr : public Attr {
     {}
 
     void check(TypeChecker&, const ast::Node*) override;
-    void print(Printer&) const;
+    void print(Printer&) const override;
 };
 
 /// Attribute with only a name, optionally followed by a list of attribute
@@ -240,22 +240,17 @@ struct NamedAttr : public Attr {
 
     void check(TypeChecker&, const ast::Node*) override;
     void bind(NameBinder&) override;
-    void print(Printer&) const;
+    void print(Printer&) const override;
 };
 
 /// Attribute list for statement blocks, or function declarations.
-struct AttrList : public Node {
-    PtrVector<Attr> attrs;
-
+struct AttrList : public NamedAttr {
     AttrList(const Loc& loc, PtrVector<Attr>&& attrs)
-        : Node(loc), attrs(std::move(attrs))
+        : NamedAttr(loc, "", std::move(attrs))
     {}
 
-    const Attr* find(const std::string_view&) const;
-
-    void check(TypeChecker&, const ast::Node*);
-    void bind(NameBinder&) override;
-    void print(Printer&) const;
+    void check(TypeChecker&, const ast::Node*) override;
+    void print(Printer&) const override;
 };
 
 // Types ---------------------------------------------------------------------------

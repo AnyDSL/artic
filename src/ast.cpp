@@ -276,10 +276,6 @@ const Attr* NamedAttr::find(const std::string_view& name) const {
     return ast::find(args, name);
 }
 
-const Attr* AttrList::find(const std::string_view& name) const {
-    return ast::find(attrs, name);
-}
-
 // Statements ----------------------------------------------------------------------
 
 bool DeclStmt::need_semicolon() const {

@@ -291,7 +291,7 @@ bool ArrayType::is_sized(std::unordered_set<const Type*>& seen) const {
 }
 
 bool AddrType::is_sized(std::unordered_set<const Type*>&) const {
-    return !pointee->isa<FnType>();
+    return true;
 }
 
 bool ComplexType::is_sized(std::unordered_set<const Type*>& seen) const {
@@ -305,11 +305,7 @@ bool ComplexType::is_sized(std::unordered_set<const Type*>& seen) const {
 }
 
 bool TypeApp::is_sized(std::unordered_set<const Type*>& seen) const {
-    for (size_t i = 0, n = applied->as<ComplexType>()->member_count(); i < n; ++i) {
-        if (!member_type(i)->is_sized(seen))
-            return false;
-    }
-    return true;
+    return applied->is_sized(seen);
 }
 
 // Members -------------------------------------------------------------------------

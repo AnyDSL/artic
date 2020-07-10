@@ -90,9 +90,8 @@ void TypeChecker::invalid_attr(const Loc& loc, const std::string& name) {
     error(loc, "invalid attribute '{}'", name);
 }
 
-void TypeChecker::unsized_type(const Loc& loc, const std::string_view& msg) {
-    error(loc, "unsized {} types cannot be exported", msg);
-    note("this may be caused by pointer to functions or recursive types whose size cannot be computed");
+void TypeChecker::unsized_type(const Loc& loc, const Type* type) {
+    error(loc, "type '{}' is recursive and not sized", *type);
 }
 
 // Helpers -------------------------------------------------------------------------
@@ -259,14 +258,37 @@ void TypeChecker::check_block(const Loc& loc, const PtrVector<ast::Stmt>& stmts,
         unreachable_code(stmts.back()->loc, stmts.back()->loc.end_loc(), loc.end_loc());
 }
 
-void TypeChecker::check_attrs(const PtrVector<ast::Attr>& attrs) {
+bool TypeChecker::check_attrs(const ast::NamedAttr& named_attr, const std::vector<AttrType>& attr_types) {
     std::unordered_map<std::string_view, const ast::Attr*> seen;
-    for (auto& attr : attrs) {
+    for (auto& attr : named_attr.args) {
         if (!seen.emplace(attr->name, attr.get()).second) {
             error(attr->loc, "redeclaration of attribute '{}'", attr->name);
             note(seen[attr->name]->loc, "previously declared here");
+            return false;
         }
     }
+    for (auto& attr : named_attr.args) {
+        auto it = std::find_if(attr_types.begin(), attr_types.end(), [&] (auto& attr_type) {
+            return attr_type.name == attr->name;
+        });
+        if (it == attr_types.end()) {
+            error(attr->loc, "unsupported attribute '{}'", attr->name);
+            return false;
+        } else {
+            if (auto literal_attr = attr->isa<ast::LiteralAttr>()) {
+                if (it->type == AttrType::Integer && literal_attr->lit.is_integer())
+                    continue;
+                if (it->type == AttrType::String && literal_attr->lit.is_string())
+                    continue;
+            } else if (auto path_attr = attr->isa<ast::PathAttr>(); path_attr && it->type == AttrType::Path)
+                continue;
+            else if (it->type == AttrType::Other)
+                continue;
+            error(attr->loc, "malformed '{}' attribute", attr->name);
+            return false;
+        }
+    }
+    return true;
 }
 
 bool TypeChecker::check_filter(const ast::Expr& expr) {
@@ -402,29 +424,28 @@ const artic::Type* Filter::check(TypeChecker& checker, const artic::Type* expect
 // Attributes ----------------------------------------------------------------------
 
 void NamedAttr::check(TypeChecker& checker, const ast::Node* node) {
-    checker.check_attrs(args);
-    if (name == "export") {
+    if (name == "export" || name == "import") {
         if (auto fn_decl = node->isa<FnDecl>()) {
-            auto fn_type = fn_decl->type->isa<artic::FnType>();
-            if (!fn_type)
-                checker.error(fn_decl->loc, "polymorphic functions cannot be exported");
-            else if (fn_decl->type->order() > 1)
-                checker.error(fn_decl->loc, "higher-order functions cannot be exported");
-            else if (!fn_type->dom->is_sized())
-                checker.unsized_type(fn_decl->fn->param->loc, "parameter");
-            else if (!fn_type->codom->is_sized()) {
-                auto codom_loc = fn_decl->fn->ret_type? fn_decl->fn->ret_type->loc : fn_decl->fn->body->loc;
-                checker.unsized_type(codom_loc, "return");
-            } else {
-                for (auto& arg : args) {
-                    if (arg->name != "name")
-                        checker.error(arg->loc, "unsupported argument '{}'", arg->name);
-                    else if (!arg->isa<LiteralAttr>() || !arg->as<LiteralAttr>()->lit.is_string())
-                        checker.error(arg->loc, "malformed 'name' attribute");
+            if (name == "export") {
+                auto fn_type = fn_decl->type->isa<artic::FnType>();
+                if (!fn_type)
+                    checker.error(fn_decl->loc, "polymorphic functions cannot be exported");
+                else if (fn_decl->type->order() > 1)
+                    checker.error(fn_decl->loc, "higher-order functions cannot be exported");
+                else
+                    checker.check_attrs(*this, { { "name", AttrType::String } });
+            } else if (name == "import") {
+                if (checker.check_attrs(*this, { { "cc", AttrType::String } })) {
+                    if (auto cc_attr = find("cc")) {
+                        std::array<std::string_view, 3> valid_ccs = { "C", "device", "thorin" };
+                        auto& cc = cc_attr->as<LiteralAttr>()->lit.as_string();
+                        if (std::find(valid_ccs.begin(), valid_ccs.end(), cc.c_str()) == valid_ccs.end())
+                            checker.error(cc_attr->loc, "invalid calling convention '{}'", cc);
+                    }
                 }
             }
         } else
-            checker.error(loc, "'export' is only valid for function declarations");
+            checker.error(loc, "attribute '{}' is only valid for function declarations", name);
     } else
         checker.invalid_attr(loc, name);
 }
@@ -438,9 +459,8 @@ void LiteralAttr::check(TypeChecker& checker, const ast::Node*) {
 }
 
 void AttrList::check(TypeChecker& checker, const ast::Node* parent) {
-    checker.check_attrs(attrs);
-    for (auto& attr : attrs)
-        attr->check(checker, parent);
+    for (auto& arg : args)
+        arg->check(checker, parent);
 }
 
 // Types ---------------------------------------------------------------------------
@@ -915,7 +935,7 @@ const artic::Type* FnDecl::infer(TypeChecker& checker) {
     fn->type = fn_type;
     if (forall)
         forall->as<ForallType>()->body = fn_type;
-    if (fn->ret_type)
+    if (fn->ret_type && fn->body)
         checker.check(*fn->body, fn_type->as<artic::FnType>()->codom);
     checker.exit_decl(this);
     return type;
@@ -942,6 +962,8 @@ const artic::Type* StructDecl::infer(TypeChecker& checker) {
     type = struct_type;
     for (auto& field : fields)
         checker.infer(*field);
+    if (!struct_type->is_sized())
+        checker.unsized_type(loc, struct_type);
     return struct_type;
 }
 
@@ -962,6 +984,8 @@ const artic::Type* EnumDecl::infer(TypeChecker& checker) {
             ? checker.infer(*option->param)
             : checker.type_table.unit_type();
     }
+    if (!enum_type->is_sized())
+        checker.unsized_type(loc, enum_type);
     return enum_type;
 }
 

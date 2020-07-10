@@ -13,6 +13,8 @@ void NameBinder::bind_head(ast::Decl& decl) {
 }
 
 void NameBinder::bind(ast::Node& node) {
+    if (node.attrs)
+        node.attrs->bind(*this);
     node.bind(*this);
 }
 
@@ -95,11 +97,6 @@ void PathAttr::bind(NameBinder& binder) {
 void NamedAttr::bind(NameBinder& binder) {
     for (auto& arg : args)
         binder.bind(*arg);
-}
-
-void AttrList::bind(NameBinder& binder) {
-    for (auto& attr : attrs)
-        binder.bind(*attr);
 }
 
 // Types ---------------------------------------------------------------------------
@@ -347,11 +344,16 @@ void FnDecl::bind_head(NameBinder& binder) {
 
 void FnDecl::bind(NameBinder& binder) {
     binder.push_scope();
+    if (type_params)
+        binder.bind(*type_params);
 
-    if (type_params) binder.bind(*type_params);
-
-    if (fn->body) binder.bind(*fn);
-    else          binder.bind(*fn->param);
+    if (fn->body)
+        binder.bind(*fn);
+    else {
+        binder.bind(*fn->param);
+        if (fn->ret_type)
+            binder.bind(*fn->ret_type);
+    }
     binder.pop_scope();
 }
 

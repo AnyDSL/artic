@@ -66,6 +66,12 @@ struct Type : public Cast<Type> {
     bool subtype(const Type*) const;
 };
 
+/// The type of an attribute.
+struct AttrType {
+    std::string name;
+    enum { Integer, String, Path, Other } type;
+};
+
 log::Output& operator << (log::Output&, const Type&);
 
 /// Integer and floating-point types.
@@ -321,6 +327,8 @@ struct ComplexType : public UserType {
     virtual size_t member_count() const = 0;
 
     size_t order(std::unordered_set<const Type*>&) const override;
+
+    using Type::is_sized;
     bool is_sized(std::unordered_set<const Type*>&) const override;
 };
 

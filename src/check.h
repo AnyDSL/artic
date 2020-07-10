@@ -41,7 +41,7 @@ public:
     const Type* mutable_expected(const Loc&);
     const Type* bad_arguments(const Loc&, const std::string&, size_t, size_t);
     void invalid_attr(const Loc&, const std::string&);
-    void unsized_type(const Loc&, const std::string_view&);
+    void unsized_type(const Loc&, const Type*);
 
     const Type* deref(Ptr<ast::Expr>&);
     const Type* coerce(Ptr<ast::Expr>&, const Type*);
@@ -56,8 +56,9 @@ public:
     template <typename Fields>
     const Type* check_fields(const Loc&, const StructType*, const TypeApp*, const Fields&, const std::string&);
     void check_block(const Loc&, const PtrVector<ast::Stmt>&, bool);
-    void check_attrs(const PtrVector<ast::Attr>&);
     bool check_filter(const ast::Expr&);
+
+    bool check_attrs(const ast::NamedAttr&, const std::vector<AttrType>&);
 
 private:
     std::unordered_set<const ast::Decl*> decls_;

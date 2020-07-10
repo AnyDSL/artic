@@ -1027,9 +1027,31 @@ const thorin::Def* FnDecl::emit(Emitter& emitter) const {
     emitter.mono_fns.emplace(Emitter::MonoFn { this, cont_type }, cont);
 
     cont->params().back()->debug().set("ret");
+
+    // Set the calling convention and export the continuation if needed
+    if (attrs) {
+        if (auto export_attr = attrs->find("export")) {
+            cont->make_external();
+            if (auto name_attr = export_attr->find("name"))
+                cont->debug().set(name_attr->as<LiteralAttr>()->lit.as_string());
+        } else if (auto export_attr = attrs->find("import")) {
+            if (auto cc_attr = export_attr->find("cc")) {
+                auto cc = cc_attr->as<LiteralAttr>()->lit.as_string();
+                if (cc == "device")
+                    cont->cc() = thorin::CC::Device;
+                else if (cc == "C")
+                    cont->cc() = thorin::CC::C;
+                else if (cc == "thorin")
+                    cont->set_intrinsic();
+            }
+        }
+    }
+
     if (!fn->body)
         return cont;
-    // Set the IR node before entering the body
+
+    // Set the IR node before entering the body, in case
+    // we encounter `return` or a recursive call.
     fn->def = def = cont;
 
     emitter.enter(cont);
@@ -1038,14 +1060,6 @@ const thorin::Def* FnDecl::emit(Emitter& emitter) const {
         cont->set_filter(thorin::Array<const thorin::Def*>(cont->num_params(), emitter.emit(*fn->filter)));
     auto value = emitter.emit(*fn->body);
     emitter.jump(cont->params().back(), value, debug_info(*fn->body));
-
-    if (attrs) {
-        if (auto export_attr = attrs->find("export")) {
-            cont->make_external();
-            if (auto name_attr = export_attr->find("name"))
-                cont->debug().set(name_attr->as<LiteralAttr>()->lit.as_string());
-        }
-    }
 
     // Clear the thorin IR generated for this entire function
     // if the function is polymorphic, so as to allow multiple

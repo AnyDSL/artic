@@ -76,7 +76,7 @@ void NamedAttr::print(Printer& p) const {
 
 void AttrList::print(Printer& p) const {
     p << "#[";
-    print_list(p, ", ", attrs, [&] (auto& a) {
+    print_list(p, ", ", args, [&] (auto& a) {
         a->print(p);
     });
     p << ']' << p.endl();

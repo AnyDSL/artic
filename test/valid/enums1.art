@@ -8,7 +8,7 @@ enum G[T] {
     A, B(T)
 }
 enum H[T, U] {
-    A, B(T, U), C(H[T, U])
+    A, B(T, U), C(&H[T, U])
 }
 fn test() {
     let _ : E = E::A;

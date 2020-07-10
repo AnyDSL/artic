@@ -98,6 +98,12 @@ Ptr<ast::FnDecl> Parser::parse_fn_decl() {
         body = parse_expr();
     }
 
+    if (!body) {
+        if (!ret_type)
+            error(ahead().loc(), "return type expected for function prototype");
+        expect(Token::Semi);
+    }
+
     auto fn = make_ptr<ast::FnExpr>(tracker(), std::move(filter), std::move(param), std::move(ret_type), std::move(body));
     return make_ptr<ast::FnDecl>(tracker(), std::move(id), std::move(fn), std::move(type_params));
 }
