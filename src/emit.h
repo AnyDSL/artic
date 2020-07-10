@@ -85,7 +85,7 @@ public:
     std::unordered_map<MonoFn, thorin::Continuation*, Hash, Compare> mono_fns;
     /// Map from enum type and variant index to variant constructor.
     std::unordered_map<Ctor, const thorin::Def*, Hash, Compare> variant_ctors;
-    /// Vector containing definitions that are generated while monomorphization.
+    /// Vector containing definitions that are generated during monomorphization.
     std::vector<std::vector<const thorin::Def**>> poly_defs;
 
     bool run(const ast::ModDecl&);
