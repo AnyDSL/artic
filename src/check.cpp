@@ -405,7 +405,7 @@ void NamedAttr::check(TypeChecker& checker, const ast::Node* node) {
     checker.check_attrs(args);
     if (name == "export") {
         if (auto fn_decl = node->isa<FnDecl>()) {
-            auto fn_type = fn_decl->type->as<artic::FnType>();
+            auto fn_type = fn_decl->type->isa<artic::FnType>();
             if (!fn_type)
                 checker.error(fn_decl->loc, "polymorphic functions cannot be exported");
             else if (fn_decl->type->order() > 1)
