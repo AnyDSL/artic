@@ -3,6 +3,7 @@
 #include <streambuf>
 #include <istream>
 #include <fstream>
+#include <filesystem>
 
 #include "log.h"
 #include "locator.h"
@@ -70,7 +71,7 @@ static void version() {
 
 struct ProgramOptions {
     std::vector<std::string> files;
-    std::string module_name = "module";
+    std::string module_name;
     bool exit = false;
     bool no_color = false;
     bool strict = false;
@@ -231,6 +232,9 @@ int main(int argc, char** argv) {
         log::error("no input files");
         return EXIT_FAILURE;
     }
+
+    if (opts.module_name == "")
+        opts.module_name = std::filesystem::path(opts.files.front()).stem();
 
     Locator locator;
     Log log(log::err, &locator);

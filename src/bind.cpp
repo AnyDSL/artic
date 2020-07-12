@@ -170,17 +170,24 @@ void RepeatArrayExpr::bind(NameBinder& binder) {
     binder.bind(*elem);
 }
 
-void FnExpr::bind(NameBinder& binder) {
+void FnExpr::bind(NameBinder& binder, bool in_for_loop) {
     binder.push_scope();
     if (param)    binder.bind(*param);
     if (ret_type) binder.bind(*ret_type);
     if (filter)   binder.bind(*filter);
     binder.push_scope();
-    auto old = binder.push_fn(this);
+    // Do not rebind the current `return` to this function
+    // for anonymous functions introduced as for loop bodies.
+    ast::FnExpr* old = nullptr;
+    if (!in_for_loop) old = binder.push_fn(this);
     binder.bind(*body);
-    binder.pop_fn(old);
+    if (!in_for_loop) binder.pop_fn(old);
     binder.pop_scope();
     binder.pop_scope();
+}
+
+void FnExpr::bind(NameBinder& binder) {
+    bind(binder, false);
 }
 
 void BlockExpr::bind(NameBinder& binder) {
@@ -244,7 +251,10 @@ void ForExpr::bind(NameBinder& binder) {
     // continue() and break() should only be available to the lambda
     binder.bind(*call->callee->as<CallExpr>()->callee);
     auto old = binder.push_loop(this);
-    binder.bind(*call->callee->as<CallExpr>()->arg);
+    auto loop_body = call->callee->as<CallExpr>()->arg->as<FnExpr>();
+    if (loop_body->attrs)
+        loop_body->attrs->bind(binder);
+    loop_body->bind(binder, true);
     binder.pop_loop(old);
     binder.bind(*call->arg);
 }

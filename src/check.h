@@ -29,7 +29,7 @@ public:
     bool enter_decl(const ast::Decl*);
     void exit_decl(const ast::Decl*);
 
-    bool should_emit_error(const Type*);
+    bool should_report_error(const Type*);
     void explain_no_ret(const Type*, const Type*);
 
     const Type* incompatible_types(const Loc&, const Type*, const Type*);
@@ -40,6 +40,7 @@ public:
     const Type* unreachable_code(const Loc&, const Loc&, const Loc&);
     const Type* mutable_expected(const Loc&);
     const Type* bad_arguments(const Loc&, const std::string&, size_t, size_t);
+    const Type* invalid_cast(const Loc&, const Type*, const Type*);
     void invalid_attr(const Loc&, const std::string&);
     void unsized_type(const Loc&, const Type*);
 

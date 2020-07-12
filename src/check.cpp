@@ -24,7 +24,7 @@ void TypeChecker::exit_decl(const ast::Decl* decl) {
 
 // Error messages ------------------------------------------------------------------
 
-bool TypeChecker::should_emit_error(const Type* type) {
+bool TypeChecker::should_report_error(const Type* type) {
     return !type->contains(type_table.type_error());
 }
 
@@ -39,7 +39,7 @@ void TypeChecker::explain_no_ret(const Type* type, const Type* expected) {
 }
 
 const Type* TypeChecker::incompatible_types(const Loc& loc, const Type* type, const Type* expected) {
-    if (should_emit_error(expected) && should_emit_error(type)) {
+    if (should_report_error(expected) && should_report_error(type)) {
         error(loc, "expected type '{}', but got type '{}'", *expected, *type);
         explain_no_ret(type, expected);
     }
@@ -47,7 +47,7 @@ const Type* TypeChecker::incompatible_types(const Loc& loc, const Type* type, co
 }
 
 const Type* TypeChecker::incompatible_type(const Loc& loc, const std::string& msg, const Type* expected) {
-    if (should_emit_error(expected)) {
+    if (should_report_error(expected)) {
         error(loc, "expected type '{}', but got {}", *expected, msg);
         explain_no_ret(nullptr, expected);
     }
@@ -55,7 +55,7 @@ const Type* TypeChecker::incompatible_type(const Loc& loc, const std::string& ms
 }
 
 const Type* TypeChecker::type_expected(const Loc& loc, const artic::Type* type, const std::string_view& name) {
-    if (should_emit_error(type))
+    if (should_report_error(type))
         error(loc, "{} type expected, but got '{}'", name, *type);
     return type_table.type_error();
 }
@@ -83,6 +83,12 @@ const Type* TypeChecker::mutable_expected(const Loc& loc) {
 
 const Type* TypeChecker::bad_arguments(const Loc& loc, const std::string& msg, size_t count, size_t expected) {
     error(loc, "expected {} argument(s) in {}, but got {}", expected, msg, count);
+    return type_table.type_error();
+}
+
+const Type* TypeChecker::invalid_cast(const Loc& loc, const Type* type, const Type* expected) {
+    if (should_report_error(type) && should_report_error(expected))
+        error(loc, "invalid cast from '{}' to '{}'", *type, *expected);
     return type_table.type_error();
 }
 
@@ -854,10 +860,9 @@ const artic::Type* BinaryExpr::infer(TypeChecker& checker) {
             return checker.mutable_expected(left->loc);
         return checker.type_table.unit_type();
     }
-    if (has_cmp()) {
-        checker.coerce(left, left_type);
+    checker.coerce(left, left_type);
+    if (has_cmp())
         return checker.type_table.bool_type();
-    }
     return right_type;
 }
 
@@ -895,8 +900,7 @@ const artic::Type* CastExpr::infer(TypeChecker& checker) {
         return expected;
     if (allow_float && is_float_type(type))
         return expected;
-    checker.error(loc, "invalid cast from '{}' to '{}'", *type, *expected);
-    return checker.type_table.type_error();
+    return checker.invalid_cast(loc, type, expected);
 }
 
 // Declarations --------------------------------------------------------------------
