@@ -442,14 +442,28 @@ Ptr<ast::Expr> Parser::parse_tuple_expr() {
     return make_ptr<ast::TupleExpr>(tracker(), std::move(args));
 }
 
-Ptr<ast::ArrayExpr> Parser::parse_array_expr() {
+Ptr<ast::Expr> Parser::parse_array_expr() {
     Tracker tracker(this);
     eat(Token::LBracket);
     PtrVector<ast::Expr> elems;
-    parse_list(Token::RBracket, Token::Comma, [&] {
-        elems.emplace_back(parse_expr());
-    });
-    return make_ptr<ast::ArrayExpr>(tracker(), std::move(elems));
+    elems.emplace_back(parse_expr());
+    if (ahead().tag() == Token::Semi) {
+        eat(Token::Semi);
+        auto size = parse_array_size();
+        expect(Token::RBracket);
+        if (size)
+            return make_ptr<ast::RepeatArrayExpr>(tracker(), std::move(elems.front()), *size);
+        return make_ptr<ast::ArrayExpr>(tracker(), std::move(elems));
+    } else if (ahead().tag() == Token::Comma) {
+        eat(Token::Comma);
+        parse_list(Token::RBracket, Token::Comma, [&] {
+            elems.emplace_back(parse_expr());
+        });
+        return make_ptr<ast::ArrayExpr>(tracker(), std::move(elems));
+    } else {
+        expect(Token::RBracket);
+        return make_ptr<ast::ArrayExpr>(tracker(), std::move(elems));
+    }
 }
 
 Ptr<ast::BlockExpr> Parser::parse_block_expr() {
@@ -821,14 +835,7 @@ Ptr<ast::ArrayType> Parser::parse_array_type() {
     std::optional<size_t> size;
     if (ahead().tag() == Token::Mul) {
         eat(Token::Mul);
-        if (ahead().tag() == Token::Lit && ahead().literal().is_integer()) {
-            size = ahead().literal().as_integer();
-            eat(Token::Lit);
-        } else {
-            error(ahead().loc(), "expected integer literal as array size");
-            if (ahead().tag() != Token::RBracket)
-                next();
-        }
+        size = parse_array_size();
     }
     expect(Token::RBracket);
     if (size)
@@ -972,6 +979,19 @@ Literal Parser::parse_lit() {
         lit = ahead().literal();
     next();
     return lit;
+}
+
+std::optional<size_t> Parser::parse_array_size() {
+    std::optional<size_t> size;
+    if (ahead().tag() == Token::Lit && ahead().literal().is_integer()) {
+        size = ahead().literal().as_integer();
+        eat(Token::Lit);
+    } else {
+        error(ahead().loc(), "expected integer literal as array size");
+        if (ahead().tag() != Token::RBracket)
+            next();
+    }
+    return size;
 }
 
 std::pair<Ptr<ast::Expr>, Ptr<ast::Expr>> Parser::parse_cond_and_block() {

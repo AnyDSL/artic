@@ -25,7 +25,6 @@ add_library(libartic
 
 set_target_properties(libartic PROPERTIES PREFIX "" CXX_STANDARD 17)
 
-find_package(Thorin REQUIRED)
 target_link_libraries(libartic PUBLIC ${Thorin_LIBRARIES})
 target_include_directories(libartic PUBLIC ${Thorin_INCLUDE_DIRS})
 
@@ -33,12 +32,12 @@ add_executable(artic main.cpp ${BACKEND})
 set_target_properties(artic PROPERTIES CXX_STANDARD 17)
 target_compile_definitions(artic PUBLIC -DARTIC_VERSION_MAJOR=${PROJECT_VERSION_MAJOR} -DARTIC_VERSION_MINOR=${PROJECT_VERSION_MINOR})
 target_link_libraries(artic PUBLIC libartic)
-if(Thorin_HAS_LLVM_SUPPORT)
+if (Thorin_HAS_LLVM_SUPPORT)
     target_compile_definitions(artic PUBLIC -DENABLE_LLVM;${LLVM_DEFINITIONS})
     target_include_directories(artic PUBLIC ${LLVM_INCLUDE_DIRS})
-    set(artic_LLVM_COMPONENTS support)
-    llvm_config(artic ${AnyDSL_LLVM_LINK_SHARED} ${artic_LLVM_COMPONENTS})
-endif()
+    llvm_map_components_to_libnames(artic_LLVM_COMPONENTS support)
+    target_link_libraries(artic PUBLIC ${artic_LLVM_COMPONENTS})
+endif ()
 
 if (${COLORIZE})
     target_compile_definitions(artic PUBLIC -DCOLORIZE)

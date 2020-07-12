@@ -258,39 +258,6 @@ void TypeChecker::check_block(const Loc& loc, const PtrVector<ast::Stmt>& stmts,
         unreachable_code(stmts.back()->loc, stmts.back()->loc.end_loc(), loc.end_loc());
 }
 
-bool TypeChecker::check_attrs(const ast::NamedAttr& named_attr, const std::vector<AttrType>& attr_types) {
-    std::unordered_map<std::string_view, const ast::Attr*> seen;
-    for (auto& attr : named_attr.args) {
-        if (!seen.emplace(attr->name, attr.get()).second) {
-            error(attr->loc, "redeclaration of attribute '{}'", attr->name);
-            note(seen[attr->name]->loc, "previously declared here");
-            return false;
-        }
-    }
-    for (auto& attr : named_attr.args) {
-        auto it = std::find_if(attr_types.begin(), attr_types.end(), [&] (auto& attr_type) {
-            return attr_type.name == attr->name;
-        });
-        if (it == attr_types.end()) {
-            error(attr->loc, "unsupported attribute '{}'", attr->name);
-            return false;
-        } else {
-            if (auto literal_attr = attr->isa<ast::LiteralAttr>()) {
-                if (it->type == AttrType::Integer && literal_attr->lit.is_integer())
-                    continue;
-                if (it->type == AttrType::String && literal_attr->lit.is_string())
-                    continue;
-            } else if (auto path_attr = attr->isa<ast::PathAttr>(); path_attr && it->type == AttrType::Path)
-                continue;
-            else if (it->type == AttrType::Other)
-                continue;
-            error(attr->loc, "malformed '{}' attribute", attr->name);
-            return false;
-        }
-    }
-    return true;
-}
-
 bool TypeChecker::check_filter(const ast::Expr& expr) {
     bool is_logic_and = false;
     bool is_logic_or  = false;
@@ -332,6 +299,56 @@ bool TypeChecker::check_filter(const ast::Expr& expr) {
         note("cannot use mutable variables in filters");
     return false;
 }
+
+template <typename CheckElems>
+const Type* TypeChecker::check_array(const Loc& loc, const Type* expected, size_t elem_count, CheckElems check_elems) {
+    auto array_type = remove_ptr(expected).second->isa<ArrayType>();
+    if (!array_type)
+        return incompatible_type(loc, "array expression", expected);
+    auto elem_type = array_type->elem;
+    check_elems(elem_type);
+    if (auto sized_array_type = array_type->isa<artic::SizedArrayType>();
+        sized_array_type && elem_count != sized_array_type->size) {
+        error(loc, "expected {} array element(s), but got {}",
+            sized_array_type->size, elem_count);
+    }
+    return type_table.sized_array_type(elem_type, elem_count);
+
+}
+
+bool TypeChecker::check_attrs(const ast::NamedAttr& named_attr, const std::vector<AttrType>& attr_types) {
+    std::unordered_map<std::string_view, const ast::Attr*> seen;
+    for (auto& attr : named_attr.args) {
+        if (!seen.emplace(attr->name, attr.get()).second) {
+            error(attr->loc, "redeclaration of attribute '{}'", attr->name);
+            note(seen[attr->name]->loc, "previously declared here");
+            return false;
+        }
+    }
+    for (auto& attr : named_attr.args) {
+        auto it = std::find_if(attr_types.begin(), attr_types.end(), [&] (auto& attr_type) {
+            return attr_type.name == attr->name;
+        });
+        if (it == attr_types.end()) {
+            error(attr->loc, "unsupported attribute '{}'", attr->name);
+            return false;
+        } else {
+            if (auto literal_attr = attr->isa<ast::LiteralAttr>()) {
+                if (it->type == AttrType::Integer && literal_attr->lit.is_integer())
+                    continue;
+                if (it->type == AttrType::String && literal_attr->lit.is_string())
+                    continue;
+            } else if (auto path_attr = attr->isa<ast::PathAttr>(); path_attr && it->type == AttrType::Path)
+                continue;
+            else if (it->type == AttrType::Other)
+                continue;
+            error(attr->loc, "malformed '{}' attribute", attr->name);
+            return false;
+        }
+    }
+    return true;
+}
+
 
 namespace ast {
 
@@ -586,18 +603,21 @@ const artic::Type* ArrayExpr::infer(TypeChecker& checker) {
 }
 
 const artic::Type* ArrayExpr::check(TypeChecker& checker, const artic::Type* expected) {
-    auto array_type = remove_ptr(expected).second->isa<artic::ArrayType>();
-    if (!array_type)
-        return checker.incompatible_type(loc, "array expression", expected);
-    auto elem_type = array_type->elem;
-    for (auto& elem : elems)
+    return checker.check_array(loc, expected, elems.size(), [&] (auto elem_type) {
+        for (auto& elem : elems)
+            checker.coerce(elem, elem_type);
+    });
+}
+
+const artic::Type* RepeatArrayExpr::infer(TypeChecker& checker) {
+    auto elem_type = checker.deref(elem);
+    return checker.type_table.sized_array_type(elem_type, size);
+}
+
+const artic::Type* RepeatArrayExpr::check(TypeChecker& checker, const artic::Type* expected) {
+    return checker.check_array(loc, expected, size, [&] (auto elem_type) {
         checker.coerce(elem, elem_type);
-    if (auto sized_array_type = array_type->isa<artic::SizedArrayType>();
-        sized_array_type && elems.size() != sized_array_type->size) {
-        checker.error(loc, "expected {} array element(s), but got {}",
-            sized_array_type->size, elems.size());
-    }
-    return checker.type_table.sized_array_type(elem_type, elems.size());
+    });
 }
 
 const artic::Type* FnExpr::infer(TypeChecker& checker) {

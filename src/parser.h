@@ -54,7 +54,7 @@ private:
     Ptr<ast::FieldExpr>     parse_field_expr();
     Ptr<ast::StructExpr>    parse_struct_expr(ast::Path&&);
     Ptr<ast::Expr>          parse_tuple_expr();
-    Ptr<ast::ArrayExpr>     parse_array_expr();
+    Ptr<ast::Expr>          parse_array_expr();
     Ptr<ast::BlockExpr>     parse_block_expr();
     Ptr<ast::FnExpr>        parse_fn_expr(Ptr<ast::Filter>&&, bool);
     Ptr<ast::CallExpr>      parse_call_expr(Ptr<ast::Expr>&&);
@@ -94,6 +94,7 @@ private:
     ast::Path               parse_path(bool allow_types = true) { return parse_path(parse_id(), allow_types); }
     ast::Identifier         parse_id();
     Literal                 parse_lit();
+    std::optional<size_t>   parse_array_size();
 
     std::pair<Ptr<ast::Expr>, Ptr<ast::Expr>> parse_cond_and_block();
 

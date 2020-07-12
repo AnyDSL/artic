@@ -555,10 +555,27 @@ struct TupleExpr : public Expr {
 struct ArrayExpr : public Expr {
     PtrVector<Expr> elems;
 
-    const artic::Type* elem_type;
-
     ArrayExpr(const Loc& loc, PtrVector<Expr>&& elems)
         : Expr(loc), elems(std::move(elems))
+    {}
+
+    bool has_side_effect() const override;
+    bool is_constant() const override;
+
+    const thorin::Def* emit(Emitter&) const override;
+    const artic::Type* infer(TypeChecker&) override;
+    const artic::Type* check(TypeChecker&, const artic::Type*) override;
+    void bind(NameBinder&) override;
+    void print(Printer&) const override;
+};
+
+/// Array expression repeating a given value a given number of times.
+struct RepeatArrayExpr : public Expr {
+    Ptr<Expr> elem;
+    size_t size;
+
+    RepeatArrayExpr(const Loc& loc, Ptr<Expr>&& elem, size_t size)
+        : Expr(loc), elem(std::move(elem)), size(size)
     {}
 
     bool has_side_effect() const override;

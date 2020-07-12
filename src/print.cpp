@@ -140,6 +140,12 @@ void ArrayExpr::print(Printer& p) const {
     p << ']';
 }
 
+void RepeatArrayExpr::print(Printer& p) const {
+    p << '[';
+    elem->print(p);
+    p << "; " << size << ']';
+}
+
 void FnExpr::print(Printer& p) const {
     if (filter)
         filter->print(p);

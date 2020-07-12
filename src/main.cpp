@@ -77,9 +77,7 @@ struct ProgramOptions {
     bool debug = false;
     bool print_ast = false;
     bool emit_thorin = false;
-#ifdef ENABLE_LLVM
     bool emit_llvm = false;
-#endif
     unsigned opt_level = 0;
 
     bool matches(const char* arg, const char* opt) {
@@ -142,11 +140,13 @@ struct ProgramOptions {
                     if (!check_dup(argv[i], emit_thorin))
                         return false;
                     emit_thorin = true;
-#ifdef ENABLE_LLVM
                 } else if (matches(argv[i], "--emit-llvm")) {
                     if (!check_dup(argv[i], emit_llvm))
                         return false;
+#ifdef ENABLE_LLVM
                     emit_llvm = true;
+#else
+                    log::error("Thorin is built without LLVM support");
 #endif
                 } else if (matches(argv[i], "-O0")) {
                     opt_level = 0;
@@ -289,9 +289,9 @@ int main(int argc, char** argv) {
     Emitter emitter(log, world);
     if (!emitter.run(program))
         return EXIT_FAILURE;
-    if (opts.opt_level > 0)
+    if (opts.opt_level == 1)
         world.cleanup();
-    if (opts.opt_level > 1)
+    if (opts.opt_level > 1 || opts.emit_llvm)
         world.opt();
     if (opts.emit_thorin)
         world.dump();

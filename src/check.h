@@ -57,6 +57,8 @@ public:
     const Type* check_fields(const Loc&, const StructType*, const TypeApp*, const Fields&, const std::string&);
     void check_block(const Loc&, const PtrVector<ast::Stmt>&, bool);
     bool check_filter(const ast::Expr&);
+    template <typename CheckElems>
+    const Type* check_array(const Loc&, const Type*, size_t, CheckElems);
 
     bool check_attrs(const ast::NamedAttr&, const std::vector<AttrType>&);
 

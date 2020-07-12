@@ -361,6 +361,14 @@ bool ArrayExpr::is_constant() const {
     });
 }
 
+bool RepeatArrayExpr::has_side_effect() const {
+    return elem->has_side_effect();
+}
+
+bool RepeatArrayExpr::is_constant() const {
+    return elem->is_constant();
+}
+
 bool FnExpr::is_constant() const {
     return true;
 }

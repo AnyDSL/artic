@@ -1,0 +1,93 @@
+#[import(cc = "C")] fn atoi(_: &[u8]) -> i32;
+#[import(cc = "C")] fn print_i32(_: i32) -> ();
+
+static mut s = [0; 16];
+static mut t = [0; 16];
+
+static mut max_n = 12;
+static mut maxflips = 0;
+static mut odd = 0;
+static mut checksum = 0;
+
+fn range(body: fn(i32) -> ()) {
+    fn loop(a: i32, b: i32) -> () =
+        if a < b {
+            body(a);
+            loop(a + 1, b)
+        }
+    loop
+}
+
+fn flip() {
+    for i in range(0, max_n) {
+        t(i) = s(i)
+    }
+
+    let mut i = 1;
+    while true {
+        let mut x = 0;
+        let mut y = t(0);
+        while x < y {
+            let c = t(x);
+            t(x++) = t(y);
+            t(y--) = c;
+        }
+
+        ++i;
+        if t(t(0)) == 0 {
+            break()
+        }
+    }
+    i
+}
+
+fn rotate(n: i32) {
+    let c = s(0);
+    for i in range(1, n + 1) {
+        s(i - 1) = s(i);
+    }
+    s(n) = c;
+}
+
+/* Tompkin-Paige iterative perm generation */
+fn tk(n: i32) {
+    let mut c = [0; 16];
+    let mut i = 0;
+    while i < n {
+        rotate(i);
+        if c(i) >= i {
+            c(i++) = 0;
+            continue()
+        }
+
+        ++c(i);
+        i = 1;
+        odd = !odd;
+        if s(0) != 0 {
+            let f =
+                if s(s(0)) != 0 {
+                    flip()
+                } else {
+                    1
+                };
+            if f > maxflips {
+                maxflips = f;
+            }
+            checksum += if odd != 0 { -f } else { f }
+        }
+    }
+}
+
+#[export]
+fn main(argc: i32, argv: &[&[u8]]) {
+    let n = if argc >= 2 { atoi(argv(1)) } else { 0 };
+    max_n = n;
+    for i in range(0, max_n) {
+        s(i) = i;
+    }
+    tk(max_n);
+    print_i32(checksum);
+    print_i32(max_n);
+    print_i32(maxflips);
+    0
+}

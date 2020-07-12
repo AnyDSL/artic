@@ -166,6 +166,10 @@ void ArrayExpr::bind(NameBinder& binder) {
     for (auto& elem : elems) binder.bind(*elem);
 }
 
+void RepeatArrayExpr::bind(NameBinder& binder) {
+    binder.bind(*elem);
+}
+
 void FnExpr::bind(NameBinder& binder) {
     binder.push_scope();
     if (param)    binder.bind(*param);

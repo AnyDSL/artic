@@ -23,6 +23,8 @@ endif ()
 set(COLORIZE ${COLOR_TTY_AVAILABLE} CACHE BOOL "Set to TRUE to enable colorized output. Requires an ANSI compliant terminal.")
 set(NO_BACKEND FALSE CACHE BOOL "Disable the backend to speed up compilation and debugging.")
 
+find_package(Thorin REQUIRED)
+
 include(CTest)
 add_subdirectory(src)
 add_subdirectory(test)

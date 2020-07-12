@@ -677,6 +677,11 @@ const thorin::Def* ArrayExpr::emit(Emitter& emitter) const {
     return emitter.world.definite_array(ops, debug_info(*this));
 }
 
+const thorin::Def* RepeatArrayExpr::emit(Emitter& emitter) const {
+    thorin::Array<const thorin::Def*> ops(size, emitter.emit(*elem));
+    return emitter.world.definite_array(ops, debug_info(*this));
+}
+
 const thorin::Def* FieldExpr::emit(Emitter& emitter) const {
     return emitter.emit(*expr);
 }

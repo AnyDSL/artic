@@ -1,0 +1,3 @@
+#[import(cc = "C")] fn foo() -> ();
+#[import(cc = "device")] fn bar() -> ();
+#[import(cc = "thorin")] fn baz() -> ();
