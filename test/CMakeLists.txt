@@ -1,3 +1,26 @@
+function(add_failure_test)
+    cmake_parse_arguments(test "" "NAME" "COMMAND" ${ARGN})
+    add_test(NAME ${test_NAME} COMMAND ${test_COMMAND})
+    set_tests_properties(${test_NAME} PROPERTIES WILL_FAIL TRUE)
+endfunction()
+
+function(add_codegen_test)
+    cmake_parse_arguments(test "" "NAME;SOURCE_FILE;REFERENCE" "ARGS" ${ARGN})
+    add_test(
+        NAME ${test_NAME}
+        COMMAND
+            ${CMAKE_COMMAND}
+            -DARTIC_COMMAND=$<TARGET_FILE:artic>
+            -DCLANG_COMMAND=$<TARGET_FILE:clang>
+            -DTEST_NAME=${test_NAME}
+            -DTEST_SOURCE_FILE=${test_SOURCE_FILE}
+            -DTEST_REFERENCE=${test_REFERENCE}
+            "-DTEST_ARGS=${test_ARGS}"
+            -DHELPERS_FILE=${CMAKE_CURRENT_SOURCE_DIR}/codegen/helpers.c
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/run_codegen_test.cmake
+        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+endfunction()
+
 add_test(NAME version COMMAND artic --version)
 add_test(NAME help    COMMAND artic --help)
 
@@ -43,12 +66,6 @@ add_test(NAME simple_sort_nets  COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE
 add_test(NAME simple_regex      COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/regex.art)
 add_test(NAME simple_cc         COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/cc.art)
 
-function(add_failure_test)
-    cmake_parse_arguments(test "" "NAME" "COMMAND" ${ARGN})
-    add_test(NAME ${test_NAME} COMMAND ${test_COMMAND})
-    set_tests_properties(${test_NAME} PROPERTIES WILL_FAIL TRUE)
-endfunction()
-
 add_failure_test(NAME failure_comment     COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/comment.art)
 add_failure_test(NAME failure_utf8        COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/utf8.art)
 add_failure_test(NAME failure_dots        COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/dots.art)
@@ -73,33 +90,16 @@ add_failure_test(NAME failure_filter      COMMAND artic ${CMAKE_CURRENT_SOURCE_D
 add_failure_test(NAME failure_static      COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/static.art)
 add_failure_test(NAME failure_cc          COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/cc.art)
 
-function(add_codegen_test)
-    cmake_parse_arguments(test "" "NAME" "FILE;REFERENCE;ARGS" ${ARGN})
-    add_test(
-        NAME ${test_NAME}
-        COMMAND
-            ${CMAKE_COMMAND}
-            -DARTIC_COMMAND=$<TARGET_FILE:artic>
-            -DCLANG_COMMAND=$<TARGET_FILE:clang>
-            -DTEST_NAME=${test_NAME}
-            -DTEST_FILE=${test_FILE}
-            -DTEST_REFERENCE=${test_REFERENCE}
-            "-DTEST_ARGS=${test_ARGS}"
-            -DHELPERS_FILE=${CMAKE_CURRENT_SOURCE_DIR}/codegen/helpers.c
-            -P ${CMAKE_CURRENT_SOURCE_DIR}/run_codegen_test.cmake
-        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
-endfunction()
-
 if (Thorin_HAS_LLVM_SUPPORT)
     find_package(Clang)
 
     add_codegen_test(
         NAME codegen_fannkuch
         ARGS 8
-        FILE ${CMAKE_CURRENT_SOURCE_DIR}/codegen/fannkuch.art
+        SOURCE_FILE ${CMAKE_CURRENT_SOURCE_DIR}/codegen/fannkuch.art
         REFERENCE ${CMAKE_CURRENT_SOURCE_DIR}/codegen/fannkuch.ref)
 endif ()
 
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
     setup_target_for_coverage_gcovr_html(NAME coverage EXECUTABLE ctest -j ${PROCESSOR_COUNT} DEPENDENCIES artic)
-endif()
+endif ()

@@ -1,4 +1,4 @@
-execute_process(COMMAND ${ARTIC_COMMAND} ${TEST_FILE} --emit-llvm -o ${TEST_NAME} RESULT_VARIABLE status)
+execute_process(COMMAND ${ARTIC_COMMAND} ${TEST_SOURCE_FILE} --emit-llvm -o ${TEST_NAME} RESULT_VARIABLE status)
 if (NOT status STREQUAL "0")
     message(FATAL_ERROR "Error when building LLVM module using artic")
 endif ()
