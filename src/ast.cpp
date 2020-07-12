@@ -453,6 +453,20 @@ bool ImplicitCastExpr::has_side_effect() const {
     return expr->has_side_effect();
 }
 
+bool ImplicitCastExpr::is_constant() const {
+    assert(expr->type);
+    if (auto path_expr = expr->isa<PathExpr>();
+        path_expr && path_expr->path.elems.size() == 1 &&
+        path_expr->path.symbol && !path_expr->path.symbol->decls.empty())
+    {
+        if (auto static_decl = path_expr->path.symbol->decls.front()->isa<StaticDecl>()) {
+            // Allow using other constant static declarations as constants
+            return !static_decl->mut && expr->type->isa<artic::RefType>();
+        }
+    }
+    return false;
+}
+
 // Patterns ------------------------------------------------------------------------
 
 bool TypedPtrn::is_trivial() const {

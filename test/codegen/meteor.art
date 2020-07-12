@@ -75,9 +75,7 @@ static NE    : i8 = 10;
 static ENE   : i8 = 11;
 static PIVOT : i8 = 12;
 
-static mut piece_def : [[i8 * 4] * 10];
-
-fn init() = piece_def = [
+static mut piece_def = [
    [  E,  E,  E, SE],
    [ SE,  E, NE,  E],
    [  E,  E, SE, SW],
@@ -88,7 +86,7 @@ fn init() = piece_def = [
    [  E, SE, SE,  W],
    [  E, SE,  E,  E],
    [  E,  E,  E, SW]
-]
+];
 
 /* To minimize the amount of work done in the recursive solve function below,
  * I'm going to allocate enough space for all legal rotations of each piece
@@ -617,7 +615,6 @@ fn pretty(b: &[i8]) -> () {
 fn main(argc: i32, argv: &[&[u8]]) {
     let n = if argc >= 2 { atoi(argv(1)) } else { 0 };
     max_solutions = n;
-    init();
     calc_pieces();
     calc_rows();
     solve(0, 0);
