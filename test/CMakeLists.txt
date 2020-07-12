@@ -98,6 +98,11 @@ if (Thorin_HAS_LLVM_SUPPORT)
         ARGS 8
         SOURCE_FILE ${CMAKE_CURRENT_SOURCE_DIR}/codegen/fannkuch.art
         REFERENCE ${CMAKE_CURRENT_SOURCE_DIR}/codegen/fannkuch.ref)
+    add_codegen_test(
+        NAME codegen_meteor
+        ARGS 2098
+        SOURCE_FILE ${CMAKE_CURRENT_SOURCE_DIR}/codegen/meteor.art
+        REFERENCE ${CMAKE_CURRENT_SOURCE_DIR}/codegen/meteor.ref)
 endif ()
 
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")

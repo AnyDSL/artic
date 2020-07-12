@@ -7,11 +7,10 @@
 
 #[import(cc = "C")] fn atoi(_: &[u8]) -> i32;
 #[import(cc = "C")] fn println(_: &[u8]) -> ();
-#[import(cc = "C")] fn printa(_: &[i8]) -> ();
-#[import(cc = "C")] fn print_piece_mask(_: &[u64]) -> ();
 #[import(cc = "C")] fn print_u8(_: u8) -> ();
 #[import(cc = "C")] fn print_i32(_: i32) -> ();
 #[import(cc = "C")] fn print_f64(_: f64) -> ();
+#[import(cc = "C")] fn print_piece_mask(_: &[u64]) -> ();
 #[import(cc = "C")] fn print_meteor_scnt(_: i32) -> ();
 #[import(cc = "C")] fn print_meteor_lines(_: &[i8]) -> ();
 #[import(cc = "C")] fn print_piece_def(_: &[[i8*4]*10]) -> ();
@@ -163,7 +162,7 @@ fn shift(cell: i8, dir: i8) {
     } else if dir == N {
         cell - 10
     } else if dir == NE {
-        if ((cell / 5) % 2) != 08 {
+        if ((cell / 5) % 2) != 0 {
             cell - 4
         } else {
             cell - 5
