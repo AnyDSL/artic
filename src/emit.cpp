@@ -169,8 +169,7 @@ public:
                     auto index = thorin::primlit_value<uint64_t>(defs[i]);
                     auto type = type_app ? type_app->member_type(index) : enum_type->member_type(index);
                     // If the constructor refers to an option that has a parameter,
-                    // we need to extract it and add it to the values, and add
-                    // a dummy pattern to all wildcard patterns.
+                    // we need to extract it and add it to the values.
                     if (!is_unit_type(type))
                         new_values.emplace_back(emitter.world.cast(type->convert(emitter), variant), type);
                 }
@@ -290,8 +289,10 @@ private:
                 std::vector<const ast::Ptrn*> new_elems(member_count, nullptr);
                 if (row.first[i]) {
                     if (auto struct_ptrn = row.first[i]->isa<ast::StructPtrn>()) {
-                        for (auto& field : struct_ptrn->fields)
-                            new_elems[field->index] = field->ptrn.get();
+                        for (auto& field : struct_ptrn->fields) {
+                            if (!field->is_etc())
+                                new_elems[field->index] = field->ptrn.get();
+                        }
                     } else if (auto tuple_ptrn = row.first[i]->isa<ast::TuplePtrn>()) {
                         for (size_t j = 0; j < member_count; ++j)
                             new_elems[j] = tuple_ptrn->args[j].get();
@@ -505,8 +506,8 @@ const thorin::Def* Emitter::load(const thorin::Def* ptr, thorin::Debug debug) {
     return world.extract(pair, thorin::u32(1));
 }
 
-const thorin::Def* Emitter::addr_of(const thorin::Def* def, bool is_constant, thorin::Debug debug) {
-    if (is_constant) {
+const thorin::Def* Emitter::addr_of(const thorin::Def* def, thorin::Debug debug) {
+    if (thorin::is_const(def)) {
         return world.global(def, false, debug);
     } else {
         auto ptr = alloc(def->type(), debug);
@@ -854,7 +855,7 @@ const thorin::Def* UnaryExpr::emit(Emitter& emitter) const {
         auto def = emitter.emit(*arg);
         if (arg->type->isa<RefType>())
             return def;
-        return emitter.addr_of(def, arg->is_constant(), debug_info(*this));
+        return emitter.addr_of(def, debug_info(*this));
     }
     if (is_inc() || is_dec()) {
         ptr = emitter.emit(*arg);
@@ -994,7 +995,7 @@ const thorin::Def* ImplicitCastExpr::emit(Emitter& emitter) const {
     if (auto ptr_type = this->type->isa<artic::PtrType>();
         ptr_type && type->subtype(ptr_type->pointee))
     {
-        def = emitter.addr_of(def, expr->is_constant(), debug_info(*this));
+        def = emitter.addr_of(def, debug_info(*this));
     }
     // This handles conversion between pointer types (e.g. &[i32 * 4] to &[i32])
     // and conversions between other types and the no-return type.

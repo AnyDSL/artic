@@ -1037,6 +1037,15 @@ const artic::Type* ModDecl::infer(TypeChecker& checker) {
 
 // Patterns ------------------------------------------------------------------------
 
+const artic::Type* Ptrn::check(TypeChecker& checker, const artic::Type* expected) {
+    auto type = checker.infer(*this);
+    // In this case, the expected type is the type of the
+    // value that is going to be bound to the pattern.
+    if (!expected->subtype(type))
+        return checker.incompatible_types(loc, type, expected);
+    return type;
+}
+
 const artic::Type* TypedPtrn::infer(TypeChecker& checker) {
     return checker.check(*ptrn, checker.infer(*type));
 }

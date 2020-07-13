@@ -103,6 +103,11 @@ if (Thorin_HAS_LLVM_SUPPORT)
         ARGS 2098
         SOURCE_FILE ${CMAKE_CURRENT_SOURCE_DIR}/codegen/meteor.art
         REFERENCE ${CMAKE_CURRENT_SOURCE_DIR}/codegen/meteor.ref)
+    add_codegen_test(
+        NAME codegen_aobench
+        ARGS ""
+        SOURCE_FILE ${CMAKE_CURRENT_SOURCE_DIR}/codegen/aobench.art
+        REFERENCE ${CMAKE_CURRENT_SOURCE_DIR}/codegen/aobench.ref)
 endif ()
 
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")

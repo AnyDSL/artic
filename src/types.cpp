@@ -301,11 +301,16 @@ bool ComplexType::is_sized(std::unordered_set<const Type*>& seen) const {
         if (!member_type(i)->is_sized(seen))
             return false;
     }
+    seen.erase(this);
     return true;
 }
 
 bool TypeApp::is_sized(std::unordered_set<const Type*>& seen) const {
-    return applied->is_sized(seen);
+    return
+        applied->is_sized(seen) &&
+        std::all_of(type_args.begin(), type_args.end(), [&seen] (auto t) {
+            return t->is_sized(seen);
+        });
 }
 
 // Members -------------------------------------------------------------------------

@@ -126,7 +126,7 @@ public:
     const thorin::Def* alloc(const thorin::Type*, thorin::Debug = {});
     void store(const thorin::Def*, const thorin::Def*, thorin::Debug = {});
     const thorin::Def* load(const thorin::Def*, thorin::Debug = {});
-    const thorin::Def* addr_of(const thorin::Def*, bool, thorin::Debug = {});
+    const thorin::Def* addr_of(const thorin::Def*, thorin::Debug = {});
 
     const thorin::Def* emit(const ast::Node&);
     void emit(const ast::Ptrn&, const thorin::Def*);

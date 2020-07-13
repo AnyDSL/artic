@@ -1,0 +1,273 @@
+/* inspired from impala version. */
+
+#[import(cc = "C")] fn atoi(_: &[u8]) -> i32;
+#[import(cc = "C")] fn drand48() -> f64;
+#[import(cc = "C")] fn sqrt(_: f64) -> f64;
+#[import(cc = "C")] fn fabs(_: f64) -> f64;
+#[import(cc = "C")] fn cos(_: f64) -> f64;
+#[import(cc = "C")] fn sin(_: f64) -> f64;
+#[import(cc = "C")] fn alloc_img(_: i32, _: i32) -> &mut [f64];
+#[import(cc = "C")] fn save_img(_: i32, _: i32, _: &[f64]) -> ();
+
+struct Vec {
+    x: f64,
+    y: f64,
+    z: f64
+}
+
+struct Sphere {
+    center: Vec,
+    radius: f64
+}
+
+struct Plane {
+    n: Vec,
+    d: f64
+}
+
+struct Ray {
+    org: Vec,
+    dir: Vec
+}
+
+struct Hit {
+    t: f64,
+    n: Vec
+}
+
+enum Shape {
+    Sphere(Sphere),
+    Plane(Plane)
+}
+
+struct Scene {
+    shapes: &[Shape],
+    num_shapes: i32
+}
+
+enum Option[T] {
+    Some(T),
+    None
+}
+
+static WIDTH       = 512;
+static HEIGHT      = 512;
+static NSUBSAMPLES = 2;
+static NAO_SAMPLES = 2;
+
+static PI          = 3.14159265358979323846;
+static EPSILON     = 1.0e-17;
+static INFINITY    = 1.0 / 0.0;
+static OFFSET      = 1.0e-4;
+
+fn @range(body: fn (i32) -> ()) {
+    fn loop(a: i32, b: i32) -> () {
+        if a < b {
+            body(a);
+            loop(a + 1, b)
+        }
+    }
+    loop
+}
+
+fn @unroll(body: fn (i32) -> ()) {
+    fn @(?a & ?b) loop(a: i32, b: i32) -> () {
+        if a < b {
+            body(a);
+            loop(a + 1, b)
+        }
+    }
+    loop
+}
+
+fn @vdot(v0: Vec, v1: Vec) = v0.x * v1.x + v0.y * v1.y + v0.z * v1.z
+
+fn @vadd(v0: Vec, v1: Vec) = Vec {
+    x = v0.x + v1.x,
+    y = v0.y + v1.y,
+    z = v0.z + v1.z
+}
+
+fn @vsub(v0: Vec, v1: Vec) = Vec {
+    x = v0.x - v1.x,
+    y = v0.y - v1.y,
+    z = v0.z - v1.z
+}
+
+fn @vscale(v0: Vec, s: f64) = Vec {
+    x = v0.x * s,
+    y = v0.y * s,
+    z = v0.z * s
+}
+
+fn @vcross(v0: Vec, v1: Vec) = Vec {
+    x = v0.y * v1.z - v0.z * v1.y,
+    y = v0.z * v1.x - v0.x * v1.z,
+    z = v0.x * v1.y - v0.y * v1.x
+}
+
+fn @vnorm(c: Vec) {
+    let length = sqrt(vdot(c, c));
+
+    if fabs(length) > EPSILON {
+        vscale(c, 1.0 / length)
+    } else {
+        c
+    }
+}
+
+fn @intersect_ray_sphere(ray: &Ray, (tmin: f64, tmax: f64), sphere: &Sphere) -> Option[Hit] {
+    let rs = vsub(ray.org, sphere.center);
+
+    let B = vdot(rs, ray.dir);
+    let C = vdot(rs, rs) - sphere.radius * sphere.radius;
+    let D = B * B - C;
+
+    if D > 0.0 {
+        let t = -B - sqrt(D);
+
+        if t > tmin && t < tmax {
+            let p = vadd(ray.org, vscale(ray.dir, t));
+            let n = vnorm(vsub(p, sphere.center));
+            return(Option[Hit]::Some(Hit { t = t, n = n }))
+        }
+    }
+
+    Option[Hit]::None
+}
+
+fn @intersect_ray_plane(ray: &Ray, (tmin: f64, tmax: f64), plane: &Plane) -> Option[Hit] {
+    let v = vdot(ray.dir, plane.n);
+
+    if fabs(v) < EPSILON { return(Option[Hit]::None) }
+
+    let t = (plane.d - vdot(ray.org, plane.n)) / v;
+    if t > tmin && t < tmax {
+        Option[Hit]::Some(Hit { t = t, n = plane.n })
+    } else {
+        Option[Hit]::None
+    }
+}
+
+fn @intersect_ray_shape(ray: &Ray, trange: (f64, f64), shape: &Shape) {
+    match *shape {
+        Shape::Sphere(s) => intersect_ray_sphere(ray, trange, s),
+        Shape::Plane(p)  => intersect_ray_plane(ray, trange, p)
+    }
+}
+
+fn @occluded(ray: &Ray, trange: (f64, f64), scene: &Scene) -> bool {
+    for i in unroll(0, scene.num_shapes) {
+        match intersect_ray_shape(ray, trange, scene.shapes(i)) {
+            Option[Hit]::Some(_) => return(true),
+            _ => continue()
+        }
+    }
+    false
+}
+
+fn @intersect(ray: Ray, (tmin: f64, mut tmax: f64), scene: &Scene) {
+    let mut hit = Option[Hit]::None;
+    for i in unroll(0, scene.num_shapes) {
+        hit = intersect_ray_shape(ray, (tmin, tmax), scene.shapes(i));
+        match hit {
+            Option[Hit]::Some(Hit { t = t, ... }) => tmax = t,
+            _ => ()
+        }
+    }
+    hit 
+}
+
+fn @ortho_basis(n: Vec) {
+    // From "Building an Orthonormal Basis, Revisited", Duff et al.
+    let sign = if n.z < 0 { -1.0 } else { 1.0 };
+    let a = -1.0 / (sign + n.z);
+    let b = n.x * n.y * a;
+    [
+        Vec { x = 1.0 + sign * n.x * n.x * a, y = sign * b, z = -sign * n.x },
+        Vec { x = b, y = sign + n.y * n.y * a, z = -n.y },
+        n
+    ]
+}
+
+fn @ambient_occlusion(scene: &Scene, p: Vec, n: Vec) {
+    let ntheta = NAO_SAMPLES;
+    let nphi   = NAO_SAMPLES;
+
+    let basis = ortho_basis(n);
+
+    let mut occlusion = 0.0;
+    for _ in range(0, ntheta * nphi) {
+        let theta = sqrt(drand48());
+        let phi   = 2.0 * PI * drand48();
+
+        let x = cos(phi) * theta;
+        let y = sin(phi) * theta;
+        let z = sqrt(1.0 - theta * theta);
+
+        // local -> global
+        let dir = Vec {
+            x = x * basis(0).x + y * basis(1).x + z * basis(2).x,
+            y = x * basis(0).y + y * basis(1).y + z * basis(2).y,
+            z = x * basis(0).z + y * basis(1).z + z * basis(2).z
+        };
+
+        if occluded(Ray { org = p, dir = dir }, (OFFSET, INFINITY), scene) {
+            occlusion += 1;
+        }
+    }
+
+    ((ntheta * nphi) as f64 - occlusion) / ((ntheta * nphi) as f64)
+}
+
+fn @render(scene: &Scene, img: &mut [f64], w: i32, h: i32, nsubsamples: i32) -> () {
+    for y in range(0, h) {
+        for x in range(0, w) {
+            for v in range(0, nsubsamples) {
+                for u in range(0, nsubsamples) {
+                    let px =  (x as f64 + (u as f64 / (nsubsamples as f64)) - (w as f64 / 2.0)) / (w as f64 / 2.0);
+                    let py = -(y as f64 + (v as f64 / (nsubsamples as f64)) - (h as f64 / 2.0)) / (h as f64 / 2.0);
+
+                    let ray = Ray {
+                        org = Vec { x = 0.0, y = 0.0, z =  0.0 },
+                        dir = vnorm(Vec { x = px,  y = py,  z = -1.0 })
+                    };
+
+                    match intersect(ray, (0, INFINITY), scene) {
+                        Option[Hit]::Some(Hit { t = t, n = n }) => {
+                            let p = vadd(ray.org, vscale(ray.dir, t));
+                            let col = ambient_occlusion(scene, p, n);
+                            img(3 * (y * w + x) + 0) += col;
+                            img(3 * (y * w + x) + 1) += col;
+                            img(3 * (y * w + x) + 2) += col;
+                        },
+                        _ => ()
+                    }
+                }
+            }
+
+            let norm_factor = 1.0 / (nsubsamples * nsubsamples) as f64;
+            img(3 * (y * w + x) + 0) *= norm_factor;
+            img(3 * (y * w + x) + 1) *= norm_factor;
+            img(3 * (y * w + x) + 2) *= norm_factor;
+        }
+    }
+}
+
+#[export]
+fn main(_argc: i32, _argv: &[&[u8]]) {
+    let shapes = [
+        Shape::Sphere(Sphere { center = Vec { x = -2.0, y = 0, z = -3.5 }, radius = 0.5 }),
+        Shape::Sphere(Sphere { center = Vec { x = -0.5, y = 0, z = -3.0 }, radius = 0.5 }),
+        Shape::Sphere(Sphere { center = Vec { x =  1.0, y = 0, z = -2.2 }, radius = 0.5 }),
+        Shape::Plane(Plane { n = Vec { x = 0, y = 1, z = 0 }, d = -0.5 }),
+    ];
+    let scene = Scene {
+        shapes = shapes,
+        num_shapes = 4
+    };
+    let img = alloc_img(WIDTH, HEIGHT);
+    render(scene, img, WIDTH, HEIGHT, NSUBSAMPLES);
+    save_img(WIDTH, HEIGHT, img);
+    0
+}

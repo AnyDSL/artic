@@ -129,6 +129,8 @@ struct Ptrn : public Node {
 
     bool is_tuple() const;
 
+    const artic::Type* check(TypeChecker&, const artic::Type*) override;
+
     /// Returns true when the pattern is trivial (e.g. always matches).
     virtual bool is_trivial() const = 0;
     /// Emits IR for the pattern, given a value to match against.

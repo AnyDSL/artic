@@ -461,7 +461,7 @@ bool ImplicitCastExpr::is_constant() const {
     {
         if (auto static_decl = path_expr->path.symbol->decls.front()->isa<StaticDecl>()) {
             // Allow using other constant static declarations as constants
-            return !static_decl->mut && expr->type->isa<artic::RefType>();
+            return !static_decl->mut;
         }
     }
     return false;
