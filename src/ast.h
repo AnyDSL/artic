@@ -114,6 +114,8 @@ struct Expr : public Node {
 
     bool is_tuple() const;
 
+    const artic::Type* check(TypeChecker&, const artic::Type*) override;
+
     /// Emits a branch for boolean expressions.
     virtual void emit(Emitter&, thorin::Continuation*, thorin::Continuation*) const;
 
@@ -128,8 +130,6 @@ struct Ptrn : public Node {
     Ptrn(const Loc& loc) : Node(loc) {}
 
     bool is_tuple() const;
-
-    const artic::Type* check(TypeChecker&, const artic::Type*) override;
 
     /// Returns true when the pattern is trivial (e.g. always matches).
     virtual bool is_trivial() const = 0;

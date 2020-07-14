@@ -361,7 +361,7 @@ namespace ast {
 const artic::Type* Node::check(TypeChecker& checker, const artic::Type* expected) {
     // By default, try to infer, and then check that types match
     auto type = checker.infer(*this);
-    if (!type->subtype(expected))
+    if (type != expected)
         return checker.incompatible_types(loc, type, expected);
     return type;
 }
@@ -551,6 +551,13 @@ const artic::Type* ExprStmt::check(TypeChecker& checker, const artic::Type* expe
 }
 
 // Expressions ---------------------------------------------------------------------
+
+const artic::Type* Expr::check(TypeChecker& checker, const artic::Type* expected) {
+    auto type = checker.infer(*this);
+    if (!type->subtype(expected))
+        return checker.incompatible_types(loc, type, expected);
+    return type;
+}
 
 const artic::Type* TypedExpr::infer(TypeChecker& checker) {
     return checker.coerce(expr, checker.infer(*type));
@@ -1036,15 +1043,6 @@ const artic::Type* ModDecl::infer(TypeChecker& checker) {
 }
 
 // Patterns ------------------------------------------------------------------------
-
-const artic::Type* Ptrn::check(TypeChecker& checker, const artic::Type* expected) {
-    auto type = checker.infer(*this);
-    // In this case, the expected type is the type of the
-    // value that is going to be bound to the pattern.
-    if (!expected->subtype(type))
-        return checker.incompatible_types(loc, type, expected);
-    return type;
-}
 
 const artic::Type* TypedPtrn::infer(TypeChecker& checker) {
     return checker.check(*ptrn, checker.infer(*type));
