@@ -623,14 +623,31 @@ Ptr<ast::WhileExpr> Parser::parse_while_expr() {
     return make_ptr<ast::WhileExpr>(tracker(), std::move(cond), std::move(body));
 }
 
-Ptr<ast::ForExpr> Parser::parse_for_expr() {
+Ptr<ast::Expr> Parser::parse_for_expr() {
     Tracker tracker(this);
-    auto ptrn = parse_tuple_ptrn(Token::For, Token::In);
+
+    // Accept `for fun() { ... }`
+    Ptr<ast::Ptrn> ptrn;
+    if (ahead(1).tag() == Token::In ||
+        ahead(1).tag() == Token::LParen ||
+        ahead(2).tag() == Token::In ||
+        ahead(2).tag() == Token::Mut ||
+        ahead(2).tag() == Token::Comma ||
+        ahead(2).tag() == Token::Colon)
+        ptrn = parse_tuple_ptrn(Token::For, Token::In);
+    else {
+        eat(Token::For);
+        ptrn = make_ptr<ast::TuplePtrn>(tracker(), PtrVector<ast::Ptrn>{});
+    }
+
     auto expr = parse_expr();
     auto call_loc = expr->loc;
     Ptr<ast::CallExpr> call(expr->isa<ast::CallExpr>() ? expr.release()->as<ast::CallExpr>() : nullptr);
-    if (!call)
+    if (!call) {
         error(ahead().loc(), "invalid for loop expression");
+        return make_ptr<ast::ErrorExpr>(tracker());
+    }
+
     Ptr<ast::Expr> body;
     if (ahead().tag() == Token::LBrace)
         body = parse_block_expr();

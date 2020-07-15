@@ -63,7 +63,7 @@ private:
     Ptr<ast::CaseExpr>      parse_case_expr();
     Ptr<ast::MatchExpr>     parse_match_expr();
     Ptr<ast::WhileExpr>     parse_while_expr();
-    Ptr<ast::ForExpr>       parse_for_expr();
+    Ptr<ast::Expr>          parse_for_expr();
     Ptr<ast::BreakExpr>     parse_break_expr();
     Ptr<ast::ContinueExpr>  parse_continue_expr();
     Ptr<ast::ReturnExpr>    parse_return_expr();
