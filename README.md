@@ -17,9 +17,9 @@ Note that `path/to/thorin` is usually `thorin/build/share/anydsl/cmake`.
 
 ## Status
 
-Artic is in pre-alpha stage, which means that the basic functionality is implemented and that
-it can already be used to write small programs. However, some crucial functionality is missing,
-such as device intrinsics and built-ins, and there might be a couple of bugs that need fixing.
+Artic is in alpha stage, which means that it should be able to compile any valid program.
+There might still be bugs lurking in, and if you find one, please report it on the issues tab,
+preferably with a minimal reproducing example.
 
 ## Testing
 
