@@ -49,14 +49,20 @@ public:
 
     State state;
 
+    // Enumeration variant constructor, containing an enumeration type
+    // (or a type application of a polymorphic enumeration type),
+    // and the variant index.
     struct Ctor {
         size_t index;
         const Type* type;
     };
 
+    // Monomorphic function, linked to the original (polymorphic) function
+    // via its declaration and the set of type arguments with which it
+    // has been instantiated.
     struct MonoFn {
         const ast::FnDecl* decl;
-        const thorin::Type* type;
+        std::vector<const artic::Type*> type_args;
     };
 
     struct Hash {
@@ -64,7 +70,10 @@ public:
             return fnv::Hash().combine(ctor.index).combine(ctor.type);
         }
         size_t operator () (const MonoFn& mono_fn) const {
-            return fnv::Hash().combine(mono_fn.decl).combine(mono_fn.type);
+            auto h = fnv::Hash().combine(mono_fn.decl);
+            for (auto type_arg : mono_fn.type_args)
+                h.combine(type_arg);
+            return h;
         }
     };
 
@@ -73,7 +82,7 @@ public:
             return left.index == right.index && left.type == right.type;
         }
         bool operator () (const MonoFn& left, const MonoFn& right) const {
-            return left.decl == right.decl && left.type == right.type;
+            return left.decl == right.decl && left.type_args == right.type_args;
         }
     };
 

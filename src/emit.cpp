@@ -1042,17 +1042,22 @@ const thorin::Def* StaticDecl::emit(Emitter& emitter) const {
 const thorin::Def* FnDecl::emit(Emitter& emitter) const {
     auto _ = emitter.save_state();
     const thorin::FnType* cont_type = nullptr;
+    Emitter::MonoFn mono_fn { this };
     if (type_params) {
-        cont_type = type->as<artic::ForallType>()->body->convert(emitter)->as<thorin::FnType>();
+        for (auto& param : type_params->params)
+            mono_fn.type_args.push_back(param->type->replace(emitter.type_vars));
         // Try to find an existing monomorphized version of this function with that type
-        if (auto it = emitter.mono_fns.find(Emitter::MonoFn { this, cont_type }); it != emitter.mono_fns.end())
+        if (auto it = emitter.mono_fns.find(mono_fn); it != emitter.mono_fns.end())
             return it->second;
         emitter.poly_defs.emplace_back();
+        cont_type = type->as<artic::ForallType>()->body->convert(emitter)->as<thorin::FnType>();
     } else {
         cont_type = type->convert(emitter)->as<thorin::FnType>();
     }
+
     auto cont = emitter.world.continuation(cont_type, debug_info(*this));
-    emitter.mono_fns.emplace(Emitter::MonoFn { this, cont_type }, cont);
+    if (type_params)
+        emitter.mono_fns.emplace(std::move(mono_fn), cont);
 
     cont->params().back()->debug().set("ret");
 
@@ -1074,24 +1079,23 @@ const thorin::Def* FnDecl::emit(Emitter& emitter) const {
                 else if (cc == "thorin")
                     cont->set_intrinsic();
                 else if (cc == "builtin")
-                    return emitter.builtin(*this, cont);
+                    emitter.builtin(*this, cont);
             }
         }
     }
 
-    if (!fn->body)
-        return cont;
+    if (fn->body) {
+        // Set the IR node before entering the body, in case
+        // we encounter `return` or a recursive call.
+        fn->def = def = cont;
 
-    // Set the IR node before entering the body, in case
-    // we encounter `return` or a recursive call.
-    fn->def = def = cont;
-
-    emitter.enter(cont);
-    emitter.emit(*fn->param, emitter.tuple_from_params(cont, true));
-    if (fn->filter)
-        cont->set_filter(thorin::Array<const thorin::Def*>(cont->num_params(), emitter.emit(*fn->filter)));
-    auto value = emitter.emit(*fn->body);
-    emitter.jump(cont->params().back(), value, debug_info(*fn->body));
+        emitter.enter(cont);
+        emitter.emit(*fn->param, emitter.tuple_from_params(cont, true));
+        if (fn->filter)
+            cont->set_filter(thorin::Array<const thorin::Def*>(cont->num_params(), emitter.emit(*fn->filter)));
+        auto value = emitter.emit(*fn->body);
+        emitter.jump(cont->params().back(), value, debug_info(*fn->body));
+    }
 
     // Clear the thorin IR generated for this entire function
     // if the function is polymorphic, so as to allow multiple
