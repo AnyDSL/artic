@@ -261,7 +261,7 @@ void TypeChecker::check_block(const Loc& loc, const PtrVector<ast::Stmt>& stmts,
             warn(stmts[i]->loc, "statement with no effect");
     }
     if (last_semi && stmts.back()->type->template isa<NoRetType>())
-        unreachable_code(stmts.back()->loc, stmts.back()->loc.end_loc(), loc.end_loc());
+        unreachable_code(stmts.back()->loc, stmts.back()->loc.at_end(), loc.at_end());
 }
 
 bool TypeChecker::check_filter(const ast::Expr& expr) {

@@ -1,0 +1,4 @@
+static _ = "\xZZ";
+static _ = "\0xo";
+static _ = "\z";
+static _ = "\";

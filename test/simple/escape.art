@@ -1,0 +1,3 @@
+static _ = "\050";
+static _ = "\a\b\r\t\n\v\f\\\'\"";
+static _ = "\xFA";

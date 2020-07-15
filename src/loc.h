@@ -42,11 +42,11 @@ struct Loc {
         assert(first.file == last.file);
     }
 
-    Loc begin_loc() const { return Loc(file, begin.row, begin.col, begin.row, begin.col); }
-    Loc end_loc() const { return Loc(file, end.row, end.col, end.row, end.col); }
+    Loc at_begin() const { return Loc(file, begin.row, begin.col, begin.row, begin.col); }
+    Loc at_end() const { return Loc(file, end.row, end.col, end.row, end.col); }
 
-    Loc operator + (int col) const { return Loc(file, begin.row, begin.col, end.row, end.col + col); }
-    Loc operator - (int col) const { return Loc(file, begin.row, begin.col - col, end.row, end.col); }
+    Loc enlarge_after (int cols = 1) const { return Loc(file, begin.row, begin.col, end.row, end.col + cols); }
+    Loc enlarge_before(int cols = 1) const { return Loc(file, begin.row, begin.col - cols, end.row, end.col); }
 };
 
 inline std::ostream& operator << (std::ostream& os, const Loc& loc) {

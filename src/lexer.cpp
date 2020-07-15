@@ -147,7 +147,7 @@ Token Lexer::next() {
             if (!eof()) {
                 auto c = peek();
                 bool utf8 = cur_.size != 1;
-                append();
+                append_char();
                 if (accept('\'')) {
                     if (utf8) {
                         error(loc_, "UTF-8 character {} does not fit in one byte", str_);
@@ -158,13 +158,14 @@ Token Lexer::next() {
                     return Token(loc_, str_, Literal(uint8_t(c)));
                 }
             }
-            error(loc_.begin_loc() + 1, "unterminated character literal");
+            error(loc_.at_begin().enlarge_after(), "unterminated character literal");
             return Token(loc_);
         }
         if (accept('\"')) {
-            while (!eof() && peek() != '\"') append();
+            while (!eof() && peek() != '\"')
+                append_char();
             if (eof() || !accept('\"')) {
-                error(loc_.begin_loc() + 1, "unterminated string literal");
+                error(loc_.at_begin().enlarge_after(), "unterminated string literal");
                 return Token(loc_);
             }
             assert(str_.size() >= 2);
@@ -288,14 +289,62 @@ Literal Lexer::parse_literal() {
     if (base < 10 && std::find_if(digit_ptr, last_ptr, invalid_digit) != last_ptr)
         error(loc_, "invalid literal '{}'", str_);
 
-    if (exp || fract) return Literal(double(strtod(digit_ptr, nullptr)));
-    return Literal(uint64_t(strtoull(digit_ptr, nullptr, base)));
+    if (exp || fract) return Literal(double(std::strtod(digit_ptr, nullptr)));
+    return Literal(uint64_t(std::strtoull(digit_ptr, nullptr, base)));
 }
 
 void Lexer::append() {
     for (size_t i = 0; i < cur_.size; ++i)
         str_ += cur_.bytes[i];
     eat();
+}
+
+void Lexer::append_char() {
+    if (peek() == '\\') {
+        eat();
+        char digits[4] = { 0, 0, 0, 0 };
+        bool hexa = false;
+        switch (peek()) {
+            case 't':  str_ += '\t'; eat(); break;
+            case 'n':  str_ += '\n'; eat(); break;
+            case 'a':  str_ += '\a'; eat(); break;
+            case 'b':  str_ += '\b'; eat(); break;
+            case 'r':  str_ += '\r'; eat(); break;
+            case 'v':  str_ += '\v'; eat(); break;
+            case 'f':  str_ += '\f'; eat(); break;
+            case '\\': str_ += '\\'; eat(); break;
+            case '\'': str_ += '\''; eat(); break;
+            case '\"': str_ += '\"'; eat(); break;
+            case 'x':
+                hexa = true;
+                eat();
+                [[fallthrough]];
+            case '0':
+            case '1':
+            case '2':
+            case '3':
+            case '4':
+            case '5':
+            case '6':
+            case '7':
+                for (size_t i = 0, n = hexa ? 2 : 3; i < n; ++i) {
+                    if ((hexa && !std::isxdigit(peek())) ||
+                        (!hexa && (!std::isdigit(peek()) || peek() >= '8'))) {
+                        error(loc_.at_end().enlarge_after(), "invalid digit in {} escape sequence", hexa ? "hexadecimal" : "octal");
+                        break;
+                    }
+                    digits[i] = peek();
+                    eat();
+                }
+                str_ += std::strtoul(digits, NULL, hexa ? 16 : 8);
+                break;
+            default:
+                error(loc_.at_end().enlarge_before().enlarge_after(), "invalid escape sequence '\\{}'", peek());
+                eat();
+                break;
+        }
+    } else
+        append();
 }
 
 bool Lexer::accept(uint8_t c) {

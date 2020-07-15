@@ -49,6 +49,7 @@ private:
     Literal parse_literal();
 
     void append();
+    void append_char();
     bool accept(uint8_t);
 
     uint8_t peek(size_t i = 0) const { return cur_.bytes[i]; }
