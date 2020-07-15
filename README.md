@@ -52,14 +52,36 @@ fn main() -> i32 {
 let x = |i| i; // artic needs a type annotation on `i` or on `x`
 x(1) // impala would see this as a constraint that `x` is a function on integers
 ```
+ - For-loop syntax has been changed in order to help Thorin's partial evaluator, by
+   separating the generator (the function taking the body of the for loop) from the
+   loop itself.
+```rust
+// The `range` function now takes a loop body and
+// returns a function that performs the actual looping
+fn @range(body: fn (i32) -> i32) {
+    fn loop(beg: i32, end: i32) -> () {
+        if beg < end {
+            @body(beg);
+            loop(beg + 1, end)
+        }
+    }
+    loop
+}
+// ... later in the source code ...
+for i in range(0, 10) {
+    print(i)
+}
+// This is equivalent to:
+range(|i| { print(i) })(0, 10)
+```
  - Declarations can be annotated with attributes:
- ```rust
+```rust
  // This function will be exported in the generated LLVM module.
  // Note that only functions of order 1 (functions that do not take
  // other functions as arguments) can be exported.
  #[export]
  fn foo() = 1
- ```
+```
  - Non-refutable (always matching) patterns are allowed as function parameters:
 ```rust
 fn foo(x: f32, (y: f32, z: f32)) -> ... { ... }
