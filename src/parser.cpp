@@ -527,7 +527,6 @@ Ptr<ast::FnExpr> Parser::parse_fn_expr(Ptr<ast::Filter>&& filter, bool nested) {
     Ptr<ast::Ptrn> ptrn;
     bool parse_nested = false;
     if (ahead().tag() == Token::Or || nested) {
-        Tracker arg_tracker(this);
         if (!nested) eat(Token::Or);
 
         PtrVector<ast::Ptrn> args;
@@ -539,9 +538,10 @@ Ptr<ast::FnExpr> Parser::parse_fn_expr(Ptr<ast::Filter>&& filter, bool nested) {
         if (args.size() == 1) {
             ptrn = std::move(args.front());
         } else {
-            ptrn = make_ptr<ast::TuplePtrn>(arg_tracker(), std::move(args));
+            ptrn = make_ptr<ast::TuplePtrn>(tracker(), std::move(args));
         }
     } else if (ahead().tag() == Token::LogicOr) {
+        eat(Token::LogicOr);
         ptrn = make_ptr<ast::TuplePtrn>(tracker(), PtrVector<ast::Ptrn>{});
     } else {
         ptrn = parse_error_ptrn();
