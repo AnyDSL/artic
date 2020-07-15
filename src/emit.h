@@ -62,7 +62,7 @@ public:
     // has been instantiated.
     struct MonoFn {
         const ast::FnDecl* decl;
-        std::vector<const artic::Type*> type_args;
+        std::vector<const Type*> type_args;
     };
 
     struct Hash {
