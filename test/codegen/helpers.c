@@ -50,7 +50,7 @@ void print_meteor_lines(const uint8_t* a) {
 }
 
 double* alloc_img(int32_t w, int32_t h) {
-    return malloc(sizeof(double) * w * h);
+    return calloc(sizeof(double), w * h * 3);
 }
 
 static inline uint8_t convert_col(double col) {

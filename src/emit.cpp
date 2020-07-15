@@ -622,6 +622,7 @@ const thorin::Def* Path::emit(Emitter& emitter) const {
                 auto ret_value = emitter.world.struct_agg(converted_type, {
                     index, emitter.world.variant(variant_type, emitter.tuple_from_params(cont, true)) });
                 cont->jump(cont->params().back(), { cont->param(0), ret_value });
+                cont->set_all_true_filter();
                 return emitter.variant_ctors[ctor] = cont;
             }
         }

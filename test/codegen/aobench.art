@@ -36,8 +36,8 @@ struct Hit {
 }
 
 enum Shape {
-    Sphere(Sphere),
-    Plane(Plane)
+    Sphere(&Sphere),
+    Plane(&Plane)
 }
 
 struct Scene {
@@ -126,6 +126,7 @@ fn @intersect_ray_sphere(ray: &Ray, (tmin: f64, tmax: f64), sphere: &Sphere) -> 
     if D > 0.0 {
         let t = -B - sqrt(D);
 
+        // Note: This does not work if the ray is inside the sphere
         if t > tmin && t < tmax {
             let p = vadd(ray.org, vscale(ray.dir, t));
             let n = vnorm(vsub(p, sphere.center));
@@ -167,15 +168,15 @@ fn @occluded(ray: &Ray, trange: (f64, f64), scene: &Scene) -> bool {
 }
 
 fn @intersect(ray: Ray, (tmin: f64, mut tmax: f64), scene: &Scene) {
-    let mut hit = Option[Hit]::None;
+    let mut res = Option[Hit]::None;
     for i in unroll(0, scene.num_shapes) {
-        hit = intersect_ray_shape(ray, (tmin, tmax), scene.shapes(i));
+        let hit = intersect_ray_shape(ray, (tmin, tmax), scene.shapes(i));
         match hit {
-            Option[Hit]::Some(Hit { t = t, ... }) => tmax = t,
+            Option[Hit]::Some(Hit { t = t, ... }) => { tmax = t; res = hit },
             _ => ()
         }
     }
-    hit 
+    res
 }
 
 fn @ortho_basis(n: Vec) {
@@ -260,7 +261,7 @@ fn main(_argc: i32, _argv: &[&[u8]]) {
         Shape::Sphere(Sphere { center = Vec { x = -2.0, y = 0, z = -3.5 }, radius = 0.5 }),
         Shape::Sphere(Sphere { center = Vec { x = -0.5, y = 0, z = -3.0 }, radius = 0.5 }),
         Shape::Sphere(Sphere { center = Vec { x =  1.0, y = 0, z = -2.2 }, radius = 0.5 }),
-        Shape::Plane(Plane { n = Vec { x = 0, y = 1, z = 0 }, d = -0.5 }),
+        Shape::Plane(Plane { n = Vec { x = 0, y = 1, z = 0 }, d = -0.5 })
     ];
     let scene = Scene {
         shapes = shapes,
