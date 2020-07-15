@@ -458,14 +458,21 @@ void NamedAttr::check(TypeChecker& checker, const ast::Node* node) {
                 else
                     checker.check_attrs(*this, { { "name", AttrType::String } });
             } else if (name == "import") {
-                if (checker.check_attrs(*this, { { "cc", AttrType::String } })) {
+                if (checker.check_attrs(*this, { { "cc", AttrType::String }, { "name", AttrType::String } })) {
+                    auto name = fn_decl->id.name;
+                    if (auto name_attr = find("name"))
+                        name = name_attr->as<LiteralAttr>()->lit.as_string();
                     if (auto cc_attr = find("cc")) {
-                        std::array<std::string_view, 3> valid_ccs = { "C", "device", "thorin" };
                         auto& cc = cc_attr->as<LiteralAttr>()->lit.as_string();
-                        if (std::find(valid_ccs.begin(), valid_ccs.end(), cc.c_str()) == valid_ccs.end())
+                        if (cc == "builtin") {
+                            if (name != "bitcast" && name != "sizeof" && name != "undef")
+                                checker.error(fn_decl->loc, "unsupported built-in function");
+                        } else if (cc != "C" && cc != "device" && cc != "thorin")
                             checker.error(cc_attr->loc, "invalid calling convention '{}'", cc);
                     }
                 }
+                if (fn_decl->fn->body)
+                    checker.error(fn_decl->loc, "imported functions cannot have a body");
             }
         } else
             checker.error(loc, "attribute '{}' is only valid for function declarations", name);

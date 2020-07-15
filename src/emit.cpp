@@ -559,6 +559,24 @@ const thorin::Def* Emitter::emit(const ast::Node& node, const Literal& lit) {
     }
 }
 
+const thorin::Def* Emitter::builtin(const ast::FnDecl& fn_decl, thorin::Continuation* cont) {
+    if (cont->name() == "bitcast") {
+        auto param = tuple_from_params(cont, true);
+        auto target_type = fn_decl.type->as<ForallType>()->body->as<FnType>()->codom->convert(*this);
+        cont->jump(cont->params().back(), call_args(cont->param(0), world.bitcast(target_type, param)), debug_info(fn_decl));
+    } else if (cont->name() == "sizeof") {
+        auto target_type = fn_decl.type_params->params[0]->type->convert(*this);
+        cont->jump(cont->params().back(), { cont->param(0), world.size_of(target_type) }, debug_info(fn_decl));
+    } else if (cont->name() == "undef") {
+        auto target_type = fn_decl.type_params->params[0]->type->convert(*this);
+        cont->jump(cont->params().back(), call_args(cont->param(0), world.bottom(target_type)), debug_info(fn_decl));
+    } else {
+        assert(false);
+    }
+    cont->set_all_true_filter();
+    return cont;
+}
+
 namespace ast {
 
 const thorin::Def* Node::emit(Emitter&) const {
@@ -1044,8 +1062,10 @@ const thorin::Def* FnDecl::emit(Emitter& emitter) const {
             cont->make_external();
             if (auto name_attr = export_attr->find("name"))
                 cont->debug().set(name_attr->as<LiteralAttr>()->lit.as_string());
-        } else if (auto export_attr = attrs->find("import")) {
-            if (auto cc_attr = export_attr->find("cc")) {
+        } else if (auto import_attr = attrs->find("import")) {
+            if (auto name_attr = import_attr->find("name"))
+                cont->debug().set(name_attr->as<LiteralAttr>()->lit.as_string());
+            if (auto cc_attr = import_attr->find("cc")) {
                 auto cc = cc_attr->as<LiteralAttr>()->lit.as_string();
                 if (cc == "device")
                     cont->cc() = thorin::CC::Device;
@@ -1053,6 +1073,8 @@ const thorin::Def* FnDecl::emit(Emitter& emitter) const {
                     cont->cc() = thorin::CC::C;
                 else if (cc == "thorin")
                     cont->set_intrinsic();
+                else if (cc == "builtin")
+                    return emitter.builtin(*this, cont);
             }
         }
     }
