@@ -595,9 +595,9 @@ const thorin::Def* Path::emit(Emitter& emitter) const {
             std::unordered_map<const artic::TypeVar*, const artic::Type*> map;
             auto decl = symbol->decls.front();
             if (!elems[i].args.empty()) {
-                for (size_t i = 0, n = elems[i].args.size(); i < n; ++i) {
-                    auto var = decl->as<FnDecl>()->type_params->params[i]->type->as<artic::TypeVar>();
-                    auto type = elems[i].args[i]->type->replace(emitter.type_vars);
+                for (size_t j = 0, n = elems[i].args.size(); j < n; ++j) {
+                    auto var = decl->as<FnDecl>()->type_params->params[j]->type->as<artic::TypeVar>();
+                    auto type = elems[i].args[j]->type->replace(emitter.type_vars);
                     map.emplace(var, type);
                 }
                 // We need to also add the caller's map in case the call is nested
