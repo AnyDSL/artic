@@ -3,7 +3,6 @@
 #include <streambuf>
 #include <istream>
 #include <fstream>
-#include <filesystem>
 
 #include "log.h"
 #include "locator.h"
@@ -23,6 +22,16 @@
 #endif
 
 using namespace artic;
+
+static std::string_view file_without_ext(std::string_view path) {
+    auto dir = path.find_last_of("/\\");
+    if (dir != std::string_view::npos)
+        path = path.substr(dir + 1);
+    auto ext = path.rfind('.');
+    if (ext != std::string_view::npos && ext != 0)
+        path = path.substr(0, ext);
+    return path;
+}
 
 static void usage() {
     log::out << "usage: artic [options] files...\n"
@@ -234,7 +243,7 @@ int main(int argc, char** argv) {
     }
 
     if (opts.module_name == "")
-        opts.module_name = std::filesystem::path(opts.files.front()).stem();
+        opts.module_name = file_without_ext(opts.files.front());
 
     Locator locator;
     Log log(log::err, &locator);
