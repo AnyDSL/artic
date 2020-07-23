@@ -41,6 +41,11 @@ public:
     }
 
     void compile(const thorin::Def* target) {
+        if (rows.empty()) {
+            emitter.non_exhaustive_match(match);
+            return;
+        }
+
         expand();
         if (std::all_of(
             rows.front().first.begin(),
@@ -68,9 +73,6 @@ public:
                 case_block = cont;
             }
             emitter.jump(case_block);
-            return;
-        } else if (rows.empty()) {
-            emitter.non_exhaustive_match(match);
             return;
         }
 
