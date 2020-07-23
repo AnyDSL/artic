@@ -93,7 +93,7 @@ add_failure_test(NAME failure_cc          COMMAND artic ${CMAKE_CURRENT_SOURCE_D
 add_failure_test(NAME failure_escape      COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/escape.art)
 
 if (Thorin_HAS_LLVM_SUPPORT)
-    find_package(Clang)
+    find_package(Clang REQUIRED CONFIG PATHS ${LLVM_DIR}/../clang NO_DEFAULT_PATH)
 
     add_codegen_test(
         NAME codegen_fannkuch
