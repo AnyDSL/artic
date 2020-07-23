@@ -33,8 +33,14 @@ static thorin::Debug debug_info(const ast::Node& node, const std::string& name =
 /// by Luc Maranget.
 class PtrnCompiler {
 public:
-    PtrnCompiler(Emitter& emitter, const ast::MatchExpr& match)
-        : emitter(emitter), match(match), values { { emitter.emit(*match.arg), match.arg->type } }
+    PtrnCompiler(
+        Emitter& emitter,
+        const ast::MatchExpr& match,
+        std::unordered_map<const ast::IdPtrn*, const thorin::Def*>& matched_values)
+        : emitter(emitter)
+        , match(match)
+        , values { { emitter.emit(*match.arg), match.arg->type } }
+        , matched_values(matched_values)
     {
         for (auto& case_ : match.cases)
             rows.emplace_back(std::vector<const ast::Ptrn*>{ case_->ptrn.get() }, case_.get());
@@ -60,19 +66,32 @@ public:
                 auto ptrn = rows.front().first[i];
                 // Emit names that are bound in this row
                 if (ptrn && ptrn->isa<ast::IdPtrn>())
-                    emitter.emit(*ptrn, values[i].first);
+                    matched_values.emplace(ptrn->as<ast::IdPtrn>(), values[i].first);
             }
             auto& case_block = rows.front().second->def;
+            auto& bound_ptrns = rows.front().second->bound_ptrns;
             if (!case_block) {
                 // Generate a continuation for this case, if it does not exist
                 auto _ = emitter.save_state();
                 auto debug = debug_info(*rows.front().second);
-                auto cont  = emitter.basic_block_with_mem(debug);
+                thorin::Array<const thorin::Type*> param_types(bound_ptrns.size());
+                for (size_t i = 0, n = bound_ptrns.size(); i < n; ++i)
+                    param_types[i] = bound_ptrns[i]->type->convert(emitter);
+                auto cont = emitter.basic_block_with_mem(emitter.world.tuple_type(param_types), debug);
+                // Emit the patterns bound in the case expression
                 emitter.enter(cont);
+                auto tuple = emitter.tuple_from_params(cont);
+                for (size_t i = 0, n = bound_ptrns.size(); i < n; ++i)
+                    emitter.emit(*bound_ptrns[i], emitter.world.extract(tuple, i));
+                // Emit the expression and jump to the target
                 emitter.jump(target, emitter.emit(*rows.front().second->expr), debug);
                 case_block = cont;
             }
-            emitter.jump(case_block);
+            // Map the matched patterns to arguments of the continuation
+            thorin::Array<const thorin::Def*> args(bound_ptrns.size());
+            for (size_t i = 0, n = bound_ptrns.size(); i < n; ++i)
+                args[i] = matched_values[bound_ptrns[i]];
+            emitter.jump(case_block, emitter.world.tuple(args));
             return;
         }
 
@@ -98,7 +117,7 @@ public:
         for (auto& row : rows) {
             if (is_wildcard(row.first[col])) {
                 if (row.first[col])
-                    emitter.emit(*row.first[col], values[col].first);
+                    matched_values.emplace(row.first[col]->as<ast::IdPtrn>(), values[col].first);
                 remove_col(row.first, col);
                 for (auto& ctor : ctors) {
                     ctor.second.push_back(row);
@@ -130,11 +149,11 @@ public:
             for (auto& ctor : ctors) {
                 auto _ = emitter.save_state();
                 emitter.enter(thorin::is_allset(ctor.first) ? match_true : match_false);
-                PtrnCompiler(emitter, match, std::vector<Value>(values), std::move(ctor.second)).compile(target);
+                PtrnCompiler(emitter, match, std::move(ctor.second), std::vector<Value>(values), matched_values).compile(target);
             }
             if (!no_default) {
                 emitter.enter(thorin::is_allset(ctors.begin()->first) ? match_false : match_true);
-                PtrnCompiler(emitter, match, std::move(values), std::move(wildcards)).compile(target);
+                PtrnCompiler(emitter, match, std::move(wildcards), std::move(values), matched_values).compile(target);
             }
         } else if (enum_type || is_int_type(values[col].second)) {
             thorin::Array<thorin::Continuation*> targets(ctors.size());
@@ -176,11 +195,11 @@ public:
                         new_values.emplace_back(emitter.world.cast(type->convert(emitter), variant), type);
                 }
 
-                PtrnCompiler(emitter, match, std::move(new_values), std::move(rows)).compile(target);
+                PtrnCompiler(emitter, match, std::move(rows), std::move(new_values), matched_values).compile(target);
             }
             if (!no_default && !wildcards.empty()) {
                 emitter.enter(otherwise);
-                PtrnCompiler(emitter, match, std::move(values), std::move(wildcards)).compile(target);
+                PtrnCompiler(emitter, match, std::move(wildcards), std::move(values), matched_values).compile(target);
             }
         } else {
             // TODO: Implement non-integer/enum match expressions
@@ -198,16 +217,19 @@ private:
     const ast::MatchExpr& match;
     std::vector<Row> rows;
     std::vector<Value> values;
+    std::unordered_map<const ast::IdPtrn*, const thorin::Def*>& matched_values;
 
     PtrnCompiler(
         Emitter& emitter,
         const ast::MatchExpr& match,
+        std::vector<Row>&& rows,
         std::vector<Value>&& values,
-        std::vector<Row>&& rows)
+        std::unordered_map<const ast::IdPtrn*, const thorin::Def*>& matched_values)
         : emitter(emitter)
         , match(match)
         , rows(std::move(rows))
         , values(std::move(values))
+        , matched_values(matched_values)
     {}
 
     static bool is_wildcard(const ast::Ptrn* ptrn) {
@@ -299,8 +321,7 @@ private:
                         for (size_t j = 0; j < member_count; ++j)
                             new_elems[j] = tuple_ptrn->args[j].get();
                     } else {
-                        assert(row.first[i]->isa<ast::IdPtrn>());
-                        emitter.emit(*row.first[i], values[i].first);
+                        matched_values.emplace(row.first[i]->as<ast::IdPtrn>(), values[i].first);
                     }
                 }
                 remove_col(row.first, i);
@@ -343,10 +364,18 @@ void PtrnCompiler::dump() const {
         p << "=> ";
         row.second->expr->print(p);
         if (i != n - 1)
-            p << p.endl();
+            p << ',' << p.endl();
     }
     p << p.unindent() << p.endl();
     p << '}' << p.endl();
+    p << "(matched: " << p.indent();
+    for (auto& pair : matched_values) {
+        p << p.endl();
+        pair.first->print(p);
+        p << " = ";
+        p.out << pair.second;
+    }
+    p << ')' << p.unindent() << p.endl();
 }
 
 bool Emitter::run(const ast::ModDecl& mod) {
@@ -797,7 +826,10 @@ const thorin::Def* IfExpr::emit(Emitter& emitter) const {
 
 const thorin::Def* MatchExpr::emit(Emitter& emitter) const {
     auto join = emitter.basic_block_with_mem(type->convert(emitter), debug_info(*this, "match_join"));
-    PtrnCompiler(emitter, *this).compile(join);
+    for (auto& case_ : cases)
+        case_->collect_bound_ptrns();
+    std::unordered_map<const IdPtrn*, const thorin::Def*> matched_values;
+    PtrnCompiler(emitter, *this, matched_values).compile(join);
     for (auto& case_ : cases) {
         if (case_->is_redundant)
             emitter.redundant_case(*case_);

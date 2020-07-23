@@ -1,7 +1,16 @@
-fn test() {
+#[export]
+fn test1() {
     match 1 {
         2 => 3,
         4 => 5,
         _ => 6
+    }
+}
+#[export]
+fn test2(x: bool, y: i32) {
+    match (x, y) {
+        (true, 1) => 1,
+        (false, 2) => 2,
+        (_, mut x) => x
     }
 }

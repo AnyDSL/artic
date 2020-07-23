@@ -258,6 +258,24 @@ BinaryExpr::Tag BinaryExpr::tag_from_token(const Token& token) {
     }
 }
 
+static void collect_bound_ptrns(const Ptrn* ptrn, std::vector<const IdPtrn*>& bound_ptrns) {
+    if (auto id_ptrn = ptrn->isa<IdPtrn>()) {
+        bound_ptrns.emplace_back(id_ptrn);
+    } else if (auto tuple_ptrn = ptrn->isa<TuplePtrn>()) {
+        for (auto& arg : tuple_ptrn->args)
+            collect_bound_ptrns(arg.get(), bound_ptrns);
+    } else if (auto struct_ptrn = ptrn->isa<StructPtrn>()) {
+        for (auto& field : struct_ptrn->fields)
+            collect_bound_ptrns(field->ptrn.get(), bound_ptrns);
+    } else if (auto enum_ptrn = ptrn->isa<EnumPtrn>()) {
+        collect_bound_ptrns(enum_ptrn->arg.get(), bound_ptrns);
+    }
+}
+
+void CaseExpr::collect_bound_ptrns() const {
+    artic::ast::collect_bound_ptrns(ptrn.get(), bound_ptrns);
+}
+
 // Attributes ----------------------------------------------------------------------
 
 static const Attr* find(const PtrVector<Attr>& attrs, const std::string_view& name) {

@@ -711,12 +711,15 @@ struct CaseExpr : public Expr {
 
     // Set during emission by the pattern matching compiler
     mutable bool is_redundant = true;
+    mutable std::vector<const struct IdPtrn*> bound_ptrns;
 
     CaseExpr(const Loc& loc, Ptr<Ptrn>&& ptrn, Ptr<Expr>&& expr)
         : Expr(loc)
         , ptrn(std::move(ptrn))
         , expr(std::move(expr))
     {}
+
+    void collect_bound_ptrns() const;
 
     bool has_side_effect() const override;
 
