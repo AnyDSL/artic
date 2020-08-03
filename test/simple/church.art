@@ -7,6 +7,6 @@ static multiply = @|a: fn (fn () -> ()) -> (), b: fn (fn () -> ()) -> ()| @|f: f
 #[export]
 fn test() {
     let mut i = 0;
-    multiply(two, two)(@|| { i++; });
+    multiply(add(two, zero), add(one, two))(@|| { i++; });
     i
 }
