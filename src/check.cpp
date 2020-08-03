@@ -289,7 +289,7 @@ bool TypeChecker::check_filter(const ast::Expr& expr) {
             check_filter(*call_expr->callee) &&
             check_filter(*call_expr->arg);
     } else if (expr.isa<ast::PathExpr>()) {
-        if (auto ref_type = expr.type->isa<RefType>(); ref_type && ref_type->mut)
+        if (auto ref_type = expr.type->isa<RefType>(); ref_type && ref_type->is_mut)
             is_mutable = true;
         else
             return true;
@@ -376,12 +376,12 @@ const artic::Type* Path::infer(TypeChecker& checker) {
     if (!symbol || symbol->decls.empty())
         return checker.type_table.type_error();
     auto type = checker.infer(*symbol->decls.front());
-    if (value && symbol->decls.front()->isa<StructDecl>()) {
+    if (is_value && symbol->decls.front()->isa<StructDecl>()) {
         checker.error(loc, "value expected, but got type '{}'", *type);
         return checker.type_table.type_error();
     }
     if (!type) {
-        checker.error(elems[0].id.loc, "identifier cannot be used as a {}", value ? "value" : "type");
+        checker.error(elems[0].id.loc, "identifier cannot be used as a {}", is_value ? "value" : "type");
         return checker.type_table.type_error();
     }
 
@@ -527,7 +527,7 @@ const artic::Type* PtrType::infer(TypeChecker& checker) {
         pointee_type = checker.type_table.unsized_array_type(checker.infer(*unsized_array_type->elem));
     else
         pointee_type = checker.infer(*pointee);
-    return checker.type_table.ptr_type(pointee_type, mut);
+    return checker.type_table.ptr_type(pointee_type, is_mut);
 }
 
 const artic::Type* TypeApp::infer(TypeChecker& checker) {
@@ -718,7 +718,7 @@ const artic::Type* CallExpr::infer(TypeChecker& checker) {
             if (!is_int_type(index_type))
                 return checker.type_expected(arg->loc, index_type, "integer type");
             return ref_type || ptr_type
-                ? checker.type_table.ref_type(array_type->elem, ptr_type ? ptr_type->mut : ref_type->mut)
+                ? checker.type_table.ref_type(array_type->elem, ptr_type ? ptr_type->is_mut : ref_type->is_mut)
                 : array_type->elem;
         } else {
             return checker.type_expected(callee->loc, callee_type, "function or array");
@@ -738,7 +738,7 @@ const artic::Type* ProjExpr::infer(TypeChecker& checker) {
         this->index = *index;
         auto result = type_app ? type_app->member_type(*index) : struct_type->member_type(*index);
         return ref_type || ptr_type
-            ? checker.type_table.ref_type(result, ptr_type ? ptr_type->mut : ref_type->mut)
+            ? checker.type_table.ref_type(result, ptr_type ? ptr_type->is_mut : ref_type->is_mut)
             : result;
     } else
         return checker.unknown_member(loc, struct_type, field.name);
@@ -845,7 +845,7 @@ const artic::Type* ReturnExpr::infer(TypeChecker& checker) {
 
 const artic::Type* UnaryExpr::infer(TypeChecker& checker) {
     auto [ref_type, arg_type] = remove_ref(checker.infer(*arg));
-    if ((!ref_type || !ref_type->mut) && (tag == AddrOfMut || is_inc() || is_dec()))
+    if ((!ref_type || !ref_type->is_mut) && (tag == AddrOfMut || is_inc() || is_dec()))
         return checker.mutable_expected(arg->loc);
     if (tag == Known)
         return checker.type_table.bool_type();
@@ -855,7 +855,7 @@ const artic::Type* UnaryExpr::infer(TypeChecker& checker) {
         return checker.type_table.ptr_type(arg_type, true);
     if (tag == Deref) {
         if (auto ptr_type = arg_type->isa<artic::PtrType>())
-            return checker.type_table.ref_type(ptr_type->pointee, ptr_type->mut);
+            return checker.type_table.ref_type(ptr_type->pointee, ptr_type->is_mut);
         checker.error(loc, "cannot dereference non-pointer type '{}'", *arg_type);
         return checker.type_table.type_error();
     }
@@ -870,7 +870,7 @@ const artic::Type* BinaryExpr::infer(TypeChecker& checker) {
     auto [left_ref, left_type] = remove_ref(checker.infer(*left));
     auto right_type = checker.coerce(right, left_type);
     if (has_eq()) {
-        if (!left_ref || !left_ref->mut)
+        if (!left_ref || !left_ref->is_mut)
             return checker.mutable_expected(left->loc);
         return checker.type_table.unit_type();
     }
@@ -950,7 +950,7 @@ const artic::Type* StaticDecl::infer(TypeChecker& checker) {
     if (init && !init->is_constant())
         checker.error(init->loc, "only constants are allowed as static variable initializers");
     checker.exit_decl(this);
-    return checker.type_table.ref_type(value_type, mut);
+    return checker.type_table.ref_type(value_type, is_mut);
 }
 
 const artic::Type* FnDecl::infer(TypeChecker& checker) {
@@ -1070,7 +1070,7 @@ const artic::Type* IdPtrn::infer(TypeChecker& checker) {
 }
 
 const artic::Type* IdPtrn::check(TypeChecker& checker, const artic::Type* expected) {
-    checker.check(*decl, decl->mut ? checker.type_table.ref_type(expected, true) : expected);
+    checker.check(*decl, decl->is_mut ? checker.type_table.ref_type(expected, true) : expected);
     return expected;
 }
 

@@ -168,10 +168,10 @@ private:
 /// Base type for pointer types.
 struct AddrType : public Type {
     const Type* pointee;
-    bool mut;
+    bool is_mut;
 
-    AddrType(TypeTable& type_table, const Type* pointee, bool mut)
-        : Type(type_table), pointee(pointee), mut(mut)
+    AddrType(TypeTable& type_table, const Type* pointee, bool is_mut)
+        : Type(type_table), pointee(pointee), is_mut(is_mut)
     {}
 
     bool equals(const Type*) const override;
@@ -188,8 +188,8 @@ struct PtrType : public AddrType {
     const thorin::Type* convert(Emitter&) const override;
 
 private:
-    PtrType(TypeTable& type_table, const Type* pointee, bool mut)
-        : AddrType(type_table, pointee, mut)
+    PtrType(TypeTable& type_table, const Type* pointee, bool is_mut)
+        : AddrType(type_table, pointee, is_mut)
     {}
 
     friend class TypeTable;
@@ -201,8 +201,8 @@ struct RefType : public AddrType {
     const Type* replace(const std::unordered_map<const TypeVar*, const Type*>&) const override;
 
 private:
-    RefType(TypeTable& type_table, const Type* pointee, bool mut)
-        : AddrType(type_table, pointee, mut)
+    RefType(TypeTable& type_table, const Type* pointee, bool is_mut)
+        : AddrType(type_table, pointee, is_mut)
     {}
 
     friend class TypeTable;

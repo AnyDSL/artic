@@ -376,7 +376,7 @@ void TypeParamList::print(Printer& p) const {
 }
 
 void PtrnDecl::print(Printer& p) const {
-    if (mut) p << log::keyword_style("mut") << ' ';
+    if (is_mut) p << log::keyword_style("mut") << ' ';
     p << id.name;
 }
 
@@ -394,7 +394,7 @@ void LetDecl::print(Printer& p) const {
 void StaticDecl::print(Printer& p) const {
     if (attrs) attrs->print(p);
     p << log::keyword_style("static") << ' ';
-    if (mut)
+    if (is_mut)
         p << log::keyword_style("mut") << ' ';
     p << id.name;
     if (type) {
@@ -537,7 +537,7 @@ void FnType::print(Printer& p) const {
 
 void PtrType::print(Printer& p) const {
     p << '&';
-    if (mut)
+    if (is_mut)
         p << log::keyword_style("mut") << ' ';
     pointee->print(p);
 }
@@ -592,13 +592,13 @@ void UnsizedArrayType::print(Printer& p) const {
 
 void PtrType::print(Printer& p) const {
     p << '&';
-    if (mut)
+    if (is_mut)
         p << log::keyword_style("mut") << ' ';
     pointee->print(p);
 }
 
 void RefType::print(Printer& p) const {
-    if (mut)
+    if (is_mut)
         p << "mutable ";
     p << "reference to ";
     pointee->print(p);

@@ -34,7 +34,7 @@ bool AddrType::equals(const Type* other) const {
         typeid(*other) == typeid(*this) &&
         other->isa<AddrType>() &&
         other->as<AddrType>()->pointee == pointee &&
-        other->as<AddrType>()->mut == mut;
+        other->as<AddrType>()->is_mut == is_mut;
 }
 
 bool FnType::equals(const Type* other) const {
@@ -109,7 +109,7 @@ size_t AddrType::hash() const {
     return fnv::Hash()
         .combine(typeid(*this).hash_code())
         .combine(pointee)
-        .combine(mut);
+        .combine(is_mut);
 }
 
 size_t FnType::hash() const {
@@ -203,11 +203,11 @@ const Type* UnsizedArrayType::replace(const std::unordered_map<const TypeVar*, c
 }
 
 const Type* PtrType::replace(const std::unordered_map<const TypeVar*, const Type*>& map) const {
-    return type_table.ptr_type(pointee->replace(map), mut);
+    return type_table.ptr_type(pointee->replace(map), is_mut);
 }
 
 const Type* RefType::replace(const std::unordered_map<const TypeVar*, const Type*>& map) const {
-    return type_table.ref_type(pointee->replace(map), mut);
+    return type_table.ref_type(pointee->replace(map), is_mut);
 }
 
 const Type* FnType::replace(const std::unordered_map<const TypeVar*, const Type*>& map) const {
@@ -368,12 +368,12 @@ bool Type::subtype(const Type* other) const {
         if (other_ptr_type->pointee->isa<PtrType>())
             return false;
         // U <= &T if U <= T
-        if (!other_ptr_type->mut && subtype(other_ptr_type->pointee))
+        if (!other_ptr_type->is_mut && subtype(other_ptr_type->pointee))
             return true;
         if (auto ptr_type = isa<PtrType>()) {
             // &U <= &T if U <= T
             // &mut U <= &T if U <= T
-            if (ptr_type->mut || !other_ptr_type->mut)
+            if (ptr_type->is_mut || !other_ptr_type->is_mut)
                 return ptr_type->pointee->subtype(other_ptr_type->pointee);
         }
     }
@@ -485,12 +485,12 @@ const UnsizedArrayType* TypeTable::unsized_array_type(const Type* elem) {
     return insert<UnsizedArrayType>(elem);
 }
 
-const PtrType* TypeTable::ptr_type(const Type* pointee, bool mut) {
-    return insert<PtrType>(pointee, mut);
+const PtrType* TypeTable::ptr_type(const Type* pointee, bool is_mut) {
+    return insert<PtrType>(pointee, is_mut);
 }
 
-const RefType* TypeTable::ref_type(const Type* pointee, bool mut) {
-    return insert<RefType>(pointee, mut);
+const RefType* TypeTable::ref_type(const Type* pointee, bool is_mut) {
+    return insert<RefType>(pointee, is_mut);
 }
 
 const FnType* TypeTable::fn_type(const Type* dom, const Type* codom) {

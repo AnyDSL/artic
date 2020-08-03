@@ -158,7 +158,7 @@ struct Path : public Node {
         {}
     };
 
-    bool value = true;
+    bool is_value = true;
     std::vector<Elem> elems;
 
     std::shared_ptr<Symbol> symbol;
@@ -353,10 +353,10 @@ struct FnType : public Type {
 
 struct PtrType : public Type {
     Ptr<Type> pointee;
-    bool mut;
+    bool is_mut;
 
-    PtrType(const Loc& loc, Ptr<Type>&& pointee, bool mut)
-        : Type(loc), pointee(std::move(pointee)), mut(mut)
+    PtrType(const Loc& loc, Ptr<Type>&& pointee, bool is_mut)
+        : Type(loc), pointee(std::move(pointee)), is_mut(is_mut)
     {}
 
     const artic::Type* infer(TypeChecker&) override;
@@ -371,7 +371,7 @@ struct TypeApp : public Type {
     TypeApp(const Loc& loc, Path&& path)
         : Type(loc), path(std::move(path))
     {
-        this->path.value = false;
+        this->path.is_value = false;
     }
 
     const artic::Type* infer(TypeChecker&) override;
@@ -456,7 +456,7 @@ struct PathExpr : public Expr {
     PathExpr(Path&& path)
         : Expr(path.loc), path(std::move(path))
     {
-        this->path.value = true;
+        this->path.is_value = true;
     }
 
     bool is_constant() const override;
@@ -526,7 +526,7 @@ struct StructExpr : public Expr {
         , path(std::move(path))
         , fields(std::move(fields))
     {
-        this->path.value = false;
+        this->path.is_value = false;
     }
 
     bool has_side_effect() const override;
@@ -1039,10 +1039,10 @@ struct TypeParamList : public Node {
 
 /// Pattern binding associated with an identifier.
 struct PtrnDecl : public NamedDecl {
-    bool mut;
+    bool is_mut;
 
-    PtrnDecl(const Loc& loc, Identifier&& id, bool mut = false)
-        : NamedDecl(loc, std::move(id)), mut(mut)
+    PtrnDecl(const Loc& loc, Identifier&& id, bool is_mut = false)
+        : NamedDecl(loc, std::move(id)), is_mut(is_mut)
     {}
 
     const artic::Type* check(TypeChecker&, const artic::Type*) override;
@@ -1071,18 +1071,18 @@ struct LetDecl : public Decl {
 struct StaticDecl : public NamedDecl {
     Ptr<Type> type;
     Ptr<Expr> init;
-    bool mut;
+    bool is_mut;
 
     StaticDecl(
         const Loc& loc,
         Identifier&& id,
         Ptr<Type>&& type,
         Ptr<Expr>&& init,
-        bool mut = false)
+        bool is_mut = false)
         : NamedDecl(loc, std::move(id))
         , type(std::move(type))
         , init(std::move(init))
-        , mut(mut)
+        , is_mut(is_mut)
     {}
 
     const thorin::Def* emit(Emitter&) const override;
@@ -1324,7 +1324,7 @@ struct StructPtrn : public Ptrn {
     StructPtrn(const Loc& loc, Path&& path, PtrVector<FieldPtrn>&& fields)
         : Ptrn(loc), path(std::move(path)), fields(std::move(fields))
     {
-        this->path.value = false;
+        this->path.is_value = false;
     }
 
     bool has_etc() const { return !fields.empty() && fields.back()->is_etc(); }

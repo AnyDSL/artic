@@ -1070,7 +1070,7 @@ const thorin::Def* StaticDecl::emit(Emitter& emitter) const {
     auto value = init
         ? emitter.emit(*init)
         : emitter.world.bottom(Node::type->as<artic::RefType>()->pointee->convert(emitter));
-    return emitter.world.global(value, mut, debug_info(*this));
+    return emitter.world.global(value, is_mut, debug_info(*this));
 }
 
 const thorin::Def* FnDecl::emit(Emitter& emitter) const {
@@ -1177,7 +1177,7 @@ void TypedPtrn::emit(Emitter& emitter, const thorin::Def* value) const {
 }
 
 void IdPtrn::emit(Emitter& emitter, const thorin::Def* value) const {
-    if (decl->mut) {
+    if (decl->is_mut) {
         auto ptr = emitter.alloc(value->type(), debug_info(*decl));
         emitter.store(ptr, value);
         decl->def = ptr;
