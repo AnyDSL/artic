@@ -17,13 +17,13 @@ Ptr<ast::ModDecl> Parser::parse() {
     Tracker tracker(this);
     PtrVector<ast::Decl> decls;
     while (ahead().tag() != Token::End)
-        decls.emplace_back(parse_decl(false));
+        decls.emplace_back(parse_decl(true));
     return make_ptr<ast::ModDecl>(tracker(), ast::Identifier(), std::move(decls));
 }
 
 // Declarations --------------------------------------------------------------------
 
-Ptr<ast::Decl> Parser::parse_decl(bool allow_let) {
+Ptr<ast::Decl> Parser::parse_decl(bool is_top_level) {
     Ptr<ast::AttrList> attrs;
     if (ahead().tag() == Token::Hash)
         attrs = parse_attr_list();
@@ -31,7 +31,7 @@ Ptr<ast::Decl> Parser::parse_decl(bool allow_let) {
     switch (ahead().tag()) {
         case Token::Let:
             decl = parse_let_decl();
-            if (!allow_let && decl->isa<ast::LetDecl>()) {
+            if (is_top_level && decl->isa<ast::LetDecl>()) {
                 error(decl->loc, "let-statements are not allowed here");
                 note("use a static variable instead");
             }
@@ -45,6 +45,7 @@ Ptr<ast::Decl> Parser::parse_decl(bool allow_let) {
         default:            decl = parse_error_decl();  break;
     }
     decl->attrs = std::move(attrs);
+    decl->is_top_level = is_top_level;
     return decl;
 }
 
@@ -223,7 +224,7 @@ Ptr<ast::ModDecl> Parser::parse_mod_decl() {
     PtrVector<ast::Decl> decls;
     expect(Token::LBrace);
     while (ahead().tag() != Token::End && ahead().tag() != Token::RBrace)
-        decls.emplace_back(parse_decl(false));
+        decls.emplace_back(parse_decl(true));
     expect(Token::RBrace);
     return make_ptr<ast::ModDecl>(tracker(), std::move(id), std::move(decls));
 }

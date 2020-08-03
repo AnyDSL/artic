@@ -417,7 +417,6 @@ void ModDecl::bind_head(NameBinder& binder) {
 
 void ModDecl::bind(NameBinder& binder) {
     binder.push_scope(true);
-    for (auto& decl : decls) decl->is_top_level = true;
     for (auto& decl : decls) binder.bind_head(*decl);
     for (auto& decl : decls) binder.bind(*decl);
     binder.pop_scope();

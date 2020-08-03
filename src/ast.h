@@ -88,7 +88,7 @@ struct Decl : public Node {
     Decl(const Loc& loc) : Node(loc) {}
 
     /// Set to true if this declaration is at the top level of a module.
-    mutable bool is_top_level = false;
+    bool is_top_level = false;
 
     /// Binds the declaration to its AST node, without entering sub-AST nodes.
     virtual void bind_head(NameBinder&) {}
