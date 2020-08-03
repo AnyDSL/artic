@@ -102,10 +102,10 @@ template <typename, typename = std::void_t<>>
 struct IsStreamable : public std::false_type {};
 
 template <typename T>
-struct IsStreamable<T, std::void_t<decltype(std::declval<std::ostream>() << std::declval<T>())>> : public std::true_type {};
+struct IsStreamable<T, std::void_t<decltype(std::declval<std::ostream&>() << std::declval<T>())>> : public std::true_type {};
 
 // Only enabled when there is an << operator
-template <typename T, typename std::enable_if<IsStreamable<T>::value, bool>::type = true>
+template <typename T, std::enable_if_t<IsStreamable<T>::value, bool> = true>
 inline Output& operator << (Output& out, const T& t) {
     out.stream << t;
     return out;
