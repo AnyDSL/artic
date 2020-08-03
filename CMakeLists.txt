@@ -5,6 +5,7 @@ set(PROJECT_VERSION_MAJOR 0)
 set(PROJECT_VERSION_MINOR 1)
 
 option(BUILD_SHARED_LIBS "Build shared libraries" ON)
+option(CODE_COVERAGE "Enable code coverage using gcov in Debug builds" OFF)
 
 if(CMAKE_BUILD_TYPE STREQUAL "")
     set(CMAKE_BUILD_TYPE Debug CACHE STRING "Debug or Release" FORCE)
@@ -16,7 +17,7 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
 # Compile for code coverage in Debug mode
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake/modules)
-if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+if(CODE_COVERAGE AND CMAKE_BUILD_TYPE STREQUAL "Debug")
     include(CodeCoverage)
     append_coverage_compiler_flags()
 endif()

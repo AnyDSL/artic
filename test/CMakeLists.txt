@@ -112,6 +112,6 @@ if (Thorin_HAS_LLVM_SUPPORT)
         REFERENCE ${CMAKE_CURRENT_SOURCE_DIR}/codegen/aobench.ref)
 endif ()
 
-if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+if(CODE_COVERAGE AND CMAKE_BUILD_TYPE STREQUAL "Debug")
     setup_target_for_coverage_gcovr_html(NAME coverage EXECUTABLE ctest -j ${PROCESSOR_COUNT} DEPENDENCIES artic)
 endif ()
