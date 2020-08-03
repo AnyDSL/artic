@@ -1,5 +1,12 @@
-static zero     = |_: fn () -> ()| {};
-static one      = |f: fn () -> ()| f();
-static two      = |f: fn () -> ()| { f(); f() };
-static add      = |a: fn (fn () -> ()) -> (), b: fn (fn () -> ()) -> ()| |f: fn () -> ()| { a(f); b(f); };
-static multiply = |a: fn (fn () -> ()) -> (), b: fn (fn () -> ()) -> ()| |f: fn () -> ()| { b(| | a(f)); };
+static zero     = @|_: fn () -> ()| {};
+static one      = @|f: fn () -> ()| f();
+static two      = @|f: fn () -> ()| { f(); f() };
+static add      = @|a: fn (fn () -> ()) -> (), b: fn (fn () -> ()) -> ()| @|f: fn () -> ()| { @a(f); @b(f); };
+static multiply = @|a: fn (fn () -> ()) -> (), b: fn (fn () -> ()) -> ()| @|f: fn () -> ()| { @b(@| | @a(f)); };
+
+#[export]
+fn test() {
+    let mut i = 0;
+    multiply(two, two)(@|| { i++; });
+    i
+}
