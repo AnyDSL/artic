@@ -46,7 +46,8 @@ void NameBinder::insert_symbol(ast::NamedDecl& decl) {
         for (auto other : shadow_symbol->decls) {
             if (other != &decl) note(other->loc, "previously declared here");
         }
-    } else if (shadow_symbol && decl.isa<ast::PtrnDecl>()) {
+    } else if (
+        shadow_symbol && decl.isa<ast::PtrnDecl>() && !shadow_symbol->decls[0]->is_top_level) {
         warn(decl.loc, "declaration shadows identifier '{}'", name);
         note(shadow_symbol->decls[0]->loc, "previously declared here");
     }
@@ -416,6 +417,7 @@ void ModDecl::bind_head(NameBinder& binder) {
 
 void ModDecl::bind(NameBinder& binder) {
     binder.push_scope(true);
+    for (auto& decl : decls) decl->is_top_level = true;
     for (auto& decl : decls) binder.bind_head(*decl);
     for (auto& decl : decls) binder.bind(*decl);
     binder.pop_scope();
