@@ -18,7 +18,9 @@ fn test() {
     let _ : B[i32] = B[i32] { x = 1 : i32, y = 2 : i64 };
     let _ : B[i32] = B[i32] { y = 2 : i64, x = 1 : i32 };
     let _ : C[i32, i64] = C[i32, i64] { x = 1 : i32, y = 2 : i64 };
-    let _ : C[i32, i64] = C[i32, i64] { y = 2 : i64, x = 1 : i32 };
+    let c : C[i32, i64] = C[i32, i64] { y = 2 : i64, x = 1 : i32 };
+    let _ : C[i32, i64] = c { x = 1 : i32 };
+    let _ : C[i32, i64] = c { y = 1 : i64 };
     let d : D = D {};
     let _ : E = E { d = d };
 }

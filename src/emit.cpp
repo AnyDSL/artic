@@ -741,7 +741,7 @@ const thorin::Def* FieldExpr::emit(Emitter& emitter) const {
 }
 
 const thorin::Def* StructExpr::emit(Emitter& emitter) const {
-    auto value = emitter.world.bottom(type->convert(emitter));
+    auto value = path.is_value ? emitter.emit(path) : emitter.world.bottom(type->convert(emitter));
     for (auto& field : fields)
         value = emitter.world.insert(value, field->index, emitter.emit(*field));
     return value;

@@ -1,6 +1,18 @@
-let mut a : A;
-let mut b : B[i32];
-let mut c : C[i32, i64];
+fn test() {
+    let mut a : A;
+    let mut b : B[i32];
+    let mut c : C[i32, i64];
+    let _ = a.z;
+    let _ = b.z;
+    let _ = c.z;
+    let _ : i64 = a.x;
+    let _ : i32 = a.y;
+    let _ : i64 = b.x;
+    let _ : i32 = b.y;
+    let _ : i64 = c.x;
+    let _ : i32 = c.y;
+}
+
 struct A {
     x: i32,
     y: i64
@@ -13,13 +25,3 @@ struct C[T, U] {
     x: T,
     y: U
 }
-
-let _ = a.z;
-let _ = b.z;
-let _ = c.z;
-let _ : i64 = a.x;
-let _ : i32 = a.y;
-let _ : i64 = b.x;
-let _ : i32 = b.y;
-let _ : i64 = c.x;
-let _ : i32 = c.y;

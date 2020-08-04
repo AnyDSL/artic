@@ -67,6 +67,7 @@ add_test(NAME simple_regex      COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE
 add_test(NAME simple_cc         COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/cc.art)
 add_test(NAME simple_escape     COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/escape.art)
 
+add_failure_test(NAME failure_annot       COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/annot.art)
 add_failure_test(NAME failure_comment     COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/comment.art)
 add_failure_test(NAME failure_utf8        COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/utf8.art)
 add_failure_test(NAME failure_dots        COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/dots.art)

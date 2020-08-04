@@ -158,7 +158,9 @@ struct Path : public Node {
         {}
     };
 
+    // Set during type-checking
     bool is_value = true;
+
     std::vector<Elem> elems;
 
     std::shared_ptr<Symbol> symbol;
@@ -166,6 +168,8 @@ struct Path : public Node {
     Path(const Loc& loc, std::vector<Elem>&& elems)
         : Node(loc), elems(std::move(elems))
     {}
+
+    const artic::Type* infer(TypeChecker&, bool, bool);
 
     const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) override;
@@ -370,9 +374,7 @@ struct TypeApp : public Type {
 
     TypeApp(const Loc& loc, Path&& path)
         : Type(loc), path(std::move(path))
-    {
-        this->path.is_value = false;
-    }
+    {}
 
     const artic::Type* infer(TypeChecker&) override;
     void bind(NameBinder&) override;
@@ -455,9 +457,7 @@ struct PathExpr : public Expr {
 
     PathExpr(Path&& path)
         : Expr(path.loc), path(std::move(path))
-    {
-        this->path.is_value = true;
-    }
+    {}
 
     bool is_constant() const override;
 
@@ -522,9 +522,7 @@ struct StructExpr : public Expr {
         : Expr(loc)
         , path(std::move(path))
         , fields(std::move(fields))
-    {
-        this->path.is_value = false;
-    }
+    {}
 
     bool has_side_effect() const override;
     bool is_constant() const override;
@@ -1321,9 +1319,7 @@ struct StructPtrn : public Ptrn {
 
     StructPtrn(const Loc& loc, Path&& path, PtrVector<FieldPtrn>&& fields)
         : Ptrn(loc), path(std::move(path)), fields(std::move(fields))
-    {
-        this->path.is_value = false;
-    }
+    {}
 
     bool has_etc() const { return !fields.empty() && fields.back()->is_etc(); }
 

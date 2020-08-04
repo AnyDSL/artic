@@ -220,8 +220,8 @@ const Type* TypeChecker::check_fields(
     const StructType* struct_type,
     const TypeApp* type_app,
     const Fields& fields,
-    const std::string& msg) {
-    bool etc = false;
+    const std::string& msg,
+    bool etc) {
     std::vector<bool> seen(struct_type->decl.fields.size(), false);
     for (size_t i = 0; i < fields.size(); ++i) {
         // Skip the field if it is '...'
@@ -373,19 +373,27 @@ const artic::Type* Node::infer(TypeChecker& checker) {
 // Path ----------------------------------------------------------------------------
 
 const artic::Type* Path::infer(TypeChecker& checker) {
+    return infer(checker, false, true);
+}
+
+const artic::Type* Path::infer(TypeChecker& checker, bool allow_type, bool allow_value) {
     if (!symbol || symbol->decls.empty())
         return checker.type_table.type_error();
     auto type = checker.infer(*symbol->decls.front());
-    if (is_value &&
-        (symbol->decls.front()->isa<StructDecl>() ||
-         (symbol->decls.front()->isa<EnumDecl>() && elems.size() == 1))) {
+    bool symbol_is_type = elems.size() == 1 &&
+        (symbol->decls.front()->isa<TypeDecl>() ||
+         symbol->decls.front()->isa<TypeParam>() ||
+         symbol->decls.front()->isa<StructDecl>() ||
+         symbol->decls.front()->isa<EnumDecl>());
+    if (!allow_type && symbol_is_type) {
         checker.error(loc, "value expected, but got type '{}'", *type);
         return checker.type_table.type_error();
     }
-    if (!type) {
-        checker.error(elems[0].id.loc, "identifier cannot be used as a {}", is_value ? "value" : "type");
+    if (!allow_value && !symbol_is_type) {
+        checker.error(loc, "type expected, but got value '{}'", elems[0].id.name);
         return checker.type_table.type_error();
     }
+    is_value = !symbol_is_type;
 
     // Inspect every element of the path
     for (size_t i = 0, n = elems.size(); i < n; ++i) {
@@ -424,9 +432,10 @@ const artic::Type* Path::infer(TypeChecker& checker) {
                 auto member = type_app ? type_app->member_type(*index) : enum_type->member_type(*index);
                 auto codom = type_app ? type_app->as<artic::Type>() : enum_type;
                 type = is_unit_type(member)
-                    ? codom 
+                    ? codom
                     : checker.type_table.fn_type(member, codom);
                 elems[i + 1].index = *index;
+                is_value = true;
             } else {
                 checker.error(elem.loc, "expected module or enum type, but got '{}'", *type);
                 return checker.type_table.type_error();
@@ -533,7 +542,7 @@ const artic::Type* PtrType::infer(TypeChecker& checker) {
 }
 
 const artic::Type* TypeApp::infer(TypeChecker& checker) {
-    return checker.infer(path);
+    return path.type = path.infer(checker, true, false);
 }
 
 // Statements ----------------------------------------------------------------------
@@ -589,11 +598,11 @@ const artic::Type* FieldExpr::check(TypeChecker& checker, const artic::Type* exp
 }
 
 const artic::Type* StructExpr::infer(TypeChecker& checker) {
-    auto path_type = checker.infer(path);
+    auto path_type = path.type = path.infer(checker, true, true);
     auto [type_app, struct_type] = match_app<StructType>(path_type);
     if (!struct_type)
         return checker.type_expected(path.loc, path_type, "structure");
-    return checker.check_fields(loc, struct_type, type_app, fields, "expression");
+    return checker.check_fields(loc, struct_type, type_app, fields, "expression", path.is_value);
 }
 
 const artic::Type* TupleExpr::infer(TypeChecker& checker) {
@@ -1081,7 +1090,7 @@ const artic::Type* FieldPtrn::check(TypeChecker& checker, const artic::Type* exp
 }
 
 const artic::Type* StructPtrn::infer(TypeChecker& checker) {
-    auto path_type = checker.infer(path);
+    auto path_type = path.type = path.infer(checker, true, false);
     auto [type_app, struct_type] = match_app<StructType>(path_type);
     if (!struct_type)
         return checker.type_expected(path.loc, path_type, "structure");
