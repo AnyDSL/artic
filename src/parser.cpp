@@ -868,12 +868,13 @@ Ptr<ast::ArrayType> Parser::parse_array_type() {
 Ptr<ast::FnType> Parser::parse_fn_type() {
     Tracker tracker(this);
     eat(Token::Fn);
-    auto from = parse_tuple_type();
-    Ptr<ast::Type> to;
-    if (ahead().tag() == Token::Arrow) {
-        eat(Token::Arrow);
-        to = parse_type();
-    }
+    Ptr<ast::Type> from;
+    if (ahead().tag() == Token::LParen)
+        from = parse_tuple_type();
+    else
+        from = parse_error_type();
+    expect(Token::Arrow);
+    auto to = parse_type();
     return make_ptr<ast::FnType>(tracker(), std::move(from), std::move(to));
 }
 
