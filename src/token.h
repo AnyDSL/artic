@@ -80,6 +80,7 @@ namespace artic {
     f(Hash, "#") \
     f(At, "@") \
     f(QMark, "?") \
+    f(Dollar, "$") \
     f(End, "<eof>")
 
 struct Literal {

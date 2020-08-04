@@ -847,6 +847,10 @@ const artic::Type* UnaryExpr::infer(TypeChecker& checker) {
     auto [ref_type, arg_type] = remove_ref(checker.infer(*arg));
     if ((!ref_type || !ref_type->is_mut) && (tag == AddrOfMut || is_inc() || is_dec()))
         return checker.mutable_expected(arg->loc);
+    if (tag == Plus || tag == Minus || tag == Not || tag == Known || tag == Forget) {
+        // Dereference the argument
+        checker.coerce(arg, arg_type);
+    }
     if (tag == Known)
         return checker.type_table.bool_type();
     if (tag == AddrOf)
@@ -858,10 +862,6 @@ const artic::Type* UnaryExpr::infer(TypeChecker& checker) {
             return checker.type_table.ref_type(ptr_type->pointee, ptr_type->is_mut);
         checker.error(loc, "cannot dereference non-pointer type '{}'", *arg_type);
         return checker.type_table.type_error();
-    }
-    if (tag == Plus || tag == Minus || tag == Not || tag == Known) {
-        // Dereference the argument
-        checker.coerce(arg, arg_type);
     }
     return arg_type;
 }

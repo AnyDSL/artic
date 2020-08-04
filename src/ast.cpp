@@ -66,8 +66,9 @@ std::string UnaryExpr::tag_to_string(Tag tag) {
         case AddrOf:
         case AddrOfMut:
             return "&";
-        case Deref: return "*";
-        case Known: return "?";
+        case Deref:  return "*";
+        case Known:  return "?";
+        case Forget: return "$";
         default:
             assert(false);
             return "";
@@ -76,14 +77,15 @@ std::string UnaryExpr::tag_to_string(Tag tag) {
 
 UnaryExpr::Tag UnaryExpr::tag_from_token(const Token& token, bool prefix) {
     switch (token.tag()) {
-        case Token::Not:   return Not;
-        case Token::Add:   return Plus;
-        case Token::Sub:   return Minus;
-        case Token::Inc:   return prefix ? PreInc : PostInc;
-        case Token::Dec:   return prefix ? PreDec : PostDec;
-        case Token::And:   return AddrOf;
-        case Token::Mul:   return Deref;
-        case Token::QMark: return Known;
+        case Token::Not:    return Not;
+        case Token::Add:    return Plus;
+        case Token::Sub:    return Minus;
+        case Token::Inc:    return prefix ? PreInc : PostInc;
+        case Token::Dec:    return prefix ? PreDec : PostDec;
+        case Token::And:    return AddrOf;
+        case Token::Mul:    return Deref;
+        case Token::QMark:  return Known;
+        case Token::Dollar: return Forget;
         default: return Error;
     }
 }
@@ -441,6 +443,7 @@ bool UnaryExpr::is_constant() const {
         case Plus:
         case Minus:
         case Known:
+        case Forget:
             return arg->is_constant();
         default:
             return false;

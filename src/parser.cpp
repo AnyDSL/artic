@@ -694,6 +694,7 @@ Ptr<ast::Expr> Parser::parse_primary_expr(bool allow_structs, bool allow_casts) 
         case Token::And:
         case Token::Mul:
         case Token::QMark:
+        case Token::Dollar:
             expr = parse_prefix_expr(allow_structs);
             break;
         case Token::LBrace:   expr = parse_block_expr();   break;
@@ -707,10 +708,8 @@ Ptr<ast::Expr> Parser::parse_primary_expr(bool allow_structs, bool allow_casts) 
             break;
         case Token::At:
             filter = parse_filter();
-            if (ahead().tag() != Token::LogicOr &&
-                ahead().tag() != Token::Or) {
+            if (ahead().tag() != Token::LogicOr && ahead().tag() != Token::Or)
                 return parse_filter_expr(std::move(filter));
-            }
             [[fallthrough]];
         case Token::LogicOr:
         case Token::Or:

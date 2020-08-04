@@ -850,6 +850,7 @@ struct UnaryExpr : public Expr {
         PreDec,
         PostDec,
         Known,
+        Forget,
         Error
     };
     Tag tag;

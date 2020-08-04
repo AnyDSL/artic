@@ -286,7 +286,6 @@ void BinaryExpr::print(Printer& p) const {
 
 void FilterExpr::print(Printer& p) const {
     filter->print(p);
-    p << ' ';
     expr->print(p);
 }
 

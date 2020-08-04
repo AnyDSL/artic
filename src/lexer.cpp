@@ -143,6 +143,7 @@ Token Lexer::next() {
         if (accept('#')) return Token(loc_, Token::Hash);
         if (accept('@')) return Token(loc_, Token::At);
         if (accept('?')) return Token(loc_, Token::QMark);
+        if (accept('$')) return Token(loc_, Token::Dollar);
         if (accept('\'')) {
             if (!eof()) {
                 auto c = peek();
