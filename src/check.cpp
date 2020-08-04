@@ -376,7 +376,9 @@ const artic::Type* Path::infer(TypeChecker& checker) {
     if (!symbol || symbol->decls.empty())
         return checker.type_table.type_error();
     auto type = checker.infer(*symbol->decls.front());
-    if (is_value && symbol->decls.front()->isa<StructDecl>()) {
+    if (is_value &&
+        (symbol->decls.front()->isa<StructDecl>() ||
+         (symbol->decls.front()->isa<EnumDecl>() && elems.size() == 1))) {
         checker.error(loc, "value expected, but got type '{}'", *type);
         return checker.type_table.type_error();
     }
