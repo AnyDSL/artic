@@ -425,13 +425,12 @@ Ptr<ast::FieldExpr> Parser::parse_field_expr() {
 
 Ptr<ast::StructExpr> Parser::parse_struct_expr(ast::Path&& path) {
     Tracker tracker(this, path.loc);
-    Tracker fields_tracker(this);
     eat(Token::LBrace);
     PtrVector<ast::FieldExpr> fields;
     parse_list(Token::RBrace, Token::Comma, [&] {
         fields.emplace_back(parse_field_expr());
     });
-    return make_ptr<ast::StructExpr>(tracker(), fields_tracker(), std::move(path), std::move(fields));
+    return make_ptr<ast::StructExpr>(tracker(), std::move(path), std::move(fields));
 }
 
 Ptr<ast::Expr> Parser::parse_tuple_expr() {

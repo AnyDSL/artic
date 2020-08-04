@@ -512,17 +512,14 @@ struct FieldExpr : public Expr {
 
 /// Structure expression.
 struct StructExpr : public Expr {
-    Loc fields_loc;
     Path path;
     PtrVector<FieldExpr> fields;
 
     StructExpr(
         const Loc& loc,
-        const Loc& fields_loc,
         Path&& path,
         PtrVector<FieldExpr>&& fields)
         : Expr(loc)
-        , fields_loc(fields_loc)
         , path(std::move(path))
         , fields(std::move(fields))
     {
