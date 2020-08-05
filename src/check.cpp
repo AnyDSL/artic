@@ -476,7 +476,7 @@ void NamedAttr::check(TypeChecker& checker, const ast::Node* node) {
                     if (auto cc_attr = find("cc")) {
                         auto& cc = cc_attr->as<LiteralAttr>()->lit.as_string();
                         if (cc == "builtin") {
-                            if (name != "bitcast" && name != "sizeof" && name != "undef")
+                            if (name != "alignof" && name != "bitcast" && name != "insert" && name != "select" && name != "sizeof" && name != "undef")
                                 checker.error(fn_decl->loc, "unsupported built-in function");
                         } else if (cc != "C" && cc != "device" && cc != "thorin")
                             checker.error(cc_attr->loc, "invalid calling convention '{}'", cc);
