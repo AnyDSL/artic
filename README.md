@@ -103,6 +103,12 @@ match p {
     Pair { x = x_, y = y_ } => x_
 }
 ```
+ - Structure expressions also accept an identifier instead of a structure,
+   which allows redefining certain fields of an existing structure:
+```rust
+let p = Pair { x = 1, y = 2 };
+let q = p { y = 3 }; // q is a structure with x = 1, y = 3
+```
  - Structure patterns can now have the `...` symbol to indicate they do not capture everything:
 ```rust
 fn foo(Pair { x = f, ... }) = f
