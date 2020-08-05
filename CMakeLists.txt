@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.1)
 project(artic)
 
 set(PROJECT_VERSION_MAJOR 0)
-set(PROJECT_VERSION_MINOR 1)
+set(PROJECT_VERSION_MINOR 2)
 
 option(BUILD_SHARED_LIBS "Build shared libraries" ON)
 option(CODE_COVERAGE "Enable code coverage using gcov in Debug builds" OFF)

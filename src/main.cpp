@@ -40,6 +40,7 @@ static void usage() {
                 "           --version            Displays the version number\n"
                 "           --no-color           Disables colors in error messages\n"
                 "           --strict             Sets warnings as errors\n"
+                "           --max-messages <n>   Sets the maximum number of error or warning messages (unlimited by default)\n"
                 "           --print-ast          Prints the AST after parsing and type-checking\n"
                 "           --emit-thorin        Prints the Thorin IR after code generation\n"
 #ifdef ENABLE_LLVM
@@ -89,6 +90,7 @@ struct ProgramOptions {
     bool emit_thorin = false;
     bool emit_llvm = false;
     unsigned opt_level = 0;
+    size_t max_messages = 0;
 
     bool matches(const char* arg, const char* opt) {
         return !strcmp(arg, opt);
@@ -138,6 +140,14 @@ struct ProgramOptions {
                     if (!check_dup(argv[i], strict))
                         return false;
                     strict = true;
+                } else if (matches(argv[i], "--max-messages")) {
+                    if (!check_dup(argv[i], max_messages != 0))
+                        return false;
+                    max_messages = std::strtoull(argv[++i], NULL, 10);
+                    if (max_messages == 0) {
+                        log::error("maximum number of error messages must be greater than 0");
+                        return false;
+                    }
                 } else if (matches(argv[i], "-g", "--debug")) {
                     if (!check_dup(argv[i], debug))
                         return false;
@@ -247,6 +257,7 @@ int main(int argc, char** argv) {
 
     Locator locator;
     Log log(log::err, &locator);
+    log.max_messages = opts.max_messages;
 
     ast::ModDecl program;
     std::vector<std::string> contents;

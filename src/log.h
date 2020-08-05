@@ -178,8 +178,11 @@ struct Log {
         : out(out), locator(locator), errors(errors), warns(warns)
     {}
 
+    bool is_full() const { return max_messages > 0 && errors + warns >= max_messages; }
+
     log::Output& out;
     Locator* locator;
+    size_t max_messages = 0;
     size_t errors;
     size_t warns;
 };
@@ -199,6 +202,7 @@ struct Logger {
     /// Report an error at the given location in a source file.
     template <typename... Args>
     void error(const Loc& loc, const char* fmt, Args&&... args) {
+        if (log.is_full()) return;
         error(fmt, std::forward<Args>(args)...);
         diagnostic(loc, log::Style::Red, '^');
     }
@@ -206,6 +210,7 @@ struct Logger {
     /// Report a warning at the given location in a source file.
     template <typename... Args>
     void warn(const Loc& loc, const char* fmt, Args&&... args) {
+        if (log.is_full()) return;
         if (strict)
             error(loc, fmt, std::forward<Args>(args)...);
         else {
@@ -217,6 +222,7 @@ struct Logger {
     /// Display a note corresponding to a specific location in a source file.
     template <typename... Args>
     void note(const Loc& loc, const char* fmt, Args&&... args) {
+        if (log.is_full()) return;
         note(fmt, std::forward<Args>(args)...);
         diagnostic(loc, log::Style::Cyan, '-');
     }
@@ -224,6 +230,7 @@ struct Logger {
     /// Report an error.
     template <typename... Args>
     void error(const char* fmt, Args&&... args) {
+        if (log.is_full()) return;
         if (log.errors > 0 || log.warns > 0)
             log.out.stream << "\n";
         log.errors++, errors++;
@@ -235,6 +242,7 @@ struct Logger {
     /// Report a warning.
     template <typename... Args>
     void warn(const char* fmt, Args&&... args) {
+        if (log.is_full()) return;
         if (strict)
             error(fmt, std::forward<Args>(args)...);
         else {
@@ -250,6 +258,7 @@ struct Logger {
     /// Display a note.
     template <typename... Args>
     void note(const char* fmt, Args&&... args) {
+        if (log.is_full()) return;
         log::format(log.out, "{}: ", log::style("note", log::Style::Cyan, log::Style::Bold));
         log::format(log.out, fmt, std::forward<Args>(args)...);
         log.out.stream << '\n';
