@@ -1114,13 +1114,16 @@ struct FnDecl : public NamedDecl {
 /// Structure field declaration.
 struct FieldDecl : public NamedDecl {
     Ptr<Type> type;
+    Ptr<Expr> init;
 
     FieldDecl(
         const Loc& loc,
         Identifier&& id,
-        Ptr<Type>&& type)
+        Ptr<Type>&& type,
+        Ptr<Expr>&& init)
         : NamedDecl(loc, std::move(id))
         , type(std::move(type))
+        , init(std::move(init))
     {}
 
     const artic::Type* infer(TypeChecker&) override;

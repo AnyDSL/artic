@@ -435,6 +435,10 @@ void FnDecl::print(Printer& p) const {
 void FieldDecl::print(Printer& p) const {
     p << id.name << ": ";
     type->print(p);
+    if (init) {
+        p << " = ";
+        init->print(p);
+    }
 }
 
 void StructDecl::print(Printer& p) const {

@@ -741,10 +741,27 @@ const thorin::Def* FieldExpr::emit(Emitter& emitter) const {
 }
 
 const thorin::Def* StructExpr::emit(Emitter& emitter) const {
-    auto value = path.is_value ? emitter.emit(path) : emitter.world.bottom(type->convert(emitter));
-    for (auto& field : fields)
-        value = emitter.world.insert(value, field->index, emitter.emit(*field));
-    return value;
+    if (path.is_value) {
+        auto value = emitter.emit(path);
+        for (auto& field : fields)
+            value = emitter.world.insert(value, field->index, emitter.emit(*field), debug_info(*this));
+        return value;
+    } else {
+        auto [_, struct_type] = match_app<artic::StructType>(type);
+        thorin::Array<const thorin::Def*> ops(struct_type->member_count(), nullptr);
+        for (size_t i = 0, n = fields.size(); i < n; ++i)
+            ops[fields[i]->index] = emitter.emit(*fields[i]);
+        // Use default values for missing fields
+        for (size_t i = 0, n = ops.size(); i < n; ++i) {
+            if (!ops[i]) {
+                assert(struct_type->decl.fields[i]->init);
+                ops[i] = emitter.emit(*struct_type->decl.fields[i]->init);
+            }
+        }
+        return emitter.world.struct_agg(
+            type->convert(emitter)->as<thorin::StructType>(),
+            ops, debug_info(*this));
+    }
 }
 
 const thorin::Def* TupleExpr::emit(Emitter& emitter) const {

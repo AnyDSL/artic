@@ -220,12 +220,13 @@ const Type* TypeChecker::check_fields(
     const TypeApp* type_app,
     const Fields& fields,
     const std::string& msg,
-    bool etc) {
+    bool has_etc,
+    bool accept_defaults) {
     std::vector<bool> seen(struct_type->decl.fields.size(), false);
     for (size_t i = 0; i < fields.size(); ++i) {
         // Skip the field if it is '...'
         if (fields[i]->is_etc()) {
-            etc = true;
+            has_etc = true;
             continue;
         }
         auto index = struct_type->find_member(fields[i]->id.name);
@@ -240,9 +241,9 @@ const Type* TypeChecker::check_fields(
         check(*fields[i], type_app ? type_app->member_type(*index) : struct_type->member_type(*index));
     }
     // Check that all fields have been specified, unless '...' was used
-    if (!etc && !std::all_of(seen.begin(), seen.end(), [] (bool b) { return b; })) {
+    if (!has_etc && !std::all_of(seen.begin(), seen.end(), [] (bool b) { return b; })) {
         for (size_t i = 0; i < seen.size(); ++i) {
-            if (!seen[i])
+            if (!seen[i] && (!accept_defaults || !struct_type->decl.fields[i]->init))
                 error(loc, "missing field '{}' in structure {}", struct_type->decl.fields[i]->id.name, msg);
         }
     }
@@ -601,7 +602,7 @@ const artic::Type* StructExpr::infer(TypeChecker& checker) {
     auto [type_app, struct_type] = match_app<StructType>(path_type);
     if (!struct_type)
         return checker.type_expected(path.loc, path_type, "structure");
-    return checker.check_fields(loc, struct_type, type_app, fields, "expression", path.is_value);
+    return checker.check_fields(loc, struct_type, type_app, fields, "expression", path.is_value, true);
 }
 
 const artic::Type* TupleExpr::infer(TypeChecker& checker) {
@@ -1001,7 +1002,13 @@ const artic::Type* FnDecl::check(TypeChecker& checker, [[maybe_unused]] const ar
 }
 
 const artic::Type* FieldDecl::infer(TypeChecker& checker) {
-    return checker.infer(*type);
+    auto field_type = checker.infer(*type);
+    if (init) {
+        checker.coerce(init, field_type);
+        if (!init->is_constant())
+            checker.error(init->loc, "only constants are allowed as default field values");
+    }
+    return field_type;    
 }
 
 const artic::Type* StructDecl::infer(TypeChecker& checker) {

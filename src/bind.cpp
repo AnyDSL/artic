@@ -374,7 +374,8 @@ void FnDecl::bind(NameBinder& binder) {
 
 void FieldDecl::bind(NameBinder& binder) {
     binder.bind(*type);
-    binder.insert_symbol(*this);
+    if (init)
+        binder.bind(*init);
 }
 
 void StructDecl::bind_head(NameBinder& binder) {

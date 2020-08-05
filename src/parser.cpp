@@ -114,7 +114,12 @@ Ptr<ast::FieldDecl> Parser::parse_field_decl() {
     auto id = parse_id();
     expect(Token::Colon);
     auto type = parse_type();
-    return make_ptr<ast::FieldDecl>(tracker(), std::move(id), std::move(type));
+    Ptr<ast::Expr> init;
+    if (ahead().tag() == Token::Eq) {
+        eat(Token::Eq);
+        init = parse_expr();
+    }
+    return make_ptr<ast::FieldDecl>(tracker(), std::move(id), std::move(type), std::move(init));
 }
 
 Ptr<ast::StructDecl> Parser::parse_struct_decl() {
