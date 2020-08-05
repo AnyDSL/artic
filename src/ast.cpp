@@ -491,7 +491,7 @@ bool ImplicitCastExpr::is_constant() const {
 // Patterns ------------------------------------------------------------------------
 
 bool TypedPtrn::is_trivial() const {
-    return ptrn->is_trivial();
+    return ptrn ? ptrn->is_trivial() : true;
 }
 
 bool IdPtrn::is_trivial() const {

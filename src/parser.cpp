@@ -79,7 +79,7 @@ Ptr<ast::FnDecl> Parser::parse_fn_decl() {
 
     Ptr<ast::Ptrn> param;
     if (ahead().tag() == Token::LParen) {
-        param = parse_tuple_ptrn();
+        param = parse_tuple_ptrn(true);
         expect_binder("function parameter", param);
     } else {
         error(ahead().loc(), "parameter list expected in function definition");
@@ -238,11 +238,17 @@ Ptr<ast::ErrorDecl> Parser::parse_error_decl() {
 
 // Patterns ------------------------------------------------------------------------
 
-Ptr<ast::Ptrn> Parser::parse_ptrn() {
+Ptr<ast::Ptrn> Parser::parse_ptrn(bool is_fn_param) {
     Ptr<ast::Ptrn> ptrn;
     switch (ahead().tag()) {
         case Token::Id:
             {
+                if (auto tag = ast::PrimType::tag_from_token(ahead()); tag != ast::PrimType::Error) {
+                    if (!is_fn_param)
+                        return parse_error_ptrn();
+                    auto type = parse_prim_type(tag);
+                    return make_ptr<ast::TypedPtrn>(type->loc, Ptr<ast::Ptrn>(), std::move(type));
+                }
                 auto id = parse_id();
                 if (ahead().tag() == Token::DblColon ||
                     ahead().tag() == Token::LBracket ||
@@ -250,7 +256,10 @@ Ptr<ast::Ptrn> Parser::parse_ptrn() {
                     auto path = parse_path(std::move(id), true);
                     if (ahead().tag() == Token::LBrace)
                         ptrn = parse_struct_ptrn(std::move(path));
-                    else
+                    else if (is_fn_param && ahead().tag() != Token::Colon) {
+                        auto type = make_ptr<ast::TypeApp>(path.loc, std::move(path));
+                        return make_ptr<ast::TypedPtrn>(path.loc, Ptr<ast::Ptrn>(), std::move(type));
+                    } else
                         ptrn = parse_enum_ptrn(std::move(path));
                 } else
                     ptrn = parse_id_ptrn(std::move(id), false);
@@ -262,9 +271,19 @@ Ptr<ast::Ptrn> Parser::parse_ptrn() {
                 ptrn = parse_id_ptrn(parse_id(), true);
             }
             break;
-        case Token::LParen: ptrn = parse_tuple_ptrn();   break;
-        case Token::Lit:    ptrn = parse_literal_ptrn(); break;
-        default:            ptrn = parse_error_ptrn();   break;
+        case Token::LParen: ptrn = parse_tuple_ptrn(is_fn_param); break;
+        case Token::Lit:    ptrn = parse_literal_ptrn();          break;
+        case Token::LBracket:
+        case Token::And:
+        case Token::Fn:
+            if (is_fn_param) {
+                auto type = parse_type();
+                return make_ptr<ast::TypedPtrn>(type->loc, Ptr<ast::Ptrn>(), std::move(type));
+            }
+            [[fallthrough]];
+        default:
+            ptrn = parse_error_ptrn();
+            break;
     }
     return parse_typed_ptrn(std::move(ptrn));
 }
@@ -334,12 +353,12 @@ Ptr<ast::EnumPtrn> Parser::parse_enum_ptrn(ast::Path&& path) {
     return make_ptr<ast::EnumPtrn>(tracker(), std::move(path), std::move(arg));
 }
 
-Ptr<ast::Ptrn> Parser::parse_tuple_ptrn(Token::Tag beg, Token::Tag end) {
+Ptr<ast::Ptrn> Parser::parse_tuple_ptrn(bool is_fn_param, Token::Tag beg, Token::Tag end) {
     Tracker tracker(this);
     eat(beg);
     PtrVector<ast::Ptrn> args;
     parse_list(end, Token::Comma, [&] {
-        args.emplace_back(parse_ptrn());
+        args.emplace_back(parse_ptrn(is_fn_param));
     });
     if (args.size() == 1) {
         args[0]->loc = tracker();
@@ -533,7 +552,7 @@ Ptr<ast::FnExpr> Parser::parse_fn_expr(Ptr<ast::Filter>&& filter, bool nested) {
         parse_nested = parse_list(
             std::array<Token::Tag, 2>{ Token::Or, Token::LogicOr },
             std::array<Token::Tag, 1>{ Token::Comma }, [&] {
-                args.emplace_back(parse_ptrn());
+                args.emplace_back(parse_ptrn(true));
             }) == 1;
         if (args.size() == 1) {
             ptrn = std::move(args.front());
@@ -634,7 +653,7 @@ Ptr<ast::Expr> Parser::parse_for_expr() {
         ahead(2).tag() == Token::Mut ||
         ahead(2).tag() == Token::Comma ||
         ahead(2).tag() == Token::Colon)
-        ptrn = parse_tuple_ptrn(Token::For, Token::In);
+        ptrn = parse_tuple_ptrn(false, Token::For, Token::In);
     else {
         eat(Token::For);
         ptrn = make_ptr<ast::TuplePtrn>(tracker(), PtrVector<ast::Ptrn>{});

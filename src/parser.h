@@ -33,14 +33,14 @@ private:
     Ptr<ast::ModDecl>       parse_mod_decl();
     Ptr<ast::ErrorDecl>     parse_error_decl();
 
-    Ptr<ast::Ptrn>          parse_ptrn();
+    Ptr<ast::Ptrn>          parse_ptrn(bool = false);
     Ptr<ast::Ptrn>          parse_typed_ptrn(Ptr<ast::Ptrn>&&);
     Ptr<ast::IdPtrn>        parse_id_ptrn(ast::Identifier&&, bool);
     Ptr<ast::LiteralPtrn>   parse_literal_ptrn();
     Ptr<ast::FieldPtrn>     parse_field_ptrn();
     Ptr<ast::StructPtrn>    parse_struct_ptrn(ast::Path&&);
     Ptr<ast::EnumPtrn>      parse_enum_ptrn(ast::Path&&);
-    Ptr<ast::Ptrn>          parse_tuple_ptrn(Token::Tag = Token::LParen, Token::Tag = Token::RParen);
+    Ptr<ast::Ptrn>          parse_tuple_ptrn(bool = false, Token::Tag = Token::LParen, Token::Tag = Token::RParen);
     Ptr<ast::ErrorPtrn>     parse_error_ptrn();
 
     Ptr<ast::Stmt>          parse_stmt();

@@ -1174,7 +1174,8 @@ void Ptrn::emit(Emitter&, const thorin::Def*) const {
 }
 
 void TypedPtrn::emit(Emitter& emitter, const thorin::Def* value) const {
-    emitter.emit(*ptrn, value);
+    if (ptrn)
+        emitter.emit(*ptrn, value);
 }
 
 void IdPtrn::emit(Emitter& emitter, const thorin::Def* value) const {

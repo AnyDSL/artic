@@ -2,8 +2,8 @@
  * ported to artic from impala version
  */
 
-#[import(cc = "C")] fn atoi(_: &[u8]) -> i32;
-#[import(cc = "C")] fn print_i32(_: i32) -> ();
+#[import(cc = "C")] fn atoi(&[u8]) -> i32;
+#[import(cc = "C")] fn print_i32(i32) -> ();
 
 static mut s = [0; 16];
 static mut t = [0; 16];

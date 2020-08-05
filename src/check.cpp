@@ -158,9 +158,8 @@ const Type* TypeChecker::infer(ast::Ptrn& ptrn, Ptr<ast::Expr>& expr) {
                     infer(*tuple_ptrn->args[i], tuple_expr->args[i]);
             }
         }
-    } else if (auto typed_ptrn = ptrn.isa<ast::TypedPtrn>()) {
-        return ptrn.type = coerce(expr, check(*typed_ptrn->ptrn, infer(*typed_ptrn->type)));
-    }
+    } else if (auto typed_ptrn = ptrn.isa<ast::TypedPtrn>())
+        return coerce(expr, infer(*typed_ptrn));
     return check(ptrn, deref(expr));
 }
 
@@ -1063,7 +1062,8 @@ const artic::Type* ModDecl::infer(TypeChecker& checker) {
 // Patterns ------------------------------------------------------------------------
 
 const artic::Type* TypedPtrn::infer(TypeChecker& checker) {
-    return checker.check(*ptrn, checker.infer(*type));
+    auto ptrn_type = checker.infer(*type);
+    return ptrn ? checker.check(*ptrn, ptrn_type) : ptrn_type;
 }
 
 const artic::Type* LiteralPtrn::infer(TypeChecker& checker) {

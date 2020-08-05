@@ -295,7 +295,7 @@ void ErrorExpr::bind(NameBinder&) {}
 // Patterns ------------------------------------------------------------------------
 
 void TypedPtrn::bind(NameBinder& binder) {
-    binder.bind(*ptrn);
+    if (ptrn) binder.bind(*ptrn);
     binder.bind(*type);
 }
 

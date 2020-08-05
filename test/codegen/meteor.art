@@ -5,15 +5,15 @@
  * ported to artic from impala version
  */
 
-#[import(cc = "C")] fn atoi(_: &[u8]) -> i32;
-#[import(cc = "C")] fn println(_: &[u8]) -> ();
-#[import(cc = "C")] fn print_u8(_: u8) -> ();
-#[import(cc = "C")] fn print_i32(_: i32) -> ();
-#[import(cc = "C")] fn print_f64(_: f64) -> ();
-#[import(cc = "C")] fn print_piece_mask(_: &[u64]) -> ();
-#[import(cc = "C")] fn print_meteor_scnt(_: i32) -> ();
-#[import(cc = "C")] fn print_meteor_lines(_: &[i8]) -> ();
-#[import(cc = "C")] fn print_piece_def(_: &[[i8*4]*10]) -> ();
+#[import(cc = "C")] fn atoi(&[u8]) -> i32;
+#[import(cc = "C")] fn println(&[u8]) -> ();
+#[import(cc = "C")] fn print_u8(u8) -> ();
+#[import(cc = "C")] fn print_i32(i32) -> ();
+#[import(cc = "C")] fn print_f64(f64) -> ();
+#[import(cc = "C")] fn print_piece_mask(&[u64]) -> ();
+#[import(cc = "C")] fn print_meteor_scnt(i32) -> ();
+#[import(cc = "C")] fn print_meteor_lines(&[i8]) -> ();
+#[import(cc = "C")] fn print_piece_def(&[[i8*4]*10]) -> ();
 
 fn @range_step(body: fn (i32) -> ()) = @|beg: i32, end: i32, step: i32| {
     fn loop(a: i32, b: i32) -> () {
