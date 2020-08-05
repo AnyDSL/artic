@@ -113,6 +113,15 @@ let q = p { y = 3 }; // q is a structure with x = 1, y = 3
 ```rust
 fn foo(Pair { x = f, ... }) = f
 ```
+ - Structures can have default values for their fields.
+   Fields with default values can be omitted in structure expressions:
+```rust
+struct S {
+    x: i32 = 1,
+    y: i64 = 3
+}
+static x = S { y = 2 }; // x is a structure with x = 1, y = 2
+```
  - Type annotations can be added on every expression:
 ```rust
 let x : i32 = (1 : i32) : i32;
