@@ -31,6 +31,7 @@ namespace artic {
     f(Type, "type") \
     f(Static, "static") \
     f(Mod, "mod") \
+    f(AddrSpace, "addrspace") \
     f(LParen, "(") \
     f(RParen, ")") \
     f(LBrace, "{") \

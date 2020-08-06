@@ -184,10 +184,10 @@ Ptr<ast::TypeDecl> Parser::parse_type_decl() {
 Ptr<ast::StaticDecl> Parser::parse_static_decl() {
     Tracker tracker(this);
     eat(Token::Static);
-    bool mut = false;
+    bool is_mut = false;
     if (ahead().tag() == Token::Mut) {
         eat(Token::Mut);
-        mut = true;
+        is_mut = true;
     }
     auto id = parse_id();
 
@@ -203,7 +203,7 @@ Ptr<ast::StaticDecl> Parser::parse_static_decl() {
         init = parse_expr();
     }
     expect(Token::Semi);
-    return make_ptr<ast::StaticDecl>(tracker(), std::move(id), std::move(type), std::move(init), mut);
+    return make_ptr<ast::StaticDecl>(tracker(), std::move(id), std::move(type), std::move(init), is_mut);
 }
 
 Ptr<ast::TypeParam> Parser::parse_type_param() {
@@ -303,9 +303,9 @@ Ptr<ast::Ptrn> Parser::parse_typed_ptrn(Ptr<ast::Ptrn>&& ptrn) {
     return std::move(ptrn);
 }
 
-Ptr<ast::IdPtrn> Parser::parse_id_ptrn(ast::Identifier&& id, bool mut) {
+Ptr<ast::IdPtrn> Parser::parse_id_ptrn(ast::Identifier&& id, bool is_mut) {
     Tracker tracker(this, id.loc);
-    auto decl = make_ptr<ast::PtrnDecl>(tracker(), std::move(id), mut);
+    auto decl = make_ptr<ast::PtrnDecl>(tracker(), std::move(id), is_mut);
     return make_ptr<ast::IdPtrn>(tracker(), std::move(decl));
 }
 
@@ -519,6 +519,7 @@ Ptr<ast::BlockExpr> Parser::parse_block_expr() {
             case Token::LBracket:
             case Token::LBrace:
             case Token::At:
+            case Token::And:
             case Token::LogicOr:
             case Token::Or:
             case Token::Mul:
@@ -904,13 +905,16 @@ Ptr<ast::FnType> Parser::parse_fn_type() {
 Ptr<ast::PtrType> Parser::parse_ptr_type() {
     Tracker tracker(this);
     eat(Token::And);
-    bool mut = false;
+    bool is_mut = false;
     if (ahead().tag() == Token::Mut) {
         eat(Token::Mut);
-        mut = true;
+        is_mut = true;
     }
+    size_t addr_space = 0;
+    if (ahead().tag() == Token::AddrSpace)
+        addr_space = parse_addr_space();
     auto pointee = parse_type();
-    return make_ptr<ast::PtrType>(tracker(), std::move(pointee), mut);
+    return make_ptr<ast::PtrType>(tracker(), std::move(pointee), is_mut, addr_space);
 }
 
 Ptr<ast::TypeApp> Parser::parse_type_app() {
@@ -1038,6 +1042,20 @@ std::optional<size_t> Parser::parse_array_size() {
             next();
     }
     return size;
+}
+
+size_t Parser::parse_addr_space() {
+    eat(Token::AddrSpace);
+    expect(Token::LParen);
+    Tracker tracker(this);
+    size_t addr_space = 0;
+    if (ahead().tag() == Token::Lit && ahead().literal().is_integer()) {
+        addr_space = ahead().literal().as_integer();
+        next();
+    } else
+        error(tracker(), "invalid address space");
+    expect(Token::RParen);
+    return addr_space;
 }
 
 std::pair<Ptr<ast::Expr>, Ptr<ast::Expr>> Parser::parse_cond_and_block() {

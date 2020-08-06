@@ -540,9 +540,15 @@ void FnType::print(Printer& p) const {
 
 void PtrType::print(Printer& p) const {
     p << '&';
+    if (pointee->isa<PtrType>())
+        p << '(';
     if (is_mut)
         p << log::keyword_style("mut") << ' ';
+    if (addr_space != 0)
+        p << log::keyword_style("addrspace") << '(' << addr_space << ')';
     pointee->print(p);
+    if (pointee->isa<PtrType>())
+        p << ')';
 }
 
 void TypeApp::print(Printer& p) const {
@@ -595,9 +601,13 @@ void UnsizedArrayType::print(Printer& p) const {
 
 void PtrType::print(Printer& p) const {
     p << '&';
+    if (pointee->isa<PtrType>())
+        p << ' ';
     if (is_mut)
         p << log::keyword_style("mut") << ' ';
     pointee->print(p);
+    if (addr_space != 0)
+        p << '@' << addr_space;
 }
 
 void RefType::print(Printer& p) const {

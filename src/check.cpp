@@ -525,7 +525,7 @@ const artic::Type* SizedArrayType::infer(TypeChecker& checker) {
 const artic::Type* UnsizedArrayType::infer(TypeChecker& checker) {
     auto type = checker.type_table.unsized_array_type(checker.infer(*elem));
     checker.error(loc, "unsized array types cannot be used directly");
-    checker.note("use '{}' instead", *checker.type_table.ptr_type(type, false));
+    checker.note("use '{}' instead", *checker.type_table.ptr_type(type, false, 0));
     return checker.type_table.type_error();
 }
 
@@ -539,7 +539,7 @@ const artic::Type* PtrType::infer(TypeChecker& checker) {
         pointee_type = checker.type_table.unsized_array_type(checker.infer(*unsized_array_type->elem));
     else
         pointee_type = checker.infer(*pointee);
-    return checker.type_table.ptr_type(pointee_type, is_mut);
+    return checker.type_table.ptr_type(pointee_type, is_mut, addr_space);
 }
 
 const artic::Type* TypeApp::infer(TypeChecker& checker) {
@@ -730,7 +730,10 @@ const artic::Type* CallExpr::infer(TypeChecker& checker) {
             if (!is_int_type(index_type))
                 return checker.type_expected(arg->loc, index_type, "integer type");
             return ref_type || ptr_type
-                ? checker.type_table.ref_type(array_type->elem, ptr_type ? ptr_type->is_mut : ref_type->is_mut)
+                ? checker.type_table.ref_type(
+                    array_type->elem,
+                    ptr_type ? ptr_type->is_mut : ref_type->is_mut,
+                    ptr_type ? ptr_type->addr_space : ref_type->addr_space)
                 : array_type->elem;
         } else {
             return checker.type_expected(callee->loc, callee_type, "function or array");
@@ -750,7 +753,10 @@ const artic::Type* ProjExpr::infer(TypeChecker& checker) {
         this->index = *index;
         auto result = type_app ? type_app->member_type(*index) : struct_type->member_type(*index);
         return ref_type || ptr_type
-            ? checker.type_table.ref_type(result, ptr_type ? ptr_type->is_mut : ref_type->is_mut)
+            ? checker.type_table.ref_type(
+                result,
+                ptr_type ? ptr_type->is_mut : ref_type->is_mut,
+                ptr_type ? ptr_type->addr_space : ref_type->addr_space)
             : result;
     } else
         return checker.unknown_member(loc, struct_type, field.name);
@@ -866,12 +872,12 @@ const artic::Type* UnaryExpr::infer(TypeChecker& checker) {
     if (tag == Known)
         return checker.type_table.bool_type();
     if (tag == AddrOf)
-        return checker.type_table.ptr_type(arg_type, false);
+        return checker.type_table.ptr_type(arg_type, false, ref_type ? ref_type->addr_space : 0);
     if (tag == AddrOfMut)
-        return checker.type_table.ptr_type(arg_type, true);
+        return checker.type_table.ptr_type(arg_type, true, ref_type->addr_space);
     if (tag == Deref) {
         if (auto ptr_type = arg_type->isa<artic::PtrType>())
-            return checker.type_table.ref_type(ptr_type->pointee, ptr_type->is_mut);
+            return checker.type_table.ref_type(ptr_type->pointee, ptr_type->is_mut, ptr_type->addr_space);
         checker.error(loc, "cannot dereference non-pointer type '{}'", *arg_type);
         return checker.type_table.type_error();
     }
@@ -962,7 +968,7 @@ const artic::Type* StaticDecl::infer(TypeChecker& checker) {
     if (init && !init->is_constant())
         checker.error(init->loc, "only constants are allowed as static variable initializers");
     checker.exit_decl(this);
-    return checker.type_table.ref_type(value_type, is_mut);
+    return checker.type_table.ref_type(value_type, is_mut, 0);
 }
 
 const artic::Type* FnDecl::infer(TypeChecker& checker) {
@@ -1089,7 +1095,7 @@ const artic::Type* IdPtrn::infer(TypeChecker& checker) {
 }
 
 const artic::Type* IdPtrn::check(TypeChecker& checker, const artic::Type* expected) {
-    checker.check(*decl, decl->is_mut ? checker.type_table.ref_type(expected, true) : expected);
+    checker.check(*decl, decl->is_mut ? checker.type_table.ref_type(expected, true, 0) : expected);
     return expected;
 }
 

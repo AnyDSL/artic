@@ -1279,7 +1279,7 @@ const thorin::Type* UnsizedArrayType::convert(Emitter& emitter) const {
 }
 
 const thorin::Type* PtrType::convert(Emitter& emitter) const {
-    return emitter.world.ptr_type(pointee->convert(emitter));
+    return emitter.world.ptr_type(pointee->convert(emitter), 1, -1, thorin::AddrSpace(addr_space));
 }
 
 const thorin::Type* FnType::convert(Emitter& emitter) const {

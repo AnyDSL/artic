@@ -6,24 +6,25 @@
 namespace artic {
 
 std::unordered_map<std::string, Token::Tag> Lexer::keywords{
-    std::make_pair("let",      Token::Let),
-    std::make_pair("mut",      Token::Mut),
-    std::make_pair("as",       Token::As),
-    std::make_pair("fn",       Token::Fn),
-    std::make_pair("if",       Token::If),
-    std::make_pair("else",     Token::Else),
-    std::make_pair("match",    Token::Match),
-    std::make_pair("while",    Token::While),
-    std::make_pair("for",      Token::For),
-    std::make_pair("in",       Token::In),
-    std::make_pair("break",    Token::Break),
-    std::make_pair("continue", Token::Continue),
-    std::make_pair("return",   Token::Return),
-    std::make_pair("struct",   Token::Struct),
-    std::make_pair("enum",     Token::Enum),
-    std::make_pair("type",     Token::Type),
-    std::make_pair("static",   Token::Static),
-    std::make_pair("mod",      Token::Mod)
+    std::make_pair("let",       Token::Let),
+    std::make_pair("mut",       Token::Mut),
+    std::make_pair("as",        Token::As),
+    std::make_pair("fn",        Token::Fn),
+    std::make_pair("if",        Token::If),
+    std::make_pair("else",      Token::Else),
+    std::make_pair("match",     Token::Match),
+    std::make_pair("while",     Token::While),
+    std::make_pair("for",       Token::For),
+    std::make_pair("in",        Token::In),
+    std::make_pair("break",     Token::Break),
+    std::make_pair("continue",  Token::Continue),
+    std::make_pair("return",    Token::Return),
+    std::make_pair("struct",    Token::Struct),
+    std::make_pair("enum",      Token::Enum),
+    std::make_pair("type",      Token::Type),
+    std::make_pair("static",    Token::Static),
+    std::make_pair("mod",       Token::Mod),
+    std::make_pair("addrspace", Token::AddrSpace)
 };
 
 Lexer::Lexer(Log& log, const std::string& filename, std::istream& is)

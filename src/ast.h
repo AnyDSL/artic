@@ -358,9 +358,10 @@ struct FnType : public Type {
 struct PtrType : public Type {
     Ptr<Type> pointee;
     bool is_mut;
+    size_t addr_space;
 
-    PtrType(const Loc& loc, Ptr<Type>&& pointee, bool is_mut)
-        : Type(loc), pointee(std::move(pointee)), is_mut(is_mut)
+    PtrType(const Loc& loc, Ptr<Type>&& pointee, bool is_mut, size_t addr_space)
+        : Type(loc), pointee(std::move(pointee)), is_mut(is_mut), addr_space(addr_space)
     {}
 
     const artic::Type* infer(TypeChecker&) override;

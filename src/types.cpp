@@ -34,6 +34,7 @@ bool AddrType::equals(const Type* other) const {
         typeid(*other) == typeid(*this) &&
         other->isa<AddrType>() &&
         other->as<AddrType>()->pointee == pointee &&
+        other->as<AddrType>()->addr_space == addr_space &&
         other->as<AddrType>()->is_mut == is_mut;
 }
 
@@ -203,11 +204,11 @@ const Type* UnsizedArrayType::replace(const std::unordered_map<const TypeVar*, c
 }
 
 const Type* PtrType::replace(const std::unordered_map<const TypeVar*, const Type*>& map) const {
-    return type_table.ptr_type(pointee->replace(map), is_mut);
+    return type_table.ptr_type(pointee->replace(map), is_mut, addr_space);
 }
 
 const Type* RefType::replace(const std::unordered_map<const TypeVar*, const Type*>& map) const {
-    return type_table.ref_type(pointee->replace(map), is_mut);
+    return type_table.ref_type(pointee->replace(map), is_mut, addr_space);
 }
 
 const Type* FnType::replace(const std::unordered_map<const TypeVar*, const Type*>& map) const {
@@ -370,7 +371,8 @@ bool Type::subtype(const Type* other) const {
         // U <= &T if U <= T
         if (!other_ptr_type->is_mut && subtype(other_ptr_type->pointee))
             return true;
-        if (auto ptr_type = isa<PtrType>()) {
+        if (auto ptr_type = isa<PtrType>();
+            ptr_type && ptr_type->addr_space == other_ptr_type->addr_space) {
             // &U <= &T if U <= T
             // &mut U <= &T if U <= T
             if (ptr_type->is_mut || !other_ptr_type->is_mut)
@@ -485,12 +487,12 @@ const UnsizedArrayType* TypeTable::unsized_array_type(const Type* elem) {
     return insert<UnsizedArrayType>(elem);
 }
 
-const PtrType* TypeTable::ptr_type(const Type* pointee, bool is_mut) {
-    return insert<PtrType>(pointee, is_mut);
+const PtrType* TypeTable::ptr_type(const Type* pointee, bool is_mut, size_t addr_space) {
+    return insert<PtrType>(pointee, is_mut, addr_space);
 }
 
-const RefType* TypeTable::ref_type(const Type* pointee, bool is_mut) {
-    return insert<RefType>(pointee, is_mut);
+const RefType* TypeTable::ref_type(const Type* pointee, bool is_mut, size_t addr_space) {
+    return insert<RefType>(pointee, is_mut, addr_space);
 }
 
 const FnType* TypeTable::fn_type(const Type* dom, const Type* codom) {

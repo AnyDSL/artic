@@ -168,10 +168,11 @@ private:
 /// Base type for pointer types.
 struct AddrType : public Type {
     const Type* pointee;
+    size_t addr_space;
     bool is_mut;
 
-    AddrType(TypeTable& type_table, const Type* pointee, bool is_mut)
-        : Type(type_table), pointee(pointee), is_mut(is_mut)
+    AddrType(TypeTable& type_table, const Type* pointee, bool is_mut, size_t addr_space)
+        : Type(type_table), pointee(pointee), is_mut(is_mut), addr_space(addr_space)
     {}
 
     bool equals(const Type*) const override;
@@ -188,8 +189,8 @@ struct PtrType : public AddrType {
     const thorin::Type* convert(Emitter&) const override;
 
 private:
-    PtrType(TypeTable& type_table, const Type* pointee, bool is_mut)
-        : AddrType(type_table, pointee, is_mut)
+    PtrType(TypeTable& type_table, const Type* pointee, bool is_mut, size_t addr_space)
+        : AddrType(type_table, pointee, is_mut, addr_space)
     {}
 
     friend class TypeTable;
@@ -201,8 +202,8 @@ struct RefType : public AddrType {
     const Type* replace(const std::unordered_map<const TypeVar*, const Type*>&) const override;
 
 private:
-    RefType(TypeTable& type_table, const Type* pointee, bool is_mut)
-        : AddrType(type_table, pointee, is_mut)
+    RefType(TypeTable& type_table, const Type* pointee, bool is_mut, size_t addr_space)
+        : AddrType(type_table, pointee, is_mut, addr_space)
     {}
 
     friend class TypeTable;
@@ -475,8 +476,8 @@ public:
     const TupleType*        tuple_type(std::vector<const Type*>&&);
     const SizedArrayType*   sized_array_type(const Type*, size_t);
     const UnsizedArrayType* unsized_array_type(const Type*);
-    const PtrType*          ptr_type(const Type*, bool);
-    const RefType*          ref_type(const Type*, bool);
+    const PtrType*          ptr_type(const Type*, bool, size_t);
+    const RefType*          ref_type(const Type*, bool, size_t);
     const FnType*           fn_type(const Type*, const Type*);
     const FnType*           cn_type(const Type*);
     const NoRetType*        no_ret_type();

@@ -95,6 +95,7 @@ private:
     ast::Identifier         parse_id();
     Literal                 parse_lit();
     std::optional<size_t>   parse_array_size();
+    size_t                  parse_addr_space();
 
     std::pair<Ptr<ast::Expr>, Ptr<ast::Expr>> parse_cond_and_block();
 
