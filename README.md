@@ -150,3 +150,7 @@ match x {
 @@foo(1, x); // valid in impala, invalid with artic
 @foo(1, x); // valid in artic, invalid in impala
 ```
+ - Address spaces are now introduced with the keyword `addrspace`:
+```rust
+fn foo(p: &addrspace(1)i32) = *p
+```
