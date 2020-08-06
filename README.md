@@ -152,5 +152,6 @@ match x {
 ```
  - Address spaces are now introduced with the keyword `addrspace`:
 ```rust
+// Equivalent to &[1]i32 in impala
 fn foo(p: &addrspace(1)i32) = *p
 ```
