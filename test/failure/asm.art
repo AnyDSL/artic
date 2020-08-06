@@ -1,0 +1,5 @@
+fn test() {
+    let x = 3;
+    asm("addl $1, 0" : "=r"(x));
+    asm("nop"::::"random stuff");
+}

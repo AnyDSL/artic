@@ -56,10 +56,8 @@ Ptr<ast::LetDecl> Parser::parse_let_decl() {
     auto ptrn = parse_ptrn();
     expect_binder("let declaration", ptrn);
     Ptr<ast::Expr> init;
-    if (ahead().tag() == Token::Eq) {
-        eat(Token::Eq);
+    if (accept(Token::Eq))
         init = parse_expr();
-    }
     expect(Token::Semi);
     return make_ptr<ast::LetDecl>(tracker(), std::move(ptrn), std::move(init));
 }
@@ -86,18 +84,14 @@ Ptr<ast::FnDecl> Parser::parse_fn_decl() {
     }
 
     Ptr<ast::Type> ret_type;
-    if (ahead().tag() == Token::Arrow) {
-        eat(Token::Arrow);
+    if (accept(Token::Arrow))
         ret_type = parse_type();
-    }
 
     Ptr<ast::Expr> body;
     if (ahead().tag() == Token::LBrace)
         body = parse_block_expr();
-    else if (ahead().tag() == Token::Eq) {
-        eat(Token::Eq);
+    else if (accept(Token::Eq))
         body = parse_expr();
-    }
 
     if (!body) {
         if (!ret_type)
@@ -115,10 +109,8 @@ Ptr<ast::FieldDecl> Parser::parse_field_decl() {
     expect(Token::Colon);
     auto type = parse_type();
     Ptr<ast::Expr> init;
-    if (ahead().tag() == Token::Eq) {
-        eat(Token::Eq);
+    if (accept(Token::Eq))
         init = parse_expr();
-    }
     return make_ptr<ast::FieldDecl>(tracker(), std::move(id), std::move(type), std::move(init));
 }
 
@@ -184,24 +176,16 @@ Ptr<ast::TypeDecl> Parser::parse_type_decl() {
 Ptr<ast::StaticDecl> Parser::parse_static_decl() {
     Tracker tracker(this);
     eat(Token::Static);
-    bool is_mut = false;
-    if (ahead().tag() == Token::Mut) {
-        eat(Token::Mut);
-        is_mut = true;
-    }
+    bool is_mut = accept(Token::Mut);
     auto id = parse_id();
 
     Ptr<ast::Type> type;
-    if (ahead().tag() == Token::Colon) {
-        eat(Token::Colon);
+    if (accept(Token::Colon))
         type = parse_type();
-    }
 
     Ptr<ast::Expr> init;
-    if (ahead().tag() == Token::Eq) {
-        eat(Token::Eq);
+    if (accept(Token::Eq))
         init = parse_expr();
-    }
     expect(Token::Semi);
     return make_ptr<ast::StaticDecl>(tracker(), std::move(id), std::move(type), std::move(init), is_mut);
 }
@@ -294,9 +278,8 @@ Ptr<ast::Ptrn> Parser::parse_ptrn(bool is_fn_param) {
 }
 
 Ptr<ast::Ptrn> Parser::parse_typed_ptrn(Ptr<ast::Ptrn>&& ptrn) {
-    if (ahead().tag() == Token::Colon) {
-        Tracker tracker(this, ptrn->loc);
-        eat(Token::Colon);
+    Tracker tracker(this, ptrn->loc);
+    if (accept(Token::Colon)) {
         auto type = parse_type();
         return make_ptr<ast::TypedPtrn>(tracker(), std::move(ptrn), std::move(type));
     }
@@ -419,9 +402,8 @@ Ptr<ast::Expr> Parser::parse_expr(bool allow_structs) {
 }
 
 Ptr<ast::Expr> Parser::parse_typed_expr(Ptr<ast::Expr>&& expr) {
-    if (ahead().tag() == Token::Colon) {
-        Tracker tracker(this, expr->loc);
-        eat(Token::Colon);
+    Tracker tracker(this, expr->loc);
+    if (accept(Token::Colon)) {
         auto type = parse_type();
         return make_ptr<ast::TypedExpr>(tracker(), std::move(expr), std::move(type));
     }
@@ -476,15 +458,13 @@ Ptr<ast::Expr> Parser::parse_array_expr() {
     eat(Token::LBracket);
     PtrVector<ast::Expr> elems;
     elems.emplace_back(parse_expr());
-    if (ahead().tag() == Token::Semi) {
-        eat(Token::Semi);
+    if (accept(Token::Semi)) {
         auto size = parse_array_size();
         expect(Token::RBracket);
         if (size)
             return make_ptr<ast::RepeatArrayExpr>(tracker(), std::move(elems.front()), *size);
         return make_ptr<ast::ArrayExpr>(tracker(), std::move(elems));
-    } else if (ahead().tag() == Token::Comma) {
-        eat(Token::Comma);
+    } else if (accept(Token::Comma)) {
         parse_list(Token::RBracket, Token::Comma, [&] {
             elems.emplace_back(parse_expr());
         });
@@ -529,6 +509,7 @@ Ptr<ast::BlockExpr> Parser::parse_block_expr() {
             case Token::Inc:
             case Token::Dec:
             case Token::QMark:
+            case Token::Asm:
             case Token::Let:
             case Token::Fn:
                 if (!last_semi && !stmts.empty() && stmts.back()->need_semicolon())
@@ -565,12 +546,10 @@ Ptr<ast::FnExpr> Parser::parse_fn_expr(Ptr<ast::Filter>&& filter, bool nested) {
         } else {
             ptrn = make_ptr<ast::TuplePtrn>(tracker(), std::move(args));
         }
-    } else if (ahead().tag() == Token::LogicOr) {
-        eat(Token::LogicOr);
+    } else if (accept(Token::LogicOr))
         ptrn = make_ptr<ast::TuplePtrn>(tracker(), PtrVector<ast::Ptrn>{});
-    } else {
+    else
         ptrn = parse_error_ptrn();
-    }
     expect_binder("anonymous function parameter", ptrn);
 
     Ptr<ast::Expr> body;
@@ -581,10 +560,8 @@ Ptr<ast::FnExpr> Parser::parse_fn_expr(Ptr<ast::Filter>&& filter, bool nested) {
         body = parse_fn_expr(nullptr, true);
     } else {
         // Optional return type
-        if (ahead().tag() == Token::Arrow) {
-            eat(Token::Arrow);
+        if (accept(Token::Arrow))
             ret_type = parse_type();
-        }
         body = parse_expr();
     }
     return make_ptr<ast::FnExpr>(tracker(), std::move(filter), std::move(ptrn), std::move(ret_type), std::move(body));
@@ -609,8 +586,7 @@ Ptr<ast::IfExpr> Parser::parse_if_expr() {
     auto [cond, if_true] = parse_cond_and_block();
 
     Ptr<ast::Expr> if_false;
-    if (ahead().tag() == Token::Else) {
-        eat(Token::Else);
+    if (accept(Token::Else)) {
         if (ahead().tag() == Token::If)
             if_false = parse_if_expr();
         else if (ahead().tag() == Token::LBrace)
@@ -746,6 +722,7 @@ Ptr<ast::Expr> Parser::parse_primary_expr(bool allow_structs, bool allow_casts) 
         case Token::Break:    expr = parse_break_expr();    break;
         case Token::Continue: expr = parse_continue_expr(); break;
         case Token::Return:   expr = parse_return_expr();   break;
+        case Token::Asm:      expr = parse_asm_expr();      break;
         default:
             expr = parse_error_expr();
             break;
@@ -771,10 +748,8 @@ Ptr<ast::UnaryExpr> Parser::parse_prefix_expr(bool allow_structs) {
     Tracker tracker(this);
     auto tag = ast::UnaryExpr::tag_from_token(ahead(), true);
     next();
-    if (tag == ast::UnaryExpr::AddrOf && ahead().tag() == Token::Mut) {
-        eat(Token::Mut);
+    if (tag == ast::UnaryExpr::AddrOf && accept(Token::Mut))
         tag = ast::UnaryExpr::AddrOfMut;
-    }
     auto expr = parse_primary_expr(allow_structs, false);
     return make_ptr<ast::UnaryExpr>(tracker(), tag, std::move(expr));
 }
@@ -824,6 +799,70 @@ Ptr<ast::CastExpr> Parser::parse_cast_expr(Ptr<ast::Expr>&& expr) {
     eat(Token::As);
     auto type = parse_type();
     return make_ptr<ast::CastExpr>(tracker(), std::move(expr), std::move(type));
+}
+
+Ptr<ast::AsmExpr> Parser::parse_asm_expr() {
+    Tracker tracker(this);
+    eat(Token::Asm);
+    expect(Token::LParen);
+    auto src = parse_str();
+    std::vector<ast::AsmExpr::Constr> ins, outs;
+    std::vector<std::string> clobs, opts;
+
+    if (accept(Token::Colon))    goto parse_outs;
+    if (accept(Token::DblColon)) goto parse_ins;
+    if (accept(Token::RParen))   goto done;
+    goto error;
+
+parse_outs:
+    while (ahead().tag() == Token::Lit) {
+        outs.emplace_back(parse_constr());
+        if (!accept(Token::Comma))
+            break;
+    }
+    if (accept(Token::Colon))    goto parse_ins;
+    if (accept(Token::DblColon)) goto parse_clobs;
+    if (accept(Token::RParen))   goto done;
+    goto error;
+
+parse_ins:
+    while (ahead().tag() == Token::Lit) {
+        ins.emplace_back(parse_constr());
+        if (!accept(Token::Comma))
+            break;
+    }
+    if (accept(Token::Colon))    goto parse_clobs;
+    if (accept(Token::DblColon)) goto parse_opts;
+    if (accept(Token::RParen))   goto done;
+    goto error;
+
+parse_clobs:
+    while (ahead().tag() == Token::Lit) {
+        clobs.emplace_back(parse_str());
+        if (!accept(Token::Comma))
+            break;
+    }
+    if (accept(Token::Colon))    goto parse_opts;
+    if (accept(Token::RParen))   goto done;
+    goto error;
+
+parse_opts:
+    while (ahead().tag() == Token::Lit) {
+        opts.emplace_back(parse_str());
+        if (!accept(Token::Comma))
+            break;
+    }
+    expect(Token::RParen);
+    goto done;
+
+error:
+    error(ahead().loc(), "expected ':', or ')' in assembly expression");
+
+done:
+    return make_ptr<ast::AsmExpr>(
+       tracker(), std::move(src),
+       std::move(ins), std::move(outs),
+       std::move(clobs), std::move(opts));
 }
 
 Ptr<ast::ErrorExpr> Parser::parse_error_expr() {
@@ -879,10 +918,8 @@ Ptr<ast::ArrayType> Parser::parse_array_type() {
     eat(Token::LBracket);
     auto elem = parse_type();
     std::optional<size_t> size;
-    if (ahead().tag() == Token::Mul) {
-        eat(Token::Mul);
+    if (accept(Token::Mul))
         size = parse_array_size();
-    }
     expect(Token::RBracket);
     if (size)
         return make_ptr<ast::SizedArrayType>(tracker(), std::move(elem), *size);
@@ -905,11 +942,7 @@ Ptr<ast::FnType> Parser::parse_fn_type() {
 Ptr<ast::PtrType> Parser::parse_ptr_type() {
     Tracker tracker(this);
     eat(Token::And);
-    bool is_mut = false;
-    if (ahead().tag() == Token::Mut) {
-        eat(Token::Mut);
-        is_mut = true;
-    }
+    bool is_mut = accept(Token::Mut);
     size_t addr_space = 0;
     if (ahead().tag() == Token::AddrSpace)
         addr_space = parse_addr_space();
@@ -934,8 +967,7 @@ Ptr<ast::Filter> Parser::parse_filter() {
     Tracker tracker(this);
     eat(Token::At);
     Ptr<ast::Expr> expr;
-    if (ahead().tag() == Token::LParen) {
-        eat(Token::LParen);
+    if (accept(Token::LParen)) {
         expr = parse_expr();
         expect(Token::RParen);
     }
@@ -960,8 +992,7 @@ Ptr<ast::Attr> Parser::parse_attr() {
         name = ahead().identifier();
     expect(Token::Id);
 
-    if (ahead().tag() == Token::Eq) {
-        eat(Token::Eq);
+    if (accept(Token::Eq)) {
         if (ahead().tag() == Token::Lit) {
             auto lit = ahead().literal();
             eat(Token::Lit);
@@ -975,8 +1006,7 @@ Ptr<ast::Attr> Parser::parse_attr() {
         }
     } else {
         PtrVector<ast::Attr> args;
-        if (ahead().tag() == Token::LParen) {
-            eat(Token::LParen);
+        if (accept(Token::LParen)) {
             parse_list(Token::RParen, Token::Comma, [&] {
                 args.emplace_back(parse_attr());
             });
@@ -993,8 +1023,7 @@ ast::Path Parser::parse_path(ast::Identifier&& id, bool allow_types) {
     do {
         Tracker elem_tracker(this, prev_loc);
         PtrVector<ast::Type> args;
-        if (allow_types && ahead().tag() == Token::LBracket) {
-            eat(Token::LBracket);
+        if (allow_types && accept(Token::LBracket)) {
             parse_list(Token::RBracket, Token::Comma, [&] {
                 args.emplace_back(parse_type());
             });
@@ -1021,6 +1050,15 @@ ast::Identifier Parser::parse_id() {
     return ast::Identifier(tracker(), std::move(ident));
 }
 
+ast::AsmExpr::Constr Parser::parse_constr() {
+    Tracker tracker(this);
+    auto name = parse_str();
+    expect(Token::LParen);
+    auto expr = parse_expr();
+    expect(Token::RParen);
+    return ast::AsmExpr::Constr(tracker(), std::move(name), std::move(expr));
+}
+
 Literal Parser::parse_lit() {
     Literal lit;
     if (!ahead().is_literal())
@@ -1029,6 +1067,16 @@ Literal Parser::parse_lit() {
         lit = ahead().literal();
     next();
     return lit;
+}
+
+std::string Parser::parse_str() {
+    std::string str;
+    if (!ahead().is_literal() || !ahead().literal().is_string())
+        error(ahead().loc(), "expected string literal, got '{}'", ahead().string());
+    else
+        str = ahead().literal().as_string();
+    next();
+    return str;
 }
 
 std::optional<size_t> Parser::parse_array_size() {

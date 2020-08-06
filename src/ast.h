@@ -990,6 +990,45 @@ struct ImplicitCastExpr : public Expr {
     void print(Printer&) const override;
 };
 
+/// Inline assembly expression.
+struct AsmExpr : public Expr {
+    struct Constr {
+        Loc loc;
+        std::string name;
+        Ptr<Expr> expr;
+
+        Constr(const Loc& loc, std::string&& name, Ptr<Expr>&& expr)
+            : loc(loc), name(std::move(name)), expr(std::move(expr))
+        {}
+    };
+
+    std::string src;
+    std::vector<Constr> ins, outs;
+    std::vector<std::string> clobs, opts;
+
+    AsmExpr(
+        const Loc& loc,
+        std::string&& src,
+        std::vector<Constr>&& ins,
+        std::vector<Constr>&& outs,
+        std::vector<std::string>&& clobs,
+        std::vector<std::string>&& opts)
+        : Expr(loc)
+        , src(std::move(src))
+        , ins(std::move(ins))
+        , outs(std::move(outs))
+        , clobs(std::move(clobs))
+        , opts(std::move(opts))
+    {}
+
+    bool has_side_effect() const override;
+
+    const thorin::Def* emit(Emitter&) const override;
+    const artic::Type* infer(TypeChecker&) override;
+    void bind(NameBinder&) override;
+    void print(Printer&) const override;
+};
+
 /// Incorrect expression, as a result of parsing.
 struct ErrorExpr : public Expr {
     ErrorExpr(const Loc& loc)

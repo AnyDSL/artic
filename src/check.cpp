@@ -935,6 +935,28 @@ const artic::Type* CastExpr::infer(TypeChecker& checker) {
     return checker.invalid_cast(loc, type, expected);
 }
 
+const artic::Type* AsmExpr::infer(TypeChecker& checker) {
+    for (auto& out : outs) {
+        auto [ref_type, type] = remove_ref(checker.infer(*out.expr));
+        if (!ref_type || !ref_type->is_mut)
+            return checker.mutable_expected(out.expr->loc);
+        if (!type->isa<artic::PrimType>())
+            return checker.type_expected(out.expr->loc, type, "primitive");
+    }
+    for (auto& in : ins) {
+        auto type = checker.deref(in.expr);
+        if (!type->isa<artic::PrimType>())
+            return checker.type_expected(in.expr->loc, type, "primitive");
+    }
+    for (auto& opt : opts) {
+        if (opt != "volatile" && opt != "alignstack" && opt != "intel") {
+            checker.error(loc, "invalid option '{}'", opt);
+            return checker.type_table.type_error();
+        }
+    }
+    return checker.type_table.unit_type();
+}
+
 // Declarations --------------------------------------------------------------------
 
 const artic::Type* TypeParam::infer(TypeChecker& checker) {

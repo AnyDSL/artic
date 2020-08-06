@@ -488,6 +488,10 @@ bool ImplicitCastExpr::is_constant() const {
     return false;
 }
 
+bool AsmExpr::has_side_effect() const {
+    return !outs.empty() || std::find(opts.begin(), opts.end(), "volatile") != opts.end();
+}
+
 // Patterns ------------------------------------------------------------------------
 
 bool TypedPtrn::is_trivial() const {

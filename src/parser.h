@@ -73,6 +73,7 @@ private:
     Ptr<ast::Expr>          parse_binary_expr(Ptr<ast::Expr>&&, bool, int);
     Ptr<ast::Expr>          parse_filter_expr(Ptr<ast::Filter>&&);
     Ptr<ast::CastExpr>      parse_cast_expr(Ptr<ast::Expr>&&);
+    Ptr<ast::AsmExpr>       parse_asm_expr();
     Ptr<ast::ErrorExpr>     parse_error_expr();
 
     Ptr<ast::Type>          parse_type();
@@ -93,7 +94,9 @@ private:
     ast::Path               parse_path(ast::Identifier&&, bool);
     ast::Path               parse_path(bool allow_types = true) { return parse_path(parse_id(), allow_types); }
     ast::Identifier         parse_id();
+    ast::AsmExpr::Constr    parse_constr();
     Literal                 parse_lit();
+    std::string             parse_str();
     std::optional<size_t>   parse_array_size();
     size_t                  parse_addr_space();
 
@@ -176,6 +179,14 @@ private:
     void eat(Token::Tag tag) {
         assert(ahead().tag() == tag);(void)tag;
         next();
+    }
+
+    bool accept(Token::Tag tag) {
+        if (ahead().tag() == tag) {
+            eat(tag);
+            return true;
+        }
+        return false;
     }
 
     void next() {

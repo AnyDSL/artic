@@ -290,6 +290,13 @@ void CastExpr::bind(NameBinder& binder) {
 
 void ImplicitCastExpr::bind(NameBinder&) {}
 
+void AsmExpr::bind(NameBinder& binder) {
+    for (auto& in : ins)
+        binder.bind(*in.expr);
+    for (auto& out : outs)
+        binder.bind(*out.expr);
+}
+
 void ErrorExpr::bind(NameBinder&) {}
 
 // Patterns ------------------------------------------------------------------------

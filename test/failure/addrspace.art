@@ -1,0 +1,4 @@
+fn test(p: &addrspace(1)i32) {
+    let mut q = 1;
+    &q == p
+}

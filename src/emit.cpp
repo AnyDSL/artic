@@ -1086,6 +1086,40 @@ const thorin::Def* ImplicitCastExpr::emit(Emitter& emitter) const {
         : emitter.world.bottom(this->type->convert(emitter));
 }
 
+const thorin::Def* AsmExpr::emit(Emitter& emitter) const {
+    std::vector<const thorin::Type*> out_types;
+    std::vector<const thorin::Def*> in_values;
+    std::vector<std::string> out_names;
+    std::vector<std::string> in_names;
+    in_values.push_back(nullptr);
+    for (auto& in : ins) {
+        in_values.push_back(emitter.emit(*in.expr));
+        in_names.push_back(in.name);
+    }
+    out_types.push_back(emitter.world.mem_type());
+    for (auto& out : outs) {
+        out_types.push_back(out.expr->type->as<artic::RefType>()->pointee->convert(emitter));
+        out_names.push_back(out.name);
+    }
+    thorin::Assembly::Flags flags = thorin::Assembly::Flags::NoFlag;
+    for (auto& opt : opts) {
+        if (opt == "volatile")
+            flags |= thorin::Assembly::HasSideEffects;
+        else if (opt == "alignstack")
+            flags |= thorin::Assembly::IsAlignStack;
+        else if (opt == "intel")
+            flags |= thorin::Assembly::IsIntelDialect;
+    }
+    in_values.front() = emitter.state.mem;
+    auto assembly = emitter.world.assembly(
+        emitter.world.tuple_type(out_types), in_values, src,
+        out_names, in_names, clobs, flags, debug_info(*this));
+    emitter.state.mem = assembly->out(0);
+    for (size_t i = 0, n = outs.size(); i < n; ++i)
+        emitter.store(emitter.emit(*outs[i].expr), assembly->out(i + 1), debug_info(*this));
+    return emitter.world.tuple({});
+}
+
 // Declarations --------------------------------------------------------------------
 
 const thorin::Def* LetDecl::emit(Emitter& emitter) const {

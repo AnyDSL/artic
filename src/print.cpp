@@ -301,6 +301,27 @@ void ImplicitCastExpr::print(Printer& p) const {
     p << "/* ) */";
 }
 
+void AsmExpr::print(Printer& p) const {
+    p << log::keyword_style("asm") << p.indent() << p.endl()
+      << '\"' << src << '\"' << p.endl();
+    auto print_constr = [&] (auto& constr) {
+        p << '\"' << constr.name << "\"(";
+        constr.expr->print(p);
+        p << ')';
+    };
+    auto print_clob = [&] (auto& clob) { p << '\"' << clob << '\"'; };
+    auto print_opt = print_clob;
+    p << ": ";
+    print_list(p, ", ", outs, print_constr);
+    p << ": ";
+    print_list(p, ", ", ins, print_constr);
+    p << ": ";
+    print_list(p, ", ", clobs, print_clob);
+    p << ": ";
+    print_list(p, ", ", opts, print_opt);
+    p << ")" << p.unindent();
+}
+
 void ErrorExpr::print(Printer& p) const {
     p << log::error_style("<invalid expression>");
 }
@@ -540,12 +561,12 @@ void FnType::print(Printer& p) const {
 
 void PtrType::print(Printer& p) const {
     p << '&';
-    if (pointee->isa<PtrType>())
-        p << '(';
     if (is_mut)
         p << log::keyword_style("mut") << ' ';
     if (addr_space != 0)
         p << log::keyword_style("addrspace") << '(' << addr_space << ')';
+    if (pointee->isa<PtrType>())
+        p << '(';
     pointee->print(p);
     if (pointee->isa<PtrType>())
         p << ')';
@@ -601,13 +622,15 @@ void UnsizedArrayType::print(Printer& p) const {
 
 void PtrType::print(Printer& p) const {
     p << '&';
-    if (pointee->isa<PtrType>())
-        p << ' ';
     if (is_mut)
         p << log::keyword_style("mut") << ' ';
-    pointee->print(p);
     if (addr_space != 0)
-        p << '@' << addr_space;
+        p << log::keyword_style("addrspace") << '(' << addr_space << ')';
+    if (pointee->isa<PtrType>())
+        p << '(';
+    pointee->print(p);
+    if (pointee->isa<PtrType>())
+        p << ')';
 }
 
 void RefType::print(Printer& p) const {
