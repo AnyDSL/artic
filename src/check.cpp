@@ -154,8 +154,10 @@ const Type* TypeChecker::infer(ast::Ptrn& ptrn, Ptr<ast::Expr>& expr) {
     if (auto tuple_ptrn = ptrn.isa<ast::TuplePtrn>()) {
         if (auto tuple_expr = expr->isa<ast::TupleExpr>()) {
             if (tuple_ptrn->args.size() == tuple_expr->args.size()) {
+                std::vector<const Type*> arg_types;
                 for (size_t i = 0, n = tuple_expr->args.size(); i < n; ++i)
-                    infer(*tuple_ptrn->args[i], tuple_expr->args[i]);
+                    arg_types.push_back(infer(*tuple_ptrn->args[i], tuple_expr->args[i]));
+                return type_table.tuple_type(std::move(arg_types));
             }
         }
     } else if (auto typed_ptrn = ptrn.isa<ast::TypedPtrn>())
