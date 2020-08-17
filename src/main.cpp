@@ -341,7 +341,7 @@ int main(int argc, char** argv) {
     Log log(log::err, &locator);
     log.max_messages = opts.max_messages;
 
-    bool success = !compile(opts, log);
+    bool success = compile(opts, log);
     log.print_summary();
     return success ? EXIT_SUCCESS : EXIT_FAILURE;
 }
