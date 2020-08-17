@@ -165,14 +165,24 @@ Token Lexer::next() {
             return Token(loc_);
         }
         if (accept('\"')) {
-            while (!eof() && peek() != '\"')
-                append_char();
-            if (eof() || !accept('\"')) {
-                error(loc_.at_begin().enlarge_after(), "unterminated string literal");
-                return Token(loc_);
+            Loc str_loc;
+            std::string str_lit;
+            while (true) {
+                size_t pos = str_.size();
+                while (!eof() && peek() != '\"')
+                    append_char();
+                if (eof() || !accept('\"')) {
+                    error(loc_.at_begin().enlarge_after(), "unterminated string literal");
+                    return Token(loc_);
+                }
+                str_loc = loc_;
+                str_lit += str_.substr(pos, str_.size() - (pos + 1));
+                eat_spaces();
+                if (!accept('\"'))
+                    break;
             }
             assert(str_.size() >= 2);
-            return Token(loc_, str_, Literal(str_.substr(1, str_.size() - 2)));
+            return Token(str_loc, str_, str_lit);
         }
 
         if (std::isdigit(peek()) || peek() == '.') {
