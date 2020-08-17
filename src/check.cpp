@@ -942,13 +942,13 @@ const artic::Type* AsmExpr::infer(TypeChecker& checker) {
         auto [ref_type, type] = remove_ref(checker.infer(*out.expr));
         if (!ref_type || !ref_type->is_mut)
             return checker.mutable_expected(out.expr->loc);
-        if (!type->isa<artic::PrimType>())
-            return checker.type_expected(out.expr->loc, type, "primitive");
+        if (!type->isa<artic::PrimType>() && !type->isa<artic::PtrType>())
+            return checker.type_expected(out.expr->loc, type, "primitive or pointer");
     }
     for (auto& in : ins) {
         auto type = checker.deref(in.expr);
-        if (!type->isa<artic::PrimType>())
-            return checker.type_expected(in.expr->loc, type, "primitive");
+        if (!type->isa<artic::PrimType>() && !type->isa<artic::PtrType>())
+            return checker.type_expected(in.expr->loc, type, "primitive or pointer");
     }
     for (auto& opt : opts) {
         if (opt != "volatile" && opt != "alignstack" && opt != "intel") {
