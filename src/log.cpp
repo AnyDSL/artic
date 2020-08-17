@@ -4,14 +4,16 @@
 namespace artic {
 
 void Log::print_summary() {
+    if (errors == 0 && warns == 0)
+        return;
     if (errors > 0) {
         out << "\n" << log::style("compilation failed", log::Style::Red, log::Style::Bold) << " with "
             << errors << " " << log::style("error(s)", log::Style::Red, log::Style::Bold);
         if (warns > 0)
             out << " and " << warns << " " << log::style("warning(s)", log::Style::Yellow, log::Style::Bold);
         out << "\n";
-    } else if (warns > 0) {
-        out << log::style("compilation succeeded", log::Style::Cyan, log::Style::Bold) << " with "
+    } else {
+        out << "\n" << log::style("compilation succeeded", log::Style::Cyan, log::Style::Bold) << " with "
             << warns << " " << log::style("warning(s)", log::Style::Yellow, log::Style::Bold) << "\n";
     }
     if (is_full()) {

@@ -342,7 +342,6 @@ int main(int argc, char** argv) {
     log.max_messages = opts.max_messages;
 
     bool success = !compile(opts, log);
-    log.out << "\n";
     log.print_summary();
     return success ? EXIT_SUCCESS : EXIT_FAILURE;
 }
