@@ -241,11 +241,12 @@ Ptr<ast::Ptrn> Parser::parse_ptrn(bool is_fn_param) {
                 auto id = parse_id();
                 if (ahead().tag() == Token::DblColon ||
                     ahead().tag() == Token::LBracket ||
-                    ahead().tag() == Token::LBrace) {
+                    ahead().tag() == Token::LBrace ||
+                    (is_fn_param && ahead().tag() != Token::Colon)) {
                     auto path = parse_path(std::move(id), true);
                     if (ahead().tag() == Token::LBrace)
                         ptrn = parse_struct_ptrn(std::move(path));
-                    else if (is_fn_param && ahead().tag() != Token::Colon) {
+                    else if (is_fn_param) {
                         auto type = make_ptr<ast::TypeApp>(path.loc, std::move(path));
                         return make_ptr<ast::TypedPtrn>(path.loc, Ptr<ast::Ptrn>(), std::move(type));
                     } else
@@ -539,7 +540,7 @@ Ptr<ast::FnExpr> Parser::parse_fn_expr(Ptr<ast::Filter>&& filter, bool nested) {
         parse_nested = parse_list(
             std::array<Token::Tag, 2>{ Token::Or, Token::LogicOr },
             std::array<Token::Tag, 1>{ Token::Comma }, [&] {
-                args.emplace_back(parse_ptrn(true));
+                args.emplace_back(parse_ptrn(false));
             }) == 1;
         if (args.size() == 1) {
             ptrn = std::move(args.front());
