@@ -601,11 +601,17 @@ const thorin::Def* Emitter::builtin(const ast::FnDecl& fn_decl, thorin::Continua
     } else if (cont->name() == "insert") {
         auto param = tuple_from_params(cont, true);
         auto target_type = fn_decl.type->as<ForallType>()->body->as<FnType>()->codom->convert(*this);
-        cont->jump(cont->params().back(), call_args(cont->param(0), world.insert(cont->param(1), cont->param(2), cont->param(3))), debug_info(fn_decl));
+        cont->jump(
+            cont->params().back(),
+            call_args(cont->param(0), world.insert(cont->param(1), cont->param(2), cont->param(3))),
+            debug_info(fn_decl));
     } else if (cont->name() == "select") {
         auto param = tuple_from_params(cont, true);
         auto target_type = fn_decl.type->as<ForallType>()->body->as<FnType>()->codom->convert(*this);
-        cont->jump(cont->params().back(), call_args(cont->param(0), world.select(cont->param(1), cont->param(2), cont->param(3))), debug_info(fn_decl));
+        cont->jump(
+            cont->params().back(),
+            call_args(cont->param(0), world.select(cont->param(1), cont->param(2), cont->param(3))),
+            debug_info(fn_decl));
     } else if (cont->name() == "sizeof") {
         auto target_type = fn_decl.type_params->params[0]->type->convert(*this);
         cont->jump(cont->params().back(), { cont->param(0), world.size_of(target_type) }, debug_info(fn_decl));
