@@ -147,7 +147,7 @@ match x {
 ```
  - The `@@` sign for call-site annotations has been replaced by `@`:
 ```rust
-@@foo(1, x); // valid in impala, invalid with artic
+@@foo(1, x); // valid in impala, useless (counted as two annotations) with artic
 @foo(1, x); // valid in artic, invalid in impala
 ```
  - Address spaces are now introduced with the keyword `addrspace`:
