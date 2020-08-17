@@ -182,6 +182,8 @@ struct Log {
         return max_messages > 0 && errors > 1 && errors + warns >= max_messages;
     }
 
+    void print_summary();
+
     log::Output& out;
     Locator* locator;
     size_t max_messages = 0;

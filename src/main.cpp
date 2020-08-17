@@ -237,39 +237,18 @@ static std::optional<std::string> read_file(const std::string& file) {
     }
 }
 
-int main(int argc, char** argv) {
-    ProgramOptions opts;
-    if (!opts.parse(argc, argv))
-        return EXIT_FAILURE;
-    if (opts.exit)
-        return EXIT_SUCCESS;
-
-    if (opts.no_color)
-        log::err.colorized = log::out.colorized = false;
-
-    if (opts.files.empty()) {
-        log::error("no input files");
-        return EXIT_FAILURE;
-    }
-
-    if (opts.module_name == "")
-        opts.module_name = file_without_ext(opts.files.front());
-
-    Locator locator;
-    Log log(log::err, &locator);
-    log.max_messages = opts.max_messages;
-
+static bool compile(const ProgramOptions& opts, Log& log) {
     ast::ModDecl program;
     std::vector<std::string> contents;
     for (auto& file : opts.files) {
         auto data = read_file(file);
         if (!data) {
             log::error("cannot open file '{}'", file);
-            return EXIT_FAILURE;
+            return false;
         }
         // The contents are necessary to be able to emit proper diagnostics during type-checking
         contents.emplace_back(*data);
-        locator.register_file(file, contents.back());
+        log.locator->register_file(file, contents.back());
         MemBuf mem_buf(contents.back());
         std::istream is(&mem_buf);
 
@@ -278,7 +257,7 @@ int main(int argc, char** argv) {
         parser.strict = opts.strict;
         auto module = parser.parse();
         if (log.errors > 0)
-            return EXIT_FAILURE;
+            return false;
 
         program.decls.insert(
             program.decls.end(),
@@ -294,18 +273,8 @@ int main(int argc, char** argv) {
     TypeChecker type_checker(log, type_table);
     type_checker.strict = opts.strict;
 
-    if (!name_binder.run(program) ||
-        !type_checker.run(program)) {
-        log::out
-            << "\n" << log::style("compilation failed", log::Style::Red, log::Style::Bold) << " with "
-            << log.errors << " " << log::style("error(s)", log::Style::Red, log::Style::Bold);
-        if (log.warns > 0)
-            log::out << " and " << log.warns << " " << log::style("warning(s)", log::Style::Yellow, log::Style::Bold);
-        log.out << "\n";
-        if (log.is_full())
-            log::out << log::style("(some messages were omitted, run without `--max-messages` to get the full log)", log::Style::White, log::Style::Bold) << "\n";
-        return EXIT_FAILURE;
-    }
+    if (!name_binder.run(program) || !type_checker.run(program))
+        return false;
 
     if (opts.print_ast) {
         Printer p(log::out);
@@ -319,7 +288,7 @@ int main(int argc, char** argv) {
     thorin::World world(opts.module_name);
     Emitter emitter(log, world);
     if (!emitter.run(program))
-        return EXIT_FAILURE;
+        return false;
     if (opts.opt_level == 1)
         world.cleanup();
     if (opts.opt_level > 1 || opts.emit_llvm)
@@ -347,5 +316,33 @@ int main(int argc, char** argv) {
         emit_to_file(backends.hls_cg.get(),    ".hls");
     }
 #endif
-    return EXIT_SUCCESS;
+    return true;
+}
+
+int main(int argc, char** argv) {
+    ProgramOptions opts;
+    if (!opts.parse(argc, argv))
+        return EXIT_FAILURE;
+    if (opts.exit)
+        return EXIT_SUCCESS;
+
+    if (opts.no_color)
+        log::err.colorized = log::out.colorized = false;
+
+    if (opts.files.empty()) {
+        log::error("no input files");
+        return EXIT_FAILURE;
+    }
+
+    if (opts.module_name == "")
+        opts.module_name = file_without_ext(opts.files.front());
+
+    Locator locator;
+    Log log(log::err, &locator);
+    log.max_messages = opts.max_messages;
+
+    bool success = !compile(opts, log);
+    log.out << "\n";
+    log.print_summary();
+    return success ? EXIT_SUCCESS : EXIT_FAILURE;
 }

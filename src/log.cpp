@@ -3,6 +3,24 @@
 
 namespace artic {
 
+void Log::print_summary() {
+    if (errors > 0) {
+        out << "\n" << log::style("compilation failed", log::Style::Red, log::Style::Bold) << " with "
+            << errors << " " << log::style("error(s)", log::Style::Red, log::Style::Bold);
+        if (warns > 0)
+            out << " and " << warns << " " << log::style("warning(s)", log::Style::Yellow, log::Style::Bold);
+        out << "\n";
+    } else if (warns > 0) {
+        out << log::style("compilation succeeded", log::Style::Cyan, log::Style::Bold) << " with "
+            << warns << " " << log::style("warning(s)", log::Style::Yellow, log::Style::Bold) << "\n";
+    }
+    if (is_full()) {
+        out << log::style(
+            "(some messages were omitted, run without `--max-messages` to get the full log)",
+            log::Style::White, log::Style::Bold) << "\n";
+    }
+}
+
 inline size_t count_digits(size_t i) {
     size_t n = 0;
     while (i > 0) i /= 10, n++;
