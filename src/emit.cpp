@@ -1088,7 +1088,7 @@ const thorin::Def* ImplicitCastExpr::emit(Emitter& emitter) const {
     // This handles conversion between pointer types (e.g. &[i32 * 4] to &[i32])
     // and conversions between other types and the no-return type.
     return def
-        ? emitter.world.cast(this->type->convert(emitter), def, debug_info(*this))
+        ? emitter.world.bitcast(this->type->convert(emitter), def, debug_info(*this))
         : emitter.world.bottom(this->type->convert(emitter));
 }
 
