@@ -294,11 +294,18 @@ int main(int argc, char** argv) {
     TypeChecker type_checker(log, type_table);
     type_checker.strict = opts.strict;
 
-    if (!name_binder.run(program))
+    if (!name_binder.run(program) ||
+        !type_checker.run(program)) {
+        log::out
+            << "\n" << log::style("compilation failed", log::Style::Red, log::Style::Bold) << " with "
+            << log.errors << " " << log::style("errors", log::Style::Red, log::Style::Bold);
+        if (log.warns > 0)
+            log::out << " and " << log.warns << " " << log::style("warnings", log::Style::Yellow, log::Style::Bold);
+        log.out << "\n";
+        if (log.is_full())
+            log::out << log::style("(some messages where omitted, run without `--max-messages` to get the full log)", log::Style::White, log::Style::Bold) << "\n";
         return EXIT_FAILURE;
-
-    if (!type_checker.run(program))
-        return EXIT_FAILURE;
+    }
 
     if (opts.print_ast) {
         Printer p(log::out);
