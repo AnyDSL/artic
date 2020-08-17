@@ -1,0 +1,4 @@
+fn foo() = 1
+fn test() {
+    @@foo()
+}
