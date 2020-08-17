@@ -788,9 +788,11 @@ Ptr<ast::Expr> Parser::parse_binary_expr(Ptr<ast::Expr>&& left, bool allow_struc
 Ptr<ast::Expr> Parser::parse_filter_expr(Ptr<ast::Filter>&& filter) {
     Tracker tracker(this, filter->loc);
     auto expr = parse_primary_expr(true);
-    if (auto call_expr = expr->isa<ast::CallExpr>())
+    if (auto call_expr = expr->isa<ast::CallExpr>()) {
+        if (call_expr->callee->isa<ast::FilterExpr>())
+            warn(filter->loc, "redundant filter annotation");
         call_expr->callee = make_ptr<ast::FilterExpr>(tracker(), std::move(filter), std::move(call_expr->callee));
-    else
+    } else
         error(expr->loc, "invalid filter expression");
     return expr;
 }
