@@ -234,7 +234,7 @@ struct Logger {
     void error(const char* fmt, Args&&... args) {
         log.errors++, errors++;
         if (log.is_full()) return;
-        if (log.errors > 0 || log.warns > 0)
+        if (log.errors > 1 || log.warns > 0)
             log.out.stream << "\n";
         log::format(log.out, "{}: ", log::style("error", log::Style::Red, log::Style::Bold));
         log::format(log.out, fmt, std::forward<Args>(args)...);
@@ -249,7 +249,7 @@ struct Logger {
         else {
             log.warns++, warns++;
             if (log.is_full()) return;
-            if (log.errors > 0 || log.warns > 0)
+            if (log.errors > 0 || log.warns > 1)
                 log.out.stream << "\n";
             log::format(log.out, "{}: ", log::style("warning", log::Style::Yellow, log::Style::Bold));
             log::format(log.out, fmt, std::forward<Args>(args)...);
