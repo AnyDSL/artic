@@ -36,20 +36,20 @@ static std::string_view file_without_ext(std::string_view path) {
 static void usage() {
     log::out << "usage: artic [options] files...\n"
                 "options:\n"
-                "    -h     --help               Displays this message\n"
-                "           --version            Displays the version number\n"
-                "           --no-color           Disables colors in error messages\n"
-                "           --strict             Sets warnings as errors\n"
-                "           --max-messages <n>   Sets the maximum number of error or warning messages (unlimited by default)\n"
-                "           --print-ast          Prints the AST after parsing and type-checking\n"
-                "           --emit-thorin        Prints the Thorin IR after code generation\n"
-                "           --log-level <lvl>    Changes the log level in Thorin (lvl = debug, verbose, info, warn, or error, defaults to error)\n"
+                "  -h   --help               Displays this message\n"
+                "       --version            Displays the version number\n"
+                "       --no-color           Disables colors in error messages\n"
+                "       --strict             Sets warnings as errors\n"
+                "       --max-messages <n>   Sets the maximum number of error or warning messages (unlimited by default)\n"
+                "       --print-ast          Prints the AST after parsing and type-checking\n"
+                "       --emit-thorin        Prints the Thorin IR after code generation\n"
+                "       --log-level <lvl>    Changes the log level in Thorin (lvl = debug, verbose, info, warn, or error, defaults to error)\n"
 #ifdef ENABLE_LLVM
-                "           --emit-llvm          Emits LLVM IR in the output file\n"
-                "    -g     --debug              Enable debug information in the generated LLVM IR file\n"
+                "       --emit-llvm          Emits LLVM IR in the output file\n"
+                "  -g   --debug              Enable debug information in the generated LLVM IR file\n"
 #endif
-                "    -On                         Sets the optimization level (n = 0, 1, 2, or 3, defaults to 0)\n"
-                "    -o <name>                   Sets the module name (defaults to 'module')\n"
+                "  -On                       Sets the optimization level (n = 0, 1, 2, or 3, defaults to 0)\n"
+                "  -o <name>                 Sets the module name (defaults to 'module')\n"
                 ;
 }
 
@@ -188,6 +188,7 @@ struct ProgramOptions {
                     emit_llvm = true;
 #else
                     log::error("Thorin is built without LLVM support");
+                    return false;
 #endif
                 } else if (matches(argv[i], "-O0")) {
                     opt_level = 0;
