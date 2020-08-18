@@ -397,10 +397,10 @@ thorin::Continuation* Emitter::basic_block_with_mem(const thorin::Type* param, t
 
 const thorin::Def* Emitter::ctor_index(const EnumType* enum_type, size_t index) {
     return
-        enum_type->member_count() < (uintmax_t(1) <<  8) ? world.literal_qu8 (index, {}) :
-        enum_type->member_count() < (uintmax_t(1) << 16) ? world.literal_qu16(index, {}) :
-        enum_type->member_count() < (uintmax_t(1) << 32) ? world.literal_qu32(index, {}) :
-        world.literal_qu64(index, {});
+        enum_type->member_count() < (uintmax_t(1) <<  8) ? world.literal_pu8 (index, {}) :
+        enum_type->member_count() < (uintmax_t(1) << 16) ? world.literal_pu16(index, {}) :
+        enum_type->member_count() < (uintmax_t(1) << 32) ? world.literal_pu32(index, {}) :
+        world.literal_pu64(index, {});
 }
 
 const thorin::Def* Emitter::ctor_index(const ast::LiteralPtrn& lit) {
@@ -563,11 +563,11 @@ void Emitter::emit(const ast::Ptrn& ptrn, const thorin::Def* value) {
 const thorin::Def* Emitter::emit(const ast::Node& node, const Literal& lit) {
     if (auto prim_type = node.type->isa<artic::PrimType>()) {
         switch (prim_type->tag) {
-            case ast::PrimType::U8:   return world.literal_qu8 (lit.is_integer() ? lit.as_integer() : lit.as_char(), debug_info(node));
             case ast::PrimType::Bool: return world.literal_bool(lit.as_bool(),    debug_info(node));
-            case ast::PrimType::U16:  return world.literal_qu16(lit.as_integer(), debug_info(node));
-            case ast::PrimType::U32:  return world.literal_qu32(lit.as_integer(), debug_info(node));
-            case ast::PrimType::U64:  return world.literal_qu64(lit.as_integer(), debug_info(node));
+            case ast::PrimType::U8:   return world.literal_pu8 (lit.is_integer() ? lit.as_integer() : lit.as_char(), debug_info(node));
+            case ast::PrimType::U16:  return world.literal_pu16(lit.as_integer(), debug_info(node));
+            case ast::PrimType::U32:  return world.literal_pu32(lit.as_integer(), debug_info(node));
+            case ast::PrimType::U64:  return world.literal_pu64(lit.as_integer(), debug_info(node));
             case ast::PrimType::I8:   return world.literal_qs8 (lit.as_integer(), debug_info(node));
             case ast::PrimType::I16:  return world.literal_qs16(lit.as_integer(), debug_info(node));
             case ast::PrimType::I32:  return world.literal_qs32(lit.as_integer(), debug_info(node));
@@ -584,8 +584,8 @@ const thorin::Def* Emitter::emit(const ast::Node& node, const Literal& lit) {
         assert(lit.is_string());
         thorin::Array<const thorin::Def*> ops(lit.as_string().size() + 1);
         for (size_t i = 0, n = lit.as_string().size(); i < n; ++i)
-            ops[i] = world.literal_qu8(lit.as_string()[i], {});
-        ops.back() = world.literal_qu8(0, {});
+            ops[i] = world.literal_pu8(lit.as_string()[i], {});
+        ops.back() = world.literal_pu8(0, {});
         return world.definite_array(ops, debug_info(node));
     }
 }
@@ -838,7 +838,7 @@ const thorin::Def* ProjExpr::emit(Emitter& emitter) const {
     if (type->isa<RefType>()) {
         return emitter.world.lea(
             emitter.emit(*expr),
-            emitter.world.literal_qu64(index, {}),
+            emitter.world.literal_pu64(index, {}),
             debug_info(*this));
     }
     return emitter.world.extract(emitter.emit(*expr), index, debug_info(*this));
@@ -1291,10 +1291,10 @@ const thorin::Type* Type::convert(Emitter&) const {
 const thorin::Type* PrimType::convert(Emitter& emitter) const {
     switch (tag) {
         case ast::PrimType::Bool: return emitter.world.type_bool();
-        case ast::PrimType::U8:   return emitter.world.type_qu8();
-        case ast::PrimType::U16:  return emitter.world.type_qu16();
-        case ast::PrimType::U32:  return emitter.world.type_qu32();
-        case ast::PrimType::U64:  return emitter.world.type_qu64();
+        case ast::PrimType::U8:   return emitter.world.type_pu8();
+        case ast::PrimType::U16:  return emitter.world.type_pu16();
+        case ast::PrimType::U32:  return emitter.world.type_pu32();
+        case ast::PrimType::U64:  return emitter.world.type_pu64();
         case ast::PrimType::I8:   return emitter.world.type_qs8();
         case ast::PrimType::I16:  return emitter.world.type_qs16();
         case ast::PrimType::I32:  return emitter.world.type_qs32();
@@ -1357,10 +1357,10 @@ const thorin::Type* EnumType::convert(Emitter& emitter, const Type* parent) cons
         types.insert(decl.options[i]->type->convert(emitter));
     thorin::Array<const thorin::Type*> ops(types.begin(), types.end());
     auto index_type =
-        decl.options.size() < (size_t(1) << 8)  ? emitter.world.type_qu8()  :
-        decl.options.size() < (size_t(1) << 16) ? emitter.world.type_qu16() :
-        decl.options.size() < (size_t(1) << 32) ? emitter.world.type_qu32() :
-        emitter.world.type_qu64();
+        decl.options.size() < (size_t(1) << 8)  ? emitter.world.type_pu8()  :
+        decl.options.size() < (size_t(1) << 16) ? emitter.world.type_pu16() :
+        decl.options.size() < (size_t(1) << 32) ? emitter.world.type_pu32() :
+        emitter.world.type_pu64();
     type->set(0, index_type);
     type->set(1, emitter.world.variant_type(ops));
     return type;
