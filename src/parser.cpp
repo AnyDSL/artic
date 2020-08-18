@@ -396,10 +396,7 @@ Ptr<ast::ExprStmt> Parser::parse_expr_stmt() {
 // Expressions ---------------------------------------------------------------------
 
 Ptr<ast::Expr> Parser::parse_expr(bool allow_structs) {
-    return parse_binary_expr(
-        parse_primary_expr(allow_structs),
-        allow_structs,
-        ast::BinaryExpr::max_precedence());
+    return parse_binary_expr(allow_structs, ast::BinaryExpr::max_precedence());
 }
 
 Ptr<ast::Expr> Parser::parse_typed_expr(Ptr<ast::Expr>&& expr) {
@@ -767,7 +764,8 @@ Ptr<ast::UnaryExpr> Parser::parse_postfix_expr(Ptr<ast::Expr>&& expr) {
     return make_ptr<ast::UnaryExpr>(tracker(), tag, std::move(expr));
 }
 
-Ptr<ast::Expr> Parser::parse_binary_expr(Ptr<ast::Expr>&& left, bool allow_structs, int max_prec) {
+Ptr<ast::Expr> Parser::parse_binary_expr(bool allow_structs, int max_prec) {
+    auto left = parse_primary_expr(allow_structs);
     while (true) {
         Tracker tracker(this, left->loc);
 
@@ -777,10 +775,10 @@ Ptr<ast::Expr> Parser::parse_binary_expr(Ptr<ast::Expr>&& left, bool allow_struc
         if (prec > max_prec) break;
         next();
 
-        auto right = parse_binary_expr(parse_primary_expr(allow_structs), allow_structs, prec);
+        auto right = parse_binary_expr(allow_structs, prec - 1);
         left = make_ptr<ast::BinaryExpr>(tracker(), tag, std::move(left), std::move(right));
     }
-    return std::move(left);
+    return left;
 }
 
 Ptr<ast::Expr> Parser::parse_filter_expr(Ptr<ast::Filter>&& filter) {

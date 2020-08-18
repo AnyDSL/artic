@@ -905,9 +905,9 @@ struct BinaryExpr : public Expr {
         : Expr(loc), tag(tag), left(std::move(left)), right(std::move(right))
     {}
 
-    bool has_cmp() const { return has_cmp(tag); }
     bool has_eq() const { return has_eq(tag); }
-    bool is_logic() const { return tag == LogicAnd || tag == LogicOr; }
+    bool has_cmp() const { return has_cmp(tag); }
+    bool is_logic() const { return is_logic(tag); }
 
     bool has_side_effect() const override;
     bool is_constant() const override;
@@ -922,6 +922,7 @@ struct BinaryExpr : public Expr {
     static Tag remove_eq(Tag);
     static bool has_eq(Tag);
     static bool has_cmp(Tag);
+    static bool is_logic(Tag);
 
     static int precedence(Tag);
     static int max_precedence();

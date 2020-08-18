@@ -138,6 +138,10 @@ bool BinaryExpr::has_cmp(Tag tag) {
     }
 }
 
+bool BinaryExpr::is_logic(Tag tag) {
+    return tag == LogicAnd || tag == LogicOr;
+}
+
 int BinaryExpr::precedence(Tag tag) {
     switch (tag) {
         case Mul:

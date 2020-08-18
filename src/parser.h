@@ -70,7 +70,7 @@ private:
     Ptr<ast::Expr>          parse_primary_expr(bool, bool = true);
     Ptr<ast::UnaryExpr>     parse_prefix_expr(bool);
     Ptr<ast::UnaryExpr>     parse_postfix_expr(Ptr<ast::Expr>&&);
-    Ptr<ast::Expr>          parse_binary_expr(Ptr<ast::Expr>&&, bool, int);
+    Ptr<ast::Expr>          parse_binary_expr(bool, int);
     Ptr<ast::Expr>          parse_filter_expr(Ptr<ast::Filter>&&);
     Ptr<ast::CastExpr>      parse_cast_expr(Ptr<ast::Expr>&&);
     Ptr<ast::AsmExpr>       parse_asm_expr();
