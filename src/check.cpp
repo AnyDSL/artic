@@ -957,18 +957,24 @@ const artic::Type* CastExpr::infer(TypeChecker& checker) {
     return checker.invalid_cast(loc, type, expected);
 }
 
+inline bool is_acceptable_asm_in_or_out(const artic::Type* type) {
+    return
+        type->isa<artic::PrimType>() || type->isa<artic::PtrType>() ||
+        (type->isa<artic::SizedArrayType>() && type->as<artic::SizedArrayType>()->is_simd);
+}
+
 const artic::Type* AsmExpr::infer(TypeChecker& checker) {
     for (auto& out : outs) {
         auto [ref_type, type] = remove_ref(checker.infer(*out.expr));
         if (!ref_type || !ref_type->is_mut)
             return checker.mutable_expected(out.expr->loc);
-        if (!type->isa<artic::PrimType>() && !type->isa<artic::PtrType>())
-            return checker.type_expected(out.expr->loc, type, "primitive or pointer");
+        if (!is_acceptable_asm_in_or_out(type))
+            return checker.type_expected(out.expr->loc, type, "primitive, simd or pointer");
     }
     for (auto& in : ins) {
         auto type = checker.deref(in.expr);
-        if (!type->isa<artic::PrimType>() && !type->isa<artic::PtrType>())
-            return checker.type_expected(in.expr->loc, type, "primitive or pointer");
+        if (!is_acceptable_asm_in_or_out(type))
+            return checker.type_expected(in.expr->loc, type, "primitive, simd or pointer");
     }
     for (auto& opt : opts) {
         if (opt != "volatile" && opt != "alignstack" && opt != "intel") {
