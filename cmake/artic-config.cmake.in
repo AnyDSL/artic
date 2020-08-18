@@ -1,0 +1,56 @@
+# Try to find all libraries and tools related to artic
+# in order to compile and link against .art files
+#
+# Artic_BIN
+# Artic_INCLUDE_DIR
+# Artic_LIBRARY
+# Artic_FOUND
+
+cmake_minimum_required(VERSION 3.1)
+
+find_path(Artic_BUILD_DIR
+    NAMES CMakeCache.txt
+    PATHS ${Artic_BUILD_DIR} ${Artic_BUILD_DIR} "@CMAKE_CURRENT_BINARY_DIR@"
+)
+find_path(Artic_INSTALL_DIR
+    NAMES share/anydsl/cmake/artic-config.cmake
+    PATHS "@CMAKE_INSTALL_PREFIX@"
+)
+find_path(Artic_DIR
+    NAMES artic-config.cmake
+    PATHS ${Artic_DIR} $ENV{Artic_DIR} ${CMAKE_CURRENT_LIST_DIR} ${Artic_BUILD_DIR} ${Artic_INSTALL_DIR} ${Artic_SOURCE_DIR} "@CMAKE_CURRENT_BINARY_DIR@/share/anydsl/cmake"
+    PATH_SUFFIXES share/anydsl/cmake
+)
+find_path(Thorin_DIR
+    NAMES thorin-config.cmake
+    PATHS ${Thorin_DIR} $ENV{Thorin_DIR} ${CMAKE_CURRENT_LIST_DIR} "@CMAKE_CURRENT_BINARY_DIR@/share/anydsl/cmake" @Thorin_DIR@
+    PATH_SUFFIXES share/anydsl/cmake
+)
+find_path(LLVM_DIR LLVMConfig.cmake PATHS ${LLVM_DIR} $ENV{LLVM_DIR} "@LLVM_DIR@")
+
+find_path(Artic_ROOT_DIR
+    NAMES cmake/artic-config.cmake.in
+    PATHS ${Artic_DIR} $ENV{Artic_DIR} ${Artic_ROOT_DIR} "@CMAKE_CURRENT_SOURCE_DIR@" "@CMAKE_SOURCE_DIR@")
+
+if(NOT TARGET artic)
+    include(${Artic_DIR}/artic-exports.cmake)
+endif()
+if(TARGET artic AND NOT Artic_BIN)
+    set(Artic_BIN artic)
+else()
+    find_program(Artic_BIN
+        NAMES artic
+        PATHS ${Artic_DIR}/../../../bin ${Artic_BUILD_DIR}/bin ${Artic_INSTALL_DIR}/bin "@CMAKE_RUNTIME_OUTPUT_DIRECTORY@"
+        PATH_SUFFIXES @CMAKE_CONFIGURATION_TYPES@)
+endif()
+
+if(TARGET libartic)
+    find_path(Artic_INCLUDE_DIR NAMES ast.h PATHS ${Artic_ROOT_DIR}/src) # TODO: find better name
+    set(Artic_LIBRARY libartic)
+    find_package(Thorin REQUIRED)
+endif()
+
+include(FindPackageHandleStandardArgs)
+find_package_handle_standard_args(Artic DEFAULT_MSG Artic_DIR)
+
+mark_as_advanced(Artic_ROOT_DIR Artic_BUILD_DIR Artic_INSTALL_DIR)
