@@ -903,12 +903,84 @@ const artic::Type* UnaryExpr::infer(TypeChecker& checker) {
         checker.error(loc, "cannot dereference non-pointer type '{}'", *arg_type);
         return checker.type_table.type_error();
     }
+    auto prim_type = arg_type;
+    if (is_simd_type(prim_type))
+        prim_type = prim_type->as<artic::SizedArrayType>()->elem;
+    if (!prim_type->isa<artic::PrimType>())
+        return checker.type_expected(arg->loc, arg_type, "primitive or simd");
+    switch (tag) {
+        case Plus:
+        case Minus:
+            if (!is_int_or_float_type(prim_type))
+                return checker.type_expected(arg->loc, arg_type, "integer or floating-point");
+            break;
+        case Not:
+            if (!is_int_type(prim_type) && !is_bool_type(prim_type))
+                return checker.type_expected(arg->loc, arg_type, "integer or boolean");
+            break;
+        case PostInc:
+        case PostDec:
+        case PreInc:
+        case PreDec:
+            if (!is_int_type(prim_type))
+                return checker.type_expected(arg->loc, arg_type, "integer");
+            break;
+        case Forget:
+            break;
+        default:
+            assert(false);
+            break;
+    }
     return arg_type;
 }
 
 const artic::Type* BinaryExpr::infer(TypeChecker& checker) {
     auto [left_ref, left_type] = remove_ref(checker.infer(*left));
     auto right_type = checker.coerce(right, left_type);
+
+    if (tag != Eq) {
+        auto prim_type = left_type;
+        if (is_simd_type(prim_type))
+            prim_type = prim_type->as<artic::SizedArrayType>()->elem;
+        if (!prim_type->isa<artic::PrimType>())
+            return checker.type_expected(loc, left_type, "primitive or simd");
+        switch (remove_eq(tag)) {
+            case Add:
+            case Sub:
+            case Mul:
+            case Div:
+            case Rem:
+            case CmpLT:
+            case CmpGT:
+            case CmpLE:
+            case CmpGE:
+                if (!is_int_or_float_type(prim_type))
+                    return checker.type_expected(loc, left_type, "integer or floating-point");
+                break;
+            case CmpEq:
+            case CmpNE:
+                break;
+            case LShft:
+            case RShft:
+                if (!is_int_type(prim_type))
+                    return checker.type_expected(loc, left_type, "integer");
+                break;
+            case LogicAnd:
+            case LogicOr:
+                if (!is_bool_type(prim_type))
+                    return checker.type_expected(loc, left_type, "boolean");
+                break;
+            case And:
+            case Or:
+            case Xor:
+                if (!is_int_type(prim_type) && !is_bool_type(prim_type))
+                    return checker.type_expected(loc, left_type, "integer or boolean");
+                break;
+            default:
+                assert(false);
+                break;
+        }
+    }
     if (has_eq()) {
         if (!left_ref || !left_ref->is_mut)
             return checker.mutable_expected(left->loc);
@@ -958,9 +1030,7 @@ const artic::Type* CastExpr::infer(TypeChecker& checker) {
 }
 
 inline bool is_acceptable_asm_in_or_out(const artic::Type* type) {
-    return
-        type->isa<artic::PrimType>() || type->isa<artic::PtrType>() ||
-        (type->isa<artic::SizedArrayType>() && type->as<artic::SizedArrayType>()->is_simd);
+    return type->isa<artic::PrimType>() || type->isa<artic::PtrType>() || is_simd_type(type);
 }
 
 const artic::Type* AsmExpr::infer(TypeChecker& checker) {

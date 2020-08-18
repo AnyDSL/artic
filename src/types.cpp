@@ -454,6 +454,10 @@ bool is_prim_type(const Type* type, ast::PrimType::Tag tag) {
     return type->isa<PrimType>() && type->as<PrimType>()->tag == tag;
 }
 
+bool is_simd_type(const Type* type) {
+    return type->isa<SizedArrayType>() && type->as<SizedArrayType>()->is_simd;
+}
+
 bool is_unit_type(const Type* type) {
     return type->isa<TupleType>() && type->as<TupleType>()->args.empty();
 }

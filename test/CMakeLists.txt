@@ -93,6 +93,7 @@ add_failure_test(NAME failure_enums2      COMMAND artic ${CMAKE_CURRENT_SOURCE_D
 add_failure_test(NAME failure_mut         COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/mut.art)
 add_failure_test(NAME failure_filter1     COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/filter1.art)
 add_failure_test(NAME failure_filter2     COMMAND artic --strict ${CMAKE_CURRENT_SOURCE_DIR}/failure/filter2.art)
+add_failure_test(NAME failure_ops         COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/ops.art)
 add_failure_test(NAME failure_static      COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/static.art)
 add_failure_test(NAME failure_cc          COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/cc.art)
 add_failure_test(NAME failure_escape      COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/escape.art)

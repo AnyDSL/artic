@@ -456,6 +456,7 @@ bool is_int_type(const Type*);
 bool is_float_type(const Type*);
 bool is_int_or_float_type(const Type*);
 bool is_prim_type(const Type*, ast::PrimType::Tag);
+bool is_simd_type(const Type*);
 bool is_unit_type(const Type*);
 inline bool is_bool_type(const Type* type) { return is_prim_type(type, ast::PrimType::Bool); }
 
