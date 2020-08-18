@@ -777,14 +777,7 @@ Ptr<ast::Expr> Parser::parse_binary_expr(Ptr<ast::Expr>&& left, bool allow_struc
         if (prec > max_prec) break;
         next();
 
-        auto right = parse_primary_expr(allow_structs);
-
-        auto next_tag = ast::BinaryExpr::tag_from_token(ahead());
-        if (next_tag != ast::BinaryExpr::Error) {
-            auto next_prec = ast::BinaryExpr::precedence(next_tag);
-            if (next_prec < prec) right = parse_binary_expr(std::move(right), allow_structs, next_prec);
-        }
-
+        auto right = parse_binary_expr(parse_primary_expr(allow_structs), allow_structs, prec);
         left = make_ptr<ast::BinaryExpr>(tracker(), tag, std::move(left), std::move(right));
     }
     return std::move(left);
