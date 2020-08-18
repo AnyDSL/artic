@@ -456,23 +456,24 @@ Ptr<ast::Expr> Parser::parse_tuple_expr() {
 
 Ptr<ast::Expr> Parser::parse_array_expr() {
     Tracker tracker(this);
-    eat(Token::LBracket);
+    bool is_simd = accept(Token::Simd);
+    expect(Token::LBracket);
     PtrVector<ast::Expr> elems;
     elems.emplace_back(parse_expr());
     if (accept(Token::Semi)) {
         auto size = parse_array_size();
         expect(Token::RBracket);
         if (size)
-            return make_ptr<ast::RepeatArrayExpr>(tracker(), std::move(elems.front()), *size);
-        return make_ptr<ast::ArrayExpr>(tracker(), std::move(elems));
+            return make_ptr<ast::RepeatArrayExpr>(tracker(), std::move(elems.front()), *size, is_simd);
+        return make_ptr<ast::ArrayExpr>(tracker(), std::move(elems), is_simd);
     } else if (accept(Token::Comma)) {
         parse_list(Token::RBracket, Token::Comma, [&] {
             elems.emplace_back(parse_expr());
         });
-        return make_ptr<ast::ArrayExpr>(tracker(), std::move(elems));
+        return make_ptr<ast::ArrayExpr>(tracker(), std::move(elems), is_simd);
     } else {
         expect(Token::RBracket);
-        return make_ptr<ast::ArrayExpr>(tracker(), std::move(elems));
+        return make_ptr<ast::ArrayExpr>(tracker(), std::move(elems), is_simd);
     }
 }
 
@@ -511,6 +512,7 @@ Ptr<ast::BlockExpr> Parser::parse_block_expr() {
             case Token::Dec:
             case Token::QMark:
             case Token::Asm:
+            case Token::Simd:
             case Token::Let:
             case Token::Fn:
                 if (!last_semi && !stmts.empty() && stmts.back()->need_semicolon())
@@ -700,7 +702,10 @@ Ptr<ast::Expr> Parser::parse_primary_expr(bool allow_structs, bool allow_casts) 
             break;
         case Token::LBrace:   expr = parse_block_expr();   break;
         case Token::LParen:   expr = parse_tuple_expr();   break;
-        case Token::LBracket: expr = parse_array_expr();   break;
+        case Token::Simd:
+        case Token::LBracket:
+            expr = parse_array_expr();
+            break;
         case Token::Lit:      expr = parse_literal_expr(); break;
         case Token::Id:
             expr = parse_path_expr();
@@ -880,12 +885,15 @@ Ptr<ast::ErrorExpr> Parser::parse_error_expr() {
 Ptr<ast::Type> Parser::parse_type() {
     Ptr<ast::Type> type;
     switch (ahead().tag()) {
-        case Token::Fn:       return parse_fn_type();
-        case Token::Id:       return parse_named_type();
-        case Token::LParen:   return parse_tuple_type();
-        case Token::LBracket: return parse_array_type();
-        case Token::And:      return parse_ptr_type();
-        default:              return parse_error_type();
+        case Token::Fn:     return parse_fn_type();
+        case Token::Id:     return parse_named_type();
+        case Token::LParen: return parse_tuple_type();
+        case Token::And:    return parse_ptr_type();
+        case Token::Simd:
+        case Token::LBracket:
+            return parse_array_type();
+        default:
+            return parse_error_type();
     }
 }
 
@@ -918,14 +926,17 @@ Ptr<ast::Type> Parser::parse_tuple_type() {
 
 Ptr<ast::ArrayType> Parser::parse_array_type() {
     Tracker tracker(this);
-    eat(Token::LBracket);
+    bool is_simd = accept(Token::Simd);
+    expect(Token::LBracket);
     auto elem = parse_type();
     std::optional<size_t> size;
-    if (accept(Token::Mul))
+    if (is_simd || ahead().tag() == Token::Mul) {
+        expect(Token::Mul);
         size = parse_array_size();
+    }
     expect(Token::RBracket);
     if (size)
-        return make_ptr<ast::SizedArrayType>(tracker(), std::move(elem), *size);
+        return make_ptr<ast::SizedArrayType>(tracker(), std::move(elem), *size, is_simd);
     return make_ptr<ast::UnsizedArrayType>(tracker(), std::move(elem));
 }
 

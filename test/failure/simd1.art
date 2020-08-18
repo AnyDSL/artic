@@ -1,0 +1,1 @@
+fn test(x: simd[f32]) = x

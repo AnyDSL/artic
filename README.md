@@ -52,7 +52,7 @@ fn main() -> i32 {
 let x = |i| i; // artic needs a type annotation on `i` or on `x`
 x(1) // impala would see this as a constraint that `x` is a function on integers
 ```
- - For-loop syntax has been changed in order to help Thorin's partial evaluator, by
+ - The for-loop syntax has been changed in order to help Thorin's partial evaluator, by
    separating the generator (the function taking the body of the for loop) from the
    loop itself.
 ```rust
@@ -154,4 +154,8 @@ match x {
 ```rust
 // Equivalent to &[1]i32 in impala
 fn foo(p: &addrspace(1)i32) = *p
+```
+ - Constant array expressions use Rust's syntax instead of the old Impala syntax:
+```rust
+[0; 4] // Equivalent to [0, 0, 0, 0]
 ```

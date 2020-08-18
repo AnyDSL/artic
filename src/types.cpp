@@ -20,7 +20,8 @@ bool SizedArrayType::equals(const Type* other) const {
     return
         other->isa<SizedArrayType>() &&
         other->as<SizedArrayType>()->elem == elem &&
-        other->as<SizedArrayType>()->size == size;
+        other->as<SizedArrayType>()->size == size &&
+        other->as<SizedArrayType>()->is_simd == is_simd;
 }
 
 bool UnsizedArrayType::equals(const Type* other) const {
@@ -97,7 +98,8 @@ size_t SizedArrayType::hash() const {
     return fnv::Hash()
         .combine(typeid(*this).hash_code())
         .combine(elem)
-        .combine(size);
+        .combine(size)
+        .combine(is_simd);
 }
 
 size_t UnsizedArrayType::hash() const {
@@ -196,7 +198,7 @@ const Type* TupleType::replace(const std::unordered_map<const TypeVar*, const Ty
 }
 
 const Type* SizedArrayType::replace(const std::unordered_map<const TypeVar*, const Type*>& map) const {
-    return type_table.sized_array_type(elem->replace(map), size);
+    return type_table.sized_array_type(elem->replace(map), size, is_simd);
 }
 
 const Type* UnsizedArrayType::replace(const std::unordered_map<const TypeVar*, const Type*>& map) const {
@@ -382,7 +384,7 @@ bool Type::subtype(const Type* other) const {
     // [T * N] <= [T]
     if (auto other_array_type = other->isa<UnsizedArrayType>()) {
         if (auto sized_array_type = isa<SizedArrayType>())
-            return sized_array_type->elem == other_array_type->elem;
+            return sized_array_type->elem == other_array_type->elem && !sized_array_type->is_simd;
     }
     return false;
 }
@@ -479,8 +481,8 @@ const TupleType* TypeTable::tuple_type(std::vector<const Type*>&& elems) {
     return insert<TupleType>(std::move(elems));
 }
 
-const SizedArrayType* TypeTable::sized_array_type(const Type* elem, size_t size) {
-    return insert<SizedArrayType>(elem, size);
+const SizedArrayType* TypeTable::sized_array_type(const Type* elem, size_t size, bool is_simd) {
+    return insert<SizedArrayType>(elem, size, is_simd);
 }
  
 const UnsizedArrayType* TypeTable::unsized_array_type(const Type* elem) {

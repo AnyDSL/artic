@@ -322,9 +322,10 @@ struct ArrayType : public Type {
 /// Sized array type.
 struct SizedArrayType : public ArrayType {
     size_t size;
+    bool is_simd;
 
-    SizedArrayType(const Loc& loc, Ptr<Type>&& elem, size_t size)
-        : ArrayType(loc, std::move(elem)), size(size)
+    SizedArrayType(const Loc& loc, Ptr<Type>&& elem, size_t size, bool is_simd)
+        : ArrayType(loc, std::move(elem)), size(size), is_simd(is_simd)
     {}
 
     const artic::Type* infer(TypeChecker&) override;
@@ -555,9 +556,10 @@ struct TupleExpr : public Expr {
 /// Array expression.
 struct ArrayExpr : public Expr {
     PtrVector<Expr> elems;
+    bool is_simd;
 
-    ArrayExpr(const Loc& loc, PtrVector<Expr>&& elems)
-        : Expr(loc), elems(std::move(elems))
+    ArrayExpr(const Loc& loc, PtrVector<Expr>&& elems, bool is_simd)
+        : Expr(loc), elems(std::move(elems)), is_simd(is_simd)
     {}
 
     bool has_side_effect() const override;
@@ -574,9 +576,10 @@ struct ArrayExpr : public Expr {
 struct RepeatArrayExpr : public Expr {
     Ptr<Expr> elem;
     size_t size;
+    bool is_simd;
 
-    RepeatArrayExpr(const Loc& loc, Ptr<Expr>&& elem, size_t size)
-        : Expr(loc), elem(std::move(elem)), size(size)
+    RepeatArrayExpr(const Loc& loc, Ptr<Expr>&& elem, size_t size, bool is_simd)
+        : Expr(loc), elem(std::move(elem)), size(size), is_simd(is_simd)
     {}
 
     bool has_side_effect() const override;

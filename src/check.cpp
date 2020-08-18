@@ -92,6 +92,12 @@ const Type* TypeChecker::invalid_cast(const Loc& loc, const Type* type, const Ty
     return type_table.type_error();
 }
 
+const Type* TypeChecker::invalid_simd(const Loc& loc, const Type* elem_type) {
+    if (should_report_error(elem_type))
+        error(loc, "expected primitive type for simd type component, but got '{}'", *elem_type);
+    return type_table.type_error();
+}
+
 void TypeChecker::invalid_attr(const Loc& loc, const std::string& name) {
     error(loc, "invalid attribute '{}'", name);
 }
@@ -178,7 +184,8 @@ const Type* TypeChecker::infer(const Loc&, const Literal& lit) {
     else if (lit.is_string()) {
         return type_table.sized_array_type(
             type_table.prim_type(ast::PrimType::U8),
-            lit.as_string().size() + 1);
+            lit.as_string().size() + 1,
+            false);
     } else {
         assert(false);
         return type_table.type_error();
@@ -309,19 +316,25 @@ bool TypeChecker::check_filter(const ast::Expr& expr) {
 }
 
 template <typename CheckElems>
-const Type* TypeChecker::check_array(const Loc& loc, const Type* expected, size_t elem_count, CheckElems check_elems) {
+const Type* TypeChecker::check_array(
+    const Loc& loc,
+    const Type* expected,
+    size_t elem_count,
+    bool is_simd,
+    CheckElems check_elems) {
     auto array_type = remove_ptr(expected).second->isa<ArrayType>();
     if (!array_type)
         return incompatible_type(loc, "array expression", expected);
     auto elem_type = array_type->elem;
+    if (is_simd && !elem_type->isa<PrimType>())
+        return invalid_simd(loc, elem_type);
     check_elems(elem_type);
     if (auto sized_array_type = array_type->isa<artic::SizedArrayType>();
         sized_array_type && elem_count != sized_array_type->size) {
         error(loc, "expected {} array element(s), but got {}",
             sized_array_type->size, elem_count);
     }
-    return type_table.sized_array_type(elem_type, elem_count);
-
+    return type_table.sized_array_type(elem_type, elem_count, is_simd);
 }
 
 bool TypeChecker::check_attrs(const ast::NamedAttr& named_attr, const std::vector<AttrType>& attr_types) {
@@ -521,7 +534,10 @@ const artic::Type* TupleType::infer(TypeChecker& checker) {
 }
 
 const artic::Type* SizedArrayType::infer(TypeChecker& checker) {
-    return checker.type_table.sized_array_type(checker.infer(*elem), size);
+    auto elem_type = checker.infer(*elem);
+    if (is_simd && !elem_type->isa<artic::PrimType>())
+        return checker.invalid_simd(loc, elem_type);
+    return checker.type_table.sized_array_type(elem_type, size, is_simd);
 }
 
 const artic::Type* UnsizedArrayType::infer(TypeChecker& checker) {
@@ -633,11 +649,13 @@ const artic::Type* ArrayExpr::infer(TypeChecker& checker) {
     auto elem_type = checker.deref(elems.front());
     for (size_t i = 1; i < elems.size(); ++i)
         checker.coerce(elems[i], elem_type);
-    return checker.type_table.sized_array_type(elem_type, elems.size());
+    if (is_simd && !elem_type->isa<artic::PrimType>())
+        return checker.invalid_simd(loc, elem_type);
+    return checker.type_table.sized_array_type(elem_type, elems.size(), is_simd);
 }
 
 const artic::Type* ArrayExpr::check(TypeChecker& checker, const artic::Type* expected) {
-    return checker.check_array(loc, expected, elems.size(), [&] (auto elem_type) {
+    return checker.check_array(loc, expected, elems.size(), is_simd, [&] (auto elem_type) {
         for (auto& elem : elems)
             checker.coerce(elem, elem_type);
     });
@@ -645,11 +663,13 @@ const artic::Type* ArrayExpr::check(TypeChecker& checker, const artic::Type* exp
 
 const artic::Type* RepeatArrayExpr::infer(TypeChecker& checker) {
     auto elem_type = checker.deref(elem);
-    return checker.type_table.sized_array_type(elem_type, size);
+    if (is_simd && !elem_type->isa<artic::PrimType>())
+        return checker.invalid_simd(loc, elem_type);
+    return checker.type_table.sized_array_type(elem_type, size, is_simd);
 }
 
 const artic::Type* RepeatArrayExpr::check(TypeChecker& checker, const artic::Type* expected) {
-    return checker.check_array(loc, expected, size, [&] (auto elem_type) {
+    return checker.check_array(loc, expected, size, is_simd, [&] (auto elem_type) {
         checker.coerce(elem, elem_type);
     });
 }

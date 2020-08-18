@@ -133,6 +133,8 @@ void TupleExpr::print(Printer& p) const {
 }
 
 void ArrayExpr::print(Printer& p) const {
+    if (is_simd)
+        p << log::keyword_style("simd");
     p << '[';
     print_list(p, ", ", elems, [&] (auto& a) {
         a->print(p);
@@ -141,6 +143,8 @@ void ArrayExpr::print(Printer& p) const {
 }
 
 void RepeatArrayExpr::print(Printer& p) const {
+    if (is_simd)
+        p << log::keyword_style("simd");
     p << '[';
     elem->print(p);
     p << "; " << size << ']';
@@ -537,11 +541,11 @@ void TupleType::print(Printer& p) const {
 }
 
 void SizedArrayType::print(Printer& p) const {
+    if (is_simd)
+        p << log::keyword_style("simd");
     p << '[';
     elem->print(p);
-    p << " * ";
-    p << size;
-    p << ']';
+    p << " * " << size << ']';
 }
 
 void UnsizedArrayType::print(Printer& p) const {
@@ -609,6 +613,8 @@ void TupleType::print(Printer& p) const {
 }
 
 void SizedArrayType::print(Printer& p) const {
+    if (is_simd)
+        p << log::keyword_style("simd");
     p << '[';
     elem->print(p);
     p << " * " << size << ']';

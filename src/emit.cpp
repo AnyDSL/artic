@@ -745,12 +745,16 @@ const thorin::Def* ArrayExpr::emit(Emitter& emitter) const {
     thorin::Array<const thorin::Def*> ops(elems.size());
     for (size_t i = 0, n = elems.size(); i < n; ++i)
         ops[i] = emitter.emit(*elems[i]);
-    return emitter.world.definite_array(ops, debug_info(*this));
+    return is_simd
+        ? emitter.world.vector(ops, debug_info(*this))
+        : emitter.world.definite_array(ops, debug_info(*this));
 }
 
 const thorin::Def* RepeatArrayExpr::emit(Emitter& emitter) const {
     thorin::Array<const thorin::Def*> ops(size, emitter.emit(*elem));
-    return emitter.world.definite_array(ops, debug_info(*this));
+    return is_simd
+        ? emitter.world.vector(ops, debug_info(*this))
+        : emitter.world.definite_array(ops, debug_info(*this));
 }
 
 const thorin::Def* FieldExpr::emit(Emitter& emitter) const {
@@ -1311,6 +1315,8 @@ const thorin::Type* TupleType::convert(Emitter& emitter) const {
 }
 
 const thorin::Type* SizedArrayType::convert(Emitter& emitter) const {
+    if (is_simd)
+        return emitter.world.type(elem->convert(emitter)->as<thorin::PrimType>()->primtype_tag(), size);
     return emitter.world.definite_array_type(elem->convert(emitter), size);
 }
 

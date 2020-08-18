@@ -130,6 +130,7 @@ struct ArrayType : public Type {
 /// An array whose size is known at compile-time.
 struct SizedArrayType : public ArrayType {
     size_t size;
+    bool is_simd;
 
     void print(Printer&) const override;
     bool equals(const Type*) const override;
@@ -140,8 +141,8 @@ struct SizedArrayType : public ArrayType {
     const thorin::Type* convert(Emitter&) const override;
 
 private:
-    SizedArrayType(TypeTable& type_table, const Type* elem, size_t size)
-        : ArrayType(type_table, elem), size(size)
+    SizedArrayType(TypeTable& type_table, const Type* elem, size_t size, bool is_simd)
+        : ArrayType(type_table, elem), size(size), is_simd(is_simd)
     {}
 
     friend class TypeTable;
@@ -474,7 +475,7 @@ public:
     const PrimType*         bool_type();
     const TupleType*        unit_type();
     const TupleType*        tuple_type(std::vector<const Type*>&&);
-    const SizedArrayType*   sized_array_type(const Type*, size_t);
+    const SizedArrayType*   sized_array_type(const Type*, size_t, bool);
     const UnsizedArrayType* unsized_array_type(const Type*);
     const PtrType*          ptr_type(const Type*, bool, size_t);
     const RefType*          ref_type(const Type*, bool, size_t);

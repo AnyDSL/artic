@@ -41,6 +41,7 @@ public:
     const Type* mutable_expected(const Loc&);
     const Type* bad_arguments(const Loc&, const std::string&, size_t, size_t);
     const Type* invalid_cast(const Loc&, const Type*, const Type*);
+    const Type* invalid_simd(const Loc&, const Type*);
     void invalid_attr(const Loc&, const std::string&);
     void unsized_type(const Loc&, const Type*);
 
@@ -66,7 +67,7 @@ public:
     void check_block(const Loc&, const PtrVector<ast::Stmt>&, bool);
     bool check_filter(const ast::Expr&);
     template <typename CheckElems>
-    const Type* check_array(const Loc&, const Type*, size_t, CheckElems);
+    const Type* check_array(const Loc&, const Type*, size_t, bool, CheckElems);
 
     bool check_attrs(const ast::NamedAttr&, const std::vector<AttrType>&);
 

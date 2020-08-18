@@ -25,7 +25,8 @@ std::unordered_map<std::string, Token::Tag> Lexer::keywords{
     std::make_pair("static",    Token::Static),
     std::make_pair("mod",       Token::Mod),
     std::make_pair("asm",       Token::Asm),
-    std::make_pair("addrspace", Token::AddrSpace)
+    std::make_pair("addrspace", Token::AddrSpace),
+    std::make_pair("simd",      Token::Simd)
 };
 
 Lexer::Lexer(Log& log, const std::string& filename, std::istream& is)

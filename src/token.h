@@ -33,6 +33,7 @@ namespace artic {
     f(Mod, "mod") \
     f(Asm, "asm") \
     f(AddrSpace, "addrspace") \
+    f(Simd, "simd") \
     f(LParen, "(") \
     f(RParen, ")") \
     f(LBrace, "{") \
