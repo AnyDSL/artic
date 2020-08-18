@@ -1,3 +1,6 @@
 #[export] fn test1() = simd[1; 3]
 #[export] fn test2() = simd[0, 1, 2]
 #[export] fn test3(x: simd[i32 * 4]) = x
+#[export] fn test4(x: simd[i32 * 4], y: simd[i32 * 4]) {
+    (x + y, x - y, x * y, x / y, x % y, x << y, x >> y, x & y, x | y, x ^ y, !x)
+}
