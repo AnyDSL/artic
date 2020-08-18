@@ -943,7 +943,7 @@ const artic::Type* BinaryExpr::infer(TypeChecker& checker) {
         if (is_simd_type(prim_type))
             prim_type = prim_type->as<artic::SizedArrayType>()->elem;
         if (!prim_type->isa<artic::PrimType>())
-            return checker.type_expected(loc, left_type, "primitive or simd");
+            return checker.type_expected(left->loc, left_type, "primitive or simd");
         switch (remove_eq(tag)) {
             case Add:
             case Sub:
@@ -955,7 +955,7 @@ const artic::Type* BinaryExpr::infer(TypeChecker& checker) {
             case CmpLE:
             case CmpGE:
                 if (!is_int_or_float_type(prim_type))
-                    return checker.type_expected(loc, left_type, "integer or floating-point");
+                    return checker.type_expected(left->loc, left_type, "integer or floating-point");
                 break;
             case CmpEq:
             case CmpNE:
@@ -963,18 +963,18 @@ const artic::Type* BinaryExpr::infer(TypeChecker& checker) {
             case LShft:
             case RShft:
                 if (!is_int_type(prim_type))
-                    return checker.type_expected(loc, left_type, "integer");
+                    return checker.type_expected(left->loc, left_type, "integer");
                 break;
             case LogicAnd:
             case LogicOr:
                 if (!is_bool_type(prim_type))
-                    return checker.type_expected(loc, left_type, "boolean");
+                    return checker.type_expected(left->loc, left_type, "boolean");
                 break;
             case And:
             case Or:
             case Xor:
                 if (!is_int_type(prim_type) && !is_bool_type(prim_type))
-                    return checker.type_expected(loc, left_type, "integer or boolean");
+                    return checker.type_expected(left->loc, left_type, "integer or boolean");
                 break;
             default:
                 assert(false);
