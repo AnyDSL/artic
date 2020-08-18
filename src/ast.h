@@ -106,7 +106,7 @@ struct Stmt : public Node {
     Stmt(const Loc& loc) : Node(loc) {}
 
     /// Returns true if the statement must end with a semicolon.
-    virtual bool need_semicolon() const = 0;
+    virtual bool needs_semicolon() const = 0;
     /// Returns true if the statement has a side effect.
     virtual bool has_side_effect() const = 0;
 };
@@ -403,7 +403,7 @@ struct DeclStmt : public Stmt {
         : Stmt(loc), decl(std::move(decl))
     {}
 
-    bool need_semicolon() const override;
+    bool needs_semicolon() const override;
     bool has_side_effect() const override;
 
     const thorin::Def* emit(Emitter&) const override;
@@ -421,7 +421,7 @@ struct ExprStmt : public Stmt {
         : Stmt(loc), expr(std::move(expr))
     {}
 
-    bool need_semicolon() const override;
+    bool needs_semicolon() const override;
     bool has_side_effect() const override;
 
     const thorin::Def* emit(Emitter&) const override;

@@ -298,7 +298,7 @@ const Attr* NamedAttr::find(const std::string_view& name) const {
 
 // Statements ----------------------------------------------------------------------
 
-bool DeclStmt::need_semicolon() const {
+bool DeclStmt::needs_semicolon() const {
     return false;
 }
 
@@ -306,7 +306,7 @@ bool DeclStmt::has_side_effect() const {
     return true;
 }
 
-bool ExprStmt::need_semicolon() const {
+bool ExprStmt::needs_semicolon() const {
     return
         !expr->isa<IfExpr>()    &&
         !expr->isa<MatchExpr>() &&

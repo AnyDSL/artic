@@ -179,7 +179,7 @@ void BlockExpr::print(Printer& p) const {
             auto& stmt = stmts[i];
             p << p.endl();
             stmt->print(p);
-            if ((i != n - 1 && stmt->need_semicolon()) || (i == n - 1 && last_semi))
+            if ((i != n - 1 && stmt->needs_semicolon()) || (i == n - 1 && last_semi))
                 p << ';';
         }
         p << p.unindent() << p.endl() << "}";
