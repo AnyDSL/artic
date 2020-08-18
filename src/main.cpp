@@ -294,14 +294,15 @@ static bool compile(const ProgramOptions& opts, Log& log) {
     TypeTable type_table;
     TypeChecker type_checker(log, type_table);
     type_checker.strict = opts.strict;
+
+    if (!name_binder.run(program) || !type_checker.run(program))
+        return false;
+
     if (opts.print_ast) {
         Printer p(log::out);
         program.print(p);
         log::out << "\n";
     }
-
-    if (!name_binder.run(program) || !type_checker.run(program))
-        return false;
 
     thorin::Log::set(opts.log_level, &std::cerr);
     thorin::World world(opts.module_name);
