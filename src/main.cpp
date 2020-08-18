@@ -40,7 +40,7 @@ static void usage() {
                 "       --version            Displays the version number\n"
                 "       --no-color           Disables colors in error messages\n"
                 "       --strict             Sets warnings as errors\n"
-                "       --max-messages <n>   Sets the maximum number of error or warning messages (unlimited by default)\n"
+                "       --max-errors <n>     Sets the maximum number of error messages (unlimited by default)\n"
                 "       --print-ast          Prints the AST after parsing and type-checking\n"
                 "       --emit-thorin        Prints the Thorin IR after code generation\n"
                 "       --log-level <lvl>    Changes the log level in Thorin (lvl = debug, verbose, info, warn, or error, defaults to error)\n"
@@ -91,7 +91,7 @@ struct ProgramOptions {
     bool emit_thorin = false;
     bool emit_llvm = false;
     unsigned opt_level = 0;
-    size_t max_messages = 0;
+    size_t max_errors = 0;
     thorin::Log::Level log_level = thorin::Log::Error;
 
     bool matches(const char* arg, const char* opt) {
@@ -142,11 +142,11 @@ struct ProgramOptions {
                     if (!check_dup(argv[i], strict))
                         return false;
                     strict = true;
-                } else if (matches(argv[i], "--max-messages")) {
-                    if (!check_dup(argv[i], max_messages != 0) || !check_arg(argc, argv, i))
+                } else if (matches(argv[i], "--max-errors")) {
+                    if (!check_dup(argv[i], max_errors != 0) || !check_arg(argc, argv, i))
                         return false;
-                    max_messages = std::strtoull(argv[++i], NULL, 10);
-                    if (max_messages == 0) {
+                    max_errors = std::strtoull(argv[++i], NULL, 10);
+                    if (max_errors == 0) {
                         log::error("maximum number of error messages must be greater than 0");
                         return false;
                     }
@@ -359,7 +359,7 @@ int main(int argc, char** argv) {
 
     Locator locator;
     Log log(log::err, &locator);
-    log.max_messages = opts.max_messages;
+    log.max_errors = opts.max_errors;
 
     bool success = compile(opts, log);
     log.print_summary();

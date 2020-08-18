@@ -18,7 +18,7 @@ void Log::print_summary() {
     }
     if (is_full()) {
         out << log::style(
-            "(some messages were omitted, run without `--max-messages` to get the full log)",
+            "(some messages were omitted, run without `--max-errors` to get the full log)",
             log::Style::White, log::Style::Bold) << "\n";
     }
 }

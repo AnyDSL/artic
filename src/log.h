@@ -179,14 +179,14 @@ struct Log {
     {}
 
     bool is_full() const {
-        return max_messages > 0 && errors > 1 && errors + warns >= max_messages;
+        return max_errors > 0 && errors >= max_errors;
     }
 
     void print_summary();
 
     log::Output& out;
     Locator* locator;
-    size_t max_messages = 0;
+    size_t max_errors = 0;
     size_t errors;
     size_t warns;
 };
@@ -206,9 +206,11 @@ struct Logger {
     /// Report an error at the given location in a source file.
     template <typename... Args>
     void error(const Loc& loc, const char* fmt, Args&&... args) {
-        error(fmt, std::forward<Args>(args)...);
-        if (!log.is_full())
+        if (!log.is_full()) {
+            error(fmt, std::forward<Args>(args)...);
             diagnostic(loc, log::Style::Red, '^');
+        } else
+            log.errors++, errors++;
     }
 
     /// Report a warning at the given location in a source file.
@@ -216,31 +218,33 @@ struct Logger {
     void warn(const Loc& loc, const char* fmt, Args&&... args) {
         if (strict)
             error(loc, fmt, std::forward<Args>(args)...);
-        else {
+        else if (!log.is_full()) {
             warn(fmt, std::forward<Args>(args)...);
-            if (!log.is_full())
-                diagnostic(loc, log::Style::Yellow, '^');
-        }
+            diagnostic(loc, log::Style::Yellow, '^');
+        } else
+            log.warns++, warns++;
     }
 
     /// Display a note corresponding to a specific location in a source file.
     template <typename... Args>
     void note(const Loc& loc, const char* fmt, Args&&... args) {
-        if (log.is_full()) return;
-        note(fmt, std::forward<Args>(args)...);
-        diagnostic(loc, log::Style::Cyan, '-');
+        if (!log.is_full()) {
+            note(fmt, std::forward<Args>(args)...);
+            diagnostic(loc, log::Style::Cyan, '-');
+        }
     }
 
     /// Report an error.
     template <typename... Args>
     void error(const char* fmt, Args&&... args) {
+        if (!log.is_full()) {
+            if (log.errors > 0 || log.warns > 0)
+                log.out.stream << "\n";
+            log::format(log.out, "{}: ", log::style("error", log::Style::Red, log::Style::Bold));
+            log::format(log.out, fmt, std::forward<Args>(args)...);
+            log.out.stream << '\n';
+        }
         log.errors++, errors++;
-        if (log.is_full()) return;
-        if (log.errors > 1 || log.warns > 0)
-            log.out.stream << "\n";
-        log::format(log.out, "{}: ", log::style("error", log::Style::Red, log::Style::Bold));
-        log::format(log.out, fmt, std::forward<Args>(args)...);
-        log.out.stream << '\n';
     }
 
     /// Report a warning.
@@ -249,13 +253,14 @@ struct Logger {
         if (strict)
             error(fmt, std::forward<Args>(args)...);
         else {
+            if (log.is_full()) {
+                if (log.errors > 0 || log.warns > 0)
+                    log.out.stream << "\n";
+                log::format(log.out, "{}: ", log::style("warning", log::Style::Yellow, log::Style::Bold));
+                log::format(log.out, fmt, std::forward<Args>(args)...);
+                log.out.stream << '\n';
+            }
             log.warns++, warns++;
-            if (log.is_full()) return;
-            if (log.errors > 0 || log.warns > 1)
-                log.out.stream << "\n";
-            log::format(log.out, "{}: ", log::style("warning", log::Style::Yellow, log::Style::Bold));
-            log::format(log.out, fmt, std::forward<Args>(args)...);
-            log.out.stream << '\n';
         }
     }
 
