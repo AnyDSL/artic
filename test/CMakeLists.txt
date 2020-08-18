@@ -100,6 +100,9 @@ add_failure_test(NAME failure_escape      COMMAND artic ${CMAKE_CURRENT_SOURCE_D
 add_failure_test(NAME failure_asm         COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/asm.art)
 add_failure_test(NAME failure_simd1       COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/simd1.art)
 add_failure_test(NAME failure_simd2       COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/simd2.art)
+add_failure_test(NAME failure_cast1       COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/cast1.art)
+add_failure_test(NAME failure_cast2       COMMAND artic --strict ${CMAKE_CURRENT_SOURCE_DIR}/failure/cast2.art)
+add_failure_test(NAME failure_attrs       COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/attrs.art)
 
 if (Thorin_HAS_LLVM_SUPPORT)
     find_package(Clang REQUIRED CONFIG PATHS ${LLVM_DIR}/../clang NO_DEFAULT_PATH)

@@ -1,0 +1,6 @@
+struct S {}
+enum E {}
+fn test1() = 1 as [i32 * 4]
+fn test2() = 1 as simd[i32 * 4]
+fn test3() = 1 as S
+fn test4() = 1 as E

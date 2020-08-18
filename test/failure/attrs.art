@@ -1,0 +1,8 @@
+#[foo]
+fn foo() = 1
+#[import(bar = "nononono")]
+fn bar() -> ();
+#[import(cc = 3.0)]
+fn baz() -> ();
+#[export(name = 1)]
+fn foobar() {}
