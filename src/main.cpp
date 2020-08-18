@@ -43,6 +43,7 @@ static void usage() {
                 "           --max-messages <n>   Sets the maximum number of error or warning messages (unlimited by default)\n"
                 "           --print-ast          Prints the AST after parsing and type-checking\n"
                 "           --emit-thorin        Prints the Thorin IR after code generation\n"
+                "           --log-level <lvl>    Changes the log level in Thorin (lvl = debug, verbose, info, warn, or error, defaults to error)\n"
 #ifdef ENABLE_LLVM
                 "           --emit-llvm          Emits LLVM IR in the output file\n"
                 "    -g     --debug              Enable debug information in the generated LLVM IR file\n"
@@ -91,6 +92,7 @@ struct ProgramOptions {
     bool emit_llvm = false;
     unsigned opt_level = 0;
     size_t max_messages = 0;
+    thorin::Log::Level log_level = thorin::Log::Error;
 
     bool matches(const char* arg, const char* opt) {
         return !strcmp(arg, opt);
@@ -141,7 +143,7 @@ struct ProgramOptions {
                         return false;
                     strict = true;
                 } else if (matches(argv[i], "--max-messages")) {
-                    if (!check_dup(argv[i], max_messages != 0))
+                    if (!check_dup(argv[i], max_messages != 0) || !check_arg(argc, argv, i))
                         return false;
                     max_messages = std::strtoull(argv[++i], NULL, 10);
                     if (max_messages == 0) {
@@ -160,6 +162,25 @@ struct ProgramOptions {
                     if (!check_dup(argv[i], emit_thorin))
                         return false;
                     emit_thorin = true;
+                } else if (matches(argv[i], "--log-level")) {
+                    if (!check_arg(argc, argv, i))
+                        return false;
+                    i++;
+                    using namespace std::string_literals;
+                    if (argv[i] == "debug"s)
+                        log_level = thorin::Log::Debug;
+                    else if (argv[i] == "verbose"s)
+                        log_level = thorin::Log::Verbose;
+                    else if (argv[i] == "info"s)
+                        log_level = thorin::Log::Info;
+                    else if (argv[i] == "warn"s)
+                        log_level = thorin::Log::Warn;
+                    else if (argv[i] == "error"s)
+                        log_level = thorin::Log::Error;
+                    else {
+                        log::error("unknown log level '{}'", argv[i]);
+                        return false;
+                    }
                 } else if (matches(argv[i], "--emit-llvm")) {
                     if (!check_dup(argv[i], emit_llvm))
                         return false;
@@ -282,9 +303,7 @@ static bool compile(const ProgramOptions& opts, Log& log) {
         log::out << "\n";
     }
 
-#ifndef NDEBUG
-    thorin::Log::set(thorin::Log::Warn, &std::cerr);
-#endif
+    thorin::Log::set(opts.log_level, &std::cerr);
     thorin::World world(opts.module_name);
     Emitter emitter(log, world);
     if (!emitter.run(program))
