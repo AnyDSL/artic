@@ -275,10 +275,11 @@ void UnaryExpr::print(Printer& p) const {
 
 void BinaryExpr::print(Printer& p) const {
     auto prec = BinaryExpr::precedence(tag);
-    auto print_op = [prec, &p] (const Ptr<Expr>& e) {
-        if (e->isa<IfExpr>() ||
-                (e->isa<BinaryExpr>() &&
-                 BinaryExpr::precedence(e->as<BinaryExpr>()->tag) > prec))
+    auto print_op = [prec, this, &p] (const Ptr<Expr>& e) {
+        bool needs_parens = e->isa<IfExpr>() || e->isa<MatchExpr>();
+        if (auto binary_expr = e->isa<BinaryExpr>())
+            needs_parens = binary_expr->precedence() > prec || (tag == Sub && binary_expr->precedence() == prec);
+        if (needs_parens)
             print_parens(p, e);
         else
             e->print(p);

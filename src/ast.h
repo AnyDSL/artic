@@ -911,6 +911,7 @@ struct BinaryExpr : public Expr {
 
     bool has_side_effect() const override;
     bool is_constant() const override;
+    int precedence() const { return precedence(tag); }
 
     void emit(Emitter&, thorin::Continuation*, thorin::Continuation*) const override;
     const thorin::Def* emit(Emitter&) const override;
