@@ -276,7 +276,7 @@ static bool compile(const ProgramOptions& opts, Log& log) {
 
         Lexer lexer(log, file, is);
         Parser parser(log, lexer);
-        parser.strict = opts.strict;
+        parser.is_strict = opts.strict;
         auto module = parser.parse();
         if (log.errors > 0)
             return false;
@@ -289,11 +289,11 @@ static bool compile(const ProgramOptions& opts, Log& log) {
     }
 
     NameBinder name_binder(log);
-    name_binder.strict = opts.strict;
+    name_binder.is_strict = opts.strict;
 
     TypeTable type_table;
     TypeChecker type_checker(log, type_table);
-    type_checker.strict = opts.strict;
+    type_checker.is_strict = opts.strict;
 
     if (opts.print_ast) {
         Printer p(log::out);
