@@ -344,6 +344,10 @@ void TypedPtrn::print(Printer& p) const {
 
 void IdPtrn::print(Printer& p) const {
     decl->print(p);
+    if (sub_ptrn) {
+        p << '@';
+        sub_ptrn->print(p);
+    }
 }
 
 void LiteralPtrn::print(Printer& p) const {

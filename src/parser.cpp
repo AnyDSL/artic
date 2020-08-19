@@ -242,7 +242,7 @@ Ptr<ast::Ptrn> Parser::parse_ptrn(bool is_fn_param) {
                 if (ahead().tag() == Token::DblColon ||
                     ahead().tag() == Token::LBracket ||
                     ahead().tag() == Token::LBrace ||
-                    (is_fn_param && ahead().tag() != Token::Colon)) {
+                    (is_fn_param && ahead().tag() != Token::Colon && ahead().tag() != Token::At)) {
                     auto path = parse_path(std::move(id), true);
                     if (ahead().tag() == Token::LBrace)
                         ptrn = parse_struct_ptrn(std::move(path));
@@ -290,7 +290,10 @@ Ptr<ast::Ptrn> Parser::parse_typed_ptrn(Ptr<ast::Ptrn>&& ptrn) {
 Ptr<ast::IdPtrn> Parser::parse_id_ptrn(ast::Identifier&& id, bool is_mut) {
     Tracker tracker(this, id.loc);
     auto decl = make_ptr<ast::PtrnDecl>(tracker(), std::move(id), is_mut);
-    return make_ptr<ast::IdPtrn>(tracker(), std::move(decl));
+    Ptr<ast::Ptrn> sub_ptrn;
+    if (accept(Token::At))
+        sub_ptrn = parse_ptrn();
+    return make_ptr<ast::IdPtrn>(tracker(), std::move(decl), std::move(sub_ptrn));
 }
 
 Ptr<ast::LiteralPtrn> Parser::parse_literal_ptrn() {

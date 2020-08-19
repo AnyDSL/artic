@@ -128,12 +128,16 @@ struct Expr : public Node {
     virtual bool is_constant() const { return false; }
 };
 
+struct IdPtrn;
+
 /// Pattern: An expression which does not need evaluation.
 struct Ptrn : public Node {
     Ptrn(const Loc& loc) : Node(loc) {}
 
     bool is_tuple() const;
 
+    /// Collect patterns that bind an identifier to a value in this pattern.
+    virtual void collect_bound_ptrns(std::vector<const IdPtrn*>&) const;
     /// Returns true when the pattern is trivial (e.g. always matches).
     virtual bool is_trivial() const = 0;
     /// Emits IR for the pattern, given a value to match against.
@@ -1298,6 +1302,7 @@ struct TypedPtrn : public Ptrn {
         : Ptrn(loc), ptrn(std::move(ptrn)), type(std::move(type))
     {}
 
+    void collect_bound_ptrns(std::vector<const IdPtrn*>&) const override;
     bool is_trivial() const override;
 
     void emit(Emitter&, const thorin::Def*) const override;
@@ -1309,11 +1314,13 @@ struct TypedPtrn : public Ptrn {
 /// An identifier used as a pattern.
 struct IdPtrn : public Ptrn {
     Ptr<PtrnDecl> decl;
+    Ptr<Ptrn> sub_ptrn;
 
-    IdPtrn(const Loc& loc, Ptr<PtrnDecl>&& decl)
-        : Ptrn(loc), decl(std::move(decl))
+    IdPtrn(const Loc& loc, Ptr<PtrnDecl>&& decl, Ptr<Ptrn>&& sub_ptrn)
+        : Ptrn(loc), decl(std::move(decl)), sub_ptrn(std::move(sub_ptrn))
     {}
 
+    void collect_bound_ptrns(std::vector<const IdPtrn*>&) const override;
     bool is_trivial() const override;
 
     void emit(Emitter&, const thorin::Def*) const override;
@@ -1352,6 +1359,7 @@ struct FieldPtrn : public Ptrn {
 
     bool is_etc() const { return !ptrn; }
 
+    void collect_bound_ptrns(std::vector<const IdPtrn*>&) const override;
     bool is_trivial() const override;
 
     void emit(Emitter&, const thorin::Def*) const override;
@@ -1371,6 +1379,7 @@ struct StructPtrn : public Ptrn {
 
     bool has_etc() const { return !fields.empty() && fields.back()->is_etc(); }
 
+    void collect_bound_ptrns(std::vector<const IdPtrn*>&) const override;
     bool is_trivial() const override;
 
     void emit(Emitter&, const thorin::Def*) const override;
@@ -1390,6 +1399,7 @@ struct EnumPtrn : public Ptrn {
         : Ptrn(loc), path(std::move(path)), arg(std::move(arg))
     {}
 
+    void collect_bound_ptrns(std::vector<const IdPtrn*>&) const override;
     bool is_trivial() const override;
 
     const artic::Type* infer(TypeChecker&) override;
@@ -1405,6 +1415,7 @@ struct TuplePtrn : public Ptrn {
         : Ptrn(loc), args(std::move(args))
     {}
 
+    void collect_bound_ptrns(std::vector<const IdPtrn*>&) const override;
     bool is_trivial() const override;
 
     void emit(Emitter&, const thorin::Def*) const override;
