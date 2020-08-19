@@ -82,7 +82,7 @@ public:
                 emitter.enter(cont);
                 auto tuple = emitter.tuple_from_params(cont);
                 for (size_t i = 0, n = bound_ptrns.size(); i < n; ++i)
-                    emitter.emit(*bound_ptrns[i], emitter.world.extract(tuple, i));
+                    emitter.bind(*bound_ptrns[i], emitter.world.extract(tuple, i));
                 // Emit the expression and jump to the target
                 emitter.jump(target, emitter.emit(*rows.front().second->expr), debug);
                 case_block = cont;
@@ -293,6 +293,21 @@ private:
     // Transforms the rows such that tuples and structures are completely deconstructed
     void expand() {
         for (size_t i = 0; i < values.size();) {
+            // Replace patterns by their sub-patterns, if possible
+            // i.e if the pattern is `z as (x, y)` then we replace it with `(x, y)`
+            // and remember that `z` maps to the value bound to `(x, y)`
+            for (auto& row : rows) {
+                if (!row.first[i])
+                    continue;
+                while (true) {
+                    if (auto id_ptrn = row.first[i]->isa<ast::IdPtrn>(); id_ptrn && id_ptrn->sub_ptrn) {
+                        matched_values.emplace(id_ptrn, values[i].first);
+                        row.first[i] = id_ptrn->sub_ptrn.get();
+                    } else
+                        break;
+                }
+            }
+
             auto type = values[i].second;
             auto [type_app, struct_type] = match_app<StructType>(type);
 
@@ -558,6 +573,17 @@ const thorin::Def* Emitter::emit(const ast::Node& node) {
 void Emitter::emit(const ast::Ptrn& ptrn, const thorin::Def* value) {
     assert(!ptrn.def);
     ptrn.emit(*this, value);
+}
+
+void Emitter::bind(const ast::IdPtrn& id_ptrn, const thorin::Def* value) {
+    if (id_ptrn.decl->is_mut) {
+        auto ptr = alloc(value->type(), debug_info(*id_ptrn.decl));
+        store(ptr, value);
+        id_ptrn.decl->def = ptr;
+    } else {
+        id_ptrn.decl->def = value;
+        value->debug().set(id_ptrn.decl->id.name);
+    }
 }
 
 const thorin::Def* Emitter::emit(const ast::Node& node, const Literal& lit) {
@@ -1251,14 +1277,9 @@ void TypedPtrn::emit(Emitter& emitter, const thorin::Def* value) const {
 }
 
 void IdPtrn::emit(Emitter& emitter, const thorin::Def* value) const {
-    if (decl->is_mut) {
-        auto ptr = emitter.alloc(value->type(), debug_info(*decl));
-        emitter.store(ptr, value);
-        decl->def = ptr;
-    } else {
-        decl->def = value;
-        value->debug().set(decl->id.name);
-    }
+    emitter.bind(*this, value);
+    if (sub_ptrn)
+        emitter.emit(*sub_ptrn, value);
 }
 
 void FieldPtrn::emit(Emitter& emitter, const thorin::Def* value) const {

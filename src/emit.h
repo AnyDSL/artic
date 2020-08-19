@@ -139,6 +139,7 @@ public:
 
     const thorin::Def* emit(const ast::Node&);
     void emit(const ast::Ptrn&, const thorin::Def*);
+    void bind(const ast::IdPtrn&, const thorin::Def*);
     const thorin::Def* emit(const ast::Node&, const Literal&);
 
     const thorin::Def* builtin(const ast::FnDecl&, thorin::Continuation*);

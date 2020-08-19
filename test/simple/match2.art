@@ -1,0 +1,11 @@
+enum E { A, B(i32) }
+fn foo(x: E) = match x { E::A => 0, E::B(_) => 1 }
+#[export]
+fn test(x: (i32, bool, E)) {
+    match x {
+        (1, _, _) => 1,
+        (_, y as true, E::A) => if y { 2 } else { 0 },
+        (w as _, _, mut y as E::B(mut z)) => foo(y) + z + w,
+        (_, _, y as E::A) => foo(y)
+    }
+}

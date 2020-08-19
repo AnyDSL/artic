@@ -345,7 +345,7 @@ void TypedPtrn::print(Printer& p) const {
 void IdPtrn::print(Printer& p) const {
     decl->print(p);
     if (sub_ptrn) {
-        p << '@';
+        p << log::keyword_style("as");
         sub_ptrn->print(p);
     }
 }

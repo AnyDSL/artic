@@ -308,6 +308,8 @@ void TypedPtrn::bind(NameBinder& binder) {
 
 void IdPtrn::bind(NameBinder& binder) {
     binder.bind(*decl);
+    if (sub_ptrn)
+        binder.bind(*sub_ptrn);
 }
 
 void LiteralPtrn::bind(NameBinder&) {}

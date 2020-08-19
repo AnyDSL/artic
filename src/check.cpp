@@ -1209,13 +1209,15 @@ const artic::Type* LiteralPtrn::check(TypeChecker& checker, const artic::Type* e
 }
 
 const artic::Type* IdPtrn::infer(TypeChecker& checker) {
-    // Needed because the error type will be attached to the decl,
-    // which is what is connected to the uses of the identifier.
-    return checker.infer(*decl);
+    return sub_ptrn
+        ? checker.check(*decl, checker.infer(*sub_ptrn))
+        : checker.infer(*decl);
 }
 
 const artic::Type* IdPtrn::check(TypeChecker& checker, const artic::Type* expected) {
     checker.check(*decl, decl->is_mut ? checker.type_table.ref_type(expected, true, 0) : expected);
+    if (sub_ptrn)
+        checker.check(*sub_ptrn, expected);
     return expected;
 }
 

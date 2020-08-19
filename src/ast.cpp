@@ -529,7 +529,8 @@ bool StructPtrn::is_trivial() const {
 }
 
 void EnumPtrn::collect_bound_ptrns(std::vector<const IdPtrn*>& bound_ptrns) const {
-    arg->collect_bound_ptrns(bound_ptrns);
+    if (arg)
+        arg->collect_bound_ptrns(bound_ptrns);
 }
 
 bool EnumPtrn::is_trivial() const {
