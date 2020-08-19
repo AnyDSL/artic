@@ -86,6 +86,10 @@ range(|i| { print(i) })(0, 10)
 ```rust
 fn foo(x: f32, (y: f32, z: f32)) -> ... { ... }
 ```
+ - Identifier patterns can now have sub-patterns:
+```rust
+fn foo(x as (y: f32, z: f32)) { ... }
+```
  - Functions can use the `=` sign instead of braces if their body is just an expression:
 ```rust
 fn foo() -> i32 = 1
