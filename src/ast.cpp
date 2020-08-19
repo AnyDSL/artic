@@ -510,7 +510,8 @@ bool LiteralPtrn::is_trivial() const {
 }
 
 void FieldPtrn::collect_bound_ptrns(std::vector<const IdPtrn*>& bound_ptrns) const {
-    ptrn->collect_bound_ptrns(bound_ptrns);
+    if (ptrn)
+        ptrn->collect_bound_ptrns(bound_ptrns);
 }
 
 bool FieldPtrn::is_trivial() const {
