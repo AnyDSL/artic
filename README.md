@@ -82,6 +82,14 @@ range(|i| { print(i) })(0, 10)
  #[export]
  fn foo() = 1
 ```
+ - Tuples cannot be indexed with constant integers anymore:
+```rust
+let t = (1, 2);
+t(1) // valid in impala, invalid in artic
+// valid alternatives in artic:
+match t { (_, t1) => ... }
+let (_, t1) = t;
+```
  - Non-refutable (always matching) patterns are allowed as function parameters:
 ```rust
 fn foo(x: f32, (y: f32, z: f32)) -> ... { ... }
