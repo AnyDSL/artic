@@ -253,7 +253,7 @@ struct Logger {
         if (strict)
             error(fmt, std::forward<Args>(args)...);
         else {
-            if (log.is_full()) {
+            if (!log.is_full()) {
                 if (log.errors > 0 || log.warns > 0)
                     log.out.stream << "\n";
                 log::format(log.out, "{}: ", log::style("warning", log::Style::Yellow, log::Style::Bold));

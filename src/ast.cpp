@@ -298,6 +298,7 @@ bool DeclStmt::has_side_effect() const {
 
 bool ExprStmt::needs_semicolon() const {
     return
+        !expr->isa<BlockExpr>() &&
         !expr->isa<IfExpr>()    &&
         !expr->isa<MatchExpr>() &&
         !expr->isa<WhileExpr>() &&
