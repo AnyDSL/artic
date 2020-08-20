@@ -194,13 +194,13 @@ struct Log {
 /// Base class for objects that have a log attached to them.
 struct Logger {
     Log& log;
-    bool is_strict;
+    bool warns_as_errors;
     bool diagnostics;
     size_t errors = 0;
     size_t warns = 0;
 
-    Logger(Log& log, bool is_strict = false, bool diagnostics = true)
-        : log(log) , is_strict(is_strict), diagnostics(diagnostics)
+    Logger(Log& log, bool warns_as_errors = false, bool diagnostics = true)
+        : log(log) , warns_as_errors(warns_as_errors), diagnostics(diagnostics)
     {}
 
     /// Report an error at the given location in a source file.
@@ -216,7 +216,7 @@ struct Logger {
     /// Report a warning at the given location in a source file.
     template <typename... Args>
     void warn(const Loc& loc, const char* fmt, Args&&... args) {
-        if (is_strict)
+        if (warns_as_errors)
             error(loc, fmt, std::forward<Args>(args)...);
         else if (!log.is_full()) {
             warn(fmt, std::forward<Args>(args)...);
@@ -250,7 +250,7 @@ struct Logger {
     /// Report a warning.
     template <typename... Args>
     void warn(const char* fmt, Args&&... args) {
-        if (is_strict)
+        if (warns_as_errors)
             error(fmt, std::forward<Args>(args)...);
         else {
             if (!log.is_full()) {

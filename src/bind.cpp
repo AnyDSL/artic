@@ -47,7 +47,9 @@ void NameBinder::insert_symbol(ast::NamedDecl& decl) {
             if (other != &decl) note(other->loc, "previously declared here");
         }
     } else if (
-        shadow_symbol && decl.isa<ast::PtrnDecl>() && !shadow_symbol->decls[0]->is_top_level) {
+        warn_on_shadowing && shadow_symbol &&
+        decl.isa<ast::PtrnDecl>() &&
+        !shadow_symbol->decls[0]->is_top_level) {
         warn(decl.loc, "declaration shadows identifier '{}'", name);
         note(shadow_symbol->decls[0]->loc, "previously declared here");
     }

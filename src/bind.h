@@ -26,6 +26,8 @@ public:
     /// Returns true on success, otherwise false.
     bool run(ast::ModDecl&);
 
+    bool warn_on_shadowing = false;
+
     void bind_head(ast::Decl&);
     void bind(ast::Node&);
 
