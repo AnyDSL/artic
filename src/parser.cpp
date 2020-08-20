@@ -404,11 +404,9 @@ Ptr<ast::Expr> Parser::parse_expr(bool allow_structs) {
 
 Ptr<ast::Expr> Parser::parse_typed_expr(Ptr<ast::Expr>&& expr) {
     Tracker tracker(this, expr->loc);
-    if (accept(Token::Colon)) {
-        auto type = parse_type();
-        return make_ptr<ast::TypedExpr>(tracker(), std::move(expr), std::move(type));
-    }
-    return std::move(expr);
+    eat(Token::Colon);
+    auto type = parse_type();
+    return make_ptr<ast::TypedExpr>(tracker(), std::move(expr), std::move(type));
 }
 
 Ptr<ast::PathExpr> Parser::parse_path_expr() {
@@ -733,6 +731,8 @@ Ptr<ast::Expr> Parser::parse_primary_expr(bool allow_structs, bool allow_casts) 
             expr = parse_error_expr();
             break;
     }
+    if (filter)
+        error(filter->loc, "filters are not allowed here");
     while (true) {
         if (ahead().tag() == Token::LParen)
             expr = parse_call_expr(std::move(expr));
@@ -740,14 +740,14 @@ Ptr<ast::Expr> Parser::parse_primary_expr(bool allow_structs, bool allow_casts) 
             expr = parse_proj_expr(std::move(expr));
         else if (ahead().tag() == Token::Inc || ahead().tag() == Token::Dec)
             expr = parse_postfix_expr(std::move(expr));
+        else if (ahead().tag() == Token::Colon)
+            expr = parse_typed_expr(std::move(expr));
         else if (allow_casts && ahead().tag() == Token::As)
             expr = parse_cast_expr(std::move(expr));
         else
             break;
     }
-    if (filter)
-        error(filter->loc, "filters are not allowed here");
-    return parse_typed_expr(std::move(expr));
+    return expr;
 }
 
 Ptr<ast::UnaryExpr> Parser::parse_prefix_expr(bool allow_structs) {
