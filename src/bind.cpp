@@ -421,8 +421,10 @@ void TypeDecl::bind_head(NameBinder& binder) {
 }
 
 void TypeDecl::bind(NameBinder& binder) {
+    binder.push_scope();
     if (type_params) binder.bind(*type_params);
     binder.bind(*aliased_type);
+    binder.pop_scope();
 }
 
 void ModDecl::bind_head(NameBinder& binder) {
