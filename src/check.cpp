@@ -1176,15 +1176,20 @@ const artic::Type* EnumDecl::infer(TypeChecker& checker) {
 }
 
 const artic::Type* TypeDecl::infer(TypeChecker& checker) {
+    if (!checker.enter_decl(this))
+        return checker.type_table.type_error();
+    const artic::Type* type = nullptr;
     if (type_params) {
-        auto type_alias = checker.type_table.type_alias(*this);
+        type = checker.type_table.type_alias(*this);
         for (auto& param : type_params->params)
             checker.infer(*param);
         checker.infer(*aliased_type);
-        return type_alias;
+    } else {
+        // Directly expand non-polymorphic type aliases
+        type = checker.infer(*aliased_type);
     }
-    // Directly expand non-polymorphic type aliases
-    return checker.infer(*aliased_type);
+    checker.exit_decl(this);
+    return type;
 }
 
 const artic::Type* ModDecl::infer(TypeChecker& checker) {

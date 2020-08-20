@@ -414,8 +414,11 @@ void EnumDecl::bind(NameBinder& binder) {
     binder.pop_scope();
 }
 
-void TypeDecl::bind(NameBinder& binder) {
+void TypeDecl::bind_head(NameBinder& binder) {
     binder.insert_symbol(*this);
+}
+
+void TypeDecl::bind(NameBinder& binder) {
     if (type_params) binder.bind(*type_params);
     binder.bind(*aliased_type);
 }

@@ -1258,6 +1258,7 @@ struct TypeDecl : public NamedDecl {
 
     const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) override;
+    void bind_head(NameBinder&) override;
     void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
