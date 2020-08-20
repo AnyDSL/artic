@@ -598,6 +598,8 @@ const thorin::Def* Emitter::emit(const ast::Node& node, const Literal& lit) {
             case ast::PrimType::I16:  return world.literal_qs16(lit.as_integer(), debug_info(node));
             case ast::PrimType::I32:  return world.literal_qs32(lit.as_integer(), debug_info(node));
             case ast::PrimType::I64:  return world.literal_qs64(lit.as_integer(), debug_info(node));
+            case ast::PrimType::F16:
+                return world.literal_qf16(thorin::half(lit.is_double() ? lit.as_double() : lit.as_integer()), debug_info(node));
             case ast::PrimType::F32:
                 return world.literal_qf32(lit.is_double() ? lit.as_double() : lit.as_integer(), debug_info(node));
             case ast::PrimType::F64:
@@ -1320,6 +1322,7 @@ const thorin::Type* PrimType::convert(Emitter& emitter) const {
         case ast::PrimType::I16:  return emitter.world.type_qs16();
         case ast::PrimType::I32:  return emitter.world.type_qs32();
         case ast::PrimType::I64:  return emitter.world.type_qs64();
+        case ast::PrimType::F16:  return emitter.world.type_qf16();
         case ast::PrimType::F32:  return emitter.world.type_qf32();
         case ast::PrimType::F64:  return emitter.world.type_qf64();
         default:

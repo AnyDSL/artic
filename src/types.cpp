@@ -436,6 +436,7 @@ bool is_int_type(const Type* type) {
 bool is_float_type(const Type* type) {
     if (auto prim_type = type->isa<PrimType>()) {
         switch (prim_type->tag) {
+            case ast::PrimType::F16:
             case ast::PrimType::F32:
             case ast::PrimType::F64:
                 return true; 

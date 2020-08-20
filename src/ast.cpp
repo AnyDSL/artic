@@ -23,6 +23,7 @@ std::string PrimType::tag_to_string(Tag tag) {
         case U16:  return "u16";
         case U32:  return "u32";
         case U64:  return "u64";
+        case F16:  return "f16";
         case F32:  return "f32";
         case F64:  return "f64";
         default:
@@ -45,6 +46,7 @@ PrimType::Tag PrimType::tag_from_token(const Token& token) {
         std::make_pair("u32", U32),
         std::make_pair("u64", U64),
 
+        std::make_pair("f16", F16),
         std::make_pair("f32", F32),
         std::make_pair("f64", F64),
     };

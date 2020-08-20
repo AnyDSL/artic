@@ -280,6 +280,7 @@ struct PrimType : public Type {
         U16,
         U32,
         U64,
+        F16,
         F32,
         F64,
         Error
