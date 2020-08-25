@@ -71,6 +71,8 @@ public:
 
     bool check_attrs(const ast::NamedAttr&, const std::vector<AttrType>&);
 
+    bool infer_type_args(const Loc&, const ForallType*, const Type*, std::vector<const Type*>&);
+
 private:
     std::unordered_set<const ast::Decl*> decls_;
 };

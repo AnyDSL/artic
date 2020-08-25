@@ -23,13 +23,20 @@ class TypeTable;
 class Emitter;
 struct TypeVar;
 
-/// Variance for a type variable appearing in a type. Used to perform
-/// type argument synthesis, according to "Local Type Inference", by
-/// B. Pierce.
-enum class Variance {
+/// Variance for a type variable appearing in a type. It represents the
+/// way the type changes when the type variable changes, with respect
+/// to the subtyping relation.
+enum class TypeVariance {
+    Constant,
     Covariant,
     Contravariant,
     Invariant
+};
+
+/// Lower and upper bounds for type variables appearing in a type.
+struct TypeBounds {
+    const Type* lower;
+    const Type* upper;
 };
 
 /// Base class for all types. Types should be created by a `TypeTable`,
@@ -56,7 +63,8 @@ struct Type : public Cast<Type> {
     virtual const thorin::Type* convert(Emitter&) const;
 
     virtual size_t order(std::unordered_set<const Type*>&) const;
-    virtual void variance(std::unordered_map<const TypeVar*, Variance>&, bool) const;
+    virtual void variance(std::unordered_map<const TypeVar*, TypeVariance>&, bool) const;
+    virtual void bounds(std::unordered_map<const TypeVar*, TypeBounds>&, const Type*, bool) const;
     virtual bool is_sized(std::unordered_set<const Type*>&) const;
 
     /// Returns the number of times a function type constructor is present in the type.
@@ -65,10 +73,17 @@ struct Type : public Cast<Type> {
         return order(seen);
     }
 
-    /// Compute the variance of the set of type variables that appear in this type.
-    std::unordered_map<const TypeVar*, Variance> variance(bool dir = true) const {
-        std::unordered_map<const TypeVar*, Variance> vars;
+    /// Computes the variance of the set of type variables that appear in this type.
+    std::unordered_map<const TypeVar*, TypeVariance> variance(bool dir = true) const {
+        std::unordered_map<const TypeVar*, TypeVariance> vars;
         variance(vars, dir);
+        return vars;
+    }
+
+    /// Computes the bounds of the type variables that appear in this type.
+    std::unordered_map<const TypeVar*, TypeBounds> bounds(const Type* arg, bool dir = true) const {
+        std::unordered_map<const TypeVar*, TypeBounds> vars;
+        bounds(vars, arg, dir);
         return vars;
     }
 
@@ -123,7 +138,7 @@ struct TupleType : public Type {
     const thorin::Type* convert(Emitter&) const override;
 
     size_t order(std::unordered_set<const Type*>&) const override;
-    void variance(std::unordered_map<const TypeVar*, Variance>&, bool) const override;
+    void variance(std::unordered_map<const TypeVar*, TypeVariance>&, bool) const override;
     bool is_sized(std::unordered_set<const Type*>&) const override;
 
 private:
@@ -145,7 +160,7 @@ struct ArrayType : public Type {
     bool contains(const Type*) const override;
 
     size_t order(std::unordered_set<const Type*>&) const override;
-    void variance(std::unordered_map<const TypeVar*, Variance>&, bool) const override;
+    void variance(std::unordered_map<const TypeVar*, TypeVariance>&, bool) const override;
     bool is_sized(std::unordered_set<const Type*>&) const override;
 };
 
@@ -203,7 +218,7 @@ struct AddrType : public Type {
     bool contains(const Type*) const override;
 
     size_t order(std::unordered_set<const Type*>&) const override;
-    void variance(std::unordered_map<const TypeVar*, Variance>&, bool) const override;
+    void variance(std::unordered_map<const TypeVar*, TypeVariance>&, bool) const override;
     bool is_sized(std::unordered_set<const Type*>&) const override;
 };
 
@@ -249,7 +264,7 @@ struct FnType : public Type {
     const thorin::Type* convert(Emitter&) const override;
 
     size_t order(std::unordered_set<const Type*>&) const override;
-    void variance(std::unordered_map<const TypeVar*, Variance>&, bool) const override;
+    void variance(std::unordered_map<const TypeVar*, TypeVariance>&, bool) const override;
     bool is_sized(std::unordered_set<const Type*>&) const override;
 
 private:
@@ -300,7 +315,7 @@ struct TypeVar : public Type {
 
     const thorin::Type* convert(Emitter&) const override;
 
-    void variance(std::unordered_map<const TypeVar*, Variance>&, bool) const override;
+    void variance(std::unordered_map<const TypeVar*, TypeVariance>&, bool) const override;
 
 private:
     TypeVar(TypeTable& type_table, const ast::TypeParam& param)
@@ -459,7 +474,7 @@ struct TypeApp : public Type {
     const thorin::Type* convert(Emitter&) const override;
 
     size_t order(std::unordered_set<const Type*>&) const override;
-    void variance(std::unordered_map<const TypeVar*, Variance>&, bool) const override;
+    void variance(std::unordered_map<const TypeVar*, TypeVariance>&, bool) const override;
     bool is_sized(std::unordered_set<const Type*>&) const override;
 
     static std::unordered_map<const TypeVar*, const Type*> replace_map(

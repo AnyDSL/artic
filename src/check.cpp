@@ -370,6 +370,62 @@ bool TypeChecker::check_attrs(const ast::NamedAttr& named_attr, const std::vecto
     return true;
 }
 
+bool TypeChecker::infer_type_args(
+    const Loc& loc,
+    const ForallType* forall_type,
+    const Type* arg_type,
+    std::vector<const Type*>& type_args) {
+    auto bounds = forall_type->bounds(arg_type);
+    auto variance = forall_type->body->variance();
+    for (auto& bound : bounds) {
+        size_t index = std::find_if(
+            forall_type->decl.type_params->params.begin(),
+            forall_type->decl.type_params->params.end(),
+            [&] (auto& param) { return param->type == bound.first; }) -
+            forall_type->decl.type_params->params.begin();
+        assert(index < forall_type->decl.type_params->params.size());
+
+        // Check that the provided arguments are compatible with the computed bounds
+        if (type_args[index]) {
+            if (!type_args[index]->subtype(bound.second.upper) ||
+                !bound.second.lower->subtype(type_args[index])) {
+                error(
+                    loc, "type argument '{}', given for type variable '{}' is incompatible with type bounds '{}' and '{}'",
+                    type_args[index], *bound.first, *bound.second.lower, *bound.second.upper);
+                return false;
+            }
+            continue;
+        }
+
+        // Compute the type argument based on the bounds and variance of that type variable.
+        // See "Local Type Inference", by B. Pierce and D. Turner.
+        switch (variance[bound.first]) {
+            case TypeVariance::Covariant:     type_args[index] = bound.second.lower; break;
+            case TypeVariance::Contravariant: type_args[index] = bound.second.upper; break;
+            case TypeVariance::Invariant:
+                if (bound.second.lower == bound.second.upper) {
+                    type_args[index] = bound.second.lower;
+                    break;
+                }
+                error(
+                    loc, "cannot instantiate type variable '{}' with type bounds '{}' and '{}'",
+                    *bound.first, *bound.second.lower, *bound.second.upper);
+                return false;
+            default:
+                error(loc, "cannot infer type argument for type variable '{}'", *bound.first);
+                return false;
+        } 
+    }
+    for (size_t i = 0, n = type_args.size(); i < n; ++i) {
+        if (!type_args[i]) {
+            error(
+                loc, "cannot infer type argument for type variable '{}'",
+                *forall_type->decl.type_params->params[i]->type);
+            return false;
+        }
+    }
+    return true;
+}
 
 namespace ast {
 
@@ -388,10 +444,14 @@ const artic::Type* Node::infer(TypeChecker& checker) {
 // Path ----------------------------------------------------------------------------
 
 const artic::Type* Path::infer(TypeChecker& checker) {
-    return infer(checker, false, true);
+    return infer(checker, false, true, nullptr);
 }
 
-const artic::Type* Path::infer(TypeChecker& checker, bool allow_type, bool allow_value) {
+const artic::Type* Path::infer(
+   TypeChecker& checker,
+   bool allow_type,
+   bool allow_value,
+   const artic::Type* arg_type) {
     if (!symbol || symbol->decls.empty())
         return checker.type_table.type_error();
     auto type = checker.infer(*symbol->decls.front());
@@ -421,10 +481,17 @@ const artic::Type* Path::infer(TypeChecker& checker, bool allow_type, bool allow
             size_t type_param_count = user_type
                 ? user_type->type_params()->params.size()
                 : forall_type->decl.type_params->params.size();
-            if (type_param_count == elem.args.size()) {
-                std::vector<const artic::Type*> type_args(elem.args.size());
-                for (size_t i = 0, n = type_args.size(); i < n; ++i)
+            if (type_param_count == elem.args.size() ||
+                (forall_type && arg_type && type_param_count > elem.args.size())) {
+                std::vector<const artic::Type*> type_args(type_param_count);
+                for (size_t i = 0, n = elem.args.size(); i < n; ++i)
                     type_args[i] = checker.infer(*elem.args[i]);
+                // Infer type arguments when not all type arguments are given
+                if (type_param_count != elem.args.size()) {
+                    assert(forall_type && arg_type);
+                    if (!checker.infer_type_args(loc, forall_type, arg_type, type_args))
+                        return checker.type_table.type_error();
+                }
                 type = user_type
                     ? checker.type_table.type_app(user_type, std::move(type_args))
                     : forall_type->instantiate(type_args);
@@ -561,7 +628,7 @@ const artic::Type* PtrType::infer(TypeChecker& checker) {
 }
 
 const artic::Type* TypeApp::infer(TypeChecker& checker) {
-    return path.type = path.infer(checker, true, false);
+    return path.type = path.infer(checker, true, false, nullptr);
 }
 
 // Statements ----------------------------------------------------------------------
@@ -617,10 +684,10 @@ const artic::Type* FieldExpr::check(TypeChecker& checker, const artic::Type* exp
 }
 
 const artic::Type* StructExpr::infer(TypeChecker& checker) {
-    auto path_type = path.type = path.infer(checker, true, true);
-    auto [type_app, struct_type] = match_app<StructType>(path_type);
+    path.type = path.infer(checker, true, true, nullptr);
+    auto [type_app, struct_type] = match_app<StructType>(path.type);
     if (!struct_type)
-        return checker.type_expected(path.loc, path_type, "structure");
+        return checker.type_expected(path.loc, path.type, "structure");
     return checker.check_fields(loc, struct_type, type_app, fields, "expression", path.is_value, true);
 }
 
@@ -732,6 +799,8 @@ const artic::Type* BlockExpr::check(TypeChecker& checker, const artic::Type* exp
 }
 
 const artic::Type* CallExpr::infer(TypeChecker& checker) {
+    if (auto path_expr = callee->isa<ast::PathExpr>()) {
+    }
     auto [ref_type, callee_type] = remove_ref(checker.infer(*callee));
     if (auto fn_type = callee_type->isa<artic::FnType>()) {
         checker.coerce(callee, fn_type);
@@ -1231,10 +1300,10 @@ const artic::Type* FieldPtrn::check(TypeChecker& checker, const artic::Type* exp
 }
 
 const artic::Type* StructPtrn::infer(TypeChecker& checker) {
-    auto path_type = path.type = path.infer(checker, true, false);
-    auto [type_app, struct_type] = match_app<StructType>(path_type);
+    path.type = path.infer(checker, true, false, nullptr);
+    auto [type_app, struct_type] = match_app<StructType>(path.type);
     if (!struct_type)
-        return checker.type_expected(path.loc, path_type, "structure");
+        return checker.type_expected(path.loc, path.type, "structure");
     return checker.check_fields(loc, struct_type, type_app, fields, "pattern");
 }
 
