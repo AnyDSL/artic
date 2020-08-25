@@ -271,6 +271,42 @@ size_t TypeApp::order(std::unordered_set<const Type*>& seen) const {
     return max_order;
 }
 
+// Variance ------------------------------------------------------------------------
+
+void Type::variance(std::unordered_map<const TypeVar*, Variance>&, bool) const {}
+
+void TupleType::variance(std::unordered_map<const TypeVar*, Variance>& vars, bool dir) const {
+    for (auto arg : args)
+        arg->variance(vars, dir);
+}
+
+void ArrayType::variance(std::unordered_map<const TypeVar*, Variance>& vars, bool dir) const {
+    elem->variance(vars, dir);
+}
+
+void AddrType::variance(std::unordered_map<const TypeVar*, Variance>& vars, bool dir) const {
+    pointee->variance(vars, dir);
+}
+
+void FnType::variance(std::unordered_map<const TypeVar*, Variance>& vars, bool dir) const {
+    dom->variance(vars, !dir);
+    codom->variance(vars, dir);
+}
+
+void TypeVar::variance(std::unordered_map<const TypeVar*, Variance>& vars, bool dir) const {
+    if (auto it = vars.find(this); it != vars.end()) {
+        bool var_dir = it->second == Variance::Covariant ? true : false;
+        if (var_dir != dir)
+            it->second = Variance::Invariant;
+    } else
+        vars.emplace(this, dir ? Variance::Covariant : Variance::Contravariant);
+}
+
+void TypeApp::variance(std::unordered_map<const TypeVar*, Variance>& vars, bool dir) const {
+    for (auto type_arg : type_args)
+        type_arg->variance(vars, dir);
+}
+
 // Size ----------------------------------------------------------------------------
 
 bool Type::is_sized(std::unordered_set<const Type*>&) const {

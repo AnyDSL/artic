@@ -23,6 +23,15 @@ class TypeTable;
 class Emitter;
 struct TypeVar;
 
+/// Variance for a type variable appearing in a type. Used to perform
+/// type argument synthesis, according to "Local Type Inference", by
+/// B. Pierce.
+enum class Variance {
+    Covariant,
+    Contravariant,
+    Invariant
+};
+
 /// Base class for all types. Types should be created by a `TypeTable`,
 /// which will hash them and place them into a set. This makes types
 /// comparable via pointer equality, as long as they were created with
@@ -46,24 +55,34 @@ struct Type : public Cast<Type> {
 
     virtual const thorin::Type* convert(Emitter&) const;
 
-    /// Returns the number of times a function type constructor is present in the type.
     virtual size_t order(std::unordered_set<const Type*>&) const;
+    virtual void variance(std::unordered_map<const TypeVar*, Variance>&, bool) const;
+    virtual bool is_sized(std::unordered_set<const Type*>&) const;
+
+    /// Returns the number of times a function type constructor is present in the type.
     size_t order() const {
         std::unordered_set<const Type*> seen;
         return order(seen);
     }
 
+    /// Compute the variance of the set of type variables that appear in this type.
+    std::unordered_map<const TypeVar*, Variance> variance(bool dir = true) const {
+        std::unordered_map<const TypeVar*, Variance> vars;
+        variance(vars, dir);
+        return vars;
+    }
+
     /// Returns whether this type can be represented in memory or not.
-    virtual bool is_sized(std::unordered_set<const Type*>&) const;
     bool is_sized() const {
         std::unordered_set<const Type*> seen;
         return is_sized(seen);
     }
 
+    /// Returns true if this type is a sub-type of another.
+    bool subtype(const Type*) const;
+
     /// Prints the type on the console, for debugging.
     void dump() const;
-
-    bool subtype(const Type*) const;
 };
 
 /// The type of an attribute.
@@ -104,6 +123,7 @@ struct TupleType : public Type {
     const thorin::Type* convert(Emitter&) const override;
 
     size_t order(std::unordered_set<const Type*>&) const override;
+    void variance(std::unordered_map<const TypeVar*, Variance>&, bool) const override;
     bool is_sized(std::unordered_set<const Type*>&) const override;
 
 private:
@@ -123,7 +143,9 @@ struct ArrayType : public Type {
     {}
 
     bool contains(const Type*) const override;
+
     size_t order(std::unordered_set<const Type*>&) const override;
+    void variance(std::unordered_map<const TypeVar*, Variance>&, bool) const override;
     bool is_sized(std::unordered_set<const Type*>&) const override;
 };
 
@@ -169,8 +191,8 @@ private:
 /// Base type for pointer types.
 struct AddrType : public Type {
     const Type* pointee;
-    size_t addr_space;
     bool is_mut;
+    size_t addr_space;
 
     AddrType(TypeTable& type_table, const Type* pointee, bool is_mut, size_t addr_space)
         : Type(type_table), pointee(pointee), is_mut(is_mut), addr_space(addr_space)
@@ -179,7 +201,9 @@ struct AddrType : public Type {
     bool equals(const Type*) const override;
     size_t hash() const override;
     bool contains(const Type*) const override;
+
     size_t order(std::unordered_set<const Type*>&) const override;
+    void variance(std::unordered_map<const TypeVar*, Variance>&, bool) const override;
     bool is_sized(std::unordered_set<const Type*>&) const override;
 };
 
@@ -225,6 +249,7 @@ struct FnType : public Type {
     const thorin::Type* convert(Emitter&) const override;
 
     size_t order(std::unordered_set<const Type*>&) const override;
+    void variance(std::unordered_map<const TypeVar*, Variance>&, bool) const override;
     bool is_sized(std::unordered_set<const Type*>&) const override;
 
 private:
@@ -274,6 +299,8 @@ struct TypeVar : public Type {
     const Type* replace(const std::unordered_map<const TypeVar*, const Type*>&) const override;
 
     const thorin::Type* convert(Emitter&) const override;
+
+    void variance(std::unordered_map<const TypeVar*, Variance>&, bool) const override;
 
 private:
     TypeVar(TypeTable& type_table, const ast::TypeParam& param)
@@ -328,9 +355,8 @@ struct ComplexType : public UserType {
     virtual const Type* member_type(size_t) const = 0;
     virtual size_t member_count() const = 0;
 
-    size_t order(std::unordered_set<const Type*>&) const override;
-
     using Type::is_sized;
+    size_t order(std::unordered_set<const Type*>&) const override;
     bool is_sized(std::unordered_set<const Type*>&) const override;
 };
 
@@ -432,12 +458,13 @@ struct TypeApp : public Type {
 
     const thorin::Type* convert(Emitter&) const override;
 
+    size_t order(std::unordered_set<const Type*>&) const override;
+    void variance(std::unordered_map<const TypeVar*, Variance>&, bool) const override;
+    bool is_sized(std::unordered_set<const Type*>&) const override;
+
     static std::unordered_map<const TypeVar*, const Type*> replace_map(
         const ast::TypeParamList& type_params,
         const std::vector<const Type*>& type_args);
-
-    size_t order(std::unordered_set<const Type*>&) const override;
-    bool is_sized(std::unordered_set<const Type*>&) const override;
 
 private:
     TypeApp(
