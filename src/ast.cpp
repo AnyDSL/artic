@@ -240,7 +240,7 @@ BinaryExpr::Tag BinaryExpr::tag_from_token(const Token& token) {
         case Token::OrEq: return OrEq;
         case Token::XorEq: return XorEq;
         case Token::LShftEq: return LShftEq;
-        case Token::RShftEq: return LShftEq;
+        case Token::RShftEq: return RShftEq;
 
         case Token::Add: return Add;
         case Token::Sub: return Sub;
