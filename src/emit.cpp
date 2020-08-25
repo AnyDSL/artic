@@ -627,15 +627,11 @@ const thorin::Def* Emitter::builtin(const ast::FnDecl& fn_decl, thorin::Continua
         auto target_type = fn_decl.type->as<ForallType>()->body->as<FnType>()->codom->convert(*this);
         cont->jump(cont->params().back(), call_args(cont->param(0), world.bitcast(target_type, param)), debug_info(fn_decl));
     } else if (cont->name() == "insert") {
-        auto param = tuple_from_params(cont, true);
-        auto target_type = fn_decl.type->as<ForallType>()->body->as<FnType>()->codom->convert(*this);
         cont->jump(
             cont->params().back(),
             call_args(cont->param(0), world.insert(cont->param(1), cont->param(2), cont->param(3))),
             debug_info(fn_decl));
     } else if (cont->name() == "select") {
-        auto param = tuple_from_params(cont, true);
-        auto target_type = fn_decl.type->as<ForallType>()->body->as<FnType>()->codom->convert(*this);
         cont->jump(
             cont->params().back(),
             call_args(cont->param(0), world.select(cont->param(1), cont->param(2), cont->param(3))),
@@ -1177,7 +1173,7 @@ const thorin::Def* StaticDecl::emit(Emitter& emitter) const {
 const thorin::Def* FnDecl::emit(Emitter& emitter) const {
     auto _ = emitter.save_state();
     const thorin::FnType* cont_type = nullptr;
-    Emitter::MonoFn mono_fn { this };
+    Emitter::MonoFn mono_fn { this, {} };
     if (type_params) {
         for (auto& param : type_params->params)
             mono_fn.type_args.push_back(param->type->replace(emitter.type_vars));
