@@ -98,6 +98,25 @@ const Type* TypeChecker::invalid_simd(const Loc& loc, const Type* elem_type) {
     return type_table.type_error();
 }
 
+void TypeChecker::invalid_constraint(const Loc& loc, const TypeVar* var, const Type* type_arg, const Type* lower, const Type* upper) {
+    if (type_arg)
+        error(loc, "invalid type argument '{}' for type variable '{}'", *type_arg, *var);
+    else
+        error(loc, "cannot infer type argument for type variable '{}'", *var);
+    bool bound_left  = !lower->isa<BottomType>() && !lower->isa<TypeError>();
+    bool bound_right = !upper->isa<TopType>();
+    if (bound_left || bound_right) {
+        auto msg = type_arg ? "satisfied" : "enough to infer type";
+        if (bound_left && bound_right)
+            note("type constraint '{} <: {} <: {}' is not {}", *lower, *var, *upper, msg);
+        else {
+            note(
+                "type constraint '{} {} {}' is not {}",
+                *var, bound_left ? ">:" : "<:", *(bound_left ? lower : upper), msg);
+        }
+    }
+}
+
 void TypeChecker::invalid_attr(const Loc& loc, const std::string& name) {
     error(loc, "invalid attribute '{}'", name);
 }
@@ -375,8 +394,8 @@ bool TypeChecker::infer_type_args(
     const ForallType* forall_type,
     const Type* arg_type,
     std::vector<const Type*>& type_args) {
-    auto bounds = forall_type->bounds(arg_type);
-    auto variance = forall_type->body->variance();
+    auto bounds = forall_type->body->as<FnType>()->dom->bounds(arg_type);
+    auto variance = forall_type->body->as<FnType>()->codom->variance(true);
     for (auto& bound : bounds) {
         size_t index = std::find_if(
             forall_type->decl.type_params->params.begin(),
@@ -389,32 +408,35 @@ bool TypeChecker::infer_type_args(
         if (type_args[index]) {
             if (!type_args[index]->subtype(bound.second.upper) ||
                 !bound.second.lower->subtype(type_args[index])) {
-                error(
-                    loc, "type argument '{}', given for type variable '{}' is incompatible with type bounds '{}' and '{}'",
-                    type_args[index], *bound.first, *bound.second.lower, *bound.second.upper);
+                invalid_constraint(loc, bound.first, type_args[index], bound.second.lower, bound.second.upper);
                 return false;
             }
             continue;
         }
 
+        if (!bound.second.lower->subtype(bound.second.upper)) {
+            invalid_constraint(loc, bound.first, nullptr, bound.second.lower, bound.second.upper);
+            return false;
+        }
+
         // Compute the type argument based on the bounds and variance of that type variable.
         // See "Local Type Inference", by B. Pierce and D. Turner.
         switch (variance[bound.first]) {
-            case TypeVariance::Covariant:     type_args[index] = bound.second.lower; break;
+            case TypeVariance::Constant:
+            case TypeVariance::Covariant:
+                type_args[index] = bound.second.lower;
+                break;
             case TypeVariance::Contravariant: type_args[index] = bound.second.upper; break;
             case TypeVariance::Invariant:
                 if (bound.second.lower == bound.second.upper) {
                     type_args[index] = bound.second.lower;
                     break;
                 }
-                error(
-                    loc, "cannot instantiate type variable '{}' with type bounds '{}' and '{}'",
-                    *bound.first, *bound.second.lower, *bound.second.upper);
-                return false;
+                [[fallthrough]];
             default:
-                error(loc, "cannot infer type argument for type variable '{}'", *bound.first);
+                invalid_constraint(loc, bound.first, nullptr, bound.second.lower, bound.second.upper);
                 return false;
-        } 
+        }
     }
     for (size_t i = 0, n = type_args.size(); i < n; ++i) {
         if (!type_args[i]) {
@@ -451,7 +473,7 @@ const artic::Type* Path::infer(
    TypeChecker& checker,
    bool allow_type,
    bool allow_value,
-   const artic::Type* arg_type) {
+   Expr* arg) {
     if (!symbol || symbol->decls.empty())
         return checker.type_table.type_error();
     auto type = checker.infer(*symbol->decls.front());
@@ -482,16 +504,18 @@ const artic::Type* Path::infer(
                 ? user_type->type_params()->params.size()
                 : forall_type->decl.type_params->params.size();
             if (type_param_count == elem.args.size() ||
-                (forall_type && arg_type && type_param_count > elem.args.size())) {
+                (forall_type && arg && type_param_count > elem.args.size())) {
                 std::vector<const artic::Type*> type_args(type_param_count);
                 for (size_t i = 0, n = elem.args.size(); i < n; ++i)
                     type_args[i] = checker.infer(*elem.args[i]);
                 // Infer type arguments when not all type arguments are given
                 if (type_param_count != elem.args.size()) {
-                    assert(forall_type && arg_type);
+                    assert(forall_type && arg && i == n - 1);
+                    auto arg_type = checker.infer(*arg);
                     if (!checker.infer_type_args(loc, forall_type, arg_type, type_args))
                         return checker.type_table.type_error();
                 }
+                elem.inferred_args = type_args;
                 type = user_type
                     ? checker.type_table.type_app(user_type, std::move(type_args))
                     : forall_type->instantiate(type_args);
@@ -799,8 +823,12 @@ const artic::Type* BlockExpr::check(TypeChecker& checker, const artic::Type* exp
 }
 
 const artic::Type* CallExpr::infer(TypeChecker& checker) {
+    // Perform type argument inference when possible
     if (auto path_expr = callee->isa<ast::PathExpr>()) {
+        path_expr->type = path_expr->path.type =
+            path_expr->path.infer(checker, false, true, arg.get());
     }
+
     auto [ref_type, callee_type] = remove_ref(checker.infer(*callee));
     if (auto fn_type = callee_type->isa<artic::FnType>()) {
         checker.coerce(callee, fn_type);
@@ -1204,7 +1232,7 @@ const artic::Type* FieldDecl::infer(TypeChecker& checker) {
         if (!init->is_constant())
             checker.error(init->loc, "only constants are allowed as default field values");
     }
-    return field_type;    
+    return field_type;
 }
 
 const artic::Type* StructDecl::infer(TypeChecker& checker) {

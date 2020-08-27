@@ -663,6 +663,14 @@ void FnType::print(Printer& p) const {
     codom->print(p);
 }
 
+void BottomType::print(Printer& p) const {
+    p << log::keyword_style("bottom");
+}
+
+void TopType::print(Printer& p) const {
+    p << log::keyword_style("top");
+}
+
 void NoRetType::print(Printer& p) const {
     p << '!';
 }

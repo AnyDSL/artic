@@ -49,6 +49,6 @@ fn make_array[T](x: &[T], len: i32) {
 fn main() -> [i32 * 4] {
     let mut array = [1, 2, 3, 4];
     array(0) = 5;
-    sort[i32](MutArray[i32] { read = |i| array(i), write = |i, y| array(i) = y, len = 4 }, |x, y| x < y);
+    sort(MutArray[i32] { read = |i| array(i), write = |i, y| array(i) = y, len = 4 }, |x: i32, y: i32| x < y);
     array
 }

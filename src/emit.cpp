@@ -666,10 +666,10 @@ const thorin::Def* Path::emit(Emitter& emitter) const {
             // If type arguments are present, this is a polymorphic application
             std::unordered_map<const artic::TypeVar*, const artic::Type*> map;
             auto decl = symbol->decls.front();
-            if (!elems[i].args.empty()) {
-                for (size_t j = 0, n = elems[i].args.size(); j < n; ++j) {
+            if (!elems[i].inferred_args.empty()) {
+                for (size_t j = 0, n = elems[i].inferred_args.size(); j < n; ++j) {
                     auto var = decl->as<FnDecl>()->type_params->params[j]->type->as<artic::TypeVar>();
-                    auto type = elems[i].args[j]->type->replace(emitter.type_vars);
+                    auto type = elems[i].inferred_args[j]->replace(emitter.type_vars);
                     map.emplace(var, type);
                 }
                 // We need to also add the caller's map in case the call is nested
@@ -677,7 +677,7 @@ const thorin::Def* Path::emit(Emitter& emitter) const {
                 std::swap(map, emitter.type_vars);
             }
             auto def = emitter.emit(*decl);
-            if (!elems[i].args.empty()) {
+            if (!elems[i].inferred_args.empty()) {
                 // Polymorphic nodes are emitted with the map from type variable
                 // to concrete type, which means that the emitted node cannot be
                 // kept around: Another instantiation may be using a different map,

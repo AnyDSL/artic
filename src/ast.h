@@ -156,6 +156,7 @@ struct Path : public Node {
         // These members are set during type-checking
         const artic::Type* type = nullptr;
         size_t index = 0;
+        std::vector<const artic::Type*> inferred_args;
 
         Elem(const Loc& loc, Identifier&& id, PtrVector<Type>&& args)
             : loc(loc), id(std::move(id)), args(std::move(args))
@@ -173,7 +174,7 @@ struct Path : public Node {
         : Node(loc), elems(std::move(elems))
     {}
 
-    const artic::Type* infer(TypeChecker&, bool, bool, const artic::Type*);
+    const artic::Type* infer(TypeChecker&, bool, bool, Expr*);
 
     const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) override;
@@ -470,6 +471,7 @@ struct PathExpr : public Expr {
 
     const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) override;
+    const artic::Type* infer(TypeChecker&, const Expr&);
     void bind(NameBinder&) override;
     void print(Printer&) const override;
 };

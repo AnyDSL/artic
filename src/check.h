@@ -42,6 +42,7 @@ public:
     const Type* bad_arguments(const Loc&, const std::string&, size_t, size_t);
     const Type* invalid_cast(const Loc&, const Type*, const Type*);
     const Type* invalid_simd(const Loc&, const Type*);
+    void invalid_constraint(const Loc&, const TypeVar*, const Type*, const Type*, const Type*);
     void invalid_attr(const Loc&, const std::string&);
     void unsized_type(const Loc&, const Type*);
 

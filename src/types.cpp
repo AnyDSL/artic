@@ -6,6 +6,20 @@
 
 namespace artic {
 
+// Type Bounds ---------------------------------------------------------------------
+
+TypeBounds& TypeBounds::meet(const TypeBounds& bounds) {
+    if (lower->subtype(bounds.lower))
+        lower = bounds.lower;
+    else if (!bounds.lower->subtype(lower))
+        lower = lower->type_table.top_type();
+    if (bounds.upper->subtype(upper))
+        upper = bounds.upper;
+    else if (!upper->subtype(bounds.upper))
+        upper = upper->type_table.bottom_type();
+    return *this;
+}
+
 // Equals ---------------------------------------------------------------------------
 
 bool PrimType::equals(const Type* other) const {
@@ -46,12 +60,12 @@ bool FnType::equals(const Type* other) const {
         other->as<FnType>()->codom == codom;
 }
 
-bool NoRetType::equals(const Type* other) const {
-    return other->isa<NoRetType>();
+bool BottomType::equals(const Type* other) const {
+    return typeid(*other) == typeid(*this);
 }
 
-bool TypeError::equals(const Type* other) const {
-    return other->isa<TypeError>();
+bool TopType::equals(const Type* other) const {
+    return typeid(*other) == typeid(*this);
 }
 
 bool TypeVar::equals(const Type* other) const {
@@ -122,11 +136,11 @@ size_t FnType::hash() const {
         .combine(codom);
 }
 
-size_t NoRetType::hash() const {
+size_t BottomType::hash() const {
     return fnv::Hash().combine(typeid(*this).hash_code());
 }
 
-size_t TypeError::hash() const {
+size_t TopType::hash() const {
     return fnv::Hash().combine(typeid(*this).hash_code());
 }
 
@@ -311,6 +325,50 @@ void TypeApp::variance(std::unordered_map<const TypeVar*, TypeVariance>& vars, b
 
 void Type::bounds(std::unordered_map<const TypeVar*, TypeBounds>&, const Type*, bool) const {}
 
+void TupleType::bounds(std::unordered_map<const TypeVar*, TypeBounds>& bounds, const Type* type, bool dir) const {
+    if (auto tuple_type = type->isa<TupleType>()) {
+        for (size_t i = 0, n = std::min(args.size(), tuple_type->args.size()); i < n; ++i)
+            args[i]->bounds(bounds, tuple_type->args[i], dir);
+    }
+}
+
+void ArrayType::bounds(std::unordered_map<const TypeVar*, TypeBounds>& bounds, const Type* type, bool dir) const {
+    if (auto array_type = type->isa<ArrayType>(); array_type && typeid(*this) == typeid(*array_type))
+        elem->bounds(array_type->elem, dir);
+}
+
+void AddrType::bounds(std::unordered_map<const TypeVar*, TypeBounds>& bounds, const Type* type, bool dir) const {
+    if (auto addr_type = type->isa<AddrType>(); addr_type && typeid(*this) == typeid(*addr_type))
+        pointee->bounds(bounds, addr_type->pointee, dir);
+}
+
+void FnType::bounds(std::unordered_map<const TypeVar*, TypeBounds>& bounds, const Type* type, bool dir) const {
+    if (auto fn_type = type->isa<FnType>()) {
+        dom->bounds(bounds, fn_type->dom, !dir);
+        codom->bounds(bounds, fn_type->codom, dir);
+    }
+}
+
+void TypeVar::bounds(std::unordered_map<const TypeVar*, TypeBounds>& bounds, const Type* type, bool dir) const {
+    TypeBounds type_bounds;
+    if (dir)
+        type_bounds = TypeBounds { type, type_table.top_type() };
+    else
+        type_bounds = TypeBounds { type_table.bottom_type(), type };
+
+    if (auto it = bounds.find(this); it != bounds.end())
+        it->second.meet(type_bounds);
+    else
+        bounds[this] = type_bounds;
+}
+
+void TypeApp::bounds(std::unordered_map<const TypeVar*, TypeBounds>& bounds, const Type* type, bool dir) const {
+    if (auto type_app = type->isa<TypeApp>()) {
+        for (size_t i = 0, n = std::min(type_args.size(), type_app->type_args.size()); i < n; ++i)
+            type_args[i]->bounds(bounds, type_app->type_args[i], dir);
+    }
+}
+
 // Size ----------------------------------------------------------------------------
 
 bool Type::is_sized(std::unordered_set<const Type*>&) const {
@@ -401,8 +459,7 @@ size_t EnumType::member_count() const {
 // Misc. ---------------------------------------------------------------------------
 
 bool Type::subtype(const Type* other) const {
-    // ! is the bottom type
-    if (this == other || isa<NoRetType>())
+    if (this == other || isa<BottomType>() || other->isa<TopType>())
         return true;
     // ref U <= T if U <= T
     if (auto ref_type = isa<RefType>())
@@ -548,6 +605,14 @@ const FnType* TypeTable::fn_type(const Type* dom, const Type* codom) {
 
 const FnType* TypeTable::cn_type(const Type* dom) {
     return fn_type(dom, no_ret_type());
+}
+
+const BottomType* TypeTable::bottom_type() {
+    return bottom_type_ ? bottom_type_ : bottom_type_ = insert<BottomType>();
+}
+
+const TopType* TypeTable::top_type() {
+    return top_type_ ? top_type_ : top_type_ = insert<TopType>();
 }
 
 const NoRetType* TypeTable::no_ret_type() {

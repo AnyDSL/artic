@@ -37,6 +37,8 @@ enum class TypeVariance {
 struct TypeBounds {
     const Type* lower;
     const Type* upper;
+
+    TypeBounds& meet(const TypeBounds&);
 };
 
 /// Base class for all types. Types should be created by a `TypeTable`,
@@ -139,6 +141,7 @@ struct TupleType : public Type {
 
     size_t order(std::unordered_set<const Type*>&) const override;
     void variance(std::unordered_map<const TypeVar*, TypeVariance>&, bool) const override;
+    void bounds(std::unordered_map<const TypeVar*, TypeBounds>&, const Type*, bool) const override;
     bool is_sized(std::unordered_set<const Type*>&) const override;
 
 private:
@@ -161,6 +164,7 @@ struct ArrayType : public Type {
 
     size_t order(std::unordered_set<const Type*>&) const override;
     void variance(std::unordered_map<const TypeVar*, TypeVariance>&, bool) const override;
+    void bounds(std::unordered_map<const TypeVar*, TypeBounds>&, const Type*, bool) const override;
     bool is_sized(std::unordered_set<const Type*>&) const override;
 };
 
@@ -219,6 +223,7 @@ struct AddrType : public Type {
 
     size_t order(std::unordered_set<const Type*>&) const override;
     void variance(std::unordered_map<const TypeVar*, TypeVariance>&, bool) const override;
+    void bounds(std::unordered_map<const TypeVar*, TypeBounds>&, const Type*, bool) const override;
     bool is_sized(std::unordered_set<const Type*>&) const override;
 };
 
@@ -265,6 +270,7 @@ struct FnType : public Type {
 
     size_t order(std::unordered_set<const Type*>&) const override;
     void variance(std::unordered_map<const TypeVar*, TypeVariance>&, bool) const override;
+    void bounds(std::unordered_map<const TypeVar*, TypeBounds>&, const Type*, bool) const override;
     bool is_sized(std::unordered_set<const Type*>&) const override;
 
 private:
@@ -275,29 +281,53 @@ private:
     friend class TypeTable;
 };
 
-/// Return type of continuations.
-struct NoRetType : public Type {
+/// Bottom type: Subtype of any other type
+struct BottomType : public Type {
     void print(Printer&) const override;
     bool equals(const Type*) const override;
     size_t hash() const override;
 
-private:
-    NoRetType(TypeTable& type_table)
+protected:
+    BottomType(TypeTable& type_table)
         : Type(type_table)
     {}
 
     friend class TypeTable;
 };
 
-/// The type of an error (syntax or type errors will produce that type).
-struct TypeError : public Type {
+/// Top type: Supertype of any other type
+struct TopType : public Type {
     void print(Printer&) const override;
     bool equals(const Type*) const override;
     size_t hash() const override;
 
+protected:
+    TopType(TypeTable& type_table)
+        : Type(type_table)
+    {}
+
+    friend class TypeTable;
+};
+
+/// Return type of continuations.
+struct NoRetType : public BottomType {
+    void print(Printer&) const override;
+
+private:
+    NoRetType(TypeTable& type_table)
+        : BottomType(type_table)
+    {}
+
+    friend class TypeTable;
+};
+
+/// The type of an error (syntax or type errors will produce that type).
+struct TypeError : public TopType {
+    void print(Printer&) const override;
+
 private:
     TypeError(TypeTable& type_table)
-        : Type(type_table)
+        : TopType(type_table)
     {}
 
     friend class TypeTable;
@@ -316,6 +346,7 @@ struct TypeVar : public Type {
     const thorin::Type* convert(Emitter&) const override;
 
     void variance(std::unordered_map<const TypeVar*, TypeVariance>&, bool) const override;
+    void bounds(std::unordered_map<const TypeVar*, TypeBounds>&, const Type*, bool) const override;
 
 private:
     TypeVar(TypeTable& type_table, const ast::TypeParam& param)
@@ -475,6 +506,7 @@ struct TypeApp : public Type {
 
     size_t order(std::unordered_set<const Type*>&) const override;
     void variance(std::unordered_map<const TypeVar*, TypeVariance>&, bool) const override;
+    void bounds(std::unordered_map<const TypeVar*, TypeBounds>&, const Type*, bool) const override;
     bool is_sized(std::unordered_set<const Type*>&) const override;
 
     static std::unordered_map<const TypeVar*, const Type*> replace_map(
@@ -524,6 +556,8 @@ public:
     const RefType*          ref_type(const Type*, bool, size_t);
     const FnType*           fn_type(const Type*, const Type*);
     const FnType*           cn_type(const Type*);
+    const BottomType*       bottom_type();
+    const TopType*          top_type();
     const NoRetType*        no_ret_type();
     const TypeError*        type_error();
     const TypeVar*          type_var(const ast::TypeParam&);
@@ -552,10 +586,12 @@ private:
     };
     std::unordered_set<const Type*, HashType, CompareTypes> types_;
 
-    const PrimType*  bool_type_   = nullptr;
-    const TupleType* unit_type_   = nullptr;
-    const NoRetType* no_ret_type_ = nullptr;
-    const TypeError* type_error_  = nullptr;
+    const PrimType*   bool_type_   = nullptr;
+    const TupleType*  unit_type_   = nullptr;
+    const BottomType* bottom_type_ = nullptr;
+    const TopType*    top_type_    = nullptr;
+    const NoRetType*  no_ret_type_ = nullptr;
+    const TypeError*  type_error_  = nullptr;
 };
 
 } // namespace artic
