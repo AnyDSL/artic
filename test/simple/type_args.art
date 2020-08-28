@@ -3,8 +3,10 @@ fn bitcast[T, U](U) -> T;
 fn foo[T](t: T, x: &mut [i32]) -> &i32 {
     bitcast[&i32](x)
 }
+fn bar[T](t: &mut [T], f: fn (T) -> bool) = f(t(0))
 #[export]
 fn test() = {
     let mut x = [1, 2, 3];
+    bar(&mut x, |x: i32| true);
     foo(1, x)
 }
