@@ -106,13 +106,12 @@ void TypeChecker::invalid_constraint(const Loc& loc, const TypeVar* var, const T
     bool bound_left  = !lower->isa<BottomType>() && !lower->isa<TypeError>();
     bool bound_right = !upper->isa<TopType>();
     if (bound_left || bound_right) {
-        auto msg = type_arg ? "satisfied" : "enough to infer type";
         if (bound_left && bound_right)
-            note("type constraint '{} <: {} <: {}' is not {}", *lower, *var, *upper, msg);
+            note("type constraint '{} <: {} <: {}' is not satisfiable", *lower, *var, *upper);
         else {
             note(
-                "type constraint '{} {} {}' is not {}",
-                *var, bound_left ? ">:" : "<:", *(bound_left ? lower : upper), msg);
+                "type constraint '{} {} {}' is not satisfiable",
+                *var, bound_left ? ">:" : "<:", *(bound_left ? lower : upper));
         }
     }
 }
@@ -432,9 +431,10 @@ bool TypeChecker::infer_type_args(
                     type_args[index] = bound.second.lower;
                     break;
                 }
-                [[fallthrough]];
-            default:
                 invalid_constraint(loc, bound.first, nullptr, bound.second.lower, bound.second.upper);
+                return false;
+            default:
+                assert(false);
                 return false;
         }
     }
