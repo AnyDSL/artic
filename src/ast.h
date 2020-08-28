@@ -174,7 +174,7 @@ struct Path : public Node {
         : Node(loc), elems(std::move(elems))
     {}
 
-    const artic::Type* infer(TypeChecker&, bool, bool, Expr*);
+    const artic::Type* infer(TypeChecker&, bool, bool, Ptr<Expr>*);
 
     const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) override;

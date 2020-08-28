@@ -469,11 +469,7 @@ const artic::Type* Path::infer(TypeChecker& checker) {
     return infer(checker, false, true, nullptr);
 }
 
-const artic::Type* Path::infer(
-   TypeChecker& checker,
-   bool allow_type,
-   bool allow_value,
-   Expr* arg) {
+const artic::Type* Path::infer(TypeChecker& checker, bool allow_type, bool allow_value, Ptr<Expr>* arg) {
     if (!symbol || symbol->decls.empty())
         return checker.type_table.type_error();
     auto type = checker.infer(*symbol->decls.front());
@@ -511,7 +507,7 @@ const artic::Type* Path::infer(
                 // Infer type arguments when not all type arguments are given
                 if (type_param_count != elem.args.size()) {
                     assert(forall_type && arg && i == n - 1);
-                    auto arg_type = checker.infer(*arg);
+                    auto arg_type = checker.deref(*arg);
                     if (!checker.infer_type_args(loc, forall_type, arg_type, type_args))
                         return checker.type_table.type_error();
                 }
@@ -826,7 +822,7 @@ const artic::Type* CallExpr::infer(TypeChecker& checker) {
     // Perform type argument inference when possible
     if (auto path_expr = callee->isa<ast::PathExpr>()) {
         path_expr->type = path_expr->path.type =
-            path_expr->path.infer(checker, false, true, arg.get());
+            path_expr->path.infer(checker, false, true, &arg);
     }
 
     auto [ref_type, callee_type] = remove_ref(checker.infer(*callee));

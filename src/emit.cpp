@@ -672,7 +672,7 @@ const thorin::Def* Path::emit(Emitter& emitter) const {
                     auto type = elems[i].inferred_args[j]->replace(emitter.type_vars);
                     map.emplace(var, type);
                 }
-                // We need to also add the caller's map in case the call is nested
+                // We need to also add the caller's map in case the function is nested in another
                 map.insert(emitter.type_vars.begin(), emitter.type_vars.end());
                 std::swap(map, emitter.type_vars);
             }

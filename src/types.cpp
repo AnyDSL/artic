@@ -334,7 +334,7 @@ void TupleType::bounds(std::unordered_map<const TypeVar*, TypeBounds>& bounds, c
 
 void ArrayType::bounds(std::unordered_map<const TypeVar*, TypeBounds>& bounds, const Type* type, bool dir) const {
     if (auto array_type = type->isa<ArrayType>(); array_type && typeid(*this) == typeid(*array_type))
-        elem->bounds(array_type->elem, dir);
+        elem->bounds(bounds, array_type->elem, dir);
 }
 
 void AddrType::bounds(std::unordered_map<const TypeVar*, TypeBounds>& bounds, const Type* type, bool dir) const {
