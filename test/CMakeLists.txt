@@ -70,6 +70,7 @@ add_test(NAME simple_cc         COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE
 add_test(NAME simple_escape     COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/escape.art)
 add_test(NAME simple_asm        COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/asm.art)
 add_test(NAME simple_simd       COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/simd.art)
+add_test(NAME simple_type_args  COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/type_args.art)
 
 add_failure_test(NAME failure_annot       COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/annot.art)
 add_failure_test(NAME failure_comment     COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/comment.art)

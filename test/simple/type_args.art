@@ -1,0 +1,10 @@
+#[import(cc = "builtin")]
+fn bitcast[T, U](U) -> T;
+fn foo[T](t: T, x: &mut [i32]) -> &i32 {
+    bitcast[&i32](x)
+}
+#[export]
+fn test() = {
+    let mut x = [1, 2, 3];
+    foo(1, x)
+}
