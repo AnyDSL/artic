@@ -562,6 +562,39 @@ const thorin::Def* Emitter::addr_of(const thorin::Def* def, thorin::Debug debug)
     }
 }
 
+const thorin::Def* Emitter::down_cast(const thorin::Def* def, const Type* from, const Type* to, thorin::Debug debug) {
+    // This function mirrors the subtyping relation and thus should be kept in sync
+    assert(from->subtype(to));
+    if (to == from || from->isa<BottomType>() || to->isa<TopType>())
+        return def;
+    if (auto from_ref_type = from->isa<RefType>(); from_ref_type && from_ref_type->pointee->subtype(to))
+        return down_cast(load(def, debug), from_ref_type->pointee, to, debug);
+    if (auto to_ptr_type = to->isa<PtrType>()) {
+        if (!to_ptr_type->is_mut && from->subtype(to_ptr_type->pointee))
+            return down_cast(addr_of(def, debug), from, to_ptr_type->pointee, debug);
+        if (auto from_ptr_type = from->isa<PtrType>()) {
+            if ((from_ptr_type->is_mut || !to_ptr_type->is_mut) &&
+                from_ptr_type->pointee->subtype(to_ptr_type->pointee))
+                return down_cast(def, from_ptr_type->pointee, to_ptr_type->pointee, debug);
+
+            assert(to_ptr_type->pointee->isa<UnsizedArrayType>());
+            assert(from_ptr_type->pointee->isa<SizedArrayType>());
+            return world.bitcast(to->convert(*this), def, debug);
+        }
+        assert(to_ptr_type->pointee->isa<UnsizedArrayType>());
+        assert(from->isa<SizedArrayType>());
+        return world.bitcast(to->convert(*this), addr_of(def, debug), debug);
+    }
+    if (auto from_tuple_type = from->isa<TupleType>()) {
+        thorin::Array<const thorin::Def*> ops(from_tuple_type->args.size());
+        for (size_t i = 0, n = ops.size(); i < n; ++i)
+            ops[i] = down_cast(world.extract(def, i, debug), from_tuple_type->args[i], to->as<TupleType>()->args[i], debug);
+        return world.tuple(ops, debug);
+    }
+    assert(false);
+    return def;
+}
+
 const thorin::Def* Emitter::emit(const ast::Node& node) {
     if (node.def)
         return node.def;
@@ -1099,25 +1132,7 @@ const thorin::Def* CastExpr::emit(Emitter& emitter) const {
 }
 
 const thorin::Def* ImplicitCastExpr::emit(Emitter& emitter) const {
-    auto def = emitter.emit(*expr);
-    auto type = expr->type;
-
-    // This handles the cast from reference to value
-    if (auto ref_type = type->isa<artic::RefType>()) {
-        def = emitter.load(def, debug_info(*this));
-        type = ref_type->pointee;
-    }
-    // This handles automatic address capture
-    if (auto ptr_type = this->type->isa<artic::PtrType>();
-        ptr_type && type->subtype(ptr_type->pointee))
-    {
-        def = emitter.addr_of(def, debug_info(*this));
-    }
-    // This handles conversion between pointer types (e.g. &[i32 * 4] to &[i32])
-    // and conversions between other types and the no-return type.
-    return def
-        ? emitter.world.bitcast(this->type->convert(emitter), def, debug_info(*this))
-        : emitter.world.bottom(this->type->convert(emitter));
+    return emitter.down_cast(emitter.emit(*expr), expr->type, type, debug_info(*this));
 }
 
 const thorin::Def* AsmExpr::emit(Emitter& emitter) const {

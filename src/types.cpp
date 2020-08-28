@@ -461,27 +461,45 @@ size_t EnumType::member_count() const {
 bool Type::subtype(const Type* other) const {
     if (this == other || isa<BottomType>() || other->isa<TopType>())
         return true;
-    // ref U <= T if U <= T
+    // ref U <: T if U <: T
     if (auto ref_type = isa<RefType>())
         return ref_type->pointee->subtype(other);
     if (auto other_ptr_type = other->isa<PtrType>()) {
         if (other_ptr_type->pointee->isa<PtrType>())
             return false;
-        // U <= &T if U <= T
+        // U <: &T if U <: T
         if (!other_ptr_type->is_mut && subtype(other_ptr_type->pointee))
             return true;
         if (auto ptr_type = isa<PtrType>();
             ptr_type && ptr_type->addr_space == other_ptr_type->addr_space) {
-            // &U <= &T if U <= T
-            // &mut U <= &T if U <= T
-            if (ptr_type->is_mut || !other_ptr_type->is_mut)
-                return ptr_type->pointee->subtype(other_ptr_type->pointee);
+            // &U <: &T if U <: T
+            // &mut U <: &T if U <: T
+            if ((ptr_type->is_mut || !other_ptr_type->is_mut) &&
+                ptr_type->pointee->subtype(other_ptr_type->pointee))
+                return true;
+            // &[T * N] <: &[T]
+            if (auto other_array_type = other_ptr_type->pointee->isa<UnsizedArrayType>()) {
+                if (auto sized_array_type = ptr_type->pointee->isa<SizedArrayType>())
+                    return sized_array_type->elem == other_array_type->elem && !sized_array_type->is_simd;
+            }
+        }
+        // [T * N] <: &[T] (only valid for generic pointers)
+        if (auto other_array_type = other_ptr_type->pointee->isa<UnsizedArrayType>();
+            other_ptr_type->addr_space == 0 && other_array_type) {
+            if (auto sized_array_type = isa<SizedArrayType>())
+                return sized_array_type->elem == other_array_type->elem && !sized_array_type->is_simd;
         }
     }
-    // [T * N] <= [T]
-    if (auto other_array_type = other->isa<UnsizedArrayType>()) {
-        if (auto sized_array_type = isa<SizedArrayType>())
-            return sized_array_type->elem == other_array_type->elem && !sized_array_type->is_simd;
+    // (U1, ..., Un) <: (T1, ..., Tn) if U1 <: T1 and ... and Un <: Tn
+    if (auto tuple_type = isa<TupleType>()) {
+        if (auto other_tuple_type = other->isa<TupleType>();
+            other_tuple_type && other_tuple_type->args.size() == tuple_type->args.size()) {
+            for (size_t i = 0, n = tuple_type->args.size(); i < n; ++i) {
+                if (!tuple_type->args[i]->subtype(other_tuple_type->args[i]))
+                    return false;
+            }
+            return true;
+        }
     }
     return false;
 }
