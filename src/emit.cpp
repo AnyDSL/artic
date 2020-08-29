@@ -567,9 +567,9 @@ const thorin::Def* Emitter::down_cast(const thorin::Def* def, const Type* from, 
     assert(from->subtype(to));
     if (to == from || from->isa<BottomType>() || to->isa<TopType>())
         return def;
-    if (auto from_ref_type = from->isa<RefType>(); from_ref_type && from_ref_type->pointee->subtype(to))
+    else if (auto from_ref_type = from->isa<RefType>(); from_ref_type && from_ref_type->pointee->subtype(to))
         return down_cast(load(def, debug), from_ref_type->pointee, to, debug);
-    if (auto to_ptr_type = to->isa<PtrType>()) {
+    else if (auto to_ptr_type = to->isa<PtrType>()) {
         if (!to_ptr_type->is_mut && from->subtype(to_ptr_type->pointee))
             return down_cast(addr_of(def, debug), from, to_ptr_type->pointee, debug);
         if (auto from_ptr_type = from->isa<PtrType>()) {
@@ -584,12 +584,19 @@ const thorin::Def* Emitter::down_cast(const thorin::Def* def, const Type* from, 
         assert(to_ptr_type->pointee->isa<UnsizedArrayType>());
         assert(from->isa<SizedArrayType>());
         return world.bitcast(to->convert(*this), addr_of(def, debug), debug);
-    }
-    if (auto from_tuple_type = from->isa<TupleType>()) {
+    } else if (auto from_tuple_type = from->isa<TupleType>()) {
         thorin::Array<const thorin::Def*> ops(from_tuple_type->args.size());
         for (size_t i = 0, n = ops.size(); i < n; ++i)
             ops[i] = down_cast(world.extract(def, i, debug), from_tuple_type->args[i], to->as<TupleType>()->args[i], debug);
         return world.tuple(ops, debug);
+    } else if (auto from_fn_type = from->isa<FnType>()) {
+        auto _ = save_state();
+        auto cont = world.continuation(to->convert(*this)->as<thorin::FnType>(), debug);
+        enter(cont);
+        auto param = down_cast(tuple_from_params(cont, true), to->as<FnType>()->dom, from_fn_type->dom, debug);
+        auto value = down_cast(call(def, param, debug), from_fn_type->codom, to->as<FnType>()->codom, debug);
+        jump(cont->params().back(), value, debug);
+        return cont;
     }
     assert(false);
     return def;

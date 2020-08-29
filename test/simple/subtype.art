@@ -1,0 +1,18 @@
+fn foo(i: &mut i32, f: fn (&mut i32) -> &i32) = f(i)
+fn bar(i: &mut [i32 * 4], f: fn (&mut [i32 * 4]) -> &[i32]) = f(i)
+
+#[export]
+fn test1() {
+    let mut z = 0;
+    let y : &mut i32 = &mut z;
+    let g = |_: &i32| y;
+    foo(y, g);
+}
+
+#[export]
+fn test2() {
+    let mut z = [0, 1, 2, 3];
+    let y : &mut [i32 * 4] = &mut z;
+    let g = |_: &[i32]| y;
+    bar(y, g);
+}

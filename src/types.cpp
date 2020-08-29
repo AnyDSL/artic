@@ -338,7 +338,7 @@ void ArrayType::bounds(std::unordered_map<const TypeVar*, TypeBounds>& bounds, c
 }
 
 void AddrType::bounds(std::unordered_map<const TypeVar*, TypeBounds>& bounds, const Type* type, bool dir) const {
-    if (auto addr_type = type->isa<AddrType>(); addr_type && typeid(*this) == typeid(*addr_type))
+    if (auto addr_type = type->isa<AddrType>())
         pointee->bounds(bounds, addr_type->pointee, dir);
 }
 
@@ -464,7 +464,7 @@ bool Type::subtype(const Type* other) const {
     // ref U <: T if U <: T
     if (auto ref_type = isa<RefType>())
         return ref_type->pointee->subtype(other);
-    if (auto other_ptr_type = other->isa<PtrType>()) {
+    else if (auto other_ptr_type = other->isa<PtrType>()) {
         if (other_ptr_type->pointee->isa<PtrType>())
             return false;
         // U <: &T if U <: T
@@ -489,16 +489,22 @@ bool Type::subtype(const Type* other) const {
             if (auto sized_array_type = isa<SizedArrayType>())
                 return sized_array_type->elem == other_array_type->elem && !sized_array_type->is_simd;
         }
-    }
-    // (U1, ..., Un) <: (T1, ..., Tn) if U1 <: T1 and ... and Un <: Tn
-    if (auto tuple_type = isa<TupleType>()) {
+    } else if (auto tuple_type = isa<TupleType>()) {
         if (auto other_tuple_type = other->isa<TupleType>();
             other_tuple_type && other_tuple_type->args.size() == tuple_type->args.size()) {
+            // (U1, ..., Un) <: (T1, ..., Tn) if U1 <: T1 and ... and Un <: Tn
             for (size_t i = 0, n = tuple_type->args.size(); i < n; ++i) {
                 if (!tuple_type->args[i]->subtype(other_tuple_type->args[i]))
                     return false;
             }
             return true;
+        }
+    } else if (auto fn_type = isa<FnType>()) {
+        if (auto other_fn_type = other->isa<FnType>()) {
+            // fn (V) -> W <: fn (T) -> U if T <: V and W <: U
+            return
+                other_fn_type->dom->subtype(fn_type->dom) &&
+                fn_type->codom->subtype(other_fn_type->codom);
         }
     }
     return false;
