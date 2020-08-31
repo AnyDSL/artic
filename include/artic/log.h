@@ -17,7 +17,7 @@
     #endif
 #endif
 
-#include "loc.h"
+#include "artic/loc.h"
 
 namespace artic {
 

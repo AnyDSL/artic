@@ -5,9 +5,9 @@
 #include <string_view>
 #include <vector>
 
-#include "symbol.h"
-#include "ast.h"
-#include "log.h"
+#include "artic/symbol.h"
+#include "artic/ast.h"
+#include "artic/log.h"
 
 namespace artic {
 

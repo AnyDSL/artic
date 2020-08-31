@@ -4,11 +4,11 @@
 #include <memory>
 #include <vector>
 
-#include "loc.h"
-#include "log.h"
-#include "cast.h"
-#include "token.h"
-#include "symbol.h"
+#include "artic/loc.h"
+#include "artic/log.h"
+#include "artic/cast.h"
+#include "artic/token.h"
+#include "artic/symbol.h"
 
 namespace thorin {
     class Def;

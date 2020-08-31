@@ -7,8 +7,8 @@
 #include <optional>
 #include <ostream>
 
-#include "cast.h"
-#include "ast.h"
+#include "artic/cast.h"
+#include "artic/ast.h"
 
 namespace thorin {
     class TypeTable;

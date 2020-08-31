@@ -1,8 +1,8 @@
 #include <typeinfo>
 #include <algorithm>
 
-#include "types.h"
-#include "hash.h"
+#include "artic/types.h"
+#include "artic/hash.h"
 
 namespace artic {
 

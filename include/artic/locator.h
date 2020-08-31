@@ -8,8 +8,8 @@
 #include <cassert>
 #include <limits>
 
-#include "loc.h"
-#include "lexer.h"
+#include "artic/loc.h"
+#include "artic/lexer.h"
 
 namespace artic {
 

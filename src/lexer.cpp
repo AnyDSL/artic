@@ -1,7 +1,7 @@
 #include <utility>
 #include <algorithm>
 
-#include "lexer.h"
+#include "artic/lexer.h"
 
 namespace artic {
 

@@ -1,9 +1,9 @@
 #include <algorithm>
 
-#include "print.h"
-#include "log.h"
-#include "ast.h"
-#include "types.h"
+#include "artic/print.h"
+#include "artic/log.h"
+#include "artic/ast.h"
+#include "artic/types.h"
 
 namespace artic {
 
