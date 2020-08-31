@@ -1,5 +1,5 @@
-#ifndef LOG_H
-#define LOG_H
+#ifndef ARTIC_LOG_H
+#define ARTIC_LOG_H
 
 #include <iostream>
 #include <cstring>
@@ -282,4 +282,4 @@ protected:
 
 } // namespace artic
 
-#endif // LOG_H
+#endif // ARTIC_LOG_H
