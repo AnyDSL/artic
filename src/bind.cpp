@@ -1,5 +1,5 @@
-#include "bind.h"
-#include "ast.h"
+#include "artic/bind.h"
+#include "artic/ast.h"
 
 namespace artic {
 

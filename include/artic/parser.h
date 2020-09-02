@@ -3,9 +3,9 @@
 
 #include <array>
 
-#include "log.h"
-#include "lexer.h"
-#include "ast.h"
+#include "artic/log.h"
+#include "artic/lexer.h"
+#include "artic/ast.h"
 
 namespace artic {
 

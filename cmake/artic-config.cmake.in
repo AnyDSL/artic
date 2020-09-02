@@ -6,7 +6,7 @@
 # Artic_LIBRARY
 # Artic_FOUND
 
-cmake_minimum_required(VERSION 3.1)
+cmake_minimum_required(VERSION 3.4.3)
 
 find_path(Artic_BUILD_DIR
     NAMES CMakeCache.txt
@@ -45,7 +45,7 @@ else()
 endif()
 
 if(TARGET libartic)
-    find_path(Artic_INCLUDE_DIR NAMES ast.h PATHS ${Artic_ROOT_DIR}/src) # TODO: find better name
+    find_path(Artic_INCLUDE_DIR NAMES ast.h PATHS ${Artic_ROOT_DIR}/include/artic)
     set(Artic_LIBRARY libartic)
     find_package(Thorin REQUIRED)
 endif()

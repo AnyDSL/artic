@@ -1,6 +1,6 @@
 #include <algorithm>
 
-#include "check.h"
+#include "artic/check.h"
 
 namespace artic {
 

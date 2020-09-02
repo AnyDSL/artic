@@ -6,10 +6,10 @@
 
 #include <thorin/util/location.h>
 
-#include "ast.h"
-#include "types.h"
-#include "log.h"
-#include "hash.h"
+#include "artic/ast.h"
+#include "artic/types.h"
+#include "artic/log.h"
+#include "artic/hash.h"
 
 namespace thorin {
     class World;

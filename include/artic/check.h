@@ -4,9 +4,9 @@
 #include <unordered_set>
 #include <optional>
 
-#include "ast.h"
-#include "types.h"
-#include "log.h"
+#include "artic/ast.h"
+#include "artic/types.h"
+#include "artic/log.h"
 
 namespace artic {
 

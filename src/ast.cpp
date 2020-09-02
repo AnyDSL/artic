@@ -1,8 +1,8 @@
 #include <cassert>
 #include <algorithm>
 
-#include "ast.h"
-#include "types.h"
+#include "artic/ast.h"
+#include "artic/types.h"
 
 namespace artic {
 

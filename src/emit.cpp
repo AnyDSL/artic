@@ -1,7 +1,7 @@
-#include "emit.h"
-#include "types.h"
-#include "ast.h"
-#include "print.h"
+#include "artic/emit.h"
+#include "artic/types.h"
+#include "artic/ast.h"
+#include "artic/print.h"
 
 #include <thorin/def.h>
 #include <thorin/type.h>

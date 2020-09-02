@@ -5,8 +5,8 @@
 #include <istream>
 #include <string>
 
-#include "log.h"
-#include "token.h"
+#include "artic/log.h"
+#include "artic/token.h"
 
 namespace artic {
 

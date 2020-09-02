@@ -4,14 +4,14 @@
 #include <istream>
 #include <fstream>
 
-#include "log.h"
-#include "locator.h"
-#include "lexer.h"
-#include "parser.h"
-#include "print.h"
-#include "bind.h"
-#include "check.h"
-#include "emit.h"
+#include "artic/log.h"
+#include "artic/locator.h"
+#include "artic/lexer.h"
+#include "artic/parser.h"
+#include "artic/print.h"
+#include "artic/bind.h"
+#include "artic/check.h"
+#include "artic/emit.h"
 
 #include <thorin/world.h>
 #ifndef NDEBUG
@@ -39,7 +39,7 @@ static void usage() {
                 "  -h     --help                 Displays this message\n"
                 "         --version              Displays the version number\n"
                 "         --no-color             Disables colors in error messages\n"
-                " -Wall   --enable-all-warnings  Enables all warnings\n" 
+                " -Wall   --enable-all-warnings  Enables all warnings\n"
                 " -Werror --warnings-as-errors   Treat warnings as errors\n"
                 "         --max-errors <n>       Sets the maximum number of error messages (unlimited by default)\n"
                 "         --print-ast            Prints the AST after parsing and type-checking\n"

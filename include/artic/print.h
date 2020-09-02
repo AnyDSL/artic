@@ -7,7 +7,7 @@
 #include <vector>
 #include <cassert>
 
-#include "log.h"
+#include "artic/log.h"
 
 namespace artic {
 
