@@ -1140,6 +1140,7 @@ const artic::Type* AsmExpr::infer(TypeChecker& checker) {
             return checker.mutable_expected(out.expr->loc);
         if (!is_acceptable_asm_in_or_out(type))
             return checker.type_expected(out.expr->loc, type, "primitive, simd or pointer");
+        out.expr->write_to();
     }
     for (auto& in : ins) {
         auto type = checker.deref(in.expr);
