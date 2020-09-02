@@ -1020,7 +1020,8 @@ const thorin::Def* UnaryExpr::emit(Emitter& emitter) const {
     }
     const thorin::Def* res = nullptr;
     switch (tag) {
-        case Plus:    res = op;  break;
+        case Plus:
+            [[fallthrough]];
         case Deref:
             // The operand must be a pointer, so we return it as a reference
             res = op;
