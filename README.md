@@ -1,3 +1,5 @@
+![](logo.svg)
+
 # Artic
 
 A replacement for [Impala](https://github.com/AnyDSL/impala).
