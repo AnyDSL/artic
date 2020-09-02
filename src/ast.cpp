@@ -290,12 +290,23 @@ const Attr* NamedAttr::find(const std::string_view& name) const {
 
 // Statements ----------------------------------------------------------------------
 
+bool DeclStmt::is_jumping() const {
+    return
+        decl->isa<LetDecl>() &&
+        decl->as<LetDecl>()->init &&
+        decl->as<LetDecl>()->init->is_jumping();
+}
+
 bool DeclStmt::needs_semicolon() const {
     return false;
 }
 
 bool DeclStmt::has_side_effect() const {
     return true;
+}
+
+bool ExprStmt::is_jumping() const {
+    return expr->is_jumping();
 }
 
 bool ExprStmt::needs_semicolon() const {
@@ -312,6 +323,10 @@ bool ExprStmt::has_side_effect() const {
 }
 
 // Expressions ---------------------------------------------------------------------
+
+bool TypedExpr::is_jumping() const {
+    return expr->is_jumping();
+}
 
 bool TypedExpr::has_side_effect() const {
     return expr->has_side_effect();
@@ -330,12 +345,22 @@ bool LiteralExpr::is_constant() const {
     return true;
 }
 
+bool FieldExpr::is_jumping() const {
+    return expr->is_jumping();
+}
+
 bool FieldExpr::has_side_effect() const {
     return expr->has_side_effect();
 }
 
 bool FieldExpr::is_constant() const {
     return expr->is_constant();
+}
+
+bool StructExpr::is_jumping() const {
+    return std::any_of(fields.begin(), fields.end(), [] (auto& field) {
+        return field->is_jumping();
+    });
 }
 
 bool StructExpr::has_side_effect() const {
@@ -347,6 +372,12 @@ bool StructExpr::has_side_effect() const {
 bool StructExpr::is_constant() const {
     return std::all_of(fields.begin(), fields.end(), [] (auto& field) {
         return field->is_constant();
+    });
+}
+
+bool TupleExpr::is_jumping() const {
+    return std::any_of(args.begin(), args.end(), [] (auto& arg) {
+        return arg->is_jumping();
     });
 }
 
@@ -362,6 +393,12 @@ bool TupleExpr::is_constant() const {
     });
 }
 
+bool ArrayExpr::is_jumping() const {
+    return std::any_of(elems.begin(), elems.end(), [] (auto& elem) {
+        return elem->is_jumping();
+    });
+}
+
 bool ArrayExpr::has_side_effect() const {
     return std::any_of(elems.begin(), elems.end(), [] (auto& elem) {
         return elem->has_side_effect();
@@ -372,6 +409,10 @@ bool ArrayExpr::is_constant() const {
     return std::all_of(elems.begin(), elems.end(), [] (auto& elem) {
         return elem->is_constant();
     });
+}
+
+bool RepeatArrayExpr::is_jumping() const {
+    return elem->is_jumping();
 }
 
 bool RepeatArrayExpr::has_side_effect() const {
@@ -386,18 +427,37 @@ bool FnExpr::is_constant() const {
     return true;
 }
 
+bool BlockExpr::is_jumping() const {
+    return std::any_of(stmts.begin(), stmts.end(), [] (auto& stmt) {
+        return stmt->is_jumping();
+    });
+}
+
 bool BlockExpr::has_side_effect() const {
     return std::any_of(stmts.begin(), stmts.end(), [] (auto& stmt) {
         return stmt->has_side_effect();
     });
 }
 
+bool CallExpr::is_jumping() const {
+    assert(type);
+    return type->isa<artic::NoRetType>();
+}
+
 bool CallExpr::has_side_effect() const {
     return true;
 }
 
+bool ProjExpr::is_jumping() const {
+    return expr->is_jumping();
+}
+
 bool ProjExpr::has_side_effect() const {
     return expr->has_side_effect();
+}
+
+bool IfExpr::is_jumping() const {
+    return cond->is_jumping() || (if_true->is_jumping() && if_false && if_false->is_jumping());
 }
 
 bool IfExpr::has_side_effect() const {
@@ -407,8 +467,20 @@ bool IfExpr::has_side_effect() const {
         (if_false && if_false->has_side_effect());
 }
 
+bool CaseExpr::is_jumping() const {
+    return expr->is_jumping();
+}
+
 bool CaseExpr::has_side_effect() const {
     return expr->has_side_effect();
+}
+
+bool MatchExpr::is_jumping() const {
+    return
+        arg->is_jumping() ||
+        std::all_of(cases.begin(), cases.end(), [] (auto& case_) {
+            return case_->is_jumping();
+        });
 }
 
 bool MatchExpr::has_side_effect() const {
@@ -419,12 +491,24 @@ bool MatchExpr::has_side_effect() const {
         });
 }
 
+bool WhileExpr::is_jumping() const {
+    return false;
+}
+
 bool WhileExpr::has_side_effect() const {
     return cond->has_side_effect() || body->has_side_effect();
 }
 
+bool ForExpr::is_jumping() const {
+    return call->is_jumping();
+}
+
 bool ForExpr::has_side_effect() const {
     return call->has_side_effect();
+}
+
+bool UnaryExpr::is_jumping() const {
+    return arg->is_jumping();
 }
 
 bool UnaryExpr::has_side_effect() const {
@@ -443,6 +527,14 @@ bool UnaryExpr::is_constant() const {
     }
 }
 
+bool BinaryExpr::is_jumping() const {
+    // Logical operators are lazy. So, to be sure that the expression jumps,
+    // we have to check that both arguments do.
+    return is_logic()
+        ? left->is_jumping() && right->is_jumping()
+        : left->is_jumping() || right->is_jumping();
+}
+
 bool BinaryExpr::has_side_effect() const {
     return has_eq() || left->has_side_effect() || right->has_side_effect();
 }
@@ -455,12 +547,20 @@ bool FilterExpr::has_side_effect() const {
     return expr->has_side_effect();
 }
 
+bool CastExpr::is_jumping() const {
+    return expr->is_jumping();
+}
+
 bool CastExpr::has_side_effect() const {
     return expr->has_side_effect();
 }
 
 bool CastExpr::is_constant() const {
     return expr->is_constant();
+}
+
+bool ImplicitCastExpr::is_jumping() const {
+    return expr->is_jumping();
 }
 
 bool ImplicitCastExpr::has_side_effect() const {

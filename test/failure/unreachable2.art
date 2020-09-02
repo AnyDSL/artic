@@ -1,0 +1,6 @@
+fn test() -> () {
+    while true {
+        break();
+        let _ = 1;
+    }
+}

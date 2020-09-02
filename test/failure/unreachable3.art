@@ -1,0 +1,11 @@
+fn test() -> i32 {
+    let (x, y) = if true {
+        return(2)
+    } else if false {
+        return(1)
+    } else {
+        return(3)
+    };
+    let z = 1 + x + y;
+    x
+}

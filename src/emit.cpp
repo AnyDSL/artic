@@ -562,11 +562,19 @@ const thorin::Def* Emitter::addr_of(const thorin::Def* def, thorin::Debug debug)
     }
 }
 
+const thorin::Def* Emitter::no_ret() {
+    // Thorin does not have a type that can encode a no-return type,
+    // so we return an empty tuple instead.
+    return world.bottom(world.unit());
+}
+
 const thorin::Def* Emitter::down_cast(const thorin::Def* def, const Type* from, const Type* to, thorin::Debug debug) {
     // This function mirrors the subtyping relation and thus should be kept in sync
     assert(from->subtype(to));
-    if (to == from || from->isa<BottomType>() || to->isa<TopType>())
+    if (to == from || to->isa<TopType>())
         return def;
+    else if (from->isa<BottomType>())
+        return world.bottom(to->convert(*this));
     else if (auto from_ref_type = from->isa<RefType>(); from_ref_type && from_ref_type->pointee->subtype(to))
         return down_cast(load(def, debug), from_ref_type->pointee, to, debug);
     else if (auto to_ptr_type = to->isa<PtrType>()) {
@@ -886,7 +894,7 @@ const thorin::Def* CallExpr::emit(Emitter& emitter) const {
         auto value = emitter.emit(*arg);
         if (type->isa<artic::NoRetType>()) {
             emitter.jump(fn, value, debug_info(*this));
-            return nullptr;
+            return emitter.no_ret();
         }
         return emitter.call(fn, value, debug_info(*this));
     } else {
@@ -909,18 +917,25 @@ const thorin::Def* ProjExpr::emit(Emitter& emitter) const {
 }
 
 const thorin::Def* IfExpr::emit(Emitter& emitter) const {
-    auto join = emitter.basic_block_with_mem(type->convert(emitter), debug_info(*this, "if_join"));
     auto join_true  = emitter.basic_block_with_mem(debug_info(*this, "join_true"));
     auto join_false = emitter.basic_block_with_mem(debug_info(*this, "join_false"));
     cond->emit(emitter, join_true, join_false);
 
+    // This can happen if both branches call a continuation.
+    thorin::Continuation* join = nullptr;
+    if (!type->isa<artic::NoRetType>())
+        join = emitter.basic_block_with_mem(type->convert(emitter), debug_info(*this, "if_join"));
+
     emitter.enter(join_true);
     auto true_value = emitter.emit(*if_true);
-    emitter.jump(join, true_value);
+    if (join) emitter.jump(join, true_value);
 
     emitter.enter(join_false);
     auto false_value = if_false ? emitter.emit(*if_false) : emitter.world.tuple({});
-    emitter.jump(join, false_value);
+    if (join) emitter.jump(join, false_value);
+
+    if (!join)
+        return emitter.no_ret();
 
     emitter.enter(join);
     return emitter.tuple_from_params(join);
@@ -1180,9 +1195,10 @@ const thorin::Def* AsmExpr::emit(Emitter& emitter) const {
 // Declarations --------------------------------------------------------------------
 
 const thorin::Def* LetDecl::emit(Emitter& emitter) const {
-    emitter.emit(*ptrn, init
+    auto value = init
         ? emitter.emit(*init)
-        : emitter.world.bottom(ptrn->type->convert(emitter)));
+        : emitter.world.bottom(ptrn->type->convert(emitter));
+    emitter.emit(*ptrn, value);
     return nullptr;
 }
 
@@ -1373,6 +1389,10 @@ const thorin::Type* PtrType::convert(Emitter& emitter) const {
 
 const thorin::Type* FnType::convert(Emitter& emitter) const {
     return emitter.function_type_with_mem(dom->convert(emitter), codom->convert(emitter));
+}
+
+const thorin::Type* NoRetType::convert(Emitter& emitter) const {
+    return emitter.no_ret()->type();
 }
 
 const thorin::Type* TypeVar::convert(Emitter& emitter) const {

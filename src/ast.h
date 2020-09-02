@@ -105,6 +105,8 @@ struct Type : public Node {
 struct Stmt : public Node {
     Stmt(const Loc& loc) : Node(loc) {}
 
+    /// Returns true if the statement is changes the control-flow.
+    virtual bool is_jumping() const = 0;
     /// Returns true if the statement must end with a semicolon.
     virtual bool needs_semicolon() const = 0;
     /// Returns true if the statement has a side effect.
@@ -122,6 +124,8 @@ struct Expr : public Node {
     /// Emits a branch for boolean expressions.
     virtual void emit(Emitter&, thorin::Continuation*, thorin::Continuation*) const;
 
+    /// Returns true if the expression changes control-flow.
+    virtual bool is_jumping() const { return false; }
     /// Returns true if the expression has a side effect.
     virtual bool has_side_effect() const { return false; }
     /// Returns true if the expression has a side effect.
@@ -409,6 +413,7 @@ struct DeclStmt : public Stmt {
         : Stmt(loc), decl(std::move(decl))
     {}
 
+    bool is_jumping() const override;
     bool needs_semicolon() const override;
     bool has_side_effect() const override;
 
@@ -427,6 +432,7 @@ struct ExprStmt : public Stmt {
         : Stmt(loc), expr(std::move(expr))
     {}
 
+    bool is_jumping() const override;
     bool needs_semicolon() const override;
     bool has_side_effect() const override;
 
@@ -450,6 +456,7 @@ struct TypedExpr : public Expr {
         , type(std::move(type))
     {}
 
+    bool is_jumping() const override;
     bool has_side_effect() const override;
     bool is_constant() const override;
 
@@ -510,6 +517,8 @@ struct FieldExpr : public Expr {
     {}
 
     bool is_etc() const { return false; }
+
+    bool is_jumping() const override;
     bool has_side_effect() const override;
     bool is_constant() const override;
 
@@ -533,6 +542,7 @@ struct StructExpr : public Expr {
         , fields(std::move(fields))
     {}
 
+    bool is_jumping() const override;
     bool has_side_effect() const override;
     bool is_constant() const override;
 
@@ -550,6 +560,7 @@ struct TupleExpr : public Expr {
         : Expr(loc), args(std::move(args))
     {}
 
+    bool is_jumping() const override;
     bool has_side_effect() const override;
     bool is_constant() const override;
 
@@ -569,6 +580,7 @@ struct ArrayExpr : public Expr {
         : Expr(loc), elems(std::move(elems)), is_simd(is_simd)
     {}
 
+    bool is_jumping() const override;
     bool has_side_effect() const override;
     bool is_constant() const override;
 
@@ -589,6 +601,7 @@ struct RepeatArrayExpr : public Expr {
         : Expr(loc), elem(std::move(elem)), size(size), is_simd(is_simd)
     {}
 
+    bool is_jumping() const override;
     bool has_side_effect() const override;
     bool is_constant() const override;
 
@@ -638,6 +651,7 @@ struct BlockExpr : public Expr {
         : Expr(loc), stmts(std::move(stmts)), last_semi(last_semi)
     {}
 
+    bool is_jumping() const override;
     bool has_side_effect() const override;
 
     const thorin::Def* emit(Emitter&) const override;
@@ -658,6 +672,7 @@ struct CallExpr : public Expr {
         , arg(std::move(arg))
     {}
 
+    bool is_jumping() const override;
     bool has_side_effect() const override;
 
     const thorin::Def* emit(Emitter&) const override;
@@ -679,6 +694,7 @@ struct ProjExpr : public Expr {
         , field(std::move(field))
     {}
 
+    bool is_jumping() const override;
     bool has_side_effect() const override;
 
     const thorin::Def* emit(Emitter&) const override;
@@ -704,6 +720,7 @@ struct IfExpr : public Expr {
         , if_false(std::move(if_false))
     {}
 
+    bool is_jumping() const override;
     bool has_side_effect() const override;
 
     const thorin::Def* emit(Emitter&) const override;
@@ -730,6 +747,7 @@ struct CaseExpr : public Expr {
 
     void collect_bound_ptrns() const;
 
+    bool is_jumping() const override;
     bool has_side_effect() const override;
 
     void bind(NameBinder&) override;
@@ -747,6 +765,7 @@ struct MatchExpr : public Expr {
         , cases(std::move(cases))
     {}
 
+    bool is_jumping() const override;
     bool has_side_effect() const override;
 
     const thorin::Def* emit(Emitter&) const override;
@@ -776,6 +795,7 @@ struct WhileExpr : public LoopExpr {
         : LoopExpr(loc), cond(std::move(cond)), body(std::move(body))
     {}
 
+    bool is_jumping() const override;
     bool has_side_effect() const override;
 
     const thorin::Def* emit(Emitter&) const override;
@@ -792,6 +812,7 @@ struct ForExpr : public LoopExpr {
         : LoopExpr(loc), call(std::move(call))
     {}
 
+    bool is_jumping() const override;
     bool has_side_effect() const override;
 
     const thorin::Def* emit(Emitter&) const override;
@@ -869,6 +890,7 @@ struct UnaryExpr : public Expr {
     bool is_prefix() const { return !is_postfix(); }
     bool is_postfix() const { return tag == PostInc || tag == PostDec; }
 
+    bool is_jumping() const override;
     bool has_side_effect() const override;
     bool is_constant() const override;
 
@@ -916,6 +938,7 @@ struct BinaryExpr : public Expr {
     bool has_cmp() const { return has_cmp(tag); }
     bool is_logic() const { return is_logic(tag); }
 
+    bool is_jumping() const override;
     bool has_side_effect() const override;
     bool is_constant() const override;
     int precedence() const { return precedence(tag); }
@@ -972,6 +995,7 @@ struct CastExpr : public Expr {
         : Expr(loc), expr(std::move(expr)), type(std::move(type))
     {}
 
+    bool is_jumping() const override;
     bool has_side_effect() const override;
     bool is_constant() const override;
 
@@ -994,6 +1018,7 @@ struct ImplicitCastExpr : public Expr {
         this->type = type;
     }
 
+    bool is_jumping() const override;
     bool has_side_effect() const override;
     bool is_constant() const override;
 

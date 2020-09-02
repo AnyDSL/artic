@@ -1,5 +1,0 @@
-fn rec() { rec() }
-fn ret() {
-    return(0)
-}
-let foo = |x| x;

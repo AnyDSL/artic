@@ -30,7 +30,6 @@ public:
     void exit_decl(const ast::Decl*);
 
     bool should_report_error(const Type*);
-    void explain_no_ret(const Type*, const Type*);
 
     const Type* incompatible_types(const Loc&, const Type*, const Type*);
     const Type* incompatible_type(const Loc&, const std::string&, const Type*);
@@ -48,6 +47,7 @@ public:
 
     const Type* deref(Ptr<ast::Expr>&);
     const Type* coerce(Ptr<ast::Expr>&, const Type*);
+    const Type* join(Ptr<ast::Expr>&, Ptr<ast::Expr>&);
 
     const Type* check(ast::Node&, const Type*);
     const Type* infer(ast::Node&);

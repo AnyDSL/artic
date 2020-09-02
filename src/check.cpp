@@ -28,29 +28,15 @@ bool TypeChecker::should_report_error(const Type* type) {
     return !type->contains(type_table.type_error());
 }
 
-void TypeChecker::explain_no_ret(const Type* type, const Type* expected) {
-    auto no_ret = type_table.no_ret_type();
-    if ((type && type->contains(no_ret)) || expected->contains(no_ret)) {
-        note("did you forget to add parentheses '()' in a call to {}/{}/{}?",
-            log::keyword_style("break"),
-            log::keyword_style("continue"),
-            log::keyword_style("return"));
-    }
-}
-
 const Type* TypeChecker::incompatible_types(const Loc& loc, const Type* type, const Type* expected) {
-    if (should_report_error(expected) && should_report_error(type)) {
+    if (should_report_error(expected) && should_report_error(type))
         error(loc, "expected type '{}', but got type '{}'", *expected, *type);
-        explain_no_ret(type, expected);
-    }
     return type_table.type_error();
 }
 
 const Type* TypeChecker::incompatible_type(const Loc& loc, const std::string& msg, const Type* expected) {
-    if (should_report_error(expected)) {
+    if (should_report_error(expected))
         error(loc, "expected type '{}', but got {}", *expected, msg);
-        explain_no_ret(nullptr, expected);
-    }
     return type_table.type_error();
 }
 
@@ -154,6 +140,17 @@ const Type* TypeChecker::coerce(Ptr<ast::Expr>& expr, const Type* expected) {
         } else
             return incompatible_types(expr->loc, type, expected);
     }
+    return type;
+}
+
+const Type* TypeChecker::join(Ptr<ast::Expr>& left, Ptr<ast::Expr>& right) {
+    auto left_type  = deref(left);
+    auto right_type = deref(right);
+    auto type = left_type->join(right_type);
+    if (type->isa<TopType>())
+        return incompatible_types(right->loc, right_type, left_type);
+    coerce(left, type);
+    coerce(right, type);
     return type;
 }
 
@@ -281,13 +278,12 @@ void TypeChecker::check_block(const Loc& loc, const PtrVector<ast::Stmt>& stmts,
     assert(!stmts.empty());
     // Make sure there is no unreachable code and warn about statements with no effect
     for (size_t i = 0, n = stmts.size(); i < n - 1; ++i) {
-        assert(stmts[i]->type);
-        if (stmts[i]->type->template isa<NoRetType>())
+        if (stmts[i]->is_jumping())
             unreachable_code(stmts[i]->loc, stmts[i + 1]->loc, stmts.back()->loc);
         else if (!stmts[i]->has_side_effect())
             warn(stmts[i]->loc, "statement with no effect");
     }
-    if (last_semi && stmts.back()->type->template isa<NoRetType>())
+    if (last_semi && stmts.back()->is_jumping())
         unreachable_code(stmts.back()->loc, stmts.back()->loc.at_end(), loc.at_end());
 }
 
@@ -880,16 +876,18 @@ const artic::Type* ProjExpr::infer(TypeChecker& checker) {
 const artic::Type* IfExpr::infer(TypeChecker& checker) {
     checker.coerce(cond, checker.type_table.bool_type());
     if (if_false)
-        return checker.coerce(if_false, checker.deref(if_true));
+        return checker.join(if_false, if_true);
     return checker.coerce(if_true, checker.type_table.unit_type());
 }
 
 const artic::Type* IfExpr::check(TypeChecker& checker, const artic::Type* expected) {
     checker.coerce(cond, checker.type_table.bool_type());
-    auto true_type = checker.coerce(if_true, expected);
-    if (if_false)
-        return checker.coerce(if_false, true_type);
-    return true_type;
+    if (if_false) {
+        checker.coerce(if_true, expected);
+        return checker.coerce(if_false, expected);
+    }
+    checker.coerce(if_true, checker.type_table.unit_type());
+    return checker.coerce(if_true, expected);
 }
 
 const artic::Type* MatchExpr::infer(TypeChecker& checker) {

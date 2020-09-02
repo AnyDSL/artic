@@ -137,6 +137,7 @@ public:
     const thorin::Def* load(const thorin::Def*, thorin::Debug = {});
     const thorin::Def* addr_of(const thorin::Def*, thorin::Debug = {});
 
+    const thorin::Def* no_ret();
     const thorin::Def* down_cast(const thorin::Def*, const Type*, const Type*, thorin::Debug = {});
 
     const thorin::Def* emit(const ast::Node&);

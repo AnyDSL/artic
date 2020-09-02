@@ -1,0 +1,3 @@
+fn ret() {
+    return(0)
+}

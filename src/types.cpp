@@ -510,6 +510,14 @@ bool Type::subtype(const Type* other) const {
     return false;
 }
 
+const Type* Type::join(const Type* other) const {
+    if (subtype(other))
+        return other;
+    if (other->subtype(this))
+        return this;
+    return type_table.top_type();
+}
+
 const Type* ForallType::instantiate(const std::vector<const Type*>& args) const {
     std::unordered_map<const TypeVar*, const Type*> map;
     assert(decl.type_params && decl.type_params->params.size() == args.size());

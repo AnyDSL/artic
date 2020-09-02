@@ -98,6 +98,9 @@ struct Type : public Cast<Type> {
     /// Returns true if this type is a sub-type of another.
     bool subtype(const Type*) const;
 
+    /// Returns the least upper bound between this type and another.
+    const Type* join(const Type*) const;
+
     /// Prints the type on the console, for debugging.
     void dump() const;
 };
@@ -312,6 +315,8 @@ protected:
 /// Return type of continuations.
 struct NoRetType : public BottomType {
     void print(Printer&) const override;
+
+    const thorin::Type* convert(Emitter&) const override;
 
 private:
     NoRetType(TypeTable& type_table)

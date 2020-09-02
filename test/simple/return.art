@@ -1,3 +1,22 @@
-fn f(x: i32, y: i32) -> () { return() }
+fn f(_x: i32, _y: i32) -> () { return() }
 fn g(x: i32, y: i32) -> i32 { return(x + y) }
 fn h(x: i32, y: i32) -> (i32, i32) { return(x + y, x - y) }
+fn i() -> () {
+    let _ = return();
+}
+fn j() -> () {
+    let x = if true && return() {
+        return()
+    };
+    x
+}
+fn k() -> i32 {
+    if true {
+        return(1)
+    } else if false {
+        return(2)
+    } else if true {
+        return(3)
+    }
+    5
+}
