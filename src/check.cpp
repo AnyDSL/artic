@@ -986,11 +986,16 @@ const artic::Type* UnaryExpr::infer(TypeChecker& checker) {
         return checker.type_table.bool_type();
     if (tag == AddrOf)
         return checker.type_table.ptr_type(arg_type, false, ref_type ? ref_type->addr_space : 0);
-    if (tag == AddrOfMut)
+    if (tag == AddrOfMut) {
+        arg->write_to();
         return checker.type_table.ptr_type(arg_type, true, ref_type->addr_space);
+    }
     if (tag == Deref) {
-        if (auto ptr_type = arg_type->isa<artic::PtrType>())
+        if (auto ptr_type = arg_type->isa<artic::PtrType>()) {
+            if (ptr_type->is_mut)
+                arg->write_to();
             return checker.type_table.ref_type(ptr_type->pointee, ptr_type->is_mut, ptr_type->addr_space);
+        }
         checker.error(loc, "cannot dereference non-pointer type '{}'", *arg_type);
         return checker.type_table.type_error();
     }
@@ -1013,6 +1018,7 @@ const artic::Type* UnaryExpr::infer(TypeChecker& checker) {
         case PostDec:
         case PreInc:
         case PreDec:
+            arg->write_to();
             if (!is_int_type(prim_type))
                 return checker.type_expected(arg->loc, arg_type, "integer");
             break;
@@ -1073,6 +1079,7 @@ const artic::Type* BinaryExpr::infer(TypeChecker& checker) {
         }
     }
     if (has_eq()) {
+        left->write_to();
         if (!left_ref || !left_ref->is_mut)
             return checker.mutable_expected(left->loc);
         return checker.type_table.unit_type();

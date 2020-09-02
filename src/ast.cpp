@@ -341,6 +341,13 @@ bool PathExpr::is_constant() const {
     return !type->isa<artic::RefType>();
 }
 
+void PathExpr::write_to() const {
+    if (path.symbol && path.symbol->decls.size() == 1) {
+        if (auto ptrn_decl = path.symbol->decls.front()->isa<PtrnDecl>(); ptrn_decl && ptrn_decl->is_mut)
+            ptrn_decl->written_to = true;
+    }
+}
+
 bool LiteralExpr::is_constant() const {
     return true;
 }

@@ -1,0 +1,7 @@
+enum E { A, B(i32) }
+fn test(x: (i32, E)) {
+    match x {
+        _ as (1, E::B(mut y)) => y + 1,
+        _ => 2
+    }
+}

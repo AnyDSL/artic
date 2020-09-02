@@ -628,6 +628,8 @@ void Emitter::bind(const ast::IdPtrn& id_ptrn, const thorin::Def* value) {
         auto ptr = alloc(value->type(), debug_info(*id_ptrn.decl));
         store(ptr, value);
         id_ptrn.decl->def = ptr;
+        if (!id_ptrn.decl->written_to)
+            warn(id_ptrn.loc, "mutable variable '{}' is never written to", id_ptrn.decl->id.name);
     } else {
         id_ptrn.decl->def = value;
         value->debug().set(id_ptrn.decl->id.name);

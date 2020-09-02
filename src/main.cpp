@@ -315,6 +315,7 @@ static bool compile(const ProgramOptions& opts, Log& log) {
     thorin::Log::set(opts.log_level, &std::cerr);
     thorin::World world(opts.module_name);
     Emitter emitter(log, world);
+    emitter.warns_as_errors = opts.warns_as_errors;
     if (!emitter.run(program))
         return false;
     if (opts.opt_level == 1)

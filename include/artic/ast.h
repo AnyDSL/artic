@@ -124,6 +124,9 @@ struct Expr : public Node {
     /// Emits a branch for boolean expressions.
     virtual void emit(Emitter&, thorin::Continuation*, thorin::Continuation*) const;
 
+    /// Records the fact that this expression is written to.
+    virtual void write_to() const {}
+
     /// Returns true if the expression changes control-flow.
     virtual bool is_jumping() const { return false; }
     /// Returns true if the expression has a side effect.
@@ -475,6 +478,7 @@ struct PathExpr : public Expr {
     {}
 
     bool is_constant() const override;
+    void write_to() const override;
 
     const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) override;
@@ -1113,6 +1117,9 @@ struct TypeParamList : public Node {
 /// Pattern binding associated with an identifier.
 struct PtrnDecl : public NamedDecl {
     bool is_mut;
+
+    // Set during type-checking.
+    mutable bool written_to = false;
 
     PtrnDecl(const Loc& loc, Identifier&& id, bool is_mut = false)
         : NamedDecl(loc, std::move(id)), is_mut(is_mut)
