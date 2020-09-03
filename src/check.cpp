@@ -840,8 +840,6 @@ const artic::Type* CallExpr::infer(TypeChecker& checker) {
             auto index_type = checker.deref(arg);
             if (!is_int_type(index_type))
                 return checker.type_expected(arg->loc, index_type, "integer type");
-            if (ref_type && ref_type->is_mut)
-                callee->write_to();
             return ref_type || ptr_type
                 ? checker.type_table.ref_type(
                     array_type->elem,
@@ -997,11 +995,8 @@ const artic::Type* UnaryExpr::infer(TypeChecker& checker) {
         return checker.type_table.ptr_type(arg_type, true, ref_type->addr_space);
     }
     if (tag == Deref) {
-        if (auto ptr_type = arg_type->isa<artic::PtrType>()) {
-            if (ptr_type->is_mut)
-                arg->write_to();
+        if (auto ptr_type = arg_type->isa<artic::PtrType>())
             return checker.type_table.ref_type(ptr_type->pointee, ptr_type->is_mut, ptr_type->addr_space);
-        }
         if (checker.should_report_error(arg_type))
             checker.error(loc, "cannot dereference non-pointer type '{}'", *arg_type);
         return checker.type_table.type_error();

@@ -5,6 +5,17 @@ fn alloc() -> (fn () -> i32, fn (i32) -> ()) {
     (rd, wr)
 }
 
+struct S { x: i32, y: i32 }
+fn not_unused(mut x: i32) {
+    x = 3;
+    let mut y = 2;
+    let _ = &mut y;
+    let mut z = [1, 2];
+    z(1) = 0;
+    let mut w = S { x = 1, y = 2 };
+    w.x = 3;
+}
+
 fn main() -> i32 {
     let (rd, wr) = alloc();
     wr(0);

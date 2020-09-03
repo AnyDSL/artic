@@ -679,6 +679,8 @@ struct CallExpr : public Expr {
     bool is_jumping() const override;
     bool has_side_effect() const override;
 
+    void write_to() const override;
+
     const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) override;
     void bind(NameBinder&) override;
@@ -700,6 +702,8 @@ struct ProjExpr : public Expr {
 
     bool is_jumping() const override;
     bool has_side_effect() const override;
+
+    void write_to() const override;
 
     const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) override;

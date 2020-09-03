@@ -455,12 +455,20 @@ bool CallExpr::has_side_effect() const {
     return true;
 }
 
+void CallExpr::write_to() const {
+    callee->write_to();
+}
+
 bool ProjExpr::is_jumping() const {
     return expr->is_jumping();
 }
 
 bool ProjExpr::has_side_effect() const {
     return expr->has_side_effect();
+}
+
+void ProjExpr::write_to() const {
+    expr->write_to();
 }
 
 bool IfExpr::is_jumping() const {
