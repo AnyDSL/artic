@@ -1,0 +1,6 @@
+enum E { A, B }
+fn test(e: E) {
+    match e {
+        E::A => ()
+    }
+}

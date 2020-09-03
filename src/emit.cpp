@@ -197,7 +197,7 @@ public:
 
                 PtrnCompiler(emitter, match, std::move(rows), std::move(new_values), matched_values).compile(target);
             }
-            if (!no_default && !wildcards.empty()) {
+            if (!no_default) {
                 emitter.enter(otherwise);
                 PtrnCompiler(emitter, match, std::move(wildcards), std::move(values), matched_values).compile(target);
             }

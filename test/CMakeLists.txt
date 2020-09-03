@@ -105,6 +105,7 @@ add_failure_test(NAME failure_filter1        COMMAND artic ${CMAKE_CURRENT_SOURC
 add_failure_test(NAME failure_filter2        COMMAND artic --warnings-as-errors ${CMAKE_CURRENT_SOURCE_DIR}/failure/filter2.art)
 add_failure_test(NAME failure_filter3        COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/filter3.art)
 add_failure_test(NAME failure_filter4        COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/filter4.art)
+add_failure_test(NAME failure_match          COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/match.art)
 add_failure_test(NAME failure_param          COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/param.art)
 add_failure_test(NAME failure_ops            COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/ops.art)
 add_failure_test(NAME failure_static         COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/static.art)
