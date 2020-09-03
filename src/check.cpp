@@ -986,8 +986,10 @@ const artic::Type* UnaryExpr::infer(TypeChecker& checker) {
     }
     if (tag == Known)
         return checker.type_table.bool_type();
-    if (tag == Forget)
-        return ref_type;
+    if (tag == Forget) {
+        // Return the original type, unchanged
+        return arg->type;
+    }
     if (tag == AddrOf)
         return checker.type_table.ptr_type(arg_type, false, ref_type ? ref_type->addr_space : 0);
     if (tag == AddrOfMut) {
