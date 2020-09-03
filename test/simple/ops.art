@@ -21,5 +21,7 @@ fn test() -> bool {
     x >>= 1;
     x++;
     x--;
+    $test;
+    $x = 3;
     ?x
 }

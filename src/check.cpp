@@ -980,12 +980,14 @@ const artic::Type* UnaryExpr::infer(TypeChecker& checker) {
     auto [ref_type, arg_type] = remove_ref(checker.infer(*arg));
     if ((!ref_type || !ref_type->is_mut) && (tag == AddrOfMut || is_inc() || is_dec()))
         return checker.mutable_expected(arg->loc);
-    if (tag == Plus || tag == Minus || tag == Not || tag == Known || tag == Forget) {
+    if (tag == Plus || tag == Minus || tag == Not || tag == Known) {
         // Dereference the argument
         checker.coerce(arg, arg_type);
     }
     if (tag == Known)
         return checker.type_table.bool_type();
+    if (tag == Forget)
+        return ref_type;
     if (tag == AddrOf)
         return checker.type_table.ptr_type(arg_type, false, ref_type ? ref_type->addr_space : 0);
     if (tag == AddrOfMut) {
@@ -1023,8 +1025,6 @@ const artic::Type* UnaryExpr::infer(TypeChecker& checker) {
             arg->write_to();
             if (!is_int_type(prim_type))
                 return checker.type_expected(arg->loc, arg_type, "integer");
-            break;
-        case Forget:
             break;
         default:
             assert(false);

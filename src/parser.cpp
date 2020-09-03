@@ -509,6 +509,7 @@ Ptr<ast::BlockExpr> Parser::parse_block_expr() {
             case Token::Inc:
             case Token::Dec:
             case Token::QMark:
+            case Token::Dollar:
             case Token::Asm:
             case Token::Simd:
             case Token::Let:
