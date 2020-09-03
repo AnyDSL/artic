@@ -1034,8 +1034,20 @@ const artic::Type* UnaryExpr::infer(TypeChecker& checker) {
 }
 
 const artic::Type* BinaryExpr::infer(TypeChecker& checker) {
-    auto [left_ref, left_type] = remove_ref(checker.infer(*left));
-    auto right_type = checker.coerce(right, left_type);
+    const artic::RefType* left_ref = nullptr;
+    const artic::Type* left_type   = nullptr;
+    const artic::Type* right_type  = nullptr;
+    if (is_logic()) {
+        left_type  = checker.coerce(left, checker.type_table.bool_type());
+        right_type = checker.coerce(right, checker.type_table.bool_type());
+    } else if (!has_eq() && left->isa<LiteralExpr>()) {
+        // Expressions like `1 + x` should be handled by inferring the right-hand side first
+        right_type = checker.deref(right);
+        left_type  = checker.coerce(left, right_type);
+    } else {
+        std::tie(left_ref, left_type) = remove_ref(checker.infer(*left));
+        right_type = checker.coerce(right, left_type);
+    }
 
     if (tag != Eq) {
         auto prim_type = left_type;
@@ -1066,8 +1078,7 @@ const artic::Type* BinaryExpr::infer(TypeChecker& checker) {
                 break;
             case LogicAnd:
             case LogicOr:
-                if (!is_bool_type(prim_type))
-                    return checker.type_expected(left->loc, left_type, "boolean");
+                // This case has already been handled by the coercion to the bool type above
                 break;
             case And:
             case Or:
