@@ -1,0 +1,16 @@
+enum Option[T] { Some(T), None }
+struct A {}
+struct B {}
+fn f(a: A) {}
+fn g(b: B) {}
+#[export]
+fn test(a: Option[A], b: Option[B]) {
+    match a {
+        Option[A]::Some(x) => f(x),
+        Option[A]::None => ()
+    }
+    match b {
+        Option[B]::Some(x) => g(x),
+        Option[B]::None => ()
+    }
+}

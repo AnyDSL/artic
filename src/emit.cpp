@@ -82,7 +82,7 @@ public:
                 emitter.enter(cont);
                 auto tuple = emitter.tuple_from_params(cont);
                 for (size_t i = 0, n = bound_ptrns.size(); i < n; ++i)
-                    emitter.bind(*bound_ptrns[i], emitter.world.extract(tuple, i));
+                    emitter.bind(*bound_ptrns[i], n == 1 ? tuple : emitter.world.extract(tuple, i));
                 // Emit the expression and jump to the target
                 emitter.jump(target, emitter.emit(*rows.front().second->expr), debug);
                 case_block = cont;
