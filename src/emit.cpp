@@ -742,7 +742,7 @@ const thorin::Def* Path::emit(Emitter& emitter) const {
             return def;
         } else if (auto [type_app, enum_type] = match_app<artic::EnumType>(elems[i].type); enum_type) {
             // Find the variant constructor for that enum, if it exists
-            Emitter::Ctor ctor { elems[i + 1].index, type_app ? type_app->as<artic::Type>() : enum_type };
+            Emitter::Ctor ctor { elems[i + 1].index, type_app ? type_app->replace(emitter.type_vars) : enum_type };
             if (auto it = emitter.variant_ctors.find(ctor); it != emitter.variant_ctors.end())
                 return it->second;
             auto index = emitter.ctor_index(enum_type, ctor.index);

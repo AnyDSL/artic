@@ -1,16 +1,21 @@
 enum Option[T] { Some(T), None }
+fn make_option[T](t: T) = Option[T]::Some(t)
 struct A {}
 struct B {}
-fn f(a: A) {}
-fn g(b: B) {}
+fn f(i: Option[i32]) {}
+fn g(b: Option[u64]) {}
 #[export]
 fn test(a: Option[A], b: Option[B]) {
     match a {
-        Option[A]::Some(x) => f(x),
+        Option[A]::Some(x) => f(make_option(1)),
         Option[A]::None => ()
     }
     match b {
-        Option[B]::Some(x) => g(x),
+        Option[B]::Some(x) => g(make_option(2: u64)),
+        Option[B]::None => ()
+    }
+    match b {
+        Option[B]::Some(x) => f(make_option(2)),
         Option[B]::None => ()
     }
 }
