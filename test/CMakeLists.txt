@@ -31,7 +31,8 @@ add_test(NAME cannot_open COMMAND artic file-that-hopefully-does-not-exist.insan
 add_test(NAME open_dir    COMMAND artic ${CMAKE_CURRENT_BINARY_DIR})
 set_tests_properties(dup_strict unknown_opt empty_files cannot_open open_dir PROPERTIES WILL_FAIL TRUE)
 
-add_test(NAME simple_literals   COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/literals.art)
+add_test(NAME simple_literals1  COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/literals1.art)
+add_test(NAME simple_literals2  COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/literals2.art)
 add_test(NAME simple_string     COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/string.art)
 add_test(NAME simple_comments   COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/comments.art)
 add_test(NAME simple_fn         COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/fn.art)
