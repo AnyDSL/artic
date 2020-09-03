@@ -1,0 +1,9 @@
+fn test() {
+    let _ = 1;
+    let _ = 2.0;
+    let _ = 3.14159e+17;
+    let _ = 3.14159e-17;
+    let _ = 'a';
+    let _ = "abcd";
+    let _ = "";
+}

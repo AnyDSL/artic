@@ -20,3 +20,4 @@ fn k() -> i32 {
     }
     5
 }
+static l = || -> i32 { return(1) };

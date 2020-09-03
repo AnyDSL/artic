@@ -1,4 +1,5 @@
-fn test(a: i32, mut b: f32, c: bool) {
+struct S {};
+fn test(a: i32, mut b: f32, c: bool, d: S) {
     let _ = a && 1;
     let _ = a || 1;
     let _ = b && 1.0;
@@ -18,4 +19,10 @@ fn test(a: i32, mut b: f32, c: bool) {
     let _ = !b;
     let _ = ++b;
     let _ = --b;
+    let _ = ++a;
+    let _ = --a;
+    let _ = *a;
+    let _ = -c;
+    let _ = +d;
+    let _ = d + a;
 }
