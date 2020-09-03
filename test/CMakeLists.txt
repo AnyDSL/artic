@@ -53,7 +53,7 @@ add_test(NAME simple_enums3     COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE
 add_test(NAME simple_types      COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/types.art)
 add_test(NAME simple_loops      COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/loops.art)
 add_test(NAME simple_return     COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/return.art)
-add_test(NAME simple_mut        COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/mut.art)
+add_test(NAME simple_mut        COMMAND artic --print-ast --warnings-as-errors ${CMAKE_CURRENT_SOURCE_DIR}/simple/mut.art)
 add_test(NAME simple_static     COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/static.art)
 add_test(NAME simple_arrays1    COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/arrays1.art)
 add_test(NAME simple_arrays2    COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/arrays2.art)
