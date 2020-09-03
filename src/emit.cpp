@@ -741,7 +741,9 @@ const thorin::Def* Path::emit(Emitter& emitter) const {
             }
             return def;
         } else if (auto [type_app, enum_type] = match_app<artic::EnumType>(elems[i].type); enum_type) {
-            // Find the variant constructor for that enum, if it exists
+            // Find the variant constructor for that enum, if it exists.
+            // Remember that the type application (if present) might be polymorphic (i.e. `E[T, U]::A`), and that, thus,
+            // we need to replace bound type variables (`T` and `U` in the previous example) to find the constructor in the map.
             Emitter::Ctor ctor { elems[i + 1].index, type_app ? type_app->replace(emitter.type_vars) : enum_type };
             if (auto it = emitter.variant_ctors.find(ctor); it != emitter.variant_ctors.end())
                 return it->second;
