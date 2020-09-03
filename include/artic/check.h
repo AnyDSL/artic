@@ -45,6 +45,8 @@ public:
     void invalid_attr(const Loc&, const std::string&);
     void unsized_type(const Loc&, const Type*);
 
+    const Type* expect(const Loc&, const Type*, const Type*);
+
     const Type* deref(Ptr<ast::Expr>&);
     const Type* coerce(Ptr<ast::Expr>&, const Type*);
     const Type* join(Ptr<ast::Expr>&, Ptr<ast::Expr>&);

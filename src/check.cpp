@@ -112,6 +112,12 @@ void TypeChecker::unsized_type(const Loc& loc, const Type* type) {
 
 // Helpers -------------------------------------------------------------------------
 
+const Type* TypeChecker::expect(const Loc& loc, const Type* type, const Type* expected) {
+    if (!type->subtype(expected))
+        return incompatible_types(loc, type, expected);
+    return type;
+}
+
 static inline std::pair<const RefType*, const Type*> remove_ref(const Type* type) {
     if (auto ref_type = type->isa<RefType>())
         return std::make_pair(ref_type, ref_type->pointee);
@@ -656,10 +662,7 @@ const artic::Type* DeclStmt::infer(TypeChecker& checker) {
 
 const artic::Type* DeclStmt::check(TypeChecker& checker, const artic::Type* expected) {
     checker.infer(*decl);
-    auto type = checker.type_table.unit_type();
-    if (!type->subtype(expected))
-        return checker.incompatible_types(loc, type, expected);
-    return type;
+    return checker.expect(loc, checker.type_table.unit_type(), expected);
 }
 
 const artic::Type* ExprStmt::infer(TypeChecker& checker) {
@@ -673,10 +676,7 @@ const artic::Type* ExprStmt::check(TypeChecker& checker, const artic::Type* expe
 // Expressions ---------------------------------------------------------------------
 
 const artic::Type* Expr::check(TypeChecker& checker, const artic::Type* expected) {
-    auto type = checker.infer(*this);
-    if (!type->subtype(expected))
-        return checker.incompatible_types(loc, type, expected);
-    return type;
+    return checker.expect(loc, checker.infer(*this), expected);
 }
 
 const artic::Type* TypedExpr::infer(TypeChecker& checker) {
@@ -1002,7 +1002,8 @@ const artic::Type* UnaryExpr::infer(TypeChecker& checker) {
                 arg->write_to();
             return checker.type_table.ref_type(ptr_type->pointee, ptr_type->is_mut, ptr_type->addr_space);
         }
-        checker.error(loc, "cannot dereference non-pointer type '{}'", *arg_type);
+        if (checker.should_report_error(arg_type))
+            checker.error(loc, "cannot dereference non-pointer type '{}'", *arg_type);
         return checker.type_table.type_error();
     }
     auto prim_type = arg_type;
@@ -1033,6 +1034,23 @@ const artic::Type* UnaryExpr::infer(TypeChecker& checker) {
             break;
     }
     return arg_type;
+}
+
+const artic::Type* UnaryExpr::check(TypeChecker& checker, const artic::Type* expected) {
+    switch (tag) {
+        case Plus:
+        case Minus:
+            if (is_int_or_float_type(expected))
+                checker.coerce(arg, expected);
+            break;
+        case Not:
+            if (is_int_type(expected) || is_bool_type(expected))
+                checker.coerce(arg, expected);
+            break;
+        default:
+            break;
+    }
+    return checker.expect(loc, infer(checker), expected);
 }
 
 const artic::Type* BinaryExpr::infer(TypeChecker& checker) {
@@ -1103,6 +1121,39 @@ const artic::Type* BinaryExpr::infer(TypeChecker& checker) {
     if (has_cmp())
         return checker.type_table.bool_type();
     return right_type;
+}
+
+const artic::Type* BinaryExpr::check(TypeChecker& checker, const artic::Type* expected) {
+    switch (tag) {
+        case Add:
+        case Sub:
+        case Mul:
+        case Div:
+        case Rem:
+            if (is_int_or_float_type(expected)) {
+                checker.coerce(left, expected);
+                checker.coerce(right, expected);
+            }
+            break;
+        case LShft:
+        case RShft:
+            if (is_int_type(expected)) {
+                checker.coerce(left, expected);
+                checker.coerce(right, expected);
+            }
+            break;
+        case And:
+        case Or:
+        case Xor:
+            if (is_int_type(expected) || is_bool_type(expected)) {
+                checker.coerce(left, expected);
+                checker.coerce(right, expected);
+            }
+            break;
+        default:
+            break;
+    }
+    return checker.expect(loc, infer(checker), expected);
 }
 
 const artic::Type* FilterExpr::infer(TypeChecker& checker) {
