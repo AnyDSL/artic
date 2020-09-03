@@ -1,0 +1,2 @@
+fn @(true && false) test() {}
+fn @(true || false) test() {}

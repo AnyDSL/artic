@@ -6,3 +6,5 @@ fn bar() -> ();
 fn baz() -> ();
 #[export(name = 1)]
 fn foobar() {}
+#[export(name = "test", name = "zorb")]
+fn foobarbaz() {}
