@@ -1124,31 +1124,29 @@ const artic::Type* BinaryExpr::infer(TypeChecker& checker) {
 }
 
 const artic::Type* BinaryExpr::check(TypeChecker& checker, const artic::Type* expected) {
+    auto coerce = [&] (const artic::Type* type) {
+        checker.coerce(left, type);
+        checker.coerce(right, type);
+    };
     switch (tag) {
         case Add:
         case Sub:
         case Mul:
         case Div:
         case Rem:
-            if (is_int_or_float_type(expected)) {
-                checker.coerce(left, expected);
-                checker.coerce(right, expected);
-            }
+            if (is_int_or_float_type(expected))
+                coerce(expected);
             break;
         case LShft:
         case RShft:
-            if (is_int_type(expected)) {
-                checker.coerce(left, expected);
-                checker.coerce(right, expected);
-            }
+            if (is_int_type(expected))
+                coerce(expected);
             break;
         case And:
         case Or:
         case Xor:
-            if (is_int_type(expected) || is_bool_type(expected)) {
-                checker.coerce(left, expected);
-                checker.coerce(right, expected);
-            }
+            if (is_int_type(expected) || is_bool_type(expected))
+                coerce(expected);
             break;
         default:
             break;
