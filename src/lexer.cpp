@@ -1,5 +1,6 @@
 #include <utility>
 #include <algorithm>
+#include <cctype>
 
 #include "artic/lexer.h"
 
