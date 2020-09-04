@@ -181,7 +181,7 @@ struct Path : public Node {
         : Node(loc), elems(std::move(elems))
     {}
 
-    const artic::Type* infer(TypeChecker&, bool, bool, Ptr<Expr>*);
+    const artic::Type* infer(TypeChecker&, bool, Ptr<Expr>*);
 
     const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) override;
@@ -532,17 +532,27 @@ struct FieldExpr : public Expr {
     void print(Printer&) const override;
 };
 
-/// Structure expression.
+/// Structure expression (e.g. `S { x = 1, y = 2 }` or `foo() .{ x = 1 }`).
 struct StructExpr : public Expr {
-    Path path;
+    Ptr<Type> type;
+    Ptr<Expr> expr;
     PtrVector<FieldExpr> fields;
 
     StructExpr(
         const Loc& loc,
-        Path&& path,
+        Ptr<Type>&& type,
         PtrVector<FieldExpr>&& fields)
         : Expr(loc)
-        , path(std::move(path))
+        , type(std::move(type))
+        , fields(std::move(fields))
+    {}
+
+    StructExpr(
+        const Loc& loc,
+        Ptr<Expr>&& expr,
+        PtrVector<FieldExpr>&& fields)
+        : Expr(loc)
+        , expr(std::move(expr))
         , fields(std::move(fields))
     {}
 

@@ -468,27 +468,26 @@ const artic::Type* Node::infer(TypeChecker& checker) {
 // Path ----------------------------------------------------------------------------
 
 const artic::Type* Path::infer(TypeChecker& checker) {
-    return infer(checker, false, true, nullptr);
+    return infer(checker, true, nullptr);
 }
 
-const artic::Type* Path::infer(TypeChecker& checker, bool allow_type, bool allow_value, Ptr<Expr>* arg) {
+const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, Ptr<Expr>* arg) {
     if (!symbol || symbol->decls.empty())
         return checker.type_table.type_error();
     auto type = checker.infer(*symbol->decls.front());
-    bool symbol_is_type = elems.size() == 1 &&
+    bool is_type = elems.size() == 1 &&
         (symbol->decls.front()->isa<TypeDecl>() ||
          symbol->decls.front()->isa<TypeParam>() ||
          symbol->decls.front()->isa<StructDecl>() ||
          symbol->decls.front()->isa<EnumDecl>());
-    if (!allow_type && symbol_is_type) {
-        checker.error(loc, "value expected, but got type '{}'", *type);
+    is_value = !is_type;
+    if (is_value != value_expected) {
+        if (value_expected)
+            checker.error(loc, "value expected, but got type '{}'", *type);
+        else
+            checker.error(loc, "type expected, but got '{}'", *this);
         return checker.type_table.type_error();
     }
-    if (!allow_value && !symbol_is_type) {
-        checker.error(loc, "type expected, but got value '{}'", elems[0].id.name);
-        return checker.type_table.type_error();
-    }
-    is_value = !symbol_is_type;
 
     // Inspect every element of the path
     for (size_t i = 0, n = elems.size(); i < n; ++i) {
@@ -650,7 +649,7 @@ const artic::Type* PtrType::infer(TypeChecker& checker) {
 }
 
 const artic::Type* TypeApp::infer(TypeChecker& checker) {
-    return path.type = path.infer(checker, true, false, nullptr);
+    return path.type = path.infer(checker, false, nullptr);
 }
 
 // Statements ----------------------------------------------------------------------
@@ -700,11 +699,11 @@ const artic::Type* FieldExpr::check(TypeChecker& checker, const artic::Type* exp
 }
 
 const artic::Type* StructExpr::infer(TypeChecker& checker) {
-    path.type = path.infer(checker, true, true, nullptr);
-    auto [type_app, struct_type] = match_app<StructType>(path.type);
+    auto type = expr ? checker.deref(expr) : checker.infer(*this->type);
+    auto [type_app, struct_type] = match_app<StructType>(type);
     if (!struct_type)
-        return checker.type_expected(path.loc, path.type, "structure");
-    return checker.check_fields(loc, struct_type, type_app, fields, "expression", path.is_value, true);
+        return checker.type_expected(expr ? expr->loc : this->type->loc, type, "structure");
+    return checker.check_fields(loc, struct_type, type_app, fields, "expression", static_cast<bool>(expr), true);
 }
 
 const artic::Type* TupleExpr::infer(TypeChecker& checker) {
@@ -818,7 +817,7 @@ const artic::Type* CallExpr::infer(TypeChecker& checker) {
     // Perform type argument inference when possible
     if (auto path_expr = callee->isa<ast::PathExpr>()) {
         path_expr->type = path_expr->path.type =
-            path_expr->path.infer(checker, false, true, &arg);
+            path_expr->path.infer(checker, true, &arg);
     }
 
     auto [ref_type, callee_type] = remove_ref(checker.infer(*callee));
@@ -1389,7 +1388,7 @@ const artic::Type* FieldPtrn::check(TypeChecker& checker, const artic::Type* exp
 }
 
 const artic::Type* StructPtrn::infer(TypeChecker& checker) {
-    path.type = path.infer(checker, true, false, nullptr);
+    path.type = path.infer(checker, false, nullptr);
     auto [type_app, struct_type] = match_app<StructType>(path.type);
     if (!struct_type)
         return checker.type_expected(path.loc, path.type, "structure");

@@ -157,7 +157,10 @@ void FieldExpr::bind(NameBinder& binder) {
 }
 
 void StructExpr::bind(NameBinder& binder) {
-    binder.bind(path);
+    if (expr)
+        binder.bind(*expr);
+    else
+        binder.bind(*type);
     for (auto& field : fields) binder.bind(*field);
 }
 

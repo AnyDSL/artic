@@ -842,13 +842,13 @@ const thorin::Def* FieldExpr::emit(Emitter& emitter) const {
 }
 
 const thorin::Def* StructExpr::emit(Emitter& emitter) const {
-    if (path.is_value) {
-        auto value = emitter.emit(path);
+    if (expr) {
+        auto value = emitter.emit(*expr);
         for (auto& field : fields)
             value = emitter.world.insert(value, field->index, emitter.emit(*field), debug_info(*this));
         return value;
     } else {
-        auto [_, struct_type] = match_app<artic::StructType>(type);
+        auto [_, struct_type] = match_app<artic::StructType>(Node::type);
         thorin::Array<const thorin::Def*> ops(struct_type->member_count(), nullptr);
         for (size_t i = 0, n = fields.size(); i < n; ++i)
             ops[fields[i]->index] = emitter.emit(*fields[i]);
@@ -860,7 +860,7 @@ const thorin::Def* StructExpr::emit(Emitter& emitter) const {
             }
         }
         return emitter.world.struct_agg(
-            type->convert(emitter)->as<thorin::StructType>(),
+            Node::type->convert(emitter)->as<thorin::StructType>(),
             ops, debug_info(*this));
     }
 }

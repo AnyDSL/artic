@@ -430,12 +430,28 @@ Ptr<ast::FieldExpr> Parser::parse_field_expr() {
 
 Ptr<ast::StructExpr> Parser::parse_struct_expr(ast::Path&& path) {
     Tracker tracker(this, path.loc);
+    // Note: This copy is necessary since we cannot use both
+    // path.loc and std::move(path) in the argument list
+    // (argument evaluation order is not defined).
+    auto loc = path.loc;
+    auto type_app = make_ptr<ast::TypeApp>(loc, std::move(path));
     eat(Token::LBrace);
     PtrVector<ast::FieldExpr> fields;
     parse_list(Token::RBrace, Token::Comma, [&] {
         fields.emplace_back(parse_field_expr());
     });
-    return make_ptr<ast::StructExpr>(tracker(), std::move(path), std::move(fields));
+    return make_ptr<ast::StructExpr>(tracker(), std::move(type_app), std::move(fields));
+}
+
+Ptr<ast::StructExpr> Parser::parse_struct_expr(Ptr<ast::Expr>&& expr) {
+    Tracker tracker(this, expr->loc);
+    eat(Token::Dot);
+    eat(Token::LBrace);
+    PtrVector<ast::FieldExpr> fields;
+    parse_list(Token::RBrace, Token::Comma, [&] {
+        fields.emplace_back(parse_field_expr());
+    });
+    return make_ptr<ast::StructExpr>(tracker(), std::move(expr), std::move(fields));
 }
 
 Ptr<ast::Expr> Parser::parse_tuple_expr() {
@@ -737,9 +753,12 @@ Ptr<ast::Expr> Parser::parse_primary_expr(bool allow_structs, bool allow_casts) 
     while (true) {
         if (ahead().tag() == Token::LParen)
             expr = parse_call_expr(std::move(expr));
-        else if (ahead().tag() == Token::Dot)
-            expr = parse_proj_expr(std::move(expr));
-        else if (ahead().tag() == Token::Inc || ahead().tag() == Token::Dec)
+        else if (ahead().tag() == Token::Dot) {
+            if (ahead(1).tag() == Token::LBrace)
+                expr = parse_struct_expr(std::move(expr));
+            else
+                expr = parse_proj_expr(std::move(expr));
+        } else if (ahead().tag() == Token::Inc || ahead().tag() == Token::Dec)
             expr = parse_postfix_expr(std::move(expr));
         else if (ahead().tag() == Token::Colon)
             expr = parse_typed_expr(std::move(expr));

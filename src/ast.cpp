@@ -365,19 +365,19 @@ bool FieldExpr::is_constant() const {
 }
 
 bool StructExpr::is_jumping() const {
-    return std::any_of(fields.begin(), fields.end(), [] (auto& field) {
+    return (expr && expr->is_jumping()) || std::any_of(fields.begin(), fields.end(), [] (auto& field) {
         return field->is_jumping();
     });
 }
 
 bool StructExpr::has_side_effect() const {
-    return std::any_of(fields.begin(), fields.end(), [] (auto& field) {
+    return (expr && expr->has_side_effect()) || std::any_of(fields.begin(), fields.end(), [] (auto& field) {
         return field->has_side_effect();
     });
 }
 
 bool StructExpr::is_constant() const {
-    return std::all_of(fields.begin(), fields.end(), [] (auto& field) {
+    return (!expr || expr->is_constant()) && std::all_of(fields.begin(), fields.end(), [] (auto& field) {
         return field->is_constant();
     });
 }
