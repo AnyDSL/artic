@@ -168,8 +168,11 @@ public:
             }
 
             if (emitter.state.cont) {
+                bool heck = enum_type;
                 auto index = enum_type
-                    ? emitter.world.extract(values[col].first, thorin::u32(0))
+                    ? emitter.world.cast(emitter.world.type_pu8(), emitter.world.variant_index(values[col].first, debug_info(match, "match_index")))
+                    //emitter.world.variant_index(values[col].first, debug_info(match, "match_index"))
+                    //emitter.world.extract(values[col].first, thorin::u32(0))
                     : values[col].first;
                 emitter.state.cont->match(
                     index, otherwise,
@@ -177,7 +180,7 @@ public:
                     no_default ? targets.skip_back() : targets.ref(),
                     debug_info(match));
             }
-            auto variant = enum_type ? emitter.world.extract(values[col].first, thorin::u32(1)) : nullptr;
+
             remove_col(values, col);
 
             for (size_t i = 0, n = targets.size(); i < n; ++i) {
@@ -189,10 +192,11 @@ public:
                 if (enum_type) {
                     auto index = thorin::primlit_value<uint64_t>(defs[i]);
                     auto type = type_app ? type_app->member_type(index) : enum_type->member_type(index);
+                    auto value = emitter.world.variant_extract(values[col].first, index);
                     // If the constructor refers to an option that has a parameter,
                     // we need to extract it and add it to the values.
                     if (!is_unit_type(type))
-                        new_values.emplace_back(emitter.world.cast(type->convert(emitter), variant), type);
+                        new_values.emplace_back(value, type);
                 }
 
                 PtrnCompiler(emitter, match, std::move(rows), std::move(new_values), matched_values).compile(target);
@@ -747,7 +751,6 @@ const thorin::Def* Path::emit(Emitter& emitter) const {
             Emitter::Ctor ctor { elems[i + 1].index, type_app ? type_app->replace(emitter.type_vars) : enum_type };
             if (auto it = emitter.variant_ctors.find(ctor); it != emitter.variant_ctors.end())
                 return it->second;
-            auto index = emitter.ctor_index(enum_type, ctor.index);
             auto converted_type = (type_app
                 ? type_app->convert(emitter)
                 : enum_type->convert(emitter))->as<thorin::StructType>();
@@ -757,16 +760,13 @@ const thorin::Def* Path::emit(Emitter& emitter) const {
                 : enum_type->member_type(ctor.index);
             if (is_unit_type(param_type)) {
                 // This is a constructor without parameters
-                return emitter.variant_ctors[ctor] =
-                    emitter.world.struct_agg(converted_type, {
-                        index, emitter.world.variant(variant_type, emitter.world.tuple({})) });
+                return emitter.variant_ctors[ctor] = emitter.world.variant(variant_type, emitter.world.tuple({}), ctor.index);
             } else {
                 // This is a constructor with parameters: return a function
                 auto cont = emitter.world.continuation(
                     emitter.function_type_with_mem(param_type->convert(emitter), converted_type),
                     debug_info(*enum_type->decl.options[ctor.index]));
-                auto ret_value = emitter.world.struct_agg(converted_type, {
-                    index, emitter.world.variant(variant_type, emitter.tuple_from_params(cont, true)) });
+                auto ret_value = emitter.world.variant(variant_type, emitter.tuple_from_params(cont, true), ctor.index);
                 cont->jump(cont->params().back(), { cont->param(0), ret_value });
                 cont->set_all_true_filter();
                 return emitter.variant_ctors[ctor] = cont;
@@ -1421,19 +1421,10 @@ const thorin::Type* StructType::convert(Emitter& emitter, const Type* parent) co
 const thorin::Type* EnumType::convert(Emitter& emitter, const Type* parent) const {
     if (auto it = emitter.types.find(this); !decl.type_params && it != emitter.types.end())
         return it->second;
-    auto type = emitter.world.struct_type(decl.id.name, 2);
+    auto type = emitter.world.variant_type(decl.id.name, decl.options.size());
     emitter.types[parent] = type;
-    thorin::TypeSet types;
     for (size_t i = 0, n = decl.options.size(); i < n; ++i)
-        types.insert(decl.options[i]->type->convert(emitter));
-    thorin::Array<const thorin::Type*> ops(types.begin(), types.end());
-    auto index_type =
-        decl.options.size() < (size_t(1) << 8)  ? emitter.world.type_pu8()  :
-        decl.options.size() < (size_t(1) << 16) ? emitter.world.type_pu16() :
-        decl.options.size() < (size_t(1) << 32) ? emitter.world.type_pu32() :
-        emitter.world.type_pu64();
-    type->set(0, index_type);
-    type->set(1, emitter.world.variant_type(ops));
+        type->set(i, decl.options[i]->type->convert(emitter));
     return type;
 }
 
