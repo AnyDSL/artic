@@ -108,9 +108,9 @@ public:
     thorin::Continuation* basic_block_with_mem(thorin::Debug = {});
     thorin::Continuation* basic_block_with_mem(const thorin::Type*, thorin::Debug = {});
 
-    const thorin::Def* ctor_index(const EnumType*, size_t);
+    const thorin::Def* ctor_index(size_t);
     const thorin::Def* ctor_index(const ast::EnumPtrn& enum_ptrn) {
-        return ctor_index(match_app<EnumType>(enum_ptrn.type).second, enum_ptrn.index);
+        return ctor_index(enum_ptrn.index);
     }
     const thorin::Def* ctor_index(const ast::LiteralPtrn&);
     const thorin::Def* ctor_index(const ast::Ptrn& ptrn) {

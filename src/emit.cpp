@@ -168,14 +168,11 @@ public:
             }
 
             if (emitter.state.cont) {
-                bool heck = enum_type;
-                auto index = enum_type
-                    ? emitter.world.cast(emitter.world.type_pu8(), emitter.world.variant_index(values[col].first, debug_info(match, "match_index")))
-                    //emitter.world.variant_index(values[col].first, debug_info(match, "match_index"))
-                    //emitter.world.extract(values[col].first, thorin::u32(0))
+                auto match_value = enum_type
+                    ? emitter.world.variant_index(values[col].first, debug_info(match, "variant_index"))
                     : values[col].first;
                 emitter.state.cont->match(
-                    index, otherwise,
+                    match_value, otherwise,
                     no_default ? defs.skip_back() : defs.ref(),
                     no_default ? targets.skip_back() : targets.ref(),
                     debug_info(match));
@@ -418,12 +415,8 @@ thorin::Continuation* Emitter::basic_block_with_mem(const thorin::Type* param, t
     return world.continuation(continuation_type_with_mem(param), debug);
 }
 
-const thorin::Def* Emitter::ctor_index(const EnumType* enum_type, size_t index) {
-    return
-        enum_type->member_count() < (uintmax_t(1) <<  8) ? world.literal_pu8 (index, {}) :
-        enum_type->member_count() < (uintmax_t(1) << 16) ? world.literal_pu16(index, {}) :
-        enum_type->member_count() < (uintmax_t(1) << 32) ? world.literal_pu32(index, {}) :
-        world.literal_pu64(index, {});
+const thorin::Def* Emitter::ctor_index(size_t index) {
+    return world.literal_qu64(index, {});
 }
 
 const thorin::Def* Emitter::ctor_index(const ast::LiteralPtrn& lit) {
