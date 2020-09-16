@@ -132,7 +132,7 @@ Thus, depending on the context, a mutable identifier can be either a reference o
 ```rust
 let mut i = 1;
 i = 4; // i types as a mutable reference to i32 here
-let j = i; // i types as an i32 here
+let j = /* implicit cast to 'i32' ( */i/* ) */; // i types as an i32 here
 ```
 
 Type-checking itself is done using local type inference, as mentioned above.
