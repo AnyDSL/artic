@@ -2,7 +2,7 @@
 
 Artic is a front-end for the AnyDSL compiler framework.
 Compared to the existing front-end, Impala, its design is based on different compiler-design choices.
-In particular, the type-checking algorithm is based on "Local Type Inference", by Pierce and Turner.
+In particular, the type-checking algorithm is based on "Local Type Inference", by B. Pierce and D. Turner.
 The focus is on simplicity and ease of use of the code base, while also trying to optimize the generated code.
 
 # Coding Style
@@ -77,13 +77,22 @@ or through some API call.
 ## Lexer, Parser and AST
 
 The lexer understands UTF-8, and produces a stream of tokens from a byte stream.
-Each token contains:
+Source file locations are reported precisely so that diagnostics can be emitted when reporting errors:
+
+    error: escape sequence value '\777' is out of range
+     in ../test/failure/escape.art(4, 13 - 4, 17)
+       |
+     4 |static _ = "\777";
+       |            ^^^^
+
+Each token returned by the lexer contains:
 
 - A source file location: The first and last line and column where the token appears in the source,
 - A tag (which describes the type of token: keyword, identifier, literal, ...),
 - Some token data (literal value, identifier string, ...)
 
 The parser takes the stream of tokens produced by a lexer and produces an AST.
+Its implementation uses a simple recursive-descent design, and handles parsing operators with a precedence table.
 Each node of the AST is separated into different categories, of which the most important are:
 
 - Expressions (`Expr`),
@@ -101,8 +110,10 @@ AST nodes automatically destroy their children by wrapping them in a `Ptr`, whic
 The type system is a variant of Hindley-Milner, and there is no higher-order polymorphism.
 Types should _never_ be created manually, but should be created using a `TypeTable` object instead.
 This `TypeTable` places types in a hash table and makes sure to return a pointer to an existing type if it is already present in the table.
-This process is called "hash-consing", and allows for comparing types by using pointer equality only:
+This process is called _hash-consing_, and allows for comparing types by using pointer equality only:
 If two pointers are equal, then the types are equal as well (provided they were created using the same `TypeTable` object).
+Obviously, hash-consing is only possible because the "operands" (e.g. elements of a tuple type, or domain and codomain of a function type)
+are known when creating the type, which is why AST types are not hash-consed because their operands are not necessarily known at parse-time.
 
 ## Name Binding
 
@@ -152,3 +163,4 @@ Match expressions are emitted using decision trees. This means that:
 4. The process recurses by grouping each row of the pattern matrix by constructor, and generating code for each group in the corresponding switch-statement case.
 
 Errors can be emitted in this process, for instance if the match expression is not complete, or if one of its arms is redundant.
+A good reference for this process can be found in "Compiling Pattern Matching to Good Decision Trees", by L. Maranget.
