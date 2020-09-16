@@ -193,7 +193,7 @@ public:
                     // If the constructor refers to an option that has a parameter,
                     // we need to extract it and add it to the values.
                     if (!is_unit_type(type))
-                        new_values.emplace_back(value, type);
+                        new_values.emplace_back(emitter.world.cast(type->convert(emitter), value), type);
                 }
 
                 PtrnCompiler(emitter, match, std::move(rows), std::move(new_values), matched_values).compile(target);
@@ -747,8 +747,8 @@ const thorin::Def* Path::emit(Emitter& emitter) const {
                 return it->second;
             auto converted_type = (type_app
                 ? type_app->convert(emitter)
-                : enum_type->convert(emitter))->as<thorin::StructType>();
-            auto variant_type = converted_type->op(1)->as<thorin::VariantType>();
+                : enum_type->convert(emitter));
+            auto variant_type = converted_type->as<thorin::VariantType>();
             auto param_type = type_app
                 ? type_app->member_type(ctor.index)
                 : enum_type->member_type(ctor.index);
