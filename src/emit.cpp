@@ -178,6 +178,8 @@ public:
                     debug_info(match));
             }
 
+            auto variant = values[col].first;
+
             remove_col(values, col);
 
             for (size_t i = 0, n = targets.size(); i < n; ++i) {
@@ -189,7 +191,7 @@ public:
                 if (enum_type) {
                     auto index = thorin::primlit_value<uint64_t>(defs[i]);
                     auto type = type_app ? type_app->member_type(index) : enum_type->member_type(index);
-                    auto value = emitter.world.variant_extract(values[col].first, index);
+                    auto value = emitter.world.variant_extract(variant, index);
                     // If the constructor refers to an option that has a parameter,
                     // we need to extract it and add it to the values.
                     if (!is_unit_type(type))
