@@ -110,7 +110,7 @@ public:
         // First, collect constructors
         for (auto& row : rows) {
             if (!is_wildcard(row.first[col]))
-                ctors.emplace(emitter.ctor_for_pattern(*row.first[col]), std::vector<Row>());
+                ctors.emplace(emitter.ctor_index(*row.first[col]), std::vector<Row>());
         }
 
         // Then, build the new rows for each constructor case
@@ -134,7 +134,7 @@ public:
                 remove_col(row.first, col);
                 if (enum_ptrn && enum_ptrn->arg)
                     row.first.push_back(enum_ptrn->arg.get());
-                ctors[emitter.ctor_for_pattern(*ptrn)].emplace_back(std::move(row));
+                ctors[emitter.ctor_index(*ptrn)].emplace_back(std::move(row));
             }
         }
 
@@ -285,7 +285,7 @@ private:
             std::unordered_set<const thorin::Def*> ctors;
             for (auto& row : rows) {
                 if (!is_wildcard(row.first[i]))
-                    ctors.emplace(emitter.ctor_for_pattern(*row.first[i]));
+                    ctors.emplace(emitter.ctor_index(*row.first[i]));
             }
             // If the match expression is complete, then the default case can be omitted
             return is_complete(values[i].second, ctors.size()) ? ctors.size() : ctors.size() + 1;
@@ -417,13 +417,10 @@ thorin::Continuation* Emitter::basic_block_with_mem(const thorin::Type* param, t
     return world.continuation(continuation_type_with_mem(param), debug);
 }
 
-const thorin::Def* Emitter::ctor_for_pattern(const ast::Ptrn& ptrn) {
-    if (auto enum_ptrn = ptrn.isa<ast::EnumPtrn>())
-        return world.literal_qu64(enum_ptrn->index, {});
-    else {
-        auto& lit = (*ptrn.as<ast::LiteralPtrn>());
-        return emit(lit, lit.lit);
-    }
+const thorin::Def* Emitter::ctor_index(const ast::Ptrn& ptrn) {
+    return ptrn.isa<ast::LiteralPtrn>()
+        ? emit(ptrn, ptrn.as<ast::LiteralPtrn>()->lit)
+        : world.literal_qu64(ptrn.as<ast::EnumPtrn>()->index, debug_info(ptrn));
 }
 
 void Emitter::redundant_case(const ast::CaseExpr& case_) {
