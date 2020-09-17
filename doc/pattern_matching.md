@@ -82,17 +82,17 @@ constructor. For instance, in the previous example, assuming the selected column
 get two sub-matrices. One for the `true` constructor:
 
 ```rust
-    E::A   _
-    5      _
-    _      _
+E::A   _
+5      _
+_      _
 ```
 
 The other for `false`:
 
 ```rust
-    _   E::B(1, x)
-    5   _
-    _   _
+_   E::B(1, x)
+5   _
+_   _
 ```
 
 Enumeration patterns may contain a sub-pattern (like `E::B(1, x)` in our example), and thus, for
