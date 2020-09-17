@@ -15,7 +15,8 @@ The coding style is similar to the one used in Thorin:
 In addition, getters/setters are avoided in Artic:
 
 - Use a public member for members with read/write access,
-- Use a private member with a public accessor function for read-only members
+- Use a private member with a public accessor function for read-only members:
+
 ```cpp
 class S {
 public:
@@ -27,14 +28,18 @@ private:
 
 ## Down-casting
 
-Some objects that belong to a class hierarchy that support down-casting (e.g. Types or AST nodes) can be cast with the `as` or `isa` methods:
+Some objects that belong to a class hierarchy that support down-casting (e.g. Types or AST nodes)
+can be cast with the `as` or `isa` methods:
+
 ```cpp
 ast::LiteralExpr* lit_expr = ...;
 ast::Expr* expr = lit_expr;
 ast::LiteralExpr* lit_expr2 = expr->as<ast::LiteralExpr>();
 ```
-Use `as` when the expression is known to be of the target type, or `isa` otherwise (`isa` returns `nullptr` when the cast fails).
-Those two methods use C++'s RTTI internally, and have compile-time checks to make sure that the target class is a sub-class of the current object.
+
+Use `as` when the expression is known to be of the target type, or `isa` otherwise (`isa` returns
+`nullptr` when the cast fails).  Those two methods use C++'s RTTI internally, and have compile-time
+checks to make sure that the target class is a sub-class of the current object.
 
 ## Common Abbreviations
 
@@ -44,3 +49,4 @@ Those two methods use C++'s RTTI internally, and have compile-time checks to mak
 - `Decl`: Declaration
 - `Fn`: Function
 - `Attr`: Attribute
+- `Def`: Definition
