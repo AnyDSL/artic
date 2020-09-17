@@ -341,18 +341,26 @@ void Lexer::append_char() {
             case '4':
             case '5':
             case '6':
-            case '7':
+            case '7': {
+                auto start_loc = loc_.at_end().enlarge_before();
                 for (size_t i = 0, n = hexa ? 2 : 3; i < n; ++i) {
                     if ((hexa && !std::isxdigit(peek())) ||
                         (!hexa && (!std::isdigit(peek()) || peek() >= '8'))) {
-                        error(loc_.at_end().enlarge_after(), "invalid digit in {} escape sequence", hexa ? "hexadecimal" : "octal");
+                        // This is only an error if no digit has been consumed yet
+                        if (i == 0)
+                            error(loc_.at_end().enlarge_after(), "invalid digit in {} escape sequence", hexa ? "hexadecimal" : "octal");
                         break;
                     }
                     digits[i] = peek();
                     eat();
                 }
-                str_ += std::strtoul(digits, NULL, hexa ? 16 : 8);
+                auto c = std::strtoul(digits, NULL, hexa ? 16 : 8);
+                if (c >= 256)
+                    error(Loc(start_loc, loc_), "escape sequence value '\\{}{}' is out of range", hexa ? "x" : "", digits);
+                else
+                    str_ += c;
                 break;
+            }
             default:
                 error(loc_.at_end().enlarge_before().enlarge_after(), "invalid escape sequence '\\{}'", peek());
                 eat();

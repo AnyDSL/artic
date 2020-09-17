@@ -1,3 +1,4 @@
 #[import(cc = "C")] fn foo() -> ();
 #[import(cc = "device")] fn bar() -> ();
-#[import(cc = "thorin")] fn baz() -> ();
+#[import(cc = "thorin")] fn pe_info[T](_src: &[u8], _val: T) -> ();
+#[import(cc = "builtin")] fn bitcast[T, U](_src: U) -> T;

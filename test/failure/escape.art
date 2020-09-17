@@ -1,4 +1,5 @@
 static _ = "\xZZ";
 static _ = "\0xo";
 static _ = "\z";
+static _ = "\777";
 static _ = "\";
