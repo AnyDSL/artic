@@ -9,17 +9,17 @@
 
 namespace artic::fnv {
 
-template <size_t Bits>
-struct Prime {};
-
-template <size_t Bits>
-struct Offset {};
-
+template <size_t Bits> struct Offset {};
 template <> struct Offset<32> { static constexpr size_t value() { return 0x811c9dc5;         } };
 template <> struct Offset<64> { static constexpr size_t value() { return 0xcbf29ce484222325; } };
+
+template <size_t Bits> struct Prime {};
 template <> struct Prime<32>  { static constexpr size_t value() { return 0x01000193;         } };
 template <> struct Prime<64>  { static constexpr size_t value() { return 0x00000100000001B3; } };
 
+/// This helper class (implicitly convertible to `size_t`) allows
+/// for building a hash value incrementally, using the Fowler-Voll-No
+/// hash function.
 struct Hash {
     Hash()
         : hash(Offset<sizeof(size_t) * CHAR_BIT>::value())
