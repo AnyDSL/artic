@@ -1,7 +1,12 @@
 #ifndef ARTIC_PARSER_H
 #define ARTIC_PARSER_H
 
+#include <utility>
+#include <algorithm>
+#include <iterator>
+#include <optional>
 #include <array>
+#include <string>
 
 #include "artic/log.h"
 #include "artic/lexer.h"
