@@ -9,7 +9,7 @@ The coding style is similar to the one used in Thorin:
 - Spaces after control-flow structures (e.g. `if (x)` and not `if(x)`),
 - Spaces after commas, `(x, y)`, not `(x,y)`,
 - Names that are short but expressive if possible,
-- Private/protected members (not methods) begin with `_`,
+- Private/protected members (not methods) end with `_`,
 - `struct` instead of `class` when most members are public.
 
 In addition, getters/setters are avoided in Artic:
