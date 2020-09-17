@@ -14,9 +14,7 @@
 #include "artic/emit.h"
 
 #include <thorin/world.h>
-#ifndef NDEBUG
 #include <thorin/util/log.h>
-#endif
 #ifdef ENABLE_LLVM
 #include <thorin/be/llvm/llvm.h>
 #endif
