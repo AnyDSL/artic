@@ -4,6 +4,7 @@
 #include <unordered_map>
 #include <string_view>
 #include <vector>
+#include <algorithm>
 
 #include "artic/symbol.h"
 #include "artic/ast.h"

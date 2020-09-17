@@ -2,6 +2,7 @@
 #define ARTIC_PARSER_H
 
 #include <array>
+#include <optional>
 
 #include "artic/log.h"
 #include "artic/lexer.h"
