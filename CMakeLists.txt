@@ -32,9 +32,11 @@ set(COLORIZE ${COLOR_TTY_AVAILABLE} CACHE BOOL "Set to TRUE to enable colorized 
 
 find_package(Thorin REQUIRED)
 
-include(CTest)
 add_subdirectory(src)
-add_subdirectory(test)
+if (BUILD_TESTING)
+    include(CTest)
+    add_subdirectory(test)
+endif ()
 
 export(TARGETS libartic artic FILE ${CMAKE_BINARY_DIR}/share/anydsl/cmake/artic-exports.cmake)
 configure_file(cmake/artic-config.cmake.in ${CMAKE_BINARY_DIR}/share/anydsl/cmake/artic-config.cmake @ONLY)
