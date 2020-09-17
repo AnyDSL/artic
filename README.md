@@ -27,6 +27,19 @@ Once built, Artic can be run with the following command:
 
     bin/artic [files]
 
+The test suite can be run using:
+
+    make test
+
+Additionally, a coverage report can be generated when the `CODE_COVERAGE` CMake variable is
+set to `ON` or `TRUE`:
+
+    make coverage
+
+## Documentation
+
+The documentation for the compiler internals can be found [here](doc/index.md).
+
 ## Syntax
 
 The syntax follows [that of Impala](https://anydsl.github.io/Impala.html), whenever possible.
