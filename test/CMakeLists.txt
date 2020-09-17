@@ -1,3 +1,11 @@
+# Create helpers library
+add_library(test_helpers SHARED codegen/helpers.c)
+include(CheckLibraryExists)
+check_library_exists(m sin "" has_math_lib)
+if (has_math_lib)
+    target_link_libraries(test_helpers PUBLIC m)
+endif ()
+
 function(add_failure_test)
     cmake_parse_arguments(test "" "NAME" "COMMAND" ${ARGN})
     add_test(NAME ${test_NAME} COMMAND ${test_COMMAND})
@@ -6,17 +14,25 @@ endfunction()
 
 function(add_codegen_test)
     cmake_parse_arguments(test "" "NAME;SOURCE_FILE;REFERENCE" "ARGS" ${ARGN})
+    add_custom_command(
+        OUTPUT ${test_NAME}.o
+        COMMAND $<TARGET_FILE:artic> ${test_SOURCE_FILE} --emit-llvm -o ${test_NAME}
+        COMMAND $<TARGET_FILE:clang> ${test_NAME}.ll -c -o ${test_NAME}.o
+        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+    set_source_files_properties(${CMAKE_CURRENT_BINARY_DIR}/${test_NAME}.o PROPERTIES GENERATED TRUE)
+    add_executable(test_${test_NAME} ${CMAKE_CURRENT_BINARY_DIR}/${test_NAME}.o)
+    set_target_properties(
+        test_${test_NAME} PROPERTIES
+        LINKER_LANGUAGE C
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+    target_link_libraries(test_${test_NAME} PUBLIC test_helpers)
     add_test(
         NAME ${test_NAME}
         COMMAND
             ${CMAKE_COMMAND}
-            -DARTIC_COMMAND=$<TARGET_FILE:artic>
-            -DCLANG_COMMAND=$<TARGET_FILE:clang>
-            -DTEST_NAME=${test_NAME}
-            -DTEST_SOURCE_FILE=${test_SOURCE_FILE}
+            -DTEST_EXECUTABLE=$<TARGET_FILE:test_${test_NAME}>
             -DTEST_REFERENCE=${test_REFERENCE}
             "-DTEST_ARGS=${test_ARGS}"
-            -DHELPERS_FILE=${CMAKE_CURRENT_SOURCE_DIR}/codegen/helpers.c
             -P ${CMAKE_CURRENT_SOURCE_DIR}/run_codegen_test.cmake
         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 endfunction()
@@ -138,6 +154,6 @@ if (Thorin_HAS_LLVM_SUPPORT)
         REFERENCE ${CMAKE_CURRENT_SOURCE_DIR}/codegen/aobench.ref)
 endif ()
 
-if(CODE_COVERAGE AND CMAKE_BUILD_TYPE STREQUAL "Debug")
+if (CODE_COVERAGE AND CMAKE_BUILD_TYPE STREQUAL "Debug")
     setup_target_for_coverage_gcovr_html(NAME coverage EXECUTABLE ctest -j ${PROCESSOR_COUNT} DEPENDENCIES artic)
 endif ()
