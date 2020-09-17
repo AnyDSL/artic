@@ -98,7 +98,7 @@ The other for `false`:
 Enumeration patterns may contain a sub-pattern (like `E::B(1, x)` in our example), and thus, for
 such patterns the sub-pattern is added to the sub-matrix for the corresponding constructor. For
 instance, if the chosen column was the 2nd instead of the 3rd, the switch statement would contain
-two cases, one for each member of the `enum` type, and the sub-matrix for `E::B` would be:
+two cases, one for each member of the `enum` type, and the sub-matrix for the case `E::B` would be:
 
 ```rust
 _ (1, x) false
@@ -109,7 +109,7 @@ _ _      _
 Note how `(1, x)` has been added as a new column, and how wildcard patterns get a wildcard in that
 new column. Another important note is that it is necessary to expand this matrix again in order to
 flatten the sub-pattern into two separate columns. Finally, note that the other enumeration option
-`E::A` does not have an argument, and thus no sub-pattern is added to the sub-matrix:
+`E::A` does not have an argument, and thus no sub-pattern is added to the corresponding sub-matrix:
 
 ```rust
 _ true
