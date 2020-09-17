@@ -34,6 +34,7 @@ target_compile_definitions(artic PUBLIC -DARTIC_VERSION_MAJOR=${PROJECT_VERSION_
 target_link_libraries(artic PUBLIC libartic)
 if (Thorin_HAS_LLVM_SUPPORT)
     target_compile_definitions(artic PUBLIC -DENABLE_LLVM)
+    llvm_config(artic support)
 endif ()
 
 if (${COLORIZE})
