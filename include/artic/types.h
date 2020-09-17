@@ -192,7 +192,7 @@ private:
     friend class TypeTable;
 };
 
-/// An array whose size is known at compile-time.
+/// An array whose size is not known at compile-time.
 struct UnsizedArrayType : public ArrayType {
     void print(Printer&) const override;
     bool equals(const Type*) const override;
