@@ -12,7 +12,7 @@
    viewBox="0 0 328.69541 73.099999"
    id="svg2"
    version="1.1"
-   inkscape:version="1.0 (4035a4fb49, 2020-05-01)"
+   inkscape:version="0.92.4 (unknown)"
    sodipodi:docname="logo.svg">
   <defs
      id="defs4">
@@ -54,11 +54,11 @@
      borderopacity="1.0"
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
-     inkscape:zoom="1.3566349"
-     inkscape:cx="110.06648"
-     inkscape:cy="59.297226"
+     inkscape:zoom="2.2174259"
+     inkscape:cx="-53.381934"
+     inkscape:cy="143.69617"
      inkscape:document-units="px"
-     inkscape:current-layer="g4186"
+     inkscape:current-layer="text848"
      showgrid="true"
      inkscape:snap-bbox="true"
      inkscape:bbox-nodes="true"
@@ -66,8 +66,8 @@
      fit-margin-left="0"
      fit-margin-right="0"
      fit-margin-bottom="0"
-     inkscape:window-width="1920"
-     inkscape:window-height="1029"
+     inkscape:window-width="2560"
+     inkscape:window-height="1389"
      inkscape:window-x="0"
      inkscape:window-y="25"
      inkscape:window-maximized="1"
@@ -90,7 +90,7 @@
         <dc:format>image/svg+xml</dc:format>
         <dc:type
            rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
-        <dc:title></dc:title>
+        <dc:title />
       </cc:Work>
     </rdf:RDF>
   </metadata>
@@ -118,17 +118,27 @@
          sodipodi:type="arc"
          id="path979"
          style="fill:#161650;fill-opacity:1;stroke-width:7.08662" />
-      <text
-         xml:space="preserve"
+      <g
+         aria-label="RTIC"
          style="font-style:normal;font-variant:normal;font-weight:800;font-stretch:normal;font-size:100px;line-height:1.25;font-family:'Fira Sans';-inkscape-font-specification:'Fira Sans Ultra-Bold';letter-spacing:0px;word-spacing:0px;fill:#161650;fill-opacity:1;stroke-width:0.9375"
-         x="328.31717"
-         y="335.0596"
-         id="text848"><tspan
-           sodipodi:role="line"
-           id="tspan846"
-           x="328.31717"
-           y="335.0596"
-           style="font-style:normal;font-variant:normal;font-weight:800;font-stretch:normal;font-size:100px;font-family:'Fira Sans';-inkscape-font-specification:'Fira Sans Ultra-Bold';fill:#161650;fill-opacity:1;stroke-width:0.9375">RTIC</tspan></text>
+         id="text848">
+        <path
+           d="m 370.91717,335.0596 h 20.6 l -17.3,-29 c 8.7,-4.6 12.8,-9.9 12.8,-18.9 0,-14.8 -9.8,-21.6 -29.2,-21.6 h -24.1 v 69.5 h 18.5 v -25.6 h 5.1 z m -18.7,-56.6 h 5.2 c 7,0 10.6,2.7 10.6,8.7 0,6.7 -3.3,9.7 -9.6,9.7 h -6.2 z"
+           style="font-style:normal;font-variant:normal;font-weight:800;font-stretch:normal;font-size:100px;font-family:'Fira Sans';-inkscape-font-specification:'Fira Sans Ultra-Bold';fill:#161650;fill-opacity:1;stroke-width:0.9375"
+           id="path825" />
+        <path
+           d="m 443.17811,265.5596 h -54.2 v 14.1 h 17.4 v 55.4 h 18.5 v -55.4 h 16.4 z"
+           style="font-style:normal;font-variant:normal;font-weight:800;font-stretch:normal;font-size:100px;font-family:'Fira Sans';-inkscape-font-specification:'Fira Sans Ultra-Bold';fill:#161650;fill-opacity:1;stroke-width:0.9375"
+           id="path827" />
+        <path
+           d="m 466.86561,265.5596 h -18.5 v 69.5 h 18.5 z"
+           style="font-style:normal;font-variant:normal;font-weight:800;font-stretch:normal;font-size:100px;font-family:'Fira Sans';-inkscape-font-specification:'Fira Sans Ultra-Bold';fill:#161650;fill-opacity:1;stroke-width:0.9375"
+           id="path829" />
+        <path
+           d="m 507.26248,263.7596 c -18.8,0 -32.3,13.2 -32.3,36.4 0,23.9 12.9,36.7 32.6,36.7 9.6,0 17.4,-4.4 22.3,-9.3 l -8.2,-10.4 c -4.2,3.3 -8.1,5.7 -13.3,5.7 -8.7,0 -14.2,-7 -14.2,-22.7 0,-15.9 5.6,-22.9 14,-22.9 4.7,0 8.4,1.8 12.2,4.7 l 8.7,-10.3 c -5.9,-5 -12.7,-7.9 -21.8,-7.9 z"
+           style="font-style:normal;font-variant:normal;font-weight:800;font-stretch:normal;font-size:100px;font-family:'Fira Sans';-inkscape-font-specification:'Fira Sans Ultra-Bold';fill:#161650;fill-opacity:1;stroke-width:0.9375"
+           id="path831" />
+      </g>
     </g>
   </g>
 </svg>
