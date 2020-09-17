@@ -20,7 +20,7 @@ In addition, getters/setters are avoided in Artic:
 ```cpp
 class S {
 public:
-    int foo() const { return foo; }
+    int foo() const { return foo_; }
 private:
     int foo_;
 };
