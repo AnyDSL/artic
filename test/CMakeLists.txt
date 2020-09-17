@@ -30,6 +30,7 @@ function(add_codegen_test)
         NAME ${test_NAME}
         COMMAND
             ${CMAKE_COMMAND}
+            "-DTEST_NAME=${test_NAME}"
             "-DTEST_EXECUTABLE=${CMAKE_CURRENT_BINARY_DIR}/test_${test_NAME}"
             "-DTEST_REFERENCE=${test_REFERENCE}"
             "-DTEST_ARGS=${test_ARGS}"
