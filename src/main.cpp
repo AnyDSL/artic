@@ -43,6 +43,7 @@ static void usage() {
                 "         --print-ast            Prints the AST after parsing and type-checking\n"
                 "         --emit-thorin          Prints the Thorin IR after code generation\n"
                 "         --log-level <lvl>      Changes the log level in Thorin (lvl = debug, verbose, info, warn, or error, defaults to error)\n"
+                "         --tab-width <n>        Sets the width of the TAB character, in spaces (defaults to 2)\n"
 #ifdef ENABLE_LLVM
                 "         --emit-llvm            Emits LLVM IR in the output file\n"
                 "  -g     --debug                Enable debug information in the generated LLVM IR file\n"
@@ -92,6 +93,7 @@ struct ProgramOptions {
     bool emit_llvm = false;
     unsigned opt_level = 0;
     size_t max_errors = 0;
+    size_t tab_width = 2;
     thorin::Log::Level log_level = thorin::Log::Error;
 
     bool matches(const char* arg, const char* opt) {
@@ -185,6 +187,10 @@ struct ProgramOptions {
                         log::error("unknown log level '{}'", argv[i]);
                         return false;
                     }
+                } else if (matches(argv[i], "--tab-width")) {
+                    if (!check_arg(argc, argv, i))
+                        return false;
+                    tab_width = std::strtoull(argv[++i], NULL, 10);
                 } else if (matches(argv[i], "--emit-llvm")) {
                     if (!check_dup(argv[i], emit_llvm))
                         return false;
@@ -263,7 +269,7 @@ static std::optional<std::string> read_file(const std::string& file) {
     }
 }
 
-static std::string tabs_to_spaces(const std::string& str, size_t indent = 2) {
+static std::string tabs_to_spaces(const std::string& str, size_t indent) {
     std::string res;
     res.reserve(str.size());
     for (auto c : str) {
@@ -286,7 +292,7 @@ static bool compile(const ProgramOptions& opts, Log& log) {
             return false;
         }
         // The contents are necessary to be able to emit proper diagnostics during type-checking
-        contents.emplace_back(tabs_to_spaces(*data));
+        contents.emplace_back(tabs_to_spaces(*data, opts.tab_width));
         log.locator->register_file(file, contents.back());
         MemBuf mem_buf(contents.back());
         std::istream is(&mem_buf);
