@@ -10,25 +10,29 @@ enum G[T, U] {
 
 fn id(i: i32) = i
 
+fn test1[T](f: F[T]) {
+    match f {
+        F[T]::A => 1,
+        F[T]::B(_) => 2
+    }
+}
+
 #[export]
-fn main() {
-    match E::A {
+fn test2(e: E, f1: F[i32], f2: F[u32], g: G[i32, i64]) {
+    match e {
         _ => id(1)
     }
-    match E::A {
+    match e {
         E::A => 1,
         E::B(5) => 2,
         _ => id(3)
     }
-    match F[i32]::A {
-       F[i32]::A => 1,
-       F[i32]::B(5) => 2,
-        _ => id(3)
-    }
-    match G[i32, i64]::A {
-       G[i32, i64]::A => 1,
-       G[i32, i64]::B(5, 6) => 2,
-       G[i32, i64]::B(z, 6) => z + 2,
+    test1(f1);
+    test1(f2);
+    match g {
+        G[i32, i64]::A => 1,
+        G[i32, i64]::B(5, 6) => 2,
+        G[i32, i64]::B(z, 6) => z + 2,
         _ => id(3)
     }
 }
