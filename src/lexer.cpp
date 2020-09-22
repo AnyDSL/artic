@@ -150,17 +150,16 @@ Token Lexer::next() {
         if (accept('$')) return Token(loc_, Token::Dollar);
         if (accept('\'')) {
             if (!eof()) {
-                auto c = peek();
-                bool utf8 = cur_.size != 1;
+                bool is_nl = peek() == '\n';
                 append_char();
                 if (accept('\'')) {
-                    if (utf8) {
+                    if (str_.size() > 3) {
                         error(loc_, "UTF-8 character {} does not fit in one byte", str_);
                         note("use a string (delimited by '\"'), instead of a character");
                     }
-                    if (c == '\n')
+                    if (is_nl)
                         error(loc_, "multiline character literals are not allowed");
-                    return Token(loc_, str_, Literal(uint8_t(c)));
+                    return Token(loc_, str_, Literal(uint8_t(str_[1])));
                 }
             }
             error(loc_.at_begin().enlarge_after(), "unterminated character literal");
