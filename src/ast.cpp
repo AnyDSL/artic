@@ -267,7 +267,9 @@ BinaryExpr::Tag BinaryExpr::tag_from_token(const Token& token) {
 }
 
 void CaseExpr::collect_bound_ptrns() const {
-    ptrn->collect_bound_ptrns(bound_ptrns);
+    // Do not re-collect patterns if they already have been collected
+    if (bound_ptrns.empty())
+        ptrn->collect_bound_ptrns(bound_ptrns);
 }
 
 // Attributes ----------------------------------------------------------------------

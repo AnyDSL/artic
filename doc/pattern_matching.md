@@ -1,0 +1,136 @@
+# Pattern Matching
+
+The pattern matching compiler of Artic is inspired from "Compiling Pattern Matching to Good Decision
+Trees", by L. Maranget. This process works in several steps:
+
+1. Constructing the initial pattern matrix and value vector,
+2. Expanding the pattern matrix/value vector,
+3. selecting a column, and
+4. Generating code for that column.
+
+Additionally, because the algorithm is based on decision trees, it is easy to determine if some
+match expression is incomplete (some cases are not covered), or if it has redundant cases (that will
+never be encountered).
+
+## Building the Initial Pattern Matrix
+
+The pattern matching compiler uses a matrix whose rows represent possible `match` cases, and whose
+columns represent elements of the value being inspected. This matrix is called a _pattern matrix_.
+To transform a match expression into a pattern matrix, every "case"/"arm" of the `match` is
+translated into a row with a single column. Take the following expression as an example:
+
+```rust
+enum E { A, B(i32, f32) }
+match x {
+    (_, (E::B(1, x), false)) => 1,
+    (_, (E::A, true)) => 2,
+    (5, _) => 3,
+    _ => 4
+}
+```
+
+This results in the following matrix:
+
+```rust
+(_, (E::B(1, x), false))
+(_, (E::A, true))
+(5, _)
+_
+```
+
+Similarly, the pattern matching compiler uses a value vector to represent the value being _matched
+against_. To build the initial value vector, it is enough to build a vector with a single element
+being just the argument of the `match`, which in the above example is `x`.
+
+## Expanding the Pattern Matrix
+
+Tuple/Structure patterns in the pattern matrix are expanded into columns of the matrix. For
+instance, the previous matrix gets expanded into (rows are separated by spaces):
+
+```rust
+_   E::B(1, x) false
+_   E::A       true
+5   _          _
+_   _          _
+```
+
+Note that this process completely flattens tuples or structures. After pattern expansion, only
+wildcard, enumerations, or literals such as `true` or `5` should remain. Additionally, for every
+expansion performed in the pattern matrix, the pattern vector is updated so that its elements match
+the columns of the matrix. For instance, for the previous example, the expanded value vector will
+be:
+
+```rust
+extract(x, 0)   extract(extract(x, 1), 0)   extract(extract(x, 1), 1)
+```
+
+## Selecting a Column
+
+In general, building the best possible decision tree is NP-complete. The algorithm on Artic relies
+on heuristics to choose a suitable column of the matrix. See the original article for more
+information.
+
+## Generating Code for a Column
+
+Once a column is selected in the matrix, the IR equivalent of a switch statement is generated. Each
+case of this switch statement corresponds to a particular constructor for the type appearing of the
+selected column (e.g. if the type is `bool`, constructors are `true` and `false`), and is assigned a
+pattern sub-matrix and a value sub-vector. Each row of the original matrix that has a constructor
+pattern in the selected column is placed in the sub-matrix of the corresponding constructor. The
+rows of the original matrix that feature a wildcard pattern are added to the sub-matrix of every
+constructor. For instance, in the previous example, assuming the selected column is the 3rd one, we
+get two sub-matrices. One for the `true` constructor:
+
+```rust
+E::A   _
+5      _
+_      _
+```
+
+The other for `false`:
+
+```rust
+_   E::B(1, x)
+5   _
+_   _
+```
+
+Enumeration patterns may contain a sub-pattern (like `E::B(1, x)` in our example), and thus, for
+such patterns the sub-pattern is added to the sub-matrix for the corresponding constructor. For
+instance, if the chosen column was the 2nd instead of the 3rd, the switch statement would contain
+two cases, one for each member of the `enum` type, and the sub-matrix for the case `E::B` would be:
+
+```rust
+_ (1, x) false
+5 _      _
+_ _      _
+```
+
+Note how `(1, x)` has been added as a new column, and how wildcard patterns get a wildcard in that
+new column. Another important note is that it is necessary to expand this matrix again in order to
+flatten the sub-pattern into two separate columns. Finally, note that the other enumeration option
+`E::A` does not have an argument, and thus no sub-pattern is added to the corresponding sub-matrix:
+
+```rust
+_ true
+5 _
+_ _ 
+```
+
+Of course, the changes to the pattern matrix have to be reflected on the value sub-vector, in each
+case of the switch statement. The sub-vector is constructed by deleting the selected column from
+the original value vector, and by adding a new element corresponding to the sub-pattern if there is
+one.
+
+For each case of the previously generated switch statement, the process recurses on the
+corresponding sub-matrix and sub-vector. In general, this means repeating the expansion, selection,
+and code generation steps for the sub-matrices and vectors.
+
+## Detecting Incorrect Match Expressions
+
+It is possible to take advantage of the decision tree generated by the pattern matching compiler to
+detect incorrect `match` expressions. For one, incomplete `match` expressions can easily be detected
+if the current pattern matrix is empty. Detecting redundant cases, on the other hand, requires to
+keep a counter for each `match` case that is initially set to 0 and incremented if the case is used
+during code generation. If, after emitting the entire expression, one case has a counter that is
+equal to zero, then this case is redundant.

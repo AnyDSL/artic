@@ -10,7 +10,7 @@
 namespace artic {
 
 namespace ast {
-    class NamedDecl;
+    struct NamedDecl;
 }
 
 /// Declaration site of a symbol.
