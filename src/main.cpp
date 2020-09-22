@@ -263,17 +263,30 @@ static std::optional<std::string> read_file(const std::string& file) {
     }
 }
 
+static std::string tabs_to_spaces(const std::string& str, size_t indent = 2) {
+    std::string res;
+    res.reserve(str.size());
+    for (auto c : str) {
+        size_t n = 1;
+        if (c == '\t')
+            n = indent, c = ' ';
+        res.append(n, c);
+    }
+    return res;
+}
+
 static bool compile(const ProgramOptions& opts, Log& log) {
     ast::ModDecl program;
     std::vector<std::string> contents;
     for (auto& file : opts.files) {
+        // Tabs to spaces conversion is necessary in order to provide good error diagnostics.
         auto data = read_file(file);
         if (!data) {
             log::error("cannot open file '{}'", file);
             return false;
         }
         // The contents are necessary to be able to emit proper diagnostics during type-checking
-        contents.emplace_back(*data);
+        contents.emplace_back(tabs_to_spaces(*data));
         log.locator->register_file(file, contents.back());
         MemBuf mem_buf(contents.back());
         std::istream is(&mem_buf);
