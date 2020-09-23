@@ -1,4 +1,12 @@
-add_library(test_helpers codegen/helpers.c)
+# Compile the helper functions into an object file
+set(HELPERS_OBJ ${CMAKE_CURRENT_BINARY_DIR}/test_helpers.o)
+add_custom_command(
+    OUTPUT ${HELPERS_OBJ}
+    COMMAND
+        $<TARGET_FILE:clang>
+        -c ${CMAKE_CURRENT_SOURCE_DIR}/codegen/helpers.c
+        -o ${HELPERS_OBJ})
+add_custom_target(test_helpers ALL DEPENDS ${HELPERS_OBJ})
 
 # Look for libm, which is necessary on *nix systems when
 # using transcendental functions like sin() and friends
@@ -22,7 +30,7 @@ function(add_codegen_test)
     add_custom_command(
         OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/test_${test_NAME}
         COMMAND $<TARGET_FILE:artic> ${test_SOURCE_FILE} --emit-llvm -o ${test_NAME}
-        COMMAND $<TARGET_FILE:clang> ${test_NAME}.ll ${MATH_LIB} $<TARGET_FILE:test_helpers> -Wl,-rpath,$<TARGET_FILE_DIR:test_helpers> -o test_${test_NAME}
+        COMMAND $<TARGET_FILE:clang> ${test_NAME}.ll ${MATH_LIB} ${HELPERS_OBJ} -o test_${test_NAME}
         DEPENDS artic clang test_helpers
         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
     add_custom_target(test_${test_NAME} ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/test_${test_NAME})
