@@ -1405,8 +1405,10 @@ const thorin::Type* StructType::convert(Emitter& emitter, const Type* parent) co
         return it->second;
     auto type = emitter.world.struct_type(decl.id.name, decl.fields.size());
     emitter.types[parent] = type;
-    for (size_t i = 0, n = decl.fields.size(); i < n; ++i)
+    for (size_t i = 0, n = decl.fields.size(); i < n; ++i) {
         type->set(i, decl.fields[i]->ast::Node::type->convert(emitter));
+        type->set_field_name(i, thorin::Symbol(decl.fields[i]->id.name));
+    }
     return type;
 }
 
@@ -1415,8 +1417,10 @@ const thorin::Type* EnumType::convert(Emitter& emitter, const Type* parent) cons
         return it->second;
     auto type = emitter.world.variant_type(decl.id.name, decl.options.size());
     emitter.types[parent] = type;
-    for (size_t i = 0, n = decl.options.size(); i < n; ++i)
+    for (size_t i = 0, n = decl.options.size(); i < n; ++i) {
         type->set(i, decl.options[i]->type->convert(emitter));
+        type->set_variant_name(i, thorin::Symbol(decl.options[i]->id.name));
+    }
     return type;
 }
 

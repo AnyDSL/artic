@@ -171,7 +171,7 @@ struct ProgramOptions {
                     if (!check_dup(argv[i], emit_thorin))
                         return false;
                     emit_thorin = true;
-                } else if (matches(argv[i], "--emit-c-interface")) {
+                } else if (matches(argv[i], "--emit-c-interface") || matches(argv[i], "-emit-c-interface")) {
                     if (!check_dup(argv[i], emit_cint))
                         return false;
                     emit_cint = true;
