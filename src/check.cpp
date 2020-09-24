@@ -1157,8 +1157,7 @@ const artic::Type* CastExpr::infer(TypeChecker& checker) {
     auto expected = checker.infer(*type);
     auto type = checker.deref(expr);
     if (type == expected) {
-        checker.warn(loc, "useless cast");
-        checker.note("source and destination types are the same");
+        checker.warn(loc, "cast source and destination types are identical");
         return expected;
     }
 
