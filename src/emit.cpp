@@ -1234,7 +1234,7 @@ const thorin::Def* FnDecl::emit(Emitter& emitter) const {
     // Set the calling convention and export the continuation if needed
     if (attrs) {
         if (auto export_attr = attrs->find("export")) {
-            cont->make_external();
+            cont->make_exported();
             if (auto name_attr = export_attr->find("name"))
                 cont->debug().set(name_attr->as<LiteralAttr>()->lit.as_string());
         } else if (auto import_attr = attrs->find("import")) {
@@ -1242,11 +1242,13 @@ const thorin::Def* FnDecl::emit(Emitter& emitter) const {
                 cont->debug().set(name_attr->as<LiteralAttr>()->lit.as_string());
             if (auto cc_attr = import_attr->find("cc")) {
                 auto cc = cc_attr->as<LiteralAttr>()->lit.as_string();
-                if (cc == "device")
-                    cont->cc() = thorin::CC::Device;
-                else if (cc == "C")
-                    cont->cc() = thorin::CC::C;
-                else if (cc == "thorin")
+                if (cc == "device") {
+                    cont->attributes().cc = thorin::CC::Device;
+                    cont->make_imported();
+                } else if (cc == "C") {
+                    cont->attributes().cc = thorin::CC::C;
+                    cont->make_imported();
+                } else if (cc == "thorin")
                     cont->set_intrinsic();
                 else if (cc == "builtin")
                     emitter.builtin(*this, cont);
@@ -1407,7 +1409,7 @@ const thorin::Type* StructType::convert(Emitter& emitter, const Type* parent) co
     emitter.types[parent] = type;
     for (size_t i = 0, n = decl.fields.size(); i < n; ++i) {
         type->set(i, decl.fields[i]->ast::Node::type->convert(emitter));
-        type->set_field_name(i, thorin::Symbol(decl.fields[i]->id.name));
+        type->set_op_name(i, decl.fields[i]->id.name);
     }
     return type;
 }
@@ -1419,7 +1421,7 @@ const thorin::Type* EnumType::convert(Emitter& emitter, const Type* parent) cons
     emitter.types[parent] = type;
     for (size_t i = 0, n = decl.options.size(); i < n; ++i) {
         type->set(i, decl.options[i]->type->convert(emitter));
-        type->set_variant_name(i, thorin::Symbol(decl.options[i]->id.name));
+        type->set_op_name(i, decl.options[i]->id.name);
     }
     return type;
 }
