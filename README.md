@@ -89,11 +89,11 @@ range(|i| { print(i) })(0, 10)
 ```
  - Declarations can be annotated with attributes:
 ```rust
- // This function will be exported in the generated LLVM module.
- // Note that only functions of order 1 (functions that do not take
- // other functions as arguments) can be exported.
- #[export]
- fn foo() = 1
+// This function will be exported in the generated LLVM module.
+// Note that only functions of order 1 (functions that do not take
+// other functions as arguments) can be exported.
+#[export]
+fn foo() = 1
 ```
  - Tuples cannot be indexed with constant integers anymore:
 ```rust
