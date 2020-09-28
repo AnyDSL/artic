@@ -564,9 +564,9 @@ const thorin::Def* Emitter::down_cast(const thorin::Def* def, const Type* from, 
     else if (auto to_ptr_type = to->isa<PtrType>()) {
         if (!to_ptr_type->is_mut && from->subtype(to_ptr_type->pointee))
             return down_cast(addr_of(def, debug), from, to_ptr_type->pointee, debug);
-        if (auto from_ptr_type = from->isa<PtrType>()) {
-            if ((from_ptr_type->is_mut || !to_ptr_type->is_mut) &&
-                from_ptr_type->pointee->subtype(to_ptr_type->pointee))
+        if (auto from_ptr_type = from->isa<PtrType>();
+            from_ptr_type && (from_ptr_type->is_mut || !to_ptr_type->is_mut)) {
+            if (from_ptr_type->pointee->subtype(to_ptr_type->pointee))
                 return down_cast(def, from_ptr_type->pointee, to_ptr_type->pointee, debug);
 
             assert(to_ptr_type->pointee->isa<UnsizedArrayType>());
