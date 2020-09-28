@@ -465,6 +465,16 @@ const artic::Type* Node::infer(TypeChecker& checker) {
     return checker.cannot_infer(loc, "expression");
 }
 
+const artic::Type* Ptrn::check(TypeChecker& checker, const artic::Type* expected) {
+    // Patterns use the inverted subtype relation: In this case, the expected type
+    // is assumed to be the type of the expression bound by the pattern, and thus
+    // must be a subtype of the pattern type.
+    auto type = checker.infer(*this);
+    if (!expected->subtype(type))
+        return checker.incompatible_types(loc, type, expected);
+    return type;
+}
+
 // Path ----------------------------------------------------------------------------
 
 const artic::Type* Path::infer(TypeChecker& checker) {
@@ -775,15 +785,17 @@ const artic::Type* FnExpr::infer(TypeChecker& checker) {
 const artic::Type* FnExpr::check(TypeChecker& checker, const artic::Type* expected) {
     if (!expected->isa<artic::FnType>())
         return checker.incompatible_type(loc, "function", expected);
-    // Set the type of the expression before entering the body,
-    // in case `return` appears in it.
-    type = expected;
+
     auto codom = expected->as<artic::FnType>()->codom;
     auto param_type = checker.check(*param, expected->as<artic::FnType>()->dom);
-    auto body_type  = checker.coerce(body, ret_type ? checker.check(*ret_type, codom) : codom);
+    auto body_type = ret_type ? checker.check(*ret_type, codom) : codom;
+    // Set the type of the expression before entering the body,
+    // in case `return` appears in it.
+    type = checker.type_table.fn_type(param_type, body_type);
+    body_type = checker.coerce(body, body_type);
     if (filter)
         checker.check(*filter, checker.type_table.bool_type());
-    return checker.type_table.fn_type(param_type, body_type);
+    return type;
 }
 
 const artic::Type* BlockExpr::infer(TypeChecker& checker) {

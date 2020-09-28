@@ -143,6 +143,8 @@ struct Ptrn : public Node {
 
     bool is_tuple() const;
 
+    const artic::Type* check(TypeChecker&, const artic::Type*) override;
+
     /// Collect patterns that bind an identifier to a value in this pattern.
     virtual void collect_bound_ptrns(std::vector<const IdPtrn*>&) const;
     /// Returns true when the pattern is trivial (e.g. always matches).
