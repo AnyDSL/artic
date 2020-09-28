@@ -892,7 +892,10 @@ inline bool is_int_or_float_literal(const Expr* expr) {
             break;
         }
     }
-    return expr->isa<LiteralExpr>();
+    return
+        expr->isa<LiteralExpr>() &&
+        (expr->as<LiteralExpr>()->lit.is_integer() ||
+         expr->as<LiteralExpr>()->lit.is_double());
 }
 
 const artic::Type* IfExpr::infer(TypeChecker& checker) {
