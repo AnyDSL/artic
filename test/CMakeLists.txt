@@ -31,7 +31,7 @@ function(add_codegen_test)
         OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/test_${test_NAME}
         COMMAND $<TARGET_FILE:artic> ${test_SOURCE_FILE} --emit-llvm -o ${test_NAME}
         COMMAND $<TARGET_FILE:clang> ${test_NAME}.ll ${MATH_LIB} ${HELPERS_OBJ} -o test_${test_NAME}
-        DEPENDS artic clang test_helpers
+        DEPENDS artic clang test_helpers ${test_SOURCE_FILE}
         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
     add_custom_target(test_${test_NAME} ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/test_${test_NAME})
     add_test(
