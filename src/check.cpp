@@ -884,10 +884,41 @@ const artic::Type* ProjExpr::infer(TypeChecker& checker) {
         return checker.unknown_member(loc, struct_type, field.name);
 }
 
+inline bool is_int_or_float_literal(const Expr* expr) {
+    // Detect expressions involving integer or floating-point literals and
+    // +/- unary operators. Such expressions can take any integer or
+    // floating-point type, and so should be checked, instead of inferred,
+    // to prevent defaulting. This code also accepts block expressions with
+    // only one block and no terminating semicolon, so expressions like
+    // - { + 1 } or { + { - { 2 } } } are accepted.
+    while (true) {
+        if (auto unary_expr = expr->isa<UnaryExpr>()) {
+            if (unary_expr->tag != UnaryExpr::Plus && unary_expr->tag != UnaryExpr::Minus)
+                return false;
+            expr = unary_expr->arg.get();
+        } else if (auto block_expr = expr->isa<BlockExpr>()) {
+            if (block_expr->last_semi || block_expr->stmts.size() != 1 || !block_expr->stmts[0]->isa<ExprStmt>())
+                return false;
+            expr = block_expr->stmts[0]->as<ExprStmt>()->expr.get();
+        } else {
+            break;
+        }
+    }
+    return
+        expr->isa<LiteralExpr>() &&
+        (expr->as<LiteralExpr>()->lit.is_integer() ||
+         expr->as<LiteralExpr>()->lit.is_double());
+}
+
 const artic::Type* IfExpr::infer(TypeChecker& checker) {
     checker.coerce(cond, checker.type_table.bool_type());
-    if (if_false)
+    if (if_false) {
+        if (is_int_or_float_literal(if_true.get()))
+            return checker.coerce(if_true, checker.deref(if_false));
+        if (is_int_or_float_literal(if_false.get()))
+            return checker.coerce(if_false, checker.deref(if_true));
         return checker.join(if_false, if_true);
+    }
     return checker.coerce(if_true, checker.type_table.unit_type());
 }
 
@@ -1066,7 +1097,7 @@ const artic::Type* BinaryExpr::infer(TypeChecker& checker) {
     if (is_logic()) {
         left_type  = checker.coerce(left, checker.type_table.bool_type());
         right_type = checker.coerce(right, checker.type_table.bool_type());
-    } else if (!has_eq() && left->isa<LiteralExpr>()) {
+    } else if (!has_eq() && is_int_or_float_literal(left.get())) {
         // Expressions like `1 + x` should be handled by inferring the right-hand side first
         right_type = checker.deref(right);
         left_type  = checker.coerce(left, right_type);
