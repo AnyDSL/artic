@@ -8,3 +8,5 @@ fn baz() -> ();
 fn foobar() {}
 #[export(name = "test", name = "zorb")]
 fn foobarbaz() {}
+#[export]
+fn bazfoo() -> ();

@@ -25,6 +25,8 @@ struct Printer {
     size_t level = 0;   ///< Initial indentation level
     std::string tab;    ///< String used as tabulation symbol
 
+    bool show_implicit_casts = false;
+
     Printer(log::Output& out, const std::string& tab = "    ")
         : out(out), tab(tab)
     {}

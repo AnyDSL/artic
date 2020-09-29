@@ -118,13 +118,13 @@ const Type* TypeChecker::expect(const Loc& loc, const Type* type, const Type* ex
     return type;
 }
 
-static inline std::pair<const RefType*, const Type*> remove_ref(const Type* type) {
+inline std::pair<const RefType*, const Type*> remove_ref(const Type* type) {
     if (auto ref_type = type->isa<RefType>())
         return std::make_pair(ref_type, ref_type->pointee);
     return std::make_pair(nullptr, type);
 }
 
-static inline std::pair<const Type*, const Type*> remove_ptr(const Type* type) {
+inline std::pair<const Type*, const Type*> remove_ptr(const Type* type) {
     if (auto ptr_type = type->isa<PtrType>())
         return std::make_pair(ptr_type, ptr_type->pointee);
     return std::make_pair(nullptr, type);
@@ -579,6 +579,8 @@ void NamedAttr::check(TypeChecker& checker, const ast::Node* node) {
                     checker.error(fn_decl->loc, "polymorphic functions cannot be exported");
                 else if (fn_decl->type->order() > 1)
                     checker.error(fn_decl->loc, "higher-order functions cannot be exported");
+                else if (!fn_decl->fn->body)
+                    checker.error(fn_decl->loc, "exported functions must have a body");
                 else
                     checker.check_attrs(*this, { { "name", AttrType::String } });
             } else if (name == "import") {
@@ -885,12 +887,9 @@ const artic::Type* ProjExpr::infer(TypeChecker& checker) {
 }
 
 inline bool is_int_or_float_literal(const Expr* expr) {
-    // Detect expressions involving integer or floating-point literals and
-    // +/- unary operators. Such expressions can take any integer or
-    // floating-point type, and so should be checked, instead of inferred,
-    // to prevent defaulting. This code also accepts block expressions with
-    // only one block and no terminating semicolon, so expressions like
-    // - { + 1 } or { + { - { 2 } } } are accepted.
+    // Detect integer or floating point literals. This code
+    // also accepts block expressions containing a literal and
+    // unary +/- operators.
     while (true) {
         if (auto unary_expr = expr->isa<UnaryExpr>()) {
             if (unary_expr->tag != UnaryExpr::Plus && unary_expr->tag != UnaryExpr::Minus)
@@ -1020,7 +1019,7 @@ const artic::Type* UnaryExpr::infer(TypeChecker& checker) {
     auto [ref_type, arg_type] = remove_ref(checker.infer(*arg));
     if ((!ref_type || !ref_type->is_mut) && (tag == AddrOfMut || is_inc() || is_dec()))
         return checker.mutable_expected(arg->loc);
-    if (tag == Plus || tag == Minus || tag == Not || tag == Known) {
+    if (tag == Plus || tag == Minus || tag == Not || tag == Known || tag == Deref) {
         // Dereference the argument
         checker.coerce(arg, arg_type);
     }
