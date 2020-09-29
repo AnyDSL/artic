@@ -1022,7 +1022,7 @@ const artic::Type* UnaryExpr::infer(TypeChecker& checker) {
     auto [ref_type, arg_type] = remove_ref(checker.infer(*arg));
     if ((!ref_type || !ref_type->is_mut) && (tag == AddrOfMut || is_inc() || is_dec()))
         return checker.mutable_expected(arg->loc);
-    if (tag == Plus || tag == Minus || tag == Not || tag == Known) {
+    if (tag == Plus || tag == Minus || tag == Not || tag == Known || tag == Deref) {
         // Dereference the argument
         checker.coerce(arg, arg_type);
     }

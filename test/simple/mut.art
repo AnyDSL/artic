@@ -16,6 +16,12 @@ fn not_unused(mut x: i32) {
     w.x = 3;
 }
 
+fn mut_ptr(i: i32) -> i32 {
+    let mut p : &i32;
+    p = &i;
+    *p
+}
+
 fn main() -> i32 {
     let (rd, wr) = alloc();
     wr(0);
