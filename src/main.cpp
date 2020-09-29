@@ -308,7 +308,7 @@ static bool compile(const ProgramOptions& opts, Log& log) {
     if (opts.print_ast) {
         Printer p(log::out);
         p.show_implicit_casts = opts.show_implicit_casts;
-        p.tab = std::string(2, ' ');
+        p.tab = std::string(opts.tab_width, ' ');
         program.print(p);
         log::out << "\n";
     }
