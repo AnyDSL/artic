@@ -156,8 +156,6 @@ struct ProgramOptions {
                 } else if (matches(argv[i], "--emit-thorin")) {
                     emit_thorin = true;
                 } else if (matches(argv[i], "--emit-c-interface")) {
-                    if (!check_dup(argv[i], emit_c_int))
-                        return false;
                     emit_c_int = true;
                 } else if (matches(argv[i], "--log-level")) {
                     if (!check_arg(argc, argv, i))
