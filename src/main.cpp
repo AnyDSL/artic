@@ -41,9 +41,10 @@ static void usage() {
                 " -Werror --warnings-as-errors   Treat warnings as errors\n"
                 "         --max-errors <n>       Sets the maximum number of error messages (unlimited by default)\n"
                 "         --print-ast            Prints the AST after parsing and type-checking\n"
+                "         --show-implicit-casts  Shows implicit casts as comments when printing the AST\n"
                 "         --emit-thorin          Prints the Thorin IR after code generation\n"
                 "         --log-level <lvl>      Changes the log level in Thorin (lvl = debug, verbose, info, warn, or error, defaults to error)\n"
-                "         --tab-width <n>        Sets the width of the TAB character, in spaces (defaults to 2)\n"
+                "         --tab-width <n>        Sets the width of the TAB character in error messages or when printing the AST (in spaces, defaults to 2)\n"
 #ifdef ENABLE_LLVM
                 "         --emit-llvm            Emits LLVM IR in the output file\n"
                 "  -g     --debug                Enable debug information in the generated LLVM IR file\n"
@@ -91,6 +92,7 @@ struct ProgramOptions {
     bool print_ast = false;
     bool emit_thorin = false;
     bool emit_llvm = false;
+    bool show_implicit_casts = false;
     unsigned opt_level = 0;
     size_t max_errors = 0;
     size_t tab_width = 2;
@@ -107,14 +109,6 @@ struct ProgramOptions {
     bool check_arg(int argc, char** argv, int i) {
         if (i + 1 >= argc) {
             log::error("missing argument for option '{}'", argv[i]);
-            return false;
-        }
-        return true;
-    }
-
-    bool check_dup(const char* opt, bool dup) {
-        if (dup) {
-            log::error("option '{}' specified more than once", opt);
             return false;
         }
         return true;
@@ -137,19 +131,13 @@ struct ProgramOptions {
                     exit = true;
                     return true;
                 } else if (matches(argv[i], "--no-color")) {
-                    if (!check_dup(argv[i], no_color))
-                        return false;
                     no_color = true;
                 } else if (matches(argv[i], "-Wall", "--enable-all-warnings")) {
-                    if (!check_dup(argv[i], enable_all_warns))
-                        return false;
                     enable_all_warns = true;
                 } else if (matches(argv[i], "-Werror", "--warnings-as-errors")) {
-                    if (!check_dup(argv[i], warns_as_errors))
-                        return false;
                     warns_as_errors = true;
                 } else if (matches(argv[i], "--max-errors")) {
-                    if (!check_dup(argv[i], max_errors != 0) || !check_arg(argc, argv, i))
+                    if (!check_arg(argc, argv, i))
                         return false;
                     max_errors = std::strtoull(argv[++i], NULL, 10);
                     if (max_errors == 0) {
@@ -157,16 +145,12 @@ struct ProgramOptions {
                         return false;
                     }
                 } else if (matches(argv[i], "-g", "--debug")) {
-                    if (!check_dup(argv[i], debug))
-                        return false;
                     debug = true;
                 } else if (matches(argv[i], "--print-ast")) {
-                    if (!check_dup(argv[i], print_ast))
-                        return false;
                     print_ast = true;
+                } else if (matches(argv[i], "--show-implicit-casts")) {
+                    show_implicit_casts = true;
                 } else if (matches(argv[i], "--emit-thorin")) {
-                    if (!check_dup(argv[i], emit_thorin))
-                        return false;
                     emit_thorin = true;
                 } else if (matches(argv[i], "--log-level")) {
                     if (!check_arg(argc, argv, i))
@@ -192,8 +176,6 @@ struct ProgramOptions {
                         return false;
                     tab_width = std::strtoull(argv[++i], NULL, 10);
                 } else if (matches(argv[i], "--emit-llvm")) {
-                    if (!check_dup(argv[i], emit_llvm))
-                        return false;
 #ifdef ENABLE_LLVM
                     emit_llvm = true;
 #else
@@ -320,14 +302,16 @@ static bool compile(const ProgramOptions& opts, Log& log) {
     TypeChecker type_checker(log, type_table);
     type_checker.warns_as_errors = opts.warns_as_errors;
 
+    if (!name_binder.run(program) || !type_checker.run(program))
+        return false;
+
     if (opts.print_ast) {
         Printer p(log::out);
+        p.show_implicit_casts = opts.show_implicit_casts;
+        p.tab = std::string(2, ' ');
         program.print(p);
         log::out << "\n";
     }
-
-    if (!name_binder.run(program) || !type_checker.run(program))
-        return false;
 
     thorin::Log::set(opts.log_level, &std::cerr);
     thorin::World world(opts.module_name);

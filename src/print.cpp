@@ -308,9 +308,11 @@ void CastExpr::print(Printer& p) const {
 }
 
 void ImplicitCastExpr::print(Printer& p) const {
-    p << "/* implicit cast to '" << *type << "' ( */";
+    if (p.show_implicit_casts)
+        p << "/* implicit cast to '" << *type << "' ( */";
     expr->print(p);
-    p << "/* ) */";
+    if (p.show_implicit_casts)
+        p << "/* ) */";
 }
 
 void AsmExpr::print(Printer& p) const {
