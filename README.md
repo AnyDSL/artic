@@ -1,6 +1,6 @@
 # ![](logo.svg)
 
-AlteRnaTive  [Impala](https://github.com/AnyDSL/impala) Compiler.
+The AlteRnaTive  [Impala](https://github.com/AnyDSL/impala) Compiler.
 
 ## Building
 
