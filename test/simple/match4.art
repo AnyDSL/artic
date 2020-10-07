@@ -1,0 +1,8 @@
+#[export]
+fn test(x: &[u8 * 3]) {
+    match *x {
+        "at" => 0,
+        "cg" => 1,
+        _    => 2
+    }
+}
