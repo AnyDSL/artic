@@ -1,0 +1,59 @@
+/* Ported from Impala */
+
+#[import(cc = "C")] fn atoi(&[u8]) -> i32;
+#[import(cc = "C")] fn print_ppm_header(&[u8], i32, i32) -> ();
+#[import(cc = "C")] fn putchar(u8) -> ();
+
+fn @range(body: fn (i32) -> ()) {
+    fn loop(beg: i32, end: i32) -> () {
+        if beg < end {
+            body(beg);
+            loop(beg + 1, end)
+        }
+    }
+    loop
+}
+
+#[export]
+fn main(argc: i32, argv: &[&[u8]]) -> i32 {
+    let n = if argc >= 2 { atoi(argv(1)) } else { 0 };
+    let (w, h) = (n, n);
+    let iter = 50;
+    let limit = 2.0;
+
+    let mut bit_count = 0;
+    let mut bits : u8 = 0;
+
+    print_ppm_header("P4", w, h);
+    for y in range(0, h) {
+        for x in range(0, w) {
+            let mut Zr = 0.0;
+            let mut Zi = 0.0;
+            let mut Tr = 0.0;
+            let mut Ti = 0.0;
+            let Cr = (2 * (x as f64)) / (w as f64) - 1.5;
+            let Ci = (2 * (y as f64)) / (h as f64) - 1.0;
+
+            let mut i = 0;
+            while i < iter && Tr + Ti <= limit * limit {
+                Zi = 2 * Zr * Zi + Ci;
+                Zr = Tr - Ti + Cr;
+                Tr = Zr * Zr;
+                Ti = Zi * Zi;
+                ++i;
+            }
+
+            bits <<= 1;
+            if i >= iter { bits |= 1; } 
+            ++bit_count;
+
+            if bit_count == 8 || x == w - 1 {
+                if x == w - 1 { bits <<= (8 - (w as u8) % 8); }
+                putchar(bits);
+                bits = 0;
+                bit_count = 0;
+            }
+        }
+    }
+    0
+}

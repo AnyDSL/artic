@@ -164,6 +164,11 @@ if (Thorin_HAS_LLVM_SUPPORT)
         ARGS ""
         SOURCE_FILE ${CMAKE_CURRENT_SOURCE_DIR}/codegen/aobench.art
         REFERENCE ${CMAKE_CURRENT_SOURCE_DIR}/codegen/aobench.ref)
+    add_codegen_test(
+        NAME codegen_mandelbrot
+        ARGS 1024
+        SOURCE_FILE ${CMAKE_CURRENT_SOURCE_DIR}/codegen/mandelbrot.art
+        REFERENCE ${CMAKE_CURRENT_SOURCE_DIR}/codegen/mandelbrot.ref)
 endif ()
 
 if (CODE_COVERAGE AND CMAKE_BUILD_TYPE STREQUAL "Debug")
