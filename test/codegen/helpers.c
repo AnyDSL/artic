@@ -3,8 +3,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-void write(const uint8_t* line, size_t size) {
-    fwrite(line, size, 1, stdout);
+void print_ppm_header(const char* fmt, int32_t w, int32_t h) {
+    printf("%s\n%"PRIi32" %"PRIi32"\n", fmt, w, h);
 }
 
 void print(const uint8_t* s) {
@@ -61,8 +61,7 @@ static inline uint8_t convert_col(double col) {
 }
 
 void save_img(int32_t w, int32_t h, const double* img) {
-    printf("P6\n");
-    printf("%d %d\n", w, h);
+    print_ppm_header("P6", w, h);
     printf("255\n");
     uint8_t* out_row = malloc(sizeof(uint8_t) * 3 * w);
     for (int32_t y = 0; y < h; y++) {

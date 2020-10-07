@@ -113,7 +113,8 @@ if (Thorin_HAS_LLVM_SUPPORT)
         COMMAND
             $<TARGET_FILE:clang>
             -c ${CMAKE_CURRENT_SOURCE_DIR}/codegen/helpers.c
-            -o ${HELPERS_OBJ})
+            -o ${HELPERS_OBJ}
+        DEPENDS clang ${CMAKE_CURRENT_SOURCE_DIR}/codegen/helpers.c)
     add_custom_target(test_helpers ALL DEPENDS ${HELPERS_OBJ})
 
     # Look for libm, which is necessary on *nix systems when

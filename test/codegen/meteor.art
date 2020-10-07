@@ -8,7 +8,6 @@
 #[import(cc = "C")] fn atoi(&[u8]) -> i32;
 #[import(cc = "C")] fn println(&[u8]) -> ();
 #[import(cc = "C")] fn print_u8(u8) -> ();
-#[import(cc = "C")] fn print_i32(i32) -> ();
 #[import(cc = "C")] fn print_f64(f64) -> ();
 #[import(cc = "C")] fn print_piece_mask(&[u64]) -> ();
 #[import(cc = "C")] fn print_meteor_scnt(i32) -> ();
@@ -485,7 +484,7 @@ fn calc_rows() {
     
                 result1 = bad_odd_rows(row1)(row2);
                 result2 = bad_even_rows(row2)(row3);
-                if(!result1 && result2 && triple_is_okay(row1, row2, row3, false)) {
+                if !result1 && result2 && triple_is_okay(row1, row2, row3, false) {
                     bad_odd_triple(row1+(row2 * 32)+(row3 * 1024)) = false;
                 } else {
                     bad_odd_triple(row1+(row2 * 32)+(row3 * 1024)) = result1 || result2;
