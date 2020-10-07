@@ -103,6 +103,7 @@ add_failure_test(NAME failure_cast2          COMMAND artic --warnings-as-errors 
 add_failure_test(NAME failure_attrs          COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/attrs.art)
 add_failure_test(NAME failure_not_written_to COMMAND artic --warnings-as-errors ${CMAKE_CURRENT_SOURCE_DIR}/failure/not_written_to.art)
 
+set(CODEGEN_TESTS "")
 if (Thorin_HAS_LLVM_SUPPORT)
     find_package(Clang REQUIRED CONFIG PATHS ${LLVM_DIR}/../clang NO_DEFAULT_PATH)
 
@@ -147,6 +148,8 @@ if (Thorin_HAS_LLVM_SUPPORT)
                 "-DTEST_ARGS=${test_ARGS}"
                 -P ${CMAKE_CURRENT_SOURCE_DIR}/run_codegen_test.cmake
             WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+        list(APPEND CODEGEN_TESTS test_${test_NAME})
+        set(CODEGEN_TESTS ${CODEGEN_TESTS} PARENT_SCOPE)
     endfunction()
 
     add_codegen_test(
@@ -172,5 +175,8 @@ if (Thorin_HAS_LLVM_SUPPORT)
 endif ()
 
 if (CODE_COVERAGE AND CMAKE_BUILD_TYPE STREQUAL "Debug")
-    setup_target_for_coverage_gcovr_html(NAME coverage EXECUTABLE ctest -j ${PROCESSOR_COUNT} DEPENDENCIES artic)
+    setup_target_for_coverage_gcovr_html(
+        NAME coverage
+        EXECUTABLE ctest -j ${PROCESSOR_COUNT}
+        DEPENDENCIES artic ${CODEGEN_TESTS})
 endif ()
