@@ -175,6 +175,7 @@ if (Thorin_HAS_LLVM_SUPPORT)
 endif ()
 
 if (CODE_COVERAGE AND CMAKE_BUILD_TYPE STREQUAL "Debug")
+    set(COVERAGE_EXCLUDES "${CMAKE_CURRENT_SOURCE_DIR}/codegen/*")
     setup_target_for_coverage_gcovr_html(
         NAME coverage
         EXECUTABLE ctest -j ${PROCESSOR_COUNT}
