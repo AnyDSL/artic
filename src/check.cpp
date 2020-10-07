@@ -42,7 +42,7 @@ const Type* TypeChecker::incompatible_type(const Loc& loc, const std::string& ms
 
 const Type* TypeChecker::type_expected(const Loc& loc, const artic::Type* type, const std::string_view& name) {
     if (should_report_error(type))
-        error(loc, "{} type expected, but got '{}'", name, *type);
+        error(loc, "expected {} type, but got '{}'", name, *type);
     return type_table.type_error();
 }
 
@@ -1404,11 +1404,17 @@ const artic::Type* TypedPtrn::infer(TypeChecker& checker) {
 }
 
 const artic::Type* LiteralPtrn::infer(TypeChecker& checker) {
-    return checker.infer(loc, lit);
+    auto type = checker.infer(loc, lit);
+    if (is_float_type(type))
+        return checker.type_expected(loc, type, "integer, boolean, or string");
+    return type;
 }
 
 const artic::Type* LiteralPtrn::check(TypeChecker& checker, const artic::Type* expected) {
-    return checker.check(loc, lit, expected);
+    auto type = checker.check(loc, lit, expected);
+    if (is_float_type(type))
+        return checker.type_expected(loc, type, "integer, boolean, or string");
+    return type;
 }
 
 const artic::Type* IdPtrn::infer(TypeChecker& checker) {
