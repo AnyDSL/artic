@@ -21,6 +21,7 @@ add_test(NAME simple_fn         COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE
 add_test(NAME simple_match1     COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/match1.art)
 add_test(NAME simple_match2     COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/match2.art)
 add_test(NAME simple_match3     COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/match3.art)
+add_test(NAME simple_match4     COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/match4.art)
 add_test(NAME simple_if         COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/if.art)
 add_test(NAME simple_while      COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/while.art)
 add_test(NAME simple_for        COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/for.art)

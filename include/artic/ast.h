@@ -122,7 +122,7 @@ struct Expr : public Node {
     const artic::Type* check(TypeChecker&, const artic::Type*) override;
 
     /// Emits a branch for boolean expressions.
-    virtual void emit(Emitter&, thorin::Continuation*, thorin::Continuation*) const;
+    virtual void emit_branch(Emitter&, thorin::Continuation*, thorin::Continuation*) const;
 
     /// Records the fact that this expression is written to.
     virtual void write_to() const {}
@@ -149,7 +149,7 @@ struct Ptrn : public Node {
     virtual void collect_bound_ptrns(std::vector<const IdPtrn*>&) const;
     /// Returns true when the pattern is trivial (e.g. always matches).
     virtual bool is_trivial() const = 0;
-    /// Emits IR for the pattern, given a value to match against.
+    /// Emits IR for the pattern, given a value to bind it to.
     virtual void emit(Emitter&, const thorin::Def*) const;
 };
 
@@ -966,7 +966,8 @@ struct BinaryExpr : public Expr {
     bool is_constant() const override;
     int precedence() const { return precedence(tag); }
 
-    void emit(Emitter&, thorin::Continuation*, thorin::Continuation*) const override;
+    void emit_branch(Emitter&, thorin::Continuation*, thorin::Continuation*) const override;
+
     const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) override;
     const artic::Type* check(TypeChecker&, const artic::Type*) override;
@@ -1349,7 +1350,7 @@ struct ErrorDecl : public Decl {
 
 // Patterns ------------------------------------------------------------------------
 
-/// A pattern with a type assigned.
+/// A pattern with a type assigned (e.g. `x : i32`).
 struct TypedPtrn : public Ptrn {
     Ptr<Ptrn> ptrn;
     Ptr<Type> type;

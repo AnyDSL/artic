@@ -139,7 +139,8 @@ public:
                 emitter.enter(thorin::is_allset(ctors.begin()->first) ? match_false : match_true);
                 PtrnCompiler(emitter, match, std::move(wildcards), std::move(values), matched_values).compile();
             }
-        } else if (enum_type || is_int_type(values[col].second)) {
+        } else {
+            assert(enum_type || is_int_type(values[col].second));
             thorin::Array<thorin::Continuation*> targets(ctors.size());
             thorin::Array<const thorin::Def*> defs(ctors.size());
             auto otherwise = emitter.basic_block(debug_info(match, "match_otherwise"));
@@ -187,9 +188,6 @@ public:
                 emitter.enter(otherwise);
                 PtrnCompiler(emitter, match, std::move(wildcards), std::move(values), matched_values).compile();
             }
-        } else {
-            // TODO: Implement non-integer/enum match expressions
-            assert(false);
         }
     }
 
@@ -204,6 +202,7 @@ private:
     std::vector<Row> rows;
     std::vector<Value> values;
     std::unordered_map<const ast::IdPtrn*, const thorin::Def*>& matched_values;
+    PtrVector<ast::Ptrn> tmp_ptrns;
 
     PtrnCompiler(
         Emitter& emitter,
@@ -299,10 +298,12 @@ private:
 
             // Can only expand tuples or structures
             size_t member_count = 0;
-            if (struct_type) {
+            if (struct_type)
                 member_count = struct_type->member_count();
-            } else if (auto tuple_type = type->isa<TupleType>())
+            else if (auto tuple_type = type->isa<TupleType>())
                 member_count = tuple_type->args.size();
+            else if (auto sized_array_type = type->isa<SizedArrayType>())
+                member_count = sized_array_type->size;
             else {
                 // Move to the next column
                 i++;
@@ -321,6 +322,18 @@ private:
                     } else if (auto tuple_ptrn = row.first[i]->isa<ast::TuplePtrn>()) {
                         for (size_t j = 0; j < member_count; ++j)
                             new_elems[j] = tuple_ptrn->args[j].get();
+                    } else if (auto literal_ptrn = row.first[i]->isa<ast::LiteralPtrn>()) {
+                        // This must be a string. In that case we need to create a literal
+                        // pattern for each character.
+                        assert(literal_ptrn->lit.is_string());
+                        assert(literal_ptrn->lit.as_string().size() + 1 == member_count);
+                        const char* str = literal_ptrn->lit.as_string().c_str();
+                        for (size_t j = 0; j < member_count; ++j) {
+                            auto char_ptrn = make_ptr<ast::LiteralPtrn>(literal_ptrn->loc, uint8_t(str[j]));
+                            char_ptrn->type = type->type_table.prim_type(ast::PrimType::U8);
+                            new_elems[j] = char_ptrn.get();
+                            tmp_ptrns.emplace_back(std::move(char_ptrn));
+                        }
                     } else {
                         matched_values.emplace(row.first[i]->as<ast::IdPtrn>(), values[i].first);
                     }
@@ -334,9 +347,10 @@ private:
             for (size_t j = 0; j < member_count; ++j) {
                 new_values[j].first  = emitter.world.extract(values[i].first, j, debug_info(*match.arg));
                 new_values[j].second =
-                    type_app    ? type_app->member_type(j)    :
-                    struct_type ? struct_type->member_type(j) :
-                    type->as<TupleType>()->args[j];
+                    type_app               ? type_app->member_type(j)       :
+                    struct_type            ? struct_type->member_type(j)    :
+                    type->isa<TupleType>() ? type->as<TupleType>()->args[j] :
+                    type->as<ArrayType>()->elem;
             }
             remove_col(values, i);
             values.insert(values.end(), new_values.begin(), new_values.end());
@@ -451,7 +465,10 @@ const thorin::Def* Emitter::tuple_from_params(thorin::Continuation* cont, bool r
     return world.tuple(ops);
 }
 
-std::vector<const thorin::Def*> Emitter::call_args(const thorin::Def* mem, const thorin::Def* arg, const thorin::Def* cont) {
+std::vector<const thorin::Def*> Emitter::call_args(
+    const thorin::Def* mem,
+    const thorin::Def* arg,
+    const thorin::Def* cont) {
     // Create a list of operands for a call to a function/continuation
     std::vector<const thorin::Def*> ops;
     ops.push_back(mem);
@@ -499,7 +516,11 @@ const thorin::Def* Emitter::call(const thorin::Def* callee, const thorin::Def* a
     return call(callee, arg, cont, debug);
 }
 
-const thorin::Def* Emitter::call(const thorin::Def* callee, const thorin::Def* arg, thorin::Continuation* cont, thorin::Debug debug) {
+const thorin::Def* Emitter::call(
+    const thorin::Def* callee,
+    const thorin::Def* arg,
+    thorin::Continuation* cont,
+    thorin::Debug debug) {
     if (!state.cont)
         return nullptr;
     state.cont->jump(callee, call_args(state.mem, arg, cont), debug);
@@ -507,7 +528,11 @@ const thorin::Def* Emitter::call(const thorin::Def* callee, const thorin::Def* a
     return tuple_from_params(cont);
 }
 
-void Emitter::branch(const thorin::Def* cond, const thorin::Def* branch_true, const thorin::Def* branch_false, thorin::Debug debug) {
+void Emitter::branch(
+    const thorin::Def* cond,
+    const thorin::Def* branch_true,
+    const thorin::Def* branch_false,
+    thorin::Debug debug) {
     if (!state.cont)
         return;
     state.cont->branch(cond, branch_true, branch_false, debug);
@@ -776,7 +801,10 @@ const thorin::Def* ExprStmt::emit(Emitter& emitter) const {
 
 // Expressions ---------------------------------------------------------------------
 
-void Expr::emit(Emitter& emitter, thorin::Continuation* join_true, thorin::Continuation* join_false) const {
+void Expr::emit_branch(
+    Emitter& emitter,
+    thorin::Continuation* join_true,
+    thorin::Continuation* join_false) const {
     auto branch_true  = emitter.basic_block(debug_info(*this, "branch_true"));
     auto branch_false = emitter.basic_block(debug_info(*this, "branch_false"));
     auto cond = emitter.emit(*this);
@@ -903,7 +931,7 @@ const thorin::Def* ProjExpr::emit(Emitter& emitter) const {
 const thorin::Def* IfExpr::emit(Emitter& emitter) const {
     auto join_true  = emitter.basic_block_with_mem(debug_info(*this, "join_true"));
     auto join_false = emitter.basic_block_with_mem(debug_info(*this, "join_false"));
-    cond->emit(emitter, join_true, join_false);
+    cond->emit_branch(emitter, join_true, join_false);
 
     // This can happen if both branches call a continuation.
     thorin::Continuation* join = nullptr;
@@ -971,7 +999,7 @@ const thorin::Def* WhileExpr::emit(Emitter& emitter) const {
     continue_ = while_continue;
 
     emitter.enter(while_head);
-    cond->emit(emitter, while_body, while_exit);
+    cond->emit_branch(emitter, while_body, while_exit);
 
     emitter.enter(while_body);
     emitter.emit(*body);
@@ -1068,9 +1096,12 @@ const thorin::Def* UnaryExpr::emit(Emitter& emitter) const {
     return res;
 }
 
-void BinaryExpr::emit(Emitter& emitter, thorin::Continuation* join_true, thorin::Continuation* join_false) const {
+void BinaryExpr::emit_branch(
+    Emitter& emitter,
+    thorin::Continuation* join_true,
+    thorin::Continuation* join_false) const {
     if (!is_logic())
-        Expr::emit(emitter, join_true, join_false);
+        Expr::emit_branch(emitter, join_true, join_false);
     else {
         auto cond = emitter.emit(*left);
         thorin::Continuation* next = nullptr;
@@ -1088,7 +1119,7 @@ void BinaryExpr::emit(Emitter& emitter, thorin::Continuation* join_true, thorin:
             emitter.branch(cond, branch_true, next, debug_info(*this));
         }
         emitter.enter(next);
-        right->emit(emitter, join_true, join_false);
+        right->emit_branch(emitter, join_true, join_false);
     }
 }
 
@@ -1097,7 +1128,7 @@ const thorin::Def* BinaryExpr::emit(Emitter& emitter) const {
         auto join = emitter.basic_block_with_mem(emitter.world.type_bool(), debug_info(*this, "join"));
         auto join_true  = emitter.basic_block_with_mem(debug_info(*this, "join_true"));
         auto join_false = emitter.basic_block_with_mem(debug_info(*this, "join_false"));
-        emit(emitter, join_true, join_false);
+        emit_branch(emitter, join_true, join_false);
         emitter.enter(join_true);
         emitter.jump(join, emitter.world.literal_bool(true, {}));
         emitter.enter(join_false);
