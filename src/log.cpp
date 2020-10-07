@@ -30,6 +30,7 @@ inline size_t count_digits(size_t i) {
 }
 
 void Logger::diagnostic(const Loc& loc, log::Style style, char underline) {
+    log::format(log.out, " in {}\n", log::style(loc, log::Style::White, log::Style::Bold));
     if (!diagnostics || !log.locator)
         return;
 
@@ -46,8 +47,6 @@ void Logger::diagnostic(const Loc& loc, log::Style style, char underline) {
     auto end_line     = loc_info->at(loc.end.row, 1);
     auto end_line_loc = loc_info->at(loc.end.row, loc.end.col);
     auto end_line_end = loc_info->at(loc.end.row);
-
-    log::format(log.out, " in {}\n", log::style(loc, log::Style::White, log::Style::Bold));
     log::format(log.out, "{} {}\n{}{} {}{}",
         log::fill(' ', indent),
         log::style('|', style, log::Style::Bold),
