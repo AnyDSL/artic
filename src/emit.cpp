@@ -441,7 +441,7 @@ const thorin::FnType* Emitter::function_type_with_mem(const thorin::Type* from, 
 }
 
 const thorin::Def* Emitter::tuple_from_params(thorin::Continuation* cont, bool ret) {
-    // One level of tuples are flattened when emitting functions.
+    // One level of tuples is flattened when emitting functions.
     // Here, we recreate that tuple from individual parameters.
     if (cont->num_params() == (ret ? 3 : 2))
         return cont->param(1);
