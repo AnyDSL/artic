@@ -178,6 +178,8 @@ const Type* TypeChecker::infer(ast::Node& node) {
 }
 
 const Type* TypeChecker::infer(ast::Ptrn& ptrn, Ptr<ast::Expr>& expr) {
+    // This improves type inference for code such as `let (x, y: i64) = (1, 2);`,
+    // by treating tuple elements as individual declarations.
     if (auto tuple_ptrn = ptrn.isa<ast::TuplePtrn>()) {
         if (auto tuple_expr = expr->isa<ast::TupleExpr>();
             tuple_expr && tuple_ptrn->args.size() == tuple_expr->args.size()) {
