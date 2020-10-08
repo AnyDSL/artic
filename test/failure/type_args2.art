@@ -1,0 +1,4 @@
+fn foo[T](a: T, b: fn (T) -> T) = b(a)
+fn test() {
+    foo(&1, |p: &mut i32| p)
+}

@@ -434,7 +434,9 @@ bool TypeChecker::infer_type_args(
             continue;
         }
 
-        if (!bound.second.lower->subtype(bound.second.upper)) {
+        if (!bound.second.lower->subtype(bound.second.upper) ||
+            bound.second.lower->isa<TopType>() ||
+            bound.second.upper->isa<BottomType>()) {
             invalid_constraint(loc, bound.first, nullptr, bound.second.lower, bound.second.upper);
             return false;
         }

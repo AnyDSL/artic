@@ -99,6 +99,8 @@ add_failure_test(NAME failure_escape         COMMAND artic ${CMAKE_CURRENT_SOURC
 add_failure_test(NAME failure_asm            COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/asm.art)
 add_failure_test(NAME failure_simd1          COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/simd1.art)
 add_failure_test(NAME failure_simd2          COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/simd2.art)
+add_failure_test(NAME failure_type_args1     COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/type_args1.art)
+add_failure_test(NAME failure_type_args2     COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/type_args2.art)
 add_failure_test(NAME failure_cast1          COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/cast1.art)
 add_failure_test(NAME failure_cast2          COMMAND artic --warnings-as-errors ${CMAKE_CURRENT_SOURCE_DIR}/failure/cast2.art)
 add_failure_test(NAME failure_attrs          COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/attrs.art)

@@ -1,0 +1,4 @@
+fn foo[T](a: T, b: T) = (a, b)
+fn test() {
+    foo(1, true)
+}
