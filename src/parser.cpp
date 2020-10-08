@@ -265,8 +265,10 @@ Ptr<ast::Ptrn> Parser::parse_ptrn(bool is_fn_param) {
         case Token::Lit:    ptrn = parse_literal_ptrn();          break;
         case Token::Simd:
         case Token::LBracket:
-            if (!is_fn_param)
-                return parse_array_ptrn();
+            if (!is_fn_param) {
+                ptrn = parse_array_ptrn();
+                break;
+            }
             [[fallthrough]];
         case Token::And:
         case Token::Fn:

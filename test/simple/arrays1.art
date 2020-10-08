@@ -1,5 +1,12 @@
+#[export]
 fn main() {
     let mut x = [1, 2, 3, 0, 5, 6];
-    x(2) = 5;
+    let [mut a, mut b, mut c] : [i32 * 3];
+    a = x(0);
+    b = x(1);
+    c = x(2);
+    x(2) = a;
+    x(3) = b;
+    x(4) = c;
     x(3)
 }
