@@ -666,6 +666,15 @@ bool TuplePtrn::is_trivial() const {
     return std::all_of(args.begin(), args.end(), [] (auto& arg) { return arg->is_trivial(); });
 }
 
+void ArrayPtrn::collect_bound_ptrns(std::vector<const IdPtrn*>& bound_ptrns) const {
+    for (auto& elem : elems)
+        elem->collect_bound_ptrns(bound_ptrns);
+}
+
+bool ArrayPtrn::is_trivial() const {
+    return std::all_of(elems.begin(), elems.end(), [] (auto& elem) { return elem->is_trivial(); });
+}
+
 bool ErrorPtrn::is_trivial() const {
     return false;
 }

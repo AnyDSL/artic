@@ -395,6 +395,16 @@ void TuplePtrn::print(Printer& p) const {
     p << ')';
 }
 
+void ArrayPtrn::print(Printer& p) const {
+    if (is_simd)
+        p << log::keyword_style("simd");
+    p << '[';
+    print_list(p, ", ", elems, [&] (auto& elem) {
+        elem->print(p);
+    });
+    p << ']';
+}
+
 void ErrorPtrn::print(Printer& p) const {
     p << log::error_style("<invalid pattern>");
 }

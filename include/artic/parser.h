@@ -46,6 +46,7 @@ private:
     Ptr<ast::StructPtrn>    parse_struct_ptrn(ast::Path&&);
     Ptr<ast::EnumPtrn>      parse_enum_ptrn(ast::Path&&);
     Ptr<ast::Ptrn>          parse_tuple_ptrn(bool = false, Token::Tag = Token::LParen, Token::Tag = Token::RParen);
+    Ptr<ast::ArrayPtrn>     parse_array_ptrn();
     Ptr<ast::ErrorPtrn>     parse_error_ptrn();
 
     Ptr<ast::Stmt>          parse_stmt();

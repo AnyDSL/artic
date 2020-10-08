@@ -322,6 +322,9 @@ private:
                     } else if (auto tuple_ptrn = row.first[i]->isa<ast::TuplePtrn>()) {
                         for (size_t j = 0; j < member_count; ++j)
                             new_elems[j] = tuple_ptrn->args[j].get();
+                    } else if (auto array_ptrn = row.first[i]->isa<ast::ArrayPtrn>()) {
+                        for (size_t j = 0; j < member_count; ++j)
+                            new_elems[j] = array_ptrn->elems[j].get();
                     } else if (auto literal_ptrn = row.first[i]->isa<ast::LiteralPtrn>()) {
                         // This must be a string. In that case we need to create a literal
                         // pattern for each character.
@@ -1366,6 +1369,11 @@ void StructPtrn::emit(Emitter& emitter, const thorin::Def* value) const {
 void TuplePtrn::emit(Emitter& emitter, const thorin::Def* value) const {
     for (size_t i = 0, n = args.size(); i < n; ++i)
         emitter.emit(*args[i], emitter.world.extract(value, i));
+}
+
+void ArrayPtrn::emit(Emitter& emitter, const thorin::Def* value) const {
+    for (size_t i = 0, n = elems.size(); i < n; ++i)
+        emitter.emit(*elems[i], emitter.world.extract(value, i));
 }
 
 } // namespace ast

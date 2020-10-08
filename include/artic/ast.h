@@ -1482,6 +1482,25 @@ struct TuplePtrn : public Ptrn {
     void print(Printer&) const override;
 };
 
+/// A pattern that matches arrays of fixed size.
+struct ArrayPtrn : public Ptrn {
+    PtrVector<Ptrn> elems;
+    bool is_simd;
+
+    ArrayPtrn(const Loc& loc, PtrVector<Ptrn>&& elems, bool is_simd)
+        : Ptrn(loc), elems(std::move(elems)), is_simd(is_simd)
+    {}
+
+    void collect_bound_ptrns(std::vector<const IdPtrn*>&) const override;
+    bool is_trivial() const override;
+
+    void emit(Emitter&, const thorin::Def*) const override;
+    const artic::Type* infer(TypeChecker&) override;
+    const artic::Type* check(TypeChecker&, const artic::Type*) override;
+    void bind(NameBinder&) override;
+    void print(Printer&) const override;
+};
+
 /// A pattern resulting from a parsing error.
 struct ErrorPtrn : public Ptrn {
     ErrorPtrn(const Loc& loc) : Ptrn(loc) {}

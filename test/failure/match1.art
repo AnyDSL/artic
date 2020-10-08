@@ -1,6 +1,12 @@
 enum E { A, B }
-fn test(e: E) {
+fn test1(e: E) {
     match e {
         E::A => ()
+    }
+}
+fn test2(x: i32) {
+    match x {
+        1 => 0,
+        2 => 1
     }
 }

@@ -32,17 +32,17 @@ public:
     bool should_report_error(const Type*);
 
     const Type* incompatible_types(const Loc&, const Type*, const Type*);
-    const Type* incompatible_type(const Loc&, const std::string&, const Type*);
+    const Type* incompatible_type(const Loc&, const std::string_view&, const Type*);
     const Type* type_expected(const Loc&, const Type*, const std::string_view&);
     const Type* unknown_member(const Loc&, const UserType*, const std::string_view&);
-    const Type* cannot_infer(const Loc&, const std::string&);
+    const Type* cannot_infer(const Loc&, const std::string_view&);
     const Type* unreachable_code(const Loc&, const Loc&, const Loc&);
     const Type* mutable_expected(const Loc&);
-    const Type* bad_arguments(const Loc&, const std::string&, size_t, size_t);
+    const Type* bad_arguments(const Loc&, const std::string_view&, size_t, size_t);
     const Type* invalid_cast(const Loc&, const Type*, const Type*);
     const Type* invalid_simd(const Loc&, const Type*);
     void invalid_constraint(const Loc&, const TypeVar*, const Type*, const Type*, const Type*);
-    void invalid_attr(const Loc&, const std::string&);
+    void invalid_attr(const Loc&, const std::string_view&);
     void unsized_type(const Loc&, const Type*);
 
     const Type* expect(const Loc&, const Type*, const Type*);
@@ -64,15 +64,17 @@ public:
         const StructType*,
         const TypeApp*,
         const Fields&,
-        const std::string&,
+        const std::string_view&,
         bool = false, bool = false);
 
     void check_block(const Loc&, const PtrVector<ast::Stmt>&, bool);
-    bool check_filter(const ast::Expr&);
-    template <typename CheckElems>
-    const Type* check_array(const Loc&, const Type*, size_t, bool, CheckElems);
-
     bool check_attrs(const ast::NamedAttr&, const std::vector<AttrType>&);
+    bool check_filter(const ast::Expr&);
+
+    template <typename InferElems>
+    const Type* infer_array(const Loc&, const std::string_view&, size_t, bool, const InferElems&);
+    template <typename CheckElems>
+    const Type* check_array(const Loc&, const std::string_view&, const Type*, size_t, bool, const CheckElems&);
 
     bool infer_type_args(const Loc&, const ForallType*, const Type*, std::vector<const Type*>&);
 

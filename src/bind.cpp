@@ -337,6 +337,10 @@ void TuplePtrn::bind(NameBinder& binder) {
     for (auto& arg : args) binder.bind(*arg);
 }
 
+void ArrayPtrn::bind(NameBinder& binder) {
+    for (auto& elem : elems) binder.bind(*elem);
+}
+
 void ErrorPtrn::bind(NameBinder&) {}
 
 // Declarations --------------------------------------------------------------------

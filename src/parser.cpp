@@ -263,7 +263,11 @@ Ptr<ast::Ptrn> Parser::parse_ptrn(bool is_fn_param) {
             break;
         case Token::LParen: ptrn = parse_tuple_ptrn(is_fn_param); break;
         case Token::Lit:    ptrn = parse_literal_ptrn();          break;
+        case Token::Simd:
         case Token::LBracket:
+            if (!is_fn_param)
+                return parse_array_ptrn();
+            [[fallthrough]];
         case Token::And:
         case Token::Fn:
             if (is_fn_param) {
@@ -357,6 +361,17 @@ Ptr<ast::Ptrn> Parser::parse_tuple_ptrn(bool is_fn_param, Token::Tag beg, Token:
         return std::move(args[0]);
     }
     return make_ptr<ast::TuplePtrn>(tracker(), std::move(args));
+}
+
+Ptr<ast::ArrayPtrn> Parser::parse_array_ptrn() {
+    Tracker tracker(this);
+    bool is_simd = accept(Token::Simd);
+    eat(Token::LBracket);
+    PtrVector<ast::Ptrn> elems;
+    parse_list(Token::RBracket, Token::Comma, [&] {
+        elems.emplace_back(parse_ptrn());
+    });
+    return make_ptr<ast::ArrayPtrn>(tracker(), std::move(elems), is_simd);
 }
 
 Ptr<ast::ErrorPtrn> Parser::parse_error_ptrn() {
