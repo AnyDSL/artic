@@ -298,6 +298,10 @@ bool TypeChecker::check_filter(const ast::Expr& expr) {
     bool is_logic_and = false;
     bool is_logic_or  = false;
     bool is_mutable   = false;
+
+    // This makes sure that the filter does not contain operators
+    // that generate control-flow or side effects, since those
+    // are unsupported by Thorin.
     if (auto binary_expr = expr.isa<ast::BinaryExpr>()) {
         is_logic_and = binary_expr->tag == ast::BinaryExpr::LogicAnd;
         is_logic_or  = binary_expr->tag == ast::BinaryExpr::LogicOr;
