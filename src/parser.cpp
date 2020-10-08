@@ -265,7 +265,7 @@ Ptr<ast::Ptrn> Parser::parse_ptrn(bool is_fn_param) {
         case Token::Lit:    ptrn = parse_literal_ptrn();          break;
         case Token::Simd:
         case Token::LBracket:
-            if (!is_fn_param) {
+            if (!is_fn_param || (ahead(1).tag() == Token::Id && ahead(2).tag() == Token::Colon)) {
                 ptrn = parse_array_ptrn();
                 break;
             }
