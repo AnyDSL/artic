@@ -147,6 +147,11 @@ struct S {
 }
 static x = S { y = 2 }; // x is a structure with x = 1, y = 2
 ```
+ - Array patterns are now supported:
+```rust
+let [x, y] = [1, 2];
+let simd[z, w] = simd[1, 2];
+```
  - Type annotations can be added on every expression:
 ```rust
 let x : i32 = (1 : i32) : i32;
