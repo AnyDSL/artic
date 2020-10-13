@@ -88,9 +88,9 @@ fn @(?n) sort_n(e: &mut [i32], n: i32, network: SortingNetwork) = network(n, @|i
         e(i) = e(j);
         e(j) = t;
     }
-})
+});
 
 #[export]
-fn sort_2_bose_nelson(e: &mut [i32 * 2], n: i32) = sort_n(e, 2, bose_nelson_sort)
+fn sort_2_bose_nelson(e: &mut [i32 * 2], n: i32) = sort_n(e, 2, bose_nelson_sort);
 #[export]
-fn sort_2_bitonic(e: &mut [i32 * 2], n: i32) = sort_n(e, 2, bitonic_sort)
+fn sort_2_bitonic(e: &mut [i32 * 2], n: i32) = sort_n(e, 2, bitonic_sort);

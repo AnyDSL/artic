@@ -2,13 +2,13 @@ struct A { b: B }
 struct B { c: C }
 struct C { i: i32 }
 #[export]
-fn test(x: &A) = x.b.c.i
+fn test(x: &A) = x.b.c.i;
 #[export]
-fn test2(x: &[A], i: i32) = x(i).b.c.i
+fn test2(x: &[A], i: i32) = x(i).b.c.i;
 static s = "abcd";
 #[export]
-fn test3(i: i32) = s(i)
+fn test3(i: i32) = s(i);
 #[export]
-fn test4(i: i32) = (&[1, 2, 3, 4])(i)
+fn test4(i: i32) = (&[1, 2, 3, 4])(i);
 #[export]
-fn test5(mut x: [i32 * 4], i: i32) = &mut x(i)
+fn test5(mut x: [i32 * 4], i: i32) = &mut x(i);

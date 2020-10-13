@@ -90,8 +90,10 @@ Ptr<ast::FnDecl> Parser::parse_fn_decl() {
     Ptr<ast::Expr> body;
     if (ahead().tag() == Token::LBrace)
         body = parse_block_expr();
-    else if (accept(Token::Eq))
+    else if (accept(Token::Eq)) {
         body = parse_expr();
+        expect(Token::Semi);
+    }
 
     if (!body) {
         if (!ret_type)

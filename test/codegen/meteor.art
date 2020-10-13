@@ -22,9 +22,9 @@ fn @range_step(body: fn (i32) -> ()) = @|beg: i32, end: i32, step: i32| {
         }
     }
     loop(beg, end)
-}
+};
 
-fn range(body: fn (i32) -> ()) = @|a: i32, b: i32| range_step(body)(a, b, 1)
+fn range(body: fn (i32) -> ()) = @|a: i32, b: i32| range_step(body)(a, b, 1);
 
 /* The board is a 50 cell hexagonal pattern.  For    . . . . .
  * maximum speed the board will be implemented as     . . . . .
@@ -243,7 +243,7 @@ fn cells_fit_on_board(cell: &[i8], piece: i32) =
     !out_of_bounds(cell(0), piece_def(piece)(0)) &&
     !out_of_bounds(cell(1), piece_def(piece)(1)) &&
     !out_of_bounds(cell(2), piece_def(piece)(2)) &&
-    !out_of_bounds(cell(3), piece_def(piece)(3))
+    !out_of_bounds(cell(3), piece_def(piece)(3));
 
 /* Returns the lowest index of the cells of a piece.
  * I use the lowest index that a piece occupies as the index for looking up
@@ -280,7 +280,7 @@ fn first_empty_cell(cell: &[i8], minimum: i8) {
 fn bitmask_from_cells(cell: &[i8]) {
     let mut piece_mask : u64 = 0;
     for i in range(0, 5) {
-        piece_mask |= (1 : u64) << (cell(i) as u64);
+        piece_mask |= 1 << (cell(i) as u64);
     }
     piece_mask
 }
@@ -288,7 +288,7 @@ fn bitmask_from_cells(cell: &[i8]) {
 /* Record the piece and other important information in arrays that will
  * later be used by the solve function.
  */
-fn record_piece(piece: i32, minimum: i32, first_empty: i8, piece_mask: u64) -> () {
+fn record_piece(piece: i32, minimum: i32, first_empty: i8, piece_mask: u64) {
     pieces(piece)(minimum)(piece_counts(piece)(minimum)) = piece_mask;
     next_cell(piece)(minimum)(piece_counts(piece)(minimum)) = first_empty;
     piece_counts(piece)(minimum)++;

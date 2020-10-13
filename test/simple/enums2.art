@@ -8,7 +8,7 @@ enum G[T, U] {
     A, B(T, U)
 }
 
-fn id(i: i32) = i
+fn id(i: i32) = i;
 
 fn test1[T](f: F[T]) {
     match f {

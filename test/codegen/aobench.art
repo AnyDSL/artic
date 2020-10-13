@@ -80,31 +80,31 @@ fn @unroll(body: fn (i32) -> ()) {
     loop
 }
 
-fn @vdot(v0: Vec, v1: Vec) = v0.x * v1.x + v0.y * v1.y + v0.z * v1.z
+fn @vdot(v0: Vec, v1: Vec) = v0.x * v1.x + v0.y * v1.y + v0.z * v1.z;
 
 fn @vadd(v0: Vec, v1: Vec) = Vec {
     x = v0.x + v1.x,
     y = v0.y + v1.y,
     z = v0.z + v1.z
-}
+};
 
 fn @vsub(v0: Vec, v1: Vec) = Vec {
     x = v0.x - v1.x,
     y = v0.y - v1.y,
     z = v0.z - v1.z
-}
+};
 
 fn @vscale(v0: Vec, s: f64) = Vec {
     x = v0.x * s,
     y = v0.y * s,
     z = v0.z * s
-}
+};
 
 fn @vcross(v0: Vec, v1: Vec) = Vec {
     x = v0.y * v1.z - v0.z * v1.y,
     y = v0.z * v1.x - v0.x * v1.z,
     z = v0.x * v1.y - v0.y * v1.x
-}
+};
 
 fn @vnorm(c: Vec) {
     let length = sqrt(vdot(c, c));

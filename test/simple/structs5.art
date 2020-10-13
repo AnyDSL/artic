@@ -9,4 +9,4 @@ struct S {
     x: i32 = x
 }
 #[export]
-fn test() = S {}
+fn test() = S {};

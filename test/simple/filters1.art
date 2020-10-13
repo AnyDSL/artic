@@ -16,4 +16,4 @@ fn @(?c | ?k) do_that(c: i32, k: i32) {
     c + k
 } 
 #[export]
-fn pow5(x: i32) = pow(x, 5)
+fn pow5(x: i32) = pow(x, 5);

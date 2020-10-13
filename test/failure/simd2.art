@@ -1,3 +1,3 @@
-fn test1() = simd["abcd", "efgh"]
-fn test2() = simd["abcd"; 3]
-fn test3(x: simd[[u8 * 4] * 4]) = x
+fn test1() = simd["abcd", "efgh"];
+fn test2() = simd["abcd"; 3];
+fn test3(x: simd[[u8 * 4] * 4]) = x;

@@ -1,5 +1,5 @@
 enum E { A, B(i32) }
-fn foo(x: E) = match x { E::A => 0, E::B(_) => 1 }
+fn foo(x: E) = match x { E::A => 0, E::B(_) => 1 };
 #[export]
 fn test(x: (i32, bool, E)) {
     match x {

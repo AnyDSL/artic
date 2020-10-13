@@ -1,4 +1,4 @@
-fn take_3([x: i32, y, z, _, _, _]) = [x, y, z]
+fn take_3([x: i32, y, z, _, _, _]) = [x, y, z];
 #[export]
 fn main() {
     let mut x = [1, 2, 3, 0, 5, 6];

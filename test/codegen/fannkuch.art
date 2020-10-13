@@ -14,11 +14,12 @@ static mut odd = 0;
 static mut checksum = 0;
 
 fn @range(body: fn(i32) -> ()) {
-    fn loop(a: i32, b: i32) -> () =
+    fn loop(a: i32, b: i32) -> () {
         if a < b {
             @body(a);
             loop(a + 1, b)
         }
+    }
     loop
 }
 
