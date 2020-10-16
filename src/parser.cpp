@@ -126,10 +126,29 @@ Ptr<ast::StructDecl> Parser::parse_struct_decl() {
         type_params = parse_type_params();
 
     PtrVector<ast::FieldDecl> fields;
-    expect(Token::LBrace);
-    parse_list(Token::RBrace, Token::Comma, [&] {
-        fields.emplace_back(parse_field_decl());
-    });
+
+    bool tuple_like = true;
+    if(ahead().tag() == Token::LBrace) {
+        tuple_like = false;
+        expect(Token::LBrace);
+        parse_list(Token::RBrace, Token::Comma, [&] {
+            fields.emplace_back(parse_field_decl());
+        });
+    } else if(ahead().tag() == Token::LParen) {
+        expect(Token::LParen);
+        int i = 0;
+        parse_list(Token::RParen, Token::Comma, [&] {
+            auto fid = ast::Identifier(tracker(), "_" + std::to_string(i++));
+            Ptr<ast::Expr> init;
+            fields.emplace_back(make_ptr<ast::FieldDecl>(tracker(), std::move(fid), std::move(parse_type()), std::move(init)));
+        });
+        expect(Token::Semi);
+    } else if(ahead().tag() == Token::Semi ) {
+        // Empty structs need a semicolon - as per previously established consistency rules
+        expect(Token::Semi);
+    } else {
+        error(ahead().loc(), "expected ';' or '{' or '(', but got '{}'", ahead().string());
+    }
 
     return make_ptr<ast::StructDecl>(tracker(), std::move(id), std::move(type_params), std::move(fields));
 }
