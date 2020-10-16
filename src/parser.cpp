@@ -134,12 +134,33 @@ Ptr<ast::StructDecl> Parser::parse_struct_decl() {
     return make_ptr<ast::StructDecl>(tracker(), std::move(id), std::move(type_params), std::move(fields));
 }
 
-Ptr<ast::OptionDecl> Parser::parse_option_decl() {
+Ptr<ast::OptionDecl> Parser::parse_option_decl(const ast::Identifier& parent) {
     Tracker tracker(this);
     auto id = parse_id();
     Ptr<ast::Type> param;
     if (ahead().tag() == Token::LParen)
         param = parse_tuple_type();
+    if (ahead().tag() == Token::LBrace) {
+        auto id2 = id;
+
+        Ptr<ast::TypeParamList> type_params;
+
+        PtrVector<ast::FieldDecl> fields;
+        expect(Token::LBrace);
+        parse_list(Token::RBrace, Token::Comma, [&] {
+            fields.emplace_back(parse_field_decl());
+        });
+
+        const auto l = tracker();
+        auto id3 = id2;
+        auto struct_decl = make_ptr<ast::StructDecl>(l, std::move(id3), std::move(type_params), std::move(fields));
+        auto p = ast::Identifier(parent);
+        using E = ast::Path::Elem;
+        std::vector<ast::Path::Elem> path; // = { E(l, std::move(p), {}), E(l, std::move(id2), {}) };
+        path.push_back(E(l, std::move(p), {}));
+        path.push_back(E(l, std::move(id2), {}));
+        param = make_ptr<ast::TypeApp>(tracker(), ast::Path(l, std::move(path) ));
+    }
     return make_ptr<ast::OptionDecl>(tracker(), std::move(id), std::move(param));
 }
 
@@ -155,7 +176,7 @@ Ptr<ast::EnumDecl> Parser::parse_enum_decl() {
     PtrVector<ast::OptionDecl> options;
     expect(Token::LBrace);
     parse_list(Token::RBrace, Token::Comma, [&] {
-        options.emplace_back(parse_option_decl());
+        options.emplace_back(parse_option_decl(id));
     });
     return make_ptr<ast::EnumDecl>(tracker(), std::move(id), std::move(type_params), std::move(options));
 }
