@@ -511,19 +511,11 @@ const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, Ptr<Ex
     if (!symbol || symbol->decls.empty())
         return checker.type_table.type_error();
     auto type = checker.infer(*symbol->decls.front());
-    bool is_type = elems.size() == 1 &&
-        (symbol->decls.front()->isa<TypeDecl>() ||
-         symbol->decls.front()->isa<TypeParam>() ||
-         symbol->decls.front()->isa<StructDecl>() ||
-         symbol->decls.front()->isa<EnumDecl>());
-    is_value = !is_type;
-    if (is_value != value_expected) {
-        if (value_expected)
-            checker.error(loc, "value expected, but got type '{}'", *type);
-        else
-            checker.error(loc, "type expected, but got '{}'", *this);
-        return checker.type_table.type_error();
-    }
+
+    bool is_type = (symbol->decls.front()->isa<TypeDecl>() ||
+                    symbol->decls.front()->isa<TypeParam>() ||
+                    symbol->decls.front()->isa<StructDecl>() ||
+                    symbol->decls.front()->isa<EnumDecl>());
 
     // Inspect every element of the path
     for (size_t i = 0, n = elems.size(); i < n; ++i) {
@@ -533,7 +525,7 @@ const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, Ptr<Ex
         auto user_type   = type->isa<artic::UserType>();
         auto forall_type = type->isa<artic::ForallType>();
         if ((user_type && user_type->type_params()) || forall_type) {
-            size_t type_param_count = user_type
+            const size_t type_param_count = user_type
                 ? user_type->type_params()->params.size()
                 : forall_type->decl.type_params->params.size();
             if (type_param_count == elem.args.size() ||
@@ -568,18 +560,33 @@ const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, Ptr<Ex
                 auto index = enum_type->find_member(elems[i + 1].id.name);
                 if (!index)
                     return checker.unknown_member(elem.loc, enum_type, elems[i + 1].id.name);
-                auto member = type_app ? type_app->member_type(*index) : enum_type->member_type(*index);
-                auto codom = type_app ? type_app->as<artic::Type>() : enum_type;
-                type = is_unit_type(member)
-                    ? codom
-                    : checker.type_table.fn_type(member, codom);
                 elems[i + 1].index = *index;
-                is_value = true;
+                // TODO Potential refactor: how about always returning the type and allowing to call the type as a ctor ?
+                if (value_expected) {
+                    auto member = type_app ? type_app->member_type(*index) : enum_type->member_type(*index);
+                    auto codom = type_app ? type_app->as<artic::Type>() : enum_type;
+                    type = is_unit_type(member)
+                           ? codom
+                           : checker.type_table.fn_type(member, codom);
+                    is_type = false;
+                } else {
+                    type = type_app ? type_app->member_type(*index) : enum_type->member_type(*index);
+                }
+                checker.note("value_expected: {}", value_expected);
+                type->dump();
             } else {
                 checker.error(elem.loc, "expected module or enum type, but got '{}'", *type);
                 return checker.type_table.type_error();
             }
         }
+    }
+    is_value = !is_type;
+    if (is_value != value_expected) {
+        if (value_expected)
+            checker.error(loc, "value expected, but got type '{}'", *type);
+        else
+            checker.error(loc, "type expected, but got '{}'", *this);
+        return checker.type_table.type_error();
     }
     return type;
 }
@@ -1390,7 +1397,9 @@ const artic::Type* EnumDecl::infer(TypeChecker& checker) {
     // Set the type before entering the options
     type = enum_type;
     for (auto& option : options) {
-        option->type = option->param
+        option->type = option->datatype ?
+              checker.infer(*option->datatype)
+            : option->param
             ? checker.infer(*option->param)
             : checker.type_table.unit_type();
     }

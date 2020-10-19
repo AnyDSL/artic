@@ -1261,13 +1261,16 @@ struct StructDecl : public NamedDecl {
 /// Enumeration option declaration.
 struct OptionDecl : public NamedDecl {
     Ptr<Type> param;
+    Ptr<StructDecl> datatype;
 
     OptionDecl(
         const Loc& loc,
         Identifier&& id,
-        Ptr<Type>&& param)
+        Ptr<Type>&& param,
+        Ptr<StructDecl>&& datatype)
         : NamedDecl(loc, std::move(id))
         , param(std::move(param))
+        , datatype(std::move(datatype))
     {}
 
     const artic::Type* check(TypeChecker&, const artic::Type*) override;

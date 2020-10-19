@@ -130,12 +130,12 @@ Ptr<ast::StructDecl> Parser::parse_struct_decl() {
     bool tuple_like = true;
     if(ahead().tag() == Token::LBrace) {
         tuple_like = false;
-        expect(Token::LBrace);
+        accept(Token::LBrace);
         parse_list(Token::RBrace, Token::Comma, [&] {
             fields.emplace_back(parse_field_decl());
         });
     } else if(ahead().tag() == Token::LParen) {
-        expect(Token::LParen);
+        accept(Token::LParen);
         int i = 0;
         parse_list(Token::RParen, Token::Comma, [&] {
             auto fid = ast::Identifier(tracker(), "_" + std::to_string(i++));
@@ -145,7 +145,7 @@ Ptr<ast::StructDecl> Parser::parse_struct_decl() {
         expect(Token::Semi);
     } else if(ahead().tag() == Token::Semi ) {
         // Empty structs need a semicolon - as per previously established consistency rules
-        expect(Token::Semi);
+        accept(Token::Semi);
     } else {
         error(ahead().loc(), "expected ';' or '{' or '(', but got '{}'", ahead().string());
     }
@@ -157,30 +157,36 @@ Ptr<ast::OptionDecl> Parser::parse_option_decl(const ast::Identifier& parent) {
     Tracker tracker(this);
     auto id = parse_id();
     Ptr<ast::Type> param;
+    Ptr<ast::StructDecl> datatype;
+
     if (ahead().tag() == Token::LParen)
         param = parse_tuple_type();
     if (ahead().tag() == Token::LBrace) {
+        const auto l = tracker();
+        auto p = ast::Identifier(parent);
         auto id2 = id;
+        auto id3 = id2; // there has to be a cleaner way to copy unique ptrs ?
+        using E = ast::Path::Elem;
 
         Ptr<ast::TypeParamList> type_params;
 
         PtrVector<ast::FieldDecl> fields;
-        expect(Token::LBrace);
+        accept(Token::LBrace);
         parse_list(Token::RBrace, Token::Comma, [&] {
             fields.emplace_back(parse_field_decl());
         });
 
-        const auto l = tracker();
-        auto id3 = id2;
-        auto struct_decl = make_ptr<ast::StructDecl>(l, std::move(id3), std::move(type_params), std::move(fields));
-        auto p = ast::Identifier(parent);
-        using E = ast::Path::Elem;
-        std::vector<ast::Path::Elem> path; // = { E(l, std::move(p), {}), E(l, std::move(id2), {}) };
+        datatype = make_ptr<ast::StructDecl>(l, std::move(id3), std::move(type_params), std::move(fields));
+
+        // This path is actually never resolved - when datatype is non-empty it's used instead of `param`
+        // TODO: so nuke this i guess ? Will do once I'm sure.
+        std::vector<ast::Path::Elem> path;
         path.push_back(E(l, std::move(p), {}));
         path.push_back(E(l, std::move(id2), {}));
+
         param = make_ptr<ast::TypeApp>(tracker(), ast::Path(l, std::move(path) ));
     }
-    return make_ptr<ast::OptionDecl>(tracker(), std::move(id), std::move(param));
+    return make_ptr<ast::OptionDecl>(tracker(), std::move(id), std::move(param), std::move(datatype));
 }
 
 Ptr<ast::EnumDecl> Parser::parse_enum_decl() {
