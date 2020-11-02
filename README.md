@@ -93,7 +93,7 @@ range(|i| { print(i) })(0, 10)
 // Note that only functions of order 1 (functions that do not take
 // other functions as arguments) can be exported.
 #[export]
-fn foo() = 1
+fn foo() -> i32 { 1 }
 ```
  - Tuples cannot be indexed with constant integers anymore:
 ```rust
@@ -113,12 +113,12 @@ fn foo(x as (y: f32, z: f32)) { ... }
 ```
  - Functions can use the `=` sign instead of braces if their body is just an expression:
 ```rust
-fn foo() -> i32 = 1
+fn foo() -> i32 = 1;
 ```
  - Functions have their return type deducted automatically if they do not use `return` and
    are not recursive:
 ```rust
-fn foo() = 1
+fn foo() = 1;
 ```
  - Structure patterns and expressions use the `=` sign instead of `:` to give values to their members
    (this is for consistency with the use of `:` for type annotations, structure _types_ are not affected):
@@ -136,7 +136,7 @@ let q = p .{ y = 3 }; // q is a structure with x = 1, y = 3
 ```
  - Structure patterns can now have the `...` symbol to indicate they do not capture everything:
 ```rust
-fn foo(Pair { x = f, ... }) = f
+fn foo(Pair { x = f, ... }) = f;
 ```
  - Structures can have default values for their fields.
    Fields with default values can be omitted in structure expressions:
@@ -183,7 +183,7 @@ match x {
  - Address spaces are now introduced with the keyword `addrspace`:
 ```rust
 // Equivalent to &[1]i32 in impala
-fn foo(p: &addrspace(1)i32) = *p
+fn foo(p: &addrspace(1)i32) = *p;
 ```
  - Constant array expressions use Rust's syntax instead of the old Impala syntax:
 ```rust
