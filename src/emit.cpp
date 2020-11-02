@@ -472,7 +472,7 @@ const thorin::Def* Emitter::tuple_from_params(thorin::Lam* cont, bool ret) {
 std::vector<const thorin::Def*> Emitter::call_args(
     const thorin::Def* mem,
     const thorin::Def* arg,
-    const thorin::Def* cont) {
+    const thorin::Def* ret) {
     // Create a list of operands for a call to a function/continuation
     std::vector<const thorin::Def*> ops;
     ops.push_back(mem);
@@ -481,8 +481,8 @@ std::vector<const thorin::Def*> Emitter::call_args(
             ops.push_back(world.extract(arg, i));
     } else
         ops.push_back(arg);
-    if (cont)
-        ops.push_back(cont);
+    if (ret)
+        ops.push_back(ret);
     return ops;
 }
 
@@ -515,7 +515,7 @@ void Emitter::jump(const thorin::Def* callee, const thorin::Def* arg, thorin::De
 const thorin::Def* Emitter::call(const thorin::Def* callee, const thorin::Def* arg, thorin::Debug debug) {
     if (!state.cont)
         return nullptr;
-    auto lam_type = callee->type()->as<thorin::Pi>()->ops().back()->as<thorin::Pi>();
+    auto lam_type = callee->type()->as<thorin::Pi>()->domains().back()->as<thorin::Pi>();
     auto lam = world.lam(lam_type, thorin::Debug("cont"));
     return call(callee, arg, lam, debug);
 }
