@@ -12,7 +12,7 @@
 
 namespace thorin {
     class Def;
-    class Continuation;
+    class Lam;
 }
 
 namespace artic {
@@ -122,7 +122,7 @@ struct Expr : public Node {
     const artic::Type* check(TypeChecker&, const artic::Type*) override;
 
     /// Emits a branch for boolean expressions.
-    virtual void emit_branch(Emitter&, thorin::Continuation*, thorin::Continuation*) const;
+    virtual void emit_branch(Emitter&, thorin::Lam*, thorin::Lam*) const;
 
     /// Records the fact that this expression is written to.
     virtual void write_to() const {}
@@ -966,7 +966,7 @@ struct BinaryExpr : public Expr {
     bool is_constant() const override;
     int precedence() const { return precedence(tag); }
 
-    void emit_branch(Emitter&, thorin::Continuation*, thorin::Continuation*) const override;
+    void emit_branch(Emitter&, thorin::Lam*, thorin::Lam*) const override;
 
     const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) override;

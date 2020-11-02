@@ -13,8 +13,8 @@
 
 namespace thorin {
     class World;
-    class Continuation;
-    class FnType;
+    class Lam;
+    class Pi;
 }
 
 namespace artic {
@@ -32,7 +32,7 @@ public:
 
     struct State {
         const thorin::Def* mem = nullptr;
-        thorin::Continuation* cont = nullptr;
+        thorin::Lam* cont = nullptr;
     };
 
     struct SavedState {
@@ -91,7 +91,7 @@ public:
     /// Map from the currently bound type variables to monomorphic types.
     std::unordered_map<const TypeVar*, const Type*> type_vars;
     /// Map from monomorphic function signature to emitted thorin function.
-    std::unordered_map<MonoFn, thorin::Continuation*, Hash, Compare> mono_fns;
+    std::unordered_map<MonoFn, thorin::Lam*, Hash, Compare> mono_fns;
     /// Map from enum type and variant index to variant constructor.
     std::unordered_map<Ctor, const thorin::Def*, Hash, Compare> variant_ctors;
     /// Vector containing definitions that are generated during monomorphization.
@@ -104,22 +104,22 @@ public:
     void redundant_case(const ast::CaseExpr&);
     void non_exhaustive_match(const ast::MatchExpr&);
 
-    thorin::Continuation* basic_block(thorin::Debug = {});
-    thorin::Continuation* basic_block_with_mem(thorin::Debug = {});
-    thorin::Continuation* basic_block_with_mem(const thorin::Type*, thorin::Debug = {});
+    thorin::Lam* basic_block(thorin::Debug = {});
+    thorin::Lam* basic_block_with_mem(thorin::Debug = {});
+    thorin::Lam* basic_block_with_mem(const thorin::Type*, thorin::Debug = {});
 
     const thorin::Def* ctor_index(const ast::Ptrn& ptrn);
 
-    const thorin::FnType* continuation_type_with_mem(const thorin::Type*);
-    const thorin::FnType* function_type_with_mem(const thorin::Type*, const thorin::Type*);
-    const thorin::Def* tuple_from_params(thorin::Continuation*, bool = false);
+    const thorin::Pi* continuation_type_with_mem(const thorin::Type*);
+    const thorin::Pi* function_type_with_mem(const thorin::Type*, const thorin::Type*);
+    const thorin::Def* tuple_from_params(thorin::Lam*, bool = false);
     std::vector<const thorin::Def*> call_args(const thorin::Def*, const thorin::Def*, const thorin::Def* = nullptr);
 
-    void enter(thorin::Continuation*);
+    void enter(thorin::Lam*);
     void jump(const thorin::Def*, thorin::Debug = {});
     void jump(const thorin::Def*, const thorin::Def*, thorin::Debug = {});
     const thorin::Def* call(const thorin::Def*, const thorin::Def*, thorin::Debug = {});
-    const thorin::Def* call(const thorin::Def*, const thorin::Def*, thorin::Continuation*, thorin::Debug = {});
+    const thorin::Def* call(const thorin::Def*, const thorin::Def*, thorin::Lam*, thorin::Debug = {});
     void branch(const thorin::Def*, const thorin::Def*, const thorin::Def*, thorin::Debug = {});
 
     const thorin::Def* alloc(const thorin::Type*, thorin::Debug = {});
@@ -135,7 +135,7 @@ public:
     void bind(const ast::IdPtrn&, const thorin::Def*);
     const thorin::Def* emit(const ast::Node&, const Literal&);
 
-    const thorin::Def* builtin(const ast::FnDecl&, thorin::Continuation*);
+    const thorin::Def* builtin(const ast::FnDecl&, thorin::Lam*);
 };
 
 } // namespace artic
