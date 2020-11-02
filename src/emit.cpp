@@ -360,13 +360,14 @@ private:
         }
     }
 
-    // For debugging
+#ifndef NDEBUG
     void dump() const;
+#endif
 };
 
 // Since this code is used for debugging only, it makes sense to hide it in
 // the coverage report. This is done using these START/STOP markers.
-// GCOV_EXCL_START
+#ifndef NDEBUG // GCOV_EXCL_START
 void PtrnCompiler::dump() const {
     Printer p(log::out);
     p << "match ";
@@ -398,7 +399,7 @@ void PtrnCompiler::dump() const {
     }
     p << ')' << p.unindent() << p.endl();
 }
-// GCOV_EXCL_STOP
+#endif // GCOV_EXCL_STOP
 
 bool Emitter::run(const ast::ModDecl& mod) {
     mod.emit(*this);
