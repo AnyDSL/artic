@@ -1240,15 +1240,18 @@ struct FieldDecl : public NamedDecl {
 struct StructDecl : public NamedDecl {
     Ptr<TypeParamList> type_params;
     PtrVector<FieldDecl> fields;
+    bool tuple_like;
 
     StructDecl(
         const Loc& loc,
         Identifier&& id,
         Ptr<TypeParamList>&& type_params,
-        PtrVector<FieldDecl>&& fields)
+        PtrVector<FieldDecl>&& fields,
+        bool tuple_like)
         : NamedDecl(loc, std::move(id))
         , type_params(std::move(type_params))
         , fields(std::move(fields))
+        , tuple_like(tuple_like)
     {}
 
     const thorin::Def* emit(Emitter&) const override;

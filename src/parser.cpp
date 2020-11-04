@@ -105,10 +105,11 @@ Ptr<ast::FnDecl> Parser::parse_fn_decl() {
     return make_ptr<ast::FnDecl>(tracker(), std::move(id), std::move(fn), std::move(type_params));
 }
 
-Ptr<ast::FieldDecl> Parser::parse_field_decl() {
+Ptr<ast::FieldDecl> Parser::parse_field_decl(size_t index, bool nameless) {
     Tracker tracker(this);
-    auto id = parse_id();
-    expect(Token::Colon);
+    auto id = nameless ? ast::Identifier(tracker(), "_" + std::to_string(index)) : parse_id();
+    if (!nameless)
+        expect(Token::Colon);
     auto type = parse_type();
     Ptr<ast::Expr> init;
     if (accept(Token::Eq))
@@ -127,30 +128,21 @@ Ptr<ast::StructDecl> Parser::parse_struct_decl() {
 
     PtrVector<ast::FieldDecl> fields;
 
-    bool tuple_like = true;
-    if(ahead().tag() == Token::LBrace) {
-        tuple_like = false;
+    bool tuple_like = accept(Token::LParen);
+    if (tuple_like || accept(Token::LBrace)) {
         accept(Token::LBrace);
-        parse_list(Token::RBrace, Token::Comma, [&] {
-            fields.emplace_back(parse_field_decl());
+        size_t i = 0;
+        parse_list(tuple_like ? Token::RParen : Token::RBrace, Token::Comma, [&] {
+            fields.emplace_back(parse_field_decl(i++, tuple_like));
         });
-    } else if(ahead().tag() == Token::LParen) {
-        accept(Token::LParen);
-        int i = 0;
-        parse_list(Token::RParen, Token::Comma, [&] {
-            auto fid = ast::Identifier(tracker(), "_" + std::to_string(i++));
-            Ptr<ast::Expr> init;
-            fields.emplace_back(make_ptr<ast::FieldDecl>(tracker(), std::move(fid), std::move(parse_type()), std::move(init)));
-        });
-        expect(Token::Semi);
-    } else if(ahead().tag() == Token::Semi ) {
-        // Empty structs need a semicolon - as per previously established consistency rules
-        accept(Token::Semi);
+        if (tuple_like)
+            expect(Token::Semi);
     } else {
-        error(ahead().loc(), "expected ';' or '{' or '(', but got '{}'", ahead().string());
+        tuple_like = true;
+        expect(Token::Semi);
     }
 
-    return make_ptr<ast::StructDecl>(tracker(), std::move(id), std::move(type_params), std::move(fields));
+    return make_ptr<ast::StructDecl>(tracker(), std::move(id), std::move(type_params), std::move(fields), tuple_like);
 }
 
 Ptr<ast::OptionDecl> Parser::parse_option_decl(const ast::Identifier& parent) {
@@ -172,8 +164,9 @@ Ptr<ast::OptionDecl> Parser::parse_option_decl(const ast::Identifier& parent) {
 
         PtrVector<ast::FieldDecl> fields;
         accept(Token::LBrace);
+        size_t i = 0;
         parse_list(Token::RBrace, Token::Comma, [&] {
-            fields.emplace_back(parse_field_decl());
+            fields.emplace_back(parse_field_decl(i++, false));
         });
 
         datatype = make_ptr<ast::StructDecl>(l, std::move(id3), std::move(type_params), std::move(fields));

@@ -27,7 +27,7 @@ private:
     Ptr<ast::Decl>          parse_decl(bool = false);
     Ptr<ast::LetDecl>       parse_let_decl();
     Ptr<ast::FnDecl>        parse_fn_decl();
-    Ptr<ast::FieldDecl>     parse_field_decl();
+    Ptr<ast::FieldDecl>     parse_field_decl(size_t, bool);
     Ptr<ast::StructDecl>    parse_struct_decl();
     Ptr<ast::OptionDecl>    parse_option_decl(const ast::Identifier&);
     Ptr<ast::EnumDecl>      parse_enum_decl();
