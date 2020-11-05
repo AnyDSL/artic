@@ -105,16 +105,16 @@ Ptr<ast::FnDecl> Parser::parse_fn_decl() {
     return make_ptr<ast::FnDecl>(tracker(), std::move(id), std::move(fn), std::move(type_params));
 }
 
-Ptr<ast::FieldDecl> Parser::parse_field_decl(size_t index, bool nameless) {
+Ptr<ast::FieldDecl> Parser::parse_field_decl(size_t index, bool is_nameless) {
     Tracker tracker(this);
-    auto id = nameless ? ast::Identifier(tracker(), "_" + std::to_string(index)) : parse_id();
-    if (!nameless)
+    auto id = is_nameless ? ast::Identifier(tracker(), "_" + std::to_string(index)) : parse_id();
+    if (!is_nameless)
         expect(Token::Colon);
     auto type = parse_type();
     Ptr<ast::Expr> init;
     if (accept(Token::Eq))
         init = parse_expr();
-    return make_ptr<ast::FieldDecl>(tracker(), std::move(id), std::move(type), std::move(init));
+    return make_ptr<ast::FieldDecl>(tracker(), std::move(id), std::move(type), std::move(init), is_nameless);
 }
 
 Ptr<ast::StructDecl> Parser::parse_struct_decl() {
@@ -169,7 +169,7 @@ Ptr<ast::OptionDecl> Parser::parse_option_decl(const ast::Identifier& parent) {
             fields.emplace_back(parse_field_decl(i++, false));
         });
 
-        datatype = make_ptr<ast::StructDecl>(l, std::move(id3), std::move(type_params), std::move(fields));
+        datatype = make_ptr<ast::StructDecl>(l, std::move(id3), std::move(type_params), std::move(fields), false);
 
         // This path is actually never resolved - when datatype is non-empty it's used instead of `param`
         // TODO: so nuke this i guess ? Will do once I'm sure.

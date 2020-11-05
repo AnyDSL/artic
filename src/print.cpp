@@ -482,7 +482,8 @@ void FnDecl::print(Printer& p) const {
 }
 
 void FieldDecl::print(Printer& p) const {
-    p << id.name << ": ";
+    if (!is_nameless)
+        p << id.name << ": ";
     type->print(p);
     if (init) {
         p << " = ";
@@ -494,16 +495,23 @@ void StructDecl::print(Printer& p) const {
     if (attrs) attrs->print(p);
     p << log::keyword_style("struct") << ' ' << id.name;
     if (type_params) type_params->print(p);
-    p << " {";
+    if (tuple_like && fields.empty()) {
+        p << ";";
+        return;
+    }
+    p << (tuple_like ? "(" : " {");
     if (!fields.empty()) {
-        p << p.indent();
-        print_list(p, ',', fields, [&] (auto& f) {
-            p << p.endl();
+        if (!tuple_like)
+            p << p.indent();
+        print_list(p, tuple_like ? ", " : "", fields, [&] (auto& f) {
+            if (!tuple_like)
+                p << p.endl();
             f->print(p);
         });
-        p << p.unindent() << p.endl();
+        if (!tuple_like)
+            p << p.unindent() << p.endl();
     }
-    p << '}';
+    p << (tuple_like ? ");" : "}");
 }
 
 void OptionDecl::print(Printer& p) const {

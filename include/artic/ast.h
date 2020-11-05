@@ -1220,15 +1220,18 @@ struct FnDecl : public NamedDecl {
 struct FieldDecl : public NamedDecl {
     Ptr<Type> type;
     Ptr<Expr> init;
+    bool is_nameless;
 
     FieldDecl(
         const Loc& loc,
         Identifier&& id,
         Ptr<Type>&& type,
-        Ptr<Expr>&& init)
+        Ptr<Expr>&& init,
+        bool is_nameless)
         : NamedDecl(loc, std::move(id))
         , type(std::move(type))
         , init(std::move(init))
+        , is_nameless(is_nameless)
     {}
 
     const artic::Type* infer(TypeChecker&) override;
