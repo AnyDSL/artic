@@ -1220,23 +1220,20 @@ struct FnDecl : public NamedDecl {
 struct FieldDecl : public NamedDecl {
     Ptr<Type> type;
     Ptr<Expr> init;
-    bool is_nameless;
 
     FieldDecl(
         const Loc& loc,
         Identifier&& id,
         Ptr<Type>&& type,
-        Ptr<Expr>&& init,
-        bool is_nameless)
+        Ptr<Expr>&& init)
         : NamedDecl(loc, std::move(id))
         , type(std::move(type))
         , init(std::move(init))
-        , is_nameless(is_nameless)
     {}
 
     const artic::Type* infer(TypeChecker&) override;
     void bind(NameBinder&) override;
-    void print(Printer&) const override;
+    void print(Printer& p) const override;
 };
 
 /// Structure type declarations.
@@ -1262,7 +1259,6 @@ struct StructDecl : public NamedDecl {
     void bind_head(NameBinder&) override;
     void bind(NameBinder&) override;
     void print(Printer&) const override;
-    void print_body(Printer&) const;
 };
 
 /// Enumeration option declaration.

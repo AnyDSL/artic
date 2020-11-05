@@ -482,7 +482,7 @@ void FnDecl::print(Printer& p) const {
 }
 
 void FieldDecl::print(Printer& p) const {
-    if (!is_nameless)
+    if (!id.name.empty())
         p << id.name << ": ";
     type->print(p);
     if (init) {
@@ -491,36 +491,36 @@ void FieldDecl::print(Printer& p) const {
     }
 }
 
+inline void print_body(const StructDecl& decl, Printer& p) {
+    p << (decl.tuple_like ? "(" : " {");
+    if (!decl.fields.empty()) {
+        if (!decl.tuple_like)
+            p << p.indent();
+        print_list(p, decl.tuple_like ? ", " : ",", decl.fields, [&] (auto& f) {
+            if (!decl.tuple_like)
+                p << p.endl();
+            f->print(p);
+        });
+        if (!decl.tuple_like)
+            p << p.unindent() << p.endl();
+    }
+    p << (decl.tuple_like ? ")" : "}");
+}
+
 void StructDecl::print(Printer& p) const {
     if (attrs) attrs->print(p);
     p << log::keyword_style("struct") << ' ' << id.name;
     if (type_params) type_params->print(p);
     if (!tuple_like || !fields.empty())
-        print_body(p);
+        print_body(*this, p);
     if (tuple_like)
         p << ";";
-}
-
-void StructDecl::print_body(Printer& p) const {
-    p << (tuple_like ? "(" : " {");
-    if (!fields.empty()) {
-        if (!tuple_like)
-            p << p.indent();
-        print_list(p, tuple_like ? ", " : ",", fields, [&] (auto& f) {
-            if (!tuple_like)
-                p << p.endl();
-            f->print(p);
-        });
-        if (!tuple_like)
-            p << p.unindent() << p.endl();
-    }
-    p << (tuple_like ? ")" : "}");
 }
 
 void OptionDecl::print(Printer& p) const {
     p << id.name;
     if (param) print_parens(p, param);
-    if (datatype) datatype->print_body(p);
+    if (datatype) print_body(*datatype, p);
 }
 
 void EnumDecl::print(Printer& p) const {

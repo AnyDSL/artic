@@ -105,16 +105,16 @@ Ptr<ast::FnDecl> Parser::parse_fn_decl() {
     return make_ptr<ast::FnDecl>(tracker(), std::move(id), std::move(fn), std::move(type_params));
 }
 
-Ptr<ast::FieldDecl> Parser::parse_field_decl(size_t index, bool is_nameless) {
+Ptr<ast::FieldDecl> Parser::parse_field_decl(size_t index, bool is_tuple_like) {
     Tracker tracker(this);
-    auto id = is_nameless ? ast::Identifier(tracker(), "_" + std::to_string(index)) : parse_id();
-    if (!is_nameless)
+    auto id = is_tuple_like ? ast::Identifier(tracker(), "") : parse_id();
+    if (!is_tuple_like)
         expect(Token::Colon);
     auto type = parse_type();
     Ptr<ast::Expr> init;
     if (accept(Token::Eq))
         init = parse_expr();
-    return make_ptr<ast::FieldDecl>(tracker(), std::move(id), std::move(type), std::move(init), is_nameless);
+    return make_ptr<ast::FieldDecl>(tracker(), std::move(id), std::move(type), std::move(init));
 }
 
 Ptr<ast::StructDecl> Parser::parse_struct_decl() {

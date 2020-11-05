@@ -1517,7 +1517,7 @@ const thorin::Type* StructType::convert(Emitter& emitter, const Type* parent) co
     emitter.types[parent] = type;
     for (size_t i = 0, n = decl.fields.size(); i < n; ++i) {
         type->set(i, decl.fields[i]->ast::Node::type->convert(emitter));
-        type->set_op_name(i, decl.fields[i]->id.name);
+        type->set_op_name(i, decl.tuple_like ? ("_" + std::to_string(i)) : decl.fields[i]->id.name);
     }
     return type;
 }
