@@ -32,7 +32,7 @@ public:
 
     struct State {
         const thorin::Def* mem = nullptr;
-        thorin::Lam* cont = nullptr;
+        thorin::Lam* bb = nullptr;
     };
 
     struct SavedState {
@@ -112,8 +112,6 @@ public:
 
     const thorin::Pi* continuation_type_with_mem(const thorin::Type*);
     const thorin::Pi* function_type_with_mem(const thorin::Type*, const thorin::Type*);
-    const thorin::Def* tuple_from_params(thorin::Lam*, bool = false);
-    std::vector<const thorin::Def*> call_args(const thorin::Def*, const thorin::Def*, const thorin::Def* = nullptr);
 
     void enter(thorin::Lam*);
     void jump(const thorin::Def*, thorin::Debug = {});
