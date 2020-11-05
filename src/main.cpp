@@ -410,5 +410,5 @@ int main(int argc, char** argv) {
         emit_to_file(backends.hls_cg.get(),    ".hls");
     }
 #endif
-    return true;
+    return EXIT_SUCCESS;
 }
