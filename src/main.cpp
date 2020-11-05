@@ -268,25 +268,24 @@ static std::string tabs_to_spaces(const std::string& str, size_t indent) {
     return res;
 }
 
-static bool compile(const ProgramOptions& opts, Log& log) {
-    ast::ModDecl program;
-    std::vector<std::string> contents;
-    for (auto& file : opts.files) {
-        // Tabs to spaces conversion is necessary in order to provide good error diagnostics.
-        auto data = read_file(file);
-        if (!data) {
-            log::error("cannot open file '{}'", file);
-            return false;
-        }
-        // The contents are necessary to be able to emit proper diagnostics during type-checking
-        contents.emplace_back(tabs_to_spaces(*data, opts.tab_width));
-        log.locator->register_file(file, contents.back());
-        MemBuf mem_buf(contents.back());
+static bool compile(
+    const std::vector<std::string>& files,
+    const std::vector<std::string>& file_data,
+    bool warns_as_errors,
+    bool enable_all_warns,
+    ast::ModDecl& program,
+    thorin::World& world,
+    thorin::Log::Level log_level,
+    Log& log) {
+    assert(file_data.size() == files.size());
+    for (size_t i = 0, n = files.size(); i < n; ++i) {
+        log.locator->register_file(files[i], file_data[i]);
+        MemBuf mem_buf(file_data[i]);
         std::istream is(&mem_buf);
 
-        Lexer lexer(log, file, is);
+        Lexer lexer(log, files[i], is);
         Parser parser(log, lexer);
-        parser.warns_as_errors = opts.warns_as_errors;
+        parser.warns_as_errors = warns_as_errors;
         auto module = parser.parse();
         if (log.errors > 0)
             return false;
@@ -299,18 +298,73 @@ static bool compile(const ProgramOptions& opts, Log& log) {
     }
 
     NameBinder name_binder(log);
-    name_binder.warns_as_errors = opts.warns_as_errors;
-    if (opts.enable_all_warns)
+    name_binder.warns_as_errors = warns_as_errors;
+    if (enable_all_warns)
         name_binder.warn_on_shadowing = true;
 
     TypeTable type_table;
     TypeChecker type_checker(log, type_table);
-    type_checker.warns_as_errors = opts.warns_as_errors;
+    type_checker.warns_as_errors = warns_as_errors;
 
     if (!name_binder.run(program) || !type_checker.run(program))
         return false;
 
+    thorin::Log::set(log_level, &std::cerr);
+    Emitter emitter(log, world);
+    emitter.warns_as_errors = warns_as_errors;
+    return emitter.run(program);
+}
+
+int main(int argc, char** argv) {
+    ProgramOptions opts;
+    if (!opts.parse(argc, argv))
+        return EXIT_FAILURE;
+    if (opts.exit)
+        return EXIT_SUCCESS;
+
+    if (opts.no_color)
+        log::err.colorized = log::out.colorized = false;
+
+    if (opts.files.empty()) {
+        log::error("no input files");
+        return EXIT_FAILURE;
+    }
+
+    if (opts.module_name == "")
+        opts.module_name = file_without_ext(opts.files.front());
+
+    Locator locator;
+    Log log(log::err, &locator);
+    log.max_errors = opts.max_errors;
+
+    std::vector<std::string> file_data;
+    for (auto& file : opts.files) {
+        // Tabs to spaces conversion is necessary in order to provide good error diagnostics.
+        auto data = read_file(file);
+        if (!data) {
+            log::error("cannot open file '{}'", file);
+            return EXIT_FAILURE;
+        }
+        file_data.emplace_back(tabs_to_spaces(*data, opts.tab_width));
+    }
+
+    thorin::World world(opts.module_name);
+    ast::ModDecl program;
+    bool success = compile(
+        opts.files,
+        file_data,
+        opts.warns_as_errors,
+        opts.enable_all_warns,
+        program,
+        world,
+        opts.log_level,
+        log);
+
+    log.print_summary();
+
     if (opts.print_ast) {
+        if (log.errors > 0 || log.warns > 0)
+            log::out << "\n";
         Printer p(log::out);
         p.show_implicit_casts = opts.show_implicit_casts;
         p.tab = std::string(opts.tab_width, ' ');
@@ -318,12 +372,9 @@ static bool compile(const ProgramOptions& opts, Log& log) {
         log::out << "\n";
     }
 
-    thorin::Log::set(opts.log_level, &std::cerr);
-    thorin::World world(opts.module_name);
-    Emitter emitter(log, world);
-    emitter.warns_as_errors = opts.warns_as_errors;
-    if (!emitter.run(program))
-        return false;
+    if (!success)
+        return EXIT_FAILURE;
+
     if (opts.opt_level == 1)
         world.cleanup();
     if (opts.opt_level > 1 || opts.emit_llvm)
@@ -359,32 +410,5 @@ static bool compile(const ProgramOptions& opts, Log& log) {
         emit_to_file(backends.hls_cg.get(),    ".hls");
     }
 #endif
-    return true;
-}
-
-int main(int argc, char** argv) {
-    ProgramOptions opts;
-    if (!opts.parse(argc, argv))
-        return EXIT_FAILURE;
-    if (opts.exit)
-        return EXIT_SUCCESS;
-
-    if (opts.no_color)
-        log::err.colorized = log::out.colorized = false;
-
-    if (opts.files.empty()) {
-        log::error("no input files");
-        return EXIT_FAILURE;
-    }
-
-    if (opts.module_name == "")
-        opts.module_name = file_without_ext(opts.files.front());
-
-    Locator locator;
-    Log log(log::err, &locator);
-    log.max_errors = opts.max_errors;
-
-    bool success = compile(opts, log);
-    log.print_summary();
-    return success ? EXIT_SUCCESS : EXIT_FAILURE;
+    return EXIT_SUCCESS;
 }
