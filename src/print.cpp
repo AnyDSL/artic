@@ -495,15 +495,18 @@ void StructDecl::print(Printer& p) const {
     if (attrs) attrs->print(p);
     p << log::keyword_style("struct") << ' ' << id.name;
     if (type_params) type_params->print(p);
-    if (tuple_like && fields.empty()) {
+    if (!tuple_like || !fields.empty())
+        print_body(p);
+    if (tuple_like)
         p << ";";
-        return;
-    }
+}
+
+void StructDecl::print_body(Printer& p) const {
     p << (tuple_like ? "(" : " {");
     if (!fields.empty()) {
         if (!tuple_like)
             p << p.indent();
-        print_list(p, tuple_like ? ", " : "", fields, [&] (auto& f) {
+        print_list(p, tuple_like ? ", " : ",", fields, [&] (auto& f) {
             if (!tuple_like)
                 p << p.endl();
             f->print(p);
@@ -511,12 +514,13 @@ void StructDecl::print(Printer& p) const {
         if (!tuple_like)
             p << p.unindent() << p.endl();
     }
-    p << (tuple_like ? ");" : "}");
+    p << (tuple_like ? ")" : "}");
 }
 
 void OptionDecl::print(Printer& p) const {
     p << id.name;
     if (param) print_parens(p, param);
+    if (datatype) datatype->print_body(p);
 }
 
 void EnumDecl::print(Printer& p) const {

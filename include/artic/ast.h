@@ -1262,6 +1262,7 @@ struct StructDecl : public NamedDecl {
     void bind_head(NameBinder&) override;
     void bind(NameBinder&) override;
     void print(Printer&) const override;
+    void print_body(Printer&) const;
 };
 
 /// Enumeration option declaration.
