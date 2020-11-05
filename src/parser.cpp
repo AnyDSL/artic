@@ -154,13 +154,7 @@ Ptr<ast::OptionDecl> Parser::parse_option_decl(const ast::Identifier& parent) {
     if (ahead().tag() == Token::LParen)
         param = parse_tuple_type();
     if (ahead().tag() == Token::LBrace) {
-        const auto l = tracker();
-        auto p = ast::Identifier(parent);
-        auto id2 = id;
-        auto id3 = id2; // there has to be a cleaner way to copy unique ptrs ?
-        using E = ast::Path::Elem;
-
-        Ptr<ast::TypeParamList> type_params;
+        Ptr<ast::TypeParamList> type_params = make_ptr<ast::TypeParamList>(tracker(), std::move(PtrVector<ast::TypeParam>()));
 
         PtrVector<ast::FieldDecl> fields;
         accept(Token::LBrace);
@@ -169,15 +163,7 @@ Ptr<ast::OptionDecl> Parser::parse_option_decl(const ast::Identifier& parent) {
             fields.emplace_back(parse_field_decl(i++, false));
         });
 
-        datatype = make_ptr<ast::StructDecl>(l, std::move(id3), std::move(type_params), std::move(fields), false);
-
-        // This path is actually never resolved - when datatype is non-empty it's used instead of `param`
-        // TODO: so nuke this i guess ? Will do once I'm sure.
-        std::vector<ast::Path::Elem> path;
-        path.push_back(E(l, std::move(p), {}));
-        path.push_back(E(l, std::move(id2), {}));
-
-        param = make_ptr<ast::TypeApp>(tracker(), ast::Path(l, std::move(path) ));
+        datatype = make_ptr<ast::StructDecl>(tracker(), std::move(ast::Identifier(id)), std::move(type_params), std::move(fields), false);
     }
     return make_ptr<ast::OptionDecl>(tracker(), std::move(id), std::move(param), std::move(datatype));
 }

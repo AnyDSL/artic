@@ -411,6 +411,7 @@ void StructDecl::bind(NameBinder& binder) {
 
 void OptionDecl::bind(NameBinder& binder) {
     if (param) binder.bind(*param);
+    if (datatype) binder.bind(*datatype);
     binder.insert_symbol(*this);
 }
 
