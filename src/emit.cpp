@@ -917,6 +917,15 @@ const thorin::Def* CallExpr::emit(Emitter& emitter) const {
             return emitter.no_ret();
         }
         return emitter.call(fn, value, debug_info(*this));
+    } else if(auto struct_type = callee->type->isa<StructType>()) {
+        auto tuple_args = arg->as<TupleExpr>();
+
+        thorin::Array<const thorin::Def*> ops(struct_type->member_count(), nullptr);
+        for (size_t i = 0, n = tuple_args->args.size(); i < n; ++i)
+            ops[i] = emitter.emit(*(tuple_args->args[i]));
+        return emitter.world.struct_agg(
+                Node::type->convert(emitter)->as<thorin::StructType>(),
+                ops, debug_info(*this));
     } else {
         auto array = emitter.emit(*callee);
         auto index = emitter.emit(*arg);
@@ -1517,7 +1526,7 @@ const thorin::Type* StructType::convert(Emitter& emitter, const Type* parent) co
     emitter.types[parent] = type;
     for (size_t i = 0, n = decl.fields.size(); i < n; ++i) {
         type->set(i, decl.fields[i]->ast::Node::type->convert(emitter));
-        type->set_op_name(i, decl.tuple_like ? ("_" + std::to_string(i)) : decl.fields[i]->id.name);
+        type->set_op_name(i, decl.is_tuple_like ? ("_" + std::to_string(i)) : decl.fields[i]->id.name);
     }
     return type;
 }

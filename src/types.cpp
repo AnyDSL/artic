@@ -436,6 +436,13 @@ size_t StructType::member_count() const {
     return decl.fields.size();
 }
 
+const TupleType* StructType::as_tuple_type() const {
+    std::vector<const Type*> args;
+    for (const auto& field : decl.fields)
+        args.emplace_back(field->ast::Node::type);
+    return type_table.tuple_type(std::move(args));
+}
+
 std::optional<size_t> EnumType::find_member(const std::string_view& name) const {
     auto it = std::find_if(
         decl.options.begin(),

@@ -492,28 +492,28 @@ void FieldDecl::print(Printer& p) const {
 }
 
 inline void print_body(const StructDecl& decl, Printer& p) {
-    p << (decl.tuple_like ? "(" : " {");
+    p << (decl.is_tuple_like ? "(" : " {");
     if (!decl.fields.empty()) {
-        if (!decl.tuple_like)
+        if (!decl.is_tuple_like)
             p << p.indent();
-        print_list(p, decl.tuple_like ? ", " : ",", decl.fields, [&] (auto& f) {
-            if (!decl.tuple_like)
+        print_list(p, decl.is_tuple_like ? ", " : ",", decl.fields, [&] (auto& f) {
+            if (!decl.is_tuple_like)
                 p << p.endl();
             f->print(p);
         });
-        if (!decl.tuple_like)
+        if (!decl.is_tuple_like)
             p << p.unindent() << p.endl();
     }
-    p << (decl.tuple_like ? ")" : "}");
+    p << (decl.is_tuple_like ? ")" : "}");
 }
 
 void StructDecl::print(Printer& p) const {
     if (attrs) attrs->print(p);
     p << log::keyword_style("struct") << ' ' << id.name;
     if (type_params) type_params->print(p);
-    if (!tuple_like || !fields.empty())
+    if (!is_tuple_like || !fields.empty())
         print_body(*this, p);
-    if (tuple_like)
+    if (is_tuple_like)
         p << ";";
 }
 

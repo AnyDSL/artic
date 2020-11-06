@@ -444,6 +444,8 @@ struct StructType : public ComplexType {
     const Type* member_type(size_t) const override;
     size_t member_count() const override;
 
+    const TupleType* as_tuple_type() const;
+
 private:
     StructType(TypeTable& type_table, const ast::StructDecl& decl)
         : ComplexType(type_table), decl(decl)

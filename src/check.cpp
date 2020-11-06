@@ -504,10 +504,10 @@ const artic::Type* Ptrn::check(TypeChecker& checker, const artic::Type* expected
 // Path ----------------------------------------------------------------------------
 
 const artic::Type* Path::infer(TypeChecker& checker) {
-    return infer(checker, true, nullptr);
+    return infer(checker, true, true, nullptr);
 }
 
-const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, Ptr<Expr>* arg) {
+const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, bool enforce_expectation, Ptr<Expr>* arg) {
     if (!symbol || symbol->decls.empty())
         return checker.type_table.type_error();
     auto type = checker.infer(*symbol->decls.front());
@@ -561,17 +561,17 @@ const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, Ptr<Ex
                 if (!index)
                     return checker.unknown_member(elem.loc, enum_type, elems[i + 1].id.name);
                 elems[i + 1].index = *index;
-                // TODO Potential refactor: how about always returning the type and allowing to call the type as a ctor ?
-                if (value_expected) {
+                // TODO Potential refactor: how about always returning the type and allowing to call a type as a ctor ?
+                //if (coerce_into_expected && value_expected) {
                     auto member = type_app ? type_app->member_type(*index) : enum_type->member_type(*index);
                     auto codom = type_app ? type_app->as<artic::Type>() : enum_type;
                     type = is_unit_type(member)
                            ? codom
                            : checker.type_table.fn_type(member, codom);
                     is_type = false;
-                } else {
-                    type = type_app ? type_app->member_type(*index) : enum_type->member_type(*index);
-                }
+                //} else {
+                //    type = type_app ? type_app->member_type(*index) : enum_type->member_type(*index);
+                //}
                 checker.note("value_expected: {}", value_expected);
                 type->dump();
             } else {
@@ -581,7 +581,7 @@ const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, Ptr<Ex
         }
     }
     is_value = !is_type;
-    if (is_value != value_expected) {
+    if (enforce_expectation && is_value != value_expected) {
         if (value_expected)
             checker.error(loc, "value expected, but got type '{}'", *type);
         else
@@ -694,7 +694,7 @@ const artic::Type* PtrType::infer(TypeChecker& checker) {
 }
 
 const artic::Type* TypeApp::infer(TypeChecker& checker) {
-    return path.type = path.infer(checker, false, nullptr);
+    return path.type = path.infer(checker, false, true, nullptr);
 }
 
 // Statements ----------------------------------------------------------------------
@@ -864,7 +864,7 @@ const artic::Type* CallExpr::infer(TypeChecker& checker) {
     // Perform type argument inference when possible
     if (auto path_expr = callee->isa<ast::PathExpr>()) {
         path_expr->type = path_expr->path.type =
-            path_expr->path.infer(checker, true, &arg);
+            path_expr->path.infer(checker, true, false, &arg);
     }
 
     auto [ref_type, callee_type] = remove_ref(checker.infer(*callee));
@@ -872,6 +872,16 @@ const artic::Type* CallExpr::infer(TypeChecker& checker) {
         checker.coerce(callee, fn_type);
         checker.coerce(arg, fn_type->dom);
         return fn_type->codom;
+    } else if (auto struct_type = callee_type->isa<artic::StructType>()) {
+        checker.coerce(callee, struct_type);
+        if (struct_type->decl.is_tuple_like) {
+            checker.coerce(arg, struct_type->as_tuple_type());
+            return struct_type;
+        } else {
+            checker.error(callee->loc, "attempted to initialize a non-tuple-like struct with tuple-like syntax");
+            checker.note("struct {} was declared with braces, and so has named fields and cannot be initialized like a tuple", struct_type->decl.id.name);
+            return checker.type_table.type_error();
+        }
     } else {
         // Accept pointers to arrays
         auto ptr_type = callee_type->isa<artic::PtrType>();
@@ -1470,7 +1480,7 @@ const artic::Type* FieldPtrn::check(TypeChecker& checker, const artic::Type* exp
 }
 
 const artic::Type* StructPtrn::infer(TypeChecker& checker) {
-    path.type = path.infer(checker, false, nullptr);
+    path.type = path.infer(checker, false, true, nullptr);
     auto [type_app, struct_type] = match_app<StructType>(path.type);
     if (!struct_type)
         return checker.type_expected(path.loc, path.type, "structure");

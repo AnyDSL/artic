@@ -183,7 +183,7 @@ struct Path : public Node {
         : Node(loc), elems(std::move(elems))
     {}
 
-    const artic::Type* infer(TypeChecker&, bool, Ptr<Expr>*);
+    const artic::Type* infer(TypeChecker&, bool, bool, Ptr<Expr>*);
 
     const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) override;
@@ -1233,25 +1233,25 @@ struct FieldDecl : public NamedDecl {
 
     const artic::Type* infer(TypeChecker&) override;
     void bind(NameBinder&) override;
-    void print(Printer& p) const override;
+    void print(Printer&) const override;
 };
 
 /// Structure type declarations.
 struct StructDecl : public NamedDecl {
     Ptr<TypeParamList> type_params;
     PtrVector<FieldDecl> fields;
-    bool tuple_like;
+    bool is_tuple_like;
 
     StructDecl(
         const Loc& loc,
         Identifier&& id,
         Ptr<TypeParamList>&& type_params,
         PtrVector<FieldDecl>&& fields,
-        bool tuple_like)
+        bool is_tuple_like)
         : NamedDecl(loc, std::move(id))
         , type_params(std::move(type_params))
         , fields(std::move(fields))
-        , tuple_like(tuple_like)
+        , is_tuple_like(is_tuple_like)
     {}
 
     const thorin::Def* emit(Emitter&) const override;

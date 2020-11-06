@@ -128,21 +128,21 @@ Ptr<ast::StructDecl> Parser::parse_struct_decl() {
 
     PtrVector<ast::FieldDecl> fields;
 
-    bool tuple_like = accept(Token::LParen);
-    if (tuple_like || accept(Token::LBrace)) {
+    bool is_tuple_like = accept(Token::LParen);
+    if (is_tuple_like || accept(Token::LBrace)) {
         accept(Token::LBrace);
         size_t i = 0;
-        parse_list(tuple_like ? Token::RParen : Token::RBrace, Token::Comma, [&] {
-            fields.emplace_back(parse_field_decl(i++, tuple_like));
+        parse_list(is_tuple_like ? Token::RParen : Token::RBrace, Token::Comma, [&] {
+            fields.emplace_back(parse_field_decl(i++, is_tuple_like));
         });
-        if (tuple_like)
+        if (is_tuple_like)
             expect(Token::Semi);
     } else {
-        tuple_like = true;
+        is_tuple_like = true;
         expect(Token::Semi);
     }
 
-    return make_ptr<ast::StructDecl>(tracker(), std::move(id), std::move(type_params), std::move(fields), tuple_like);
+    return make_ptr<ast::StructDecl>(tracker(), std::move(id), std::move(type_params), std::move(fields), is_tuple_like);
 }
 
 Ptr<ast::OptionDecl> Parser::parse_option_decl(const ast::Identifier& parent) {
