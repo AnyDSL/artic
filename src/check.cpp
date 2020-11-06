@@ -561,19 +561,12 @@ const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, bool e
                 if (!index)
                     return checker.unknown_member(elem.loc, enum_type, elems[i + 1].id.name);
                 elems[i + 1].index = *index;
-                // TODO Potential refactor: how about always returning the type and allowing to call a type as a ctor ?
-                //if (coerce_into_expected && value_expected) {
-                    auto member = type_app ? type_app->member_type(*index) : enum_type->member_type(*index);
-                    auto codom = type_app ? type_app->as<artic::Type>() : enum_type;
-                    type = is_unit_type(member)
-                           ? codom
-                           : checker.type_table.fn_type(member, codom);
-                    is_type = false;
-                //} else {
-                //    type = type_app ? type_app->member_type(*index) : enum_type->member_type(*index);
-                //}
-                checker.note("value_expected: {}", value_expected);
-                type->dump();
+                auto member = type_app ? type_app->member_type(*index) : enum_type->member_type(*index);
+                auto codom = type_app ? type_app->as<artic::Type>() : enum_type;
+                type = is_unit_type(member)
+                       ? codom
+                       : checker.type_table.fn_type(member, codom);
+                is_type = false;
             } else {
                 checker.error(elem.loc, "expected module or enum type, but got '{}'", *type);
                 return checker.type_table.type_error();
