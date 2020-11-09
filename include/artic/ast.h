@@ -536,16 +536,20 @@ struct FieldExpr : public Expr {
 
 /// Structure expression (e.g. `S { x = 1, y = 2 }` or `foo() .{ x = 1 }`).
 struct StructExpr : public Expr {
-    Ptr<Type> type;
+    Ptr<Path> path;
     Ptr<Expr> expr;
+
+    // Set by the type checker when struct syntax is used to initialize a struct-like enum variant
+    const artic::Type* struct_type = nullptr;
+
     PtrVector<FieldExpr> fields;
 
     StructExpr(
         const Loc& loc,
-        Ptr<Type>&& type,
+        Ptr<Path>&& ctor,
         PtrVector<FieldExpr>&& fields)
         : Expr(loc)
-        , type(std::move(type))
+        , path(std::move(ctor))
         , fields(std::move(fields))
     {}
 

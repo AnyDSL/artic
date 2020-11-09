@@ -860,7 +860,7 @@ const thorin::Def* StructExpr::emit(Emitter& emitter) const {
             value = emitter.world.insert(value, field->index, emitter.emit(*field), debug_info(*this));
         return value;
     } else {
-        auto [_, struct_type] = match_app<artic::StructType>(Node::type);
+        auto [_, struct_type] = match_app<artic::StructType>(this->struct_type ? this->struct_type : Node::type);
         thorin::Array<const thorin::Def*> ops(struct_type->member_count(), nullptr);
         for (size_t i = 0, n = fields.size(); i < n; ++i)
             ops[fields[i]->index] = emitter.emit(*fields[i]);
@@ -871,9 +871,17 @@ const thorin::Def* StructExpr::emit(Emitter& emitter) const {
                 ops[i] = emitter.emit(*struct_type->decl.fields[i]->init);
             }
         }
-        return emitter.world.struct_agg(
-            Node::type->convert(emitter)->as<thorin::StructType>(),
+        auto agg = emitter.world.struct_agg(
+                (this->struct_type ? this->struct_type : Node::type)->convert(emitter)->as<thorin::StructType>(),
             ops, debug_info(*this));
+
+        if (auto enum_type = type->isa<artic::EnumType>()) {
+            auto index = enum_type->find_member(struct_type->decl.id.name).value();
+            auto converted_enum_t = enum_type->convert(emitter)->as<thorin::VariantType>();
+            return emitter.world.variant(converted_enum_t, agg, index);
+        } else {
+            return agg;
+        }
     }
 }
 

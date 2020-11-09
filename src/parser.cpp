@@ -154,7 +154,7 @@ Ptr<ast::OptionDecl> Parser::parse_option_decl(const ast::Identifier& parent) {
     if (ahead().tag() == Token::LParen)
         param = parse_tuple_type();
     if (ahead().tag() == Token::LBrace) {
-        Ptr<ast::TypeParamList> type_params = make_ptr<ast::TypeParamList>(tracker(), std::move(PtrVector<ast::TypeParam>()));
+        Ptr<ast::TypeParamList> type_params;
 
         PtrVector<ast::FieldDecl> fields;
         accept(Token::LBrace);
@@ -478,13 +478,12 @@ Ptr<ast::StructExpr> Parser::parse_struct_expr(ast::Path&& path) {
     // path.loc and std::move(path) in the argument list
     // (argument evaluation order is not defined).
     auto loc = path.loc;
-    auto type_app = make_ptr<ast::TypeApp>(loc, std::move(path));
     eat(Token::LBrace);
     PtrVector<ast::FieldExpr> fields;
     parse_list(Token::RBrace, Token::Comma, [&] {
         fields.emplace_back(parse_field_expr());
     });
-    return make_ptr<ast::StructExpr>(tracker(), std::move(type_app), std::move(fields));
+    return make_ptr<ast::StructExpr>(tracker(), std::move(make_ptr<ast::Path>(std::move(path))), std::move(fields));
 }
 
 Ptr<ast::StructExpr> Parser::parse_struct_expr(Ptr<ast::Expr>&& expr) {

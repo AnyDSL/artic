@@ -563,10 +563,14 @@ const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, bool e
                 elems[i + 1].index = *index;
                 auto member = type_app ? type_app->member_type(*index) : enum_type->member_type(*index);
                 auto codom = type_app ? type_app->as<artic::Type>() : enum_type;
-                type = is_unit_type(member)
-                       ? codom
-                       : checker.type_table.fn_type(member, codom);
-                is_type = false;
+                if (value_expected) {
+                    type = is_unit_type(member)
+                           ? codom
+                           : checker.type_table.fn_type(member, codom);
+                    is_type = false;
+                } else {
+                    return codom;
+                }
             } else {
                 checker.error(elem.loc, "expected module or enum type, but got '{}'", *type);
                 return checker.type_table.type_error();
@@ -737,11 +741,33 @@ const artic::Type* FieldExpr::check(TypeChecker& checker, const artic::Type* exp
 }
 
 const artic::Type* StructExpr::infer(TypeChecker& checker) {
-    auto type = expr ? checker.deref(expr) : checker.infer(*this->type);
+    const artic::Type* type;
+    const artic::Type* enum_type = nullptr;
+
+    if (expr)
+        type = checker.deref(expr);
+    else {
+        auto path_type = path->infer(checker, false, false, nullptr);
+        auto [_, st] = match_app<StructType>(path_type);
+        auto [_2, et] = match_app<EnumType>(path_type);
+
+        if (st)
+            type = path_type;
+        else if(et) {
+            auto path_as_ctor = path->infer(checker, true, false, nullptr)->as<artic::FnType>();
+            type = path_as_ctor->dom;
+            enum_type = path_type;
+            struct_type = path_as_ctor->dom;
+        } else {
+            assert(false);
+        }
+    }
+
     auto [type_app, struct_type] = match_app<StructType>(type);
     if (!struct_type)
-        return checker.type_expected(expr ? expr->loc : this->type->loc, type, "structure");
-    return checker.check_fields(loc, struct_type, type_app, fields, "expression", static_cast<bool>(expr), true);
+        return checker.type_expected(expr ? expr->loc : this->loc, type, "structure");
+    auto resulting_type = checker.check_fields(loc, struct_type, type_app, fields, "expression", static_cast<bool>(expr), true);
+    return enum_type ? enum_type : resulting_type;
 }
 
 const artic::Type* TupleExpr::infer(TypeChecker& checker) {
