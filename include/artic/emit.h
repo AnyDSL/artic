@@ -5,6 +5,7 @@
 #include <cassert>
 
 #include <thorin/util/location.h>
+#include <thorin/util/log.h>
 
 #include "artic/ast.h"
 #include "artic/types.h"
@@ -137,6 +138,26 @@ public:
 
     const thorin::Def* builtin(const ast::FnDecl&, thorin::Continuation*);
 };
+
+/// Helper function to compile a set of files and generate an AST and a thorin module.
+/// Errors are reported in the log, and this function returns true on success.
+bool compile(
+    const std::vector<std::string>& file_names,
+    const std::vector<std::string>& file_data,
+    bool warns_as_errors,
+    bool enable_all_warns,
+    ast::ModDecl& program,
+    thorin::World& world,
+    thorin::Log::Level log_level,
+    Log& log);
+
+/// Entry-point for the JIT in the runtime system.
+bool compile(
+    const std::vector<std::string>& file_names,
+    const std::vector<std::string>& file_data,
+    thorin::World& world,
+    thorin::Log::Level log_level,
+    std::ostream& error_stream);
 
 } // namespace artic
 

@@ -2,6 +2,10 @@
 #include "artic/types.h"
 #include "artic/ast.h"
 #include "artic/print.h"
+#include "artic/locator.h"
+#include "artic/parser.h"
+#include "artic/bind.h"
+#include "artic/check.h"
 
 #include <thorin/def.h>
 #include <thorin/type.h>
@@ -1567,6 +1571,97 @@ const thorin::Type* TypeApp::convert(Emitter& emitter) const {
     auto result = applied->convert(emitter, mono_type);
     std::swap(emitter.type_vars, map);
     return result;
+}
+
+// A read-only buffer from memory, not performing any copy.
+struct MemBuf : public std::streambuf {
+    MemBuf(const std::string& str) {
+        setg(
+            const_cast<char*>(str.data()),
+            const_cast<char*>(str.data()),
+            const_cast<char*>(str.data() + str.size()));
+    }
+
+    std::streampos seekoff(std::streamoff off, std::ios_base::seekdir way, std::ios_base::openmode) override {
+        if (way == std::ios_base::beg)
+            setg(eback(), eback() + off, egptr());
+        else if (way == std::ios_base::cur)
+            setg(eback(), gptr() + off, egptr());
+        else if (way == std::ios_base::end)
+            setg(eback(), egptr() + off, egptr());
+        else
+            return std::streampos(-1);
+        return gptr() - eback();
+    }
+
+    std::streampos seekpos(std::streampos pos, std::ios_base::openmode mode) override {
+        return seekoff(std::streamoff(pos), std::ios_base::beg, mode);
+    }
+
+    std::streamsize showmanyc() override {
+        return egptr() - gptr();
+    }
+};
+
+bool compile(
+    const std::vector<std::string>& file_names,
+    const std::vector<std::string>& file_data,
+    bool warns_as_errors,
+    bool enable_all_warns,
+    ast::ModDecl& program,
+    thorin::World& world,
+    thorin::Log::Level log_level,
+    Log& log) {
+    assert(file_data.size() == file_names.size());
+    for (size_t i = 0, n = file_names.size(); i < n; ++i) {
+        if (log.locator)
+            log.locator->register_file(file_names[i], file_data[i]);
+        MemBuf mem_buf(file_data[i]);
+        std::istream is(&mem_buf);
+
+        Lexer lexer(log, file_names[i], is);
+        Parser parser(log, lexer);
+        parser.warns_as_errors = warns_as_errors;
+        auto module = parser.parse();
+        if (log.errors > 0)
+            return false;
+
+        program.decls.insert(
+            program.decls.end(),
+            std::make_move_iterator(module->decls.begin()),
+            std::make_move_iterator(module->decls.end())
+        );
+    }
+
+    NameBinder name_binder(log);
+    name_binder.warns_as_errors = warns_as_errors;
+    if (enable_all_warns)
+        name_binder.warn_on_shadowing = true;
+
+    TypeTable type_table;
+    TypeChecker type_checker(log, type_table);
+    type_checker.warns_as_errors = warns_as_errors;
+
+    if (!name_binder.run(program) || !type_checker.run(program))
+        return false;
+
+    thorin::Log::set(log_level, &std::cerr);
+    Emitter emitter(log, world);
+    emitter.warns_as_errors = warns_as_errors;
+    return emitter.run(program);
+}
+
+bool compile(
+    const std::vector<std::string>& file_names,
+    const std::vector<std::string>& file_data,
+    thorin::World& world,
+    thorin::Log::Level log_level,
+    std::ostream& error_stream) {
+    Locator locator;
+    log::Output out(error_stream, false);
+    Log log(out, &locator);
+    ast::ModDecl program;
+    return compile(file_names, file_data, false, false, program, world, log_level, log);
 }
 
 } // namespace artic
