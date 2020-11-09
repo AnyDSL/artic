@@ -1246,6 +1246,8 @@ struct StructDecl : public NamedDecl {
     PtrVector<FieldDecl> fields;
     bool is_tuple_like;
 
+    size_t enum_variant_index;
+
     StructDecl(
         const Loc& loc,
         Identifier&& id,

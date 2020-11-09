@@ -876,9 +876,8 @@ const thorin::Def* StructExpr::emit(Emitter& emitter) const {
             ops, debug_info(*this));
 
         if (auto enum_type = type->isa<artic::EnumType>()) {
-            auto index = enum_type->find_member(struct_type->decl.id.name).value();
             auto converted_enum_t = enum_type->convert(emitter)->as<thorin::VariantType>();
-            return emitter.world.variant(converted_enum_t, agg, index);
+            return emitter.world.variant(converted_enum_t, agg, struct_type->decl.enum_variant_index);
         } else {
             return agg;
         }

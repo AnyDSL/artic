@@ -29,7 +29,7 @@ private:
     Ptr<ast::FnDecl>        parse_fn_decl();
     Ptr<ast::FieldDecl>     parse_field_decl(size_t, bool);
     Ptr<ast::StructDecl>    parse_struct_decl();
-    Ptr<ast::OptionDecl>    parse_option_decl(const ast::Identifier&);
+    Ptr<ast::OptionDecl>    parse_option_decl(size_t);
     Ptr<ast::EnumDecl>      parse_enum_decl();
     Ptr<ast::StaticDecl>    parse_static_decl();
     Ptr<ast::TypeDecl>      parse_type_decl();
