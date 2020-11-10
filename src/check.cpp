@@ -1501,9 +1501,17 @@ const artic::Type* FieldPtrn::check(TypeChecker& checker, const artic::Type* exp
 const artic::Type* RecordPtrn::infer(TypeChecker& checker) {
     path.type = path.infer(checker, false, true, nullptr);
     auto [type_app, struct_type] = match_app<StructType>(path.type);
-    if (!struct_type)
-        return checker.type_expected(path.loc, path.type, "structure");
-    return checker.check_fields(loc, struct_type, type_app, fields, "pattern");
+    auto [type_app2, enum_type] = match_app<EnumType>(path.type);
+    if (!struct_type && !enum_type)
+        return checker.type_expected(path.loc, path.type, "structure or enum variant");
+    if (enum_type) {
+        auto ctor = path.infer(checker, true, true, nullptr);
+        struct_type = ctor->as<artic::FnType>()->dom->as<StructType>();
+        this->struct_type = struct_type;
+        needs_ctor_matching = true;
+    }
+    auto inferred = checker.check_fields(loc, struct_type, enum_type ? type_app2 : type_app, fields, "pattern");
+    return enum_type ? enum_type : inferred;
 }
 
 const artic::Type* CallPtrn::infer(TypeChecker& checker) {

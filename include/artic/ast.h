@@ -1443,6 +1443,10 @@ struct RecordPtrn : public Ptrn {
     Path path;
     PtrVector<FieldPtrn> fields;
 
+    // Enum variants using record syntax need the constructor matched before they can be expanded
+    bool needs_ctor_matching = false;
+    const artic::Type* struct_type;
+
     RecordPtrn(const Loc& loc, Path&& path, PtrVector<FieldPtrn>&& fields)
         : Ptrn(loc), path(std::move(path)), fields(std::move(fields))
     {}

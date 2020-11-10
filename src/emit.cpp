@@ -119,9 +119,13 @@ public:
             } else {
                 auto ptrn = row.first[col];
                 auto enum_ptrn = ptrn->isa<ast::CallPtrn>();
+                auto record_ptrn = ptrn->isa<ast::RecordPtrn>();
                 remove_col(row.first, col);
                 if (enum_ptrn && enum_ptrn->arg)
                     row.first.push_back(enum_ptrn->arg.get());
+                if (record_ptrn && record_ptrn->needs_ctor_matching) {
+                    row.first.push_back(record_ptrn);
+                }
                 ctors[emitter.ctor_index(*ptrn)].emplace_back(std::move(row));
             }
         }
@@ -423,6 +427,11 @@ thorin::Continuation* Emitter::basic_block_with_mem(const thorin::Type* param, t
 }
 
 const thorin::Def* Emitter::ctor_index(const ast::Ptrn& ptrn) {
+    if (auto record_ptrn = ptrn.isa<ast::RecordPtrn>(); record_ptrn && record_ptrn->needs_ctor_matching) {
+        auto index = record_ptrn->struct_type->as<artic::StructType>()->decl.enum_variant_index;
+        return world.literal_qu64(index, debug_info(ptrn));
+    }
+
     return ptrn.isa<ast::LiteralPtrn>()
         ? emit(ptrn, ptrn.as<ast::LiteralPtrn>()->lit)
         : world.literal_qu64(ptrn.as<ast::CallPtrn>()->index, debug_info(ptrn));
