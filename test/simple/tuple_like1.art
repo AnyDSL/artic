@@ -14,5 +14,5 @@ fn c() = T;
 
 #[export]
 fn d(t: T) = match t {
-  T => true
+  _ => true
 };
