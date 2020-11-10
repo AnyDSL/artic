@@ -746,6 +746,11 @@ const thorin::Def* Node::emit(Emitter&) const {
 const thorin::Def* Path::emit(Emitter& emitter) const {
     // Currently only supports paths of the form A/A::B/A[T, ...]/A[T, ...]::B
     assert(elems.size() == 1 || elems.size() == 2);
+    if (auto struct_decl = symbol->decls.front()->isa<StructDecl>(); struct_decl && struct_decl->is_tuple_like && struct_decl->fields.empty()) {
+        thorin::Array<const thorin::Def*> ops(0, nullptr);
+        return emitter.world.struct_agg((type)->convert(emitter)->as<thorin::StructType>(), ops, debug_info(*this));
+    }
+
     for (size_t i = 0, n = elems.size(); i < n; ++i) {
         if (n == 1) {
             // If type arguments are present, this is a polymorphic application

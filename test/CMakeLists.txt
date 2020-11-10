@@ -84,6 +84,7 @@ add_failure_test(NAME failure_structs3       COMMAND artic ${CMAKE_CURRENT_SOURC
 add_failure_test(NAME failure_structs4       COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/structs4.art)
 add_failure_test(NAME failure_structs5       COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/structs5.art)
 add_failure_test(NAME failure_tuple_like1    COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/tuple_like1.art)
+add_failure_test(NAME failure_tuple_like2    COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/tuple_like2.art)
 add_failure_test(NAME failure_enums1         COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/enums1.art)
 add_failure_test(NAME failure_enums2         COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/enums2.art)
 add_failure_test(NAME failure_mut            COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/mut.art)

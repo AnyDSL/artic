@@ -10,7 +10,7 @@ fn b(s: S) = match s {
 };
 
 #[export]
-fn c() = T();
+fn c() = T;
 
 #[export]
 fn d(t: T) = match t {

@@ -578,6 +578,12 @@ const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, bool e
         }
     }
     is_value = !is_type;
+
+    // Allow using 'S' as a value when 'S' is an empty tuple-like struct
+    if (auto struct_decl = symbol->decls.front()->isa<StructDecl>(); struct_decl && struct_decl->is_tuple_like && struct_decl->fields.empty() && value_expected) {
+        is_value = true;
+    }
+
     if (enforce_expectation && is_value != value_expected) {
         if (value_expected)
             checker.error(loc, "value expected, but got type '{}'", *type);
@@ -766,6 +772,10 @@ const artic::Type* RecordExpr::infer(TypeChecker& checker) {
     auto [type_app, struct_type] = match_app<StructType>(type);
     if (!struct_type)
         return checker.type_expected(expr ? expr->loc : this->loc, type, "structure");
+    if (struct_type && struct_type->decl.is_tuple_like) {
+        checker.error("struct type {} is tuple-like and so cannot be initialized with the record syntax", struct_type->decl.id.name);
+        return checker.type_table.type_error();
+    }
     auto resulting_type = checker.check_fields(loc, struct_type, type_app, fields, "expression", static_cast<bool>(expr), true);
     return enum_type ? enum_type : resulting_type;
 }
@@ -894,6 +904,9 @@ const artic::Type* CallExpr::infer(TypeChecker& checker) {
     } else if (auto struct_type = callee_type->isa<artic::StructType>()) {
         checker.coerce(callee, struct_type);
         if (struct_type->decl.is_tuple_like) {
+            if (struct_type->member_count() == 0) {
+                checker.type_expected(loc, struct_type, "function, array or non-empty struct with tuple-like syntax");
+            }
             checker.coerce(arg, struct_type->as_tuple_type());
             return struct_type;
         } else {
