@@ -740,7 +740,7 @@ const artic::Type* FieldExpr::check(TypeChecker& checker, const artic::Type* exp
     return checker.coerce(expr, expected);
 }
 
-const artic::Type* StructExpr::infer(TypeChecker& checker) {
+const artic::Type* RecordExpr::infer(TypeChecker& checker) {
     const artic::Type* type;
     const artic::Type* enum_type = nullptr;
 
@@ -1498,7 +1498,7 @@ const artic::Type* FieldPtrn::check(TypeChecker& checker, const artic::Type* exp
     return checker.check(*ptrn, expected);
 }
 
-const artic::Type* StructPtrn::infer(TypeChecker& checker) {
+const artic::Type* RecordPtrn::infer(TypeChecker& checker) {
     path.type = path.infer(checker, false, true, nullptr);
     auto [type_app, struct_type] = match_app<StructType>(path.type);
     if (!struct_type)
@@ -1506,7 +1506,7 @@ const artic::Type* StructPtrn::infer(TypeChecker& checker) {
     return checker.check_fields(loc, struct_type, type_app, fields, "pattern");
 }
 
-const artic::Type* EnumPtrn::infer(TypeChecker& checker) {
+const artic::Type* CallPtrn::infer(TypeChecker& checker) {
     auto path_type = checker.infer(path);
     auto enum_type = path_type;
     const artic::Type* param_type = nullptr;

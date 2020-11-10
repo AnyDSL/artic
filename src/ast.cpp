@@ -366,19 +366,19 @@ bool FieldExpr::is_constant() const {
     return expr->is_constant();
 }
 
-bool StructExpr::is_jumping() const {
+bool RecordExpr::is_jumping() const {
     return (expr && expr->is_jumping()) || std::any_of(fields.begin(), fields.end(), [] (auto& field) {
         return field->is_jumping();
     });
 }
 
-bool StructExpr::has_side_effect() const {
+bool RecordExpr::has_side_effect() const {
     return (expr && expr->has_side_effect()) || std::any_of(fields.begin(), fields.end(), [] (auto& field) {
         return field->has_side_effect();
     });
 }
 
-bool StructExpr::is_constant() const {
+bool RecordExpr::is_constant() const {
     return (!expr || expr->is_constant()) && std::all_of(fields.begin(), fields.end(), [] (auto& field) {
         return field->is_constant();
     });
@@ -637,23 +637,23 @@ bool FieldPtrn::is_trivial() const {
     return ptrn ? ptrn->is_trivial() : true;
 }
 
-void StructPtrn::collect_bound_ptrns(std::vector<const IdPtrn*>& bound_ptrns) const {
+void RecordPtrn::collect_bound_ptrns(std::vector<const IdPtrn*>& bound_ptrns) const {
     for (auto& field : fields)
         field->collect_bound_ptrns(bound_ptrns);
 }
 
-bool StructPtrn::is_trivial() const {
+bool RecordPtrn::is_trivial() const {
     return std::all_of(fields.begin(), fields.end(), [] (auto& field) {
         return field->is_trivial();
     });
 }
 
-void EnumPtrn::collect_bound_ptrns(std::vector<const IdPtrn*>& bound_ptrns) const {
+void CallPtrn::collect_bound_ptrns(std::vector<const IdPtrn*>& bound_ptrns) const {
     if (arg)
         arg->collect_bound_ptrns(bound_ptrns);
 }
 
-bool EnumPtrn::is_trivial() const {
+bool CallPtrn::is_trivial() const {
     return false;
 }
 

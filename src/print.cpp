@@ -111,7 +111,7 @@ void FieldExpr::print(Printer& p) const {
     expr->print(p);
 }
 
-void StructExpr::print(Printer& p) const {
+void RecordExpr::print(Printer& p) const {
     if (expr) {
         expr->print(p);
         p << " .";
@@ -369,7 +369,7 @@ void FieldPtrn::print(Printer& p) const {
     }
 }
 
-void StructPtrn::print(Printer& p) const {
+void RecordPtrn::print(Printer& p) const {
     path.print(p);
     p << " {";
     if (!fields.empty()) {
@@ -382,7 +382,7 @@ void StructPtrn::print(Printer& p) const {
     p << "}";
 }
 
-void EnumPtrn::print(Printer& p) const {
+void CallPtrn::print(Printer& p) const {
     path.print(p);
     if (arg) print_parens(p, arg);
 }

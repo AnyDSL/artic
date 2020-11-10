@@ -158,7 +158,7 @@ void FieldExpr::bind(NameBinder& binder) {
     binder.bind(*expr);
 }
 
-void StructExpr::bind(NameBinder& binder) {
+void RecordExpr::bind(NameBinder& binder) {
     if (expr)
         binder.bind(*expr);
     else
@@ -325,12 +325,12 @@ void FieldPtrn::bind(NameBinder& binder) {
     if (ptrn) binder.bind(*ptrn);
 }
 
-void StructPtrn::bind(NameBinder& binder) {
+void RecordPtrn::bind(NameBinder& binder) {
     binder.bind(path);
     for (auto& field : fields) binder.bind(*field);
 }
 
-void EnumPtrn::bind(NameBinder& binder) {
+void CallPtrn::bind(NameBinder& binder) {
     binder.bind(path);
     if (arg) binder.bind(*arg);
 }

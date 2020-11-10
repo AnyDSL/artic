@@ -506,7 +506,7 @@ struct LiteralExpr : public Expr {
     void print(Printer&) const override;
 };
 
-/// Field expression, part of a structure expression.
+/// Field expression, part of a record expression.
 struct FieldExpr : public Expr {
     Identifier id;
     Ptr<Expr> expr;
@@ -534,17 +534,18 @@ struct FieldExpr : public Expr {
     void print(Printer&) const override;
 };
 
-/// Structure expression (e.g. `S { x = 1, y = 2 }` or `foo() .{ x = 1 }`).
-struct StructExpr : public Expr {
+/// Record-like braced expression containing fields
+/// (e.g. `S { x = 1, y = 2 }` or `foo() .{ x = 1 }`).
+struct RecordExpr : public Expr {
     Ptr<Path> path;
     Ptr<Expr> expr;
 
-    // Set by the type checker when struct syntax is used to initialize a struct-like enum variant
+    // Set by the type checker when record syntax is used to initialize a enum variant
     const artic::Type* struct_type = nullptr;
 
     PtrVector<FieldExpr> fields;
 
-    StructExpr(
+    RecordExpr(
         const Loc& loc,
         Ptr<Path>&& ctor,
         PtrVector<FieldExpr>&& fields)
@@ -553,7 +554,7 @@ struct StructExpr : public Expr {
         , fields(std::move(fields))
     {}
 
-    StructExpr(
+    RecordExpr(
         const Loc& loc,
         Ptr<Expr>&& expr,
         PtrVector<FieldExpr>&& fields)
@@ -681,7 +682,7 @@ struct BlockExpr : public Expr {
     void print(Printer&) const override;
 };
 
-/// Function call with a single expression (can be a tuple) for the arguments.
+/// Function or constructor call with a single expression (can be a tuple) for the arguments.
 struct CallExpr : public Expr {
     Ptr<Expr> callee;
     Ptr<Expr> arg;
@@ -1437,12 +1438,12 @@ struct FieldPtrn : public Ptrn {
     void print(Printer&) const override;
 };
 
-/// A pattern that matches against structures.
-struct StructPtrn : public Ptrn {
+/// A pattern that matches against record-like types with named fields.
+struct RecordPtrn : public Ptrn {
     Path path;
     PtrVector<FieldPtrn> fields;
 
-    StructPtrn(const Loc& loc, Path&& path, PtrVector<FieldPtrn>&& fields)
+    RecordPtrn(const Loc& loc, Path&& path, PtrVector<FieldPtrn>&& fields)
         : Ptrn(loc), path(std::move(path)), fields(std::move(fields))
     {}
 
@@ -1457,14 +1458,14 @@ struct StructPtrn : public Ptrn {
     void print(Printer&) const override;
 };
 
-/// A pattern that matches against enumerations.
-struct EnumPtrn : public Ptrn {
+/// A pattern that matches against constructor invocations.
+struct CallPtrn : public Ptrn {
     Path path;
     Ptr<Ptrn> arg;
 
     size_t index;
 
-    EnumPtrn(const Loc& loc, Path&& path, Ptr<Ptrn>&& arg)
+    CallPtrn(const Loc& loc, Path&& path, Ptr<Ptrn>&& arg)
         : Ptrn(loc), path(std::move(path)), arg(std::move(arg))
     {}
 

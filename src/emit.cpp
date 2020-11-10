@@ -118,7 +118,7 @@ public:
                 wildcards.emplace_back(std::move(row));
             } else {
                 auto ptrn = row.first[col];
-                auto enum_ptrn = ptrn->isa<ast::EnumPtrn>();
+                auto enum_ptrn = ptrn->isa<ast::CallPtrn>();
                 remove_col(row.first, col);
                 if (enum_ptrn && enum_ptrn->arg)
                     row.first.push_back(enum_ptrn->arg.get());
@@ -318,7 +318,7 @@ private:
             for (auto& row : rows) {
                 std::vector<const ast::Ptrn*> new_elems(member_count, nullptr);
                 if (row.first[i]) {
-                    if (auto struct_ptrn = row.first[i]->isa<ast::StructPtrn>()) {
+                    if (auto struct_ptrn = row.first[i]->isa<ast::RecordPtrn>()) {
                         for (auto& field : struct_ptrn->fields) {
                             if (!field->is_etc())
                                 new_elems[field->index] = field->ptrn.get();
@@ -425,7 +425,7 @@ thorin::Continuation* Emitter::basic_block_with_mem(const thorin::Type* param, t
 const thorin::Def* Emitter::ctor_index(const ast::Ptrn& ptrn) {
     return ptrn.isa<ast::LiteralPtrn>()
         ? emit(ptrn, ptrn.as<ast::LiteralPtrn>()->lit)
-        : world.literal_qu64(ptrn.as<ast::EnumPtrn>()->index, debug_info(ptrn));
+        : world.literal_qu64(ptrn.as<ast::CallPtrn>()->index, debug_info(ptrn));
 }
 
 void Emitter::redundant_case(const ast::CaseExpr& case_) {
@@ -853,7 +853,7 @@ const thorin::Def* FieldExpr::emit(Emitter& emitter) const {
     return emitter.emit(*expr);
 }
 
-const thorin::Def* StructExpr::emit(Emitter& emitter) const {
+const thorin::Def* RecordExpr::emit(Emitter& emitter) const {
     if (expr) {
         auto value = emitter.emit(*expr);
         for (auto& field : fields)
@@ -1380,7 +1380,7 @@ void FieldPtrn::emit(Emitter& emitter, const thorin::Def* value) const {
     emitter.emit(*ptrn, value);
 }
 
-void StructPtrn::emit(Emitter& emitter, const thorin::Def* value) const {
+void RecordPtrn::emit(Emitter& emitter, const thorin::Def* value) const {
     for (auto& field : fields) {
         if (!field->is_etc())
             emitter.emit(*field, emitter.world.extract(value, field->index));
