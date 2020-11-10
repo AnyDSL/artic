@@ -270,6 +270,7 @@ Ptr<ast::Ptrn> Parser::parse_ptrn(bool is_fn_param) {
                 auto id = parse_id();
                 if (ahead().tag() == Token::DblColon ||
                     ahead().tag() == Token::LBracket ||
+                    ahead().tag() == Token::LParen ||
                     ahead().tag() == Token::LBrace ||
                     (is_fn_param && ahead().tag() != Token::Colon && ahead().tag() != Token::As)) {
                     auto path = parse_path(std::move(id), true);

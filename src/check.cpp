@@ -1515,31 +1515,40 @@ const artic::Type* RecordPtrn::infer(TypeChecker& checker) {
 }
 
 const artic::Type* CallPtrn::infer(TypeChecker& checker) {
-    auto path_type = checker.infer(path);
-    auto enum_type = path_type;
+    const artic::Type* path_type;
+    path_type = path.infer(checker, true, false, nullptr);
+
+    auto result_type = path_type;
     const artic::Type* param_type = nullptr;
     if (auto fn_type = path_type->isa<artic::FnType>()) {
         // Enumeration constructors that take parameters type as functions
         param_type = fn_type->dom;
-        enum_type  = fn_type->codom;
+        result_type  = fn_type->codom;
     }
 
-    auto app = enum_type->isa<artic::TypeApp>();
-    if (app) enum_type = app->applied;
-    if (!enum_type->isa<artic::EnumType>())
-        return checker.type_expected(path.loc, enum_type, "enumeration");
+    auto app = result_type->isa<artic::TypeApp>();
+    if (app) result_type = app->applied;
+
+    auto struct_type = result_type->isa<StructType>();
+    if (struct_type)
+        param_type = struct_type->as_tuple_type();
+
+    auto constructor_description = struct_type ? "tuple-like struct" : "enumeration option";
+
+    if (!result_type->isa<artic::EnumType>() && !(struct_type && struct_type->decl.is_tuple_like))
+        return checker.type_expected(path.loc, result_type, "enumeration or tuple-like struct");
     if (arg) {
         if (!param_type) {
-            checker.error(loc, "enumeration option takes no arguments");
+            checker.error(loc, "{} takes no arguments", constructor_description);
             return checker.type_table.type_error();
         }
         checker.check(*arg, param_type);
     } else if (param_type) {
-        checker.error(loc, "arguments expected after enumeration option");
+        checker.error(loc, "arguments expected after {}", constructor_description);
         return checker.type_table.type_error();
     }
     index = path.elems.back().index;
-    return app ? app : enum_type;
+    return app ? app : result_type;
 }
 
 const artic::Type* TuplePtrn::infer(TypeChecker& checker) {

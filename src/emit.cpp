@@ -327,6 +327,15 @@ private:
                             if (!field->is_etc())
                                 new_elems[field->index] = field->ptrn.get();
                         }
+                    } else if (auto call_ptrn = row.first[i]->isa<ast::CallPtrn>()) {
+                        // Expanding a CallPtrn means we were constructing a tuple-like struct, otherwise it would be an enum variant ctor and not get expanded !
+                        if (struct_type->decl.fields.size() == 1)
+                            new_elems[0] = call_ptrn->arg.get();
+                        else if(struct_type->decl.fields.size() > 1) {
+                            auto tuple_ptrn = call_ptrn->arg->as<ast::TuplePtrn>();
+                            for (size_t j = 0; j < member_count; ++j)
+                                new_elems[j] = tuple_ptrn->args[j].get();
+                        }
                     } else if (auto tuple_ptrn = row.first[i]->isa<ast::TuplePtrn>()) {
                         for (size_t j = 0; j < member_count; ++j)
                             new_elems[j] = tuple_ptrn->args[j].get();
