@@ -186,7 +186,6 @@ struct Path : public Node {
     const artic::Type* infer(TypeChecker&, bool, bool, Ptr<Expr>*);
 
     const thorin::Def* emit(Emitter&) const override;
-    const artic::Type* infer(TypeChecker&) override;
     void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
@@ -484,7 +483,6 @@ struct PathExpr : public Expr {
 
     const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) override;
-    const artic::Type* infer(TypeChecker&, const Expr&);
     void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
@@ -1241,13 +1239,15 @@ struct FieldDecl : public NamedDecl {
     void print(Printer&) const override;
 };
 
+struct EnumDecl;
+
 /// Structure type declarations.
 struct StructDecl : public NamedDecl {
     Ptr<TypeParamList> type_params;
     PtrVector<FieldDecl> fields;
     bool is_tuple_like;
 
-    size_t enum_variant_index;
+    const EnumDecl* parent;
 
     StructDecl(
         const Loc& loc,

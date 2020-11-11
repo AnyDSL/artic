@@ -145,7 +145,7 @@ Ptr<ast::StructDecl> Parser::parse_struct_decl() {
     return make_ptr<ast::StructDecl>(tracker(), std::move(id), std::move(type_params), std::move(fields), is_tuple_like);
 }
 
-Ptr<ast::OptionDecl> Parser::parse_option_decl(size_t index) {
+Ptr<ast::OptionDecl> Parser::parse_option_decl() {
     Tracker tracker(this);
     auto id = parse_id();
     Ptr<ast::Type> param;
@@ -164,7 +164,6 @@ Ptr<ast::OptionDecl> Parser::parse_option_decl(size_t index) {
         });
 
         datatype = make_ptr<ast::StructDecl>(tracker(), std::move(ast::Identifier(id)), std::move(type_params), std::move(fields), false);
-        datatype->enum_variant_index = index;
     }
     return make_ptr<ast::OptionDecl>(tracker(), std::move(id), std::move(param), std::move(datatype));
 }
@@ -180,11 +179,15 @@ Ptr<ast::EnumDecl> Parser::parse_enum_decl() {
 
     PtrVector<ast::OptionDecl> options;
     expect(Token::LBrace);
-    size_t i = 0;
     parse_list(Token::RBrace, Token::Comma, [&] {
-        options.emplace_back(parse_option_decl(i++));
+        options.emplace_back(parse_option_decl());
     });
-    return make_ptr<ast::EnumDecl>(tracker(), std::move(id), std::move(type_params), std::move(options));
+    auto decl = make_ptr<ast::EnumDecl>(tracker(), std::move(id), std::move(type_params), std::move(options));
+    for (auto& option : decl->options) {
+        if (option->datatype)
+            option->datatype->parent = decl.get();
+    }
+    return decl;
 }
 
 Ptr<ast::TypeDecl> Parser::parse_type_decl() {

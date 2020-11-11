@@ -435,9 +435,18 @@ thorin::Continuation* Emitter::basic_block_with_mem(const thorin::Type* param, t
     return world.continuation(continuation_type_with_mem(param), debug);
 }
 
+inline size_t enum_variant_index(const artic::StructType& type) {
+    assert(type.decl.parent);
+    for (size_t i = 0; i < type.decl.parent->options.size(); i++) {
+        if (type.decl.parent->options[i]->datatype->id.name == type.decl.id.name)
+            return i;
+    }
+    assert(false); // unreachable
+}
+
 const thorin::Def* Emitter::ctor_index(const ast::Ptrn& ptrn) {
     if (auto record_ptrn = ptrn.isa<ast::RecordPtrn>(); record_ptrn && record_ptrn->needs_ctor_matching) {
-        auto index = record_ptrn->struct_type->as<artic::StructType>()->decl.enum_variant_index;
+        auto index = enum_variant_index(*record_ptrn->struct_type->as<artic::StructType>());
         return world.literal_qu64(index, debug_info(ptrn));
     }
 
@@ -900,7 +909,7 @@ const thorin::Def* RecordExpr::emit(Emitter& emitter) const {
 
         if (auto enum_type = type->isa<artic::EnumType>()) {
             auto converted_enum_t = enum_type->convert(emitter)->as<thorin::VariantType>();
-            return emitter.world.variant(converted_enum_t, agg, struct_type->decl.enum_variant_index);
+            return emitter.world.variant(converted_enum_t, agg, enum_variant_index(*struct_type));
         } else {
             return agg;
         }

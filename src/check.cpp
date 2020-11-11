@@ -503,14 +503,11 @@ const artic::Type* Ptrn::check(TypeChecker& checker, const artic::Type* expected
 
 // Path ----------------------------------------------------------------------------
 
-const artic::Type* Path::infer(TypeChecker& checker) {
-    return infer(checker, true, true, nullptr);
-}
-
 const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, bool enforce_expectation, Ptr<Expr>* arg) {
     if (!symbol || symbol->decls.empty())
         return checker.type_table.type_error();
-    auto type = checker.infer(*symbol->decls.front());
+
+    type = checker.infer(*symbol->decls.front());
 
     bool is_type = (symbol->decls.front()->isa<TypeDecl>() ||
                     symbol->decls.front()->isa<TypeParam>() ||
@@ -591,6 +588,7 @@ const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, bool e
             checker.error(loc, "type expected, but got '{}'", *this);
         return checker.type_table.type_error();
     }
+
     return type;
 }
 
@@ -731,7 +729,8 @@ const artic::Type* TypedExpr::infer(TypeChecker& checker) {
 }
 
 const artic::Type* PathExpr::infer(TypeChecker& checker) {
-    return checker.infer(path);
+    path.type = path.infer(checker, true, true, nullptr);
+    return path.type;
 }
 
 const artic::Type* LiteralExpr::infer(TypeChecker& checker) {
