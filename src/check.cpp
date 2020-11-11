@@ -1520,7 +1520,6 @@ const artic::Type* RecordPtrn::infer(TypeChecker& checker) {
         auto ctor = path.infer(checker, true, true, nullptr);
         struct_type = ctor->as<artic::FnType>()->dom->as<StructType>();
         this->struct_type = struct_type;
-        needs_ctor_matching = true;
     }
     auto inferred = checker.check_fields(loc, struct_type, enum_type ? type_app2 : type_app, fields, "pattern");
     return enum_type ? enum_type : inferred;

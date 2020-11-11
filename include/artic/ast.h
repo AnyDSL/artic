@@ -538,7 +538,7 @@ struct RecordExpr : public Expr {
     Ptr<Path> path;
     Ptr<Expr> expr;
 
-    // Set by the type checker when record syntax is used to initialize a enum variant
+    // Set by the type checker when record syntax is used to construct a enum variant
     const artic::Type* struct_type = nullptr;
 
     PtrVector<FieldExpr> fields;
@@ -1443,8 +1443,7 @@ struct RecordPtrn : public Ptrn {
     Path path;
     PtrVector<FieldPtrn> fields;
 
-    // Enum variants using record syntax need the constructor matched before they can be expanded
-    bool needs_ctor_matching = false;
+    // Set by the type checker when record syntax is used to deconstruct a enum variant
     const artic::Type* struct_type;
 
     RecordPtrn(const Loc& loc, Path&& path, PtrVector<FieldPtrn>&& fields)

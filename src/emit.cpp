@@ -123,7 +123,7 @@ public:
                 remove_col(row.first, col);
                 if (enum_ptrn && enum_ptrn->arg)
                     row.first.push_back(enum_ptrn->arg.get());
-                if (record_ptrn && record_ptrn->needs_ctor_matching) {
+                if (record_ptrn) {
                     row.first.push_back(record_ptrn);
                 }
                 ctors[emitter.ctor_index(*ptrn)].emplace_back(std::move(row));
@@ -445,7 +445,7 @@ inline size_t enum_variant_index(const artic::StructType& type) {
 }
 
 const thorin::Def* Emitter::ctor_index(const ast::Ptrn& ptrn) {
-    if (auto record_ptrn = ptrn.isa<ast::RecordPtrn>(); record_ptrn && record_ptrn->needs_ctor_matching) {
+    if (auto record_ptrn = ptrn.isa<ast::RecordPtrn>(); record_ptrn && match_app<EnumType>(record_ptrn->type).second) {
         auto index = enum_variant_index(*record_ptrn->struct_type->as<artic::StructType>());
         return world.literal_qu64(index, debug_info(ptrn));
     }
