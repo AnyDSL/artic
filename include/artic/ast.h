@@ -183,7 +183,13 @@ struct Path : public Node {
         : Node(loc), elems(std::move(elems))
     {}
 
-    const artic::Type* infer(TypeChecker&, bool, bool, Ptr<Expr>*);
+    enum class ExpectedSymbol {
+        VALUE,
+        TYPE,
+        EITHER
+    };
+
+    const artic::Type* infer(TypeChecker&, ExpectedSymbol, Ptr<Expr>*);
 
     const thorin::Def* emit(Emitter&) const override;
     void bind(NameBinder&) override;
@@ -1247,7 +1253,7 @@ struct StructDecl : public NamedDecl {
     PtrVector<FieldDecl> fields;
     bool is_tuple_like;
 
-    const EnumDecl* parent;
+    const EnumDecl* parent = nullptr;
 
     StructDecl(
         const Loc& loc,

@@ -438,7 +438,7 @@ thorin::Continuation* Emitter::basic_block_with_mem(const thorin::Type* param, t
 inline size_t enum_variant_index(const artic::StructType& type) {
     assert(type.decl.parent);
     for (size_t i = 0; i < type.decl.parent->options.size(); i++) {
-        if (type.decl.parent->options[i]->datatype->id.name == type.decl.id.name)
+        if (type.decl.parent->options[i]->datatype && type.decl.parent->options[i]->datatype->id.name == type.decl.id.name)
             return i;
     }
     assert(false); // unreachable
