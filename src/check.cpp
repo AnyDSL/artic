@@ -894,19 +894,10 @@ const artic::Type* CallExpr::infer(TypeChecker& checker) {
         checker.coerce(callee, fn_type);
         checker.coerce(arg, fn_type->dom);
         return fn_type->codom;
-    } else if (auto struct_type = callee_type->isa<artic::StructType>()) {
+    } else if (auto struct_type = callee_type->isa<artic::StructType>(); struct_type && struct_type->decl.is_tuple_like && struct_type->member_count() > 0) {
         checker.coerce(callee, struct_type);
-        if (struct_type->decl.is_tuple_like) {
-            if (struct_type->member_count() == 0) {
-                checker.type_expected(loc, struct_type, "function, array or non-empty struct with tuple-like syntax");
-            }
-            checker.coerce(arg, struct_type->as_tuple_type());
-            return struct_type;
-        } else {
-            checker.error(callee->loc, "attempted to initialize a non-tuple-like struct with tuple-like syntax");
-            checker.note("struct {} was declared with braces, and so has named fields and cannot be initialized like a tuple", struct_type->decl.id.name);
-            return checker.type_table.type_error();
-        }
+        checker.coerce(arg, struct_type->as_tuple_type());
+        return struct_type;
     } else {
         // Accept pointers to arrays
         auto ptr_type = callee_type->isa<artic::PtrType>();
@@ -928,7 +919,7 @@ const artic::Type* CallExpr::infer(TypeChecker& checker) {
                     ptr_type ? ptr_type->addr_space : ref_type->addr_space)
                 : array_type->elem;
         } else {
-            return checker.type_expected(callee->loc, callee_type, "function or array");
+            return checker.type_expected(callee->loc, callee_type, "function, array or non-empty tuple-like struct");
         }
     }
 }
