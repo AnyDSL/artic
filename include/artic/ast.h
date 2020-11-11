@@ -189,7 +189,7 @@ struct Path : public Node {
         EITHER
     };
 
-    const artic::Type* infer(TypeChecker&, ExpectedSymbol, Ptr<Expr>*);
+    const artic::Type* infer(TypeChecker&, ExpectedSymbol, bool = false, Ptr<Expr>* = nullptr);
 
     const thorin::Def* emit(Emitter&) const override;
     void bind(NameBinder&) override;

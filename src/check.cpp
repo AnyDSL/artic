@@ -503,7 +503,7 @@ const artic::Type* Ptrn::check(TypeChecker& checker, const artic::Type* expected
 
 // Path ----------------------------------------------------------------------------
 
-const artic::Type* Path::infer(TypeChecker& checker, ExpectedSymbol expectation, Ptr<Expr>* arg) {
+const artic::Type* Path::infer(TypeChecker& checker, ExpectedSymbol expectation, bool allow_enum_ctors, Ptr<Expr>* arg) {
     if (!symbol || symbol->decls.empty())
         return checker.type_table.type_error();
 
@@ -561,9 +561,14 @@ const artic::Type* Path::infer(TypeChecker& checker, ExpectedSymbol expectation,
                 auto member = type_app ? type_app->member_type(*index) : enum_type->member_type(*index);
                 auto codom = type_app ? type_app->as<artic::Type>() : enum_type;
                 if (expectation != ExpectedSymbol::TYPE) {
-                    type = is_unit_type(member)
-                           ? codom
-                           : checker.type_table.fn_type(member, codom);
+                    if (is_unit_type(member))
+                        type = codom;
+                    else if (allow_enum_ctors)
+                        type = checker.type_table.fn_type(member, codom);
+                    else {
+                        checker.error(elems[i+1].loc, "capturing enum constructors as functions is disallowed");
+                        return checker.type_table.type_error();
+                    }
                     is_type = false;
                 } else if (expectation != ExpectedSymbol::VALUE && enum_type->decl.options[*index]->datatype) {
                     type = member;
@@ -695,7 +700,7 @@ const artic::Type* PtrType::infer(TypeChecker& checker) {
 }
 
 const artic::Type* TypeApp::infer(TypeChecker& checker) {
-    return path.type = path.infer(checker, Path::ExpectedSymbol::TYPE, nullptr);
+    return path.type = path.infer(checker, Path::ExpectedSymbol::TYPE);
 }
 
 // Statements ----------------------------------------------------------------------
@@ -729,7 +734,7 @@ const artic::Type* TypedExpr::infer(TypeChecker& checker) {
 }
 
 const artic::Type* PathExpr::infer(TypeChecker& checker) {
-    path.type = path.infer(checker, Path::ExpectedSymbol::VALUE, nullptr);
+    path.type = path.infer(checker, Path::ExpectedSymbol::VALUE);
     return path.type;
 }
 
@@ -752,7 +757,7 @@ const artic::Type* RecordExpr::infer(TypeChecker& checker) {
     if (expr)
         type = checker.deref(expr);
     else
-        type = path->infer(checker, Path::ExpectedSymbol::TYPE, nullptr);
+        type = path->infer(checker, Path::ExpectedSymbol::TYPE);
 
     auto [type_app, struct_type] = match_app<StructType>(type);
     if (!struct_type)
@@ -881,7 +886,7 @@ const artic::Type* BlockExpr::check(TypeChecker& checker, const artic::Type* exp
 const artic::Type* CallExpr::infer(TypeChecker& checker) {
     // Perform type argument inference when possible
     if (auto path_expr = callee->isa<ast::PathExpr>()) {
-        path_expr->type = path_expr->path.infer(checker, Path::ExpectedSymbol::EITHER, &arg);
+        path_expr->type = path_expr->path.infer(checker, Path::ExpectedSymbol::EITHER, true, &arg);
     }
 
     auto [ref_type, callee_type] = remove_ref(checker.infer(*callee));
@@ -1500,7 +1505,7 @@ const artic::Type* FieldPtrn::check(TypeChecker& checker, const artic::Type* exp
 }
 
 const artic::Type* RecordPtrn::infer(TypeChecker& checker) {
-    path.type = path.infer(checker, Path::ExpectedSymbol::TYPE, nullptr);
+    path.type = path.infer(checker, Path::ExpectedSymbol::TYPE);
     auto [type_app, struct_type] = match_app<StructType>(path.type);
     const artic::Type* enum_type = nullptr;
     if (struct_type->decl.parent) {
@@ -1513,7 +1518,7 @@ const artic::Type* RecordPtrn::infer(TypeChecker& checker) {
 
 const artic::Type* CallPtrn::infer(TypeChecker& checker) {
     const artic::Type* path_type;
-    path_type = path.infer(checker, Path::ExpectedSymbol::EITHER, nullptr);
+    path_type = path.infer(checker, Path::ExpectedSymbol::EITHER, true);
 
     auto result_type = path_type;
     const artic::Type* param_type = nullptr;
