@@ -147,6 +147,22 @@ struct S {
 }
 static x = S { y = 2 }; // x is a structure with x = 1, y = 2
 ```
+ - Structures can have a "tuple-like" form:
+```rust
+struct S(i32, i64);
+struct T;
+```
+ - Enumeration options can use a "record-like" form:
+```rust
+enum E {
+    A,
+    B(i32),
+    C {
+        x: i32,
+        y: i64
+    }
+}
+```
  - Array patterns are now supported:
 ```rust
 let [x, y] = [1, 2];
