@@ -1374,7 +1374,8 @@ const thorin::Def* TypeDecl::emit(Emitter&) const {
 
 const thorin::Def* ModDecl::emit(Emitter& emitter) const {
     for (auto& decl : decls) {
-        // Do not emit polymorphic function or structure declarations
+        // Do not emit polymorphic functions directly: Those will be emitted from
+        // the call site, where the type arguments are known.
         if (auto fn_decl = decl->isa<FnDecl>(); fn_decl && fn_decl->type_params)
             continue;
         emitter.emit(*decl);

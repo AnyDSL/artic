@@ -571,7 +571,7 @@ const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, Ptr<Ex
         }
         elem.type = type;
 
-        // Make tuple-like structure constructor functions.
+        // Treat tuple-like structure constructors as functions
         if (auto [type_app, struct_type] = match_app<StructType>(type);
             is_ctor && value_expected && i == 0 && struct_type && struct_type->is_tuple_like()) {
             if (struct_type->member_count() > 0) {
