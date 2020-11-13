@@ -53,7 +53,7 @@ public:
     // Enumeration variant constructor, containing an enumeration type
     // (or a type application of a polymorphic enumeration type),
     // and the variant index.
-    struct Ctor {
+    struct VariantCtor {
         size_t index;
         const Type* type;
     };
@@ -67,7 +67,7 @@ public:
     };
 
     struct Hash {
-        size_t operator () (const Ctor& ctor) const {
+        size_t operator () (const VariantCtor& ctor) const {
             return fnv::Hash().combine(ctor.index).combine(ctor.type);
         }
         size_t operator () (const MonoFn& mono_fn) const {
@@ -79,7 +79,7 @@ public:
     };
 
     struct Compare {
-        bool operator () (const Ctor& left, const Ctor& right) const {
+        bool operator () (const VariantCtor& left, const VariantCtor& right) const {
             return left.index == right.index && left.type == right.type;
         }
         bool operator () (const MonoFn& left, const MonoFn& right) const {
@@ -94,7 +94,9 @@ public:
     /// Map from monomorphic function signature to emitted thorin function.
     std::unordered_map<MonoFn, thorin::Continuation*, Hash, Compare> mono_fns;
     /// Map from enum type and variant index to variant constructor.
-    std::unordered_map<Ctor, const thorin::Def*, Hash, Compare> variant_ctors;
+    std::unordered_map<VariantCtor, const thorin::Def*, Hash, Compare> variant_ctors;
+    /// Map from struct type to structure constructor (for tuple-like structures).
+    std::unordered_map<const Type*, const thorin::Def*> struct_ctors;
     /// Vector containing definitions that are generated during monomorphization.
     std::vector<std::vector<const thorin::Def**>> poly_defs;
 

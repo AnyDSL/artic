@@ -773,25 +773,27 @@ const thorin::Def* Path::emit(Emitter& emitter) const {
             }
             return def;
         } else if (match_app<StructType>(elems[i].type).second) {
+            if (auto it = emitter.struct_ctors.find(elems[i].type); it != emitter.struct_ctors.end())
+                return it->second;
             // Create a constructor for this (tuple-like) structure
             auto struct_type = elems[i].type->convert(emitter)->as<thorin::StructType>();
-            auto ctor_type = emitter.function_type_with_mem(emitter.world.tuple_type(struct_type->ops()), struct_type);
-            auto ctor = emitter.world.continuation(ctor_type, debug_info(*this));
-            ctor->set_all_true_filter();
+            auto cont_type = emitter.function_type_with_mem(emitter.world.tuple_type(struct_type->ops()), struct_type);
+            auto cont = emitter.world.continuation(cont_type, debug_info(*this));
+            cont->set_all_true_filter();
             auto _ = emitter.save_state();
-            emitter.enter(ctor);
-            auto ctor_param = emitter.tuple_from_params(ctor, true);
+            emitter.enter(cont);
+            auto cont_param = emitter.tuple_from_params(cont, true);
             thorin::Array<const thorin::Def*> struct_ops(struct_type->num_ops());
             for (size_t i = 0, n = struct_ops.size(); i < n; ++i)
-                struct_ops[i] = emitter.world.extract(ctor_param, i);
+                struct_ops[i] = emitter.world.extract(cont_param, i);
             auto struct_value = emitter.world.struct_agg(struct_type, struct_ops);
-            emitter.jump(ctor->params().back(), struct_value, debug_info(*this));
-            return ctor;
+            emitter.jump(cont->params().back(), struct_value, debug_info(*this));
+            return emitter.struct_ctors[elems[i].type] = cont;
         } else if (auto [type_app, enum_type] = match_app<artic::EnumType>(elems[i].type); enum_type) {
             // Find the variant constructor for that enum, if it exists.
             // Remember that the type application (if present) might be polymorphic (i.e. `E[T, U]::A`), and that, thus,
             // we need to replace bound type variables (`T` and `U` in the previous example) to find the constructor in the map.
-            Emitter::Ctor ctor { elems[i + 1].index, type_app ? type_app->replace(emitter.type_vars) : enum_type };
+            Emitter::VariantCtor ctor { elems[i + 1].index, type_app ? type_app->replace(emitter.type_vars) : enum_type };
             if (auto it = emitter.variant_ctors.find(ctor); it != emitter.variant_ctors.end())
                 return it->second;
             auto converted_type = (type_app
