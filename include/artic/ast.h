@@ -172,21 +172,20 @@ struct Path : public Node {
         {}
     };
 
-    // Set during type-checking
-    bool is_value = true;
-
     std::vector<Elem> elems;
-
     std::shared_ptr<Symbol> symbol;
+
+    // Set during type-checking
+    bool is_value = false;
+    bool is_ctor = false;
 
     Path(const Loc& loc, std::vector<Elem>&& elems)
         : Node(loc), elems(std::move(elems))
     {}
 
-    const artic::Type* infer(TypeChecker&, bool, Ptr<Expr>*);
+    const artic::Type* infer(TypeChecker&, bool = false, Ptr<Expr>* = nullptr);
 
     const thorin::Def* emit(Emitter&) const override;
-    const artic::Type* infer(TypeChecker&) override;
     void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
@@ -484,7 +483,6 @@ struct PathExpr : public Expr {
 
     const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) override;
-    const artic::Type* infer(TypeChecker&, const Expr&);
     void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
@@ -506,7 +504,7 @@ struct LiteralExpr : public Expr {
     void print(Printer&) const override;
 };
 
-/// Field expression, part of a structure expression.
+/// Field expression, part of a record expression.
 struct FieldExpr : public Expr {
     Identifier id;
     Ptr<Expr> expr;
@@ -534,13 +532,18 @@ struct FieldExpr : public Expr {
     void print(Printer&) const override;
 };
 
-/// Structure expression (e.g. `S { x = 1, y = 2 }` or `foo() .{ x = 1 }`).
-struct StructExpr : public Expr {
+/// Record-like braced expression containing fields
+/// (e.g. `S { x = 1, y = 2 }` or `foo() .{ x = 1 }`).
+struct RecordExpr : public Expr {
     Ptr<Type> type;
     Ptr<Expr> expr;
     PtrVector<FieldExpr> fields;
 
-    StructExpr(
+    // Set during type-checking if the record is an enumeration variant
+    size_t variant_index = 0;
+
+    /// Constructor for the record constructor form: `S { x = 1, y = 2 }`.
+    RecordExpr(
         const Loc& loc,
         Ptr<Type>&& type,
         PtrVector<FieldExpr>&& fields)
@@ -549,7 +552,8 @@ struct StructExpr : public Expr {
         , fields(std::move(fields))
     {}
 
-    StructExpr(
+    /// Constructor for the record modification form: `foo() .{ x = 1 }`.
+    RecordExpr(
         const Loc& loc,
         Ptr<Expr>&& expr,
         PtrVector<FieldExpr>&& fields)
@@ -677,7 +681,7 @@ struct BlockExpr : public Expr {
     void print(Printer&) const override;
 };
 
-/// Function call with a single expression (can be a tuple) for the arguments.
+/// Function or constructor call with a single expression (can be a tuple) for the arguments.
 struct CallExpr : public Expr {
     Ptr<Expr> callee;
     Ptr<Expr> arg;
@@ -1236,19 +1240,33 @@ struct FieldDecl : public NamedDecl {
     void print(Printer&) const override;
 };
 
-/// Structure type declarations.
-struct StructDecl : public NamedDecl {
-    Ptr<TypeParamList> type_params;
+/// Base class for declarations holding fields.
+struct RecordDecl : public NamedDecl {
     PtrVector<FieldDecl> fields;
+
+    RecordDecl(
+        const Loc& loc,
+        Identifier&& id,
+        PtrVector<FieldDecl>&& fields)
+        : NamedDecl(loc, std::move(id))
+        , fields(std::move(fields))
+    {}
+};
+
+/// Structure type declarations.
+struct StructDecl : public RecordDecl {
+    Ptr<TypeParamList> type_params;
+    bool is_tuple_like;
 
     StructDecl(
         const Loc& loc,
         Identifier&& id,
         Ptr<TypeParamList>&& type_params,
-        PtrVector<FieldDecl>&& fields)
-        : NamedDecl(loc, std::move(id))
+        PtrVector<FieldDecl>&& fields,
+        bool is_tuple_like)
+        : RecordDecl(loc, std::move(id), std::move(fields))
         , type_params(std::move(type_params))
-        , fields(std::move(fields))
+        , is_tuple_like(is_tuple_like)
     {}
 
     const thorin::Def* emit(Emitter&) const override;
@@ -1258,19 +1276,32 @@ struct StructDecl : public NamedDecl {
     void print(Printer&) const override;
 };
 
+struct EnumDecl;
+
 /// Enumeration option declaration.
-struct OptionDecl : public NamedDecl {
+struct OptionDecl : public RecordDecl {
     Ptr<Type> param;
+    bool has_fields;
+
+    // Set during type-checking for options that have braces
+    // Note: can be a type application of a structure type
+    const artic::Type* struct_type = nullptr;
+
+    // Set at name-binding time, points to the parent enumeration
+    EnumDecl* parent = nullptr;
 
     OptionDecl(
         const Loc& loc,
         Identifier&& id,
-        Ptr<Type>&& param)
-        : NamedDecl(loc, std::move(id))
+        Ptr<Type>&& param,
+        PtrVector<FieldDecl>&& fields,
+        bool has_fields)
+        : RecordDecl(loc, std::move(id), std::move(fields))
         , param(std::move(param))
+        , has_fields(has_fields)
     {}
 
-    const artic::Type* check(TypeChecker&, const artic::Type*) override;
+    const artic::Type* infer(TypeChecker&) override;
     void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
@@ -1425,12 +1456,15 @@ struct FieldPtrn : public Ptrn {
     void print(Printer&) const override;
 };
 
-/// A pattern that matches against structures.
-struct StructPtrn : public Ptrn {
+/// A pattern that matches against record-like types with named fields.
+struct RecordPtrn : public Ptrn {
     Path path;
     PtrVector<FieldPtrn> fields;
 
-    StructPtrn(const Loc& loc, Path&& path, PtrVector<FieldPtrn>&& fields)
+    // Set during type-checking if the record is an enumeration variant
+    size_t variant_index = 0;
+
+    RecordPtrn(const Loc& loc, Path&& path, PtrVector<FieldPtrn>&& fields)
         : Ptrn(loc), path(std::move(path)), fields(std::move(fields))
     {}
 
@@ -1445,14 +1479,15 @@ struct StructPtrn : public Ptrn {
     void print(Printer&) const override;
 };
 
-/// A pattern that matches against enumerations.
-struct EnumPtrn : public Ptrn {
+/// A pattern that matches against constructor invocations.
+struct CtorPtrn : public Ptrn {
     Path path;
     Ptr<Ptrn> arg;
 
-    size_t index;
+    // Set during type-checking if the constructor is an enumeration variant
+    size_t variant_index = 0;
 
-    EnumPtrn(const Loc& loc, Path&& path, Ptr<Ptrn>&& arg)
+    CtorPtrn(const Loc& loc, Path&& path, Ptr<Ptrn>&& arg)
         : Ptrn(loc), path(std::move(path)), arg(std::move(arg))
     {}
 

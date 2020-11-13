@@ -1,0 +1,20 @@
+struct A;
+struct B(i32);
+struct C(i32, i64);
+struct D[T](T);
+struct E[T, U](T, U);
+struct F[T];
+
+#[export] fn test1() = A;
+#[export] fn test2() = B(1);
+#[export] fn test3() = C(1, 2);
+#[export] fn test4() = D[i32](1);
+#[export] fn test5() = D[i64](1);
+#[export] fn test6() = E[i32, i64](1, 2);
+#[export] fn test7() = E[i64, i32](1, 2);
+#[export] fn test8() = F[i32];
+#[export] fn test9() = F[i64];
+
+#[export] fn test10(e: E[i32, i64]) = match e { E[i32, i64](x, y) => x + y as i32 };
+#[export] fn test11() { let f = C; f(1, 2); }
+#[export] fn test12() { let f = E[i32, i64]; f(1, 2); }

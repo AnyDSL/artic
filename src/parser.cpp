@@ -105,10 +105,11 @@ Ptr<ast::FnDecl> Parser::parse_fn_decl() {
     return make_ptr<ast::FnDecl>(tracker(), std::move(id), std::move(fn), std::move(type_params));
 }
 
-Ptr<ast::FieldDecl> Parser::parse_field_decl() {
+Ptr<ast::FieldDecl> Parser::parse_field_decl(bool is_tuple_like) {
     Tracker tracker(this);
-    auto id = parse_id();
-    expect(Token::Colon);
+    auto id = is_tuple_like ? ast::Identifier(tracker(), "") : parse_id();
+    if (!is_tuple_like)
+        expect(Token::Colon);
     auto type = parse_type();
     Ptr<ast::Expr> init;
     if (accept(Token::Eq))
@@ -126,21 +127,38 @@ Ptr<ast::StructDecl> Parser::parse_struct_decl() {
         type_params = parse_type_params();
 
     PtrVector<ast::FieldDecl> fields;
-    expect(Token::LBrace);
-    parse_list(Token::RBrace, Token::Comma, [&] {
-        fields.emplace_back(parse_field_decl());
-    });
+    bool is_tuple_like = accept(Token::LParen);
+    if (is_tuple_like || accept(Token::LBrace)) {
+        accept(Token::LBrace);
+        parse_list(is_tuple_like ? Token::RParen : Token::RBrace, Token::Comma, [&] {
+            fields.emplace_back(parse_field_decl(is_tuple_like));
+        });
+        if (is_tuple_like)
+            expect(Token::Semi);
+    } else {
+        is_tuple_like = true;
+        expect(Token::Semi);
+    }
 
-    return make_ptr<ast::StructDecl>(tracker(), std::move(id), std::move(type_params), std::move(fields));
+    return make_ptr<ast::StructDecl>(tracker(), std::move(id), std::move(type_params), std::move(fields), is_tuple_like);
 }
 
 Ptr<ast::OptionDecl> Parser::parse_option_decl() {
     Tracker tracker(this);
     auto id = parse_id();
+
     Ptr<ast::Type> param;
-    if (ahead().tag() == Token::LParen)
+    PtrVector<ast::FieldDecl> fields;
+    bool has_fields = false;
+    if (ahead().tag() == Token::LParen) {
         param = parse_tuple_type();
-    return make_ptr<ast::OptionDecl>(tracker(), std::move(id), std::move(param));
+    } else if (accept(Token::LBrace)) {
+        parse_list(Token::RBrace, Token::Comma, [&] {
+            fields.emplace_back(parse_field_decl(false));
+        });
+        has_fields = true;
+    }
+    return make_ptr<ast::OptionDecl>(tracker(), std::move(id), std::move(param), std::move(fields), has_fields);
 }
 
 Ptr<ast::EnumDecl> Parser::parse_enum_decl() {
@@ -243,16 +261,17 @@ Ptr<ast::Ptrn> Parser::parse_ptrn(bool is_fn_param) {
                 auto id = parse_id();
                 if (ahead().tag() == Token::DblColon ||
                     ahead().tag() == Token::LBracket ||
+                    ahead().tag() == Token::LParen ||
                     ahead().tag() == Token::LBrace ||
                     (is_fn_param && ahead().tag() != Token::Colon && ahead().tag() != Token::As)) {
                     auto path = parse_path(std::move(id), true);
                     if (ahead().tag() == Token::LBrace)
-                        ptrn = parse_struct_ptrn(std::move(path));
+                        ptrn = parse_record_ptrn(std::move(path));
                     else if (is_fn_param) {
                         auto type = make_ptr<ast::TypeApp>(path.loc, std::move(path));
                         return make_ptr<ast::TypedPtrn>(path.loc, Ptr<ast::Ptrn>(), std::move(type));
                     } else
-                        ptrn = parse_enum_ptrn(std::move(path));
+                        ptrn = parse_ctor_ptrn(std::move(path));
                 } else
                     ptrn = parse_id_ptrn(std::move(id), false);
             }
@@ -326,31 +345,26 @@ Ptr<ast::FieldPtrn> Parser::parse_field_ptrn() {
     return make_ptr<ast::FieldPtrn>(tracker(), std::move(id), std::move(ptrn));
 }
 
-Ptr<ast::StructPtrn> Parser::parse_struct_ptrn(ast::Path&& path) {
+Ptr<ast::RecordPtrn> Parser::parse_record_ptrn(ast::Path&& path) {
     Tracker tracker(this, path.loc);
-
-    expect(Token::LBrace);
+    eat(Token::LBrace);
     PtrVector<ast::FieldPtrn> fields;
     parse_list(Token::RBrace, Token::Comma, [&] {
         fields.emplace_back(parse_field_ptrn());
     });
-
     // Make sure the ... sign appears only as the last field of the pattern
     auto etc = std::find_if(fields.begin(), fields.end(), [] (auto& field) { return field->is_etc(); });
     if (etc != fields.end() && etc != fields.end() - 1)
-        error((*etc)->loc, "'...' can only be used at the end of a structure pattern");
-
-    return make_ptr<ast::StructPtrn>(tracker(), std::move(path), std::move(fields));
+        error((*etc)->loc, "'...' can only be used at the end of a record pattern");
+    return make_ptr<ast::RecordPtrn>(tracker(), std::move(path), std::move(fields));
 }
 
-Ptr<ast::EnumPtrn> Parser::parse_enum_ptrn(ast::Path&& path) {
+Ptr<ast::CtorPtrn> Parser::parse_ctor_ptrn(ast::Path&& path) {
     Tracker tracker(this, path.loc);
-
     Ptr<ast::Ptrn> arg;
     if (ahead().tag() == Token::LParen)
         arg = parse_tuple_ptrn();
-
-    return make_ptr<ast::EnumPtrn>(tracker(), std::move(path), std::move(arg));
+    return make_ptr<ast::CtorPtrn>(tracker(), std::move(path), std::move(arg));
 }
 
 Ptr<ast::Ptrn> Parser::parse_tuple_ptrn(bool is_fn_param, Token::Tag beg, Token::Tag end) {
@@ -447,7 +461,7 @@ Ptr<ast::FieldExpr> Parser::parse_field_expr() {
     return make_ptr<ast::FieldExpr>(tracker(), std::move(id), std::move(expr));
 }
 
-Ptr<ast::StructExpr> Parser::parse_struct_expr(ast::Path&& path) {
+Ptr<ast::RecordExpr> Parser::parse_record_expr(ast::Path&& path) {
     Tracker tracker(this, path.loc);
     // Note: This copy is necessary since we cannot use both
     // path.loc and std::move(path) in the argument list
@@ -459,10 +473,10 @@ Ptr<ast::StructExpr> Parser::parse_struct_expr(ast::Path&& path) {
     parse_list(Token::RBrace, Token::Comma, [&] {
         fields.emplace_back(parse_field_expr());
     });
-    return make_ptr<ast::StructExpr>(tracker(), std::move(type_app), std::move(fields));
+    return make_ptr<ast::RecordExpr>(tracker(), std::move(type_app), std::move(fields));
 }
 
-Ptr<ast::StructExpr> Parser::parse_struct_expr(Ptr<ast::Expr>&& expr) {
+Ptr<ast::RecordExpr> Parser::parse_record_expr(Ptr<ast::Expr>&& expr) {
     Tracker tracker(this, expr->loc);
     eat(Token::Dot);
     eat(Token::LBrace);
@@ -470,7 +484,7 @@ Ptr<ast::StructExpr> Parser::parse_struct_expr(Ptr<ast::Expr>&& expr) {
     parse_list(Token::RBrace, Token::Comma, [&] {
         fields.emplace_back(parse_field_expr());
     });
-    return make_ptr<ast::StructExpr>(tracker(), std::move(expr), std::move(fields));
+    return make_ptr<ast::RecordExpr>(tracker(), std::move(expr), std::move(fields));
 }
 
 Ptr<ast::Expr> Parser::parse_tuple_expr() {
@@ -744,7 +758,7 @@ Ptr<ast::Expr> Parser::parse_primary_expr(bool allow_structs, bool allow_casts) 
         case Token::Id:
             expr = parse_path_expr();
             if (allow_structs && ahead(0).tag() == Token::LBrace)
-                expr = parse_struct_expr(std::move(expr->as<ast::PathExpr>()->path));
+                expr = parse_record_expr(std::move(expr->as<ast::PathExpr>()->path));
             break;
         case Token::At:
             filter = parse_filter();
@@ -774,7 +788,7 @@ Ptr<ast::Expr> Parser::parse_primary_expr(bool allow_structs, bool allow_casts) 
             expr = parse_call_expr(std::move(expr));
         else if (ahead().tag() == Token::Dot) {
             if (ahead(1).tag() == Token::LBrace)
-                expr = parse_struct_expr(std::move(expr));
+                expr = parse_record_expr(std::move(expr));
             else
                 expr = parse_proj_expr(std::move(expr));
         } else if (ahead().tag() == Token::Inc || ahead().tag() == Token::Dec)

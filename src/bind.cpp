@@ -65,6 +65,8 @@ void Path::bind(NameBinder& binder) {
     if (first.id.name[0] == '_')
         binder.error(first.id.loc, "identifiers beginning with '_' cannot be referenced");
     else {
+        // TODO this assumes symbols are always the first element of a path
+        // question: can paths of length > 2 even exist currently? afaik the only case of length 1 paths currently is enums...
         symbol = binder.find_symbol(first.id.name);
         if (!symbol) {
             binder.error(first.id.loc, "unknown identifier '{}'", first.id.name);
@@ -156,7 +158,7 @@ void FieldExpr::bind(NameBinder& binder) {
     binder.bind(*expr);
 }
 
-void StructExpr::bind(NameBinder& binder) {
+void RecordExpr::bind(NameBinder& binder) {
     if (expr)
         binder.bind(*expr);
     else
@@ -323,12 +325,12 @@ void FieldPtrn::bind(NameBinder& binder) {
     if (ptrn) binder.bind(*ptrn);
 }
 
-void StructPtrn::bind(NameBinder& binder) {
+void RecordPtrn::bind(NameBinder& binder) {
     binder.bind(path);
     for (auto& field : fields) binder.bind(*field);
 }
 
-void EnumPtrn::bind(NameBinder& binder) {
+void CtorPtrn::bind(NameBinder& binder) {
     binder.bind(path);
     if (arg) binder.bind(*arg);
 }
@@ -409,6 +411,10 @@ void StructDecl::bind(NameBinder& binder) {
 
 void OptionDecl::bind(NameBinder& binder) {
     if (param) binder.bind(*param);
+    else {
+        for (auto& field : fields)
+            binder.bind(*field);
+    }
     binder.insert_symbol(*this);
 }
 
@@ -419,7 +425,10 @@ void EnumDecl::bind_head(NameBinder& binder) {
 void EnumDecl::bind(NameBinder& binder) {
     binder.push_scope();
     if (type_params) binder.bind(*type_params);
-    for (auto& option : options) binder.bind(*option);
+    for (auto& option : options) {
+        option->parent = this;
+        binder.bind(*option);
+    }
     binder.pop_scope();
 }
 

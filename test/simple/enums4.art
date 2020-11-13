@@ -1,0 +1,15 @@
+enum K { A, B(bool), C { x: bool, y: i32 }, D {} }
+
+#[export]
+fn plop(k: K) {
+    match k {
+        K::A => 1,
+        K::B(true) => 3,
+        K::B(false) => 4,
+        K::C { x = true, y = 1 } => 5,
+        K::C { x = true, y = _ } => 6,
+        K::C { x = false, y = 2 } => 7,
+        K::C { x = false, y = _ } => 8,
+        K::D {} => 9
+    }
+}
