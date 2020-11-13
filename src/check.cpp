@@ -1508,7 +1508,7 @@ const artic::Type* RecordPtrn::infer(TypeChecker& checker) {
     if (!struct_type ||
         (struct_type->decl.isa<StructDecl>() &&
          struct_type->decl.as<StructDecl>()->is_tuple_like))
-        return checker.type_expected(path.loc, type, "structure");
+        return checker.type_expected(path.loc, path.type, "structure");
     checker.check_fields(loc, struct_type, type_app, fields, "pattern");
     return checker.infer_record_type(type_app, struct_type, variant_index);
 }
