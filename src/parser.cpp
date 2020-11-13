@@ -149,14 +149,16 @@ Ptr<ast::OptionDecl> Parser::parse_option_decl() {
 
     Ptr<ast::Type> param;
     PtrVector<ast::FieldDecl> fields;
-    if (ahead().tag() == Token::LParen)
+    bool has_fields = false;
+    if (ahead().tag() == Token::LParen) {
         param = parse_tuple_type();
-    else if (accept(Token::LBrace)) {
+    } else if (accept(Token::LBrace)) {
         parse_list(Token::RBrace, Token::Comma, [&] {
             fields.emplace_back(parse_field_decl(false));
         });
+        has_fields = true;
     }
-    return make_ptr<ast::OptionDecl>(tracker(), std::move(id), std::move(param), std::move(fields));
+    return make_ptr<ast::OptionDecl>(tracker(), std::move(id), std::move(param), std::move(fields), has_fields);
 }
 
 Ptr<ast::EnumDecl> Parser::parse_enum_decl() {

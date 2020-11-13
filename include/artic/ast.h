@@ -1281,6 +1281,7 @@ struct EnumDecl;
 /// Enumeration option declaration.
 struct OptionDecl : public RecordDecl {
     Ptr<Type> param;
+    bool has_fields;
 
     // Set during type-checking for options that have braces
     // Note: can be a type application of a structure type
@@ -1293,9 +1294,11 @@ struct OptionDecl : public RecordDecl {
         const Loc& loc,
         Identifier&& id,
         Ptr<Type>&& param,
-        PtrVector<FieldDecl>&& fields)
+        PtrVector<FieldDecl>&& fields,
+        bool has_fields)
         : RecordDecl(loc, std::move(id), std::move(fields))
         , param(std::move(param))
+        , has_fields(has_fields)
     {}
 
     const artic::Type* infer(TypeChecker&) override;

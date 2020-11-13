@@ -1417,7 +1417,7 @@ const artic::Type* StructDecl::infer(TypeChecker& checker) {
 const artic::Type* OptionDecl::infer(TypeChecker& checker) {
     if (param)
         return checker.infer(*param);
-    else if (!fields.empty()) {
+    else if (has_fields) {
         for (auto& field : fields)
             checker.infer(*field);
         return struct_type = checker.type_table.struct_type(*this);;
