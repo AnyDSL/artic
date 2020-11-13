@@ -594,6 +594,7 @@ const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, Ptr<Ex
                     return checker.unknown_member(elem.loc, enum_type, elems[i + 1].id.name);
                 elems[i + 1].index = *index;
                 if (enum_type->decl.options[*index]->struct_type) {
+                    // If the enumeration option uses the record syntax, we use the corresponding structure type
                     type = enum_type->decl.options[*index]->struct_type;
                     is_value = false;
                     is_ctor = true;
@@ -893,10 +894,8 @@ const artic::Type* BlockExpr::check(TypeChecker& checker, const artic::Type* exp
 
 const artic::Type* CallExpr::infer(TypeChecker& checker) {
     // Perform type argument inference when possible
-    if (auto path_expr = callee->isa<ast::PathExpr>()) {
-        path_expr->type = path_expr->path.type =
-            path_expr->path.infer(checker, true, &arg);
-    }
+    if (auto path_expr = callee->isa<ast::PathExpr>())
+        path_expr->type = path_expr->path.infer(checker, true, &arg);
 
     auto [ref_type, callee_type] = remove_ref(checker.infer(*callee));
     if (auto fn_type = callee_type->isa<artic::FnType>()) {
