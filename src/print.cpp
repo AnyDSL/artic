@@ -116,7 +116,7 @@ void RecordExpr::print(Printer& p) const {
         expr->print(p);
         p << " .";
     } else
-        path->print(p);
+        type->print(p);
     p << " {";
     if (!fields.empty()) {
         p << ' ';
@@ -382,7 +382,7 @@ void RecordPtrn::print(Printer& p) const {
     p << "}";
 }
 
-void CallPtrn::print(Printer& p) const {
+void CtorPtrn::print(Printer& p) const {
     path.print(p);
     if (arg) print_parens(p, arg);
 }
@@ -491,20 +491,20 @@ void FieldDecl::print(Printer& p) const {
     }
 }
 
-inline void print_body(const StructDecl& decl, Printer& p) {
-    p << (decl.is_tuple_like ? "(" : " {");
-    if (!decl.fields.empty()) {
-        if (!decl.is_tuple_like)
+inline void print_fields(Printer& p, const PtrVector<FieldDecl>& fields, bool is_tuple_like) {
+    p << (is_tuple_like ? "(" : " {");
+    if (!fields.empty()) {
+        if (!is_tuple_like)
             p << p.indent();
-        print_list(p, decl.is_tuple_like ? ", " : ",", decl.fields, [&] (auto& f) {
-            if (!decl.is_tuple_like)
+        print_list(p, is_tuple_like ? ", " : ",", fields, [&] (auto& f) {
+            if (!is_tuple_like)
                 p << p.endl();
             f->print(p);
         });
-        if (!decl.is_tuple_like)
+        if (!is_tuple_like)
             p << p.unindent() << p.endl();
     }
-    p << (decl.is_tuple_like ? ")" : "}");
+    p << (is_tuple_like ? ")" : "}");
 }
 
 void StructDecl::print(Printer& p) const {
@@ -512,15 +512,17 @@ void StructDecl::print(Printer& p) const {
     p << log::keyword_style("struct") << ' ' << id.name;
     if (type_params) type_params->print(p);
     if (!is_tuple_like || !fields.empty())
-        print_body(*this, p);
+        print_fields(p, fields, is_tuple_like);
     if (is_tuple_like)
         p << ";";
 }
 
 void OptionDecl::print(Printer& p) const {
     p << id.name;
-    if (param) print_parens(p, param);
-    if (datatype) print_body(*datatype, p);
+    if (param)
+        print_parens(p, param);
+    else
+        print_fields(p, fields, false);
 }
 
 void EnumDecl::print(Printer& p) const {

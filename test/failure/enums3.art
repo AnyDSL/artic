@@ -1,9 +1,0 @@
-enum E {
-  A(i32)
-}
-
-#[export]
-fn foo() {
-  let x = E::A;
-  x(0)
-}

@@ -426,7 +426,7 @@ struct ComplexType : public UserType {
 };
 
 struct StructType : public ComplexType {
-    const ast::StructDecl& decl;
+    const ast::RecordDecl& decl;
 
     void print(Printer&) const override;
     bool equals(const Type*) const override;
@@ -436,18 +436,15 @@ struct StructType : public ComplexType {
     const thorin::Type* convert(Emitter&, const Type*) const override;
     std::string stringify(Emitter&) const override;
 
-    const ast::TypeParamList* type_params() const override {
-        return decl.type_params.get();
-    }
-
+    const ast::TypeParamList* type_params() const override;
     std::optional<size_t> find_member(const std::string_view&) const override;
     const Type* member_type(size_t) const override;
     size_t member_count() const override;
 
-    const TupleType* as_tuple_type() const;
+    bool is_tuple_like() const;
 
 private:
-    StructType(TypeTable& type_table, const ast::StructDecl& decl)
+    StructType(TypeTable& type_table, const ast::RecordDecl& decl)
         : ComplexType(type_table), decl(decl)
     {}
 
@@ -586,7 +583,7 @@ public:
     const TypeError*        type_error();
     const TypeVar*          type_var(const ast::TypeParam&);
     const ForallType*       forall_type(const ast::FnDecl&);
-    const StructType*       struct_type(const ast::StructDecl&);
+    const StructType*       struct_type(const ast::RecordDecl&);
     const EnumType*         enum_type(const ast::EnumDecl&);
     const TypeAlias*        type_alias(const ast::TypeDecl&);
 

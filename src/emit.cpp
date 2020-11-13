@@ -118,12 +118,12 @@ public:
                 wildcards.emplace_back(std::move(row));
             } else {
                 auto ptrn = row.first[col];
-                auto enum_ptrn = ptrn->isa<ast::CallPtrn>();
-                auto record_ptrn = ptrn->isa<ast::RecordPtrn>();
                 remove_col(row.first, col);
-                if (enum_ptrn && enum_ptrn->arg)
-                    row.first.push_back(enum_ptrn->arg.get());
-                if (record_ptrn) {
+                if (auto call_ptrn = ptrn->isa<ast::CtorPtrn>(); call_ptrn && call_ptrn->arg) {
+                    row.first.push_back(call_ptrn->arg.get());
+                } else if (auto record_ptrn = ptrn->isa<ast::RecordPtrn>()) {
+                    // Since expansion uses the type of the value vector to know when to expand,
+                    // the record pattern will be expanded in the next iteration.
                     row.first.push_back(record_ptrn);
                 }
                 ctors[emitter.ctor_index(*ptrn)].emplace_back(std::move(row));
@@ -327,14 +327,13 @@ private:
                             if (!field->is_etc())
                                 new_elems[field->index] = field->ptrn.get();
                         }
-                    } else if (auto call_ptrn = row.first[i]->isa<ast::CallPtrn>()) {
-                        // Expanding a CallPtrn means we were constructing a tuple-like struct, otherwise it would be an enum variant ctor and not get expanded !
-                        if (struct_type->decl.fields.size() == 1)
-                            new_elems[0] = call_ptrn->arg.get();
-                        else if(struct_type->decl.fields.size() > 1) {
-                            auto tuple_ptrn = call_ptrn->arg->as<ast::TuplePtrn>();
+                    } else if (auto ctor_ptrn = row.first[i]->isa<ast::CtorPtrn>()) {
+                        // This must be a tuple-like struct.
+                        if (struct_type->member_count() == 1)
+                            new_elems[0] = ctor_ptrn->arg.get();
+                        else {
                             for (size_t j = 0; j < member_count; ++j)
-                                new_elems[j] = tuple_ptrn->args[j].get();
+                                new_elems[j] = ctor_ptrn->arg->as<ast::TuplePtrn>()->args[j].get();
                         }
                     } else if (auto tuple_ptrn = row.first[i]->isa<ast::TuplePtrn>()) {
                         for (size_t j = 0; j < member_count; ++j)
@@ -435,24 +434,12 @@ thorin::Continuation* Emitter::basic_block_with_mem(const thorin::Type* param, t
     return world.continuation(continuation_type_with_mem(param), debug);
 }
 
-inline size_t enum_variant_index(const artic::StructType& type) {
-    assert(type.decl.parent);
-    for (size_t i = 0; i < type.decl.parent->options.size(); i++) {
-        if (type.decl.parent->options[i]->datatype && type.decl.parent->options[i]->datatype->id.name == type.decl.id.name)
-            return i;
-    }
-    assert(false); // unreachable
-}
-
 const thorin::Def* Emitter::ctor_index(const ast::Ptrn& ptrn) {
-    if (auto record_ptrn = ptrn.isa<ast::RecordPtrn>(); record_ptrn && match_app<EnumType>(record_ptrn->type).second) {
-        auto index = enum_variant_index(*record_ptrn->struct_type->as<artic::StructType>());
-        return world.literal_qu64(index, debug_info(ptrn));
-    }
-
+    if (auto record_ptrn = ptrn.isa<ast::RecordPtrn>())
+        return world.literal_qu64(record_ptrn->variant_index, debug_info(ptrn));
     return ptrn.isa<ast::LiteralPtrn>()
         ? emit(ptrn, ptrn.as<ast::LiteralPtrn>()->lit)
-        : world.literal_qu64(ptrn.as<ast::CallPtrn>()->index, debug_info(ptrn));
+        : world.literal_qu64(ptrn.as<ast::CtorPtrn>()->variant_index, debug_info(ptrn));
 }
 
 void Emitter::redundant_case(const ast::CaseExpr& case_) {
@@ -761,10 +748,10 @@ const thorin::Def* Path::emit(Emitter& emitter) const {
     }
 
     for (size_t i = 0, n = elems.size(); i < n; ++i) {
-        if (n == 1) {
+        auto decl = symbol->decls.front();
+        if (!is_ctor) {
             // If type arguments are present, this is a polymorphic application
             std::unordered_map<const artic::TypeVar*, const artic::Type*> map;
-            auto decl = symbol->decls.front();
             if (!elems[i].inferred_args.empty()) {
                 for (size_t j = 0, n = elems[i].inferred_args.size(); j < n; ++j) {
                     auto var = decl->as<FnDecl>()->type_params->params[j]->type->as<artic::TypeVar>();
@@ -785,6 +772,21 @@ const thorin::Def* Path::emit(Emitter& emitter) const {
                 std::swap(map, emitter.type_vars);
             }
             return def;
+        } else if (match_app<StructType>(elems[i].type).second) {
+            // Create a constructor for this (tuple-like) structure
+            auto struct_type = elems[i].type->convert(emitter)->as<thorin::StructType>();
+            auto ctor_type = emitter.function_type_with_mem(emitter.world.tuple_type(struct_type->ops()), struct_type);
+            auto ctor = emitter.world.continuation(ctor_type, debug_info(*this));
+            ctor->set_all_true_filter();
+            auto _ = emitter.save_state();
+            emitter.enter(ctor);
+            auto ctor_param = emitter.tuple_from_params(ctor, true);
+            thorin::Array<const thorin::Def*> struct_ops(struct_type->num_ops());
+            for (size_t i = 0, n = struct_ops.size(); i < n; ++i)
+                struct_ops[i] = emitter.world.extract(ctor_param, i);
+            auto struct_value = emitter.world.struct_agg(struct_type, struct_ops);
+            emitter.jump(ctor->params().back(), struct_value, debug_info(*this));
+            return ctor;
         } else if (auto [type_app, enum_type] = match_app<artic::EnumType>(elems[i].type); enum_type) {
             // Find the variant constructor for that enum, if it exists.
             // Remember that the type application (if present) might be polymorphic (i.e. `E[T, U]::A`), and that, thus,
@@ -892,7 +894,7 @@ const thorin::Def* RecordExpr::emit(Emitter& emitter) const {
             value = emitter.world.insert(value, field->index, emitter.emit(*field), debug_info(*this));
         return value;
     } else {
-        auto [_, struct_type] = match_app<artic::StructType>(this->struct_type ? this->struct_type : Node::type);
+        auto [_, struct_type] = match_app<artic::StructType>(type->type);
         thorin::Array<const thorin::Def*> ops(struct_type->member_count(), nullptr);
         for (size_t i = 0, n = fields.size(); i < n; ++i)
             ops[fields[i]->index] = emitter.emit(*fields[i]);
@@ -904,15 +906,14 @@ const thorin::Def* RecordExpr::emit(Emitter& emitter) const {
             }
         }
         auto agg = emitter.world.struct_agg(
-                (this->struct_type ? this->struct_type : Node::type)->convert(emitter)->as<thorin::StructType>(),
+            type->type->convert(emitter)->as<thorin::StructType>(),
             ops, debug_info(*this));
-
-        if (auto enum_type = type->isa<artic::EnumType>()) {
-            auto converted_enum_t = enum_type->convert(emitter)->as<thorin::VariantType>();
-            return emitter.world.variant(converted_enum_t, agg, enum_variant_index(*struct_type));
-        } else {
-            return agg;
+        if (auto enum_type = this->Node::type->isa<artic::EnumType>()) {
+            return emitter.world.variant(
+                enum_type->convert(emitter)->as<thorin::VariantType>(),
+                agg, variant_index);
         }
+        return agg;
     }
 }
 
@@ -956,15 +957,6 @@ const thorin::Def* CallExpr::emit(Emitter& emitter) const {
             return emitter.no_ret();
         }
         return emitter.call(fn, value, debug_info(*this));
-    } else if(auto struct_type = callee->type->isa<StructType>()) {
-        auto tuple_args = arg->as<TupleExpr>();
-
-        thorin::Array<const thorin::Def*> ops(struct_type->member_count(), nullptr);
-        for (size_t i = 0, n = tuple_args->args.size(); i < n; ++i)
-            ops[i] = emitter.emit(*(tuple_args->args[i]));
-        return emitter.world.struct_agg(
-                Node::type->convert(emitter)->as<thorin::StructType>(),
-                ops, debug_info(*this));
     } else {
         auto array = emitter.emit(*callee);
         auto index = emitter.emit(*arg);
@@ -1368,7 +1360,7 @@ const thorin::Def* FnDecl::emit(Emitter& emitter) const {
     return cont;
 }
 
-const thorin::Def* StructDecl::emit(Emitter&) const {
+const thorin::Def* StructDecl::emit(Emitter& emitter) const {
     return nullptr;
 }
 
@@ -1382,7 +1374,7 @@ const thorin::Def* TypeDecl::emit(Emitter&) const {
 
 const thorin::Def* ModDecl::emit(Emitter& emitter) const {
     for (auto& decl : decls) {
-        // Do not emit function declarations that are polymorphic
+        // Do not emit polymorphic function or structure declarations
         if (auto fn_decl = decl->isa<FnDecl>(); fn_decl && fn_decl->type_params)
             continue;
         emitter.emit(*decl);
@@ -1553,19 +1545,19 @@ inline std::string stringify_params(
 }
 
 std::string StructType::stringify(Emitter& emitter) const {
-    if (!decl.type_params)
+    if (!type_params())
         return decl.id.name;
-    return stringify_params(emitter, decl.id.name + "_", decl.type_params->params);
+    return stringify_params(emitter, decl.id.name + "_", type_params()->params);
 }
 
 const thorin::Type* StructType::convert(Emitter& emitter, const Type* parent) const {
-    if (auto it = emitter.types.find(this); !decl.type_params && it != emitter.types.end())
+    if (auto it = emitter.types.find(this); !type_params() && it != emitter.types.end())
         return it->second;
     auto type = emitter.world.struct_type(stringify(emitter), decl.fields.size());
     emitter.types[parent] = type;
     for (size_t i = 0, n = decl.fields.size(); i < n; ++i) {
         type->set(i, decl.fields[i]->ast::Node::type->convert(emitter));
-        type->set_op_name(i, decl.is_tuple_like ? ("_" + std::to_string(i)) : decl.fields[i]->id.name);
+        type->set_op_name(i, decl.fields[i]->id.name.empty() ? "_" + std::to_string(i) : decl.fields[i]->id.name);
     }
     return type;
 }

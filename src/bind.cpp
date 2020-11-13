@@ -162,7 +162,7 @@ void RecordExpr::bind(NameBinder& binder) {
     if (expr)
         binder.bind(*expr);
     else
-        binder.bind(*path);
+        binder.bind(*type);
     for (auto& field : fields) binder.bind(*field);
 }
 
@@ -330,7 +330,7 @@ void RecordPtrn::bind(NameBinder& binder) {
     for (auto& field : fields) binder.bind(*field);
 }
 
-void CallPtrn::bind(NameBinder& binder) {
+void CtorPtrn::bind(NameBinder& binder) {
     binder.bind(path);
     if (arg) binder.bind(*arg);
 }
@@ -411,7 +411,10 @@ void StructDecl::bind(NameBinder& binder) {
 
 void OptionDecl::bind(NameBinder& binder) {
     if (param) binder.bind(*param);
-    if (datatype) binder.bind(*datatype);
+    else {
+        for (auto& field : fields)
+            binder.bind(*field);
+    }
     binder.insert_symbol(*this);
 }
 
@@ -422,7 +425,10 @@ void EnumDecl::bind_head(NameBinder& binder) {
 void EnumDecl::bind(NameBinder& binder) {
     binder.push_scope();
     if (type_params) binder.bind(*type_params);
-    for (auto& option : options) binder.bind(*option);
+    for (auto& option : options) {
+        option->parent = this;
+        binder.bind(*option);
+    }
     binder.pop_scope();
 }
 

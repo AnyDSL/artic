@@ -477,6 +477,23 @@ bool TypeChecker::infer_type_args(
     return true;
 }
 
+const Type* TypeChecker::infer_record_type(const TypeApp* type_app, const StructType* struct_type, size_t& index) {
+    // If the structure type comes from an option, return the corresponding enumeration type
+    if (auto option_decl = struct_type->decl.isa<ast::OptionDecl>()) {
+        auto enum_type = infer(*option_decl->parent)->as<artic::EnumType>();
+        index = std::find_if(
+            option_decl->parent->options.begin(),
+            option_decl->parent->options.end(),
+            [struct_type] (auto& option) { return option->type == struct_type; })
+            - option_decl->parent->options.begin();
+        assert(index < option_decl->parent->options.size());
+        if (type_app)
+            return type_table.type_app(enum_type, std::vector<const Type*>(type_app->type_args));
+        return enum_type;
+    }
+    return type_app ? type_app->as<Type>() : struct_type;
+}
+
 namespace ast {
 
 const artic::Type* Node::check(TypeChecker& checker, const artic::Type* expected) {
@@ -503,16 +520,19 @@ const artic::Type* Ptrn::check(TypeChecker& checker, const artic::Type* expected
 
 // Path ----------------------------------------------------------------------------
 
-const artic::Type* Path::infer(TypeChecker& checker, ExpectedSymbol expectation, bool allow_enum_ctors, Ptr<Expr>* arg) {
+const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, Ptr<Expr>* arg) {
     if (!symbol || symbol->decls.empty())
         return checker.type_table.type_error();
 
     type = checker.infer(*symbol->decls.front());
-
-    bool is_type = (symbol->decls.front()->isa<TypeDecl>() ||
-                    symbol->decls.front()->isa<TypeParam>() ||
-                    symbol->decls.front()->isa<StructDecl>() ||
-                    symbol->decls.front()->isa<EnumDecl>());
+    is_value =
+        elems.size() == 1 &&
+        (symbol->decls.front()->isa<PtrnDecl>() ||
+         symbol->decls.front()->isa<FnDecl>() ||
+         symbol->decls.front()->isa<StaticDecl>());
+    is_ctor =
+        symbol->decls.front()->isa<StructDecl>() ||
+        symbol->decls.front()->isa<EnumDecl>();
 
     // Inspect every element of the path
     for (size_t i = 0, n = elems.size(); i < n; ++i) {
@@ -551,6 +571,21 @@ const artic::Type* Path::infer(TypeChecker& checker, ExpectedSymbol expectation,
         }
         elem.type = type;
 
+        // Make tuple-like structure constructor functions.
+        if (auto [type_app, struct_type] = match_app<StructType>(type);
+            is_ctor && value_expected && i == 0 && struct_type && struct_type->is_tuple_like()) {
+            if (struct_type->member_count() > 0) {
+                std::vector<const artic::Type*> tuple_args;
+                for (size_t i = 0, n = struct_type->member_count(); i < n; ++i)
+                    tuple_args.push_back(type_app ? type_app->member_type(i) : struct_type->member_type(i));
+                auto dom = struct_type->member_count() == 1
+                    ? tuple_args.front()
+                    : checker.type_table.tuple_type(std::move(tuple_args));
+                type = checker.type_table.fn_type(dom, type);
+            }
+            is_value = true;
+        }
+
         // Perform a lookup inside the current object if the path is not finished
         if (i != n - 1) {
             if (auto [type_app, enum_type] = match_app<EnumType>(type); enum_type) {
@@ -558,20 +593,14 @@ const artic::Type* Path::infer(TypeChecker& checker, ExpectedSymbol expectation,
                 if (!index)
                     return checker.unknown_member(elem.loc, enum_type, elems[i + 1].id.name);
                 elems[i + 1].index = *index;
-                auto member = type_app ? type_app->member_type(*index) : enum_type->member_type(*index);
-                auto codom = type_app ? type_app->as<artic::Type>() : enum_type;
-                if (expectation != ExpectedSymbol::TYPE) {
-                    if (is_unit_type(member))
-                        type = codom;
-                    else if (allow_enum_ctors)
-                        type = checker.type_table.fn_type(member, codom);
-                    else {
-                        checker.error(elems[i+1].loc, "capturing enum constructors as functions is disallowed");
-                        return checker.type_table.type_error();
-                    }
-                    is_type = false;
-                } else if (expectation != ExpectedSymbol::VALUE && enum_type->decl.options[*index]->datatype) {
-                    type = member;
+                if (enum_type->decl.options[*index]->struct_type) {
+                    type = enum_type->decl.options[*index]->struct_type;
+                    is_value = false;
+                    is_ctor = true;
+                } else {
+                    auto member = type_app ? type_app->member_type(*index) : enum_type->member_type(*index);
+                    type = is_unit_type(member) ? type : checker.type_table.fn_type(member, type);
+                    is_value = is_ctor = true;
                 }
             } else {
                 checker.error(elem.loc, "expected module or enum type, but got '{}'", *type);
@@ -579,21 +608,14 @@ const artic::Type* Path::infer(TypeChecker& checker, ExpectedSymbol expectation,
             }
         }
     }
-    is_value = !is_type;
 
-    // Allow using 'S' as a value when 'S' is an empty tuple-like struct
-    if (auto struct_decl = symbol->decls.front()->isa<StructDecl>(); struct_decl && struct_decl->is_tuple_like && struct_decl->fields.empty() && expectation != ExpectedSymbol::TYPE) {
-        is_value = true;
-    }
-
-    if (expectation == ExpectedSymbol::TYPE && is_value) {
-        checker.error(loc, "value expected, but got type '{}'", *type);
-        return checker.type_table.type_error();
-    } else if (expectation == ExpectedSymbol::VALUE && !is_value) {
-        checker.error(loc, "type expected, but got '{}'", *this);
+    if (is_value != value_expected) {
+        if (value_expected)
+            checker.error(loc, "value expected, but got type '{}'", *type);
+        else
+            checker.error(loc, "type expected, but got '{}'", *this);
         return checker.type_table.type_error();
     }
-
     return type;
 }
 
@@ -700,7 +722,7 @@ const artic::Type* PtrType::infer(TypeChecker& checker) {
 }
 
 const artic::Type* TypeApp::infer(TypeChecker& checker) {
-    return path.type = path.infer(checker, Path::ExpectedSymbol::TYPE);
+    return path.type = path.infer(checker, false);
 }
 
 // Statements ----------------------------------------------------------------------
@@ -734,8 +756,7 @@ const artic::Type* TypedExpr::infer(TypeChecker& checker) {
 }
 
 const artic::Type* PathExpr::infer(TypeChecker& checker) {
-    path.type = path.infer(checker, Path::ExpectedSymbol::VALUE);
-    return path.type;
+    return path.infer(checker, true);
 }
 
 const artic::Type* LiteralExpr::infer(TypeChecker& checker) {
@@ -751,27 +772,14 @@ const artic::Type* FieldExpr::check(TypeChecker& checker, const artic::Type* exp
 }
 
 const artic::Type* RecordExpr::infer(TypeChecker& checker) {
-    const artic::Type* type;
-    const artic::Type* enum_type = nullptr;
-
-    if (expr)
-        type = checker.deref(expr);
-    else
-        type = path->infer(checker, Path::ExpectedSymbol::TYPE);
-
-    auto [type_app, struct_type] = match_app<StructType>(type);
-    if (!struct_type)
-        return checker.type_expected(expr ? expr->loc : this->loc, type, "structure");
-    if (struct_type->decl.is_tuple_like) {
-        checker.error("struct type {} is tuple-like and so cannot be initialized with the record syntax", struct_type->decl.id.name);
-        return checker.type_table.type_error();
-    }
-    if (struct_type->decl.parent) {
-        enum_type = struct_type->decl.parent->type;
-        this->struct_type = struct_type;
-    }
-    auto resulting_type = checker.check_fields(loc, struct_type, type_app, fields, "expression", static_cast<bool>(expr), true);
-    return enum_type ? enum_type : resulting_type;
+    auto type = expr ? checker.deref(expr) : checker.infer(*this->type);
+    auto [type_app, struct_type] = match_app<artic::StructType>(type);
+    if (!struct_type ||
+        (struct_type->decl.isa<StructDecl>() &&
+         struct_type->decl.as<StructDecl>()->is_tuple_like))
+        return checker.type_expected(expr ? expr->loc : this->loc, type, "record-like structure");
+    checker.check_fields(loc, struct_type, type_app, fields, "expression", static_cast<bool>(expr), true);
+    return checker.infer_record_type(type_app, struct_type, variant_index);
 }
 
 const artic::Type* TupleExpr::infer(TypeChecker& checker) {
@@ -886,7 +894,8 @@ const artic::Type* BlockExpr::check(TypeChecker& checker, const artic::Type* exp
 const artic::Type* CallExpr::infer(TypeChecker& checker) {
     // Perform type argument inference when possible
     if (auto path_expr = callee->isa<ast::PathExpr>()) {
-        path_expr->type = path_expr->path.infer(checker, Path::ExpectedSymbol::EITHER, true, &arg);
+        path_expr->type = path_expr->path.type =
+            path_expr->path.infer(checker, true, &arg);
     }
 
     auto [ref_type, callee_type] = remove_ref(checker.infer(*callee));
@@ -894,10 +903,6 @@ const artic::Type* CallExpr::infer(TypeChecker& checker) {
         checker.coerce(callee, fn_type);
         checker.coerce(arg, fn_type->dom);
         return fn_type->codom;
-    } else if (auto struct_type = callee_type->isa<artic::StructType>(); struct_type && struct_type->decl.is_tuple_like && struct_type->member_count() > 0) {
-        checker.coerce(callee, struct_type);
-        checker.coerce(arg, struct_type->as_tuple_type());
-        return struct_type;
     } else {
         // Accept pointers to arrays
         auto ptr_type = callee_type->isa<artic::PtrType>();
@@ -919,7 +924,7 @@ const artic::Type* CallExpr::infer(TypeChecker& checker) {
                     ptr_type ? ptr_type->addr_space : ref_type->addr_space)
                 : array_type->elem;
         } else {
-            return checker.type_expected(callee->loc, callee_type, "function, array or non-empty tuple-like struct");
+            return checker.type_expected(callee->loc, callee_type, "function, array or non-empty tuple-like structure");
         }
     }
 }
@@ -1410,8 +1415,16 @@ const artic::Type* StructDecl::infer(TypeChecker& checker) {
     return struct_type;
 }
 
-const artic::Type* OptionDecl::check(TypeChecker&, const artic::Type* expected) {
-    return expected;
+const artic::Type* OptionDecl::infer(TypeChecker& checker) {
+    if (param)
+        return checker.infer(*param);
+    else if (!fields.empty()) {
+        for (auto& field : fields)
+            checker.infer(*field);
+        return struct_type = checker.type_table.struct_type(*this);;
+    } else {
+        return checker.type_table.unit_type();
+    }
 }
 
 const artic::Type* EnumDecl::infer(TypeChecker& checker) {
@@ -1422,13 +1435,8 @@ const artic::Type* EnumDecl::infer(TypeChecker& checker) {
     }
     // Set the type before entering the options
     type = enum_type;
-    for (auto& option : options) {
-        option->type = option->datatype ?
-              checker.infer(*option->datatype)
-            : option->param
-            ? checker.infer(*option->param)
-            : checker.type_table.unit_type();
-    }
+    for (auto& option : options)
+        checker.infer(*option);
     if (!enum_type->is_sized())
         checker.unsized_type(loc, enum_type);
     return enum_type;
@@ -1496,52 +1504,48 @@ const artic::Type* FieldPtrn::check(TypeChecker& checker, const artic::Type* exp
 }
 
 const artic::Type* RecordPtrn::infer(TypeChecker& checker) {
-    path.type = path.infer(checker, Path::ExpectedSymbol::TYPE);
-    auto [type_app, struct_type] = match_app<StructType>(path.type);
-    const artic::Type* enum_type = nullptr;
-    if (struct_type->decl.parent) {
-        enum_type = struct_type->decl.parent->type;
-        this->struct_type = struct_type;
-    }
-    auto inferred = checker.check_fields(loc, struct_type, type_app, fields, "pattern");
-    return enum_type ? enum_type : inferred;
+    path.type = path.infer(checker, false);
+    auto [type_app, struct_type] = match_app<artic::StructType>(path.type);
+    if (!struct_type ||
+        (struct_type->decl.isa<StructDecl>() &&
+         struct_type->decl.as<StructDecl>()->is_tuple_like))
+        return checker.type_expected(path.loc, type, "structure");
+    checker.check_fields(loc, struct_type, type_app, fields, "pattern");
+    return checker.infer_record_type(type_app, struct_type, variant_index);
 }
 
-const artic::Type* CallPtrn::infer(TypeChecker& checker) {
-    const artic::Type* path_type;
-    path_type = path.infer(checker, Path::ExpectedSymbol::EITHER, true);
-
-    auto result_type = path_type;
-    const artic::Type* param_type = nullptr;
-    if (auto fn_type = path_type->isa<artic::FnType>()) {
-        // Enumeration constructors that take parameters type as functions
-        param_type = fn_type->dom;
-        result_type  = fn_type->codom;
-    }
-
-    auto app = result_type->isa<artic::TypeApp>();
-    if (app) result_type = app->applied;
-
-    auto struct_type = result_type->isa<StructType>();
-    if (struct_type)
-        param_type = struct_type->as_tuple_type();
-
-    auto constructor_description = struct_type ? "tuple-like struct" : "enumeration option";
-
-    if (!result_type->isa<artic::EnumType>() && !(struct_type && struct_type->decl.is_tuple_like))
-        return checker.type_expected(path.loc, result_type, "enumeration or tuple-like struct");
-    if (arg) {
-        if (!param_type) {
-            checker.error(loc, "{} takes no arguments", constructor_description);
-            return checker.type_table.type_error();
-        }
-        checker.check(*arg, param_type);
-    } else if (param_type) {
-        checker.error(loc, "arguments expected after {}", constructor_description);
+const artic::Type* CtorPtrn::infer(TypeChecker& checker) {
+    auto path_type = path.infer(checker, true);
+    if (!path.is_ctor) {
+        checker.error(path.loc, "structure or enumeration constructor expected");
         return checker.type_table.type_error();
     }
-    index = path.elems.back().index;
-    return app ? app : result_type;
+    if (auto struct_type = match_app<artic::StructType>(path_type).second;
+        struct_type && struct_type->is_tuple_like() && struct_type->member_count() == 0) {
+        // Accept empty tuple-like structures with no arguments
+        if (arg) {
+            checker.error(loc, "structure constructor takes no argument");
+            return checker.type_table.type_error();
+        }
+        return path_type;
+    } else if (auto enum_type = match_app<artic::EnumType>(path_type).second) {
+        variant_index = path.elems.back().index;
+        if (arg) {
+            checker.error(loc, "enumeration constructor takes no argument");
+            return checker.type_table.type_error();
+        }
+        return path_type;
+    } else if (auto fn_type = path_type->isa<artic::FnType>()) {
+        if (!arg) {
+            checker.error(loc, "missing arguments to enumeration or structure constructor");
+            return checker.type_table.type_error();
+        }
+        checker.check(*arg, fn_type->dom);
+        if (match_app<artic::EnumType>(fn_type->codom).second)
+            variant_index = path.elems.back().index;
+        return fn_type->codom;
+    } else
+        return checker.type_expected(path.loc, path_type, "enumeration or structure");
 }
 
 const artic::Type* TuplePtrn::infer(TypeChecker& checker) {

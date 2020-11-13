@@ -648,12 +648,12 @@ bool RecordPtrn::is_trivial() const {
     });
 }
 
-void CallPtrn::collect_bound_ptrns(std::vector<const IdPtrn*>& bound_ptrns) const {
+void CtorPtrn::collect_bound_ptrns(std::vector<const IdPtrn*>& bound_ptrns) const {
     if (arg)
         arg->collect_bound_ptrns(bound_ptrns);
 }
 
-bool CallPtrn::is_trivial() const {
+bool CtorPtrn::is_trivial() const {
     return false;
 }
 

@@ -414,7 +414,13 @@ bool TypeApp::is_sized(std::unordered_set<const Type*>& seen) const {
         });
 }
 
-// Members -------------------------------------------------------------------------
+// Complex Types -------------------------------------------------------------------
+
+const ast::TypeParamList* StructType::type_params() const {
+    return decl.isa<ast::StructDecl>()
+        ? decl.as<ast::StructDecl>()->type_params.get()
+        : decl.as<ast::OptionDecl>()->parent->type_params.get();
+}
 
 std::optional<size_t> StructType::find_member(const std::string_view& name) const {
     auto it = std::find_if(
@@ -436,11 +442,8 @@ size_t StructType::member_count() const {
     return decl.fields.size();
 }
 
-const TupleType* StructType::as_tuple_type() const {
-    std::vector<const Type*> args;
-    for (const auto& field : decl.fields)
-        args.emplace_back(field->ast::Node::type);
-    return type_table.tuple_type(std::move(args));
+bool StructType::is_tuple_like() const {
+    return decl.isa<ast::StructDecl>() && decl.as<ast::StructDecl>()->is_tuple_like;
 }
 
 std::optional<size_t> EnumType::find_member(const std::string_view& name) const {
@@ -672,7 +675,7 @@ const ForallType* TypeTable::forall_type(const ast::FnDecl& decl) {
     return insert<ForallType>(decl);
 }
 
-const StructType* TypeTable::struct_type(const ast::StructDecl& decl) {
+const StructType* TypeTable::struct_type(const ast::RecordDecl& decl) {
     return insert<StructType>(decl);
 }
 

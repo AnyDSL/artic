@@ -27,7 +27,7 @@ private:
     Ptr<ast::Decl>          parse_decl(bool = false);
     Ptr<ast::LetDecl>       parse_let_decl();
     Ptr<ast::FnDecl>        parse_fn_decl();
-    Ptr<ast::FieldDecl>     parse_field_decl(size_t, bool);
+    Ptr<ast::FieldDecl>     parse_field_decl(bool);
     Ptr<ast::StructDecl>    parse_struct_decl();
     Ptr<ast::OptionDecl>    parse_option_decl();
     Ptr<ast::EnumDecl>      parse_enum_decl();
@@ -44,7 +44,7 @@ private:
     Ptr<ast::LiteralPtrn>   parse_literal_ptrn();
     Ptr<ast::FieldPtrn>     parse_field_ptrn();
     Ptr<ast::RecordPtrn>    parse_record_ptrn(ast::Path &&path);
-    Ptr<ast::CallPtrn>      parse_call_ptrn(ast::Path &&path);
+    Ptr<ast::CtorPtrn>      parse_ctor_ptrn(ast::Path&& path);
     Ptr<ast::Ptrn>          parse_tuple_ptrn(bool = false, Token::Tag = Token::LParen, Token::Tag = Token::RParen);
     Ptr<ast::ArrayPtrn>     parse_array_ptrn();
     Ptr<ast::ErrorPtrn>     parse_error_ptrn();

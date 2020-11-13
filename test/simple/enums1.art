@@ -15,10 +15,13 @@ fn test() {
     let _ : E = E::B;
     let _ : F = F::A;
     let _ : F = F::B(1);
+    let _ : fn (i32) -> F = F::B;
     let _ : G[i32] = G[i32]::A;
     let _ : G[i32] = G[i32]::B(1);
+    let _ : fn (i32) -> G[i32] = G[i32]::B;
     let _ : H[i32, i64] = H[i32, i64]::A;
     let _ : H[i32, i64] = H[i32, i64]::B(1, 2);
+    let _ : fn (i32, i64) -> H[i32, i64] = H[i32, i64]::B;
     let _ = H[i32, f32]::C(H[i32, f32]::A);
     let _ = H[i32, f32]::C(H[i32, f32]::C(H[i32, f32]::A));
 }
