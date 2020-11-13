@@ -1,4 +1,2 @@
 struct Empty;
-
-#[export]
-fn test() = Empty();
+#[export] fn test() = Empty();
