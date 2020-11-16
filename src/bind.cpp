@@ -233,6 +233,15 @@ void IfExpr::bind(NameBinder& binder) {
     if (if_false) binder.bind(*if_false);
 }
 
+void IfLetExpr::bind(NameBinder& binder) {
+    binder.push_scope();
+    binder.bind(*ptrn);
+    binder.bind(*expr);
+    binder.bind(*if_true);
+    binder.pop_scope();
+    if (if_false) binder.bind(*if_false);
+}
+
 void CaseExpr::bind(NameBinder& binder) {
     binder.push_scope();
     binder.bind(*ptrn);

@@ -631,21 +631,37 @@ Ptr<ast::ProjExpr> Parser::parse_proj_expr(Ptr<ast::Expr>&& expr) {
     return make_ptr<ast::ProjExpr>(tracker(), std::move(expr), std::move(id));
 }
 
-Ptr<ast::IfExpr> Parser::parse_if_expr() {
+Ptr<ast::Expr> Parser::parse_if_expr() {
     Tracker tracker(this);
     eat(Token::If);
-    auto [cond, if_true] = parse_cond_and_block();
 
-    Ptr<ast::Expr> if_false;
-    if (accept(Token::Else)) {
-        if (ahead().tag() == Token::If)
-            if_false = parse_if_expr();
-        else if (ahead().tag() == Token::LBrace)
-            if_false = parse_block_expr();
-        else
-            if_false = parse_error_expr();
+    auto accept_else = [&](){
+        Ptr<ast::Expr> if_false;
+        if (accept(Token::Else)) {
+            if (ahead().tag() == Token::If)
+                if_false = parse_if_expr();
+            else if (ahead().tag() == Token::LBrace)
+                if_false = parse_block_expr();
+            else
+                if_false = parse_error_expr();
+        }
+        return std::move(if_false);
+    };
+
+    if (accept(Token::Let)) {
+        auto ptrn = parse_ptrn();
+        eat(Token::Eq);
+        auto expr = parse_expr();
+
+        auto if_true = parse_block_expr();
+        auto if_false = accept_else();
+        return make_ptr<ast::IfLetExpr>(tracker(), std::move(ptrn), std::move(expr), std::move(if_true), std::move(if_false));
+    } else {
+        auto[cond, if_true] = parse_cond_and_block();
+        auto if_false = accept_else();
+
+        return make_ptr<ast::IfExpr>(tracker(), std::move(cond), std::move(if_true), std::move(if_false));
     }
-    return make_ptr<ast::IfExpr>(tracker(), std::move(cond), std::move(if_true), std::move(if_false));
 }
 
 Ptr<ast::CaseExpr> Parser::parse_case_expr() {

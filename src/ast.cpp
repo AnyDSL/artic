@@ -477,9 +477,20 @@ bool IfExpr::is_jumping() const {
     return cond->is_jumping() || (if_true->is_jumping() && if_false && if_false->is_jumping());
 }
 
+bool IfLetExpr::is_jumping() const {
+    return expr->is_jumping() || (if_true->is_jumping() && if_false && if_false->is_jumping());
+}
+
 bool IfExpr::has_side_effect() const {
     return
         cond->has_side_effect() ||
+        if_true->has_side_effect() ||
+        (if_false && if_false->has_side_effect());
+}
+
+bool IfLetExpr::has_side_effect() const {
+    return
+        expr->has_side_effect() ||
         if_true->has_side_effect() ||
         (if_false && if_false->has_side_effect());
 }

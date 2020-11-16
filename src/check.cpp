@@ -994,6 +994,28 @@ const artic::Type* IfExpr::check(TypeChecker& checker, const artic::Type* expect
     return checker.coerce(if_true, expected);
 }
 
+const artic::Type* IfLetExpr::infer(TypeChecker& checker) {
+    checker.infer(*ptrn, expr);
+    if (if_false) {
+        if (is_int_or_float_literal(if_true.get()))
+            return checker.coerce(if_true, checker.deref(if_false));
+        if (is_int_or_float_literal(if_false.get()))
+            return checker.coerce(if_false, checker.deref(if_true));
+        return checker.join(if_false, if_true);
+    }
+    return checker.coerce(if_true, checker.type_table.unit_type());
+}
+
+const artic::Type* IfLetExpr::check(TypeChecker& checker, const artic::Type* expected) {
+    checker.infer(*ptrn, expr);
+    if (if_false) {
+        checker.coerce(if_true, expected);
+        return checker.coerce(if_false, expected);
+    }
+    checker.coerce(if_true, checker.type_table.unit_type());
+    return checker.coerce(if_true, expected);
+}
+
 const artic::Type* MatchExpr::infer(TypeChecker& checker) {
     return check(checker, nullptr);
 }

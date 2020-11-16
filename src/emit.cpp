@@ -1003,6 +1003,10 @@ const thorin::Def* IfExpr::emit(Emitter& emitter) const {
     return emitter.tuple_from_params(join);
 }
 
+const thorin::Def* IfLetExpr::emit(Emitter& emitter) const {
+    //TODO
+}
+
 const thorin::Def* CaseExpr::emit(Emitter& emitter) const {
     thorin::Array<const thorin::Type*> param_types(bound_ptrns.size());
     for (size_t i = 0, n = bound_ptrns.size(); i < n; ++i)

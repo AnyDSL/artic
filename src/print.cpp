@@ -214,6 +214,19 @@ void IfExpr::print(Printer& p) const {
     }
 }
 
+void IfLetExpr::print(Printer& p) const {
+    p << log::keyword_style("if") << ' ' << log::keyword_style("let") << ' ';
+    ptrn->print(p);
+    p << ' ';
+    expr->print(p);
+    p << ' ';
+    if_true->print(p);
+    if (if_false) {
+        p << ' ' << log::keyword_style("else") << ' ';
+        if_false->print(p);
+    }
+}
+
 void CaseExpr::print(Printer& p) const {
     ptrn->print(p);
     p << " => ";

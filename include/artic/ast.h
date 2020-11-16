@@ -754,6 +754,36 @@ struct IfExpr : public Expr {
     void print(Printer&) const override;
 };
 
+/// If/Else let expression (the else branch is optional).
+struct IfLetExpr : public Expr {
+    Ptr<Ptrn> ptrn;
+    Ptr<Expr> expr;
+    Ptr<Expr> if_true;
+    Ptr<Expr> if_false;
+
+    IfLetExpr(
+        const Loc& loc,
+        Ptr<Ptrn>&& ptrn,
+        Ptr<Expr>&& expr,
+        Ptr<Expr>&& if_true,
+        Ptr<Expr>&& if_false)
+        : Expr(loc)
+        , ptrn(std::move(ptrn))
+        , expr(std::move(expr))
+        , if_true(std::move(if_true))
+        , if_false(std::move(if_false))
+    {}
+
+    bool is_jumping() const override;
+    bool has_side_effect() const override;
+
+    const thorin::Def* emit(Emitter&) const override;
+    const artic::Type* infer(TypeChecker&) override;
+    const artic::Type* check(TypeChecker&, const artic::Type*) override;
+    void bind(NameBinder&) override;
+    void print(Printer&) const override;
+};
+
 /// Case within a match expression.
 struct CaseExpr : public Expr {
     Ptr<Ptrn> ptrn;
