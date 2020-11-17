@@ -1063,8 +1063,9 @@ const thorin::Def* IfLetExpr::emit(Emitter& emitter) const {
     auto else_ptrn = make_ptr<ast::IdPtrn>(loc, std::move(make_ptr<ast::PtrnDecl>(loc, Identifier(loc, "_"), false)), nullptr);
     else_ptrn->type = expr->type;
     match_cases.push_back(std::move(match_case));
-    
-    auto else_case = make_ptr<PtrnCompiler::MatchCase>(else_ptrn.get(), if_false.get(), this);
+
+    auto empty_tuple = make_ptr<ast::TupleExpr>(loc, std::move(PtrVector<ast::Expr>()));
+    auto else_case = make_ptr<PtrnCompiler::MatchCase>(else_ptrn.get(), if_false ? if_false.get() : empty_tuple.get(), this);
     else_case->target = join;
     match_cases.push_back(std::move(else_case));
 
