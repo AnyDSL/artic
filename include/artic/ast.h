@@ -756,10 +756,10 @@ struct IfExpr : public Expr {
 
 /// If/Else let expression (the else branch is optional).
 struct IfLetExpr : public Expr {
-    Ptr<Ptrn> ptrn;
+    mutable Ptr<Ptrn> ptrn;
     Ptr<Expr> expr;
-    Ptr<Expr> if_true;
-    Ptr<Expr> if_false;
+    mutable Ptr<Expr> if_true;
+    mutable Ptr<Expr> if_false;
 
     IfLetExpr(
         const Loc& loc,

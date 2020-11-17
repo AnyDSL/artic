@@ -39,20 +39,26 @@ class PtrnCompiler {
 public:
     PtrnCompiler(
         Emitter& emitter,
-        const ast::MatchExpr& match,
+        const ast::Node& node,
+        const ast::Expr& expr,
+        const PtrVector<ast::CaseExpr>& cases,
         std::unordered_map<const ast::IdPtrn*, const thorin::Def*>& matched_values)
         : emitter(emitter)
-        , match(match)
-        , values { { emitter.emit(*match.arg), match.arg->type } }
+        , node(node)
+        , expr(expr)
+        , values { { emitter.emit(expr), expr.type } }
         , matched_values(matched_values)
     {
-        for (auto& case_ : match.cases)
+        for (auto& case_ : cases)
             rows.emplace_back(std::vector<const ast::Ptrn*>{ case_->ptrn.get() }, case_.get());
     }
 
     void compile() {
         if (rows.empty()) {
-            emitter.non_exhaustive_match(match);
+            if (const auto match2 = node.isa<ast::MatchExpr>())
+                emitter.non_exhaustive_match(*match2);
+            else
+                assert(false); // the cases were compiler-generated so this is our fault
             return;
         }
 
@@ -133,42 +139,42 @@ public:
         // Generate jumps to each constructor case
         bool no_default = is_complete(values[col].second, ctors.size());
         if (is_bool_type(values[col].second)) {
-            auto match_true  = emitter.basic_block(debug_info(match, "match_true"));
-            auto match_false = emitter.basic_block(debug_info(match, "match_false"));
+            auto match_true  = emitter.basic_block(debug_info(node, "match_true"));
+            auto match_false = emitter.basic_block(debug_info(node, "match_false"));
             emitter.branch(values[col].first, match_true, match_false);
 
             remove_col(values, col);
             for (auto& ctor : ctors) {
                 auto _ = emitter.save_state();
                 emitter.enter(thorin::is_allset(ctor.first) ? match_true : match_false);
-                PtrnCompiler(emitter, match, std::move(ctor.second), std::vector<Value>(values), matched_values).compile();
+                PtrnCompiler(emitter, node, expr, std::move(ctor.second), std::vector<Value>(values), matched_values).compile();
             }
             if (!no_default) {
                 emitter.enter(thorin::is_allset(ctors.begin()->first) ? match_false : match_true);
-                PtrnCompiler(emitter, match, std::move(wildcards), std::move(values), matched_values).compile();
+                PtrnCompiler(emitter, node, expr, std::move(wildcards), std::move(values), matched_values).compile();
             }
         } else {
             assert(enum_type || is_int_type(values[col].second));
             thorin::Array<thorin::Continuation*> targets(ctors.size());
             thorin::Array<const thorin::Def*> defs(ctors.size());
-            auto otherwise = emitter.basic_block(debug_info(match, "match_otherwise"));
+            auto otherwise = emitter.basic_block(debug_info(node, "match_otherwise"));
 
             size_t count = 0;
             for (auto& ctor : ctors) {
                 defs[count] = ctor.first;
-                targets[count] = emitter.basic_block(debug_info(match, "match_case"));
+                targets[count] = emitter.basic_block(debug_info(node, "match_case"));
                 count++;
             }
 
             if (emitter.state.cont) {
                 auto match_value = enum_type
-                    ? emitter.world.variant_index(values[col].first, debug_info(match, "variant_index"))
+                    ? emitter.world.variant_index(values[col].first, debug_info(node, "variant_index"))
                     : values[col].first;
                 emitter.state.cont->match(
                     match_value, otherwise,
                     no_default ? defs.skip_back() : defs.ref(),
                     no_default ? targets.skip_back() : targets.ref(),
-                    debug_info(match));
+                    debug_info(node));
             }
 
             auto col_value = values[col].first;
@@ -190,11 +196,11 @@ public:
                         new_values.emplace_back(emitter.world.cast(type->convert(emitter), value), type);
                 }
 
-                PtrnCompiler(emitter, match, std::move(rows), std::move(new_values), matched_values).compile();
+                PtrnCompiler(emitter, node, expr, std::move(rows), std::move(new_values), matched_values).compile();
             }
             if (!no_default) {
                 emitter.enter(otherwise);
-                PtrnCompiler(emitter, match, std::move(wildcards), std::move(values), matched_values).compile();
+                PtrnCompiler(emitter, node, expr, std::move(wildcards), std::move(values), matched_values).compile();
             }
         }
     }
@@ -206,7 +212,8 @@ private:
     using Cost = size_t;
 
     Emitter& emitter;
-    const ast::MatchExpr& match;
+    const ast::Node& node;
+    const ast::Expr& expr;
     std::vector<Row> rows;
     std::vector<Value> values;
     std::unordered_map<const ast::IdPtrn*, const thorin::Def*>& matched_values;
@@ -214,12 +221,14 @@ private:
 
     PtrnCompiler(
         Emitter& emitter,
-        const ast::MatchExpr& match,
+        const ast::Node& node,
+        const ast::Expr& expr,
         std::vector<Row>&& rows,
         std::vector<Value>&& values,
         std::unordered_map<const ast::IdPtrn*, const thorin::Def*>& matched_values)
         : emitter(emitter)
-        , match(match)
+        , node(node)
+        , expr(expr)
         , rows(std::move(rows))
         , values(std::move(values))
         , matched_values(matched_values)
@@ -364,7 +373,7 @@ private:
             // Expand the value to match against
             std::vector<Value> new_values(member_count);
             for (size_t j = 0; j < member_count; ++j) {
-                new_values[j].first  = emitter.world.extract(values[i].first, j, debug_info(*match.arg));
+                new_values[j].first  = emitter.world.extract(values[i].first, j, debug_info(expr));
                 new_values[j].second =
                     type_app               ? type_app->member_type(j)       :
                     struct_type            ? struct_type->member_type(j)    :
@@ -1004,7 +1013,24 @@ const thorin::Def* IfExpr::emit(Emitter& emitter) const {
 }
 
 const thorin::Def* IfLetExpr::emit(Emitter& emitter) const {
-    //TODO
+    thorin::Continuation* join = emitter.basic_block_with_mem(type->convert(emitter), debug_info(*this, "iflet_join"));
+    PtrVector<ast::CaseExpr> cases;
+    auto match_case = make_ptr<ast::CaseExpr>(loc, std::move(ptrn), std::move(if_true));
+
+    auto else_ptrn = make_ptr<ast::IdPtrn>(loc, std::move(make_ptr<ast::PtrnDecl>(loc, Identifier(loc, "_"), false)), nullptr);
+    else_ptrn->type = expr->type;
+    auto else_case = make_ptr<ast::CaseExpr>(loc, std::move(else_ptrn), std::move(if_false));
+
+    cases.push_back(std::move(match_case));
+    cases.push_back(std::move(else_case));
+    for (auto& case_ : cases) {
+        case_->collect_bound_ptrns();
+        case_->target = join;
+    }
+    std::unordered_map<const IdPtrn*, const thorin::Def*> matched_values;
+    PtrnCompiler(emitter, *this, *expr, cases, matched_values).compile();
+    emitter.enter(join);
+    return emitter.tuple_from_params(join);
 }
 
 const thorin::Def* CaseExpr::emit(Emitter& emitter) const {
@@ -1028,7 +1054,7 @@ const thorin::Def* MatchExpr::emit(Emitter& emitter) const {
         case_->target = join;
     }
     std::unordered_map<const IdPtrn*, const thorin::Def*> matched_values;
-    PtrnCompiler(emitter, *this, matched_values).compile();
+    PtrnCompiler(emitter, *this, *arg, cases, matched_values).compile();
     for (auto& case_ : cases) {
         if (case_->is_redundant)
             emitter.redundant_case(*case_);
