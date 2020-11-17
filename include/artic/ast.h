@@ -754,7 +754,7 @@ struct IfExpr : public Expr {
     void print(Printer&) const override;
 };
 
-/// If/Else let expression (the else branch is optional).
+/// If let/Else expression (the else branch is optional).
 struct IfLetExpr : public Expr {
     mutable Ptr<Ptrn> ptrn;
     Ptr<Expr> expr;
