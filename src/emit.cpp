@@ -42,7 +42,7 @@ public:
         const ast::Expr* expr;
         const ast::Node* node;
 
-        mutable bool is_redundant = true;
+        bool is_redundant = true;
         const thorin::Def* target = nullptr;
         std::vector<const struct ast::IdPtrn*> bound_ptrns;
 
