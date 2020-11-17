@@ -309,6 +309,7 @@ bool ExprStmt::needs_semicolon() const {
     return
         !expr->isa<BlockExpr>() &&
         !expr->isa<IfExpr>()    &&
+        !expr->isa<IfLetExpr>() &&
         !expr->isa<MatchExpr>() &&
         !expr->isa<WhileExpr>() &&
         !expr->isa<ForExpr>();
