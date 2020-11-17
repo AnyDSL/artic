@@ -789,18 +789,11 @@ struct CaseExpr : public Expr {
     Ptr<Ptrn> ptrn;
     Ptr<Expr> expr;
 
-    // Set during emission by the pattern matching compiler
-    mutable bool is_redundant = true;
-    mutable const thorin::Def* target = nullptr;
-    mutable std::vector<const struct IdPtrn*> bound_ptrns;
-
     CaseExpr(const Loc& loc, Ptr<Ptrn>&& ptrn, Ptr<Expr>&& expr)
         : Expr(loc)
         , ptrn(std::move(ptrn))
         , expr(std::move(expr))
     {}
-
-    void collect_bound_ptrns() const;
 
     bool is_jumping() const override;
     bool has_side_effect() const override;

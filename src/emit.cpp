@@ -37,11 +37,34 @@ static thorin::Debug debug_info(const ast::Node& node, const std::string& name =
 /// by Luc Maranget.
 class PtrnCompiler {
 public:
+    struct MatchCase {
+        const ast::Ptrn* ptrn;
+        const ast::Expr* expr;
+        const ast::Node* node;
+
+        mutable bool is_redundant = true;
+        const thorin::Def* target = nullptr;
+        std::vector<const struct ast::IdPtrn*> bound_ptrns;
+
+        MatchCase(
+            const ast::Ptrn* ptrn,
+            const ast::Expr* expr,
+            const ast::Node* node)
+            : ptrn(ptrn),
+            expr(expr),
+            node(node)
+        {
+            ptrn->collect_bound_ptrns(bound_ptrns);
+        }
+
+        const thorin::Def* emit(Emitter&);
+    };
+
     PtrnCompiler(
         Emitter& emitter,
         const ast::Node& node,
         const ast::Expr& expr,
-        const PtrVector<ast::CaseExpr>& cases,
+        PtrVector<MatchCase>& cases,
         std::unordered_map<const ast::IdPtrn*, const thorin::Def*>& matched_values)
         : emitter(emitter)
         , node(node)
@@ -50,7 +73,7 @@ public:
         , matched_values(matched_values)
     {
         for (auto& case_ : cases)
-            rows.emplace_back(std::vector<const ast::Ptrn*>{ case_->ptrn.get() }, case_.get());
+            rows.emplace_back(std::vector<const ast::Ptrn*>{ case_->ptrn }, case_.get());
     }
 
     void compile() {
@@ -78,7 +101,7 @@ public:
                 if (ptrn && ptrn->isa<ast::IdPtrn>())
                     matched_values.emplace(ptrn->as<ast::IdPtrn>(), values[i].first);
             }
-            auto case_block = emitter.emit(*rows.front().second);
+            auto case_block = rows.front().second->emit(emitter);
 
             // Map the matched patterns to arguments of the continuation
             auto& bound_ptrns = rows.front().second->bound_ptrns;
@@ -207,7 +230,12 @@ public:
 
 private:
     // Note: `nullptr`s are used to denote row elements that are not connected to any pattern
-    using Row = std::pair<std::vector<const ast::Ptrn*>, const ast::CaseExpr*>;
+    //using Row = std::pair<std::vector<const ast::Ptrn*>, const ast::CaseExpr*>;
+    using Row = std::pair<std::vector<const ast::Ptrn*>, MatchCase*>;
+    /*struct Row {
+        std::vector<const ast::Ptrn*> first;
+        MatchCase* match_case;
+    };*/
     using Value = std::pair<const thorin::Def*, const Type*>;
     using Cost = size_t;
 
@@ -389,6 +417,20 @@ private:
     void dump() const;
 #endif
 };
+
+const thorin::Def* PtrnCompiler::MatchCase::emit(Emitter& emitter) {
+    thorin::Array<const thorin::Type*> param_types(bound_ptrns.size());
+    for (size_t i = 0, n = bound_ptrns.size(); i < n; ++i)
+        param_types[i] = bound_ptrns[i]->type->convert(emitter);
+    auto cont = emitter.basic_block_with_mem(emitter.world.tuple_type(param_types), debug_info(*node, ""));
+    auto _ = emitter.save_state();
+    emitter.enter(cont);
+    auto tuple = emitter.tuple_from_params(cont);
+    for (size_t i = 0, n = bound_ptrns.size(); i < n; ++i)
+        emitter.bind(*bound_ptrns[i], n == 1 ? tuple : emitter.world.extract(tuple, i));
+    emitter.jump(target, emitter.emit(*expr), debug_info(*node));
+    return cont;
+}
 
 // Since this code is used for debugging only, it makes sense to hide it in
 // the coverage report. This is done using these START/STOP markers.
@@ -1014,50 +1056,41 @@ const thorin::Def* IfExpr::emit(Emitter& emitter) const {
 
 const thorin::Def* IfLetExpr::emit(Emitter& emitter) const {
     thorin::Continuation* join = emitter.basic_block_with_mem(type->convert(emitter), debug_info(*this, "iflet_join"));
-    PtrVector<ast::CaseExpr> cases;
-    auto match_case = make_ptr<ast::CaseExpr>(loc, std::move(ptrn), std::move(if_true));
+    PtrVector<PtrnCompiler::MatchCase> match_cases;
+    auto match_case = make_ptr<PtrnCompiler::MatchCase>(ptrn.get(), if_true.get(), this);
+    match_case->target = join;
 
     auto else_ptrn = make_ptr<ast::IdPtrn>(loc, std::move(make_ptr<ast::PtrnDecl>(loc, Identifier(loc, "_"), false)), nullptr);
     else_ptrn->type = expr->type;
-    auto else_case = make_ptr<ast::CaseExpr>(loc, std::move(else_ptrn), std::move(if_false));
+    match_cases.push_back(std::move(match_case));
+    
+    auto else_case = make_ptr<PtrnCompiler::MatchCase>(else_ptrn.get(), if_false.get(), this);
+    else_case->target = join;
+    match_cases.push_back(std::move(else_case));
 
-    cases.push_back(std::move(match_case));
-    cases.push_back(std::move(else_case));
-    for (auto& case_ : cases) {
-        case_->collect_bound_ptrns();
-        case_->target = join;
-    }
     std::unordered_map<const IdPtrn*, const thorin::Def*> matched_values;
-    PtrnCompiler(emitter, *this, *expr, cases, matched_values).compile();
+    PtrnCompiler(emitter, *this, *expr, match_cases, matched_values).compile();
     emitter.enter(join);
     return emitter.tuple_from_params(join);
 }
 
 const thorin::Def* CaseExpr::emit(Emitter& emitter) const {
-    thorin::Array<const thorin::Type*> param_types(bound_ptrns.size());
-    for (size_t i = 0, n = bound_ptrns.size(); i < n; ++i)
-        param_types[i] = bound_ptrns[i]->type->convert(emitter);
-    auto cont = emitter.basic_block_with_mem(emitter.world.tuple_type(param_types), debug_info(*this));
-    auto _ = emitter.save_state();
-    emitter.enter(cont);
-    auto tuple = emitter.tuple_from_params(cont);
-    for (size_t i = 0, n = bound_ptrns.size(); i < n; ++i)
-        emitter.bind(*bound_ptrns[i], n == 1 ? tuple : emitter.world.extract(tuple, i));
-    emitter.jump(target, emitter.emit(*expr), debug_info(*this));
-    return cont;
+    assert(false); // Look at PtrnCompiler::MatchCase::emit instead
 }
 
 const thorin::Def* MatchExpr::emit(Emitter& emitter) const {
     auto join = emitter.basic_block_with_mem(type->convert(emitter), debug_info(*this, "match_join"));
-    for (auto& case_ : cases) {
-        case_->collect_bound_ptrns();
-        case_->target = join;
+    PtrVector<PtrnCompiler::MatchCase> match_cases;
+    for (auto& case_ : this->cases) {
+        auto match_case = make_ptr<PtrnCompiler::MatchCase>(case_->ptrn.get(), case_->expr.get(), case_.get());
+        match_case->target = join;
+        match_cases.push_back(std::move(match_case));
     }
     std::unordered_map<const IdPtrn*, const thorin::Def*> matched_values;
-    PtrnCompiler(emitter, *this, *arg, cases, matched_values).compile();
-    for (auto& case_ : cases) {
+    PtrnCompiler(emitter, *this, *arg, match_cases, matched_values).compile();
+    for (auto& case_ : match_cases) {
         if (case_->is_redundant)
-            emitter.redundant_case(*case_);
+            emitter.redundant_case(*case_->node->as<ast::CaseExpr>());
     }
     emitter.enter(join);
     return emitter.tuple_from_params(join);
