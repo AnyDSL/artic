@@ -650,6 +650,8 @@ Ptr<ast::Expr> Parser::parse_if_expr() {
 
     if (accept(Token::Let)) {
         auto ptrn = parse_ptrn();
+        if (ptrn->is_trivial())
+            error(ptrn->loc, "expected non-trivial pattern");
         eat(Token::Eq);
         auto expr = parse_expr(false);
 
