@@ -60,173 +60,12 @@ public:
         const thorin::Def* emit(Emitter&);
     };
 
-    PtrnCompiler(
-        Emitter& emitter,
-        const ast::Node& node,
-        const ast::Expr& expr,
-        PtrVector<MatchCase>& cases,
-        std::unordered_map<const ast::IdPtrn*, const thorin::Def*>& matched_values)
-        : emitter(emitter)
-        , node(node)
-        , expr(expr)
-        , values { { emitter.emit(expr), expr.type } }
-        , matched_values(matched_values)
-    {
-        for (auto& case_ : cases)
-            rows.emplace_back(std::vector<const ast::Ptrn*>{ case_->ptrn }, case_.get());
-    }
-
-    void compile() {
-        if (rows.empty()) {
-            if (const auto match2 = node.isa<ast::MatchExpr>())
-                emitter.non_exhaustive_match(*match2);
-            else
-                assert(false); // the cases were compiler-generated so this is our fault
-            return;
-        }
-
-        expand();
-        if (std::all_of(
-            rows.front().first.begin(),
-            rows.front().first.end(),
-            [] (const ast::Ptrn* ptrn) {
-                return is_wildcard(ptrn);
-            }))
-        {
-            // If the first row is made of only wildcards, it is a match
-            rows.front().second->is_redundant = false;
-            for (size_t i = 0, n = rows.front().first.size(); i < n; ++i) {
-                auto ptrn = rows.front().first[i];
-                // Emit names that are bound in this row
-                if (ptrn && ptrn->isa<ast::IdPtrn>())
-                    matched_values.emplace(ptrn->as<ast::IdPtrn>(), values[i].first);
-            }
-            auto case_block = rows.front().second->emit(emitter);
-
-            // Map the matched patterns to arguments of the continuation
-            auto& bound_ptrns = rows.front().second->bound_ptrns;
-            thorin::Array<const thorin::Def*> args(bound_ptrns.size());
-            for (size_t i = 0, n = bound_ptrns.size(); i < n; ++i)
-                args[i] = matched_values[bound_ptrns[i]];
-            emitter.jump(case_block, emitter.world.tuple(args));
-            return;
-        }
-
-#ifndef NDEBUG
-        for (auto& row : rows)
-            assert(row.first.size() == values.size());
-#endif
-
-        // Map from constructor index (e.g. literal or enumeration option index, encoded as an integer) to row.
-        std::unordered_map<const thorin::Def*, std::vector<Row>> ctors;
-        std::vector<Row> wildcards;
-
-        auto col = pick_col();
-        auto [type_app, enum_type] = match_app<EnumType>(values[col].second);
-
-        // First, collect constructors
-        for (auto& row : rows) {
-            if (!is_wildcard(row.first[col]))
-                ctors.emplace(emitter.ctor_index(*row.first[col]), std::vector<Row>());
-        }
-
-        // Then, build the new rows for each constructor case
-        for (auto& row : rows) {
-            if (is_wildcard(row.first[col])) {
-                if (row.first[col])
-                    matched_values.emplace(row.first[col]->as<ast::IdPtrn>(), values[col].first);
-                remove_col(row.first, col);
-                for (auto& ctor : ctors) {
-                    ctor.second.push_back(row);
-                    if (enum_type) {
-                        auto index = thorin::primlit_value<uint64_t>(ctor.first);
-                        if (!is_unit_type(enum_type->member_type(index)))
-                            ctor.second.back().first.push_back(nullptr);
-                    }
-                }
-                wildcards.emplace_back(std::move(row));
-            } else {
-                auto ptrn = row.first[col];
-                remove_col(row.first, col);
-                if (auto call_ptrn = ptrn->isa<ast::CtorPtrn>(); call_ptrn && call_ptrn->arg) {
-                    row.first.push_back(call_ptrn->arg.get());
-                } else if (auto record_ptrn = ptrn->isa<ast::RecordPtrn>()) {
-                    // Since expansion uses the type of the value vector to know when to expand,
-                    // the record pattern will be expanded in the next iteration.
-                    row.first.push_back(record_ptrn);
-                }
-                ctors[emitter.ctor_index(*ptrn)].emplace_back(std::move(row));
-            }
-        }
-
-        // Generate jumps to each constructor case
-        bool no_default = is_complete(values[col].second, ctors.size());
-        if (is_bool_type(values[col].second)) {
-            auto match_true  = emitter.basic_block(debug_info(node, "match_true"));
-            auto match_false = emitter.basic_block(debug_info(node, "match_false"));
-            emitter.branch(values[col].first, match_true, match_false);
-
-            remove_col(values, col);
-            for (auto& ctor : ctors) {
-                auto _ = emitter.save_state();
-                emitter.enter(thorin::is_allset(ctor.first) ? match_true : match_false);
-                PtrnCompiler(emitter, node, expr, std::move(ctor.second), std::vector<Value>(values), matched_values).compile();
-            }
-            if (!no_default) {
-                emitter.enter(thorin::is_allset(ctors.begin()->first) ? match_false : match_true);
-                PtrnCompiler(emitter, node, expr, std::move(wildcards), std::move(values), matched_values).compile();
-            }
-        } else {
-            assert(enum_type || is_int_type(values[col].second));
-            thorin::Array<thorin::Continuation*> targets(ctors.size());
-            thorin::Array<const thorin::Def*> defs(ctors.size());
-            auto otherwise = emitter.basic_block(debug_info(node, "match_otherwise"));
-
-            size_t count = 0;
-            for (auto& ctor : ctors) {
-                defs[count] = ctor.first;
-                targets[count] = emitter.basic_block(debug_info(node, "match_case"));
-                count++;
-            }
-
-            if (emitter.state.cont) {
-                auto match_value = enum_type
-                    ? emitter.world.variant_index(values[col].first, debug_info(node, "variant_index"))
-                    : values[col].first;
-                emitter.state.cont->match(
-                    match_value, otherwise,
-                    no_default ? defs.skip_back() : defs.ref(),
-                    no_default ? targets.skip_back() : targets.ref(),
-                    debug_info(node));
-            }
-
-            auto col_value = values[col].first;
-            remove_col(values, col);
-
-            for (size_t i = 0, n = targets.size(); i < n; ++i) {
-                auto& rows = ctors[defs[i]];
-                auto _ = emitter.save_state();
-                emitter.enter(i == n - 1 && no_default ? otherwise : targets[i]);
-
-                auto new_values = values;
-                if (enum_type) {
-                    auto index = thorin::primlit_value<uint64_t>(defs[i]);
-                    auto type  = type_app ? type_app->member_type(index) : enum_type->member_type(index);
-                    auto value = emitter.world.variant_extract(col_value, index);
-                    // If the constructor refers to an option that has a parameter,
-                    // we need to extract it and add it to the values.
-                    if (!is_unit_type(type))
-                        new_values.emplace_back(emitter.world.cast(type->convert(emitter), value), type);
-                }
-
-                PtrnCompiler(emitter, node, expr, std::move(rows), std::move(new_values), matched_values).compile();
-            }
-            if (!no_default) {
-                emitter.enter(otherwise);
-                PtrnCompiler(emitter, node, expr, std::move(wildcards), std::move(values), matched_values).compile();
-            }
-        }
-    }
+    static void emit(
+            Emitter& emitter,
+            const ast::Node& node,
+            const ast::Expr& expr,
+            PtrVector<MatchCase>&& cases,
+            std::unordered_map<const ast::IdPtrn*, const thorin::Def*>&& matched_values);
 
 private:
     // Note: `nullptr`s are used to denote row elements that are not connected to any pattern
@@ -408,6 +247,152 @@ private:
         }
     }
 
+    void compile() {
+        if (rows.empty())
+            return emitter.non_exhaustive_match(*node.as<ast::MatchExpr>());
+
+        expand();
+        if (std::all_of(
+                rows.front().first.begin(),
+                rows.front().first.end(),
+                [] (const ast::Ptrn* ptrn) {
+                    return is_wildcard(ptrn);
+                }))
+        {
+            // If the first row is made of only wildcards, it is a match
+            rows.front().second->is_redundant = false;
+            for (size_t i = 0, n = rows.front().first.size(); i < n; ++i) {
+                auto ptrn = rows.front().first[i];
+                // Emit names that are bound in this row
+                if (ptrn && ptrn->isa<ast::IdPtrn>())
+                    matched_values.emplace(ptrn->as<ast::IdPtrn>(), values[i].first);
+            }
+            auto case_block = rows.front().second->emit(emitter);
+
+            // Map the matched patterns to arguments of the continuation
+            auto& bound_ptrns = rows.front().second->bound_ptrns;
+            thorin::Array<const thorin::Def*> args(bound_ptrns.size());
+            for (size_t i = 0, n = bound_ptrns.size(); i < n; ++i)
+                args[i] = matched_values[bound_ptrns[i]];
+            emitter.jump(case_block, emitter.world.tuple(args));
+            return;
+        }
+
+#ifndef NDEBUG
+        for (auto& row : rows)
+            assert(row.first.size() == values.size());
+#endif
+
+        // Map from constructor index (e.g. literal or enumeration option index, encoded as an integer) to row.
+        std::unordered_map<const thorin::Def*, std::vector<Row>> ctors;
+        std::vector<Row> wildcards;
+
+        auto col = pick_col();
+        auto [type_app, enum_type] = match_app<EnumType>(values[col].second);
+
+        // First, collect constructors
+        for (auto& row : rows) {
+            if (!is_wildcard(row.first[col]))
+                ctors.emplace(emitter.ctor_index(*row.first[col]), std::vector<Row>());
+        }
+
+        // Then, build the new rows for each constructor case
+        for (auto& row : rows) {
+            if (is_wildcard(row.first[col])) {
+                if (row.first[col])
+                    matched_values.emplace(row.first[col]->as<ast::IdPtrn>(), values[col].first);
+                remove_col(row.first, col);
+                for (auto& ctor : ctors) {
+                    ctor.second.push_back(row);
+                    if (enum_type) {
+                        auto index = thorin::primlit_value<uint64_t>(ctor.first);
+                        if (!is_unit_type(enum_type->member_type(index)))
+                            ctor.second.back().first.push_back(nullptr);
+                    }
+                }
+                wildcards.emplace_back(std::move(row));
+            } else {
+                auto ptrn = row.first[col];
+                remove_col(row.first, col);
+                if (auto call_ptrn = ptrn->isa<ast::CtorPtrn>(); call_ptrn && call_ptrn->arg) {
+                    row.first.push_back(call_ptrn->arg.get());
+                } else if (auto record_ptrn = ptrn->isa<ast::RecordPtrn>()) {
+                    // Since expansion uses the type of the value vector to know when to expand,
+                    // the record pattern will be expanded in the next iteration.
+                    row.first.push_back(record_ptrn);
+                }
+                ctors[emitter.ctor_index(*ptrn)].emplace_back(std::move(row));
+            }
+        }
+
+        // Generate jumps to each constructor case
+        bool no_default = is_complete(values[col].second, ctors.size());
+        if (is_bool_type(values[col].second)) {
+            auto match_true  = emitter.basic_block(debug_info(node, "match_true"));
+            auto match_false = emitter.basic_block(debug_info(node, "match_false"));
+            emitter.branch(values[col].first, match_true, match_false);
+
+            remove_col(values, col);
+            for (auto& ctor : ctors) {
+                auto _ = emitter.save_state();
+                emitter.enter(thorin::is_allset(ctor.first) ? match_true : match_false);
+                PtrnCompiler(emitter, node, expr, std::move(ctor.second), std::vector<Value>(values), matched_values).compile();
+            }
+            if (!no_default) {
+                emitter.enter(thorin::is_allset(ctors.begin()->first) ? match_false : match_true);
+                PtrnCompiler(emitter, node, expr, std::move(wildcards), std::move(values), matched_values).compile();
+            }
+        } else {
+            assert(enum_type || is_int_type(values[col].second));
+            thorin::Array<thorin::Continuation*> targets(ctors.size());
+            thorin::Array<const thorin::Def*> defs(ctors.size());
+            auto otherwise = emitter.basic_block(debug_info(node, "match_otherwise"));
+
+            size_t count = 0;
+            for (auto& ctor : ctors) {
+                defs[count] = ctor.first;
+                targets[count] = emitter.basic_block(debug_info(node, "match_case"));
+                count++;
+            }
+
+            if (emitter.state.cont) {
+                auto match_value = enum_type
+                                   ? emitter.world.variant_index(values[col].first, debug_info(node, "variant_index"))
+                                   : values[col].first;
+                emitter.state.cont->match(
+                        match_value, otherwise,
+                        no_default ? defs.skip_back() : defs.ref(),
+                        no_default ? targets.skip_back() : targets.ref(),
+                        debug_info(node));
+            }
+
+            auto col_value = values[col].first;
+            remove_col(values, col);
+
+            for (size_t i = 0, n = targets.size(); i < n; ++i) {
+                auto& rows = ctors[defs[i]];
+                auto _ = emitter.save_state();
+                emitter.enter(i == n - 1 && no_default ? otherwise : targets[i]);
+
+                auto new_values = values;
+                if (enum_type) {
+                    auto index = thorin::primlit_value<uint64_t>(defs[i]);
+                    auto type  = type_app ? type_app->member_type(index) : enum_type->member_type(index);
+                    auto value = emitter.world.variant_extract(col_value, index);
+                    // If the constructor refers to an option that has a parameter,
+                    // we need to extract it and add it to the values.
+                    if (!is_unit_type(type))
+                        new_values.emplace_back(emitter.world.cast(type->convert(emitter), value), type);
+                }
+
+                PtrnCompiler(emitter, node, expr, std::move(rows), std::move(new_values), matched_values).compile();
+            }
+            if (!no_default) {
+                emitter.enter(otherwise);
+                PtrnCompiler(emitter, node, expr, std::move(wildcards), std::move(values), matched_values).compile();
+            }
+        }
+    }
 #ifndef NDEBUG
     void dump() const;
 #endif
@@ -425,6 +410,25 @@ const thorin::Def* PtrnCompiler::MatchCase::emit(Emitter& emitter) {
         emitter.bind(*bound_ptrns[i], n == 1 ? tuple : emitter.world.extract(tuple, i));
     emitter.jump(target, emitter.emit(*expr), debug_info(*node));
     return cont;
+}
+
+void PtrnCompiler::emit(
+        Emitter& emitter,
+        const ast::Node& node,
+        const ast::Expr& expr,
+        PtrVector<MatchCase>&& cases,
+        std::unordered_map<const ast::IdPtrn*, const thorin::Def*>&& matched_values) {
+    auto rows = std::vector<PtrnCompiler::Row>();
+    for (auto& case_ : cases)
+        rows.emplace_back(std::vector<const ast::Ptrn*>{ case_->ptrn }, case_.get());
+
+    std::vector<PtrnCompiler::Value> values = { { emitter.emit(expr), expr.type } };
+    auto compiler = PtrnCompiler(emitter, node, expr, std::move(rows), std::move(values), matched_values);
+    compiler.compile();
+    for (auto &row : compiler.rows) {
+        if (row.second->is_redundant)
+            compiler.emitter.redundant_case(*row.second->node->as<ast::CaseExpr>());
+    }
 }
 
 // Since this code is used for debugging only, it makes sense to hide it in
@@ -1065,13 +1069,9 @@ const thorin::Def* IfLetExpr::emit(Emitter& emitter) const {
     match_cases.push_back(std::move(else_case));
 
     std::unordered_map<const IdPtrn*, const thorin::Def*> matched_values;
-    PtrnCompiler(emitter, *this, *expr, match_cases, matched_values).compile();
+    PtrnCompiler::emit(emitter, *this, *expr, std::move(match_cases), std::move(matched_values));
     emitter.enter(join);
     return emitter.tuple_from_params(join);
-}
-
-const thorin::Def* CaseExpr::emit(Emitter& emitter) const {
-    assert(false); // Look at PtrnCompiler::MatchCase::emit instead
 }
 
 const thorin::Def* MatchExpr::emit(Emitter& emitter) const {
@@ -1083,13 +1083,13 @@ const thorin::Def* MatchExpr::emit(Emitter& emitter) const {
         match_cases.push_back(std::move(match_case));
     }
     std::unordered_map<const IdPtrn*, const thorin::Def*> matched_values;
-    PtrnCompiler(emitter, *this, *arg, match_cases, matched_values).compile();
-    for (auto& case_ : match_cases) {
-        if (case_->is_redundant)
-            emitter.redundant_case(*case_->node->as<ast::CaseExpr>());
-    }
+    PtrnCompiler::emit(emitter, *this, *arg, std::move(match_cases), std::move(matched_values));
     emitter.enter(join);
     return emitter.tuple_from_params(join);
+}
+
+const thorin::Def* CaseExpr::emit(Emitter& emitter) const {
+    assert(false); // Look at PtrnCompiler::MatchCase::emit instead
 }
 
 const thorin::Def* WhileExpr::emit(Emitter& emitter) const {
