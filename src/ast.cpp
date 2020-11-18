@@ -627,6 +627,8 @@ void IdPtrn::collect_bound_ptrns(std::vector<const IdPtrn*>& bound_ptrns) const 
 }
 
 bool IdPtrn::is_trivial() const {
+    if (sub_ptrn)
+        return sub_ptrn->is_trivial();
     return true;
 }
 
