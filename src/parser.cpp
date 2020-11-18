@@ -651,7 +651,7 @@ Ptr<ast::Expr> Parser::parse_if_expr() {
     if (accept(Token::Let)) {
         auto ptrn = parse_ptrn();
         eat(Token::Eq);
-        auto expr = parse_expr();
+        auto expr = parse_expr(false);
 
         auto if_true = parse_block_expr();
         auto if_false = accept_else();
