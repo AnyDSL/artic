@@ -1036,13 +1036,19 @@ const artic::Type* WhileExpr::infer(TypeChecker& checker) {
     return checker.coerce(body, checker.type_table.unit_type());
 }
 
+const artic::Type* WhileLetExpr::infer(TypeChecker& checker) {
+    checker.infer(*ptrn, expr);
+    // Using infer mode here would cause the type system to allow code such as: while true { break }
+    return checker.coerce(body, checker.type_table.unit_type());
+}
+
 const artic::Type* ForExpr::infer(TypeChecker& checker) {
     return checker.infer(*call);
 }
 
 const artic::Type* BreakExpr::infer(TypeChecker& checker) {
     const artic::Type* domain = nullptr;
-    if (loop->isa<WhileExpr>())
+    if (loop->isa<WhileExpr>() || loop->isa<WhileLetExpr>())
         domain = checker.type_table.unit_type();
     else if (auto for_ = loop->isa<ForExpr>()) {
         auto type = for_->call->callee->as<CallExpr>()->callee->type;
@@ -1062,7 +1068,7 @@ const artic::Type* BreakExpr::infer(TypeChecker& checker) {
 
 const artic::Type* ContinueExpr::infer(TypeChecker& checker) {
     const artic::Type* domain = nullptr;
-    if (loop->isa<WhileExpr>())
+    if (loop->isa<WhileExpr>() || loop->isa<WhileLetExpr>())
         domain = checker.type_table.unit_type();
     else if (auto for_ = loop->isa<ForExpr>()) {
         auto type = for_->call->callee->as<CallExpr>()->callee->type;

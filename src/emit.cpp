@@ -1118,6 +1118,42 @@ const thorin::Def* WhileExpr::emit(Emitter& emitter) const {
     return emitter.world.tuple({});
 }
 
+const thorin::Def* WhileLetExpr::emit(Emitter& emitter) const {
+    auto while_head = emitter.basic_block_with_mem(debug_info(*this, "while_head"));
+    auto while_exit = emitter.basic_block_with_mem(debug_info(*this, "while_exit"));
+    auto while_continue = emitter.basic_block_with_mem(emitter.world.unit(), debug_info(*this, "while_continue"));
+    auto while_break    = emitter.basic_block_with_mem(emitter.world.unit(), debug_info(*this, "while_break"));
+    emitter.jump(while_head);
+
+    emitter.enter(while_continue);
+    emitter.jump(while_head);
+    emitter.enter(while_break);
+    emitter.jump(while_exit);
+    break_ = while_break;
+    continue_ = while_continue;
+
+    emitter.enter(while_head);
+
+    PtrVector<PtrnCompiler::MatchCase> match_cases;
+    auto match_case = make_ptr<PtrnCompiler::MatchCase>(ptrn.get(), body.get(), this);
+    match_case->target = while_head;
+
+    auto else_ptrn = make_ptr<ast::IdPtrn>(loc, std::move(make_ptr<ast::PtrnDecl>(loc, Identifier(loc, "_"), false)), nullptr);
+    else_ptrn->type = expr->type;
+    match_cases.push_back(std::move(match_case));
+
+    auto empty_tuple = make_ptr<ast::TupleExpr>(loc, std::move(PtrVector<ast::Expr>()));
+    auto else_case = make_ptr<PtrnCompiler::MatchCase>(else_ptrn.get(), empty_tuple.get(), this);
+    else_case->target = while_exit;
+    match_cases.push_back(std::move(else_case));
+
+    std::unordered_map<const IdPtrn*, const thorin::Def*> matched_values;
+    PtrnCompiler::emit(emitter, *this, *expr, std::move(match_cases), std::move(matched_values));
+
+    emitter.enter(while_exit);
+    return emitter.world.tuple({});
+}
+
 const thorin::Def* ForExpr::emit(Emitter& emitter) const {
     // The call has the for `(range(|i| { ... }))(0, 10)`
     auto body_fn = call->callee->as<CallExpr>()->arg->as<FnExpr>();

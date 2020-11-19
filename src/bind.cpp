@@ -262,6 +262,16 @@ void WhileExpr::bind(NameBinder& binder) {
     binder.pop_loop(old);
 }
 
+void WhileLetExpr::bind(NameBinder& binder) {
+    binder.push_scope();
+    binder.bind(*ptrn);
+    binder.bind(*expr);
+    auto old = binder.push_loop(this);
+    binder.bind(*body);
+    binder.pop_loop(old);
+    binder.pop_scope();
+}
+
 void ForExpr::bind(NameBinder& binder) {
     // The call expression looks like:
     // iterate(|i| { ... })(...)

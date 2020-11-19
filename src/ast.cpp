@@ -312,6 +312,7 @@ bool ExprStmt::needs_semicolon() const {
         !expr->isa<IfLetExpr>() &&
         !expr->isa<MatchExpr>() &&
         !expr->isa<WhileExpr>() &&
+        !expr->isa<WhileLetExpr>() &&
         !expr->isa<ForExpr>();
 }
 
@@ -520,6 +521,14 @@ bool WhileExpr::is_jumping() const {
 
 bool WhileExpr::has_side_effect() const {
     return cond->has_side_effect() || body->has_side_effect();
+}
+
+bool WhileLetExpr::is_jumping() const {
+    return false;
+}
+
+bool WhileLetExpr::has_side_effect() const {
+    return expr->has_side_effect() || body->has_side_effect();
 }
 
 bool ForExpr::is_jumping() const {

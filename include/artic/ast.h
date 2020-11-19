@@ -853,6 +853,25 @@ struct WhileExpr : public LoopExpr {
     void print(Printer&) const override;
 };
 
+/// While loop expression.
+struct WhileLetExpr : public LoopExpr {
+    Ptr<Ptrn> ptrn;
+    Ptr<Expr> expr;
+    Ptr<Expr> body;
+
+    WhileLetExpr(const Loc& loc, Ptr<Ptrn>&& ptrn, Ptr<Expr>&& expr, Ptr<Expr>&& body)
+        : LoopExpr(loc), ptrn(std::move(ptrn)), expr(std::move(expr)), body(std::move(body))
+    {}
+
+    bool is_jumping() const override;
+    bool has_side_effect() const override;
+
+    const thorin::Def* emit(Emitter&) const override;
+    const artic::Type* infer(TypeChecker&) override;
+    void bind(NameBinder&) override;
+    void print(Printer&) const override;
+};
+
 /// For loop expression.
 struct ForExpr : public LoopExpr {
     Ptr<CallExpr> call;

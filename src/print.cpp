@@ -217,7 +217,7 @@ void IfExpr::print(Printer& p) const {
 void IfLetExpr::print(Printer& p) const {
     p << log::keyword_style("if") << ' ' << log::keyword_style("let") << ' ';
     ptrn->print(p);
-    p << ' ';
+    p << " = ";
     expr->print(p);
     p << ' ';
     if_true->print(p);
@@ -249,6 +249,15 @@ void MatchExpr::print(Printer& p) const {
 void WhileExpr::print(Printer& p) const {
     p << log::keyword_style("while") << ' ';
     cond->print(p);
+    p << ' ';
+    body->print(p);
+}
+
+void WhileLetExpr::print(Printer& p) const {
+    p << log::keyword_style("while") << ' ' << log::keyword_style("let") << ' ';
+    ptrn->print(p);
+    p << " = ";
+    expr->print(p);
     p << ' ';
     body->print(p);
 }

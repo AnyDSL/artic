@@ -1,0 +1,7 @@
+#[export]
+fn foo() {
+    let mut v = 0;
+    while let x = v {
+        v++;
+    }
+}
