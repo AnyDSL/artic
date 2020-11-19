@@ -413,11 +413,12 @@ const thorin::Def* PtrnCompiler::MatchCase::emit(Emitter& emitter) {
 }
 
 void PtrnCompiler::emit(
-        Emitter& emitter,
-        const ast::Node& node,
-        const ast::Expr& expr,
-        PtrVector<MatchCase>&& cases,
-        std::unordered_map<const ast::IdPtrn*, const thorin::Def*>&& matched_values) {
+    Emitter& emitter,
+    const ast::Node& node,
+    const ast::Expr& expr,
+    PtrVector<MatchCase>&& cases,
+    std::unordered_map<const ast::IdPtrn*, const thorin::Def*>&& matched_values)
+{
     auto rows = std::vector<PtrnCompiler::Row>();
     for (auto& case_ : cases)
         rows.emplace_back(std::vector<const ast::Ptrn*>{ case_->ptrn }, case_.get());
@@ -1133,20 +1134,16 @@ const thorin::Def* WhileLetExpr::emit(Emitter& emitter) const {
     continue_ = while_continue;
 
     emitter.enter(while_head);
-
     PtrVector<PtrnCompiler::MatchCase> match_cases;
     auto match_case = make_ptr<PtrnCompiler::MatchCase>(ptrn.get(), body.get(), this);
     match_case->target = while_head;
-
     auto else_ptrn = make_ptr<ast::IdPtrn>(loc, std::move(make_ptr<ast::PtrnDecl>(loc, Identifier(loc, "_"), false)), nullptr);
     else_ptrn->type = expr->type;
     match_cases.push_back(std::move(match_case));
-
     auto empty_tuple = make_ptr<ast::TupleExpr>(loc, std::move(PtrVector<ast::Expr>()));
     auto else_case = make_ptr<PtrnCompiler::MatchCase>(else_ptrn.get(), empty_tuple.get(), this);
     else_case->target = while_exit;
     match_cases.push_back(std::move(else_case));
-
     std::unordered_map<const IdPtrn*, const thorin::Def*> matched_values;
     PtrnCompiler::emit(emitter, *this, *expr, std::move(match_cases), std::move(matched_values));
 
