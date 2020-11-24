@@ -1,0 +1,2 @@
+struct S { a: i32, b: i32 }
+#[export] fn test() = S(1, 2);

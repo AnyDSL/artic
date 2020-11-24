@@ -366,19 +366,19 @@ bool FieldExpr::is_constant() const {
     return expr->is_constant();
 }
 
-bool StructExpr::is_jumping() const {
+bool RecordExpr::is_jumping() const {
     return (expr && expr->is_jumping()) || std::any_of(fields.begin(), fields.end(), [] (auto& field) {
         return field->is_jumping();
     });
 }
 
-bool StructExpr::has_side_effect() const {
+bool RecordExpr::has_side_effect() const {
     return (expr && expr->has_side_effect()) || std::any_of(fields.begin(), fields.end(), [] (auto& field) {
         return field->has_side_effect();
     });
 }
 
-bool StructExpr::is_constant() const {
+bool RecordExpr::is_constant() const {
     return (!expr || expr->is_constant()) && std::all_of(fields.begin(), fields.end(), [] (auto& field) {
         return field->is_constant();
     });
@@ -611,7 +611,7 @@ void TypedPtrn::collect_bound_ptrns(std::vector<const IdPtrn*>& bound_ptrns) con
 }
 
 bool TypedPtrn::is_trivial() const {
-    return ptrn ? ptrn->is_trivial() : true;
+    return !ptrn || ptrn->is_trivial();
 }
 
 void IdPtrn::collect_bound_ptrns(std::vector<const IdPtrn*>& bound_ptrns) const {
@@ -621,7 +621,7 @@ void IdPtrn::collect_bound_ptrns(std::vector<const IdPtrn*>& bound_ptrns) const 
 }
 
 bool IdPtrn::is_trivial() const {
-    return true;
+    return !sub_ptrn || sub_ptrn->is_trivial();
 }
 
 bool LiteralPtrn::is_trivial() const {
@@ -634,26 +634,26 @@ void FieldPtrn::collect_bound_ptrns(std::vector<const IdPtrn*>& bound_ptrns) con
 }
 
 bool FieldPtrn::is_trivial() const {
-    return ptrn ? ptrn->is_trivial() : true;
+    return !ptrn || ptrn->is_trivial();
 }
 
-void StructPtrn::collect_bound_ptrns(std::vector<const IdPtrn*>& bound_ptrns) const {
+void RecordPtrn::collect_bound_ptrns(std::vector<const IdPtrn*>& bound_ptrns) const {
     for (auto& field : fields)
         field->collect_bound_ptrns(bound_ptrns);
 }
 
-bool StructPtrn::is_trivial() const {
+bool RecordPtrn::is_trivial() const {
     return std::all_of(fields.begin(), fields.end(), [] (auto& field) {
         return field->is_trivial();
     });
 }
 
-void EnumPtrn::collect_bound_ptrns(std::vector<const IdPtrn*>& bound_ptrns) const {
+void CtorPtrn::collect_bound_ptrns(std::vector<const IdPtrn*>& bound_ptrns) const {
     if (arg)
         arg->collect_bound_ptrns(bound_ptrns);
 }
 
-bool EnumPtrn::is_trivial() const {
+bool CtorPtrn::is_trivial() const {
     return false;
 }
 

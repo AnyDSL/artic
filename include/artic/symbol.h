@@ -16,7 +16,8 @@ namespace ast {
 /// Declaration site of a symbol.
 struct Symbol {
     Symbol(ast::NamedDecl* decl) : decls{ decl } {}
-    Symbol(std::vector<ast::NamedDecl*>&& decls) : decls(std::move(decls)) {}
+    // TODO decls seems to be only used as an option type (0 or 1 element), is there a reason to use a vec instead ? Also this ctor is dead code
+    // Symbol(std::vector<ast::NamedDecl*>&& decls) : decls(std::move(decls)) {}
     virtual ~Symbol() {}
 
     std::vector<ast::NamedDecl*> decls;

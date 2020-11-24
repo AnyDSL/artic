@@ -27,7 +27,7 @@ private:
     Ptr<ast::Decl>          parse_decl(bool = false);
     Ptr<ast::LetDecl>       parse_let_decl();
     Ptr<ast::FnDecl>        parse_fn_decl();
-    Ptr<ast::FieldDecl>     parse_field_decl();
+    Ptr<ast::FieldDecl>     parse_field_decl(bool);
     Ptr<ast::StructDecl>    parse_struct_decl();
     Ptr<ast::OptionDecl>    parse_option_decl();
     Ptr<ast::EnumDecl>      parse_enum_decl();
@@ -43,8 +43,8 @@ private:
     Ptr<ast::IdPtrn>        parse_id_ptrn(ast::Identifier&&, bool);
     Ptr<ast::LiteralPtrn>   parse_literal_ptrn();
     Ptr<ast::FieldPtrn>     parse_field_ptrn();
-    Ptr<ast::StructPtrn>    parse_struct_ptrn(ast::Path&&);
-    Ptr<ast::EnumPtrn>      parse_enum_ptrn(ast::Path&&);
+    Ptr<ast::RecordPtrn>    parse_record_ptrn(ast::Path &&path);
+    Ptr<ast::CtorPtrn>      parse_ctor_ptrn(ast::Path&& path);
     Ptr<ast::Ptrn>          parse_tuple_ptrn(bool = false, Token::Tag = Token::LParen, Token::Tag = Token::RParen);
     Ptr<ast::ArrayPtrn>     parse_array_ptrn();
     Ptr<ast::ErrorPtrn>     parse_error_ptrn();
@@ -58,8 +58,8 @@ private:
     Ptr<ast::PathExpr>      parse_path_expr();
     Ptr<ast::LiteralExpr>   parse_literal_expr();
     Ptr<ast::FieldExpr>     parse_field_expr();
-    Ptr<ast::StructExpr>    parse_struct_expr(ast::Path&&);
-    Ptr<ast::StructExpr>    parse_struct_expr(Ptr<ast::Expr>&&);
+    Ptr<ast::RecordExpr>    parse_record_expr(ast::Path &&path);
+    Ptr<ast::RecordExpr>    parse_record_expr(Ptr<ast::Expr> &&expr);
     Ptr<ast::Expr>          parse_tuple_expr();
     Ptr<ast::Expr>          parse_array_expr();
     Ptr<ast::BlockExpr>     parse_block_expr();

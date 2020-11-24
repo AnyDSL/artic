@@ -111,7 +111,7 @@ void FieldExpr::print(Printer& p) const {
     expr->print(p);
 }
 
-void StructExpr::print(Printer& p) const {
+void RecordExpr::print(Printer& p) const {
     if (expr) {
         expr->print(p);
         p << " .";
@@ -369,7 +369,7 @@ void FieldPtrn::print(Printer& p) const {
     }
 }
 
-void StructPtrn::print(Printer& p) const {
+void RecordPtrn::print(Printer& p) const {
     path.print(p);
     p << " {";
     if (!fields.empty()) {
@@ -382,7 +382,7 @@ void StructPtrn::print(Printer& p) const {
     p << "}";
 }
 
-void EnumPtrn::print(Printer& p) const {
+void CtorPtrn::print(Printer& p) const {
     path.print(p);
     if (arg) print_parens(p, arg);
 }
@@ -482,7 +482,8 @@ void FnDecl::print(Printer& p) const {
 }
 
 void FieldDecl::print(Printer& p) const {
-    p << id.name << ": ";
+    if (!id.name.empty())
+        p << id.name << ": ";
     type->print(p);
     if (init) {
         p << " = ";
@@ -490,25 +491,38 @@ void FieldDecl::print(Printer& p) const {
     }
 }
 
+inline void print_fields(Printer& p, const PtrVector<FieldDecl>& fields, bool is_tuple_like) {
+    p << (is_tuple_like ? "(" : " {");
+    if (!fields.empty()) {
+        if (!is_tuple_like)
+            p << p.indent();
+        print_list(p, is_tuple_like ? ", " : ",", fields, [&] (auto& f) {
+            if (!is_tuple_like)
+                p << p.endl();
+            f->print(p);
+        });
+        if (!is_tuple_like)
+            p << p.unindent() << p.endl();
+    }
+    p << (is_tuple_like ? ")" : "}");
+}
+
 void StructDecl::print(Printer& p) const {
     if (attrs) attrs->print(p);
     p << log::keyword_style("struct") << ' ' << id.name;
     if (type_params) type_params->print(p);
-    p << " {";
-    if (!fields.empty()) {
-        p << p.indent();
-        print_list(p, ',', fields, [&] (auto& f) {
-            p << p.endl();
-            f->print(p);
-        });
-        p << p.unindent() << p.endl();
-    }
-    p << '}';
+    if (!is_tuple_like || !fields.empty())
+        print_fields(p, fields, is_tuple_like);
+    if (is_tuple_like)
+        p << ";";
 }
 
 void OptionDecl::print(Printer& p) const {
     p << id.name;
-    if (param) print_parens(p, param);
+    if (param)
+        print_parens(p, param);
+    else
+        print_fields(p, fields, false);
 }
 
 void EnumDecl::print(Printer& p) const {
