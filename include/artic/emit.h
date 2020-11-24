@@ -81,7 +81,7 @@ public:
     };
 
     /// Map of all types to avoid converting the same type several times.
-    std::unordered_map<const Type*, const thorin::Type*> types;
+    std::unordered_map<const Type*, const thorin::Def*> types;
     /// Map from the currently bound type variables to monomorphic types.
     std::unordered_map<const TypeVar*, const Type*> type_vars;
     /// Map from monomorphic function signature to emitted thorin function.
@@ -100,29 +100,28 @@ public:
     void redundant_case(const ast::CaseExpr&);
     void non_exhaustive_match(const ast::MatchExpr&);
 
-    thorin::Lam* basic_block(thorin::Debug = {});
-    thorin::Lam* basic_block_with_mem(thorin::Debug = {});
-    thorin::Lam* basic_block_with_mem(const thorin::Type*, thorin::Debug = {});
+    thorin::Lam* basic_block(thorin::Dbg = {});
+    thorin::Lam* basic_block_with_mem(thorin::Dbg = {});
+    thorin::Lam* basic_block_with_mem(const thorin::Def*, thorin::Dbg = {});
 
     const thorin::Def* ctor_index(const ast::Ptrn& ptrn);
 
-    const thorin::Pi* continuation_type_with_mem(const thorin::Type*);
-    const thorin::Pi* function_type_with_mem(const thorin::Type*, const thorin::Type*);
+    const thorin::Pi* function_type_with_mem(const thorin::Def*, const thorin::Def*);
 
     void enter(thorin::Lam*);
-    void jump(const thorin::Def*, thorin::Debug = {});
-    void jump(const thorin::Def*, const thorin::Def*, thorin::Debug = {});
-    const thorin::Def* call(const thorin::Def*, const thorin::Def*, thorin::Debug = {});
-    const thorin::Def* call(const thorin::Def*, const thorin::Def*, thorin::Lam*, thorin::Debug = {});
-    void branch(const thorin::Def*, const thorin::Def*, const thorin::Def*, thorin::Debug = {});
+    void jump(const thorin::Def*, thorin::Dbg = {});
+    void jump(const thorin::Def*, const thorin::Def*, thorin::Dbg = {});
+    const thorin::Def* call(const thorin::Def*, const thorin::Def*, thorin::Dbg = {});
+    const thorin::Def* call(const thorin::Def*, const thorin::Def*, thorin::Lam*, thorin::Dbg = {});
+    void branch(const thorin::Def*, const thorin::Def*, const thorin::Def*, thorin::Dbg = {});
 
-    const thorin::Def* alloc(const thorin::Type*, thorin::Debug = {});
-    void store(const thorin::Def*, const thorin::Def*, thorin::Debug = {});
-    const thorin::Def* load(const thorin::Def*, thorin::Debug = {});
-    const thorin::Def* addr_of(const thorin::Def*, thorin::Debug = {});
+    const thorin::Def* alloc(const thorin::Def*, thorin::Dbg = {});
+    void store(const thorin::Def*, const thorin::Def*, thorin::Dbg = {});
+    const thorin::Def* load(const thorin::Def*, thorin::Dbg = {});
+    const thorin::Def* addr_of(const thorin::Def*, thorin::Dbg = {});
 
     const thorin::Def* no_ret();
-    const thorin::Def* down_cast(const thorin::Def*, const Type*, const Type*, thorin::Debug = {});
+    const thorin::Def* down_cast(const thorin::Def*, const Type*, const Type*, thorin::Dbg = {});
 
     const thorin::Def* emit(const ast::Node&);
     void emit(const ast::Ptrn&, const thorin::Def*);

@@ -11,9 +11,9 @@
 #include "artic/ast.h"
 
 namespace thorin {
-    class TypeTable;
-    template <typename> class TypeBase;
-    using Type = TypeBase<TypeTable>;
+
+class Def;
+
 }
 
 namespace artic {
@@ -63,7 +63,7 @@ struct Type : public Cast<Type> {
     }
 
     /// Converts this type to a Thorin type
-    virtual const thorin::Type* convert(Emitter&) const;
+    virtual const thorin::Def* convert(Emitter&) const;
     /// Converts this type into a string that can be
     /// used as C union/structure/typedef name.
     virtual std::string stringify(Emitter&) const;
@@ -125,7 +125,7 @@ struct PrimType : public Type {
     bool equals(const Type*) const override;
     size_t hash() const override;
 
-    const thorin::Type* convert(Emitter&) const override;
+    const thorin::Def* convert(Emitter&) const override;
     std::string stringify(Emitter&) const override;
 
 private:
@@ -145,7 +145,7 @@ struct TupleType : public Type {
     bool contains(const Type*) const override;
     const Type* replace(const std::unordered_map<const TypeVar*, const Type*>&) const override;
 
-    const thorin::Type* convert(Emitter&) const override;
+    const thorin::Def* convert(Emitter&) const override;
     std::string stringify(Emitter&) const override;
 
     size_t order(std::unordered_set<const Type*>&) const override;
@@ -188,7 +188,7 @@ struct SizedArrayType : public ArrayType {
 
     const Type* replace(const std::unordered_map<const TypeVar*, const Type*>&) const override;
 
-    const thorin::Type* convert(Emitter&) const override;
+    const thorin::Def* convert(Emitter&) const override;
     std::string stringify(Emitter&) const override;
 
 private:
@@ -207,7 +207,7 @@ struct UnsizedArrayType : public ArrayType {
 
     const Type* replace(const std::unordered_map<const TypeVar*, const Type*>&) const override;
 
-    const thorin::Type* convert(Emitter&) const override;
+    const thorin::Def* convert(Emitter&) const override;
     std::string stringify(Emitter&) const override;
 
 private:
@@ -244,7 +244,7 @@ struct PtrType : public AddrType {
 
     const Type* replace(const std::unordered_map<const TypeVar*, const Type*>&) const override;
 
-    const thorin::Type* convert(Emitter&) const override;
+    const thorin::Def* convert(Emitter&) const override;
     std::string stringify(Emitter&) const override;
 
 private:
@@ -280,7 +280,7 @@ struct FnType : public Type {
 
     const Type* replace(const std::unordered_map<const TypeVar*, const Type*>&) const override;
 
-    const thorin::Type* convert(Emitter&) const override;
+    const thorin::Def* convert(Emitter&) const override;
     std::string stringify(Emitter&) const override;
 
     size_t order(std::unordered_set<const Type*>&) const override;
@@ -328,7 +328,7 @@ protected:
 struct NoRetType : public BottomType {
     void print(Printer&) const override;
 
-    const thorin::Type* convert(Emitter&) const override;
+    const thorin::Def* convert(Emitter&) const override;
     std::string stringify(Emitter&) const override;
 
 private:
@@ -361,7 +361,7 @@ struct TypeVar : public Type {
 
     const Type* replace(const std::unordered_map<const TypeVar*, const Type*>&) const override;
 
-    const thorin::Type* convert(Emitter&) const override;
+    const thorin::Def* convert(Emitter&) const override;
     std::string stringify(Emitter&) const override;
 
     void variance(std::unordered_map<const TypeVar*, TypeVariance>&, bool) const override;
@@ -403,9 +403,9 @@ struct UserType : public Type {
     {}
 
     virtual const ast::TypeParamList* type_params() const = 0;
-    virtual const thorin::Type* convert(Emitter&, const Type*) const = 0;
+    virtual const thorin::Def* convert(Emitter&, const Type*) const = 0;
 
-    const thorin::Type* convert(Emitter& emitter) const override {
+    const thorin::Def* convert(Emitter& emitter) const override {
         return convert(emitter, this);
     }
 };
@@ -433,7 +433,7 @@ struct StructType : public ComplexType {
     size_t hash() const override;
 
     using UserType::convert;
-    const thorin::Type* convert(Emitter&, const Type*) const override;
+    const thorin::Def* convert(Emitter&, const Type*) const override;
     std::string stringify(Emitter&) const override;
 
     const ast::TypeParamList* type_params() const override;
@@ -459,7 +459,7 @@ struct EnumType : public ComplexType {
     size_t hash() const override;
 
     using UserType::convert;
-    const thorin::Type* convert(Emitter&, const Type*) const override;
+    const thorin::Def* convert(Emitter&, const Type*) const override;
     std::string stringify(Emitter&) const override;
 
     const ast::TypeParamList* type_params() const override {
@@ -489,7 +489,7 @@ struct TypeAlias : public UserType {
         return decl.type_params.get();
     }
 
-    const thorin::Type* convert(Emitter&, const Type*) const override;
+    const thorin::Def* convert(Emitter&, const Type*) const override;
 
 private:
     TypeAlias(TypeTable& type_table, const ast::TypeDecl& decl)
@@ -522,7 +522,7 @@ struct TypeApp : public Type {
 
     const Type* replace(const std::unordered_map<const TypeVar*, const Type*>&) const override;
 
-    const thorin::Type* convert(Emitter&) const override;
+    const thorin::Def* convert(Emitter&) const override;
     std::string stringify(Emitter&) const override;
 
     size_t order(std::unordered_set<const Type*>&) const override;
