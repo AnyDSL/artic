@@ -4,19 +4,12 @@
 #include <string>
 #include <cassert>
 
-#include <thorin/util/location.h>
-#include <thorin/util/log.h>
-
 #include "artic/ast.h"
 #include "artic/types.h"
 #include "artic/log.h"
 #include "artic/hash.h"
 
-namespace thorin {
-    class World;
-    class Lam;
-    class Pi;
-}
+#include <thorin/world.h>
 
 namespace artic {
 
@@ -148,7 +141,7 @@ bool compile(
     bool enable_all_warns,
     ast::ModDecl& program,
     thorin::World& world,
-    thorin::Log::Level log_level,
+    thorin::LogLevel log_level,
     Log& log);
 
 /// Entry-point for the JIT in the runtime system.
@@ -156,7 +149,7 @@ bool compile(
     const std::vector<std::string>& file_names,
     const std::vector<std::string>& file_data,
     thorin::World& world,
-    thorin::Log::Level log_level,
+    thorin::LogLevel log_level,
     std::ostream& error_stream);
 
 } // namespace artic

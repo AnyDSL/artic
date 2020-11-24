@@ -7,30 +7,26 @@
 #include "artic/bind.h"
 #include "artic/check.h"
 
-#include <thorin/def.h>
-#include <thorin/type.h>
-#include <thorin/world.h>
-
 namespace artic {
 
-static thorin::Location location(const Loc& loc) {
-    return thorin::Location(
-        loc.file->c_str(),
-        loc.begin.row,
-        loc.begin.col,
-        loc.end.row,
-        loc.end.col);
+thorin::Debug debug(const std::string& name, Loc loc) {
+    return {loc.file->c_str(),
+        uint64_t(loc.begin.row),
+        uint64_t(loc.begin.col),
+        uint64_t(loc.end.row),
+        uint64_t(loc.end.col)};
 }
 
 static thorin::Debug debug_info(const ast::NamedDecl& decl) {
-    return thorin::Debug { location(decl.loc), decl.id.name };
+    return debug(decl.id.name, decl.loc);
 }
 
 static thorin::Debug debug_info(const ast::Node& node, const std::string& name = "") {
     if (auto named_decl = node.isa<ast::NamedDecl>(); named_decl && name == "")
         return debug_info(*named_decl);
-    return thorin::Debug { location(node.loc), name };
+    return debug(name, node.loc);
 }
+
 
 /// Pattern matching compiler inspired from
 /// "Compiling Pattern Matching to Good Decision Trees",
@@ -420,6 +416,14 @@ void PtrnCompiler::dump() const {
 bool Emitter::run(const ast::ModDecl& mod) {
     mod.emit(*this);
     return errors == 0;
+}
+
+thorin::Debug loc2dbg(Loc loc) {
+    return {loc.filename(), loc.front_line(), loc.front_col(), loc.back_line(), loc.back_col()};
+}
+
+thorin::Debug loc2dbg(const char* s, Loc loc) {
+    return {s, loc.filename(), loc.front_line(), loc.front_col(), loc.back_line(), loc.back_col()};
 }
 
 thorin::Lam* Emitter::basic_block(thorin::Debug debug) {
