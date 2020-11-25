@@ -205,7 +205,14 @@ void ProjExpr::print(Printer& p) const {
 
 void IfExpr::print(Printer& p) const {
     p << log::keyword_style("if") << ' ';
-    cond->print(p);
+    if (cond)
+        cond->print(p);
+    else {
+        p << log::keyword_style("let") << ' ';
+        ptrn->print(p);
+        p << " = ";
+        expr->print(p);
+    }
     p << ' ';
     if_true->print(p);
     if (if_false) {
@@ -235,7 +242,14 @@ void MatchExpr::print(Printer& p) const {
 
 void WhileExpr::print(Printer& p) const {
     p << log::keyword_style("while") << ' ';
-    cond->print(p);
+    if (cond)
+        cond->print(p);
+    else {
+        p << log::keyword_style("let") << ' ';
+        ptrn->print(p);
+        p << " = ";
+        expr->print(p);
+    }
     p << ' ';
     body->print(p);
 }
