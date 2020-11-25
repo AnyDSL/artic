@@ -1030,47 +1030,44 @@ const thorin::Def* ProjExpr::emit(Emitter& emitter) const {
 }
 
 const thorin::Def* IfExpr::emit(Emitter& emitter) const {
-    auto join_true  = emitter.basic_block_with_mem(debug_info(*this, "join_true"));
-    auto join_false = emitter.basic_block_with_mem(debug_info(*this, "join_false"));
-    cond->emit_branch(emitter, join_true, join_false);
-
     // This can happen if both branches call a continuation.
-    thorin::Continuation* join = nullptr;
+    thorin::Continuation *join = nullptr;
     if (!type->isa<artic::NoRetType>())
-        join = emitter.basic_block_with_mem(type->convert(emitter), debug_info(*this, "if_join"));
+        join = emitter.basic_block_with_mem(type->convert(emitter), debug_info(*this, cond ? "if_join" : "iflet_join"));
 
-    emitter.enter(join_true);
-    auto true_value = emitter.emit(*if_true);
-    if (join) emitter.jump(join, true_value);
+    if (cond) {
+        auto join_true = emitter.basic_block_with_mem(debug_info(*this, "join_true"));
+        auto join_false = emitter.basic_block_with_mem(debug_info(*this, "join_false"));
+        cond->emit_branch(emitter, join_true, join_false);
 
-    emitter.enter(join_false);
-    auto false_value = if_false ? emitter.emit(*if_false) : emitter.world.tuple({});
-    if (join) emitter.jump(join, false_value);
+        emitter.enter(join_true);
+        auto true_value = emitter.emit(*if_true);
+        if (join) emitter.jump(join, true_value);
+
+        emitter.enter(join_false);
+        auto false_value = if_false ? emitter.emit(*if_false) : emitter.world.tuple({});
+        if (join) emitter.jump(join, false_value);
+    } else {
+        std::vector<PtrnCompiler::MatchCase> match_cases;
+        auto match_case = PtrnCompiler::MatchCase(ptrn.get(), if_true.get(), this);
+        match_case.target = join;
+
+        auto else_ptrn = make_ptr<ast::IdPtrn>(loc, std::move(make_ptr<ast::PtrnDecl>(loc, Identifier(loc, "_"), false)), nullptr);
+        else_ptrn->type = expr->type;
+        match_cases.push_back(match_case);
+
+        auto empty_tuple = make_ptr<ast::TupleExpr>(loc, std::move(PtrVector<ast::Expr>()));
+        auto else_case = PtrnCompiler::MatchCase(else_ptrn.get(), if_false ? if_false.get() : empty_tuple.get(), this);
+        else_case.target = join;
+        match_cases.push_back(else_case);
+
+        std::unordered_map<const IdPtrn*, const thorin::Def*> matched_values;
+        PtrnCompiler::emit(emitter, *this, *expr, std::move(match_cases), std::move(matched_values));
+    }
 
     if (!join)
         return emitter.no_ret();
 
-    emitter.enter(join);
-    return emitter.tuple_from_params(join);
-}
-
-const thorin::Def* IfLetExpr::emit(Emitter& emitter) const {
-    thorin::Continuation* join = emitter.basic_block_with_mem(type->convert(emitter), debug_info(*this, "iflet_join"));
-    std::vector<PtrnCompiler::MatchCase> match_cases;
-    auto match_case = PtrnCompiler::MatchCase(ptrn.get(), if_true.get(), this);
-    match_case.target = join;
-
-    auto else_ptrn = make_ptr<ast::IdPtrn>(loc, std::move(make_ptr<ast::PtrnDecl>(loc, Identifier(loc, "_"), false)), nullptr);
-    else_ptrn->type = expr->type;
-    match_cases.push_back(match_case);
-
-    auto empty_tuple = make_ptr<ast::TupleExpr>(loc, std::move(PtrVector<ast::Expr>()));
-    auto else_case = PtrnCompiler::MatchCase(else_ptrn.get(), if_false ? if_false.get() : empty_tuple.get(), this);
-    else_case.target = join;
-    match_cases.push_back(else_case);
-
-    std::unordered_map<const IdPtrn*, const thorin::Def*> matched_values;
-    PtrnCompiler::emit(emitter, *this, *expr, std::move(match_cases), std::move(matched_values));
     emitter.enter(join);
     return emitter.tuple_from_params(join);
 }
@@ -1095,57 +1092,47 @@ const thorin::Def* CaseExpr::emit(Emitter& emitter) const {
 
 const thorin::Def* WhileExpr::emit(Emitter& emitter) const {
     auto while_head = emitter.basic_block_with_mem(debug_info(*this, "while_head"));
-    auto while_body = emitter.basic_block_with_mem(debug_info(*this, "while_body"));
     auto while_exit = emitter.basic_block_with_mem(debug_info(*this, "while_exit"));
     auto while_continue = emitter.basic_block_with_mem(emitter.world.unit(), debug_info(*this, "while_continue"));
     auto while_break    = emitter.basic_block_with_mem(emitter.world.unit(), debug_info(*this, "while_break"));
     emitter.jump(while_head);
+    if (cond) {
+        emitter.enter(while_continue);
+        emitter.jump(while_head);
+        emitter.enter(while_break);
+        emitter.jump(while_exit);
+        break_ = while_break;
+        continue_ = while_continue;
 
-    emitter.enter(while_continue);
-    emitter.jump(while_head);
-    emitter.enter(while_break);
-    emitter.jump(while_exit);
-    break_ = while_break;
-    continue_ = while_continue;
+        emitter.enter(while_head);
+        auto while_body = emitter.basic_block_with_mem(debug_info(*this, "while_body"));
+        cond->emit_branch(emitter, while_body, while_exit);
 
-    emitter.enter(while_head);
-    cond->emit_branch(emitter, while_body, while_exit);
+        emitter.enter(while_body);
+        emitter.emit(*body);
+        emitter.jump(while_head);
+    } else {
+        emitter.enter(while_continue);
+        emitter.jump(while_head);
+        emitter.enter(while_break);
+        emitter.jump(while_exit);
+        break_ = while_break;
+        continue_ = while_continue;
 
-    emitter.enter(while_body);
-    emitter.emit(*body);
-    emitter.jump(while_head);
-
-    emitter.enter(while_exit);
-    return emitter.world.tuple({});
-}
-
-const thorin::Def* WhileLetExpr::emit(Emitter& emitter) const {
-    auto while_head = emitter.basic_block_with_mem(debug_info(*this, "while_head"));
-    auto while_exit = emitter.basic_block_with_mem(debug_info(*this, "while_exit"));
-    auto while_continue = emitter.basic_block_with_mem(emitter.world.unit(), debug_info(*this, "while_continue"));
-    auto while_break    = emitter.basic_block_with_mem(emitter.world.unit(), debug_info(*this, "while_break"));
-    emitter.jump(while_head);
-
-    emitter.enter(while_continue);
-    emitter.jump(while_head);
-    emitter.enter(while_break);
-    emitter.jump(while_exit);
-    break_ = while_break;
-    continue_ = while_continue;
-
-    emitter.enter(while_head);
-    std::vector<PtrnCompiler::MatchCase> match_cases;
-    auto match_case = PtrnCompiler::MatchCase(ptrn.get(), body.get(), this);
-    match_case.target = while_head;
-    auto else_ptrn = make_ptr<ast::IdPtrn>(loc, std::move(make_ptr<ast::PtrnDecl>(loc, Identifier(loc, "_"), false)), nullptr);
-    else_ptrn->type = expr->type;
-    match_cases.push_back(match_case);
-    auto empty_tuple = make_ptr<ast::TupleExpr>(loc, std::move(PtrVector<ast::Expr>()));
-    auto else_case = PtrnCompiler::MatchCase(else_ptrn.get(), empty_tuple.get(), this);
-    else_case.target = while_exit;
-    match_cases.push_back(else_case);
-    std::unordered_map<const IdPtrn*, const thorin::Def*> matched_values;
-    PtrnCompiler::emit(emitter, *this, *expr, std::move(match_cases), std::move(matched_values));
+        emitter.enter(while_head);
+        std::vector<PtrnCompiler::MatchCase> match_cases;
+        auto match_case = PtrnCompiler::MatchCase(ptrn.get(), body.get(), this);
+        match_case.target = while_head;
+        auto else_ptrn = make_ptr<ast::IdPtrn>(loc, std::move(make_ptr<ast::PtrnDecl>(loc, Identifier(loc, "_"), false)), nullptr);
+        else_ptrn->type = expr->type;
+        match_cases.push_back(match_case);
+        auto empty_tuple = make_ptr<ast::TupleExpr>(loc, std::move(PtrVector<ast::Expr>()));
+        auto else_case = PtrnCompiler::MatchCase(else_ptrn.get(), empty_tuple.get(), this);
+        else_case.target = while_exit;
+        match_cases.push_back(else_case);
+        std::unordered_map<const IdPtrn*, const thorin::Def*> matched_values;
+        PtrnCompiler::emit(emitter, *this, *expr, std::move(match_cases), std::move(matched_values));
+    }
 
     emitter.enter(while_exit);
     return emitter.world.tuple({});

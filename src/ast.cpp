@@ -309,10 +309,8 @@ bool ExprStmt::needs_semicolon() const {
     return
         !expr->isa<BlockExpr>() &&
         !expr->isa<IfExpr>()    &&
-        !expr->isa<IfLetExpr>() &&
         !expr->isa<MatchExpr>() &&
         !expr->isa<WhileExpr>() &&
-        !expr->isa<WhileLetExpr>() &&
         !expr->isa<ForExpr>();
 }
 
@@ -470,23 +468,13 @@ void ProjExpr::write_to() const {
 }
 
 bool IfExpr::is_jumping() const {
-    return cond->is_jumping() || (if_true->is_jumping() && if_false && if_false->is_jumping());
-}
-
-bool IfLetExpr::is_jumping() const {
-    return expr->is_jumping() || (if_true->is_jumping() && if_false && if_false->is_jumping());
+    return cond && cond->is_jumping() || expr && expr->is_jumping() || (if_true->is_jumping() && if_false && if_false->is_jumping());
 }
 
 bool IfExpr::has_side_effect() const {
     return
-        cond->has_side_effect() ||
-        if_true->has_side_effect() ||
-        (if_false && if_false->has_side_effect());
-}
-
-bool IfLetExpr::has_side_effect() const {
-    return
-        expr->has_side_effect() ||
+        cond && cond->has_side_effect() ||
+        expr && expr->has_side_effect() ||
         if_true->has_side_effect() ||
         (if_false && if_false->has_side_effect());
 }
@@ -520,15 +508,7 @@ bool WhileExpr::is_jumping() const {
 }
 
 bool WhileExpr::has_side_effect() const {
-    return cond->has_side_effect() || body->has_side_effect();
-}
-
-bool WhileLetExpr::is_jumping() const {
-    return false;
-}
-
-bool WhileLetExpr::has_side_effect() const {
-    return expr->has_side_effect() || body->has_side_effect();
+    return cond && cond->has_side_effect() || expr && expr->has_side_effect() || body->has_side_effect();
 }
 
 bool ForExpr::is_jumping() const {

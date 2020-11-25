@@ -729,6 +729,8 @@ struct ProjExpr : public Expr {
 
 /// If/Else expression (the else branch is optional).
 struct IfExpr : public Expr {
+    Ptr<Ptrn> ptrn;
+    Ptr<Expr> expr;
     Ptr<Expr> cond;
     Ptr<Expr> if_true;
     Ptr<Expr> if_false;
@@ -744,34 +746,17 @@ struct IfExpr : public Expr {
         , if_false(std::move(if_false))
     {}
 
-    bool is_jumping() const override;
-    bool has_side_effect() const override;
-
-    const thorin::Def* emit(Emitter&) const override;
-    const artic::Type* infer(TypeChecker&) override;
-    const artic::Type* check(TypeChecker&, const artic::Type*) override;
-    void bind(NameBinder&) override;
-    void print(Printer&) const override;
-};
-
-/// If let/Else expression (the else branch is optional).
-struct IfLetExpr : public Expr {
-    Ptr<Ptrn> ptrn;
-    Ptr<Expr> expr;
-    Ptr<Expr> if_true;
-    Ptr<Expr> if_false;
-
-    IfLetExpr(
-        const Loc& loc,
-        Ptr<Ptrn>&& ptrn,
-        Ptr<Expr>&& expr,
-        Ptr<Expr>&& if_true,
-        Ptr<Expr>&& if_false)
-        : Expr(loc)
-        , ptrn(std::move(ptrn))
-        , expr(std::move(expr))
-        , if_true(std::move(if_true))
-        , if_false(std::move(if_false))
+    IfExpr(
+            const Loc& loc,
+            Ptr<Ptrn>&& ptrn,
+            Ptr<Expr>&& expr,
+            Ptr<Expr>&& if_true,
+            Ptr<Expr>&& if_false)
+            : Expr(loc)
+            , ptrn(std::move(ptrn))
+            , expr(std::move(expr))
+            , if_true(std::move(if_true))
+            , if_false(std::move(if_false))
     {}
 
     bool is_jumping() const override;
@@ -837,6 +822,8 @@ struct LoopExpr : public Expr {
 
 /// While loop expression.
 struct WhileExpr : public LoopExpr {
+    Ptr<Ptrn> ptrn;
+    Ptr<Expr> expr;
     Ptr<Expr> cond;
     Ptr<Expr> body;
 
@@ -844,23 +831,8 @@ struct WhileExpr : public LoopExpr {
         : LoopExpr(loc), cond(std::move(cond)), body(std::move(body))
     {}
 
-    bool is_jumping() const override;
-    bool has_side_effect() const override;
-
-    const thorin::Def* emit(Emitter&) const override;
-    const artic::Type* infer(TypeChecker&) override;
-    void bind(NameBinder&) override;
-    void print(Printer&) const override;
-};
-
-/// While loop expression.
-struct WhileLetExpr : public LoopExpr {
-    Ptr<Ptrn> ptrn;
-    Ptr<Expr> expr;
-    Ptr<Expr> body;
-
-    WhileLetExpr(const Loc& loc, Ptr<Ptrn>&& ptrn, Ptr<Expr>&& expr, Ptr<Expr>&& body)
-        : LoopExpr(loc), ptrn(std::move(ptrn)), expr(std::move(expr)), body(std::move(body))
+    WhileExpr(const Loc& loc, Ptr<Ptrn>&& ptrn, Ptr<Expr>&& expr, Ptr<Expr>&& body)
+            : LoopExpr(loc), ptrn(std::move(ptrn)), expr(std::move(expr)), body(std::move(body))
     {}
 
     bool is_jumping() const override;

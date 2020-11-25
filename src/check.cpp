@@ -973,7 +973,10 @@ inline bool is_int_or_float_literal(const Expr* expr) {
 }
 
 const artic::Type* IfExpr::infer(TypeChecker& checker) {
-    checker.coerce(cond, checker.type_table.bool_type());
+    if (cond)
+        checker.coerce(cond, checker.type_table.bool_type());
+    else
+        checker.infer(*ptrn, expr);
     if (if_false) {
         if (is_int_or_float_literal(if_true.get()))
             return checker.coerce(if_true, checker.deref(if_false));
@@ -985,29 +988,10 @@ const artic::Type* IfExpr::infer(TypeChecker& checker) {
 }
 
 const artic::Type* IfExpr::check(TypeChecker& checker, const artic::Type* expected) {
-    checker.coerce(cond, checker.type_table.bool_type());
-    if (if_false) {
-        checker.coerce(if_true, expected);
-        return checker.coerce(if_false, expected);
-    }
-    checker.coerce(if_true, checker.type_table.unit_type());
-    return checker.coerce(if_true, expected);
-}
-
-const artic::Type* IfLetExpr::infer(TypeChecker& checker) {
-    checker.infer(*ptrn, expr);
-    if (if_false) {
-        if (is_int_or_float_literal(if_true.get()))
-            return checker.coerce(if_true, checker.deref(if_false));
-        if (is_int_or_float_literal(if_false.get()))
-            return checker.coerce(if_false, checker.deref(if_true));
-        return checker.join(if_false, if_true);
-    }
-    return checker.coerce(if_true, checker.type_table.unit_type());
-}
-
-const artic::Type* IfLetExpr::check(TypeChecker& checker, const artic::Type* expected) {
-    checker.infer(*ptrn, expr);
+    if (cond)
+        checker.coerce(cond, checker.type_table.bool_type());
+    else
+        checker.infer(*ptrn, expr);
     if (if_false) {
         checker.coerce(if_true, expected);
         return checker.coerce(if_false, expected);
@@ -1031,13 +1015,10 @@ const artic::Type* MatchExpr::check(TypeChecker& checker, const artic::Type* exp
 }
 
 const artic::Type* WhileExpr::infer(TypeChecker& checker) {
-    checker.coerce(cond, checker.type_table.bool_type());
-    // Using infer mode here would cause the type system to allow code such as: while true { break }
-    return checker.coerce(body, checker.type_table.unit_type());
-}
-
-const artic::Type* WhileLetExpr::infer(TypeChecker& checker) {
-    checker.infer(*ptrn, expr);
+    if (cond)
+        checker.coerce(cond, checker.type_table.bool_type());
+    else
+        checker.infer(*ptrn, expr);
     // Using infer mode here would cause the type system to allow code such as: while true { break }
     return checker.coerce(body, checker.type_table.unit_type());
 }
@@ -1048,7 +1029,7 @@ const artic::Type* ForExpr::infer(TypeChecker& checker) {
 
 const artic::Type* BreakExpr::infer(TypeChecker& checker) {
     const artic::Type* domain = nullptr;
-    if (loop->isa<WhileExpr>() || loop->isa<WhileLetExpr>())
+    if (loop->isa<WhileExpr>())
         domain = checker.type_table.unit_type();
     else if (auto for_ = loop->isa<ForExpr>()) {
         auto type = for_->call->callee->as<CallExpr>()->callee->type;
@@ -1068,7 +1049,7 @@ const artic::Type* BreakExpr::infer(TypeChecker& checker) {
 
 const artic::Type* ContinueExpr::infer(TypeChecker& checker) {
     const artic::Type* domain = nullptr;
-    if (loop->isa<WhileExpr>() || loop->isa<WhileLetExpr>())
+    if (loop->isa<WhileExpr>())
         domain = checker.type_table.unit_type();
     else if (auto for_ = loop->isa<ForExpr>()) {
         auto type = for_->call->callee->as<CallExpr>()->callee->type;

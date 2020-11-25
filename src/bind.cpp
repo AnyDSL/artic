@@ -228,15 +228,13 @@ void ProjExpr::bind(NameBinder& binder) {
 }
 
 void IfExpr::bind(NameBinder& binder) {
-    binder.bind(*cond);
-    binder.bind(*if_true);
-    if (if_false) binder.bind(*if_false);
-}
-
-void IfLetExpr::bind(NameBinder& binder) {
     binder.push_scope();
-    binder.bind(*ptrn);
-    binder.bind(*expr);
+    if (cond)
+        binder.bind(*cond);
+    else {
+        binder.bind(*ptrn);
+        binder.bind(*expr);
+    }
     binder.bind(*if_true);
     binder.pop_scope();
     if (if_false) binder.bind(*if_false);
@@ -256,16 +254,13 @@ void MatchExpr::bind(NameBinder& binder) {
 }
 
 void WhileExpr::bind(NameBinder& binder) {
-    binder.bind(*cond);
-    auto old = binder.push_loop(this);
-    binder.bind(*body);
-    binder.pop_loop(old);
-}
-
-void WhileLetExpr::bind(NameBinder& binder) {
     binder.push_scope();
-    binder.bind(*ptrn);
-    binder.bind(*expr);
+    if (cond)
+        binder.bind(*cond);
+    else {
+        binder.bind(*ptrn);
+        binder.bind(*expr);
+    }
     auto old = binder.push_loop(this);
     binder.bind(*body);
     binder.pop_loop(old);

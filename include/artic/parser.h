@@ -66,10 +66,10 @@ private:
     Ptr<ast::FnExpr>        parse_fn_expr(Ptr<ast::Filter>&&, bool);
     Ptr<ast::CallExpr>      parse_call_expr(Ptr<ast::Expr>&&);
     Ptr<ast::ProjExpr>      parse_proj_expr(Ptr<ast::Expr>&&);
-    Ptr<ast::Expr>          parse_if_expr();
+    Ptr<ast::IfExpr>        parse_if_expr();
     Ptr<ast::CaseExpr>      parse_case_expr();
     Ptr<ast::MatchExpr>     parse_match_expr();
-    Ptr<ast::Expr>          parse_while_expr();
+    Ptr<ast::WhileExpr>     parse_while_expr();
     Ptr<ast::Expr>          parse_for_expr();
     Ptr<ast::BreakExpr>     parse_break_expr();
     Ptr<ast::ContinueExpr>  parse_continue_expr();

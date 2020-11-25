@@ -631,7 +631,7 @@ Ptr<ast::ProjExpr> Parser::parse_proj_expr(Ptr<ast::Expr>&& expr) {
     return make_ptr<ast::ProjExpr>(tracker(), std::move(expr), std::move(id));
 }
 
-Ptr<ast::Expr> Parser::parse_if_expr() {
+Ptr<ast::IfExpr> Parser::parse_if_expr() {
     Tracker tracker(this);
     eat(Token::If);
 
@@ -657,7 +657,7 @@ Ptr<ast::Expr> Parser::parse_if_expr() {
 
         auto if_true = parse_block_expr();
         auto if_false = accept_else();
-        return make_ptr<ast::IfLetExpr>(tracker(), std::move(ptrn), std::move(expr), std::move(if_true), std::move(if_false));
+        return make_ptr<ast::IfExpr>(tracker(), std::move(ptrn), std::move(expr), std::move(if_true), std::move(if_false));
     } else {
         auto[cond, if_true] = parse_cond_and_block();
         auto if_false = accept_else();
@@ -686,7 +686,7 @@ Ptr<ast::MatchExpr> Parser::parse_match_expr() {
     return make_ptr<ast::MatchExpr>(tracker(), std::move(arg), std::move(cases));
 }
 
-Ptr<ast::Expr> Parser::parse_while_expr() {
+Ptr<ast::WhileExpr> Parser::parse_while_expr() {
     Tracker tracker(this);
     eat(Token::While);
     if (accept(Token::Let)) {
@@ -697,7 +697,7 @@ Ptr<ast::Expr> Parser::parse_while_expr() {
         auto expr = parse_expr(false);
 
         auto body = parse_block_expr();
-        return make_ptr<ast::WhileLetExpr>(tracker(), std::move(ptrn), std::move(expr), std::move(body));
+        return make_ptr<ast::WhileExpr>(tracker(), std::move(ptrn), std::move(expr), std::move(body));
     } else {
         auto[cond, body] = parse_cond_and_block();
         return make_ptr<ast::WhileExpr>(tracker(), std::move(cond), std::move(body));
