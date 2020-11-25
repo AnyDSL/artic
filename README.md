@@ -191,6 +191,19 @@ match x {
     (_, (_, true)) => 5
 }
 ```
+ - `if let` and `while let` expressions are supported:
+```rust
+if let (Option[Foo]::Some(y), 1) = x {
+    foo(y)
+} else {
+    bar();
+}
+```
+```rust
+while let Option[Bar]::Some(x) = get_next() {
+    process(x);
+}
+```
  - The `@@` sign for call-site annotations has been replaced by `@`:
 ```rust
 @@foo(1, x); // valid in impala, useless (counted as two annotations) with artic
