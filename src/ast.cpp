@@ -612,7 +612,7 @@ void TypedPtrn::collect_bound_ptrns(std::vector<const IdPtrn*>& bound_ptrns) con
 }
 
 bool TypedPtrn::is_trivial() const {
-    return ptrn ? ptrn->is_trivial() : true;
+    return !ptrn || ptrn->is_trivial();
 }
 
 void IdPtrn::collect_bound_ptrns(std::vector<const IdPtrn*>& bound_ptrns) const {
@@ -622,9 +622,7 @@ void IdPtrn::collect_bound_ptrns(std::vector<const IdPtrn*>& bound_ptrns) const 
 }
 
 bool IdPtrn::is_trivial() const {
-    if (sub_ptrn)
-        return sub_ptrn->is_trivial();
-    return true;
+    return !sub_ptrn || sub_ptrn->is_trivial();
 }
 
 bool LiteralPtrn::is_trivial() const {
@@ -637,7 +635,7 @@ void FieldPtrn::collect_bound_ptrns(std::vector<const IdPtrn*>& bound_ptrns) con
 }
 
 bool FieldPtrn::is_trivial() const {
-    return ptrn ? ptrn->is_trivial() : true;
+    return !ptrn || ptrn->is_trivial();
 }
 
 void RecordPtrn::collect_bound_ptrns(std::vector<const IdPtrn*>& bound_ptrns) const {
