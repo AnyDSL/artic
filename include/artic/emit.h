@@ -100,28 +100,28 @@ public:
     void redundant_case(const ast::CaseExpr&);
     void non_exhaustive_match(const ast::MatchExpr&);
 
-    thorin::Lam* basic_block(thorin::Dbg = {});
-    thorin::Lam* basic_block_with_mem(thorin::Dbg = {});
-    thorin::Lam* basic_block_with_mem(const thorin::Def*, thorin::Dbg = {});
+    thorin::Lam* basic_block(const thorin::Def*);
+    thorin::Lam* basic_block_with_mem(const thorin::Def*);
+    thorin::Lam* basic_block_with_mem(const thorin::Def*, const thorin::Def*);
 
     const thorin::Def* ctor_index(const ast::Ptrn& ptrn);
 
     const thorin::Pi* function_type_with_mem(const thorin::Def*, const thorin::Def*);
 
     void enter(thorin::Lam*);
-    void jump(const thorin::Def*, thorin::Dbg = {});
-    void jump(const thorin::Def*, const thorin::Def*, thorin::Dbg = {});
-    const thorin::Def* call(const thorin::Def*, const thorin::Def*, thorin::Dbg = {});
-    const thorin::Def* call(const thorin::Def*, const thorin::Def*, thorin::Lam*, thorin::Dbg = {});
-    void branch(const thorin::Def*, const thorin::Def*, const thorin::Def*, thorin::Dbg = {});
+    void jump(const thorin::Def*, const thorin::Def*);
+    void jump(const thorin::Def*, const thorin::Def*, const thorin::Def*);
+    const thorin::Def* call(const thorin::Def*, const thorin::Def*, const thorin::Def*);
+    const thorin::Def* call(const thorin::Def*, const thorin::Def*, thorin::Lam*, const thorin::Def*);
+    void branch(const thorin::Def*, const thorin::Def*, const thorin::Def*, const thorin::Def*);
 
-    const thorin::Def* alloc(const thorin::Def*, thorin::Dbg = {});
-    void store(const thorin::Def*, const thorin::Def*, thorin::Dbg = {});
-    const thorin::Def* load(const thorin::Def*, thorin::Dbg = {});
-    const thorin::Def* addr_of(const thorin::Def*, thorin::Dbg = {});
+    const thorin::Def* alloc(const thorin::Def*, const thorin::Def*);
+    void store(const thorin::Def*, const thorin::Def*, const thorin::Def* = {});
+    const thorin::Def* load(const thorin::Def*, const thorin::Def*);
+    const thorin::Def* addr_of(const thorin::Def*, const thorin::Def*);
 
     const thorin::Def* no_ret();
-    const thorin::Def* down_cast(const thorin::Def*, const Type*, const Type*, thorin::Dbg = {});
+    const thorin::Def* down_cast(const thorin::Def*, const Type*, const Type*, const thorin::Def*);
 
     const thorin::Def* emit(const ast::Node&);
     void emit(const ast::Ptrn&, const thorin::Def*);
@@ -129,6 +129,10 @@ public:
     const thorin::Def* emit(const ast::Node&, const Literal&);
 
     const thorin::Def* builtin(const ast::FnDecl&, thorin::Lam*);
+
+    const thorin::Def* dbg(const std::string& name, Loc loc);
+    const thorin::Def* dbg(const ast::NamedDecl& decl);
+    const thorin::Def* dbg(const ast::Node& node, const std::string& name = "");
 };
 
 /// Helper function to compile a set of files and generate an AST and a thorin module.

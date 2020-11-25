@@ -9,6 +9,7 @@
 
 namespace artic {
 
+#if 0
 thorin::Dbg dbg(const std::string& name, Loc loc) {
     return {name, {loc.file->c_str(), {uint32_t(loc.begin.row), uint32_t(loc.begin.col)},
                                       {uint32_t(loc.end  .row), uint32_t(loc.  end.col)}}};
@@ -21,6 +22,7 @@ static thorin::Dbg dbg(const ast::Node& node, const std::string& name = "") {
         return dbg(*named_decl);
     return dbg(name, node.loc);
 }
+#endif
 
 /// Pattern matching compiler inspired from
 /// "Compiling Pattern Matching to Good Decision Trees",
@@ -356,7 +358,7 @@ private:
             // Expand the value to match against
             std::vector<Value> new_values(member_count);
             for (size_t j = 0; j < member_count; ++j) {
-                new_values[j].first  = emitter.world.extract(values[i].first, j, dbg(*match.arg));
+                new_values[j].first  = emitter.world.extract(values[i].first, member_count, j, emitter.dbg(*match.arg));
                 new_values[j].second =
                     type_app               ? type_app->member_type(j)       :
                     struct_type            ? struct_type->member_type(j)    :
@@ -414,16 +416,16 @@ bool Emitter::run(const ast::ModDecl& mod) {
     return errors == 0;
 }
 
-thorin::Lam* Emitter::basic_block(thorin::Dbg debug) {
-    return world.nom_lam(world.cn(), debug);
+thorin::Lam* Emitter::basic_block(const thorin::Def* dbg) {
+    return world.nom_lam(world.cn(), dbg);
 }
 
-thorin::Lam* Emitter::basic_block_with_mem(thorin::Dbg debug) {
-    return world.nom_lam(world.cn({ world.type_mem() }), debug);
+thorin::Lam* Emitter::basic_block_with_mem(const thorin::Def* dbg) {
+    return world.nom_lam(world.cn({ world.type_mem() }), dbg);
 }
 
-thorin::Lam* Emitter::basic_block_with_mem(const thorin::Def* param, thorin::Dbg debug) {
-    return world.nom_lam(world.cn_mem(param), debug);
+thorin::Lam* Emitter::basic_block_with_mem(const thorin::Def* param, const thorin::Def* dbg) {
+    return world.nom_lam(world.cn_mem(param), dbg);
 }
 
 const thorin::Def* Emitter::ctor_index(const ast::Ptrn& /*ptrn*/) {
@@ -452,45 +454,45 @@ const thorin::Pi* Emitter::function_type_with_mem(const thorin::Def* from, const
 void Emitter::enter(thorin::Lam* lam) {
     state.bb = lam;
     if (lam->num_params() > 0)
-        state.mem = lam->param(0);
+        state.mem = lam->param(size_t(0));
 }
 
-void Emitter::jump(const thorin::Def* callee, thorin::Dbg debug) {
+void Emitter::jump(const thorin::Def* callee, const thorin::Def* dbg) {
     if (!state.bb)
         return;
     auto num_params = callee->type()->as<thorin::Pi>()->num_domains();
     if (num_params == 1) {
-        state.bb->app(callee, { state.mem }, debug);
+        state.bb->app(callee, { state.mem }, dbg);
     } else {
         assert(num_params == 0);
-        state.bb->app(callee, {}, debug);
+        state.bb->app(callee, {}, dbg);
     }
     state.bb = nullptr;
 }
 
-void Emitter::jump(const thorin::Def* callee, const thorin::Def* arg, thorin::Dbg debug) {
+void Emitter::jump(const thorin::Def* callee, const thorin::Def* arg, const thorin::Def* dbg) {
     if (!state.bb)
         return;
-    state.bb->app(callee, { state.mem, arg }, debug);
+    state.bb->app(callee, { state.mem, arg }, dbg);
     state.bb = nullptr;
 }
 
-const thorin::Def* Emitter::call(const thorin::Def* callee, const thorin::Def* arg, thorin::Dbg debug) {
+const thorin::Def* Emitter::call(const thorin::Def* callee, const thorin::Def* arg, const thorin::Def* dbg) {
     if (!state.bb)
         return nullptr;
     auto cont_type = callee->type()->as<thorin::Pi>()->domains().back()->as<thorin::Pi>();
-    auto cont = world.nom_lam(cont_type, thorin::Dbg("cont"));
-    return call(callee, arg, cont, debug);
+    auto cont = world.nom_lam(cont_type, world.dbg("cont"));
+    return call(callee, arg, cont, dbg);
 }
 
 const thorin::Def* Emitter::call(
     const thorin::Def* callee,
     const thorin::Def* arg,
     thorin::Lam* cont,
-    thorin::Dbg debug) {
+    const thorin::Def* dbg) {
     if (!state.bb)
         return nullptr;
-    state.bb->app(callee, { state.mem, arg, cont }, debug);
+    state.bb->app(callee, { state.mem, arg, cont }, dbg);
     enter(cont);
     return cont->param(1);
 }
@@ -499,87 +501,83 @@ void Emitter::branch(
     const thorin::Def* cond,
     const thorin::Def* branch_true,
     const thorin::Def* branch_false,
-    thorin::Dbg debug) {
+    const thorin::Def* dbg) {
     if (!state.bb)
         return;
-    state.bb->branch(cond, branch_true, branch_false, state.mem, debug);
+    state.bb->branch(cond, branch_true, branch_false, state.mem, dbg);
     state.bb = nullptr;
 }
 
-const thorin::Def* Emitter::alloc(const thorin::Def* type, thorin::Dbg debug) {
+const thorin::Def* Emitter::alloc(const thorin::Def* type, const thorin::Def* dbg) {
     assert(state.mem);
-    auto pair = world.enter(state.mem);
-    state.mem = world.extract(pair, thorin::u32(0));
-    return world.slot(type, world.extract(pair, thorin::u32(1)), debug);
+    return world.op_slot(type, state.mem, dbg);
 }
 
-void Emitter::store(const thorin::Def* ptr, const thorin::Def* value, thorin::Dbg debug) {
+void Emitter::store(const thorin::Def* ptr, const thorin::Def* value, const thorin::Def* dbg) {
     assert(state.mem);
-    state.mem = world.store(state.mem, ptr, value, debug);
+    state.mem = world.op_store(state.mem, ptr, value, dbg);
 }
 
-const thorin::Def* Emitter::load(const thorin::Def* ptr, thorin::Dbg debug) {
+const thorin::Def* Emitter::load(const thorin::Def* ptr, const thorin::Def* dbg) {
     // Allow loads from globals at the top level (where `state.mem` is null)
     if (auto global = ptr->isa<thorin::Global>(); global && !global->is_mutable())
         return global->init();
     assert(state.mem);
-    auto pair = world.load(state.mem, ptr, debug);
-    state.mem = world.extract(pair, thorin::u32(0));
-    return world.extract(pair, thorin::u32(1));
+    auto pair = world.op_load(state.mem, ptr, dbg);
+    state.mem = world.extract(pair, thorin::u64(0));
+    return world.extract(pair, thorin::u64(1));
 }
 
-const thorin::Def* Emitter::addr_of(const thorin::Def* def, thorin::Dbg debug) {
-    if (thorin::is_const(def)) {
-        return world.global(def, false, debug);
+const thorin::Def* Emitter::addr_of(const thorin::Def* def, const thorin::Def* dbg) {
+    if (def->is_const()) {
+        return world.global(def, false, dbg);
     } else {
-        auto ptr = alloc(def->type(), debug);
-        store(ptr, def, debug);
+        auto ptr = alloc(def->type(), dbg);
+        store(ptr, def, dbg);
         return ptr;
     }
 }
 
 const thorin::Def* Emitter::no_ret() {
-    // Thorin does not have a type that can encode a no-return type,
-    // so we return an empty tuple instead.
-    return world.bottom(world.unit());
+    return world.bot_kind();
 }
 
-const thorin::Def* Emitter::down_cast(const thorin::Def* def, const Type* from, const Type* to, thorin::Dbg debug) {
+const thorin::Def* Emitter::down_cast(const thorin::Def* def, const Type* from, const Type* to, const thorin::Def* dbg) {
     // This function mirrors the subtyping relation and thus should be kept in sync
     assert(from->subtype(to));
     if (to == from || to->isa<TopType>())
         return def;
     else if (from->isa<BottomType>())
-        return world.bottom(to->convert(*this));
+        return world.bot(to->convert(*this));
     else if (auto from_ref_type = from->isa<RefType>(); from_ref_type && from_ref_type->pointee->subtype(to))
-        return down_cast(load(def, debug), from_ref_type->pointee, to, debug);
+        return down_cast(load(def, dbg), from_ref_type->pointee, to, dbg);
     else if (auto to_ptr_type = to->isa<PtrType>()) {
         if (!to_ptr_type->is_mut && from->subtype(to_ptr_type->pointee))
-            return down_cast(addr_of(def, debug), from, to_ptr_type->pointee, debug);
+            return down_cast(addr_of(def, dbg), from, to_ptr_type->pointee, dbg);
         if (auto from_ptr_type = from->isa<PtrType>();
             from_ptr_type && (from_ptr_type->is_mut || !to_ptr_type->is_mut)) {
             if (from_ptr_type->pointee->subtype(to_ptr_type->pointee))
-                return down_cast(def, from_ptr_type->pointee, to_ptr_type->pointee, debug);
+                return down_cast(def, from_ptr_type->pointee, to_ptr_type->pointee, dbg);
 
             assert(to_ptr_type->pointee->isa<UnsizedArrayType>());
             assert(from_ptr_type->pointee->isa<SizedArrayType>());
-            return world.bitcast(to->convert(*this), def, debug);
+            return world.op_bitcast(to->convert(*this), def, dbg);
         }
         assert(to_ptr_type->pointee->isa<UnsizedArrayType>());
         assert(from->isa<SizedArrayType>());
-        return world.bitcast(to->convert(*this), addr_of(def, debug), debug);
+        return world.op_bitcast(to->convert(*this), addr_of(def, dbg), dbg);
     } else if (auto from_tuple_type = from->isa<TupleType>()) {
         thorin::Array<const thorin::Def*> ops(from_tuple_type->args.size());
         for (size_t i = 0, n = ops.size(); i < n; ++i)
-            ops[i] = down_cast(world.extract(def, i, debug), from_tuple_type->args[i], to->as<TupleType>()->args[i], debug);
-        return world.tuple(ops, debug);
+            ops[i] = down_cast(world.extract(def, i, dbg), from_tuple_type->args[i], to->as<TupleType>()->args[i], dbg);
+        return world.tuple(ops, dbg);
     } else if (auto from_fn_type = from->isa<FnType>()) {
         auto _ = save_state();
-        auto lam = world.nom_lam(to->convert(*this)->as<thorin::Pi>(), debug);
+        auto lam = world.nom_lam(to->convert(*this)->as<thorin::Pi>(), dbg);
         enter(lam);
-        auto param = down_cast(lam->param(1), to->as<FnType>()->dom, from_fn_type->dom, debug);
-        auto value = down_cast(call(def, param, debug), from_fn_type->codom, to->as<FnType>()->codom, debug);
-        jump(lam->param(2), value, debug);
+        auto param = down_cast(lam->param(1), to->as<FnType>()->dom, from_fn_type->dom, dbg);
+        auto value = down_cast(call(def, param, dbg), from_fn_type->codom, to->as<FnType>()->codom, dbg);
+        jump(lam->param(2), value, dbg);
         return lam;
     }
     assert(false);
@@ -608,28 +606,25 @@ void Emitter::bind(const ast::IdPtrn& id_ptrn, const thorin::Def* value) {
             warn(id_ptrn.loc, "mutable variable '{}' is never written to", id_ptrn.decl->id.name);
     } else {
         id_ptrn.decl->def = value;
-        value->debug().set(id_ptrn.decl->id.name);
+        value->set_name(id_ptrn.decl->id.name);
     }
 }
 
 const thorin::Def* Emitter::emit(const ast::Node& node, const Literal& lit) {
     if (auto prim_type = node.type->isa<artic::PrimType>()) {
         switch (prim_type->tag) {
-            case ast::PrimType::Bool: return world.literal_bool(lit.as_bool(),    dbg(node));
-            case ast::PrimType::U8:   return world.literal_pu8 (lit.is_integer() ? lit.as_integer() : lit.as_char(), dbg(node));
-            case ast::PrimType::U16:  return world.literal_pu16(lit.as_integer(), dbg(node));
-            case ast::PrimType::U32:  return world.literal_pu32(lit.as_integer(), dbg(node));
-            case ast::PrimType::U64:  return world.literal_pu64(lit.as_integer(), dbg(node));
-            case ast::PrimType::I8:   return world.literal_qs8 (lit.as_integer(), dbg(node));
-            case ast::PrimType::I16:  return world.literal_qs16(lit.as_integer(), dbg(node));
-            case ast::PrimType::I32:  return world.literal_qs32(lit.as_integer(), dbg(node));
-            case ast::PrimType::I64:  return world.literal_qs64(lit.as_integer(), dbg(node));
-            case ast::PrimType::F16:
-                return world.literal_qf16(thorin::half(lit.is_double() ? lit.as_double() : lit.as_integer()), dbg(node));
-            case ast::PrimType::F32:
-                return world.literal_qf32(lit.is_double() ? lit.as_double() : lit.as_integer(), dbg(node));
-            case ast::PrimType::F64:
-                return world.literal_qf64(lit.is_double() ? lit.as_double() : lit.as_integer(), dbg(node));
+            case ast::PrimType::Bool: return world.lit_int_width( 1, lit.as_bool(),    dbg(node));
+            case ast::PrimType::I8:
+            case ast::PrimType::U8:   return world.lit_int_width( 8, lit.is_integer() ? lit.as_integer() : lit.as_char(), dbg(node));
+            case ast::PrimType::I16:
+            case ast::PrimType::U16:  return world.lit_int_width(16, lit.as_integer(), dbg(node));
+            case ast::PrimType::I32:
+            case ast::PrimType::U32:  return world.lit_int_width(32, lit.as_integer(), dbg(node));
+            case ast::PrimType::I64:
+            case ast::PrimType::U64:  return world.lit_int_width(64, lit.as_integer(), dbg(node));
+            case ast::PrimType::F16:  return world.lit_real(16, thorin::half(lit.is_double() ? lit.as_double() : lit.as_integer()), dbg(node));
+            case ast::PrimType::F32:  return world.lit_real(32, lit.is_double() ? lit.as_double() : lit.as_integer(), dbg(node));
+            case ast::PrimType::F64:  return world.lit_real(64, lit.is_double() ? lit.as_double() : lit.as_integer(), dbg(node));
             default:
                 assert(false);
                 return nullptr;
@@ -638,39 +633,39 @@ const thorin::Def* Emitter::emit(const ast::Node& node, const Literal& lit) {
         assert(lit.is_string());
         thorin::Array<const thorin::Def*> ops(lit.as_string().size() + 1);
         for (size_t i = 0, n = lit.as_string().size(); i < n; ++i)
-            ops[i] = world.literal_pu8(lit.as_string()[i], {});
-        ops.back() = world.literal_pu8(0, {});
-        return world.definite_array(ops, dbg(node));
+            ops[i] = world.lit_int_width(8, lit.as_string()[i], {});
+        ops.back() = world.lit_int_width(8, 0, {});
+        return world.tuple(ops, dbg(node));
     }
 }
 
 const thorin::Def* Emitter::builtin(const ast::FnDecl& fn_decl, thorin::Lam* lam) {
-    if (lam->name() == "alignof") {
+    lam->set_filter(world.lit_true());
+    if (lam->debug().name == "alignof") {
         auto target_type = fn_decl.type_params->params[0]->type->convert(*this);
-        lam->app(lam->param(2), { lam->param(0), world.align_of(target_type) }, dbg(fn_decl));
-    } else if (lam->name() == "bitcast") {
+        lam->app(lam->param(2), { lam->param(thorin::u64(0)), world.op(thorin::Trait::align, target_type) }, dbg(fn_decl));
+    } else if (lam->debug().name == "bitcast") {
         auto target_type = fn_decl.type->as<ForallType>()->body->as<FnType>()->codom->convert(*this);
-        lam->app(lam->param(2), { lam->param(0), world.bitcast(target_type, lam->param(1)) }, dbg(fn_decl));
-    } else if (lam->name() == "insert") {
+        lam->app(lam->param(2), { lam->param(thorin::u64(0)), world.op_bitcast(target_type, lam->param(1)) }, dbg(fn_decl));
+    } else if (lam->debug().name == "insert") {
         lam->app(
             lam->param(2),
-            { lam->param(0), world.insert(lam->param(1), lam->param(2), lam->param(3)) },
+            { lam->param(thorin::u64(0)), world.insert(lam->param(1), lam->param(2), lam->param(3)) },
             dbg(fn_decl));
-    } else if (lam->name() == "select") {
+    } else if (lam->debug().name == "select") {
         lam->app(
             lam->param(2),
-            { lam->param(0), world.select(lam->param(1), lam->param(2), lam->param(3)) },
+            { lam->param(thorin::u64(0)), world.extract(world.tuple({lam->param(2), lam->param(1)}), lam->param(3)) },
             dbg(fn_decl));
-    } else if (lam->name() == "sizeof") {
+    } else if (lam->debug().name == "sizeof") {
         auto target_type = fn_decl.type_params->params[0]->type->convert(*this);
-        lam->app(lam->param(2), { lam->param(0), world.size_of(target_type) }, dbg(fn_decl));
-    } else if (lam->name() == "undef") {
+        lam->app(lam->param(2), { lam->param(thorin::u64(0)), world.op(thorin::Trait::size, target_type) }, dbg(fn_decl));
+    } else if (lam->debug().name == "undef") {
         auto target_type = fn_decl.type_params->params[0]->type->convert(*this);
-        lam->app(lam->param(2), { lam->param(0), world.bottom(target_type) }, dbg(fn_decl));
+        lam->app(lam->param(2), { lam->param(thorin::u64(0)), world.bot(target_type) }, dbg(fn_decl));
     } else {
         assert(false);
     }
-    lam->set_all_true_filter();
     return lam;
 }
 
@@ -756,7 +751,7 @@ const thorin::Def* Path::emit(Emitter& emitter) const {
                     emitter.function_type_with_mem(param_type->convert(emitter), converted_type),
                     dbg(*enum_type->decl.options[ctor.index]));
                 auto ret_value = emitter.world.variant(variant_type, lam->param(1), ctor.index);
-                lam->app(lam->param(2), { lam->param(0), ret_value });
+                lam->app(lam->param(2), { lam->param(thorin::u64(0)), ret_value });
                 lam->set_all_true_filter();
                 return emitter.variant_ctors[ctor] = lam;
             }
