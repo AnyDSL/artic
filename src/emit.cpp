@@ -50,9 +50,9 @@ public:
             const ast::Ptrn* ptrn,
             const ast::Expr* expr,
             const ast::Node* node)
-            : ptrn(ptrn),
-            expr(expr),
-            node(node)
+            : ptrn(ptrn)
+            , expr(expr)
+            , node(node)
         {
             ptrn->collect_bound_ptrns(bound_ptrns);
         }
@@ -61,11 +61,11 @@ public:
     };
 
     static void emit(
-            Emitter& emitter,
-            const ast::Node& node,
-            const ast::Expr& expr,
-            std::vector<MatchCase>&& cases,
-            std::unordered_map<const ast::IdPtrn*, const thorin::Def*>&& matched_values);
+        Emitter& emitter,
+        const ast::Node& node,
+        const ast::Expr& expr,
+        std::vector<MatchCase>&& cases,
+        std::unordered_map<const ast::IdPtrn*, const thorin::Def*>&& matched_values);
 
 private:
     // Note: `nullptr`s are used to denote row elements that are not connected to any pattern
@@ -357,13 +357,13 @@ private:
 
             if (emitter.state.cont) {
                 auto match_value = enum_type
-                                   ? emitter.world.variant_index(values[col].first, debug_info(node, "variant_index"))
-                                   : values[col].first;
+                   ? emitter.world.variant_index(values[col].first, debug_info(node, "variant_index"))
+                   : values[col].first;
                 emitter.state.cont->match(
-                        match_value, otherwise,
-                        no_default ? defs.skip_back() : defs.ref(),
-                        no_default ? targets.skip_back() : targets.ref(),
-                        debug_info(node));
+                    match_value, otherwise,
+                    no_default ? defs.skip_back() : defs.ref(),
+                    no_default ? targets.skip_back() : targets.ref(),
+                    debug_info(node));
             }
 
             auto col_value = values[col].first;
