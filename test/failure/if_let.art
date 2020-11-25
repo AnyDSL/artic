@@ -1,0 +1,7 @@
+fn a(x: (i32, i32, i32, i32)) -> bool {
+    if let y = x {
+        false
+    } else {
+        true
+    }
+}

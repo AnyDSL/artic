@@ -1,0 +1,36 @@
+#[export]
+fn foo() {
+    let mut v = 0;
+    while let 0 = v {
+        v++;
+    }
+}
+
+#[export]
+fn bar() {
+    let mut v = (0, 0);
+    while let (0, _) = v {
+        let (mut x, mut y) = v;
+        y++;
+        if y == 10 { x++; }
+        v = (x, y);
+    }
+}
+
+enum E {
+    A,
+    B(i32)
+}
+
+#[export]
+fn buzz() {
+    let mut v = E::B(0);
+    while let E::B(x) = v {
+        v = E::B(x + 1);
+        continue()
+    }
+
+    while let E::A = v {
+        break()
+    }
+}

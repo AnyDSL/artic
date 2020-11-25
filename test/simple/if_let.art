@@ -1,0 +1,40 @@
+fn a(x: (i32, i32, i32, i32)) -> bool {
+    let y = if let y as (0, 0, 0, 0) = x {
+        false
+    } else {
+        true
+    };
+    let w: bool = if let y as (0, 0, 0, 0) = x {
+        false
+    } else {
+        true
+    };
+    y
+}
+
+fn b(x: (i32, i32, i32, i32)) -> bool {
+    if let y as (0, 0, 0, 0) = x {
+        return (false)
+    }
+    let w: () = if let y as (1, 0, 0, 0) = x {
+
+    };
+    true
+}
+
+fn c(x: (i32, i32, i32, i32)) -> i16 {
+    if let y as (0, 0, 0, 0) = x {
+        return (1)
+    }
+    let z = if let y as ((1), 0, 0, 0) = x {
+        -1.0
+    } else {
+        0.0
+    };
+    let w = if let y as ((1), 0, 0, 0) = x {
+        z
+    } else {
+        0.0
+    };
+    z as i16
+}

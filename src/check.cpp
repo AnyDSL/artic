@@ -973,7 +973,10 @@ inline bool is_int_or_float_literal(const Expr* expr) {
 }
 
 const artic::Type* IfExpr::infer(TypeChecker& checker) {
-    checker.coerce(cond, checker.type_table.bool_type());
+    if (cond)
+        checker.coerce(cond, checker.type_table.bool_type());
+    else
+        checker.infer(*ptrn, expr);
     if (if_false) {
         if (is_int_or_float_literal(if_true.get()))
             return checker.coerce(if_true, checker.deref(if_false));
@@ -985,7 +988,10 @@ const artic::Type* IfExpr::infer(TypeChecker& checker) {
 }
 
 const artic::Type* IfExpr::check(TypeChecker& checker, const artic::Type* expected) {
-    checker.coerce(cond, checker.type_table.bool_type());
+    if (cond)
+        checker.coerce(cond, checker.type_table.bool_type());
+    else
+        checker.infer(*ptrn, expr);
     if (if_false) {
         checker.coerce(if_true, expected);
         return checker.coerce(if_false, expected);
@@ -1009,7 +1015,10 @@ const artic::Type* MatchExpr::check(TypeChecker& checker, const artic::Type* exp
 }
 
 const artic::Type* WhileExpr::infer(TypeChecker& checker) {
-    checker.coerce(cond, checker.type_table.bool_type());
+    if (cond)
+        checker.coerce(cond, checker.type_table.bool_type());
+    else
+        checker.infer(*ptrn, expr);
     // Using infer mode here would cause the type system to allow code such as: while true { break }
     return checker.coerce(body, checker.type_table.unit_type());
 }

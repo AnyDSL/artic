@@ -266,12 +266,6 @@ BinaryExpr::Tag BinaryExpr::tag_from_token(const Token& token) {
     }
 }
 
-void CaseExpr::collect_bound_ptrns() const {
-    // Do not re-collect patterns if they already have been collected
-    if (bound_ptrns.empty())
-        ptrn->collect_bound_ptrns(bound_ptrns);
-}
-
 // Attributes ----------------------------------------------------------------------
 
 static const Attr* find(const PtrVector<Attr>& attrs, const std::string_view& name) {
@@ -474,12 +468,16 @@ void ProjExpr::write_to() const {
 }
 
 bool IfExpr::is_jumping() const {
-    return cond->is_jumping() || (if_true->is_jumping() && if_false && if_false->is_jumping());
+    return
+        (cond && cond->is_jumping()) ||
+        (expr && expr->is_jumping()) ||
+        (if_true->is_jumping() && if_false && if_false->is_jumping());
 }
 
 bool IfExpr::has_side_effect() const {
     return
-        cond->has_side_effect() ||
+        (cond && cond->has_side_effect()) ||
+        (expr && expr->has_side_effect()) ||
         if_true->has_side_effect() ||
         (if_false && if_false->has_side_effect());
 }
@@ -513,7 +511,10 @@ bool WhileExpr::is_jumping() const {
 }
 
 bool WhileExpr::has_side_effect() const {
-    return cond->has_side_effect() || body->has_side_effect();
+    return
+        (cond && cond->has_side_effect()) ||
+        (expr && expr->has_side_effect()) ||
+        body->has_side_effect();
 }
 
 bool ForExpr::is_jumping() const {
