@@ -1096,30 +1096,20 @@ const thorin::Def* WhileExpr::emit(Emitter& emitter) const {
     auto while_continue = emitter.basic_block_with_mem(emitter.world.unit(), debug_info(*this, "while_continue"));
     auto while_break    = emitter.basic_block_with_mem(emitter.world.unit(), debug_info(*this, "while_break"));
     emitter.jump(while_head);
+    emitter.enter(while_continue);
+    emitter.jump(while_head);
+    emitter.enter(while_break);
+    emitter.jump(while_exit);
+    break_ = while_break;
+    continue_ = while_continue;
+    emitter.enter(while_head);
     if (cond) {
-        emitter.enter(while_continue);
-        emitter.jump(while_head);
-        emitter.enter(while_break);
-        emitter.jump(while_exit);
-        break_ = while_break;
-        continue_ = while_continue;
-
-        emitter.enter(while_head);
         auto while_body = emitter.basic_block_with_mem(debug_info(*this, "while_body"));
         cond->emit_branch(emitter, while_body, while_exit);
-
         emitter.enter(while_body);
         emitter.emit(*body);
         emitter.jump(while_head);
     } else {
-        emitter.enter(while_continue);
-        emitter.jump(while_head);
-        emitter.enter(while_break);
-        emitter.jump(while_exit);
-        break_ = while_break;
-        continue_ = while_continue;
-
-        emitter.enter(while_head);
         std::vector<PtrnCompiler::MatchCase> match_cases;
         auto match_case = PtrnCompiler::MatchCase(ptrn.get(), body.get(), this);
         match_case.target = while_head;
