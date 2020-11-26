@@ -43,9 +43,9 @@ public:
             const ast::Ptrn* ptrn,
             const ast::Expr* expr,
             const ast::Node* node)
-            : ptrn(ptrn),
-            expr(expr),
-            node(node)
+            : ptrn(ptrn)
+            , expr(expr)
+            , node(node)
         {
             ptrn->collect_bound_ptrns(bound_ptrns);
         }
@@ -54,11 +54,11 @@ public:
     };
 
     static void emit(
-            Emitter& emitter,
-            const ast::Node& node,
-            const ast::Expr& expr,
-            std::vector<MatchCase>&& cases,
-            std::unordered_map<const ast::IdPtrn*, const thorin::Def*>&& matched_values);
+        Emitter& emitter,
+        const ast::Node& node,
+        const ast::Expr& expr,
+        std::vector<MatchCase>&& cases,
+        std::unordered_map<const ast::IdPtrn*, const thorin::Def*>&& matched_values);
 
 private:
     // Note: `nullptr`s are used to denote row elements that are not connected to any pattern
@@ -350,13 +350,13 @@ private:
 
             if (emitter.state.cont) {
                 auto match_value = enum_type
-                                   ? emitter.world.variant_index(values[col].first, debug_info(node, "variant_index"))
-                                   : values[col].first;
+                   ? emitter.world.variant_index(values[col].first, debug_info(node, "variant_index"))
+                   : values[col].first;
                 emitter.state.cont->match(
-                        match_value, otherwise,
-                        no_default ? defs.skip_back() : defs.ref(),
-                        no_default ? targets.skip_back() : targets.ref(),
-                        debug_info(node));
+                    match_value, otherwise,
+                    no_default ? defs.skip_back() : defs.ref(),
+                    no_default ? targets.skip_back() : targets.ref(),
+                    debug_info(node));
             }
 
             auto col_value = values[col].first;
@@ -732,9 +732,9 @@ const thorin::Def* Node::emit(Emitter&) const {
 const thorin::Def* Path::emit(Emitter& emitter) const {
     // Currently only supports paths of the form A/A::B/A[T, ...]/A[T, ...]::B
     assert(elems.size() == 1 || elems.size() == 2);
-    if (auto struct_decl = symbol->decls.front()->isa<StructDecl>(); struct_decl && struct_decl->is_tuple_like && struct_decl->fields.empty()) {
-        thorin::Array<const thorin::Def*> ops(0, nullptr);
-        return emitter.world.struct_agg((type)->convert(emitter)->as<thorin::StructType>(), ops, dbg(*this));
+    if (auto struct_decl = symbol->decls.front()->isa<StructDecl>();
+        struct_decl && struct_decl->is_tuple_like && struct_decl->fields.empty()) {
+        return emitter.world.tuple(type->convert(emitter), {}, dbg(*this));
     }
 
     for (size_t i = 0, n = elems.size(); i < n; ++i) {
