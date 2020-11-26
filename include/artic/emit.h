@@ -113,7 +113,7 @@ public:
     void jump(const thorin::Def*, const thorin::Def*, const thorin::Def*);
     const thorin::Def* call(const thorin::Def*, const thorin::Def*, const thorin::Def*);
     const thorin::Def* call(const thorin::Def*, const thorin::Def*, thorin::Lam*, const thorin::Def*);
-    void branch(const thorin::Def*, const thorin::Def*, const thorin::Def*, const thorin::Def*);
+    void branch(const thorin::Def*, const thorin::Def*, const thorin::Def*, const thorin::Def* = nullptr);
 
     const thorin::Def* alloc(const thorin::Def*, const thorin::Def*);
     void store(const thorin::Def*, const thorin::Def*, const thorin::Def* = {});
