@@ -1,0 +1,25 @@
+trait Hash(){
+    fn hash() -> u32;
+}
+
+impl Hash for bool{
+    fn hash()->u32{
+        if(self) {1} else {0}
+    }
+}
+
+impl Hash for u32{
+    fn hash() -> u32 {self}
+}
+
+fn getHashable(i:int) -> Hash{
+  if(i < 0) {false} else{i}
+}
+
+fn getHash(h:Hash)->u32{
+    h.hash();
+}
+
+fn test(){
+    getHash(getHashable(-2))
+}

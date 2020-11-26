@@ -1,0 +1,18 @@
+trait Hash(){
+    fn hash() -> u32;
+}
+
+impl Hash for bool{
+    fn hash()->u32{
+        if(self) {1} else {0}
+    }
+}
+
+impl Hash for u32{
+    fn hash() -> u32 {self}
+}
+
+fn test(){
+    32.hash();
+    true.hash();
+}

@@ -1,0 +1,8 @@
+trait T {
+    fn foo()->u32;
+    fn bar()->u32;
+}
+
+impl T for bool {
+    fn foo()->u32{0};
+}
