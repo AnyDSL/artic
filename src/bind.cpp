@@ -432,6 +432,19 @@ void EnumDecl::bind(NameBinder& binder) {
     binder.pop_scope();
 }
 
+void TraitDecl::bind_head(NameBinder& binder) {
+    binder.insert_symbol(*this);
+}
+
+void TraitDecl::bind(NameBinder& binder) {
+    binder.push_scope();
+    if (type_params) binder.bind(*type_params);
+    for (auto& fnDecl : functs) {
+        binder.bind(*fnDecl);
+    }
+    binder.pop_scope();
+}
+
 void TypeDecl::bind_head(NameBinder& binder) {
     binder.insert_symbol(*this);
 }

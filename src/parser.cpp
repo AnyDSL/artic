@@ -39,6 +39,7 @@ Ptr<ast::Decl> Parser::parse_decl(bool is_top_level) {
         case Token::Fn:     decl = parse_fn_decl();     break;
         case Token::Struct: decl = parse_struct_decl(); break;
         case Token::Enum:   decl = parse_enum_decl();   break;
+        case Token::Trait:  decl = parse_trait_decl();  break;
         case Token::Type:   decl = parse_type_decl();   break;
         case Token::Static: decl = parse_static_decl(); break;
         case Token::Mod:    decl = parse_mod_decl();    break;
@@ -176,6 +177,28 @@ Ptr<ast::EnumDecl> Parser::parse_enum_decl() {
         options.emplace_back(parse_option_decl());
     });
     return make_ptr<ast::EnumDecl>(tracker(), std::move(id), std::move(type_params), std::move(options));
+}
+
+Ptr<ast::TraitDecl> Parser::parse_trait_decl(){
+    Tracker tracker(this);
+
+    eat(Token::Trait);
+    auto id = parse_id();
+
+    Ptr<ast::TypeParamList> type_params;
+    if (ahead().tag() == Token::LBracket)
+        type_params = parse_type_params();
+
+    PtrVector<ast::FnDecl> functs;
+    if(ahead().tag() == Token::LBrace){
+        eat(Token::LBrace);
+        while(ahead().tag() != Token::RBrace){
+            functs.emplace_back(parse_fn_decl());
+        }
+        eat(Token::RBrace);
+    }
+    return make_ptr<ast::TraitDecl>(tracker(), std::move(id), std::move(type_params), std::move(functs));
+
 }
 
 Ptr<ast::TypeDecl> Parser::parse_type_decl() {

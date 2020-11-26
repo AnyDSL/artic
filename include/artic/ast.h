@@ -1328,6 +1328,30 @@ struct EnumDecl : public NamedDecl {
     void print(Printer&) const override;
 };
 
+/// Trait declaration.
+struct TraitDecl : public NamedDecl {
+    Ptr<TypeParamList> type_params;
+    PtrVector<FnDecl> functs;
+
+    TraitDecl(
+            const Loc& loc,
+            Identifier&& id,
+            Ptr<TypeParamList>&& type_params,
+            PtrVector<FnDecl>&& functs)
+            : NamedDecl(loc, std::move(id))
+            , functs(std::move(functs))
+            , type_params(std::move(type_params))
+            {}
+
+
+            const thorin::Def* emit(Emitter&) const override;
+            const artic::Type* infer(TypeChecker&) override;
+            const artic::Type* check(TypeChecker&, const artic::Type*) override;
+            void bind_head(NameBinder&) override;
+            void bind(NameBinder&) override;
+            void print(Printer&) const override;
+        };
+
 /// Type alias declaration.
 struct TypeDecl : public NamedDecl {
     Ptr<TypeParamList> type_params;

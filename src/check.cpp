@@ -1441,6 +1441,14 @@ const artic::Type* EnumDecl::infer(TypeChecker& checker) {
     return enum_type;
 }
 
+const artic::Type* TraitDecl::infer(TypeChecker& checker) {
+    return nullptr; //todo
+}
+
+const artic::Type* TraitDecl::check(TypeChecker& checker, const artic::Type* type) {
+    return nullptr; //todo
+}
+
 const artic::Type* TypeDecl::infer(TypeChecker& checker) {
     if (!checker.enter_decl(this))
         return checker.type_table.type_error();
