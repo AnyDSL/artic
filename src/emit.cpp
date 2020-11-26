@@ -1031,9 +1031,9 @@ const thorin::Def* ProjExpr::emit(Emitter& emitter) const {
 
 const thorin::Def* IfExpr::emit(Emitter& emitter) const {
     // This can happen if both branches call a continuation.
-    thorin::Continuation *join = nullptr;
-    if (!type->isa<artic::NoRetType>())
-        join = emitter.basic_block_with_mem(type->convert(emitter), debug_info(*this, cond ? "if_join" : "iflet_join"));
+    auto join = !type->isa<artic::NoRetType>()
+        ? emitter.basic_block_with_mem(type->convert(emitter), debug_info(*this, cond ? "if_join" : "iflet_join"))
+        : nullptr;
 
     if (cond) {
         auto join_true = emitter.basic_block_with_mem(debug_info(*this, "join_true"));
