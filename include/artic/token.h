@@ -27,7 +27,9 @@ namespace artic {
     f(Continue, "continue") \
     f(Return, "return") \
     f(Struct, "struct") \
-    f(Enum, "enum") \
+    f(Enum, "enum")   \
+    f(Impl, "impl")   \
+    f(Trait, "trait")   \
     f(Type, "type") \
     f(Static, "static") \
     f(Mod, "mod") \
