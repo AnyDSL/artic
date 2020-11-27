@@ -892,7 +892,7 @@ const thorin::Def* RecordExpr::emit(Emitter& emitter) const {
                 ops[i] = emitter.emit(*struct_type->decl.fields[i]->init);
             }
         }
-        auto agg = emitter.world.sigma(
+        auto agg = emitter.world.tuple(
             type->type->convert(emitter)->as<thorin::Sigma>(),
             ops, emitter.dbg(*this));
         if (auto enum_type = this->Node::type->isa<artic::EnumType>()) {
