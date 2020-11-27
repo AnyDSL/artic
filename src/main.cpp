@@ -11,7 +11,7 @@
 
 #include <thorin/world.h>
 #include <thorin/be/c.h>
-#include <thorin/util/log.h>
+#include <thorin/pass/optimize.h>
 #ifdef ENABLE_LLVM
 #include <thorin/be/llvm/llvm.h>
 #endif
@@ -95,7 +95,7 @@ struct ProgramOptions {
     unsigned opt_level = 0;
     size_t max_errors = 0;
     size_t tab_width = 2;
-    thorin::Log::Level log_level = thorin::Log::Error;
+    thorin::LogLevel log_level = thorin::LogLevel::Error;
 
     bool matches(const char* arg, const char* opt) {
         return !strcmp(arg, opt);
@@ -159,15 +159,15 @@ struct ProgramOptions {
                     i++;
                     using namespace std::string_literals;
                     if (argv[i] == "debug"s)
-                        log_level = thorin::Log::Debug;
+                        log_level = thorin::LogLevel::Debug;
                     else if (argv[i] == "verbose"s)
-                        log_level = thorin::Log::Verbose;
+                        log_level = thorin::LogLevel::Verbose;
                     else if (argv[i] == "info"s)
-                        log_level = thorin::Log::Info;
+                        log_level = thorin::LogLevel::Info;
                     else if (argv[i] == "warn"s)
-                        log_level = thorin::Log::Warn;
+                        log_level = thorin::LogLevel::Warn;
                     else if (argv[i] == "error"s)
-                        log_level = thorin::Log::Error;
+                        log_level = thorin::LogLevel::Error;
                     else {
                         log::error("unknown log level '{}'", argv[i]);
                         return false;
@@ -295,9 +295,9 @@ int main(int argc, char** argv) {
         return EXIT_FAILURE;
 
     if (opts.opt_level == 1)
-        world.cleanup();
+        cleanup(world);
     if (opts.opt_level > 1 || opts.emit_llvm)
-        world.opt();
+        optimize(world);
     if (opts.emit_thorin)
         world.dump();
     if (opts.emit_c_int) {
@@ -305,8 +305,10 @@ int main(int argc, char** argv) {
         std::ofstream file(name);
         if (!file)
             log::error("cannot open '{}' for writing", name);
+#if 0
         else
             thorin::emit_c_int(world, file);
+#endif
     }
 #ifdef ENABLE_LLVM
     if (opts.emit_llvm) {
@@ -321,12 +323,14 @@ int main(int argc, char** argv) {
                     cg->emit(file, opts.opt_level, opts.debug);
             }
         };
+#if 0
         emit_to_file(backends.cpu_cg.get(),    ".ll");
         emit_to_file(backends.cuda_cg.get(),   ".cu");
         emit_to_file(backends.nvvm_cg.get(),   ".nvvm");
         emit_to_file(backends.opencl_cg.get(), ".cl");
         emit_to_file(backends.amdgpu_cg.get(), ".amdgpu");
         emit_to_file(backends.hls_cg.get(),    ".hls");
+#endif
     }
 #endif
     return EXIT_SUCCESS;

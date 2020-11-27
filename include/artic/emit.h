@@ -9,6 +9,7 @@
 #include "artic/log.h"
 #include "artic/hash.h"
 
+#include <thorin/lam.h>
 #include <thorin/world.h>
 
 namespace artic {
@@ -131,6 +132,7 @@ public:
     const thorin::Def* builtin(const ast::FnDecl&, thorin::Lam*);
 
     const thorin::Def* dbg(const std::string& name, Loc loc);
+    const thorin::Def* dbg(const std::string& name);
     const thorin::Def* dbg(const ast::NamedDecl& decl);
     const thorin::Def* dbg(const ast::Node& node, const std::string& name = "");
 };
