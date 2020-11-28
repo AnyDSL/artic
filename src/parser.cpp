@@ -192,10 +192,28 @@ Ptr<ast::TraitDecl> Parser::parse_trait_decl(){
     PtrVector<ast::FnDecl> functs;
     if(ahead().tag() == Token::LBrace){
         eat(Token::LBrace);
-        while(ahead().tag() != Token::RBrace){
-            functs.emplace_back(parse_fn_decl());
+        while(ahead().tag() != Token::RBrace && ahead().tag() != Token::End){
+            if(ahead().tag() == Token::Fn)
+                functs.emplace_back(parse_fn_decl());
+            else {
+                error(ahead().loc(), "expected function declaration got '{}'", ahead().string());
+                while(
+                        ahead().tag() != Token::Fn &&
+                        ahead().tag() != Token::RBrace &&
+                        ahead().tag() != Token::End
+                        ) {
+                    next();
+                    std::cout << ahead().string()<<std::endl;
+                }
+            }
+
         }
-        eat(Token::RBrace);
+        if(ahead().tag() == Token::RBrace)
+            eat(Token::RBrace);
+        else {
+            error(ahead().loc(), "expected '}' but got EOF");
+
+        }
     }
     return make_ptr<ast::TraitDecl>(tracker(), std::move(id), std::move(type_params), std::move(functs));
 
