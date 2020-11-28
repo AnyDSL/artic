@@ -12,6 +12,7 @@
 #include <thorin/world.h>
 #include <thorin/be/c.h>
 #include <thorin/pass/optimize.h>
+#include <thorin/rewrite.h>
 #ifdef ENABLE_LLVM
 #include <thorin/be/llvm/llvm.h>
 #endif
