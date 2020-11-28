@@ -11,7 +11,6 @@ using thorin::operator""_u64;
 
 namespace artic {
 
-#if 0
 /// Pattern matching compiler inspired from
 /// "Compiling Pattern Matching to Good Decision Trees",
 /// by Luc Maranget.
@@ -284,11 +283,8 @@ private:
                 remove_col(row.first, col);
                 for (auto& ctor : ctors) {
                     ctor.second.push_back(row);
-                    if (enum_type) {
-                        auto index = thorin::primlit_value<uint64_t>(ctor.first);
-                        if (!is_unit_type(enum_type->member_type(index)))
-                            ctor.second.back().first.push_back(nullptr);
-                    }
+                    if (enum_type && !is_unit_type(enum_type->member_type(thorin::as_lit(ctor.first))))
+                        ctor.second.back().first.push_back(nullptr);
                 }
                 wildcards.emplace_back(std::move(row));
             } else {
@@ -315,16 +311,16 @@ private:
             remove_col(values, col);
             for (auto& ctor : ctors) {
                 auto _ = emitter.save_state();
-                emitter.enter(thorin::is_allset(ctor.first) ? match_true : match_false);
+                emitter.enter(thorin::as_lit(ctor.first) ? match_true : match_false);
                 PtrnCompiler(emitter, node, expr, std::move(ctor.second), std::vector<Value>(values), matched_values).compile();
             }
             if (!no_default) {
-                emitter.enter(thorin::is_allset(ctors.begin()->first) ? match_false : match_true);
+                emitter.enter(thorin::as_lit(ctors.begin()->first) ? match_false : match_true);
                 PtrnCompiler(emitter, node, expr, std::move(wildcards), std::move(values), matched_values).compile();
             }
         } else {
             assert(enum_type || is_int_type(values[col].second));
-            thorin::Array<thorin::Continuation*> targets(ctors.size());
+            thorin::Array<thorin::Lam*> targets(ctors.size());
             thorin::Array<const thorin::Def*> defs(ctors.size());
             auto otherwise = emitter.basic_block(emitter.dbg(node, "match_otherwise"));
 
@@ -335,15 +331,18 @@ private:
                 count++;
             }
 
-            if (emitter.state.cont) {
+            if (emitter.state.bb) {
                 auto match_value = enum_type
-                   ? emitter.world.variant_index(values[col].first, emitter.dbg(node, "variant_index"))
+                   ? emitter.world.which(values[col].first, emitter.dbg(node, "which"))
                    : values[col].first;
-                emitter.state.cont->match(
+                // TODO either use the match node and build patterns or just emit an if/else sequence
+                /*
+                emitter.state.bb->match(
                     match_value, otherwise,
                     no_default ? defs.skip_back() : defs.ref(),
                     no_default ? targets.skip_back() : targets.ref(),
                     emitter.dbg(node));
+                */
             }
 
             auto col_value = values[col].first;
@@ -356,13 +355,13 @@ private:
 
                 auto new_values = values;
                 if (enum_type) {
-                    auto index = thorin::primlit_value<uint64_t>(defs[i]);
+                    auto index = thorin::as_lit(defs[i]);
                     auto type  = type_app ? type_app->member_type(index) : enum_type->member_type(index);
-                    auto value = emitter.world.variant_extract(col_value, index);
+                    auto value = emitter.world.extract(col_value, index);
                     // If the constructor refers to an option that has a parameter,
                     // we need to extract it and add it to the values.
                     if (!is_unit_type(type))
-                        new_values.emplace_back(emitter.world.cast(type->convert(emitter), value), type);
+                        new_values.emplace_back(value, type);
                 }
 
                 PtrnCompiler(emitter, node, expr, std::move(rows), std::move(new_values), matched_values).compile();
@@ -379,17 +378,16 @@ private:
 };
 
 const thorin::Def* PtrnCompiler::MatchCase::emit(Emitter& emitter) {
-    thorin::Array<const thorin::Type*> param_types(bound_ptrns.size());
+    thorin::Array<const thorin::Def*> param_types(bound_ptrns.size());
     for (size_t i = 0, n = bound_ptrns.size(); i < n; ++i)
         param_types[i] = bound_ptrns[i]->type->convert(emitter);
-    auto cont = emitter.basic_block_with_mem(emitter.world.sigma(param_types), emitter.dbg(*node, ""));
+    auto lam = emitter.basic_block_with_mem(emitter.world.sigma(param_types), emitter.dbg(*node, ""));
     auto _ = emitter.save_state();
-    emitter.enter(cont);
-    auto tuple = emitter.tuple_from_params(cont);
+    emitter.enter(lam);
     for (size_t i = 0, n = bound_ptrns.size(); i < n; ++i)
-        emitter.bind(*bound_ptrns[i], n == 1 ? tuple : emitter.world.extract(tuple, i));
-    emitter.jump(target, emitter.emit(*expr), emitter.dbg(*node), nullptr);
-    return cont;
+        emitter.bind(*bound_ptrns[i], n == 1 ? lam->param(1) : emitter.world.extract(lam->param(1), i));
+    emitter.jump(target, emitter.emit(*expr), emitter.dbg(*node));
+    return lam;
 }
 
 void PtrnCompiler::emit(
@@ -447,7 +445,6 @@ void PtrnCompiler::dump() const {
     p << ')' << p.unindent() << p.endl();
 }
 #endif // GCOV_EXCL_STOP
-#endif
 
 const thorin::Def* Emitter::dbg(const std::string& name, Loc loc) {
     return world.dbg(thorin::Debug{name, {loc.file->c_str(), {uint32_t(loc.begin.row), uint32_t(loc.begin.col)},
@@ -484,15 +481,12 @@ thorin::Lam* Emitter::basic_block_with_mem(const thorin::Def* param, const thori
     return world.nom_lam(world.cn_mem(param), dbg);
 }
 
-const thorin::Def* Emitter::ctor_index(const ast::Ptrn& /*ptrn*/) {
-#if 0
+const thorin::Def* Emitter::ctor_index(const ast::Ptrn& ptrn) {
     if (auto record_ptrn = ptrn.isa<ast::RecordPtrn>())
-        return world.literal_qu64(record_ptrn->variant_index, dbg(ptrn));
+        return world.lit_int_width(64, record_ptrn->variant_index, dbg(ptrn));
     return ptrn.isa<ast::LiteralPtrn>()
         ? emit(ptrn, ptrn.as<ast::LiteralPtrn>()->lit)
-        : world.literal_qu64(ptrn.as<ast::CtorPtrn>()->variant_index, dbg(ptrn));
-#endif
-    return nullptr;
+        : world.lit_int_width(64, ptrn.as<ast::CtorPtrn>()->variant_index, dbg(ptrn));
 }
 
 void Emitter::redundant_case(const ast::CaseExpr& case_) {
@@ -695,6 +689,10 @@ const thorin::Def* Emitter::emit(const ast::Node& node, const Literal& lit) {
     }
 }
 
+const thorin::Def* Emitter::variant(const thorin::Union* type, const thorin::Def* value, size_t index) {
+    return world.insert(world.bot(type), index, value);
+}
+
 const thorin::Def* Emitter::builtin(const ast::FnDecl& fn_decl, thorin::Lam* lam) {
     lam->set_filter(world.lit_true());
     if (lam->debug().name == "alignof") {
@@ -785,7 +783,6 @@ const thorin::Def* Path::emit(Emitter& emitter) const {
             emitter.jump(cont->params().back(), struct_value, emitter.dbg(*this));
             return emitter.struct_ctors[elems[i].type] = cont;
         } else if (auto [type_app, enum_type] = match_app<artic::EnumType>(elems[i].type); enum_type) {
-#if 0
             // Find the variant constructor for that enum, if it exists.
             // Remember that the type application (if present) might be polymorphic (i.e. `E[T, U]::A`), and that, thus,
             // we need to replace bound type variables (`T` and `U` in the previous example) to find the constructor in the map.
@@ -801,18 +798,17 @@ const thorin::Def* Path::emit(Emitter& emitter) const {
                 : enum_type->member_type(ctor.index);
             if (is_unit_type(param_type)) {
                 // This is a constructor without parameters
-                return emitter.variant_ctors[ctor] = emitter.world.variant(variant_type, emitter.world.tuple({}), ctor.index);
+                return emitter.variant_ctors[ctor] = emitter.variant(variant_type, emitter.world.tuple({}), ctor.index);
             } else {
                 // This is a constructor with parameters: return a function
                 auto lam = emitter.world.nom_lam(
                     emitter.function_type_with_mem(param_type->convert(emitter), converted_type),
                     emitter.dbg(*enum_type->decl.options[ctor.index]));
-                auto ret_value = emitter.world.variant(variant_type, lam->param(1), ctor.index);
+                auto ret_value = emitter.variant(variant_type, lam->param(1), ctor.index);
                 lam->app(lam->param(2), { lam->param(0_u64), ret_value });
                 lam->set_filter(true);
                 return emitter.variant_ctors[ctor] = lam;
             }
-#endif
         }
     }
 
@@ -1600,18 +1596,16 @@ std::string EnumType::stringify(Emitter& emitter) const {
 }
 
 const thorin::Def* EnumType::convert(Emitter& emitter, const Type* parent) const {
-#if 0
     if (auto it = emitter.types.find(this); !decl.type_params && it != emitter.types.end())
         return it->second;
-    auto type = emitter.world.variant_type(stringify(emitter), decl.options.size());
+    auto type = emitter.world.nom_union(decl.options.size(), emitter.dbg(stringify(emitter)));
     emitter.types[parent] = type;
     for (size_t i = 0, n = decl.options.size(); i < n; ++i) {
         type->set(i, decl.options[i]->type->convert(emitter));
-        type->set_op_name(i, decl.options[i]->id.name);
+        // TODO same here
+        //type->set_op_name(i, decl.options[i]->id.name);
     }
     return type;
-#endif
-    return nullptr;
 }
 
 const thorin::Def* TypeAlias::convert(Emitter&, const Type*) const {
