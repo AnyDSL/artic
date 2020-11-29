@@ -453,6 +453,11 @@ void TraitDecl::bind(NameBinder& binder) {
 
 void TraitImpl::bind(NameBinder& binder) {
     trait_type->bind(binder);
+    binder.push_scope();
+        for(auto& f: functs){
+            f->bind(binder);
+        }
+    binder.pop_scope();
 }
 
 
