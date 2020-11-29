@@ -432,10 +432,8 @@ void EnumDecl::bind(NameBinder& binder) {
     binder.pop_scope();
 }
 
-void TraitBody::bind(NameBinder& binder) {
-    for (auto& fnDecl : functs) {
-        binder.bind(*fnDecl);
-    }
+void TraitFn::bind(NameBinder& binder) {
+    binder.bind(*funct);
 }
 
 
@@ -446,7 +444,9 @@ void TraitDecl::bind_head(NameBinder& binder) {
 void TraitDecl::bind(NameBinder& binder) {
     binder.push_scope();
         if (type_params) binder.bind(*type_params);
-        if (body) binder.bind(*body);
+        for(auto& f: functs){
+            f->bind(binder);
+        }
     binder.pop_scope();
 }
 

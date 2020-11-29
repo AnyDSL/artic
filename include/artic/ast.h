@@ -1328,17 +1328,17 @@ struct EnumDecl : public NamedDecl {
     void print(Printer&) const override;
 };
 
-/// Trait body declaration.
-struct TraitBody : public Decl {
-    PtrVector<FnDecl> functs;
+/// Trait method declaration.
+struct TraitFn : public Decl {
+    Ptr<FnDecl> funct;
 
 
 
-    TraitBody(
+    TraitFn(
             const Loc& loc,
-            PtrVector<FnDecl>&& functs)
+            Ptr<FnDecl>&& funct)
             : Decl(loc)
-            , functs(std::move(functs))
+            , funct(std::move(funct))
             {}
 
             const thorin::Def* emit(Emitter&) const override;
@@ -1352,7 +1352,7 @@ struct TraitBody : public Decl {
 /// Trait declaration.
 struct TraitDecl : public NamedDecl {
     Ptr<TypeParamList> type_params;
-    Ptr<TraitBody> body;
+    PtrVector<TraitFn> functs;
 
 
 
@@ -1360,9 +1360,9 @@ struct TraitDecl : public NamedDecl {
             const Loc& loc,
             Identifier&& id,
             Ptr<TypeParamList>&& type_params,
-            Ptr<TraitBody>&& body)
+            PtrVector<TraitFn>&& functs)
             : NamedDecl(loc, std::move(id))
-            , body(std::move(body))
+            , functs(std::move(functs))
             , type_params(std::move(type_params))
             {}
 
@@ -1380,17 +1380,17 @@ struct TraitDecl : public NamedDecl {
 struct TraitImpl : public Decl {
     Ptr<TypeApp> trait_type;
     Ptr<Type> concrete_type;
-    Ptr<TraitBody> body;
+    PtrVector<TraitFn> functs;
 
     TraitImpl(
             const Loc& loc,
             Ptr<TypeApp>&& trait_type,
             Ptr<Type>&& concrete_type,
-            Ptr<TraitBody>&& body)
+            PtrVector<TraitFn>&& functs)
             : Decl(loc)
             , trait_type(std::move(trait_type))
             , concrete_type(std::move(concrete_type))
-            , body(std::move(body))
+            , functs(std::move(functs))
             {}
 
 

@@ -467,17 +467,15 @@ std::optional<size_t> EnumType::find_member(const std::string_view& name) const 
 }
 
 std::optional<size_t> TraitType::find_member(const std::string_view& name) const {
-    if(!decl.body)
-        return  std::nullopt;
 
     auto it = std::find_if(
-            decl.body->functs.begin(),
-            decl.body->functs.end(),
-            [&name] (auto& o) {
-                return o->id.name == name;
+            decl.functs.begin(),
+            decl.functs.end(),
+            [&name] (auto& f) {
+                return f->funct->id.name == name;
             });
-    return it != decl.body->functs.end()
-        ? std::make_optional(it - decl.body->functs.begin())
+    return it != decl.functs.end()
+        ? std::make_optional(it - decl.functs.begin())
         : std::nullopt;
     }
 
@@ -486,10 +484,7 @@ const Type* EnumType::member_type(size_t i) const {
 }
 
 const Type* TraitType::member_type(size_t i) const {
-    if(decl.body)
-        return decl.body->functs[i]->type;
-    else
-        return nullptr;
+    return decl.functs[i]->type;
 }
 
 size_t EnumType::member_count() const {
@@ -497,10 +492,7 @@ size_t EnumType::member_count() const {
 }
 
 size_t TraitType::member_count() const {
-    if(decl.body)
-        return decl.body->functs.size();
-    else
-        return 0;
+    return decl.functs.size();
 }
 
 // Misc. ---------------------------------------------------------------------------

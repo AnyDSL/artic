@@ -1441,11 +1441,11 @@ const artic::Type* EnumDecl::infer(TypeChecker& checker) {
     return enum_type;
 }
 
-const artic::Type* TraitBody::infer(TypeChecker& checker) {
-    return nullptr; //todo
+const artic::Type* TraitFn::infer(TypeChecker& checker) {
+    return funct->infer(checker);
 }
 
-const artic::Type* TraitBody::check(TypeChecker& checker, const artic::Type* type) {
+const artic::Type* TraitFn::check(TypeChecker& checker, const artic::Type* type) {
     return nullptr; //todo
 }
 
@@ -1457,8 +1457,8 @@ const artic::Type* TraitDecl::infer(TypeChecker& checker) {
     }
     // Set the type before entering the fields
     type = trait_type;
-    if(body)
-        checker.infer(*body);
+    for(auto& f:functs)
+        checker.infer(*f);
     if (!trait_type->is_sized())
         checker.unsized_type(loc, trait_type);
     return trait_type;
