@@ -759,6 +759,10 @@ void EnumType::print(Printer& p) const {
     p << decl.id.name;
 }
 
+void TraitType::print(Printer& p) const {
+    p << decl.id.name;
+}
+
 void TypeAlias::print(Printer& p) const {
     p << decl.id.name;
 }

@@ -478,6 +478,33 @@ private:
     friend class TypeTable;
 };
 
+struct TraitType : public ComplexType {
+    const ast::TraitDecl& decl;
+
+    void print(Printer&) const override;
+    bool equals(const Type*) const override;
+    size_t hash() const override;
+
+    using UserType::convert;
+    const thorin::Type* convert(Emitter&, const Type*) const override;
+    std::string stringify(Emitter&) const override;
+
+    const ast::TypeParamList* type_params() const override {
+        return decl.type_params.get();
+    }
+
+    std::optional<size_t> find_member(const std::string_view&) const override;
+    const Type* member_type(size_t) const override;
+    size_t member_count() const override;
+
+private:
+    TraitType(TypeTable& type_table, const ast::TraitDecl& decl)
+    : ComplexType(type_table), decl(decl)
+    {}
+
+    friend class TypeTable;
+};
+
 struct TypeAlias : public UserType {
     const ast::TypeDecl& decl;
 
@@ -585,6 +612,7 @@ public:
     const ForallType*       forall_type(const ast::FnDecl&);
     const StructType*       struct_type(const ast::RecordDecl&);
     const EnumType*         enum_type(const ast::EnumDecl&);
+    const TraitType*         trait_type(const ast::TraitDecl&);
     const TypeAlias*        type_alias(const ast::TypeDecl&);
 
     /// Creates a type application for structures/enumeration types,

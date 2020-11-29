@@ -84,6 +84,10 @@ bool EnumType::equals(const Type* other) const {
     return other == this;
 }
 
+bool TraitType::equals(const Type* other) const {
+    return other == this;
+}
+
 bool TypeAlias::equals(const Type* other) const {
     return other == this;
 }
@@ -157,6 +161,10 @@ size_t StructType::hash() const {
 }
 
 size_t EnumType::hash() const {
+    return fnv::Hash().combine(&decl);
+}
+
+size_t TraitType::hash() const {
     return fnv::Hash().combine(&decl);
 }
 
@@ -458,12 +466,41 @@ std::optional<size_t> EnumType::find_member(const std::string_view& name) const 
         : std::nullopt;
 }
 
+std::optional<size_t> TraitType::find_member(const std::string_view& name) const {
+    if(!decl.body)
+        return  std::nullopt;
+
+    auto it = std::find_if(
+            decl.body->functs.begin(),
+            decl.body->functs.end(),
+            [&name] (auto& o) {
+                return o->id.name == name;
+            });
+    return it != decl.body->functs.end()
+        ? std::make_optional(it - decl.body->functs.begin())
+        : std::nullopt;
+    }
+
 const Type* EnumType::member_type(size_t i) const {
     return decl.options[i]->type;
 }
 
+const Type* TraitType::member_type(size_t i) const {
+    if(decl.body)
+        return decl.body->functs[i]->type;
+    else
+        return nullptr;
+}
+
 size_t EnumType::member_count() const {
     return decl.options.size();
+}
+
+size_t TraitType::member_count() const {
+    if(decl.body)
+        return decl.body->functs.size();
+    else
+        return 0;
 }
 
 // Misc. ---------------------------------------------------------------------------
@@ -681,6 +718,10 @@ const StructType* TypeTable::struct_type(const ast::RecordDecl& decl) {
 
 const EnumType* TypeTable::enum_type(const ast::EnumDecl& decl) {
     return insert<EnumType>(decl);
+}
+
+const TraitType* TypeTable::trait_type(const ast::TraitDecl& decl) {
+    return insert<TraitType>(decl);
 }
 
 const TypeAlias* TypeTable::type_alias(const ast::TypeDecl& decl) {

@@ -1583,6 +1583,10 @@ std::string EnumType::stringify(Emitter& emitter) const {
         return decl.id.name;
     return stringify_params(emitter, decl.id.name + "_", decl.type_params->params);
 }
+std::string TraitType::stringify(Emitter& emitter) const {
+    //todo
+    return "<<<Not implemented>>>";
+}
 
 const thorin::Type* EnumType::convert(Emitter& emitter, const Type* parent) const {
     if (auto it = emitter.types.find(this); !decl.type_params && it != emitter.types.end())
@@ -1594,6 +1598,11 @@ const thorin::Type* EnumType::convert(Emitter& emitter, const Type* parent) cons
         type->set_op_name(i, decl.options[i]->id.name);
     }
     return type;
+}
+
+const thorin::Type* TraitType::convert(Emitter& emitter, const Type* parent) const {
+    //todo
+    return nullptr;
 }
 
 const thorin::Type* TypeAlias::convert(Emitter&, const Type*) const {

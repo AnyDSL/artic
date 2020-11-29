@@ -1450,7 +1450,18 @@ const artic::Type* TraitBody::check(TypeChecker& checker, const artic::Type* typ
 }
 
 const artic::Type* TraitDecl::infer(TypeChecker& checker) {
-    return nullptr; //todo
+    auto trait_type = checker.type_table.trait_type(*this);
+    if (type_params) {
+        for (auto& param : type_params->params)
+            checker.infer(*param);
+    }
+    // Set the type before entering the fields
+    type = trait_type;
+    if(body)
+        checker.infer(*body);
+    if (!trait_type->is_sized())
+        checker.unsized_type(loc, trait_type);
+    return trait_type;
 }
 
 const artic::Type* TraitDecl::check(TypeChecker& checker, const artic::Type* type) {
