@@ -1370,7 +1370,15 @@ const thorin::Def* EnumDecl::emit(Emitter&) const {
     return nullptr;
 }
 
+const thorin::Def* TraitBody::emit(Emitter&) const {
+    return nullptr;
+}
+
 const thorin::Def* TraitDecl::emit(Emitter&) const {
+    return nullptr;
+}
+
+const thorin::Def* TraitImpl::emit(Emitter&) const {
     return nullptr;
 }
 

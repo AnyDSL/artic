@@ -432,18 +432,30 @@ void EnumDecl::bind(NameBinder& binder) {
     binder.pop_scope();
 }
 
+void TraitBody::bind(NameBinder& binder) {
+    for (auto& fnDecl : functs) {
+        binder.bind(*fnDecl);
+    }
+}
+
+
 void TraitDecl::bind_head(NameBinder& binder) {
     binder.insert_symbol(*this);
 }
 
 void TraitDecl::bind(NameBinder& binder) {
     binder.push_scope();
-    if (type_params) binder.bind(*type_params);
-    for (auto& fnDecl : functs) {
-        binder.bind(*fnDecl);
-    }
+        if (type_params) binder.bind(*type_params);
+        if (body) binder.bind(*body);
     binder.pop_scope();
 }
+
+
+void TraitImpl::bind(NameBinder& binder) {
+    //todo
+
+}
+
 
 void TypeDecl::bind_head(NameBinder& binder) {
     binder.insert_symbol(*this);

@@ -1441,11 +1441,27 @@ const artic::Type* EnumDecl::infer(TypeChecker& checker) {
     return enum_type;
 }
 
+const artic::Type* TraitBody::infer(TypeChecker& checker) {
+    return nullptr; //todo
+}
+
+const artic::Type* TraitBody::check(TypeChecker& checker, const artic::Type* type) {
+    return nullptr; //todo
+}
+
 const artic::Type* TraitDecl::infer(TypeChecker& checker) {
     return nullptr; //todo
 }
 
 const artic::Type* TraitDecl::check(TypeChecker& checker, const artic::Type* type) {
+    return nullptr; //todo
+}
+
+const artic::Type* TraitImpl::infer(TypeChecker& checker) {
+    return nullptr; //todo
+}
+
+const artic::Type* TraitImpl::check(TypeChecker& checker, const artic::Type* type) {
     return nullptr; //todo
 }
 

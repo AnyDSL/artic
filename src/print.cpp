@@ -541,20 +541,34 @@ void EnumDecl::print(Printer& p) const {
     p << '}';
 }
 
-void TraitDecl::print(Printer& p) const {
-    if (attrs) attrs->print(p);
-    p << log::keyword_style("trait") << ' ' << id.name;
-    if (type_params) type_params->print(p);
+void TraitBody::print(Printer& p) const {
     p << " {";
     if (!functs.empty()) {
         p <<p.indent();
-         for(auto& f: functs){
-             p<<p.endl();
+        for(auto& f: functs){
+            p<<p.endl();
             f->print(p);
         }
         p << p.unindent()<<p.endl();
     }
     p << '}';
+}
+
+
+void TraitDecl::print(Printer& p) const {
+    if (attrs) attrs->print(p);
+    p << log::keyword_style("trait") << ' ' << id.name;
+    if (type_params) type_params->print(p);
+    if(body) body->print(p);
+}
+
+void TraitImpl::print(Printer& p) const {
+    if (attrs) attrs->print(p);
+    p << log::keyword_style("impl") << ' ' ;
+    trait_type->print(p);
+    p << ' ' << log::keyword_style("for") << ' ';
+    concrete_type->print(p);
+    if(body) body->print(p);
 }
 
 void TypeDecl::print(Printer& p) const {

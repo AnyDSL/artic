@@ -1328,18 +1328,41 @@ struct EnumDecl : public NamedDecl {
     void print(Printer&) const override;
 };
 
+/// Trait body declaration.
+struct TraitBody : public Decl {
+    PtrVector<FnDecl> functs;
+
+
+
+    TraitBody(
+            const Loc& loc,
+            PtrVector<FnDecl>&& functs)
+            : Decl(loc)
+            , functs(std::move(functs))
+            {}
+
+            const thorin::Def* emit(Emitter&) const override;
+            const artic::Type* infer(TypeChecker&) override;
+            const artic::Type* check(TypeChecker&, const artic::Type*) override;
+            void bind(NameBinder&) override;
+            void print(Printer&) const override;
+
+        };
+
 /// Trait declaration.
 struct TraitDecl : public NamedDecl {
     Ptr<TypeParamList> type_params;
-    PtrVector<FnDecl> functs;
+    Ptr<TraitBody> body;
+
+
 
     TraitDecl(
             const Loc& loc,
             Identifier&& id,
             Ptr<TypeParamList>&& type_params,
-            PtrVector<FnDecl>&& functs)
+            Ptr<TraitBody>&& body)
             : NamedDecl(loc, std::move(id))
-            , functs(std::move(functs))
+            , body(std::move(body))
             , type_params(std::move(type_params))
             {}
 
@@ -1348,6 +1371,32 @@ struct TraitDecl : public NamedDecl {
             const artic::Type* infer(TypeChecker&) override;
             const artic::Type* check(TypeChecker&, const artic::Type*) override;
             void bind_head(NameBinder&) override;
+            void bind(NameBinder&) override;
+            void print(Printer&) const override;
+
+        };
+
+/// Trait implementation.
+struct TraitImpl : public Decl {
+    Ptr<TypeApp> trait_type;
+    Ptr<Type> concrete_type;
+    Ptr<TraitBody> body;
+
+    TraitImpl(
+            const Loc& loc,
+            Ptr<TypeApp>&& trait_type,
+            Ptr<Type>&& concrete_type,
+            Ptr<TraitBody>&& body)
+            : Decl(loc)
+            , trait_type(std::move(trait_type))
+            , concrete_type(std::move(concrete_type))
+            , body(std::move(body))
+            {}
+
+
+            const thorin::Def* emit(Emitter&) const override;
+            const artic::Type* infer(TypeChecker&) override;
+            const artic::Type* check(TypeChecker&, const artic::Type*) override;
             void bind(NameBinder&) override;
             void print(Printer&) const override;
         };

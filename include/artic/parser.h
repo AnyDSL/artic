@@ -34,6 +34,8 @@ private:
     Ptr<ast::TraitDecl>     parse_trait_decl();
     Ptr<ast::StaticDecl>    parse_static_decl();
     Ptr<ast::TypeDecl>      parse_type_decl();
+    Ptr<ast::TraitImpl>     parse_trait_impl();
+    Ptr<ast::TraitBody>     parse_trait_body();
     Ptr<ast::TypeParam>     parse_type_param();
     Ptr<ast::TypeParamList> parse_type_params();
     Ptr<ast::ModDecl>       parse_mod_decl();
