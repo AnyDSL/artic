@@ -452,8 +452,7 @@ void TraitDecl::bind(NameBinder& binder) {
 
 
 void TraitImpl::bind(NameBinder& binder) {
-    //todo
-
+    trait_type->bind(binder);
 }
 
 
