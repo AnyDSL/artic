@@ -281,6 +281,46 @@ const Type* TypeChecker::check_fields(
     return type_app ? type_app->as<Type>() : struct_type;
 }
 
+template <typename Fns>
+const Type* TypeChecker::check_trait_fns(
+        const Loc& loc,
+        const TraitType* trait_type,
+        const TypeApp* type_app,
+        const Fns& fns,
+        const std::string_view& msg) {
+        std::vector<bool> defined(trait_type->decl.functs.size(), false);
+        std::vector<bool> seen(trait_type->decl.functs.size(), false);
+        for (size_t i = 0, n = fns.size(); i < n; ++i) {
+            auto index = trait_type->find_member(fns[i]->funct->id.name);
+
+            if (!index) {
+                return unknown_member(fns[i]->loc, trait_type, fns[i]->funct->id.name);
+            }
+            if (seen[*index]) {
+                error(loc, "function '{}' specified more than once", fns[i]->funct->id.name);
+                return type_table.type_error();
+            }
+            seen[*index] = true;
+            defined[*index] = fns[i]->funct->fn->body != nullptr;
+            fns[i]->index = *index;
+            check(*fns[i], type_app ? type_app->member_type(*index) : trait_type->member_type(*index));
+        }
+        //Add default definitions
+        for(size_t i =0; i < trait_type->decl.functs.size(); i++){
+            auto index = trait_type->find_member(trait_type->decl.functs[i]->funct->id.name);
+            defined[*index] = defined[*index] || trait_type->decl.functs[i]->funct->fn->body != nullptr;
+        }
+
+        // Check that all functions have ben defined
+        for (size_t i = 0, n = seen.size(); i < n; ++i) {
+            if (!defined[i]) {
+                error(loc, "missing function definition '{}' in trait {}", trait_type->decl.functs[i]->funct->id.name, msg);
+            }
+        }
+
+        return type_app ? type_app->as<Type>() : trait_type;
+    }
+
 void TypeChecker::check_block(const Loc& loc, const PtrVector<ast::Stmt>& stmts, bool last_semi) {
     assert(!stmts.empty());
     // Make sure there is no unreachable code and warn about statements with no effect
@@ -1446,7 +1486,7 @@ const artic::Type* TraitFn::infer(TypeChecker& checker) {
 }
 
 const artic::Type* TraitFn::check(TypeChecker& checker, const artic::Type* type) {
-    return nullptr; //todo
+    return funct->fn->check(checker, type);
 }
 
 const artic::Type* TraitDecl::infer(TypeChecker& checker) {
@@ -1464,16 +1504,14 @@ const artic::Type* TraitDecl::infer(TypeChecker& checker) {
     return trait_type;
 }
 
-const artic::Type* TraitDecl::check(TypeChecker& checker, const artic::Type* type) {
-    return nullptr; //todo
-}
-
 const artic::Type* TraitImpl::infer(TypeChecker& checker) {
-    return nullptr; //todo
-}
+    auto [type_app, trait_type] = match_app<artic::TraitType>(checker.infer(*this->trait_type));
+    if(!trait_type){
+       return checker.type_expected(loc, this->trait_type->type, "trait");
+    }
+    checker.check_trait_fns(loc, trait_type, type_app, functs, this->trait_type->path.elems.front().id.name );
+    return trait_type;
 
-const artic::Type* TraitImpl::check(TypeChecker& checker, const artic::Type* type) {
-    return nullptr; //todo
 }
 
 const artic::Type* TypeDecl::infer(TypeChecker& checker) {

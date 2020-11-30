@@ -67,6 +67,14 @@ public:
         const std::string_view&,
         bool = false, bool = false);
 
+    template <typename Fns>
+    const Type* check_trait_fns(
+            const Loc& loc,
+            const TraitType* trait_type,
+            const TypeApp* type_app,
+            const Fns& fns,
+            const std::string_view& msg);
+
     void check_block(const Loc&, const PtrVector<ast::Stmt>&, bool);
     bool check_attrs(const ast::NamedAttr&, const std::vector<AttrType>&);
     bool check_filter(const ast::Expr&);

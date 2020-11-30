@@ -1332,6 +1332,7 @@ struct EnumDecl : public NamedDecl {
 struct TraitFn : public Decl {
     Ptr<FnDecl> funct;
 
+    size_t index;
 
 
     TraitFn(
@@ -1369,7 +1370,6 @@ struct TraitDecl : public NamedDecl {
 
             const thorin::Def* emit(Emitter&) const override;
             const artic::Type* infer(TypeChecker&) override;
-            const artic::Type* check(TypeChecker&, const artic::Type*) override;
             void bind_head(NameBinder&) override;
             void bind(NameBinder&) override;
             void print(Printer&) const override;
@@ -1396,7 +1396,6 @@ struct TraitImpl : public Decl {
 
             const thorin::Def* emit(Emitter&) const override;
             const artic::Type* infer(TypeChecker&) override;
-            const artic::Type* check(TypeChecker&, const artic::Type*) override;
             void bind(NameBinder&) override;
             void print(Printer&) const override;
         };
