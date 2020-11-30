@@ -1139,8 +1139,8 @@ const thorin::Def* UnaryExpr::emit(Emitter& emitter) const {
             // The operand must be a pointer, so we return it as a reference
             res = op;
             break;
-        case Not:    res = emitter.world.op_neg(               op, emitter.dbg(*this)); break;
-        case Minus:  res = emitter.world.op_wminus(0,          op, emitter.dbg(*this)); break;
+        case Not:    res = emitter.world.op_negate(            op, emitter.dbg(*this)); break;
+        case Minus:  res = emitter.world.op_wminus(0_u64,      op, emitter.dbg(*this)); break;
         case Known:  res = emitter.world.op(thorin::PE::known, op, emitter.dbg(*this)); break;
         case Forget: res = emitter.world.op(thorin::PE::hlt,   op, emitter.dbg(*this)); break;
         case PreInc:
