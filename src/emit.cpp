@@ -964,12 +964,8 @@ const thorin::Def* CallExpr::emit(Emitter& emitter) const {
 }
 
 const thorin::Def* ProjExpr::emit(Emitter& emitter) const {
-    if (type->isa<RefType>()) {
-        return emitter.world.op_lea_unsafe(
-            emitter.emit(*expr),
-            emitter.world.lit_int_width(index, {}),
-            emitter.dbg(*this));
-    }
+    if (type->isa<RefType>())
+        return emitter.world.op_lea_unsafe(emitter.emit(*expr), index, emitter.dbg(*this));
     return emitter.world.extract(emitter.emit(*expr), index, emitter.dbg(*this));
 }
 
