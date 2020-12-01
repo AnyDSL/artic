@@ -7,6 +7,8 @@
 #include "artic/bind.h"
 #include "artic/check.h"
 
+#include <thorin/error.h>
+
 using thorin::operator""_u64;
 
 namespace artic {
@@ -381,7 +383,7 @@ const thorin::Def* PtrnCompiler::MatchCase::emit(Emitter& emitter) {
     thorin::Array<const thorin::Def*> param_types(bound_ptrns.size());
     for (size_t i = 0, n = bound_ptrns.size(); i < n; ++i)
         param_types[i] = bound_ptrns[i]->type->convert(emitter);
-    auto lam = emitter.basic_block_with_mem(emitter.world.sigma(param_types), emitter.dbg(*node, ""));
+    auto lam = emitter.basic_block(emitter.world.sigma(param_types), emitter.dbg(*node, ""));
     auto _ = emitter.save_state();
     emitter.enter(lam);
     for (size_t i = 0, n = bound_ptrns.size(); i < n; ++i)
@@ -470,14 +472,10 @@ bool Emitter::run(const ast::ModDecl& mod) {
 }
 
 thorin::Lam* Emitter::basic_block(const thorin::Def* dbg) {
-    return world.nom_lam(world.cn(), dbg);
-}
-
-thorin::Lam* Emitter::basic_block_with_mem(const thorin::Def* dbg) {
     return world.nom_lam(world.cn({ world.type_mem() }), dbg);
 }
 
-thorin::Lam* Emitter::basic_block_with_mem(const thorin::Def* param, const thorin::Def* dbg) {
+thorin::Lam* Emitter::basic_block(const thorin::Def* param, const thorin::Def* dbg) {
     return world.nom_lam(world.cn_mem(param), dbg);
 }
 
@@ -972,12 +970,12 @@ const thorin::Def* ProjExpr::emit(Emitter& emitter) const {
 const thorin::Def* IfExpr::emit(Emitter& emitter) const {
     // This can happen if both branches call a continuation.
     auto join = !type->isa<artic::NoRetType>()
-        ? emitter.basic_block_with_mem(type->convert(emitter), emitter.dbg(*this, cond ? "if_join" : "iflet_join"))
+        ? emitter.basic_block(type->convert(emitter), emitter.dbg(*this, cond ? "if_join" : "iflet_join"))
         : nullptr;
 
     if (cond) {
-        auto join_true = emitter.basic_block_with_mem(emitter.dbg(*this, "join_true"));
-        auto join_false = emitter.basic_block_with_mem(emitter.dbg(*this, "join_false"));
+        auto join_true = emitter.basic_block(emitter.dbg(*this, "join_true"));
+        auto join_false = emitter.basic_block(emitter.dbg(*this, "join_false"));
         cond->emit_branch(emitter, join_true, join_false);
 
         emitter.enter(join_true);
@@ -1013,7 +1011,7 @@ const thorin::Def* IfExpr::emit(Emitter& emitter) const {
 }
 
 const thorin::Def* MatchExpr::emit(Emitter& emitter) const {
-    auto join = emitter.basic_block_with_mem(type->convert(emitter), emitter.dbg(*this, "match_join"));
+    auto join = emitter.basic_block(type->convert(emitter), emitter.dbg(*this, "match_join"));
     std::vector<PtrnCompiler::MatchCase> match_cases;
     for (auto& case_ : this->cases) {
         auto match_case = PtrnCompiler::MatchCase(case_->ptrn.get(), case_->expr.get(), case_.get());
@@ -1031,10 +1029,10 @@ const thorin::Def* CaseExpr::emit(Emitter& emitter) const {
 }
 
 const thorin::Def* WhileExpr::emit(Emitter& emitter) const {
-    auto while_head = emitter.basic_block_with_mem(emitter.dbg(*this, "while_head"));
-    auto while_exit = emitter.basic_block_with_mem(emitter.dbg(*this, "while_exit"));
-    auto while_continue = emitter.basic_block_with_mem(emitter.world.sigma(), emitter.dbg(*this, "while_continue"));
-    auto while_break    = emitter.basic_block_with_mem(emitter.world.sigma(), emitter.dbg(*this, "while_break"));
+    auto while_head = emitter.basic_block(emitter.dbg(*this, "while_head"));
+    auto while_exit = emitter.basic_block(emitter.dbg(*this, "while_exit"));
+    auto while_continue = emitter.basic_block(emitter.world.sigma(), emitter.dbg(*this, "while_continue"));
+    auto while_break    = emitter.basic_block(emitter.world.sigma(), emitter.dbg(*this, "while_break"));
     emitter.jump(while_head, nullptr);
     emitter.enter(while_continue);
     emitter.jump(while_head, nullptr);
@@ -1044,7 +1042,7 @@ const thorin::Def* WhileExpr::emit(Emitter& emitter) const {
     continue_ = while_continue;
     emitter.enter(while_head);
     if (cond) {
-        auto while_body = emitter.basic_block_with_mem(emitter.dbg(*this, "while_body"));
+        auto while_body = emitter.basic_block(emitter.dbg(*this, "while_body"));
         cond->emit_branch(emitter, while_body, while_exit);
         emitter.enter(while_body);
         emitter.emit(*body);
@@ -1077,7 +1075,7 @@ const thorin::Def* ForExpr::emit(Emitter& emitter) const {
     {
         auto _ = emitter.save_state();
         body_lam = emitter.world.nom_lam(body_fn->type->convert(emitter)->as<thorin::Pi>(), emitter.dbg(*body_fn, "for_body"));
-        break_ = emitter.basic_block_with_mem(type->convert(emitter), emitter.dbg(*this, "for_break"));
+        break_ = emitter.basic_block(type->convert(emitter), emitter.dbg(*this, "for_break"));
         continue_ = body_lam->param(2);
         continue_->set_name("for_continue");
         emitter.enter(body_lam);
@@ -1196,9 +1194,9 @@ void BinaryExpr::emit_branch(
 
 const thorin::Def* BinaryExpr::emit(Emitter& emitter) const {
     if (is_logic()) {
-        auto join = emitter.basic_block_with_mem(emitter.world.type_bool(), emitter.dbg(*this, "join"));
-        auto join_true  = emitter.basic_block_with_mem(emitter.dbg(*this, "join_true"));
-        auto join_false = emitter.basic_block_with_mem(emitter.dbg(*this, "join_false"));
+        auto join = emitter.basic_block(emitter.world.type_bool(), emitter.dbg(*this, "join"));
+        auto join_true  = emitter.basic_block(emitter.dbg(*this, "join_true"));
+        auto join_false = emitter.basic_block(emitter.dbg(*this, "join_false"));
         emit_branch(emitter, join_true, join_false);
         emitter.enter(join_true);
         emitter.jump(join, emitter.world.lit_true(), nullptr);
@@ -1255,12 +1253,12 @@ const thorin::Def* BinaryExpr::emit(Emitter& emitter) const {
             case Eq:    res = rhs; break;
             case Div: {
                 auto op = is_uint_type(type) ? thorin::Div::sdiv : thorin::Div::udiv;
-                res = emitter.thread_mem(emitter.world.op(op, lhs, rhs, emitter.dbg(*this)));
+                res = emitter.thread_mem(emitter.world.op(op, emitter.state.mem, lhs, rhs, emitter.dbg(*this)));
                 break;
             }
             case Rem: {
                 auto op = is_uint_type(type) ? thorin::Div::smod : thorin::Div::umod;
-                res = emitter.thread_mem(emitter.world.op(op, lhs, rhs, emitter.dbg(*this)));
+                res = emitter.thread_mem(emitter.world.op(op, emitter.state.mem, lhs, rhs, emitter.dbg(*this)));
                 break;
             }
             default:
@@ -1763,6 +1761,7 @@ bool compile(
     Emitter emitter(log, world);
     thorin::Stream stream(std::cerr);
     emitter.world.set(log_level, stream);
+    emitter.world.set(std::make_unique<thorin::ErrorHandler>());
     emitter.warns_as_errors = warns_as_errors;
     return emitter.run(program);
 }
