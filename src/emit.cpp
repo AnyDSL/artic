@@ -1282,12 +1282,24 @@ const thorin::Def* FilterExpr::emit(Emitter& emitter) const {
 }
 
 const thorin::Def* CastExpr::emit(Emitter& emitter) const {
-	// TODO this needs some logic
-    assert(false && "TODO");
-#if 0
-    return emitter.world.cast(Node::type->convert(emitter), emitter.emit(*expr), emitter.dbg(*this));
-#endif
-	return nullptr;
+    auto src = emitter.emit(*expr);
+    auto dbg = emitter.dbg(*this);
+    if (Node::type->isa<artic::PtrType>() && expr->type->isa<artic::PtrType>())
+        return emitter.world.op_bitcast(Node::type->convert(emitter), src, dbg);
+    auto conv_index = [] (const artic::Type* type) {
+        assert(is_bool_type(type) || is_int_type(type) || is_float_type(type));
+        return is_uint_type(type) || is_bool_type(type) ? 0 : is_int_type(type) ? 1 : 2;
+    };
+    thorin::Conv matrix[3][3] {
+        //    unsigned             signed             float
+        { thorin::Conv::u2u, thorin::Conv::u2u, thorin::Conv::r2u}, // unsigned
+        { thorin::Conv::u2u, thorin::Conv::s2s, thorin::Conv::r2s}, // signed
+        { thorin::Conv::u2r, thorin::Conv::s2r, thorin::Conv::r2r}, // float
+    };
+    return emitter.world.op(
+        matrix[conv_index(Node::type)][conv_index(expr->type)],
+        Node::type->convert(emitter),
+        src, dbg);
 }
 
 const thorin::Def* ImplicitCastExpr::emit(Emitter& emitter) const {
