@@ -1290,7 +1290,7 @@ const thorin::Def* CastExpr::emit(Emitter& emitter) const {
     };
     thorin::Conv matrix[3][3] {
         //    unsigned             signed             float
-        { thorin::Conv::u2u, thorin::Conv::u2u, thorin::Conv::r2u}, // unsigned
+        { thorin::Conv::u2u, thorin::Conv::s2s, thorin::Conv::r2u}, // unsigned
         { thorin::Conv::u2u, thorin::Conv::s2s, thorin::Conv::r2s}, // signed
         { thorin::Conv::u2r, thorin::Conv::s2r, thorin::Conv::r2r}, // float
     };
