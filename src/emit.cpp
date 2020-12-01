@@ -903,11 +903,9 @@ const thorin::Def* RecordExpr::emit(Emitter& emitter) const {
             type->type->convert(emitter)->as<thorin::Sigma>(),
             ops, emitter.dbg(*this));
         if (auto enum_type = this->Node::type->isa<artic::EnumType>()) {
-#if 0
-            return emitter.world.variant(
+            return emitter.variant(
                 enum_type->convert(emitter)->as<thorin::Union>(),
                 agg, variant_index);
-#endif
         }
         return agg;
     }
@@ -994,7 +992,6 @@ const thorin::Def* IfExpr::emit(Emitter& emitter) const {
         auto false_value = if_false ? emitter.emit(*if_false) : emitter.world.tuple({});
         if (join) emitter.jump(join, false_value, nullptr);
     } else {
-#if 0
         std::vector<PtrnCompiler::MatchCase> match_cases;
         auto match_case = PtrnCompiler::MatchCase(ptrn.get(), if_true.get(), this);
         match_case.target = join;
@@ -1010,7 +1007,6 @@ const thorin::Def* IfExpr::emit(Emitter& emitter) const {
 
         std::unordered_map<const IdPtrn*, const thorin::Def*> matched_values;
         PtrnCompiler::emit(emitter, *this, *expr, std::move(match_cases), std::move(matched_values));
-#endif
     }
 
     if (!join)
