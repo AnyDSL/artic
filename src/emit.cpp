@@ -486,9 +486,9 @@ const thorin::Def* Emitter::ctor_index(const ast::Ptrn& ptrn) {
         return match_app<EnumType>(type).second->member_count();
     };
     if (auto record_ptrn = ptrn.isa<ast::RecordPtrn>())
-        return world.lit_int_width(get_width(ptrn.type), record_ptrn->variant_index, dbg(ptrn));
+        return world.lit_int(get_width(ptrn.type), record_ptrn->variant_index, dbg(ptrn));
     if (auto ctor_ptrn = ptrn.isa<ast::CtorPtrn>())
-        return world.lit_int_width(get_width(ptrn.type), ctor_ptrn->variant_index, dbg(ptrn));
+        return world.lit_int(get_width(ptrn.type), ctor_ptrn->variant_index, dbg(ptrn));
     return emit(ptrn, ptrn.as<ast::LiteralPtrn>()->lit);
 }
 
