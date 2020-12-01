@@ -335,14 +335,14 @@ private:
                 auto match_value = enum_type
                    ? emitter.world.which(values[col].first, emitter.dbg(node, "which"))
                    : values[col].first;
-                // TODO either use the match node and build patterns or just emit an if/else sequence
-                /*
-                emitter.state.bb->match(
-                    match_value, otherwise,
-                    no_default ? defs.skip_back() : defs.ref(),
-                    no_default ? targets.skip_back() : targets.ref(),
-                    emitter.dbg(node));
-                */
+                for (size_t i = 0, n = targets.size(); i < count; ++i) {
+                    auto next_case = emitter.basic_block(emitter.dbg(node, "next_case"));
+                    emitter.branch(
+                        emitter.world.op(thorin::ICmp::e, match_value, defs[i], emitter.dbg(node)),
+                        targets[i], next_case);
+                    emitter.enter(next_case);
+                }
+                emitter.jump(otherwise, emitter.dbg(node));
             }
 
             auto col_value = values[col].first;
@@ -482,11 +482,14 @@ thorin::Lam* Emitter::basic_block_with_mem(const thorin::Def* param, const thori
 }
 
 const thorin::Def* Emitter::ctor_index(const ast::Ptrn& ptrn) {
+    auto get_width = [] (const Type* type) {
+        return match_app<EnumType>(type).second->member_count();
+    };
     if (auto record_ptrn = ptrn.isa<ast::RecordPtrn>())
-        return world.lit_int_width(64, record_ptrn->variant_index, dbg(ptrn));
-    return ptrn.isa<ast::LiteralPtrn>()
-        ? emit(ptrn, ptrn.as<ast::LiteralPtrn>()->lit)
-        : world.lit_int_width(64, ptrn.as<ast::CtorPtrn>()->variant_index, dbg(ptrn));
+        return world.lit_int_width(get_width(ptrn.type), record_ptrn->variant_index, dbg(ptrn));
+    if (auto ctor_ptrn = ptrn.isa<ast::CtorPtrn>())
+        return world.lit_int_width(get_width(ptrn.type), ctor_ptrn->variant_index, dbg(ptrn));
+    return emit(ptrn, ptrn.as<ast::LiteralPtrn>()->lit);
 }
 
 void Emitter::redundant_case(const ast::CaseExpr& case_) {
@@ -515,7 +518,7 @@ void Emitter::jump(const thorin::Def* callee, const thorin::Def* dbg) {
         state.bb->app(callee, { state.mem }, dbg);
     } else {
         assert(num_params == 0);
-        state.bb->app(callee, {}, dbg);
+        state.bb->app(callee, { world.tuple() }, dbg);
     }
     state.bb = nullptr;
 }
@@ -558,9 +561,14 @@ void Emitter::branch(
     state.bb = nullptr;
 }
 
+const thorin::Def* Emitter::thread_mem(const thorin::Def* mem_op) {
+    state.mem = world.extract(mem_op, 0_u64);
+    return world.extract(mem_op, 1_u64);
+}
+
 const thorin::Def* Emitter::alloc(const thorin::Def* type, const thorin::Def* dbg) {
     assert(state.mem);
-    return world.op_slot(type, state.mem, dbg);
+    return thread_mem(world.op_slot(type, state.mem, dbg));
 }
 
 void Emitter::store(const thorin::Def* ptr, const thorin::Def* value, const thorin::Def* dbg) {
@@ -573,9 +581,7 @@ const thorin::Def* Emitter::load(const thorin::Def* ptr, const thorin::Def* dbg)
     if (auto global = ptr->isa<thorin::Global>(); global && !global->is_mutable())
         return global->init();
     assert(state.mem);
-    auto pair = world.op_load(state.mem, ptr, dbg);
-    state.mem = world.extract(pair, 0_u64);
-    return world.extract(pair, 1_u64);
+    return thread_mem(world.op_load(state.mem, ptr, dbg));
 }
 
 const thorin::Def* Emitter::addr_of(const thorin::Def* def, const thorin::Def* dbg) {
@@ -1015,7 +1021,6 @@ const thorin::Def* IfExpr::emit(Emitter& emitter) const {
 }
 
 const thorin::Def* MatchExpr::emit(Emitter& emitter) const {
-#if 0
     auto join = emitter.basic_block_with_mem(type->convert(emitter), emitter.dbg(*this, "match_join"));
     std::vector<PtrnCompiler::MatchCase> match_cases;
     for (auto& case_ : this->cases) {
@@ -1027,8 +1032,6 @@ const thorin::Def* MatchExpr::emit(Emitter& emitter) const {
     PtrnCompiler::emit(emitter, *this, *arg, std::move(match_cases), std::move(matched_values));
     emitter.enter(join);
     return join->param(1);
-#endif
-    return nullptr;
 }
 
 const thorin::Def* CaseExpr::emit(Emitter& emitter) const {
@@ -1055,7 +1058,6 @@ const thorin::Def* WhileExpr::emit(Emitter& emitter) const {
         emitter.emit(*body);
         emitter.jump(while_head, nullptr);
     } else {
-#if 0
         std::vector<PtrnCompiler::MatchCase> match_cases;
         auto match_case = PtrnCompiler::MatchCase(ptrn.get(), body.get(), this);
         match_case.target = while_head;
@@ -1068,7 +1070,6 @@ const thorin::Def* WhileExpr::emit(Emitter& emitter) const {
         match_cases.push_back(else_case);
         std::unordered_map<const IdPtrn*, const thorin::Def*> matched_values;
         PtrnCompiler::emit(emitter, *this, *expr, std::move(match_cases), std::move(matched_values));
-#endif
     }
 
     emitter.enter(while_exit);
