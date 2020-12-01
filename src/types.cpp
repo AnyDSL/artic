@@ -535,7 +535,7 @@ const Type* ForallType::instantiate(const std::vector<const Type*>& args) const 
     assert(decl.type_params && decl.type_params->params.size() == args.size());
     for (size_t i = 0, n = args.size(); i < n; ++i) {
         assert(decl.type_params->params[i]->type);
-        map.emplace(decl.type_params->params[i]->type->as<TypeVar>(), args[i]); 
+        map.emplace(decl.type_params->params[i]->type->as<TypeVar>(), args[i]);
     }
     return body->replace(map);
 }
@@ -566,7 +566,22 @@ bool is_int_type(const Type* type) {
             case ast::PrimType::I16:
             case ast::PrimType::I32:
             case ast::PrimType::I64:
-                return true; 
+                return true;
+            default:
+                break;
+        }
+    }
+    return false;
+}
+
+bool is_uint_type(const Type* type) {
+    if (auto prim_type = type->isa<PrimType>()) {
+        switch (prim_type->tag) {
+            case ast::PrimType::U8:
+            case ast::PrimType::U16:
+            case ast::PrimType::U32:
+            case ast::PrimType::U64:
+                return true;
             default:
                 break;
         }
@@ -580,7 +595,7 @@ bool is_float_type(const Type* type) {
             case ast::PrimType::F16:
             case ast::PrimType::F32:
             case ast::PrimType::F64:
-                return true; 
+                return true;
             default:
                 break;
         }
@@ -630,7 +645,7 @@ const TupleType* TypeTable::tuple_type(std::vector<const Type*>&& elems) {
 const SizedArrayType* TypeTable::sized_array_type(const Type* elem, size_t size, bool is_simd) {
     return insert<SizedArrayType>(elem, size, is_simd);
 }
- 
+
 const UnsizedArrayType* TypeTable::unsized_array_type(const Type* elem) {
     return insert<UnsizedArrayType>(elem);
 }

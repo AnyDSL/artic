@@ -548,6 +548,7 @@ private:
 };
 
 bool is_int_type(const Type*);
+bool is_uint_type(const Type*);
 bool is_float_type(const Type*);
 bool is_int_or_float_type(const Type*);
 bool is_prim_type(const Type*, ast::PrimType::Tag);

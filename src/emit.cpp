@@ -1109,6 +1109,13 @@ const thorin::Def* ReturnExpr::emit(Emitter&) const {
     return fn->def->as_nominal<thorin::Lam>()->param(2);
 }
 
+static inline thorin::flags_t op_flags(const artic::Type* type) {
+    return
+        is_bool_type(type) ? thorin::WMode::nuw :
+        is_uint_type(type) ? thorin::WMode::nsw :
+        thorin::WMode::none;
+}
+
 const thorin::Def* UnaryExpr::emit(Emitter& emitter) const {
     const thorin::Def* op = nullptr;
     const thorin::Def* ptr = nullptr;
@@ -1132,8 +1139,13 @@ const thorin::Def* UnaryExpr::emit(Emitter& emitter) const {
             // The operand must be a pointer, so we return it as a reference
             res = op;
             break;
-        case Not:    res = emitter.world.op_negate(            op, emitter.dbg(*this)); break;
-        case Minus:  res = emitter.world.op_wminus(0_u64,      op, emitter.dbg(*this)); break;
+        case Minus: {
+            res = is_float_type(type)
+                ? emitter.world.op_rminus(0_u64, op, emitter.dbg(*this))
+                : emitter.world.op_wminus(op_flags(type), op, emitter.dbg(*this));
+            break;
+        }
+        case Not:    res = emitter.world.op_negate(op, emitter.dbg(*this)); break;
         case Known:  res = emitter.world.op(thorin::PE::known, op, emitter.dbg(*this)); break;
         case Forget: res = emitter.world.op(thorin::PE::hlt,   op, emitter.dbg(*this)); break;
         case PreInc:
@@ -1209,28 +1221,56 @@ const thorin::Def* BinaryExpr::emit(Emitter& emitter) const {
     }
     auto rhs = emitter.emit(*right);
     const thorin::Def* res = nullptr;
-	// TODO we must differentiate the type for the exact operation
-    switch (remove_eq(tag)) {
-        case Add:   res = emitter.world.op(thorin::Wrap::add, 0_u64, lhs, rhs, emitter.dbg(*this)); break;
-        case Sub:   res = emitter.world.op(thorin::Wrap::sub, 0_u64, lhs, rhs, emitter.dbg(*this)); break;
-        case Mul:   res = emitter.world.op(thorin::Wrap::mul, 0_u64, lhs, rhs, emitter.dbg(*this)); break;
-        case LShft: res = emitter.world.op(thorin::Wrap::shl, 0_u64, lhs, rhs, emitter.dbg(*this)); break;
-        case RShft: res = emitter.world.op(thorin::Shr::ashr, lhs, rhs, emitter.dbg(*this)); break;
-        case Div:   res = emitter.world.op(thorin::Div::sdiv, lhs, rhs, emitter.dbg(*this)); break;
-        case Rem:   res = emitter.world.op(thorin::Div::smod, lhs, rhs, emitter.dbg(*this)); break;
-        case And:   res = emitter.world.op(thorin::Bit::_and, lhs, rhs, emitter.dbg(*this)); break;
-        case Or:    res = emitter.world.op(thorin::Bit::_or,  lhs, rhs, emitter.dbg(*this)); break;
-        case Xor:   res = emitter.world.op(thorin::Bit::_xor, lhs, rhs, emitter.dbg(*this)); break;
-        case CmpEq: res = emitter.world.op(thorin::ICmp::  e, lhs, rhs, emitter.dbg(*this)); break;
-        case CmpNE: res = emitter.world.op(thorin::ICmp:: ne, lhs, rhs, emitter.dbg(*this)); break;
-        case CmpGT: res = emitter.world.op(thorin::ICmp::sg , lhs, rhs, emitter.dbg(*this)); break;
-        case CmpLT: res = emitter.world.op(thorin::ICmp::sl , lhs, rhs, emitter.dbg(*this)); break;
-        case CmpGE: res = emitter.world.op(thorin::ICmp::sge, lhs, rhs, emitter.dbg(*this)); break;
-        case CmpLE: res = emitter.world.op(thorin::ICmp::sle, lhs, rhs, emitter.dbg(*this)); break;
-        case Eq:    res = rhs; break;
-        default:
-            assert(false);
-            return nullptr;
+
+    if (is_float_type(type)) {
+        switch (remove_eq(tag)) {
+            case Add:   res = emitter.world.op(thorin::ROp::add, thorin::RMode::none, lhs, rhs, emitter.dbg(*this)); break;
+            case Sub:   res = emitter.world.op(thorin::ROp::sub, thorin::RMode::none, lhs, rhs, emitter.dbg(*this)); break;
+            case Mul:   res = emitter.world.op(thorin::ROp::mul, thorin::RMode::none, lhs, rhs, emitter.dbg(*this)); break;
+            case Div:   res = emitter.world.op(thorin::ROp::div, thorin::RMode::none, lhs, rhs, emitter.dbg(*this)); break;
+            case Rem:   res = emitter.world.op(thorin::ROp::mod, thorin::RMode::none, lhs, rhs, emitter.dbg(*this)); break;
+            case CmpEq: res = emitter.world.op(thorin::RCmp::  e, thorin::RMode::none, lhs, rhs, emitter.dbg(*this)); break;
+            case CmpNE: res = emitter.world.op(thorin::RCmp::une, thorin::RMode::none, lhs, rhs, emitter.dbg(*this)); break;
+            case CmpGT: res = emitter.world.op(thorin::RCmp::  g, thorin::RMode::none, lhs, rhs, emitter.dbg(*this)); break;
+            case CmpLT: res = emitter.world.op(thorin::RCmp::  l, thorin::RMode::none, lhs, rhs, emitter.dbg(*this)); break;
+            case CmpGE: res = emitter.world.op(thorin::RCmp:: ge, thorin::RMode::none, lhs, rhs, emitter.dbg(*this)); break;
+            case CmpLE: res = emitter.world.op(thorin::RCmp:: le, thorin::RMode::none, lhs, rhs, emitter.dbg(*this)); break;
+            case Eq:    res = rhs; break;
+            default:
+                assert(false);
+                return nullptr;
+        }
+    } else {
+        switch (remove_eq(tag)) {
+            case Add:   res = emitter.world.op(thorin::Wrap::add, op_flags(type), lhs, rhs, emitter.dbg(*this)); break;
+            case Sub:   res = emitter.world.op(thorin::Wrap::sub, op_flags(type), lhs, rhs, emitter.dbg(*this)); break;
+            case Mul:   res = emitter.world.op(thorin::Wrap::mul, op_flags(type), lhs, rhs, emitter.dbg(*this)); break;
+            case LShft: res = emitter.world.op(thorin::Wrap::shl, op_flags(type), lhs, rhs, emitter.dbg(*this)); break;
+            case RShft: res = emitter.world.op(is_uint_type(type) ? thorin::Shr::lshr : thorin::Shr::ashr, lhs, rhs, emitter.dbg(*this)); break;
+            case And:   res = emitter.world.op(thorin::Bit::_and, lhs, rhs, emitter.dbg(*this)); break;
+            case Or:    res = emitter.world.op(thorin::Bit::_or,  lhs, rhs, emitter.dbg(*this)); break;
+            case Xor:   res = emitter.world.op(thorin::Bit::_xor, lhs, rhs, emitter.dbg(*this)); break;
+            case CmpEq: res = emitter.world.op(thorin::ICmp:: e, lhs, rhs, emitter.dbg(*this)); break;
+            case CmpNE: res = emitter.world.op(thorin::ICmp::ne, lhs, rhs, emitter.dbg(*this)); break;
+            case CmpGT: res = emitter.world.op(is_uint_type(type) ? thorin::ICmp::ug  : thorin::ICmp::sg , lhs, rhs, emitter.dbg(*this)); break;
+            case CmpLT: res = emitter.world.op(is_uint_type(type) ? thorin::ICmp::ul  : thorin::ICmp::sl , lhs, rhs, emitter.dbg(*this)); break;
+            case CmpGE: res = emitter.world.op(is_uint_type(type) ? thorin::ICmp::uge : thorin::ICmp::sge, lhs, rhs, emitter.dbg(*this)); break;
+            case CmpLE: res = emitter.world.op(is_uint_type(type) ? thorin::ICmp::ule : thorin::ICmp::sle, lhs, rhs, emitter.dbg(*this)); break;
+            case Eq:    res = rhs; break;
+            case Div: {
+                auto op = is_uint_type(type) ? thorin::Div::sdiv : thorin::Div::udiv;
+                res = emitter.thread_mem(emitter.world.op(op, lhs, rhs, emitter.dbg(*this)));
+                break;
+            }
+            case Rem: {
+                auto op = is_uint_type(type) ? thorin::Div::smod : thorin::Div::umod;
+                res = emitter.thread_mem(emitter.world.op(op, lhs, rhs, emitter.dbg(*this)));
+                break;
+            }
+            default:
+                assert(false);
+                return nullptr;
+        }
     }
     if (has_eq()) {
         emitter.store(ptr, res, emitter.dbg(*this));
