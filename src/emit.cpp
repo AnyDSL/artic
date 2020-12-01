@@ -449,8 +449,9 @@ void PtrnCompiler::dump() const {
 #endif // GCOV_EXCL_STOP
 
 const thorin::Def* Emitter::dbg(const std::string& name, Loc loc) {
-    return world.dbg(thorin::Debug{name, {loc.file->c_str(), {uint32_t(loc.begin.row), uint32_t(loc.begin.col)},
-                                                             {uint32_t(loc.end  .row), uint32_t(loc.  end.col)}}});
+    return world.dbg(thorin::Debug{ name, { loc.file->c_str(),
+        { uint32_t(loc.begin.row), uint32_t(loc.begin.col) },
+        { uint32_t(loc.end  .row), uint32_t(loc.  end.col) }}});
 }
 
 const thorin::Def* Emitter::dbg(const ast::NamedDecl& decl) { return dbg(decl.id.name, decl.loc); }
@@ -462,8 +463,9 @@ const thorin::Def* Emitter::dbg(const ast::Node& node, const std::string& name) 
 }
 
 const thorin::Def* Emitter::dbg(const std::string& name) {
-    return world.dbg(thorin::Debug(name, {std::string(), {thorin::u32(-1), thorin::u32(-1)},
-                                                         {thorin::u32(-1), thorin::u32(-1)}}));
+    return world.dbg(thorin::Debug(name, { std::string(),
+        { thorin::u32(-1), thorin::u32(-1) },
+        { thorin::u32(-1), thorin::u32(-1) }}));
 }
 
 bool Emitter::run(const ast::ModDecl& mod) {
