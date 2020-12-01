@@ -1218,7 +1218,7 @@ const thorin::Def* BinaryExpr::emit(Emitter& emitter) const {
     auto rhs = emitter.emit(*right);
     const thorin::Def* res = nullptr;
 
-    if (is_float_type(type)) {
+    if (is_float_type(left->type)) {
         switch (remove_eq(tag)) {
             case Add:   res = emitter.world.op(thorin::ROp::add, thorin::RMode::none, lhs, rhs, emitter.dbg(*this)); break;
             case Sub:   res = emitter.world.op(thorin::ROp::sub, thorin::RMode::none, lhs, rhs, emitter.dbg(*this)); break;
@@ -1248,10 +1248,10 @@ const thorin::Def* BinaryExpr::emit(Emitter& emitter) const {
             case Xor:   res = emitter.world.op(thorin::Bit::_xor, lhs, rhs, emitter.dbg(*this)); break;
             case CmpEq: res = emitter.world.op(thorin::ICmp:: e, lhs, rhs, emitter.dbg(*this)); break;
             case CmpNE: res = emitter.world.op(thorin::ICmp::ne, lhs, rhs, emitter.dbg(*this)); break;
-            case CmpGT: res = emitter.world.op(is_uint_type(type) ? thorin::ICmp::ug  : thorin::ICmp::sg , lhs, rhs, emitter.dbg(*this)); break;
-            case CmpLT: res = emitter.world.op(is_uint_type(type) ? thorin::ICmp::ul  : thorin::ICmp::sl , lhs, rhs, emitter.dbg(*this)); break;
-            case CmpGE: res = emitter.world.op(is_uint_type(type) ? thorin::ICmp::uge : thorin::ICmp::sge, lhs, rhs, emitter.dbg(*this)); break;
-            case CmpLE: res = emitter.world.op(is_uint_type(type) ? thorin::ICmp::ule : thorin::ICmp::sle, lhs, rhs, emitter.dbg(*this)); break;
+            case CmpGT: res = emitter.world.op(is_uint_type(left->type) ? thorin::ICmp::ug  : thorin::ICmp::sg , lhs, rhs, emitter.dbg(*this)); break;
+            case CmpLT: res = emitter.world.op(is_uint_type(left->type) ? thorin::ICmp::ul  : thorin::ICmp::sl , lhs, rhs, emitter.dbg(*this)); break;
+            case CmpGE: res = emitter.world.op(is_uint_type(left->type) ? thorin::ICmp::uge : thorin::ICmp::sge, lhs, rhs, emitter.dbg(*this)); break;
+            case CmpLE: res = emitter.world.op(is_uint_type(left->type) ? thorin::ICmp::ule : thorin::ICmp::sle, lhs, rhs, emitter.dbg(*this)); break;
             case Eq:    res = rhs; break;
             case Div: {
                 auto op = is_uint_type(type) ? thorin::Div::sdiv : thorin::Div::udiv;
@@ -1283,6 +1283,7 @@ const thorin::Def* FilterExpr::emit(Emitter& emitter) const {
 
 const thorin::Def* CastExpr::emit(Emitter& emitter) const {
 	// TODO this needs some logic
+    assert(false && "TODO");
 #if 0
     return emitter.world.cast(Node::type->convert(emitter), emitter.emit(*expr), emitter.dbg(*this));
 #endif
@@ -1294,6 +1295,7 @@ const thorin::Def* ImplicitCastExpr::emit(Emitter& emitter) const {
 }
 
 const thorin::Def* AsmExpr::emit(Emitter& emitter) const {
+    assert(false && "TODO");
 #if 0
     std::vector<const thorin::Def*> out_types;
     std::vector<const thorin::Def*> in_values;
