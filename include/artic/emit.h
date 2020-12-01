@@ -102,8 +102,7 @@ public:
     void non_exhaustive_match(const ast::MatchExpr&);
 
     thorin::Lam* basic_block(const thorin::Def*);
-    thorin::Lam* basic_block_with_mem(const thorin::Def*);
-    thorin::Lam* basic_block_with_mem(const thorin::Def*, const thorin::Def*);
+    thorin::Lam* basic_block(const thorin::Def*, const thorin::Def*);
 
     const thorin::Def* ctor_index(const ast::Ptrn& ptrn);
 
