@@ -88,6 +88,10 @@ bool TraitType::equals(const Type* other) const {
     return other == this;
 }
 
+bool TraitImplType::equals(const Type* other) const {
+    return other == this;
+}
+
 bool TypeAlias::equals(const Type* other) const {
     return other == this;
 }
@@ -166,6 +170,10 @@ size_t EnumType::hash() const {
 
 size_t TraitType::hash() const {
     return fnv::Hash().combine(&decl);
+}
+
+size_t TraitImplType::hash() const {
+    return fnv::Hash().combine(&impl);
 }
 
 size_t TypeAlias::hash() const {
@@ -479,6 +487,20 @@ std::optional<size_t> TraitType::find_member(const std::string_view& name) const
         : std::nullopt;
     }
 
+    std::optional<size_t> TraitImplType::find_member(const std::string_view& name) const {
+
+        auto it = std::find_if(
+                impl.functs.begin(),
+                impl.functs.end(),
+                [&name] (auto& f) {
+                    return f->funct->id.name == name;
+                });
+        return it != impl.functs.end()
+               ? std::make_optional(it - impl.functs.begin())
+               : std::nullopt;
+    }
+
+
 const Type* EnumType::member_type(size_t i) const {
     return decl.options[i]->type;
 }
@@ -487,12 +509,20 @@ const Type* TraitType::member_type(size_t i) const {
     return decl.functs[i]->type;
 }
 
+const Type* TraitImplType::member_type(size_t i) const {
+    return impl.functs[i]->type;
+}
+
 size_t EnumType::member_count() const {
     return decl.options.size();
 }
 
 size_t TraitType::member_count() const {
     return decl.functs.size();
+}
+
+size_t TraitImplType::member_count() const {
+    return impl.functs.size();
 }
 
 // Misc. ---------------------------------------------------------------------------
@@ -716,6 +746,10 @@ const TraitType* TypeTable::trait_type(const ast::TraitDecl& decl) {
     return insert<TraitType>(decl);
 }
 
+const TraitImplType* TypeTable::trait_impl_type(const ast::TraitImpl& impl) {
+    return insert<TraitImplType>(impl);
+}
+
 const TypeAlias* TypeTable::type_alias(const ast::TypeDecl& decl) {
     return insert<TypeAlias>(decl);
 }
@@ -736,6 +770,36 @@ const T* TypeTable::insert(Args&&... args) {
         return (*it)->template as<T>();
     auto [it, _] = types_.emplace(new T(std::move(t)));
     return (*it)->template as<T>();
+}
+
+const TraitImplType* TypeTable::register_trait_fot_type(const Type* type, const TraitImplType* impl){
+    auto it = traits_impls_.find(type);
+    if(it != traits_impls_.end()){
+        auto& traits = it->second;
+        for(auto& i: traits){
+            if(i->impl.trait_type->type == impl->impl.trait_type->type){
+                return i;
+            }
+        }
+        traits.push_back(impl);
+        return nullptr;
+    }
+    else{
+        std::vector<const TraitImplType*> aux;
+        aux.push_back(impl);
+        traits_impls_.insert({type, aux});
+        return nullptr;
+    }
+}
+
+const std::vector<const TraitImplType*> TypeTable::get_trait_types(const Type* type){
+    auto it = traits_impls_.find(type);
+    if(it != traits_impls_.end()){
+        return it->second;
+    }
+    else{
+        return std::vector<const TraitImplType*>();
+    }
 }
 
 } // namespace artic

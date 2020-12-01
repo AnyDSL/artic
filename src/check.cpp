@@ -1,6 +1,7 @@
 #include <algorithm>
 
 #include "artic/check.h"
+#include "artic/print.h"
 
 namespace artic {
 
@@ -291,6 +292,10 @@ const Type* TypeChecker::check_trait_fns(
         std::vector<bool> defined(trait_type->decl.functs.size(), false);
         std::vector<bool> seen(trait_type->decl.functs.size(), false);
         for (size_t i = 0, n = fns.size(); i < n; ++i) {
+            if(fns[i]->funct->fn->body == nullptr){
+                error(fns[i]->loc, "function '{}' is not defined", fns[i]->funct->id.name);
+                return type_table.type_error();
+            }
             auto index = trait_type->find_member(fns[i]->funct->id.name);
 
             if (!index) {
@@ -301,7 +306,7 @@ const Type* TypeChecker::check_trait_fns(
                 return type_table.type_error();
             }
             seen[*index] = true;
-            defined[*index] = fns[i]->funct->fn->body != nullptr;
+            defined[*index] = true;
             fns[i]->index = *index;
             check(*fns[i], type_app ? type_app->member_type(*index) : trait_type->member_type(*index));
         }
@@ -1482,7 +1487,7 @@ const artic::Type* EnumDecl::infer(TypeChecker& checker) {
 }
 
 const artic::Type* TraitFn::infer(TypeChecker& checker) {
-    return funct->infer(checker);
+    return type = funct->infer(checker);
 }
 
 const artic::Type* TraitFn::check(TypeChecker& checker, const artic::Type* type) {
@@ -1509,8 +1514,14 @@ const artic::Type* TraitImpl::infer(TypeChecker& checker) {
     if(!trait_type){
        return checker.type_expected(loc, this->trait_type->type, "trait");
     }
+    auto conflict = checker.type_table.register_trait_fot_type(concrete_type->infer(checker),  checker.type_table.trait_impl_type(*this));
+    if (conflict) {
+        checker.error(loc, "Trait '{}' is already defined for '{}'", *this->trait_type->type, *concrete_type);
+        checker.note(conflict->impl.loc, "previously declared here");
+        return checker.type_table.type_error();
+    }
     checker.check_trait_fns(loc, trait_type, type_app, functs, this->trait_type->path.elems.front().id.name );
-    return trait_type;
+    return this->type = checker.type_table.trait_impl_type(*this);
 
 }
 

@@ -41,6 +41,8 @@ struct TypeBounds {
     TypeBounds& meet(const TypeBounds&);
 };
 
+
+struct TraitImplType;
 /// Base class for all types. Types should be created by a `TypeTable`,
 /// which will hash them and place them into a set. This makes types
 /// comparable via pointer equality, as long as they were created with
@@ -107,6 +109,9 @@ struct Type : public Cast<Type> {
 
     /// Prints the type on the console, for debugging.
     void dump() const;
+
+    std::vector<const TraitImplType*> implemented_traits;
+
 };
 
 /// The type of an attribute.
@@ -505,6 +510,34 @@ private:
     friend class TypeTable;
 };
 
+struct TraitImplType : public ComplexType {
+    const ast::TraitImpl& impl;
+
+    void print(Printer&) const override;
+    bool equals(const Type*) const override;
+    size_t hash() const override;
+
+    using UserType::convert;
+    const thorin::Type* convert(Emitter&, const Type*) const override;
+    std::string stringify(Emitter&) const override;
+
+    const ast::TypeParamList* type_params() const override {
+        return nullptr;
+    }
+
+
+    std::optional<size_t> find_member(const std::string_view&) const override;
+    const Type* member_type(size_t) const override;
+    size_t member_count() const override;
+
+private:
+    TraitImplType(TypeTable& type_table, const ast::TraitImpl& impl)
+    : ComplexType(type_table), impl(impl)
+    {}
+
+    friend class TypeTable;
+};
+
 struct TypeAlias : public UserType {
     const ast::TypeDecl& decl;
 
@@ -612,12 +645,17 @@ public:
     const ForallType*       forall_type(const ast::FnDecl&);
     const StructType*       struct_type(const ast::RecordDecl&);
     const EnumType*         enum_type(const ast::EnumDecl&);
-    const TraitType*         trait_type(const ast::TraitDecl&);
+    const TraitType*        trait_type(const ast::TraitDecl&);
+    const TraitImplType*    trait_impl_type(const ast::TraitImpl& impl);
     const TypeAlias*        type_alias(const ast::TypeDecl&);
 
     /// Creates a type application for structures/enumeration types,
     /// or returns the type alias expanded with the given type arguments.
     const Type* type_app(const UserType*, std::vector<const Type*>&&);
+
+    /// Returns a conflicting TraitImplType* or nullptr if there are no conflicts
+    const TraitImplType* register_trait_fot_type(const Type* type, const TraitImplType* impl);
+    const std::vector<const TraitImplType*> get_trait_types(const Type* type);
 
 private:
     template <typename T, typename... Args>
@@ -634,6 +672,7 @@ private:
         }
     };
     std::unordered_set<const Type*, HashType, CompareTypes> types_;
+    std::unordered_map<const Type*, std::vector<const TraitImplType*>> traits_impls_;
 
     const PrimType*   bool_type_   = nullptr;
     const TupleType*  unit_type_   = nullptr;

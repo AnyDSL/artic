@@ -764,6 +764,13 @@ void TraitType::print(Printer& p) const {
     p << decl.id.name;
 }
 
+void TraitImplType::print(Printer& p) const {
+    p <<"impl ";
+    impl.trait_type->print(p);
+    p << " for ";
+    impl.concrete_type->print(p);
+}
+
 void TypeAlias::print(Printer& p) const {
     p << decl.id.name;
 }

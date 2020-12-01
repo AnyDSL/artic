@@ -1330,7 +1330,7 @@ struct EnumDecl : public NamedDecl {
 
 /// Trait method declaration.
 struct TraitFn : public Decl {
-    Ptr<FnDecl> funct;
+    std::shared_ptr<FnDecl> funct;
 
     size_t index;
 

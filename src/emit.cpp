@@ -1588,6 +1588,11 @@ std::string TraitType::stringify(Emitter& emitter) const {
     return "<<<Not implemented>>>";
 }
 
+std::string TraitImplType::stringify(Emitter& emitter) const {
+    //todo
+    return "<<<Not implemented>>>";
+}
+
 const thorin::Type* EnumType::convert(Emitter& emitter, const Type* parent) const {
     if (auto it = emitter.types.find(this); !decl.type_params && it != emitter.types.end())
         return it->second;
@@ -1601,6 +1606,11 @@ const thorin::Type* EnumType::convert(Emitter& emitter, const Type* parent) cons
 }
 
 const thorin::Type* TraitType::convert(Emitter& emitter, const Type* parent) const {
+    //todo
+    return nullptr;
+}
+
+const thorin::Type* TraitImplType::convert(Emitter& emitter, const Type* parent) const {
     //todo
     return nullptr;
 }
