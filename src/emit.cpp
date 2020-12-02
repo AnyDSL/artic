@@ -1558,7 +1558,7 @@ std::string SizedArrayType::stringify(Emitter& emitter) const {
 
 const thorin::Type* SizedArrayType::convert(Emitter& emitter) const {
     if (is_simd)
-        return emitter.world.type(elem->convert(emitter)->as<thorin::PrimType>()->primtype_tag(), size);
+        return emitter.world.prim_type(elem->convert(emitter)->as<thorin::PrimType>()->primtype_tag(), size);
     return emitter.world.definite_array_type(elem->convert(emitter), size);
 }
 

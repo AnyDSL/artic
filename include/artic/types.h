@@ -12,8 +12,7 @@
 
 namespace thorin {
     class TypeTable;
-    template <typename> class TypeBase;
-    using Type = TypeBase<TypeTable>;
+    class Type;
 }
 
 namespace artic {
