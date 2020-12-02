@@ -264,7 +264,7 @@ private:
             assert(row.first.size() == values.size());
 #endif
 
-        // Map from constructor index (e.g. literal or enumeration option index, encoded as an integer) to row.
+        // Map from constructor index (e.g. literal or enumeration option) to row.
         std::unordered_map<const thorin::Def*, std::vector<Row>> ctors;
         std::vector<Row> wildcards;
 
@@ -335,13 +335,18 @@ private:
 
             if (emitter.state.bb) {
                 auto match_value = enum_type
-                   ? emitter.world.which(values[col].first, emitter.dbg(node, "which"))
+                   ? values[col].first
+                   //? emitter.world.which(values[col].first, emitter.dbg(node, "which"))
                    : values[col].first;
                 for (size_t i = 0, n = targets.size(); i < count; ++i) {
                     auto next_case = emitter.basic_block(emitter.dbg(node, "next_case"));
-                    emitter.branch(
-                        emitter.world.op(thorin::ICmp::e, match_value, defs[i], emitter.dbg(node)),
-                        targets[i], next_case);
+                    if (enum_type) {
+                        emitter.test(match_value, defs[i], targets[i], next_case);
+                    } else {
+                        emitter.branch(
+                            emitter.world.op(thorin::ICmp::e, match_value, defs[i], emitter.dbg(node)),
+                            targets[i], next_case);
+                    }
                     emitter.enter(next_case);
                 }
                 emitter.jump(otherwise, emitter.dbg(node));
@@ -561,6 +566,18 @@ void Emitter::branch(
     state.bb = nullptr;
 }
 
+void Emitter::test(
+    const thorin::Def* value,
+    const thorin::Def* index,
+    const thorin::Lam* match,
+    const thorin::Lam* clash,
+    const thorin::Def* dbg) {
+    if (!state.bb)
+        return;
+    state.bb->test(value, index, match, clash, state.mem, dbg);
+    state.bb = nullptr;
+}
+
 const thorin::Def* Emitter::thread_mem(const thorin::Def* mem_op) {
     state.mem = world.extract(mem_op, 0_u64);
     return world.extract(mem_op, 1_u64);
@@ -695,8 +712,8 @@ const thorin::Def* Emitter::emit(const ast::Node& node, const Literal& lit) {
     }
 }
 
-const thorin::Def* Emitter::variant(const thorin::Union* type, const thorin::Def* value, size_t index) {
-    return world.insert(world.bot(type), index, value);
+const thorin::Def* Emitter::variant(const thorin::Join* type, const thorin::Def* value) {
+    return world.vel(type, value);
 }
 
 const thorin::Def* Emitter::builtin(const ast::FnDecl& fn_decl, thorin::Lam* lam) {
@@ -798,22 +815,26 @@ const thorin::Def* Path::emit(Emitter& emitter) const {
             auto converted_type = (type_app
                 ? type_app->convert(emitter)
                 : enum_type->convert(emitter));
-            auto variant_type = converted_type->as<thorin::Union>();
+            auto variant_type = converted_type->as<thorin::Join>();
             auto param_type = type_app
                 ? type_app->member_type(ctor.index)
                 : enum_type->member_type(ctor.index);
             if (is_unit_type(param_type)) {
                 // This is a constructor without parameters
-                return emitter.variant_ctors[ctor] = emitter.variant(variant_type, emitter.world.tuple({}), ctor.index);
+                //return emitter.variant_ctors[ctor] = emitter.variant(variant_type, emitter.world.tuple({}), ctor.index);
+                //TODO
+                return nullptr;
             } else {
                 // This is a constructor with parameters: return a function
                 auto lam = emitter.world.nom_lam(
                     emitter.function_type_with_mem(param_type->convert(emitter), converted_type),
                     emitter.dbg(*enum_type->decl.options[ctor.index]));
-                auto ret_value = emitter.variant(variant_type, lam->param(1), ctor.index);
-                lam->app(lam->param(2), { lam->param(0_u64), ret_value });
-                lam->set_filter(true);
-                return emitter.variant_ctors[ctor] = lam;
+                //auto ret_value = emitter.variant(variant_type, lam->param(1), ctor.index);
+                // TODO
+                return nullptr;
+                //lam->app(lam->param(2), { lam->param(0_u64), ret_value });
+                //lam->set_filter(true);
+                //return emitter.variant_ctors[ctor] = lam;
             }
         }
     }
@@ -903,9 +924,13 @@ const thorin::Def* RecordExpr::emit(Emitter& emitter) const {
             type->type->convert(emitter)->as<thorin::Sigma>(),
             ops, emitter.dbg(*this));
         if (auto enum_type = this->Node::type->isa<artic::EnumType>()) {
+            /*
             return emitter.variant(
-                enum_type->convert(emitter)->as<thorin::Union>(),
+                enum_type->convert(emitter)->as<thorin::Join>(),
                 agg, variant_index);
+            */
+            // TODO
+            return nullptr;
         }
         return agg;
     }
@@ -1645,10 +1670,13 @@ std::string EnumType::stringify(Emitter& emitter) const {
 const thorin::Def* EnumType::convert(Emitter& emitter, const Type* parent) const {
     if (auto it = emitter.types.find(this); !decl.type_params && it != emitter.types.end())
         return it->second;
-    auto type = emitter.world.nom_union(decl.options.size(), emitter.dbg(stringify(emitter)));
+    auto type = emitter.world.nom_join(decl.options.size(), emitter.dbg(stringify(emitter)));
     emitter.types[parent] = type;
     for (size_t i = 0, n = decl.options.size(); i < n; ++i) {
-        type->set(i, decl.options[i]->type->convert(emitter));
+        if (auto tuple_type = decl.options[i]->type->isa<TupleType>())
+            type->set(i, emitter.world.nom_sigma(0, emitter.dbg(decl.options[i]->id.name)));
+        else
+            type->set(i, decl.options[i]->type->convert(emitter));
         // TODO same here
         //type->set_op_name(i, decl.options[i]->id.name);
     }

@@ -114,6 +114,7 @@ public:
     const thorin::Def* call(const thorin::Def*, const thorin::Def*, const thorin::Def*);
     const thorin::Def* call(const thorin::Def*, const thorin::Def*, thorin::Lam*, const thorin::Def*);
     void branch(const thorin::Def*, const thorin::Def*, const thorin::Def*, const thorin::Def* = nullptr);
+    void test(const thorin::Def*, const thorin::Def*, const thorin::Lam*, const thorin::Lam*, const thorin::Def* = nullptr);
 
     const thorin::Def* thread_mem(const thorin::Def*);
     const thorin::Def* alloc(const thorin::Def*, const thorin::Def*);
@@ -130,7 +131,7 @@ public:
     const thorin::Def* emit(const ast::Node&, const Literal&);
 
     const thorin::Def* builtin(const ast::FnDecl&, thorin::Lam*);
-    const thorin::Def* variant(const thorin::Union*, const thorin::Def*, size_t);
+    const thorin::Def* variant(const thorin::Join*, const thorin::Def*);
 
     const thorin::Def* dbg(const std::string& name, Loc loc);
     const thorin::Def* dbg(const std::string& name);
