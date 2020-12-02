@@ -153,6 +153,8 @@ bool compile(
     thorin::Log::Level log_level,
     Log& log);
 
+} // namespace artic
+
 /// Entry-point for the JIT in the runtime system.
 bool compile(
     const std::vector<std::string>& file_names,
@@ -160,7 +162,5 @@ bool compile(
     thorin::World& world,
     thorin::Log::Level log_level,
     std::ostream& error_stream);
-
-} // namespace artic
 
 #endif // ARTIC_EMIT_H

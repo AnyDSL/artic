@@ -1763,17 +1763,4 @@ bool compile(
     return emitter.run(program);
 }
 
-bool compile(
-    const std::vector<std::string>& file_names,
-    const std::vector<std::string>& file_data,
-    thorin::World& world,
-    thorin::Log::Level log_level,
-    std::ostream& error_stream) {
-    Locator locator;
-    log::Output out(error_stream, false);
-    Log log(out, &locator);
-    ast::ModDecl program;
-    return compile(file_names, file_data, false, false, program, world, log_level, log);
-}
-
 } // namespace artic
