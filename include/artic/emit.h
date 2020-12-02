@@ -155,12 +155,4 @@ bool compile(
 
 } // namespace artic
 
-/// Entry-point for the JIT in the runtime system.
-bool compile(
-    const std::vector<std::string>& file_names,
-    const std::vector<std::string>& file_data,
-    thorin::World& world,
-    thorin::Log::Level log_level,
-    std::ostream& error_stream);
-
 #endif // ARTIC_EMIT_H

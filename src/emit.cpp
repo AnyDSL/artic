@@ -1764,3 +1764,18 @@ bool compile(
 }
 
 } // namespace artic
+
+/// Entry-point for the JIT in the runtime system
+bool compile(
+    const std::vector<std::string>& file_names,
+    const std::vector<std::string>& file_data,
+    thorin::World& world,
+    thorin::Log::Level log_level,
+    std::ostream& error_stream) {
+    using namespace artic;
+    Locator locator;
+    log::Output out(error_stream, false);
+    Log log(out, &locator);
+    ast::ModDecl program;
+    return artic::compile(file_names, file_data, false, false, program, world, log_level, log);
+}
