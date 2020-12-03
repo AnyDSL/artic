@@ -655,7 +655,8 @@ public:
 
     /// Returns a conflicting TraitImplType* or nullptr if there are no conflicts
     const TraitImplType* register_trait_fot_type(const Type* type, const TraitImplType* impl);
-    const std::vector<const TraitImplType*> get_trait_types(const Type* type);
+    const std::vector<const TraitImplType*> trait_candidates(const Type* type, ast::Identifier f);
+    bool has_trait(const Type* type, const Type* trait);
 
 private:
     template <typename T, typename... Args>

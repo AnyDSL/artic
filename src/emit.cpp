@@ -1291,6 +1291,7 @@ const thorin::Def* StaticDecl::emit(Emitter& emitter) const {
 }
 
 const thorin::Def* FnDecl::emit(Emitter& emitter) const {
+
     auto _ = emitter.save_state();
     const thorin::FnType* cont_type = nullptr;
     Emitter::MonoFn mono_fn { this, {} };
@@ -1607,11 +1608,13 @@ const thorin::Type* EnumType::convert(Emitter& emitter, const Type* parent) cons
 
 const thorin::Type* TraitType::convert(Emitter& emitter, const Type* parent) const {
     //todo
+    assert(false);
     return nullptr;
 }
 
 const thorin::Type* TraitImplType::convert(Emitter& emitter, const Type* parent) const {
     //todo
+    assert(false);
     return nullptr;
 }
 

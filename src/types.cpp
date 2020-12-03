@@ -578,7 +578,8 @@ bool Type::subtype(const Type* other) const {
                 fn_type->codom->subtype(other_fn_type->codom);
         }
     }
-    return false;
+
+    return type_table.has_trait(this, other);
 }
 
 const Type* Type::join(const Type* other) const {
@@ -792,14 +793,33 @@ const TraitImplType* TypeTable::register_trait_fot_type(const Type* type, const 
     }
 }
 
-const std::vector<const TraitImplType*> TypeTable::get_trait_types(const Type* type){
+const std::vector<const TraitImplType*> TypeTable::trait_candidates(const Type* type, ast::Identifier f){
     auto it = traits_impls_.find(type);
-    if(it != traits_impls_.end()){
-        return it->second;
-    }
-    else{
+    if(it == traits_impls_.end()){
         return std::vector<const TraitImplType*>();
     }
+    else{
+        std::vector<const TraitImplType*>aux;
+        for(auto i:it->second){
+            if(i->find_member(f.name)){
+                aux.push_back(i);
+            }
+        }
+        return aux;
+    }
+};
+
+bool TypeTable::has_trait(const Type* type, const Type* trait){
+    auto it = traits_impls_.find(type);
+    if(it == traits_impls_.end()){
+        return false;
+    }
+    for(auto i:it->second){
+        if(i->impl.trait_type->type == trait){
+           return true;
+        }
+    }
+    return false;
 }
 
 } // namespace artic

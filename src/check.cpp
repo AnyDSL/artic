@@ -979,8 +979,40 @@ const artic::Type* ProjExpr::infer(TypeChecker& checker) {
     if (ptr_type)
         expr_type = ptr_type->pointee;
     auto [type_app, struct_type] = match_app<StructType>(expr_type);
-    if (!struct_type)
-        return checker.type_expected(expr->loc, expr_type, "structure");
+    auto [aux, trait_type] = match_app<TraitType>(expr_type);
+    if(struct_type && infer_for_struct(checker) != nullptr)
+        return infer_for_struct(checker);
+    else if (trait_type && infer_for_trait(checker) != nullptr)
+        return infer_for_trait(checker);
+    else {
+        auto traits = checker.type_table.trait_candidates(expr_type, field);
+        if(traits.empty()){
+            if(struct_type)
+                checker.error(loc, "'{}' is neither a field of the struct nor implemented by any trait of '{}'", field.name, expr_type);
+            else
+                checker.error(loc, "'{}' is not implemented by any trait of '{}'", field.name, *expr_type);
+            return checker.type_table.type_error();
+        }
+        else if(traits.size() > 1){
+            checker.error(loc, "there are multiple traits implementing '{}' for '{}'", field.name, *expr_type);
+            checker.note("Use up casting to specify the trait the method refers to");
+            return checker.type_table.type_error();
+        }
+        else{
+            auto t = traits[0];
+            return t->member_type(*t->find_member(field.name));
+        }
+
+    }
+}
+
+const artic::Type* ProjExpr::infer_for_struct(TypeChecker& checker) {
+    auto [ref_type, expr_type] = remove_ref(checker.infer(*expr));
+    auto ptr_type = expr_type->isa<artic::PtrType>();
+    if (ptr_type)
+        expr_type = ptr_type->pointee;
+    auto [type_app, struct_type] = match_app<StructType>(expr_type);
+
     if (auto index = struct_type->find_member(field.name)) {
         this->index = *index;
         auto result = type_app ? type_app->member_type(*index) : struct_type->member_type(*index);
@@ -989,10 +1021,31 @@ const artic::Type* ProjExpr::infer(TypeChecker& checker) {
                 result,
                 ptr_type ? ptr_type->is_mut : ref_type->is_mut,
                 ptr_type ? ptr_type->addr_space : ref_type->addr_space)
-            : result;
+                : result;
     } else
-        return checker.unknown_member(loc, struct_type, field.name);
+        return nullptr;
 }
+
+const artic::Type* ProjExpr::infer_for_trait(TypeChecker& checker) {
+    auto [ref_type, expr_type] = remove_ref(checker.infer(*expr));
+    auto ptr_type = expr_type->isa<artic::PtrType>();
+    if (ptr_type)
+        expr_type = ptr_type->pointee;
+    auto [type_app, trait_type] = match_app<TraitType>(expr_type);
+
+    if (auto index = trait_type->find_member(field.name)) {
+        this->index = *index;
+        auto result = type_app ? type_app->member_type(*index) : trait_type->member_type(*index);
+        return ref_type || ptr_type
+        ? checker.type_table.ref_type(
+                result,
+                ptr_type ? ptr_type->is_mut : ref_type->is_mut,
+                ptr_type ? ptr_type->addr_space : ref_type->addr_space)
+                : result;
+    } else
+        return nullptr;
+}
+
 
 inline bool is_int_or_float_literal(const Expr* expr) {
     // Detect integer or floating point literals. This code
@@ -1331,6 +1384,9 @@ const artic::Type* CastExpr::infer(TypeChecker& checker) {
         return expected;
     if (allow_float && is_float_type(type))
         return expected;
+    if(checker.type_table.has_trait(type, expected))
+        return expected;
+
     return checker.invalid_cast(loc, type, expected);
 }
 

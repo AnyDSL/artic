@@ -723,6 +723,8 @@ struct ProjExpr : public Expr {
 
     const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) override;
+    const artic::Type* infer_for_struct(TypeChecker&);
+    const artic::Type* infer_for_trait(TypeChecker&);
     void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
