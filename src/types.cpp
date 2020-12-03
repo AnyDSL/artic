@@ -205,7 +205,7 @@ bool TypeApp::contains(const Type* type) const {
 // Replace -------------------------------------------------------------------------
 
 const Type* TupleType::replace(const std::unordered_map<const TypeVar*, const Type*>& map) const {
-    std::vector<const Type*> new_args(args.size());
+    SmallArray<const Type*> new_args(args.size());
     for (size_t i = 0, n = args.size(); i < n; ++i)
         new_args[i] = args[i]->replace(map);
     return type_table.tuple_type(std::move(new_args));
@@ -238,7 +238,7 @@ const Type* TypeVar::replace(const std::unordered_map<const TypeVar*, const Type
 }
 
 const Type* TypeApp::replace(const std::unordered_map<const TypeVar*, const Type*>& map) const {
-    std::vector<const Type*> new_type_args(type_args.size());
+    SmallArray<const Type*> new_type_args(type_args.size());
     for (size_t i = 0, n = type_args.size(); i < n; ++i)
         new_type_args[i] = type_args[i]->replace(map);
     return type_table.type_app(applied, std::move(new_type_args));
@@ -530,7 +530,7 @@ const Type* Type::join(const Type* other) const {
     return type_table.top_type();
 }
 
-const Type* ForallType::instantiate(const std::vector<const Type*>& args) const {
+const Type* ForallType::instantiate(const ArrayRef<const Type*>& args) const {
     std::unordered_map<const TypeVar*, const Type*> map;
     assert(decl.type_params && decl.type_params->params.size() == args.size());
     for (size_t i = 0, n = args.size(); i < n; ++i) {
@@ -542,7 +542,7 @@ const Type* ForallType::instantiate(const std::vector<const Type*>& args) const 
 
 std::unordered_map<const TypeVar*, const Type*> TypeApp::replace_map(
     const ast::TypeParamList& type_params,
-    const std::vector<const Type*>& type_args)
+    const ArrayRef<const Type*>& type_args)
 {
     std::unordered_map<const TypeVar*, const Type*> map;
     assert(type_params.params.size() == type_args.size());
@@ -623,7 +623,7 @@ const TupleType* TypeTable::unit_type() {
     return unit_type_ ? unit_type_ : unit_type_ = tuple_type({});
 }
 
-const TupleType* TypeTable::tuple_type(std::vector<const Type*>&& elems) {
+const TupleType* TypeTable::tuple_type(const ArrayRef<const Type*>& elems) {
     return insert<TupleType>(std::move(elems));
 }
 
@@ -687,7 +687,7 @@ const TypeAlias* TypeTable::type_alias(const ast::TypeDecl& decl) {
     return insert<TypeAlias>(decl);
 }
 
-const Type* TypeTable::type_app(const UserType* applied, std::vector<const Type*>&& type_args) {
+const Type* TypeTable::type_app(const UserType* applied, const ArrayRef<const Type*>& type_args) {
     if (auto type_alias = applied->isa<TypeAlias>()) {
         assert(type_alias->type_params() && type_alias->decl.aliased_type->type);
         auto map = TypeApp::replace_map(*type_alias->type_params(), type_args);

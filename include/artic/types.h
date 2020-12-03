@@ -2,13 +2,13 @@
 #define ARTIC_TYPES_H
 
 #include <cstddef>
-#include <vector>
 #include <unordered_set>
 #include <optional>
 #include <ostream>
 
 #include "artic/cast.h"
 #include "artic/ast.h"
+#include "artic/array.h"
 
 namespace thorin {
     class TypeTable;
@@ -136,7 +136,7 @@ private:
 };
 
 struct TupleType : public Type {
-    std::vector<const Type*> args;
+    Array<const Type*> args;
 
     void print(Printer&) const override;
     bool equals(const Type*) const override;
@@ -153,8 +153,8 @@ struct TupleType : public Type {
     bool is_sized(std::unordered_set<const Type*>&) const override;
 
 private:
-    TupleType(TypeTable& type_table, std::vector<const Type*>&& args)
-        : Type(type_table), args(std::move(args))
+    TupleType(TypeTable& type_table, const ArrayRef<const Type*>& args)
+        : Type(type_table), args(args)
     {}
 
     friend class TypeTable;
@@ -381,7 +381,7 @@ struct ForallType : public Type {
 
     /// Returns the type of the body with type variables
     /// substituted with the given arguments.
-    const Type* instantiate(const std::vector<const Type*>&) const;
+    const Type* instantiate(const ArrayRef<const Type*>&) const;
 
     void print(Printer&) const override;
     bool equals(const Type*) const override;
@@ -501,7 +501,7 @@ private:
 /// An application of a complex type with polymorphic parameters.
 struct TypeApp : public Type {
     const UserType* applied;
-    std::vector<const Type*> type_args;
+    Array<const Type*> type_args;
 
     /// Gets the replacement map required to expand this type application.
     std::unordered_map<const TypeVar*, const Type*> replace_map() const {
@@ -531,13 +531,13 @@ struct TypeApp : public Type {
 
     static std::unordered_map<const TypeVar*, const Type*> replace_map(
         const ast::TypeParamList& type_params,
-        const std::vector<const Type*>& type_args);
+        const ArrayRef<const Type*>& type_args);
 
 private:
     TypeApp(
         TypeTable& type_table,
         const UserType* applied,
-        std::vector<const Type*>&& type_args)
+        const ArrayRef<const Type*>& type_args)
         : Type(type_table)
         , applied(applied)
         , type_args(std::move(type_args))
@@ -569,7 +569,7 @@ public:
     const PrimType*         prim_type(ast::PrimType::Tag);
     const PrimType*         bool_type();
     const TupleType*        unit_type();
-    const TupleType*        tuple_type(std::vector<const Type*>&&);
+    const TupleType*        tuple_type(const ArrayRef<const Type*>&);
     const SizedArrayType*   sized_array_type(const Type*, size_t, bool);
     const UnsizedArrayType* unsized_array_type(const Type*);
     const PtrType*          ptr_type(const Type*, bool, size_t);
@@ -588,7 +588,7 @@ public:
 
     /// Creates a type application for structures/enumeration types,
     /// or returns the type alias expanded with the given type arguments.
-    const Type* type_app(const UserType*, std::vector<const Type*>&&);
+    const Type* type_app(const UserType*, const ArrayRef<const Type*>&);
 
 private:
     template <typename T, typename... Args>
