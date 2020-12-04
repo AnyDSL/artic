@@ -464,9 +464,11 @@ void TraitDecl::bind(NameBinder& binder) {
 
 
 void TraitImpl::bind(NameBinder& binder) {
-    trait_type->bind(binder);
     binder.push_scope();
-    auto old = binder.push_trait_impl(this);
+        if (type_params) binder.bind(*type_params);
+        trait_type->bind(binder);
+        concrete_type->bind(binder);
+        auto old = binder.push_trait_impl(this);
         for(auto& f: functs){
             f->bind(binder);
         }

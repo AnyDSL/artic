@@ -110,8 +110,6 @@ struct Type : public Cast<Type> {
     /// Prints the type on the console, for debugging.
     void dump() const;
 
-    std::vector<const TraitImplType*> implemented_traits;
-
 };
 
 /// The type of an attribute.
@@ -657,6 +655,7 @@ public:
     const TraitImplType* register_trait_for_type(const Type* type, const TraitImplType* impl);
     const std::vector<const TraitImplType*> trait_candidates(const Type* type, ast::Identifier f);
     bool has_trait(const Type* type, const Type* trait);
+    bool has_trait_simple(const Type* type, const Type* trait);
 
 private:
     template <typename T, typename... Args>

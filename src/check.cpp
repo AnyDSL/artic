@@ -308,6 +308,8 @@ const Type* TypeChecker::check_trait_fns(
             seen[*index] = true;
             defined[*index] = true;
             fns[i]->index = *index;
+            check(*fns[i], type_app ? type_app->member_type(*index) : trait_type->member_type(*index));
+
         }
         //Add default definitions
         for(size_t i =0; i < trait_type->decl.functs.size(); i++){
@@ -908,6 +910,7 @@ const artic::Type* FnExpr::infer(TypeChecker& checker) {
         else
             body_type = checker.deref(body);
     }
+
     return body_type
         ? checker.type_table.fn_type(param_type, body_type)
         : checker.cannot_infer(loc, "function");
@@ -1007,7 +1010,7 @@ const artic::Type* ProjExpr::infer(TypeChecker& checker) {
         auto traits = checker.type_table.trait_candidates(expr_type, field);
         if(traits.empty()){
             if(struct_type)
-                checker.error(loc, "'{}' is neither a field of the struct nor implemented by any trait of '{}'", field.name, expr_type);
+                checker.error(loc, "'{}' is neither a field of the struct nor implemented by any trait of '{}'", field.name, *expr_type);
             else
                 checker.error(loc, "'{}' is not implemented by any trait of '{}'", field.name, *expr_type);
             return checker.type_table.type_error();
@@ -1018,8 +1021,8 @@ const artic::Type* ProjExpr::infer(TypeChecker& checker) {
             return checker.type_table.type_error();
         }
         else{
-            auto t = traits[0];
-            return t->member_type(*t->find_member(field.name));
+            auto [type_app, trait_type] = match_app<TraitType>(traits[0]->impl.trait_type->type);
+            return trait_type->member_type(*trait_type->find_member(field.name));
         }
 
     }

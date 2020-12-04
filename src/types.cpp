@@ -580,7 +580,6 @@ bool Type::subtype(const Type* other) const {
         }
     }
 
-
     return type_table.has_trait(this, other);
 }
 
@@ -664,6 +663,19 @@ bool is_simd_type(const Type* type) {
 
 bool is_unit_type(const Type* type) {
     return type->isa<TupleType>() && type->as<TupleType>()->args.empty();
+}
+
+std::unordered_map<const TypeVar*, const Type*> switch_variables(
+     const std::vector<const Type*> original_list,
+     const std::vector<const Type*> new_list
+     ){
+    std::unordered_map<const TypeVar*, const Type*> res;
+    for(auto i = 0; i < original_list.size(); i++){
+        if(original_list[i]->isa<TypeVar>()) {
+            res.insert({original_list[i]->as<TypeVar>(), new_list[i]});
+        }
+    }
+    return res;
 }
 
 // Type table ----------------------------------------------------------------------
@@ -796,22 +808,49 @@ const TraitImplType* TypeTable::register_trait_for_type(const Type* type, const 
 }
 
 const std::vector<const TraitImplType*> TypeTable::trait_candidates(const Type* type, ast::Identifier f){
-    auto it = traits_impls_.find(type);
-    if(it == traits_impls_.end()){
-        return std::vector<const TraitImplType*>();
-    }
-    else{
-        std::vector<const TraitImplType*>aux;
-        for(auto i:it->second){
-            if(i->find_member(f.name)){
-                aux.push_back(i);
+    std::vector<const TraitImplType*>res;
+
+    for(const auto& type_candidate: traits_impls_){
+        if(type->subtype(type_candidate.first)){
+            for(auto i:type_candidate.second){
+                auto [type_app, trait_type] = match_app<TraitType>(i->impl.trait_type->type);
+                if(trait_type->find_member(f.name)){
+                    res.push_back(i);
+                }
             }
         }
-        return aux;
     }
-};
+    return res; // todo more efficient lookup
+}
 
 bool TypeTable::has_trait(const Type* type, const Type* trait){
+    //todo rewrite this
+    if(has_trait_simple(type, trait)){
+        return true;
+    }
+    if(auto type_app = type->isa<TypeApp>()){
+        if(auto trait_app = trait->isa<TypeApp>()){
+            for(auto& candidate: traits_impls_){
+                if(const auto& candidate_app = candidate.first->isa<TypeApp>()){
+                    for(const auto& candidate_trait: candidate.second){
+                        if(const auto& candidate_trait_app = candidate_trait->impl.trait_type->type->isa<TypeApp>()){
+                            auto map1 = switch_variables(candidate_app->type_args, type_app->type_args);
+                            auto map2 = switch_variables(candidate_trait_app->type_args, trait_app->type_args);
+                            auto new_candidate = candidate_app->replace(map1)->replace(map2);
+                            auto new_candidate_trait = candidate_trait_app->replace(map1)->replace(map2);
+                            if(type == new_candidate && trait == new_candidate_trait){
+                                return true;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return false;
+}
+
+bool TypeTable::has_trait_simple(const Type* type, const Type* trait){
     auto it = traits_impls_.find(type);
     if(it == traits_impls_.end()){
         return false;

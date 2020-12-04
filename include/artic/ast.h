@@ -1388,16 +1388,19 @@ struct TraitDecl : public NamedDecl {
 
 /// Trait implementation.
 struct TraitImpl : public Decl {
+    Ptr<TypeParamList> type_params;
     Ptr<TypeApp> trait_type;
     Ptr<Type> concrete_type;
     PtrVector<TraitFn> functs;
 
     TraitImpl(
             const Loc& loc,
+            Ptr<TypeParamList>&& type_params,
             Ptr<TypeApp>&& trait_type,
             Ptr<Type>&& concrete_type,
             PtrVector<TraitFn>&& functs)
             : Decl(loc)
+            , type_params(std::move(type_params))
             , trait_type(std::move(trait_type))
             , concrete_type(std::move(concrete_type))
             , functs(std::move(functs))

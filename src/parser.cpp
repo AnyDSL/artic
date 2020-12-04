@@ -232,6 +232,10 @@ Ptr<ast::TraitImpl> Parser::parse_trait_impl(){
     Tracker tracker(this);
 
     eat(Token::Impl);
+    Ptr<ast::TypeParamList> type_params;
+    if (ahead().tag() == Token::LBracket)
+        type_params = parse_type_params();
+
     auto trait_type = parse_type_app();
 
     if(!expect(Token::For)) {
@@ -265,7 +269,7 @@ Ptr<ast::TraitImpl> Parser::parse_trait_impl(){
         }
     }
 
-    return make_ptr<ast::TraitImpl>(tracker(), std::move(trait_type), std::move(concrete_type), std::move(functs));
+    return make_ptr<ast::TraitImpl>(tracker(), std::move(type_params), std::move(trait_type), std::move(concrete_type), std::move(functs));
 
 
 
