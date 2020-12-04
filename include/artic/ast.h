@@ -32,6 +32,10 @@ std::unique_ptr<T> make_ptr(Args&&... args) {
 
 namespace ast {
 
+
+struct TraitImpl;
+struct TraitDecl;
+
 /// Identifier with its location in the file
 struct Identifier {
     Loc loc;
@@ -41,6 +45,10 @@ struct Identifier {
     Identifier(const Loc& loc, std::string&& name)
         : loc(loc), name(std::move(name))
     {}
+
+    bool is_self = false;
+    TraitDecl* trait_decl = nullptr;
+    TraitImpl* trait_impl = nullptr;
 };
 
 /// Base class for all AST nodes.

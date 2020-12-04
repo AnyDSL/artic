@@ -3,6 +3,7 @@
 
 #include "artic/types.h"
 #include "artic/hash.h"
+#include "artic/print.h"
 
 namespace artic {
 
@@ -579,6 +580,7 @@ bool Type::subtype(const Type* other) const {
         }
     }
 
+
     return type_table.has_trait(this, other);
 }
 
@@ -773,7 +775,7 @@ const T* TypeTable::insert(Args&&... args) {
     return (*it)->template as<T>();
 }
 
-const TraitImplType* TypeTable::register_trait_fot_type(const Type* type, const TraitImplType* impl){
+const TraitImplType* TypeTable::register_trait_for_type(const Type* type, const TraitImplType* impl){
     auto it = traits_impls_.find(type);
     if(it != traits_impls_.end()){
         auto& traits = it->second;

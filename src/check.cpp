@@ -308,7 +308,6 @@ const Type* TypeChecker::check_trait_fns(
             seen[*index] = true;
             defined[*index] = true;
             fns[i]->index = *index;
-            check(*fns[i], type_app ? type_app->member_type(*index) : trait_type->member_type(*index));
         }
         //Add default definitions
         for(size_t i =0; i < trait_type->decl.functs.size(); i++){
@@ -325,6 +324,17 @@ const Type* TypeChecker::check_trait_fns(
 
         return type_app ? type_app->as<Type>() : trait_type;
     }
+
+
+const Type* TypeChecker::infer_self_type(ast::Identifier& id){
+    if(id.trait_impl){
+        return infer(*id.trait_impl->concrete_type);
+    }
+    else{
+        return infer(*id.trait_decl);
+    }
+
+}
 
 void TypeChecker::check_block(const Loc& loc, const PtrVector<ast::Stmt>& stmts, bool last_semi) {
     assert(!stmts.empty());
@@ -566,10 +576,19 @@ const artic::Type* Ptrn::check(TypeChecker& checker, const artic::Type* expected
 // Path ----------------------------------------------------------------------------
 
 const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, Ptr<Expr>* arg) {
-    if (!symbol || symbol->decls.empty())
+    if ((!symbol || symbol->decls.empty()) && !elems[0].id.is_self )
         return checker.type_table.type_error();
 
-    type = checker.infer(*symbol->decls.front());
+    if(elems[0].id.is_self){
+        if(!elems[0].args.empty()){
+            checker.error(loc, "'self' can not have type arguments");
+            return checker.type_table.type_error();
+        }
+        return type = checker.infer_self_type(elems[0].id);
+    }
+    else{
+        type = checker.infer(*symbol->decls.front());
+    }
     is_value =
         elems.size() == 1 &&
         (symbol->decls.front()->isa<PtrnDecl>() ||
@@ -1570,7 +1589,8 @@ const artic::Type* TraitImpl::infer(TypeChecker& checker) {
     if(!trait_type){
        return checker.type_expected(loc, this->trait_type->type, "trait");
     }
-    auto conflict = checker.type_table.register_trait_fot_type(concrete_type->infer(checker),  checker.type_table.trait_impl_type(*this));
+    auto conflict = checker.type_table.register_trait_for_type(concrete_type->infer(checker),
+                                                               checker.type_table.trait_impl_type(*this));
     if (conflict) {
         checker.error(loc, "Trait '{}' is already defined for '{}'", *this->trait_type->type, *concrete_type);
         checker.note(conflict->impl.loc, "previously declared here");

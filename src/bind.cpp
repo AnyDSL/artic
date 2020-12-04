@@ -40,6 +40,10 @@ void NameBinder::insert_symbol(ast::NamedDecl& decl) {
     // Do not bind anonymous variables
     if (name[0] == '_') return;
 
+    //disallow redefinition of self in traits
+    if(!name.compare("self") && (cur_trait_decl() || cur_trait_impl()))
+        error(decl.loc, "identifier 'self' is reserved inside of traits");
+
     auto shadow_symbol = find_symbol(name);
     if (!scopes_.back().insert(name, Symbol(&decl))) {
         error(decl.loc, "identifier '{}' already declared", name);
@@ -62,6 +66,12 @@ namespace ast {
 void Path::bind(NameBinder& binder) {
     // Bind the first element of the path
     auto& first = elems.front();
+    if(!first.id.name.compare("self") && (binder.cur_trait_decl() || binder.cur_trait_impl())){
+        first.id.is_self = true;
+        first.id.trait_decl = binder.cur_trait_decl();
+        first.id.trait_impl = binder.cur_trait_impl();
+        return;
+    }
     if (first.id.name[0] == '_')
         binder.error(first.id.loc, "identifiers beginning with '_' cannot be referenced");
     else {
@@ -443,21 +453,25 @@ void TraitDecl::bind_head(NameBinder& binder) {
 
 void TraitDecl::bind(NameBinder& binder) {
     binder.push_scope();
+    auto old = binder.push_trait_decl(this);
         if (type_params) binder.bind(*type_params);
         for(auto& f: functs){
             f->bind(binder);
         }
     binder.pop_scope();
+    binder.pop_trait_decl(old);
 }
 
 
 void TraitImpl::bind(NameBinder& binder) {
     trait_type->bind(binder);
     binder.push_scope();
+    auto old = binder.push_trait_impl(this);
         for(auto& f: functs){
             f->bind(binder);
         }
     binder.pop_scope();
+    binder.pop_trait_impl(old);
 }
 
 

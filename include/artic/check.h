@@ -75,6 +75,8 @@ public:
             const Fns& fns,
             const std::string_view& msg);
 
+    const Type* infer_self_type(ast::Identifier& id);
+
     void check_block(const Loc&, const PtrVector<ast::Stmt>&, bool);
     bool check_attrs(const ast::NamedAttr&, const std::vector<AttrType>&);
     bool check_filter(const ast::Expr&);
