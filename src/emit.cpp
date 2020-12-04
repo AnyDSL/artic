@@ -1032,7 +1032,8 @@ const thorin::Def* ProjExpr::emit(Emitter& emitter) const {
 }
 
 static inline std::pair<Ptr<IdPtrn>, Ptr<TupleExpr>> dummy_case(const Loc& loc, const artic::Type* type) {
-    // Create a dummy wildcard pattern '_' and empty tuple '()' for the returned value.
+    // Create a dummy wildcard pattern '_' and empty tuple '()'
+    // for the else/break branches of an `if let`/`while let`.
     auto anon_decl   = make_ptr<ast::PtrnDecl>(loc, Identifier(loc, "_"), false);
     auto anon_ptrn   = make_ptr<ast::IdPtrn>(loc, std::move(anon_decl), nullptr);
     auto empty_tuple = make_ptr<ast::TupleExpr>(loc, PtrVector<ast::Expr>());
