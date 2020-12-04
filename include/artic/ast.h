@@ -735,6 +735,7 @@ struct IfExpr : public Expr {
     Ptr<Expr> if_true;
     Ptr<Expr> if_false;
 
+    // Constructor for the conditional form: `if cond { body }`
     IfExpr(
         const Loc& loc,
         Ptr<Expr>&& cond,
@@ -746,6 +747,7 @@ struct IfExpr : public Expr {
         , if_false(std::move(if_false))
     {}
 
+    // Constructor for the pattern form: `if let ptrn = expr { body }`
     IfExpr(
             const Loc& loc,
             Ptr<Ptrn>&& ptrn,
@@ -827,10 +829,12 @@ struct WhileExpr : public LoopExpr {
     Ptr<Expr> cond;
     Ptr<Expr> body;
 
+    // Constructor for the conditional form: `while cond { body }`
     WhileExpr(const Loc& loc, Ptr<Expr>&& cond, Ptr<Expr>&& body)
         : LoopExpr(loc), cond(std::move(cond)), body(std::move(body))
     {}
 
+    // Constructor for the pattern form: `while let ptrn = expr { body }`
     WhileExpr(const Loc& loc, Ptr<Ptrn>&& ptrn, Ptr<Expr>&& expr, Ptr<Expr>&& body)
             : LoopExpr(loc), ptrn(std::move(ptrn)), expr(std::move(expr)), body(std::move(body))
     {}
