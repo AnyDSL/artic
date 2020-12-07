@@ -1088,11 +1088,6 @@ const thorin::Def* MatchExpr::emit(Emitter& emitter) const {
     return emitter.tuple_from_params(join);
 }
 
-const thorin::Def* CaseExpr::emit(Emitter& emitter) const {
-    assert(false); // Look at PtrnCompiler::MatchCase::emit instead
-    return nullptr;
-}
-
 const thorin::Def* WhileExpr::emit(Emitter& emitter) const {
     auto while_head = emitter.basic_block_with_mem(debug_info(*this, "while_head"));
     auto while_exit = emitter.basic_block_with_mem(debug_info(*this, "while_exit"));
