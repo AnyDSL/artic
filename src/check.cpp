@@ -603,6 +603,12 @@ const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, Ptr<Ex
                     type = is_unit_type(member) ? type : checker.type_table.fn_type(member, type);
                     is_value = is_ctor = true;
                 }
+            } else if (auto mod_type = type->isa<ModType>()) {
+                auto index = mod_type->find_member(elems[i + 1].id.name);
+                if (!index)
+                    return checker.unknown_member(elem.loc, mod_type, elems[i + 1].id.name);
+                type = mod_type->member_type(*index);
+                is_value = mod_type->is_value(*index);
             } else {
                 checker.error(elem.loc, "expected module or enum type, but got '{}'", *type);
                 return checker.type_table.type_error();
@@ -1472,7 +1478,7 @@ const artic::Type* TypeDecl::infer(TypeChecker& checker) {
 const artic::Type* ModDecl::infer(TypeChecker& checker) {
     for (auto& decl : decls)
         checker.infer(*decl);
-    return checker.type_table.unit_type();
+    return checker.type_table.mod_type(*this);
 }
 
 // Patterns ------------------------------------------------------------------------

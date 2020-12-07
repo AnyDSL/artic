@@ -84,6 +84,10 @@ bool EnumType::equals(const Type* other) const {
     return other == this;
 }
 
+bool ModType::equals(const Type* other) const {
+    return other == this;
+}
+
 bool TypeAlias::equals(const Type* other) const {
     return other == this;
 }
@@ -157,6 +161,10 @@ size_t StructType::hash() const {
 }
 
 size_t EnumType::hash() const {
+    return fnv::Hash().combine(&decl);
+}
+
+size_t ModType::hash() const {
     return fnv::Hash().combine(&decl);
 }
 
@@ -442,10 +450,6 @@ size_t StructType::member_count() const {
     return decl.fields.size();
 }
 
-bool StructType::is_tuple_like() const {
-    return decl.isa<ast::StructDecl>() && decl.as<ast::StructDecl>()->is_tuple_like;
-}
-
 std::optional<size_t> EnumType::find_member(const std::string_view& name) const {
     auto it = std::find_if(
         decl.options.begin(),
@@ -464,6 +468,41 @@ const Type* EnumType::member_type(size_t i) const {
 
 size_t EnumType::member_count() const {
     return decl.options.size();
+}
+
+std::optional<size_t> ModType::find_member(const std::string_view& name) const {
+    auto it = std::find_if(
+        members().begin(),
+        members().end(),
+        [&name] (auto& member) { return member.name == name; });
+    return it != members().end()
+        ? std::make_optional(it - members().begin())
+        : std::nullopt;
+}
+
+const Type* ModType::member_type(size_t i) const {
+    return members()[i].type;
+}
+
+size_t ModType::member_count() const {
+    return members().size();
+}
+
+bool ModType::is_value(size_t i) const {
+    return members()[i].is_value;
+}
+
+const ModType::Members& ModType::members() const {
+    if (!members_) {
+        members_ = std::make_unique<ModType::Members>();
+        for (auto& decl : decl.decls) {
+            if (auto named_decl = decl->isa<ast::NamedDecl>()) {
+                bool is_value = decl->isa<ast::StaticDecl>() || decl->isa<ast::FnDecl>();
+                members_->emplace_back(named_decl->id.name, named_decl->type,is_value);
+            }
+        }
+    }
+    return *members_;
 }
 
 // Misc. ---------------------------------------------------------------------------
@@ -538,6 +577,10 @@ const Type* ForallType::instantiate(const ArrayRef<const Type*>& args) const {
         map.emplace(decl.type_params->params[i]->type->as<TypeVar>(), args[i]); 
     }
     return body->replace(map);
+}
+
+bool StructType::is_tuple_like() const {
+    return decl.isa<ast::StructDecl>() && decl.as<ast::StructDecl>()->is_tuple_like;
 }
 
 std::unordered_map<const TypeVar*, const Type*> TypeApp::replace_map(
@@ -681,6 +724,10 @@ const StructType* TypeTable::struct_type(const ast::RecordDecl& decl) {
 
 const EnumType* TypeTable::enum_type(const ast::EnumDecl& decl) {
     return insert<EnumType>(decl);
+}
+
+const ModType* TypeTable::mod_type(const ast::ModDecl& decl) {
+    return insert<ModType>(decl);
 }
 
 const TypeAlias* TypeTable::type_alias(const ast::TypeDecl& decl) {

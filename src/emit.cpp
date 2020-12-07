@@ -794,7 +794,6 @@ const thorin::Def* Node::emit(Emitter&) const {
 
 const thorin::Def* Path::emit(Emitter& emitter) const {
     // Currently only supports paths of the form A/A::B/A[T, ...]/A[T, ...]::B
-    assert(elems.size() == 1 || elems.size() == 2);
     if (auto struct_decl = symbol->decls.front()->isa<StructDecl>();
         struct_decl && struct_decl->is_tuple_like && struct_decl->fields.empty()) {
         return emitter.world.struct_agg(
@@ -1618,6 +1617,12 @@ const thorin::Type* TypeVar::convert(Emitter& emitter) const {
     return emitter.type_vars[this]->convert(emitter);
 }
 
+const thorin::Type* UserType::convert(Emitter&, const Type*) const {
+    // Should never be called
+    assert(false);
+    return nullptr;
+}
+
 inline std::string stringify_params(
     Emitter& emitter,
     const std::string& prefix,
@@ -1665,13 +1670,6 @@ const thorin::Type* EnumType::convert(Emitter& emitter, const Type* parent) cons
         type->set_op_name(i, decl.options[i]->id.name);
     }
     return type;
-}
-
-const thorin::Type* TypeAlias::convert(Emitter&, const Type*) const {
-    // This type should already have been replaced by
-    // its content during type-checking.
-    assert(false);
-    return nullptr;
 }
 
 std::string TypeApp::stringify(Emitter& emitter) const {

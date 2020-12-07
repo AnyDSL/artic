@@ -402,7 +402,7 @@ struct UserType : public Type {
     {}
 
     virtual const ast::TypeParamList* type_params() const = 0;
-    virtual const thorin::Type* convert(Emitter&, const Type*) const = 0;
+    virtual const thorin::Type* convert(Emitter&, const Type*) const;
 
     const thorin::Type* convert(Emitter& emitter) const override {
         return convert(emitter, this);
@@ -477,6 +477,43 @@ private:
     friend class TypeTable;
 };
 
+struct ModType : public ComplexType {
+    const ast::ModDecl& decl;
+
+    void print(Printer&) const override;
+    bool equals(const Type*) const override;
+    size_t hash() const override;
+
+    const ast::TypeParamList* type_params() const override { return nullptr; }
+
+    std::optional<size_t> find_member(const std::string_view&) const override;
+    const Type* member_type(size_t) const override;
+    size_t member_count() const override;
+
+    bool is_value(size_t) const;
+
+private:
+    struct Member {
+        std::string name;
+        const Type* type;
+        bool is_value;
+
+        Member(const std::string& name, const Type* type, bool is_value)
+            : name(name), type(type), is_value(is_value)
+        {}
+    };
+    using Members = std::vector<Member>;
+    mutable std::unique_ptr<Members> members_;
+
+    ModType(TypeTable& type_table, const ast::ModDecl& decl)
+        : ComplexType(type_table), decl(decl)
+    {}
+
+    const Members& members() const;
+
+    friend class TypeTable;
+};
+
 struct TypeAlias : public UserType {
     const ast::TypeDecl& decl;
 
@@ -487,8 +524,6 @@ struct TypeAlias : public UserType {
     const ast::TypeParamList* type_params() const override {
         return decl.type_params.get();
     }
-
-    const thorin::Type* convert(Emitter&, const Type*) const override;
 
 private:
     TypeAlias(TypeTable& type_table, const ast::TypeDecl& decl)
@@ -584,6 +619,7 @@ public:
     const ForallType*       forall_type(const ast::FnDecl&);
     const StructType*       struct_type(const ast::RecordDecl&);
     const EnumType*         enum_type(const ast::EnumDecl&);
+    const ModType*          mod_type(const ast::ModDecl&);
     const TypeAlias*        type_alias(const ast::TypeDecl&);
 
     /// Creates a type application for structures/enumeration types,

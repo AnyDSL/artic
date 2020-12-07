@@ -743,6 +743,10 @@ void EnumType::print(Printer& p) const {
     p << decl.id.name;
 }
 
+void ModType::print(Printer& p) const {
+    p << decl.id.name;
+}
+
 void TypeAlias::print(Printer& p) const {
     p << decl.id.name;
 }
