@@ -1090,6 +1090,7 @@ const thorin::Def* MatchExpr::emit(Emitter& emitter) const {
 
 const thorin::Def* CaseExpr::emit(Emitter& emitter) const {
     assert(false); // Look at PtrnCompiler::MatchCase::emit instead
+    return nullptr;
 }
 
 const thorin::Def* WhileExpr::emit(Emitter& emitter) const {
