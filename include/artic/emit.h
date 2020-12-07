@@ -48,6 +48,7 @@ public:
         }
     };
 
+    std::string mod_prefix;
     State state;
 
     // Enumeration variant constructor, containing an enumeration type
@@ -139,6 +140,9 @@ public:
     const thorin::Def* emit(const ast::Node&, const Literal&);
 
     const thorin::Def* builtin(const ast::FnDecl&, thorin::Continuation*);
+
+    thorin::Debug debug_info(const ast::NamedDecl&);
+    thorin::Debug debug_info(const ast::Node&, const std::string_view& = "");
 };
 
 /// Helper function to compile a set of files and generate an AST and a thorin module.
