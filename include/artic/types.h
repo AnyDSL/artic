@@ -490,16 +490,15 @@ struct ModType : public ComplexType {
     const Type* member_type(size_t) const override;
     size_t member_count() const override;
 
-    bool is_value(size_t) const;
+    const ast::NamedDecl& member(size_t) const;
 
 private:
     struct Member {
         std::string name;
-        const Type* type;
-        bool is_value;
+        const ast::NamedDecl& decl;
 
-        Member(const std::string& name, const Type* type, bool is_value)
-            : name(name), type(type), is_value(is_value)
+        Member(const std::string& name, const ast::NamedDecl& decl)
+            : name(name), decl(decl)
         {}
     };
     using Members = std::vector<Member>;

@@ -481,25 +481,23 @@ std::optional<size_t> ModType::find_member(const std::string_view& name) const {
 }
 
 const Type* ModType::member_type(size_t i) const {
-    return members()[i].type;
+    return members()[i].decl.type;
 }
 
 size_t ModType::member_count() const {
     return members().size();
 }
 
-bool ModType::is_value(size_t i) const {
-    return members()[i].is_value;
+const ast::NamedDecl& ModType::member(size_t i) const {
+    return members()[i].decl;
 }
 
 const ModType::Members& ModType::members() const {
     if (!members_) {
         members_ = std::make_unique<ModType::Members>();
         for (auto& decl : decl.decls) {
-            if (auto named_decl = decl->isa<ast::NamedDecl>()) {
-                bool is_value = decl->isa<ast::StaticDecl>() || decl->isa<ast::FnDecl>();
-                members_->emplace_back(named_decl->id.name, named_decl->type,is_value);
-            }
+            if (auto named_decl = decl->isa<ast::NamedDecl>())
+                members_->emplace_back(named_decl->id.name, *named_decl);
         }
     }
     return *members_;

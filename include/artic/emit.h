@@ -48,7 +48,6 @@ public:
         }
     };
 
-    std::string mod_prefix;
     State state;
 
     // Enumeration variant constructor, containing an enumeration type

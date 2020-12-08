@@ -1131,6 +1131,17 @@ struct NamedDecl : public Decl {
     NamedDecl(const Loc& loc, Identifier&& id)
         : Decl(loc), id(std::move(id))
     {}
+
+    virtual bool is_value() const { return false; }
+};
+
+/// Value declaration associated with an identifier.
+struct ValueDecl : public NamedDecl {
+    ValueDecl(const Loc& loc, Identifier&& id)
+        : NamedDecl(loc, std::move(id))
+    {}
+
+    bool is_value() const override { return true; }
 };
 
 /// Type parameter, introduced by the operator [].
@@ -1157,14 +1168,14 @@ struct TypeParamList : public Node {
 };
 
 /// Pattern binding associated with an identifier.
-struct PtrnDecl : public NamedDecl {
+struct PtrnDecl : public ValueDecl {
     bool is_mut;
 
     // Set during type-checking.
     mutable bool written_to = false;
 
     PtrnDecl(const Loc& loc, Identifier&& id, bool is_mut = false)
-        : NamedDecl(loc, std::move(id)), is_mut(is_mut)
+        : ValueDecl(loc, std::move(id)), is_mut(is_mut)
     {}
 
     const artic::Type* check(TypeChecker&, const artic::Type*) override;
@@ -1190,7 +1201,7 @@ struct LetDecl : public Decl {
 };
 
 /// Static (top-level) declaration.
-struct StaticDecl : public NamedDecl {
+struct StaticDecl : public ValueDecl {
     Ptr<Type> type;
     Ptr<Expr> init;
     bool is_mut;
@@ -1201,7 +1212,7 @@ struct StaticDecl : public NamedDecl {
         Ptr<Type>&& type,
         Ptr<Expr>&& init,
         bool is_mut = false)
-        : NamedDecl(loc, std::move(id))
+        : ValueDecl(loc, std::move(id))
         , type(std::move(type))
         , init(std::move(init))
         , is_mut(is_mut)
@@ -1215,7 +1226,7 @@ struct StaticDecl : public NamedDecl {
 };
 
 /// Function declaration.
-struct FnDecl : public NamedDecl {
+struct FnDecl : public ValueDecl {
     Ptr<FnExpr> fn;
     Ptr<TypeParamList> type_params;
 
@@ -1224,7 +1235,7 @@ struct FnDecl : public NamedDecl {
         Identifier&& id,
         Ptr<FnExpr>&& fn,
         Ptr<TypeParamList>&& type_params)
-        : NamedDecl(loc, std::move(id))
+        : ValueDecl(loc, std::move(id))
         , fn(std::move(fn))
         , type_params(std::move(type_params))
     {}

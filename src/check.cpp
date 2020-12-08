@@ -525,11 +525,7 @@ const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, Ptr<Ex
         return checker.type_table.type_error();
 
     type = checker.infer(*symbol->decls.front());
-    is_value =
-        elems.size() == 1 &&
-        (symbol->decls.front()->isa<PtrnDecl>() ||
-         symbol->decls.front()->isa<FnDecl>() ||
-         symbol->decls.front()->isa<StaticDecl>());
+    is_value = elems.size() == 1 && symbol->decls.front()->is_value();
     is_ctor =
         symbol->decls.front()->isa<StructDecl>() ||
         symbol->decls.front()->isa<EnumDecl>();
@@ -607,8 +603,9 @@ const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, Ptr<Ex
                 auto index = mod_type->find_member(elems[i + 1].id.name);
                 if (!index)
                     return checker.unknown_member(elem.loc, mod_type, elems[i + 1].id.name);
+                elems[i + 1].index = *index;
                 type = mod_type->member_type(*index);
-                is_value = mod_type->is_value(*index);
+                is_value = mod_type->member(*index).is_value();
             } else {
                 checker.error(elem.loc, "expected module or enum type, but got '{}'", *type);
                 return checker.type_table.type_error();

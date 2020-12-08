@@ -774,7 +774,7 @@ static inline thorin::Location location(const Loc& loc) {
 }
 
 thorin::Debug Emitter::debug_info(const ast::NamedDecl& decl) {
-    return thorin::Debug { location(decl.loc), mod_prefix + decl.id.name };
+    return thorin::Debug { location(decl.loc), decl.id.name };
 }
 
 thorin::Debug Emitter::debug_info(const ast::Node& node, const std::string_view& name) {
@@ -801,9 +801,11 @@ const thorin::Def* Path::emit(Emitter& emitter) const {
             emitter.debug_info(*this));
     }
 
+    const auto* decl = symbol->decls.front();
     for (size_t i = 0, n = elems.size(); i < n; ++i) {
-        auto decl = symbol->decls.front();
-        if (!is_ctor) {
+        if (auto mod_type = elems[i].type->isa<ModType>()) {
+            decl = &mod_type->member(elems[i + 1].index);
+        } else if (!is_ctor) {
             // If type arguments are present, this is a polymorphic application
             std::unordered_map<const artic::TypeVar*, const artic::Type*> map;
             if (!elems[i].inferred_args.empty()) {
@@ -1454,8 +1456,6 @@ const thorin::Def* TypeDecl::emit(Emitter&) const {
 }
 
 const thorin::Def* ModDecl::emit(Emitter& emitter) const {
-    if (!id.name.empty())
-        emitter.mod_prefix += id.name + "_";
     for (auto& decl : decls) {
         // Do not emit polymorphic functions directly: Those will be emitted from
         // the call site, where the type arguments are known.
@@ -1463,8 +1463,6 @@ const thorin::Def* ModDecl::emit(Emitter& emitter) const {
             continue;
         emitter.emit(*decl);
     }
-    if (!id.name.empty())
-        emitter.mod_prefix.resize(emitter.mod_prefix.size() - (id.name.size() + 1));
     return nullptr;
 }
 
