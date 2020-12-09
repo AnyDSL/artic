@@ -95,6 +95,15 @@ range(|i| { print(i) })(0, 10)
 #[export]
 fn foo() -> i32 { 1 }
 ```
+ - Modules are supported. They behave essentially like C++ namespaces,
+   except they cannot be extended after being defined, and they are
+   order independent:
+```rust
+fn foo() = Foo::foo();
+mod Foo {
+    fn foo() = 1;
+}
+```
  - Tuples cannot be indexed with constant integers anymore:
 ```rust
 let t = (1, 2);
