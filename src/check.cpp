@@ -183,10 +183,10 @@ const Type* TypeChecker::infer(ast::Ptrn& ptrn, Ptr<ast::Expr>& expr) {
     if (auto tuple_ptrn = ptrn.isa<ast::TuplePtrn>()) {
         if (auto tuple_expr = expr->isa<ast::TupleExpr>();
             tuple_expr && tuple_ptrn->args.size() == tuple_expr->args.size()) {
-            std::vector<const Type*> arg_types;
+            SmallArray<const Type*> arg_types(tuple_expr->args.size());
             for (size_t i = 0, n = tuple_expr->args.size(); i < n; ++i)
-                arg_types.push_back(infer(*tuple_ptrn->args[i], tuple_expr->args[i]));
-            return type_table.tuple_type(std::move(arg_types));
+                arg_types[i] = infer(*tuple_ptrn->args[i], tuple_expr->args[i]);
+            return type_table.tuple_type(arg_types);
         }
     } else if (auto typed_ptrn = ptrn.isa<ast::TypedPtrn>())
         return coerce(expr, infer(*typed_ptrn));
@@ -340,7 +340,7 @@ bool TypeChecker::check_filter(const ast::Expr& expr) {
     return false;
 }
 
-bool TypeChecker::check_attrs(const ast::NamedAttr& named_attr, const std::vector<AttrType>& attr_types) {
+bool TypeChecker::check_attrs(const ast::NamedAttr& named_attr, const ArrayRef<AttrType>& attr_types) {
     std::unordered_map<std::string_view, const ast::Attr*> seen;
     for (auto& attr : named_attr.args) {
         if (!seen.emplace(attr->name, attr.get()).second) {
@@ -488,7 +488,7 @@ const Type* TypeChecker::infer_record_type(const TypeApp* type_app, const Struct
             - option_decl->parent->options.begin();
         assert(index < option_decl->parent->options.size());
         if (type_app)
-            return type_table.type_app(enum_type, std::vector<const Type*>(type_app->type_args));
+            return type_table.type_app(enum_type, type_app->type_args);
         return enum_type;
     }
     return type_app ? type_app->as<Type>() : struct_type;
@@ -575,12 +575,12 @@ const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, Ptr<Ex
         if (auto [type_app, struct_type] = match_app<StructType>(type);
             is_ctor && value_expected && i == 0 && struct_type && struct_type->is_tuple_like()) {
             if (struct_type->member_count() > 0) {
-                std::vector<const artic::Type*> tuple_args;
+                SmallArray<const artic::Type*> tuple_args(struct_type->member_count());
                 for (size_t i = 0, n = struct_type->member_count(); i < n; ++i)
-                    tuple_args.push_back(type_app ? type_app->member_type(i) : struct_type->member_type(i));
+                    tuple_args[i] = type_app ? type_app->member_type(i) : struct_type->member_type(i);
                 auto dom = struct_type->member_count() == 1
                     ? tuple_args.front()
-                    : checker.type_table.tuple_type(std::move(tuple_args));
+                    : checker.type_table.tuple_type(tuple_args);
                 type = checker.type_table.fn_type(dom, type);
             }
             is_value = true;
@@ -646,7 +646,10 @@ void NamedAttr::check(TypeChecker& checker, const ast::Node* node) {
                 else
                     checker.check_attrs(*this, { { "name", AttrType::String } });
             } else if (name == "import") {
-                if (checker.check_attrs(*this, { { "cc", AttrType::String }, { "name", AttrType::String } })) {
+                if (checker.check_attrs(*this, std::array<AttrType, 2> {
+                        AttrType { "cc", AttrType::String },
+                        AttrType { "name", AttrType::String }
+                    })) {
                     auto name = fn_decl->id.name;
                     if (auto name_attr = find("name"))
                         name = name_attr->as<LiteralAttr>()->lit.as_string();
@@ -689,10 +692,10 @@ const artic::Type* PrimType::infer(TypeChecker& checker) {
 }
 
 const artic::Type* TupleType::infer(TypeChecker& checker) {
-    std::vector<const artic::Type*> arg_types(args.size());
+    SmallArray<const artic::Type*> arg_types(args.size());
     for (size_t i = 0, n = args.size(); i < n; ++i)
         arg_types[i] = checker.infer(*args[i]);
-    return checker.type_table.tuple_type(std::move(arg_types));
+    return checker.type_table.tuple_type(arg_types);
 }
 
 const artic::Type* SizedArrayType::infer(TypeChecker& checker) {
@@ -784,19 +787,18 @@ const artic::Type* RecordExpr::infer(TypeChecker& checker) {
 }
 
 const artic::Type* TupleExpr::infer(TypeChecker& checker) {
-    std::vector<const artic::Type*> arg_types(args.size());
+    SmallArray<const artic::Type*> arg_types(args.size());
     for (size_t i = 0, n = args.size(); i < n; ++i)
         arg_types[i] = checker.deref(args[i]);
-    return checker.type_table.tuple_type(std::move(arg_types));
+    return checker.type_table.tuple_type(arg_types);
 }
 
 const artic::Type* TupleExpr::check(TypeChecker& checker, const artic::Type* expected) {
     if (auto tuple_type = expected->isa<artic::TupleType>()) {
         if (args.size() != tuple_type->args.size())
             return checker.bad_arguments(loc, "tuple expression", args.size(), tuple_type->args.size());
-        std::vector<const artic::Type*> types(args.size());
         for (size_t i = 0, n = args.size(); i < n; ++i)
-            types[i] = checker.coerce(args[i], tuple_type->args[i]);
+            checker.coerce(args[i], tuple_type->args[i]);
         return expected;
     }
     return checker.incompatible_type(loc, "tuple expression", expected);
@@ -1557,10 +1559,10 @@ const artic::Type* CtorPtrn::infer(TypeChecker& checker) {
 }
 
 const artic::Type* TuplePtrn::infer(TypeChecker& checker) {
-    std::vector<const artic::Type*> arg_types(args.size());
+    SmallArray<const artic::Type*> arg_types(args.size());
     for (size_t i = 0, n = args.size(); i < n; ++i)
         arg_types[i] = checker.infer(*args[i]);
-    return checker.type_table.tuple_type(std::move(arg_types));
+    return checker.type_table.tuple_type(arg_types);
 }
 
 const artic::Type* TuplePtrn::check(TypeChecker& checker, const artic::Type* expected) {

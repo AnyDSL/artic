@@ -7,6 +7,7 @@
 #include "artic/ast.h"
 #include "artic/types.h"
 #include "artic/log.h"
+#include "artic/array.h"
 
 namespace artic {
 
@@ -68,7 +69,7 @@ public:
         bool = false, bool = false);
 
     void check_block(const Loc&, const PtrVector<ast::Stmt>&, bool);
-    bool check_attrs(const ast::NamedAttr&, const std::vector<AttrType>&);
+    bool check_attrs(const ast::NamedAttr&, const ArrayRef<AttrType>&);
     bool check_filter(const ast::Expr&);
 
     template <typename InferElems>

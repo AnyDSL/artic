@@ -24,16 +24,18 @@ public:
         const ast::Node* node;
 
         bool is_redundant = true;
-        const thorin::Def* target = nullptr;
+        const thorin::Lam* target;
         std::vector<const struct ast::IdPtrn*> bound_ptrns;
 
         MatchCase(
             const ast::Ptrn* ptrn,
             const ast::Expr* expr,
-            const ast::Node* node)
+            const ast::Node* node,
+            const thorin::Lam* target)
             : ptrn(ptrn)
             , expr(expr)
             , node(node)
+            , target(target)
         {
             ptrn->collect_bound_ptrns(bound_ptrns);
         }
@@ -978,6 +980,16 @@ const thorin::Def* ProjExpr::emit(Emitter& emitter) const {
     return emitter.world.extract(emitter.emit(*expr), index, emitter.dbg(*this));
 }
 
+static inline std::pair<Ptr<IdPtrn>, Ptr<TupleExpr>> dummy_case(const Loc& loc, const artic::Type* type) {
+    // Create a dummy wildcard pattern '_' and empty tuple '()'
+    // for the else/break branches of an `if let`/`while let`.
+    auto anon_decl   = make_ptr<ast::PtrnDecl>(loc, Identifier(loc, "_"), false);
+    auto anon_ptrn   = make_ptr<ast::IdPtrn>(loc, std::move(anon_decl), nullptr);
+    auto empty_tuple = make_ptr<ast::TupleExpr>(loc, PtrVector<ast::Expr>());
+    anon_ptrn->type  = type;
+    return std::make_pair(std::move(anon_ptrn), std::move(empty_tuple));
+}
+
 const thorin::Def* IfExpr::emit(Emitter& emitter) const {
     // This can happen if both branches call a continuation.
     auto join = !type->isa<artic::NoRetType>()
@@ -997,18 +1009,11 @@ const thorin::Def* IfExpr::emit(Emitter& emitter) const {
         auto false_value = if_false ? emitter.emit(*if_false) : emitter.world.tuple({});
         if (join) emitter.jump(join, false_value, nullptr);
     } else {
+        auto [else_ptrn, empty_tuple] = dummy_case(loc, expr->type);
+
         std::vector<PtrnCompiler::MatchCase> match_cases;
-        auto match_case = PtrnCompiler::MatchCase(ptrn.get(), if_true.get(), this);
-        match_case.target = join;
-
-        auto else_ptrn = make_ptr<ast::IdPtrn>(loc, std::move(make_ptr<ast::PtrnDecl>(loc, Identifier(loc, "_"), false)), nullptr);
-        else_ptrn->type = expr->type;
-        match_cases.push_back(match_case);
-
-        auto empty_tuple = make_ptr<ast::TupleExpr>(loc, std::move(PtrVector<ast::Expr>()));
-        auto else_case = PtrnCompiler::MatchCase(else_ptrn.get(), if_false ? if_false.get() : empty_tuple.get(), this);
-        else_case.target = join;
-        match_cases.push_back(else_case);
+        match_cases.emplace_back(ptrn.get(), if_true.get(), this, join);
+        match_cases.emplace_back(else_ptrn.get(), if_false ? if_false.get() : empty_tuple.get(), this, join);
 
         std::unordered_map<const IdPtrn*, const thorin::Def*> matched_values;
         PtrnCompiler::emit(emitter, *this, *expr, std::move(match_cases), std::move(matched_values));
@@ -1024,19 +1029,12 @@ const thorin::Def* IfExpr::emit(Emitter& emitter) const {
 const thorin::Def* MatchExpr::emit(Emitter& emitter) const {
     auto join = emitter.basic_block(type->convert(emitter), emitter.dbg(*this, "match_join"));
     std::vector<PtrnCompiler::MatchCase> match_cases;
-    for (auto& case_ : this->cases) {
-        auto match_case = PtrnCompiler::MatchCase(case_->ptrn.get(), case_->expr.get(), case_.get());
-        match_case.target = join;
-        match_cases.push_back(match_case);
-    }
+    for (auto& case_ : this->cases)
+        match_cases.emplace_back(case_->ptrn.get(), case_->expr.get(), case_.get(), join);
     std::unordered_map<const IdPtrn*, const thorin::Def*> matched_values;
     PtrnCompiler::emit(emitter, *this, *arg, std::move(match_cases), std::move(matched_values));
     emitter.enter(join);
     return join->param(1);
-}
-
-const thorin::Def* CaseExpr::emit(Emitter& emitter) const {
-    assert(false); // Look at PtrnCompiler::MatchCase::emit instead
 }
 
 const thorin::Def* WhileExpr::emit(Emitter& emitter) const {
@@ -1044,6 +1042,7 @@ const thorin::Def* WhileExpr::emit(Emitter& emitter) const {
     auto while_exit = emitter.basic_block(emitter.dbg(*this, "while_exit"));
     auto while_continue = emitter.basic_block(emitter.world.sigma(), emitter.dbg(*this, "while_continue"));
     auto while_break    = emitter.basic_block(emitter.world.sigma(), emitter.dbg(*this, "while_break"));
+
     emitter.jump(while_head, nullptr);
     emitter.enter(while_continue);
     emitter.jump(while_head, nullptr);
@@ -1052,6 +1051,7 @@ const thorin::Def* WhileExpr::emit(Emitter& emitter) const {
     break_ = while_break;
     continue_ = while_continue;
     emitter.enter(while_head);
+
     if (cond) {
         auto while_body = emitter.basic_block(emitter.dbg(*this, "while_body"));
         cond->emit_branch(emitter, while_body, while_exit);
@@ -1059,16 +1059,12 @@ const thorin::Def* WhileExpr::emit(Emitter& emitter) const {
         emitter.emit(*body);
         emitter.jump(while_head, nullptr);
     } else {
+        auto [else_ptrn, empty_tuple] = dummy_case(loc, expr->type);
+
         std::vector<PtrnCompiler::MatchCase> match_cases;
-        auto match_case = PtrnCompiler::MatchCase(ptrn.get(), body.get(), this);
-        match_case.target = while_head;
-        auto else_ptrn = make_ptr<ast::IdPtrn>(loc, std::move(make_ptr<ast::PtrnDecl>(loc, Identifier(loc, "_"), false)), nullptr);
-        else_ptrn->type = expr->type;
-        match_cases.push_back(match_case);
-        auto empty_tuple = make_ptr<ast::TupleExpr>(loc, std::move(PtrVector<ast::Expr>()));
-        auto else_case = PtrnCompiler::MatchCase(else_ptrn.get(), empty_tuple.get(), this);
-        else_case.target = while_exit;
-        match_cases.push_back(else_case);
+        match_cases.emplace_back(ptrn.get(), body.get(), this, while_head);
+        match_cases.emplace_back(else_ptrn.get(), empty_tuple.get(), this, while_exit);
+
         std::unordered_map<const IdPtrn*, const thorin::Def*> matched_values;
         PtrnCompiler::emit(emitter, *this, *expr, std::move(match_cases), std::move(matched_values));
     }
@@ -1781,17 +1777,19 @@ bool compile(
     return emitter.run(program);
 }
 
+} // namespace artic
+
+/// Entry-point for the JIT in the runtime system
 bool compile(
     const std::vector<std::string>& file_names,
     const std::vector<std::string>& file_data,
     thorin::World& world,
     thorin::LogLevel log_level,
     std::ostream& error_stream) {
+    using namespace artic;
     Locator locator;
     log::Output out(error_stream, false);
     Log log(out, &locator);
     ast::ModDecl program;
-    return compile(file_names, file_data, false, false, program, world, log_level, log);
+    return artic::compile(file_names, file_data, false, false, program, world, log_level, log);
 }
-
-} // namespace artic
