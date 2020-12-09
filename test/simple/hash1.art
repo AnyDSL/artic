@@ -1,4 +1,4 @@
-trait Hash(){
+trait Hash{
     fn hash() -> u32;
 }
 
@@ -8,11 +8,15 @@ impl Hash for bool{
     }
 }
 
+impl Hash for i32{
+    fn hash() -> u32 {self as u32}
+}
+
 impl Hash for u32{
     fn hash() -> u32 {self}
 }
 
 fn test(){
-    32.hash();
+    (32 as Hash).hash();
     true.hash();
 }

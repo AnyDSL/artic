@@ -1,4 +1,4 @@
-trait Hash(){
+trait Hash{
     fn hash() -> u32;
 }
 
@@ -12,12 +12,12 @@ impl Hash for u32{
     fn hash() -> u32 {self}
 }
 
-fn getHashable(i:int) -> Hash{
-  if(i < 0) {false} else{i}
+fn getHashable(i:i32) -> Hash{
+  if(i < 0) {false as Hash} else{i as u32}
 }
 
 fn getHash(h:Hash)->u32{
-    h.hash();
+    h.hash()
 }
 
 fn test(){

@@ -1,0 +1,48 @@
+trait Collection[A]{
+    fn getIt()->It[A];
+}
+
+trait It[A] {
+    fn hasNext()->bool;
+    fn next()->(&It[A],A);
+}
+
+struct ArrayList[A] {
+    elems:&[A],
+    size:i32,
+    capacity:i32,
+}
+
+
+struct ArrayListIt[A] {
+    elems:ArrayList[A],
+    at:i32
+}
+
+impl[A] It[A] for ArrayListIt[A]{
+      fn hasNext(){self.at < self.elems.size}
+      fn next(){
+      	(ArrayListIt[A]{
+      	elems = self.elems, at = self.at+1}, 
+      	self.elems.elems(self.at))
+      }
+}
+
+
+impl[A] Collection[A] for ArrayList[A]{
+    fn getIt() = (ArrayListIt[A]{elems = self, at = 0} as It[A]);
+}
+
+fn sum(coll:Collection[i32])->i32{
+	sum_rec(0, coll.getIt())
+}
+
+fn sum_rec(acc:i32, it:&It[i32])->i32{
+	if(it.hasNext()){
+		let (next, val) = it.next();
+		sum_rec(acc+val, next)
+	}
+	else{
+		acc
+	}
+}

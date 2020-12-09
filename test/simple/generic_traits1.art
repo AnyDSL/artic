@@ -1,0 +1,16 @@
+trait T[A]{
+	fn arg(_:A)->bool;
+	fn ret(_:bool)->A;
+}
+
+impl T[bool] for i32{
+	fn arg(a:bool)=a;
+	fn ret(b:bool)=b;
+}
+
+impl[A] T[A] for A{
+	fn arg(_:A)->bool = true;
+	fn ret(_:bool) = self;
+}
+
+fn example(x:T[i32])->i32 = x.ret(true);
