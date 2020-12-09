@@ -292,8 +292,8 @@ private:
             } else {
                 auto ptrn = row.first[col];
                 remove_col(row.first, col);
-                if (auto call_ptrn = ptrn->isa<ast::CtorPtrn>(); call_ptrn && call_ptrn->arg) {
-                    row.first.push_back(call_ptrn->arg.get());
+                if (auto ctor_ptrn = ptrn->isa<ast::CtorPtrn>(); ctor_ptrn && ctor_ptrn->arg) {
+                    row.first.push_back(ctor_ptrn->arg.get());
                 } else if (auto record_ptrn = ptrn->isa<ast::RecordPtrn>()) {
                     // Since expansion uses the type of the value vector to know when to expand,
                     // the record pattern will be expanded in the next iteration.
@@ -329,15 +329,16 @@ private:
             size_t count = 0;
             for (auto& ctor : ctors) {
                 defs[count] = ctor.first;
-                targets[count] = emitter.basic_block(emitter.dbg(node, "match_case"));
+                auto dbg = emitter.dbg(node, "match_case");
+                if (enum_type)
+                    targets[count] = emitter.basic_block(ctor.first, dbg);
+                else
+                    targets[count] = emitter.basic_block(dbg);
                 count++;
             }
 
             if (emitter.state.bb) {
-                auto match_value = enum_type
-                   ? values[col].first
-                   //? emitter.world.which(values[col].first, emitter.dbg(node, "which"))
-                   : values[col].first;
+                auto match_value = values[col].first;
                 for (size_t i = 0, n = targets.size(); i < count; ++i) {
                     auto next_case = emitter.basic_block(emitter.dbg(node, "next_case"));
                     if (enum_type) {
@@ -362,13 +363,9 @@ private:
 
                 auto new_values = values;
                 if (enum_type) {
-                    auto index = thorin::as_lit(defs[i]);
-                    auto type  = type_app ? type_app->member_type(index) : enum_type->member_type(index);
-                    auto value = emitter.world.extract(col_value, index);
-                    // If the constructor refers to an option that has a parameter,
-                    // we need to extract it and add it to the values.
-                    if (!is_unit_type(type))
-                        new_values.emplace_back(value, type);
+                    auto value = targets[i]->param(1);
+                    if (value->type()->as_nominal<thorin::Sigma>()->num_ops() == 1)
+                        new_values.emplace_back(value->out(0), nullptr);
                 }
 
                 PtrnCompiler(emitter, node, expr, std::move(rows), std::move(new_values), matched_values).compile();
@@ -487,14 +484,16 @@ thorin::Lam* Emitter::basic_block(const thorin::Def* param, const thorin::Def* d
 }
 
 const thorin::Def* Emitter::ctor_index(const ast::Ptrn& ptrn) {
-    auto get_width = [] (const Type* type) {
-        return match_app<EnumType>(type).second->member_count();
-    };
+    if (auto literal_ptrn = ptrn.isa<ast::LiteralPtrn>())
+        return emit(ptrn, literal_ptrn->lit);
+
+    size_t index;
     if (auto record_ptrn = ptrn.isa<ast::RecordPtrn>())
-        return world.lit_int(get_width(ptrn.type), record_ptrn->variant_index, dbg(ptrn));
-    if (auto ctor_ptrn = ptrn.isa<ast::CtorPtrn>())
-        return world.lit_int(get_width(ptrn.type), ctor_ptrn->variant_index, dbg(ptrn));
-    return emit(ptrn, ptrn.as<ast::LiteralPtrn>()->lit);
+        index = record_ptrn->variant_index;
+    else
+        index = ptrn.as<ast::CtorPtrn>()->variant_index;
+
+    return ptrn.type->convert(*this)->as_nominal<thorin::Join>()->op(index);
 }
 
 void Emitter::redundant_case(const ast::CaseExpr& case_) {
@@ -1673,12 +1672,13 @@ const thorin::Def* EnumType::convert(Emitter& emitter, const Type* parent) const
     auto type = emitter.world.nom_join(decl.options.size(), emitter.dbg(stringify(emitter)));
     emitter.types[parent] = type;
     for (size_t i = 0, n = decl.options.size(); i < n; ++i) {
+        auto dbg = emitter.dbg(decl.options[i]->id.name);
         if (auto tuple_type = decl.options[i]->type->isa<TupleType>())
-            type->set(i, emitter.world.nom_sigma(0, emitter.dbg(decl.options[i]->id.name)));
-        else
-            type->set(i, decl.options[i]->type->convert(emitter));
-        // TODO same here
-        //type->set_op_name(i, decl.options[i]->id.name);
+            type->set(i, emitter.world.nom_sigma(0, dbg));
+        else {
+            auto sig = emitter.world.nom_sigma(1, dbg);
+            type->set(i, sig->set(0, decl.options[i]->type->convert(emitter)));
+        }
     }
     return type;
 }
