@@ -1,0 +1,5 @@
+mod Test {
+    struct S(i32, u32);
+}
+
+fn foo() = Test::S(1, 2);

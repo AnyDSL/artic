@@ -178,11 +178,6 @@ private:
         return res;
     }
 
-    void expect_binder(const std::string& msg, const Ptr<ast::Ptrn>& ptrn) {
-        if (!ptrn->is_trivial())
-            error(ptrn->loc, "invalid {}", msg);
-    }
-
     void eat(Token::Tag tag) {
         assert(ahead().tag() == tag);(void)tag;
         next();

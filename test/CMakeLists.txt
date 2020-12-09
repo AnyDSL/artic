@@ -33,6 +33,8 @@ add_test(NAME simple_structs3    COMMAND artic --print-ast ${CMAKE_CURRENT_SOURC
 add_test(NAME simple_structs4    COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/structs4.art)
 add_test(NAME simple_structs5    COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/structs5.art)
 add_test(NAME simple_structs6    COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/structs6.art)
+add_test(NAME simple_tuple_like1 COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/tuple_like1.art)
+add_test(NAME simple_tuple_like2 COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/tuple_like2.art)
 add_test(NAME simple_enums1      COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/enums1.art)
 add_test(NAME simple_enums2      COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/enums2.art)
 add_test(NAME simple_enums3      COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/enums3.art)

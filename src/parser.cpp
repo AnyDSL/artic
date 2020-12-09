@@ -54,7 +54,6 @@ Ptr<ast::LetDecl> Parser::parse_let_decl() {
     eat(Token::Let);
 
     auto ptrn = parse_ptrn();
-    expect_binder("let declaration", ptrn);
     Ptr<ast::Expr> init;
     if (accept(Token::Eq))
         init = parse_expr();
@@ -76,12 +75,10 @@ Ptr<ast::FnDecl> Parser::parse_fn_decl() {
         type_params = parse_type_params();
 
     Ptr<ast::Ptrn> param;
-    if (ahead().tag() == Token::LParen) {
+    if (ahead().tag() == Token::LParen)
         param = parse_tuple_ptrn(true);
-        expect_binder("function parameter", param);
-    } else {
+    else
         error(ahead().loc(), "parameter list expected in function definition");
-    }
 
     Ptr<ast::Type> ret_type;
     if (accept(Token::Arrow))
@@ -601,7 +598,6 @@ Ptr<ast::FnExpr> Parser::parse_fn_expr(Ptr<ast::Filter>&& filter, bool nested) {
         ptrn = make_ptr<ast::TuplePtrn>(tracker(), PtrVector<ast::Ptrn>{});
     else
         ptrn = parse_error_ptrn();
-    expect_binder("anonymous function parameter", ptrn);
 
     Ptr<ast::Expr> body;
     Ptr<ast::Type> ret_type;
@@ -650,8 +646,6 @@ Ptr<ast::IfExpr> Parser::parse_if_expr() {
 
     if (accept(Token::Let)) {
         auto ptrn = parse_ptrn();
-        if (ptrn->is_trivial())
-            error(ptrn->loc, "expected non-trivial pattern");
         expect(Token::Eq);
         auto expr = parse_expr(false);
 
@@ -691,8 +685,6 @@ Ptr<ast::WhileExpr> Parser::parse_while_expr() {
     eat(Token::While);
     if (accept(Token::Let)) {
         auto ptrn = parse_ptrn();
-        if (ptrn->is_trivial())
-            error(ptrn->loc, "expected non-trivial pattern");
         expect(Token::Eq);
         auto expr = parse_expr(false);
 

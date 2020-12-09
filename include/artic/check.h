@@ -42,6 +42,7 @@ public:
     const Type* bad_arguments(const Loc&, const std::string_view&, size_t, size_t);
     const Type* invalid_cast(const Loc&, const Type*, const Type*);
     const Type* invalid_simd(const Loc&, const Type*);
+    void invalid_ptrn(const Loc&, bool);
     void invalid_constraint(const Loc&, const TypeVar*, const Type*, const Type*, const Type*);
     void invalid_attr(const Loc&, const std::string_view&);
     void unsized_type(const Loc&, const Type*);
@@ -71,6 +72,7 @@ public:
     void check_block(const Loc&, const PtrVector<ast::Stmt>&, bool);
     bool check_attrs(const ast::NamedAttr&, const ArrayRef<AttrType>&);
     bool check_filter(const ast::Expr&);
+    void check_refutability(const ast::Ptrn&, bool);
 
     template <typename InferElems>
     const Type* infer_array(const Loc&, const std::string_view&, size_t, bool, const InferElems&);

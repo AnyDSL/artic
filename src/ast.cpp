@@ -644,18 +644,21 @@ void RecordPtrn::collect_bound_ptrns(std::vector<const IdPtrn*>& bound_ptrns) co
 }
 
 bool RecordPtrn::is_trivial() const {
-    return std::all_of(fields.begin(), fields.end(), [] (auto& field) {
-        return field->is_trivial();
-    });
+    assert(type);
+    return
+        match_app<StructType>(type).second &&
+        std::all_of(fields.begin(), fields.end(), [] (auto& field) {
+            return field->is_trivial();
+        });
 }
 
 void CtorPtrn::collect_bound_ptrns(std::vector<const IdPtrn*>& bound_ptrns) const {
-    if (arg)
-        arg->collect_bound_ptrns(bound_ptrns);
+    if (arg) arg->collect_bound_ptrns(bound_ptrns);
 }
 
 bool CtorPtrn::is_trivial() const {
-    return false;
+    assert(type);
+    return match_app<StructType>(type).second && (!arg || arg->is_trivial());
 }
 
 void TuplePtrn::collect_bound_ptrns(std::vector<const IdPtrn*>& bound_ptrns) const {

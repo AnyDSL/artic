@@ -1131,8 +1131,6 @@ struct NamedDecl : public Decl {
     NamedDecl(const Loc& loc, Identifier&& id)
         : Decl(loc), id(std::move(id))
     {}
-
-    virtual bool is_value() const { return false; }
 };
 
 /// Value declaration associated with an identifier.
@@ -1140,8 +1138,13 @@ struct ValueDecl : public NamedDecl {
     ValueDecl(const Loc& loc, Identifier&& id)
         : NamedDecl(loc, std::move(id))
     {}
+};
 
-    bool is_value() const override { return true; }
+/// Datatype declaration with a constructor associated with an identifier.
+struct CtorDecl : public NamedDecl {
+    CtorDecl(const Loc& loc, Identifier&& id)
+        : NamedDecl(loc, std::move(id))
+    {}
 };
 
 /// Type parameter, introduced by the operator [].
@@ -1269,14 +1272,14 @@ struct FieldDecl : public NamedDecl {
 };
 
 /// Base class for declarations holding fields.
-struct RecordDecl : public NamedDecl {
+struct RecordDecl : public CtorDecl {
     PtrVector<FieldDecl> fields;
 
     RecordDecl(
         const Loc& loc,
         Identifier&& id,
         PtrVector<FieldDecl>&& fields)
-        : NamedDecl(loc, std::move(id))
+        : CtorDecl(loc, std::move(id))
         , fields(std::move(fields))
     {}
 };
@@ -1335,7 +1338,7 @@ struct OptionDecl : public RecordDecl {
 };
 
 /// Enumeration declaration.
-struct EnumDecl : public NamedDecl {
+struct EnumDecl : public CtorDecl {
     Ptr<TypeParamList> type_params;
     PtrVector<OptionDecl> options;
 
@@ -1344,7 +1347,7 @@ struct EnumDecl : public NamedDecl {
         Identifier&& id,
         Ptr<TypeParamList>&& type_params,
         PtrVector<OptionDecl>&& options)
-        : NamedDecl(loc, std::move(id))
+        : CtorDecl(loc, std::move(id))
         , type_params(std::move(type_params))
         , options(std::move(options))
     {}
@@ -1522,6 +1525,7 @@ struct CtorPtrn : public Ptrn {
     void collect_bound_ptrns(std::vector<const IdPtrn*>&) const override;
     bool is_trivial() const override;
 
+    void emit(Emitter&, const thorin::Def*) const override;
     const artic::Type* infer(TypeChecker&) override;
     void bind(NameBinder&) override;
     void print(Printer&) const override;

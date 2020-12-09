@@ -1495,6 +1495,10 @@ void RecordPtrn::emit(Emitter& emitter, const thorin::Def* value) const {
     }
 }
 
+void CtorPtrn::emit(Emitter& emitter, const thorin::Def* value) const {
+    if (arg) emitter.emit(*arg, value);
+}
+
 void TuplePtrn::emit(Emitter& emitter, const thorin::Def* value) const {
     for (size_t i = 0, n = args.size(); i < n; ++i)
         emitter.emit(*args[i], emitter.world.extract(value, i));

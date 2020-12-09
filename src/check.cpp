@@ -84,6 +84,20 @@ const Type* TypeChecker::invalid_simd(const Loc& loc, const Type* elem_type) {
     return type_table.type_error();
 }
 
+void TypeChecker::invalid_ptrn(const Loc& loc, bool must_be_trivial) {
+    if (must_be_trivial) {
+        error(loc, "irrefutable (always matching) pattern expected");
+        note("use '{}' or '{} {}' to match patterns that can fail",
+            log::keyword_style("match"),
+            log::keyword_style("if"),
+            log::keyword_style("let"));
+    } else {
+        error(loc, "refutable pattern expected");
+        note("use '{}' or '{}' to match patterns that always match",
+            log::keyword_style("match"), log::keyword_style("let"));
+    }
+}
+
 void TypeChecker::invalid_constraint(const Loc& loc, const TypeVar* var, const Type* type_arg, const Type* lower, const Type* upper) {
     if (type_arg)
         error(loc, "invalid type argument '{}' for type variable '{}'", *type_arg, *var);
@@ -340,6 +354,11 @@ bool TypeChecker::check_filter(const ast::Expr& expr) {
     return false;
 }
 
+void TypeChecker::check_refutability(const ast::Ptrn& ptrn, bool must_be_trivial) {
+    if (must_be_trivial != ptrn.is_trivial())
+        invalid_ptrn(ptrn.loc, must_be_trivial);
+}
+
 bool TypeChecker::check_attrs(const ast::NamedAttr& named_attr, const ArrayRef<AttrType>& attr_types) {
     std::unordered_map<std::string_view, const ast::Attr*> seen;
     for (auto& attr : named_attr.args) {
@@ -525,10 +544,8 @@ const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, Ptr<Ex
         return checker.type_table.type_error();
 
     type = checker.infer(*symbol->decls.front());
-    is_value = elems.size() == 1 && symbol->decls.front()->is_value();
-    is_ctor =
-        symbol->decls.front()->isa<StructDecl>() ||
-        symbol->decls.front()->isa<EnumDecl>();
+    is_value = elems.size() == 1 && symbol->decls.front()->isa<ValueDecl>();
+    is_ctor  = symbol->decls.front()->isa<CtorDecl>();
 
     // Inspect every element of the path
     for (size_t i = 0, n = elems.size(); i < n; ++i) {
@@ -569,7 +586,7 @@ const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, Ptr<Ex
 
         // Treat tuple-like structure constructors as functions
         if (auto [type_app, struct_type] = match_app<StructType>(type);
-            is_ctor && value_expected && i == 0 && struct_type && struct_type->is_tuple_like()) {
+            is_ctor && value_expected && struct_type && struct_type->is_tuple_like()) {
             if (struct_type->member_count() > 0) {
                 SmallArray<const artic::Type*> tuple_args(struct_type->member_count());
                 for (size_t i = 0, n = struct_type->member_count(); i < n; ++i)
@@ -605,7 +622,8 @@ const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, Ptr<Ex
                     return checker.unknown_member(elem.loc, mod_type, elems[i + 1].id.name);
                 elems[i + 1].index = *index;
                 type = mod_type->member_type(*index);
-                is_value = mod_type->member(*index).is_value();
+                is_value = mod_type->member(*index).isa<ValueDecl>();
+                is_ctor  = mod_type->member(*index).isa<CtorDecl>();
             } else {
                 checker.error(elem.loc, "expected module or enum type, but got '{}'", *type);
                 return checker.type_table.type_error();
@@ -849,6 +867,7 @@ const artic::Type* FnExpr::infer(TypeChecker& checker) {
         else
             body_type = checker.deref(body);
     }
+    checker.check_refutability(*param, true);
     return body_type
         ? checker.type_table.fn_type(param_type, body_type)
         : checker.cannot_infer(loc, "function");
@@ -861,6 +880,7 @@ const artic::Type* FnExpr::check(TypeChecker& checker, const artic::Type* expect
     auto codom = expected->as<artic::FnType>()->codom;
     auto param_type = checker.check(*param, expected->as<artic::FnType>()->dom);
     auto body_type = ret_type ? checker.check(*ret_type, codom) : codom;
+    checker.check_refutability(*param, true);
     // Set the type of the expression before entering the body,
     // in case `return` appears in it.
     type = checker.type_table.fn_type(param_type, body_type);
@@ -928,7 +948,7 @@ const artic::Type* CallExpr::infer(TypeChecker& checker) {
                     ptr_type ? ptr_type->addr_space : ref_type->addr_space)
                 : array_type->elem;
         } else {
-            return checker.type_expected(callee->loc, callee_type, "function, array or non-empty tuple-like structure");
+            return checker.type_expected(callee->loc, callee_type, "function, array or constructor");
         }
     }
 }
@@ -980,8 +1000,10 @@ inline bool is_int_or_float_literal(const Expr* expr) {
 const artic::Type* IfExpr::infer(TypeChecker& checker) {
     if (cond)
         checker.coerce(cond, checker.type_table.bool_type());
-    else
+    else {
         checker.infer(*ptrn, expr);
+        checker.check_refutability(*ptrn, false);
+    }
     if (if_false) {
         if (is_int_or_float_literal(if_true.get()))
             return checker.coerce(if_true, checker.deref(if_false));
@@ -995,8 +1017,10 @@ const artic::Type* IfExpr::infer(TypeChecker& checker) {
 const artic::Type* IfExpr::check(TypeChecker& checker, const artic::Type* expected) {
     if (cond)
         checker.coerce(cond, checker.type_table.bool_type());
-    else
+    else {
         checker.infer(*ptrn, expr);
+        checker.check_refutability(*ptrn, false);
+    }
     if (if_false) {
         checker.coerce(if_true, expected);
         return checker.coerce(if_false, expected);
@@ -1022,8 +1046,10 @@ const artic::Type* MatchExpr::check(TypeChecker& checker, const artic::Type* exp
 const artic::Type* WhileExpr::infer(TypeChecker& checker) {
     if (cond)
         checker.coerce(cond, checker.type_table.bool_type());
-    else
+    else {
         checker.infer(*ptrn, expr);
+        checker.check_refutability(*ptrn, false);
+    }
     // Using infer mode here would cause the type system to allow code such as: while true { break }
     return checker.coerce(body, checker.type_table.unit_type());
 }
@@ -1345,6 +1371,7 @@ const artic::Type* LetDecl::infer(TypeChecker& checker) {
         checker.infer(*ptrn, init);
     else
         checker.infer(*ptrn);
+    checker.check_refutability(*ptrn, true);
     return checker.type_table.unit_type();
 }
 
@@ -1381,6 +1408,7 @@ const artic::Type* FnDecl::infer(TypeChecker& checker) {
         fn_type = checker.type_table.fn_type(checker.infer(*fn->param), checker.infer(*fn->ret_type));
         if (fn->filter)
             checker.check(*fn->filter, checker.type_table.bool_type());
+        checker.check_refutability(*fn->param, true);
     } else
         fn_type = checker.infer(*fn);
 
