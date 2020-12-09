@@ -1,0 +1,16 @@
+mod A {
+    fn f() {}
+    fn g(i: i32, j: i32) {}
+}
+mod B {
+    fn f() {}
+    fn g(i: i32, j: i32) {}
+}
+#[export]
+fn a_f() = A::f();
+#[export]
+fn b_f() = B::f();
+#[export]
+fn a_g(i: i32, j: i32) = A::g(i, j);
+#[export]
+fn b_g(i: i32, j: i32) = B::g(i, j);

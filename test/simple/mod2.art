@@ -1,0 +1,15 @@
+#[export]
+fn baz(s: Test::Bar::S) = Test::foo(s.i);
+#[export]
+fn bam(s: Test::Foo::S) = Test::foo(s.i);
+mod Test {
+    fn foo(i: i32) = i;
+    mod Bar {
+        struct S { i: i32 }
+        fn bar() = foo(3);
+    }
+    mod Foo {
+        struct S { i: i32 }
+        fn bar() = foo(3);
+    }
+}

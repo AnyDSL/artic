@@ -1,0 +1,8 @@
+mod A {
+    mod B {
+        static i = 1;
+    }
+    static j = 1;
+}
+static k = B::i;
+static l = j;
