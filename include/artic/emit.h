@@ -131,7 +131,6 @@ public:
     const thorin::Def* emit(const ast::Node&, const Literal&);
 
     const thorin::Def* builtin(const ast::FnDecl&, thorin::Lam*);
-    const thorin::Def* variant(const thorin::Join*, const thorin::Def*);
 
     const thorin::Def* dbg(const std::string& name, Loc loc);
     const thorin::Def* dbg(const std::string& name);

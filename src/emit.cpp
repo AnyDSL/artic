@@ -711,10 +711,6 @@ const thorin::Def* Emitter::emit(const ast::Node& node, const Literal& lit) {
     }
 }
 
-const thorin::Def* Emitter::variant(const thorin::Join* type, const thorin::Def* value) {
-    return world.vel(type, value);
-}
-
 const thorin::Def* Emitter::builtin(const ast::FnDecl& fn_decl, thorin::Lam* lam) {
     lam->set_filter(world.lit_true());
     if (lam->debug().name == "alignof") {
@@ -820,20 +816,16 @@ const thorin::Def* Path::emit(Emitter& emitter) const {
                 : enum_type->member_type(ctor.index);
             if (is_unit_type(param_type)) {
                 // This is a constructor without parameters
-                //return emitter.variant_ctors[ctor] = emitter.variant(variant_type, emitter.world.tuple({}), ctor.index);
-                //TODO
-                return nullptr;
+                return emitter.variant_ctors[ctor] = emitter.world.vel(variant_type, emitter.world.tuple({}));
             } else {
                 // This is a constructor with parameters: return a function
                 auto lam = emitter.world.nom_lam(
                     emitter.function_type_with_mem(param_type->convert(emitter), converted_type),
                     emitter.dbg(*enum_type->decl.options[ctor.index]));
-                //auto ret_value = emitter.variant(variant_type, lam->param(1), ctor.index);
-                // TODO
-                return nullptr;
-                //lam->app(lam->param(2), { lam->param(0_u64), ret_value });
-                //lam->set_filter(true);
-                //return emitter.variant_ctors[ctor] = lam;
+                auto ret_value = emitter.world.vel(variant_type, lam->param(1));
+                lam->app(lam->param(2), { lam->param(0_u64), ret_value });
+                lam->set_filter(true);
+                return emitter.variant_ctors[ctor] = lam;
             }
         }
     }
@@ -922,15 +914,8 @@ const thorin::Def* RecordExpr::emit(Emitter& emitter) const {
         auto agg = emitter.world.tuple(
             type->type->convert(emitter)->as<thorin::Sigma>(),
             ops, emitter.dbg(*this));
-        if (auto enum_type = this->Node::type->isa<artic::EnumType>()) {
-            /*
-            return emitter.variant(
-                enum_type->convert(emitter)->as<thorin::Join>(),
-                agg, variant_index);
-            */
-            // TODO
-            return nullptr;
-        }
+        if (auto enum_type = this->Node::type->isa<artic::EnumType>())
+            return emitter.world.vel(enum_type->convert(emitter)->as<thorin::Join>(), agg);
         return agg;
     }
 }
