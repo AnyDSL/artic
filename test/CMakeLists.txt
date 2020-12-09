@@ -108,6 +108,8 @@ add_failure_test(NAME failure_param          COMMAND artic ${CMAKE_CURRENT_SOURC
 add_failure_test(NAME failure_ops            COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/ops.art)
 add_failure_test(NAME failure_mod1           COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/mod1.art)
 add_failure_test(NAME failure_mod2           COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/mod2.art)
+add_failure_test(NAME failure_mod3           COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/mod3.art)
+add_failure_test(NAME failure_mod4           COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/mod4.art)
 add_failure_test(NAME failure_static         COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/static.art)
 add_failure_test(NAME failure_cc             COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/cc.art)
 add_failure_test(NAME failure_escape         COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/escape.art)

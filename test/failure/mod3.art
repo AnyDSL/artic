@@ -1,0 +1,6 @@
+mod Foo {
+    fn foo() = 1;
+}
+mod Foo {
+    fn bar() = 1;
+}
