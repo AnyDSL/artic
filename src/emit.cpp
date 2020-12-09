@@ -285,7 +285,7 @@ private:
                 remove_col(row.first, col);
                 for (auto& ctor : ctors) {
                     ctor.second.push_back(row);
-                    if (enum_type && !is_unit_type(enum_type->member_type(thorin::as_lit(ctor.first))))
+                    if (enum_type && enum_type->convert(emitter)->as<thorin::Join>()->get(ctor.first)->num_ops() != 0)
                         ctor.second.back().first.push_back(nullptr);
                 }
                 wildcards.emplace_back(std::move(row));
@@ -493,7 +493,7 @@ const thorin::Def* Emitter::ctor_index(const ast::Ptrn& ptrn) {
     else
         index = ptrn.as<ast::CtorPtrn>()->variant_index;
 
-    return ptrn.type->convert(*this)->as_nominal<thorin::Join>()->op(index);
+    return ptrn.type->convert(*this)->as<thorin::Join>()->op(index);
 }
 
 void Emitter::redundant_case(const ast::CaseExpr& case_) {
