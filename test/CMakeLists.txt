@@ -127,6 +127,9 @@ add_failure_test(NAME failure_not_written_to COMMAND artic --warnings-as-errors 
 
 set(CODEGEN_TESTS "")
 if (Thorin_HAS_LLVM_SUPPORT)
+    # This version is required for the --ignore-eol flag used when comparing files
+    cmake_minimum_required(VERSION 3.14 FATAL_ERROR)
+
     find_package(Clang REQUIRED CONFIG PATHS ${LLVM_DIR}/../clang NO_DEFAULT_PATH)
 
     # Compile the helper functions into an object file
