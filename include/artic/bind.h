@@ -87,6 +87,8 @@ private:
     ast::FnExpr*   cur_fn_;
     ast::LoopExpr* cur_loop_;
     std::vector<SymbolTable> scopes_;
+
+    friend struct ast::ModDecl;
 };
 
 } // namespace artic

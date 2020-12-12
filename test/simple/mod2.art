@@ -1,15 +1,21 @@
 #[export]
-fn baz(s: Test::Bar::S) = Test::foo(s.i);
+fn foo(s: Test::S) -> i8 = Test::foo(s.i);
 #[export]
-fn bam(s: Test::Foo::S) = Test::foo(s.i);
+fn bar(s: Test::Bar::S) -> i32 = Test::Bar::foo(s.i);
+#[export]
+fn baz(s: Test::Foo::S) -> i64 = Test::Foo::foo(s.i);
 mod Test {
-    fn foo(i: i32) = i;
+    struct S { i : i8 }
+    fn foo(i: i8) = i;
+    fn bar() = 1;
     mod Bar {
         struct S { i: i32 }
-        fn bar() = foo(3);
+        fn bar() = 2;
+        fn foo(i: i32) = i;
     }
     mod Foo {
-        struct S { i: i32 }
-        fn bar() = foo(3);
+        struct S { i: i64 }
+        fn bar() = 3;
+        fn foo(i: i64) = i;
     }
 }

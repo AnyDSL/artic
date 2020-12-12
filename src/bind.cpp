@@ -463,10 +463,13 @@ void ModDecl::bind_head(NameBinder& binder) {
 }
 
 void ModDecl::bind(NameBinder& binder) {
-    binder.push_scope(true);
+    // Symbols defined outside the module are not visible inside it.
+    std::vector<SymbolTable> old;
+    std::swap(binder.scopes_, old);
+    binder.push_scope();
     for (auto& decl : decls) binder.bind_head(*decl);
     for (auto& decl : decls) binder.bind(*decl);
-    binder.pop_scope();
+    std::swap(binder.scopes_, old);
 }
 
 void ErrorDecl::bind(NameBinder&) {}
