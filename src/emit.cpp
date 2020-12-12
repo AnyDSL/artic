@@ -1774,8 +1774,8 @@ bool compile(
         return false;
 
     Emitter emitter(log, world);
-    thorin::Stream stream(std::cerr);
-    emitter.world.set(log_level, stream);
+    emitter.world.set(log_level);
+    emitter.world.set(std::make_unique<thorin::Stream>(std::cerr));
     emitter.world.set(std::make_unique<thorin::ErrorHandler>());
     emitter.warns_as_errors = warns_as_errors;
     return emitter.run(program);
