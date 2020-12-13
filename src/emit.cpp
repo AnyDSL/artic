@@ -287,7 +287,7 @@ private:
                 remove_col(row.first, col);
                 for (auto& ctor : ctors) {
                     ctor.second.push_back(row);
-                    if (enum_type && !is_unit_type(enum_type->member_type(thorin::as_lit(ctor.first))))
+                    if (enum_type && enum_type->convert(emitter)->as<thorin::Join>()->get(ctor.first)->num_ops() != 0)
                         ctor.second.back().first.push_back(nullptr);
                 }
                 wildcards.emplace_back(std::move(row));
@@ -495,7 +495,7 @@ const thorin::Def* Emitter::ctor_index(const ast::Ptrn& ptrn) {
     else
         index = ptrn.as<ast::CtorPtrn>()->variant_index;
 
-    return ptrn.type->convert(*this)->as_nominal<thorin::Join>()->op(index);
+    return ptrn.type->convert(*this)->as<thorin::Join>()->op(index);
 }
 
 void Emitter::redundant_case(const ast::CaseExpr& case_) {
@@ -812,19 +812,19 @@ const thorin::Def* Path::emit(Emitter& emitter) const {
             auto converted_type = (type_app
                 ? type_app->convert(emitter)
                 : enum_type->convert(emitter));
-            auto variant_type = converted_type->as<thorin::Join>();
+            auto join = converted_type->as<thorin::Join>();
             auto param_type = type_app
                 ? type_app->member_type(ctor.index)
                 : enum_type->member_type(ctor.index);
             if (is_unit_type(param_type)) {
                 // This is a constructor without parameters
-                return emitter.variant_ctors[ctor] = emitter.world.vel(variant_type, emitter.world.tuple({}));
+                return emitter.variant_ctors[ctor] = emitter.world.vel(join, emitter.world.tuple(join->op(ctor.index), {}));
             } else {
                 // This is a constructor with parameters: return a function
                 auto lam = emitter.world.nom_lam(
                     emitter.function_type_with_mem(param_type->convert(emitter), converted_type),
                     emitter.dbg(*enum_type->decl.options[ctor.index]));
-                auto ret_value = emitter.world.vel(variant_type, lam->param(1));
+                auto ret_value = emitter.world.vel(join, lam->param(1));
                 lam->app(lam->param(2), { lam->param(0_u64), ret_value });
                 lam->set_filter(true);
                 return emitter.variant_ctors[ctor] = lam;
@@ -1770,8 +1770,8 @@ bool compile(
         return false;
 
     Emitter emitter(log, world);
-    thorin::Stream stream(std::cerr);
-    emitter.world.set(log_level, stream);
+    emitter.world.set(log_level);
+    emitter.world.set(std::make_shared<thorin::Stream>(std::cerr));
     emitter.world.set(std::make_unique<thorin::ErrorHandler>());
     emitter.warns_as_errors = warns_as_errors;
     return emitter.run(program);
