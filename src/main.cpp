@@ -324,8 +324,8 @@ int main(int argc, char** argv) {
                     cg->emit(file, opts.opt_level, opts.debug);
             }
         };
+        emit_to_file(backends.codegens[thorin::Backends::CPU].get(), ".ll");
 #if 0
-        emit_to_file(backends.cpu_cg.get(),    ".ll");
         emit_to_file(backends.cuda_cg.get(),   ".cu");
         emit_to_file(backends.nvvm_cg.get(),   ".nvvm");
         emit_to_file(backends.opencl_cg.get(), ".cl");

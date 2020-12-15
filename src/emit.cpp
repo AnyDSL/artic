@@ -519,7 +519,7 @@ void Emitter::enter(thorin::Lam* lam) {
 void Emitter::jump(const thorin::Def* callee, const thorin::Def* dbg) {
     if (!state.bb)
         return;
-    auto num_params = callee->type()->as<thorin::Pi>()->num_domains();
+    auto num_params = callee->type()->as<thorin::Pi>()->num_doms();
     if (num_params == 1) {
         state.bb->app(callee, { state.mem }, dbg);
     } else {
@@ -539,7 +539,7 @@ void Emitter::jump(const thorin::Def* callee, const thorin::Def* arg, const thor
 const thorin::Def* Emitter::call(const thorin::Def* callee, const thorin::Def* arg, const thorin::Def* dbg) {
     if (!state.bb)
         return nullptr;
-    auto cont_type = callee->type()->as<thorin::Pi>()->domains().back()->as<thorin::Pi>();
+    auto cont_type = callee->type()->as<thorin::Pi>()->doms().back()->as<thorin::Pi>();
     auto cont = world.nom_lam(cont_type, world.dbg("cont"));
     return call(callee, arg, cont, dbg);
 }
