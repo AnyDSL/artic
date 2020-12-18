@@ -59,9 +59,9 @@ add_test(NAME simple_asm         COMMAND artic --print-ast ${CMAKE_CURRENT_SOURC
 add_test(NAME simple_simd        COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/simd.art)
 add_test(NAME simple_type_args   COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/type_args.art)
 add_test(NAME simple_subtype     COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/subtype.art)
-add_test(NAME simple_hash1     COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/hash1.art)
-add_test(NAME simple_hash2     COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/hash2.art)
-
+add_test(NAME simple_hash        COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/hash.art)
+add_test(NAME simple_transitive_bound  COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/transitive_bound.art)
+add_test(NAME simple_default_impl  COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/default_impl.art)
 
 add_failure_test(NAME failure_annot          COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/annot.art)
 add_failure_test(NAME failure_comment        COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/comment.art)
@@ -118,6 +118,9 @@ add_failure_test(NAME failure_too_few_func         COMMAND artic ${CMAKE_CURRENT
 add_failure_test(NAME failure_too_many_func          COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/too_many_func.art)
 add_failure_test(NAME failure_attrs          COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/attrs.art)
 add_failure_test(NAME failure_not_written_to COMMAND artic --warnings-as-errors ${CMAKE_CURRENT_SOURCE_DIR}/failure/not_written_to.art)
+add_failure_test(NAME failure_transitive_bound  COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/failure/transitive_bound.art)
+
+
 
 set(CODEGEN_TESTS "")
 if (Thorin_HAS_LLVM_SUPPORT)

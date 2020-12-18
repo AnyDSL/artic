@@ -4,7 +4,6 @@
 #include <unordered_map>
 #include <string_view>
 #include <vector>
-#include <algorithm>
 
 #include "artic/symbol.h"
 #include "artic/ast.h"
@@ -16,7 +15,7 @@ namespace artic {
 class NameBinder : public Logger {
 public:
     NameBinder(Log& log)
-        : Logger(log), cur_fn_(nullptr), cur_loop_(nullptr), cur_trait_impl_(nullptr), cur_trait_decl_(nullptr)
+        : Logger(log), cur_fn_(nullptr), cur_loop_(nullptr)
     {
         push_scope(true);
     }
@@ -47,22 +46,6 @@ public:
         return old;
     }
     void pop_loop(ast::LoopExpr* loop) { cur_loop_ = loop; }
-
-    ast::TraitImpl* cur_trait_impl() const { return cur_trait_impl_; }
-    ast::TraitImpl* push_trait_impl(ast::TraitImpl* trait_impl) {
-        auto old = cur_trait_impl_;
-        cur_trait_impl_ = trait_impl;
-        return old;
-    }
-    void pop_trait_impl(ast::TraitImpl* trait_impl) { cur_trait_impl_ = trait_impl; }
-
-    ast::TraitDecl* cur_trait_decl() const { return cur_trait_decl_; }
-    ast::TraitDecl* push_trait_decl(ast::TraitDecl* trait_decl) {
-        auto old = cur_trait_decl_;
-        cur_trait_decl_ = trait_decl;
-        return old;
-    }
-    void pop_trait_decl(ast::TraitDecl* trait_decl) { cur_trait_decl_ = trait_decl; }
 
     void push_scope(bool top_level = false) { scopes_.emplace_back(top_level); }
     void pop_scope();
@@ -102,8 +85,6 @@ private:
 
     ast::FnExpr*   cur_fn_;
     ast::LoopExpr* cur_loop_;
-    ast::TraitImpl* cur_trait_impl_;
-    ast::TraitDecl* cur_trait_decl_;
     std::vector<SymbolTable> scopes_;
 };
 

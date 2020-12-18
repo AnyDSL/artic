@@ -75,8 +75,6 @@ public:
             const Fns& fns,
             const std::string_view& msg);
 
-    const Type* infer_self_type(ast::Identifier& id);
-
     void check_block(const Loc&, const PtrVector<ast::Stmt>&, bool);
     bool check_attrs(const ast::NamedAttr&, const std::vector<AttrType>&);
     bool check_filter(const ast::Expr&);
@@ -88,6 +86,8 @@ public:
 
     bool infer_type_args(const Loc&, const ForallType*, const Type*, std::vector<const Type*>&);
     const Type* infer_record_type(const TypeApp*, const StructType*, size_t&);
+
+    bool trait_bound_exists(const Type*);
 
 private:
     std::unordered_set<const ast::Decl*> decls_;

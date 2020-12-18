@@ -41,8 +41,6 @@ struct TypeBounds {
     TypeBounds& meet(const TypeBounds&);
 };
 
-
-struct TraitImplType;
 /// Base class for all types. Types should be created by a `TypeTable`,
 /// which will hash them and place them into a set. This makes types
 /// comparable via pointer equality, as long as they were created with
@@ -109,7 +107,6 @@ struct Type : public Cast<Type> {
 
     /// Prints the type on the console, for debugging.
     void dump() const;
-
 };
 
 /// The type of an attribute.
@@ -386,6 +383,7 @@ struct ForallType : public Type {
     /// Returns the type of the body with type variables
     /// substituted with the given arguments.
     const Type* instantiate(const std::vector<const Type*>&) const;
+    std::unordered_map<const TypeVar*, const artic::Type*> instantiate_map(const std::vector<const Type*>&) const;
 
     void print(Printer&) const override;
     bool equals(const Type*) const override;
@@ -509,7 +507,7 @@ private:
 };
 
 struct TraitImplType : public ComplexType {
-    const ast::TraitImpl& impl;
+    const ast::ImplDecl& impl;
 
     void print(Printer&) const override;
     bool equals(const Type*) const override;
@@ -520,16 +518,15 @@ struct TraitImplType : public ComplexType {
     std::string stringify(Emitter&) const override;
 
     const ast::TypeParamList* type_params() const override {
-        return nullptr;
+        return impl.type_params.get();
     }
-
 
     std::optional<size_t> find_member(const std::string_view&) const override;
     const Type* member_type(size_t) const override;
     size_t member_count() const override;
 
 private:
-    TraitImplType(TypeTable& type_table, const ast::TraitImpl& impl)
+    TraitImplType(TypeTable& type_table, const ast::ImplDecl& impl)
     : ComplexType(type_table), impl(impl)
     {}
 
@@ -644,18 +641,16 @@ public:
     const StructType*       struct_type(const ast::RecordDecl&);
     const EnumType*         enum_type(const ast::EnumDecl&);
     const TraitType*        trait_type(const ast::TraitDecl&);
-    const TraitImplType*    trait_impl_type(const ast::TraitImpl& impl);
+    const TraitImplType*    trait_impl_type(const ast::ImplDecl& impl);
     const TypeAlias*        type_alias(const ast::TypeDecl&);
 
     /// Creates a type application for structures/enumeration types,
     /// or returns the type alias expanded with the given type arguments.
     const Type* type_app(const UserType*, std::vector<const Type*>&&);
 
-    /// Returns a conflicting TraitImplType* or nullptr if there are no conflicts
-    const TraitImplType* register_trait_for_type(const Type* type, const TraitImplType* impl);
-    const std::vector<const TraitImplType*> trait_candidates(const Type* type, ast::Identifier f);
-    bool has_trait(const Type* type, const Type* trait);
-    bool has_trait_simple(const Type* type, const Type* trait);
+    /// Retruns nullptr if the impl is not already registered
+    const TraitImplType* register_impl(const TraitImplType* impl);
+    bool impl_exists(const Type* type);
 
 private:
     template <typename T, typename... Args>
@@ -672,7 +667,7 @@ private:
         }
     };
     std::unordered_set<const Type*, HashType, CompareTypes> types_;
-    std::unordered_map<const Type*, std::vector<const TraitImplType*>> traits_impls_;
+    std::vector<const TraitImplType*> impls_;
 
     const PrimType*   bool_type_   = nullptr;
     const TupleType*  unit_type_   = nullptr;

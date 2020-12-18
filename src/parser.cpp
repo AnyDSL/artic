@@ -40,7 +40,7 @@ Ptr<ast::Decl> Parser::parse_decl(bool is_top_level) {
         case Token::Struct: decl = parse_struct_decl(); break;
         case Token::Enum:   decl = parse_enum_decl();   break;
         case Token::Trait:  decl = parse_trait_decl();  break;
-        case Token::Impl:   decl = parse_trait_impl();  break;
+        case Token::Impl:   decl = parse_impl_decl();  break;
         case Token::Type:   decl = parse_type_decl();   break;
         case Token::Static: decl = parse_static_decl(); break;
         case Token::Mod:    decl = parse_mod_decl();    break;
@@ -89,6 +89,15 @@ Ptr<ast::FnDecl> Parser::parse_fn_decl() {
     if (accept(Token::Arrow))
         ret_type = parse_type();
 
+    PtrVector<ast::TypeApp> where_clauses;
+    if (accept(Token::Where)){
+        do {
+            where_clauses.emplace_back(parse_type_app());
+        }
+        while (accept(Token::Comma));
+    }
+
+
     Ptr<ast::Expr> body;
     if (ahead().tag() == Token::LBrace)
         body = parse_block_expr();
@@ -104,7 +113,7 @@ Ptr<ast::FnDecl> Parser::parse_fn_decl() {
     }
 
     auto fn = make_ptr<ast::FnExpr>(tracker(), std::move(filter), std::move(param), std::move(ret_type), std::move(body));
-    return make_ptr<ast::FnDecl>(tracker(), std::move(id), std::move(fn), std::move(type_params));
+    return make_ptr<ast::FnDecl>(tracker(), std::move(id), std::move(fn), std::move(type_params), std::move(where_clauses));
 }
 
 Ptr<ast::FieldDecl> Parser::parse_field_decl(bool is_tuple_like) {
@@ -180,16 +189,8 @@ Ptr<ast::EnumDecl> Parser::parse_enum_decl() {
     return make_ptr<ast::EnumDecl>(tracker(), std::move(id), std::move(type_params), std::move(options));
 }
 
-Ptr<ast::TraitFn> Parser::parse_trait_fn(){
-    Tracker tracker(this);
-    Ptr<ast::FnDecl> funct = parse_fn_decl();
-
-    return make_ptr<ast::TraitFn>(tracker(), std::move(funct));
-}
-
 Ptr<ast::TraitDecl> Parser::parse_trait_decl(){
     Tracker tracker(this);
-
     eat(Token::Trait);
     auto id = parse_id();
 
@@ -197,12 +198,11 @@ Ptr<ast::TraitDecl> Parser::parse_trait_decl(){
     if (ahead().tag() == Token::LBracket)
         type_params = parse_type_params();
 
-
-    PtrVector<ast::TraitFn>functs;
+    PtrVector<ast::FnDecl>functs;
     if(accept(Token::LBrace)) {
         while (ahead().tag() != Token::RBrace && ahead().tag() != Token::End) {
             if (ahead().tag() == Token::Fn)
-                functs.emplace_back(parse_trait_fn());
+                functs.emplace_back(parse_fn_decl());
             else {
                 error(ahead().loc(), "expected function declaration got '{}'", ahead().string());
                 while (
@@ -215,40 +215,29 @@ Ptr<ast::TraitDecl> Parser::parse_trait_decl(){
             }
 
         }
-        if (ahead().tag() == Token::RBrace)
-            eat(Token::RBrace);
-        else {
-            error(ahead().loc(), "expected '}' but got EOF");
-
-        }
+        expect(Token::RBrace);
     }
     return make_ptr<ast::TraitDecl>(tracker(), std::move(id), std::move(type_params), std::move(functs));
 
 }
 
 
-Ptr<ast::TraitImpl> Parser::parse_trait_impl(){
+Ptr<ast::ImplDecl> Parser::parse_impl_decl(){
 
     Tracker tracker(this);
-
     eat(Token::Impl);
+
     Ptr<ast::TypeParamList> type_params;
     if (ahead().tag() == Token::LBracket)
         type_params = parse_type_params();
 
     auto trait_type = parse_type_app();
 
-    if(!expect(Token::For)) {
-        error(ahead().loc(), "expected 'for' got '{}'", ahead().string());
-        next();
-    }
-    auto concrete_type = parse_type();
-
-    PtrVector<ast::TraitFn>functs;
+    PtrVector<ast::FnDecl>functs;
     if(accept(Token::LBrace)) {
         while (ahead().tag() != Token::RBrace && ahead().tag() != Token::End) {
             if (ahead().tag() == Token::Fn)
-                functs.emplace_back(parse_trait_fn());
+                functs.emplace_back(parse_fn_decl());
             else {
                 error(ahead().loc(), "expected function declaration got '{}'", ahead().string());
                 while (
@@ -261,20 +250,9 @@ Ptr<ast::TraitImpl> Parser::parse_trait_impl(){
             }
 
         }
-        if (ahead().tag() == Token::RBrace)
-            eat(Token::RBrace);
-        else {
-            error(ahead().loc(), "expected '}' but got EOF");
-
-        }
+        expect(Token::RBrace);
     }
-
-    return make_ptr<ast::TraitImpl>(tracker(), std::move(type_params), std::move(trait_type), std::move(concrete_type), std::move(functs));
-
-
-
-    return nullptr;
-
+    return make_ptr<ast::ImplDecl>(tracker(), std::move(type_params), std::move(trait_type),  std::move(functs));
 }
 
 Ptr<ast::TypeDecl> Parser::parse_type_decl() {

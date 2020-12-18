@@ -466,6 +466,13 @@ void FnDecl::print(Printer& p) const {
     if (type_params) type_params->print(p);
     print_parens(p, fn->param);
 
+    if (where_clauses.size() > 0){
+        p << " where ";
+        print_list(p, ',', where_clauses, [&] (auto& w) {
+            w->print(p);
+        });
+    }
+
     if (fn->ret_type) {
         p << " -> ";
         fn->ret_type->print(p);
@@ -541,32 +548,25 @@ void EnumDecl::print(Printer& p) const {
     p << '}';
 }
 
-void TraitFn::print(Printer& p) const {
-    p<<p.endl();
-    funct->print(p);
-}
-
-
 void TraitDecl::print(Printer& p) const {
     if (attrs) attrs->print(p);
     p << log::keyword_style("trait") << ' ' << id.name;
     if (type_params) type_params->print(p);
-    p << '{' << p.indent();
+    p << '{' << p.indent() ;
     for(auto& f:functs){
+        p << p.endl();
         f->print(p);
     }
     p << p.unindent() << p.endl() << '}';
-
 }
 
-void TraitImpl::print(Printer& p) const {
+void ImplDecl::print(Printer& p) const {
     if (attrs) attrs->print(p);
     p << log::keyword_style("impl") << ' ' ;
     trait_type->print(p);
-    p << ' ' << log::keyword_style("for") << ' ';
-    concrete_type->print(p);
-    p << '{' << p.indent();
-    for(auto& f:functs){
+    p << ' ' << '{' << p.indent();
+    for (auto& f:functs) {
+        p << p.endl();
         f->print(p);
     }
     p << p.unindent() << p.endl() << '}';
@@ -767,8 +767,6 @@ void TraitType::print(Printer& p) const {
 void TraitImplType::print(Printer& p) const {
     p <<"impl ";
     impl.trait_type->print(p);
-    p << " for ";
-    impl.concrete_type->print(p);
 }
 
 void TypeAlias::print(Printer& p) const {

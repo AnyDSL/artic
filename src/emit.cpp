@@ -1291,7 +1291,6 @@ const thorin::Def* StaticDecl::emit(Emitter& emitter) const {
 }
 
 const thorin::Def* FnDecl::emit(Emitter& emitter) const {
-
     auto _ = emitter.save_state();
     const thorin::FnType* cont_type = nullptr;
     Emitter::MonoFn mono_fn { this, {} };
@@ -1371,18 +1370,13 @@ const thorin::Def* EnumDecl::emit(Emitter&) const {
     return nullptr;
 }
 
-const thorin::Def* TraitFn::emit(Emitter&) const {
-    return nullptr;
-}
-
 const thorin::Def* TraitDecl::emit(Emitter&) const {
     return nullptr;
 }
 
-const thorin::Def* TraitImpl::emit(Emitter&) const {
+const thorin::Def* ImplDecl::emit(Emitter&) const {
     return nullptr;
 }
-
 
 const thorin::Def* TypeDecl::emit(Emitter&) const {
     return nullptr;
@@ -1584,6 +1578,7 @@ std::string EnumType::stringify(Emitter& emitter) const {
         return decl.id.name;
     return stringify_params(emitter, decl.id.name + "_", decl.type_params->params);
 }
+
 std::string TraitType::stringify(Emitter& emitter) const {
     //todo
     return "<<<Not implemented>>>";
@@ -1726,7 +1721,7 @@ bool compile(
     thorin::Log::set(log_level, &std::cerr);
     Emitter emitter(log, world);
     emitter.warns_as_errors = warns_as_errors;
-    return emitter.run(program);
+    return true; //emitter.run(program);
 }
 
 bool compile(

@@ -32,10 +32,6 @@ std::unique_ptr<T> make_ptr(Args&&... args) {
 
 namespace ast {
 
-
-struct TraitImpl;
-struct TraitDecl;
-
 /// Identifier with its location in the file
 struct Identifier {
     Loc loc;
@@ -45,10 +41,6 @@ struct Identifier {
     Identifier(const Loc& loc, std::string&& name)
         : loc(loc), name(std::move(name))
     {}
-
-    bool is_self = false;
-    TraitDecl* trait_decl = nullptr;
-    TraitImpl* trait_impl = nullptr;
 };
 
 /// Base class for all AST nodes.
@@ -731,8 +723,6 @@ struct ProjExpr : public Expr {
 
     const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) override;
-    const artic::Type* infer_for_struct(TypeChecker&);
-    const artic::Type* infer_for_trait(TypeChecker&);
     void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
@@ -1211,15 +1201,18 @@ struct StaticDecl : public NamedDecl {
 struct FnDecl : public NamedDecl {
     Ptr<FnExpr> fn;
     Ptr<TypeParamList> type_params;
+    PtrVector<TypeApp> where_clauses;
 
     FnDecl(
         const Loc& loc,
         Identifier&& id,
         Ptr<FnExpr>&& fn,
-        Ptr<TypeParamList>&& type_params)
+        Ptr<TypeParamList>&& type_params,
+        PtrVector<TypeApp>&& where_clauses)
         : NamedDecl(loc, std::move(id))
         , fn(std::move(fn))
         , type_params(std::move(type_params))
+        , where_clauses(std::move(where_clauses))
     {}
 
     const thorin::Def* emit(Emitter&) const override;
@@ -1338,80 +1331,51 @@ struct EnumDecl : public NamedDecl {
     void print(Printer&) const override;
 };
 
-/// Trait method declaration.
-struct TraitFn : public Decl {
-    std::shared_ptr<FnDecl> funct;
-
-    size_t index;
-
-
-    TraitFn(
-            const Loc& loc,
-            Ptr<FnDecl>&& funct)
-            : Decl(loc)
-            , funct(std::move(funct))
-            {}
-
-            const thorin::Def* emit(Emitter&) const override;
-            const artic::Type* infer(TypeChecker&) override;
-            const artic::Type* check(TypeChecker&, const artic::Type*) override;
-            void bind(NameBinder&) override;
-            void print(Printer&) const override;
-
-        };
-
 /// Trait declaration.
 struct TraitDecl : public NamedDecl {
     Ptr<TypeParamList> type_params;
-    PtrVector<TraitFn> functs;
-
-
+    PtrVector<FnDecl> functs;
 
     TraitDecl(
             const Loc& loc,
             Identifier&& id,
             Ptr<TypeParamList>&& type_params,
-            PtrVector<TraitFn>&& functs)
+            PtrVector<FnDecl>&& functs)
             : NamedDecl(loc, std::move(id))
             , functs(std::move(functs))
             , type_params(std::move(type_params))
-            {}
+    {}
 
-
-            const thorin::Def* emit(Emitter&) const override;
-            const artic::Type* infer(TypeChecker&) override;
-            void bind_head(NameBinder&) override;
-            void bind(NameBinder&) override;
-            void print(Printer&) const override;
-
-        };
+    const thorin::Def* emit(Emitter&) const override;
+    const artic::Type* infer(TypeChecker&) override;
+    void bind_head(NameBinder&) override;
+    void bind(NameBinder&) override;
+    void print(Printer&) const override;
+};
 
 /// Trait implementation.
-struct TraitImpl : public Decl {
+struct ImplDecl : public Decl {
     Ptr<TypeParamList> type_params;
     Ptr<TypeApp> trait_type;
-    Ptr<Type> concrete_type;
-    PtrVector<TraitFn> functs;
+    PtrVector<FnDecl> functs;
 
-    TraitImpl(
+    ImplDecl(
             const Loc& loc,
             Ptr<TypeParamList>&& type_params,
             Ptr<TypeApp>&& trait_type,
-            Ptr<Type>&& concrete_type,
-            PtrVector<TraitFn>&& functs)
+            PtrVector<FnDecl>&& functs)
             : Decl(loc)
             , type_params(std::move(type_params))
             , trait_type(std::move(trait_type))
-            , concrete_type(std::move(concrete_type))
             , functs(std::move(functs))
-            {}
+     {}
 
 
-            const thorin::Def* emit(Emitter&) const override;
-            const artic::Type* infer(TypeChecker&) override;
-            void bind(NameBinder&) override;
-            void print(Printer&) const override;
-        };
+     const thorin::Def* emit(Emitter&) const override;
+     const artic::Type* infer(TypeChecker&) override;
+     void bind(NameBinder&) override;
+     void print(Printer&) const override;
+};
 
 /// Type alias declaration.
 struct TypeDecl : public NamedDecl {
