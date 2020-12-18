@@ -311,7 +311,7 @@ const Type* TypeChecker::check_trait_fns(
 
         }
         //Add default definitions
-        for (size_t i =0; i < trait_type->decl.functs.size(); i++){
+        for (size_t i =0; i < trait_type->decl.functs.size(); i++) {
             auto index = trait_type->find_member(trait_type->decl.functs[i]->id.name);
             defined[*index] = defined[*index] || trait_type->decl.functs[i]->fn->body != nullptr;
         }
@@ -613,11 +613,11 @@ const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, Ptr<Ex
                 }
                 elem.inferred_args = type_args;
                 //check trait bounds
-                if(forall_type){
+                if (forall_type) {
                     auto map = forall_type->instantiate_map(type_args);
-                    for(auto& w:forall_type->decl.where_clauses){
+                    for (auto& w:forall_type->decl.where_clauses) {
                         auto type_inst = w->type->replace(map);
-                        if(!checker.type_table.impl_exists(type_inst) && !checker.trait_bound_exists(type_inst)){
+                        if (!checker.type_table.impl_exists(type_inst) && !checker.trait_bound_exists(type_inst)) {
                             checker.error(elem.loc, "the trait '{}' is not implemented", *type_inst);
                             return checker.type_table.type_error();
                         }
@@ -669,19 +669,19 @@ const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, Ptr<Ex
                     is_value = is_ctor = true;
                 }
             }
-            else if (auto [type_app, trait_type] = match_app<TraitType>(type); trait_type){
+            else if (auto [type_app, trait_type] = match_app<TraitType>(type); trait_type) {
                 auto index = trait_type->find_member(elems[i + 1].id.name);
                 if (!index)
                     return checker.unknown_member(elem.loc, trait_type, elems[i + 1].id.name);
                 elems[i + 1].index = *index;
                 is_value = true;
                 is_ctor = false;
-                if(!checker.type_table.impl_exists(type) && !checker.trait_bound_exists(type)){
+                if (!checker.type_table.impl_exists(type) && !checker.trait_bound_exists(type)) {
                     checker.error(elem.loc, "the trait '{}' is not implemented", *type);
                     return checker.type_table.type_error();
                 }
                 //apply type
-                if(type_app){
+                if (type_app) {
                     auto map = type_app->replace_map(*trait_type->type_params(), type_app->type_args);
                     type = trait_type->member_type(*index)->replace(map);
                 }
@@ -1445,10 +1445,10 @@ const artic::Type* FnDecl::infer(TypeChecker& checker) {
     if (!checker.enter_decl(this))
         return checker.type_table.type_error();
     //check trait bounds
-    for(const auto& trait:where_clauses){
+    for (const auto& trait:where_clauses) {
         checker.infer(*trait);
-        if(auto trait_type = trait->type->isa<artic::TraitType>()){
-            if(!checker.type_table.impl_exists(trait_type)){
+        if (auto trait_type = trait->type->isa<artic::TraitType>()) {
+            if (!checker.type_table.impl_exists(trait_type)) {
                 checker.error(trait->loc, "trait '{}' is not implemented", *trait_type);
                 return checker.type_table.type_error();
             }
@@ -1458,13 +1458,13 @@ const artic::Type* FnDecl::infer(TypeChecker& checker) {
                 type_app && type_app->applied->isa<artic::TraitType>()
        ) {
             bool contains_var = false;
-            for (auto& arg:type_app->type_args){
-                if(arg->isa<TypeVar>()){
+            for (auto& arg:type_app->type_args) {
+                if (arg->isa<TypeVar>()) {
                     contains_var = true;
                 }
             }
-            if (!contains_var){
-                if(!checker.type_table.impl_exists(type_app)){
+            if (!contains_var) {
+                if (!checker.type_table.impl_exists(type_app)) {
                     checker.error(trait->loc, "trait '{}' is not implemented", *type_app);
                     return checker.type_table.type_error();
                 }

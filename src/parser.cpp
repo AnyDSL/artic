@@ -90,7 +90,7 @@ Ptr<ast::FnDecl> Parser::parse_fn_decl() {
         ret_type = parse_type();
 
     PtrVector<ast::TypeApp> where_clauses;
-    if (accept(Token::Where)){
+    if (accept(Token::Where)) {
         do {
             where_clauses.emplace_back(parse_type_app());
         }
@@ -199,7 +199,7 @@ Ptr<ast::TraitDecl> Parser::parse_trait_decl(){
         type_params = parse_type_params();
 
     PtrVector<ast::FnDecl>functs;
-    if(accept(Token::LBrace)) {
+    if (accept(Token::LBrace)) {
         while (ahead().tag() != Token::RBrace && ahead().tag() != Token::End) {
             if (ahead().tag() == Token::Fn)
                 functs.emplace_back(parse_fn_decl());
@@ -234,7 +234,7 @@ Ptr<ast::ImplDecl> Parser::parse_impl_decl(){
     auto trait_type = parse_type_app();
 
     PtrVector<ast::FnDecl>functs;
-    if(accept(Token::LBrace)) {
+    if (accept(Token::LBrace)) {
         while (ahead().tag() != Token::RBrace && ahead().tag() != Token::End) {
             if (ahead().tag() == Token::Fn)
                 functs.emplace_back(parse_fn_decl());

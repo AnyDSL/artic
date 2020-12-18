@@ -381,7 +381,7 @@ void FnDecl::bind(NameBinder& binder) {
     binder.push_scope();
     if (type_params)
         binder.bind(*type_params);
-    for(auto& trait: where_clauses)
+    for (auto& trait: where_clauses)
         binder.bind(*trait);
     if (fn->body)
         binder.bind(*fn);
@@ -441,7 +441,7 @@ void TraitDecl::bind_head(NameBinder& binder) {
 void TraitDecl::bind(NameBinder& binder) {
     binder.push_scope();
     if (type_params) binder.bind(*type_params);
-    for(auto& f: functs)
+    for (auto& f: functs)
         f->bind(binder);
     binder.pop_scope();
 }
@@ -450,7 +450,7 @@ void ImplDecl::bind(NameBinder& binder) {
     binder.push_scope();
     if (type_params) binder.bind(*type_params);
     trait_type->bind(binder);
-    for(auto& f: functs)
+    for (auto& f: functs)
         f->bind(binder);
     binder.pop_scope();
 }

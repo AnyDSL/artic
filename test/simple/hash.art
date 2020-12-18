@@ -4,7 +4,7 @@ trait Hash[T]{
 
 impl Hash[bool]{
     fn hash(self:bool)->u32{
-        if(self) {1} else {0}
+        if (self) {1} else {0}
     }
 }
 

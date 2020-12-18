@@ -466,7 +466,7 @@ void FnDecl::print(Printer& p) const {
     if (type_params) type_params->print(p);
     print_parens(p, fn->param);
 
-    if (where_clauses.size() > 0){
+    if (where_clauses.size() > 0) {
         p << " where ";
         print_list(p, ',', where_clauses, [&] (auto& w) {
             w->print(p);
@@ -553,7 +553,7 @@ void TraitDecl::print(Printer& p) const {
     p << log::keyword_style("trait") << ' ' << id.name;
     if (type_params) type_params->print(p);
     p << '{' << p.indent() ;
-    for(auto& f:functs){
+    for (auto& f:functs) {
         p << p.endl();
         f->print(p);
     }
