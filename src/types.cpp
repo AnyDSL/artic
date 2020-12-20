@@ -3,6 +3,7 @@
 
 #include "artic/types.h"
 #include "artic/hash.h"
+#include "artic/print.h"
 
 namespace artic {
 
@@ -778,7 +779,9 @@ const T* TypeTable::insert(Args&&... args) {
 
 const TraitImplType* TypeTable::register_impl(const TraitImplType* impl){
     for (auto it: impls_) {
-        if (it->impl.trait_type->type == impl) return it;
+        auto [it_type_app, it_trait_type] = match_app<TraitType>(it->impl.trait_type->type);
+        auto [impl_type_app, impl_trait_type] = match_app<TraitType>(impl->impl.trait_type->type);
+        if(it_type_app == impl_type_app && it_trait_type == impl_trait_type) return it;
     }
     impls_.push_back(impl);
     return nullptr;
