@@ -296,8 +296,6 @@ int main(int argc, char** argv) {
 
     if (opts.opt_level == 1)
         world.cleanup();
-    if (opts.opt_level > 1 || opts.emit_llvm)
-        world.opt();
     if (opts.emit_thorin)
         world.dump();
     if (opts.emit_c_int) {
@@ -308,6 +306,8 @@ int main(int argc, char** argv) {
         else
             thorin::emit_c_int(world, file);
     }
+    if (opts.opt_level > 1 || opts.emit_llvm)
+        world.opt();
 #ifdef ENABLE_LLVM
     if (opts.emit_llvm) {
         thorin::Backends backends(world);
