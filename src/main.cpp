@@ -296,8 +296,6 @@ int main(int argc, char** argv) {
 
     if (opts.opt_level == 1)
         world.cleanup();
-    if (opts.emit_thorin)
-        world.dump();
     if (opts.emit_c_int) {
         auto name = opts.module_name + ".h";
         std::ofstream file(name);
@@ -308,6 +306,8 @@ int main(int argc, char** argv) {
     }
     if (opts.opt_level > 1 || opts.emit_llvm)
         world.opt();
+    if (opts.emit_thorin)
+        world.dump();
 #ifdef ENABLE_LLVM
     if (opts.emit_llvm) {
         thorin::Backends backends(world);
