@@ -163,6 +163,33 @@ const Type* TypeChecker::coerce(Ptr<ast::Expr>& expr, const Type* expected) {
     return type;
 }
 
+const Type* TypeChecker::try_coerce(Ptr<ast::Expr>& expr, const Type* expected) {
+    // The goal here is to make type argument inference a bit more clever for literals.
+    // Consider:
+    //
+    //    fn foo[T](x: T, y: u64) = x;
+    //    foo(1, 2)
+    //
+    // In this example, `foo(1, 2)` requires type argument synthesis, which would normally
+    // force the arguments to be inferred first. This means that `(1, 2)` will type as
+    // `(i32, i32)`, which is a problem since `foo` expects a `u64` as a second argument.
+    // To solve that, we just enter the expression if it is a tuple, and coerce the elements
+    // of a tuple to the element of the expected type (the domain of the forall) if it does
+    // not contain type variables.
+    if (auto tuple_type = expected->isa<TupleType>()) {
+        if (auto tuple_expr = expr->isa<ast::TupleExpr>();
+            tuple_expr && tuple_type->args.size() == tuple_expr->args.size()) {
+            SmallArray<const Type*> arg_types(tuple_expr->args.size());
+            for (size_t i = 0, n = tuple_expr->args.size(); i < n; ++i)
+                arg_types[i] = try_coerce(tuple_expr->args[i], tuple_type->args[i]);
+            return expr->type = type_table.tuple_type(arg_types);
+        }
+    }
+    // If the expected type does not contain any type variable,
+    // it is safe to coerce the expression to it.
+    return expected->variance().empty() ? coerce(expr, expected) : deref(expr);
+}
+
 const Type* TypeChecker::join(Ptr<ast::Expr>& left, Ptr<ast::Expr>& right) {
     auto left_type  = deref(left);
     auto right_type = deref(right);
@@ -565,7 +592,7 @@ const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, Ptr<Ex
                     type_args[i] = checker.infer(*elem.args[i]);
                 // Infer type arguments when not all type arguments are given
                 if (type_param_count != elem.args.size() && i == n - 1) {
-                    auto arg_type = checker.deref(*arg);
+                    auto arg_type = checker.try_coerce(*arg, forall_type->body->as<artic::FnType>()->dom);
                     if (!checker.infer_type_args(loc, forall_type, arg_type, type_args))
                         return checker.type_table.type_error();
                 }
