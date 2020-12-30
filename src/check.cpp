@@ -916,9 +916,15 @@ const artic::Type* BlockExpr::check(TypeChecker& checker, const artic::Type* exp
     return last_semi ? expected : last_type;
 }
 
+static inline PathExpr* callee_path(Expr* expr) {
+    if (auto filter_expr = expr->isa<FilterExpr>())
+        expr = filter_expr->expr.get();
+    return expr->isa<PathExpr>();
+}
+
 const artic::Type* CallExpr::infer(TypeChecker& checker) {
     // Perform type argument inference when possible
-    if (auto path_expr = callee->isa<ast::PathExpr>())
+    if (auto path_expr = callee_path(callee.get()))
         path_expr->type = path_expr->path.infer(checker, true, &arg);
 
     auto [ref_type, callee_type] = remove_ref(checker.infer(*callee));
