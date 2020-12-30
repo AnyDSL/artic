@@ -564,8 +564,7 @@ const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, Ptr<Ex
                 for (size_t i = 0, n = elem.args.size(); i < n; ++i)
                     type_args[i] = checker.infer(*elem.args[i]);
                 // Infer type arguments when not all type arguments are given
-                if (type_param_count != elem.args.size()) {
-                    assert(forall_type && arg && i == n - 1);
+                if (type_param_count != elem.args.size() && i == n - 1) {
                     auto arg_type = checker.deref(*arg);
                     if (!checker.infer_type_args(loc, forall_type, arg_type, type_args))
                         return checker.type_table.type_error();
