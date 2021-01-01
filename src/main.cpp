@@ -311,7 +311,7 @@ int main(int argc, char** argv) {
 #ifdef ENABLE_LLVM
     if (opts.emit_llvm) {
         thorin::Backends backends(world);
-        auto emit_to_file = [&](thorin::CodeGen* cg, std::string ext) {
+        auto emit_to_file = [&] (thorin::CodeGen* cg, std::string ext) {
             if (cg) {
                 auto name = opts.module_name + ext;
                 std::ofstream file(name);

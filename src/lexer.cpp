@@ -261,7 +261,7 @@ void Lexer::eat_comments() {
 Literal Lexer::parse_literal() {
     int base = 10;
 
-    auto parse_digits = [&] () {
+    auto parse_digits = [&] {
         while (std::isdigit(peek()) ||
                (base == 16 && peek() >= 'a' && peek() <= 'f') ||
                (base == 16 && peek() >= 'A' && peek() <= 'F')) {
