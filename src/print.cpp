@@ -200,7 +200,14 @@ void CallExpr::print(Printer& p) const {
 
 void ProjExpr::print(Printer& p) const {
     expr->print(p);
-    p << '.' << field.name;
+    p << '.';
+    std::visit([&] (auto&& arg) {
+        using T = std::decay_t<decltype(arg)>;
+        if constexpr (std::is_same_v<T, Identifier>)
+            p << arg.name;
+        else if constexpr (std::is_same_v<T, size_t>)
+            p << arg;
+    }, field);
 }
 
 void IfExpr::print(Printer& p) const {

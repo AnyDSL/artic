@@ -62,12 +62,9 @@ public:
     const Type* check(const Loc&, const Literal&, const Type*);
 
     template <typename Fields>
-    const Type* check_fields(
-        const Loc&,
-        const StructType*,
-        const TypeApp*,
-        const Fields&,
-        const std::string_view&,
+    void check_fields(
+        const Loc&, const StructType*, const TypeApp*,
+        const Fields&, const std::string_view&,
         bool = false, bool = false);
 
     void check_block(const Loc&, const PtrVector<ast::Stmt>&, bool);

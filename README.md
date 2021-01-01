@@ -161,6 +161,16 @@ static x = S { y = 2 }; // x is a structure with x = 1, y = 2
 struct S(i32, i64);
 struct T;
 ```
+ - Tuples and "tuple-like" structures members can be accessed with the projection operator:
+```rust
+struct S(i32, i64);
+let s = S(1, 2);
+let x = s.0;
+let y = s.1;
+let t = (1, 2);
+let z = t.0;
+let w = t.1;
+```
  - Enumeration options can use a "record-like" form:
 ```rust
 enum E {

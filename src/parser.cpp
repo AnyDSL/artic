@@ -623,15 +623,21 @@ Ptr<ast::CallExpr> Parser::parse_call_expr(Ptr<ast::Expr>&& callee) {
 Ptr<ast::ProjExpr> Parser::parse_proj_expr(Ptr<ast::Expr>&& expr) {
     Tracker tracker(this, expr->loc);
     eat(Token::Dot);
-    auto id = parse_id();
-    return make_ptr<ast::ProjExpr>(tracker(), std::move(expr), std::move(id));
+    if (ahead().is_literal() && ahead().literal().is_integer()) {
+        size_t index = ahead().literal().as_integer();
+        eat(Token::Lit);
+        return make_ptr<ast::ProjExpr>(tracker(), std::move(expr), index);
+    } else {
+        auto id = parse_id();
+        return make_ptr<ast::ProjExpr>(tracker(), std::move(expr), std::move(id));
+    }
 }
 
 Ptr<ast::IfExpr> Parser::parse_if_expr() {
     Tracker tracker(this);
     eat(Token::If);
 
-    auto accept_else = [&](){
+    auto accept_else = [&] {
         Ptr<ast::Expr> if_false;
         if (accept(Token::Else)) {
             if (ahead().tag() == Token::If)
@@ -641,7 +647,7 @@ Ptr<ast::IfExpr> Parser::parse_if_expr() {
             else
                 if_false = parse_error_expr();
         }
-        return std::move(if_false);
+        return if_false;
     };
 
     if (accept(Token::Let)) {
@@ -653,9 +659,8 @@ Ptr<ast::IfExpr> Parser::parse_if_expr() {
         auto if_false = accept_else();
         return make_ptr<ast::IfExpr>(tracker(), std::move(ptrn), std::move(expr), std::move(if_true), std::move(if_false));
     } else {
-        auto[cond, if_true] = parse_cond_and_block();
+        auto [cond, if_true] = parse_cond_and_block();
         auto if_false = accept_else();
-
         return make_ptr<ast::IfExpr>(tracker(), std::move(cond), std::move(if_true), std::move(if_false));
     }
 }
@@ -1163,7 +1168,7 @@ std::string Parser::parse_str() {
 
 std::optional<size_t> Parser::parse_array_size() {
     std::optional<size_t> size;
-    if (ahead().tag() == Token::Lit && ahead().literal().is_integer()) {
+    if (ahead().is_literal() && ahead().literal().is_integer()) {
         size = ahead().literal().as_integer();
         eat(Token::Lit);
     } else {
@@ -1179,7 +1184,7 @@ size_t Parser::parse_addr_space() {
     expect(Token::LParen);
     Tracker tracker(this);
     size_t addr_space = 0;
-    if (ahead().tag() == Token::Lit && ahead().literal().is_integer()) {
+    if (ahead().is_literal() && ahead().literal().is_integer()) {
         addr_space = ahead().literal().as_integer();
         next();
     } else

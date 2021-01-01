@@ -285,15 +285,20 @@ const Type* TypeChecker::check(const Loc& loc, const Literal& lit, const Type* e
     }
 }
 
+static inline const artic::Type* member_type(
+    const artic::TypeApp* type_app,
+    const artic::ComplexType* complex_type,
+    size_t index)
+{
+    return type_app ? type_app->member_type(index) : complex_type->member_type(index);
+}
+
 template <typename Fields>
-const Type* TypeChecker::check_fields(
-    const Loc& loc,
-    const StructType* struct_type,
-    const TypeApp* type_app,
-    const Fields& fields,
-    const std::string_view& msg,
-    bool has_etc,
-    bool accept_defaults) {
+void TypeChecker::check_fields(
+    const Loc& loc, const StructType* struct_type, const TypeApp* type_app,
+    const Fields& fields, const std::string_view& msg,
+    bool has_etc, bool accept_defaults)
+{
     std::vector<bool> seen(struct_type->decl.fields.size(), false);
     for (size_t i = 0, n = fields.size(); i < n; ++i) {
         // Skip the field if it is '...'
@@ -303,14 +308,12 @@ const Type* TypeChecker::check_fields(
         }
         auto index = struct_type->find_member(fields[i]->id.name);
         if (!index)
-            return unknown_member(fields[i]->loc, struct_type, fields[i]->id.name);
-        if (seen[*index]) {
-            error(loc, "field '{}' specified more than once", fields[i]->id.name);
-            return type_table.type_error();
-        }
+            return (void)unknown_member(fields[i]->loc, struct_type, fields[i]->id.name);
+        if (seen[*index])
+            return (void)error(loc, "field '{}' specified more than once", fields[i]->id.name);
         seen[*index] = true;
         fields[i]->index = *index;
-        check(*fields[i], type_app ? type_app->member_type(*index) : struct_type->member_type(*index));
+        check(*fields[i], member_type(type_app, struct_type, *index));
     }
     // Check that all fields have been specified, unless '...' was used
     if (!has_etc && !std::all_of(seen.begin(), seen.end(), [] (bool b) { return b; })) {
@@ -319,7 +322,6 @@ const Type* TypeChecker::check_fields(
                 error(loc, "missing field '{}' in structure {}", struct_type->decl.fields[i]->id.name, msg);
         }
     }
-    return type_app ? type_app->as<Type>() : struct_type;
 }
 
 void TypeChecker::check_block(const Loc& loc, const PtrVector<ast::Stmt>& stmts, bool last_semi) {
@@ -616,7 +618,7 @@ const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, Ptr<Ex
             if (struct_type->member_count() > 0) {
                 SmallArray<const artic::Type*> tuple_args(struct_type->member_count());
                 for (size_t i = 0, n = struct_type->member_count(); i < n; ++i)
-                    tuple_args[i] = type_app ? type_app->member_type(i) : struct_type->member_type(i);
+                    tuple_args[i] = member_type(type_app, struct_type, i);
                 auto dom = struct_type->member_count() == 1
                     ? tuple_args.front()
                     : checker.type_table.tuple_type(tuple_args);
@@ -638,7 +640,7 @@ const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, Ptr<Ex
                     is_value = false;
                     is_ctor = true;
                 } else {
-                    auto member = type_app ? type_app->member_type(*index) : enum_type->member_type(*index);
+                    auto member = member_type(type_app, enum_type, *index);
                     type = is_unit_type(member) ? type : checker.type_table.fn_type(member, type);
                     is_value = is_ctor = true;
                 }
@@ -990,20 +992,39 @@ const artic::Type* ProjExpr::infer(TypeChecker& checker) {
     auto ptr_type = expr_type->isa<artic::PtrType>();
     if (ptr_type)
         expr_type = ptr_type->pointee;
+
+    const artic::Type* result_type = nullptr;
     auto [type_app, struct_type] = match_app<StructType>(expr_type);
-    if (!struct_type)
-        return checker.type_expected(expr->loc, expr_type, "structure");
-    if (auto index = struct_type->find_member(field.name)) {
-        this->index = *index;
-        auto result = type_app ? type_app->member_type(*index) : struct_type->member_type(*index);
-        return ref_type || ptr_type
-            ? checker.type_table.ref_type(
-                result,
-                ptr_type ? ptr_type->is_mut : ref_type->is_mut,
-                ptr_type ? ptr_type->addr_space : ref_type->addr_space)
-            : result;
-    } else
-        return checker.unknown_member(loc, struct_type, field.name);
+    if (std::holds_alternative<Identifier>(field)) {
+        // Regular field expressions using identifiers
+        if (!struct_type)
+            return checker.type_expected(expr->loc, expr_type, "structure");
+        auto& field_name = std::get<Identifier>(field).name;
+        if (auto index = struct_type->find_member(field_name)) {
+            this->index = *index;
+            result_type = member_type(type_app, struct_type, *index);
+        } else
+            return checker.unknown_member(loc, struct_type, field_name);
+    } else {
+        // Tuple index expression
+        auto tuple_type = expr_type->isa<artic::TupleType>();
+        if (!tuple_type && (!struct_type || !struct_type->is_tuple_like()))
+            return checker.type_expected(expr->loc, expr_type, "tuple or tuple-like structure");
+        index = std::get<size_t>(field);
+        size_t member_count = tuple_type ? tuple_type->args.size() : struct_type->member_count();
+        if (index >= member_count) {
+            checker.error(loc, "invalid tuple element index '{}'", index);
+            return checker.type_table.type_error();
+        }
+        result_type = tuple_type ? tuple_type->args[index] : member_type(type_app, struct_type, index);
+    }
+
+    return ref_type || ptr_type
+        ? checker.type_table.ref_type(
+            result_type,
+            ptr_type ? ptr_type->is_mut : ref_type->is_mut,
+            ptr_type ? ptr_type->addr_space : ref_type->addr_space)
+        : result_type;
 }
 
 inline bool is_int_or_float_literal(const Expr* expr) {
@@ -1594,17 +1615,11 @@ const artic::Type* CtorPtrn::infer(TypeChecker& checker) {
         return checker.type_table.type_error();
     }
     if (auto struct_type = match_app<artic::StructType>(path_type).second;
-        struct_type && struct_type->is_tuple_like() && struct_type->member_count() == 0) {
-        // Accept empty tuple-like structures with no arguments
+        (struct_type && struct_type->is_tuple_like() && struct_type->member_count() == 0) ||
+        match_app<artic::EnumType>(path_type).second) {
+        variant_index = path.elems.back().index; // Only used for enumeration constructors
         if (arg) {
-            checker.error(loc, "structure constructor takes no argument");
-            return checker.type_table.type_error();
-        }
-        return path_type;
-    } else if (auto enum_type = match_app<artic::EnumType>(path_type).second) {
-        variant_index = path.elems.back().index;
-        if (arg) {
-            checker.error(loc, "enumeration constructor takes no argument");
+            checker.error(loc, "constructor takes no argument");
             return checker.type_table.type_error();
         }
         return path_type;

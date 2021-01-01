@@ -1443,7 +1443,7 @@ const thorin::Def* FnDecl::emit(Emitter& emitter) const {
     return cont;
 }
 
-const thorin::Def* StructDecl::emit(Emitter& emitter) const {
+const thorin::Def* StructDecl::emit(Emitter&) const {
     return nullptr;
 }
 

@@ -3,6 +3,7 @@
 
 #include <memory>
 #include <vector>
+#include <variant>
 
 #include "artic/loc.h"
 #include "artic/log.h"
@@ -706,14 +707,22 @@ struct CallExpr : public Expr {
 /// Projection operator (.).
 struct ProjExpr : public Expr {
     Ptr<Expr> expr;
-    Identifier field;
+    std::variant<Identifier, size_t> field;
 
     size_t index;
 
+    /// Constructor for projection expressions of the form `x.y`
     ProjExpr(const Loc& loc, Ptr<Expr>&& expr, Identifier&& field)
         : Expr(loc)
         , expr(std::move(expr))
         , field(std::move(field))
+    {}
+
+    /// Constructor for projection expressions of the form `x.0`
+    ProjExpr(const Loc& loc, Ptr<Expr>&& expr, size_t index)
+        : Expr(loc)
+        , expr(std::move(expr))
+        , field(index)
     {}
 
     bool is_jumping() const override;
