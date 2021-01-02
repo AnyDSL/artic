@@ -48,7 +48,7 @@ static void usage() {
                 "  -g     --debug                Enable debug information in the generated LLVM IR file\n"
 #endif
                 "  -On                           Sets the optimization level (n = 0, 1, 2, or 3, defaults to 0)\n"
-                "  -o <name>                     Sets the module name (defaults to 'module')\n"
+                "  -o <name>                     Sets the module name (defaults to the first file name without its extension)\n"
                 ;
 }
 
