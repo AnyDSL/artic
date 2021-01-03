@@ -137,6 +137,14 @@ Ptr<ast::StructDecl> Parser::parse_struct_decl() {
     if (ahead().tag() == Token::LBracket)
         type_params = parse_type_params();
 
+    PtrVector<ast::TypeApp> where_clauses;
+    if (accept(Token::Where)) {
+        do {
+            where_clauses.emplace_back(parse_type_app());
+        }
+        while (accept(Token::Comma));
+    }
+
     PtrVector<ast::FieldDecl> fields;
     bool is_tuple_like = accept(Token::LParen);
     if (is_tuple_like || accept(Token::LBrace)) {
@@ -151,7 +159,7 @@ Ptr<ast::StructDecl> Parser::parse_struct_decl() {
         expect(Token::Semi);
     }
 
-    return make_ptr<ast::StructDecl>(tracker(), std::move(id), std::move(type_params), std::move(fields), is_tuple_like);
+    return make_ptr<ast::StructDecl>(tracker(), std::move(id), std::move(type_params), std::move(fields), std::move(where_clauses), is_tuple_like);
 }
 
 Ptr<ast::OptionDecl> Parser::parse_option_decl() {
@@ -181,12 +189,20 @@ Ptr<ast::EnumDecl> Parser::parse_enum_decl() {
     if (ahead().tag() == Token::LBracket)
         type_params = parse_type_params();
 
+    PtrVector<ast::TypeApp> where_clauses;
+    if (accept(Token::Where)) {
+        do {
+            where_clauses.emplace_back(parse_type_app());
+        }
+        while (accept(Token::Comma));
+    }
+
     PtrVector<ast::OptionDecl> options;
     expect(Token::LBrace);
     parse_list(Token::RBrace, Token::Comma, [&] {
         options.emplace_back(parse_option_decl());
     });
-    return make_ptr<ast::EnumDecl>(tracker(), std::move(id), std::move(type_params), std::move(options));
+    return make_ptr<ast::EnumDecl>(tracker(), std::move(id), std::move(type_params), std::move(where_clauses), std::move(options));
 }
 
 Ptr<ast::TraitDecl> Parser::parse_trait_decl(){
@@ -197,6 +213,14 @@ Ptr<ast::TraitDecl> Parser::parse_trait_decl(){
     Ptr<ast::TypeParamList> type_params;
     if (ahead().tag() == Token::LBracket)
         type_params = parse_type_params();
+
+    PtrVector<ast::TypeApp> where_clauses;
+    if (accept(Token::Where)) {
+        do {
+            where_clauses.emplace_back(parse_type_app());
+        }
+        while (accept(Token::Comma));
+    }
 
     PtrVector<ast::FnDecl>functs;
     if (accept(Token::LBrace)) {
@@ -217,7 +241,7 @@ Ptr<ast::TraitDecl> Parser::parse_trait_decl(){
         }
         expect(Token::RBrace);
     }
-    return make_ptr<ast::TraitDecl>(tracker(), std::move(id), std::move(type_params), std::move(functs));
+    return make_ptr<ast::TraitDecl>(tracker(), std::move(id), std::move(type_params), std::move(functs), std::move(where_clauses));
 
 }
 
@@ -233,6 +257,14 @@ Ptr<ast::ImplDecl> Parser::parse_impl_decl(){
 
     auto trait_type = parse_type_app();
 
+    PtrVector<ast::TypeApp> where_clauses;
+    if (accept(Token::Where)) {
+        do {
+            where_clauses.emplace_back(parse_type_app());
+        }
+        while (accept(Token::Comma));
+    }
+
     PtrVector<ast::FnDecl>functs;
     if (accept(Token::LBrace)) {
         while (ahead().tag() != Token::RBrace && ahead().tag() != Token::End) {
@@ -252,7 +284,7 @@ Ptr<ast::ImplDecl> Parser::parse_impl_decl(){
         }
         expect(Token::RBrace);
     }
-    return make_ptr<ast::ImplDecl>(tracker(), std::move(type_params), std::move(trait_type),  std::move(functs));
+    return make_ptr<ast::ImplDecl>(tracker(), std::move(type_params), std::move(trait_type),  std::move(functs), std::move(where_clauses));
 }
 
 Ptr<ast::TypeDecl> Parser::parse_type_decl() {
@@ -264,10 +296,18 @@ Ptr<ast::TypeDecl> Parser::parse_type_decl() {
     if (ahead().tag() == Token::LBracket)
         type_params = parse_type_params();
 
+    PtrVector<ast::TypeApp> where_clauses;
+    if (accept(Token::Where)) {
+        do {
+            where_clauses.emplace_back(parse_type_app());
+        }
+        while (accept(Token::Comma));
+    }
+
     expect(Token::Eq);
     auto aliased_type = parse_type();
     expect(Token::Semi);
-    return make_ptr<ast::TypeDecl>(tracker(), std::move(id), std::move(type_params), std::move(aliased_type));
+    return make_ptr<ast::TypeDecl>(tracker(), std::move(id), std::move(type_params), std::move(aliased_type), std::move(where_clauses));
 }
 
 Ptr<ast::StaticDecl> Parser::parse_static_decl() {

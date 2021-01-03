@@ -1259,6 +1259,7 @@ struct RecordDecl : public NamedDecl {
 /// Structure type declarations.
 struct StructDecl : public RecordDecl {
     Ptr<TypeParamList> type_params;
+    PtrVector<TypeApp> where_clauses;
     bool is_tuple_like;
 
     StructDecl(
@@ -1266,9 +1267,11 @@ struct StructDecl : public RecordDecl {
         Identifier&& id,
         Ptr<TypeParamList>&& type_params,
         PtrVector<FieldDecl>&& fields,
+        PtrVector<TypeApp> where_clauses,
         bool is_tuple_like)
         : RecordDecl(loc, std::move(id), std::move(fields))
         , type_params(std::move(type_params))
+        , where_clauses(std::move(where_clauses))
         , is_tuple_like(is_tuple_like)
     {}
 
@@ -1313,14 +1316,17 @@ struct OptionDecl : public RecordDecl {
 struct EnumDecl : public NamedDecl {
     Ptr<TypeParamList> type_params;
     PtrVector<OptionDecl> options;
+    PtrVector<TypeApp> where_clauses;
 
     EnumDecl(
         const Loc& loc,
         Identifier&& id,
         Ptr<TypeParamList>&& type_params,
+        PtrVector<TypeApp> where_clauses,
         PtrVector<OptionDecl>&& options)
         : NamedDecl(loc, std::move(id))
         , type_params(std::move(type_params))
+        , where_clauses(std::move(where_clauses))
         , options(std::move(options))
     {}
 
@@ -1335,15 +1341,18 @@ struct EnumDecl : public NamedDecl {
 struct TraitDecl : public NamedDecl {
     Ptr<TypeParamList> type_params;
     PtrVector<FnDecl> functs;
+    PtrVector<TypeApp> where_clauses;
 
     TraitDecl(
             const Loc& loc,
             Identifier&& id,
             Ptr<TypeParamList>&& type_params,
-            PtrVector<FnDecl>&& functs)
+            PtrVector<FnDecl>&& functs,
+            PtrVector<TypeApp> where_clauses)
             : NamedDecl(loc, std::move(id))
             , functs(std::move(functs))
             , type_params(std::move(type_params))
+            , where_clauses(std::move(where_clauses))
     {}
 
     const thorin::Def* emit(Emitter&) const override;
@@ -1358,16 +1367,19 @@ struct ImplDecl : public Decl {
     Ptr<TypeParamList> type_params;
     Ptr<TypeApp> trait_type;
     PtrVector<FnDecl> functs;
+    PtrVector<TypeApp> where_clauses;
 
     ImplDecl(
             const Loc& loc,
             Ptr<TypeParamList>&& type_params,
             Ptr<TypeApp>&& trait_type,
-            PtrVector<FnDecl>&& functs)
+            PtrVector<FnDecl>&& functs,
+            PtrVector<TypeApp> where_clauses)
             : Decl(loc)
             , type_params(std::move(type_params))
             , trait_type(std::move(trait_type))
             , functs(std::move(functs))
+            , where_clauses(std::move(where_clauses))
      {}
 
 
@@ -1381,15 +1393,18 @@ struct ImplDecl : public Decl {
 struct TypeDecl : public NamedDecl {
     Ptr<TypeParamList> type_params;
     Ptr<Type> aliased_type;
+    PtrVector<TypeApp> where_clauses;
 
     TypeDecl(
         const Loc& loc,
         Identifier&& id,
         Ptr<TypeParamList>&& type_params,
-        Ptr<Type>&& aliased_type)
+        Ptr<Type>&& aliased_type,
+        PtrVector<TypeApp> where_clauses)
         : NamedDecl(loc, std::move(id))
         , type_params(std::move(type_params))
         , aliased_type(std::move(aliased_type))
+        , where_clauses(std::move(where_clauses))
     {}
 
     const thorin::Def* emit(Emitter&) const override;

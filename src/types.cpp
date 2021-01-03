@@ -89,7 +89,7 @@ bool TraitType::equals(const Type* other) const {
     return other == this;
 }
 
-bool TraitImplType::equals(const Type* other) const {
+bool ImplType::equals(const Type* other) const {
     return other == this;
 }
 
@@ -173,7 +173,7 @@ size_t TraitType::hash() const {
     return fnv::Hash().combine(&decl);
 }
 
-size_t TraitImplType::hash() const {
+size_t ImplType::hash() const {
     return fnv::Hash().combine(&impl);
 }
 
@@ -431,12 +431,35 @@ bool TypeApp::is_sized(std::unordered_set<const Type*>& seen) const {
         });
 }
 
+// User Types -------------------------------------------------------------------
+
+const std::vector<const Type*> TypeAlias::where_types() const {
+    auto& aux =  decl.where_clauses;
+
+    std::vector<const Type*> res;
+    for(auto& clause: aux){
+        res.push_back(clause->type);
+    }
+    return res;
+}
+
 // Complex Types -------------------------------------------------------------------
 
 const ast::TypeParamList* StructType::type_params() const {
     return decl.isa<ast::StructDecl>()
         ? decl.as<ast::StructDecl>()->type_params.get()
         : decl.as<ast::OptionDecl>()->parent->type_params.get();
+}
+
+const std::vector<const Type*> StructType::where_types() const {
+    auto& aux =  decl.isa<ast::StructDecl>()
+           ? decl.as<ast::StructDecl>()->where_clauses
+           : decl.as<ast::OptionDecl>()->parent->where_clauses;
+    std::vector<const Type*> res;
+    for(auto& clause: aux){
+        res.push_back(clause->type);
+    }
+    return res;
 }
 
 std::optional<size_t> StructType::find_member(const std::string_view& name) const {
@@ -463,6 +486,16 @@ bool StructType::is_tuple_like() const {
     return decl.isa<ast::StructDecl>() && decl.as<ast::StructDecl>()->is_tuple_like;
 }
 
+const std::vector<const Type*> EnumType::where_types() const {
+    auto& aux =  decl.where_clauses;
+
+    std::vector<const Type*> res;
+    for(auto& clause: aux){
+        res.push_back(clause->type);
+    }
+    return res;
+}
+
 std::optional<size_t> EnumType::find_member(const std::string_view& name) const {
     auto it = std::find_if(
         decl.options.begin(),
@@ -474,6 +507,17 @@ std::optional<size_t> EnumType::find_member(const std::string_view& name) const 
         ? std::make_optional(it - decl.options.begin())
         : std::nullopt;
 }
+
+const std::vector<const Type*> TraitType::where_types() const {
+    auto& aux =  decl.where_clauses;
+
+    std::vector<const Type*> res;
+    for(auto& clause: aux){
+        res.push_back(clause->type);
+    }
+    return res;
+}
+
 
 std::optional<size_t> TraitType::find_member(const std::string_view& name) const {
     auto it = std::find_if(
@@ -487,7 +531,17 @@ std::optional<size_t> TraitType::find_member(const std::string_view& name) const
         : std::nullopt;
 }
 
-std::optional<size_t> TraitImplType::find_member(const std::string_view& name) const {
+const std::vector<const Type*> ImplType::where_types() const {
+    auto& aux =  impl.where_clauses;
+
+    std::vector<const Type*> res;
+    for(auto& clause: aux){
+        res.push_back(clause->type);
+    }
+    return res;
+}
+
+std::optional<size_t> ImplType::find_member(const std::string_view& name) const {
     auto it = std::find_if(
             impl.functs.begin(),
             impl.functs.end(),
@@ -508,7 +562,7 @@ const Type* TraitType::member_type(size_t i) const {
     return decl.functs[i]->type;
 }
 
-const Type* TraitImplType::member_type(size_t i) const {
+const Type* ImplType::member_type(size_t i) const {
     return impl.functs[i]->type;
 }
 
@@ -520,7 +574,7 @@ size_t TraitType::member_count() const {
     return decl.functs.size();
 }
 
-size_t TraitImplType::member_count() const {
+size_t ImplType::member_count() const {
     return impl.functs.size();
 }
 
@@ -751,8 +805,8 @@ const TraitType* TypeTable::trait_type(const ast::TraitDecl& decl) {
     return insert<TraitType>(decl);
 }
 
-const TraitImplType* TypeTable::trait_impl_type(const ast::ImplDecl& impl) {
-    return insert<TraitImplType>(impl);
+const ImplType* TypeTable::trait_impl_type(const ast::ImplDecl& impl) {
+    return insert<ImplType>(impl);
 }
 
 const TypeAlias* TypeTable::type_alias(const ast::TypeDecl& decl) {
@@ -777,7 +831,7 @@ const T* TypeTable::insert(Args&&... args) {
     return (*it)->template as<T>();
 }
 
-const TraitImplType* TypeTable::register_impl(const TraitImplType* impl){
+const ImplType* TypeTable::register_impl(const ImplType* impl){
     for (auto it: impls_) {
         auto [it_type_app, it_trait_type] = match_app<TraitType>(it->impl.trait_type->type);
         auto [impl_type_app, impl_trait_type] = match_app<TraitType>(impl->impl.trait_type->type);

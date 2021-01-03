@@ -87,6 +87,8 @@ public:
     bool infer_type_args(const Loc&, const ForallType*, const Type*, std::vector<const Type*>&);
     const Type* infer_record_type(const TypeApp*, const StructType*, size_t&);
 
+    //returns true if the bound is valid
+    bool check_bound(const Type*, Loc& loc);
     bool trait_bound_exists(const Type*);
 
 private:

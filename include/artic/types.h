@@ -404,6 +404,7 @@ struct UserType : public Type {
     {}
 
     virtual const ast::TypeParamList* type_params() const = 0;
+    virtual const std::vector<const Type*> where_types() const = 0;
     virtual const thorin::Type* convert(Emitter&, const Type*) const = 0;
 
     const thorin::Type* convert(Emitter& emitter) const override {
@@ -438,6 +439,7 @@ struct StructType : public ComplexType {
     std::string stringify(Emitter&) const override;
 
     const ast::TypeParamList* type_params() const override;
+    const  std::vector<const Type*> where_types() const override;
     std::optional<size_t> find_member(const std::string_view&) const override;
     const Type* member_type(size_t) const override;
     size_t member_count() const override;
@@ -466,7 +468,7 @@ struct EnumType : public ComplexType {
     const ast::TypeParamList* type_params() const override {
         return decl.type_params.get();
     }
-
+    const  std::vector<const Type*> where_types() const override;
     std::optional<size_t> find_member(const std::string_view&) const override;
     const Type* member_type(size_t) const override;
     size_t member_count() const override;
@@ -494,6 +496,7 @@ struct TraitType : public ComplexType {
         return decl.type_params.get();
     }
 
+    const  std::vector<const Type*> where_types() const override;
     std::optional<size_t> find_member(const std::string_view&) const override;
     const Type* member_type(size_t) const override;
     size_t member_count() const override;
@@ -506,7 +509,7 @@ private:
     friend class TypeTable;
 };
 
-struct TraitImplType : public ComplexType {
+struct ImplType : public ComplexType {
     const ast::ImplDecl& impl;
 
     void print(Printer&) const override;
@@ -521,12 +524,13 @@ struct TraitImplType : public ComplexType {
         return impl.type_params.get();
     }
 
+    const  std::vector<const Type*> where_types() const override;
     std::optional<size_t> find_member(const std::string_view&) const override;
     const Type* member_type(size_t) const override;
     size_t member_count() const override;
 
 private:
-    TraitImplType(TypeTable& type_table, const ast::ImplDecl& impl)
+    ImplType(TypeTable& type_table, const ast::ImplDecl& impl)
     : ComplexType(type_table), impl(impl)
     {}
 
@@ -544,6 +548,7 @@ struct TypeAlias : public UserType {
         return decl.type_params.get();
     }
 
+    const  std::vector<const Type*> where_types() const override;
     const thorin::Type* convert(Emitter&, const Type*) const override;
 
 private:
@@ -641,7 +646,7 @@ public:
     const StructType*       struct_type(const ast::RecordDecl&);
     const EnumType*         enum_type(const ast::EnumDecl&);
     const TraitType*        trait_type(const ast::TraitDecl&);
-    const TraitImplType*    trait_impl_type(const ast::ImplDecl& impl);
+    const ImplType*    trait_impl_type(const ast::ImplDecl& impl);
     const TypeAlias*        type_alias(const ast::TypeDecl&);
 
     /// Creates a type application for structures/enumeration types,
@@ -649,7 +654,7 @@ public:
     const Type* type_app(const UserType*, std::vector<const Type*>&&);
 
     /// Retruns nullptr if the impl is not already registered
-    const TraitImplType* register_impl(const TraitImplType* impl);
+    const ImplType* register_impl(const ImplType* impl);
     bool impl_exists(const Type* type);
 
 private:
@@ -667,7 +672,7 @@ private:
         }
     };
     std::unordered_set<const Type*, HashType, CompareTypes> types_;
-    std::vector<const TraitImplType*> impls_;
+    std::vector<const ImplType*> impls_;
 
     const PrimType*   bool_type_   = nullptr;
     const TupleType*  unit_type_   = nullptr;

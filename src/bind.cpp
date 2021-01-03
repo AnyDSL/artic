@@ -406,6 +406,7 @@ void StructDecl::bind_head(NameBinder& binder) {
 void StructDecl::bind(NameBinder& binder) {
     binder.push_scope();
     if (type_params) binder.bind(*type_params);
+    for (auto& trait: where_clauses) binder.bind(*trait);
     for (auto& field : fields) binder.bind(*field);
     binder.pop_scope();
 }
@@ -430,6 +431,7 @@ void EnumDecl::bind(NameBinder& binder) {
         option->parent = this;
         binder.bind(*option);
     }
+    for (auto& trait: where_clauses) binder.bind(*trait);
     binder.pop_scope();
 }
 
@@ -441,8 +443,8 @@ void TraitDecl::bind_head(NameBinder& binder) {
 void TraitDecl::bind(NameBinder& binder) {
     binder.push_scope();
     if (type_params) binder.bind(*type_params);
-    for (auto& f: functs)
-        f->bind(binder);
+    for (auto& f: functs) f->bind(binder);
+    for (auto& trait: where_clauses) binder.bind(*trait);
     binder.pop_scope();
 }
 
@@ -462,6 +464,7 @@ void TypeDecl::bind_head(NameBinder& binder) {
 void TypeDecl::bind(NameBinder& binder) {
     binder.push_scope();
     if (type_params) binder.bind(*type_params);
+    for (auto& trait: where_clauses) binder.bind(*trait);
     binder.bind(*aliased_type);
     binder.pop_scope();
 }

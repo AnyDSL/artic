@@ -1584,7 +1584,7 @@ std::string TraitType::stringify(Emitter& emitter) const {
     return "<<<Not implemented>>>";
 }
 
-std::string TraitImplType::stringify(Emitter& emitter) const {
+std::string ImplType::stringify(Emitter& emitter) const {
     //todo
     return "<<<Not implemented>>>";
 }
@@ -1607,7 +1607,7 @@ const thorin::Type* TraitType::convert(Emitter& emitter, const Type* parent) con
     return nullptr;
 }
 
-const thorin::Type* TraitImplType::convert(Emitter& emitter, const Type* parent) const {
+const thorin::Type* ImplType::convert(Emitter& emitter, const Type* parent) const {
     //todo
     assert(false);
     return nullptr;
