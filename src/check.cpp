@@ -541,7 +541,7 @@ const Type* TypeChecker::infer_record_type(const TypeApp* type_app, const Struct
 bool TypeChecker::check_bound(const Type* bound, Loc& loc){
     if (auto trait_type = bound->isa<artic::TraitType>()) {
         if (!type_table.impl_exists(trait_type)) {
-            error(loc, "trait '{}' is not implemented", *trait_type);
+            error(loc, "the trait '{}' is not implemented", *trait_type);
             return false;
         }
     }
@@ -557,7 +557,7 @@ bool TypeChecker::check_bound(const Type* bound, Loc& loc){
         }
         if (!contains_var) {
             if (!type_table.impl_exists(type_app)) {
-                error(loc, "trait '{}' is not implemented", *type_app);
+                error(loc, "the trait '{}' is not implemented", *type_app);
                 return false;
             }
         }
@@ -587,6 +587,16 @@ bool TypeChecker::trait_bound_exists(const Type* type) {
             }
         }
         if(auto dec = decl->isa<ast::EnumDecl>()){
+            for(auto& w: dec->where_clauses){
+                if(w->type == type) return true;
+            }
+        }
+        if(auto dec = decl->isa<ast::ImplDecl>()){
+            for(auto& w: dec->where_clauses){
+                if(w->type == type) return true;
+            }
+        }
+        if(auto dec = decl->isa<ast::TypeDecl>()){
             for(auto& w: dec->where_clauses){
                 if(w->type == type) return true;
             }
@@ -679,7 +689,7 @@ const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, Ptr<Ex
                     for (auto& w:user_type->where_types()) {
                         auto type_inst = w->replace(map);
                         if (!checker.type_table.impl_exists(type_inst) && !checker.trait_bound_exists(type_inst)) {
-                            checker.error(elem.loc, "the trait '{}' is not implemented", *type_inst);
+                            checker.error(elem.loc, "the trait '{}' is not implemented2", *type_inst);
                             return checker.type_table.type_error();
                         }
                     }
@@ -1509,8 +1519,10 @@ const artic::Type* FnDecl::infer(TypeChecker& checker) {
     //check trait bounds
     for (const auto& trait:where_clauses) {
         checker.infer(*trait);
-        if(!checker.check_bound(trait->type, trait->loc))
+        if(!checker.check_bound(trait->type, trait->loc)) {
+            checker.exit_decl(this);
             return checker.type_table.type_error();
+        }
     }
 
     const artic::Type* fn_type = nullptr;
@@ -1561,8 +1573,10 @@ const artic::Type* StructDecl::infer(TypeChecker& checker) {
     //check trait bounds
     for (const auto& trait:where_clauses) {
         checker.infer(*trait);
-        if(!checker.check_bound(trait->type, trait->loc))
+        if(!checker.check_bound(trait->type, trait->loc)) {
+            checker.exit_decl(this);
             return checker.type_table.type_error();
+        }
     }
 
     // Set the type before entering the fields
@@ -1594,12 +1608,14 @@ const artic::Type* EnumDecl::infer(TypeChecker& checker) {
         for (auto& param : type_params->params)
             checker.infer(*param);
     }
-    checker.exit_decl(this);
+    checker.enter_decl(this);
     //check trait bounds
     for (const auto& trait:where_clauses) {
         checker.infer(*trait);
-        if(!checker.check_bound(trait->type, trait->loc))
+        if(!checker.check_bound(trait->type, trait->loc)) {
+            checker.exit_decl(this);
             return checker.type_table.type_error();
+        }
     }
 
     // Set the type before entering the options
@@ -1624,8 +1640,10 @@ const artic::Type* TraitDecl::infer(TypeChecker& checker) {
     //check trait bounds
     for (const auto& trait:where_clauses) {
         checker.infer(*trait);
-        if(!checker.check_bound(trait->type, trait->loc))
+        if(!checker.check_bound(trait->type, trait->loc)) {
+            checker.exit_decl(this);
             return checker.type_table.type_error();
+        }
     }
 
     // Set the type before entering the fields
@@ -1640,16 +1658,32 @@ const artic::Type* TraitDecl::infer(TypeChecker& checker) {
 }
 
 const artic::Type* ImplDecl::infer(TypeChecker& checker) {
-   auto [type_app, trait_type] = match_app<artic::TraitType>(checker.infer(*this->trait_type));
-    if (!trait_type)
-       return checker.type_expected(loc, this->trait_type->type, "trait");
+    checker.enter_decl(this);
+    //check trait bounds
+    for (const auto& trait:where_clauses) {
+        checker.infer(*trait);
+        if(!checker.check_bound(trait->type, trait->loc)) {
+            checker.exit_decl(this);
+            return checker.type_table.type_error();
+        }
+    }
+
+    auto [type_app, trait_type] = match_app<artic::TraitType>(checker.infer(*this->trait_type));
+    if (!trait_type){
+        checker.exit_decl(this);
+        return checker.type_expected(loc, this->trait_type->type, "trait");
+    }
+
     auto conflict = checker.type_table.register_impl(checker.type_table.trait_impl_type(*this));
     if (conflict) {
+        checker.exit_decl(this);
         checker.error(loc, "Trait '{}' is already defined", *this->trait_type);
         checker.note(conflict->impl.loc, "previously declared here");
         return checker.type_table.type_error();
     }
+
     checker.check_trait_fns(loc, trait_type, type_app, functs, this->trait_type->path.elems.front().id.name );
+    checker.exit_decl(this);
     return this->type = checker.type_table.trait_impl_type(*this);
 }
 
@@ -1670,8 +1704,10 @@ const artic::Type* TypeDecl::infer(TypeChecker& checker) {
     //check trait bounds
     for (const auto& trait:where_clauses) {
         checker.infer(*trait);
-        if(!checker.check_bound(trait->type, trait->loc))
+        if(!checker.check_bound(trait->type, trait->loc)) {
+            checker.exit_decl(this);
             return checker.type_table.type_error();
+        }
     }
     checker.exit_decl(this);
     return type;

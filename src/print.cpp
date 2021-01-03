@@ -518,6 +518,12 @@ void StructDecl::print(Printer& p) const {
     if (attrs) attrs->print(p);
     p << log::keyword_style("struct") << ' ' << id.name;
     if (type_params) type_params->print(p);
+    if (where_clauses.size() > 0) {
+        p << " where ";
+        print_list(p, ',', where_clauses, [&] (auto& w) {
+            w->print(p);
+        });
+    }
     if (!is_tuple_like || !fields.empty())
         print_fields(p, fields, is_tuple_like);
     if (is_tuple_like)
@@ -536,6 +542,12 @@ void EnumDecl::print(Printer& p) const {
     if (attrs) attrs->print(p);
     p << log::keyword_style("enum") << ' ' << id.name;
     if (type_params) type_params->print(p);
+    if (where_clauses.size() > 0) {
+        p << " where ";
+        print_list(p, ',', where_clauses, [&] (auto& w) {
+            w->print(p);
+        });
+    }
     p << " {";
     if (!options.empty()) {
         p << p.indent();
@@ -552,6 +564,12 @@ void TraitDecl::print(Printer& p) const {
     if (attrs) attrs->print(p);
     p << log::keyword_style("trait") << ' ' << id.name;
     if (type_params) type_params->print(p);
+    if (where_clauses.size() > 0) {
+        p << " where ";
+        print_list(p, ',', where_clauses, [&] (auto& w) {
+            w->print(p);
+        });
+    }
     p << '{' << p.indent() ;
     for (auto& f:functs) {
         p << p.endl();
@@ -564,6 +582,12 @@ void ImplDecl::print(Printer& p) const {
     if (attrs) attrs->print(p);
     p << log::keyword_style("impl") << ' ' ;
     trait_type->print(p);
+    if (where_clauses.size() > 0) {
+        p << " where ";
+        print_list(p, ',', where_clauses, [&] (auto& w) {
+            w->print(p);
+        });
+    }
     p << ' ' << '{' << p.indent();
     for (auto& f:functs) {
         p << p.endl();
