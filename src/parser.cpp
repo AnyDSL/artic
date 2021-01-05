@@ -173,6 +173,8 @@ Ptr<ast::EnumDecl> Parser::parse_enum_decl() {
     parse_list(Token::RBrace, Token::Comma, [&] {
         options.emplace_back(parse_option_decl());
     });
+    if (options.empty())
+        error(tracker(), "enums require at least one alternative");
     return make_ptr<ast::EnumDecl>(tracker(), std::move(id), std::move(type_params), std::move(options));
 }
 
