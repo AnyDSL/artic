@@ -1,7 +1,6 @@
 #include <algorithm>
 
 #include "artic/check.h"
-#include "artic/print.h"
 
 namespace artic {
 
@@ -307,7 +306,6 @@ const Type* TypeChecker::check_trait_fns(
             }
             seen[*index] = true;
             defined[*index] = true;
-            //fns[i]->index = *index;
             check(*fns[i]->fn, type_app ? type_app->member_type(*index) : trait_type->member_type(*index));
             fns[i]->type = fns[i]->fn -> type;
         }
@@ -636,7 +634,6 @@ const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, Ptr<Ex
         return checker.type_table.type_error();
 
     type = checker.infer(*symbol->decls.front());
-
     is_value =
         elems.size() == 1 &&
         (symbol->decls.front()->isa<PtrnDecl>() ||
@@ -764,6 +761,7 @@ const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, Ptr<Ex
             }
         }
     }
+
     if (is_value != value_expected) {
         if (value_expected)
             checker.error(loc, "value expected, but got type '{}'", *type);
@@ -1532,6 +1530,7 @@ const artic::Type* FnDecl::infer(TypeChecker& checker) {
             checker.check(*fn->filter, checker.type_table.bool_type());
     } else
         fn_type = checker.infer(*fn);
+
     // Set the type of this function right now, in case
     // the `return` keyword is encountered in the body.
     type = forall ? forall : fn_type;
@@ -1633,7 +1632,6 @@ const artic::Type* TraitDecl::infer(TypeChecker& checker) {
         for (auto& param : type_params->params)
             checker.infer(*param);
     }
-
     checker.enter_decl(this);
 
     //check trait bounds

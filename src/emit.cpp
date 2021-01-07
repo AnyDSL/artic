@@ -1323,9 +1323,12 @@ const thorin::Def* FnDecl::emit(Emitter& emitter) const {
     } else {
         cont_type = type->convert(emitter)->as<thorin::FnType>();
     }
+
     auto cont = emitter.world.continuation(cont_type, debug_info(*this));
     if (type_params)
         emitter.mono_fns.emplace(std::move(mono_fn), cont);
+
+    cont->params().back()->debug().set("ret");
 
     // Set the calling convention and export the continuation if needed
     if (attrs) {
@@ -1351,6 +1354,7 @@ const thorin::Def* FnDecl::emit(Emitter& emitter) const {
             }
         }
     }
+
     if (fn->body) {
         // Set the IR node before entering the body, in case
         // we encounter `return` or a recursive call.

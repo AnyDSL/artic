@@ -1382,7 +1382,6 @@ struct ImplDecl : public Decl {
             , where_clauses(std::move(where_clauses))
      {}
 
-
      const thorin::Def* emit(Emitter&) const override;
      const artic::Type* infer(TypeChecker&) override;
      void bind(NameBinder&) override;

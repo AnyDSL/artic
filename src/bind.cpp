@@ -383,6 +383,7 @@ void FnDecl::bind(NameBinder& binder) {
         binder.bind(*type_params);
     for (auto& trait: where_clauses)
         binder.bind(*trait);
+
     if (fn->body)
         binder.bind(*fn);
     else {
@@ -435,7 +436,6 @@ void EnumDecl::bind(NameBinder& binder) {
     binder.pop_scope();
 }
 
-
 void TraitDecl::bind_head(NameBinder& binder) {
     binder.insert_symbol(*this);
 }
@@ -447,7 +447,6 @@ void TraitDecl::bind(NameBinder& binder) {
     for (auto& trait: where_clauses) binder.bind(*trait);
     binder.pop_scope();
 }
-
 
 void ImplDecl::bind(NameBinder& binder) {
     binder.push_scope();

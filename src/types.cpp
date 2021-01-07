@@ -3,7 +3,6 @@
 
 #include "artic/types.h"
 #include "artic/hash.h"
-#include "artic/print.h"
 
 namespace artic {
 
