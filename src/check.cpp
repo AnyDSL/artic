@@ -686,7 +686,7 @@ const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, Ptr<Ex
                     for (auto& w:user_type->where_types()) {
                         auto type_inst = w->replace(map);
                         if (!checker.type_table.find_impl(type_inst) && !checker.trait_bound_exists(type_inst)) {
-                            checker.error(elem.loc, "the trait '{}' is not implemented2", *type_inst);
+                            checker.error(elem.loc, "the trait '{}' is not implemented", *type_inst);
                             return checker.type_table.type_error();
                         }
                     }
