@@ -790,7 +790,7 @@ void TraitType::print(Printer& p) const {
 
 void ImplType::print(Printer& p) const {
     p <<"impl ";
-    impl.trait_type->print(p);
+    decl.trait_type->print(p);
 }
 
 void TypeAlias::print(Printer& p) const {

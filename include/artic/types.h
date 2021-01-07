@@ -510,7 +510,7 @@ private:
 };
 
 struct ImplType : public ComplexType {
-    const ast::ImplDecl& impl;
+    const ast::ImplDecl& decl;
 
     void print(Printer&) const override;
     bool equals(const Type*) const override;
@@ -521,7 +521,7 @@ struct ImplType : public ComplexType {
     std::string stringify(Emitter&) const override;
 
     const ast::TypeParamList* type_params() const override {
-        return impl.type_params.get();
+        return decl.type_params.get();
     }
 
     const  std::vector<const Type*> where_types() const override;
@@ -530,8 +530,8 @@ struct ImplType : public ComplexType {
     size_t member_count() const override;
 
 private:
-    ImplType(TypeTable& type_table, const ast::ImplDecl& impl)
-    : ComplexType(type_table), impl(impl)
+    ImplType(TypeTable& type_table, const ast::ImplDecl& decl)
+    : ComplexType(type_table), decl(decl)
     {}
 
     friend class TypeTable;
@@ -646,7 +646,7 @@ public:
     const StructType*       struct_type(const ast::RecordDecl&);
     const EnumType*         enum_type(const ast::EnumDecl&);
     const TraitType*        trait_type(const ast::TraitDecl&);
-    const ImplType*    trait_impl_type(const ast::ImplDecl& impl);
+    const ImplType*         trait_impl_type(const ast::ImplDecl& impl);
     const TypeAlias*        type_alias(const ast::TypeDecl&);
 
     /// Creates a type application for structures/enumeration types,
@@ -655,7 +655,7 @@ public:
 
     /// Retruns nullptr if the impl is not already registered
     const ImplType* register_impl(const ImplType* impl);
-    bool impl_exists(const Type* type);
+    const Type*  find_impl(const Type* type);
 
 private:
     template <typename T, typename... Args>

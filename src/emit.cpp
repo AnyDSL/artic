@@ -754,7 +754,11 @@ const thorin::Def* Path::emit(Emitter& emitter) const {
             std::unordered_map<const artic::TypeVar*, const artic::Type*> map;
             if (!elems[i].inferred_args.empty()) {
                 for (size_t j = 0, n = elems[i].inferred_args.size(); j < n; ++j) {
-                    auto var = decl->as<FnDecl>()->type_params->params[j]->type->as<artic::TypeVar>();
+                    const artic::TypeVar* var;
+                    if(decl->isa<FnDecl>())
+                        var = decl->as<FnDecl>()->type_params->params[j]->type->as<artic::TypeVar>();
+                    else
+                        var = decl->as<TraitDecl>()->type_params->params[j]->type->as<artic::TypeVar>();
                     auto type = elems[i].inferred_args[j]->replace(emitter.type_vars);
                     map.emplace(var, type);
                 }
@@ -762,7 +766,21 @@ const thorin::Def* Path::emit(Emitter& emitter) const {
                 map.insert(emitter.type_vars.begin(), emitter.type_vars.end());
                 std::swap(map, emitter.type_vars);
             }
-            auto def = emitter.emit(*decl);
+            const thorin::Def*  def;
+            if(auto trait_type = decl->type->isa<TraitType>()){
+                auto impl_type = decl->type->type_table.find_impl(elems[i].type)->as<ImplType>();
+                auto index = impl_type->find_member(elems[i+1].id.name);
+                if(!index){
+                    auto default_index = trait_type->find_member(elems[i+1].id.name);
+                    def = emitter.emit(*trait_type->decl.functs[*default_index]);
+                }
+                else{
+                    def = emitter.emit(*impl_type->decl.functs[*index]);
+                }
+            }
+            else {
+               def = emitter.emit(*decl);
+            }
             if (!elems[i].inferred_args.empty()) {
                 // Polymorphic nodes are emitted with the map from type variable
                 // to concrete type, which means that the emitted node cannot be
@@ -1305,12 +1323,9 @@ const thorin::Def* FnDecl::emit(Emitter& emitter) const {
     } else {
         cont_type = type->convert(emitter)->as<thorin::FnType>();
     }
-
     auto cont = emitter.world.continuation(cont_type, debug_info(*this));
     if (type_params)
         emitter.mono_fns.emplace(std::move(mono_fn), cont);
-
-    cont->params().back()->debug().set("ret");
 
     // Set the calling convention and export the continuation if needed
     if (attrs) {
@@ -1336,7 +1351,6 @@ const thorin::Def* FnDecl::emit(Emitter& emitter) const {
             }
         }
     }
-
     if (fn->body) {
         // Set the IR node before entering the body, in case
         // we encounter `return` or a recursive call.
@@ -1580,13 +1594,15 @@ std::string EnumType::stringify(Emitter& emitter) const {
 }
 
 std::string TraitType::stringify(Emitter& emitter) const {
-    //todo
-    return "<<<Not implemented>>>";
+    //should never be called, as traits are not emitted
+    assert(false);
+    return "";
 }
 
 std::string ImplType::stringify(Emitter& emitter) const {
-    //todo
-    return "<<<Not implemented>>>";
+    //should never be called, as traits are not emitted
+    assert(false);
+    return "";
 }
 
 const thorin::Type* EnumType::convert(Emitter& emitter, const Type* parent) const {
@@ -1602,13 +1618,13 @@ const thorin::Type* EnumType::convert(Emitter& emitter, const Type* parent) cons
 }
 
 const thorin::Type* TraitType::convert(Emitter& emitter, const Type* parent) const {
-    //todo
+    //should never be called, as traits are not emitted
     assert(false);
     return nullptr;
 }
 
 const thorin::Type* ImplType::convert(Emitter& emitter, const Type* parent) const {
-    //todo
+    //should never be called, as traits are not emitted
     assert(false);
     return nullptr;
 }
@@ -1721,7 +1737,7 @@ bool compile(
     thorin::Log::set(log_level, &std::cerr);
     Emitter emitter(log, world);
     emitter.warns_as_errors = warns_as_errors;
-    return true; //emitter.run(program);
+    return emitter.run(program);
 }
 
 bool compile(

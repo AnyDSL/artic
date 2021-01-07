@@ -309,7 +309,7 @@ const Type* TypeChecker::check_trait_fns(
             defined[*index] = true;
             //fns[i]->index = *index;
             check(*fns[i]->fn, type_app ? type_app->member_type(*index) : trait_type->member_type(*index));
-
+            fns[i]->type = fns[i]->fn -> type;
         }
         //Add default definitions
         for (size_t i =0; i < trait_type->decl.functs.size(); i++) {
@@ -540,7 +540,7 @@ const Type* TypeChecker::infer_record_type(const TypeApp* type_app, const Struct
 
 bool TypeChecker::check_bound(const Type* bound, Loc& loc){
     if (auto trait_type = bound->isa<artic::TraitType>()) {
-        if (!type_table.impl_exists(trait_type)) {
+        if (!type_table.find_impl(trait_type)) {
             error(loc, "the trait '{}' is not implemented", *trait_type);
             return false;
         }
@@ -556,7 +556,7 @@ bool TypeChecker::check_bound(const Type* bound, Loc& loc){
             }
         }
         if (!contains_var) {
-            if (!type_table.impl_exists(type_app)) {
+            if (!type_table.find_impl(type_app)) {
                 error(loc, "the trait '{}' is not implemented", *type_app);
                 return false;
             }
@@ -675,7 +675,7 @@ const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, Ptr<Ex
                     auto map = forall_type->instantiate_map(type_args);
                     for (auto& w:forall_type->decl.where_clauses) {
                         auto type_inst = w->type->replace(map);
-                        if (!checker.type_table.impl_exists(type_inst) && !checker.trait_bound_exists(type_inst)) {
+                        if (!checker.type_table.find_impl(type_inst) && !checker.trait_bound_exists(type_inst)) {
                             checker.error(elem.loc, "the trait '{}' is not implemented", *type_inst);
                             return checker.type_table.type_error();
                         }
@@ -688,7 +688,7 @@ const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, Ptr<Ex
                     }
                     for (auto& w:user_type->where_types()) {
                         auto type_inst = w->replace(map);
-                        if (!checker.type_table.impl_exists(type_inst) && !checker.trait_bound_exists(type_inst)) {
+                        if (!checker.type_table.find_impl(type_inst) && !checker.trait_bound_exists(type_inst)) {
                             checker.error(elem.loc, "the trait '{}' is not implemented2", *type_inst);
                             return checker.type_table.type_error();
                         }
@@ -747,7 +747,7 @@ const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, Ptr<Ex
                 elems[i + 1].index = *index;
                 is_value = true;
                 is_ctor = false;
-                if (!checker.type_table.impl_exists(type) && !checker.trait_bound_exists(type)) {
+                if (!checker.type_table.find_impl(type) && !checker.trait_bound_exists(type)) {
                     checker.error(elem.loc, "the trait '{}' is not implemented", *type);
                     return checker.type_table.type_error();
                 }
@@ -1532,7 +1532,6 @@ const artic::Type* FnDecl::infer(TypeChecker& checker) {
             checker.check(*fn->filter, checker.type_table.bool_type());
     } else
         fn_type = checker.infer(*fn);
-
     // Set the type of this function right now, in case
     // the `return` keyword is encountered in the body.
     type = forall ? forall : fn_type;
@@ -1678,7 +1677,7 @@ const artic::Type* ImplDecl::infer(TypeChecker& checker) {
     if (conflict) {
         checker.exit_decl(this);
         checker.error(loc, "Trait '{}' is already defined", *this->trait_type);
-        checker.note(conflict->impl.loc, "previously declared here");
+        checker.note(conflict->decl.loc, "previously declared here");
         return checker.type_table.type_error();
     }
 

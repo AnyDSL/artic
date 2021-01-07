@@ -174,7 +174,7 @@ size_t TraitType::hash() const {
 }
 
 size_t ImplType::hash() const {
-    return fnv::Hash().combine(&impl);
+    return fnv::Hash().combine(&decl);
 }
 
 size_t TypeAlias::hash() const {
@@ -526,13 +526,13 @@ std::optional<size_t> TraitType::find_member(const std::string_view& name) const
             [&name] (auto& f) {
                 return f->id.name == name;
             });
-    return it != decl.functs.end()
+        return it != decl.functs.end()
         ? std::make_optional(it - decl.functs.begin())
         : std::nullopt;
 }
 
 const std::vector<const Type*> ImplType::where_types() const {
-    auto& aux =  impl.where_clauses;
+    auto& aux =  decl.where_clauses;
 
     std::vector<const Type*> res;
     for(auto& clause: aux){
@@ -543,13 +543,13 @@ const std::vector<const Type*> ImplType::where_types() const {
 
 std::optional<size_t> ImplType::find_member(const std::string_view& name) const {
     auto it = std::find_if(
-            impl.functs.begin(),
-            impl.functs.end(),
+            decl.functs.begin(),
+            decl.functs.end(),
             [&name] (auto& f) {
                 return f->id.name == name;
             });
-    return it != impl.functs.end()
-    ? std::make_optional(it - impl.functs.begin())
+    return it != decl.functs.end()
+    ? std::make_optional(it - decl.functs.begin())
     : std::nullopt;
 }
 
@@ -563,7 +563,7 @@ const Type* TraitType::member_type(size_t i) const {
 }
 
 const Type* ImplType::member_type(size_t i) const {
-    return impl.functs[i]->type;
+    return decl.functs[i]->type;
 }
 
 size_t EnumType::member_count() const {
@@ -575,7 +575,7 @@ size_t TraitType::member_count() const {
 }
 
 size_t ImplType::member_count() const {
-    return impl.functs.size();
+    return decl.functs.size();
 }
 
 // Misc. ---------------------------------------------------------------------------
@@ -833,8 +833,8 @@ const T* TypeTable::insert(Args&&... args) {
 
 const ImplType* TypeTable::register_impl(const ImplType* impl){
     for (auto it: impls_) {
-        auto [it_type_app, it_trait_type] = match_app<TraitType>(it->impl.trait_type->type);
-        auto [impl_type_app, impl_trait_type] = match_app<TraitType>(impl->impl.trait_type->type);
+        auto [it_type_app, it_trait_type] = match_app<TraitType>(it->decl.trait_type->type);
+        auto [impl_type_app, impl_trait_type] = match_app<TraitType>(impl->decl.trait_type->type);
         if(it_type_app == impl_type_app && it_trait_type == impl_trait_type) return it;
     }
     impls_.push_back(impl);
@@ -842,11 +842,11 @@ const ImplType* TypeTable::register_impl(const ImplType* impl){
 }
 
 
-bool TypeTable::impl_exists(const Type* type){
+const Type*  TypeTable::find_impl(const Type* type){
     for (auto i:impls_) {
-        if (i->impl.trait_type->type == type) return true;
+        if (i->decl.trait_type->type == type) return i->decl.type;
     }
-    return false;
+    return nullptr;
 }
 
 } // namespace artic
