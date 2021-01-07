@@ -768,7 +768,7 @@ const thorin::Def* Path::emit(Emitter& emitter) const {
             }
             const thorin::Def*  def;
             if(auto trait_type = decl->type->isa<TraitType>()){
-                auto impl_type = decl->type->type_table.find_impl(elems[i].type)->as<ImplType>();
+                auto impl_type = decl->type->type_table.find_impl(elems[i].type->replace(map))->as<ImplType>();
                 auto index = impl_type->find_member(elems[i+1].id.name);
                 if(!index){
                     auto default_index = trait_type->find_member(elems[i+1].id.name);
