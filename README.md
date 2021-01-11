@@ -99,9 +99,24 @@ fn foo() -> i32 { 1 }
    except they cannot be extended after being defined, and they are
    order independent:
 ```rust
-fn foo() = Foo::foo();
-mod Foo {
+fn bar() = A::foo();
+mod A {
     fn foo() = 1;
+}
+```
+ - Modules can be imported using the `use` keyword, optionally with
+   another name by using `as`:
+```rust
+mod A {
+    use super::C;
+    fn foo() { C::baz() }
+    mod B {
+        fn bar() { super::foo() }
+    }
+}
+mod C {
+    use super::A::B as D;
+    fn baz() { D::bar }
 }
 ```
  - Tuples cannot be indexed with constant integers anymore:
