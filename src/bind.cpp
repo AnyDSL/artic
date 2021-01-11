@@ -20,8 +20,8 @@ void NameBinder::bind(ast::Node& node) {
 
 void NameBinder::pop_scope() {
     for (auto& pair : scopes_.back().symbols) {
-        auto decl = pair.second->decls.front();
-        if (pair.second.use_count() <= 1 &&
+        auto decl = pair.second.decl;
+        if (pair.second.use_count <= 1 &&
             !scopes_.back().top_level &&
             !decl->isa<ast::FieldDecl>() &&
             !decl->isa<ast::OptionDecl>()) {
@@ -32,9 +32,8 @@ void NameBinder::pop_scope() {
     scopes_.pop_back();
 }
 
-void NameBinder::insert_symbol(ast::NamedDecl& decl) {
+void NameBinder::insert_symbol(ast::NamedDecl& decl, const std::string& name) {
     assert(!scopes_.empty());
-    auto& name = decl.id.name;
     assert(!name.empty());
 
     // Do not bind anonymous variables
@@ -43,15 +42,12 @@ void NameBinder::insert_symbol(ast::NamedDecl& decl) {
     auto shadow_symbol = find_symbol(name);
     if (!scopes_.back().insert(name, Symbol(&decl))) {
         error(decl.loc, "identifier '{}' already declared", name);
-        for (auto other : shadow_symbol->decls) {
-            if (other != &decl) note(other->loc, "previously declared here");
-        }
+        note(shadow_symbol->decl->loc, "previously declared here");
     } else if (
         warn_on_shadowing && shadow_symbol &&
-        decl.isa<ast::PtrnDecl>() &&
-        !shadow_symbol->decls[0]->is_top_level) {
+        decl.isa<ast::PtrnDecl>() && !shadow_symbol->decl->is_top_level) {
         warn(decl.loc, "declaration shadows identifier '{}'", name);
-        note(shadow_symbol->decls[0]->loc, "previously declared here");
+        note(shadow_symbol->decl->loc, "previously declared here");
     }
 }
 
@@ -64,15 +60,18 @@ void Path::bind(NameBinder& binder) {
     auto& first = elems.front();
     if (first.id.name[0] == '_')
         binder.error(first.id.loc, "identifiers beginning with '_' cannot be referenced");
-    else {
-        symbol = binder.find_symbol(first.id.name);
+    else if (first.is_super()) {
+        start_decl = binder.cur_mod->super;
+        if (!start_decl)
+            binder.error(first.id.loc, "top-level module has no super-module");
+    } else {
+        auto symbol = binder.find_symbol(first.id.name);
         if (!symbol) {
             binder.error(first.id.loc, "unknown identifier '{}'", first.id.name);
-            if (auto similar = binder.find_similar_symbol(first.id.name)) {
-                auto decl = similar->decls.front();
-                binder.note("did you mean '{}'?", decl->id.name);
-            }
-        }
+            if (auto similar = binder.find_similar_symbol(first.id.name))
+                binder.note("did you mean '{}'?", similar->decl->id.name);
+        } else
+            start_decl = symbol->decl;
     }
     // Bind the type arguments of each element
     for (auto& elem : elems) {
@@ -184,10 +183,10 @@ void FnExpr::bind(NameBinder& binder, bool in_for_loop) {
     binder.push_scope();
     // Do not rebind the current `return` to this function
     // for anonymous functions introduced as for loop bodies.
-    ast::FnExpr* old = nullptr;
-    if (!in_for_loop) old = binder.push_fn(this);
+    ast::FnExpr* old_fn = binder.cur_fn;
+    if (!in_for_loop) binder.cur_fn = this;
     binder.bind(*body);
-    if (!in_for_loop) binder.pop_fn(old);
+    binder.cur_fn = old_fn;
     binder.pop_scope();
     binder.pop_scope();
 }
@@ -259,9 +258,10 @@ void WhileExpr::bind(NameBinder& binder) {
         binder.bind(*ptrn);
         binder.bind(*expr);
     }
-    auto old = binder.push_loop(this);
+    auto old_loop = binder.cur_loop;
+    binder.cur_loop = this;
     binder.bind(*body);
-    binder.pop_loop(old);
+    binder.cur_loop = old_loop;
     binder.pop_scope();
 }
 
@@ -270,29 +270,30 @@ void ForExpr::bind(NameBinder& binder) {
     // iterate(|i| { ... })(...)
     // continue() and break() should only be available to the lambda
     binder.bind(*call->callee->as<CallExpr>()->callee);
-    auto old = binder.push_loop(this);
+    auto old_loop = binder.cur_loop;
+    binder.cur_loop = this;
     auto loop_body = call->callee->as<CallExpr>()->arg->as<FnExpr>();
     if (loop_body->attrs)
         loop_body->attrs->bind(binder);
     loop_body->bind(binder, true);
-    binder.pop_loop(old);
+    binder.cur_loop = old_loop;
     binder.bind(*call->arg);
 }
 
 void BreakExpr::bind(NameBinder& binder) {
-    loop = binder.cur_loop();
+    loop = binder.cur_loop;
     if (!loop)
         binder.error(loc, "use of '{}' outside of a loop", *this->as<Node>());
 }
 
 void ContinueExpr::bind(NameBinder& binder) {
-    loop = binder.cur_loop();
+    loop = binder.cur_loop;
     if (!loop)
         binder.error(loc, "use of '{}' outside of a loop", *this->as<Node>());
 }
 
 void ReturnExpr::bind(NameBinder& binder) {
-    fn = binder.cur_fn();
+    fn = binder.cur_fn;
     if (!fn)
         binder.error(loc, "use of '{}' outside of a function", *this->as<Node>());
 }
@@ -462,12 +463,26 @@ void ModDecl::bind_head(NameBinder& binder) {
 
 void ModDecl::bind(NameBinder& binder) {
     // Symbols defined outside the module are not visible inside it.
-    std::vector<SymbolTable> old;
-    std::swap(binder.scopes_, old);
+    std::vector<SymbolTable> old_scopes;
+    std::swap(binder.scopes_, old_scopes);
+    auto old_mod = binder.cur_mod;
+    binder.cur_mod = this;
     binder.push_scope();
     for (auto& decl : decls) binder.bind_head(*decl);
     for (auto& decl : decls) binder.bind(*decl);
-    std::swap(binder.scopes_, old);
+    std::swap(binder.scopes_, old_scopes);
+    binder.cur_mod = old_mod;
+}
+
+void UseDecl::bind_head(NameBinder& binder) {
+    if (id.name != "")
+        binder.insert_symbol(*this);
+    else
+        binder.insert_symbol(*this, path.elems.back().id.name);
+}
+
+void UseDecl::bind(NameBinder& binder) {
+    path.bind(binder);
 }
 
 void ErrorDecl::bind(NameBinder&) {}

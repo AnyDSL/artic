@@ -794,16 +794,18 @@ const thorin::Def* Node::emit(Emitter&) const {
 
 const thorin::Def* Path::emit(Emitter& emitter) const {
     // Currently only supports paths of the form A/A::B/A[T, ...]/A[T, ...]::B
-    if (auto struct_decl = symbol->decls.front()->isa<StructDecl>();
+    if (auto struct_decl = start_decl->isa<StructDecl>();
         struct_decl && struct_decl->is_tuple_like && struct_decl->fields.empty()) {
         return emitter.world.struct_agg(
             type->convert(emitter)->as<thorin::StructType>(), {},
             emitter.debug_info(*this));
     }
 
-    const auto* decl = symbol->decls.front();
+    const auto* decl = start_decl;
     for (size_t i = 0, n = elems.size(); i < n; ++i) {
-        if (auto mod_type = elems[i].type->isa<ModType>()) {
+        if (elems[i].is_super()) {
+            decl = i == 0 ? start_decl : decl->as<ModDecl>()->super;
+        } else if (auto mod_type = elems[i].type->isa<ModType>()) {
             decl = &mod_type->member(elems[i + 1].index);
         } else if (!is_ctor) {
             // If type arguments are present, this is a polymorphic application
@@ -1466,6 +1468,10 @@ const thorin::Def* ModDecl::emit(Emitter& emitter) const {
     return nullptr;
 }
 
+const thorin::Def* UseDecl::emit(Emitter&) const {
+    return nullptr;
+}
+
 // Patterns ------------------------------------------------------------------------
 
 void Ptrn::emit(Emitter&, const thorin::Def*) const {
@@ -1759,6 +1765,8 @@ bool compile(
             std::make_move_iterator(module->decls.end())
         );
     }
+
+    program.set_super();
 
     NameBinder name_binder(log);
     name_binder.warns_as_errors = warns_as_errors;

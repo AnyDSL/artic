@@ -266,6 +266,13 @@ BinaryExpr::Tag BinaryExpr::tag_from_token(const Token& token) {
     }
 }
 
+void ModDecl::set_super() {
+    for (auto& decl : decls) {
+        if (auto mod_decl = decl->isa<ModDecl>())
+            mod_decl->super = this;
+    }
+}
+
 // Attributes ----------------------------------------------------------------------
 
 static const Attr* find(const PtrVector<Attr>& attrs, const std::string_view& name) {
@@ -338,8 +345,8 @@ bool PathExpr::is_constant() const {
 }
 
 void PathExpr::write_to() const {
-    if (path.symbol && path.symbol->decls.size() == 1) {
-        if (auto ptrn_decl = path.symbol->decls.front()->isa<PtrnDecl>(); ptrn_decl && ptrn_decl->is_mut)
+    if (path.start_decl) {
+        if (auto ptrn_decl = path.start_decl->isa<PtrnDecl>(); ptrn_decl && ptrn_decl->is_mut)
             ptrn_decl->written_to = true;
     }
 }
@@ -588,10 +595,9 @@ bool ImplicitCastExpr::has_side_effect() const {
 bool ImplicitCastExpr::is_constant() const {
     assert(expr->type);
     if (auto path_expr = expr->isa<PathExpr>();
-        path_expr && path_expr->path.elems.size() == 1 &&
-        path_expr->path.symbol && !path_expr->path.symbol->decls.empty())
+        path_expr && path_expr->path.elems.size() == 1 && path_expr->path.start_decl)
     {
-        if (auto static_decl = path_expr->path.symbol->decls.front()->isa<StaticDecl>()) {
+        if (auto static_decl = path_expr->path.start_decl->isa<StaticDecl>()) {
             // Allow using other constant static declarations as constants
             return !static_decl->is_mut;
         }

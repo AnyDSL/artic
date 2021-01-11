@@ -583,6 +583,14 @@ void ModDecl::print(Printer& p) const {
         p << p.unindent() << p.endl() << "}";
 }
 
+void UseDecl::print(Printer& p) const {
+    p << log::keyword_style("use") << ' ';
+    path.print(p);
+    if (id.name != "")
+        p << ' ' << log::keyword_style("as") << ' ' << id.name;
+    p << ';';
+}
+
 void ErrorDecl::print(Printer& p) const {
     p << log::error_style("<invalid declaration>");
 }

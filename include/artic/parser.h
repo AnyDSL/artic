@@ -36,6 +36,7 @@ private:
     Ptr<ast::TypeParam>     parse_type_param();
     Ptr<ast::TypeParamList> parse_type_params();
     Ptr<ast::ModDecl>       parse_mod_decl();
+    Ptr<ast::UseDecl>       parse_use_decl();
     Ptr<ast::ErrorDecl>     parse_error_decl();
 
     Ptr<ast::Ptrn>          parse_ptrn(bool = false);
@@ -99,7 +100,8 @@ private:
     Ptr<ast::Attr>          parse_attr();
 
     ast::Path               parse_path(ast::Identifier&&, bool);
-    ast::Path               parse_path(bool allow_types = true) { return parse_path(parse_id(), allow_types); }
+    ast::Path               parse_path(bool allow_types = true) { return parse_path(parse_path_elem(), allow_types); }
+    ast::Identifier         parse_path_elem();
     ast::Identifier         parse_id();
     ast::AsmExpr::Constr    parse_constr();
     Literal                 parse_lit();

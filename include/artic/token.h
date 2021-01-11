@@ -31,6 +31,8 @@ namespace artic {
     f(Type, "type") \
     f(Static, "static") \
     f(Mod, "mod") \
+    f(Use, "use") \
+    f(Super, "super") \
     f(Asm, "asm") \
     f(AddrSpace, "addrspace") \
     f(Simd, "simd") \

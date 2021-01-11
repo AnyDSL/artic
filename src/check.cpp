@@ -47,7 +47,10 @@ const Type* TypeChecker::type_expected(const Loc& loc, const artic::Type* type, 
 }
 
 const Type* TypeChecker::unknown_member(const Loc& loc, const UserType* user_type, const std::string_view& member) {
-    error(loc, "no member '{}' in '{}'", member, *user_type);
+    if (auto mod_type = user_type->isa<ModType>(); mod_type && mod_type->decl.id.name == "")
+        error(loc, "no member '{}' in top-level module", member);
+    else
+        error(loc, "no member '{}' in '{}'", member, *user_type);
     return type_table.type_error();
 }
 
@@ -569,12 +572,14 @@ const artic::Type* Ptrn::check(TypeChecker& checker, const artic::Type* expected
 // Path ----------------------------------------------------------------------------
 
 const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, Ptr<Expr>* arg) {
-    if (!symbol || symbol->decls.empty())
+    if (!start_decl)
         return checker.type_table.type_error();
 
-    type = checker.infer(*symbol->decls.front());
-    is_value = elems.size() == 1 && symbol->decls.front()->isa<ValueDecl>();
-    is_ctor  = symbol->decls.front()->isa<CtorDecl>();
+    type = elems[0].is_super()
+        ? checker.type_table.mod_type(*start_decl->as<ModDecl>())
+        : checker.infer(*start_decl);
+    is_value = elems.size() == 1 && start_decl->isa<ValueDecl>();
+    is_ctor  = start_decl->isa<CtorDecl>();
 
     // Inspect every element of the path
     for (size_t i = 0, n = elems.size(); i < n; ++i) {
@@ -629,7 +634,14 @@ const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, Ptr<Ex
 
         // Perform a lookup inside the current object if the path is not finished
         if (i != n - 1) {
-            if (auto [type_app, enum_type] = match_app<EnumType>(type); enum_type) {
+            if (elems[i + 1].is_super()) {
+                auto mod_type = type->isa<ModType>();
+                if (!mod_type) {
+                    checker.error(elems[i + 1].loc, "'super' can only be used on modules");
+                    return checker.type_table.type_error();
+                }
+                type = checker.type_table.mod_type(*mod_type->decl.super);
+            } else if (auto [type_app, enum_type] = match_app<EnumType>(type); enum_type) {
                 auto index = enum_type->find_member(elems[i + 1].id.name);
                 if (!index)
                     return checker.unknown_member(elem.loc, enum_type, elems[i + 1].id.name);
@@ -647,7 +659,7 @@ const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, Ptr<Ex
             } else if (auto mod_type = type->isa<ModType>()) {
                 auto index = mod_type->find_member(elems[i + 1].id.name);
                 if (!index)
-                    return checker.unknown_member(elem.loc, mod_type, elems[i + 1].id.name);
+                    return checker.unknown_member(elems[i + 1].loc, mod_type, elems[i + 1].id.name);
                 elems[i + 1].index = *index;
                 type = mod_type->member_type(*index);
                 is_value = mod_type->member(*index).isa<ValueDecl>();
@@ -1552,6 +1564,16 @@ const artic::Type* ModDecl::infer(TypeChecker& checker) {
     for (auto& decl : decls)
         checker.infer(*decl);
     return checker.type_table.mod_type(*this);
+}
+
+const artic::Type* UseDecl::infer(TypeChecker& checker) {
+    if (!checker.enter_decl(this))
+        return checker.type_table.type_error();
+    auto path_type = checker.infer(path);
+    checker.exit_decl(this);
+    if (!path_type->isa<artic::ModType>())
+        return checker.type_expected(path.loc, path_type, "module type");
+    return path_type;
 }
 
 // Patterns ------------------------------------------------------------------------

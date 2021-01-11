@@ -30,6 +30,8 @@ inline size_t count_digits(size_t i) {
 }
 
 void Logger::diagnostic(const Loc& loc, log::Style style, char underline) {
+    if (!loc.file)
+        return;
     log::format(log.out, " in {}\n", log::style(loc, log::Style::White, log::Style::Bold));
     if (!diagnostics || !log.locator)
         return;

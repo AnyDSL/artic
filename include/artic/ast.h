@@ -168,13 +168,19 @@ struct Path : public Node {
         size_t index = 0;
         std::vector<const artic::Type*> inferred_args;
 
+        bool is_super() const { return id.name == "super"; }
+
         Elem(const Loc& loc, Identifier&& id, PtrVector<Type>&& args)
             : loc(loc), id(std::move(id)), args(std::move(args))
         {}
     };
 
     std::vector<Elem> elems;
-    std::shared_ptr<Symbol> symbol;
+
+    // Set during name-binding, corresponds to the declaration that
+    // is associated with the _first_ element of the path.
+    // The rest of the path is resolved during type-checking.
+    ast::NamedDecl* start_decl;
 
     // Set during type-checking
     bool is_value = false;
@@ -184,7 +190,10 @@ struct Path : public Node {
         : Node(loc), elems(std::move(elems))
     {}
 
-    const artic::Type* infer(TypeChecker&, bool = false, Ptr<Expr>* = nullptr);
+    const artic::Type* infer(TypeChecker&, bool, Ptr<Expr>* = nullptr);
+    const artic::Type* infer(TypeChecker& checker) override {
+        return infer(checker, false, nullptr);
+    }
 
     const thorin::Def* emit(Emitter&) const override;
     void bind(NameBinder&) override;
@@ -1393,15 +1402,39 @@ struct TypeDecl : public NamedDecl {
 /// Module definition.
 struct ModDecl : public NamedDecl {
     PtrVector<Decl> decls;
+    ModDecl* super = nullptr;
 
     std::vector<const NamedDecl*> members;
 
+    /// Constructor for the implicitly defined global module.
+    /// When using this constructor, the user is responsible for calling
+    /// `set_super()` once the declarations have been added to the module.
     explicit ModDecl()
         : NamedDecl(Loc(), Identifier())
     {}
 
+    /// Constructor for a regular module declaration.
     ModDecl(const Loc& loc, Identifier&& id, PtrVector<Decl>&& decls)
         : NamedDecl(loc, std::move(id)), decls(std::move(decls))
+    {
+        set_super();
+    }
+
+    void set_super();
+
+    const thorin::Def* emit(Emitter&) const override;
+    const artic::Type* infer(TypeChecker&) override;
+    void bind_head(NameBinder&) override;
+    void bind(NameBinder&) override;
+    void print(Printer&) const override;
+};
+
+/// Module use, with or without `as`.
+struct UseDecl : public NamedDecl {
+    Path path;
+
+    UseDecl(const Loc& loc, Path&& path, Identifier&& id)
+        : NamedDecl(loc, std::move(id)), path(std::move(path))
     {}
 
     const thorin::Def* emit(Emitter&) const override;

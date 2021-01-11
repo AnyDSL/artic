@@ -42,6 +42,7 @@ Ptr<ast::Decl> Parser::parse_decl(bool is_top_level) {
         case Token::Type:   decl = parse_type_decl();   break;
         case Token::Static: decl = parse_static_decl(); break;
         case Token::Mod:    decl = parse_mod_decl();    break;
+        case Token::Use:    decl = parse_use_decl();    break;
         default:            decl = parse_error_decl();  break;
     }
     decl->attrs = std::move(attrs);
@@ -235,6 +236,19 @@ Ptr<ast::ModDecl> Parser::parse_mod_decl() {
     return make_ptr<ast::ModDecl>(tracker(), std::move(id), std::move(decls));
 }
 
+Ptr<ast::UseDecl> Parser::parse_use_decl() {
+    Tracker tracker(this);
+    eat(Token::Use);
+    auto path = parse_path();
+    ast::Identifier id;
+    if (accept(Token::As))
+        id = parse_id();
+    expect(Token::Semi);
+    if (id.name == "" && path.elems.back().is_super())
+        error(tracker(), "a name is required to qualify this 'use'");
+    return make_ptr<ast::UseDecl>(tracker(), std::move(path), std::move(id));
+}
+
 Ptr<ast::ErrorDecl> Parser::parse_error_decl() {
     Tracker tracker(this);
     error(ahead().loc(), "expected declaration, got '{}'", ahead().string());
@@ -247,6 +261,7 @@ Ptr<ast::ErrorDecl> Parser::parse_error_decl() {
 Ptr<ast::Ptrn> Parser::parse_ptrn(bool is_fn_param) {
     Ptr<ast::Ptrn> ptrn;
     switch (ahead().tag()) {
+        case Token::Super:
         case Token::Id:
             {
                 if (auto tag = ast::PrimType::tag_from_token(ahead()); tag != ast::PrimType::Error) {
@@ -255,7 +270,7 @@ Ptr<ast::Ptrn> Parser::parse_ptrn(bool is_fn_param) {
                     auto type = parse_prim_type(tag);
                     return make_ptr<ast::TypedPtrn>(type->loc, Ptr<ast::Ptrn>(), std::move(type));
                 }
-                auto id = parse_id();
+                auto id = parse_path_elem();
                 if (ahead().tag() == Token::DblColon ||
                     ahead().tag() == Token::LBracket ||
                     ahead().tag() == Token::LParen ||
@@ -539,6 +554,7 @@ Ptr<ast::BlockExpr> Parser::parse_block_expr() {
             case Token::Break:
             case Token::Continue:
             case Token::Return:
+            case Token::Super:
             case Token::Id:
             case Token::Lit:
             case Token::LParen:
@@ -781,6 +797,7 @@ Ptr<ast::Expr> Parser::parse_primary_expr(bool allow_structs, bool allow_casts) 
             expr = parse_array_expr();
             break;
         case Token::Lit:      expr = parse_literal_expr(); break;
+        case Token::Super:
         case Token::Id:
             expr = parse_path_expr();
             if (allow_structs && ahead(0).tag() == Token::LBrace)
@@ -1104,26 +1121,29 @@ Ptr<ast::Attr> Parser::parse_attr() {
 
 ast::Path Parser::parse_path(ast::Identifier&& id, bool allow_types) {
     Tracker tracker(this, id.loc);
-    Loc prev_loc = id.loc;
 
     std::vector<ast::Path::Elem> elems;
     do {
-        Tracker elem_tracker(this, prev_loc);
+        Tracker elem_tracker(this, id.loc);
         PtrVector<ast::Type> args;
-        if (allow_types && accept(Token::LBracket)) {
+        // Do not accept type arguments on `super`
+        if (allow_types && id.name != "super" && accept(Token::LBracket)) {
             parse_list(Token::RBracket, Token::Comma, [&] {
                 args.emplace_back(parse_type());
             });
         }
         elems.emplace_back(elem_tracker(), std::move(id), std::move(args));
-        if (ahead().tag() != Token::DblColon)
+        if (!accept(Token::DblColon))
             break;
-        eat(Token::DblColon);
-        prev_loc = ahead().loc();
-        id = parse_id();
+        id = parse_path_elem();
     } while (true) ;
 
     return ast::Path(tracker(), std::move(elems));
+}
+
+ast::Identifier Parser::parse_path_elem() {
+    auto prev_loc = ahead().loc();
+    return accept(Token::Super) ? ast::Identifier(prev_loc, "super") : parse_id();
 }
 
 ast::Identifier Parser::parse_id() {
