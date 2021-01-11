@@ -661,7 +661,7 @@ const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, Ptr<Ex
                 if (!index)
                     return checker.unknown_member(elems[i + 1].loc, mod_type, elems[i + 1].id.name);
                 elems[i + 1].index = *index;
-                type = mod_type->member_type(*index);
+                type = checker.infer(mod_type->member(*index));
                 is_value = mod_type->member(*index).isa<ValueDecl>();
                 is_ctor  = mod_type->member(*index).isa<CtorDecl>();
             } else

@@ -490,14 +490,14 @@ struct ModType : public ComplexType {
     const Type* member_type(size_t) const override;
     size_t member_count() const override;
 
-    const ast::NamedDecl& member(size_t) const;
+    ast::NamedDecl& member(size_t) const;
 
 private:
     struct Member {
         std::string name;
-        const ast::NamedDecl& decl;
+        ast::NamedDecl& decl;
 
-        Member(const std::string& name, const ast::NamedDecl& decl)
+        Member(const std::string& name, ast::NamedDecl& decl)
             : name(name), decl(decl)
         {}
     };

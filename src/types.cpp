@@ -488,7 +488,7 @@ size_t ModType::member_count() const {
     return members().size();
 }
 
-const ast::NamedDecl& ModType::member(size_t i) const {
+ast::NamedDecl& ModType::member(size_t i) const {
     return members()[i].decl;
 }
 
