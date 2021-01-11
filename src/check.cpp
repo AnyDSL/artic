@@ -652,18 +652,13 @@ const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, Ptr<Ex
                 type = mod_type->member_type(*index);
                 is_value = mod_type->member(*index).isa<ValueDecl>();
                 is_ctor  = mod_type->member(*index).isa<CtorDecl>();
-            } else {
-                checker.error(elem.loc, "expected module or enum type, but got '{}'", *type);
-                return checker.type_table.type_error();
-            }
+            } else
+                return checker.type_expected(elem.loc, type, "module or enum");
         }
     }
 
     if (is_value != value_expected) {
-        if (value_expected)
-            checker.error(loc, "value expected, but got type '{}'", *type);
-        else
-            checker.error(loc, "type expected, but got '{}'", *this);
+        checker.error(loc, "{} expected, but got '{}'", value_expected ? "value" : "type", *this);
         return checker.type_table.type_error();
     }
     return type;
