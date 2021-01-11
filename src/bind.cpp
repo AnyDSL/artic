@@ -65,8 +65,6 @@ void Path::bind(NameBinder& binder) {
     if (first.id.name[0] == '_')
         binder.error(first.id.loc, "identifiers beginning with '_' cannot be referenced");
     else {
-        // TODO this assumes symbols are always the first element of a path
-        // question: can paths of length > 2 even exist currently? afaik the only case of length 1 paths currently is enums...
         symbol = binder.find_symbol(first.id.name);
         if (!symbol) {
             binder.error(first.id.loc, "unknown identifier '{}'", first.id.name);
