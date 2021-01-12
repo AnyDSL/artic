@@ -1,0 +1,6 @@
+mod foo {
+    use super::bar as baz;
+    mod bar {
+        use super::foobar;
+    }
+}
