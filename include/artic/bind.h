@@ -59,13 +59,8 @@ public:
     Symbol* find_similar_symbol(const std::string& name) {
         Symbol* best = nullptr;
         auto min = levenshtein_threshold();
-        for (auto it = scopes_.rbegin(); it != scopes_.rend(); it++) {
-            auto pair = it->find_similar(name, min, levenshtein);
-            if (pair.second) {
-                min  = pair.first;
-                best = pair.second;
-            }
-        }
+        for (auto it = scopes_.rbegin(); it != scopes_.rend(); it++)
+            best = it->find_similar(name, min, levenshtein);
         return best;
     }
 

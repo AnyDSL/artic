@@ -37,8 +37,8 @@ struct SymbolTable {
     }
 
     template <typename T, typename DistanceFn>
-    std::pair<T, Symbol*> find_similar(const std::string& name, T min, DistanceFn distance) {
-        Symbol* best;
+    Symbol* find_similar(const std::string& name, T& min, DistanceFn distance) {
+        Symbol* best = nullptr;
         for (auto& symbol : symbols) {
             auto d = distance(symbol.first, name, min);
             if (d < min) {
@@ -46,7 +46,7 @@ struct SymbolTable {
                 min  = d;
             }
         }
-        return std::make_pair(min, best);
+        return best;
     }
 
     bool insert(const std::string& name, Symbol&& symbol) {
