@@ -3,6 +3,7 @@
 
 #include "artic/types.h"
 #include "artic/hash.h"
+#include "artic/print.h"
 
 namespace artic {
 
@@ -841,11 +842,69 @@ const ImplType* TypeTable::register_impl(const ImplType* impl){
 }
 
 
-const Type*  TypeTable::find_impl(const Type* type){
+const std::vector<const Type*>  TypeTable::find_impls(const Type* type){
+    std::vector<const Type*> result;
     for (auto i:impls_) {
-        if (i->decl.trait_type->type == type) return i->decl.type;
+        if(check_impl(type, i)){
+            if(i->type_params()) {
+                std::vector<const Type *> args;
+                auto &map = type_args(i->decl.trait_type->type, type);
+                for (auto &pa: i->type_params()->params) {
+                    args.push_back(map.at(pa->type->as<TypeVar>()));
+                }
+                result.push_back(type_app(i, std::move(args)));
+            }
+            else{
+                result.push_back(i);
+            }
+        }
     }
-    return nullptr;
+    return result;
+}
+
+const bool TypeTable::check_impl(const Type* type, const ImplType* impl){
+    auto replace = type_args(impl->decl.trait_type->type, type);
+    if(impl->decl.trait_type->type->replace(replace) != type){
+        return false;
+    }
+    for(auto & w: impl->where_types()){
+        if(find_impls(w->replace(replace)).size() != 1){
+            return false;
+        }
+    }
+    return true;
+}
+
+const std::unordered_map<const TypeVar*, const Type*>
+    TypeTable::type_args(const Type* poly, const Type* target){
+    std::unordered_map<const TypeVar*, const Type*> res;
+    if(poly == target){
+        return res;
+    }
+    if(poly->isa<TypeVar>()){
+        res.insert({poly->as<TypeVar>(), target});
+        return res;
+    }
+    auto target_app = target->isa<TypeApp>();
+    auto poly_app = poly->isa<TypeApp>();
+    if(poly_app && target_app && poly_app->applied ==  target_app->applied){
+        assert(poly_app->type_args.size() == target_app->type_args.size());
+        for(auto i =0; i < poly_app->type_args.size(); i++){
+            if(poly_app->type_args[i] != target_app->type_args[i]){
+                auto aux = type_args(poly_app->type_args[i], target_app->type_args[i]);
+                for(auto& el:aux){
+                    //if the assigned values differ
+                    if(res.find(el.first)!= res.end() && res.find(el.first)->second != el.second){
+                        return std::unordered_map<const TypeVar*, const Type*>();
+                    }
+                    else{
+                        res.insert({el.first, el.second});
+                    }
+                }
+            }
+        }
+    }
+    return res;
 }
 
 } // namespace artic

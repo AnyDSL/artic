@@ -655,7 +655,9 @@ public:
 
     /// Retruns nullptr if the impl is not already registered
     const ImplType* register_impl(const ImplType* impl);
-    const Type*  find_impl(const Type* type);
+    const std::vector<const Type*>  find_impls(const Type* type);
+    const bool check_impl(const Type* type, const ImplType* impl);
+    const std::unordered_map<const TypeVar*, const Type*> type_args(const Type* poly, const Type* target);
 
 private:
     template <typename T, typename... Args>

@@ -538,10 +538,16 @@ const Type* TypeChecker::infer_record_type(const TypeApp* type_app, const Struct
 
 bool TypeChecker::check_bound(const Type* bound, Loc& loc){
     if (auto trait_type = bound->isa<artic::TraitType>()) {
-        if (!type_table.find_impl(trait_type)) {
+        std::cout << "EEEEEEEEEEEEE" << std::endl;
+        if (type_table.find_impls(trait_type).empty()) {
             error(loc, "the trait '{}' is not implemented", *trait_type);
             return false;
         }
+        if(type_table.find_impls(trait_type).size() > 1){
+            error(loc, "the trait '{}' has multiple implementations", *trait_type);
+            return false;
+        }
+        std::cout << "FFFFFFFFFFFFFFFFFFFFF" << std::endl;
     }
     else if (
         auto type_app = bound->isa<artic::TypeApp>();
@@ -554,10 +560,16 @@ bool TypeChecker::check_bound(const Type* bound, Loc& loc){
             }
         }
         if (!contains_var) {
-            if (!type_table.find_impl(type_app)) {
+            std::cout << "GGGGGGGGGGGGGGGGGGGGGGGGGGGG" << std::endl;
+            if (type_table.find_impls(type_app).empty()) {
                 error(loc, "the trait '{}' is not implemented", *type_app);
                 return false;
             }
+            if(type_table.find_impls(type_app).size() > 1){
+                error(loc, "the trait '{}' has multiple implementations", *type_app);
+                return false;
+            }
+            std::cout << "HHHHHHHHHHHHHHHHHHHHHHHHHHHHHH" << std::endl;
         }
     }
     else {
@@ -672,9 +684,15 @@ const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, Ptr<Ex
                     auto map = forall_type->instantiate_map(type_args);
                     for (auto& w:forall_type->decl.where_clauses) {
                         auto type_inst = w->type->replace(map);
-                        if (!checker.type_table.find_impl(type_inst) && !checker.trait_bound_exists(type_inst)) {
-                            checker.error(elem.loc, "the trait '{}' is not implemented", *type_inst);
-                            return checker.type_table.type_error();
+                        if (!checker.trait_bound_exists(type_inst)) {
+                            if (checker.type_table.find_impls(type_inst).empty()) {
+                                checker.error(elem.loc, "the trait '{}' is not implemented", *type_inst);
+                                return checker.type_table.type_error();
+                            }
+                            if (checker.type_table.find_impls(type_inst).size() > 1) {
+                                checker.error(elem.loc, "the trait '{}' has multiple implementations", *type_inst);
+                                return checker.type_table.type_error();
+                            }
                         }
                     }
                 }
@@ -685,9 +703,15 @@ const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, Ptr<Ex
                     }
                     for (auto& w:user_type->where_types()) {
                         auto type_inst = w->replace(map);
-                        if (!checker.type_table.find_impl(type_inst) && !checker.trait_bound_exists(type_inst)) {
-                            checker.error(elem.loc, "the trait '{}' is not implemented", *type_inst);
-                            return checker.type_table.type_error();
+                        if (!checker.trait_bound_exists(type_inst)) {
+                            if (checker.type_table.find_impls(type_inst).empty()) {
+                                checker.error(elem.loc, "the trait '{}' is not implemented", *type_inst);
+                                return checker.type_table.type_error();
+                            }
+                            if (checker.type_table.find_impls(type_inst).size() > 1) {
+                                checker.error(elem.loc, "the trait '{}' has multiple implementations", *type_inst);
+                                return checker.type_table.type_error();
+                            }
                         }
                     }
                 }
@@ -744,9 +768,15 @@ const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, Ptr<Ex
                 elems[i + 1].index = *index;
                 is_value = true;
                 is_ctor = false;
-                if (!checker.type_table.find_impl(type) && !checker.trait_bound_exists(type)) {
-                    checker.error(elem.loc, "the trait '{}' is not implemented", *type);
-                    return checker.type_table.type_error();
+                if (!checker.trait_bound_exists(type)) {
+                    if (checker.type_table.find_impls(type).empty()) {
+                        checker.error(elem.loc, "the trait '{}' is not implemented", *type);
+                        return checker.type_table.type_error();
+                    }
+                    if (checker.type_table.find_impls(type).size() > 1) {
+                       checker.error(elem.loc, "the trait '{}' has multiple implementations", *type);
+                        return checker.type_table.type_error();
+                    }
                 }
                 //apply type
                 if (type_app) {

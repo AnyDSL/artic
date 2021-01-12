@@ -768,7 +768,15 @@ const thorin::Def* Path::emit(Emitter& emitter) const {
             }
             const thorin::Def*  def;
             if(auto trait_type = decl->type->isa<TraitType>()){
-                auto impl_type = decl->type->type_table.find_impl(elems[i].type->replace(map))->as<ImplType>();
+                auto impl = decl->type->type_table.find_impls(elems[i].type->replace(map)).front();
+                auto [type_app, impl_type] = match_app<ImplType>(impl);
+                if(impl_type->type_params()) {
+                    std::unordered_map<const artic::TypeVar*, const artic::Type*> map;
+                    for (auto i =0; i < type_app->type_args.size(); i++)
+                        map.insert({impl_type->type_params()->params[i]->type->as< artic::TypeVar>(), type_app->type_args[i]});
+                    map.insert(emitter.type_vars.begin(), emitter.type_vars.end());
+                    std::swap(map, emitter.type_vars);
+                }
                 auto index = impl_type->find_member(elems[i+1].id.name);
                 if(!index){
                     auto default_index = trait_type->find_member(elems[i+1].id.name);
