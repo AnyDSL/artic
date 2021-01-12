@@ -310,7 +310,7 @@ int main(int argc, char** argv) {
         world.dump();
 #ifdef ENABLE_LLVM
     if (opts.emit_llvm) {
-        thorin::Backends backends(world);
+        thorin::Backends backends(world, opts.opt_level, opts.debug);
         auto emit_to_file = [&] (thorin::CodeGen* cg, std::string ext) {
             if (cg) {
                 auto name = opts.module_name + ext;
@@ -318,7 +318,7 @@ int main(int argc, char** argv) {
                 if (!file)
                     log::error("cannot open '{}' for writing", name);
                 else
-                    cg->emit(file, opts.opt_level, opts.debug);
+                    cg->emit(file);
             }
         };
         emit_to_file(backends.cpu_cg.get(),    ".ll");
