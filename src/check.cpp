@@ -661,9 +661,14 @@ const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, Ptr<Ex
                 if (!index)
                     return checker.unknown_member(elems[i + 1].loc, mod_type, elems[i + 1].id.name);
                 elems[i + 1].index = *index;
-                type = checker.infer(mod_type->member(*index));
-                is_value = mod_type->member(*index).isa<ValueDecl>();
-                is_ctor  = mod_type->member(*index).isa<CtorDecl>();
+                auto& member = mod_type->member(*index);
+                // We do not want infer the declaration if it is a module, since we can immediately
+                // create a type for it and lazily infer member types as required.
+                type = member.isa<ModDecl>()
+                    ? checker.type_table.mod_type(*member.as<ModDecl>())
+                    : checker.infer(mod_type->member(*index));
+                is_value = member.isa<ValueDecl>();
+                is_ctor  = member.isa<CtorDecl>();
             } else
                 return checker.type_expected(elem.loc, type, "module or enum");
         }
