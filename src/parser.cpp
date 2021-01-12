@@ -244,8 +244,12 @@ Ptr<ast::UseDecl> Parser::parse_use_decl() {
     if (accept(Token::As))
         id = parse_id();
     expect(Token::Semi);
-    if (id.name == "" && path.elems.back().is_super())
-        error(tracker(), "a name is required to qualify this 'use'");
+    if (id.name == "" && path.elems.back().is_super()) {
+        error(tracker(), "name required to qualify this 'use'");
+        note("write '{} {} {} ...;' instead",
+            log::keyword_style("use"), path,
+            log::keyword_style("as"));
+    }
     return make_ptr<ast::UseDecl>(tracker(), std::move(path), std::move(id));
 }
 
