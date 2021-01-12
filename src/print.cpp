@@ -32,7 +32,10 @@ namespace ast {
 
 void Path::print(Printer& p) const {
     print_list(p, "::", elems, [&] (auto& e) {
-        p << e.id.name;
+        if (e.is_super())
+            p << log::keyword_style(e.id.name);
+        else
+            p << e.id.name;
         if (!e.args.empty()) {
             p << '[';
             print_list(p, ", ", e.args, [&] (auto& arg) {
