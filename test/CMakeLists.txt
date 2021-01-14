@@ -15,6 +15,7 @@ add_failure_test(NAME open_dir    COMMAND artic ${CMAKE_CURRENT_BINARY_DIR})
 
 add_test(NAME simple_literals1   COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/literals1.art)
 add_test(NAME simple_literals2   COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/literals2.art)
+add_test(NAME simple_literal_if  COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/literal_if.art)
 add_test(NAME simple_string      COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/string.art)
 add_test(NAME simple_comments    COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/comments.art)
 add_test(NAME simple_fn          COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/fn.art)
