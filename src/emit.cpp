@@ -733,6 +733,59 @@ const thorin::Def* Emitter::emit(const ast::Node& node, const Literal& lit) {
     }
 }
 
+const thorin::Def* find_or_create_comparator(Emitter& emitter, const artic::Type* type) {
+    if (auto it = emitter.comparators.find(type); it != emitter.comparators.end())
+        return it->second;
+    auto compare_fn_type = emitter.world.fn_type( { type->convert(emitter), type->convert(emitter), emitter.world.fn_type({ emitter.world.type_bool() }) });
+    auto compare_fn = emitter.world.continuation(compare_fn_type, { std::string("generated::compare[") + type->stringify(emitter) + std::string("]") });
+
+    auto different_cont = emitter.world.continuation({ std::string("different") });
+    emitter.enter(different_cont);
+    different_cont->jump(compare_fn->param(2), { emitter.world.literal_bool(false, {})});
+
+    auto identical_cont = emitter.world.continuation({ std::string("identical") });
+    emitter.enter(identical_cont);
+    identical_cont->jump(compare_fn->param(2), { emitter.world.literal_bool(true, {})});
+
+    emitter.enter(compare_fn);
+    if (type->isa<PrimType>()) {
+        auto lhs = compare_fn->param(0);
+        auto rhs = compare_fn->param(1);
+        emitter.branch(emitter.world.cmp_eq(lhs, rhs), identical_cont, different_cont);
+    } else if(type->isa<PtrType>()) {
+        emitter.error("Error auto-generating compare builtin for type {}, pointers are not supported !", type->stringify(emitter));
+    } else if (auto [applied, struct_type] = match_app<StructType>(type); struct_type) {
+        std::vector<const thorin::Def*> compare_results;
+        for (size_t i = 0; i < struct_type->member_count(); i++) {
+            auto member_type = applied ? applied->member_type(i) : struct_type->member_type(i);
+            auto lhs = emitter.world.extract(compare_fn->param(0), i);
+            auto rhs = emitter.world.extract(compare_fn->param(1), i);
+            const thorin::Def* compare_result;
+            if (member_type->isa<PrimType>()) {
+                compare_results.push_back(emitter.world.cmp_eq(lhs, rhs));
+            } else {
+                assert(false)
+            }
+        }
+
+        for (size_t i = 0; i < struct_type->member_count(); i++) {
+            if (i == struct_type->member_count() - 1) {
+                emitter.branch(compare_results[i], identical_cont, different_cont);
+            } else {
+                auto next_cont = emitter.world.continuation({ std::string("cmp_field_" + std::to_string(i + 1)) });
+                emitter.branch(compare_results[i], next_cont, different_cont);
+                emitter.enter(next_cont);
+            }
+        }
+
+        if (struct_type->member_count() == 0)
+            compare_fn->jump(identical_cont, {});
+    } else {
+        abort();
+    }
+    return emitter.comparators[type] = compare_fn;
+}
+
 const thorin::Def* Emitter::builtin(const ast::FnDecl& fn_decl, thorin::Continuation* cont) {
     if (cont->name() == "alignof") {
         auto target_type = fn_decl.type_params->params[0]->type->convert(*this);
@@ -757,6 +810,16 @@ const thorin::Def* Emitter::builtin(const ast::FnDecl& fn_decl, thorin::Continua
     } else if (cont->name() == "undef") {
         auto target_type = fn_decl.type_params->params[0]->type->convert(*this);
         cont->jump(cont->params().back(), call_args(cont->param(0), world.bottom(target_type)), debug_info(fn_decl));
+    } else if (cont->name() == "compare") {
+        auto mono_type = type_vars[fn_decl.type_params->params[0]->type->as<TypeVar>()];
+        auto compare_fn = find_or_create_comparator(*this, mono_type);
+
+        auto return_cont = world.continuation(world.fn_type({ world.type_bool() }), { std::string("identical") });
+        enter(return_cont);
+        return_cont->jump(cont->params().back(), call_args(cont->param(0), return_cont->param(0)), debug_info(fn_decl));
+
+        enter(cont);
+        cont->jump(compare_fn, {cont->param(1), cont->param(2), return_cont }, {});
     } else {
         assert(false);
     }
