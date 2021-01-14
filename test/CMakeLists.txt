@@ -102,6 +102,7 @@ add_failure_test(NAME failure_proj           COMMAND artic ${CMAKE_CURRENT_SOURC
 add_failure_test(NAME failure_enums1         COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/enums1.art)
 add_failure_test(NAME failure_enums2         COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/enums2.art)
 add_failure_test(NAME failure_enums3         COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/enums3.art)
+add_failure_test(NAME failure_enums4         COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/enums4.art)
 add_failure_test(NAME failure_mut            COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/mut.art)
 add_failure_test(NAME failure_filter1        COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/filter1.art)
 add_failure_test(NAME failure_filter2        COMMAND artic --warnings-as-errors ${CMAKE_CURRENT_SOURCE_DIR}/failure/filter2.art)
