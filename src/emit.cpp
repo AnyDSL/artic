@@ -754,7 +754,7 @@ const thorin::Def* find_or_create_comparator(Emitter& emitter, const artic::Type
     if (type->isa<PrimType>()) {
         auto lhs = compare_fn->param(0);
         auto rhs = compare_fn->param(1);
-        emitter.branch(emitter.world.cmp_eq(lhs, rhs), identical_cont, different_cont);
+        compare_fn->jump(compare_fn->param(2), { emitter.world.cmp_eq(lhs, rhs) }, {});
     } else if(type->isa<PtrType>()) {
         emitter.error("Error auto-generating compare builtin for type {}, pointers are not supported !", type->stringify(emitter));
     } else if (auto [applied, struct_type] = match_app<StructType>(type); struct_type) {
