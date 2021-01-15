@@ -763,7 +763,9 @@ const thorin::Def* create_comparator_head(Emitter& emitter, const artic::Type* t
 void create_comparator_body(Emitter& emitter, const artic::Type* type, const thorin::Def* left, const thorin::Def* right, const thorin::Continuation* join_identical, const thorin::Continuation* join_different) {
     auto saved = emitter.save_state();
 
-    if (type->isa<PrimType>()) {
+    if (is_unit_type(type)) {
+        emitter.jump(join_identical);
+    } else if (type->isa<PrimType>()) {
         emitter.branch(emitter.world.cmp_eq(left, right), join_identical, join_different);
     } else if (type->isa<PtrType>()) {
         emitter.error("Error auto-generating compare builtin for type {}, pointers are not supported !", type->stringify(emitter));
