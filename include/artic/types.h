@@ -469,6 +469,8 @@ struct EnumType : public ComplexType {
     const Type* member_type(size_t) const override;
     size_t member_count() const override;
 
+    bool is_trivial() const;
+
 private:
     EnumType(TypeTable& type_table, const ast::EnumDecl& decl)
         : ComplexType(type_table), decl(decl)

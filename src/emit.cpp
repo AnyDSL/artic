@@ -734,7 +734,7 @@ const thorin::Def* Emitter::emit(const ast::Node& node, const Literal& lit) {
 }
 
 const thorin::Def* create_comparator_head(Emitter& emitter, const artic::Type* type);
-const thorin::Def* create_comparator_body(Emitter& emitter, const artic::Type* type, const thorin::Def* left, const thorin::Def* right, const thorin::Def* join_identical, const thorin::Def* join_different);
+void create_comparator_body(Emitter& emitter, const artic::Type* type, const thorin::Def* left, const thorin::Def* right, const thorin::Continuation* join_identical, const thorin::Continuation* join_different);
 
 const thorin::Def* find_or_create_comparator(Emitter& emitter, const artic::Type* type) {
     if (auto it = emitter.comparators.find(type); it != emitter.comparators.end())
@@ -748,34 +748,31 @@ const thorin::Def* create_comparator_head(Emitter& emitter, const artic::Type* t
     auto compare_fn_type = emitter.world.fn_type( { type->convert(emitter), type->convert(emitter), compare_ret_type });
     auto compare_fn = emitter.world.continuation(compare_fn_type, { std::string("generated::compare[") + type->stringify(emitter) + std::string("]") });
     emitter.comparators[type] = compare_fn;
-    
-    auto join_identical = emitter.world.continuation({std::string("join_identical") });
+    auto join_identical = emitter.world.continuation({ std::string("join_identical") });
     emitter.enter(join_identical);
     join_identical->jump(compare_fn->param(2), {emitter.world.literal_bool(true, {})});
-    
-    auto join_different = emitter.world.continuation({std::string("join_different") });
+    auto join_different = emitter.world.continuation({ std::string("join_different") });
     emitter.enter(join_different);
     join_different->jump(compare_fn->param(2), {emitter.world.literal_bool(false, {})});
-
     emitter.enter(compare_fn);
     create_comparator_body(emitter, type, compare_fn->param(0), compare_fn->param(1), join_identical, join_different);
-
     return compare_fn;
 }
 
-const thorin::Def* create_comparator_body(Emitter& emitter, const artic::Type* type, const thorin::Def* left, const thorin::Def* right, const thorin::Def* join_identical, const thorin::Def* join_different) {
+// Inside the comparator body, data flow is replaced by control flow
+void create_comparator_body(Emitter& emitter, const artic::Type* type, const thorin::Def* left, const thorin::Def* right, const thorin::Continuation* join_identical, const thorin::Continuation* join_different) {
     auto saved = emitter.save_state();
 
     if (type->isa<PrimType>()) {
         emitter.branch(emitter.world.cmp_eq(left, right), join_identical, join_different);
     } else if (type->isa<PtrType>()) {
         emitter.error("Error auto-generating compare builtin for type {}, pointers are not supported !", type->stringify(emitter));
-    } else if (auto [applied, struct_type] = match_app<StructType>(type); struct_type) {
+    } else if (auto [type_app, struct_type] = match_app<StructType>(type); struct_type) {
         if (struct_type->member_count() == 0)
             emitter.jump(join_identical, {});
 
         for (size_t i = 0; i < struct_type->member_count(); i++) {
-            auto member_type = applied ? applied->member_type(i) : struct_type->member_type(i);
+            auto member_type = type_app ? type_app->member_type(i) : struct_type->member_type(i);
             auto lhs = emitter.world.extract(left, i);
             auto rhs = emitter.world.extract(right, i);
 
@@ -783,8 +780,29 @@ const thorin::Def* create_comparator_body(Emitter& emitter, const artic::Type* t
             create_comparator_body(emitter, member_type, lhs, rhs, (i == struct_type->member_count() - 1) ? join_identical : join_field_identical, join_different);
             emitter.enter(join_field_identical);
         }
-    } else if (auto [applied, enum_type] = match_app<EnumType>(type); enum_type) {
-        
+    } else if (auto [type_app, enum_type] = match_app<EnumType>(type); enum_type) {
+        auto compare_insides = emitter.world.continuation({ std::string("compare_insides") });
+        auto left_tag = emitter.world.variant_index(left);
+        auto right_tag = emitter.world.variant_index(right);
+        auto trivial_enum = (type_app ? type_app->applied : enum_type)->as<EnumType>()->is_trivial();
+        // Optimisation: when all options of the enum carry no payload, just compare the tags
+        emitter.branch(emitter.world.cmp_eq(left_tag, right_tag), trivial_enum ? join_identical : compare_insides, join_different);
+        if (!trivial_enum) {
+            emitter.enter(compare_insides);
+            thorin::Array<const thorin::Def*> tags(enum_type->member_count());
+            thorin::Array<thorin::Continuation*> joins(enum_type->member_count());
+            for (size_t i = 0; i < enum_type->member_count(); i++) {
+                tags[i] = emitter.world.literal_qu64(i, {});
+                auto option_type = type_app ? type_app->member_type(i) : enum_type->member_type(i);
+                auto left_payload = emitter.world.variant_extract(left, i);
+                auto right_payload = emitter.world.variant_extract(right, i);
+                joins[i] = emitter.world.continuation({ std::string("case_") + std::to_string(i) });
+                emitter.enter(joins[i]);
+                create_comparator_body(emitter, option_type, left_payload, right_payload, join_identical, join_different);
+            }
+            // I don't need otherwise but thorin needs one (and it needs it non-const too)
+            compare_insides->match(left_tag, const_cast<thorin::Continuation *>(join_different), tags, joins);
+        }
     } else {
         abort();
     }
