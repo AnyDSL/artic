@@ -124,6 +124,7 @@ mod C {
 let t = (1, 2);
 t(1) // valid in impala, invalid in artic
 // valid alternatives in artic:
+let t1 = t.1;
 match t { (_, t1) => ... }
 let (_, t1) = t;
 ```
