@@ -733,17 +733,17 @@ const thorin::Def* Emitter::emit(const ast::Node& node, const Literal& lit) {
     }
 }
 
-const thorin::Def* create_comparator_head(Emitter& emitter, const artic::Type* type);
-void create_comparator_body(Emitter& emitter, const artic::Type* type, const thorin::Def* left, const thorin::Def* right, const thorin::Continuation* join_identical, const thorin::Continuation* join_different);
+const thorin::Def* create_comparator_head(Emitter& emitter, const artic::Type* type, bool visit_pointers);
+void create_comparator_body(Emitter& emitter, const artic::Type* type, bool visit_pointers, const thorin::Def* left, const thorin::Def* right, const thorin::Continuation* join_identical, const thorin::Continuation* join_different);
 
-const thorin::Def* find_or_create_comparator(Emitter& emitter, const artic::Type* type) {
+const thorin::Def* find_or_create_comparator(Emitter& emitter, const artic::Type* type, bool visit_pointers) {
     if (auto it = emitter.comparators.find(type); it != emitter.comparators.end())
         return it->second;
 
-    return create_comparator_head(emitter, type);
+    return create_comparator_head(emitter, type, visit_pointers);
 }
 
-const thorin::Def* create_comparator_head(Emitter& emitter, const artic::Type* type) {
+const thorin::Def* create_comparator_head(Emitter& emitter, const artic::Type* type, bool visit_pointers) {
     auto compare_ret_type = emitter.world.fn_type({ emitter.world.type_bool() });
     auto compare_fn_type = emitter.world.fn_type( { type->convert(emitter), type->convert(emitter), compare_ret_type });
     auto compare_fn = emitter.world.continuation(compare_fn_type, { std::string("generated::compare[") + type->stringify(emitter) + std::string("]") });
@@ -755,12 +755,12 @@ const thorin::Def* create_comparator_head(Emitter& emitter, const artic::Type* t
     emitter.enter(join_different);
     join_different->jump(compare_fn->param(2), {emitter.world.literal_bool(false, {})});
     emitter.enter(compare_fn);
-    create_comparator_body(emitter, type, compare_fn->param(0), compare_fn->param(1), join_identical, join_different);
+    create_comparator_body(emitter, type, visit_pointers, compare_fn->param(0), compare_fn->param(1), join_identical, join_different);
     return compare_fn;
 }
 
 // Inside the comparator body, data flow is replaced by control flow
-void create_comparator_body(Emitter& emitter, const artic::Type* type, const thorin::Def* left, const thorin::Def* right, const thorin::Continuation* join_identical, const thorin::Continuation* join_different) {
+void create_comparator_body(Emitter& emitter, const artic::Type* type, bool visit_pointers, const thorin::Def* left, const thorin::Def* right, const thorin::Continuation* join_identical, const thorin::Continuation* join_different) {
     auto saved = emitter.save_state();
 
     if (is_unit_type(type)) {
@@ -768,7 +768,14 @@ void create_comparator_body(Emitter& emitter, const artic::Type* type, const tho
     } else if (type->isa<PrimType>()) {
         emitter.branch(emitter.world.cmp_eq(left, right), join_identical, join_different);
     } else if (type->isa<PtrType>()) {
-        emitter.error("Error auto-generating compare builtin for type {}, pointers are not supported !", type->stringify(emitter));
+        if (visit_pointers) {
+            emitter.error("TODO");
+        } else {
+            // Portability issue: casting pointer to u64 (might not be correct for some targets)
+            auto left_ptr = emitter.world.bitcast(emitter.world.type_qu64(), left);
+            auto right_ptr = emitter.world.bitcast(emitter.world.type_qu64(), right);
+            emitter.branch(emitter.world.cmp_eq(left_ptr, right_ptr), join_identical, join_different);
+        }
     } else if (auto [type_app, struct_type] = match_app<StructType>(type); struct_type) {
         if (struct_type->member_count() == 0)
             emitter.jump(join_identical, {});
@@ -779,7 +786,7 @@ void create_comparator_body(Emitter& emitter, const artic::Type* type, const tho
             auto rhs = emitter.world.extract(right, i);
 
             auto join_field_identical = emitter.world.continuation({ std::string("join_field_" + std::to_string(i + 1)) + std::string("_identical") });
-            create_comparator_body(emitter, member_type, lhs, rhs, (i == struct_type->member_count() - 1) ? join_identical : join_field_identical, join_different);
+            create_comparator_body(emitter, member_type, visit_pointers, lhs, rhs, (i == struct_type->member_count() - 1) ? join_identical : join_field_identical, join_different);
             emitter.enter(join_field_identical);
         }
     } else if (auto [type_app, enum_type] = match_app<EnumType>(type); enum_type) {
@@ -800,13 +807,13 @@ void create_comparator_body(Emitter& emitter, const artic::Type* type, const tho
                 auto right_payload = emitter.world.variant_extract(right, i);
                 joins[i] = emitter.world.continuation({ std::string("case_") + std::to_string(i) });
                 emitter.enter(joins[i]);
-                create_comparator_body(emitter, option_type, left_payload, right_payload, join_identical, join_different);
+                create_comparator_body(emitter, option_type, visit_pointers, left_payload, right_payload, join_identical, join_different);
             }
             // I don't need otherwise but thorin needs one (and it needs it non-const too)
             compare_insides->match(left_tag, const_cast<thorin::Continuation *>(join_different), tags, joins);
         }
     } else {
-        abort();
+        emitter.error("Comparing {} is not supported !", type->stringify(emitter));
     }
 }
 
@@ -836,7 +843,7 @@ const thorin::Def* Emitter::builtin(const ast::FnDecl& fn_decl, thorin::Continua
         cont->jump(cont->params().back(), call_args(cont->param(0), world.bottom(target_type)), debug_info(fn_decl));
     } else if (cont->name() == "compare") {
         auto mono_type = type_vars[fn_decl.type_params->params[0]->type->as<TypeVar>()];
-        auto compare_fn = find_or_create_comparator(*this, mono_type);
+        auto compare_fn = find_or_create_comparator(*this, mono_type, false);
         auto return_cont = world.continuation(world.fn_type({ world.type_bool() }), { std::string("compare_return_wrapper") });
         enter(return_cont);
         return_cont->jump(cont->params().back(), call_args(cont->param(0), return_cont->param(0)), debug_info(fn_decl));
