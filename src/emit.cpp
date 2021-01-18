@@ -733,6 +733,28 @@ const thorin::Def* Emitter::emit(const ast::Node& node, const Literal& lit) {
     }
 }
 
+// the branch intrinsic in Thorin does not forward any parameter, therefore we use wrappers for the true/false branches to pass the mem object
+void branch_with_mem(Emitter& emitter, const ast::Node* node, const thorin::Def* cond, const thorin::Continuation* join_true, const thorin::Continuation* join_false) {
+    auto branch_true  = node != nullptr ? emitter.basic_block(emitter.debug_info(*node, (std::string("wrap_") + join_true->name()).c_str() )) : emitter.basic_block({ std::string("wrap_") + join_true->name() });
+    auto branch_false = node != nullptr ? emitter.basic_block(emitter.debug_info(*node, (std::string("wrap_") + join_false->name()).c_str())) : emitter.basic_block({ std::string("wrap_") + join_false->name() });
+    branch_true->jump(join_true, { emitter.state.mem });
+    branch_false->jump(join_false, { emitter.state.mem });
+    emitter.branch(cond, branch_true, branch_false);
+}
+
+// see branch_with_mem
+void match_with_mem(Emitter& emitter, const ast::Node* node, const thorin::Def* cond, const thorin::Continuation* join_otherwise, thorin::ArrayRef<const thorin::Def*> patterns, thorin::ArrayRef<thorin::Continuation*> continuations) {
+    auto wrap_otherwise  = node != nullptr ? emitter.basic_block(emitter.debug_info(*node, (std::string("wrap_") + join_otherwise->name()).c_str() )) : emitter.basic_block({ std::string("wrap_otherwise") });
+    wrap_otherwise->jump(join_otherwise, { emitter.state.mem });
+
+    thorin::Array<thorin::Continuation*> joins(continuations.size());
+    for (size_t i = 0; i < continuations.size(); i++) {
+        joins[i] = emitter.basic_block({ std::string("wrap_") + continuations[i]->name() });
+        joins[i]->jump(continuations[i], { emitter.state.mem });
+    }
+    emitter.state.cont->match(cond, const_cast<thorin::Continuation *>(wrap_otherwise), patterns, joins);
+}
+
 const thorin::Def* create_comparator_head(Emitter& emitter, const artic::Type* type, bool visit_pointers);
 void create_comparator_body(Emitter& emitter, const artic::Type* type, bool visit_pointers, const thorin::Def* left, const thorin::Def* right, const thorin::Continuation* join_identical, const thorin::Continuation* join_different);
 
@@ -744,18 +766,18 @@ const thorin::Def* find_or_create_comparator(Emitter& emitter, const artic::Type
 }
 
 const thorin::Def* create_comparator_head(Emitter& emitter, const artic::Type* type, bool visit_pointers) {
-    auto compare_ret_type = emitter.world.fn_type({ emitter.world.type_bool() });
-    auto compare_fn_type = emitter.world.fn_type( { type->convert(emitter), type->convert(emitter), compare_ret_type });
+    auto compare_fn_type = emitter.function_type_with_mem(emitter.world.tuple_type({type->convert(emitter), type->convert(emitter)}), emitter.world.type_bool());
+
     auto compare_fn = emitter.world.continuation(compare_fn_type, { std::string("generated::compare[") + type->stringify(emitter) + std::string("]") });
     emitter.comparators[type] = compare_fn;
-    auto join_identical = emitter.world.continuation({ std::string("join_identical") });
+    auto join_identical = emitter.basic_block_with_mem({ std::string("join_identical") });
     emitter.enter(join_identical);
-    join_identical->jump(compare_fn->param(2), {emitter.world.literal_bool(true, {})});
-    auto join_different = emitter.world.continuation({ std::string("join_different") });
+    emitter.jump(compare_fn->params().back(), emitter.world.literal_bool(true, {}));
+    auto join_different = emitter.basic_block_with_mem({ std::string("join_different") });
     emitter.enter(join_different);
-    join_different->jump(compare_fn->param(2), {emitter.world.literal_bool(false, {})});
+    emitter.jump(compare_fn->params().back(), emitter.world.literal_bool(false, {}));
     emitter.enter(compare_fn);
-    create_comparator_body(emitter, type, visit_pointers, compare_fn->param(0), compare_fn->param(1), join_identical, join_different);
+    create_comparator_body(emitter, type, visit_pointers, compare_fn->param(1), compare_fn->param(2), join_identical, join_different);
     return compare_fn;
 }
 
@@ -766,7 +788,7 @@ void create_comparator_body(Emitter& emitter, const artic::Type* type, bool visi
     if (is_unit_type(type)) {
         emitter.jump(join_identical);
     } else if (type->isa<PrimType>()) {
-        emitter.branch(emitter.world.cmp_eq(left, right), join_identical, join_different);
+        branch_with_mem(emitter, nullptr, emitter.world.cmp_eq(left, right), join_identical, join_different);
     } else if (type->isa<PtrType>()) {
         if (visit_pointers) {
             emitter.error("TODO");
@@ -774,7 +796,7 @@ void create_comparator_body(Emitter& emitter, const artic::Type* type, bool visi
             // Portability issue: casting pointer to u64 (might not be correct for some targets)
             auto left_ptr = emitter.world.bitcast(emitter.world.type_qu64(), left);
             auto right_ptr = emitter.world.bitcast(emitter.world.type_qu64(), right);
-            emitter.branch(emitter.world.cmp_eq(left_ptr, right_ptr), join_identical, join_different);
+            branch_with_mem(emitter, nullptr, emitter.world.cmp_eq(left_ptr, right_ptr), join_identical, join_different);
         }
     } else if (auto [type_app, struct_type] = match_app<StructType>(type); struct_type) {
         if (struct_type->member_count() == 0)
@@ -785,17 +807,17 @@ void create_comparator_body(Emitter& emitter, const artic::Type* type, bool visi
             auto lhs = emitter.world.extract(left, i);
             auto rhs = emitter.world.extract(right, i);
 
-            auto join_field_identical = emitter.world.continuation({ std::string("join_field_" + std::to_string(i + 1)) + std::string("_identical") });
+            auto join_field_identical = emitter.basic_block_with_mem({ std::string("join_field_" + std::to_string(i + 1)) + std::string("_identical") });
             create_comparator_body(emitter, member_type, visit_pointers, lhs, rhs, (i == struct_type->member_count() - 1) ? join_identical : join_field_identical, join_different);
             emitter.enter(join_field_identical);
         }
     } else if (auto [type_app, enum_type] = match_app<EnumType>(type); enum_type) {
-        auto compare_insides = emitter.world.continuation({ std::string("compare_insides") });
+        auto compare_insides = emitter.basic_block_with_mem({ std::string("compare_insides") });
         auto left_tag = emitter.world.variant_index(left);
         auto right_tag = emitter.world.variant_index(right);
         auto trivial_enum = (type_app ? type_app->applied : enum_type)->as<EnumType>()->is_trivial();
         // Optimisation: when all options of the enum carry no payload, just compare the tags
-        emitter.branch(emitter.world.cmp_eq(left_tag, right_tag), trivial_enum ? join_identical : compare_insides, join_different);
+        branch_with_mem(emitter, nullptr, emitter.world.cmp_eq(left_tag, right_tag), trivial_enum ? join_identical : compare_insides, join_different);
         if (!trivial_enum) {
             emitter.enter(compare_insides);
             thorin::Array<const thorin::Def*> tags(enum_type->member_count());
@@ -805,12 +827,12 @@ void create_comparator_body(Emitter& emitter, const artic::Type* type, bool visi
                 auto option_type = type_app ? type_app->member_type(i) : enum_type->member_type(i);
                 auto left_payload = emitter.world.variant_extract(left, i);
                 auto right_payload = emitter.world.variant_extract(right, i);
-                joins[i] = emitter.world.continuation({ std::string("case_") + std::to_string(i) });
+                joins[i] = emitter.basic_block_with_mem({ std::string("case_") + std::to_string(i) });
                 emitter.enter(joins[i]);
                 create_comparator_body(emitter, option_type, visit_pointers, left_payload, right_payload, join_identical, join_different);
             }
             // I don't need otherwise but thorin needs one (and it needs it non-const too)
-            compare_insides->match(left_tag, const_cast<thorin::Continuation *>(join_different), tags, joins);
+            match_with_mem(emitter, nullptr, left_tag, const_cast<thorin::Continuation *>(join_different), tags, joins);
         }
     } else {
         emitter.error("Comparing {} is not supported !", type->stringify(emitter));
@@ -844,11 +866,9 @@ const thorin::Def* Emitter::builtin(const ast::FnDecl& fn_decl, thorin::Continua
     } else if (cont->name() == "compare") {
         auto mono_type = type_vars[fn_decl.type_params->params[0]->type->as<TypeVar>()];
         auto compare_fn = find_or_create_comparator(*this, mono_type, false);
-        auto return_cont = world.continuation(world.fn_type({ world.type_bool() }), { std::string("compare_return_wrapper") });
-        enter(return_cont);
-        return_cont->jump(cont->params().back(), call_args(cont->param(0), return_cont->param(0)), debug_info(fn_decl));
         enter(cont);
-        cont->jump(compare_fn, {cont->param(1), cont->param(2), return_cont }, {});
+        auto result = call(compare_fn, world.tuple({cont->param(1), cont->param(2)}) );
+        jump(cont->params().back(), result);
     } else {
         assert(false);
     }
