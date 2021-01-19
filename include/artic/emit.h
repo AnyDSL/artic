@@ -148,6 +148,7 @@ bool compile(
     const std::vector<std::string>& file_data,
     bool warns_as_errors,
     bool enable_all_warns,
+    bool allow_diverging_instances,
     ast::ModDecl& program,
     thorin::World& world,
     thorin::Log::Level log_level,

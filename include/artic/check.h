@@ -13,11 +13,12 @@ namespace artic {
 /// Utility class to perform bidirectional type checking.
 class TypeChecker : public Logger {
 public:
-    TypeChecker(Log& log, TypeTable& type_table)
-        : Logger(log), type_table(type_table)
+    TypeChecker(Log& log, TypeTable& type_table, bool allow_diverging_instances)
+        : Logger(log), type_table(type_table), allow_diverging_instances(allow_diverging_instances)
     {}
 
     TypeTable& type_table;
+    bool allow_diverging_instances;
 
     /// Performs type checking on a whole program.
     /// Returns true on success, otherwise false.

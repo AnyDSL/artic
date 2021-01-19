@@ -36,6 +36,7 @@ static void usage() {
                 "         --no-color             Disables colors in error messages\n"
                 " -Wall   --enable-all-warnings  Enables all warnings\n"
                 " -Werror --warnings-as-errors   Treat warnings as errors\n"
+                "         --allow-diverging-instances  Removes the constraints on generic 'impl' declarations. Might cause divergence\n"
                 "         --max-errors <n>       Sets the maximum number of error messages (unlimited by default)\n"
                 "         --print-ast            Prints the AST after parsing and type-checking\n"
                 "         --show-implicit-casts  Shows implicit casts as comments when printing the AST\n"
@@ -86,6 +87,7 @@ struct ProgramOptions {
     bool no_color = false;
     bool warns_as_errors = false;
     bool enable_all_warns = false;
+    bool allow_diverging_instances = false;
     bool debug = false;
     bool print_ast = false;
     bool emit_thorin = false;
@@ -135,6 +137,8 @@ struct ProgramOptions {
                     enable_all_warns = true;
                 } else if (matches(argv[i], "-Werror", "--warnings-as-errors")) {
                     warns_as_errors = true;
+                } else if (matches(argv[i], "--allow-diverging-instances")){
+                    allow_diverging_instances = true;
                 } else if (matches(argv[i], "--max-errors")) {
                     if (!check_arg(argc, argv, i))
                         return false;
@@ -274,6 +278,7 @@ int main(int argc, char** argv) {
         file_data,
         opts.warns_as_errors,
         opts.enable_all_warns,
+        opts.allow_diverging_instances,
         program,
         world,
         opts.log_level,

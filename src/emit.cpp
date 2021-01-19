@@ -1709,6 +1709,7 @@ bool compile(
     const std::vector<std::string>& file_data,
     bool warns_as_errors,
     bool enable_all_warns,
+    bool allow_diverging_instances,
     ast::ModDecl& program,
     thorin::World& world,
     thorin::Log::Level log_level,
@@ -1740,7 +1741,7 @@ bool compile(
         name_binder.warn_on_shadowing = true;
 
     TypeTable type_table;
-    TypeChecker type_checker(log, type_table);
+    TypeChecker type_checker(log, type_table, allow_diverging_instances);
     type_checker.warns_as_errors = warns_as_errors;
 
     if (!name_binder.run(program) || !type_checker.run(program))
@@ -1762,7 +1763,7 @@ bool compile(
     log::Output out(error_stream, false);
     Log log(out, &locator);
     ast::ModDecl program;
-    return compile(file_names, file_data, false, false, program, world, log_level, log);
+    return compile(file_names, file_data, false, false, false, program, world, log_level, log);
 }
 
 } // namespace artic

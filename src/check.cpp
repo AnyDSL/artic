@@ -1739,7 +1739,10 @@ const artic::Type* ImplDecl::infer(TypeChecker& checker) {
             int head_count = count_var_occurrence(param->type, this->trait_type->type);
             for (auto& w: where_clauses){
                 if(count_var_occurrence(param->type, w->type) > head_count){
-                    checker.warn("Constraint '{}' violates a paterson conditions in '{}'. This might cause the type inference algorithm to diverge. \n See 'Understanding functional dependencies via constraint handling rules' for details", *w, *this);
+                    if(checker.allow_diverging_instances)
+                        checker.warn("Constraint '{}' violates a paterson conditions in '{}'. This might cause the type inference algorithm to diverge. \n See 'Understanding functional dependencies via constraint handling rules' for details", *w, *this);
+                    else
+                        checker.error("Constraint '{}' violates a paterson conditions in '{}'. This might cause the type inference algorithm to diverge. \n See 'Understanding functional dependencies via constraint handling rules' for details", *w, *this);
                 }
             }
         }
@@ -1747,7 +1750,10 @@ const artic::Type* ImplDecl::infer(TypeChecker& checker) {
         int head_count = count_vars_ctors(this->trait_type->type);
         for (auto& w: where_clauses){
             if(count_vars_ctors(w->type) >= head_count){
-                checker.warn("Constraint '{}' violates a paterson condition in '{}'. This might cause the type inference algorithm to diverge. \n See 'Understanding functional dependencies via constraint handling rules' for details", *w, *this);
+                if(checker.allow_diverging_instances)
+                    checker.warn("Constraint '{}' violates a paterson condition in '{}'. This might cause the type inference algorithm to diverge. \n See 'Understanding functional dependencies via constraint handling rules' for details", *w, *this);
+                else
+                    checker.error("Constraint '{}' violates a paterson conditions in '{}'. This might cause the type inference algorithm to diverge. \n See 'Understanding functional dependencies via constraint handling rules' for details", *w, *this);
             }
         }
 
