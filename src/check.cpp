@@ -536,9 +536,23 @@ const Type* TypeChecker::infer_record_type(const TypeApp* type_app, const Struct
     return type_app ? type_app->as<Type>() : struct_type;
 }
 
+bool contains_var(const Type* t){
+    if(t->isa<TypeVar>()){
+        return true;
+    }
+    if(t->isa<FnType>()){
+        return contains_var(t->as<FnType>()->dom) || contains_var(t->as<FnType>()->codom);
+    }
+    if(t->isa<TypeApp>()){
+        for(auto arg: t->as<TypeApp>()->type_args){
+            if(contains_var(arg)) return true;
+        }
+    }
+    return false;
+}
+
 bool TypeChecker::check_bound(const Type* bound, Loc& loc){
     if (auto trait_type = bound->isa<artic::TraitType>()) {
-        std::cout << "EEEEEEEEEEEEE" << std::endl;
         if (type_table.find_impls(trait_type).empty()) {
             error(loc, "the trait '{}' is not implemented", *trait_type);
             return false;
@@ -547,20 +561,12 @@ bool TypeChecker::check_bound(const Type* bound, Loc& loc){
             error(loc, "the trait '{}' has multiple implementations", *trait_type);
             return false;
         }
-        std::cout << "FFFFFFFFFFFFFFFFFFFFF" << std::endl;
     }
     else if (
         auto type_app = bound->isa<artic::TypeApp>();
             type_app && type_app->applied->isa<artic::TraitType>()
             ) {
-        bool contains_var = false;
-        for (auto& arg:type_app->type_args) {
-            if (arg->isa<TypeVar>()) {
-                contains_var = true;
-            }
-        }
-        if (!contains_var) {
-            std::cout << "GGGGGGGGGGGGGGGGGGGGGGGGGGGG" << std::endl;
+        if (!contains_var(type_app)) {
             if (type_table.find_impls(type_app).empty()) {
                 error(loc, "the trait '{}' is not implemented", *type_app);
                 return false;
@@ -569,7 +575,6 @@ bool TypeChecker::check_bound(const Type* bound, Loc& loc){
                 error(loc, "the trait '{}' has multiple implementations", *type_app);
                 return false;
             }
-            std::cout << "HHHHHHHHHHHHHHHHHHHHHHHHHHHHHH" << std::endl;
         }
     }
     else {
@@ -1684,6 +1689,32 @@ const artic::Type* TraitDecl::infer(TypeChecker& checker) {
     return trait_type;
 }
 
+int count_var_occurrence(const artic::Type* param, const artic::Type* in){
+    if(in == param) return 1;
+    else if (in->isa<artic::TypeApp>()){
+        int res =0;
+        for (auto arg: in->as<artic::TypeApp>()->type_args){
+            res += count_var_occurrence(param, arg);
+        }
+        return res;
+    }
+    return 0;
+}
+
+int count_vars_ctors(const artic::Type* t){
+    if(t->isa<artic::TypeVar>()){
+        return 1;
+    }
+    else if (t->isa<artic::TypeApp>() && contains_var(t)){
+        int res = 1;
+        for(auto& arg: t->as<artic::TypeApp>()->type_args){
+            res += count_vars_ctors(arg);
+        }
+        return res;
+    }
+    return 0;
+}
+
 const artic::Type* ImplDecl::infer(TypeChecker& checker) {
     checker.enter_decl(this);
     //check trait bounds
@@ -1699,6 +1730,27 @@ const artic::Type* ImplDecl::infer(TypeChecker& checker) {
     if (!trait_type){
         checker.exit_decl(this);
         return checker.type_expected(loc, this->trait_type->type, "trait");
+    }
+
+    //paterson
+    if (type_params) {
+        //variable count condition
+        for (const auto& param: type_params->params) {
+            int head_count = count_var_occurrence(param->type, this->trait_type->type);
+            for (auto& w: where_clauses){
+                if(count_var_occurrence(param->type, w->type) > head_count){
+                    checker.warn("Constraint '{}' violates a paterson conditions in '{}'. This might cause the type inference algorithm to diverge. \n See 'Understanding functional dependencies via constraint handling rules' for details", *w, *this);
+                }
+            }
+        }
+        //constructor condition
+        int head_count = count_vars_ctors(this->trait_type->type);
+        for (auto& w: where_clauses){
+            if(count_vars_ctors(w->type) >= head_count){
+                checker.warn("Constraint '{}' violates a paterson condition in '{}'. This might cause the type inference algorithm to diverge. \n See 'Understanding functional dependencies via constraint handling rules' for details", *w, *this);
+            }
+        }
+
     }
 
     auto conflict = checker.type_table.register_impl(checker.type_table.trait_impl_type(*this));
