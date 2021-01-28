@@ -38,5 +38,17 @@ if (BUILD_TESTING)
     add_subdirectory(test)
 endif ()
 
+function (cat IN_FILE OUT_FILE)
+    file(READ ${IN_FILE} CONTENTS)
+    file(APPEND ${OUT_FILE} "${CONTENTS}")
+endfunction()
+
+file(GLOB STDLIB "./libraries/*.art")
+file(WRITE ./bin/stdlib.art "")
+
+foreach(LIB ${STDLIB})
+    cat(${LIB} ./bin/stdlib.art)
+endforeach()
+
 export(TARGETS libartic artic FILE ${CMAKE_BINARY_DIR}/share/anydsl/cmake/artic-exports.cmake)
 configure_file(cmake/artic-config.cmake.in ${CMAKE_BINARY_DIR}/share/anydsl/cmake/artic-config.cmake @ONLY)

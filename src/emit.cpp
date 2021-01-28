@@ -1706,6 +1706,7 @@ struct MemBuf : public std::streambuf {
 
 bool compile(
     const std::vector<std::string>& file_names,
+    const std::string& std_lib_name,
     const std::vector<std::string>& file_data,
     bool warns_as_errors,
     bool enable_all_warns,
@@ -1722,7 +1723,7 @@ bool compile(
         std::istream is(&mem_buf);
 
         Lexer lexer(log, file_names[i], is);
-        Parser parser(log, lexer);
+        Parser parser(log, lexer, file_names[i] == std_lib_name);
         parser.warns_as_errors = warns_as_errors;
         auto module = parser.parse();
         if (log.errors > 0)
@@ -1763,7 +1764,7 @@ bool compile(
     log::Output out(error_stream, false);
     Log log(out, &locator);
     ast::ModDecl program;
-    return compile(file_names, file_data, false, false, false, program, world, log_level, log);
+    return compile(file_names, "", file_data, false, false, false, program, world, log_level, log);
 }
 
 } // namespace artic

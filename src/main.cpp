@@ -33,6 +33,7 @@ static void usage() {
                 "options:\n"
                 "  -h     --help                 Displays this message\n"
                 "         --version              Displays the version number\n"
+                "         --std-lib              Specifies the location of the standard library (default: ./bin/stdlib.art)\n"
                 "         --no-color             Disables colors in error messages\n"
                 " -Wall   --enable-all-warnings  Enables all warnings\n"
                 " -Werror --warnings-as-errors   Treat warnings as errors\n"
@@ -81,6 +82,7 @@ static void version() {
 }
 
 struct ProgramOptions {
+    std::string std_lib = "./bin/stdlib.art";
     std::vector<std::string> files;
     std::string module_name;
     bool exit = false;
@@ -199,6 +201,10 @@ struct ProgramOptions {
                     if (!check_arg(argc, argv, i))
                         return false;
                     module_name = argv[++i];
+                } else if (matches(argv[i], "--std-lib")) {
+                    if (!check_arg(argc, argv, i))
+                        return false;
+                    std_lib = argv[++i];
                 } else {
                     log::error("unknown option '{}'", argv[i]);
                     return false;
@@ -206,7 +212,7 @@ struct ProgramOptions {
             } else
                 files.push_back(argv[i]);
         }
-
+        files.push_back(std_lib);
         return true;
     }
 };
@@ -275,6 +281,7 @@ int main(int argc, char** argv) {
     ast::ModDecl program;
     bool success = compile(
         opts.files,
+        opts.std_lib,
         file_data,
         opts.warns_as_errors,
         opts.enable_all_warns,

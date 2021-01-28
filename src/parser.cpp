@@ -6,8 +6,8 @@
 
 namespace artic {
 
-Parser::Parser(Log& log, Lexer& lexer)
-    : Logger(log), lexer_(lexer)
+Parser::Parser(Log& log, Lexer& lexer,  bool is_std_lib)
+    : Logger(log), lexer_(lexer), is_std_lib_(is_std_lib)
 {
     for (int i = 0; i < max_ahead; i++)
         next();
@@ -284,7 +284,7 @@ Ptr<ast::ImplDecl> Parser::parse_impl_decl(){
         }
         expect(Token::RBrace);
     }
-    return make_ptr<ast::ImplDecl>(tracker(), std::move(type_params), std::move(trait_type),  std::move(functs), std::move(where_clauses));
+    return make_ptr<ast::ImplDecl>(tracker(), std::move(type_params), std::move(trait_type),  std::move(functs), std::move(where_clauses), is_std_lib_);
 }
 
 Ptr<ast::TypeDecl> Parser::parse_type_decl() {

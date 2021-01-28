@@ -1,4 +1,3 @@
-enum Option[T] { Some(T), None }
 fn make_option[T](t: T) = Option[T]::Some(t);
 struct A {}
 struct B {}

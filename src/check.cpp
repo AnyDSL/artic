@@ -1738,7 +1738,7 @@ const artic::Type* ImplDecl::infer(TypeChecker& checker) {
         for (const auto& param: type_params->params) {
             int head_count = count_var_occurrence(param->type, this->trait_type->type);
             for (auto& w: where_clauses){
-                if(count_var_occurrence(param->type, w->type) > head_count){
+                if(!in_std_lib && (count_var_occurrence(param->type, w->type) > head_count)){
                     if(checker.allow_diverging_instances)
                         checker.warn("Constraint '{}' violates a paterson conditions in '{}'. This might cause the type inference algorithm to diverge. \n See 'Understanding functional dependencies via constraint handling rules' for details", *w, *this);
                     else
@@ -1749,7 +1749,7 @@ const artic::Type* ImplDecl::infer(TypeChecker& checker) {
         //constructor condition
         int head_count = count_vars_ctors(this->trait_type->type);
         for (auto& w: where_clauses){
-            if(count_vars_ctors(w->type) >= head_count){
+            if(!in_std_lib && (count_vars_ctors(w->type) >= head_count)){
                 if(checker.allow_diverging_instances)
                     checker.warn("Constraint '{}' violates a paterson condition in '{}'. This might cause the type inference algorithm to diverge. \n See 'Understanding functional dependencies via constraint handling rules' for details", *w, *this);
                 else

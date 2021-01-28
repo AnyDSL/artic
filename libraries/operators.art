@@ -1,0 +1,21 @@
+trait Add[T]{ fn add(T,T)->T; }
+trait Sub[T]{ fn sub(T,T)->T; }
+trait Mul[T]{ fn mul(T,T)->T; }
+trait Div[T]{ fn div(T,T)->T; }
+trait Rem[T]{ fn rem(T,T)->T; }
+trait LShift[T]{ fn lshift(T,T)->T; }
+trait RShift[T]{ fn rshift(T,T)->T; }
+trait And[T]{ fn and(T,T)->T; }
+trait Or[T]{ fn or(T,T)->T; }
+trait Xor[T]{ fn xor(T,T)->T; }
+trait LAnd[T]{ fn and(T,T)->bool; }
+trait LOr[T]{ fn or(T,T)->bool; }
+trait CmpLT[T]{ fn lt(T,T)->bool; }
+trait CmpGT[T]{ fn gt(T,T)->bool; }
+trait CmpLE[T]{ fn le(T,T)->bool; }
+trait CmpGE[T]{ fn ge(T,T)->bool; }
+trait CmpEq[T]{ fn eq(T,T)->bool; }
+trait CmpNE[T]{ fn ne(T,T)->bool; }
+trait FromInt[T]{ fn from_int(u64)->T; }
+trait FromFloat[T]{ fn from_float(f64)->T; }
+trait Bitcast[T, U]{ fn bitcast(T)->U; }
