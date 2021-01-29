@@ -596,6 +596,22 @@ void Emitter::branch(
     state.cont = nullptr;
 }
 
+void Emitter::branch_with_mem(
+    const thorin::Def* cond,
+    const thorin::Def* branch_true_with_mem,
+    const thorin::Def* branch_false_with_mem,
+    thorin::Debug debug) {
+    if (!state.cont)
+        return;
+    auto branch_true = basic_block(thorin::Debug { "branch_true" });
+    auto branch_false = basic_block(thorin::Debug { "branch_false" });
+    branch(cond, branch_true, branch_false, debug);
+    enter(branch_true);
+    jump(branch_true_with_mem);
+    enter(branch_false);
+    jump(branch_false_with_mem);
+}
+
 const thorin::Def* Emitter::alloc(const thorin::Type* type, thorin::Debug debug) {
     assert(state.mem);
     auto pair = world.enter(state.mem);
@@ -793,13 +809,13 @@ const thorin::Def* Emitter::comparator(const Loc& loc, const Type* type) {
             break;
         case thorin::Node_TupleType:
         case thorin::Node_StructType: {
-            auto branch_false = basic_block();
+            auto branch_false = basic_block_with_mem();
             for (size_t i = 0, n = converted_type->num_ops(); i < n; ++i) {
-                auto branch_true = basic_block();
-                auto op_comparator = comparator(loc, member_type(type, i));
+                auto branch_true = basic_block_with_mem();
                 auto index = world.literal_qu64(i, {});
-                auto is_eq = call(op_comparator, world.tuple({ world.lea(left, index, {}), world.lea(right, index, {}) }));
-                branch(is_eq, branch_true, branch_false);
+                auto is_eq = call(comparator(loc, member_type(type, i)),
+                    world.tuple({ world.lea(left, index, {}), world.lea(right, index, {}) }));
+                branch_with_mem(is_eq, branch_true, branch_false);
                 enter(branch_true);
             }
             jump(ret, world.literal_bool(true, {}));
@@ -808,52 +824,56 @@ const thorin::Def* Emitter::comparator(const Loc& loc, const Type* type) {
             break;
         }
         case thorin::Node_VariantType: {
-            auto branch_false = basic_block();
-            auto branch_true  = basic_block();
             // TODO: Change thorin to be able to extract the address of the index,
             // along with the address of the contained object, instead of always loading it.
             left  = load(left);
             right = load(right);
             auto is_eq = world.cmp_eq(world.variant_index(left), world.variant_index(right));
+            auto branch_false = basic_block();
+            auto branch_true  = basic_block();
             branch(is_eq, branch_true, branch_false);
-            enter(branch_true);
 
+            enter(branch_false);
+            jump(ret, world.literal_bool(false, {}));
+
+            enter(branch_true);
             // Optimisation: When all the operands of the variant carry no payload,
             // just compare the tags.
-            auto enum_type = match_app<EnumType>(type).second;
-            assert(enum_type);
-            if (!enum_type->is_trivial()) {
+            if (!match_app<EnumType>(type).second->is_trivial()) {
                 thorin::Array<thorin::Continuation*> targets(
                     converted_type->num_ops() - 1, [&] (auto) { return basic_block(); });
                 thorin::Array<const thorin::Def*> defs(
                     converted_type->num_ops() - 1, [&] (size_t i) { return ctor_index(i); });
-                auto otherwise   = basic_block();
-                auto branch_true = basic_block();
+                auto otherwise  = basic_block();
+                auto join_true  = basic_block_with_mem();
+                auto join_false = basic_block_with_mem();
 
                 state.cont->match(
                     world.variant_index(left), otherwise,
                     defs.ref(), targets.ref());
                 for (size_t i = 0, n = converted_type->num_ops(); i < n; ++i) {
+                    auto _ = save_state();
                     enter(i == n - 1 ? otherwise : targets[i]);
                     // No payload, return true
                     if (thorin::is_type_unit(converted_type->op(i))) {
-                        jump(branch_true);
+                        jump(ret, world.literal_bool(true, {}));
                         continue;
                     }
-                    auto op_comparator = comparator(loc, member_type(type, i));
                     auto left_ptr  = alloc(converted_type->op(i));
                     auto right_ptr = alloc(converted_type->op(i));
                     store(left_ptr,  world.variant_extract(left, i));
                     store(right_ptr, world.variant_extract(right, i));
-                    auto is_eq = call(op_comparator, world.tuple({ left_ptr, right_ptr }));
-                    branch(is_eq, branch_true, branch_false);
+                    auto is_eq = call(comparator(loc, member_type(type, i)),
+                        world.tuple({ left_ptr, right_ptr }));
+                    branch_with_mem(is_eq, join_true, join_false);
                 }
-                enter(branch_true);
+                enter(join_true);
+                jump(ret, world.literal_bool(true, {}));
+                enter(join_false);
+                jump(ret, world.literal_bool(false, {}));
+            } else {
+                jump(ret, world.literal_bool(true, {}));
             }
-            jump(ret, world.literal_bool(true, {}));
-
-            enter(branch_false);
-            jump(ret, world.literal_bool(false, {}));
             break;
         }
         default:
@@ -1004,12 +1024,7 @@ void Expr::emit_branch(
     Emitter& emitter,
     thorin::Continuation* join_true,
     thorin::Continuation* join_false) const {
-    auto branch_true  = emitter.basic_block(emitter.debug_info(*this, "branch_true"));
-    auto branch_false = emitter.basic_block(emitter.debug_info(*this, "branch_false"));
-    auto cond = emitter.emit(*this);
-    branch_true->jump(join_true, { emitter.state.mem });
-    branch_false->jump(join_false, { emitter.state.mem });
-    emitter.branch(cond, branch_true, branch_false);
+    emitter.branch_with_mem(emitter.emit(*this), join_true, join_false);
 }
 
 const thorin::Def* TypedExpr::emit(Emitter& emitter) const {
