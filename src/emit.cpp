@@ -219,11 +219,7 @@ private:
             std::vector<Value> new_values(member_count);
             for (size_t j = 0; j < member_count; ++j) {
                 new_values[j].first  = emitter.world.extract(values[i].first, j, emitter.debug_info(expr));
-                new_values[j].second =
-                    type_app               ? type_app->member_type(j)       :
-                    struct_type            ? struct_type->member_type(j)    :
-                    type->isa<TupleType>() ? type->as<TupleType>()->args[j] :
-                    type->as<ArrayType>()->elem;
+                new_values[j].second = member_type(type, j);
             }
             remove_col(values, i);
             values.insert(values.end(), new_values.begin(), new_values.end());
@@ -271,7 +267,8 @@ private:
         std::vector<Row> wildcards;
 
         auto col = pick_col();
-        auto [type_app, enum_type] = match_app<EnumType>(values[col].second);
+        auto col_type = values[col].second;
+        auto [type_app, enum_type] = match_app<EnumType>(col_type);
 
         // First, collect constructors
         for (auto& row : rows) {
@@ -309,8 +306,8 @@ private:
         }
 
         // Generate jumps to each constructor case
-        bool no_default = is_complete(values[col].second, ctors.size());
-        if (is_bool_type(values[col].second)) {
+        bool no_default = is_complete(col_type, ctors.size());
+        if (is_bool_type(col_type)) {
             auto match_true  = emitter.basic_block(emitter.debug_info(node, "match_true"));
             auto match_false = emitter.basic_block(emitter.debug_info(node, "match_false"));
             emitter.branch(values[col].first, match_true, match_false);
@@ -326,7 +323,7 @@ private:
                 PtrnCompiler(emitter, node, expr, std::move(wildcards), std::move(values), matched_values).compile();
             }
         } else {
-            assert(enum_type || is_int_type(values[col].second));
+            assert(enum_type || is_int_type(col_type));
             thorin::Array<thorin::Continuation*> targets(ctors.size());
             thorin::Array<const thorin::Def*> defs(ctors.size());
             auto otherwise = emitter.basic_block(emitter.debug_info(node, "match_otherwise"));
@@ -360,7 +357,7 @@ private:
                 auto new_values = values;
                 if (enum_type) {
                     auto index = thorin::primlit_value<uint64_t>(defs[i]);
-                    auto type  = type_app ? type_app->member_type(index) : enum_type->member_type(index);
+                    auto type  = member_type(col_type, index);
                     auto value = emitter.world.variant_extract(col_value, index);
                     // If the constructor refers to an option that has a parameter,
                     // we need to extract it and add it to the values.
@@ -470,10 +467,14 @@ thorin::Continuation* Emitter::basic_block_with_mem(const thorin::Type* param, t
 
 const thorin::Def* Emitter::ctor_index(const ast::Ptrn& ptrn) {
     if (auto record_ptrn = ptrn.isa<ast::RecordPtrn>())
-        return world.literal_qu64(record_ptrn->variant_index, debug_info(ptrn));
+        return ctor_index(record_ptrn->variant_index, debug_info(ptrn));
     return ptrn.isa<ast::LiteralPtrn>()
         ? emit(ptrn, ptrn.as<ast::LiteralPtrn>()->lit)
-        : world.literal_qu64(ptrn.as<ast::CtorPtrn>()->variant_index, debug_info(ptrn));
+        : ctor_index(ptrn.as<ast::CtorPtrn>()->variant_index, debug_info(ptrn));
+}
+
+const thorin::Def* Emitter::ctor_index(size_t index, thorin::Debug debug) {
+    return world.literal_qu64(index, debug);
 }
 
 void Emitter::redundant_case(const ast::CaseExpr& case_) {
@@ -858,9 +859,7 @@ const thorin::Def* Path::emit(Emitter& emitter) const {
                 ? type_app->convert(emitter)
                 : enum_type->convert(emitter));
             auto variant_type = converted_type->as<thorin::VariantType>();
-            auto param_type = type_app
-                ? type_app->member_type(ctor.index)
-                : enum_type->member_type(ctor.index);
+            auto param_type = member_type(elems[i].type, ctor.index);
             if (is_unit_type(param_type)) {
                 // This is a constructor without parameters
                 return emitter.variant_ctors[ctor] = emitter.world.variant(variant_type, emitter.world.tuple({}), ctor.index);

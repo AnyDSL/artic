@@ -588,6 +588,21 @@ bool is_simd_type(const Type*);
 bool is_unit_type(const Type*);
 inline bool is_bool_type(const Type* type) { return is_prim_type(type, ast::PrimType::Bool); }
 
+inline const Type* member_type(const Type* type, size_t i) {
+    if (auto type_app = type->isa<TypeApp>())
+        return type_app->member_type(i);
+    else if (auto complex_type = type->isa<ComplexType>())
+        return complex_type->member_type(i);
+    else if (auto tuple_type = type->isa<TupleType>())
+        return tuple_type->args[i];
+    else if (auto array_type = type->isa<ArrayType>())
+        return array_type->elem;
+    else {
+        assert(false);
+        return nullptr;
+    }
+}
+
 template <typename T>
 std::pair<const TypeApp*, const T*> match_app(const Type* type) {
     if (auto type_app = type->isa<TypeApp>())
