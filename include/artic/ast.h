@@ -1368,21 +1368,18 @@ struct ImplDecl : public Decl {
     Ptr<TypeApp> trait_type;
     PtrVector<FnDecl> functs;
     PtrVector<TypeApp> where_clauses;
-    bool in_std_lib;
 
     ImplDecl(
             const Loc& loc,
             Ptr<TypeParamList>&& type_params,
             Ptr<TypeApp>&& trait_type,
             PtrVector<FnDecl>&& functs,
-            PtrVector<TypeApp> where_clauses,
-            bool in_std_lib)
+            PtrVector<TypeApp> where_clauses)
             : Decl(loc)
             , type_params(std::move(type_params))
             , trait_type(std::move(trait_type))
             , functs(std::move(functs))
             , where_clauses(std::move(where_clauses))
-            , in_std_lib(in_std_lib)
      {}
 
      const thorin::Def* emit(Emitter&) const override;

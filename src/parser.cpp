@@ -6,8 +6,8 @@
 
 namespace artic {
 
-Parser::Parser(Log& log, Lexer& lexer,  bool is_std_lib)
-    : Logger(log), lexer_(lexer), is_std_lib_(is_std_lib)
+Parser::Parser(Log& log, Lexer& lexer)
+    : Logger(log), lexer_(lexer)
 {
     for (int i = 0; i < max_ahead; i++)
         next();
@@ -225,8 +225,11 @@ Ptr<ast::TraitDecl> Parser::parse_trait_decl(){
     PtrVector<ast::FnDecl>functs;
     if (accept(Token::LBrace)) {
         while (ahead().tag() != Token::RBrace && ahead().tag() != Token::End) {
-            if (ahead().tag() == Token::Fn)
-                functs.emplace_back(parse_fn_decl());
+            if (ahead().tag() == Token::Fn) {
+                auto fn = parse_fn_decl();
+                fn->is_top_level = false;
+                functs.emplace_back(std::move(fn));
+            }
             else {
                 error(ahead().loc(), "expected function declaration got '{}'", ahead().string());
                 while (
@@ -268,8 +271,15 @@ Ptr<ast::ImplDecl> Parser::parse_impl_decl(){
     PtrVector<ast::FnDecl>functs;
     if (accept(Token::LBrace)) {
         while (ahead().tag() != Token::RBrace && ahead().tag() != Token::End) {
-            if (ahead().tag() == Token::Fn)
-                functs.emplace_back(parse_fn_decl());
+            Ptr<ast::AttrList> attrs;
+            if (ahead().tag() == Token::Hash)
+                attrs = parse_attr_list();
+            if (ahead().tag() == Token::Fn) {
+                auto fn = parse_fn_decl();
+                fn->is_top_level = false;
+                fn->attrs = std::move(attrs);
+                functs.emplace_back(std::move(fn));
+            }
             else {
                 error(ahead().loc(), "expected function declaration got '{}'", ahead().string());
                 while (
@@ -284,7 +294,7 @@ Ptr<ast::ImplDecl> Parser::parse_impl_decl(){
         }
         expect(Token::RBrace);
     }
-    return make_ptr<ast::ImplDecl>(tracker(), std::move(type_params), std::move(trait_type),  std::move(functs), std::move(where_clauses), is_std_lib_);
+    return make_ptr<ast::ImplDecl>(tracker(), std::move(type_params), std::move(trait_type),  std::move(functs), std::move(where_clauses));
 }
 
 Ptr<ast::TypeDecl> Parser::parse_type_decl() {

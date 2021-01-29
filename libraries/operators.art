@@ -19,3 +19,14 @@ trait CmpNE[T]{ fn ne(T,T)->bool; }
 trait FromInt[T]{ fn from_int(u64)->T; }
 trait FromFloat[T]{ fn from_float(f64)->T; }
 trait Bitcast[T, U]{ fn bitcast(T)->U; }
+impl Add[i8]{ #[import(cc = "builtin")]fn add(i8,i8)->i8; }
+impl Add[i16]{ #[import(cc = "builtin")]fn add(i16,i16)->i16; }
+impl Add[i32]{ #[import(cc = "builtin")]fn add(i32,i32)->i32; }
+impl Add[i64]{ #[import(cc = "builtin")]fn add(i64,i64)->i64; }
+impl Add[u8]{ #[import(cc = "builtin")]fn add(u8,u8)->u8; }
+impl Add[u16]{ #[import(cc = "builtin")]fn add(u16,u16)->u16; }
+impl Add[u32]{ #[import(cc = "builtin")]fn add(u32,u32)->u32; }
+impl Add[u64]{ #[import(cc = "builtin")]fn add(u64,u64)->u64; }
+impl Add[f16]{ #[import(cc = "builtin")]fn add(f16,f16)->f16; }
+impl Add[f32]{ #[import(cc = "builtin")]fn add(f32,f32)->f32; }
+impl Add[f64]{ #[import(cc = "builtin")]fn add(f64,f64)->f64; }

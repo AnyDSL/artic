@@ -44,7 +44,7 @@ function (cat IN_FILE OUT_FILE)
 endfunction()
 
 file(GLOB STDLIB "./libraries/*.art")
-file(WRITE ./bin/stdlib.art "")
+file(WRITE "./bin/stdlib.art")
 
 foreach(LIB ${STDLIB})
     cat(${LIB} ./bin/stdlib.art)

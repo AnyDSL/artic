@@ -653,7 +653,11 @@ public:
     /// or returns the type alias expanded with the given type arguments.
     const Type* type_app(const UserType*, std::vector<const Type*>&&);
 
-    /// Retruns nullptr if the impl is not already registered
+    //relates operators to traits implementing them
+    void add_op_trait(ast::BinaryExpr::Tag op, const TraitType* trait);
+    const TraitType* get_op_trait(ast::BinaryExpr::Tag op);
+
+    /// Returns nullptr if the impl is not already registered
     const ImplType* register_impl(const ImplType* impl);
     const std::vector<const Type*>  find_impls(const Type* type);
     const bool check_impl(const Type* type, const ImplType* impl);
@@ -674,6 +678,7 @@ private:
         }
     };
     std::unordered_set<const Type*, HashType, CompareTypes> types_;
+    std::unordered_map<ast::BinaryExpr::Tag, const TraitType*> op_traits_;
     std::vector<const ImplType*> impls_;
 
     const PrimType*   bool_type_   = nullptr;
@@ -682,6 +687,7 @@ private:
     const TopType*    top_type_    = nullptr;
     const NoRetType*  no_ret_type_ = nullptr;
     const TypeError*  type_error_  = nullptr;
+
 };
 
 } // namespace artic

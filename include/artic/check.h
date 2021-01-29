@@ -13,12 +13,11 @@ namespace artic {
 /// Utility class to perform bidirectional type checking.
 class TypeChecker : public Logger {
 public:
-    TypeChecker(Log& log, TypeTable& type_table, bool allow_diverging_instances)
-        : Logger(log), type_table(type_table), allow_diverging_instances(allow_diverging_instances)
+    TypeChecker(Log& log, TypeTable& type_table)
+        : Logger(log), type_table(type_table)
     {}
 
     TypeTable& type_table;
-    bool allow_diverging_instances;
 
     /// Performs type checking on a whole program.
     /// Returns true on success, otherwise false.
@@ -91,6 +90,7 @@ public:
     //returns true if the bound is valid
     bool check_bound(const Type*, Loc& loc);
     bool trait_bound_exists(const Type*);
+
 
 private:
     std::unordered_set<const ast::Decl*> decls_;

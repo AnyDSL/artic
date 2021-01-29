@@ -723,6 +723,8 @@ const thorin::Def* Emitter::builtin(const ast::FnDecl& fn_decl, thorin::Continua
     } else if (cont->name() == "undef") {
         auto target_type = fn_decl.type_params->params[0]->type->convert(*this);
         cont->jump(cont->params().back(), call_args(cont->param(0), world.bottom(target_type)), debug_info(fn_decl));
+    } else if (cont->name() == "add") {
+        cont->jump(cont->params().back(), {cont->param(0), world.arithop_add(cont->param(1), cont->param(2))} , debug_info(fn_decl));
     } else {
         assert(false);
     }
@@ -1222,27 +1224,81 @@ const thorin::Def* BinaryExpr::emit(Emitter& emitter) const {
     }
     auto rhs = emitter.emit(*right);
     const thorin::Def* res = nullptr;
-    switch (remove_eq(tag)) {
-        case Add:   res = emitter.world.arithop_add(lhs, rhs, debug_info(*this)); break;
-        case Sub:   res = emitter.world.arithop_sub(lhs, rhs, debug_info(*this)); break;
-        case Mul:   res = emitter.world.arithop_mul(lhs, rhs, debug_info(*this)); break;
-        case Div:   res = emitter.world.arithop_div(lhs, rhs, debug_info(*this)); break;
-        case Rem:   res = emitter.world.arithop_rem(lhs, rhs, debug_info(*this)); break;
-        case And:   res = emitter.world.arithop_and(lhs, rhs, debug_info(*this)); break;
-        case Or:    res = emitter.world.arithop_or (lhs, rhs, debug_info(*this)); break;
-        case Xor:   res = emitter.world.arithop_xor(lhs, rhs, debug_info(*this)); break;
-        case LShft: res = emitter.world.arithop_shl(lhs, rhs, debug_info(*this)); break;
-        case RShft: res = emitter.world.arithop_shr(lhs, rhs, debug_info(*this)); break;
-        case CmpEq: res = emitter.world.cmp_eq(lhs, rhs, debug_info(*this)); break;
-        case CmpNE: res = emitter.world.cmp_ne(lhs, rhs, debug_info(*this)); break;
-        case CmpGT: res = emitter.world.cmp_gt(lhs, rhs, debug_info(*this)); break;
-        case CmpLT: res = emitter.world.cmp_lt(lhs, rhs, debug_info(*this)); break;
-        case CmpGE: res = emitter.world.cmp_ge(lhs, rhs, debug_info(*this)); break;
-        case CmpLE: res = emitter.world.cmp_le(lhs, rhs, debug_info(*this)); break;
-        case Eq:    res = rhs; break;
-        default:
-            assert(false);
-            return nullptr;
+
+    std::vector<const artic::Type*> args;
+    args.emplace_back(left->type);
+    auto needed_impl = left->type->type_table.type_app(left->type->type_table.get_op_trait(remove_eq(tag)), std::move(args));
+    auto impls = left->type->type_table.find_impls(needed_impl);
+    if(impls.size() != 1) {
+        switch (remove_eq(tag)) {
+            case Sub:
+                res = emitter.world.arithop_sub(lhs, rhs, debug_info(*this));
+                break;
+            case Mul:
+                res = emitter.world.arithop_mul(lhs, rhs, debug_info(*this));
+                break;
+            case Div:
+                res = emitter.world.arithop_div(lhs, rhs, debug_info(*this));
+                break;
+            case Rem:
+                res = emitter.world.arithop_rem(lhs, rhs, debug_info(*this));
+                break;
+            case And:
+                res = emitter.world.arithop_and(lhs, rhs, debug_info(*this));
+                break;
+            case Or:
+                res = emitter.world.arithop_or(lhs, rhs, debug_info(*this));
+                break;
+            case Xor:
+                res = emitter.world.arithop_xor(lhs, rhs, debug_info(*this));
+                break;
+            case LShft:
+                res = emitter.world.arithop_shl(lhs, rhs, debug_info(*this));
+                break;
+            case RShft:
+                res = emitter.world.arithop_shr(lhs, rhs, debug_info(*this));
+                break;
+            case CmpEq:
+                res = emitter.world.cmp_eq(lhs, rhs, debug_info(*this));
+                break;
+            case CmpNE:
+                res = emitter.world.cmp_ne(lhs, rhs, debug_info(*this));
+                break;
+            case CmpGT:
+                res = emitter.world.cmp_gt(lhs, rhs, debug_info(*this));
+                break;
+            case CmpLT:
+                res = emitter.world.cmp_lt(lhs, rhs, debug_info(*this));
+                break;
+            case CmpGE:
+                res = emitter.world.cmp_ge(lhs, rhs, debug_info(*this));
+                break;
+            case CmpLE:
+                res = emitter.world.cmp_le(lhs, rhs, debug_info(*this));
+                break;
+            case Eq:
+                res = rhs;
+                break;
+            default:
+                assert(false);
+                return nullptr;
+        }
+    }
+    else{
+        auto [type_app, impl_type] = match_app<ImplType>(impls.front());
+        if(impl_type->type_params()) {
+            std::unordered_map<const artic::TypeVar*, const artic::Type*> map;
+            for (auto i =0; i < type_app->type_args.size(); i++)
+                map.insert({impl_type->type_params()->params[i]->type->as< artic::TypeVar>(), type_app->type_args[i]});
+            map.insert(emitter.type_vars.begin(), emitter.type_vars.end());
+            std::swap(map, emitter.type_vars);
+        }
+        auto fn = emitter.emit(*impl_type->decl.functs[0]);
+        thorin::Array<const thorin::Def*> args(2);
+        args[0] = lhs;
+        args[1] = rhs;
+        auto value = emitter.world.tuple(args);
+        res = emitter.call(fn, value, debug_info(*this));
     }
     if (has_eq()) {
         emitter.store(ptr, res, debug_info(*this));
@@ -1706,11 +1762,9 @@ struct MemBuf : public std::streambuf {
 
 bool compile(
     const std::vector<std::string>& file_names,
-    const std::string& std_lib_name,
     const std::vector<std::string>& file_data,
     bool warns_as_errors,
     bool enable_all_warns,
-    bool allow_diverging_instances,
     ast::ModDecl& program,
     thorin::World& world,
     thorin::Log::Level log_level,
@@ -1723,7 +1777,7 @@ bool compile(
         std::istream is(&mem_buf);
 
         Lexer lexer(log, file_names[i], is);
-        Parser parser(log, lexer, file_names[i] == std_lib_name);
+        Parser parser(log, lexer);
         parser.warns_as_errors = warns_as_errors;
         auto module = parser.parse();
         if (log.errors > 0)
@@ -1742,7 +1796,7 @@ bool compile(
         name_binder.warn_on_shadowing = true;
 
     TypeTable type_table;
-    TypeChecker type_checker(log, type_table, allow_diverging_instances);
+    TypeChecker type_checker(log, type_table);
     type_checker.warns_as_errors = warns_as_errors;
 
     if (!name_binder.run(program) || !type_checker.run(program))
@@ -1764,7 +1818,7 @@ bool compile(
     log::Output out(error_stream, false);
     Log log(out, &locator);
     ast::ModDecl program;
-    return compile(file_names, "", file_data, false, false, false, program, world, log_level, log);
+    return compile(file_names, file_data, false, false, program, world, log_level, log);
 }
 
 } // namespace artic

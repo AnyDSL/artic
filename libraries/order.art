@@ -7,22 +7,25 @@ enum Ordering{
 trait PartialOrder[T]{ fn cmp(T,T) -> Option[Ordering]; }
 trait Order[T]{ fn cmp(T,T) -> Ordering; }
 
+#[allow_undecidable_impl]
 impl[T] PartialOrder[T] where Order[T]{
     fn cmp(a:T, b:T) = Option[Ordering]::Some(Order[T]::cmp(a,b));
 }
-
+#[allow_undecidable_impl]
 impl[T] CmpLT[T] where PartialOrder[T] {
     fn lt(a:T,b:T) = match PartialOrder[T]::cmp(a,b) {
         Option[Ordering]::Some(Ordering::Less) => true,
         _ => false
     };
 }
+#[allow_undecidable_impl]
 impl[T] CmpGT[T] where PartialOrder[T] {
     fn gt(a:T,b:T) = match PartialOrder[T]::cmp(a,b) {
         Option[Ordering]::Some(Ordering::Greater) => true,
         _ => false
     };
 }
+#[allow_undecidable_impl]
 impl[T] CmpLE[T] where PartialOrder[T] {
     fn le(a:T,b:T) = match PartialOrder[T]::cmp(a,b) {
        Option[Ordering]::Some(Ordering::Less) => true,
@@ -30,6 +33,7 @@ impl[T] CmpLE[T] where PartialOrder[T] {
        _ => false
     };
 }
+#[allow_undecidable_impl]
 impl[T] CmpGE[T] where PartialOrder[T] {
     fn ge(a:T,b:T) = match PartialOrder[T]::cmp(a,b) {
        Option[Ordering]::Some(Ordering::Greater) => true,
@@ -37,12 +41,14 @@ impl[T] CmpGE[T] where PartialOrder[T] {
        _ => false
     };
 }
+#[allow_undecidable_impl]
 impl[T] CmpEq[T] where PartialOrder[T] {
     fn eq(a:T,b:T) = match PartialOrder[T]::cmp(a,b) {
         Option[Ordering]::Some(Ordering::Equal) => true,
         _ => false
     };
 }
+#[allow_undecidable_impl]
 impl[T] CmpNE[T] where PartialOrder[T] {
     fn ne(a:T,b:T) = match PartialOrder[T]::cmp(a,b) {
        Option[Ordering]::Some(Ordering::Greater) => true,

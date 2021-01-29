@@ -292,8 +292,18 @@ const Type* TypeChecker::check_trait_fns(
         std::vector<bool> seen(trait_type->decl.functs.size(), false);
         for (size_t i = 0, n = fns.size(); i < n; ++i) {
             if(fns[i]->fn->body == nullptr){
-                error(fns[i]->loc, "function '{}' is not defined", fns[i]->id.name);
-                return type_table.type_error();
+                if(fns[i]->attrs && fns[i]->attrs->find("import") && fns[i]->attrs->find("import")->find("cc")){
+                    const ast::Attr* cc_attr = fns[i]->attrs->find("import")->find("cc");
+                    auto cc = cc_attr->as<ast::LiteralAttr>()->lit.as_string();
+                    if(cc != "builtin"){
+                        error(fns[i]->loc, "function '{}' is not defined", fns[i]->id.name);
+                        return type_table.type_error();
+                    }
+                }
+                else {
+                    error(fns[i]->loc, "function '{}' is not defined", fns[i]->id.name);
+                    return type_table.type_error();
+                }
             }
             auto index = trait_type->find_member(fns[i]->id.name);
 
@@ -306,8 +316,13 @@ const Type* TypeChecker::check_trait_fns(
             }
             seen[*index] = true;
             defined[*index] = true;
-            check(*fns[i]->fn, type_app ? type_app->member_type(*index) : trait_type->member_type(*index));
-            fns[i]->type = fns[i]->fn -> type;
+            auto fn_type = type_app ? type_app->member_type(*index) : trait_type->member_type(*index);
+            if(fns[i]->fn->body != nullptr)  //a true definiton
+                check(*fns[i]->fn, fn_type);
+            else if(infer(*fns[i]) != fn_type) //a builtin
+                error("Prototype type '{}' does not match the expected type '{}'", infer(*fns[i]), fn_type);
+
+            fns[i]->type = fn_type;
         }
         //Add default definitions
         for (size_t i =0; i < trait_type->decl.functs.size(); i++) {
@@ -841,7 +856,7 @@ void NamedAttr::check(TypeChecker& checker, const ast::Node* node) {
                         auto& cc = cc_attr->as<LiteralAttr>()->lit.as_string();
                         if (cc == "builtin") {
                             if (name != "alignof" && name != "bitcast" && name != "insert" &&
-                                name != "select"  && name != "sizeof"  && name != "undef")
+                                name != "select"  && name != "sizeof"  && name != "undef" && name != "add")
                                 checker.error(fn_decl->loc, "unsupported built-in function");
                         } else if (cc != "C" && cc != "device" && cc != "thorin")
                             checker.error(cc_attr->loc, "invalid calling convention '{}'", cc);
@@ -852,8 +867,13 @@ void NamedAttr::check(TypeChecker& checker, const ast::Node* node) {
             }
         } else
             checker.error(loc, "attribute '{}' is only valid for function declarations", name);
-    } else
-        checker.invalid_attr(loc, name);
+    }
+    else if(name == "allow_undecidable_impl") {
+        if (!node->isa<ImplDecl>())
+            checker.error(loc, "attribute '{}' is only valid for trait impls");
+    }
+    else
+       checker.invalid_attr(loc, name);
 }
 
 void PathAttr::check(TypeChecker& checker, const ast::Node*) {
@@ -885,7 +905,7 @@ const artic::Type* TupleType::infer(TypeChecker& checker) {
 const artic::Type* SizedArrayType::infer(TypeChecker& checker) {
     auto elem_type = checker.infer(*elem);
     if (is_simd && !elem_type->isa<artic::PrimType>())
-        return checker.invalid_simd(loc, elem_type);
+       return checker.invalid_simd(loc, elem_type);
     return checker.type_table.sized_array_type(elem_type, size, is_simd);
 }
 
@@ -1359,8 +1379,8 @@ const artic::Type* BinaryExpr::infer(TypeChecker& checker) {
         auto prim_type = left_type;
         if (is_simd_type(prim_type))
             prim_type = prim_type->as<artic::SizedArrayType>()->elem;
-        if (!prim_type->isa<artic::PrimType>())
-            return checker.type_expected(left->loc, left_type, "primitive or simd");
+        //if (!prim_type->isa<artic::PrimType>())
+            //return checker.type_expected(left->loc, left_type, "primitive or simd");
         switch (remove_eq(tag)) {
             case Add:
             case Sub:
@@ -1370,10 +1390,18 @@ const artic::Type* BinaryExpr::infer(TypeChecker& checker) {
             case CmpLT:
             case CmpGT:
             case CmpLE:
-            case CmpGE:
-                if (!is_int_or_float_type(prim_type))
-                    return checker.type_expected(left->loc, left_type, "integer or floating-point");
+            case CmpGE: {
+                std::vector<const artic::Type *> args;
+                args.emplace_back(prim_type);
+                auto needed_impl = checker.type_table.type_app(checker.type_table.get_op_trait(remove_eq(tag)),
+                                                               std::move(args));
+                if (!is_int_or_float_type(prim_type) && checker.type_table.find_impls(needed_impl).size() != 1) {
+                    checker.error("expected integer, float or a type which implements '{}', but got '{}'",
+                                  *checker.type_table.get_op_trait(remove_eq(tag)), *prim_type);
+                    return checker.type_table.type_error();
+                }
                 break;
+            }
             case CmpEq:
             case CmpNE:
                 break;
@@ -1661,6 +1689,27 @@ const artic::Type* EnumDecl::infer(TypeChecker& checker) {
     return enum_type;
 }
 
+std::unordered_map<std::string, ast::BinaryExpr::Tag> trait_to_op{
+    std::make_pair("Add", ast::BinaryExpr::Add),
+    std::make_pair("Sub", ast::BinaryExpr::Sub),
+    std::make_pair("Mul", ast::BinaryExpr::Mul),
+    std::make_pair("Div", ast::BinaryExpr::Div),
+    std::make_pair("Rem", ast::BinaryExpr::Rem),
+    std::make_pair("LShift", ast::BinaryExpr::LShft),
+    std::make_pair("RShift", ast::BinaryExpr::RShft),
+    std::make_pair("And", ast::BinaryExpr::And),
+    std::make_pair("Or", ast::BinaryExpr::Or),
+    std::make_pair("Xor", ast::BinaryExpr::Xor),
+    std::make_pair("LAnd", ast::BinaryExpr::LogicAnd),
+    std::make_pair("LOr", ast::BinaryExpr::LogicOr),
+    std::make_pair("CmpLT", ast::BinaryExpr::CmpLT),
+    std::make_pair("CmpGT", ast::BinaryExpr::CmpGT),
+    std::make_pair("CmpLE", ast::BinaryExpr::CmpLE),
+    std::make_pair("CmpGE", ast::BinaryExpr::CmpGE),
+    std::make_pair("CmpEq", ast::BinaryExpr::CmpEq),
+    std::make_pair("CmpNE", ast::BinaryExpr::CmpNE)
+};
+
 const artic::Type* TraitDecl::infer(TypeChecker& checker) {
     auto trait_type = checker.type_table.trait_type(*this);
     if (type_params) {
@@ -1684,6 +1733,11 @@ const artic::Type* TraitDecl::infer(TypeChecker& checker) {
         checker.infer(*f);
     if (!trait_type->is_sized())
         checker.unsized_type(loc, trait_type);
+
+    auto it = trait_to_op.find(id.name);
+    if(it != trait_to_op.end()){
+        checker.type_table.add_op_trait(it->second, trait_type);
+    }
 
     checker.exit_decl(this);
     return trait_type;
@@ -1738,10 +1792,8 @@ const artic::Type* ImplDecl::infer(TypeChecker& checker) {
         for (const auto& param: type_params->params) {
             int head_count = count_var_occurrence(param->type, this->trait_type->type);
             for (auto& w: where_clauses){
-                if(!in_std_lib && (count_var_occurrence(param->type, w->type) > head_count)){
-                    if(checker.allow_diverging_instances)
-                        checker.warn("Constraint '{}' violates a paterson conditions in '{}'. This might cause the type inference algorithm to diverge. \n See 'Understanding functional dependencies via constraint handling rules' for details", *w, *this);
-                    else
+                if((count_var_occurrence(param->type, w->type) > head_count)){
+                    if(!attrs ||  !attrs->find("allow_undecidable_impl"))
                         checker.error("Constraint '{}' violates a paterson conditions in '{}'. This might cause the type inference algorithm to diverge. \n See 'Understanding functional dependencies via constraint handling rules' for details", *w, *this);
                 }
             }
@@ -1749,10 +1801,8 @@ const artic::Type* ImplDecl::infer(TypeChecker& checker) {
         //constructor condition
         int head_count = count_vars_ctors(this->trait_type->type);
         for (auto& w: where_clauses){
-            if(!in_std_lib && (count_vars_ctors(w->type) >= head_count)){
-                if(checker.allow_diverging_instances)
-                    checker.warn("Constraint '{}' violates a paterson condition in '{}'. This might cause the type inference algorithm to diverge. \n See 'Understanding functional dependencies via constraint handling rules' for details", *w, *this);
-                else
+            if((count_vars_ctors(w->type) >= head_count)){
+                if(!attrs ||  !attrs->find("allow_undecidable_impl"))
                     checker.error("Constraint '{}' violates a paterson conditions in '{}'. This might cause the type inference algorithm to diverge. \n See 'Understanding functional dependencies via constraint handling rules' for details", *w, *this);
             }
         }

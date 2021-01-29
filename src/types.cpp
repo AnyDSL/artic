@@ -841,7 +841,6 @@ const ImplType* TypeTable::register_impl(const ImplType* impl){
     return nullptr;
 }
 
-
 const std::vector<const Type*>  TypeTable::find_impls(const Type* type){
     std::vector<const Type*> result;
     for (auto i:impls_) {
@@ -873,6 +872,14 @@ const bool TypeTable::check_impl(const Type* type, const ImplType* impl){
         }
     }
     return true;
+}
+
+void TypeTable::add_op_trait(ast::BinaryExpr::Tag op, const TraitType* trait){
+    op_traits_[op] = trait;
+}
+
+const TraitType* TypeTable::get_op_trait(ast::BinaryExpr::Tag op){
+    return op_traits_[op];
 }
 
 const std::unordered_map<const TypeVar*, const Type*>
