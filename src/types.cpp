@@ -582,7 +582,10 @@ bool StructType::is_tuple_like() const {
 }
 
 bool EnumType::is_trivial() const {
-    return std::all_of(decl.options.begin(), decl.options.end(), [](auto& o) -> bool { return is_unit_type(o->type); });
+    return std::all_of(
+        decl.options.begin(),
+        decl.options.end(),
+        [] (auto& o) { return is_unit_type(o->type); });
 }
 
 std::unordered_map<const TypeVar*, const Type*> TypeApp::replace_map(

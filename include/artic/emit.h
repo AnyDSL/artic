@@ -97,7 +97,7 @@ public:
     std::unordered_map<VariantCtor, const thorin::Def*, Hash, Compare> variant_ctors;
     /// Map from struct type to structure constructor (for tuple-like structures).
     std::unordered_map<const Type*, const thorin::Def*> struct_ctors;
-    /// Map from struct & enum types to their generated comparison function
+    /// Map from types to their generated comparison function, if any.
     std::unordered_map<const Type*, const thorin::Def*> comparators;
     /// Vector containing definitions that are generated during monomorphization.
     std::vector<std::vector<const thorin::Def**>> poly_defs;
@@ -141,6 +141,7 @@ public:
     const thorin::Def* emit(const ast::Node&, const Literal&);
 
     const thorin::Def* builtin(const ast::FnDecl&, thorin::Continuation*);
+    const thorin::Def* comparator(const Loc&, const Type*);
 
     thorin::Debug debug_info(const ast::NamedDecl&);
     thorin::Debug debug_info(const ast::Node&, const std::string_view& = "");

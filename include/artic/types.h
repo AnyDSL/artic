@@ -469,6 +469,8 @@ struct EnumType : public ComplexType {
     const Type* member_type(size_t) const override;
     size_t member_count() const override;
 
+    // Returns true if the enumeration is only made
+    // of constructors without arguments.
     bool is_trivial() const;
 
 private:
