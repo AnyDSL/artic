@@ -114,6 +114,7 @@ public:
     thorin::Continuation* basic_block_with_mem(const thorin::Type*, thorin::Debug = {});
 
     const thorin::Def* ctor_index(const ast::Ptrn& ptrn);
+    const thorin::Def* ctor_index(size_t, thorin::Debug = {});
 
     const thorin::FnType* continuation_type_with_mem(const thorin::Type*);
     const thorin::FnType* function_type_with_mem(const thorin::Type*, const thorin::Type*);

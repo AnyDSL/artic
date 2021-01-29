@@ -1039,27 +1039,27 @@ const artic::Type* ProjExpr::infer(TypeChecker& checker) {
         : result_type;
 }
 
-inline bool is_int_or_float_literal(const Expr* expr) {
+inline const LiteralExpr* is_int_or_float_literal(const Expr* expr) {
     // Detect integer or floating point literals. This code
     // also accepts block expressions containing a literal and
     // unary +/- operators.
     while (true) {
         if (auto unary_expr = expr->isa<UnaryExpr>()) {
             if (unary_expr->tag != UnaryExpr::Plus && unary_expr->tag != UnaryExpr::Minus)
-                return false;
+                return nullptr;
             expr = unary_expr->arg.get();
         } else if (auto block_expr = expr->isa<BlockExpr>()) {
             if (block_expr->last_semi || block_expr->stmts.size() != 1 || !block_expr->stmts[0]->isa<ExprStmt>())
-                return false;
+                return nullptr;
             expr = block_expr->stmts[0]->as<ExprStmt>()->expr.get();
         } else {
             break;
         }
     }
-    return
-        expr->isa<LiteralExpr>() &&
-        (expr->as<LiteralExpr>()->lit.is_integer() ||
-         expr->as<LiteralExpr>()->lit.is_double());
+    if (auto literal_expr = expr->isa<LiteralExpr>(); literal_expr &&
+        (literal_expr->lit.is_integer() || literal_expr->lit.is_double()))
+        return literal_expr;
+    return nullptr;
 }
 
 const artic::Type* IfExpr::infer(TypeChecker& checker) {
@@ -1070,10 +1070,35 @@ const artic::Type* IfExpr::infer(TypeChecker& checker) {
         checker.check_refutability(*ptrn, false);
     }
     if (if_false) {
-        if (is_int_or_float_literal(if_true.get()))
-            return checker.coerce(if_true, checker.deref(if_false));
-        if (is_int_or_float_literal(if_false.get()))
-            return checker.coerce(if_false, checker.deref(if_true));
+        // In general, we need to find the join of the type of the two branches.
+        // However, since that requires to infer both branches, we would default
+        // literals (to i32 for integers and f64 for floating-point ones), so we
+        // try to be a bit more clever in the case where one of the branches is
+        // just a literal and the type of the other branch is an integer or
+        // floating-point type. For instance:
+        //
+        // if x { 1 } else { u }
+        // if x { 1.0 } else { u }
+        // if x { 1.0 } else { 1 }
+        // if x { 1 } else { 1.0 }
+        //
+        // where u has a known (integer or floating-point) type.
+        auto lit_true = is_int_or_float_literal(if_true.get());
+        auto lit_false = is_int_or_float_literal(if_false.get());
+        if (lit_true && lit_false) {
+            if (lit_true->lit.is_double())
+                checker.coerce(if_false, checker.deref(if_true));
+            else
+                checker.coerce(if_true, checker.deref(if_false));
+        } else if (lit_true) {
+            auto if_false_type = checker.deref(if_false);
+            if (is_int_or_float_type(if_false_type))
+                checker.coerce(if_true, if_false_type);
+        } else if (lit_false) {
+            auto if_true_type = checker.deref(if_true);
+            if (is_int_or_float_type(if_true_type))
+                checker.coerce(if_false, if_true_type);
+        }
         return checker.join(if_false, if_true);
     }
     return checker.coerce(if_true, checker.type_table.unit_type());
