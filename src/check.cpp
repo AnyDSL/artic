@@ -856,7 +856,13 @@ void NamedAttr::check(TypeChecker& checker, const ast::Node* node) {
                         auto& cc = cc_attr->as<LiteralAttr>()->lit.as_string();
                         if (cc == "builtin") {
                             if (name != "alignof" && name != "bitcast" && name != "insert" &&
-                                name != "select"  && name != "sizeof"  && name != "undef" && name != "add")
+                                name != "select"  && name != "sizeof"  && name != "undef" &&
+                                name != "add" && name != "sub"  && name != "mul" &&
+                                name != "div" && name != "rem"  && name != "lshift" &&
+                                name != "rshift" && name != "and"  && name != "or" &&
+                                name != "xor" &&
+                                name != "lt" && name != "gt"  && name != "le" &&
+                                name != "ge" && name != "eq"  && name != "ne" )
                                 checker.error(fn_decl->loc, "unsupported built-in function");
                         } else if (cc != "C" && cc != "device" && cc != "thorin")
                             checker.error(cc_attr->loc, "invalid calling convention '{}'", cc);
@@ -1395,8 +1401,8 @@ const artic::Type* BinaryExpr::infer(TypeChecker& checker) {
                 args.emplace_back(prim_type);
                 auto needed_impl = checker.type_table.type_app(checker.type_table.get_op_trait(remove_eq(tag)),
                                                                std::move(args));
-                if (!is_int_or_float_type(prim_type) && checker.type_table.find_impls(needed_impl).size() != 1) {
-                    checker.error("expected integer, float or a type which implements '{}', but got '{}'",
+                if (checker.type_table.find_impls(needed_impl).size() != 1) {
+                    checker.error("expected a type which implements '{}', but got '{}'",
                                   *checker.type_table.get_op_trait(remove_eq(tag)), *prim_type);
                     return checker.type_table.type_error();
                 }
@@ -1849,8 +1855,14 @@ const artic::Type* TypeDecl::infer(TypeChecker& checker) {
 }
 
 const artic::Type* ModDecl::infer(TypeChecker& checker) {
+    //impls must be traversed first, in order to be available for path resolution
     for (auto& decl : decls)
-        checker.infer(*decl);
+        if(decl->isa<ImplDecl>())
+            checker.infer(*decl);
+    for (auto& decl : decls)
+
+        if(!decl->isa<ImplDecl>())
+            checker.infer(*decl);
     return checker.type_table.unit_type();
 }
 
