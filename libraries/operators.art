@@ -199,3 +199,27 @@ impl CmpNE[f16]{ #[import(cc = "builtin")]fn ne(f16,f16)->bool; }
 impl CmpNE[f32]{ #[import(cc = "builtin")]fn ne(f32,f32)->bool; }
 impl CmpNE[f64]{ #[import(cc = "builtin")]fn ne(f64,f64)->bool; }
 impl CmpNE[bool]{ #[import(cc = "builtin")]fn ne(bool,bool)->bool; }
+
+impl FromInt[i8]{ #[import(cc = "builtin")]fn from_int(u64)->i8; }
+impl FromInt[i16]{ #[import(cc = "builtin")]fn from_int(u64)->i16; }
+impl FromInt[i32]{ #[import(cc = "builtin")]fn from_int(u64)->i32; }
+impl FromInt[i64]{ #[import(cc = "builtin")]fn from_int(u64)->i64; }
+impl FromInt[u8]{ #[import(cc = "builtin")]fn from_int(u64)->u8; }
+impl FromInt[u16]{ #[import(cc = "builtin")]fn from_int(u64)->u16; }
+impl FromInt[u32]{ #[import(cc = "builtin")]fn from_int(u64)->u32; }
+impl FromInt[u64]{ #[import(cc = "builtin")]fn from_int(u64)->u64; }
+impl FromInt[f16]{ #[import(cc = "builtin")]fn from_int(u64)->f16; }
+impl FromInt[f32]{ #[import(cc = "builtin")]fn from_int(u64)->f32; }
+impl FromInt[f64]{ #[import(cc = "builtin")]fn from_int(u64)->f64; }
+
+impl FromFloat[i8]{ #[import(cc = "builtin")]fn from_float(f64)->i8; }
+impl FromFloat[i16]{ #[import(cc = "builtin")]fn from_float(f64)->i16; }
+impl FromFloat[i32]{ #[import(cc = "builtin")]fn from_float(f64)->i32; }
+impl FromFloat[i64]{ #[import(cc = "builtin")]fn from_float(f64)->i64; }
+impl FromFloat[u8]{ #[import(cc = "builtin")]fn from_float(f64)->u8; }
+impl FromFloat[u16]{ #[import(cc = "builtin")]fn from_float(f64)->u16; }
+impl FromFloat[u32]{ #[import(cc = "builtin")]fn from_float(f64)->u32; }
+impl FromFloat[u64]{ #[import(cc = "builtin")]fn from_float(f64)->u64; }
+impl FromFloat[f16]{ #[import(cc = "builtin")]fn from_float(f64)->f16; }
+impl FromFloat[f32]{ #[import(cc = "builtin")]fn from_float(f64)->f32; }
+impl FromFloat[f64]{ #[import(cc = "builtin")]fn from_float(f64)->f64; }

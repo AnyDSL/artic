@@ -874,12 +874,12 @@ const bool TypeTable::check_impl(const Type* type, const ImplType* impl){
     return true;
 }
 
-void TypeTable::add_op_trait(ast::BinaryExpr::Tag op, const TraitType* trait){
-    op_traits_[op] = trait;
+void TypeTable::add_key_trait(std::string key, const TraitType* trait){
+    key_traits_[key] = trait;
 }
 
-const TraitType* TypeTable::get_op_trait(ast::BinaryExpr::Tag op){
-    return op_traits_[op];
+const TraitType* TypeTable::get_key_trait(std::string key){
+    return key_traits_[key];
 }
 
 const std::unordered_map<const TypeVar*, const Type*>

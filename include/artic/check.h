@@ -88,12 +88,18 @@ public:
     const Type* infer_record_type(const TypeApp*, const StructType*, size_t&);
 
     //returns true if the bound is valid
-    bool check_bound(const Type*, Loc& loc);
+    void check_bound(const Type*, Loc& loc);
     bool trait_bound_exists(const Type*);
+    void add_impl_req(Loc loc, const Type* type);
 
 
 private:
     std::unordered_set<const ast::Decl*> decls_;
+    struct ImplToCheck{
+        Loc loc;
+        const Type* type;
+    };
+    std::vector<ImplToCheck> needed_impls_;
 };
 
 } // namespace artic

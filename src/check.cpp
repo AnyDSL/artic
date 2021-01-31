@@ -1,11 +1,18 @@
 #include <algorithm>
 
 #include "artic/check.h"
-
 namespace artic {
 
 bool TypeChecker::run(ast::ModDecl& module) {
     module.infer(*this);
+    for(auto& el: needed_impls_){
+        if (type_table.find_impls(el.type).empty()) {
+            error(el.loc,  "The trait '{}' is not implemented", *el.type);
+        }
+        if(type_table.find_impls(el.type).size() > 1){
+            error(el.loc, "The trait '{}' has multiple implementations", *el.type);
+        }
+    }
     return errors == 0;
 }
 
@@ -218,12 +225,22 @@ const Type* TypeChecker::check(const Loc& loc, const Literal& lit, const Type* e
     if (expected->isa<NoRetType>())
         return infer(loc, lit);
     if (lit.is_integer()) {
-        if (!is_int_or_float_type(expected))
-            return incompatible_type(loc, "integer literal", expected);
+        std::vector<const Type*> args;
+        args.emplace_back(expected);
+        auto impl = type_table.type_app(type_table.get_key_trait("FromInt"), std::move(args));
+        if (!trait_bound_exists(impl)) {
+            add_impl_req(loc, impl);
+        }
         return expected;
     } else if (lit.is_double()) {
-        if (!is_float_type(expected))
-            return incompatible_type(loc, "floating point literal", expected);
+        std::vector<const Type*> args;
+        args.emplace_back(expected);
+        auto impl = type_table.type_app(type_table.get_key_trait("FromFloat"), std::move(args));
+        if (!trait_bound_exists(impl)) {
+            if (!trait_bound_exists(impl)) {
+                add_impl_req(loc, impl);
+            }
+        }
         return expected;
     } else if (lit.is_bool()) {
         if (!is_bool_type(expected))
@@ -566,37 +583,21 @@ bool contains_var(const Type* t){
     return false;
 }
 
-bool TypeChecker::check_bound(const Type* bound, Loc& loc){
+void TypeChecker::check_bound(const Type* bound, Loc& loc){
     if (auto trait_type = bound->isa<artic::TraitType>()) {
-        if (type_table.find_impls(trait_type).empty()) {
-            error(loc, "the trait '{}' is not implemented", *trait_type);
-            return false;
-        }
-        if(type_table.find_impls(trait_type).size() > 1){
-            error(loc, "the trait '{}' has multiple implementations", *trait_type);
-            return false;
-        }
+        add_impl_req(loc, trait_type);
     }
     else if (
         auto type_app = bound->isa<artic::TypeApp>();
             type_app && type_app->applied->isa<artic::TraitType>()
             ) {
         if (!contains_var(type_app)) {
-            if (type_table.find_impls(type_app).empty()) {
-                error(loc, "the trait '{}' is not implemented", *type_app);
-                return false;
-            }
-            if(type_table.find_impls(type_app).size() > 1){
-                error(loc, "the trait '{}' has multiple implementations", *type_app);
-                return false;
-            }
+            add_impl_req(loc, type_app);
         }
     }
     else {
         error(loc, "only traits are allowed as type bounds");
-        return false;
     }
-    return true;
 }
 
 bool TypeChecker::trait_bound_exists(const Type* type) {
@@ -633,6 +634,10 @@ bool TypeChecker::trait_bound_exists(const Type* type) {
         }
     }
     return false;
+}
+
+void TypeChecker::add_impl_req(Loc loc, const Type* type){
+    needed_impls_.push_back({loc, type});
 }
 
 namespace ast {
@@ -705,14 +710,7 @@ const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, Ptr<Ex
                     for (auto& w:forall_type->decl.where_clauses) {
                         auto type_inst = w->type->replace(map);
                         if (!checker.trait_bound_exists(type_inst)) {
-                            if (checker.type_table.find_impls(type_inst).empty()) {
-                                checker.error(elem.loc, "the trait '{}' is not implemented", *type_inst);
-                                return checker.type_table.type_error();
-                            }
-                            if (checker.type_table.find_impls(type_inst).size() > 1) {
-                                checker.error(elem.loc, "the trait '{}' has multiple implementations", *type_inst);
-                                return checker.type_table.type_error();
-                            }
+                            checker.add_impl_req(loc, type_inst);
                         }
                     }
                 }
@@ -724,14 +722,7 @@ const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, Ptr<Ex
                     for (auto& w:user_type->where_types()) {
                         auto type_inst = w->replace(map);
                         if (!checker.trait_bound_exists(type_inst)) {
-                            if (checker.type_table.find_impls(type_inst).empty()) {
-                                checker.error(elem.loc, "the trait '{}' is not implemented", *type_inst);
-                                return checker.type_table.type_error();
-                            }
-                            if (checker.type_table.find_impls(type_inst).size() > 1) {
-                                checker.error(elem.loc, "the trait '{}' has multiple implementations", *type_inst);
-                                return checker.type_table.type_error();
-                            }
+                            checker.add_impl_req(loc, type_inst);
                         }
                     }
                 }
@@ -789,14 +780,7 @@ const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, Ptr<Ex
                 is_value = true;
                 is_ctor = false;
                 if (!checker.trait_bound_exists(type)) {
-                    if (checker.type_table.find_impls(type).empty()) {
-                        checker.error(elem.loc, "the trait '{}' is not implemented", *type);
-                        return checker.type_table.type_error();
-                    }
-                    if (checker.type_table.find_impls(type).size() > 1) {
-                       checker.error(elem.loc, "the trait '{}' has multiple implementations", *type);
-                        return checker.type_table.type_error();
-                    }
+                    checker.add_impl_req(loc, type);
                 }
                 //apply type
                 if (type_app) {
@@ -862,7 +846,8 @@ void NamedAttr::check(TypeChecker& checker, const ast::Node* node) {
                                 name != "rshift" && name != "and"  && name != "or" &&
                                 name != "xor" &&
                                 name != "lt" && name != "gt"  && name != "le" &&
-                                name != "ge" && name != "eq"  && name != "ne" )
+                                name != "ge" && name != "eq"  && name != "ne" &&
+                                name != "from_int" && name != "from_float")
                                 checker.error(fn_decl->loc, "unsupported built-in function");
                         } else if (cc != "C" && cc != "device" && cc != "thorin")
                             checker.error(cc_attr->loc, "invalid calling convention '{}'", cc);
@@ -1381,55 +1366,42 @@ const artic::Type* BinaryExpr::infer(TypeChecker& checker) {
         right_type = checker.coerce(right, left_type);
     }
 
-    if (tag != Eq) {
-        auto prim_type = left_type;
-        if (is_simd_type(prim_type))
-            prim_type = prim_type->as<artic::SizedArrayType>()->elem;
-        //if (!prim_type->isa<artic::PrimType>())
-            //return checker.type_expected(left->loc, left_type, "primitive or simd");
-        switch (remove_eq(tag)) {
-            case Add:
-            case Sub:
-            case Mul:
-            case Div:
-            case Rem:
-            case CmpLT:
-            case CmpGT:
-            case CmpLE:
-            case CmpGE: {
-                std::vector<const artic::Type *> args;
-                args.emplace_back(prim_type);
-                auto needed_impl = checker.type_table.type_app(checker.type_table.get_op_trait(remove_eq(tag)),
-                                                               std::move(args));
-                if (checker.type_table.find_impls(needed_impl).size() != 1) {
-                    checker.error("expected a type which implements '{}', but got '{}'",
-                                  *checker.type_table.get_op_trait(remove_eq(tag)), *prim_type);
-                    return checker.type_table.type_error();
-                }
-                break;
+    auto prim_type = left_type;
+    if (is_simd_type(prim_type))
+        prim_type = prim_type->as<artic::SizedArrayType>()->elem;
+    switch (remove_eq(tag)) {
+        case Add:
+        case Sub:
+        case Mul:
+        case Div:
+        case Rem:
+        case CmpLT:
+        case CmpGT:
+        case CmpLE:
+        case CmpGE:
+        case CmpEq:
+        case CmpNE:
+        case LShft:
+        case RShft:
+        case And:
+        case Or:
+        case Xor: {
+            std::vector<const artic::Type *> args;
+            args.emplace_back(prim_type);
+            auto trait = checker.type_table.get_key_trait(BinaryExpr::tag_to_string(remove_eq(tag)));
+            auto needed_impl = checker.type_table.type_app(trait, std::move(args));
+            if (!checker.trait_bound_exists(needed_impl)) {
+                checker.add_impl_req(loc, needed_impl);
             }
-            case CmpEq:
-            case CmpNE:
-                break;
-            case LShft:
-            case RShft:
-                if (!is_int_type(prim_type))
-                    return checker.type_expected(left->loc, left_type, "integer");
-                break;
-            case LogicAnd:
-            case LogicOr:
-                // This case has already been handled by the coercion to the bool type above
-                break;
-            case And:
-            case Or:
-            case Xor:
-                if (!is_int_type(prim_type) && !is_bool_type(prim_type))
-                    return checker.type_expected(left->loc, left_type, "integer or boolean");
-                break;
-            default:
-                assert(false);
-                break;
+            break;
         }
+        case Eq:
+        case LogicAnd:
+        case LogicOr:
+            break;
+        default:
+        assert(false);
+        break;
     }
     if (has_eq()) {
         left->write_to();
@@ -1454,20 +1426,12 @@ const artic::Type* BinaryExpr::check(TypeChecker& checker, const artic::Type* ex
         case Mul:
         case Div:
         case Rem:
-            if (is_int_or_float_type(expected))
-                coerce(expected);
-            break;
         case LShft:
         case RShft:
-            if (is_int_type(expected))
-                coerce(expected);
-            break;
         case And:
         case Or:
         case Xor:
-            if (is_int_type(expected) || is_bool_type(expected))
-                coerce(expected);
-            break;
+            coerce(expected);
         default:
             break;
     }
@@ -1586,10 +1550,7 @@ const artic::Type* FnDecl::infer(TypeChecker& checker) {
     //check trait bounds
     for (const auto& trait:where_clauses) {
         checker.infer(*trait);
-        if(!checker.check_bound(trait->type, trait->loc)) {
-            checker.exit_decl(this);
-            return checker.type_table.type_error();
-        }
+        checker.check_bound(trait->type, trait->loc);
     }
 
     const artic::Type* fn_type = nullptr;
@@ -1640,10 +1601,7 @@ const artic::Type* StructDecl::infer(TypeChecker& checker) {
     //check trait bounds
     for (const auto& trait:where_clauses) {
         checker.infer(*trait);
-        if(!checker.check_bound(trait->type, trait->loc)) {
-            checker.exit_decl(this);
-            return checker.type_table.type_error();
-        }
+        checker.check_bound(trait->type, trait->loc);
     }
 
     // Set the type before entering the fields
@@ -1679,10 +1637,7 @@ const artic::Type* EnumDecl::infer(TypeChecker& checker) {
     //check trait bounds
     for (const auto& trait:where_clauses) {
         checker.infer(*trait);
-        if(!checker.check_bound(trait->type, trait->loc)) {
-            checker.exit_decl(this);
-            return checker.type_table.type_error();
-        }
+        checker.check_bound(trait->type, trait->loc);
     }
 
     // Set the type before entering the options
@@ -1695,25 +1650,25 @@ const artic::Type* EnumDecl::infer(TypeChecker& checker) {
     return enum_type;
 }
 
-std::unordered_map<std::string, ast::BinaryExpr::Tag> trait_to_op{
-    std::make_pair("Add", ast::BinaryExpr::Add),
-    std::make_pair("Sub", ast::BinaryExpr::Sub),
-    std::make_pair("Mul", ast::BinaryExpr::Mul),
-    std::make_pair("Div", ast::BinaryExpr::Div),
-    std::make_pair("Rem", ast::BinaryExpr::Rem),
-    std::make_pair("LShift", ast::BinaryExpr::LShft),
-    std::make_pair("RShift", ast::BinaryExpr::RShft),
-    std::make_pair("And", ast::BinaryExpr::And),
-    std::make_pair("Or", ast::BinaryExpr::Or),
-    std::make_pair("Xor", ast::BinaryExpr::Xor),
-    std::make_pair("LAnd", ast::BinaryExpr::LogicAnd),
-    std::make_pair("LOr", ast::BinaryExpr::LogicOr),
-    std::make_pair("CmpLT", ast::BinaryExpr::CmpLT),
-    std::make_pair("CmpGT", ast::BinaryExpr::CmpGT),
-    std::make_pair("CmpLE", ast::BinaryExpr::CmpLE),
-    std::make_pair("CmpGE", ast::BinaryExpr::CmpGE),
-    std::make_pair("CmpEq", ast::BinaryExpr::CmpEq),
-    std::make_pair("CmpNE", ast::BinaryExpr::CmpNE)
+std::unordered_map<std::string, std::string> trait_to_key{
+    std::make_pair("Add", "+"),
+    std::make_pair("Sub", "-"),
+    std::make_pair("Mul", "*"),
+    std::make_pair("Div", "/"),
+    std::make_pair("Rem", "%"),
+    std::make_pair("LShift", "<<"),
+    std::make_pair("RShift", ">>"),
+    std::make_pair("And", "&"),
+    std::make_pair("Or", "|"),
+    std::make_pair("Xor", "^"),
+    std::make_pair("CmpLT", "<"),
+    std::make_pair("CmpGT", ">"),
+    std::make_pair("CmpLE", "<="),
+    std::make_pair("CmpGE", ">="),
+    std::make_pair("CmpEq", "=="),
+    std::make_pair("CmpNE", "!="),
+    std::make_pair("FromInt", "FromInt"),
+    std::make_pair("FromFloat", "FromFloat")
 };
 
 const artic::Type* TraitDecl::infer(TypeChecker& checker) {
@@ -1727,10 +1682,7 @@ const artic::Type* TraitDecl::infer(TypeChecker& checker) {
     //check trait bounds
     for (const auto& trait:where_clauses) {
         checker.infer(*trait);
-        if(!checker.check_bound(trait->type, trait->loc)) {
-            checker.exit_decl(this);
-            return checker.type_table.type_error();
-        }
+        checker.check_bound(trait->type, trait->loc);
     }
 
     // Set the type before entering the fields
@@ -1740,9 +1692,9 @@ const artic::Type* TraitDecl::infer(TypeChecker& checker) {
     if (!trait_type->is_sized())
         checker.unsized_type(loc, trait_type);
 
-    auto it = trait_to_op.find(id.name);
-    if(it != trait_to_op.end()){
-        checker.type_table.add_op_trait(it->second, trait_type);
+    auto it = trait_to_key.find(id.name);
+    if(it != trait_to_key.end()){
+        checker.type_table.add_key_trait(it->second, trait_type);
     }
 
     checker.exit_decl(this);
@@ -1780,10 +1732,7 @@ const artic::Type* ImplDecl::infer(TypeChecker& checker) {
     //check trait bounds
     for (const auto& trait:where_clauses) {
         checker.infer(*trait);
-        if(!checker.check_bound(trait->type, trait->loc)) {
-            checker.exit_decl(this);
-            return checker.type_table.type_error();
-        }
+        checker.check_bound(trait->type, trait->loc);
     }
 
     auto [type_app, trait_type] = match_app<artic::TraitType>(checker.infer(*this->trait_type));
@@ -1845,23 +1794,19 @@ const artic::Type* TypeDecl::infer(TypeChecker& checker) {
     //check trait bounds
     for (const auto& trait:where_clauses) {
         checker.infer(*trait);
-        if(!checker.check_bound(trait->type, trait->loc)) {
-            checker.exit_decl(this);
-            return checker.type_table.type_error();
-        }
+        checker.check_bound(trait->type, trait->loc);
     }
     checker.exit_decl(this);
     return type;
 }
 
 const artic::Type* ModDecl::infer(TypeChecker& checker) {
-    //impls must be traversed first, in order to be available for path resolution
+    //traits must be traversed first, in order to be available for operator resolution
     for (auto& decl : decls)
-        if(decl->isa<ImplDecl>())
+        if(decl->isa<TraitDecl>())
             checker.infer(*decl);
     for (auto& decl : decls)
-
-        if(!decl->isa<ImplDecl>())
+        if(!decl->isa<TraitDecl>())
             checker.infer(*decl);
     return checker.type_table.unit_type();
 }

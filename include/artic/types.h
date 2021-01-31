@@ -654,8 +654,8 @@ public:
     const Type* type_app(const UserType*, std::vector<const Type*>&&);
 
     //relates operators to traits implementing them
-    void add_op_trait(ast::BinaryExpr::Tag op, const TraitType* trait);
-    const TraitType* get_op_trait(ast::BinaryExpr::Tag op);
+    void add_key_trait(std::string op, const TraitType* trait);
+    const TraitType* get_key_trait(std::string op);
 
     /// Returns nullptr if the impl is not already registered
     const ImplType* register_impl(const ImplType* impl);
@@ -678,7 +678,7 @@ private:
         }
     };
     std::unordered_set<const Type*, HashType, CompareTypes> types_;
-    std::unordered_map<ast::BinaryExpr::Tag, const TraitType*> op_traits_;
+    std::unordered_map<std::string, const TraitType*> key_traits_;
     std::vector<const ImplType*> impls_;
 
     const PrimType*   bool_type_   = nullptr;

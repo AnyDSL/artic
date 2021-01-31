@@ -668,7 +668,7 @@ void Emitter::bind(const ast::IdPtrn& id_ptrn, const thorin::Def* value) {
 }
 
 const thorin::Def* Emitter::emit(const ast::Node& node, const Literal& lit) {
-    if (auto prim_type = node.type->isa<artic::PrimType>()) {
+    if (auto prim_type = node.type->replace(type_vars)->isa<artic::PrimType>()) {
         switch (prim_type->tag) {
             case ast::PrimType::Bool: return world.literal_bool(lit.as_bool(),    debug_info(node));
             case ast::PrimType::U8:   return world.literal_pu8 (lit.is_integer() ? lit.as_integer() : lit.as_char(), debug_info(node));
@@ -689,13 +689,22 @@ const thorin::Def* Emitter::emit(const ast::Node& node, const Literal& lit) {
                 assert(false);
                 return nullptr;
         }
-    } else {
-        assert(lit.is_string());
+    } else if(lit.is_string()) {
         thorin::Array<const thorin::Def*> ops(lit.as_string().size() + 1);
         for (size_t i = 0, n = lit.as_string().size(); i < n; ++i)
             ops[i] = world.literal_pu8(lit.as_string()[i], {});
         ops.back() = world.literal_pu8(0, {});
         return world.definite_array(ops, debug_info(node));
+    } else{
+        auto trait = node.type->type_table.get_key_trait(lit.is_integer()?"FromInt":"FromFloat");
+        std::vector<const Type *> type_args;
+        type_args.emplace_back(node.type->replace(type_vars));
+        auto needed_impl = node.type->type_table.type_app(trait, std::move(type_args));
+        auto impls = node.type->type_table.find_impls(needed_impl);
+        auto [type_app, impl_type] = match_app<ImplType>(impls.front());
+        auto fn = emit(*impl_type->decl.functs[0]);
+        auto value = lit.is_integer()? world.literal_pu64(lit.as_integer(), debug_info(node)) : world.literal_qf64(lit.is_double() ? lit.as_double() : lit.as_integer(), debug_info(node));
+        return call(fn, value, debug_info(node));
     }
 }
 
@@ -1257,12 +1266,37 @@ const thorin::Def* BinaryExpr::emit(Emitter& emitter) const {
     if(tag == Eq) {
         res = rhs;
     }
-    else{
-        auto l_type = left->type;
-        while(l_type->isa<RefType>()){ l_type = l_type->as<RefType>()->pointee;}
+    else if(remove_eq(tag) != CmpNE ){ // constants and simd require direct codegen instead of detour through definition
+        switch (remove_eq(tag)) {
+            case Add:   res = emitter.world.arithop_add(lhs, rhs, debug_info(*this)); break;
+            case Sub:   res = emitter.world.arithop_sub(lhs, rhs, debug_info(*this)); break;
+            case Mul:   res = emitter.world.arithop_mul(lhs, rhs, debug_info(*this)); break;
+            case Div:   res = emitter.world.arithop_div(lhs, rhs, debug_info(*this)); break;
+            case Rem:   res = emitter.world.arithop_rem(lhs, rhs, debug_info(*this)); break;
+            case And:   res = emitter.world.arithop_and(lhs, rhs, debug_info(*this)); break;
+            case Or:    res = emitter.world.arithop_or (lhs, rhs, debug_info(*this)); break;
+            case Xor:   res = emitter.world.arithop_xor(lhs, rhs, debug_info(*this)); break;
+            case LShft: res = emitter.world.arithop_shl(lhs, rhs, debug_info(*this)); break;
+            case RShft: res = emitter.world.arithop_shr(lhs, rhs, debug_info(*this)); break;
+            case CmpEq: res = emitter.world.cmp_eq(lhs, rhs, debug_info(*this)); break;
+            case CmpNE: res = emitter.world.cmp_ne(lhs, rhs, debug_info(*this)); break;
+            case CmpGT: res = emitter.world.cmp_gt(lhs, rhs, debug_info(*this)); break;
+            case CmpLT: res = emitter.world.cmp_lt(lhs, rhs, debug_info(*this)); break;
+            case CmpGE: res = emitter.world.cmp_ge(lhs, rhs, debug_info(*this)); break;
+            case CmpLE: res = emitter.world.cmp_le(lhs, rhs, debug_info(*this)); break;
+            case Eq:    res = rhs; break;
+            default:
+                assert(false);
+                return nullptr;
+        }
+    }
+    else {
+        auto l_type = left->type->replace(emitter.type_vars);
+        if(l_type->isa<RefType>()) l_type = l_type->as<RefType>()->pointee;
         std::vector<const artic::Type*> trait_args;
         trait_args.emplace_back(l_type);
-        auto needed_impl = l_type->type_table.type_app(l_type->type_table.get_op_trait(remove_eq(tag)), std::move(trait_args));
+        auto trait = l_type->type_table.get_key_trait(BinaryExpr::tag_to_string(remove_eq(tag)));
+        auto needed_impl = l_type->type_table.type_app(trait, std::move(trait_args));
         auto impls = l_type->type_table.find_impls(needed_impl);
         auto [type_app, impl_type] = match_app<ImplType>(impls.front());
         if(impl_type->type_params()) {
@@ -1348,8 +1382,7 @@ const thorin::Def* StaticDecl::emit(Emitter& emitter) const {
     auto value = init
         ? emitter.emit(*init)
         : emitter.world.bottom(Node::type->as<artic::RefType>()->pointee->convert(emitter));
-    auto aux = emitter.world.global(value, is_mut, debug_info(*this));
-    return aux;
+    return emitter.world.global(value, is_mut, debug_info(*this));
 }
 
 const thorin::Def* FnDecl::emit(Emitter& emitter) const {
@@ -1393,8 +1426,9 @@ const thorin::Def* FnDecl::emit(Emitter& emitter) const {
                     cont->make_imported();
                 } else if (cc == "thorin")
                     cont->set_intrinsic();
-                else if (cc == "builtin")
+                else if (cc == "builtin") {
                     emitter.builtin(*this, cont);
+                }
             }
         }
     }
