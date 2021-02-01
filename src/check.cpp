@@ -1,6 +1,7 @@
 #include <algorithm>
 
 #include "artic/check.h"
+#include "artic/print.h"
 namespace artic {
 
 bool TypeChecker::run(ast::ModDecl& module) {
@@ -237,9 +238,7 @@ const Type* TypeChecker::check(const Loc& loc, const Literal& lit, const Type* e
         args.emplace_back(expected);
         auto impl = type_table.type_app(type_table.get_key_trait("FromFloat"), std::move(args));
         if (!trait_bound_exists(impl)) {
-            if (!trait_bound_exists(impl)) {
-                add_impl_req(loc, impl);
-            }
+            add_impl_req(loc, impl);
         }
         return expected;
     } else if (lit.is_bool()) {
@@ -600,26 +599,42 @@ void TypeChecker::check_bound(const Type* bound, Loc& loc){
     }
 }
 
+bool bound_implies_trait(const Type* bound, const Type* trait){
+    if(bound == trait){
+        return true;
+    }
+    if(bound == 0){
+        return false;
+    }
+    auto [type_app, trait_type] = match_app<TraitType>(bound);
+    for(auto w: trait_type->where_types()){
+        auto aux = w->replace(type_app->replace_map());
+        if(bound_implies_trait(aux, trait))
+            return true;
+    }
+    return false;
+}
+
 bool TypeChecker::trait_bound_exists(const Type* type) {
     for (auto decl: decls_) {
         if(auto fn = decl->isa<ast::FnDecl>()){
             for(auto& w: fn->where_clauses){
-                if(w->type == type) return true;
+                if(bound_implies_trait(w->type, type)) return true;
             }
         }
         if(auto dec = decl->isa<ast::TraitDecl>()){
             for(auto& w: dec->where_clauses){
-                if(w->type == type) return true;
+                if(bound_implies_trait(w->type, type)) return true;
             }
         }
         if(auto dec = decl->isa<ast::StructDecl>()){
             for(auto& w: dec->where_clauses){
-                if(w->type == type) return true;
+                if(bound_implies_trait(w->type, type)) return true;
             }
         }
         if(auto dec = decl->isa<ast::EnumDecl>()){
             for(auto& w: dec->where_clauses){
-                if(w->type == type) return true;
+                if(bound_implies_trait(w->type, type)) return true;
             }
         }
         if(auto dec = decl->isa<ast::ImplDecl>()){
@@ -629,7 +644,7 @@ bool TypeChecker::trait_bound_exists(const Type* type) {
         }
         if(auto dec = decl->isa<ast::TypeDecl>()){
             for(auto& w: dec->where_clauses){
-                if(w->type == type) return true;
+                if(bound_implies_trait(w->type, type)) return true;
             }
         }
     }
@@ -714,7 +729,7 @@ const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, Ptr<Ex
                         }
                     }
                 }
-                else{
+                else if(!user_type->isa<TraitType>()){ // avoid requiring trait bounds
                     std::unordered_map<const TypeVar*, const artic::Type*> map;
                     for (size_t i = 0, n = type_args.size(); i < n; ++i) {
                         map.emplace(user_type->type_params()->params[i]->type->as<TypeVar>(), type_args[i]);
@@ -1596,7 +1611,8 @@ const artic::Type* StructDecl::infer(TypeChecker& checker) {
         for (auto& param : type_params->params)
             checker.infer(*param);
     }
-    checker.enter_decl(this);
+    if (!checker.enter_decl(this))
+        return checker.type_table.type_error();
 
     //check trait bounds
     for (const auto& trait:where_clauses) {
@@ -1633,7 +1649,8 @@ const artic::Type* EnumDecl::infer(TypeChecker& checker) {
         for (auto& param : type_params->params)
             checker.infer(*param);
     }
-    checker.enter_decl(this);
+    if (!checker.enter_decl(this))
+        return checker.type_table.type_error();
     //check trait bounds
     for (const auto& trait:where_clauses) {
         checker.infer(*trait);
@@ -1677,7 +1694,8 @@ const artic::Type* TraitDecl::infer(TypeChecker& checker) {
         for (auto& param : type_params->params)
             checker.infer(*param);
     }
-    checker.enter_decl(this);
+    if (!checker.enter_decl(this))
+        return checker.type_table.type_error();
 
     //check trait bounds
     for (const auto& trait:where_clauses) {
@@ -1728,7 +1746,9 @@ int count_vars_ctors(const artic::Type* t){
 }
 
 const artic::Type* ImplDecl::infer(TypeChecker& checker) {
-    checker.enter_decl(this);
+    if (!checker.enter_decl(this))
+        return checker.type_table.type_error();
+
     //check trait bounds
     for (const auto& trait:where_clauses) {
         checker.infer(*trait);
@@ -1739,6 +1759,11 @@ const artic::Type* ImplDecl::infer(TypeChecker& checker) {
     if (!trait_type){
         checker.exit_decl(this);
         return checker.type_expected(loc, this->trait_type->type, "trait");
+    }
+
+    for(auto w:trait_type->where_types()){
+        auto w_t = w->replace(type_app->replace_map());
+        checker.check_bound(w_t, this->loc);
     }
 
     //paterson
