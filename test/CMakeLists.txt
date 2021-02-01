@@ -133,6 +133,7 @@ add_failure_test(NAME failure_cast1          COMMAND artic ${CMAKE_CURRENT_SOURC
 add_failure_test(NAME failure_cast2          COMMAND artic --warnings-as-errors ${CMAKE_CURRENT_SOURCE_DIR}/failure/cast2.art)
 add_failure_test(NAME failure_attrs          COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/attrs.art)
 add_failure_test(NAME failure_not_written_to COMMAND artic --warnings-as-errors ${CMAKE_CURRENT_SOURCE_DIR}/failure/not_written_to.art)
+add_failure_test(NAME failure_not_sized      COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/not_sized.art)
 
 set(CODEGEN_TESTS "")
 if (Thorin_HAS_LLVM_SUPPORT)
