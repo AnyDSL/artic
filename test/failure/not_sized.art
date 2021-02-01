@@ -1,0 +1,11 @@
+enum E {
+    A, B(S)
+}
+
+struct S {
+    i: i32,
+    j: i64,
+    k: (i32, i64),
+    l: &S,
+    m: E
+}

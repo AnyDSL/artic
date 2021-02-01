@@ -1541,8 +1541,6 @@ const artic::Type* StructDecl::infer(TypeChecker& checker) {
     type = struct_type;
     for (auto& field : fields)
         checker.infer(*field);
-    if (!struct_type->is_sized())
-        checker.unsized_type(loc, struct_type);
     return struct_type;
 }
 
@@ -1568,8 +1566,6 @@ const artic::Type* EnumDecl::infer(TypeChecker& checker) {
     type = enum_type;
     for (auto& option : options)
         checker.infer(*option);
-    if (!enum_type->is_sized())
-        checker.unsized_type(loc, enum_type);
     return enum_type;
 }
 
@@ -1593,6 +1589,12 @@ const artic::Type* TypeDecl::infer(TypeChecker& checker) {
 const artic::Type* ModDecl::infer(TypeChecker& checker) {
     for (auto& decl : decls)
         checker.infer(*decl);
+    for (auto& decl : decls) {
+        if (decl->isa<StructDecl>() || decl->isa<EnumDecl>()) {
+            if (!decl->type->is_sized())
+                checker.unsized_type(decl->loc, decl->type);
+        }
+    }
     return checker.type_table.mod_type(*this);
 }
 
