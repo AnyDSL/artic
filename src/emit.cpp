@@ -856,7 +856,7 @@ const thorin::Def* Emitter::comparator(const Loc& loc, const Type* type) {
                     enter(i == n - 1 ? otherwise : targets[i]);
                     // No payload, return true
                     if (thorin::is_type_unit(converted_type->op(i))) {
-                        jump(ret, world.literal_bool(true, {}));
+                        jump(join_true);
                         continue;
                     }
                     auto left_ptr  = alloc(converted_type->op(i));

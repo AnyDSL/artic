@@ -1,0 +1,21 @@
+#[import(cc = "builtin")]
+fn compare[T](&T, &T) -> bool;
+
+enum E {
+    A, B(&S)
+}
+
+struct S {
+    i: i32,
+    j: i64,
+    k: (i32, i64),
+    l: &S,
+    m: E
+}
+
+#[export]
+fn main() {
+    let a = S { i = 1, j = 2, k = (3, 4), l = 0 as &S, m = E::A };
+    let b = S { i = 1, j = 2, k = (3, 4), l = 0 as &S, m = E::A };
+    if compare(&a, &b) { 0 } else { 1 }
+}

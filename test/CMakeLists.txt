@@ -67,6 +67,7 @@ add_test(NAME simple_asm         COMMAND artic --print-ast ${CMAKE_CURRENT_SOURC
 add_test(NAME simple_simd        COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/simd.art)
 add_test(NAME simple_type_args   COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/type_args.art)
 add_test(NAME simple_subtype     COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/subtype.art)
+add_test(NAME simple_compare     COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/compare.art)
 
 add_failure_test(NAME failure_annot          COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/annot.art)
 add_failure_test(NAME failure_comment        COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/comment.art)
@@ -207,6 +208,9 @@ if (Thorin_HAS_LLVM_SUPPORT)
         ARGS 1024
         SOURCE_FILE ${CMAKE_CURRENT_SOURCE_DIR}/codegen/mandelbrot.art
         REFERENCE ${CMAKE_CURRENT_SOURCE_DIR}/codegen/mandelbrot.ref)
+    add_codegen_test(
+        NAME compare
+        SOURCE_FILE ${CMAKE_CURRENT_SOURCE_DIR}/codegen/compare.art)
 endif ()
 
 if (CODE_COVERAGE AND CMAKE_BUILD_TYPE STREQUAL "Debug")
