@@ -764,6 +764,12 @@ const thorin::Def* Emitter::builtin(const ast::FnDecl& fn_decl, thorin::Continua
         cont->jump(cont->params().back(), {cont->param(0), world.cmp_eq(cont->param(1), cont->param(2))} , debug_info(fn_decl));
     } else if (cont->name() == "ne") {
         cont->jump(cont->params().back(), {cont->param(0), world.cmp_ne(cont->param(1), cont->param(2))} , debug_info(fn_decl));
+    } else if (cont->name() == "plus") {
+        cont->jump(cont->params().back(), {cont->param(0), cont->param(1)} , debug_info(fn_decl));
+    } else if (cont->name() == "minus") {
+        cont->jump(cont->params().back(), {cont->param(0), world.arithop_minus(cont->param(1))} , debug_info(fn_decl));
+    } else if (cont->name() == "not") {
+        cont->jump(cont->params().back(), {cont->param(0), world.arithop_not(cont->param(1))} , debug_info(fn_decl));
     } else {
         assert(false);
     }
@@ -822,9 +828,11 @@ const thorin::Def* Path::emit(Emitter& emitter) const {
                 if(!index){
                     auto default_index = trait_type->find_member(elems[i+1].id.name);
                     def = emitter.emit(*trait_type->decl.functs[*default_index]);
+                    trait_type->decl.functs[*default_index]->def = nullptr;
                 }
                 else{
                     def = emitter.emit(*impl_type->decl.functs[*index]);
+                    impl_type->decl.functs[*index]->def = nullptr;
                 }
             }
             else {
@@ -1179,32 +1187,63 @@ const thorin::Def* UnaryExpr::emit(Emitter& emitter) const {
         op = emitter.emit(*arg);
     }
     const thorin::Def* res = nullptr;
-    switch (tag) {
-        case Plus:
-            [[fallthrough]];
-        case Deref:
-            // The operand must be a pointer, so we return it as a reference
-            res = op;
-            break;
-        case Not:    res = emitter.world.arithop_not(op, debug_info(*this));   break;
-        case Minus:  res = emitter.world.arithop_minus(op, debug_info(*this)); break;
-        case Known:  res = emitter.world.known(op, debug_info(*this));         break;
-        case Forget: res = emitter.world.hlt(op, debug_info(*this));           break;
-        case PreInc:
-        case PostInc: {
-            auto one = emitter.world.one(op->type());
-            res = emitter.world.arithop_add(op, one, debug_info(*this));
-            break;
+    if(is_constant() || is_simd_type(arg->type) || tag == Deref || tag == Known || tag == Forget) {
+        switch (tag) {
+            case Plus:
+                [[fallthrough]];
+            case Deref:
+                // The operand must be a pointer, so we return it as a reference
+                res = op;
+                break;
+            case Not:
+                res = emitter.world.arithop_not(op, debug_info(*this));
+                break;
+            case Minus:
+                res = emitter.world.arithop_minus(op, debug_info(*this));
+                break;
+            case Known:
+                res = emitter.world.known(op, debug_info(*this));
+                break;
+            case Forget:
+                res = emitter.world.hlt(op, debug_info(*this));
+                break;
+            case PreInc:
+            case PostInc: {
+                auto one = emitter.world.one(op->type());
+                res = emitter.world.arithop_add(op, one, debug_info(*this));
+                break;
+            }
+            case PreDec:
+            case PostDec: {
+                auto one = emitter.world.one(op->type());
+                res = emitter.world.arithop_sub(op, one, debug_info(*this));
+                break;
+            }
+            default:
+                assert(false);
+                return nullptr;
         }
-        case PreDec:
-        case PostDec: {
-            auto one = emitter.world.one(op->type());
-            res = emitter.world.arithop_sub(op, one, debug_info(*this));
-            break;
+    }
+    else{
+        auto arg_type = arg->type->replace(emitter.type_vars);
+        if(arg_type->isa<RefType>()) arg_type = arg_type->as<RefType>()->pointee;
+        std::vector<const artic::Type*> trait_args;
+        trait_args.emplace_back(arg_type);
+        auto trait_key = UnaryExpr::tag_to_string(tag) + "u";
+        auto trait = arg_type->type_table.get_key_trait(trait_key);
+        auto needed_impl = arg_type->type_table.type_app(trait, std::move(trait_args));
+        auto impls = arg_type->type_table.find_impls(needed_impl);
+        auto [type_app, impl_type] = match_app<ImplType>(impls.front());
+        if(impl_type->type_params()) {
+            std::unordered_map<const artic::TypeVar*, const artic::Type*> map;
+            for (auto i =0; i < type_app->type_args.size(); i++)
+                map.insert({impl_type->type_params()->params[i]->type->as< artic::TypeVar>(), type_app->type_args[i]});
+            map.insert(emitter.type_vars.begin(), emitter.type_vars.end());
+            std::swap(map, emitter.type_vars);
         }
-        default:
-            assert(false);
-            return nullptr;
+        auto fn = emitter.emit(*impl_type->decl.functs[0]);
+        impl_type->decl.functs[0]->def = nullptr;
+        res = emitter.call(fn, op, debug_info(*this));
     }
     if (ptr) {
         emitter.store(ptr, res, debug_info(*this));
@@ -1266,7 +1305,7 @@ const thorin::Def* BinaryExpr::emit(Emitter& emitter) const {
     if(tag == Eq) {
         res = rhs;
     }
-    else if(remove_eq(tag) != CmpNE ){ // constants and simd require direct codegen instead of detour through definition
+    else if(is_constant() || is_simd_type(left->type) ){ // constants and simd require direct codegen instead of detour through definition
         switch (remove_eq(tag)) {
             case Add:   res = emitter.world.arithop_add(lhs, rhs, debug_info(*this)); break;
             case Sub:   res = emitter.world.arithop_sub(lhs, rhs, debug_info(*this)); break;
@@ -1307,6 +1346,7 @@ const thorin::Def* BinaryExpr::emit(Emitter& emitter) const {
             std::swap(map, emitter.type_vars);
         }
         auto fn = emitter.emit(*impl_type->decl.functs[0]);
+        impl_type->decl.functs[0]->def = nullptr;
         thorin::Array<const thorin::Def*> args(2);
         args[0] = lhs;
         args[1] = rhs;
@@ -1389,22 +1429,31 @@ const thorin::Def* FnDecl::emit(Emitter& emitter) const {
     auto _ = emitter.save_state();
     const thorin::FnType* cont_type = nullptr;
     Emitter::MonoFn mono_fn { this, {} };
-    if (type_params) {
-        for (auto& param : type_params->params)
-            mono_fn.type_args.push_back(param->type->replace(emitter.type_vars));
+    auto vars = get_type_vars(type);
+    if (type_params || !vars.empty()) {
+        // !vars.empty() => traits performed 'pseudo overloading' .
+        // Via generic impl blocks the same FnDecl can have multiple types
+        if(type_params)
+            for (auto &param : type_params->params) {
+                mono_fn.type_args.push_back(param->type->replace(emitter.type_vars));
+            }
+        for (auto &v : vars){
+           mono_fn.type_args.push_back(v->replace(emitter.type_vars));
+        }
         // Try to find an existing monomorphized version of this function with that type
         if (auto it = emitter.mono_fns.find(mono_fn); it != emitter.mono_fns.end())
             return it->second;
         emitter.poly_defs.emplace_back();
+    }
+    if(type_params){
         cont_type = type->as<artic::ForallType>()->body->convert(emitter)->as<thorin::FnType>();
-    } else {
+    }
+    else {
         cont_type = type->convert(emitter)->as<thorin::FnType>();
     }
-
     auto cont = emitter.world.continuation(cont_type, debug_info(*this));
-    if (type_params)
+    if (type_params || !vars.empty())
         emitter.mono_fns.emplace(std::move(mono_fn), cont);
-
     cont->params().back()->debug().set("ret");
 
     // Set the calling convention and export the continuation if needed
@@ -1445,11 +1494,10 @@ const thorin::Def* FnDecl::emit(Emitter& emitter) const {
         auto value = emitter.emit(*fn->body);
         emitter.jump(cont->params().back(), value, debug_info(*fn->body));
     }
-
     // Clear the thorin IR generated for this entire function
     // if the function is polymorphic, so as to allow multiple
     // instantiations with different types.
-    if (type_params) {
+    if (type_params || !vars.empty()) {
         for (auto& def : emitter.poly_defs.back())
             *def = nullptr;
         emitter.poly_defs.pop_back();

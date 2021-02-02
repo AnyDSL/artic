@@ -21,10 +21,11 @@ void NameBinder::bind(ast::Node& node) {
 void NameBinder::pop_scope() {
     for (auto& pair : scopes_.back().symbols) {
         auto decl = pair.second->decls.front();
-        if (pair.second.use_count() <= 1 &&
+        if ((pair.second.use_count() <= 1 &&
             !scopes_.back().top_level &&
             !decl->isa<ast::FieldDecl>() &&
-            !decl->isa<ast::OptionDecl>()) {
+            !decl->isa<ast::OptionDecl>()) &&
+            !(scopes_.back().ignore_unused_fns && decl->isa<ast::FnDecl>())) {
             warn(decl->loc, "unused identifier '{}'", pair.first);
             note("prefix unused identifiers with '_'");
         }
@@ -441,17 +442,19 @@ void TraitDecl::bind_head(NameBinder& binder) {
 }
 
 void TraitDecl::bind(NameBinder& binder) {
-    binder.push_scope();
+    binder.push_scope(false, true);
     if (type_params) binder.bind(*type_params);
+    for (auto& f: functs) f->bind_head(binder);
     for (auto& f: functs) f->bind(binder);
     for (auto& trait: where_clauses) binder.bind(*trait);
     binder.pop_scope();
 }
 
 void ImplDecl::bind(NameBinder& binder) {
-    binder.push_scope();
+    binder.push_scope(false, true);
     if (type_params) binder.bind(*type_params);
     trait_type->bind(binder);
+    for (auto& f: functs) f->bind_head(binder);
     for (auto& trait: where_clauses) binder.bind(*trait);
     for (auto& f: functs) f->bind(binder);
     binder.pop_scope();

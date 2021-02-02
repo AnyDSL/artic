@@ -208,7 +208,8 @@ struct ProgramOptions {
             } else
                 files.push_back(argv[i]);
         }
-        files.push_back(std_lib);
+
+        files.insert(files.begin(), std_lib);
         return true;
     }
 };

@@ -722,6 +722,41 @@ bool is_unit_type(const Type* type) {
     return type->isa<TupleType>() && type->as<TupleType>()->args.empty();
 }
 
+bool contains_var(const Type* t){
+    if(t->isa<TypeVar>()){
+        return true;
+    }
+    if(t->isa<FnType>()){
+        return contains_var(t->as<FnType>()->dom) || contains_var(t->as<FnType>()->codom);
+    }
+    if(t->isa<TypeApp>()){
+        for(auto arg: t->as<TypeApp>()->type_args){
+            if(contains_var(arg)) return true;
+        }
+    }
+    return false;
+}
+
+std::vector<const Type*> get_type_vars(const Type* t){
+    std::vector<const Type*> res;
+    if(t->isa<TypeVar>()){
+        res.push_back(t);
+    }
+    if(t->isa<FnType>()) {
+        res = get_type_vars(t->as<FnType>()->dom);
+        for (auto t: get_type_vars(t->as<FnType>()->codom))
+            res.push_back(t);
+    }
+    if(t->isa<TypeApp>()){
+        for(auto arg: t->as<TypeApp>()->type_args){
+            for(auto t: get_type_vars(arg)) {
+                res.push_back(t);
+            }
+        }
+    }
+    return res;
+}
+
 // Type table ----------------------------------------------------------------------
 
 TypeTable::~TypeTable() {

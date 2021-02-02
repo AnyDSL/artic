@@ -567,21 +567,6 @@ const Type* TypeChecker::infer_record_type(const TypeApp* type_app, const Struct
     return type_app ? type_app->as<Type>() : struct_type;
 }
 
-bool contains_var(const Type* t){
-    if(t->isa<TypeVar>()){
-        return true;
-    }
-    if(t->isa<FnType>()){
-        return contains_var(t->as<FnType>()->dom) || contains_var(t->as<FnType>()->codom);
-    }
-    if(t->isa<TypeApp>()){
-        for(auto arg: t->as<TypeApp>()->type_args){
-            if(contains_var(arg)) return true;
-        }
-    }
-    return false;
-}
-
 void TypeChecker::check_bound(const Type* bound, Loc& loc){
     if (auto trait_type = bound->isa<artic::TraitType>()) {
         add_impl_req(loc, trait_type);
@@ -862,6 +847,7 @@ void NamedAttr::check(TypeChecker& checker, const ast::Node* node) {
                                 name != "xor" &&
                                 name != "lt" && name != "gt"  && name != "le" &&
                                 name != "ge" && name != "eq"  && name != "ne" &&
+                                name != "plus" && name != "minus"  && name != "not" &&
                                 name != "from_int" && name != "from_float")
                                 checker.error(fn_decl->loc, "unsupported built-in function");
                         } else if (cc != "C" && cc != "device" && cc != "thorin")
@@ -1321,26 +1307,26 @@ const artic::Type* UnaryExpr::infer(TypeChecker& checker) {
     auto prim_type = arg_type;
     if (is_simd_type(prim_type))
         prim_type = prim_type->as<artic::SizedArrayType>()->elem;
-    if (!prim_type->isa<artic::PrimType>())
-        return checker.type_expected(arg->loc, arg_type, "primitive or simd");
     switch (tag) {
         case Plus:
         case Minus:
-            if (!is_int_or_float_type(prim_type))
-                return checker.type_expected(arg->loc, arg_type, "integer or floating-point");
-            break;
         case Not:
-            if (!is_int_type(prim_type) && !is_bool_type(prim_type))
-                return checker.type_expected(arg->loc, arg_type, "integer or boolean");
-            break;
         case PostInc:
         case PostDec:
         case PreInc:
-        case PreDec:
-            arg->write_to();
-            if (!is_int_type(prim_type))
-                return checker.type_expected(arg->loc, arg_type, "integer");
+        case PreDec:{
+            std::vector<const artic::Type *> args;
+            args.emplace_back(prim_type);
+            auto trait_key = UnaryExpr::tag_to_string(tag) + "u";
+            auto trait = checker.type_table.get_key_trait(trait_key);
+            auto needed_impl = checker.type_table.type_app(trait, std::move(args));
+            if (!checker.trait_bound_exists(needed_impl)) {
+                checker.add_impl_req(loc, needed_impl);
+            }
+            if(tag == PostDec || tag == PreDec || tag == PostInc || tag == PreInc)
+                arg->write_to();
             break;
+        }
         default:
             assert(false);
             break;
@@ -1352,11 +1338,7 @@ const artic::Type* UnaryExpr::check(TypeChecker& checker, const artic::Type* exp
     switch (tag) {
         case Plus:
         case Minus:
-            if (is_int_or_float_type(expected))
-                checker.coerce(arg, expected);
-            break;
         case Not:
-            if (is_int_type(expected) || is_bool_type(expected))
                 checker.coerce(arg, expected);
             break;
         default:
@@ -1684,6 +1666,11 @@ std::unordered_map<std::string, std::string> trait_to_key{
     std::make_pair("CmpGE", ">="),
     std::make_pair("CmpEq", "=="),
     std::make_pair("CmpNE", "!="),
+    std::make_pair("Plus", "+u"),
+    std::make_pair("Minus", "-u"),
+    std::make_pair("Not", "!u"),
+    std::make_pair("Inc", "++u"),
+    std::make_pair("Dec", "--u"),
     std::make_pair("FromInt", "FromInt"),
     std::make_pair("FromFloat", "FromFloat")
 };

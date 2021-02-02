@@ -26,10 +26,11 @@ struct Symbol {
 /// Table containing a map from symbol name to declaration site.
 struct SymbolTable {
     bool top_level;
+    bool ignore_unused_fns;
     std::unordered_map<std::string, std::shared_ptr<Symbol>> symbols;
 
-    SymbolTable(bool top_level = false)
-        : top_level(top_level)
+    SymbolTable(bool top_level = false, bool ignore_unused_fns = false)
+        : top_level(top_level), ignore_unused_fns(ignore_unused_fns)
     {}
 
     std::shared_ptr<Symbol> find(const std::string& name) {

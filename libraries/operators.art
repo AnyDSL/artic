@@ -14,6 +14,13 @@ trait CmpLE[T]{ fn le(T,T)->bool; }
 trait CmpGE[T]{ fn ge(T,T)->bool; }
 trait CmpEq[T]{ fn eq(T,T)->bool; }
 trait CmpNE[T]{ fn ne(T,T)->bool; }
+
+trait Plus[T]{ fn plus(T)->T;}
+trait Minus[T]{ fn minus(T)->T;}
+trait Not[T]{ fn not(T)->T; }
+trait Inc[T]{ fn inc(T)->T;}
+trait Dec[T]{ fn dec(T)->T;}
+
 trait FromInt[T]{ fn from_int(u64)->T; }
 trait FromFloat[T]{ fn from_float(f64)->T; }
 trait Bitcast[T, U]{ fn bitcast(T)->U; }
@@ -223,3 +230,37 @@ impl FromFloat[u64]{ #[import(cc = "builtin")]fn from_float(f64)->u64; }
 impl FromFloat[f16]{ #[import(cc = "builtin")]fn from_float(f64)->f16; }
 impl FromFloat[f32]{ #[import(cc = "builtin")]fn from_float(f64)->f32; }
 impl FromFloat[f64]{ #[import(cc = "builtin")]fn from_float(f64)->f64; }
+
+impl Plus[i8]{ #[import(cc = "builtin")]fn plus(i8)->i8; }
+impl Plus[i16]{ #[import(cc = "builtin")]fn plus(i16)->i16; }
+impl Plus[i32]{ #[import(cc = "builtin")]fn plus(i32)->i32; }
+impl Plus[i64]{ #[import(cc = "builtin")]fn plus(i64)->i64; }
+impl Plus[u8]{ #[import(cc = "builtin")]fn plus(u8)->u8; }
+impl Plus[u16]{ #[import(cc = "builtin")]fn plus(u16)->u16; }
+impl Plus[u32]{ #[import(cc = "builtin")]fn plus(u32)->u32; }
+impl Plus[u64]{ #[import(cc = "builtin")]fn plus(u64)->u64; }
+impl Plus[f16]{ #[import(cc = "builtin")]fn plus(f16)->f16; }
+impl Plus[f32]{ #[import(cc = "builtin")]fn plus(f32)->f32; }
+impl Plus[f64]{ #[import(cc = "builtin")]fn plus(f64)->f64; }
+
+impl Minus[i8]{ #[import(cc = "builtin")]fn minus(i8)->i8; }
+impl Minus[i16]{ #[import(cc = "builtin")]fn minus(i16)->i16; }
+impl Minus[i32]{ #[import(cc = "builtin")]fn minus(i32)->i32; }
+impl Minus[i64]{ #[import(cc = "builtin")]fn minus(i64)->i64; }
+impl Minus[u8]{ #[import(cc = "builtin")]fn minus(u8)->u8; }
+impl Minus[u16]{ #[import(cc = "builtin")]fn minus(u16)->u16; }
+impl Minus[u32]{ #[import(cc = "builtin")]fn minus(u32)->u32; }
+impl Minus[u64]{ #[import(cc = "builtin")]fn minus(u64)->u64; }
+impl Minus[f16]{ #[import(cc = "builtin")]fn minus(f16)->f16; }
+impl Minus[f32]{ #[import(cc = "builtin")]fn minus(f32)->f32; }
+impl Minus[f64]{ #[import(cc = "builtin")]fn minus(f64)->f64; }
+
+impl Not[i8]{ #[import(cc = "builtin")]fn not(i8)->i8; }
+impl Not[i16]{ #[import(cc = "builtin")]fn not(i16)->i16; }
+impl Not[i32]{ #[import(cc = "builtin")]fn not(i32)->i32; }
+impl Not[i64]{ #[import(cc = "builtin")]fn not(i64)->i64; }
+impl Not[u8]{ #[import(cc = "builtin")]fn not(u8)->u8; }
+impl Not[u16]{ #[import(cc = "builtin")]fn not(u16)->u16; }
+impl Not[u32]{ #[import(cc = "builtin")]fn not(u32)->u32; }
+impl Not[u64]{ #[import(cc = "builtin")]fn not(u64)->u64; }
+impl Not[bool]{ #[import(cc = "builtin")]fn not(bool)->bool; }
