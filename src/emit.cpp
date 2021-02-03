@@ -714,7 +714,7 @@ void Emitter::bind(const ast::IdPtrn& id_ptrn, const thorin::Def* value) {
             warn(id_ptrn.loc, "mutable variable '{}' is never written to", id_ptrn.decl->id.name);
     } else {
         id_ptrn.decl->def = value;
-        value->debug().name = id_ptrn.decl->id.name;
+        value->set_name(id_ptrn.decl->id.name);
     }
 }
 
@@ -1107,7 +1107,7 @@ const thorin::Def* FnExpr::emit(Emitter& emitter) const {
     auto cont = emitter.world.continuation(
         type->convert(emitter)->as<thorin::FnType>(),
         emitter.debug_info(*this));
-    cont->params().back()->debug().name = "ret";
+    cont->params().back()->set_name("ret");
     // Set the IR node before entering the body
     def = cont;
     emitter.enter(cont);
@@ -1264,7 +1264,7 @@ const thorin::Def* ForExpr::emit(Emitter& emitter) const {
             emitter.debug_info(*body_fn, "for_body"));
         break_ = emitter.basic_block_with_mem(type->convert(emitter), emitter.debug_info(*this, "for_break"));
         continue_ = body_cont->params().back();
-        continue_->debug().name = "for_continue";
+        continue_->set_name("for_continue");
         emitter.enter(body_cont);
         emitter.emit(*body_fn->param, emitter.tuple_from_params(body_cont, true));
         emitter.jump(body_cont->params().back(), emitter.emit(*body_fn->body));
@@ -1507,17 +1507,17 @@ const thorin::Def* FnDecl::emit(Emitter& emitter) const {
     if (type_params)
         emitter.mono_fns.emplace(std::move(mono_fn), cont);
 
-    cont->params().back()->debug().name = "ret";
+    cont->params().back()->set_name("ret");
 
     // Set the calling convention and export the continuation if needed
     if (attrs) {
         if (auto export_attr = attrs->find("export")) {
             cont->make_exported();
             if (auto name_attr = export_attr->find("name"))
-                cont->debug().name = name_attr->as<LiteralAttr>()->lit.as_string();
+                cont->set_name(name_attr->as<LiteralAttr>()->lit.as_string());
         } else if (auto import_attr = attrs->find("import")) {
             if (auto name_attr = import_attr->find("name"))
-                cont->debug().name = name_attr->as<LiteralAttr>()->lit.as_string();
+                cont->set_name(name_attr->as<LiteralAttr>()->lit.as_string());
             if (auto cc_attr = import_attr->find("cc")) {
                 auto cc = cc_attr->as<LiteralAttr>()->lit.as_string();
                 if (cc == "device") {
