@@ -205,7 +205,7 @@ Ptr<ast::EnumDecl> Parser::parse_enum_decl() {
     return make_ptr<ast::EnumDecl>(tracker(), std::move(id), std::move(type_params), std::move(where_clauses), std::move(options));
 }
 
-Ptr<ast::TraitDecl> Parser::parse_trait_decl(){
+Ptr<ast::TraitDecl> Parser::parse_trait_decl() {
     Tracker tracker(this);
     eat(Token::Trait);
     auto id = parse_id();
@@ -249,7 +249,7 @@ Ptr<ast::TraitDecl> Parser::parse_trait_decl(){
 }
 
 
-Ptr<ast::ImplDecl> Parser::parse_impl_decl(){
+Ptr<ast::ImplDecl> Parser::parse_impl_decl() {
 
     Tracker tracker(this);
     eat(Token::Impl);

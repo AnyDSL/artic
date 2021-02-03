@@ -1340,17 +1340,17 @@ struct EnumDecl : public NamedDecl {
 /// Trait declaration.
 struct TraitDecl : public NamedDecl {
     Ptr<TypeParamList> type_params;
-    PtrVector<FnDecl> functs;
+    PtrVector<FnDecl> fns;
     PtrVector<TypeApp> where_clauses;
 
     TraitDecl(
             const Loc& loc,
             Identifier&& id,
             Ptr<TypeParamList>&& type_params,
-            PtrVector<FnDecl>&& functs,
+            PtrVector<FnDecl>&& fns,
             PtrVector<TypeApp> where_clauses)
             : NamedDecl(loc, std::move(id))
-            , functs(std::move(functs))
+            , fns(std::move(fns))
             , type_params(std::move(type_params))
             , where_clauses(std::move(where_clauses))
     {}
@@ -1366,7 +1366,7 @@ struct TraitDecl : public NamedDecl {
 struct ImplDecl : public Decl {
     Ptr<TypeParamList> type_params;
     Ptr<TypeApp> trait_type;
-    PtrVector<FnDecl> functs;
+    PtrVector<FnDecl> fns;
     PtrVector<TypeApp> where_clauses;
 
     ImplDecl(
@@ -1378,7 +1378,7 @@ struct ImplDecl : public Decl {
             : Decl(loc)
             , type_params(std::move(type_params))
             , trait_type(std::move(trait_type))
-            , functs(std::move(functs))
+            , fns(std::move(functs))
             , where_clauses(std::move(where_clauses))
      {}
 

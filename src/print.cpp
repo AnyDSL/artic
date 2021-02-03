@@ -571,7 +571,7 @@ void TraitDecl::print(Printer& p) const {
         });
     }
     p << '{' << p.indent() ;
-    for (auto& f:functs) {
+    for (auto& f:fns) {
         p << p.endl();
         f->print(p);
     }
@@ -589,7 +589,7 @@ void ImplDecl::print(Printer& p) const {
         });
     }
     p << ' ' << '{' << p.indent();
-    for (auto& f:functs) {
+    for (auto& f:fns) {
         p << p.endl();
         f->print(p);
     }

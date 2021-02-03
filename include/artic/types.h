@@ -383,7 +383,7 @@ struct ForallType : public Type {
     /// Returns the type of the body with type variables
     /// substituted with the given arguments.
     const Type* instantiate(const std::vector<const Type*>&) const;
-    std::unordered_map<const TypeVar*, const artic::Type*> instantiate_map(const std::vector<const Type*>&) const;
+    std::unordered_map<const TypeVar*, const artic::Type*> instance_map(const std::vector<const Type*>&) const;
 
     void print(Printer&) const override;
     bool equals(const Type*) const override;
@@ -614,8 +614,8 @@ bool is_prim_type(const Type*, ast::PrimType::Tag);
 bool is_simd_type(const Type*);
 bool is_unit_type(const Type*);
 bool contains_var(const Type* t);
-std::vector<const Type*> get_type_vars(const Type* t);
 inline bool is_bool_type(const Type* type) { return is_prim_type(type, ast::PrimType::Bool); }
+std::vector<const Type*> get_type_vars(const Type* t);
 
 template <typename T>
 std::pair<const TypeApp*, const T*> match_app(const Type* type) {
@@ -655,17 +655,20 @@ public:
     /// or returns the type alias expanded with the given type arguments.
     const Type* type_app(const UserType*, std::vector<const Type*>&&);
 
-    //relates operators to traits implementing them
+    /// Relates operators to the traits implementing them
     void add_key_trait(std::string op, const TraitType* trait);
     const TraitType* get_key_trait(std::string op);
 
     /// Returns nullptr if the impl is not already registered
     const ImplType* register_impl(const ImplType* impl);
+
     const std::vector<const Type*> find_all_impls(const Type* type, std::vector<const Type*> additional_bounds = {});
     const Type* find_impl(const Type* type);
     void store_impl(const Type* type, const Type* impl);
     bool check_impl(const Type* type, const ImplType* impl, std::vector<const Type*> additional_bounds = {});
     bool in_additional_bound(const Type* type, const Type* additional_bound);
+
+    /// Returns a map that replaces the vars of the first arg in s.t. the target results from the replacement
     const std::unordered_map<const TypeVar*, const Type*> type_args(const Type* poly, const Type* target);
 
 private:
@@ -686,6 +689,8 @@ private:
     std::unordered_map<std::string, const TraitType*> key_traits_;
     //maps types to a vector containing all candidates that have hat type as a conclusion
     std::unordered_map<const Type*, std::vector<const ImplType*>> impls_;
+    //maps types to their implementation. This avoids frequent recalculation
+    std::unordered_map<const Type*, const Type*> type_impl_table_;
 
     const PrimType*   bool_type_   = nullptr;
     const TupleType*  unit_type_   = nullptr;
@@ -693,8 +698,6 @@ private:
     const TopType*    top_type_    = nullptr;
     const NoRetType*  no_ret_type_ = nullptr;
     const TypeError*  type_error_  = nullptr;
-
-    std::unordered_map<const Type*, const Type*> type_impl_table_;
 };
 
 } // namespace artic

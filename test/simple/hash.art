@@ -1,22 +1,22 @@
-trait Hash[T]{
-    fn hash(_:T) -> u32;
+trait Hash[T] {
+    fn hash(_: T) -> u32;
 }
 
-impl Hash[bool]{
-    fn hash(self:bool)->u32{
-        if (self) {1} else {0}
+impl Hash[bool] {
+    fn hash(self: bool) -> u32 {
+        if (self) { 1 } else { 0 }
     }
 }
 
-impl Hash[i32]{
-    fn hash(self:i32) -> u32 {self as u32}
+impl Hash[i32] {
+    fn hash(self: i32) -> u32 { self as u32 }
 }
 
-impl Hash[u32]{
-    fn hash(self:u32) -> u32 {self}
+impl Hash[u32] {
+    fn hash(self: u32) -> u32 { self }
 }
 
-fn test(){
+fn test() {
     Hash[i32]::hash(1);
     Hash[bool]::hash(true);
 }

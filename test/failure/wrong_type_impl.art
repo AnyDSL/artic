@@ -1,9 +1,9 @@
 trait T[A] {
-    fn foo()->u32;
-    fn bar()->A;
+    fn foo() -> u32;
+    fn bar() -> A;
 }
 
 impl T[i32] {
-    fn foo()->u32{0};
-    fn bar(){true};
+    fn foo() -> u32{ 0 };
+    fn bar() { true };
 }

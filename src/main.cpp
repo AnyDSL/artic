@@ -257,7 +257,7 @@ int main(int argc, char** argv) {
     }
 
     if (opts.module_name == "")
-        opts.module_name = file_without_ext(opts.files.front());
+        opts.module_name = file_without_ext(opts.files.at(1));
 
     Locator locator;
     Log log(log::err, &locator);

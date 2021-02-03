@@ -1,4 +1,4 @@
-trait T{}
-struct S[A]{}
+trait T {}
+struct S[A] {}
 
-fn test()->S[T] = 1;
+fn test() -> S[T] = 1;

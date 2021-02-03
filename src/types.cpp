@@ -437,9 +437,9 @@ const std::vector<const Type*> TypeAlias::where_types() const {
     auto& aux =  decl.where_clauses;
 
     std::vector<const Type*> res;
-    for(auto& clause: aux){
+    res.reserve(aux.size());
+    for(auto& clause: aux)
         res.push_back(clause->type);
-    }
     return res;
 }
 
@@ -456,9 +456,9 @@ const std::vector<const Type*> StructType::where_types() const {
            ? decl.as<ast::StructDecl>()->where_clauses
            : decl.as<ast::OptionDecl>()->parent->where_clauses;
     std::vector<const Type*> res;
-    for(auto& clause: aux){
+    res.reserve(aux.size());
+    for(auto& clause: aux)
         res.push_back(clause->type);
-    }
     return res;
 }
 
@@ -490,9 +490,9 @@ const std::vector<const Type*> EnumType::where_types() const {
     auto& aux =  decl.where_clauses;
 
     std::vector<const Type*> res;
-    for(auto& clause: aux){
+    res.reserve(aux.size());
+    for(auto& clause: aux)
         res.push_back(clause->type);
-    }
     return res;
 }
 
@@ -512,22 +512,22 @@ const std::vector<const Type*> TraitType::where_types() const {
     auto& aux =  decl.where_clauses;
 
     std::vector<const Type*> res;
-    for(auto& clause: aux){
+    res.reserve(aux.size());
+    for(auto& clause: aux)
         res.push_back(clause->type);
-    }
     return res;
 }
 
 
 std::optional<size_t> TraitType::find_member(const std::string_view& name) const {
     auto it = std::find_if(
-            decl.functs.begin(),
-            decl.functs.end(),
+            decl.fns.begin(),
+            decl.fns.end(),
             [&name] (auto& f) {
                 return f->id.name == name;
             });
-        return it != decl.functs.end()
-        ? std::make_optional(it - decl.functs.begin())
+        return it != decl.fns.end()
+        ? std::make_optional(it - decl.fns.begin())
         : std::nullopt;
 }
 
@@ -535,21 +535,21 @@ const std::vector<const Type*> ImplType::where_types() const {
     auto& aux =  decl.where_clauses;
 
     std::vector<const Type*> res;
-    for(auto& clause: aux){
+    res.reserve(aux.size());
+    for(auto& clause: aux)
         res.push_back(clause->type);
-    }
     return res;
 }
 
 std::optional<size_t> ImplType::find_member(const std::string_view& name) const {
     auto it = std::find_if(
-            decl.functs.begin(),
-            decl.functs.end(),
+            decl.fns.begin(),
+            decl.fns.end(),
             [&name] (auto& f) {
                 return f->id.name == name;
             });
-    return it != decl.functs.end()
-    ? std::make_optional(it - decl.functs.begin())
+    return it != decl.fns.end()
+    ? std::make_optional(it - decl.fns.begin())
     : std::nullopt;
 }
 
@@ -559,11 +559,11 @@ const Type* EnumType::member_type(size_t i) const {
 }
 
 const Type* TraitType::member_type(size_t i) const {
-    return decl.functs[i]->type;
+    return decl.fns[i]->type;
 }
 
 const Type* ImplType::member_type(size_t i) const {
-    return decl.functs[i]->type;
+    return decl.fns[i]->type;
 }
 
 size_t EnumType::member_count() const {
@@ -571,11 +571,11 @@ size_t EnumType::member_count() const {
 }
 
 size_t TraitType::member_count() const {
-    return decl.functs.size();
+    return decl.fns.size();
 }
 
 size_t ImplType::member_count() const {
-    return decl.functs.size();
+    return decl.fns.size();
 }
 
 // Misc. ---------------------------------------------------------------------------
@@ -643,12 +643,12 @@ const Type* Type::join(const Type* other) const {
 }
 
 const Type* ForallType::instantiate(const std::vector<const Type*>& args) const {
-    auto map = instantiate_map(args);
+    auto map = instance_map(args);
     return body->replace(map);
 }
 
 std::unordered_map<const TypeVar *, const Type *>
-ForallType::instantiate_map(const std::vector<const Type*> & args) const{
+ForallType::instance_map(const std::vector<const Type*> & args) const{
     std::unordered_map<const TypeVar*, const Type*> map;
     assert(decl.type_params && decl.type_params->params.size() == args.size());
     for (size_t i = 0, n = args.size(); i < n; ++i) {
@@ -722,7 +722,7 @@ bool is_unit_type(const Type* type) {
     return type->isa<TupleType>() && type->as<TupleType>()->args.empty();
 }
 
-bool contains_var(const Type* t){
+bool contains_var(const Type* t) {
     if (t->isa<TypeVar>()) {
         return true;
     }
@@ -737,21 +737,20 @@ bool contains_var(const Type* t){
     return false;
 }
 
-std::vector<const Type*> get_type_vars(const Type* t){
+std::vector<const Type*> get_type_vars(const Type* t) {
     std::vector<const Type*> res;
-    if(t->isa<TypeVar>()){
+    if (t->isa<TypeVar>()) {
         res.push_back(t);
     }
-    if(t->isa<FnType>()) {
+    if (t->isa<FnType>()) {
         res = get_type_vars(t->as<FnType>()->dom);
         for (auto t: get_type_vars(t->as<FnType>()->codom))
             res.push_back(t);
     }
-    if(t->isa<TypeApp>()){
-        for(auto arg: t->as<TypeApp>()->type_args){
-            for(auto t: get_type_vars(arg)) {
+    if (t->isa<TypeApp>()) {
+        for (auto arg: t->as<TypeApp>()->type_args) {
+            for(auto t: get_type_vars(arg))
                 res.push_back(t);
-            }
         }
     }
     return res;
@@ -866,8 +865,8 @@ const T* TypeTable::insert(Args&&... args) {
     return (*it)->template as<T>();
 }
 
-const ImplType* TypeTable::register_impl(const ImplType* impl){
-    if(impl->decl.type_params){
+const ImplType* TypeTable::register_impl(const ImplType* impl) {
+    if (impl->decl.type_params) {
         auto [type_app, trait_type] = match_app<TraitType>(impl->decl.trait_type->type);
         if(impls_.find(trait_type) != impls_.end())
             impls_[trait_type].push_back(impl);
@@ -904,22 +903,21 @@ const std::vector<const Type*>  TypeTable::find_all_impls(const Type* type, std:
             }
         }
     };
-    if (impls_.find(type) != impls_.end()){
+    if (impls_.find(type) != impls_.end()) {
         for (auto i:impls_[type]) {
             f(i);
         }
     }
     auto app = type->isa<TypeApp>();
     if (app && (impls_.find(app->applied) != impls_.end())) {
-        for (auto i:impls_[app->applied]) {
+        for (auto i:impls_[app->applied])
             f(i);
-        }
     }
 
     return result;
 }
 
-const Type* TypeTable::find_impl(const Type* type){
+const Type* TypeTable::find_impl(const Type* type) {
     if (type_impl_table_.find(type) == type_impl_table_.end()) {
         auto needed = find_all_impls(type).front();
         type_impl_table_[type] = needed;
@@ -927,21 +925,21 @@ const Type* TypeTable::find_impl(const Type* type){
     return type_impl_table_[type];
 
 }
-void TypeTable::store_impl(const Type* type, const Type* impl){
+void TypeTable::store_impl(const Type* type, const Type* impl) {
     type_impl_table_[type] = impl;
 }
 
-bool TypeTable::in_additional_bound(const Type* type, const Type* additional_bound){
-    if(type == additional_bound) return true;
+bool TypeTable::in_additional_bound(const Type* type, const Type* additional_bound) {
+    if (type == additional_bound) return true;
     auto [type_app, trait_type] = match_app<TraitType>(additional_bound);
-    for(auto w: trait_type->where_types()){
-        if(in_additional_bound(type, w->replace(type_app->replace_map())))
+    for (auto w: trait_type->where_types()) {
+        if (in_additional_bound(type, w->replace(type_app->replace_map())))
             return true;
     }
     return false;
 }
 
-bool TypeTable::check_impl(const Type* type, const ImplType* impl, std::vector<const Type*> additional_bounds){
+bool TypeTable::check_impl(const Type* type, const ImplType* impl, std::vector<const Type*> additional_bounds) {
     auto replace = type_args(impl->decl.trait_type->type, type);
     if (impl->decl.trait_type->type->replace(replace) != type) {
         return false;
@@ -954,39 +952,38 @@ bool TypeTable::check_impl(const Type* type, const ImplType* impl, std::vector<c
     return true;
 }
 
-void TypeTable::add_key_trait(std::string key, const TraitType* trait){
+void TypeTable::add_key_trait(std::string key, const TraitType* trait) {
     key_traits_[key] = trait;
 }
 
-const TraitType* TypeTable::get_key_trait(std::string key){
+const TraitType* TypeTable::get_key_trait(std::string key) {
     return key_traits_[key];
 }
 
 const std::unordered_map<const TypeVar*, const Type*>
-    TypeTable::type_args(const Type* poly, const Type* target){
+    TypeTable::type_args(const Type* poly, const Type* target) {
+
     std::unordered_map<const TypeVar*, const Type*> res;
-    if(poly == target){
+    if (poly == target)
         return res;
-    }
-    if(poly->isa<TypeVar>()){
+
+    if (poly->isa<TypeVar>()) {
         res.insert({poly->as<TypeVar>(), target});
         return res;
     }
     auto target_app = target->isa<TypeApp>();
     auto poly_app = poly->isa<TypeApp>();
-    if(poly_app && target_app && poly_app->applied ==  target_app->applied){
+    if (poly_app && target_app && poly_app->applied ==  target_app->applied) {
         assert(poly_app->type_args.size() == target_app->type_args.size());
-        for(auto i =0; i < poly_app->type_args.size(); i++){
-            if(poly_app->type_args[i] != target_app->type_args[i]){
+        for (auto i =0; i < poly_app->type_args.size(); i++) {
+            if (poly_app->type_args[i] != target_app->type_args[i]) {
                 auto aux = type_args(poly_app->type_args[i], target_app->type_args[i]);
-                for(auto& el:aux){
+                for (auto& el:aux) {
                     //if the assigned values differ
-                    if(res.find(el.first)!= res.end() && res.find(el.first)->second != el.second){
+                    if (res.find(el.first)!= res.end() && res.find(el.first)->second != el.second)
                         return std::unordered_map<const TypeVar*, const Type*>();
-                    }
-                    else{
+                    else
                         res.insert({el.first, el.second});
-                    }
                 }
             }
         }

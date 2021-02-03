@@ -1,6 +1,6 @@
-trait F[A] where G[A]{fn f() = 1;}
-trait G[A]{}
-impl G[i32]{}
+trait F[A] where G[A] { fn f() = 1; }
+trait G[A] {}
+impl G[i32] {}
 type A = i32;
 
 

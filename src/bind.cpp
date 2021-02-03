@@ -429,11 +429,11 @@ void EnumDecl::bind_head(NameBinder& binder) {
 void EnumDecl::bind(NameBinder& binder) {
     binder.push_scope();
     if (type_params) binder.bind(*type_params);
+    for (auto& trait: where_clauses) binder.bind(*trait);
     for (auto& option : options) {
         option->parent = this;
         binder.bind(*option);
     }
-    for (auto& trait: where_clauses) binder.bind(*trait);
     binder.pop_scope();
 }
 
@@ -444,19 +444,19 @@ void TraitDecl::bind_head(NameBinder& binder) {
 void TraitDecl::bind(NameBinder& binder) {
     binder.push_scope(false, true);
     if (type_params) binder.bind(*type_params);
-    for (auto& f: functs) f->bind_head(binder);
-    for (auto& f: functs) f->bind(binder);
     for (auto& trait: where_clauses) binder.bind(*trait);
+    for (auto& f: fns) f->bind_head(binder);
+    for (auto& f: fns) f->bind(binder);
     binder.pop_scope();
 }
 
 void ImplDecl::bind(NameBinder& binder) {
     binder.push_scope(false, true);
     if (type_params) binder.bind(*type_params);
-    trait_type->bind(binder);
-    for (auto& f: functs) f->bind_head(binder);
     for (auto& trait: where_clauses) binder.bind(*trait);
-    for (auto& f: functs) f->bind(binder);
+    trait_type->bind(binder);
+    for (auto& f: fns) f->bind_head(binder);
+    for (auto& f: fns) f->bind(binder);
     binder.pop_scope();
 }
 

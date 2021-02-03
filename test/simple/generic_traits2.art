@@ -1,12 +1,12 @@
 struct Vec[A]{
-    a:A,
-    b:A,
-    c:A
+    a: A,
+    b: A,
+    c: A
 }
 
-impl[A] Add[Vec[A]] where Add[A]{
-	fn add(a:Vec[A], b:Vec[A])->Vec[A] =
-	    Vec[A]{a = Add[A]::add(a.a, b.a), b = Add[A]::add(a.b, b.b), c = Add[A]::add(a.c, b.c)};
+impl[A] Add[Vec[A]] where Add[A] {
+	fn add(a: Vec[A], b: Vec[A]) -> Vec[A] =
+	    Vec[A] { a = Add[A]::add(a.a, b.a), b = Add[A]::add(a.b, b.b), c = Add[A]::add(a.c, b.c) };
 }
 
-fn example(x:Vec[i32])->Vec[i32] = Add[Vec[i32]]::add(x, x);
+fn example(x: Vec[i32]) -> Vec[i32] = Add[Vec[i32]]::add(x, x);

@@ -34,7 +34,7 @@ public:
     const Type* incompatible_types(const Loc&, const Type*, const Type*);
     const Type* incompatible_type(const Loc&, const std::string_view&, const Type*);
     const Type* type_expected(const Loc&, const Type*, const std::string_view&);
-    const Type* no_trait_expected(const Loc&, const Type*);
+    const Type* check_is_not_trait(const Loc &loc, const Type *type);
     const Type* unknown_member(const Loc&, const UserType*, const std::string_view&);
     const Type* cannot_infer(const Loc&, const std::string_view&);
     const Type* unreachable_code(const Loc&, const Loc&, const Loc&);

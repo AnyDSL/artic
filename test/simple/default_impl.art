@@ -1,13 +1,13 @@
-trait T[A]{
+trait T[A] {
     fn foo() = 1;
-    fn bar()->bool;
+    fn bar() -> bool;
 }
 
-impl T[i32]{
+impl T[i32] {
     fn foo() = 2;
-    fn bar()->bool = true;
+    fn bar() -> bool = true;
 }
 
-impl T[bool]{
-    fn bar()->bool = false;
+impl T[bool] {
+    fn bar() -> bool = false;
 }

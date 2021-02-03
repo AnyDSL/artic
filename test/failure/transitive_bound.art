@@ -1,4 +1,4 @@
-trait T[A]{}
+trait T[A] {}
 
-fn one[A](a:A) where T[A] = a;
+fn one[A](a: A) where T[A] = a;
 fn two = one[bool];

@@ -1,5 +1,5 @@
-trait T[_]{ fn foo() = 1; }
+trait T[_] { fn foo() = 1; }
 
-impl T[i32]{}
+impl T[i32] {}
 
 fn test() = T[i64]::foo();
