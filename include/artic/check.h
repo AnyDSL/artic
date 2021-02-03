@@ -90,7 +90,8 @@ public:
     //returns true if the bound is valid
     void check_bound(const Type*, Loc& loc);
     bool trait_bound_exists(const Type*);
-    void add_impl_req(Loc loc, const Type* type);
+    std::vector<const Type*> collect_where_clauses();
+    void add_impl_req(Loc loc, const Type* type, std::vector<const Type*> available_bounds);
 
 
 private:
@@ -98,6 +99,7 @@ private:
     struct ImplToCheck{
         Loc loc;
         const Type* type;
+        std::vector<const Type*> available_bounds;
     };
     std::vector<ImplToCheck> needed_impls_;
 };

@@ -661,8 +661,9 @@ public:
 
     /// Returns nullptr if the impl is not already registered
     const ImplType* register_impl(const ImplType* impl);
-    const std::vector<const Type*>  find_impls(const Type* type);
-    const bool check_impl(const Type* type, const ImplType* impl);
+    const std::vector<const Type*> find_impls(const Type* type, std::vector<const Type*> additional_bounds = {});
+    const bool check_impl(const Type* type, const ImplType* impl, std::vector<const Type*> additional_bounds = {});
+    const bool in_additional_bound(const Type* type, const Type* additional_bound);
     const std::unordered_map<const TypeVar*, const Type*> type_args(const Type* poly, const Type* target);
 
 private:

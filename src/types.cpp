@@ -876,10 +876,14 @@ const ImplType* TypeTable::register_impl(const ImplType* impl){
     return nullptr;
 }
 
-const std::vector<const Type*>  TypeTable::find_impls(const Type* type){
+const std::vector<const Type*>  TypeTable::find_impls(const Type* type, std::vector<const Type*> additional_bounds){
     std::vector<const Type*> result;
+    for(auto b: additional_bounds){
+        if(in_additional_bound(type, b))
+            return {b};
+    }
     for (auto i:impls_) {
-        if(check_impl(type, i)){
+        if(check_impl(type, i, additional_bounds)){
             if(i->type_params()) {
                 std::vector<const Type *> args;
                 auto &map = type_args(i->decl.trait_type->type, type);
@@ -896,13 +900,23 @@ const std::vector<const Type*>  TypeTable::find_impls(const Type* type){
     return result;
 }
 
-const bool TypeTable::check_impl(const Type* type, const ImplType* impl){
+const bool TypeTable::in_additional_bound(const Type* type, const Type* additional_bound){
+    if(type == additional_bound) return true;
+    auto [type_app, trait_type] = match_app<TraitType>(additional_bound);
+    for(auto w: trait_type->where_types()){
+        if(in_additional_bound(type, w->replace(type_app->replace_map())))
+            return true;
+    }
+    return false;
+}
+
+const bool TypeTable::check_impl(const Type* type, const ImplType* impl, std::vector<const Type*> additional_bounds){
     auto replace = type_args(impl->decl.trait_type->type, type);
     if(impl->decl.trait_type->type->replace(replace) != type){
         return false;
     }
     for(auto & w: impl->where_types()){
-        if(find_impls(w->replace(replace)).size() != 1){
+        if(find_impls(w->replace(replace), additional_bounds).size() != 1){
             return false;
         }
     }

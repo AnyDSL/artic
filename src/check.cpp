@@ -7,12 +7,10 @@ namespace artic {
 bool TypeChecker::run(ast::ModDecl& module) {
     module.infer(*this);
     for(auto& el: needed_impls_){
-        if (type_table.find_impls(el.type).empty()) {
+        if (type_table.find_impls(el.type, el.available_bounds).empty())
             error(el.loc,  "The trait '{}' is not implemented", *el.type);
-        }
-        if(type_table.find_impls(el.type).size() > 1){
+        if(type_table.find_impls(el.type, el.available_bounds).size() > 1)
             error(el.loc, "The trait '{}' has multiple implementations", *el.type);
-        }
     }
     return errors == 0;
 }
@@ -230,7 +228,7 @@ const Type* TypeChecker::check(const Loc& loc, const Literal& lit, const Type* e
         args.emplace_back(expected);
         auto impl = type_table.type_app(type_table.get_key_trait("FromInt"), std::move(args));
         if (!trait_bound_exists(impl)) {
-            add_impl_req(loc, impl);
+            add_impl_req(loc, impl, collect_where_clauses());
         }
         return expected;
     } else if (lit.is_double()) {
@@ -238,7 +236,7 @@ const Type* TypeChecker::check(const Loc& loc, const Literal& lit, const Type* e
         args.emplace_back(expected);
         auto impl = type_table.type_app(type_table.get_key_trait("FromFloat"), std::move(args));
         if (!trait_bound_exists(impl)) {
-            add_impl_req(loc, impl);
+            add_impl_req(loc, impl, collect_where_clauses());
         }
         return expected;
     } else if (lit.is_bool()) {
@@ -569,14 +567,14 @@ const Type* TypeChecker::infer_record_type(const TypeApp* type_app, const Struct
 
 void TypeChecker::check_bound(const Type* bound, Loc& loc){
     if (auto trait_type = bound->isa<artic::TraitType>()) {
-        add_impl_req(loc, trait_type);
+        add_impl_req(loc, trait_type, collect_where_clauses());
     }
     else if (
         auto type_app = bound->isa<artic::TypeApp>();
             type_app && type_app->applied->isa<artic::TraitType>()
             ) {
         if (!contains_var(type_app)) {
-            add_impl_req(loc, type_app);
+            add_impl_req(loc, type_app, collect_where_clauses());
         }
     }
     else {
@@ -636,8 +634,33 @@ bool TypeChecker::trait_bound_exists(const Type* type) {
     return false;
 }
 
-void TypeChecker::add_impl_req(Loc loc, const Type* type){
-    needed_impls_.push_back({loc, type});
+std::vector<const Type*> TypeChecker::collect_where_clauses(){
+    std::vector<const Type*> res;
+    for (auto decl: decls_) {
+        if(auto fn = decl->isa<ast::FnDecl>()){
+            for(auto& w: fn->where_clauses) res.push_back(w->type);
+        }
+        if(auto dec = decl->isa<ast::TraitDecl>()){
+            for(auto& w: dec->where_clauses) res.push_back(w->type);
+        }
+        if(auto dec = decl->isa<ast::StructDecl>()){
+            for(auto& w: dec->where_clauses) res.push_back(w->type);
+        }
+        if(auto dec = decl->isa<ast::EnumDecl>()){
+            for(auto& w: dec->where_clauses) res.push_back(w->type);
+        }
+        if(auto dec = decl->isa<ast::ImplDecl>()){
+            for(auto& w: dec->where_clauses) res.push_back(w->type);
+        }
+        if(auto type_decl = decl->isa<ast::TypeDecl>()){
+            for(auto& w: type_decl->where_clauses) res.push_back(w->type);
+        }
+    }
+    return res;
+}
+
+void TypeChecker::add_impl_req(Loc loc, const Type* type, std::vector<const Type*> available_bounds){
+    needed_impls_.push_back({loc, type, std::move(available_bounds)});
 }
 
 namespace ast {
@@ -710,7 +733,7 @@ const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, Ptr<Ex
                     for (auto& w:forall_type->decl.where_clauses) {
                         auto type_inst = w->type->replace(map);
                         if (!checker.trait_bound_exists(type_inst)) {
-                            checker.add_impl_req(loc, type_inst);
+                            checker.add_impl_req(loc, type_inst, checker.collect_where_clauses());
                         }
                     }
                 }
@@ -722,7 +745,7 @@ const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, Ptr<Ex
                     for (auto& w:user_type->where_types()) {
                         auto type_inst = w->replace(map);
                         if (!checker.trait_bound_exists(type_inst)) {
-                            checker.add_impl_req(loc, type_inst);
+                            checker.add_impl_req(loc, type_inst, checker.collect_where_clauses());
                         }
                     }
                 }
@@ -780,7 +803,7 @@ const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, Ptr<Ex
                 is_value = true;
                 is_ctor = false;
                 if (!checker.trait_bound_exists(type)) {
-                    checker.add_impl_req(loc, type);
+                    checker.add_impl_req(loc, type, checker.collect_where_clauses());
                 }
                 //apply type
                 if (type_app) {
@@ -847,8 +870,7 @@ void NamedAttr::check(TypeChecker& checker, const ast::Node* node) {
                                 name != "xor" &&
                                 name != "lt" && name != "gt"  && name != "le" &&
                                 name != "ge" && name != "eq"  && name != "ne" &&
-                                name != "plus" && name != "minus"  && name != "not" &&
-                                name != "from_int" && name != "from_float")
+                                name != "plus" && name != "minus"  && name != "not")
                                 checker.error(fn_decl->loc, "unsupported built-in function");
                         } else if (cc != "C" && cc != "device" && cc != "thorin")
                             checker.error(cc_attr->loc, "invalid calling convention '{}'", cc);
@@ -1321,7 +1343,7 @@ const artic::Type* UnaryExpr::infer(TypeChecker& checker) {
             auto trait = checker.type_table.get_key_trait(trait_key);
             auto needed_impl = checker.type_table.type_app(trait, std::move(args));
             if (!checker.trait_bound_exists(needed_impl)) {
-                checker.add_impl_req(loc, needed_impl);
+                checker.add_impl_req(loc, needed_impl, checker.collect_where_clauses());
             }
             if(tag == PostDec || tag == PreDec || tag == PostInc || tag == PreInc)
                 arg->write_to();
@@ -1388,7 +1410,7 @@ const artic::Type* BinaryExpr::infer(TypeChecker& checker) {
             auto trait = checker.type_table.get_key_trait(BinaryExpr::tag_to_string(remove_eq(tag)));
             auto needed_impl = checker.type_table.type_app(trait, std::move(args));
             if (!checker.trait_bound_exists(needed_impl)) {
-                checker.add_impl_req(loc, needed_impl);
+                checker.add_impl_req(loc, needed_impl, checker.collect_where_clauses());
             }
             break;
         }

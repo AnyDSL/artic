@@ -702,7 +702,15 @@ const thorin::Def* Emitter::emit(const ast::Node& node, const Literal& lit) {
         auto needed_impl = node.type->type_table.type_app(trait, std::move(type_args));
         auto impls = node.type->type_table.find_impls(needed_impl);
         auto [type_app, impl_type] = match_app<ImplType>(impls.front());
+        if(impl_type->type_params()) {
+            std::unordered_map<const artic::TypeVar*, const artic::Type*> map;
+            for (auto i =0; i < type_app->type_args.size(); i++)
+                map.insert({impl_type->type_params()->params[i]->type->as< artic::TypeVar>(), type_app->type_args[i]});
+            map.insert(type_vars.begin(), type_vars.end());
+            std::swap(map, type_vars);
+        }
         auto fn = emit(*impl_type->decl.functs[0]);
+        impl_type->decl.functs[0]->def = nullptr;
         auto value = lit.is_integer()? world.literal_pu64(lit.as_integer(), debug_info(node)) : world.literal_qf64(lit.is_double() ? lit.as_double() : lit.as_integer(), debug_info(node));
         return call(fn, value, debug_info(node));
     }
@@ -1187,7 +1195,7 @@ const thorin::Def* UnaryExpr::emit(Emitter& emitter) const {
         op = emitter.emit(*arg);
     }
     const thorin::Def* res = nullptr;
-    if(is_constant() || is_simd_type(arg->type) || tag == Deref || tag == Known || tag == Forget) {
+    if(tag == Deref || tag == Known || tag == Forget || is_simd_type(arg->type) || (type->isa<artic::PrimType>() && is_constant())) {
         switch (tag) {
             case Plus:
                 [[fallthrough]];
@@ -1302,10 +1310,13 @@ const thorin::Def* BinaryExpr::emit(Emitter& emitter) const {
     }
     auto rhs = emitter.emit(*right);
     const thorin::Def* res = nullptr;
+    auto arg_type = left->type;
+    if (is_simd_type(arg_type))
+        arg_type = arg_type->as<artic::SizedArrayType>()->elem;
     if(tag == Eq) {
         res = rhs;
     }
-    else if(is_constant() || is_simd_type(left->type) ){ // constants and simd require direct codegen instead of detour through definition
+    else if(is_simd_type(left->type) || (arg_type->isa<artic::PrimType>() && is_constant())){ // constants and simd require direct codegen instead of detour through definition
         switch (remove_eq(tag)) {
             case Add:   res = emitter.world.arithop_add(lhs, rhs, debug_info(*this)); break;
             case Sub:   res = emitter.world.arithop_sub(lhs, rhs, debug_info(*this)); break;
@@ -1455,7 +1466,6 @@ const thorin::Def* FnDecl::emit(Emitter& emitter) const {
     if (type_params || !vars.empty())
         emitter.mono_fns.emplace(std::move(mono_fn), cont);
     cont->params().back()->debug().set("ret");
-
     // Set the calling convention and export the continuation if needed
     if (attrs) {
         if (auto export_attr = attrs->find("export")) {
@@ -1481,12 +1491,10 @@ const thorin::Def* FnDecl::emit(Emitter& emitter) const {
             }
         }
     }
-
     if (fn->body) {
         // Set the IR node before entering the body, in case
         // we encounter `return` or a recursive call.
         fn->def = def = cont;
-
         emitter.enter(cont);
         emitter.emit(*fn->param, emitter.tuple_from_params(cont, true));
         if (fn->filter)
@@ -1779,12 +1787,10 @@ const thorin::Type* TypeApp::convert(Emitter& emitter) const {
     auto mono_type = replace(emitter.type_vars)->as<TypeApp>();
     if (auto it = emitter.types.find(mono_type); it != emitter.types.end())
         return it->second;
-
     // if we have the type application S[i64, i32] and if S has type
     // variables A and B, then we should use the replacement map
     // A = i64, B = i32 when entering the applied type.
     auto map = mono_type->replace_map();
-
     // Use the new type variable map when replacing the body
     std::swap(emitter.type_vars, map);
     auto result = applied->convert(emitter, mono_type);
