@@ -1,0 +1,4 @@
+trait T{}
+struct S[A]{}
+
+fn test()->S[T] = 1;

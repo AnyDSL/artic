@@ -1,0 +1,31 @@
+struct S[A] { el: A}
+
+impl[A] Add[S[A]] where Add[A]{ fn add(a:S[A], b:S[A]) =  S[A]{el = a.el + b.el}; }
+impl[A] Sub[S[A]] where Sub[A]{ fn sub(a:S[A], b:S[A]) =  S[A]{el = a.el - b.el}; }
+impl[A] Mul[S[A]] where Mul[A]{ fn mul(a:S[A], b:S[A]) =  S[A]{el = a.el * b.el}; }
+impl[A] Div[S[A]] where Div[A]{ fn div(a:S[A], b:S[A]) =  S[A]{el = a.el / b.el}; }
+impl[A] Rem[S[A]] where Rem[A]{ fn rem(a:S[A], b:S[A]) =  S[A]{el = a.el % b.el}; }
+impl[A] LShift[S[A]] where LShift[A]{ fn lshift(a:S[A], b:S[A]) =  S[A]{el = a.el << b.el}; }
+impl[A] RShift[S[A]] where RShift[A]{ fn rshift(a:S[A], b:S[A]) =  S[A]{el = a.el >> b.el}; }
+impl[A] And[S[A]] where And[A]{ fn and(a:S[A], b:S[A]) =  S[A]{el = a.el & b.el}; }
+impl[A] Or[S[A]] where Or[A]{ fn or(a:S[A], b:S[A]) =  S[A]{el = a.el | b.el}; }
+impl[A] Xor[S[A]] where Xor[A]{ fn xor(a:S[A], b:S[A]) =  S[A]{el = a.el ^ b.el}; }
+impl[A] CmpLT[S[A]] where CmpLT[A]{ fn lt(a:S[A], b:S[A]) =  a.el < b.el; }
+impl[A] CmpLE[S[A]] where CmpLE[A]{ fn le(a:S[A], b:S[A]) =  a.el <= b.el; }
+impl[A] CmpGT[S[A]] where CmpGT[A]{ fn gt(a:S[A], b:S[A]) =  a.el > b.el; }
+impl[A] CmpGE[S[A]] where CmpGE[A]{ fn ge(a:S[A], b:S[A]) =  a.el >= b.el; }
+impl[A] CmpEq[S[A]] where CmpEq[A]{ fn eq(a:S[A], b:S[A]) =  a.el == b.el; }
+impl[A] CmpNE[S[A]] where CmpNE[A]{ fn ne(a:S[A], b:S[A]) =  a.el != b.el; }
+impl[A] Not[S[A]] where Not[A]{ fn not(a:S[A]) =  S[A]{el = !a.el }; }
+impl[A] FromInt[S[A]] where FromInt[A]{ fn from_int(a:u64)->S[A] = S[A]{el = FromInt[A]::from_int(a)}; }
+impl[A] FromFloat[S[A]] where FromFloat[A]{ fn from_float(a:f64)->S[A] =  S[A]{el = FromFloat[A]::from_float(a)}; }
+
+fn test[A](mut a:S[A], mut b:S[A]) where Int[A]=
+    (a + b,  a - b, a * b, a / b, a % b, a >> b, a << b,
+    a & b, a | b, a ^ b,
+    a < b, a <= b, a > b, a >= b, a == b, a != b,
+    a += b,  a -= b, a *= b, a /= b, a %= b, a >>= b, a <<= b,
+    ++a, --a, b++, b--, !a, &a, *&a, ?a, $a);
+
+ #[export]
+ fn test2() = test[i16](1,2);

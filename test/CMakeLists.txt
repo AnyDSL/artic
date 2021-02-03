@@ -64,6 +64,9 @@ add_test(NAME simple_generic_traits1        COMMAND artic --print-ast --std-lib 
 add_test(NAME simple_generic_traits2       COMMAND artic --print-ast --std-lib ${CMAKE_CURRENT_SOURCE_DIR}/../bin/stdlib.art ${CMAKE_CURRENT_SOURCE_DIR}/simple/generic_traits2.art)
 add_test(NAME simple_transitive_bound  COMMAND artic --print-ast --std-lib ${CMAKE_CURRENT_SOURCE_DIR}/../bin/stdlib.art ${CMAKE_CURRENT_SOURCE_DIR}/simple/transitive_bound.art)
 add_test(NAME simple_default_impl  COMMAND artic --print-ast --std-lib ${CMAKE_CURRENT_SOURCE_DIR}/../bin/stdlib.art ${CMAKE_CURRENT_SOURCE_DIR}/simple/default_impl.art)
+add_test(NAME simple_all_def_ops      COMMAND artic --print-ast --std-lib ${CMAKE_CURRENT_SOURCE_DIR}/../bin/stdlib.art ${CMAKE_CURRENT_SOURCE_DIR}/simple/all_def_ops.art)
+add_test(NAME simple_single_fn_multi_types      COMMAND artic --print-ast --std-lib ${CMAKE_CURRENT_SOURCE_DIR}/../bin/stdlib.art ${CMAKE_CURRENT_SOURCE_DIR}/simple/int_wrapper.art)
+add_test(NAME simple_int_wrapper     COMMAND artic --print-ast --std-lib ${CMAKE_CURRENT_SOURCE_DIR}/../bin/stdlib.art ${CMAKE_CURRENT_SOURCE_DIR}/simple/single_fn_multi_types.art)
 
 add_failure_test(NAME failure_annot          COMMAND artic --std-lib ${CMAKE_CURRENT_SOURCE_DIR}/../bin/stdlib.art ${CMAKE_CURRENT_SOURCE_DIR}/failure/annot.art)
 add_failure_test(NAME failure_comment        COMMAND artic --std-lib ${CMAKE_CURRENT_SOURCE_DIR}/../bin/stdlib.art ${CMAKE_CURRENT_SOURCE_DIR}/failure/comment.art)
@@ -123,7 +126,13 @@ add_failure_test(NAME failure_too_many_func          COMMAND artic --std-lib ${C
 add_failure_test(NAME failure_attrs          COMMAND artic --std-lib ${CMAKE_CURRENT_SOURCE_DIR}/../bin/stdlib.art ${CMAKE_CURRENT_SOURCE_DIR}/failure/attrs.art)
 add_failure_test(NAME failure_not_written_to COMMAND artic --std-lib ${CMAKE_CURRENT_SOURCE_DIR}/../bin/stdlib.art --warnings-as-errors ${CMAKE_CURRENT_SOURCE_DIR}/failure/not_written_to.art)
 add_failure_test(NAME failure_transitive_bound  COMMAND artic --std-lib ${CMAKE_CURRENT_SOURCE_DIR}/../bin/stdlib.art --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/failure/transitive_bound.art)
-
+add_failure_test(NAME failure_trait_as_type1  COMMAND artic --std-lib ${CMAKE_CURRENT_SOURCE_DIR}/../bin/stdlib.art --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/failure/trait_as_type1.art)
+add_failure_test(NAME failure_trait_as_type2  COMMAND artic --std-lib ${CMAKE_CURRENT_SOURCE_DIR}/../bin/stdlib.art --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/failure/trait_as_type2.art)
+add_failure_test(NAME failure_trait_as_type3  COMMAND artic --std-lib ${CMAKE_CURRENT_SOURCE_DIR}/../bin/stdlib.art --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/failure/trait_as_type3.art)
+add_failure_test(NAME failure_trait_as_type4  COMMAND artic --std-lib ${CMAKE_CURRENT_SOURCE_DIR}/../bin/stdlib.art --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/failure/trait_as_type4.art)
+add_failure_test(NAME failure_missing_impl1  COMMAND artic --std-lib ${CMAKE_CURRENT_SOURCE_DIR}/../bin/stdlib.art --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/failure/missing_impl1.art)
+add_failure_test(NAME failure_missing_impl2  COMMAND artic --std-lib ${CMAKE_CURRENT_SOURCE_DIR}/../bin/stdlib.art --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/failure/missing_impl2.art)
+add_failure_test(NAME failure_missing_impl3  COMMAND artic --std-lib ${CMAKE_CURRENT_SOURCE_DIR}/../bin/stdlib.art --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/failure/missing_impl3.art)
 
 
 set(CODEGEN_TESTS "")

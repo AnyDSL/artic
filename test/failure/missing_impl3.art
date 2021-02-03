@@ -1,0 +1,8 @@
+trait F[A] where G[A]{fn f() = 1;}
+trait G[A]{}
+impl G[i32]{}
+type A = i32;
+
+
+#[export]
+fn test() where F[A] = F[A]::f();

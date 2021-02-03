@@ -1,0 +1,3 @@
+trait T{}
+
+fn test()->T = 1;
