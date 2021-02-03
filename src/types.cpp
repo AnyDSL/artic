@@ -884,9 +884,11 @@ const ImplType* TypeTable::register_impl(const ImplType* impl){
 
 const std::vector<const Type*>  TypeTable::find_all_impls(const Type* type, std::vector<const Type*> additional_bounds) {
     std::vector<const Type *> result;
-    for (auto b: additional_bounds) {
-        if (in_additional_bound(type, b))
-            return {b};
+    if(contains_var(type)) {
+        for (auto b: additional_bounds) {
+            if (in_additional_bound(type, b))
+                return {b};
+        }
     }
     auto f = [&](const ImplType *i) {
         if (check_impl(type, i, additional_bounds)) {
