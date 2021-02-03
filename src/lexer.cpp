@@ -35,7 +35,7 @@ std::unordered_map<std::string, Token::Tag> Lexer::keywords{
 Lexer::Lexer(Log& log, const std::string& filename, std::istream& is)
     : Logger(log)
     , stream_(is)
-    , loc_(std::make_shared<std::string>(filename), 1, 0)
+    , loc_(std::make_shared<std::string>(filename), { 1, 0 })
 {
     // Read UTF-8 byte order mark (if any)
     uint8_t bytes[] = { 0, 0, 0 };
@@ -239,7 +239,7 @@ void Lexer::eat() {
         if (!ok) {
             cur_.size = 1;
             stream_.seekg(-std::streamoff(read), std::istream::cur); // Rollback read chars.
-            error(Loc(loc_.file, loc_.end.row, loc_.end.col, loc_.end.row, loc_.end.col + 1), "invalid UTF-8 character");
+            error(loc_.at_end().enlarge_after(), "invalid UTF-8 character");
         }
     }
 }

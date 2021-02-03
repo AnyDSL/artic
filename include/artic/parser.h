@@ -113,20 +113,15 @@ private:
 
     struct Tracker {
         const Parser* parser;
-        int begin_row, begin_col;
+        Loc::Pos begin;
 
         Loc operator () () const {
-            return Loc(
-                parser->prev_.file,
-                begin_row, begin_col,
-                parser->prev_.end.row,
-                parser->prev_.end.col);
+            return Loc(parser->prev_.file, begin, parser->prev_.end);
         }
 
         Tracker(const Parser* parser, const Loc& loc)
             : parser(parser)
-            , begin_row(loc.begin.row)
-            , begin_col(loc.begin.col)
+            , begin(loc.begin)
         {}
 
         Tracker(const Parser* parser)
