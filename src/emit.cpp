@@ -714,7 +714,7 @@ void Emitter::bind(const ast::IdPtrn& id_ptrn, const thorin::Def* value) {
             warn(id_ptrn.loc, "mutable variable '{}' is never written to", id_ptrn.decl->id.name);
     } else {
         id_ptrn.decl->def = value;
-        value->debug().set(id_ptrn.decl->id.name);
+        value->debug().name = id_ptrn.decl->id.name;
     }
 }
 
@@ -883,23 +883,25 @@ const thorin::Def* Emitter::comparator(const Loc& loc, const Type* type) {
     return comparators[type] = comparator_fn;
 }
 
-static inline thorin::Location location(const Loc& loc) {
-    return thorin::Location(
-        loc.file->c_str(),
-        loc.begin.row,
-        loc.begin.col,
-        loc.end.row,
-        loc.end.col);
+static inline thorin::Pos position(const Loc::Pos& pos) {
+    return thorin::Pos {
+        static_cast<uint32_t>(pos.row),
+        static_cast<uint32_t>(pos.col)
+    };
+}
+
+static inline thorin::Loc location(const Loc& loc) {
+    return thorin::Loc(loc.file->c_str(), position(loc.begin), position(loc.end));
 }
 
 thorin::Debug Emitter::debug_info(const ast::NamedDecl& decl) {
-    return thorin::Debug { location(decl.loc), decl.id.name };
+    return thorin::Debug(decl.id.name, location(decl.loc));
 }
 
 thorin::Debug Emitter::debug_info(const ast::Node& node, const std::string_view& name) {
     if (auto named_decl = node.isa<ast::NamedDecl>(); named_decl && name == "")
         return debug_info(*named_decl);
-    return thorin::Debug { location(node.loc), std::string(name) };
+    return thorin::Debug(std::string(name), location(node.loc));
 }
 
 namespace ast {
@@ -1105,7 +1107,7 @@ const thorin::Def* FnExpr::emit(Emitter& emitter) const {
     auto cont = emitter.world.continuation(
         type->convert(emitter)->as<thorin::FnType>(),
         emitter.debug_info(*this));
-    cont->params().back()->debug().set("ret");
+    cont->params().back()->debug().name = "ret";
     // Set the IR node before entering the body
     def = cont;
     emitter.enter(cont);
@@ -1262,7 +1264,7 @@ const thorin::Def* ForExpr::emit(Emitter& emitter) const {
             emitter.debug_info(*body_fn, "for_body"));
         break_ = emitter.basic_block_with_mem(type->convert(emitter), emitter.debug_info(*this, "for_break"));
         continue_ = body_cont->params().back();
-        continue_->debug().set("for_continue");
+        continue_->debug().name = "for_continue";
         emitter.enter(body_cont);
         emitter.emit(*body_fn->param, emitter.tuple_from_params(body_cont, true));
         emitter.jump(body_cont->params().back(), emitter.emit(*body_fn->body));
@@ -1505,17 +1507,17 @@ const thorin::Def* FnDecl::emit(Emitter& emitter) const {
     if (type_params)
         emitter.mono_fns.emplace(std::move(mono_fn), cont);
 
-    cont->params().back()->debug().set("ret");
+    cont->params().back()->debug().name = "ret";
 
     // Set the calling convention and export the continuation if needed
     if (attrs) {
         if (auto export_attr = attrs->find("export")) {
             cont->make_exported();
             if (auto name_attr = export_attr->find("name"))
-                cont->debug().set(name_attr->as<LiteralAttr>()->lit.as_string());
+                cont->debug().name = name_attr->as<LiteralAttr>()->lit.as_string();
         } else if (auto import_attr = attrs->find("import")) {
             if (auto name_attr = import_attr->find("name"))
-                cont->debug().set(name_attr->as<LiteralAttr>()->lit.as_string());
+                cont->debug().name = name_attr->as<LiteralAttr>()->lit.as_string();
             if (auto cc_attr = import_attr->find("cc")) {
                 auto cc = cc_attr->as<LiteralAttr>()->lit.as_string();
                 if (cc == "device") {
@@ -1855,7 +1857,7 @@ bool compile(
     bool enable_all_warns,
     ast::ModDecl& program,
     thorin::World& world,
-    thorin::Log::Level log_level,
+    thorin::LogLevel log_level,
     Log& log) {
     assert(file_data.size() == file_names.size());
     for (size_t i = 0, n = file_names.size(); i < n; ++i) {
@@ -1892,7 +1894,7 @@ bool compile(
     if (!name_binder.run(program) || !type_checker.run(program))
         return false;
 
-    thorin::Log::set(log_level, &std::cerr);
+    world.set(log_level);
     Emitter emitter(log, world);
     emitter.warns_as_errors = warns_as_errors;
     return emitter.run(program);
@@ -1905,7 +1907,7 @@ bool compile(
     const std::vector<std::string>& file_names,
     const std::vector<std::string>& file_data,
     thorin::World& world,
-    thorin::Log::Level log_level,
+    thorin::LogLevel log_level,
     std::ostream& error_stream) {
     using namespace artic;
     Locator locator;

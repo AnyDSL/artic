@@ -4,19 +4,13 @@
 #include <string>
 #include <cassert>
 
-#include <thorin/util/location.h>
-#include <thorin/util/log.h>
+#include <thorin/debug.h>
+#include <thorin/world.h>
 
 #include "artic/ast.h"
 #include "artic/types.h"
 #include "artic/log.h"
 #include "artic/hash.h"
-
-namespace thorin {
-    class World;
-    class Continuation;
-    class FnType;
-}
 
 namespace artic {
 
@@ -158,7 +152,7 @@ bool compile(
     bool enable_all_warns,
     ast::ModDecl& program,
     thorin::World& world,
-    thorin::Log::Level log_level,
+    thorin::LogLevel log_level,
     Log& log);
 
 } // namespace artic
