@@ -661,9 +661,11 @@ public:
 
     /// Returns nullptr if the impl is not already registered
     const ImplType* register_impl(const ImplType* impl);
-    const std::vector<const Type*> find_impls(const Type* type, std::vector<const Type*> additional_bounds = {});
-    const bool check_impl(const Type* type, const ImplType* impl, std::vector<const Type*> additional_bounds = {});
-    const bool in_additional_bound(const Type* type, const Type* additional_bound);
+    const std::vector<const Type*> find_all_impls(const Type* type, std::vector<const Type*> additional_bounds = {});
+    const Type* find_impl(const Type* type);
+    void store_impl(const Type* type, const Type* impl);
+    bool check_impl(const Type* type, const ImplType* impl, std::vector<const Type*> additional_bounds = {});
+    bool in_additional_bound(const Type* type, const Type* additional_bound);
     const std::unordered_map<const TypeVar*, const Type*> type_args(const Type* poly, const Type* target);
 
 private:
@@ -682,7 +684,8 @@ private:
     };
     std::unordered_set<const Type*, HashType, CompareTypes> types_;
     std::unordered_map<std::string, const TraitType*> key_traits_;
-    std::vector<const ImplType*> impls_;
+    //maps types to a vector containing all candidates that have hat type as a conclusion
+    std::unordered_map<const Type*, std::vector<const ImplType*>> impls_;
 
     const PrimType*   bool_type_   = nullptr;
     const TupleType*  unit_type_   = nullptr;
@@ -691,6 +694,7 @@ private:
     const NoRetType*  no_ret_type_ = nullptr;
     const TypeError*  type_error_  = nullptr;
 
+    std::unordered_map<const Type*, const Type*> type_impl_table_;
 };
 
 } // namespace artic

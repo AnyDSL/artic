@@ -4,8 +4,24 @@ enum Ordering{
     Equal
 }
 
+//traits used to define orders
 trait PartialOrder[T]{ fn cmp(T,T) -> Option[Ordering]; }
 trait Order[T]{ fn cmp(T,T) -> Ordering; }
+
+//trait used to describe order
+trait Ordered[T] where CmpLT[T], CmpLE[T], CmpGT[T], CmpGE[T], CmpEq[T], CmpNE[T]{}
+
+impl Ordered[u8]{}
+impl Ordered[u16]{}
+impl Ordered[u32]{}
+impl Ordered[u64]{}
+impl Ordered[i8]{}
+impl Ordered[i16]{}
+impl Ordered[i32]{}
+impl Ordered[i64]{}
+impl Ordered[f16]{}
+impl Ordered[f32]{}
+impl Ordered[f64]{}
 
 #[allow_undecidable_impl]
 impl[T] PartialOrder[T] where Order[T]{

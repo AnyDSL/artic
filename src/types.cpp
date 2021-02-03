@@ -723,15 +723,15 @@ bool is_unit_type(const Type* type) {
 }
 
 bool contains_var(const Type* t){
-    if(t->isa<TypeVar>()){
+    if (t->isa<TypeVar>()) {
         return true;
     }
-    if(t->isa<FnType>()){
+    if (t->isa<FnType>()) {
         return contains_var(t->as<FnType>()->dom) || contains_var(t->as<FnType>()->codom);
     }
-    if(t->isa<TypeApp>()){
-        for(auto arg: t->as<TypeApp>()->type_args){
-            if(contains_var(arg)) return true;
+    if (t->isa<TypeApp>()) {
+        for (auto arg: t->as<TypeApp>()->type_args) {
+            if (contains_var(arg)) return true;
         }
     }
     return false;
@@ -867,40 +867,69 @@ const T* TypeTable::insert(Args&&... args) {
 }
 
 const ImplType* TypeTable::register_impl(const ImplType* impl){
-    for (auto it: impls_) {
-        auto [it_type_app, it_trait_type] = match_app<TraitType>(it->decl.trait_type->type);
-        auto [impl_type_app, impl_trait_type] = match_app<TraitType>(impl->decl.trait_type->type);
-        if(it_type_app == impl_type_app && it_trait_type == impl_trait_type) return it;
+    if(impl->decl.type_params){
+        auto [type_app, trait_type] = match_app<TraitType>(impl->decl.trait_type->type);
+        if(impls_.find(trait_type) != impls_.end())
+            impls_[trait_type].push_back(impl);
+        else
+            impls_[trait_type] = {impl};
     }
-    impls_.push_back(impl);
+    else if(impls_.find(impl->decl.trait_type->type) != impls_.end()) {
+        return impls_[impl->decl.trait_type->type].front();
+    }
+    else
+        impls_[impl->decl.trait_type->type] = {impl};
     return nullptr;
 }
 
-const std::vector<const Type*>  TypeTable::find_impls(const Type* type, std::vector<const Type*> additional_bounds){
-    std::vector<const Type*> result;
-    for(auto b: additional_bounds){
-        if(in_additional_bound(type, b))
+const std::vector<const Type*>  TypeTable::find_all_impls(const Type* type, std::vector<const Type*> additional_bounds) {
+    std::vector<const Type *> result;
+    for (auto b: additional_bounds) {
+        if (in_additional_bound(type, b))
             return {b};
     }
-    for (auto i:impls_) {
-        if(check_impl(type, i, additional_bounds)){
-            if(i->type_params()) {
+    auto f = [&](const ImplType *i) {
+        if (check_impl(type, i, additional_bounds)) {
+            if (i->type_params()) {
                 std::vector<const Type *> args;
                 auto &map = type_args(i->decl.trait_type->type, type);
                 for (auto &pa: i->type_params()->params) {
                     args.push_back(map.at(pa->type->as<TypeVar>()));
                 }
                 result.push_back(type_app(i, std::move(args)));
-            }
-            else{
+            } else {
                 result.push_back(i);
             }
         }
+    };
+    if (impls_.find(type) != impls_.end()){
+        for (auto i:impls_[type]) {
+            f(i);
+        }
     }
+    auto app = type->isa<TypeApp>();
+    if (app && (impls_.find(app->applied) != impls_.end())) {
+        for (auto i:impls_[app->applied]) {
+            f(i);
+        }
+    }
+
     return result;
 }
 
-const bool TypeTable::in_additional_bound(const Type* type, const Type* additional_bound){
+const Type* TypeTable::find_impl(const Type* type){
+    if (type_impl_table_.find(type) == type_impl_table_.end()) {
+        auto needed = find_all_impls(type).front();
+        type_impl_table_[type] = needed;
+    }
+    return type_impl_table_[type];
+
+}
+void TypeTable::store_impl(const Type* type, const Type* impl){
+    type_impl_table_[type] = impl;
+}
+
+bool TypeTable::in_additional_bound(const Type* type, const Type* additional_bound){
     if(type == additional_bound) return true;
     auto [type_app, trait_type] = match_app<TraitType>(additional_bound);
     for(auto w: trait_type->where_types()){
@@ -910,13 +939,13 @@ const bool TypeTable::in_additional_bound(const Type* type, const Type* addition
     return false;
 }
 
-const bool TypeTable::check_impl(const Type* type, const ImplType* impl, std::vector<const Type*> additional_bounds){
+bool TypeTable::check_impl(const Type* type, const ImplType* impl, std::vector<const Type*> additional_bounds){
     auto replace = type_args(impl->decl.trait_type->type, type);
-    if(impl->decl.trait_type->type->replace(replace) != type){
+    if (impl->decl.trait_type->type->replace(replace) != type) {
         return false;
     }
-    for(auto & w: impl->where_types()){
-        if(find_impls(w->replace(replace), additional_bounds).size() != 1){
+    for (auto & w: impl->where_types()) {
+        if (find_all_impls(w->replace(replace), additional_bounds).size() != 1) {
             return false;
         }
     }

@@ -7,10 +7,13 @@ namespace artic {
 bool TypeChecker::run(ast::ModDecl& module) {
     module.infer(*this);
     for(auto& el: needed_impls_){
-        if (type_table.find_impls(el.type, el.available_bounds).empty())
+        auto candidates = type_table.find_all_impls(el.type, el.available_bounds);
+        if (candidates.empty())
             error(el.loc,  "The trait '{}' is not implemented", *el.type);
-        if(type_table.find_impls(el.type, el.available_bounds).size() > 1)
+        else if (candidates.size() > 1)
             error(el.loc, "The trait '{}' has multiple implementations", *el.type);
+        else
+            type_table.store_impl(el.type, candidates.front());
     }
     return errors == 0;
 }

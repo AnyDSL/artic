@@ -700,8 +700,8 @@ const thorin::Def* Emitter::emit(const ast::Node& node, const Literal& lit) {
         std::vector<const Type *> type_args;
         type_args.emplace_back(node.type->replace(type_vars));
         auto needed_impl = node.type->type_table.type_app(trait, std::move(type_args));
-        auto impls = node.type->type_table.find_impls(needed_impl);
-        auto [type_app, impl_type] = match_app<ImplType>(impls.front());
+        auto impl = node.type->type_table.find_impl(needed_impl);
+        auto [type_app, impl_type] = match_app<ImplType>(impl);
         if(impl_type->type_params()) {
             std::unordered_map<const artic::TypeVar*, const artic::Type*> map;
             for (auto i =0; i < type_app->type_args.size(); i++)
@@ -823,7 +823,7 @@ const thorin::Def* Path::emit(Emitter& emitter) const {
             }
             const thorin::Def*  def;
             if(auto trait_type = decl->type->isa<TraitType>()){
-                auto impl = decl->type->type_table.find_impls(elems[i].type->replace(map)).front();
+                auto impl = decl->type->type_table.find_impl(elems[i].type->replace(map));
                 auto [type_app, impl_type] = match_app<ImplType>(impl);
                 if(impl_type->type_params()) {
                     std::unordered_map<const artic::TypeVar*, const artic::Type*> map;
@@ -1240,8 +1240,8 @@ const thorin::Def* UnaryExpr::emit(Emitter& emitter) const {
         auto trait_key = UnaryExpr::tag_to_string(tag) + "u";
         auto trait = arg_type->type_table.get_key_trait(trait_key);
         auto needed_impl = arg_type->type_table.type_app(trait, std::move(trait_args));
-        auto impls = arg_type->type_table.find_impls(needed_impl);
-        auto [type_app, impl_type] = match_app<ImplType>(impls.front());
+        auto impl = arg_type->type_table.find_impl(needed_impl);
+        auto [type_app, impl_type] = match_app<ImplType>(impl);
         if(impl_type->type_params()) {
             std::unordered_map<const artic::TypeVar*, const artic::Type*> map;
             for (auto i =0; i < type_app->type_args.size(); i++)
@@ -1347,8 +1347,8 @@ const thorin::Def* BinaryExpr::emit(Emitter& emitter) const {
         trait_args.emplace_back(l_type);
         auto trait = l_type->type_table.get_key_trait(BinaryExpr::tag_to_string(remove_eq(tag)));
         auto needed_impl = l_type->type_table.type_app(trait, std::move(trait_args));
-        auto impls = l_type->type_table.find_impls(needed_impl);
-        auto [type_app, impl_type] = match_app<ImplType>(impls.front());
+        auto impl = l_type->type_table.find_impl(needed_impl);
+        auto [type_app, impl_type] = match_app<ImplType>(impl);
         if(impl_type->type_params()) {
             std::unordered_map<const artic::TypeVar*, const artic::Type*> map;
             for (auto i =0; i < type_app->type_args.size(); i++)
@@ -1869,7 +1869,6 @@ bool compile(
 
     if (!name_binder.run(program) || !type_checker.run(program))
         return false;
-
     thorin::Log::set(log_level, &std::cerr);
     Emitter emitter(log, world);
     emitter.warns_as_errors = warns_as_errors;
