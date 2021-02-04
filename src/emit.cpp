@@ -1895,6 +1895,7 @@ bool compile(
         return false;
 
     world.set(log_level);
+    world.set(std::make_shared<thorin::Stream>(std::cerr));
     Emitter emitter(log, world);
     emitter.warns_as_errors = warns_as_errors;
     return emitter.run(program);
