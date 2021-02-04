@@ -8,11 +8,39 @@ The coding style is similar to the one used in Thorin:
 
 - Spaces after control-flow structures (e.g. `if (x)` and not `if(x)`),
 - Spaces after commas, `(x, y)`, not `(x,y)`,
-- Names that are short but expressive if possible,
+- Spaces after `//` and `/*`,
+- Comments start with an uppercase and should be proper English sentences whenever possible,
+- Names that are short but expressive if possible.
+  Do:
+  ```cpp
+  bool save_module_before_restart() {
+    /* ... */
+  }
+  ```
+  Don't:
+  ```cpp
+  // Saves the state of the module before a restart
+  bool save() {
+    /* ... */
+  }
+  ```
+- Braces should not be used if the enclosing block is only one line.
+  Do:
+  ```cpp
+  if (x)
+    foo(x);
+  ```
+  Don't:
+  ```cpp
+  if (x) {
+    foo(x);
+  }
+  ```
+- `else` should be at the same level as the closing `}` of the `if` block, if any.
 - Private/protected members (not methods) end with `_`,
 - `struct` instead of `class` when most members are public.
 
-In addition, getters/setters are avoided in Artic:
+In addition, getters/setters should be avoided:
 
 - Use a public member for members with read/write access,
 - Use a private member with a public accessor function for read-only members:
