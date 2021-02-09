@@ -1322,7 +1322,7 @@ struct EnumDecl : public NamedDecl {
         const Loc& loc,
         Identifier&& id,
         Ptr<TypeParamList>&& type_params,
-        PtrVector<TypeApp> where_clauses,
+        PtrVector<TypeApp>&& where_clauses,
         PtrVector<OptionDecl>&& options)
         : NamedDecl(loc, std::move(id))
         , type_params(std::move(type_params))
@@ -1344,15 +1344,15 @@ struct TraitDecl : public NamedDecl {
     PtrVector<TypeApp> where_clauses;
 
     TraitDecl(
-            const Loc& loc,
-            Identifier&& id,
-            Ptr<TypeParamList>&& type_params,
-            PtrVector<FnDecl>&& fns,
-            PtrVector<TypeApp> where_clauses)
-            : NamedDecl(loc, std::move(id))
-            , fns(std::move(fns))
-            , type_params(std::move(type_params))
-            , where_clauses(std::move(where_clauses))
+        const Loc& loc,
+        Identifier&& id,
+        Ptr<TypeParamList>&& type_params,
+        PtrVector<FnDecl>&& fns,
+        PtrVector<TypeApp> where_clauses)
+        : NamedDecl(loc, std::move(id))
+        , fns(std::move(fns))
+        , type_params(std::move(type_params))
+        , where_clauses(std::move(where_clauses))
     {}
 
     const thorin::Def* emit(Emitter&) const override;
@@ -1370,16 +1370,16 @@ struct ImplDecl : public Decl {
     PtrVector<TypeApp> where_clauses;
 
     ImplDecl(
-            const Loc& loc,
-            Ptr<TypeParamList>&& type_params,
-            Ptr<TypeApp>&& trait_type,
-            PtrVector<FnDecl>&& functs,
-            PtrVector<TypeApp> where_clauses)
-            : Decl(loc)
-            , type_params(std::move(type_params))
-            , trait_type(std::move(trait_type))
-            , fns(std::move(functs))
-            , where_clauses(std::move(where_clauses))
+        const Loc& loc,
+        Ptr<TypeParamList>&& type_params,
+        Ptr<TypeApp>&& trait_type,
+        PtrVector<FnDecl>&& functs,
+        PtrVector<TypeApp> where_clauses)
+        : Decl(loc)
+        , type_params(std::move(type_params))
+        , trait_type(std::move(trait_type))
+        , fns(std::move(functs))
+        , where_clauses(std::move(where_clauses))
      {}
 
      const thorin::Def* emit(Emitter&) const override;

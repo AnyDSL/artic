@@ -229,8 +229,7 @@ Ptr<ast::TraitDecl> Parser::parse_trait_decl() {
                 auto fn = parse_fn_decl();
                 fn->is_top_level = false;
                 functs.emplace_back(std::move(fn));
-            }
-            else {
+            } else {
                 error(ahead().loc(), "expected function declaration got '{}'", ahead().string());
                 while (
                         ahead().tag() != Token::Fn &&
@@ -279,8 +278,7 @@ Ptr<ast::ImplDecl> Parser::parse_impl_decl() {
                 fn->is_top_level = false;
                 fn->attrs = std::move(attrs);
                 functs.emplace_back(std::move(fn));
-            }
-            else {
+            } else {
                 error(ahead().loc(), "expected function declaration got '{}'", ahead().string());
                 while (
                         ahead().tag() != Token::Fn &&

@@ -383,8 +383,9 @@ struct ForallType : public Type {
     /// Returns the type of the body with type variables
     /// substituted with the given arguments.
     const Type* instantiate(const std::vector<const Type*>&) const;
-    std::unordered_map<const TypeVar*, const artic::Type*> instance_map(const std::vector<const Type*>&) const;
+    std::unordered_map<const TypeVar*, const artic::Type*> replace_map(const std::vector<const Type*>&) const;
 
+    const  std::vector<const Type*> where_clauses() const;
     void print(Printer&) const override;
     bool equals(const Type*) const override;
     size_t hash() const override;
@@ -404,7 +405,7 @@ struct UserType : public Type {
     {}
 
     virtual const ast::TypeParamList* type_params() const = 0;
-    virtual const std::vector<const Type*> where_types() const = 0;
+    virtual const std::vector<const Type*> where_clauses() const = 0;
     virtual const thorin::Type* convert(Emitter&, const Type*) const = 0;
 
     const thorin::Type* convert(Emitter& emitter) const override {
@@ -439,7 +440,7 @@ struct StructType : public ComplexType {
     std::string stringify(Emitter&) const override;
 
     const ast::TypeParamList* type_params() const override;
-    const  std::vector<const Type*> where_types() const override;
+    const  std::vector<const Type*> where_clauses() const override;
     std::optional<size_t> find_member(const std::string_view&) const override;
     const Type* member_type(size_t) const override;
     size_t member_count() const override;
@@ -468,7 +469,7 @@ struct EnumType : public ComplexType {
     const ast::TypeParamList* type_params() const override {
         return decl.type_params.get();
     }
-    const  std::vector<const Type*> where_types() const override;
+    const  std::vector<const Type*> where_clauses() const override;
     std::optional<size_t> find_member(const std::string_view&) const override;
     const Type* member_type(size_t) const override;
     size_t member_count() const override;
@@ -490,13 +491,12 @@ struct TraitType : public ComplexType {
 
     using UserType::convert;
     const thorin::Type* convert(Emitter&, const Type*) const override;
-    std::string stringify(Emitter&) const override;
 
     const ast::TypeParamList* type_params() const override {
         return decl.type_params.get();
     }
 
-    const  std::vector<const Type*> where_types() const override;
+    const  std::vector<const Type*> where_clauses() const override;
     std::optional<size_t> find_member(const std::string_view&) const override;
     const Type* member_type(size_t) const override;
     size_t member_count() const override;
@@ -518,13 +518,12 @@ struct ImplType : public ComplexType {
 
     using UserType::convert;
     const thorin::Type* convert(Emitter&, const Type*) const override;
-    std::string stringify(Emitter&) const override;
 
     const ast::TypeParamList* type_params() const override {
         return decl.type_params.get();
     }
 
-    const  std::vector<const Type*> where_types() const override;
+    const  std::vector<const Type*> where_clauses() const override;
     std::optional<size_t> find_member(const std::string_view&) const override;
     const Type* member_type(size_t) const override;
     size_t member_count() const override;
@@ -548,7 +547,7 @@ struct TypeAlias : public UserType {
         return decl.type_params.get();
     }
 
-    const  std::vector<const Type*> where_types() const override;
+    const  std::vector<const Type*> where_clauses() const override;
     const thorin::Type* convert(Emitter&, const Type*) const override;
 
 private:
@@ -648,7 +647,7 @@ public:
     const StructType*       struct_type(const ast::RecordDecl&);
     const EnumType*         enum_type(const ast::EnumDecl&);
     const TraitType*        trait_type(const ast::TraitDecl&);
-    const ImplType*         trait_impl_type(const ast::ImplDecl& impl);
+    const ImplType*         impl_type(const ast::ImplDecl& impl);
     const TypeAlias*        type_alias(const ast::TypeDecl&);
 
     /// Creates a type application for structures/enumeration types,
@@ -664,12 +663,13 @@ public:
 
     const std::vector<const Type*> find_all_impls(const Type* type, std::vector<const Type*> additional_bounds = {});
     const Type* find_impl(const Type* type);
+    const Type* find_impl(std::string trait_name, std::vector<const Type*> args);
     void store_impl(const Type* type, const Type* impl);
     bool check_impl(const Type* type, const ImplType* impl, std::vector<const Type*> additional_bounds = {});
     bool in_additional_bound(const Type* type, const Type* additional_bound);
-
-    /// Returns a map that replaces the vars of the first arg in s.t. the target results from the replacement
-    const std::unordered_map<const TypeVar*, const Type*> type_args(const Type* poly, const Type* target);
+    /// Returns a map that unifies poly and target (if one exists), i.e.
+    /// poly->replace(replace_map(poly, target)) == target always holds if such map exists
+    const std::unordered_map<const TypeVar*, const Type*> replace_map(const Type* poly, const Type* target);
 
 private:
     template <typename T, typename... Args>

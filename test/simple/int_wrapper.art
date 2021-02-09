@@ -20,7 +20,11 @@ impl[A] Not[S[A]]       where Not[A]        { fn not(a: S[A])               =  S
 impl[A] FromInt[S[A]]   where FromInt[A]    { fn from_int(a: u64) -> S[A]   = S[A] { el = FromInt[A]::from_int(a) }; }
 impl[A] FromFloat[S[A]] where FromFloat[A]  { fn from_float(a: f64) -> S[A] = S[A] { el = FromFloat[A]::from_float(a) }; }
 
-fn test[A](mut a: S[A], mut b: S[A]) where Int[A] =
+trait Ordered[T] where CmpLT[T], CmpLE[T], CmpGT[T], CmpGE[T], CmpEq[T], CmpNE[T] {}
+
+impl Ordered[i16] {}
+
+fn test[A](mut a: S[A], mut b: S[A]) where Int[A], Ordered[A] =
     (a + b,  a - b, a * b, a / b, a % b, a >> b, a << b,
     a & b, a | b, a ^ b,
     a < b, a <= b, a > b, a >= b, a == b, a != b,

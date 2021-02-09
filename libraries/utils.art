@@ -1,12 +1,7 @@
-enum Option[T] {
-    Some(T),
-    None
-}
-
 trait BitOps[T] where Not[T], And[T], Or[T], Xor[T] {}
 trait Shift[T] where LShift[T], RShift[T] {}
 trait Num[T] where Add[T], Sub[T], Mul[T], Div[T], Rem[T], FromInt[T] {}
-trait Int[T] where Ordered[T], Num[T], Shift[T], BitOps[T] {}
+trait Int[T] where Num[T], Shift[T], BitOps[T] {}
 trait Float[T] where Num[T], FromFloat[T] {}
 
 #[allow_undecidable_impl]

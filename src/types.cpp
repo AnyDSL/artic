@@ -3,7 +3,6 @@
 
 #include "artic/types.h"
 #include "artic/hash.h"
-#include "artic/print.h"
 
 namespace artic {
 
@@ -433,12 +432,12 @@ bool TypeApp::is_sized(std::unordered_set<const Type*>& seen) const {
 
 // User Types -------------------------------------------------------------------
 
-const std::vector<const Type*> TypeAlias::where_types() const {
+const std::vector<const Type*> TypeAlias::where_clauses() const {
     auto& aux =  decl.where_clauses;
 
     std::vector<const Type*> res;
     res.reserve(aux.size());
-    for(auto& clause: aux)
+    for (auto& clause: aux)
         res.push_back(clause->type);
     return res;
 }
@@ -451,13 +450,13 @@ const ast::TypeParamList* StructType::type_params() const {
         : decl.as<ast::OptionDecl>()->parent->type_params.get();
 }
 
-const std::vector<const Type*> StructType::where_types() const {
+const std::vector<const Type*> StructType::where_clauses() const {
     auto& aux =  decl.isa<ast::StructDecl>()
            ? decl.as<ast::StructDecl>()->where_clauses
            : decl.as<ast::OptionDecl>()->parent->where_clauses;
     std::vector<const Type*> res;
     res.reserve(aux.size());
-    for(auto& clause: aux)
+    for (auto& clause: aux)
         res.push_back(clause->type);
     return res;
 }
@@ -486,12 +485,12 @@ bool StructType::is_tuple_like() const {
     return decl.isa<ast::StructDecl>() && decl.as<ast::StructDecl>()->is_tuple_like;
 }
 
-const std::vector<const Type*> EnumType::where_types() const {
+const std::vector<const Type*> EnumType::where_clauses() const {
     auto& aux =  decl.where_clauses;
 
     std::vector<const Type*> res;
     res.reserve(aux.size());
-    for(auto& clause: aux)
+    for (auto& clause: aux)
         res.push_back(clause->type);
     return res;
 }
@@ -508,12 +507,12 @@ std::optional<size_t> EnumType::find_member(const std::string_view& name) const 
         : std::nullopt;
 }
 
-const std::vector<const Type*> TraitType::where_types() const {
+const std::vector<const Type*> TraitType::where_clauses() const {
     auto& aux =  decl.where_clauses;
 
     std::vector<const Type*> res;
     res.reserve(aux.size());
-    for(auto& clause: aux)
+    for (auto& clause: aux)
         res.push_back(clause->type);
     return res;
 }
@@ -531,23 +530,23 @@ std::optional<size_t> TraitType::find_member(const std::string_view& name) const
         : std::nullopt;
 }
 
-const std::vector<const Type*> ImplType::where_types() const {
+const std::vector<const Type*> ImplType::where_clauses() const {
     auto& aux =  decl.where_clauses;
 
     std::vector<const Type*> res;
     res.reserve(aux.size());
-    for(auto& clause: aux)
+    for (auto& clause: aux)
         res.push_back(clause->type);
     return res;
 }
 
 std::optional<size_t> ImplType::find_member(const std::string_view& name) const {
     auto it = std::find_if(
-            decl.fns.begin(),
-            decl.fns.end(),
-            [&name] (auto& f) {
-                return f->id.name == name;
-            });
+        decl.fns.begin(),
+        decl.fns.end(),
+        [&name] (auto& f) {
+            return f->id.name == name;
+        });
     return it != decl.fns.end()
     ? std::make_optional(it - decl.fns.begin())
     : std::nullopt;
@@ -643,12 +642,19 @@ const Type* Type::join(const Type* other) const {
 }
 
 const Type* ForallType::instantiate(const std::vector<const Type*>& args) const {
-    auto map = instance_map(args);
-    return body->replace(map);
+    return body->replace(replace_map(args));
+}
+
+const std::vector<const Type*> ForallType::where_clauses() const {
+    std::vector<const Type*> res;
+    res.reserve(decl.where_clauses.size());
+    for(auto& w: decl.where_clauses)
+        res.push_back(w->type);
+    return res;
 }
 
 std::unordered_map<const TypeVar *, const Type *>
-ForallType::instance_map(const std::vector<const Type*> & args) const{
+ForallType::replace_map(const std::vector<const Type*> & args) const{
     std::unordered_map<const TypeVar*, const Type*> map;
     assert(decl.type_params && decl.type_params->params.size() == args.size());
     for (size_t i = 0, n = args.size(); i < n; ++i) {
@@ -723,36 +729,15 @@ bool is_unit_type(const Type* type) {
 }
 
 bool contains_var(const Type* t) {
-    if (t->isa<TypeVar>()) {
-        return true;
-    }
-    if (t->isa<FnType>()) {
-        return contains_var(t->as<FnType>()->dom) || contains_var(t->as<FnType>()->codom);
-    }
-    if (t->isa<TypeApp>()) {
-        for (auto arg: t->as<TypeApp>()->type_args) {
-            if (contains_var(arg)) return true;
-        }
-    }
-    return false;
+    return !t->variance().empty();
 }
 
 std::vector<const Type*> get_type_vars(const Type* t) {
+    auto map = t->variance();
     std::vector<const Type*> res;
-    if (t->isa<TypeVar>()) {
-        res.push_back(t);
-    }
-    if (t->isa<FnType>()) {
-        res = get_type_vars(t->as<FnType>()->dom);
-        for (auto t: get_type_vars(t->as<FnType>()->codom))
-            res.push_back(t);
-    }
-    if (t->isa<TypeApp>()) {
-        for (auto arg: t->as<TypeApp>()->type_args) {
-            for(auto t: get_type_vars(arg))
-                res.push_back(t);
-        }
-    }
+    res.reserve(map.size());
+    for (auto it: map)
+        res.push_back(it.first);
     return res;
 }
 
@@ -839,7 +824,7 @@ const TraitType* TypeTable::trait_type(const ast::TraitDecl& decl) {
     return insert<TraitType>(decl);
 }
 
-const ImplType* TypeTable::trait_impl_type(const ast::ImplDecl& impl) {
+const ImplType* TypeTable::impl_type(const ast::ImplDecl& impl) {
     return insert<ImplType>(impl);
 }
 
@@ -872,46 +857,51 @@ const ImplType* TypeTable::register_impl(const ImplType* impl) {
             impls_[trait_type].push_back(impl);
         else
             impls_[trait_type] = {impl};
-    }
-    else if(impls_.find(impl->decl.trait_type->type) != impls_.end()) {
+    } else if(impls_.find(impl->decl.trait_type->type) != impls_.end()) {
         return impls_[impl->decl.trait_type->type].front();
-    }
-    else
+    } else
         impls_[impl->decl.trait_type->type] = {impl};
     return nullptr;
 }
 
 const std::vector<const Type*>  TypeTable::find_all_impls(const Type* type, std::vector<const Type*> additional_bounds) {
     std::vector<const Type *> result;
+    /// This check ensures that the impl resolution does not try to find implementations for generic trait uses
+    /// while still checking the bound when the trait is concrete
+    /// Examples:
+    /// fn test[A](a:A) where Add[A] = Add[A]::add(a,a);
+    /// Add[A] does not get searched for in the impls because it is part of the bound
+    /// fn test(a:bool) where Add[bool] = Add[bool]::add(a,a);
+    /// Add[bool] does get searched for in the impls despite being part of the bound
     if(contains_var(type)) {
         for (auto b: additional_bounds) {
             if (in_additional_bound(type, b))
                 return {b};
         }
     }
-    auto f = [&](const ImplType *i) {
-        if (check_impl(type, i, additional_bounds)) {
-            if (i->type_params()) {
-                std::vector<const Type *> args;
-                auto &map = type_args(i->decl.trait_type->type, type);
-                for (auto &pa: i->type_params()->params) {
-                    args.push_back(map.at(pa->type->as<TypeVar>()));
-                }
-                result.push_back(type_app(i, std::move(args)));
-            } else {
-                result.push_back(i);
+    auto add_impl_to_result = [&](const ImplType *i) {
+        if (i->type_params()) {
+            std::vector<const Type *> args;
+            auto &map = replace_map(i->decl.trait_type->type, type);
+            for (auto &pa: i->type_params()->params) {
+                args.push_back(map.at(pa->type->as<TypeVar>()));
             }
+            result.push_back(type_app(i, std::move(args)));
+        } else {
+            result.push_back(i);
         }
     };
     if (impls_.find(type) != impls_.end()) {
         for (auto i:impls_[type]) {
-            f(i);
+            if (check_impl(type, i, additional_bounds))
+                add_impl_to_result(i);
         }
     }
     auto app = type->isa<TypeApp>();
     if (app && (impls_.find(app->applied) != impls_.end())) {
         for (auto i:impls_[app->applied])
-            f(i);
+            if (check_impl(type, i, additional_bounds))
+                add_impl_to_result(i);
     }
 
     return result;
@@ -925,6 +915,13 @@ const Type* TypeTable::find_impl(const Type* type) {
     return type_impl_table_[type];
 
 }
+
+const Type* TypeTable::find_impl(std::string trait_name, std::vector<const Type*> args) {
+    auto trait = get_key_trait(trait_name);
+    auto app = type_app(trait, std::move(args));
+    return find_impl(app);
+}
+
 void TypeTable::store_impl(const Type* type, const Type* impl) {
     type_impl_table_[type] = impl;
 }
@@ -932,19 +929,24 @@ void TypeTable::store_impl(const Type* type, const Type* impl) {
 bool TypeTable::in_additional_bound(const Type* type, const Type* additional_bound) {
     if (type == additional_bound) return true;
     auto [type_app, trait_type] = match_app<TraitType>(additional_bound);
-    for (auto w: trait_type->where_types()) {
+    for (auto w: trait_type->where_clauses()) {
         if (in_additional_bound(type, w->replace(type_app->replace_map())))
             return true;
     }
     return false;
 }
 
+/// This method checks if the impl can be the con be used to justify the type
+/// Example:
+/// impl T[i32] can justify T[i32]
+/// impl[A] T[A] where Add[A] can also justify T[i32]
+/// impl[A] T[A] where Add[A] can not justify T[bool]
 bool TypeTable::check_impl(const Type* type, const ImplType* impl, std::vector<const Type*> additional_bounds) {
-    auto replace = type_args(impl->decl.trait_type->type, type);
+    auto replace = replace_map(impl->decl.trait_type->type, type);
     if (impl->decl.trait_type->type->replace(replace) != type) {
         return false;
     }
-    for (auto & w: impl->where_types()) {
+    for (auto & w: impl->where_clauses()) {
         if (find_all_impls(w->replace(replace), additional_bounds).size() != 1) {
             return false;
         }
@@ -961,7 +963,7 @@ const TraitType* TypeTable::get_key_trait(std::string key) {
 }
 
 const std::unordered_map<const TypeVar*, const Type*>
-    TypeTable::type_args(const Type* poly, const Type* target) {
+    TypeTable::replace_map(const Type* poly, const Type* target) {
 
     std::unordered_map<const TypeVar*, const Type*> res;
     if (poly == target)
@@ -977,9 +979,9 @@ const std::unordered_map<const TypeVar*, const Type*>
         assert(poly_app->type_args.size() == target_app->type_args.size());
         for (auto i =0; i < poly_app->type_args.size(); i++) {
             if (poly_app->type_args[i] != target_app->type_args[i]) {
-                auto aux = type_args(poly_app->type_args[i], target_app->type_args[i]);
+                auto aux = replace_map(poly_app->type_args[i], target_app->type_args[i]);
                 for (auto& el:aux) {
-                    //if the assigned values differ
+                    // If the assigned values differ there is no map that can unify poly and target
                     if (res.find(el.first)!= res.end() && res.find(el.first)->second != el.second)
                         return std::unordered_map<const TypeVar*, const Type*>();
                     else

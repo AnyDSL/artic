@@ -34,7 +34,6 @@ public:
     const Type* incompatible_types(const Loc&, const Type*, const Type*);
     const Type* incompatible_type(const Loc&, const std::string_view&, const Type*);
     const Type* type_expected(const Loc&, const Type*, const std::string_view&);
-    const Type* check_is_not_trait(const Loc &loc, const Type *type);
     const Type* unknown_member(const Loc&, const UserType*, const std::string_view&);
     const Type* cannot_infer(const Loc&, const std::string_view&);
     const Type* unreachable_code(const Loc&, const Loc&, const Loc&);
@@ -69,7 +68,7 @@ public:
         bool = false, bool = false);
 
     template <typename Fns>
-    const Type* check_trait_fns(
+    const Type* check_impl_fns(
             const Loc& loc,
             const TraitType* trait_type,
             const TypeApp* type_app,
@@ -79,6 +78,7 @@ public:
     void check_block(const Loc&, const PtrVector<ast::Stmt>&, bool);
     bool check_attrs(const ast::NamedAttr&, const std::vector<AttrType>&);
     bool check_filter(const ast::Expr&);
+    void check_is_not_trait(const Loc &loc, const Type *type);
 
     template <typename InferElems>
     const Type* infer_array(const Loc&, const std::string_view&, size_t, bool, const InferElems&);
@@ -88,12 +88,11 @@ public:
     bool infer_type_args(const Loc&, const ForallType*, const Type*, std::vector<const Type*>&);
     const Type* infer_record_type(const TypeApp*, const StructType*, size_t&);
 
-    //returns true if the bound is valid
+    // Returns true if the bound is valid
     void check_bound(const Type*, Loc& loc);
     bool trait_bound_exists(const Type*);
     std::vector<const Type*> collect_where_clauses();
     void add_impl_req(Loc loc, const Type* type, std::vector<const Type*> available_bounds);
-
 
 private:
     std::unordered_set<const ast::Decl*> decls_;

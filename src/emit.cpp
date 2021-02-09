@@ -697,9 +697,7 @@ const thorin::Def* Emitter::emit(const ast::Node& node, const Literal& lit) {
         return world.definite_array(ops, debug_info(node));
     } else {
         auto trait_name = lit.is_integer() ? "FromInt" : "FromFloat";
-        auto trait = node.type->type_table.get_key_trait(trait_name);
-        auto needed_impl = node.type->type_table.type_app(trait, {node.type->replace(type_vars)});
-        auto impl = node.type->type_table.find_impl(needed_impl);
+        auto impl = node.type->type_table.find_impl(trait_name, {node.type->replace(type_vars)});
         auto [type_app, impl_type] = match_app<ImplType>(impl);
         if (impl_type->type_params()) {
             std::unordered_map<const artic::TypeVar*, const artic::Type*> map;
@@ -714,6 +712,28 @@ const thorin::Def* Emitter::emit(const ast::Node& node, const Literal& lit) {
         return call(fn, value, debug_info(node));
     }
 }
+
+#define FN_ARGS (thorin::World& w, const thorin::Def* p1, const thorin::Def* p2)
+static std::unordered_map<std::string, const thorin::Def*(*)FN_ARGS> builtins {
+    std::make_pair("add",       []FN_ARGS{return w.arithop_add(p1, p2);}),
+    std::make_pair("sub",       []FN_ARGS{return w.arithop_sub(p1, p2);}),
+    std::make_pair("mul",       []FN_ARGS{return w.arithop_mul(p1, p2);}),
+    std::make_pair("div",       []FN_ARGS{return w.arithop_div(p1, p2);}),
+    std::make_pair("rem",       []FN_ARGS{return w.arithop_rem(p1, p2);}),
+    std::make_pair("lshift",    []FN_ARGS{return w.arithop_shl(p1, p2);}),
+    std::make_pair("rshift",    []FN_ARGS{return w.arithop_shr(p1, p2);}),
+    std::make_pair("and",       []FN_ARGS{return w.arithop_and(p1, p2);}),
+    std::make_pair("or",        []FN_ARGS{return w.arithop_or(p1, p2);}),
+    std::make_pair("xor",       []FN_ARGS{return w.arithop_xor(p1, p2);}),
+    std::make_pair("not",       []FN_ARGS{return w.arithop_not(p1);}),
+    std::make_pair("lt",        []FN_ARGS{return w.cmp_lt(p1, p2);}),
+    std::make_pair("gt",        []FN_ARGS{return w.cmp_gt(p1, p2);}),
+    std::make_pair("le",        []FN_ARGS{return w.cmp_le(p1, p2);}),
+    std::make_pair("ge",        []FN_ARGS{return w.cmp_ge(p1, p2);}),
+    std::make_pair("eq",        []FN_ARGS{return w.cmp_eq(p1, p2);}),
+    std::make_pair("ne",        []FN_ARGS{return w.cmp_ne(p1, p2);})
+};
+
 
 const thorin::Def* Emitter::builtin(const ast::FnDecl& fn_decl, thorin::Continuation* cont) {
     if (cont->name() == "alignof") {
@@ -739,40 +759,10 @@ const thorin::Def* Emitter::builtin(const ast::FnDecl& fn_decl, thorin::Continua
     } else if (cont->name() == "undef") {
         auto target_type = fn_decl.type_params->params[0]->type->convert(*this);
         cont->jump(cont->params().back(), call_args(cont->param(0), world.bottom(target_type)), debug_info(fn_decl));
-    } else if (cont->name() == "add") {
-        cont->jump(cont->params().back(), {cont->param(0), world.arithop_add(cont->param(1), cont->param(2))} , debug_info(fn_decl));
-    } else if (cont->name() == "sub") {
-        cont->jump(cont->params().back(), {cont->param(0), world.arithop_sub(cont->param(1), cont->param(2))} , debug_info(fn_decl));
-    } else if (cont->name() == "mul") {
-        cont->jump(cont->params().back(), {cont->param(0), world.arithop_mul(cont->param(1), cont->param(2))} , debug_info(fn_decl));
-    } else if (cont->name() == "div") {
-        cont->jump(cont->params().back(), {cont->param(0), world.arithop_div(cont->param(1), cont->param(2))} , debug_info(fn_decl));
-    } else if (cont->name() == "rem") {
-        cont->jump(cont->params().back(), {cont->param(0), world.arithop_rem(cont->param(1), cont->param(2))} , debug_info(fn_decl));
-    } else if (cont->name() == "lshift") {
-        cont->jump(cont->params().back(), {cont->param(0), world.arithop_shl(cont->param(1), cont->param(2))} , debug_info(fn_decl));
-    } else if (cont->name() == "rshift") {
-        cont->jump(cont->params().back(), {cont->param(0), world.arithop_shr(cont->param(1), cont->param(2))} , debug_info(fn_decl));
-    } else if (cont->name() == "and") {
-        cont->jump(cont->params().back(), {cont->param(0), world.arithop_and(cont->param(1), cont->param(2))} , debug_info(fn_decl));
-    } else if (cont->name() == "or") {
-        cont->jump(cont->params().back(), {cont->param(0), world.arithop_or(cont->param(1), cont->param(2))} , debug_info(fn_decl));
-    } else if (cont->name() == "xor") {
-        cont->jump(cont->params().back(), {cont->param(0), world.arithop_xor(cont->param(1), cont->param(2))} , debug_info(fn_decl));
-    } else if (cont->name() == "lt") {
-        cont->jump(cont->params().back(), {cont->param(0), world.cmp_lt(cont->param(1), cont->param(2))} , debug_info(fn_decl));
-    } else if (cont->name() == "gt") {
-        cont->jump(cont->params().back(), {cont->param(0), world.cmp_gt(cont->param(1), cont->param(2))} , debug_info(fn_decl));
-    } else if (cont->name() == "le") {
-        cont->jump(cont->params().back(), {cont->param(0), world.cmp_le(cont->param(1), cont->param(2))} , debug_info(fn_decl));
-    } else if (cont->name() == "ge") {
-        cont->jump(cont->params().back(), {cont->param(0), world.cmp_ge(cont->param(1), cont->param(2))} , debug_info(fn_decl));
-    } else if (cont->name() == "eq") {
-        cont->jump(cont->params().back(), {cont->param(0), world.cmp_eq(cont->param(1), cont->param(2))} , debug_info(fn_decl));
-    } else if (cont->name() == "ne") {
-        cont->jump(cont->params().back(), {cont->param(0), world.cmp_ne(cont->param(1), cont->param(2))} , debug_info(fn_decl));
     } else if (cont->name() == "not") {
         cont->jump(cont->params().back(), {cont->param(0), world.arithop_not(cont->param(1))} , debug_info(fn_decl));
+    } else if (builtins.find(cont->name().str()) != builtins.end()) {
+        cont->jump(cont->params().back(), {cont->param(0), builtins[cont->name().str()](world, cont->param(1), cont->param(2))} , debug_info(fn_decl));
     } else {
         assert(false);
     }
@@ -805,7 +795,7 @@ const thorin::Def* Path::emit(Emitter& emitter) const {
             if (!elems[i].inferred_args.empty()) {
                 for (size_t j = 0, n = elems[i].inferred_args.size(); j < n; ++j) {
                     const artic::TypeVar* var;
-                    if(decl->isa<FnDecl>())
+                    if (decl->isa<FnDecl>())
                         var = decl->as<FnDecl>()->type_params->params[j]->type->as<artic::TypeVar>();
                     else
                         var = decl->as<TraitDecl>()->type_params->params[j]->type->as<artic::TypeVar>();
@@ -832,13 +822,11 @@ const thorin::Def* Path::emit(Emitter& emitter) const {
                     auto default_index = trait_type->find_member(elems[i+1].id.name);
                     def = emitter.emit(*trait_type->decl.fns[*default_index]);
                     trait_type->decl.fns[*default_index]->def = nullptr;
-                }
-                else {
+                } else {
                     def = emitter.emit(*impl_type->decl.fns[*index]);
                     impl_type->decl.fns[*index]->def = nullptr;
                 }
-            }
-            else {
+            } else {
                def = emitter.emit(*decl);
             }
             if (!elems[i].inferred_args.empty()) {
@@ -1198,18 +1186,10 @@ const thorin::Def* UnaryExpr::emit(Emitter& emitter) const {
                 // The operand must be a pointer, so we return it as a reference
                 res = op;
                 break;
-            case Not:
-                res = emitter.world.arithop_not(op, debug_info(*this));
-                break;
-            case Minus:
-                res = emitter.world.arithop_minus(op, debug_info(*this));
-                break;
-            case Known:
-                res = emitter.world.known(op, debug_info(*this));
-                break;
-            case Forget:
-                res = emitter.world.hlt(op, debug_info(*this));
-                break;
+            case Not:    res = emitter.world.arithop_not(op, debug_info(*this));   break;
+            case Minus:  res = emitter.world.arithop_minus(op, debug_info(*this)); break;
+            case Known:  res = emitter.world.known(op, debug_info(*this));         break;
+            case Forget: res = emitter.world.hlt(op, debug_info(*this));           break;
             case PreInc:
             case PostInc: {
                 auto one = emitter.world.one(op->type());
@@ -1226,16 +1206,13 @@ const thorin::Def* UnaryExpr::emit(Emitter& emitter) const {
                 assert(false);
                 return nullptr;
         }
-    }
-    else {
+    } else {
         auto arg_type = arg->type->replace(emitter.type_vars);
         if (arg_type->isa<RefType>()) arg_type = arg_type->as<RefType>()->pointee;
         std::vector<const artic::Type*> trait_args;
         trait_args.emplace_back(arg_type);
-        auto trait_key = UnaryExpr::tag_to_string(tag) + "u";
-        auto trait = arg_type->type_table.get_key_trait(trait_key);
-        auto needed_impl = arg_type->type_table.type_app(trait, std::move(trait_args));
-        auto impl = arg_type->type_table.find_impl(needed_impl);
+        auto trait_name = UnaryExpr::tag_to_string(tag) + "u";
+        auto impl = arg_type->type_table.find_impl(trait_name, std::move(trait_args));
         auto [type_app, impl_type] = match_app<ImplType>(impl);
         if (impl_type->type_params()) {
             std::unordered_map<const artic::TypeVar*, const artic::Type*> map;
@@ -1333,15 +1310,11 @@ const thorin::Def* BinaryExpr::emit(Emitter& emitter) const {
                 assert(false);
                 return nullptr;
         }
-    }
-    else {
+    } else {
         auto l_type = left->type->replace(emitter.type_vars);
         if (l_type->isa<RefType>()) l_type = l_type->as<RefType>()->pointee;
-        std::vector<const artic::Type*> trait_args;
-        trait_args.emplace_back(l_type);
-        auto trait = l_type->type_table.get_key_trait(BinaryExpr::tag_to_string(remove_eq(tag)));
-        auto needed_impl = l_type->type_table.type_app(trait, std::move(trait_args));
-        auto impl = l_type->type_table.find_impl(needed_impl);
+        auto trait_name = BinaryExpr::tag_to_string(remove_eq(tag));
+        auto impl = l_type->type_table.find_impl(trait_name, {l_type});
         auto [type_app, impl_type] = match_app<ImplType>(impl);
         if (impl_type->type_params()) {
             std::unordered_map<const artic::TypeVar*, const artic::Type*> map;
@@ -1436,8 +1409,8 @@ const thorin::Def* FnDecl::emit(Emitter& emitter) const {
     Emitter::MonoFn mono_fn { this, {} };
     auto vars = get_type_vars(type);
     if (type_params || !vars.empty()) {
-        // !vars.empty() => traits performed 'pseudo overloading' .
-        // Via generic impl blocks the same FnDecl can have multiple types
+        // !vars.empty() => this FnDecl is inside a generic Trait
+        // This means that it may be polymorphic, even though the FnDecl does not have type params
         if (type_params) {
             for (auto &param : type_params->params)
                 mono_fn.type_args.push_back(param->type->replace(emitter.type_vars));
@@ -1726,18 +1699,6 @@ std::string EnumType::stringify(Emitter& emitter) const {
     if (!decl.type_params)
         return decl.id.name;
     return stringify_params(emitter, decl.id.name + "_", decl.type_params->params);
-}
-
-std::string TraitType::stringify(Emitter& emitter) const {
-    //should never be called, as traits are not emitted
-    assert(false);
-    return "";
-}
-
-std::string ImplType::stringify(Emitter& emitter) const {
-    //should never be called, as traits are not emitted
-    assert(false);
-    return "";
 }
 
 const thorin::Type* EnumType::convert(Emitter& emitter, const Type* parent) const {

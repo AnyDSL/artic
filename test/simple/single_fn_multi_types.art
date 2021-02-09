@@ -12,7 +12,7 @@ impl[A] G[A] where T[A]{ fn f(a: A) = T[A]::f(a); }
 trait H[A] where T[A] { fn f(a: A) = T[A]::f(a); }
 impl H[S]  {}
 impl H[bool] {}
-impl H[i32] { fn f(a: i32) = 14; }
+impl H[i32] { fn f(_: i32) = 14; }
 
 #[export]
 fn f() = (G[S]::f(S{}), G[bool]::f(true), G[i32]::f(1), H[S]::f(S{}), H[bool]::f(true), H[i32]::f(1));

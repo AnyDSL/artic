@@ -45,6 +45,11 @@ struct Scene {
     num_shapes: i32
 }
 
+enum Option[T] {
+    Some(T),
+    None
+}
+
 static WIDTH       = 512;
 static HEIGHT      = 512;
 static NSUBSAMPLES = 2;
