@@ -322,8 +322,7 @@ const Type* TypeChecker::check_impl_fns(
                     defined[*index] = true;
                 }
             }
-        }
-        else {
+        } else {
             seen[*index] = true;
             defined[*index] = true;
         }
@@ -590,8 +589,8 @@ bool bound_implies_trait(const Type* bound, const Type* trait) {
 
 bool TypeChecker::trait_bound_exists(const Type* type) {
     for (auto decl: decls_) {
-        if(auto poly = decl->type->isa<PolyType>(); poly){
-            for(auto clause: poly->where_clauses())
+        if (auto poly = decl->type->isa<PolyType>(); poly) {
+            for (auto clause: poly->where_clauses())
                 if (bound_implies_trait(clause, type)) return true;
         }
     }
@@ -601,7 +600,7 @@ bool TypeChecker::trait_bound_exists(const Type* type) {
 std::vector<const Type*> TypeChecker::collect_where_clauses() {
     std::vector<const Type*> res;
     for (auto decl: decls_) {
-        if (auto poly = decl->type->isa<PolyType>(); poly){
+        if (auto poly = decl->type->isa<PolyType>(); poly) {
             for (auto clause: poly->where_clauses())
                 res.push_back(clause);
         }
@@ -789,7 +788,7 @@ const artic::Type* Filter::check(TypeChecker& checker, const artic::Type* expect
 
 // Attributes ----------------------------------------------------------------------
 
-std::vector<std::string> builtin_fns = {
+static std::vector<std::string> builtin_fns = {
     "alignof", "bitcast", "insert", "select", "sizeof", "undef",
     "add", "sub", "mul", "div", "rem", "lshift", "rshift", "and", "or", "xor", "not",
     "lt", "gt", "le", "ge", "eq", "ne"
@@ -1685,6 +1684,7 @@ const artic::Type* ImplDecl::infer(TypeChecker& checker) {
         checker.exit_decl(this);
         return checker.type_expected(loc, this->trait_type->type, "trait");
     }
+
     for (auto w:trait_type->where_clauses()) {
         auto w_t = w->replace(type_app->replace_map());
         checker.check_bound(w_t, this->loc);

@@ -101,6 +101,8 @@ private:
     Ptr<ast::AttrList>      parse_attr_list();
     Ptr<ast::Attr>          parse_attr();
 
+    PtrVector<ast::FnDecl>  parse_fn_list();
+
     ast::Path               parse_path(ast::Identifier&&, bool);
     ast::Path               parse_path(bool allow_types = true) { return parse_path(parse_id(), allow_types); }
     ast::Identifier         parse_id();

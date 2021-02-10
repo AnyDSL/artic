@@ -794,11 +794,7 @@ const thorin::Def* Path::emit(Emitter& emitter) const {
             std::unordered_map<const artic::TypeVar*, const artic::Type*> map;
             if (!elems[i].inferred_args.empty()) {
                 for (size_t j = 0, n = elems[i].inferred_args.size(); j < n; ++j) {
-                    const artic::TypeVar* var;
-                    if (decl->isa<FnDecl>())
-                        var = decl->as<FnDecl>()->type_params->params[j]->type->as<artic::TypeVar>();
-                    else
-                        var = decl->as<TraitDecl>()->type_params->params[j]->type->as<artic::TypeVar>();
+                    const artic::TypeVar* var = decl->type->as<PolyType>()->type_params()->params[j]->type->as<artic::TypeVar>();
                     auto type = elems[i].inferred_args[j]->replace(emitter.type_vars);
                     map.emplace(var, type);
                 }
@@ -1713,21 +1709,8 @@ const thorin::Type* EnumType::convert(Emitter& emitter, const Type* parent) cons
     return type;
 }
 
-const thorin::Type* TraitType::convert(Emitter& emitter, const Type* parent) const {
-    //should never be called, as traits are not emitted
-    assert(false);
-    return nullptr;
-}
-
-const thorin::Type* ImplType::convert(Emitter& emitter, const Type* parent) const {
-    //should never be called, as traits are not emitted
-    assert(false);
-    return nullptr;
-}
-
-const thorin::Type* TypeAlias::convert(Emitter&, const Type*) const {
-    // This type should already have been replaced by
-    // its content during type-checking.
+const thorin::Type* UserType::convert(Emitter& emitter, const Type* parent) const {
+    //should never be called
     assert(false);
     return nullptr;
 }

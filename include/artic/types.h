@@ -375,6 +375,7 @@ private:
     friend class TypeTable;
 };
 
+/// Base class for types that can be polymorphic
 struct PolyType : public Type {
 
     PolyType(TypeTable& type_table)
@@ -417,7 +418,7 @@ struct UserType : public PolyType {
         : PolyType(type_table)
     {}
 
-    virtual const thorin::Type* convert(Emitter&, const Type*) const = 0;
+    virtual const thorin::Type* convert(Emitter&, const Type*) const;
 
     const thorin::Type* convert(Emitter& emitter) const override {
         return convert(emitter, this);
@@ -500,9 +501,6 @@ struct TraitType : public ComplexType {
     bool equals(const Type*) const override;
     size_t hash() const override;
 
-    using UserType::convert;
-    const thorin::Type* convert(Emitter&, const Type*) const override;
-
     const ast::TypeParamList* type_params() const override {
         return decl.type_params.get();
     }
@@ -526,9 +524,6 @@ struct ImplType : public ComplexType {
     void print(Printer&) const override;
     bool equals(const Type*) const override;
     size_t hash() const override;
-
-    using UserType::convert;
-    const thorin::Type* convert(Emitter&, const Type*) const override;
 
     const ast::TypeParamList* type_params() const override {
         return decl.type_params.get();
@@ -559,7 +554,6 @@ struct TypeAlias : public UserType {
     }
 
     const  std::vector<const Type*> where_clauses() const override;
-    const thorin::Type* convert(Emitter&, const Type*) const override;
 
 private:
     TypeAlias(TypeTable& type_table, const ast::TypeDecl& decl)
@@ -623,8 +617,9 @@ bool is_int_or_float_type(const Type*);
 bool is_prim_type(const Type*, ast::PrimType::Tag);
 bool is_simd_type(const Type*);
 bool is_unit_type(const Type*);
-bool contains_var(const Type* t);
 inline bool is_bool_type(const Type* type) { return is_prim_type(type, ast::PrimType::Bool); }
+
+bool contains_var(const Type* t);
 std::vector<const Type*> get_type_vars(const Type* t);
 
 template <typename T>

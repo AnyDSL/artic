@@ -193,6 +193,25 @@ Ptr<ast::EnumDecl> Parser::parse_enum_decl() {
     return make_ptr<ast::EnumDecl>(tracker(), std::move(id), std::move(type_params), std::move(where_clauses), std::move(options));
 }
 
+PtrVector<ast::FnDecl> Parser::parse_fn_list() {
+    PtrVector<ast::FnDecl> fns;
+    if (accept(Token::LBrace)) {
+        while (ahead().tag() != Token::RBrace && ahead().tag() != Token::End) {
+            Ptr<ast::AttrList> attrs;
+            if (ahead().tag() == Token::Hash)
+                attrs = parse_attr_list();
+            if (ahead().tag() == Token::Fn) {
+                auto fn = parse_fn_decl();
+                fn->is_top_level = false;
+                fn->attrs = std::move(attrs);
+                fns.emplace_back(std::move(fn));
+            }
+        }
+        expect(Token::RBrace);
+    }
+    return fns;
+}
+
 Ptr<ast::TraitDecl> Parser::parse_trait_decl() {
     Tracker tracker(this);
     eat(Token::Trait);
@@ -206,28 +225,9 @@ Ptr<ast::TraitDecl> Parser::parse_trait_decl() {
     if (accept(Token::Where))
         where_clauses = parse_where_clauses();
 
-    PtrVector<ast::FnDecl>functs;
-    if (accept(Token::LBrace)) {
-        while (ahead().tag() != Token::RBrace && ahead().tag() != Token::End) {
-            if (ahead().tag() == Token::Fn) {
-                auto fn = parse_fn_decl();
-                fn->is_top_level = false;
-                functs.emplace_back(std::move(fn));
-            } else {
-                error(ahead().loc(), "expected function declaration got '{}'", ahead().string());
-                while (
-                        ahead().tag() != Token::Fn &&
-                        ahead().tag() != Token::RBrace &&
-                        ahead().tag() != Token::End
-                        ) {
-                    next();
-                }
-            }
+    PtrVector<ast::FnDecl>fns = parse_fn_list();
 
-        }
-        expect(Token::RBrace);
-    }
-    return make_ptr<ast::TraitDecl>(tracker(), std::move(id), std::move(type_params), std::move(functs), std::move(where_clauses));
+    return make_ptr<ast::TraitDecl>(tracker(), std::move(id), std::move(type_params), std::move(fns), std::move(where_clauses));
 
 }
 
@@ -247,32 +247,9 @@ Ptr<ast::ImplDecl> Parser::parse_impl_decl() {
     if (accept(Token::Where))
         where_clauses = parse_where_clauses();
 
-    PtrVector<ast::FnDecl>functs;
-    if (accept(Token::LBrace)) {
-        while (ahead().tag() != Token::RBrace && ahead().tag() != Token::End) {
-            Ptr<ast::AttrList> attrs;
-            if (ahead().tag() == Token::Hash)
-                attrs = parse_attr_list();
-            if (ahead().tag() == Token::Fn) {
-                auto fn = parse_fn_decl();
-                fn->is_top_level = false;
-                fn->attrs = std::move(attrs);
-                functs.emplace_back(std::move(fn));
-            } else {
-                error(ahead().loc(), "expected function declaration got '{}'", ahead().string());
-                while (
-                        ahead().tag() != Token::Fn &&
-                        ahead().tag() != Token::RBrace &&
-                        ahead().tag() != Token::End
-                        ) {
-                    next();
-                }
-            }
+    PtrVector<ast::FnDecl>fns = parse_fn_list();
 
-        }
-        expect(Token::RBrace);
-    }
-    return make_ptr<ast::ImplDecl>(tracker(), std::move(type_params), std::move(trait_type),  std::move(functs), std::move(where_clauses));
+    return make_ptr<ast::ImplDecl>(tracker(), std::move(type_params), std::move(trait_type),  std::move(fns), std::move(where_clauses));
 }
 
 Ptr<ast::TypeDecl> Parser::parse_type_decl() {
