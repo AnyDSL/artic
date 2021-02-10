@@ -1139,6 +1139,28 @@ struct TypeParamList : public Node {
     void print(Printer&) const override;
 };
 
+/// List of trait bound, of the form where T, Add[A] ...
+struct WhereClauseList : public Node {
+    PtrVector<TypeApp> clauses;
+
+    WhereClauseList(const Loc& loc, PtrVector<TypeApp>&& clauses)
+            : Node(loc), clauses(std::move(clauses))
+    {}
+
+    void bind(NameBinder&) override;
+    void print(Printer&) const override;
+    const artic::Type* infer(TypeChecker&) override;
+
+    std::vector<const artic::Type*> clause_types() {
+        std::vector<const artic::Type*> res;
+        res.reserve(clauses.size());
+        for (auto& clause: clauses)
+            res.push_back(clause->type);
+        return res;
+    }
+
+};
+
 /// Pattern binding associated with an identifier.
 struct PtrnDecl : public NamedDecl {
     bool is_mut;
@@ -1201,14 +1223,14 @@ struct StaticDecl : public NamedDecl {
 struct FnDecl : public NamedDecl {
     Ptr<FnExpr> fn;
     Ptr<TypeParamList> type_params;
-    PtrVector<TypeApp> where_clauses;
+    Ptr<WhereClauseList> where_clauses;
 
     FnDecl(
         const Loc& loc,
         Identifier&& id,
         Ptr<FnExpr>&& fn,
         Ptr<TypeParamList>&& type_params,
-        PtrVector<TypeApp>&& where_clauses)
+        Ptr<WhereClauseList>&& where_clauses)
         : NamedDecl(loc, std::move(id))
         , fn(std::move(fn))
         , type_params(std::move(type_params))
@@ -1259,7 +1281,7 @@ struct RecordDecl : public NamedDecl {
 /// Structure type declarations.
 struct StructDecl : public RecordDecl {
     Ptr<TypeParamList> type_params;
-    PtrVector<TypeApp> where_clauses;
+    Ptr<WhereClauseList> where_clauses;
     bool is_tuple_like;
 
     StructDecl(
@@ -1267,7 +1289,7 @@ struct StructDecl : public RecordDecl {
         Identifier&& id,
         Ptr<TypeParamList>&& type_params,
         PtrVector<FieldDecl>&& fields,
-        PtrVector<TypeApp> where_clauses,
+        Ptr<WhereClauseList> where_clauses,
         bool is_tuple_like)
         : RecordDecl(loc, std::move(id), std::move(fields))
         , type_params(std::move(type_params))
@@ -1316,13 +1338,13 @@ struct OptionDecl : public RecordDecl {
 struct EnumDecl : public NamedDecl {
     Ptr<TypeParamList> type_params;
     PtrVector<OptionDecl> options;
-    PtrVector<TypeApp> where_clauses;
+    Ptr<WhereClauseList> where_clauses;
 
     EnumDecl(
         const Loc& loc,
         Identifier&& id,
         Ptr<TypeParamList>&& type_params,
-        PtrVector<TypeApp>&& where_clauses,
+        Ptr<WhereClauseList>&& where_clauses,
         PtrVector<OptionDecl>&& options)
         : NamedDecl(loc, std::move(id))
         , type_params(std::move(type_params))
@@ -1341,14 +1363,14 @@ struct EnumDecl : public NamedDecl {
 struct TraitDecl : public NamedDecl {
     Ptr<TypeParamList> type_params;
     PtrVector<FnDecl> fns;
-    PtrVector<TypeApp> where_clauses;
+    Ptr<WhereClauseList> where_clauses;
 
     TraitDecl(
         const Loc& loc,
         Identifier&& id,
         Ptr<TypeParamList>&& type_params,
         PtrVector<FnDecl>&& fns,
-        PtrVector<TypeApp> where_clauses)
+        Ptr<WhereClauseList>&& where_clauses)
         : NamedDecl(loc, std::move(id))
         , fns(std::move(fns))
         , type_params(std::move(type_params))
@@ -1367,18 +1389,18 @@ struct ImplDecl : public Decl {
     Ptr<TypeParamList> type_params;
     Ptr<TypeApp> trait_type;
     PtrVector<FnDecl> fns;
-    PtrVector<TypeApp> where_clauses;
+    Ptr<WhereClauseList> where_clauses;
 
     ImplDecl(
         const Loc& loc,
         Ptr<TypeParamList>&& type_params,
         Ptr<TypeApp>&& trait_type,
-        PtrVector<FnDecl>&& functs,
-        PtrVector<TypeApp> where_clauses)
+        PtrVector<FnDecl>&& fns,
+        Ptr<WhereClauseList>&& where_clauses)
         : Decl(loc)
         , type_params(std::move(type_params))
         , trait_type(std::move(trait_type))
-        , fns(std::move(functs))
+        , fns(std::move(fns))
         , where_clauses(std::move(where_clauses))
      {}
 
@@ -1392,14 +1414,14 @@ struct ImplDecl : public Decl {
 struct TypeDecl : public NamedDecl {
     Ptr<TypeParamList> type_params;
     Ptr<Type> aliased_type;
-    PtrVector<TypeApp> where_clauses;
+    Ptr<WhereClauseList> where_clauses;
 
     TypeDecl(
         const Loc& loc,
         Identifier&& id,
         Ptr<TypeParamList>&& type_params,
         Ptr<Type>&& aliased_type,
-        PtrVector<TypeApp> where_clauses)
+        Ptr<WhereClauseList>&& where_clauses)
         : NamedDecl(loc, std::move(id))
         , type_params(std::move(type_params))
         , aliased_type(std::move(aliased_type))

@@ -1,6 +1,7 @@
 #include <algorithm>
 
 #include "artic/check.h"
+#include "artic/print.h"
 namespace artic {
 
 bool TypeChecker::run(ast::ModDecl& module) {
@@ -589,24 +590,9 @@ bool bound_implies_trait(const Type* bound, const Type* trait) {
 
 bool TypeChecker::trait_bound_exists(const Type* type) {
     for (auto decl: decls_) {
-        if (auto fn = decl->isa<ast::FnDecl>()) {
-            for (auto& w: fn->where_clauses)
-                if (bound_implies_trait(w->type, type)) return true;
-        } else if (auto dec = decl->isa<ast::TraitDecl>()) {
-            for (auto& w: dec->where_clauses)
-                if (bound_implies_trait(w->type, type)) return true;
-        } else if (auto dec = decl->isa<ast::StructDecl>()) {
-            for (auto& w: dec->where_clauses)
-                if (bound_implies_trait(w->type, type)) return true;
-        } else if (auto dec = decl->isa<ast::EnumDecl>()) {
-            for (auto& w: dec->where_clauses)
-                if (bound_implies_trait(w->type, type)) return true;
-        } else if (auto dec = decl->isa<ast::ImplDecl>()) {
-            for (auto& w: dec->where_clauses)
-                if (bound_implies_trait(w->type, type)) return true;
-        } else if (auto dec = decl->isa<ast::TypeDecl>()) {
-            for (auto& w: dec->where_clauses)
-                if (bound_implies_trait(w->type, type)) return true;
+        if(auto poly = decl->type->isa<PolyType>(); poly){
+            for(auto clause: poly->where_clauses())
+                if (bound_implies_trait(clause, type)) return true;
         }
     }
     return false;
@@ -615,18 +601,10 @@ bool TypeChecker::trait_bound_exists(const Type* type) {
 std::vector<const Type*> TypeChecker::collect_where_clauses() {
     std::vector<const Type*> res;
     for (auto decl: decls_) {
-        if (auto fn = decl->isa<ast::FnDecl>())
-            for (auto& w: fn->where_clauses) res.push_back(w->type);
-        if (auto dec = decl->isa<ast::TraitDecl>())
-            for (auto& w: dec->where_clauses) res.push_back(w->type);
-        if (auto dec = decl->isa<ast::StructDecl>())
-            for (auto& w: dec->where_clauses) res.push_back(w->type);
-        if (auto dec = decl->isa<ast::EnumDecl>())
-            for (auto& w: dec->where_clauses) res.push_back(w->type);
-        if (auto dec = decl->isa<ast::ImplDecl>())
-            for (auto& w: dec->where_clauses) res.push_back(w->type);
-        if (auto type_decl = decl->isa<ast::TypeDecl>())
-            for (auto& w: type_decl->where_clauses) res.push_back(w->type);
+        if (auto poly = decl->type->isa<PolyType>(); poly){
+            for (auto clause: poly->where_clauses())
+                res.push_back(clause);
+        }
     }
     return res;
 }
@@ -776,7 +754,7 @@ const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, Ptr<Ex
                 is_ctor = false;
                 if (!checker.trait_bound_exists(type))
                     checker.add_impl_req(loc, type, checker.collect_where_clauses());
-                //apply type
+
                 if (type_app) {
                     auto map = type_app->replace_map(*trait_type->type_params(), type_app->type_args);
                     type = trait_type->member_type(*index)->replace(map);
@@ -1468,6 +1446,15 @@ const artic::Type* TypeParam::infer(TypeChecker& checker) {
     return checker.type_table.type_var(*this);
 }
 
+const artic::Type* WhereClauseList::infer(TypeChecker& checker) {
+    for (auto& clause: clauses) {
+        checker.infer(*clause);
+        checker.check_bound(clause->type, clause->loc);
+    }
+    /// The list itself is does not need a type. The types of the individual clauses are set in the loop
+    return checker.type_table.unit_type();
+}
+
 const artic::Type* PtrnDecl::check(TypeChecker&, const artic::Type* expected) {
     return expected;
 }
@@ -1503,17 +1490,17 @@ const artic::Type* FnDecl::infer(TypeChecker& checker) {
     const artic::Type* forall = nullptr;
     if (type_params) {
         forall = checker.type_table.forall_type(*this);
+        // Set the type of this function right now, in case
+        // we need to check it trait bounds when inferring the bodies' type
+        type = forall;
         for (auto& param : type_params->params)
             checker.infer(*param);
     }
     if (!checker.enter_decl(this))
         return checker.type_table.type_error();
 
-    //check trait bounds
-    for (const auto& trait:where_clauses) {
-        checker.infer(*trait);
-        checker.check_bound(trait->type, trait->loc);
-    }
+    if(where_clauses)
+        checker.infer(*where_clauses);
 
     const artic::Type* fn_type = nullptr;
     if (fn->ret_type) {
@@ -1563,11 +1550,8 @@ const artic::Type* StructDecl::infer(TypeChecker& checker) {
     if (!checker.enter_decl(this))
         return checker.type_table.type_error();
 
-    //check trait bounds
-    for (const auto& trait:where_clauses) {
-        checker.infer(*trait);
-        checker.check_bound(trait->type, trait->loc);
-    }
+    if(where_clauses)
+        checker.infer(*where_clauses);
 
     // Set the type before entering the fields
     type = struct_type;
@@ -1601,11 +1585,8 @@ const artic::Type* EnumDecl::infer(TypeChecker& checker) {
     if (!checker.enter_decl(this))
         return checker.type_table.type_error();
 
-    //check trait bounds
-    for (const auto& trait:where_clauses) {
-        checker.infer(*trait);
-        checker.check_bound(trait->type, trait->loc);
-    }
+    if(where_clauses)
+        checker.infer(*where_clauses);
 
     // Set the type before entering the options
     type = enum_type;
@@ -1652,15 +1633,12 @@ const artic::Type* TraitDecl::infer(TypeChecker& checker) {
     if (!checker.enter_decl(this))
         return checker.type_table.type_error();
 
-    //check trait bounds
-    for (const auto& trait:where_clauses) {
-        checker.infer(*trait);
-        checker.check_bound(trait->type, trait->loc);
-    }
+    if(where_clauses)
+        checker.infer(*where_clauses);
 
-    // Set the type before entering the fields
+    // Set the type before entering the fields in case its bounds are needed
     type = trait_type;
-    for (auto& f:fns)
+    for (auto& f: fns)
         checker.infer(*f);
 
     if (!trait_type->is_sized())
@@ -1700,33 +1678,26 @@ static int count_vars_ctors(const artic::Type* t) {
 const artic::Type* ImplDecl::infer(TypeChecker& checker) {
     if (!checker.enter_decl(this))
         return checker.type_table.type_error();
-
-    //check trait bounds
-    for (const auto& trait:where_clauses) {
-        checker.infer(*trait);
-        checker.check_bound(trait->type, trait->loc);
-    }
-
+    if(where_clauses)
+        checker.infer(*where_clauses);
     auto [type_app, trait_type] = match_app<artic::TraitType>(checker.infer(*this->trait_type));
     if (!trait_type) {
         checker.exit_decl(this);
         return checker.type_expected(loc, this->trait_type->type, "trait");
     }
-
     for (auto w:trait_type->where_clauses()) {
         auto w_t = w->replace(type_app->replace_map());
         checker.check_bound(w_t, this->loc);
     }
-
     /* If one imposes no restrictions on the impl's it is possible that the type checking algorithm diverges.
     * Here we check if this impl fulfills the conditions that guarantee that the type checking process terminates
     * See : Understanding functional dependencies via constraint handling rules
     */
-    if (type_params) {
+    if (type_params && where_clauses) {
         // We check that all bounds have at most as many variables as the trait implemented by this declaration
         for (const auto& param: type_params->params) {
             int head_count = count_var_occurrence(param->type, this->trait_type->type);
-            for (auto& w: where_clauses) {
+            for (auto& w: where_clauses->clauses) {
                 if ((count_var_occurrence(param->type, w->type) > head_count)) {
                     if (!attrs ||  !attrs->find("allow_undecidable_impl"))
                         checker.error("Constraint '{}' violates a paterson conditions in '{}'. This might cause the type inference algorithm to diverge. \n See 'Understanding functional dependencies via constraint handling rules' for details", *w, *this);
@@ -1735,7 +1706,7 @@ const artic::Type* ImplDecl::infer(TypeChecker& checker) {
         }
         // We check that all bounds have fewer constructors than the trait implemented by this declaration
         int head_count = count_vars_ctors(this->trait_type->type);
-        for (auto& w: where_clauses) {
+        for (auto& w: where_clauses->clauses) {
             if ((count_vars_ctors(w->type) >= head_count)) {
                 if (!attrs ||  !attrs->find("allow_undecidable_impl"))
                     checker.error("Constraint '{}' violates a paterson conditions in '{}'. This might cause the type inference algorithm to diverge. \n See 'Understanding functional dependencies via constraint handling rules' for details", *w, *this);
@@ -1743,7 +1714,6 @@ const artic::Type* ImplDecl::infer(TypeChecker& checker) {
         }
 
     }
-
     auto conflict = checker.type_table.register_impl(checker.type_table.impl_type(*this));
     if (conflict) {
         checker.exit_decl(this);
@@ -1751,10 +1721,12 @@ const artic::Type* ImplDecl::infer(TypeChecker& checker) {
         checker.note(conflict->decl.loc, "previously declared here");
         return checker.type_table.type_error();
     }
+    // Set type now in cas eon of the fns need some trait bound
+    this->type = checker.type_table.impl_type(*this);
 
     checker.check_impl_fns(loc, trait_type, type_app, fns, this->trait_type->path.elems.front().id.name );
     checker.exit_decl(this);
-    return this->type = checker.type_table.impl_type(*this);
+    return this->type;
 }
 
 const artic::Type* TypeDecl::infer(TypeChecker& checker) {
@@ -1771,11 +1743,8 @@ const artic::Type* TypeDecl::infer(TypeChecker& checker) {
         type = checker.infer(*aliased_type);
     }
 
-    //check trait bounds
-    for (const auto& trait:where_clauses) {
-        checker.infer(*trait);
-        checker.check_bound(trait->type, trait->loc);
-    }
+    if(where_clauses)
+        checker.infer(*where_clauses);
     checker.exit_decl(this);
     return type;
 }

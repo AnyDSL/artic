@@ -375,8 +375,18 @@ private:
     friend class TypeTable;
 };
 
+struct PolyType : public Type {
+
+    PolyType(TypeTable& type_table)
+    : Type(type_table)
+    {}
+
+    virtual const ast::TypeParamList* type_params() const = 0;
+    virtual const std::vector<const Type*> where_clauses() const = 0;
+};
+
 /// Type of a polymorphic function.
-struct ForallType : public Type {
+struct ForallType : public PolyType {
     const ast::FnDecl& decl;
     mutable const Type* body = nullptr;
 
@@ -385,27 +395,28 @@ struct ForallType : public Type {
     const Type* instantiate(const std::vector<const Type*>&) const;
     std::unordered_map<const TypeVar*, const artic::Type*> replace_map(const std::vector<const Type*>&) const;
 
-    const  std::vector<const Type*> where_clauses() const;
+    const  std::vector<const Type*> where_clauses() const override;
+    const ast::TypeParamList* type_params() const override {
+        return decl.type_params.get();
+    }
     void print(Printer&) const override;
     bool equals(const Type*) const override;
     size_t hash() const override;
 
 private:
     ForallType(TypeTable& type_table, const ast::FnDecl& decl)
-        : Type(type_table), decl(decl)
+        : PolyType(type_table), decl(decl)
     {}
 
     friend class TypeTable;
 };
 
 /// Base class for user-declared types.
-struct UserType : public Type {
+struct UserType : public PolyType {
     UserType(TypeTable& type_table)
-        : Type(type_table)
+        : PolyType(type_table)
     {}
 
-    virtual const ast::TypeParamList* type_params() const = 0;
-    virtual const std::vector<const Type*> where_clauses() const = 0;
     virtual const thorin::Type* convert(Emitter&, const Type*) const = 0;
 
     const thorin::Type* convert(Emitter& emitter) const override {

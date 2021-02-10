@@ -433,13 +433,10 @@ bool TypeApp::is_sized(std::unordered_set<const Type*>& seen) const {
 // User Types -------------------------------------------------------------------
 
 const std::vector<const Type*> TypeAlias::where_clauses() const {
-    auto& aux =  decl.where_clauses;
-
-    std::vector<const Type*> res;
-    res.reserve(aux.size());
-    for (auto& clause: aux)
-        res.push_back(clause->type);
-    return res;
+    if (decl.where_clauses)
+        return decl.where_clauses->clause_types();
+    else
+        return {};
 }
 
 // Complex Types -------------------------------------------------------------------
@@ -454,11 +451,10 @@ const std::vector<const Type*> StructType::where_clauses() const {
     auto& aux =  decl.isa<ast::StructDecl>()
            ? decl.as<ast::StructDecl>()->where_clauses
            : decl.as<ast::OptionDecl>()->parent->where_clauses;
-    std::vector<const Type*> res;
-    res.reserve(aux.size());
-    for (auto& clause: aux)
-        res.push_back(clause->type);
-    return res;
+    if (aux)
+        return aux->clause_types();
+    else
+        return {};
 }
 
 std::optional<size_t> StructType::find_member(const std::string_view& name) const {
@@ -486,13 +482,10 @@ bool StructType::is_tuple_like() const {
 }
 
 const std::vector<const Type*> EnumType::where_clauses() const {
-    auto& aux =  decl.where_clauses;
-
-    std::vector<const Type*> res;
-    res.reserve(aux.size());
-    for (auto& clause: aux)
-        res.push_back(clause->type);
-    return res;
+    if(decl.where_clauses)
+        return decl.where_clauses->clause_types();
+    else
+        return {};
 }
 
 std::optional<size_t> EnumType::find_member(const std::string_view& name) const {
@@ -508,13 +501,10 @@ std::optional<size_t> EnumType::find_member(const std::string_view& name) const 
 }
 
 const std::vector<const Type*> TraitType::where_clauses() const {
-    auto& aux =  decl.where_clauses;
-
-    std::vector<const Type*> res;
-    res.reserve(aux.size());
-    for (auto& clause: aux)
-        res.push_back(clause->type);
-    return res;
+    if(decl.where_clauses)
+        return decl.where_clauses->clause_types();
+    else
+        return {};
 }
 
 
@@ -531,13 +521,10 @@ std::optional<size_t> TraitType::find_member(const std::string_view& name) const
 }
 
 const std::vector<const Type*> ImplType::where_clauses() const {
-    auto& aux =  decl.where_clauses;
-
-    std::vector<const Type*> res;
-    res.reserve(aux.size());
-    for (auto& clause: aux)
-        res.push_back(clause->type);
-    return res;
+    if(decl.where_clauses)
+        return decl.where_clauses->clause_types();
+    else
+        return {};
 }
 
 std::optional<size_t> ImplType::find_member(const std::string_view& name) const {
@@ -646,11 +633,10 @@ const Type* ForallType::instantiate(const std::vector<const Type*>& args) const 
 }
 
 const std::vector<const Type*> ForallType::where_clauses() const {
-    std::vector<const Type*> res;
-    res.reserve(decl.where_clauses.size());
-    for(auto& w: decl.where_clauses)
-        res.push_back(w->type);
-    return res;
+    if(decl.where_clauses)
+        return decl.where_clauses->clause_types();
+    else
+        return {};
 }
 
 std::unordered_map<const TypeVar *, const Type *>

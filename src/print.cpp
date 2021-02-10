@@ -423,6 +423,15 @@ void TypeParamList::print(Printer& p) const {
     }
 }
 
+void WhereClauseList::print(Printer& p) const {
+    if (!clauses.empty()) {
+        p << " where ";
+        print_list(p, ", ", clauses, [&] (auto& clause) {
+            clause->print(p);
+        });
+    }
+}
+
 void PtrnDecl::print(Printer& p) const {
     if (is_mut) p << log::keyword_style("mut") << ' ';
     p << id.name;
@@ -466,12 +475,7 @@ void FnDecl::print(Printer& p) const {
     if (type_params) type_params->print(p);
     print_parens(p, fn->param);
 
-    if (where_clauses.size() > 0) {
-        p << " where ";
-        print_list(p, ',', where_clauses, [&] (auto& w) {
-            w->print(p);
-        });
-    }
+    if (where_clauses) where_clauses->print(p);
 
     if (fn->ret_type) {
         p << " -> ";
@@ -518,12 +522,7 @@ void StructDecl::print(Printer& p) const {
     if (attrs) attrs->print(p);
     p << log::keyword_style("struct") << ' ' << id.name;
     if (type_params) type_params->print(p);
-    if (where_clauses.size() > 0) {
-        p << " where ";
-        print_list(p, ',', where_clauses, [&] (auto& w) {
-            w->print(p);
-        });
-    }
+    if (where_clauses) where_clauses->print(p);
     if (!is_tuple_like || !fields.empty())
         print_fields(p, fields, is_tuple_like);
     if (is_tuple_like)
@@ -542,12 +541,7 @@ void EnumDecl::print(Printer& p) const {
     if (attrs) attrs->print(p);
     p << log::keyword_style("enum") << ' ' << id.name;
     if (type_params) type_params->print(p);
-    if (where_clauses.size() > 0) {
-        p << " where ";
-        print_list(p, ',', where_clauses, [&] (auto& w) {
-            w->print(p);
-        });
-    }
+    if (where_clauses) where_clauses->print(p);
     p << " {";
     if (!options.empty()) {
         p << p.indent();
@@ -564,13 +558,8 @@ void TraitDecl::print(Printer& p) const {
     if (attrs) attrs->print(p);
     p << log::keyword_style("trait") << ' ' << id.name;
     if (type_params) type_params->print(p);
-    if (where_clauses.size() > 0) {
-        p << " where ";
-        print_list(p, ',', where_clauses, [&] (auto& w) {
-            w->print(p);
-        });
-    }
-    p << '{' << p.indent() ;
+    if (where_clauses) where_clauses->print(p);
+    p << " {" << p.indent() ;
     for (auto& f:fns) {
         p << p.endl();
         f->print(p);
@@ -582,12 +571,7 @@ void ImplDecl::print(Printer& p) const {
     if (attrs) attrs->print(p);
     p << log::keyword_style("impl") << ' ' ;
     trait_type->print(p);
-    if (where_clauses.size() > 0) {
-        p << " where ";
-        print_list(p, ',', where_clauses, [&] (auto& w) {
-            w->print(p);
-        });
-    }
+    if (where_clauses) where_clauses->print(p);
     p << ' ' << '{' << p.indent();
     for (auto& f:fns) {
         p << p.endl();
@@ -600,6 +584,7 @@ void TypeDecl::print(Printer& p) const {
     if (attrs) attrs->print(p);
     p << log::keyword_style("type") << ' ' <<  id.name;
     if (type_params) type_params->print(p);
+    if (where_clauses) where_clauses->print(p);
     p << " = ";
     aliased_type->print(p);
     p << ';';

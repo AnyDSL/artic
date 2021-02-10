@@ -356,6 +356,10 @@ void TypeParamList::bind(NameBinder& binder) {
     for (auto& param : params) binder.bind(*param);
 }
 
+void WhereClauseList::bind(NameBinder& binder) {
+    for (auto& clause : clauses) binder.bind(*clause);
+}
+
 void PtrnDecl::bind(NameBinder& binder) {
     binder.insert_symbol(*this);
 }
@@ -382,8 +386,8 @@ void FnDecl::bind(NameBinder& binder) {
     binder.push_scope();
     if (type_params)
         binder.bind(*type_params);
-    for (auto& trait: where_clauses)
-        binder.bind(*trait);
+    if (where_clauses)
+        binder.bind(*where_clauses);
 
     if (fn->body)
         binder.bind(*fn);
@@ -408,7 +412,7 @@ void StructDecl::bind_head(NameBinder& binder) {
 void StructDecl::bind(NameBinder& binder) {
     binder.push_scope();
     if (type_params) binder.bind(*type_params);
-    for (auto& trait: where_clauses) binder.bind(*trait);
+    if (where_clauses) binder.bind(*where_clauses);
     for (auto& field : fields) binder.bind(*field);
     binder.pop_scope();
 }
@@ -429,7 +433,7 @@ void EnumDecl::bind_head(NameBinder& binder) {
 void EnumDecl::bind(NameBinder& binder) {
     binder.push_scope();
     if (type_params) binder.bind(*type_params);
-    for (auto& trait: where_clauses) binder.bind(*trait);
+    if (where_clauses) binder.bind(*where_clauses);
     for (auto& option : options) {
         option->parent = this;
         binder.bind(*option);
@@ -444,7 +448,7 @@ void TraitDecl::bind_head(NameBinder& binder) {
 void TraitDecl::bind(NameBinder& binder) {
     binder.push_scope(false, true);
     if (type_params) binder.bind(*type_params);
-    for (auto& trait: where_clauses) binder.bind(*trait);
+    if (where_clauses) binder.bind(*where_clauses);
     for (auto& f: fns) f->bind_head(binder);
     for (auto& f: fns) f->bind(binder);
     binder.pop_scope();
@@ -453,7 +457,7 @@ void TraitDecl::bind(NameBinder& binder) {
 void ImplDecl::bind(NameBinder& binder) {
     binder.push_scope(false, true);
     if (type_params) binder.bind(*type_params);
-    for (auto& trait: where_clauses) binder.bind(*trait);
+    if (where_clauses) binder.bind(*where_clauses);
     trait_type->bind(binder);
     for (auto& f: fns) f->bind_head(binder);
     for (auto& f: fns) f->bind(binder);
@@ -467,7 +471,7 @@ void TypeDecl::bind_head(NameBinder& binder) {
 void TypeDecl::bind(NameBinder& binder) {
     binder.push_scope();
     if (type_params) binder.bind(*type_params);
-    for (auto& trait: where_clauses) binder.bind(*trait);
+    if (where_clauses) binder.bind(*where_clauses);
     binder.bind(*aliased_type);
     binder.pop_scope();
 }

@@ -89,13 +89,9 @@ Ptr<ast::FnDecl> Parser::parse_fn_decl() {
     if (accept(Token::Arrow))
         ret_type = parse_type();
 
-    PtrVector<ast::TypeApp> where_clauses;
-    if (accept(Token::Where)) {
-        do {
-            where_clauses.emplace_back(parse_type_app());
-        }
-        while (accept(Token::Comma));
-    }
+    Ptr<ast::WhereClauseList> where_clauses;
+    if (accept(Token::Where))
+        where_clauses = parse_where_clauses();
 
 
     Ptr<ast::Expr> body;
@@ -137,13 +133,9 @@ Ptr<ast::StructDecl> Parser::parse_struct_decl() {
     if (ahead().tag() == Token::LBracket)
         type_params = parse_type_params();
 
-    PtrVector<ast::TypeApp> where_clauses;
-    if (accept(Token::Where)) {
-        do {
-            where_clauses.emplace_back(parse_type_app());
-        }
-        while (accept(Token::Comma));
-    }
+    Ptr<ast::WhereClauseList> where_clauses;
+    if (accept(Token::Where))
+        where_clauses = parse_where_clauses();
 
     PtrVector<ast::FieldDecl> fields;
     bool is_tuple_like = accept(Token::LParen);
@@ -189,13 +181,9 @@ Ptr<ast::EnumDecl> Parser::parse_enum_decl() {
     if (ahead().tag() == Token::LBracket)
         type_params = parse_type_params();
 
-    PtrVector<ast::TypeApp> where_clauses;
-    if (accept(Token::Where)) {
-        do {
-            where_clauses.emplace_back(parse_type_app());
-        }
-        while (accept(Token::Comma));
-    }
+    Ptr<ast::WhereClauseList> where_clauses;
+    if (accept(Token::Where))
+        where_clauses = parse_where_clauses();
 
     PtrVector<ast::OptionDecl> options;
     expect(Token::LBrace);
@@ -214,13 +202,9 @@ Ptr<ast::TraitDecl> Parser::parse_trait_decl() {
     if (ahead().tag() == Token::LBracket)
         type_params = parse_type_params();
 
-    PtrVector<ast::TypeApp> where_clauses;
-    if (accept(Token::Where)) {
-        do {
-            where_clauses.emplace_back(parse_type_app());
-        }
-        while (accept(Token::Comma));
-    }
+    Ptr<ast::WhereClauseList> where_clauses;
+    if (accept(Token::Where))
+        where_clauses = parse_where_clauses();
 
     PtrVector<ast::FnDecl>functs;
     if (accept(Token::LBrace)) {
@@ -259,13 +243,9 @@ Ptr<ast::ImplDecl> Parser::parse_impl_decl() {
 
     auto trait_type = parse_type_app();
 
-    PtrVector<ast::TypeApp> where_clauses;
-    if (accept(Token::Where)) {
-        do {
-            where_clauses.emplace_back(parse_type_app());
-        }
-        while (accept(Token::Comma));
-    }
+    Ptr<ast::WhereClauseList> where_clauses;
+    if (accept(Token::Where))
+        where_clauses = parse_where_clauses();
 
     PtrVector<ast::FnDecl>functs;
     if (accept(Token::LBrace)) {
@@ -304,13 +284,9 @@ Ptr<ast::TypeDecl> Parser::parse_type_decl() {
     if (ahead().tag() == Token::LBracket)
         type_params = parse_type_params();
 
-    PtrVector<ast::TypeApp> where_clauses;
-    if (accept(Token::Where)) {
-        do {
-            where_clauses.emplace_back(parse_type_app());
-        }
-        while (accept(Token::Comma));
-    }
+    Ptr<ast::WhereClauseList> where_clauses;
+    if (accept(Token::Where))
+        where_clauses = parse_where_clauses();
 
     expect(Token::Eq);
     auto aliased_type = parse_type();
@@ -349,6 +325,16 @@ Ptr<ast::TypeParamList> Parser::parse_type_params() {
         type_params.emplace_back(parse_type_param());
     });
     return make_ptr<ast::TypeParamList>(tracker(), std::move(type_params));
+}
+
+Ptr<ast::WhereClauseList> Parser::parse_where_clauses() {
+    Tracker tracker(this);
+    PtrVector<ast::TypeApp> where_clauses;
+    do {
+        where_clauses.emplace_back(parse_type_app());
+    }
+    while (accept(Token::Comma));
+    return make_ptr<ast::WhereClauseList>(tracker(), std::move(where_clauses));
 }
 
 Ptr<ast::ModDecl> Parser::parse_mod_decl() {

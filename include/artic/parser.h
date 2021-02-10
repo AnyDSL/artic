@@ -24,21 +24,22 @@ public:
     Ptr<ast::ModDecl> parse();
 
 private:
-    Ptr<ast::Decl>          parse_decl(bool = false);
-    Ptr<ast::LetDecl>       parse_let_decl();
-    Ptr<ast::FnDecl>        parse_fn_decl();
-    Ptr<ast::FieldDecl>     parse_field_decl(bool);
-    Ptr<ast::StructDecl>    parse_struct_decl();
-    Ptr<ast::OptionDecl>    parse_option_decl();
-    Ptr<ast::EnumDecl>      parse_enum_decl();
-    Ptr<ast::TraitDecl>     parse_trait_decl();
-    Ptr<ast::StaticDecl>    parse_static_decl();
-    Ptr<ast::TypeDecl>      parse_type_decl();
-    Ptr<ast::ImplDecl>      parse_impl_decl();
-    Ptr<ast::TypeParam>     parse_type_param();
-    Ptr<ast::TypeParamList> parse_type_params();
-    Ptr<ast::ModDecl>       parse_mod_decl();
-    Ptr<ast::ErrorDecl>     parse_error_decl();
+    Ptr<ast::Decl>              parse_decl(bool = false);
+    Ptr<ast::LetDecl>           parse_let_decl();
+    Ptr<ast::FnDecl>            parse_fn_decl();
+    Ptr<ast::FieldDecl>         parse_field_decl(bool);
+    Ptr<ast::StructDecl>        parse_struct_decl();
+    Ptr<ast::OptionDecl>        parse_option_decl();
+    Ptr<ast::EnumDecl>          parse_enum_decl();
+    Ptr<ast::TraitDecl>         parse_trait_decl();
+    Ptr<ast::StaticDecl>        parse_static_decl();
+    Ptr<ast::TypeDecl>          parse_type_decl();
+    Ptr<ast::ImplDecl>          parse_impl_decl();
+    Ptr<ast::TypeParam>         parse_type_param();
+    Ptr<ast::TypeParamList>     parse_type_params();
+    Ptr<ast::WhereClauseList>   parse_where_clauses();
+    Ptr<ast::ModDecl>           parse_mod_decl();
+    Ptr<ast::ErrorDecl>         parse_error_decl();
 
     Ptr<ast::Ptrn>          parse_ptrn(bool = false);
     Ptr<ast::Ptrn>          parse_typed_ptrn(Ptr<ast::Ptrn>&&);
