@@ -36,8 +36,9 @@ private:
     Ptr<ast::TypeDecl>          parse_type_decl();
     Ptr<ast::ImplDecl>          parse_impl_decl();
     Ptr<ast::TypeParam>         parse_type_param();
-    Ptr<ast::TypeParamList>     parse_type_params();
-    Ptr<ast::WhereClauseList>   parse_where_clauses();
+    PtrVector<ast::TypeParam>   parse_type_params();
+    PtrVector<ast::TypeApp>     parse_bounds();
+    PtrVector<ast::FnDecl>      parse_fn_list();
     Ptr<ast::ModDecl>           parse_mod_decl();
     Ptr<ast::ErrorDecl>         parse_error_decl();
 
@@ -101,7 +102,8 @@ private:
     Ptr<ast::AttrList>      parse_attr_list();
     Ptr<ast::Attr>          parse_attr();
 
-    PtrVector<ast::FnDecl>  parse_fn_list();
+    Ptr<ast::TypeBoundsAndParams>
+            construct_bounds_and_params(PtrVector<ast::TypeParam> params, PtrVector<ast::TypeApp> bounds);
 
     ast::Path               parse_path(ast::Identifier&&, bool);
     ast::Path               parse_path(bool allow_types = true) { return parse_path(parse_id(), allow_types); }

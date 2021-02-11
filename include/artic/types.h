@@ -382,8 +382,31 @@ struct PolyType : public Type {
     : Type(type_table)
     {}
 
-    virtual const ast::TypeParamList* type_params() const = 0;
-    virtual const std::vector<const Type*> where_clauses() const = 0;
+    virtual const ast::TypeBoundsAndParams* bounds_and_params() const = 0;
+
+    const std::vector<const Type*> type_params() const {
+        std::vector<const Type*> res;
+        if (bounds_and_params()) {
+            res.reserve(bounds_and_params()->params.size());
+            for (auto& p: bounds_and_params()->params)
+                res.emplace_back(p->type);
+        }
+
+        return res;
+    }
+
+    const std::vector<const Type*> bounds() const {
+        std::vector<const Type*> res;
+        if (bounds_and_params()) {
+            res.reserve(bounds_and_params()->bounds.size());
+            for (auto& b: bounds_and_params()->bounds)
+                res.emplace_back(b->type);
+        }
+
+        return res;
+    }
+
+
 };
 
 /// Type of a polymorphic function.
@@ -396,9 +419,8 @@ struct ForallType : public PolyType {
     const Type* instantiate(const std::vector<const Type*>&) const;
     std::unordered_map<const TypeVar*, const artic::Type*> replace_map(const std::vector<const Type*>&) const;
 
-    const  std::vector<const Type*> where_clauses() const override;
-    const ast::TypeParamList* type_params() const override {
-        return decl.type_params.get();
+    const ast::TypeBoundsAndParams* bounds_and_params() const override {
+        return decl.bounds_and_params.get();
     }
     void print(Printer&) const override;
     bool equals(const Type*) const override;
@@ -451,8 +473,7 @@ struct StructType : public ComplexType {
     const thorin::Type* convert(Emitter&, const Type*) const override;
     std::string stringify(Emitter&) const override;
 
-    const ast::TypeParamList* type_params() const override;
-    const  std::vector<const Type*> where_clauses() const override;
+    const ast::TypeBoundsAndParams* bounds_and_params() const override;
     std::optional<size_t> find_member(const std::string_view&) const override;
     const Type* member_type(size_t) const override;
     size_t member_count() const override;
@@ -478,10 +499,10 @@ struct EnumType : public ComplexType {
     const thorin::Type* convert(Emitter&, const Type*) const override;
     std::string stringify(Emitter&) const override;
 
-    const ast::TypeParamList* type_params() const override {
-        return decl.type_params.get();
+    const ast::TypeBoundsAndParams* bounds_and_params() const override {
+        return decl.bounds_and_params.get();
     }
-    const  std::vector<const Type*> where_clauses() const override;
+
     std::optional<size_t> find_member(const std::string_view&) const override;
     const Type* member_type(size_t) const override;
     size_t member_count() const override;
@@ -501,11 +522,9 @@ struct TraitType : public ComplexType {
     bool equals(const Type*) const override;
     size_t hash() const override;
 
-    const ast::TypeParamList* type_params() const override {
-        return decl.type_params.get();
+    const ast::TypeBoundsAndParams* bounds_and_params() const override {
+        return decl.bounds_and_params.get();
     }
-
-    const  std::vector<const Type*> where_clauses() const override;
     std::optional<size_t> find_member(const std::string_view&) const override;
     const Type* member_type(size_t) const override;
     size_t member_count() const override;
@@ -525,11 +544,9 @@ struct ImplType : public ComplexType {
     bool equals(const Type*) const override;
     size_t hash() const override;
 
-    const ast::TypeParamList* type_params() const override {
-        return decl.type_params.get();
+    const ast::TypeBoundsAndParams* bounds_and_params() const override {
+        return decl.bounds_and_params.get();
     }
-
-    const  std::vector<const Type*> where_clauses() const override;
     std::optional<size_t> find_member(const std::string_view&) const override;
     const Type* member_type(size_t) const override;
     size_t member_count() const override;
@@ -549,11 +566,9 @@ struct TypeAlias : public UserType {
     bool equals(const Type*) const override;
     size_t hash() const override;
 
-    const ast::TypeParamList* type_params() const override {
-        return decl.type_params.get();
+    const ast::TypeBoundsAndParams* bounds_and_params() const override {
+        return decl.bounds_and_params.get();
     }
-
-    const  std::vector<const Type*> where_clauses() const override;
 
 private:
     TypeAlias(TypeTable& type_table, const ast::TypeDecl& decl)
@@ -570,8 +585,8 @@ struct TypeApp : public Type {
 
     /// Gets the replacement map required to expand this type application.
     std::unordered_map<const TypeVar*, const Type*> replace_map() const {
-        assert(applied->type_params());
-        return replace_map(*applied->type_params(), type_args);
+        assert(!applied->bounds_and_params()->params.empty());
+        return replace_map(applied->bounds_and_params()->params, type_args);
     }
 
     /// Returns the type of the given member of the applied type, if it is a complex type.
@@ -595,7 +610,7 @@ struct TypeApp : public Type {
     bool is_sized(std::unordered_set<const Type*>&) const override;
 
     static std::unordered_map<const TypeVar*, const Type*> replace_map(
-        const ast::TypeParamList& type_params,
+        const PtrVector<ast::TypeParam>& type_params,
         const std::vector<const Type*>& type_args);
 
 private:

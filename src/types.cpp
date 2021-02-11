@@ -430,32 +430,15 @@ bool TypeApp::is_sized(std::unordered_set<const Type*>& seen) const {
         });
 }
 
-// User Types -------------------------------------------------------------------
-
-const std::vector<const Type*> TypeAlias::where_clauses() const {
-    if (decl.where_clauses)
-        return decl.where_clauses->clause_types();
-    else
-        return {};
-}
 
 // Complex Types -------------------------------------------------------------------
 
-const ast::TypeParamList* StructType::type_params() const {
+const ast::TypeBoundsAndParams* StructType::bounds_and_params() const {
     return decl.isa<ast::StructDecl>()
-        ? decl.as<ast::StructDecl>()->type_params.get()
-        : decl.as<ast::OptionDecl>()->parent->type_params.get();
+        ? decl.as<ast::StructDecl>()->bounds_and_params.get()
+        : decl.as<ast::OptionDecl>()->parent->bounds_and_params.get();
 }
 
-const std::vector<const Type*> StructType::where_clauses() const {
-    auto& aux =  decl.isa<ast::StructDecl>()
-           ? decl.as<ast::StructDecl>()->where_clauses
-           : decl.as<ast::OptionDecl>()->parent->where_clauses;
-    if (aux)
-        return aux->clause_types();
-    else
-        return {};
-}
 
 std::optional<size_t> StructType::find_member(const std::string_view& name) const {
     auto it = std::find_if(
@@ -481,13 +464,6 @@ bool StructType::is_tuple_like() const {
     return decl.isa<ast::StructDecl>() && decl.as<ast::StructDecl>()->is_tuple_like;
 }
 
-const std::vector<const Type*> EnumType::where_clauses() const {
-    if(decl.where_clauses)
-        return decl.where_clauses->clause_types();
-    else
-        return {};
-}
-
 std::optional<size_t> EnumType::find_member(const std::string_view& name) const {
     auto it = std::find_if(
         decl.options.begin(),
@@ -500,14 +476,6 @@ std::optional<size_t> EnumType::find_member(const std::string_view& name) const 
         : std::nullopt;
 }
 
-const std::vector<const Type*> TraitType::where_clauses() const {
-    if(decl.where_clauses)
-        return decl.where_clauses->clause_types();
-    else
-        return {};
-}
-
-
 std::optional<size_t> TraitType::find_member(const std::string_view& name) const {
     auto it = std::find_if(
             decl.fns.begin(),
@@ -518,13 +486,6 @@ std::optional<size_t> TraitType::find_member(const std::string_view& name) const
         return it != decl.fns.end()
         ? std::make_optional(it - decl.fns.begin())
         : std::nullopt;
-}
-
-const std::vector<const Type*> ImplType::where_clauses() const {
-    if(decl.where_clauses)
-        return decl.where_clauses->clause_types();
-    else
-        return {};
 }
 
 std::optional<size_t> ImplType::find_member(const std::string_view& name) const {
@@ -632,33 +593,26 @@ const Type* ForallType::instantiate(const std::vector<const Type*>& args) const 
     return body->replace(replace_map(args));
 }
 
-const std::vector<const Type*> ForallType::where_clauses() const {
-    if(decl.where_clauses)
-        return decl.where_clauses->clause_types();
-    else
-        return {};
-}
-
 std::unordered_map<const TypeVar *, const Type *>
 ForallType::replace_map(const std::vector<const Type*> & args) const{
     std::unordered_map<const TypeVar*, const Type*> map;
-    assert(decl.type_params && decl.type_params->params.size() == args.size());
+    assert(decl.bounds_and_params && decl.bounds_and_params->params.size() == args.size());
     for (size_t i = 0, n = args.size(); i < n; ++i) {
-        assert(decl.type_params->params[i]->type);
-        map.emplace(decl.type_params->params[i]->type->as<TypeVar>(), args[i]);
+        assert(decl.bounds_and_params->params[i]->type);
+        map.emplace(decl.bounds_and_params->params[i]->type->as<TypeVar>(), args[i]);
     }
     return map;
 }
 
 std::unordered_map<const TypeVar*, const Type*> TypeApp::replace_map(
-    const ast::TypeParamList& type_params,
+    const PtrVector<ast::TypeParam>& type_params,
     const std::vector<const Type*>& type_args)
 {
     std::unordered_map<const TypeVar*, const Type*> map;
-    assert(type_params.params.size() == type_args.size());
+    assert(type_params.size() == type_args.size());
     for (size_t i = 0, n = type_args.size(); i < n; ++i) {
-        assert(type_params.params[i]->type);
-        map.emplace(type_params.params[i]->type->as<TypeVar>(), type_args[i]);
+        assert(type_params[i]->type);
+        map.emplace(type_params[i]->type->as<TypeVar>(), type_args[i]);
     }
     return map;
 }
@@ -820,8 +774,12 @@ const TypeAlias* TypeTable::type_alias(const ast::TypeDecl& decl) {
 
 const Type* TypeTable::type_app(const UserType* applied, std::vector<const Type*>&& type_args) {
     if (auto type_alias = applied->isa<TypeAlias>()) {
-        assert(type_alias->type_params() && type_alias->decl.aliased_type->type);
-        auto map = TypeApp::replace_map(*type_alias->type_params(), type_args);
+        assert(
+            type_alias->bounds_and_params() &&
+            !type_alias->bounds_and_params()->params.empty() &&
+            type_alias->decl.aliased_type->type
+        );
+        auto map = TypeApp::replace_map(type_alias->bounds_and_params()->params, type_args);
         return type_alias->decl.aliased_type->type->replace(map);
     }
     return insert<TypeApp>(applied, std::move(type_args));
@@ -837,7 +795,7 @@ const T* TypeTable::insert(Args&&... args) {
 }
 
 const ImplType* TypeTable::register_impl(const ImplType* impl) {
-    if (impl->decl.type_params) {
+    if (!impl->type_params().empty()) {
         auto [type_app, trait_type] = match_app<TraitType>(impl->decl.trait_type->type);
         if(impls_.find(trait_type) != impls_.end())
             impls_[trait_type].push_back(impl);
@@ -866,10 +824,10 @@ const std::vector<const Type*>  TypeTable::find_all_impls(const Type* type, std:
         }
     }
     auto add_impl_to_result = [&](const ImplType *i) {
-        if (i->type_params()) {
+        if (i->bounds_and_params()) {
             std::vector<const Type *> args;
             auto &map = replace_map(i->decl.trait_type->type, type);
-            for (auto &pa: i->type_params()->params) {
+            for (auto &pa: i->bounds_and_params()->params) {
                 args.push_back(map.at(pa->type->as<TypeVar>()));
             }
             result.push_back(type_app(i, std::move(args)));
@@ -915,8 +873,8 @@ void TypeTable::store_impl(const Type* type, const Type* impl) {
 bool TypeTable::in_additional_bound(const Type* type, const Type* additional_bound) {
     if (type == additional_bound) return true;
     auto [type_app, trait_type] = match_app<TraitType>(additional_bound);
-    for (auto w: trait_type->where_clauses()) {
-        if (in_additional_bound(type, w->replace(type_app->replace_map())))
+    for (auto b: trait_type->bounds()) {
+        if (in_additional_bound(type, b->replace(type_app->replace_map())))
             return true;
     }
     return false;
@@ -932,8 +890,8 @@ bool TypeTable::check_impl(const Type* type, const ImplType* impl, std::vector<c
     if (impl->decl.trait_type->type->replace(replace) != type) {
         return false;
     }
-    for (auto & w: impl->where_clauses()) {
-        if (find_all_impls(w->replace(replace), additional_bounds).size() != 1) {
+    for (auto & b: impl->bounds()) {
+        if (find_all_impls(b->replace(replace), additional_bounds).size() != 1) {
             return false;
         }
     }

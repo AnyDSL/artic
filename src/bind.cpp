@@ -21,11 +21,12 @@ void NameBinder::bind(ast::Node& node) {
 void NameBinder::pop_scope() {
     for (auto& pair : scopes_.back().symbols) {
         auto decl = pair.second->decls.front();
-        if ((pair.second.use_count() <= 1 &&
+        if (pair.second.use_count() <= 1 &&
             !scopes_.back().top_level &&
             !decl->isa<ast::FieldDecl>() &&
-            !decl->isa<ast::OptionDecl>()) &&
-            !(scopes_.back().ignore_unused_fns && decl->isa<ast::FnDecl>())) {
+            !decl->isa<ast::OptionDecl>() &&
+            !(decl->isa<ast::FnDecl>() &&
+                    (decl->parent->isa<ast::TraitDecl>() || decl->parent->isa<ast::ImplDecl>()))) {
             warn(decl->loc, "unused identifier '{}'", pair.first);
             note("prefix unused identifiers with '_'");
         }
@@ -180,11 +181,11 @@ void RepeatArrayExpr::bind(NameBinder& binder) {
 }
 
 void FnExpr::bind(NameBinder& binder, bool in_for_loop) {
-    binder.push_scope();
+    binder.push_scope(this);
     if (param)    binder.bind(*param);
     if (ret_type) binder.bind(*ret_type);
     if (filter)   binder.bind(*filter);
-    binder.push_scope();
+    binder.push_scope(this);
     // Do not rebind the current `return` to this function
     // for anonymous functions introduced as for loop bodies.
     ast::FnExpr* old = nullptr;
@@ -348,34 +349,50 @@ void ErrorPtrn::bind(NameBinder&) {}
 
 // Declarations --------------------------------------------------------------------
 
+static ast::Decl* cur_decl_ = nullptr;
+static void push_and_pop_decl(NameBinder& binder, ast::Decl* decl, std::function<void(void)> f){
+    decl->parent = cur_decl_;
+    cur_decl_ = decl;
+    f();
+    cur_decl_ = decl->parent;
+
+}
+
 void TypeParam::bind(NameBinder& binder) {
-    binder.insert_symbol(*this);
+    push_and_pop_decl(binder, this, [&](){
+        binder.insert_symbol(*this);
+    });
 }
 
-void TypeParamList::bind(NameBinder& binder) {
+void TypeBoundsAndParams::bind(NameBinder& binder) {
     for (auto& param : params) binder.bind(*param);
-}
-
-void WhereClauseList::bind(NameBinder& binder) {
-    for (auto& clause : clauses) binder.bind(*clause);
+    for (auto& bound : bounds) binder.bind(*bound);
 }
 
 void PtrnDecl::bind(NameBinder& binder) {
-    binder.insert_symbol(*this);
+    push_and_pop_decl(binder, this, [&](){
+        binder.insert_symbol(*this);
+    });
 }
 
 void LetDecl::bind(NameBinder& binder) {
-    if (init) binder.bind(*init);
-    binder.bind(*ptrn);
+    push_and_pop_decl(binder, this, [&](){
+        if (init) binder.bind(*init);
+        binder.bind(*ptrn);
+    });
 }
 
 void StaticDecl::bind_head(NameBinder& binder) {
-    binder.insert_symbol(*this);
+    push_and_pop_decl(binder, this, [&](){
+        binder.insert_symbol(*this);
+    });
 }
 
 void StaticDecl::bind(NameBinder& binder) {
-    if (type) binder.bind(*type);
-    if (init) binder.bind(*init);
+    push_and_pop_decl(binder, this, [&](){
+        if (type) binder.bind(*type);
+        if (init) binder.bind(*init);
+    });
 }
 
 void FnDecl::bind_head(NameBinder& binder) {
@@ -383,26 +400,28 @@ void FnDecl::bind_head(NameBinder& binder) {
 }
 
 void FnDecl::bind(NameBinder& binder) {
-    binder.push_scope();
-    if (type_params)
-        binder.bind(*type_params);
-    if (where_clauses)
-        binder.bind(*where_clauses);
+    push_and_pop_decl(binder, this, [&](){
+        binder.push_scope();
+        if (bounds_and_params)
+            binder.bind(*bounds_and_params);
 
-    if (fn->body)
-        binder.bind(*fn);
-    else {
-        binder.bind(*fn->param);
-        if (fn->ret_type)
-            binder.bind(*fn->ret_type);
-    }
-    binder.pop_scope();
+        if (fn->body)
+            binder.bind(*fn);
+        else {
+            binder.bind(*fn->param);
+            if (fn->ret_type)
+                binder.bind(*fn->ret_type);
+        }
+        binder.pop_scope();
+    });
 }
 
 void FieldDecl::bind(NameBinder& binder) {
-    binder.bind(*type);
-    if (init)
-        binder.bind(*init);
+    push_and_pop_decl(binder, this, [&](){
+        binder.bind(*type);
+        if (init)
+            binder.bind(*init);
+    });
 }
 
 void StructDecl::bind_head(NameBinder& binder) {
@@ -410,20 +429,23 @@ void StructDecl::bind_head(NameBinder& binder) {
 }
 
 void StructDecl::bind(NameBinder& binder) {
-    binder.push_scope();
-    if (type_params) binder.bind(*type_params);
-    if (where_clauses) binder.bind(*where_clauses);
-    for (auto& field : fields) binder.bind(*field);
-    binder.pop_scope();
+    push_and_pop_decl(binder, this, [&](){
+        binder.push_scope();
+        if (bounds_and_params) binder.bind(*bounds_and_params);
+        for (auto& field : fields) binder.bind(*field);
+        binder.pop_scope();
+    });
 }
 
 void OptionDecl::bind(NameBinder& binder) {
-    if (param) binder.bind(*param);
-    else {
-        for (auto& field : fields)
-            binder.bind(*field);
-    }
-    binder.insert_symbol(*this);
+    push_and_pop_decl(binder, this, [&](){
+        if (param) binder.bind(*param);
+        else {
+            for (auto& field : fields)
+                binder.bind(*field);
+        }
+        binder.insert_symbol(*this);
+    });
 }
 
 void EnumDecl::bind_head(NameBinder& binder) {
@@ -431,14 +453,15 @@ void EnumDecl::bind_head(NameBinder& binder) {
 }
 
 void EnumDecl::bind(NameBinder& binder) {
-    binder.push_scope();
-    if (type_params) binder.bind(*type_params);
-    if (where_clauses) binder.bind(*where_clauses);
-    for (auto& option : options) {
-        option->parent = this;
-        binder.bind(*option);
-    }
-    binder.pop_scope();
+    push_and_pop_decl(binder, this, [&](){
+        binder.push_scope();
+        if (bounds_and_params) binder.bind(*bounds_and_params);
+        for (auto& option : options) {
+            option->parent = this;
+            binder.bind(*option);
+        }
+        binder.pop_scope();
+    });
 }
 
 void TraitDecl::bind_head(NameBinder& binder) {
@@ -446,22 +469,24 @@ void TraitDecl::bind_head(NameBinder& binder) {
 }
 
 void TraitDecl::bind(NameBinder& binder) {
-    binder.push_scope(false, true);
-    if (type_params) binder.bind(*type_params);
-    if (where_clauses) binder.bind(*where_clauses);
-    for (auto& f: fns) f->bind_head(binder);
-    for (auto& f: fns) f->bind(binder);
-    binder.pop_scope();
+    push_and_pop_decl(binder, this, [&](){
+        binder.push_scope();
+        if (bounds_and_params) binder.bind(*bounds_and_params);
+        for (auto& f: fns) f->bind_head(binder);
+        for (auto& f: fns) f->bind(binder);
+        binder.pop_scope();
+    });
 }
 
 void ImplDecl::bind(NameBinder& binder) {
-    binder.push_scope(false, true);
-    if (type_params) binder.bind(*type_params);
-    if (where_clauses) binder.bind(*where_clauses);
-    trait_type->bind(binder);
-    for (auto& f: fns) f->bind_head(binder);
-    for (auto& f: fns) f->bind(binder);
-    binder.pop_scope();
+    push_and_pop_decl(binder, this, [&](){
+        binder.push_scope();
+        if (bounds_and_params) binder.bind(*bounds_and_params);
+        trait_type->bind(binder);
+        for (auto& f: fns) f->bind_head(binder);
+        for (auto& f: fns) f->bind(binder);
+        binder.pop_scope();
+    });
 }
 
 void TypeDecl::bind_head(NameBinder& binder) {
@@ -469,11 +494,12 @@ void TypeDecl::bind_head(NameBinder& binder) {
 }
 
 void TypeDecl::bind(NameBinder& binder) {
-    binder.push_scope();
-    if (type_params) binder.bind(*type_params);
-    if (where_clauses) binder.bind(*where_clauses);
-    binder.bind(*aliased_type);
-    binder.pop_scope();
+    push_and_pop_decl(binder, this, [&](){
+        binder.push_scope();
+        if (bounds_and_params) binder.bind(*bounds_and_params);
+        binder.bind(*aliased_type);
+        binder.pop_scope();
+    });
 }
 
 void ModDecl::bind_head(NameBinder& binder) {
@@ -482,10 +508,12 @@ void ModDecl::bind_head(NameBinder& binder) {
 }
 
 void ModDecl::bind(NameBinder& binder) {
-    binder.push_scope(true);
-    for (auto& decl : decls) binder.bind_head(*decl);
-    for (auto& decl : decls) binder.bind(*decl);
-    binder.pop_scope();
+    push_and_pop_decl(binder, this, [&](){
+        binder.push_scope(true);
+        for (auto& decl : decls) binder.bind_head(*decl);
+        for (auto& decl : decls) binder.bind(*decl);
+        binder.pop_scope();
+    });
 }
 
 void ErrorDecl::bind(NameBinder&) {}
