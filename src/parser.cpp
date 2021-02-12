@@ -46,7 +46,10 @@ Ptr<ast::Decl> Parser::parse_decl(bool is_top_level) {
         case Token::Mod:    decl = parse_mod_decl();    break;
         default:            decl = parse_error_decl();  break;
     }
-    decl->attrs = std::move(attrs);
+    if (auto fn_decl = decl->isa<ast::FnDecl>())
+        fn_decl->fn->attrs = std::move(attrs);
+    else
+        decl->attrs = std::move(attrs);
     decl->is_top_level = is_top_level;
     return decl;
 }
@@ -192,10 +195,10 @@ PtrVector<ast::FnDecl> Parser::parse_fn_list() {
             if (ahead().tag() == Token::Hash)
                 attrs = parse_attr_list();
             if (ahead().tag() == Token::Fn) {
-                auto fn = parse_fn_decl();
-                fn->is_top_level = false;
-                fn->attrs = std::move(attrs);
-                fns.emplace_back(std::move(fn));
+                auto fn_decl = parse_fn_decl();
+                fn_decl->is_top_level = false;
+                fn_decl->fn->attrs = std::move(attrs);
+                fns.emplace_back(std::move(fn_decl));
             }
         }
         expect(Token::RBrace);

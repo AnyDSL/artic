@@ -404,7 +404,7 @@ void FnDecl::bind(NameBinder& binder) {
         binder.push_scope();
         if (bounds_and_params)
             binder.bind(*bounds_and_params);
-
+        fn->parent = this;
         if (fn->body)
             binder.bind(*fn);
         else {

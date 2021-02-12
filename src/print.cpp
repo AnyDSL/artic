@@ -472,7 +472,7 @@ void StaticDecl::print(Printer& p) const {
 }
 
 void FnDecl::print(Printer& p) const {
-    if (attrs) attrs->print(p);
+    if (fn->attrs) fn->attrs->print(p);
     p << log::keyword_style("fn") << ' ';
     if (fn->filter)
        fn->filter->print(p);

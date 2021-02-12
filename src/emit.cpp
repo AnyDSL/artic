@@ -1429,12 +1429,12 @@ const thorin::Def* FnDecl::emit(Emitter& emitter) const {
     cont->params().back()->debug().set("ret");
 
     // Set the calling convention and export the continuation if needed
-    if (attrs) {
-        if (auto export_attr = attrs->find("export")) {
+    if (fn->attrs) {
+        if (auto export_attr = fn->attrs->find("export")) {
             cont->make_exported();
             if (auto name_attr = export_attr->find("name"))
                 cont->debug().set(name_attr->as<LiteralAttr>()->lit.as_string());
-        } else if (auto import_attr = attrs->find("import")) {
+        } else if (auto import_attr = fn->attrs->find("import")) {
             if (auto name_attr = import_attr->find("name"))
                 cont->debug().set(name_attr->as<LiteralAttr>()->lit.as_string());
             if (auto cc_attr = import_attr->find("cc")) {

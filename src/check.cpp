@@ -237,7 +237,7 @@ const Type* TypeChecker::check(const Loc& loc, const Literal& lit, const Type* e
         auto trait = type_table.get_key_trait(trait_name);
         auto impl = type_table.type_app(trait, {expected});
         if (!trait_bound_exists(impl))
-            add_impl_req(loc, impl, collect_where_clauses());
+            add_impl_req(loc, impl, collect_type_bounds());
         return expected;
     } else if (lit.is_bool()) {
         if (!is_bool_type(expected))
@@ -314,13 +314,9 @@ const Type* TypeChecker::check_impl_fns(
         }
 
         if (fns[i]->fn->body == nullptr) {
-            if (fns[i]->attrs && fns[i]->attrs->find("import") && fns[i]->attrs->find("import")->find("cc")) {
-                const ast::Attr* cc_attr = fns[i]->attrs->find("import")->find("cc");
-                auto cc = cc_attr->as<ast::LiteralAttr>()->lit.as_string();
-                if (cc == "builtin") {
-                    seen[*index] = true;
-                    defined[*index] = true;
-                }
+            if (fns[i]->fn->defined_without_body()) {
+                seen[*index] = true;
+                defined[*index] = true;
             }
         } else {
             seen[*index] = true;
@@ -328,12 +324,7 @@ const Type* TypeChecker::check_impl_fns(
         }
 
         auto fn_type = type_app ? type_app->member_type(*index) : trait_type->member_type(*index);
-        if (fns[i]->fn->body != nullptr)  //a true definiton
-            check(*fns[i]->fn, fn_type);
-        else if (infer(*fns[i]) != fn_type) {//a builtin
-            error("Prototype type '{}' does not match the expected type '{}'", infer(*fns[i]), fn_type);
-            return type_table.type_error();
-        }
+        check(*fns[i]->fn, fn_type);
         fns[i]->type = fn_type;
     }
     //Add default definitions
@@ -344,7 +335,7 @@ const Type* TypeChecker::check_impl_fns(
     // Check that all functions have ben defined
     for (size_t i = 0, n = seen.size(); i < n; ++i) {
         if (!defined[i]) {
-            error(loc, "missing function definition '{}' in trait {}", trait_type->decl.fns[i]->id.name, msg);
+            error(loc, "missing function definition '{}' in trait '{}'", trait_type->decl.fns[i]->id.name, msg);
             return type_table.type_error();
         }
     }
@@ -568,7 +559,7 @@ void TypeChecker::check_bound(const Type* bound, Loc& loc) {
     auto [type_app, trait_type] = match_app<TraitType>(bound);
     if (trait_type) {
         if (!contains_var(bound))
-            add_impl_req(loc, bound, collect_where_clauses());
+            add_impl_req(loc, bound, collect_type_bounds());
     } else {
         error(loc, "only traits are allowed as type bounds");
     }
@@ -589,7 +580,7 @@ bool bound_implies_trait(const Type* bound, const Type* trait) {
 
 bool TypeChecker::trait_bound_exists(const Type* type) {
     for (auto decl: decls_) {
-        if (auto poly = decl->type->isa<PolyType>(); poly) {
+        if (auto poly = decl->type->isa<PolyType>()) {
             for (auto& bound: poly->bounds())
                 if (bound_implies_trait(bound, type)) return true;
         }
@@ -597,10 +588,10 @@ bool TypeChecker::trait_bound_exists(const Type* type) {
     return false;
 }
 
-std::vector<const Type*> TypeChecker::collect_where_clauses() {
+std::vector<const Type*> TypeChecker::collect_type_bounds() {
     std::vector<const Type*> res;
     for (auto decl: decls_) {
-        if (auto poly = decl->type->isa<PolyType>(); poly) {
+        if (auto poly = decl->type->isa<PolyType>()) {
             for (auto& bound: poly->bounds())
                 res.push_back(bound);
         }
@@ -693,7 +684,7 @@ const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, Ptr<Ex
                     for (auto& b: bounds) {
                         auto type_inst = b->replace(map);
                         if (!checker.trait_bound_exists(type_inst))
-                            checker.add_impl_req(loc, type_inst, checker.collect_where_clauses());
+                            checker.add_impl_req(loc, type_inst, checker.collect_type_bounds());
                     }
                 }
 
@@ -750,7 +741,7 @@ const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, Ptr<Ex
                 is_value = true;
                 is_ctor = false;
                 if (!checker.trait_bound_exists(type))
-                    checker.add_impl_req(loc, type, checker.collect_where_clauses());
+                    checker.add_impl_req(loc, type, checker.collect_type_bounds());
 
                 if (type_app) {
                     auto map = type_app->replace_map(trait_type->bounds_and_params()->params, type_app->type_args);
@@ -794,12 +785,15 @@ static std::vector<std::string> builtin_fns = {
 
 void NamedAttr::check(TypeChecker& checker, const ast::Node* node) {
     if (name == "export" || name == "import") {
-        if (auto fn_decl = node->isa<FnDecl>()) {
+        auto fn_expr = node->isa<FnExpr>();
+        auto fn_decl = node->isa<FnDecl>() ? node->as<FnDecl>() : (fn_expr ? fn_expr->parent : nullptr);
+        if (fn_decl) {
+            auto type = fn_expr ? fn_expr->type : fn_decl->type;
             if (name == "export") {
-                auto fn_type = fn_decl->type->isa<artic::FnType>();
+                auto fn_type = type->isa<artic::FnType>();
                 if (!fn_type)
                     checker.error(fn_decl->loc, "polymorphic functions cannot be exported");
-                else if (fn_decl->type->order() > 1)
+                else if (type->order() > 1)
                     checker.error(fn_decl->loc, "higher-order functions cannot be exported");
                 else if (!fn_decl->fn->body)
                     checker.error(fn_decl->loc, "exported functions must have a body");
@@ -1034,7 +1028,9 @@ const artic::Type* FnExpr::check(TypeChecker& checker, const artic::Type* expect
     // Set the type of the expression before entering the body,
     // in case `return` appears in it.
     type = checker.type_table.fn_type(param_type, body_type);
-    body_type = checker.coerce(body, body_type);
+    if(body)
+        body_type = checker.coerce(body, body_type);
+
     if (filter)
         checker.check(*filter, checker.type_table.bool_type());
     return type;
@@ -1287,7 +1283,7 @@ const artic::Type* UnaryExpr::infer(TypeChecker& checker) {
     auto trait = checker.type_table.get_key_trait(trait_key);
     auto needed_impl = checker.type_table.type_app(trait, {prim_type});
     if (!checker.trait_bound_exists(needed_impl))
-        checker.add_impl_req(loc, needed_impl, checker.collect_where_clauses());
+        checker.add_impl_req(loc, needed_impl, checker.collect_type_bounds());
     if (tag == PostDec || tag == PreDec || tag == PostInc || tag == PreInc)
         arg->write_to();
     return arg_type;
@@ -1334,7 +1330,7 @@ const artic::Type* BinaryExpr::infer(TypeChecker& checker) {
             auto trait = checker.type_table.get_key_trait(BinaryExpr::tag_to_string(remove_eq(tag)));
             auto needed_impl = checker.type_table.type_app(trait, {prim_type});
             if (!checker.trait_bound_exists(needed_impl)) {
-                checker.add_impl_req(loc, needed_impl, checker.collect_where_clauses());
+                checker.add_impl_req(loc, needed_impl, checker.collect_type_bounds());
             }
             break;
     }
@@ -1504,16 +1500,19 @@ const artic::Type* FnDecl::infer(TypeChecker& checker) {
     const artic::Type* fn_type = nullptr;
     if (fn->ret_type) {
         fn_type = checker.type_table.fn_type(checker.infer(*fn->param), checker.infer(*fn->ret_type));
+        fn->type = fn_type;
         checker.check_is_not_trait(loc, fn->ret_type->type);
         if (fn->filter)
             checker.check(*fn->filter, checker.type_table.bool_type());
+        if (fn->attrs)
+            fn->attrs->check(checker, fn.get());
     } else
         fn_type = checker.infer(*fn);
+
 
     // Set the type of this function right now, in case
     // the `return` keyword is encountered in the body.
     type = forall ? forall : fn_type;
-    fn->type = fn_type;
     if (forall)
         forall->as<ForallType>()->body = fn_type;
     if (fn->ret_type && fn->body)

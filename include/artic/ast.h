@@ -634,12 +634,15 @@ struct RepeatArrayExpr : public Expr {
     void print(Printer&) const override;
 };
 
+struct FnDecl;
+
 /// Anonymous function expression.
 struct FnExpr : public Expr {
     Ptr<Filter> filter;
     Ptr<Ptrn>   param;
     Ptr<Type>   ret_type;
     Ptr<Expr>   body;
+    FnDecl*     parent;
 
     FnExpr(
         const Loc& loc,
@@ -662,6 +665,15 @@ struct FnExpr : public Expr {
     void bind(NameBinder&, bool);
     void bind(NameBinder&) override;
     void print(Printer&) const override;
+    bool defined_without_body() {
+        if (attrs) {
+            if (auto import_attr = attrs->find("import")) {
+                if (auto cc_attr = import_attr->find("cc"))
+                    return parent && (cc_attr->as<ast::LiteralAttr>()->lit.as_string() == "builtin");
+            }
+        }
+        return false;
+    }
 };
 
 /// Block of code, whose result is the last expression in the block.

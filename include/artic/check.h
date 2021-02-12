@@ -91,7 +91,7 @@ public:
     // Returns true if the bound is valid
     void check_bound(const Type*, Loc& loc);
     bool trait_bound_exists(const Type*);
-    std::vector<const Type*> collect_where_clauses();
+    std::vector<const Type*> collect_type_bounds();
     void add_impl_req(Loc loc, const Type* type, std::vector<const Type*> available_bounds);
 
 private:
