@@ -6,6 +6,7 @@
 #include "artic/parser.h"
 #include "artic/bind.h"
 #include "artic/check.h"
+#include "artic/preamble.h"
 
 #include <thorin/def.h>
 #include <thorin/type.h>
@@ -1769,6 +1770,22 @@ struct MemBuf : public std::streambuf {
     }
 };
 
+static bool lex_and_parse(Log& log, std::string name, std::istream& is, bool warns_as_errors, ast::ModDecl& program) {
+    Lexer lexer(log, name, is);
+    Parser parser(log, lexer);
+    parser.warns_as_errors = warns_as_errors;
+    auto module = parser.parse();
+    if (log.errors > 0)
+        return false;
+
+    program.decls.insert(
+            program.decls.end(),
+            std::make_move_iterator(module->decls.begin()),
+            std::make_move_iterator(module->decls.end())
+    );
+    return true;
+}
+
 bool compile(
     const std::vector<std::string>& file_names,
     const std::vector<std::string>& file_data,
@@ -1784,20 +1801,12 @@ bool compile(
             log.locator->register_file(file_names[i], file_data[i]);
         MemBuf mem_buf(file_data[i]);
         std::istream is(&mem_buf);
-
-        Lexer lexer(log, file_names[i], is);
-        Parser parser(log, lexer);
-        parser.warns_as_errors = warns_as_errors;
-        auto module = parser.parse();
-        if (log.errors > 0)
+        if(!lex_and_parse(log, file_names[i], is, warns_as_errors, program))
             return false;
-
-        program.decls.insert(
-            program.decls.end(),
-            std::make_move_iterator(module->decls.begin()),
-            std::make_move_iterator(module->decls.end())
-        );
     }
+    std::istringstream is(preamble);
+    if(!lex_and_parse(log, "preamble", is, warns_as_errors, program))
+        return false;
 
     NameBinder name_binder(log);
     name_binder.warns_as_errors = warns_as_errors;

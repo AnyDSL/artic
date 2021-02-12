@@ -38,12 +38,5 @@ if (BUILD_TESTING)
     add_subdirectory(test)
 endif ()
 
-add_custom_command(
-        OUTPUT "./bin/stdlib.art"
-        COMMAND cat libraries/*.art > ./bin/stdlib.art
-)
-
-add_custom_target(run ALL DEPENDS libraries/*.art ./bin/stdlib.art)
-
 export(TARGETS libartic artic FILE ${CMAKE_BINARY_DIR}/share/anydsl/cmake/artic-exports.cmake)
 configure_file(cmake/artic-config.cmake.in ${CMAKE_BINARY_DIR}/share/anydsl/cmake/artic-config.cmake @ONLY)
