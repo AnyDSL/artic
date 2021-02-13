@@ -83,6 +83,7 @@ log::Output& operator << (log::Output&, const Node&);
 
 // Base AST nodes ------------------------------------------------------------------
 
+struct ModDecl;
 /// Base class for all declarations.
 struct Decl : public Node {
     Decl(const Loc& loc) : Node(loc) {}
@@ -94,6 +95,13 @@ struct Decl : public Node {
     virtual void bind_head(NameBinder&) {}
 
     Decl* parent = nullptr;
+
+    ModDecl* find_parent_module() const {
+        Decl* current = parent;
+        while (current != nullptr && !current->isa<ModDecl>())
+            current = current->parent;
+        return current ? current->as<ModDecl>() : nullptr;
+    }
 };
 
 /// Base class for types.

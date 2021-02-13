@@ -680,17 +680,25 @@ public:
     const TraitType* get_key_trait(std::string op);
 
     /// Returns nullptr if the impl is not already registered
-    const ImplType* register_impl(const ImplType* impl);
+    const ImplType* register_impl(const ast::ModDecl* scope, const ImplType* impl);
 
-    const std::vector<const Type*> find_all_impls(const Type* type, std::vector<const Type*> additional_bounds = {});
-    const Type* find_impl(const Type* type);
-    const Type* find_impl(std::string trait_name, std::vector<const Type*> args);
+    const std::vector<const Type*> find_all_impls(const ast::ModDecl*, const Type* type, std::vector<const Type*> additional_bounds = {});
+    const Type* find_impl(const ast::ModDecl*, const Type* type);
+    const Type* find_impl(const ast::ModDecl*, std::string trait_name, std::vector<const Type*> args);
     void store_impl(const Type* type, const Type* impl);
-    bool check_impl(const Type* type, const ImplType* impl, std::vector<const Type*> additional_bounds = {});
+    bool check_impl(const ast::ModDecl*, const Type* type, const ImplType* impl, std::vector<const Type*> additional_bounds = {});
     bool in_additional_bound(const Type* type, const Type* additional_bound);
     /// Returns a map that unifies poly and target (if one exists), i.e.
     /// poly->replace(replace_map(poly, target)) == target always holds if such map exists
     const std::unordered_map<const TypeVar*, const Type*> replace_map(const Type* poly, const Type* target);
+
+    /// Each element of the vector represents a scope.
+    /// Each type is mapped to all impls that can justify it
+    /// Generic impls are using the trait-type of the trait they implement as keys
+    /// Example (Add[i32], impl Add[i32] ...); (Add -> impl[A] Add[A] ...)
+    /// Because of that when looking for Add[i64] one needs to check both the Add and the Add[i64] keys in each scope
+    typedef std::unordered_map<const Type*, std::vector<const ImplType*>> types_to_impls;
+    std::unordered_map<const ast::ModDecl*, types_to_impls> mod_impls;
 
 private:
     template <typename T, typename... Args>
@@ -708,9 +716,7 @@ private:
     };
     std::unordered_set<const Type*, HashType, CompareTypes> types_;
     std::unordered_map<std::string, const TraitType*> key_traits_;
-    //maps types to a vector containing all candidates that have hat type as a conclusion
-    std::unordered_map<const Type*, std::vector<const ImplType*>> impls_;
-    //maps types to their implementation. This avoids frequent recalculation
+    /// Maps types to their implementation. This avoids frequent recalculation
     std::unordered_map<const Type*, const Type*> type_impl_table_;
 
     const PrimType*   bool_type_   = nullptr;

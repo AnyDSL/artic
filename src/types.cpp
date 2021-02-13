@@ -794,21 +794,22 @@ const T* TypeTable::insert(Args&&... args) {
     return (*it)->template as<T>();
 }
 
-const ImplType* TypeTable::register_impl(const ImplType* impl) {
+const ImplType* TypeTable::register_impl(const ast::ModDecl* scope, const ImplType* impl) {
+    auto& impls = mod_impls[scope];
     if (!impl->type_params().empty()) {
         auto [type_app, trait_type] = match_app<TraitType>(impl->decl.trait_type->type);
-        if(impls_.find(trait_type) != impls_.end())
-            impls_[trait_type].push_back(impl);
+        if(impls.find(trait_type) != impls.end())
+            impls[trait_type].push_back(impl);
         else
-            impls_[trait_type] = {impl};
-    } else if(impls_.find(impl->decl.trait_type->type) != impls_.end()) {
-        return impls_[impl->decl.trait_type->type].front();
-    } else
-        impls_[impl->decl.trait_type->type] = {impl};
+            impls[trait_type] = {impl};
+    } else if(impls.find(impl->decl.trait_type->type) != impls.end())
+        return impls[impl->decl.trait_type->type].front();
+    else
+        impls[impl->decl.trait_type->type] = {impl};
     return nullptr;
 }
 
-const std::vector<const Type*>  TypeTable::find_all_impls(const Type* type, std::vector<const Type*> additional_bounds) {
+const std::vector<const Type*>  TypeTable::find_all_impls(const ast::ModDecl* scope, const Type* type, std::vector<const Type*> additional_bounds) {
     std::vector<const Type *> result;
     /// This check ensures that the impl resolution does not try to find implementations for generic trait uses
     /// while still checking the bound when the trait is concrete
@@ -835,35 +836,45 @@ const std::vector<const Type*>  TypeTable::find_all_impls(const Type* type, std:
             result.push_back(i);
         }
     };
-    if (impls_.find(type) != impls_.end()) {
-        for (auto i:impls_[type]) {
-            if (check_impl(type, i, additional_bounds))
-                add_impl_to_result(i);
+
+    auto current_scope = scope;
+    while (current_scope != nullptr) {
+        auto& impls = mod_impls[current_scope];
+        if (impls.find(type) != impls.end()) {
+            for (auto i:impls[type]) {
+                if (check_impl(current_scope, type, i, additional_bounds))
+                    add_impl_to_result(i);
+            }
         }
+        current_scope = current_scope->find_parent_module();
     }
     auto app = type->isa<TypeApp>();
-    if (app && (impls_.find(app->applied) != impls_.end())) {
-        for (auto i:impls_[app->applied])
-            if (check_impl(type, i, additional_bounds))
-                add_impl_to_result(i);
+    current_scope = scope;
+    while (current_scope != nullptr) {
+        auto& impls = mod_impls[current_scope];
+        if (app && (impls.find(app->applied) != impls.end())) {
+            for (auto i:impls[app->applied]) {
+                if (check_impl(current_scope, type, i, additional_bounds))
+                    add_impl_to_result(i);
+            }
+        }
+        current_scope = current_scope->find_parent_module();
     }
 
     return result;
 }
 
-const Type* TypeTable::find_impl(const Type* type) {
-    if (type_impl_table_.find(type) == type_impl_table_.end()) {
-        auto needed = find_all_impls(type).front();
-        type_impl_table_[type] = needed;
-    }
+const Type* TypeTable::find_impl(const ast::ModDecl* scope, const Type* type) {
+    if (type_impl_table_.find(type) == type_impl_table_.end())
+        type_impl_table_[type] = find_all_impls(scope, type).front();
     return type_impl_table_[type];
 
 }
 
-const Type* TypeTable::find_impl(std::string trait_name, std::vector<const Type*> args) {
+const Type* TypeTable::find_impl(const ast::ModDecl* scope, std::string trait_name, std::vector<const Type*> args) {
     auto trait = get_key_trait(trait_name);
     auto app = type_app(trait, std::move(args));
-    return find_impl(app);
+    return find_impl(scope, app);
 }
 
 void TypeTable::store_impl(const Type* type, const Type* impl) {
@@ -885,13 +896,13 @@ bool TypeTable::in_additional_bound(const Type* type, const Type* additional_bou
 /// impl T[i32] can justify T[i32]
 /// impl[A] T[A] where Add[A] can also justify T[i32]
 /// impl[A] T[A] where Add[A] can not justify T[bool]
-bool TypeTable::check_impl(const Type* type, const ImplType* impl, std::vector<const Type*> additional_bounds) {
+bool TypeTable::check_impl(const ast::ModDecl* scope, const Type* type, const ImplType* impl, std::vector<const Type*> additional_bounds) {
     auto replace = replace_map(impl->decl.trait_type->type, type);
     if (impl->decl.trait_type->type->replace(replace) != type) {
         return false;
     }
     for (auto & b: impl->bounds()) {
-        if (find_all_impls(b->replace(replace), additional_bounds).size() != 1) {
+        if (find_all_impls(scope, b->replace(replace), additional_bounds).size() != 1) {
             return false;
         }
     }

@@ -78,6 +78,7 @@ public:
     void check_block(const Loc&, const PtrVector<ast::Stmt>&, bool);
     bool check_attrs(const ast::NamedAttr&, const std::vector<AttrType>&);
     bool check_filter(const ast::Expr&);
+    void check_type_has_single_impl(const Loc& loc, const Type* type, std::vector<const Type*> available_bounds);
     void check_is_not_trait(const Loc &loc, const Type *type);
 
     template <typename InferElems>
@@ -92,16 +93,11 @@ public:
     void check_bound(const Type*, Loc& loc);
     bool trait_bound_exists(const Type*);
     std::vector<const Type*> collect_type_bounds();
-    void add_impl_req(Loc loc, const Type* type, std::vector<const Type*> available_bounds);
+
+    ast::ModDecl* current_scope;
 
 private:
     std::unordered_set<const ast::Decl*> decls_;
-    struct ImplToCheck{
-        Loc loc;
-        const Type* type;
-        std::vector<const Type*> available_bounds;
-    };
-    std::vector<ImplToCheck> needed_impls_;
 };
 
 } // namespace artic

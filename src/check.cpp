@@ -1,20 +1,11 @@
 #include <algorithm>
 
 #include "artic/check.h"
-#include "artic/print.h"
+
 namespace artic {
 
 bool TypeChecker::run(ast::ModDecl& module) {
     module.infer(*this);
-    for (auto &el: needed_impls_) {
-        auto candidates = type_table.find_all_impls(el.type, el.available_bounds);
-        if (candidates.empty())
-            error(el.loc, "The trait '{}' is not implemented", *el.type);
-        else if (candidates.size() > 1)
-            error(el.loc, "The trait '{}' has multiple implementations", *el.type);
-        else
-            type_table.store_impl(el.type, candidates.front());
-    }
     return errors == 0;
 }
 
@@ -237,7 +228,7 @@ const Type* TypeChecker::check(const Loc& loc, const Literal& lit, const Type* e
         auto trait = type_table.get_key_trait(trait_name);
         auto impl = type_table.type_app(trait, {expected});
         if (!trait_bound_exists(impl))
-            add_impl_req(loc, impl, collect_type_bounds());
+            check_type_has_single_impl(loc, impl, collect_type_bounds());
         return expected;
     } else if (lit.is_bool()) {
         if (!is_bool_type(expected))
@@ -401,6 +392,16 @@ bool TypeChecker::check_filter(const ast::Expr& expr) {
     return false;
 }
 
+void TypeChecker::check_type_has_single_impl(const Loc& loc, const Type *type, std::vector<const Type*> available_bounds) {
+    auto candidates = type_table.find_all_impls(current_scope, type, available_bounds);
+    if (candidates.empty())
+        error(loc, "The trait '{}' is not implemented", *type);
+    else if (candidates.size() > 1)
+        error(loc, "The trait '{}' has multiple implementations", *type);
+    else
+        type_table.store_impl(type, candidates.front());
+}
+
 bool TypeChecker::check_attrs(const ast::NamedAttr& named_attr, const std::vector<AttrType>& attr_types) {
     std::unordered_map<std::string_view, const ast::Attr*> seen;
     for (auto& attr : named_attr.args) {
@@ -559,7 +560,7 @@ void TypeChecker::check_bound(const Type* bound, Loc& loc) {
     auto [type_app, trait_type] = match_app<TraitType>(bound);
     if (trait_type) {
         if (!contains_var(bound))
-            add_impl_req(loc, bound, collect_type_bounds());
+            check_type_has_single_impl(loc, bound, collect_type_bounds());
     } else {
         error(loc, "only traits are allowed as type bounds");
     }
@@ -597,10 +598,6 @@ std::vector<const Type*> TypeChecker::collect_type_bounds() {
         }
     }
     return res;
-}
-
-void TypeChecker::add_impl_req(Loc loc, const Type* type, std::vector<const Type*> available_bounds) {
-    needed_impls_.push_back({std::move(loc), type, std::move(available_bounds)});
 }
 
 namespace ast {
@@ -684,7 +681,7 @@ const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, Ptr<Ex
                     for (auto& b: bounds) {
                         auto type_inst = b->replace(map);
                         if (!checker.trait_bound_exists(type_inst))
-                            checker.add_impl_req(loc, type_inst, checker.collect_type_bounds());
+                            checker.check_type_has_single_impl(loc, type_inst, checker.collect_type_bounds());
                     }
                 }
 
@@ -741,7 +738,7 @@ const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, Ptr<Ex
                 is_value = true;
                 is_ctor = false;
                 if (!checker.trait_bound_exists(type))
-                    checker.add_impl_req(loc, type, checker.collect_type_bounds());
+                    checker.check_type_has_single_impl(loc, type, checker.collect_type_bounds());
 
                 if (type_app) {
                     auto map = type_app->replace_map(trait_type->bounds_and_params()->params, type_app->type_args);
@@ -1283,7 +1280,7 @@ const artic::Type* UnaryExpr::infer(TypeChecker& checker) {
     auto trait = checker.type_table.get_key_trait(trait_key);
     auto needed_impl = checker.type_table.type_app(trait, {prim_type});
     if (!checker.trait_bound_exists(needed_impl))
-        checker.add_impl_req(loc, needed_impl, checker.collect_type_bounds());
+        checker.check_type_has_single_impl(loc, needed_impl, checker.collect_type_bounds());
     if (tag == PostDec || tag == PreDec || tag == PostInc || tag == PreInc)
         arg->write_to();
     return arg_type;
@@ -1330,7 +1327,7 @@ const artic::Type* BinaryExpr::infer(TypeChecker& checker) {
             auto trait = checker.type_table.get_key_trait(BinaryExpr::tag_to_string(remove_eq(tag)));
             auto needed_impl = checker.type_table.type_app(trait, {prim_type});
             if (!checker.trait_bound_exists(needed_impl)) {
-                checker.add_impl_req(loc, needed_impl, checker.collect_type_bounds());
+                checker.check_type_has_single_impl(loc, needed_impl, checker.collect_type_bounds());
             }
             break;
     }
@@ -1704,7 +1701,7 @@ const artic::Type* ImplDecl::infer(TypeChecker& checker) {
         }
 
     }
-    auto conflict = checker.type_table.register_impl(checker.type_table.impl_type(*this));
+    auto conflict = checker.type_table.register_impl(checker.current_scope, checker.type_table.impl_type(*this));
     if (conflict) {
         checker.exit_decl(this);
         checker.error(loc, "Trait '{}' is already defined", *this->trait_type);
@@ -1739,13 +1736,20 @@ const artic::Type* TypeDecl::infer(TypeChecker& checker) {
 }
 
 const artic::Type* ModDecl::infer(TypeChecker& checker) {
-    //traits must be traversed first, in order to be available for operator resolution
-    for (auto& decl : decls)
-        if (decl->isa<TraitDecl>())
+    checker.type_table.mod_impls[this] = {};
+    auto old = checker.current_scope;
+    checker.current_scope = this;
+    //collect_impls
+    for (auto& decl : decls) {
+        if (decl->isa<ImplDecl>()) {
             checker.infer(*decl);
-    for (auto& decl : decls)
-        if (!decl->isa<TraitDecl>())
+        }
+    }
+    for (auto& decl : decls) {
+        if (!decl->isa<ImplDecl>())
             checker.infer(*decl);
+    }
+    checker.current_scope = old;
     return checker.type_table.unit_type();
 }
 

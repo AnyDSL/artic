@@ -139,6 +139,8 @@ public:
     const thorin::Def* emit(const ast::Node&, const Literal&);
 
     const thorin::Def* builtin(const ast::FnDecl&, thorin::Continuation*);
+
+    const ast::ModDecl* current_scope;
 };
 
 /// Helper function to compile a set of files and generate an AST and a thorin module.

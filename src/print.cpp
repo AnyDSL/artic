@@ -579,7 +579,7 @@ void ImplDecl::print(Printer& p) const {
     }
     trait_type->print(p);
     p << ' ';
-    if (bounds_and_params) print_type_params(p, bounds_and_params->params);
+    if (bounds_and_params) print_bounds(p, bounds_and_params->bounds);
     p << ' ' << '{' << p.indent();
     for (auto& f:fns) {
         p << p.endl();
@@ -781,8 +781,7 @@ void TraitType::print(Printer& p) const {
 }
 
 void ImplType::print(Printer& p) const {
-    p <<"impl ";
-    decl.trait_type->print(p);
+    decl.print(p);
 }
 
 void TypeAlias::print(Printer& p) const {

@@ -698,7 +698,7 @@ const thorin::Def* Emitter::emit(const ast::Node& node, const Literal& lit) {
         return world.definite_array(ops, debug_info(node));
     } else {
         auto trait_name = lit.is_integer() ? "FromInt" : "FromFloat";
-        auto impl = node.type->type_table.find_impl(trait_name, {node.type->replace(type_vars)});
+        auto impl = node.type->type_table.find_impl(current_scope, trait_name, {node.type->replace(type_vars)});
         auto [type_app, impl_type] = match_app<ImplType>(impl);
         if (!impl_type->type_params().empty()) {
             std::unordered_map<const artic::TypeVar*, const artic::Type*> map;
@@ -805,7 +805,7 @@ const thorin::Def* Path::emit(Emitter& emitter) const {
             }
             const thorin::Def*  def;
             if (auto trait_type = decl->type->isa<TraitType>()) {
-                auto impl = decl->type->type_table.find_impl(elems[i].type->replace(map));
+                auto impl = decl->type->type_table.find_impl(emitter.current_scope, elems[i].type->replace(map));
                 auto [type_app, impl_type] = match_app<ImplType>(impl);
                 if (!impl_type->type_params().empty()) {
                     std::unordered_map<const artic::TypeVar*, const artic::Type*> map;
@@ -1209,7 +1209,7 @@ const thorin::Def* UnaryExpr::emit(Emitter& emitter) const {
         std::vector<const artic::Type*> trait_args;
         trait_args.emplace_back(arg_type);
         auto trait_name = UnaryExpr::tag_to_string(tag) + "u";
-        auto impl = arg_type->type_table.find_impl(trait_name, std::move(trait_args));
+        auto impl = arg_type->type_table.find_impl(emitter.current_scope, trait_name, std::move(trait_args));
         auto [type_app, impl_type] = match_app<ImplType>(impl);
         if (!impl_type->type_params().empty()) {
             std::unordered_map<const artic::TypeVar*, const artic::Type*> map;
@@ -1311,7 +1311,7 @@ const thorin::Def* BinaryExpr::emit(Emitter& emitter) const {
         auto l_type = left->type->replace(emitter.type_vars);
         if (l_type->isa<RefType>()) l_type = l_type->as<RefType>()->pointee;
         auto trait_name = BinaryExpr::tag_to_string(remove_eq(tag));
-        auto impl = l_type->type_table.find_impl(trait_name, {l_type});
+        auto impl = l_type->type_table.find_impl(emitter.current_scope, trait_name, {l_type});
         auto [type_app, impl_type] = match_app<ImplType>(impl);
         if (!impl_type->type_params().empty()) {
             std::unordered_map<const artic::TypeVar*, const artic::Type*> map;
@@ -1500,6 +1500,8 @@ const thorin::Def* TypeDecl::emit(Emitter&) const {
 }
 
 const thorin::Def* ModDecl::emit(Emitter& emitter) const {
+    auto old = emitter.current_scope;
+    emitter.current_scope = this;
     for (auto& decl : decls) {
         // Do not emit polymorphic functions directly: Those will be emitted from
         // the call site, where the type arguments are known.
@@ -1507,6 +1509,7 @@ const thorin::Def* ModDecl::emit(Emitter& emitter) const {
             continue;
         emitter.emit(*decl);
     }
+    emitter.current_scope = old;
     return nullptr;
 }
 
@@ -1796,6 +1799,11 @@ bool compile(
     thorin::Log::Level log_level,
     Log& log) {
     assert(file_data.size() == file_names.size());
+    std::istringstream is(preamble);
+
+    if(!lex_and_parse(log, "preamble", is, warns_as_errors, program))
+        return false;
+
     for (size_t i = 0, n = file_names.size(); i < n; ++i) {
         if (log.locator)
             log.locator->register_file(file_names[i], file_data[i]);
@@ -1804,9 +1812,6 @@ bool compile(
         if(!lex_and_parse(log, file_names[i], is, warns_as_errors, program))
             return false;
     }
-    std::istringstream is(preamble);
-    if(!lex_and_parse(log, "preamble", is, warns_as_errors, program))
-        return false;
 
     NameBinder name_binder(log);
     name_binder.warns_as_errors = warns_as_errors;
