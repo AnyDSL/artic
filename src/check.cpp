@@ -46,10 +46,10 @@ const Type* TypeChecker::type_expected(const Loc& loc, const artic::Type* type, 
     return type_table.type_error();
 }
 
-void TypeChecker::check_is_not_trait(const Loc& loc, const artic::Type* type) {
-    auto [type_app, trait] = match_app<TraitType>(type);
-    if (should_report_error(type) && trait)
-        error(loc, "Traits are only allowed in type bounds");
+const Type* TypeChecker::trait_not_allowed_here(const Loc& loc, const artic::Type* type) {
+    if (should_report_error(type))
+        error(loc, "Traits are only allowed in type bounds as impl targets");
+    return type_table.type_error();
 }
 
 const Type* TypeChecker::unknown_member(const Loc& loc, const UserType* user_type, const std::string_view& member) {
@@ -663,8 +663,6 @@ const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, Ptr<Ex
                     if (!checker.infer_type_args(loc, forall_type, arg_type, type_args))
                         return checker.type_table.type_error();
                 }
-                for (auto arg: type_args)
-                    checker.check_is_not_trait(loc, arg);
                 elem.inferred_args = type_args;
                 //check trait bounds
                 std::unordered_map<const artic::TypeVar*, const artic::Type*> map;
@@ -843,16 +841,13 @@ const artic::Type* PrimType::infer(TypeChecker& checker) {
 
 const artic::Type* TupleType::infer(TypeChecker& checker) {
     std::vector<const artic::Type*> arg_types(args.size());
-    for (size_t i = 0, n = args.size(); i < n; ++i) {
+    for (size_t i = 0, n = args.size(); i < n; ++i)
         arg_types[i] = checker.infer(*args[i]);
-        checker.check_is_not_trait(args[i]->loc, arg_types[i]);
-    }
     return checker.type_table.tuple_type(std::move(arg_types));
 }
 
 const artic::Type* SizedArrayType::infer(TypeChecker& checker) {
     auto elem_type = checker.infer(*elem);
-    checker.check_is_not_trait(loc, elem_type);
     if (is_simd && !elem_type->isa<artic::PrimType>())
         return checker.invalid_simd(loc, elem_type);
     return checker.type_table.sized_array_type(elem_type, size, is_simd);
@@ -860,7 +855,6 @@ const artic::Type* SizedArrayType::infer(TypeChecker& checker) {
 
 const artic::Type* UnsizedArrayType::infer(TypeChecker& checker) {
     auto type = checker.type_table.unsized_array_type(checker.infer(*elem));
-    checker.check_is_not_trait(loc, type->elem);
     checker.error(loc, "unsized array types cannot be used directly");
     checker.note("use '{}' instead", *checker.type_table.ptr_type(type, false, 0));
     return checker.type_table.type_error();
@@ -869,8 +863,6 @@ const artic::Type* UnsizedArrayType::infer(TypeChecker& checker) {
 const artic::Type* FnType::infer(TypeChecker& checker) {
     auto from_type = checker.infer(*from);
     auto to_type = checker.infer(*to);
-    checker.check_is_not_trait(from->loc, from_type);
-    checker.check_is_not_trait(to->loc, to_type);
     return checker.type_table.fn_type(from_type, to_type);
 }
 
@@ -880,13 +872,16 @@ const artic::Type* PtrType::infer(TypeChecker& checker) {
         pointee_type = checker.type_table.unsized_array_type(checker.infer(*unsized_array_type->elem));
     else
         pointee_type = checker.infer(*pointee);
-    checker.check_is_not_trait(pointee->loc, pointee_type);
     return checker.type_table.ptr_type(pointee_type, is_mut, addr_space);
 }
 
 const artic::Type* TypeApp::infer(TypeChecker& checker) {
-    return path.type = path.infer(checker, false);
+    auto type = path.infer(checker, false);
+    if(auto [type_app, trait] = match_app<TraitType>(type); trait)
+        return path.type = checker.trait_not_allowed_here(loc, type);
+    return path.type = type;
 }
+
 
 // Statements ----------------------------------------------------------------------
 
@@ -916,7 +911,6 @@ const artic::Type* Expr::check(TypeChecker& checker, const artic::Type* expected
 
 const artic::Type* TypedExpr::infer(TypeChecker& checker) {
     auto expr_type = checker.infer(*type);
-    checker.check_is_not_trait(loc, expr_type);
     return checker.coerce(expr, expr_type);
 }
 
@@ -1002,8 +996,6 @@ const artic::Type* FnExpr::infer(TypeChecker& checker) {
     if (filter)
         checker.check(*filter, checker.type_table.bool_type());
     auto body_type = ret_type ? checker.infer(*ret_type) : nullptr;
-    if (ret_type)
-        checker.check_is_not_trait(ret_type->loc, ret_type->type);
     if (body) {
         if (body_type)
             checker.coerce(body, body_type);
@@ -1373,7 +1365,6 @@ const artic::Type* FilterExpr::infer(TypeChecker& checker) {
 
 const artic::Type* CastExpr::infer(TypeChecker& checker) {
     auto expected = checker.infer(*type);
-    checker.check_is_not_trait(loc, expected);
     auto type = checker.deref(expr);
     if (type == expected) {
         checker.warn(loc, "cast source and destination types are identical");
@@ -1438,7 +1429,7 @@ const artic::Type* TypeParam::infer(TypeChecker& checker) {
 
 const artic::Type* TypeBoundsAndParams::infer(TypeChecker& checker) {
     for (auto& bound: bounds) {
-        checker.infer(*bound);
+        bound->type = bound->path.type = bound->path.infer(checker, false);
         checker.check_bound(bound->type, bound->loc);
     }
 
@@ -1473,7 +1464,6 @@ const artic::Type* StaticDecl::infer(TypeChecker& checker) {
         value_type = checker.deref(init);
     } else
         return checker.cannot_infer(loc, "static variable");
-    checker.check_is_not_trait(loc, value_type);
     if (init && !init->is_constant())
         checker.error(init->loc, "only constants are allowed as static variable initializers");
     checker.exit_decl(this);
@@ -1498,7 +1488,6 @@ const artic::Type* FnDecl::infer(TypeChecker& checker) {
     if (fn->ret_type) {
         fn_type = checker.type_table.fn_type(checker.infer(*fn->param), checker.infer(*fn->ret_type));
         fn->type = fn_type;
-        checker.check_is_not_trait(loc, fn->ret_type->type);
         if (fn->filter)
             checker.check(*fn->filter, checker.type_table.bool_type());
         if (fn->attrs)
@@ -1527,7 +1516,6 @@ const artic::Type* FnDecl::check(TypeChecker& checker, [[maybe_unused]] const ar
 
 const artic::Type* FieldDecl::infer(TypeChecker& checker) {
     auto field_type = checker.infer(*type);
-    checker.check_is_not_trait(loc, field_type);
     if (init) {
         checker.coerce(init, field_type);
         if (!init->is_constant())
@@ -1666,7 +1654,9 @@ const artic::Type* ImplDecl::infer(TypeChecker& checker) {
         return checker.type_table.type_error();
     if(bounds_and_params)
         checker.infer(*bounds_and_params);
-    auto [type_app, trait_type] = match_app<artic::TraitType>(checker.infer(*this->trait_type));
+
+    trait_type->type = trait_type->path.type = trait_type->path.infer(checker, false);
+    auto [type_app, trait_type] = match_app<artic::TraitType>(this->trait_type->type);
     if (!trait_type) {
         checker.exit_decl(this);
         return checker.type_expected(loc, this->trait_type->type, "trait");
@@ -1757,7 +1747,6 @@ const artic::Type* ModDecl::infer(TypeChecker& checker) {
 
 const artic::Type* TypedPtrn::infer(TypeChecker& checker) {
     auto ptrn_type = checker.infer(*type);
-    checker.check_is_not_trait(loc, ptrn_type);
     return ptrn ? checker.check(*ptrn, ptrn_type) : ptrn_type;
 }
 
