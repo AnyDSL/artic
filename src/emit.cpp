@@ -1208,7 +1208,7 @@ const thorin::Def* UnaryExpr::emit(Emitter& emitter) const {
         if (arg_type->isa<RefType>()) arg_type = arg_type->as<RefType>()->pointee;
         std::vector<const artic::Type*> trait_args;
         trait_args.emplace_back(arg_type);
-        auto trait_name = UnaryExpr::tag_to_string(tag) + "u";
+        auto trait_name = UnaryExpr::tag_to_trait_name(tag);
         auto impl = arg_type->type_table.find_impl(emitter.current_scope, trait_name, std::move(trait_args));
         auto [type_app, impl_type] = match_app<ImplType>(impl);
         if (!impl_type->type_params().empty()) {
@@ -1310,7 +1310,7 @@ const thorin::Def* BinaryExpr::emit(Emitter& emitter) const {
     } else {
         auto l_type = left->type->replace(emitter.type_vars);
         if (l_type->isa<RefType>()) l_type = l_type->as<RefType>()->pointee;
-        auto trait_name = BinaryExpr::tag_to_string(remove_eq(tag));
+        auto trait_name = BinaryExpr::tag_to_trait_name(remove_eq(tag));
         auto impl = l_type->type_table.find_impl(emitter.current_scope, trait_name, {l_type});
         auto [type_app, impl_type] = match_app<ImplType>(impl);
         if (!impl_type->type_params().empty()) {
@@ -1812,7 +1812,7 @@ bool compile(
     assert(file_data.size() == file_names.size());
     std::istringstream is(preamble);
 
-    if(!lex_and_parse(log, "preamble", is, warns_as_errors, program))
+    if (!lex_and_parse(log, "preamble", is, warns_as_errors, program))
         return false;
 
     for (size_t i = 0, n = file_names.size(); i < n; ++i) {
@@ -1820,7 +1820,7 @@ bool compile(
             log.locator->register_file(file_names[i], file_data[i]);
         MemBuf mem_buf(file_data[i]);
         std::istream is(&mem_buf);
-        if(!lex_and_parse(log, file_names[i], is, warns_as_errors, program))
+        if (!lex_and_parse(log, file_names[i], is, warns_as_errors, program))
             return false;
     }
 

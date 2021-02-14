@@ -789,11 +789,11 @@ const ImplType* TypeTable::register_impl(const ast::ModDecl* scope, const ImplTy
     auto& impls = mod_impls[scope];
     if (!impl->type_params().empty()) {
         auto [type_app, trait_type] = match_app<TraitType>(impl->decl.trait_type->type);
-        if(impls.find(trait_type) != impls.end())
+        if (impls.find(trait_type) != impls.end())
             impls[trait_type].push_back(impl);
         else
             impls[trait_type] = {impl};
-    } else if(impls.find(impl->decl.trait_type->type) != impls.end())
+    } else if (impls.find(impl->decl.trait_type->type) != impls.end())
         return impls[impl->decl.trait_type->type].front();
     else
         impls[impl->decl.trait_type->type] = {impl};
@@ -809,67 +809,57 @@ const std::vector<const Type*>  TypeTable::find_all_impls(const ast::ModDecl* sc
     /// Add[A] does not get searched for in the impls because it is part of the bound
     /// fn test(a:bool) where Add[bool] = Add[bool]::add(a,a);
     /// Add[bool] does get searched for in the impls despite being part of the bound
-    if(contains_var(type)) {
+    if (contains_var(type)) {
         for (auto b: additional_bounds) {
             if (in_additional_bound(type, b))
                 return {b};
         }
     }
+
     auto add_impl_to_result = [&](const ImplType *i) {
         if (i->bounds_and_params()) {
             std::vector<const Type *> args;
             auto &map = replace_map(i->decl.trait_type->type, type);
-            for (auto &pa: i->bounds_and_params()->params) {
-                args.push_back(map.at(pa->type->as<TypeVar>()));
-            }
+            for (auto &p: i->bounds_and_params()->params)
+                args.push_back(map.at(p->type->as<TypeVar>()));
             result.push_back(type_app(i, std::move(args)));
         } else {
             result.push_back(i);
         }
     };
 
-    auto current_scope = scope;
-    while (current_scope != nullptr) {
-        auto& impls = mod_impls[current_scope];
-        if (impls.find(type) != impls.end()) {
-            for (auto i:impls[type]) {
-                if (check_impl(current_scope, type, i, additional_bounds))
-                    add_impl_to_result(i);
+    auto search_all_buckets = [&](const Type* bucket_key) {
+        auto current_scope = scope;
+        while (current_scope != nullptr) {
+            auto& impls = mod_impls[current_scope];
+            if (impls.find(bucket_key) != impls.end()) {
+                for (auto i:impls[bucket_key]) {
+                    if (check_impl(current_scope, type, i, additional_bounds))
+                        add_impl_to_result(i);
+                }
             }
+            current_scope = current_scope->find_parent_module();
         }
-        current_scope = current_scope->find_parent_module();
-    }
-    auto app = type->isa<TypeApp>();
-    current_scope = scope;
-    while (current_scope != nullptr) {
-        auto& impls = mod_impls[current_scope];
-        if (app && (impls.find(app->applied) != impls.end())) {
-            for (auto i:impls[app->applied]) {
-                if (check_impl(current_scope, type, i, additional_bounds))
-                    add_impl_to_result(i);
-            }
-        }
-        current_scope = current_scope->find_parent_module();
-    }
+    };
+
+    search_all_buckets(type);
+    if (auto app = type->isa<TypeApp>())
+        search_all_buckets(app->applied);
 
     return result;
 }
 
 const Type* TypeTable::find_impl(const ast::ModDecl* scope, const Type* type) {
-    if (type_impl_table_.find(type) == type_impl_table_.end())
-        type_impl_table_[type] = find_all_impls(scope, type).front();
-    return type_impl_table_[type];
+    if (type_impl_table.find(type) == type_impl_table.end())
+        type_impl_table[type] = find_all_impls(scope, type).front();
+    return type_impl_table[type];
 
 }
 
 const Type* TypeTable::find_impl(const ast::ModDecl* scope, std::string trait_name, std::vector<const Type*> args) {
-    auto trait = get_key_trait(trait_name);
+    auto trait = known_traits[trait_name];
     auto app = type_app(trait, std::move(args));
     return find_impl(scope, app);
-}
-
-void TypeTable::store_impl(const Type* type, const Type* impl) {
-    type_impl_table_[type] = impl;
 }
 
 bool TypeTable::in_additional_bound(const Type* type, const Type* additional_bound) {
@@ -898,14 +888,6 @@ bool TypeTable::check_impl(const ast::ModDecl* scope, const Type* type, const Im
         }
     }
     return true;
-}
-
-void TypeTable::add_key_trait(std::string key, const TraitType* trait) {
-    key_traits_[key] = trait;
-}
-
-const TraitType* TypeTable::get_key_trait(std::string key) {
-    return key_traits_[key];
 }
 
 const std::unordered_map<const TypeVar*, const Type*>

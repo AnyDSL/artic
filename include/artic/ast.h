@@ -955,6 +955,7 @@ struct UnaryExpr : public Expr {
     static bool is_dec(Tag tag) { return tag == PreDec || tag == PostDec; }
 
     static std::string tag_to_string(Tag);
+    static std::string tag_to_trait_name(Tag);
     static Tag tag_from_token(const Token&, bool);
 };
 
@@ -1009,6 +1010,7 @@ struct BinaryExpr : public Expr {
     static int max_precedence();
 
     static std::string tag_to_string(Tag);
+    static std::string tag_to_trait_name(Tag);
     static Tag tag_from_token(const Token&);
 };
 

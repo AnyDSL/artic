@@ -350,7 +350,7 @@ void ErrorPtrn::bind(NameBinder&) {}
 // Declarations --------------------------------------------------------------------
 
 static ast::Decl* cur_decl_ = nullptr;
-static void push_and_pop_decl(NameBinder& binder, ast::Decl* decl, std::function<void(void)> f){
+static void push_and_pop_decl(NameBinder& binder, ast::Decl* decl, std::function<void(void)> f) {
     decl->parent = cur_decl_;
     cur_decl_ = decl;
     f();
@@ -359,7 +359,7 @@ static void push_and_pop_decl(NameBinder& binder, ast::Decl* decl, std::function
 }
 
 void TypeParam::bind(NameBinder& binder) {
-    push_and_pop_decl(binder, this, [&](){
+    push_and_pop_decl(binder, this, [&]() {
         binder.insert_symbol(*this);
     });
 }
@@ -370,26 +370,26 @@ void TypeBoundsAndParams::bind(NameBinder& binder) {
 }
 
 void PtrnDecl::bind(NameBinder& binder) {
-    push_and_pop_decl(binder, this, [&](){
+    push_and_pop_decl(binder, this, [&]() {
         binder.insert_symbol(*this);
     });
 }
 
 void LetDecl::bind(NameBinder& binder) {
-    push_and_pop_decl(binder, this, [&](){
+    push_and_pop_decl(binder, this, [&]() {
         if (init) binder.bind(*init);
         binder.bind(*ptrn);
     });
 }
 
 void StaticDecl::bind_head(NameBinder& binder) {
-    push_and_pop_decl(binder, this, [&](){
+    push_and_pop_decl(binder, this, [&]() {
         binder.insert_symbol(*this);
     });
 }
 
 void StaticDecl::bind(NameBinder& binder) {
-    push_and_pop_decl(binder, this, [&](){
+    push_and_pop_decl(binder, this, [&]() {
         if (type) binder.bind(*type);
         if (init) binder.bind(*init);
     });
@@ -400,7 +400,7 @@ void FnDecl::bind_head(NameBinder& binder) {
 }
 
 void FnDecl::bind(NameBinder& binder) {
-    push_and_pop_decl(binder, this, [&](){
+    push_and_pop_decl(binder, this, [&]() {
         binder.push_scope();
         if (bounds_and_params)
             binder.bind(*bounds_and_params);
@@ -417,7 +417,7 @@ void FnDecl::bind(NameBinder& binder) {
 }
 
 void FieldDecl::bind(NameBinder& binder) {
-    push_and_pop_decl(binder, this, [&](){
+    push_and_pop_decl(binder, this, [&]() {
         binder.bind(*type);
         if (init)
             binder.bind(*init);
@@ -429,7 +429,7 @@ void StructDecl::bind_head(NameBinder& binder) {
 }
 
 void StructDecl::bind(NameBinder& binder) {
-    push_and_pop_decl(binder, this, [&](){
+    push_and_pop_decl(binder, this, [&]() {
         binder.push_scope();
         if (bounds_and_params) binder.bind(*bounds_and_params);
         for (auto& field : fields) binder.bind(*field);
@@ -438,7 +438,7 @@ void StructDecl::bind(NameBinder& binder) {
 }
 
 void OptionDecl::bind(NameBinder& binder) {
-    push_and_pop_decl(binder, this, [&](){
+    push_and_pop_decl(binder, this, [&]() {
         if (param) binder.bind(*param);
         else {
             for (auto& field : fields)
@@ -453,7 +453,7 @@ void EnumDecl::bind_head(NameBinder& binder) {
 }
 
 void EnumDecl::bind(NameBinder& binder) {
-    push_and_pop_decl(binder, this, [&](){
+    push_and_pop_decl(binder, this, [&]() {
         binder.push_scope();
         if (bounds_and_params) binder.bind(*bounds_and_params);
         for (auto& option : options) {
@@ -469,7 +469,7 @@ void TraitDecl::bind_head(NameBinder& binder) {
 }
 
 void TraitDecl::bind(NameBinder& binder) {
-    push_and_pop_decl(binder, this, [&](){
+    push_and_pop_decl(binder, this, [&]() {
         binder.push_scope();
         if (bounds_and_params) binder.bind(*bounds_and_params);
         for (auto& f: fns) f->bind_head(binder);
@@ -479,7 +479,7 @@ void TraitDecl::bind(NameBinder& binder) {
 }
 
 void ImplDecl::bind(NameBinder& binder) {
-    push_and_pop_decl(binder, this, [&](){
+    push_and_pop_decl(binder, this, [&]() {
         binder.push_scope();
         if (bounds_and_params) binder.bind(*bounds_and_params);
         trait_type->bind(binder);
@@ -494,7 +494,7 @@ void TypeDecl::bind_head(NameBinder& binder) {
 }
 
 void TypeDecl::bind(NameBinder& binder) {
-    push_and_pop_decl(binder, this, [&](){
+    push_and_pop_decl(binder, this, [&]() {
         binder.push_scope();
         if (bounds_and_params) binder.bind(*bounds_and_params);
         binder.bind(*aliased_type);
@@ -508,7 +508,7 @@ void ModDecl::bind_head(NameBinder& binder) {
 }
 
 void ModDecl::bind(NameBinder& binder) {
-    push_and_pop_decl(binder, this, [&](){
+    push_and_pop_decl(binder, this, [&]() {
         binder.push_scope(true);
         for (auto& decl : decls) binder.bind_head(*decl);
         for (auto& decl : decls) binder.bind(*decl);

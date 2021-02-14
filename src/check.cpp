@@ -225,7 +225,7 @@ const Type* TypeChecker::check(const Loc& loc, const Literal& lit, const Type* e
         return infer(loc, lit);
     if (lit.is_integer() || lit.is_double()) {
         auto trait_name = lit.is_integer() ? "FromInt" : "FromFloat";
-        auto trait = type_table.get_key_trait(trait_name);
+        auto trait = type_table.known_traits[trait_name];
         auto impl = type_table.type_app(trait, {expected});
         if (!trait_bound_exists(impl))
             check_type_has_single_impl(loc, impl, collect_type_bounds());
@@ -399,7 +399,7 @@ void TypeChecker::check_type_has_single_impl(const Loc& loc, const Type *type, s
     else if (candidates.size() > 1)
         error(loc, "The trait '{}' has multiple implementations", *type);
     else
-        type_table.store_impl(type, candidates.front());
+        type_table.type_impl_table[type] = candidates.front();
 }
 
 bool TypeChecker::check_attrs(const ast::NamedAttr& named_attr, const std::vector<AttrType>& attr_types) {
@@ -1268,8 +1268,8 @@ const artic::Type* UnaryExpr::infer(TypeChecker& checker) {
     auto prim_type = arg_type;
     if (is_simd_type(prim_type))
         prim_type = prim_type->as<artic::SizedArrayType>()->elem;
-    auto trait_key = UnaryExpr::tag_to_string(tag) + "u";
-    auto trait = checker.type_table.get_key_trait(trait_key);
+    auto trait_name = UnaryExpr::tag_to_trait_name(tag);
+    auto trait = checker.type_table.known_traits[trait_name];
     auto needed_impl = checker.type_table.type_app(trait, {prim_type});
     if (!checker.trait_bound_exists(needed_impl))
         checker.check_type_has_single_impl(loc, needed_impl, checker.collect_type_bounds());
@@ -1316,7 +1316,7 @@ const artic::Type* BinaryExpr::infer(TypeChecker& checker) {
         case LogicOr:
             break;
         default:
-            auto trait = checker.type_table.get_key_trait(BinaryExpr::tag_to_string(remove_eq(tag)));
+            auto trait = checker.type_table.known_traits[BinaryExpr::tag_to_trait_name(remove_eq(tag))];
             auto needed_impl = checker.type_table.type_app(trait, {prim_type});
             if (!checker.trait_bound_exists(needed_impl)) {
                 checker.check_type_has_single_impl(loc, needed_impl, checker.collect_type_bounds());
@@ -1575,30 +1575,12 @@ const artic::Type* EnumDecl::infer(TypeChecker& checker) {
     return enum_type;
 }
 
-static std::unordered_map<std::string, std::string> trait_to_key{
-    std::make_pair("Add", "+"),
-    std::make_pair("Sub", "-"),
-    std::make_pair("Mul", "*"),
-    std::make_pair("Div", "/"),
-    std::make_pair("Rem", "%"),
-    std::make_pair("LShift", "<<"),
-    std::make_pair("RShift", ">>"),
-    std::make_pair("And", "&"),
-    std::make_pair("Or", "|"),
-    std::make_pair("Xor", "^"),
-    std::make_pair("CmpLT", "<"),
-    std::make_pair("CmpGT", ">"),
-    std::make_pair("CmpLE", "<="),
-    std::make_pair("CmpGE", ">="),
-    std::make_pair("CmpEq", "=="),
-    std::make_pair("CmpNE", "!="),
-    std::make_pair("Plus", "+u"),
-    std::make_pair("Minus", "-u"),
-    std::make_pair("Not", "!u"),
-    std::make_pair("Inc", "++u"),
-    std::make_pair("Dec", "--u"),
-    std::make_pair("FromInt", "FromInt"),
-    std::make_pair("FromFloat", "FromFloat")
+static std::vector<std::string> known_trait_names{
+    "Add", "Sub", "Mul", "Div", "Rem", "LShift", "RShift",
+    "And", "Or", "Xor",
+    "CmpLT", "CmpGT", "CmpLE", "CmpGE", "CmpEq", "CmpNE",
+    "Plus", "Minus", "Not", "Inc", "Dec",
+    "FromInt", "FromFloat"
 };
 
 const artic::Type* TraitDecl::infer(TypeChecker& checker) {
@@ -1618,9 +1600,9 @@ const artic::Type* TraitDecl::infer(TypeChecker& checker) {
     if (!trait_type->is_sized())
         checker.unsized_type(loc, trait_type);
 
-    auto it = trait_to_key.find(id.name);
-    if (it != trait_to_key.end())
-        checker.type_table.add_key_trait(it->second, trait_type);
+    auto it = std::find(known_trait_names.begin(), known_trait_names.end(), id.name);
+    if (it != known_trait_names.end())
+        checker.type_table.known_traits[*it] = trait_type;
 
     checker.exit_decl(this);
     return trait_type;
@@ -1715,7 +1697,7 @@ const artic::Type* TypeDecl::infer(TypeChecker& checker) {
         checker.infer(*bounds_and_params);
         checker.infer(*aliased_type);
     } else {
-        if(bounds_and_params)
+        if (bounds_and_params)
             checker.infer(*bounds_and_params);
         // Directly expand non-polymorphic type aliases
         type = checker.infer(*aliased_type);

@@ -77,6 +77,23 @@ std::string UnaryExpr::tag_to_string(Tag tag) {
     }
 }
 
+std::string UnaryExpr::tag_to_trait_name(Tag tag) {
+    switch (tag) {
+        case Not:   return "Not";
+        case Plus:  return "Plus";
+        case Minus: return "Minus";
+        case PostInc:
+        case PreInc:
+            return "Inc";
+        case PostDec:
+        case PreDec:
+            return "Dec";
+        default:
+            assert(false);
+            return "";
+    }
+}
+
 UnaryExpr::Tag UnaryExpr::tag_from_token(const Token& token, bool prefix) {
     switch (token.tag()) {
         case Token::Not:    return Not;
@@ -222,6 +239,52 @@ std::string BinaryExpr::tag_to_string(Tag tag) {
         case CmpGE:  return ">=";
         case CmpEq:  return "==";
         case CmpNE: return "!=";
+        default:
+            assert(false);
+            return "";
+    }
+}
+
+std::string BinaryExpr::tag_to_trait_name(Tag tag) {
+    switch (tag) {
+        case Add:
+        case AddEq:
+            return "Add";
+        case Sub:
+        case SubEq:
+            return "Sub";
+        case Mul:
+        case MulEq:
+            return "Mul";
+        case Div:
+        case DivEq:
+            return "Div";
+        case Rem:
+        case RemEq:
+            return "Rem";
+        case And:
+        case AndEq:
+            return "And";
+        case Or:
+        case OrEq:
+            return "Or";
+        case Xor:
+        case XorEq:
+            return "Xor";
+        case LShft:
+        case LShftEq:
+            return "LShift";
+        case RShft:
+        case RShftEq:
+            return "RShift";
+
+
+        case CmpLT:  return "CmpLT";
+        case CmpGT:  return "CmpGT";
+        case CmpLE:  return "CmpLE";
+        case CmpGE:  return "CmpGE";
+        case CmpEq:  return "CmpEq";
+        case CmpNE: return "CmpNE";
         default:
             assert(false);
             return "";

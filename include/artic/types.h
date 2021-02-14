@@ -674,17 +674,12 @@ public:
     /// or returns the type alias expanded with the given type arguments.
     const Type* type_app(const UserType*, std::vector<const Type*>&&);
 
-    /// Relates operators to the traits implementing them
-    void add_key_trait(std::string op, const TraitType* trait);
-    const TraitType* get_key_trait(std::string op);
-
     /// Returns nullptr if the impl is not already registered
     const ImplType* register_impl(const ast::ModDecl* scope, const ImplType* impl);
 
     const std::vector<const Type*> find_all_impls(const ast::ModDecl*, const Type* type, std::vector<const Type*> additional_bounds = {});
     const Type* find_impl(const ast::ModDecl*, const Type* type);
     const Type* find_impl(const ast::ModDecl*, std::string trait_name, std::vector<const Type*> args);
-    void store_impl(const Type* type, const Type* impl);
     bool check_impl(const ast::ModDecl*, const Type* type, const ImplType* impl, std::vector<const Type*> additional_bounds = {});
     bool in_additional_bound(const Type* type, const Type* additional_bound);
     /// Returns a map that unifies poly and target (if one exists), i.e.
@@ -698,6 +693,10 @@ public:
     /// Because of that when looking for Add[i64] one needs to check both the Add and the Add[i64] keys in each scope
     typedef std::unordered_map<const Type*, std::vector<const ImplType*>> types_to_impls;
     std::unordered_map<const ast::ModDecl*, types_to_impls> mod_impls;
+    /// Maps types to their implementation. This avoids frequent recalculation
+    std::unordered_map<const Type*, const Type*> type_impl_table;
+
+    std::unordered_map<std::string, const TraitType*> known_traits;
 
 private:
     template <typename T, typename... Args>
@@ -714,9 +713,6 @@ private:
         }
     };
     std::unordered_set<const Type*, HashType, CompareTypes> types_;
-    std::unordered_map<std::string, const TraitType*> key_traits_;
-    /// Maps types to their implementation. This avoids frequent recalculation
-    std::unordered_map<const Type*, const Type*> type_impl_table_;
 
     const PrimType*   bool_type_   = nullptr;
     const TupleType*  unit_type_   = nullptr;
