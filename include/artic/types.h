@@ -635,7 +635,6 @@ bool is_unit_type(const Type*);
 inline bool is_bool_type(const Type* type) { return is_prim_type(type, ast::PrimType::Bool); }
 
 bool contains_var(const Type* t);
-std::vector<const Type*> get_type_vars(const Type* t);
 
 template <typename T>
 std::pair<const TypeApp*, const T*> match_app(const Type* type) {

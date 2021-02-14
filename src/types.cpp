@@ -672,15 +672,6 @@ bool contains_var(const Type* t) {
     return !t->variance().empty();
 }
 
-std::vector<const Type*> get_type_vars(const Type* t) {
-    auto map = t->variance();
-    std::vector<const Type*> res;
-    res.reserve(map.size());
-    for (auto it: map)
-        res.push_back(it.first);
-    return res;
-}
-
 // Type table ----------------------------------------------------------------------
 
 TypeTable::~TypeTable() {

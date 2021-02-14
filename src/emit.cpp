@@ -1400,16 +1400,27 @@ const thorin::Def* StaticDecl::emit(Emitter& emitter) const {
     return emitter.world.global(value, is_mut, debug_info(*this));
 }
 
+/// Collects the type variables which a function may use
+std::vector<const artic::Type*> get_enclosing_type_vars (const FnDecl* fn) {
+    std::vector<const artic::Type*> res;
+    const Decl* current_decl = fn;
+    while (current_decl != nullptr) {
+        if (auto poly = current_decl->type->isa<PolyType>()) {
+            for (auto t: poly->type_params())
+                res.push_back(t);
+        }
+        current_decl = current_decl->parent;
+    }
+    return res;
+
+}
+
 const thorin::Def* FnDecl::emit(Emitter& emitter) const {
     auto _ = emitter.save_state();
     const thorin::FnType* cont_type = nullptr;
     Emitter::MonoFn mono_fn { this, {} };
-    auto vars = get_type_vars(type);
-    if (has_params() || !vars.empty()) {
-        if (has_params()) {
-            for (auto &param : bounds_and_params->params)
-                mono_fn.type_args.push_back(param->type->replace(emitter.type_vars));
-        }
+    auto vars = get_enclosing_type_vars(this);
+    if (!vars.empty()) {
         for (auto &v : vars) {
            mono_fn.type_args.push_back(v->replace(emitter.type_vars));
         }
@@ -1424,7 +1435,7 @@ const thorin::Def* FnDecl::emit(Emitter& emitter) const {
         cont_type = type->convert(emitter)->as<thorin::FnType>();
 
     auto cont = emitter.world.continuation(cont_type, debug_info(*this));
-    if (has_params() || !vars.empty())
+    if (!vars.empty())
         emitter.mono_fns.emplace(std::move(mono_fn), cont);
 
     cont->params().back()->debug().set("ret");
@@ -1470,7 +1481,7 @@ const thorin::Def* FnDecl::emit(Emitter& emitter) const {
     // Clear the thorin IR generated for this entire function
     // if the function is polymorphic, so as to allow multiple
     // instantiations with different types.
-    if (has_params() || !vars.empty()) {
+    if (!vars.empty()) {
         for (auto& def : emitter.poly_defs.back())
             *def = nullptr;
         emitter.poly_defs.pop_back();
