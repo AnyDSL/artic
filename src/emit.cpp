@@ -697,18 +697,8 @@ const thorin::Def* Emitter::emit(const ast::Node& node, const Literal& lit) {
         ops.back() = world.literal_pu8(0, {});
         return world.definite_array(ops, debug_info(node));
     } else {
-        auto trait_name = lit.is_integer() ? "FromInt" : "FromFloat";
-        auto impl = node.type->type_table.find_impl(current_scope, trait_name, {node.type->replace(type_vars)});
-        auto [type_app, impl_type] = match_app<ImplType>(impl);
-        if (!impl_type->type_params().empty()) {
-            std::unordered_map<const artic::TypeVar*, const artic::Type*> map;
-            for (auto i =0; i < type_app->type_args.size(); i++)
-                map.insert({impl_type->type_params()[i]->as< artic::TypeVar>(), type_app->type_args[i]});
-            map.insert(type_vars.begin(), type_vars.end());
-            std::swap(map, type_vars);
-        }
-        auto fn = emit(*impl_type->decl.fns[0]);
-        impl_type->decl.fns[0]->def = nullptr;
+        std::string trait_name = lit.is_integer() ? "FromInt" : "FromFloat";
+        auto fn = emit_operator_fn(trait_name, node.type);
         auto value = lit.is_integer() ? world.literal_pu64(lit.as_integer(), debug_info(node)) : world.literal_qf64(lit.is_double() ? lit.as_double() : lit.as_integer(), debug_info(node));
         return call(fn, value, debug_info(node));
     }
@@ -771,6 +761,30 @@ const thorin::Def* Emitter::builtin(const ast::FnDecl& fn_decl, thorin::Continua
     return cont;
 }
 
+const thorin::Def* Emitter::emit_operator_fn(std::string& trait_name, const Type* arg) {
+    arg = arg->replace(type_vars);
+    if (arg->isa<RefType>()) arg = arg->as<RefType>()->pointee;
+    auto impl = arg->type_table.find_impl(current_scope, trait_name, {arg});
+    auto [type_app, impl_type] = match_app<ImplType>(impl);
+    std::unordered_map<const artic::TypeVar*, const artic::Type*> old_vars;
+    old_vars.insert(type_vars.begin(), type_vars.end());
+    add_poly_vars_to_emitter(impl_type, type_app->type_args);
+    auto fn = emit(*impl_type->decl.fns[0]);
+    impl_type->decl.fns[0]->def = nullptr;
+    std::swap(old_vars, type_vars);
+    return fn;
+}
+
+void Emitter::add_poly_vars_to_emitter(const PolyType* poly, const std::vector<const Type*>& args) {
+    if (!poly->type_params().empty()) {
+        std::unordered_map<const artic::TypeVar*, const artic::Type*> map;
+        for (auto i =0; i < args.size(); i++)
+            map.insert({poly->type_params()[i]->as<artic::TypeVar>(), args[i]->replace(type_vars)});
+        map.insert(type_vars.begin(), type_vars.end());
+        std::swap(map, type_vars);
+    }
+}
+
 namespace ast {
 
 const thorin::Def* Node::emit(Emitter&) const {
@@ -791,38 +805,26 @@ const thorin::Def* Path::emit(Emitter& emitter) const {
     for (size_t i = 0, n = elems.size(); i < n; ++i) {
         auto decl = symbol->decls.front();
         if (!is_ctor) {
-            // If type arguments are present, this is a polymorphic application
-            std::unordered_map<const artic::TypeVar*, const artic::Type*> map;
-            if (!elems[i].inferred_args.empty()) {
-                for (size_t j = 0, n = elems[i].inferred_args.size(); j < n; ++j) {
-                    const artic::TypeVar* var = decl->type->as<PolyType>()->type_params()[j]->as<artic::TypeVar>();
-                    auto type = elems[i].inferred_args[j]->replace(emitter.type_vars);
-                    map.emplace(var, type);
-                }
-                // We need to also add the caller's map in case the function is nested in another
-                map.insert(emitter.type_vars.begin(), emitter.type_vars.end());
-                std::swap(map, emitter.type_vars);
-            }
+            std::unordered_map<const artic::TypeVar*, const artic::Type*> old_vars;
+            old_vars.insert(emitter.type_vars.begin(), emitter.type_vars.end());
+            if(!elems[i].inferred_args.empty())
+                emitter.add_poly_vars_to_emitter(decl->type->as<PolyType>(), elems[i].inferred_args);
+
             const thorin::Def*  def;
             if (auto trait_type = decl->type->isa<TraitType>()) {
-                auto impl = decl->type->type_table.find_impl(emitter.current_scope, elems[i].type->replace(map));
+                auto impl = decl->type->type_table.find_impl(emitter.current_scope, elems[i].type->replace(emitter.type_vars));
                 auto [type_app, impl_type] = match_app<ImplType>(impl);
-                if (!impl_type->type_params().empty()) {
-                    std::unordered_map<const artic::TypeVar*, const artic::Type*> map;
-                    for (auto i =0; i < type_app->type_args.size(); i++)
-                        map.insert({impl_type->type_params()[i]->as<artic::TypeVar>(), type_app->type_args[i]});
-                    map.insert(emitter.type_vars.begin(), emitter.type_vars.end());
-                    std::swap(map, emitter.type_vars);
-                }
+                emitter.add_poly_vars_to_emitter(impl_type, type_app->type_args);
                 auto index = impl_type->find_member(elems[i+1].id.name);
+                const FnDecl* fn;
                 if (!index) {
                     auto default_index = trait_type->find_member(elems[i+1].id.name);
-                    def = emitter.emit(*trait_type->decl.fns[*default_index]);
-                    trait_type->decl.fns[*default_index]->def = nullptr;
-                } else {
-                    def = emitter.emit(*impl_type->decl.fns[*index]);
-                    impl_type->decl.fns[*index]->def = nullptr;
-                }
+                    fn = trait_type->decl.fns[*default_index].get();
+                } else
+                    fn = impl_type->decl.fns[*index].get();
+                def = emitter.emit(*fn);
+                // the emitter might have set a def for the decl despite the definition for the expression being deleted
+                fn->def = fn->fn->def;
             } else {
                def = emitter.emit(*decl);
             }
@@ -832,7 +834,7 @@ const thorin::Def* Path::emit(Emitter& emitter) const {
                 // kept around: Another instantiation may be using a different map,
                 // which would conflict with this one.
                 decl->def = nullptr;
-                std::swap(map, emitter.type_vars);
+                std::swap(old_vars, emitter.type_vars);
             }
             return def;
         } else if (match_app<StructType>(elems[i].type).second) {
@@ -1204,22 +1206,8 @@ const thorin::Def* UnaryExpr::emit(Emitter& emitter) const {
                 return nullptr;
         }
     } else {
-        auto arg_type = arg->type->replace(emitter.type_vars);
-        if (arg_type->isa<RefType>()) arg_type = arg_type->as<RefType>()->pointee;
-        std::vector<const artic::Type*> trait_args;
-        trait_args.emplace_back(arg_type);
         auto trait_name = UnaryExpr::tag_to_trait_name(tag);
-        auto impl = arg_type->type_table.find_impl(emitter.current_scope, trait_name, std::move(trait_args));
-        auto [type_app, impl_type] = match_app<ImplType>(impl);
-        if (!impl_type->type_params().empty()) {
-            std::unordered_map<const artic::TypeVar*, const artic::Type*> map;
-            for (auto i =0; i < type_app->type_args.size(); i++)
-                map.insert({impl_type->type_params()[i]->as<artic::TypeVar>(), type_app->type_args[i]});
-            map.insert(emitter.type_vars.begin(), emitter.type_vars.end());
-            std::swap(map, emitter.type_vars);
-        }
-        auto fn = emitter.emit(*impl_type->decl.fns[0]);
-        impl_type->decl.fns[0]->def = nullptr;
+        auto fn = emitter.emit_operator_fn(trait_name, arg->type);
         res = emitter.call(fn, op, debug_info(*this));
     }
     if (ptr) {
@@ -1308,20 +1296,8 @@ const thorin::Def* BinaryExpr::emit(Emitter& emitter) const {
                 return nullptr;
         }
     } else {
-        auto l_type = left->type->replace(emitter.type_vars);
-        if (l_type->isa<RefType>()) l_type = l_type->as<RefType>()->pointee;
         auto trait_name = BinaryExpr::tag_to_trait_name(remove_eq(tag));
-        auto impl = l_type->type_table.find_impl(emitter.current_scope, trait_name, {l_type});
-        auto [type_app, impl_type] = match_app<ImplType>(impl);
-        if (!impl_type->type_params().empty()) {
-            std::unordered_map<const artic::TypeVar*, const artic::Type*> map;
-            for (auto i =0; i < type_app->type_args.size(); i++)
-                map.insert({impl_type->type_params()[i]->as< artic::TypeVar>(), type_app->type_args[i]});
-            map.insert(emitter.type_vars.begin(), emitter.type_vars.end());
-            std::swap(map, emitter.type_vars);
-        }
-        auto fn = emitter.emit(*impl_type->decl.fns[0]);
-        impl_type->decl.fns[0]->def = nullptr;
+        auto fn = emitter.emit_operator_fn(trait_name, left->type);
         thorin::Array<const thorin::Def*> args(2);
         args[0] = lhs;
         args[1] = rhs;

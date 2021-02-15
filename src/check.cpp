@@ -225,10 +225,7 @@ const Type* TypeChecker::check(const Loc& loc, const Literal& lit, const Type* e
         return infer(loc, lit);
     if (lit.is_integer() || lit.is_double()) {
         auto trait_name = lit.is_integer() ? "FromInt" : "FromFloat";
-        auto trait = type_table.known_traits[trait_name];
-        auto impl = type_table.type_app(trait, {expected});
-        if (!trait_bound_exists(impl))
-            check_type_has_single_impl(loc, impl, collect_type_bounds());
+        check_op_impl_defined(loc, trait_name, {expected});
         return expected;
     } else if (lit.is_bool()) {
         if (!is_bool_type(expected))
@@ -554,6 +551,13 @@ const Type* TypeChecker::infer_record_type(const TypeApp* type_app, const Struct
         return enum_type;
     }
     return type_app ? type_app->as<Type>() : struct_type;
+}
+
+void TypeChecker::check_op_impl_defined(const Loc& loc, std::string name, std::vector<const Type*> args) {
+    auto trait = type_table.known_traits[name];
+    auto needed_impl = type_table.type_app(trait, std::move(args));
+    if (!trait_bound_exists(needed_impl))
+        check_type_has_single_impl(loc, needed_impl, collect_type_bounds());
 }
 
 void TypeChecker::check_bound(const Type* bound, Loc& loc) {
@@ -1268,11 +1272,7 @@ const artic::Type* UnaryExpr::infer(TypeChecker& checker) {
     auto prim_type = arg_type;
     if (is_simd_type(prim_type))
         prim_type = prim_type->as<artic::SizedArrayType>()->elem;
-    auto trait_name = UnaryExpr::tag_to_trait_name(tag);
-    auto trait = checker.type_table.known_traits[trait_name];
-    auto needed_impl = checker.type_table.type_app(trait, {prim_type});
-    if (!checker.trait_bound_exists(needed_impl))
-        checker.check_type_has_single_impl(loc, needed_impl, checker.collect_type_bounds());
+    checker.check_op_impl_defined(loc, UnaryExpr::tag_to_trait_name(tag), {prim_type});
     if (tag == PostDec || tag == PreDec || tag == PostInc || tag == PreInc)
         arg->write_to();
     return arg_type;
@@ -1316,11 +1316,7 @@ const artic::Type* BinaryExpr::infer(TypeChecker& checker) {
         case LogicOr:
             break;
         default:
-            auto trait = checker.type_table.known_traits[BinaryExpr::tag_to_trait_name(remove_eq(tag))];
-            auto needed_impl = checker.type_table.type_app(trait, {prim_type});
-            if (!checker.trait_bound_exists(needed_impl)) {
-                checker.check_type_has_single_impl(loc, needed_impl, checker.collect_type_bounds());
-            }
+            checker.check_op_impl_defined(loc, BinaryExpr::tag_to_trait_name(tag), {prim_type});
             break;
     }
     if (has_eq()) {
@@ -1711,7 +1707,7 @@ const artic::Type* ModDecl::infer(TypeChecker& checker) {
     checker.type_table.mod_impls[this] = {};
     auto old = checker.current_scope;
     checker.current_scope = this;
-    //collect_impls
+    // Impls must be collected first in order to know if traits used in other decls exist
     for (auto& decl : decls) {
         if (decl->isa<ImplDecl>()) {
             checker.infer(*decl);

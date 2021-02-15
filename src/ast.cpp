@@ -278,7 +278,6 @@ std::string BinaryExpr::tag_to_trait_name(Tag tag) {
         case RShftEq:
             return "RShift";
 
-
         case CmpLT:  return "CmpLT";
         case CmpGT:  return "CmpGT";
         case CmpLE:  return "CmpLE";

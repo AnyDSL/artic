@@ -417,6 +417,7 @@ struct ForallType : public PolyType {
     /// Returns the type of the body with type variables
     /// substituted with the given arguments.
     const Type* instantiate(const std::vector<const Type*>&) const;
+    /// Maps the parameters of this polymorphic function to the arguments provided
     std::unordered_map<const TypeVar*, const artic::Type*> replace_map(const std::vector<const Type*>&) const;
 
     const ast::TypeBoundsAndParams* bounds_and_params() const override {
@@ -452,6 +453,19 @@ struct ComplexType : public UserType {
     ComplexType(TypeTable& type_table)
         : UserType(type_table)
     {}
+
+    template <typename Fields>
+    static std::optional<size_t> find_member(const std::string_view& name, const PtrVector<Fields>& fields)  {
+        auto it = std::find_if(
+                fields.begin(),
+                fields.end(),
+                [&name] (auto& f) {
+                    return f->id.name == name;
+                });
+        return it != fields.end()
+               ? std::make_optional(it - fields.begin())
+               : std::nullopt;
+    }
 
     virtual std::optional<size_t> find_member(const std::string_view&) const = 0;
     virtual const Type* member_type(size_t) const = 0;
@@ -585,7 +599,7 @@ struct TypeApp : public Type {
 
     /// Gets the replacement map required to expand this type application.
     std::unordered_map<const TypeVar*, const Type*> replace_map() const {
-        assert(!applied->bounds_and_params()->params.empty());
+        assert(applied->bounds_and_params() && !applied->bounds_and_params()->params.empty());
         return replace_map(applied->bounds_and_params()->params, type_args);
     }
 
@@ -680,6 +694,12 @@ public:
     const std::vector<const Type*> find_all_impls(const ast::ModDecl*, const Type* type, std::vector<const Type*> additional_bounds = {});
     const Type* find_impl(const ast::ModDecl*, const Type* type);
     const Type* find_impl(const ast::ModDecl*, std::string trait_name, std::vector<const Type*> args);
+
+    /// This method checks if the impl can be the con be used to justify the type
+    /// Example:
+    /// impl T[i32] can justify T[i32]
+    /// impl[A] T[A] where Add[A] can also justify T[i32]
+    /// impl[A] T[A] where Add[A] can not justify T[bool]
     bool check_impl(const ast::ModDecl*, const Type* type, const ImplType* impl, std::vector<const Type*> additional_bounds = {});
     bool in_additional_bound(const Type* type, const Type* additional_bound);
     /// Returns a map that unifies poly and target (if one exists), i.e.
@@ -695,7 +715,7 @@ public:
     std::unordered_map<const ast::ModDecl*, types_to_impls> mod_impls;
     /// Maps types to their implementation. This avoids frequent recalculation
     std::unordered_map<const Type*, const Type*> type_impl_table;
-
+    /// Used to locate the traits that define operators and literal conversions
     std::unordered_map<std::string, const TraitType*> known_traits;
 
 private:

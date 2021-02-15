@@ -181,11 +181,11 @@ void RepeatArrayExpr::bind(NameBinder& binder) {
 }
 
 void FnExpr::bind(NameBinder& binder, bool in_for_loop) {
-    binder.push_scope(this);
+    binder.push_scope();
     if (param)    binder.bind(*param);
     if (ret_type) binder.bind(*ret_type);
     if (filter)   binder.bind(*filter);
-    binder.push_scope(this);
+    binder.push_scope();
     // Do not rebind the current `return` to this function
     // for anonymous functions introduced as for loop bodies.
     ast::FnExpr* old = nullptr;
@@ -383,9 +383,7 @@ void LetDecl::bind(NameBinder& binder) {
 }
 
 void StaticDecl::bind_head(NameBinder& binder) {
-    push_and_pop_decl(binder, this, [&]() {
-        binder.insert_symbol(*this);
-    });
+    binder.insert_symbol(*this);
 }
 
 void StaticDecl::bind(NameBinder& binder) {

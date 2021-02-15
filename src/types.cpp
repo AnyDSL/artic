@@ -439,17 +439,8 @@ const ast::TypeBoundsAndParams* StructType::bounds_and_params() const {
         : decl.as<ast::OptionDecl>()->parent->bounds_and_params.get();
 }
 
-
 std::optional<size_t> StructType::find_member(const std::string_view& name) const {
-    auto it = std::find_if(
-        decl.fields.begin(),
-        decl.fields.end(),
-        [&name] (auto& f) {
-            return f->id.name == name;
-        });
-    return it != decl.fields.end()
-        ? std::make_optional(it - decl.fields.begin())
-        : std::nullopt;
+    return ComplexType::find_member(name, decl.fields);
 }
 
 const Type* StructType::member_type(size_t i) const {
@@ -465,39 +456,15 @@ bool StructType::is_tuple_like() const {
 }
 
 std::optional<size_t> EnumType::find_member(const std::string_view& name) const {
-    auto it = std::find_if(
-        decl.options.begin(),
-        decl.options.end(),
-        [&name] (auto& o) {
-            return o->id.name == name;
-        });
-    return it != decl.options.end()
-        ? std::make_optional(it - decl.options.begin())
-        : std::nullopt;
+    return ComplexType::find_member(name, decl.options);
 }
 
 std::optional<size_t> TraitType::find_member(const std::string_view& name) const {
-    auto it = std::find_if(
-            decl.fns.begin(),
-            decl.fns.end(),
-            [&name] (auto& f) {
-                return f->id.name == name;
-            });
-        return it != decl.fns.end()
-        ? std::make_optional(it - decl.fns.begin())
-        : std::nullopt;
+    return ComplexType::find_member(name, decl.fns);
 }
 
 std::optional<size_t> ImplType::find_member(const std::string_view& name) const {
-    auto it = std::find_if(
-        decl.fns.begin(),
-        decl.fns.end(),
-        [&name] (auto& f) {
-            return f->id.name == name;
-        });
-    return it != decl.fns.end()
-    ? std::make_optional(it - decl.fns.begin())
-    : std::nullopt;
+    return ComplexType::find_member(name, decl.fns);
 }
 
 
@@ -786,17 +753,16 @@ const T* TypeTable::insert(Args&&... args) {
 }
 
 const ImplType* TypeTable::register_impl(const ast::ModDecl* scope, const ImplType* impl) {
+    auto [type_app, trait_type] = match_app<TraitType>(impl->decl.trait_type->type);
+    const Type* target = impl->type_params().empty() ? impl->decl.trait_type->type : trait_type;
     auto& impls = mod_impls[scope];
-    if (!impl->type_params().empty()) {
-        auto [type_app, trait_type] = match_app<TraitType>(impl->decl.trait_type->type);
-        if (impls.find(trait_type) != impls.end())
-            impls[trait_type].push_back(impl);
-        else
-            impls[trait_type] = {impl};
-    } else if (impls.find(impl->decl.trait_type->type) != impls.end())
-        return impls[impl->decl.trait_type->type].front();
+    auto bucket = impls.find(target);
+    if (!impl->type_params().empty() && bucket != impls.end())
+        return bucket->second.front();
+    if (bucket != impls.end())
+        impls[target].push_back(impl);
     else
-        impls[impl->decl.trait_type->type] = {impl};
+        impls[target] = {impl};
     return nullptr;
 }
 
@@ -872,11 +838,6 @@ bool TypeTable::in_additional_bound(const Type* type, const Type* additional_bou
     return false;
 }
 
-/// This method checks if the impl can be the con be used to justify the type
-/// Example:
-/// impl T[i32] can justify T[i32]
-/// impl[A] T[A] where Add[A] can also justify T[i32]
-/// impl[A] T[A] where Add[A] can not justify T[bool]
 bool TypeTable::check_impl(const ast::ModDecl* scope, const Type* type, const ImplType* impl, std::vector<const Type*> additional_bounds) {
     auto replace = replace_map(impl->decl.trait_type->type, type);
     if (impl->decl.trait_type->type->replace(replace) != type) {

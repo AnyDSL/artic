@@ -48,9 +48,7 @@ public:
     }
     void pop_loop(ast::LoopExpr* loop) { cur_loop_ = loop; }
 
-    void push_scope(bool top_level = false) {
-        scopes_.emplace_back(top_level);
-    }
+    void push_scope(bool top_level = false) { scopes_.emplace_back(top_level); }
     void pop_scope();
     void insert_symbol(ast::NamedDecl&);
 

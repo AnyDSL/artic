@@ -140,6 +140,9 @@ public:
 
     const thorin::Def* builtin(const ast::FnDecl&, thorin::Continuation*);
 
+    void add_poly_vars_to_emitter(const PolyType*, const std::vector<const Type*>&);
+    const thorin::Def* emit_operator_fn(std::string&, const Type*);
+
     const ast::ModDecl* current_scope;
 };
 

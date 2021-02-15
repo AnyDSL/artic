@@ -203,6 +203,11 @@ if (Thorin_HAS_LLVM_SUPPORT)
         ARGS 1024
         SOURCE_FILE ${CMAKE_CURRENT_SOURCE_DIR}/codegen/mandelbrot.art
         REFERENCE ${CMAKE_CURRENT_SOURCE_DIR}/codegen/mandelbrot.ref)
+    add_codegen_test(
+        NAME codegen_shapes
+        ARGS ""
+        SOURCE_FILE ${CMAKE_CURRENT_SOURCE_DIR}/codegen/shapes.art
+        REFERENCE ${CMAKE_CURRENT_SOURCE_DIR}/codegen/shapes.ref)
 endif ()
 
 if (CODE_COVERAGE AND CMAKE_BUILD_TYPE STREQUAL "Debug")
