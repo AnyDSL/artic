@@ -120,4 +120,5 @@ fn main(_argc: i32, _argv: &[&[u8]]) {
     print_i32(b.max.x as i32);
     print_i32(b.max.y as i32);
     print_i32(b.max.z as i32);
+    0
 }
