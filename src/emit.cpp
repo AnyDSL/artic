@@ -635,7 +635,7 @@ const thorin::Def* Emitter::load(const thorin::Def* ptr, thorin::Debug debug) {
 }
 
 const thorin::Def* Emitter::addr_of(const thorin::Def* def, thorin::Debug debug) {
-    if (thorin::is_const(def)) {
+    if (def->dep() == thorin::Dep::Bot) {
         return world.global(def, false, debug);
     } else {
         auto ptr = alloc(def->type(), debug);
