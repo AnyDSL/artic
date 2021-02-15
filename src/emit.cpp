@@ -922,9 +922,10 @@ const thorin::Def* Path::emit(Emitter& emitter) const {
 
     const auto* decl = start_decl;
     for (size_t i = 0, n = elems.size(); i < n; ++i) {
-        if (elems[i].is_super()) {
+        if (elems[i].is_super())
             decl = i == 0 ? start_decl : decl->as<ModDecl>()->super;
-        } else if (auto mod_type = elems[i].type->isa<ModType>()) {
+
+        if (auto mod_type = elems[i].type->isa<ModType>()) {
             decl = &mod_type->member(elems[i + 1].index);
         } else if (!is_ctor) {
             // If type arguments are present, this is a polymorphic application
