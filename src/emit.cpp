@@ -525,7 +525,8 @@ const thorin::Def* Emitter::tuple_from_params(thorin::Continuation* cont, bool r
 std::vector<const thorin::Def*> Emitter::call_args(
     const thorin::Def* mem,
     const thorin::Def* arg,
-    const thorin::Def* cont) {
+    const thorin::Def* cont)
+{
     // Create a list of operands for a call to a function/continuation
     std::vector<const thorin::Def*> ops;
     ops.push_back(mem);
@@ -577,7 +578,8 @@ const thorin::Def* Emitter::call(
     const thorin::Def* callee,
     const thorin::Def* arg,
     thorin::Continuation* cont,
-    thorin::Debug debug) {
+    thorin::Debug debug)
+{
     if (!state.cont)
         return nullptr;
     state.cont->jump(callee, call_args(state.mem, arg, cont), debug);
@@ -589,7 +591,8 @@ void Emitter::branch(
     const thorin::Def* cond,
     const thorin::Def* branch_true,
     const thorin::Def* branch_false,
-    thorin::Debug debug) {
+    thorin::Debug debug)
+{
     if (!state.cont)
         return;
     state.cont->branch(cond, branch_true, branch_false, debug);
@@ -600,7 +603,8 @@ void Emitter::branch_with_mem(
     const thorin::Def* cond,
     const thorin::Def* branch_true_with_mem,
     const thorin::Def* branch_false_with_mem,
-    thorin::Debug debug) {
+    thorin::Debug debug)
+{
     if (!state.cont)
         return;
     auto branch_true = basic_block(thorin::Debug { "branch_true" });
@@ -924,9 +928,10 @@ const thorin::Def* Path::emit(Emitter& emitter) const {
 
     const auto* decl = start_decl;
     for (size_t i = 0, n = elems.size(); i < n; ++i) {
-        if (elems[i].is_super()) {
+        if (elems[i].is_super())
             decl = i == 0 ? start_decl : decl->as<ModDecl>()->super;
-        } else if (auto mod_type = elems[i].type->isa<ModType>()) {
+
+        if (auto mod_type = elems[i].type->isa<ModType>()) {
             decl = &mod_type->member(elems[i + 1].index);
         } else if (!is_ctor) {
             // If type arguments are present, this is a polymorphic application
@@ -1025,7 +1030,8 @@ const thorin::Def* ExprStmt::emit(Emitter& emitter) const {
 void Expr::emit_branch(
     Emitter& emitter,
     thorin::Continuation* join_true,
-    thorin::Continuation* join_false) const {
+    thorin::Continuation* join_false) const
+{
     emitter.branch_with_mem(emitter.emit(*this), join_true, join_false);
 }
 
@@ -1346,7 +1352,8 @@ const thorin::Def* UnaryExpr::emit(Emitter& emitter) const {
 void BinaryExpr::emit_branch(
     Emitter& emitter,
     thorin::Continuation* join_true,
-    thorin::Continuation* join_false) const {
+    thorin::Continuation* join_false) const
+{
     if (!is_logic())
         Expr::emit_branch(emitter, join_true, join_false);
     else {
@@ -1748,7 +1755,8 @@ const thorin::Type* UserType::convert(Emitter&, const Type*) const {
 inline std::string stringify_params(
     Emitter& emitter,
     const std::string& prefix,
-    const PtrVector<ast::TypeParam>& params) {
+    const PtrVector<ast::TypeParam>& params)
+{
     auto str = prefix;
     for (size_t i = 0, n = params.size(); i < n; ++i) {
         str += params[i]->type->stringify(emitter);
@@ -1858,7 +1866,8 @@ bool compile(
     ast::ModDecl& program,
     thorin::World& world,
     thorin::LogLevel log_level,
-    Log& log) {
+    Log& log)
+{
     assert(file_data.size() == file_names.size());
     for (size_t i = 0, n = file_names.size(); i < n; ++i) {
         if (log.locator)
@@ -1909,7 +1918,8 @@ bool compile(
     const std::vector<std::string>& file_data,
     thorin::World& world,
     thorin::LogLevel log_level,
-    std::ostream& error_stream) {
+    std::ostream& error_stream)
+{
     using namespace artic;
     Locator locator;
     log::Output out(error_stream, false);

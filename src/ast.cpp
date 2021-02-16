@@ -4,9 +4,7 @@
 #include "artic/ast.h"
 #include "artic/types.h"
 
-namespace artic {
-
-namespace ast {
+namespace artic::ast {
 
 bool Type::is_tuple() const { return isa<TupleType>(); }
 bool Expr::is_tuple() const { return isa<TupleExpr>(); }
@@ -689,6 +687,4 @@ bool ErrorPtrn::is_trivial() const {
     return false;
 }
 
-} // namespace ast
-
-} // namespace artic
+} // namespace artic::ast
