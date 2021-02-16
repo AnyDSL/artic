@@ -101,7 +101,11 @@ void TypeChecker::invalid_ptrn(const Loc& loc, bool must_be_trivial) {
     }
 }
 
-void TypeChecker::invalid_constraint(const Loc& loc, const TypeVar* var, const Type* type_arg, const Type* lower, const Type* upper) {
+void TypeChecker::invalid_constraint(
+    const Loc& loc, const TypeVar* var,
+    const Type* type_arg, const Type* lower, const Type* upper,
+    bool cannot_satisfy)
+{
     if (type_arg)
         error(loc, "invalid type argument '{}' for type variable '{}'", *type_arg, *var);
     else
@@ -110,11 +114,14 @@ void TypeChecker::invalid_constraint(const Loc& loc, const TypeVar* var, const T
     bool bound_right = !upper->isa<TopType>();
     if (bound_left || bound_right) {
         if (bound_left && bound_right)
-            note("type constraint '{} <: {} <: {}' is not satisfiable", *lower, *var, *upper);
+            note(
+                "type constraint '{} <: {} <: {}' is not {}",
+                *lower, *var, *upper, cannot_satisfy ? "satisfiable" : "minimizable");
         else {
             note(
-                "type constraint '{} {} {}' is not satisfiable",
-                *var, bound_left ? ">:" : "<:", *(bound_left ? lower : upper));
+                "type constraint '{} {} {}' is not {}",
+                *var, bound_left ? ">:" : "<:", *(bound_left ? lower : upper),
+                cannot_satisfy ? "satisfiable" : "minimizable");
         }
     }
 }
@@ -487,7 +494,7 @@ bool TypeChecker::infer_type_args(
         if (type_args[index]) {
             if (!type_args[index]->subtype(bound.second.upper) ||
                 !bound.second.lower->subtype(type_args[index])) {
-                invalid_constraint(loc, bound.first, type_args[index], bound.second.lower, bound.second.upper);
+                invalid_constraint(loc, bound.first, type_args[index], bound.second.lower, bound.second.upper, true);
                 return false;
             }
             continue;
@@ -496,7 +503,7 @@ bool TypeChecker::infer_type_args(
         if (!bound.second.lower->subtype(bound.second.upper) ||
             bound.second.lower->isa<TopType>() ||
             bound.second.upper->isa<BottomType>()) {
-            invalid_constraint(loc, bound.first, nullptr, bound.second.lower, bound.second.upper);
+            invalid_constraint(loc, bound.first, nullptr, bound.second.lower, bound.second.upper, true);
             return false;
         }
 
@@ -515,7 +522,7 @@ bool TypeChecker::infer_type_args(
                     type_args[index] = bound.second.lower;
                     break;
                 }
-                invalid_constraint(loc, bound.first, nullptr, bound.second.lower, bound.second.upper);
+                invalid_constraint(loc, bound.first, nullptr, bound.second.lower, bound.second.upper, false);
                 return false;
             default:
                 assert(false);
