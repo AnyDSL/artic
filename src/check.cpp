@@ -430,7 +430,8 @@ const Type* TypeChecker::infer_array(
     const std::string_view& msg,
     size_t elem_count,
     bool is_simd,
-    const InferElems& infer_elems) {
+    const InferElems& infer_elems)
+{
     if (elem_count == 0)
         return cannot_infer(loc, msg);
     auto elem_type = infer_elems();
@@ -446,7 +447,8 @@ const Type* TypeChecker::check_array(
     const Type* expected,
     size_t elem_count,
     bool is_simd,
-    const CheckElems& check_elems) {
+    const CheckElems& check_elems)
+{
     auto array_type = remove_ptr(expected).second->isa<ArrayType>();
     if (!array_type)
         return incompatible_type(loc, msg, expected);
@@ -469,7 +471,8 @@ bool TypeChecker::infer_type_args(
     const Loc& loc,
     const ForallType* forall_type,
     const Type* arg_type,
-    std::vector<const Type*>& type_args) {
+    std::vector<const Type*>& type_args)
+{
     auto bounds = forall_type->body->as<FnType>()->dom->bounds(arg_type);
     auto variance = forall_type->body->as<FnType>()->codom->variance(true);
     for (auto& bound : bounds) {
@@ -504,7 +507,9 @@ bool TypeChecker::infer_type_args(
             case TypeVariance::Covariant:
                 type_args[index] = bound.second.lower;
                 break;
-            case TypeVariance::Contravariant: type_args[index] = bound.second.upper; break;
+            case TypeVariance::Contravariant:
+                type_args[index] = bound.second.upper;
+                break;
             case TypeVariance::Invariant:
                 if (bound.second.lower == bound.second.upper) {
                     type_args[index] = bound.second.lower;
