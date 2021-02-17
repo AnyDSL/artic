@@ -322,18 +322,18 @@ int main(int argc, char** argv) {
         world.dump();
     if (opts.emit) {
         thorin::Backends backends(world, opts.opt_level, opts.debug);
-        auto emit_to_file = [&] (thorin::CodeGen* cg, std::string ext) {
+        auto emit_to_file = [&] (thorin::CodeGen* cg) {
             if (!cg) return;
-            auto name = opts.module_name + ext;
+            auto name = opts.module_name + cg->file_ext();
             std::ofstream file(name);
             if (!file)
                 log::error("cannot open '{}' for writing", name);
             else
                 cg->emit(file);
         };
-        emit_to_file(backends.cpu_cg.get(), backends.cpu_cg->file_ext());
+        emit_to_file(backends.cpu_cg.get());
         for (auto& cg : backends.device_cgs)
-            emit_to_file(cg.get(), cg->file_ext());
+            emit_to_file(cg.get());
     }
     return EXIT_SUCCESS;
 }
