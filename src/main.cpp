@@ -10,7 +10,7 @@
 #include "artic/locator.h"
 
 #include <thorin/world.h>
-#include <thorin/be/backends.h>
+#include <thorin/be/codegen.h>
 #include <thorin/be/c/c.h>
 #ifdef ENABLE_LLVM
 #include <thorin/be/llvm/llvm.h>
@@ -43,10 +43,9 @@ static void usage() {
                 "         --emit-c-interface     Emits C interface for exported functions and imported types\n"
                 "         --log-level <lvl>      Changes the log level in Thorin (lvl = debug, verbose, info, warn, or error, defaults to error)\n"
                 "         --tab-width <n>        Sets the width of the TAB character in error messages or when printing the AST (in spaces, defaults to 2)\n"
+                "         --emit-c               Emits C code in the output file\n"
 #ifdef ENABLE_LLVM
                 "         --emit-llvm            Emits LLVM IR in the output file\n"
-#else
-                "         --emit-c               Emits C code in the output file\n"
 #endif
                 "  -g     --debug                Enable debug information in the output file\n"
                 "  -On                           Sets the optimization level (n = 0, 1, 2, or 3, defaults to 0)\n"
@@ -92,7 +91,8 @@ struct ProgramOptions {
     bool print_ast = false;
     bool emit_thorin = false;
     bool emit_c_int = false;
-    bool emit = false;
+    bool emit_c = false;
+    bool emit_llvm = false;
     bool show_implicit_casts = false;
     unsigned opt_level = 0;
     size_t max_errors = 0;
@@ -180,18 +180,13 @@ struct ProgramOptions {
                     tab_width = std::strtoull(argv[++i], NULL, 10);
                 } else if (matches(argv[i], "--emit-llvm")) {
 #ifdef ENABLE_LLVM
-                    emit = true;
+                    emit_llvm = true;
 #else
                     log::error("Thorin is built without LLVM support, use '--emit-c' instead");
                     return false;
 #endif
                 } else if (matches(argv[i], "--emit-c")) {
-#ifndef ENABLE_LLVM
-                    emit = true;
-#else
-                    log::error("Thorin is built with LLVM support, use '--emit-llvm' instead");
-                    return false;
-#endif
+                    emit_c = true;
                 } else if (matches(argv[i], "-O0")) {
                     opt_level = 0;
                 } else if (matches(argv[i], "-O1")) {
@@ -316,24 +311,34 @@ int main(int argc, char** argv) {
             thorin::c::emit_c_int(world, stream);
         }
     }
-    if (opts.opt_level > 1 || opts.emit)
+    if (opts.opt_level > 1 || opts.emit_c || opts.emit_llvm)
         world.opt();
     if (opts.emit_thorin)
         world.dump();
-    if (opts.emit) {
-        thorin::Backends backends(world, opts.opt_level, opts.debug);
-        auto emit_to_file = [&] (thorin::CodeGen* cg) {
-            if (!cg) return;
-            auto name = opts.module_name + cg->file_ext();
+    if (opts.emit_c || opts.emit_llvm) {
+        thorin::DeviceBackends backends(world, opts.opt_level, opts.debug);
+        auto emit_to_file = [&] (thorin::CodeGen& cg) {
+            auto name = opts.module_name + cg.file_ext();
             std::ofstream file(name);
             if (!file)
                 log::error("cannot open '{}' for writing", name);
             else
-                cg->emit(file);
+                cg.emit(file);
         };
-        emit_to_file(backends.cpu_cg.get());
-        for (auto& cg : backends.device_cgs)
-            emit_to_file(cg.get());
+        if (opts.emit_c) {
+            thorin::Cont2Config kernel_configs;
+            thorin::c::CodeGen cg(world, kernel_configs, thorin::c::Lang::C99, opts.debug);
+            emit_to_file(cg);
+        }
+#ifdef ENABLE_LLVM
+        if (opts.emit_llvm) {
+            thorin::llvm::CPUCodeGen cg(world, opts.opt_level, opts.debug);
+            emit_to_file(cg);
+        }
+#endif
+        for (auto& cg : backends.cgs) {
+            if (cg) emit_to_file(*cg);
+        }
     }
     return EXIT_SUCCESS;
 }
