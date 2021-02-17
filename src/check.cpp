@@ -514,7 +514,7 @@ bool TypeChecker::infer_type_args(
                 // We do not check that the upper and lower bounds are the same,
                 // as suggested in the original publication. Instead, we arbitrary
                 // choose to use the lowest bound for that variable (this idea is
-                // taken from "Colored Local Type Inference", M. Odersky et al.
+                // taken from "Colored Local Type Inference", M. Odersky et al.).
                 type_args[index] = bound.second.lower;
                 break;
             default:
