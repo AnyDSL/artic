@@ -10,7 +10,8 @@
 #include "artic/locator.h"
 
 #include <thorin/world.h>
-#include <thorin/be/c.h>
+#include <thorin/be/backends.h>
+#include <thorin/be/c/c.h>
 #ifdef ENABLE_LLVM
 #include <thorin/be/llvm/llvm.h>
 #endif
@@ -44,8 +45,10 @@ static void usage() {
                 "         --tab-width <n>        Sets the width of the TAB character in error messages or when printing the AST (in spaces, defaults to 2)\n"
 #ifdef ENABLE_LLVM
                 "         --emit-llvm            Emits LLVM IR in the output file\n"
-                "  -g     --debug                Enable debug information in the generated LLVM IR file\n"
+#else
+                "         --emit-c               Emits C code in the output file\n"
 #endif
+                "  -g     --debug                Enable debug information in the output file\n"
                 "  -On                           Sets the optimization level (n = 0, 1, 2, or 3, defaults to 0)\n"
                 "  -o <name>                     Sets the module name (defaults to the first file name without its extension)\n"
                 ;
@@ -89,7 +92,7 @@ struct ProgramOptions {
     bool print_ast = false;
     bool emit_thorin = false;
     bool emit_c_int = false;
-    bool emit_llvm = false;
+    bool emit = false;
     bool show_implicit_casts = false;
     unsigned opt_level = 0;
     size_t max_errors = 0;
@@ -177,9 +180,16 @@ struct ProgramOptions {
                     tab_width = std::strtoull(argv[++i], NULL, 10);
                 } else if (matches(argv[i], "--emit-llvm")) {
 #ifdef ENABLE_LLVM
-                    emit_llvm = true;
+                    emit = true;
 #else
-                    log::error("Thorin is built without LLVM support");
+                    log::error("Thorin is built without LLVM support, use '--emit-c' instead");
+                    return false;
+#endif
+                } else if (matches(argv[i], "--emit-c")) {
+#ifndef ENABLE_LLVM
+                    emit = true;
+#else
+                    log::error("Thorin is built with LLVM support, use '--emit-llvm' instead");
                     return false;
 #endif
                 } else if (matches(argv[i], "-O0")) {
@@ -297,38 +307,33 @@ int main(int argc, char** argv) {
         world.cleanup();
     if (opts.emit_c_int) {
         assert(false);
-        // TODO
-        //auto name = opts.module_name + ".h";
-        //std::ofstream file(name);
-        //if (!file)
-        //    log::error("cannot open '{}' for writing", name);
-        //else
-        //    thorin::emit_c_int(world, file);
+        auto name = opts.module_name + ".h";
+        std::ofstream file(name);
+        if (!file)
+            log::error("cannot open '{}' for writing", name);
+        else {
+            thorin::Stream stream(file);
+            thorin::c::emit_c_int(world, stream);
+        }
     }
-    if (opts.opt_level > 1 || opts.emit_llvm)
+    if (opts.opt_level > 1 || opts.emit)
         world.opt();
     if (opts.emit_thorin)
         world.dump();
-#ifdef ENABLE_LLVM
-    if (opts.emit_llvm) {
+    if (opts.emit) {
         thorin::Backends backends(world, opts.opt_level, opts.debug);
         auto emit_to_file = [&] (thorin::CodeGen* cg, std::string ext) {
-            if (cg) {
-                auto name = opts.module_name + ext;
-                std::ofstream file(name);
-                if (!file)
-                    log::error("cannot open '{}' for writing", name);
-                else
-                    cg->emit(file);
-            }
+            if (!cg) return;
+            auto name = opts.module_name + ext;
+            std::ofstream file(name);
+            if (!file)
+                log::error("cannot open '{}' for writing", name);
+            else
+                cg->emit(file);
         };
-        emit_to_file(backends.cpu_cg.get(),    ".ll");
-        emit_to_file(backends.cuda_cg.get(),   ".cu");
-        emit_to_file(backends.nvvm_cg.get(),   ".nvvm");
-        emit_to_file(backends.opencl_cg.get(), ".cl");
-        emit_to_file(backends.amdgpu_cg.get(), ".amdgpu");
-        emit_to_file(backends.hls_cg.get(),    ".hls");
+        emit_to_file(backends.cpu_cg.get(), backends.cpu_cg->file_ext());
+        for (auto& cg : backends.device_cgs)
+            emit_to_file(cg.get(), cg->file_ext());
     }
-#endif
     return EXIT_SUCCESS;
 }
