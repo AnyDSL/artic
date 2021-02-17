@@ -13,7 +13,7 @@
 #include <thorin/be/codegen.h>
 #include <thorin/be/c/c.h>
 #ifdef ENABLE_LLVM
-#include <thorin/be/llvm/llvm.h>
+#include <thorin/be/llvm/cpu.h>
 #endif
 
 using namespace artic;
