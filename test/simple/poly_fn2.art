@@ -1,0 +1,2 @@
+fn foo[T](t: T) -> fn (T) -> T = |_| t;
+fn bar[U](u: U) = foo(u);

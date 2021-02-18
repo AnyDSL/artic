@@ -107,11 +107,7 @@ void TypeChecker::invalid_ptrn(const Loc& loc, bool must_be_trivial) {
     }
 }
 
-void TypeChecker::invalid_constraint(
-    const Loc& loc, const TypeVar* var,
-    const Type* type_arg, const Type* lower, const Type* upper,
-    bool cannot_satisfy)
-{
+void TypeChecker::invalid_constraint(const Loc& loc, const TypeVar* var, const Type* type_arg, const Type* lower, const Type* upper) {
     if (type_arg)
         error(loc, "invalid type argument '{}' for type variable '{}'", *type_arg, *var);
     else
@@ -120,14 +116,11 @@ void TypeChecker::invalid_constraint(
     bool bound_right = !upper->isa<TopType>();
     if (bound_left || bound_right) {
         if (bound_left && bound_right)
-            note(
-                "type constraint '{} <: {} <: {}' is not {}",
-                *lower, *var, *upper, cannot_satisfy ? "satisfiable" : "minimizable");
+            note("type constraint '{} <: {} <: {}' is not satisfiable", *lower, *var, *upper);
         else {
             note(
-                "type constraint '{} {} {}' is not {}",
-                *var, bound_left ? ">:" : "<:", *(bound_left ? lower : upper),
-                cannot_satisfy ? "satisfiable" : "minimizable");
+                "type constraint '{} {} {}' is not satisfiable",
+                *var, bound_left ? ">:" : "<:", *(bound_left ? lower : upper));
         }
     }
 }
@@ -554,7 +547,7 @@ bool TypeChecker::infer_type_args(
         if (type_args[index]) {
             if (!type_args[index]->subtype(bound.second.upper) ||
                 !bound.second.lower->subtype(type_args[index])) {
-                invalid_constraint(loc, bound.first, type_args[index], bound.second.lower, bound.second.upper, true);
+                invalid_constraint(loc, bound.first, type_args[index], bound.second.lower, bound.second.upper);
                 return false;
             }
             continue;
@@ -563,7 +556,7 @@ bool TypeChecker::infer_type_args(
         if (!bound.second.lower->subtype(bound.second.upper) ||
             bound.second.lower->isa<TopType>() ||
             bound.second.upper->isa<BottomType>()) {
-            invalid_constraint(loc, bound.first, nullptr, bound.second.lower, bound.second.upper, true);
+            invalid_constraint(loc, bound.first, nullptr, bound.second.lower, bound.second.upper);
             return false;
         }
 
@@ -578,12 +571,12 @@ bool TypeChecker::infer_type_args(
                 type_args[index] = bound.second.upper;
                 break;
             case TypeVariance::Invariant:
-                if (bound.second.lower == bound.second.upper) {
-                    type_args[index] = bound.second.lower;
-                    break;
-                }
-                invalid_constraint(loc, bound.first, nullptr, bound.second.lower, bound.second.upper, false);
-                return false;
+                // We do not check that the upper and lower bounds are the same,
+                // as suggested in the original publication. Instead, we arbitrary
+                // choose to use the lowest bound for that variable (this idea is
+                // taken from "Colored Local Type Inference", M. Odersky et al.).
+                type_args[index] = bound.second.lower;
+                break;
             default:
                 assert(false);
                 return false;
