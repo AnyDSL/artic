@@ -1,0 +1,4 @@
+mod foo {
+    use super::foo as bar;
+    fn f() = bar::f();
+}

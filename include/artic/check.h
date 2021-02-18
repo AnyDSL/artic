@@ -7,6 +7,7 @@
 #include "artic/ast.h"
 #include "artic/types.h"
 #include "artic/log.h"
+#include "artic/array.h"
 
 namespace artic {
 
@@ -42,7 +43,8 @@ public:
     const Type* bad_arguments(const Loc&, const std::string_view&, size_t, size_t);
     const Type* invalid_cast(const Loc&, const Type*, const Type*);
     const Type* invalid_simd(const Loc&, const Type*);
-    void invalid_constraint(const Loc&, const TypeVar*, const Type*, const Type*, const Type*);
+    void invalid_ptrn(const Loc&, bool);
+    void invalid_constraint(const Loc&, const TypeVar*, const Type*, const Type*, const Type*, bool);
     void invalid_attr(const Loc&, const std::string_view&);
     void unsized_type(const Loc&, const Type*);
 
@@ -50,6 +52,7 @@ public:
 
     const Type* deref(Ptr<ast::Expr>&);
     const Type* coerce(Ptr<ast::Expr>&, const Type*);
+    const Type* try_coerce(Ptr<ast::Expr>&, const Type*);
     const Type* join(Ptr<ast::Expr>&, Ptr<ast::Expr>&);
 
     const Type* check(ast::Node&, const Type*);
@@ -60,12 +63,9 @@ public:
     const Type* check(const Loc&, const Literal&, const Type*);
 
     template <typename Fields>
-    const Type* check_fields(
-        const Loc&,
-        const StructType*,
-        const TypeApp*,
-        const Fields&,
-        const std::string_view&,
+    void check_fields(
+        const Loc&, const StructType*, const TypeApp*,
+        const Fields&, const std::string_view&,
         bool = false, bool = false);
 
     template <typename Fns>
@@ -77,9 +77,10 @@ public:
             const std::string_view& msg);
 
     void check_block(const Loc&, const PtrVector<ast::Stmt>&, bool);
-    bool check_attrs(const ast::NamedAttr&, const std::vector<AttrType>&);
+    bool check_attrs(const ast::NamedAttr&, const ArrayRef<AttrType>&);
     bool check_filter(const ast::Expr&);
     void check_type_has_single_impl(const Loc& loc, const Type* type, std::vector<const Type*> available_bounds);
+    void check_refutability(const ast::Ptrn&, bool);
 
     template <typename InferElems>
     const Type* infer_array(const Loc&, const std::string_view&, size_t, bool, const InferElems&);

@@ -97,6 +97,8 @@ public:
     std::unordered_map<VariantCtor, const thorin::Def*, Hash, Compare> variant_ctors;
     /// Map from struct type to structure constructor (for tuple-like structures).
     std::unordered_map<const Type*, const thorin::Def*> struct_ctors;
+    /// Map from types to their generated comparison function, if any.
+    std::unordered_map<const Type*, const thorin::Def*> comparators;
     /// Vector containing definitions that are generated during monomorphization.
     std::vector<std::vector<const thorin::Def**>> poly_defs;
 
@@ -112,6 +114,7 @@ public:
     thorin::Continuation* basic_block_with_mem(const thorin::Type*, thorin::Debug = {});
 
     const thorin::Def* ctor_index(const ast::Ptrn& ptrn);
+    const thorin::Def* ctor_index(size_t, thorin::Debug = {});
 
     const thorin::FnType* continuation_type_with_mem(const thorin::Type*);
     const thorin::FnType* function_type_with_mem(const thorin::Type*, const thorin::Type*);
@@ -124,6 +127,7 @@ public:
     const thorin::Def* call(const thorin::Def*, const thorin::Def*, thorin::Debug = {});
     const thorin::Def* call(const thorin::Def*, const thorin::Def*, thorin::Continuation*, thorin::Debug = {});
     void branch(const thorin::Def*, const thorin::Def*, const thorin::Def*, thorin::Debug = {});
+    void branch_with_mem(const thorin::Def*, const thorin::Def*, const thorin::Def*, thorin::Debug = {});
 
     const thorin::Def* alloc(const thorin::Type*, thorin::Debug = {});
     void store(const thorin::Def*, const thorin::Def*, thorin::Debug = {});
@@ -140,10 +144,16 @@ public:
 
     const thorin::Def* builtin(const ast::FnDecl&, thorin::Continuation*);
 
-    void add_poly_vars_to_emitter(const PolyType*, const std::vector<const Type*>&);
+    void add_poly_vars_to_emitter(const PolyType*, const artic::Array<const Type*>&);
     const thorin::Def* emit_operator_fn(std::string&, const Type*);
 
+    const thorin::Def* comparator(const Loc&, const Type*);
+
+    thorin::Debug debug_info(const ast::NamedDecl&);
+    thorin::Debug debug_info(const ast::Node&, const std::string_view& = "");
+
     const ast::ModDecl* current_scope;
+
 };
 
 /// Helper function to compile a set of files and generate an AST and a thorin module.
@@ -157,14 +167,6 @@ bool compile(
     thorin::World& world,
     thorin::Log::Level log_level,
     Log& log);
-
-/// Entry-point for the JIT in the runtime system.
-bool compile(
-    const std::vector<std::string>& file_names,
-    const std::vector<std::string>& file_data,
-    thorin::World& world,
-    thorin::Log::Level log_level,
-    std::ostream& error_stream);
 
 } // namespace artic
 

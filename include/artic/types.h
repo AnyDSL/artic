@@ -2,18 +2,17 @@
 #define ARTIC_TYPES_H
 
 #include <cstddef>
-#include <vector>
 #include <unordered_set>
 #include <optional>
 #include <ostream>
 
 #include "artic/cast.h"
 #include "artic/ast.h"
+#include "artic/array.h"
 
 namespace thorin {
     class TypeTable;
-    template <typename> class TypeBase;
-    using Type = TypeBase<TypeTable>;
+    class Type;
 }
 
 namespace artic {
@@ -137,7 +136,7 @@ private:
 };
 
 struct TupleType : public Type {
-    std::vector<const Type*> args;
+    Array<const Type*> args;
 
     void print(Printer&) const override;
     bool equals(const Type*) const override;
@@ -154,8 +153,8 @@ struct TupleType : public Type {
     bool is_sized(std::unordered_set<const Type*>&) const override;
 
 private:
-    TupleType(TypeTable& type_table, std::vector<const Type*>&& args)
-        : Type(type_table), args(std::move(args))
+    TupleType(TypeTable& type_table, const ArrayRef<const Type*>& args)
+        : Type(type_table), args(args)
     {}
 
     friend class TypeTable;
@@ -416,9 +415,10 @@ struct ForallType : public PolyType {
 
     /// Returns the type of the body with type variables
     /// substituted with the given arguments.
-    const Type* instantiate(const std::vector<const Type*>&) const;
+    const Type* instantiate(const ArrayRef<const Type*>&) const;
     /// Maps the parameters of this polymorphic function to the arguments provided
-    std::unordered_map<const TypeVar*, const artic::Type*> replace_map(const std::vector<const Type*>&) const;
+    std::unordered_map<const TypeVar*, const artic::Type*> replace_map(const ArrayRef<const Type*>&) const;
+
 
     const ast::TypeBoundsAndParams* bounds_and_params() const override {
         return decl.bounds_and_params.get();
@@ -521,6 +521,10 @@ struct EnumType : public ComplexType {
     const Type* member_type(size_t) const override;
     size_t member_count() const override;
 
+    // Returns true if the enumeration is only made
+    // of constructors without arguments.
+    bool is_trivial() const;
+
 private:
     EnumType(TypeTable& type_table, const ast::EnumDecl& decl)
         : ComplexType(type_table), decl(decl)
@@ -573,6 +577,43 @@ private:
     friend class TypeTable;
 };
 
+struct ModType : public ComplexType {
+    const ast::ModDecl& decl;
+
+    void print(Printer&) const override;
+    bool equals(const Type*) const override;
+    size_t hash() const override;
+
+    const ast::TypeBoundsAndParams* bounds_and_params() const override {
+        return nullptr;
+    }
+    std::optional<size_t> find_member(const std::string_view&) const override;
+    const Type* member_type(size_t) const override;
+    size_t member_count() const override;
+
+    ast::NamedDecl& member(size_t) const;
+
+private:
+    struct Member {
+        std::string name;
+        ast::NamedDecl& decl;
+
+        Member(const std::string& name, ast::NamedDecl& decl)
+            : name(name), decl(decl)
+        {}
+    };
+    using Members = std::vector<Member>;
+    mutable std::unique_ptr<Members> members_;
+
+    ModType(TypeTable& type_table, const ast::ModDecl& decl)
+        : ComplexType(type_table), decl(decl)
+    {}
+
+    const Members& members() const;
+
+    friend class TypeTable;
+};
+
 struct TypeAlias : public UserType {
     const ast::TypeDecl& decl;
 
@@ -595,7 +636,7 @@ private:
 /// An application of a complex type with polymorphic parameters.
 struct TypeApp : public Type {
     const UserType* applied;
-    std::vector<const Type*> type_args;
+    Array<const Type*> type_args;
 
     /// Gets the replacement map required to expand this type application.
     std::unordered_map<const TypeVar*, const Type*> replace_map() const {
@@ -625,13 +666,13 @@ struct TypeApp : public Type {
 
     static std::unordered_map<const TypeVar*, const Type*> replace_map(
         const PtrVector<ast::TypeParam>& type_params,
-        const std::vector<const Type*>& type_args);
+        const ArrayRef<const Type*>& type_args);
 
 private:
     TypeApp(
         TypeTable& type_table,
         const UserType* applied,
-        std::vector<const Type*>&& type_args)
+        const ArrayRef<const Type*>& type_args)
         : Type(type_table)
         , applied(applied)
         , type_args(std::move(type_args))
@@ -650,6 +691,21 @@ inline bool is_bool_type(const Type* type) { return is_prim_type(type, ast::Prim
 
 bool contains_var(const Type* t);
 
+inline const Type* member_type(const Type* type, size_t i) {
+    if (auto type_app = type->isa<TypeApp>())
+        return type_app->member_type(i);
+    else if (auto complex_type = type->isa<ComplexType>())
+        return complex_type->member_type(i);
+    else if (auto tuple_type = type->isa<TupleType>())
+        return tuple_type->args[i];
+    else if (auto array_type = type->isa<ArrayType>())
+        return array_type->elem;
+    else {
+        assert(false);
+        return nullptr;
+    }
+}
+
 template <typename T>
 std::pair<const TypeApp*, const T*> match_app(const Type* type) {
     if (auto type_app = type->isa<TypeApp>())
@@ -665,7 +721,7 @@ public:
     const PrimType*         prim_type(ast::PrimType::Tag);
     const PrimType*         bool_type();
     const TupleType*        unit_type();
-    const TupleType*        tuple_type(std::vector<const Type*>&&);
+    const TupleType*        tuple_type(const ArrayRef<const Type*>&);
     const SizedArrayType*   sized_array_type(const Type*, size_t, bool);
     const UnsizedArrayType* unsized_array_type(const Type*);
     const PtrType*          ptr_type(const Type*, bool, size_t);
@@ -682,11 +738,12 @@ public:
     const EnumType*         enum_type(const ast::EnumDecl&);
     const TraitType*        trait_type(const ast::TraitDecl&);
     const ImplType*         impl_type(const ast::ImplDecl& impl);
+    const ModType*          mod_type(const ast::ModDecl&);
     const TypeAlias*        type_alias(const ast::TypeDecl&);
 
     /// Creates a type application for structures/enumeration types,
     /// or returns the type alias expanded with the given type arguments.
-    const Type* type_app(const UserType*, std::vector<const Type*>&&);
+    const Type* type_app(const UserType*, const ArrayRef<const Type*>&);
 
     /// Returns nullptr if the impl is not already registered
     const ImplType* register_impl(const ast::ModDecl* scope, const ImplType* impl);

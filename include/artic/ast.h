@@ -3,6 +3,7 @@
 
 #include <memory>
 #include <vector>
+#include <variant>
 
 #include "artic/loc.h"
 #include "artic/log.h"
@@ -177,13 +178,19 @@ struct Path : public Node {
         size_t index = 0;
         std::vector<const artic::Type*> inferred_args;
 
+        bool is_super() const { return id.name == "super"; }
+
         Elem(const Loc& loc, Identifier&& id, PtrVector<Type>&& args)
             : loc(loc), id(std::move(id)), args(std::move(args))
         {}
     };
 
     std::vector<Elem> elems;
-    std::shared_ptr<Symbol> symbol;
+
+    // Set during name-binding, corresponds to the declaration that
+    // is associated with the _first_ element of the path.
+    // The rest of the path is resolved during type-checking.
+    ast::NamedDecl* start_decl;
 
     // Set during type-checking
     bool is_value = false;
@@ -193,7 +200,10 @@ struct Path : public Node {
         : Node(loc), elems(std::move(elems))
     {}
 
-    const artic::Type* infer(TypeChecker&, bool = false, Ptr<Expr>* = nullptr);
+    const artic::Type* infer(TypeChecker&, bool, Ptr<Expr>* = nullptr);
+    const artic::Type* infer(TypeChecker& checker) override {
+        return infer(checker, false, nullptr);
+    }
 
     const thorin::Def* emit(Emitter&) const override;
     void bind(NameBinder&) override;
@@ -728,14 +738,22 @@ struct CallExpr : public Expr {
 /// Projection operator (.).
 struct ProjExpr : public Expr {
     Ptr<Expr> expr;
-    Identifier field;
+    std::variant<Identifier, size_t> field;
 
     size_t index;
 
+    /// Constructor for projection expressions of the form `x.y`
     ProjExpr(const Loc& loc, Ptr<Expr>&& expr, Identifier&& field)
         : Expr(loc)
         , expr(std::move(expr))
         , field(std::move(field))
+    {}
+
+    /// Constructor for projection expressions of the form `x.0`
+    ProjExpr(const Loc& loc, Ptr<Expr>&& expr, size_t index)
+        : Expr(loc)
+        , expr(std::move(expr))
+        , field(index)
     {}
 
     bool is_jumping() const override;
@@ -751,10 +769,13 @@ struct ProjExpr : public Expr {
 
 /// If/Else expression (the else branch is optional).
 struct IfExpr : public Expr {
+    Ptr<Ptrn> ptrn;
+    Ptr<Expr> expr;
     Ptr<Expr> cond;
     Ptr<Expr> if_true;
     Ptr<Expr> if_false;
 
+    // Constructor for the conditional form: `if cond { body }`
     IfExpr(
         const Loc& loc,
         Ptr<Expr>&& cond,
@@ -764,6 +785,20 @@ struct IfExpr : public Expr {
         , cond(std::move(cond))
         , if_true(std::move(if_true))
         , if_false(std::move(if_false))
+    {}
+
+    // Constructor for the pattern form: `if let ptrn = expr { body }`
+    IfExpr(
+            const Loc& loc,
+            Ptr<Ptrn>&& ptrn,
+            Ptr<Expr>&& expr,
+            Ptr<Expr>&& if_true,
+            Ptr<Expr>&& if_false)
+            : Expr(loc)
+            , ptrn(std::move(ptrn))
+            , expr(std::move(expr))
+            , if_true(std::move(if_true))
+            , if_false(std::move(if_false))
     {}
 
     bool is_jumping() const override;
@@ -781,23 +816,15 @@ struct CaseExpr : public Expr {
     Ptr<Ptrn> ptrn;
     Ptr<Expr> expr;
 
-    // Set during emission by the pattern matching compiler
-    mutable bool is_redundant = true;
-    mutable const thorin::Def* target = nullptr;
-    mutable std::vector<const struct IdPtrn*> bound_ptrns;
-
     CaseExpr(const Loc& loc, Ptr<Ptrn>&& ptrn, Ptr<Expr>&& expr)
         : Expr(loc)
         , ptrn(std::move(ptrn))
         , expr(std::move(expr))
     {}
 
-    void collect_bound_ptrns() const;
-
     bool is_jumping() const override;
     bool has_side_effect() const override;
 
-    const thorin::Def* emit(Emitter&) const override;
     void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
@@ -836,11 +863,19 @@ struct LoopExpr : public Expr {
 
 /// While loop expression.
 struct WhileExpr : public LoopExpr {
+    Ptr<Ptrn> ptrn;
+    Ptr<Expr> expr;
     Ptr<Expr> cond;
     Ptr<Expr> body;
 
+    // Constructor for the conditional form: `while cond { body }`
     WhileExpr(const Loc& loc, Ptr<Expr>&& cond, Ptr<Expr>&& body)
         : LoopExpr(loc), cond(std::move(cond)), body(std::move(body))
+    {}
+
+    // Constructor for the pattern form: `while let ptrn = expr { body }`
+    WhileExpr(const Loc& loc, Ptr<Ptrn>&& ptrn, Ptr<Expr>&& expr, Ptr<Expr>&& body)
+            : LoopExpr(loc), ptrn(std::move(ptrn)), expr(std::move(expr)), body(std::move(body))
     {}
 
     bool is_jumping() const override;
@@ -1140,6 +1175,20 @@ struct NamedDecl : public Decl {
     {}
 };
 
+/// Value declaration associated with an identifier.
+struct ValueDecl : public NamedDecl {
+    ValueDecl(const Loc& loc, Identifier&& id)
+        : NamedDecl(loc, std::move(id))
+    {}
+};
+
+/// Datatype declaration with a constructor associated with an identifier.
+struct CtorDecl : public NamedDecl {
+    CtorDecl(const Loc& loc, Identifier&& id)
+        : NamedDecl(loc, std::move(id))
+    {}
+};
+
 /// Type parameter, introduced by the operator [].
 struct TypeParam : public NamedDecl {
     TypeParam(const Loc& loc, Identifier&& id)
@@ -1166,14 +1215,14 @@ struct TypeBoundsAndParams : public Node {
 };
 
 /// Pattern binding associated with an identifier.
-struct PtrnDecl : public NamedDecl {
+struct PtrnDecl : public ValueDecl {
     bool is_mut;
 
     // Set during type-checking.
     mutable bool written_to = false;
 
     PtrnDecl(const Loc& loc, Identifier&& id, bool is_mut = false)
-        : NamedDecl(loc, std::move(id)), is_mut(is_mut)
+        : ValueDecl(loc, std::move(id)), is_mut(is_mut)
     {}
 
     const artic::Type* check(TypeChecker&, const artic::Type*) override;
@@ -1199,7 +1248,7 @@ struct LetDecl : public Decl {
 };
 
 /// Static (top-level) declaration.
-struct StaticDecl : public NamedDecl {
+struct StaticDecl : public ValueDecl {
     Ptr<Type> type;
     Ptr<Expr> init;
     bool is_mut;
@@ -1210,7 +1259,7 @@ struct StaticDecl : public NamedDecl {
         Ptr<Type>&& type,
         Ptr<Expr>&& init,
         bool is_mut = false)
-        : NamedDecl(loc, std::move(id))
+        : ValueDecl(loc, std::move(id))
         , type(std::move(type))
         , init(std::move(init))
         , is_mut(is_mut)
@@ -1224,7 +1273,7 @@ struct StaticDecl : public NamedDecl {
 };
 
 /// Function declaration.
-struct FnDecl : public NamedDecl {
+struct FnDecl : public ValueDecl {
     Ptr<FnExpr> fn;
     Ptr<TypeBoundsAndParams> bounds_and_params;
 
@@ -1233,7 +1282,7 @@ struct FnDecl : public NamedDecl {
         Identifier&& id,
         Ptr<FnExpr>&& fn,
         Ptr<TypeBoundsAndParams>&& bounds_and_params)
-        : NamedDecl(loc, std::move(id))
+        : ValueDecl(loc, std::move(id))
         , fn(std::move(fn))
         , bounds_and_params(std::move(bounds_and_params))
     {}
@@ -1269,14 +1318,14 @@ struct FieldDecl : public NamedDecl {
 };
 
 /// Base class for declarations holding fields.
-struct RecordDecl : public NamedDecl {
+struct RecordDecl : public CtorDecl {
     PtrVector<FieldDecl> fields;
 
     RecordDecl(
         const Loc& loc,
         Identifier&& id,
         PtrVector<FieldDecl>&& fields)
-        : NamedDecl(loc, std::move(id))
+        : CtorDecl(loc, std::move(id))
         , fields(std::move(fields))
     {}
 };
@@ -1335,7 +1384,7 @@ struct OptionDecl : public RecordDecl {
 };
 
 /// Enumeration declaration.
-struct EnumDecl : public NamedDecl {
+struct EnumDecl : public CtorDecl {
     Ptr<TypeBoundsAndParams> bounds_and_params;
     PtrVector<OptionDecl> options;
 
@@ -1344,7 +1393,7 @@ struct EnumDecl : public NamedDecl {
         Identifier&& id,
         Ptr<TypeBoundsAndParams>&& bounds_and_params,
         PtrVector<OptionDecl>&& options)
-        : NamedDecl(loc, std::move(id))
+        : CtorDecl(loc, std::move(id))
         , bounds_and_params(std::move(bounds_and_params))
         , options(std::move(options))
     {}
@@ -1426,15 +1475,39 @@ struct TypeDecl : public NamedDecl {
 /// Module definition.
 struct ModDecl : public NamedDecl {
     PtrVector<Decl> decls;
+    ModDecl* super = nullptr;
 
     std::vector<const NamedDecl*> members;
 
+    /// Constructor for the implicitly defined global module.
+    /// When using this constructor, the user is responsible for calling
+    /// `set_super()` once the declarations have been added to the module.
     explicit ModDecl()
         : NamedDecl(Loc(), Identifier())
     {}
 
+    /// Constructor for a regular module declaration.
     ModDecl(const Loc& loc, Identifier&& id, PtrVector<Decl>&& decls)
         : NamedDecl(loc, std::move(id)), decls(std::move(decls))
+    {
+        set_super();
+    }
+
+    void set_super();
+
+    const thorin::Def* emit(Emitter&) const override;
+    const artic::Type* infer(TypeChecker&) override;
+    void bind_head(NameBinder&) override;
+    void bind(NameBinder&) override;
+    void print(Printer&) const override;
+};
+
+/// Module use, with or without `as`.
+struct UseDecl : public NamedDecl {
+    Path path;
+
+    UseDecl(const Loc& loc, Path&& path, Identifier&& id)
+        : NamedDecl(loc, std::move(id)), path(std::move(path))
     {}
 
     const thorin::Def* emit(Emitter&) const override;
@@ -1567,6 +1640,7 @@ struct CtorPtrn : public Ptrn {
     void collect_bound_ptrns(std::vector<const IdPtrn*>&) const override;
     bool is_trivial() const override;
 
+    void emit(Emitter&, const thorin::Def*) const override;
     const artic::Type* infer(TypeChecker&) override;
     void bind(NameBinder&) override;
     void print(Printer&) const override;

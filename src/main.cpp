@@ -48,7 +48,7 @@ static void usage() {
                 "  -g     --debug                Enable debug information in the generated LLVM IR file\n"
 #endif
                 "  -On                           Sets the optimization level (n = 0, 1, 2, or 3, defaults to 0)\n"
-                "  -o <name>                     Sets the module name (defaults to 'module')\n"
+                "  -o <name>                     Sets the module name (defaults to the first file name without its extension)\n"
                 ;
 }
 
@@ -296,10 +296,6 @@ int main(int argc, char** argv) {
 
     if (opts.opt_level == 1)
         world.cleanup();
-    if (opts.opt_level > 1 || opts.emit_llvm)
-        world.opt();
-    if (opts.emit_thorin)
-        world.dump();
     if (opts.emit_c_int) {
         auto name = opts.module_name + ".h";
         std::ofstream file(name);
@@ -308,17 +304,21 @@ int main(int argc, char** argv) {
         else
             thorin::emit_c_int(world, file);
     }
+    if (opts.opt_level > 1 || opts.emit_llvm)
+        world.opt();
+    if (opts.emit_thorin)
+        world.dump();
 #ifdef ENABLE_LLVM
     if (opts.emit_llvm) {
-        thorin::Backends backends(world);
-        auto emit_to_file = [&](thorin::CodeGen* cg, std::string ext) {
+        thorin::Backends backends(world, opts.opt_level, opts.debug);
+        auto emit_to_file = [&] (thorin::CodeGen* cg, std::string ext) {
             if (cg) {
                 auto name = opts.module_name + ext;
                 std::ofstream file(name);
                 if (!file)
                     log::error("cannot open '{}' for writing", name);
                 else
-                    cg->emit(file, opts.opt_level, opts.debug);
+                    cg->emit(file);
             }
         };
         emit_to_file(backends.cpu_cg.get(),    ".ll");

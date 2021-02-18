@@ -40,6 +40,7 @@ private:
     PtrVector<ast::TypeApp>     parse_bounds();
     PtrVector<ast::FnDecl>      parse_fn_list();
     Ptr<ast::ModDecl>           parse_mod_decl();
+    Ptr<ast::UseDecl>       parse_use_decl();
     Ptr<ast::ErrorDecl>         parse_error_decl();
 
     Ptr<ast::Ptrn>          parse_ptrn(bool = false);
@@ -106,7 +107,8 @@ private:
             construct_bounds_and_params(PtrVector<ast::TypeParam> params, PtrVector<ast::TypeApp> bounds);
 
     ast::Path               parse_path(ast::Identifier&&, bool);
-    ast::Path               parse_path(bool allow_types = true) { return parse_path(parse_id(), allow_types); }
+    ast::Path               parse_path(bool allow_types = true) { return parse_path(parse_path_elem(), allow_types); }
+    ast::Identifier         parse_path_elem();
     ast::Identifier         parse_id();
     ast::AsmExpr::Constr    parse_constr();
     Literal                 parse_lit();
@@ -118,20 +120,15 @@ private:
 
     struct Tracker {
         const Parser* parser;
-        int begin_row, begin_col;
+        Loc::Pos begin;
 
         Loc operator () () const {
-            return Loc(
-                parser->prev_.file,
-                begin_row, begin_col,
-                parser->prev_.end.row,
-                parser->prev_.end.col);
+            return Loc(parser->prev_.file, begin, parser->prev_.end);
         }
 
         Tracker(const Parser* parser, const Loc& loc)
             : parser(parser)
-            , begin_row(loc.begin.row)
-            , begin_col(loc.begin.col)
+            , begin(loc.begin)
         {}
 
         Tracker(const Parser* parser)
@@ -183,11 +180,6 @@ private:
         }
         next();
         return res;
-    }
-
-    void expect_binder(const std::string& msg, const Ptr<ast::Ptrn>& ptrn) {
-        if (!ptrn->is_trivial())
-            error(ptrn->loc, "invalid {}", msg);
     }
 
     void eat(Token::Tag tag) {

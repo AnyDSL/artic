@@ -28,6 +28,8 @@ std::unordered_map<std::string, Token::Tag> Lexer::keywords{
     std::make_pair("type",      Token::Type),
     std::make_pair("static",    Token::Static),
     std::make_pair("mod",       Token::Mod),
+    std::make_pair("use",       Token::Use),
+    std::make_pair("super",     Token::Super),
     std::make_pair("asm",       Token::Asm),
     std::make_pair("addrspace", Token::AddrSpace),
     std::make_pair("simd",      Token::Simd)
@@ -36,7 +38,7 @@ std::unordered_map<std::string, Token::Tag> Lexer::keywords{
 Lexer::Lexer(Log& log, const std::string& filename, std::istream& is)
     : Logger(log)
     , stream_(is)
-    , loc_(std::make_shared<std::string>(filename), 1, 0)
+    , loc_(std::make_shared<std::string>(filename), { 1, 0 })
 {
     // Read UTF-8 byte order mark (if any)
     uint8_t bytes[] = { 0, 0, 0 };
@@ -240,7 +242,7 @@ void Lexer::eat() {
         if (!ok) {
             cur_.size = 1;
             stream_.seekg(-std::streamoff(read), std::istream::cur); // Rollback read chars.
-            error(Loc(loc_.file, loc_.end.row, loc_.end.col, loc_.end.row, loc_.end.col + 1), "invalid UTF-8 character");
+            error(loc_.at_end().enlarge_after(), "invalid UTF-8 character");
         }
     }
 }
@@ -264,7 +266,7 @@ void Lexer::eat_comments() {
 Literal Lexer::parse_literal() {
     int base = 10;
 
-    auto parse_digits = [&] () {
+    auto parse_digits = [&] {
         while (std::isdigit(peek()) ||
                (base == 16 && peek() >= 'a' && peek() <= 'f') ||
                (base == 16 && peek() >= 'A' && peek() <= 'F')) {

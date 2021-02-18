@@ -1,13 +1,39 @@
 /* inspired from impala version. */
 
 #[import(cc = "C")] fn atoi(&[u8]) -> i32;
-#[import(cc = "C")] fn drand48() -> f64;
 #[import(cc = "C")] fn sqrt(f64) -> f64;
 #[import(cc = "C")] fn fabs(f64) -> f64;
 #[import(cc = "C")] fn cos(f64) -> f64;
 #[import(cc = "C")] fn sin(f64) -> f64;
 #[import(cc = "C")] fn alloc_img(i32, i32) -> &mut [f64];
 #[import(cc = "C")] fn save_img(i32, i32, &[f64]) -> ();
+
+#[import(cc = "builtin")] fn bitcast[T, U](U) -> T;
+
+mod rnd {
+    // This is using xoroshiro128+
+    // See http://prng.di.unimi.it/
+    struct State(u64, u64);
+    fn next(s: &mut State) {
+        fn rotl(x: u64, k: u64) = (x << k) | (x >> (64 - k));
+        let State(s0, mut s1) = *s;
+        let res = s0 + s1;
+        s1 ^= s0;
+        *s = State(rotl(s0, 24) ^ s1 ^ (s1 << 16), rotl(s1, 37));
+        res
+    }
+}
+
+mod fnv {
+    static offset : u32 = 0x811c9dc5;
+    static prime  : u32 = 0x01000193;
+    fn hash_u8 (h: u32, x: u8)  = (h ^ (x as u32)) * prime;
+    fn hash_u16(h: u32, x: u16) = hash_u8(hash_u8(h, x as u8), (x >> 8) as u8);
+    fn hash_u32(h: u32, x: u32) = hash_u16(hash_u16(h, x as u16), (x >> 16) as u16);
+}
+
+fn to_01(u: u64) = (u as f64) / (-1 as u64 as f64);
+fn rand(s: &mut rnd::State) = to_01(rnd::next(s));
 
 struct Vec {
     x: f64,
@@ -191,7 +217,7 @@ fn @ortho_basis(n: Vec) {
     ]
 }
 
-fn @ambient_occlusion(scene: &Scene, p: Vec, n: Vec) {
+fn @ambient_occlusion(scene: &Scene, p: Vec, n: Vec, s: &mut rnd::State) {
     let ntheta = NAO_SAMPLES;
     let nphi   = NAO_SAMPLES;
 
@@ -199,8 +225,8 @@ fn @ambient_occlusion(scene: &Scene, p: Vec, n: Vec) {
 
     let mut occlusion = 0.0;
     for _ in range(0, ntheta * nphi) {
-        let theta = sqrt(drand48());
-        let phi   = 2.0 * PI * drand48();
+        let theta = sqrt(rand(s));
+        let phi   = 2.0 * PI * rand(s);
 
         let x = cos(phi) * theta;
         let y = sin(phi) * theta;
@@ -221,6 +247,13 @@ fn @ambient_occlusion(scene: &Scene, p: Vec, n: Vec) {
     ((ntheta * nphi) as f64 - occlusion) / ((ntheta * nphi) as f64)
 }
 
+fn @rnd_state_for_sample(x: i32, y: i32, u: i32, v: i32) {
+    fn combine(i: i32, j: i32) = fnv::hash_u32(fnv::hash_u32(fnv::offset, i as u32), j as u32);
+    rnd::State(
+        1 | ((combine(x, v) as u64) << 32) | (combine(u, y) as u64),
+        1 | ((combine(y, u) as u64) << 32) | (combine(v, x) as u64))
+}
+
 fn @render(scene: &Scene, img: &mut [f64], w: i32, h: i32, nsubsamples: i32) -> () {
     for y in range(0, h) {
         for x in range(0, w) {
@@ -237,7 +270,8 @@ fn @render(scene: &Scene, img: &mut [f64], w: i32, h: i32, nsubsamples: i32) -> 
                     match intersect(ray, (0, INFINITY), scene) {
                         Option[Hit]::Some(Hit { t = t, n = n }) => {
                             let p = vadd(ray.org, vscale(ray.dir, t));
-                            let col = ambient_occlusion(scene, p, n);
+                            let mut s = rnd_state_for_sample(x, y, u, v);
+                            let col = ambient_occlusion(scene, p, n, &mut s);
                             img(3 * (y * w + x) + 0) += col;
                             img(3 * (y * w + x) + 1) += col;
                             img(3 * (y * w + x) + 2) += col;

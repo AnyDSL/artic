@@ -32,7 +32,10 @@ namespace ast {
 
 void Path::print(Printer& p) const {
     print_list(p, "::", elems, [&] (auto& e) {
-        p << e.id.name;
+        if (e.is_super())
+            p << log::keyword_style(e.id.name);
+        else
+            p << e.id.name;
         if (!e.args.empty()) {
             p << '[';
             print_list(p, ", ", e.args, [&] (auto& arg) {
@@ -200,12 +203,26 @@ void CallExpr::print(Printer& p) const {
 
 void ProjExpr::print(Printer& p) const {
     expr->print(p);
-    p << '.' << field.name;
+    p << '.';
+    std::visit([&] (auto&& arg) {
+        using T = std::decay_t<decltype(arg)>;
+        if constexpr (std::is_same_v<T, Identifier>)
+            p << arg.name;
+        else if constexpr (std::is_same_v<T, size_t>)
+            p << arg;
+    }, field);
 }
 
 void IfExpr::print(Printer& p) const {
     p << log::keyword_style("if") << ' ';
-    cond->print(p);
+    if (cond)
+        cond->print(p);
+    else {
+        p << log::keyword_style("let") << ' ';
+        ptrn->print(p);
+        p << " = ";
+        expr->print(p);
+    }
     p << ' ';
     if_true->print(p);
     if (if_false) {
@@ -235,7 +252,14 @@ void MatchExpr::print(Printer& p) const {
 
 void WhileExpr::print(Printer& p) const {
     p << log::keyword_style("while") << ' ';
-    cond->print(p);
+    if (cond)
+        cond->print(p);
+    else {
+        p << log::keyword_style("let") << ' ';
+        ptrn->print(p);
+        p << " = ";
+        expr->print(p);
+    }
     p << ' ';
     body->print(p);
 }
@@ -609,6 +633,14 @@ void ModDecl::print(Printer& p) const {
         p << p.unindent() << p.endl() << "}";
 }
 
+void UseDecl::print(Printer& p) const {
+    p << log::keyword_style("use") << ' ';
+    path.print(p);
+    if (id.name != "")
+        p << ' ' << log::keyword_style("as") << ' ' << id.name;
+    p << ';';
+}
+
 void ErrorDecl::print(Printer& p) const {
     p << log::error_style("<invalid declaration>");
 }
@@ -782,6 +814,10 @@ void TraitType::print(Printer& p) const {
 
 void ImplType::print(Printer& p) const {
     decl.print(p);
+}
+
+void ModType::print(Printer& p) const {
+    p << decl.id.name;
 }
 
 void TypeAlias::print(Printer& p) const {

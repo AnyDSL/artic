@@ -16,7 +16,10 @@ namespace artic {
 class NameBinder : public Logger {
 public:
     NameBinder(Log& log)
-        : Logger(log), cur_fn_(nullptr), cur_loop_(nullptr)
+        : Logger(log)
+        , cur_fn(nullptr)
+        , cur_loop(nullptr)
+        , cur_mod(nullptr)
     {
         push_scope(true);
     }
@@ -29,45 +32,35 @@ public:
 
     bool warn_on_shadowing = false;
 
+    ast::FnExpr*   cur_fn;
+    ast::LoopExpr* cur_loop;
+    ast::ModDecl*  cur_mod;
+
     void bind_head(ast::Decl&);
     void bind(ast::Node&);
 
-    ast::FnExpr* cur_fn() const { return cur_fn_; }
-    ast::FnExpr* push_fn(ast::FnExpr* fn) {
-        auto old = cur_fn_;
-        cur_fn_ = fn;
-        return old;
-    }
-    void pop_fn(ast::FnExpr* fn) { cur_fn_ = fn; }
-
-    ast::LoopExpr* cur_loop() const { return cur_loop_; }
-    ast::LoopExpr* push_loop(ast::LoopExpr* loop) {
-        auto old = cur_loop_;
-        cur_loop_ = loop;
-        return old;
-    }
-    void pop_loop(ast::LoopExpr* loop) { cur_loop_ = loop; }
-
     void push_scope(bool top_level = false) { scopes_.emplace_back(top_level); }
     void pop_scope();
-    void insert_symbol(ast::NamedDecl&);
+    void insert_symbol(ast::NamedDecl&, const std::string&);
+    void insert_symbol(ast::NamedDecl& decl) {
+        insert_symbol(decl, decl.id.name);
+    }
 
-    std::shared_ptr<Symbol> find_symbol(const std::string& name) {
+    Symbol* find_symbol(const std::string& name) {
         for (auto it = scopes_.rbegin(); it != scopes_.rend(); it++) {
-            if (auto decl = it->find(name)) return decl;
+            if (auto symbol = it->find(name)) {
+                symbol->use_count++;
+                return symbol;
+            }
         }
         return nullptr;
     }
-    std::shared_ptr<Symbol> find_similar_symbol(const std::string& name) {
+
+    Symbol* find_similar_symbol(const std::string& name) {
+        Symbol* best = nullptr;
         auto min = levenshtein_threshold();
-        std::shared_ptr<Symbol> best;
-        for (auto it = scopes_.rbegin(); it != scopes_.rend(); it++) {
-            auto pair = it->find_similar(name, min, levenshtein);
-            if (pair.second) {
-                min  = pair.first;
-                best = pair.second;
-            }
-        }
+        for (auto it = scopes_.rbegin(); it != scopes_.rend(); it++)
+            best = it->find_similar(name, min, levenshtein);
         return best;
     }
 
@@ -84,9 +77,9 @@ private:
         return std::min(d1, std::min(d2, d3));
     }
 
-    ast::FnExpr*   cur_fn_;
-    ast::LoopExpr* cur_loop_;
     std::vector<SymbolTable> scopes_;
+
+    friend struct ast::ModDecl;
 };
 
 } // namespace artic

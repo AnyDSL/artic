@@ -1,0 +1,2 @@
+enum E { A { x: u32 }, B }
+fn test(E::A { x = y }) = y;

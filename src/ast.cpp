@@ -4,9 +4,7 @@
 #include "artic/ast.h"
 #include "artic/types.h"
 
-namespace artic {
-
-namespace ast {
+namespace artic::ast {
 
 bool Type::is_tuple() const { return isa<TupleType>(); }
 bool Expr::is_tuple() const { return isa<TupleExpr>(); }
@@ -328,10 +326,11 @@ BinaryExpr::Tag BinaryExpr::tag_from_token(const Token& token) {
     }
 }
 
-void CaseExpr::collect_bound_ptrns() const {
-    // Do not re-collect patterns if they already have been collected
-    if (bound_ptrns.empty())
-        ptrn->collect_bound_ptrns(bound_ptrns);
+void ModDecl::set_super() {
+    for (auto& decl : decls) {
+        if (auto mod_decl = decl->isa<ModDecl>())
+            mod_decl->super = this;
+    }
 }
 
 // Attributes ----------------------------------------------------------------------
@@ -406,8 +405,8 @@ bool PathExpr::is_constant() const {
 }
 
 void PathExpr::write_to() const {
-    if (path.symbol && path.symbol->decls.size() == 1) {
-        if (auto ptrn_decl = path.symbol->decls.front()->isa<PtrnDecl>(); ptrn_decl && ptrn_decl->is_mut)
+    if (path.start_decl) {
+        if (auto ptrn_decl = path.start_decl->isa<PtrnDecl>(); ptrn_decl && ptrn_decl->is_mut)
             ptrn_decl->written_to = true;
     }
 }
@@ -536,12 +535,16 @@ void ProjExpr::write_to() const {
 }
 
 bool IfExpr::is_jumping() const {
-    return cond->is_jumping() || (if_true->is_jumping() && if_false && if_false->is_jumping());
+    return
+        (cond && cond->is_jumping()) ||
+        (expr && expr->is_jumping()) ||
+        (if_true->is_jumping() && if_false && if_false->is_jumping());
 }
 
 bool IfExpr::has_side_effect() const {
     return
-        cond->has_side_effect() ||
+        (cond && cond->has_side_effect()) ||
+        (expr && expr->has_side_effect()) ||
         if_true->has_side_effect() ||
         (if_false && if_false->has_side_effect());
 }
@@ -575,7 +578,10 @@ bool WhileExpr::is_jumping() const {
 }
 
 bool WhileExpr::has_side_effect() const {
-    return cond->has_side_effect() || body->has_side_effect();
+    return
+        (cond && cond->has_side_effect()) ||
+        (expr && expr->has_side_effect()) ||
+        body->has_side_effect();
 }
 
 bool ForExpr::is_jumping() const {
@@ -649,10 +655,9 @@ bool ImplicitCastExpr::has_side_effect() const {
 bool ImplicitCastExpr::is_constant() const {
     assert(expr->type);
     if (auto path_expr = expr->isa<PathExpr>();
-        path_expr && path_expr->path.elems.size() == 1 &&
-        path_expr->path.symbol && !path_expr->path.symbol->decls.empty())
+        path_expr && path_expr->path.elems.size() == 1 && path_expr->path.start_decl)
     {
-        if (auto static_decl = path_expr->path.symbol->decls.front()->isa<StaticDecl>()) {
+        if (auto static_decl = path_expr->path.start_decl->isa<StaticDecl>()) {
             // Allow using other constant static declarations as constants
             return !static_decl->is_mut;
         }
@@ -705,18 +710,21 @@ void RecordPtrn::collect_bound_ptrns(std::vector<const IdPtrn*>& bound_ptrns) co
 }
 
 bool RecordPtrn::is_trivial() const {
-    return std::all_of(fields.begin(), fields.end(), [] (auto& field) {
-        return field->is_trivial();
-    });
+    assert(type);
+    return
+        match_app<StructType>(type).second &&
+        std::all_of(fields.begin(), fields.end(), [] (auto& field) {
+            return field->is_trivial();
+        });
 }
 
 void CtorPtrn::collect_bound_ptrns(std::vector<const IdPtrn*>& bound_ptrns) const {
-    if (arg)
-        arg->collect_bound_ptrns(bound_ptrns);
+    if (arg) arg->collect_bound_ptrns(bound_ptrns);
 }
 
 bool CtorPtrn::is_trivial() const {
-    return false;
+    assert(type);
+    return match_app<StructType>(type).second && (!arg || arg->is_trivial());
 }
 
 void TuplePtrn::collect_bound_ptrns(std::vector<const IdPtrn*>& bound_ptrns) const {
@@ -741,6 +749,4 @@ bool ErrorPtrn::is_trivial() const {
     return false;
 }
 
-} // namespace ast
-
-} // namespace artic
+} // namespace artic::ast

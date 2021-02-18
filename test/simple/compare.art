@@ -1,0 +1,18 @@
+#[import(cc = "builtin", name = "compare")]
+fn intrinsic_compare[A](&A, &A) -> bool;
+
+struct S(u8, f32, i32, ());
+enum Empty { A, B, C }
+enum E { A(i32), B(f32), C(S), D(&S), E(&i8) }
+
+#[export]
+fn f(a: &S, b: &S) = intrinsic_compare(a, b);
+
+#[export]
+fn g(a: &Empty, b: &Empty) = intrinsic_compare(a, b);
+
+#[export]
+fn h(a: &E, b: &E) = intrinsic_compare(a, b);
+
+#[export]
+fn ptr(a: &i32, b: &i32) = intrinsic_compare(a, b);

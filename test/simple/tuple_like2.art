@@ -1,0 +1,7 @@
+mod test {
+    struct S(i32, u32);
+    struct T[U](i32, U);
+}
+
+fn foo() = test::S(1, 2);
+fn bar() = test::T[u32](1, 2);

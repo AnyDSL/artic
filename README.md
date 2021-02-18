@@ -95,11 +95,36 @@ range(|i| { print(i) })(0, 10)
 #[export]
 fn foo() -> i32 { 1 }
 ```
+ - Modules are supported. They behave essentially like C++ namespaces,
+   except they cannot be extended after being defined, and they are
+   order independent:
+```rust
+fn bar() = A::foo();
+mod A {
+    fn foo() = 1;
+}
+```
+ - Modules can be imported using the `use` keyword, optionally with
+   another name by using `as`:
+```rust
+mod A {
+    use super::C;
+    fn foo() { C::baz() }
+    mod B {
+        fn bar() { super::foo() }
+    }
+}
+mod C {
+    use super::A::B as D;
+    fn baz() { D::bar }
+}
+```
  - Tuples cannot be indexed with constant integers anymore:
 ```rust
 let t = (1, 2);
 t(1) // valid in impala, invalid in artic
 // valid alternatives in artic:
+let t1 = t.1;
 match t { (_, t1) => ... }
 let (_, t1) = t;
 ```
@@ -152,6 +177,16 @@ static x = S { y = 2 }; // x is a structure with x = 1, y = 2
 struct S(i32, i64);
 struct T;
 ```
+ - Tuples and "tuple-like" structures members can be accessed with the projection operator:
+```rust
+struct S(i32, i64);
+let s = S(1, 2);
+let x = s.0;
+let y = s.1;
+let t = (1, 2);
+let z = t.0;
+let w = t.1;
+```
  - Enumeration options can use a "record-like" form:
 ```rust
 enum E {
@@ -189,6 +224,19 @@ match x {
     (_, (1, _)) => 3,
     (_, (_, false)) => 4,
     (_, (_, true)) => 5
+}
+```
+ - `if let` and `while let` expressions are supported:
+```rust
+if let (Option[Foo]::Some(y), 1) = x {
+    foo(y)
+} else {
+    bar();
+}
+```
+```rust
+while let Option[Bar]::Some(x) = get_next() {
+    process(x);
 }
 ```
  - The `@@` sign for call-site annotations has been replaced by `@`:

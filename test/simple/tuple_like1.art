@@ -1,0 +1,8 @@
+struct S(i32, u32);
+struct T;
+
+#[export]
+fn test(s: S, t: T) {
+    let S(_: i32, _: u32) = s;
+    s.0
+}

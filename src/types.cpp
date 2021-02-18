@@ -92,6 +92,10 @@ bool ImplType::equals(const Type* other) const {
     return other == this;
 }
 
+bool ModType::equals(const Type* other) const {
+    return other == this;
+}
+
 bool TypeAlias::equals(const Type* other) const {
     return other == this;
 }
@@ -176,6 +180,10 @@ size_t ImplType::hash() const {
     return fnv::Hash().combine(&decl);
 }
 
+size_t ModType::hash() const {
+    return fnv::Hash().combine(&decl);
+}
+
 size_t TypeAlias::hash() const {
     return fnv::Hash().combine(&decl);
 }
@@ -221,7 +229,7 @@ bool TypeApp::contains(const Type* type) const {
 // Replace -------------------------------------------------------------------------
 
 const Type* TupleType::replace(const std::unordered_map<const TypeVar*, const Type*>& map) const {
-    std::vector<const Type*> new_args(args.size());
+    SmallArray<const Type*> new_args(args.size());
     for (size_t i = 0, n = args.size(); i < n; ++i)
         new_args[i] = args[i]->replace(map);
     return type_table.tuple_type(std::move(new_args));
@@ -254,7 +262,7 @@ const Type* TypeVar::replace(const std::unordered_map<const TypeVar*, const Type
 }
 
 const Type* TypeApp::replace(const std::unordered_map<const TypeVar*, const Type*>& map) const {
-    std::vector<const Type*> new_type_args(type_args.size());
+    SmallArray<const Type*> new_type_args(type_args.size());
     for (size_t i = 0, n = type_args.size(); i < n; ++i)
         new_type_args[i] = type_args[i]->replace(map);
     return type_table.type_app(applied, std::move(new_type_args));
@@ -451,10 +459,6 @@ size_t StructType::member_count() const {
     return decl.fields.size();
 }
 
-bool StructType::is_tuple_like() const {
-    return decl.isa<ast::StructDecl>() && decl.as<ast::StructDecl>()->is_tuple_like;
-}
-
 std::optional<size_t> EnumType::find_member(const std::string_view& name) const {
     return ComplexType::find_member(name, decl.options);
 }
@@ -465,6 +469,16 @@ std::optional<size_t> TraitType::find_member(const std::string_view& name) const
 
 std::optional<size_t> ImplType::find_member(const std::string_view& name) const {
     return ComplexType::find_member(name, decl.fns);
+}
+
+std::optional<size_t> ModType::find_member(const std::string_view& name) const {
+    auto it = std::find_if(
+            members().begin(),
+            members().end(),
+            [&name] (auto& member) { return member.name == name; });
+    return it != members().end()
+           ? std::make_optional(it - members().begin())
+           : std::nullopt;
 }
 
 
@@ -480,6 +494,10 @@ const Type* ImplType::member_type(size_t i) const {
     return decl.fns[i]->type;
 }
 
+const Type* ModType::member_type(size_t i) const {
+    return members()[i].decl.type;
+}
+
 size_t EnumType::member_count() const {
     return decl.options.size();
 }
@@ -490,6 +508,25 @@ size_t TraitType::member_count() const {
 
 size_t ImplType::member_count() const {
     return decl.fns.size();
+}
+
+size_t ModType::member_count() const {
+    return members().size();
+}
+
+ast::NamedDecl& ModType::member(size_t i) const {
+    return members()[i].decl;
+}
+
+const ModType::Members& ModType::members() const {
+    if (!members_) {
+        members_ = std::make_unique<ModType::Members>();
+        for (auto& decl : decl.decls) {
+            if (auto named_decl = decl->isa<ast::NamedDecl>())
+                members_->emplace_back(named_decl->id.name, *named_decl);
+        }
+    }
+    return *members_;
 }
 
 // Misc. ---------------------------------------------------------------------------
@@ -556,12 +593,12 @@ const Type* Type::join(const Type* other) const {
     return type_table.top_type();
 }
 
-const Type* ForallType::instantiate(const std::vector<const Type*>& args) const {
+const Type* ForallType::instantiate(const ArrayRef<const Type*>& args) const {
     return body->replace(replace_map(args));
 }
 
 std::unordered_map<const TypeVar *, const Type *>
-ForallType::replace_map(const std::vector<const Type*> & args) const{
+ForallType::replace_map(const ArrayRef<const Type*> & args) const {
     std::unordered_map<const TypeVar*, const Type*> map;
     assert(decl.bounds_and_params && decl.bounds_and_params->params.size() == args.size());
     for (size_t i = 0, n = args.size(); i < n; ++i) {
@@ -571,9 +608,20 @@ ForallType::replace_map(const std::vector<const Type*> & args) const{
     return map;
 }
 
+bool StructType::is_tuple_like() const {
+    return decl.isa<ast::StructDecl>() && decl.as<ast::StructDecl>()->is_tuple_like;
+}
+
+bool EnumType::is_trivial() const {
+    return std::all_of(
+        decl.options.begin(),
+        decl.options.end(),
+        [] (auto& o) { return is_unit_type(o->type); });
+}
+
 std::unordered_map<const TypeVar*, const Type*> TypeApp::replace_map(
     const PtrVector<ast::TypeParam>& type_params,
-    const std::vector<const Type*>& type_args)
+    const ArrayRef<const Type*>& type_args)
 {
     std::unordered_map<const TypeVar*, const Type*> map;
     assert(type_params.size() == type_args.size());
@@ -658,7 +706,7 @@ const TupleType* TypeTable::unit_type() {
     return unit_type_ ? unit_type_ : unit_type_ = tuple_type({});
 }
 
-const TupleType* TypeTable::tuple_type(std::vector<const Type*>&& elems) {
+const TupleType* TypeTable::tuple_type(const ArrayRef<const Type*>& elems) {
     return insert<TupleType>(std::move(elems));
 }
 
@@ -726,11 +774,15 @@ const ImplType* TypeTable::impl_type(const ast::ImplDecl& impl) {
     return insert<ImplType>(impl);
 }
 
+const ModType* TypeTable::mod_type(const ast::ModDecl& decl) {
+    return insert<ModType>(decl);
+}
+
 const TypeAlias* TypeTable::type_alias(const ast::TypeDecl& decl) {
     return insert<TypeAlias>(decl);
 }
 
-const Type* TypeTable::type_app(const UserType* applied, std::vector<const Type*>&& type_args) {
+const Type* TypeTable::type_app(const UserType* applied, const ArrayRef<const Type*>& type_args) {
     if (auto type_alias = applied->isa<TypeAlias>()) {
         assert(
             type_alias->bounds_and_params() &&
