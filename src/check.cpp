@@ -617,7 +617,7 @@ void TypeChecker::check_op_impl_defined(const Loc& loc, std::string name, SmallA
         check_type_has_single_impl(loc, needed_impl, collect_type_bounds());
 }
 
-void TypeChecker::check_bound(const Type* bound, Loc& loc) {
+void TypeChecker::check_bound_valid(const Type* bound, Loc& loc) {
     auto [type_app, trait_type] = match_app<TraitType>(bound);
     if (trait_type) {
         if (!contains_var(bound))
@@ -1562,7 +1562,7 @@ const artic::Type* TypeParam::infer(TypeChecker& checker) {
 const artic::Type* TypeBoundsAndParams::infer(TypeChecker& checker) {
     for (auto& bound: bounds) {
         bound->type = bound->path.type = bound->path.infer(checker, false);
-        checker.check_bound(bound->type, bound->loc);
+        checker.check_bound_valid(bound->type, bound->loc);
     }
 
     for (auto& param: params)
@@ -1777,7 +1777,7 @@ const artic::Type* ImplDecl::infer(TypeChecker& checker) {
 
     for (auto b: trait_type->bounds()) {
         auto b_t = b->replace(type_app->replace_map());
-        checker.check_bound(b_t, this->loc);
+        checker.check_bound_valid(b_t, this->loc);
     }
     /* If one imposes no restrictions on the impl's it is possible that the type checking algorithm diverges.
     * Here we check if this impl fulfills the conditions that guarantee that the type checking process terminates

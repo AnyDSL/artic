@@ -91,7 +91,6 @@ Ptr<ast::FnDecl> Parser::parse_fn_decl() {
 
     auto bounds = parse_bounds();
 
-
     Ptr<ast::Expr> body;
     if (ahead().tag() == Token::LBrace)
         body = parse_block_expr();

@@ -90,7 +90,8 @@ public:
     bool infer_type_args(const Loc&, const ForallType*, const Type*, std::vector<const Type*>&);
     const Type* infer_record_type(const TypeApp*, const StructType*, size_t&);
 
-    void check_bound(const Type*, Loc& loc);
+    // A type bound is valid if it has a trait type, which is either polymorphic or has a single implementation
+    void check_bound_valid(const Type*, Loc& loc);
     void check_op_impl_defined(const Loc& loc, std::string name, SmallArray<const Type*> args);
     bool trait_bound_exists(const Type*);
     std::vector<const Type*> collect_type_bounds();
