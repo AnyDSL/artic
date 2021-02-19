@@ -326,13 +326,6 @@ BinaryExpr::Tag BinaryExpr::tag_from_token(const Token& token) {
     }
 }
 
-void ModDecl::set_super() {
-    for (auto& decl : decls) {
-        if (auto mod_decl = decl->isa<ModDecl>())
-            mod_decl->super = this;
-    }
-}
-
 // Attributes ----------------------------------------------------------------------
 
 static const Attr* find(const PtrVector<Attr>& attrs, const std::string_view& name) {

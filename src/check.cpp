@@ -436,7 +436,7 @@ bool TypeChecker::check_filter(const ast::Expr& expr) {
 }
 
 
-void TypeChecker::check_type_has_single_impl(const Loc& loc, const Type *type, std::vector<const Type*> available_bounds) {
+void TypeChecker::check_type_has_single_impl(const Loc& loc, const Type *type, Array<const Type*> available_bounds) {
     auto candidates = type_table.find_all_impls(current_scope, type, available_bounds);
     if (candidates.empty())
         error(loc, "The trait '{}' is not implemented", *type);
@@ -610,7 +610,7 @@ const Type* TypeChecker::infer_record_type(const TypeApp* type_app, const Struct
     return type_app ? type_app->as<Type>() : struct_type;
 }
 
-void TypeChecker::check_op_impl_defined(const Loc& loc, std::string name, std::vector<const Type*> args) {
+void TypeChecker::check_op_impl_defined(const Loc& loc, std::string name, SmallArray<const Type*> args) {
     auto trait = type_table.known_traits[name];
     auto needed_impl = type_table.type_app(trait, std::move(args));
     if (!trait_bound_exists(needed_impl))

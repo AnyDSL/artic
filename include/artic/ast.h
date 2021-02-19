@@ -1480,8 +1480,6 @@ struct ModDecl : public NamedDecl {
     std::vector<const NamedDecl*> members;
 
     /// Constructor for the implicitly defined global module.
-    /// When using this constructor, the user is responsible for calling
-    /// `set_super()` once the declarations have been added to the module.
     explicit ModDecl()
         : NamedDecl(Loc(), Identifier())
     {}
@@ -1489,11 +1487,7 @@ struct ModDecl : public NamedDecl {
     /// Constructor for a regular module declaration.
     ModDecl(const Loc& loc, Identifier&& id, PtrVector<Decl>&& decls)
         : NamedDecl(loc, std::move(id)), decls(std::move(decls))
-    {
-        set_super();
-    }
-
-    void set_super();
+    {}
 
     const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) override;

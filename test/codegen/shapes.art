@@ -41,8 +41,7 @@ impl Sub[Vec3] {
 fn min(a:f32, b:f32) {
     if (a < b) {
         a
-    }
-    else {
+    } else {
         b
     }
 }
@@ -50,8 +49,7 @@ fn min(a:f32, b:f32) {
 fn max(a:f32, b:f32) {
     if (a > b) {
         a
-    }
-    else {
+    } else {
        b
     }
 }

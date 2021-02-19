@@ -990,7 +990,7 @@ const thorin::Def* Path::emit(Emitter& emitter) const {
         } else if (!is_ctor) {
             std::unordered_map<const artic::TypeVar*, const artic::Type*> old_vars;
             old_vars.insert(emitter.type_vars.begin(), emitter.type_vars.end());
-            if(!elems[i].inferred_args.empty())
+            if (!elems[i].inferred_args.empty())
                 emitter.add_poly_vars_to_emitter(decl->type->as<PolyType>(), elems[i].inferred_args);
 
             const thorin::Def*  def;
@@ -2012,8 +2012,6 @@ bool compile(
         if (!lex_and_parse(log, file_names[i], is, warns_as_errors, program))
             return false;
     }
-
-    program.set_super();
 
     NameBinder name_binder(log);
     name_binder.warns_as_errors = warns_as_errors;

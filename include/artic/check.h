@@ -79,7 +79,7 @@ public:
     void check_block(const Loc&, const PtrVector<ast::Stmt>&, bool);
     bool check_attrs(const ast::NamedAttr&, const ArrayRef<AttrType>&);
     bool check_filter(const ast::Expr&);
-    void check_type_has_single_impl(const Loc& loc, const Type* type, std::vector<const Type*> available_bounds);
+    void check_type_has_single_impl(const Loc& loc, const Type* type, Array<const Type*> available_bounds);
     void check_refutability(const ast::Ptrn&, bool);
 
     template <typename InferElems>
@@ -91,7 +91,7 @@ public:
     const Type* infer_record_type(const TypeApp*, const StructType*, size_t&);
 
     void check_bound(const Type*, Loc& loc);
-    void check_op_impl_defined(const Loc& loc, std::string name, std::vector<const Type*> args);
+    void check_op_impl_defined(const Loc& loc, std::string name, SmallArray<const Type*> args);
     bool trait_bound_exists(const Type*);
     std::vector<const Type*> collect_type_bounds();
 

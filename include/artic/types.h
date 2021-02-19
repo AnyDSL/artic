@@ -748,16 +748,16 @@ public:
     /// Returns nullptr if the impl is not already registered
     const ImplType* register_impl(const ast::ModDecl* scope, const ImplType* impl);
 
-    const std::vector<const Type*> find_all_impls(const ast::ModDecl*, const Type* type, std::vector<const Type*> additional_bounds = {});
+    const std::vector<const Type*> find_all_impls(const ast::ModDecl*, const Type* type, ArrayRef<const Type*> additional_bounds = {});
     const Type* find_impl(const ast::ModDecl*, const Type* type);
-    const Type* find_impl(const ast::ModDecl*, std::string trait_name, std::vector<const Type*> args);
+    const Type* find_impl(const ast::ModDecl*, std::string trait_name, SmallArray<const Type*> args);
 
     /// This method checks if the impl can be the con be used to justify the type
     /// Example:
     /// impl T[i32] can justify T[i32]
     /// impl[A] T[A] where Add[A] can also justify T[i32]
     /// impl[A] T[A] where Add[A] can not justify T[bool]
-    bool check_impl(const ast::ModDecl*, const Type* type, const ImplType* impl, std::vector<const Type*> additional_bounds = {});
+    bool check_impl(const ast::ModDecl*, const Type* type, const ImplType* impl, Array<const Type*> additional_bounds = {});
     bool in_additional_bound(const Type* type, const Type* additional_bound);
     /// Returns a map that unifies poly and target (if one exists), i.e.
     /// poly->replace(replace_map(poly, target)) == target always holds if such map exists

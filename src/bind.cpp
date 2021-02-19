@@ -526,6 +526,7 @@ void ModDecl::bind(NameBinder& binder) {
         auto old_mod = binder.cur_mod;
         binder.cur_mod = this;
         binder.push_scope();
+        super = find_parent_module();
         for (auto& decl : decls) binder.bind_head(*decl);
         for (auto& decl : decls) binder.bind(*decl);
         std::swap(binder.scopes_, old_scopes);

@@ -828,7 +828,7 @@ const ImplType* TypeTable::register_impl(const ast::ModDecl* scope, const ImplTy
     return nullptr;
 }
 
-const std::vector<const Type*>  TypeTable::find_all_impls(const ast::ModDecl* scope, const Type* type, std::vector<const Type*> additional_bounds) {
+const std::vector<const Type*>  TypeTable::find_all_impls(const ast::ModDecl* scope, const Type* type, ArrayRef<const Type*> additional_bounds) {
     std::vector<const Type *> result;
     /// This check ensures that the impl resolution does not try to find implementations for generic trait uses
     /// while still checking the bound when the trait is concrete
@@ -884,7 +884,7 @@ const Type* TypeTable::find_impl(const ast::ModDecl* scope, const Type* type) {
 
 }
 
-const Type* TypeTable::find_impl(const ast::ModDecl* scope, std::string trait_name, std::vector<const Type*> args) {
+const Type* TypeTable::find_impl(const ast::ModDecl* scope, std::string trait_name, SmallArray<const Type*> args) {
     auto trait = known_traits[trait_name];
     auto app = type_app(trait, std::move(args));
     return find_impl(scope, app);
@@ -900,7 +900,7 @@ bool TypeTable::in_additional_bound(const Type* type, const Type* additional_bou
     return false;
 }
 
-bool TypeTable::check_impl(const ast::ModDecl* scope, const Type* type, const ImplType* impl, std::vector<const Type*> additional_bounds) {
+bool TypeTable::check_impl(const ast::ModDecl* scope, const Type* type, const ImplType* impl, Array<const Type*> additional_bounds) {
     auto replace = replace_map(impl->decl.trait_type->type, type);
     if (impl->decl.trait_type->type->replace(replace) != type) {
         return false;
