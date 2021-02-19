@@ -55,6 +55,8 @@ add_test(NAME simple_ops                        COMMAND artic --print-ast ${CMAK
 add_test(NAME simple_mod1                       COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/mod1.art)
 add_test(NAME simple_mod2                       COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/mod2.art)
 add_test(NAME simple_mod3                       COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/mod3.art)
+add_test(NAME simple_mod4                       COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/mod4.art)
+add_test(NAME simple_mod5                       COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/mod5.art)
 add_test(NAME simple_use                        COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/use.art)
 add_test(NAME simple_poly_fn1                   COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/poly_fn1.art)
 add_test(NAME simple_poly_fn2                   COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/poly_fn2.art)
@@ -156,6 +158,9 @@ add_failure_test(NAME failure_trait_as_type4    COMMAND artic --print-ast ${CMAK
 add_failure_test(NAME failure_missing_impl1     COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/failure/missing_impl1.art)
 add_failure_test(NAME failure_missing_impl2     COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/failure/missing_impl2.art)
 add_failure_test(NAME failure_missing_impl3     COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/failure/missing_impl3.art)
+add_failure_test(NAME failure_impl_diff_mod1    COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/failure/impl_diff_mod1.art)
+add_failure_test(NAME failure_impl_diff_mod2    COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/failure/impl_diff_mod2.art)
+add_failure_test(NAME failure_impl_nested       COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/failure/impl_nested.art)
 add_failure_test(NAME failure_not_sized         COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/not_sized.art)
 
 set(CODEGEN_TESTS "")

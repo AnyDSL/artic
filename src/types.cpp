@@ -809,8 +809,18 @@ const ImplType* TypeTable::register_impl(const ast::ModDecl* scope, const ImplTy
     const Type* target = impl->type_params().empty() ? impl->decl.trait_type->type : trait_type;
     auto& impls = mod_impls[scope];
     auto bucket = impls.find(target);
-    if (!impl->type_params().empty() && bucket != impls.end())
-        return bucket->second.front();
+
+    // Checks that there is a single declarations of the same implementation
+    if (impl->type_params().empty()) {
+        auto aux = scope;
+        while   (aux != nullptr) {
+            auto bucket = mod_impls[aux].find(target);
+            if (bucket != mod_impls[aux].end())
+                return bucket->second.front();
+            aux = aux->super;
+        }
+    }
+
     if (bucket != impls.end())
         impls[target].push_back(impl);
     else

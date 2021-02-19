@@ -1,0 +1,12 @@
+trait T[_]{ fn foo() = 1;}
+impl T[i32]{}
+
+mod M1 {
+    impl super::T[bool]{}
+    fn f() = super::T[bool]::foo() + super::T[i32]::foo();
+}
+
+mod M2 {
+    impl super::T[bool]{}
+    fn f() = super::T[bool]::foo();
+}
