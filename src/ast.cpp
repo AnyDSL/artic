@@ -54,9 +54,12 @@ PrimType::Tag PrimType::tag_from_token(const Token& token) {
 
 std::string UnaryExpr::tag_to_string(Tag tag) {
     switch (tag) {
-        case Not:   return "!";
-        case Plus:  return "+";
-        case Minus: return "-";
+        case Not:    return "!";
+        case Plus:   return "+";
+        case Minus:  return "-";
+        case Deref:  return "*";
+        case Known:  return "?";
+        case Forget: return "$";
         case PostInc:
         case PreInc:
             return "++";
@@ -66,9 +69,6 @@ std::string UnaryExpr::tag_to_string(Tag tag) {
         case AddrOf:
         case AddrOfMut:
             return "&";
-        case Deref:  return "*";
-        case Known:  return "?";
-        case Forget: return "$";
         default:
             assert(false);
             return "";
@@ -205,37 +205,37 @@ int BinaryExpr::max_precedence() { return 10; }
 
 std::string BinaryExpr::tag_to_string(Tag tag) {
     switch (tag) {
-        case Eq: return "=";
-        case AddEq: return "+=";
-        case SubEq: return "-=";
-        case MulEq: return "*=";
-        case DivEq: return "/=";
-        case RemEq: return "%=";
-        case AndEq: return "&=";
-        case OrEq:  return "|=";
-        case XorEq: return "^=";
+        case Eq:      return "=";
+        case AddEq:   return "+=";
+        case SubEq:   return "-=";
+        case MulEq:   return "*=";
+        case DivEq:   return "/=";
+        case RemEq:   return "%=";
+        case AndEq:   return "&=";
+        case OrEq:    return "|=";
+        case XorEq:   return "^=";
         case LShftEq: return "<<=";
         case RShftEq: return ">>=";
 
-        case Add: return "+";
-        case Sub: return "-";
-        case Mul: return "*";
-        case Div: return "/";
-        case Rem: return "%";
-        case And: return "&";
-        case Or:  return "|";
-        case Xor: return "^";
+        case Add:   return "+";
+        case Sub:   return "-";
+        case Mul:   return "*";
+        case Div:   return "/";
+        case Rem:   return "%";
+        case And:   return "&";
+        case Or:    return "|";
+        case Xor:   return "^";
         case LShft: return "<<";
         case RShft: return ">>";
 
         case LogicAnd: return "&&";
-        case LogicOr:   return "||";
+        case LogicOr:  return "||";
 
-        case CmpLT:  return "<";
-        case CmpGT:  return ">";
-        case CmpLE:  return "<=";
-        case CmpGE:  return ">=";
-        case CmpEq:  return "==";
+        case CmpLT: return "<";
+        case CmpGT: return ">";
+        case CmpLE: return "<=";
+        case CmpGE: return ">=";
+        case CmpEq: return "==";
         case CmpNE: return "!=";
         default:
             assert(false);
@@ -244,43 +244,22 @@ std::string BinaryExpr::tag_to_string(Tag tag) {
 }
 
 std::string BinaryExpr::tag_to_trait_name(Tag tag) {
-    switch (tag) {
-        case Add:
-        case AddEq:
-            return "Add";
-        case Sub:
-        case SubEq:
-            return "Sub";
-        case Mul:
-        case MulEq:
-            return "Mul";
-        case Div:
-        case DivEq:
-            return "Div";
-        case Rem:
-        case RemEq:
-            return "Rem";
-        case And:
-        case AndEq:
-            return "And";
-        case Or:
-        case OrEq:
-            return "Or";
-        case Xor:
-        case XorEq:
-            return "Xor";
-        case LShft:
-        case LShftEq:
-            return "LShift";
-        case RShft:
-        case RShftEq:
-            return "RShift";
-
-        case CmpLT:  return "CmpLT";
-        case CmpGT:  return "CmpGT";
-        case CmpLE:  return "CmpLE";
-        case CmpGE:  return "CmpGE";
-        case CmpEq:  return "CmpEq";
+    switch (remove_eq(tag)) {
+        case Add:   return "Add";
+        case Sub:   return "Sub";
+        case Mul:   return "Mul";
+        case Div:   return "Div";
+        case Rem:   return "Rem";
+        case And:   return "And";
+        case Or:    return "Or";
+        case Xor:   return "Xor";
+        case LShft: return "LShift";
+        case RShft: return "RShift";
+        case CmpLT: return "CmpLT";
+        case CmpGT: return "CmpGT";
+        case CmpLE: return "CmpLE";
+        case CmpGE: return "CmpGE";
+        case CmpEq: return "CmpEq";
         case CmpNE: return "CmpNE";
         default:
             assert(false);
@@ -290,31 +269,31 @@ std::string BinaryExpr::tag_to_trait_name(Tag tag) {
 
 BinaryExpr::Tag BinaryExpr::tag_from_token(const Token& token) {
     switch (token.tag()) {
-        case Token::Eq: return Eq;
-        case Token::AddEq: return AddEq;
-        case Token::SubEq: return SubEq;
-        case Token::MulEq: return MulEq;
-        case Token::DivEq: return DivEq;
-        case Token::RemEq: return RemEq;
-        case Token::AndEq: return AndEq;
-        case Token::OrEq: return OrEq;
-        case Token::XorEq: return XorEq;
+        case Token::Eq:      return Eq;
+        case Token::AddEq:   return AddEq;
+        case Token::SubEq:   return SubEq;
+        case Token::MulEq:   return MulEq;
+        case Token::DivEq:   return DivEq;
+        case Token::RemEq:   return RemEq;
+        case Token::AndEq:   return AndEq;
+        case Token::OrEq:    return OrEq;
+        case Token::XorEq:   return XorEq;
         case Token::LShftEq: return LShftEq;
         case Token::RShftEq: return RShftEq;
 
-        case Token::Add: return Add;
-        case Token::Sub: return Sub;
-        case Token::Mul: return Mul;
-        case Token::Div: return Div;
-        case Token::Rem: return Rem;
-        case Token::And: return And;
-        case Token::Or: return Or;
-        case Token::Xor: return Xor;
+        case Token::Add:   return Add;
+        case Token::Sub:   return Sub;
+        case Token::Mul:   return Mul;
+        case Token::Div:   return Div;
+        case Token::Rem:   return Rem;
+        case Token::And:   return And;
+        case Token::Or:    return Or;
+        case Token::Xor:   return Xor;
         case Token::LShft: return LShft;
         case Token::RShft: return RShft;
 
         case Token::LogicAnd: return LogicAnd;
-        case Token::LogicOr:   return LogicOr;
+        case Token::LogicOr:  return LogicOr;
 
         case Token::CmpLT: return CmpLT;
         case Token::CmpGT: return CmpGT;
@@ -322,7 +301,9 @@ BinaryExpr::Tag BinaryExpr::tag_from_token(const Token& token) {
         case Token::CmpGE: return CmpGE;
         case Token::CmpEq: return CmpEq;
         case Token::CmpNE: return CmpNE;
-        default: return Error;
+
+        default:
+            return Error;
     }
 }
 
@@ -488,6 +469,16 @@ bool RepeatArrayExpr::is_constant() const {
 
 bool FnExpr::is_constant() const {
     return true;
+}
+
+bool FnExpr::is_builtin() const {
+    if (attrs) {
+        if (auto import_attr = attrs->find("import")) {
+            if (auto cc_attr = import_attr->find("cc"))
+                return cc_attr->as<ast::LiteralAttr>()->lit.as_string() == "builtin";
+        }
+    }
+    return false;
 }
 
 bool BlockExpr::is_jumping() const {

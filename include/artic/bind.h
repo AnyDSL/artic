@@ -17,14 +17,7 @@ class NameBinder : public Logger {
 public:
     NameBinder(Log& log)
         : Logger(log)
-        , cur_fn(nullptr)
-        , cur_loop(nullptr)
-        , cur_mod(nullptr)
-    {
-        push_scope(true);
-    }
-
-    ~NameBinder() { pop_scope(); }
+    {}
 
     /// Performs name binding on a whole program.
     /// Returns true on success, otherwise false.
@@ -32,15 +25,28 @@ public:
 
     bool warn_on_shadowing = false;
 
-    ast::FnExpr*   cur_fn;
-    ast::LoopExpr* cur_loop;
-    ast::ModDecl*  cur_mod;
-
     void bind_head(ast::Decl&);
     void bind(ast::Node&);
 
-    void push_scope(bool top_level = false) { scopes_.emplace_back(top_level); }
+    void push_scope(ast::Node& parent) { scopes_.emplace_back(parent); }
     void pop_scope();
+
+    template <typename Pred>
+    const SymbolTable* find_scope(Pred&& pred) const {
+        assert(!scopes_.empty());
+        for (size_t i = scopes_.size(); i > 0; --i) {
+            if (pred(scopes_[i]))
+                return &scopes_[i];
+        }
+        return nullptr;
+    }
+
+    template <typename T>
+    T* find_parent() const {
+        auto scope = find_scope([] (auto& scope) { return scope.parent.template isa<T>(); });
+        return scope ? scope->parent.template as<T>() : nullptr;
+    }
+
     void insert_symbol(ast::NamedDecl&, const std::string&);
     void insert_symbol(ast::NamedDecl& decl) {
         insert_symbol(decl, decl.id.name);

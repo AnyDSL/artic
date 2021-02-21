@@ -98,6 +98,12 @@ public:
         : data_(std::make_unique<T[]>(size)), size_(size)
     {}
 
+    Array(size_t size, T value)
+        : Array(size)
+    {
+        std::fill(this->begin(), this->end(), value);
+    }
+
     template <typename It>
     Array(It begin, It end)
         : size_(std::distance(begin, end))
@@ -142,6 +148,12 @@ public:
     {
         if (size > N)
             data_ = std::make_unique<T[]>(size);
+    }
+
+    SmallArray(size_t size, T value)
+        : SmallArray(size)
+    {
+        std::fill(this->begin(), this->end(), value);
     }
 
     template <typename It>

@@ -84,25 +84,29 @@ log::Output& operator << (log::Output&, const Node&);
 
 // Base AST nodes ------------------------------------------------------------------
 
-struct ModDecl;
 /// Base class for all declarations.
 struct Decl : public Node {
     Decl(const Loc& loc) : Node(loc) {}
 
     /// Set to true if this declaration is at the top level of a module.
     bool is_top_level = false;
+    /// Declaration enclosing this one. Set during name-binding.
+    Decl* parent = nullptr;
+
+    /// Finds the closest parent that is of the given type.
+    template <typename T>
+    T* find_parent() const {
+        Decl* cur = parent;
+        while (cur) {
+            if (cur->template isa<T>())
+                return cur->template as<T>();
+            cur = cur->parent;
+        }
+        return nullptr;
+    }
 
     /// Binds the declaration to its AST node, without entering sub-AST nodes.
     virtual void bind_head(NameBinder&) {}
-
-    Decl* parent = nullptr;
-
-    ModDecl* find_parent_module() const {
-        Decl* current = parent;
-        while (current != nullptr && !current->isa<ModDecl>())
-            current = current->parent;
-        return current ? current->as<ModDecl>() : nullptr;
-    }
 };
 
 /// Base class for types.
@@ -653,6 +657,7 @@ struct RepeatArrayExpr : public Expr {
 };
 
 struct FnDecl;
+struct ForExpr;
 
 /// Anonymous function expression.
 struct FnExpr : public Expr {
@@ -660,7 +665,11 @@ struct FnExpr : public Expr {
     Ptr<Ptrn>   param;
     Ptr<Type>   ret_type;
     Ptr<Expr>   body;
-    FnDecl*     parent;
+
+    /// Pointer to the for loop that defines this function as its body (if any).
+    ForExpr* for_expr = nullptr;
+    /// Pointer to the function declaration that uses this function (if any).
+    FnDecl* fn_decl = nullptr;
 
     FnExpr(
         const Loc& loc,
@@ -676,6 +685,7 @@ struct FnExpr : public Expr {
     {}
 
     bool is_constant() const override;
+    bool is_builtin() const;
 
     const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) override;
@@ -683,15 +693,6 @@ struct FnExpr : public Expr {
     void bind(NameBinder&, bool);
     void bind(NameBinder&) override;
     void print(Printer&) const override;
-    bool defined_without_body() {
-        if (attrs) {
-            if (auto import_attr = attrs->find("import")) {
-                if (auto cc_attr = import_attr->find("cc"))
-                    return parent && (cc_attr->as<ast::LiteralAttr>()->lit.as_string() == "builtin");
-            }
-        }
-        return false;
-    }
 };
 
 /// Block of code, whose result is the last expression in the block.
@@ -893,7 +894,9 @@ struct ForExpr : public LoopExpr {
 
     ForExpr(const Loc& loc, Ptr<CallExpr>&& call)
         : LoopExpr(loc), call(std::move(call))
-    {}
+    {
+        this->call->callee->as<CallExpr>()->arg->as<FnExpr>()->for_expr = this;
+    }
 
     bool is_jumping() const override;
     bool has_side_effect() const override;
@@ -1200,13 +1203,25 @@ struct TypeParam : public NamedDecl {
     void print(Printer&) const override;
 };
 
-/// Type parameter list, of the form [T, U, ...]
-struct TypeBoundsAndParams : public Node {
+/// Type parameter list, of the form `[T, U, ...]`.
+struct TypeParamList : public Node {
     PtrVector<TypeParam> params;
-    PtrVector<TypeApp> bounds;
 
-    TypeBoundsAndParams(const Loc& loc, PtrVector<TypeParam>&& params, PtrVector<TypeApp>&& bounds)
-        : Node(loc), params(std::move(params)), bounds(std::move(bounds))
+    TypeParamList(const Loc& loc, PtrVector<TypeParam>&& params)
+        : Node(loc), params(std::move(params))
+    {}
+
+    const artic::Type* infer(TypeChecker&) override;
+    void bind(NameBinder&) override;
+    void print(Printer&) const override;
+};
+
+/// Where clause list, of the form `where T, U, ...`.
+struct WhereClauseList : public Node {
+    PtrVector<TypeApp> clauses;
+
+    WhereClauseList(const Loc& loc, PtrVector<TypeApp>&& clauses)
+        : Node(loc), clauses(std::move(clauses))
     {}
 
     const artic::Type* infer(TypeChecker&) override;
@@ -1272,20 +1287,25 @@ struct StaticDecl : public ValueDecl {
     void print(Printer&) const override;
 };
 
-/// Function declaration.
+/// Function declaration, of the form `fn foo[A, B, ...](...) where C, D, ... { ... }`.
 struct FnDecl : public ValueDecl {
+    Ptr<TypeParamList> type_params;
+    Ptr<WhereClauseList> where_clauses;
     Ptr<FnExpr> fn;
-    Ptr<TypeBoundsAndParams> bounds_and_params;
 
     FnDecl(
         const Loc& loc,
         Identifier&& id,
-        Ptr<FnExpr>&& fn,
-        Ptr<TypeBoundsAndParams>&& bounds_and_params)
+        Ptr<TypeParamList>&& type_params,
+        Ptr<WhereClauseList>&& where_clauses,
+        Ptr<FnExpr>&& fn)
         : ValueDecl(loc, std::move(id))
+        , type_params(std::move(type_params))
+        , where_clauses(std::move(where_clauses))
         , fn(std::move(fn))
-        , bounds_and_params(std::move(bounds_and_params))
-    {}
+    {
+        fn->fn_decl = this;
+    }
 
     const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) override;
@@ -1293,8 +1313,6 @@ struct FnDecl : public ValueDecl {
     void bind_head(NameBinder&) override;
     void bind(NameBinder&) override;
     void print(Printer&) const override;
-    bool has_params() const { return bounds_and_params && !bounds_and_params->params.empty(); }
-
 };
 
 /// Structure field declaration.
@@ -1330,19 +1348,22 @@ struct RecordDecl : public CtorDecl {
     {}
 };
 
-/// Structure type declarations.
+/// Structure type declaration, of the form `struct Foo[A, B, ...] where C, D, ... { ... }`.
 struct StructDecl : public RecordDecl {
-    Ptr<TypeBoundsAndParams> bounds_and_params;
+    Ptr<TypeParamList>   type_params;
+    Ptr<WhereClauseList> where_clauses;
     bool is_tuple_like;
 
     StructDecl(
         const Loc& loc,
         Identifier&& id,
-        Ptr<TypeBoundsAndParams>&& bounds_and_params,
+        Ptr<TypeParamList>&& type_params,
+        Ptr<WhereClauseList>&& where_clauses,
         PtrVector<FieldDecl>&& fields,
         bool is_tuple_like)
         : RecordDecl(loc, std::move(id), std::move(fields))
-        , bounds_and_params(std::move(bounds_and_params))
+        , type_params(std::move(type_params))
+        , where_clauses(std::move(where_clauses))
         , is_tuple_like(is_tuple_like)
     {}
 
@@ -1364,9 +1385,6 @@ struct OptionDecl : public RecordDecl {
     // Note: can be a type application of a structure type
     const artic::Type* struct_type = nullptr;
 
-    // Set at name-binding time, points to the parent enumeration
-    EnumDecl* parent = nullptr;
-
     OptionDecl(
         const Loc& loc,
         Identifier&& id,
@@ -1378,23 +1396,32 @@ struct OptionDecl : public RecordDecl {
         , has_fields(has_fields)
     {}
 
+    EnumDecl* parent() const {
+        auto parent = find_parent<EnumDecl>();
+        assert(parent);
+        return parent;
+    }
+
     const artic::Type* infer(TypeChecker&) override;
     void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
 
-/// Enumeration declaration.
+/// Enumeration declaration, of the form `enum Foo[A, B, ...] where C, D, ... { ... }`.
 struct EnumDecl : public CtorDecl {
-    Ptr<TypeBoundsAndParams> bounds_and_params;
+    Ptr<TypeParamList> type_params;
+    Ptr<WhereClauseList> where_clauses;
     PtrVector<OptionDecl> options;
 
     EnumDecl(
         const Loc& loc,
         Identifier&& id,
-        Ptr<TypeBoundsAndParams>&& bounds_and_params,
+        Ptr<TypeParamList>&& type_params,
+        Ptr<WhereClauseList>&& where_clauses,
         PtrVector<OptionDecl>&& options)
         : CtorDecl(loc, std::move(id))
-        , bounds_and_params(std::move(bounds_and_params))
+        , type_params(std::move(type_params))
+        , where_clauses(std::move(where_clauses))
         , options(std::move(options))
     {}
 
@@ -1405,19 +1432,22 @@ struct EnumDecl : public CtorDecl {
     void print(Printer&) const override;
 };
 
-/// Trait declaration.
+/// Trait declaration, of the form `trait Foo[A, B, ...] where C, D, ... { ... }`.
 struct TraitDecl : public NamedDecl {
-    PtrVector<FnDecl> fns;
-    Ptr<TypeBoundsAndParams> bounds_and_params;
+    Ptr<TypeParamList> type_params;
+    Ptr<WhereClauseList> where_clauses;
+    PtrVector<NamedDecl> decls;
 
     TraitDecl(
         const Loc& loc,
         Identifier&& id,
-        Ptr<TypeBoundsAndParams>&& bounds_and_params,
-        PtrVector<FnDecl>&& fns)
+        Ptr<TypeParamList>&& type_params,
+        Ptr<WhereClauseList>&& where_clauses,
+        PtrVector<NamedDecl>&& decls)
         : NamedDecl(loc, std::move(id))
-        , bounds_and_params(std::move(bounds_and_params))
-        , fns(std::move(fns))
+        , type_params(std::move(type_params))
+        , where_clauses(std::move(where_clauses))
+        , decls(std::move(decls))
     {}
 
     const thorin::Def* emit(Emitter&) const override;
@@ -1427,21 +1457,24 @@ struct TraitDecl : public NamedDecl {
     void print(Printer&) const override;
 };
 
-/// Trait implementation.
+/// Trait implementation, of the form `impl[A, B, ...] Foo[D, E, ...] where F, G, ... { ... }`.
 struct ImplDecl : public Decl {
-    Ptr<TypeBoundsAndParams> bounds_and_params;
-    Ptr<TypeApp> trait_type;
-    PtrVector<FnDecl> fns;
+    Ptr<TypeParamList> type_params;
+    Ptr<WhereClauseList> where_clauses;
+    Ptr<TypeApp> impled_type;
+    PtrVector<NamedDecl> decls;
 
     ImplDecl(
         const Loc& loc,
-        Ptr<TypeBoundsAndParams>&& bounds_and_params,
-        Ptr<TypeApp>&& trait_type,
-        PtrVector<FnDecl>&& fns)
+        Ptr<TypeParamList>&& type_params,
+        Ptr<WhereClauseList>&& where_clauses,
+        Ptr<TypeApp>&& impled_type,
+        PtrVector<NamedDecl>&& decls)
         : Decl(loc)
-        , bounds_and_params(std::move(bounds_and_params))
-        , trait_type(std::move(trait_type))
-        , fns(std::move(fns))
+        , type_params(std::move(type_params))
+        , where_clauses(std::move(where_clauses))
+        , impled_type(std::move(impled_type))
+        , decls(std::move(decls))
      {}
 
      const thorin::Def* emit(Emitter&) const override;
@@ -1450,18 +1483,21 @@ struct ImplDecl : public Decl {
      void print(Printer&) const override;
 };
 
-/// Type alias declaration.
+/// Type alias declaration, of the form `type Foo[A, B, ...] where C, D, ... = ...`.
 struct TypeDecl : public NamedDecl {
-    Ptr<TypeBoundsAndParams> bounds_and_params;
+    Ptr<TypeParamList> type_params;
+    Ptr<WhereClauseList> where_clauses;
     Ptr<Type> aliased_type;
 
     TypeDecl(
         const Loc& loc,
         Identifier&& id,
-        Ptr<TypeBoundsAndParams>&& bounds_and_params,
+        Ptr<TypeParamList>&& type_params,
+        Ptr<WhereClauseList>&& where_clauses,
         Ptr<Type>&& aliased_type)
         : NamedDecl(loc, std::move(id))
-        , bounds_and_params(std::move(bounds_and_params))
+        , type_params(std::move(type_params))
+        , where_clauses(std::move(where_clauses))
         , aliased_type(std::move(aliased_type))
     {}
 
@@ -1475,11 +1511,10 @@ struct TypeDecl : public NamedDecl {
 /// Module definition.
 struct ModDecl : public NamedDecl {
     PtrVector<Decl> decls;
-    ModDecl* super = nullptr;
 
     std::vector<const NamedDecl*> members;
 
-    /// Constructor for the implicitly defined global module.
+    /// Constructor for the implicitly defined top-level global module.
     explicit ModDecl()
         : NamedDecl(Loc(), Identifier())
     {}
@@ -1488,6 +1523,11 @@ struct ModDecl : public NamedDecl {
     ModDecl(const Loc& loc, Identifier&& id, PtrVector<Decl>&& decls)
         : NamedDecl(loc, std::move(id)), decls(std::move(decls))
     {}
+
+    bool is_top_level() const { return id.name == ""; }
+
+    /// Returns the super-module of this module, or `nullptr` if there is none.
+    ast::ModDecl* super() const { return find_parent<ast::ModDecl>(); }
 
     const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) override;

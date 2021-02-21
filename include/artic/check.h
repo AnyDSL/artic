@@ -32,6 +32,7 @@ public:
 
     bool should_report_error(const Type*);
 
+    // Error messages
     const Type* incompatible_types(const Loc&, const Type*, const Type*);
     const Type* incompatible_type(const Loc&, const std::string_view&, const Type*);
     const Type* type_expected(const Loc&, const Type*, const std::string_view&);
@@ -62,24 +63,15 @@ public:
     const Type* infer(const Loc&, const Literal&);
     const Type* check(const Loc&, const Literal&, const Type*);
 
-    template <typename Fields>
-    void check_fields(
-        const Loc&, const StructType*, const TypeApp*,
-        const Fields&, const std::string_view&,
-        bool = false, bool = false);
+    template <bool AcceptEtc, bool SetIndex, typename Members>
+    void check_members(const Loc&, const Type*, const Members&);
 
-    template <typename Fns>
-    const Type* check_impl_fns(
-            const Loc& loc,
-            const TraitType* trait_type,
-            const TypeApp* type_app,
-            const Fns& fns,
-            const std::string_view& msg);
+    void check_impl_exists(const Loc&, const Type*);
+    void check_impl_exists(const Loc&, const TraitType*, const ArrayRef<const Type*>&);
 
     void check_block(const Loc&, const PtrVector<ast::Stmt>&, bool);
     bool check_attrs(const ast::NamedAttr&, const ArrayRef<AttrType>&);
     bool check_filter(const ast::Expr&);
-    void check_type_has_single_impl(const Loc& loc, const Type* type, Array<const Type*> available_bounds);
     void check_refutability(const ast::Ptrn&, bool);
 
     template <typename InferElems>
@@ -90,13 +82,7 @@ public:
     bool infer_type_args(const Loc&, const ForallType*, const Type*, std::vector<const Type*>&);
     const Type* infer_record_type(const TypeApp*, const StructType*, size_t&);
 
-    // A type bound is valid if it has a trait type, which is either polymorphic or has a single implementation
-    void check_bound_valid(const Type*, Loc& loc);
-    void check_op_impl_defined(const Loc& loc, std::string name, SmallArray<const Type*> args);
-    bool trait_bound_exists(const Type*);
-    std::vector<const Type*> collect_type_bounds();
-
-    ast::ModDecl* current_scope;
+    ast::ModDecl* current_mod;
 
 private:
     std::unordered_set<const ast::Decl*> decls_;

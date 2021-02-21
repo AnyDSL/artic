@@ -437,29 +437,19 @@ void TypeParam::print(Printer& p) const {
     p << id.name;
 }
 
-static void print_type_params(Printer& p, const PtrVector<ast::TypeParam>& params) {
+void TypeParamList::print(Printer& p) const {
     if (!params.empty()) {
         p << '[';
-        print_list(p, ", ", params, [&] (auto& param) {
-            param->print(p);
-        });
+        print_list(p, ", ", params, [&] (auto& param) { param->print(p); });
         p << ']';
     }
 }
 
-static void print_bounds(Printer& p, const PtrVector<ast::TypeApp>& bounds) {
-    if (!bounds.empty()) {
-        p << " where ";
-        print_list(p, ", ", bounds, [&] (auto& bound) {
-            bound->print(p);
-        });
+void WhereClauseList::print(Printer& p) const {
+    if (!clauses.empty()) {
+        p << log::keyword_style("where") << " ";
+        print_list(p, ", ", clauses, [&] (auto& clause) { clause->print(p); });
     }
-}
-
-void TypeBoundsAndParams::print(Printer& p) const {
-    print_type_params(p, params);
-    p << ' ';
-    print_bounds(p, bounds);
 }
 
 void PtrnDecl::print(Printer& p) const {
@@ -502,10 +492,10 @@ void FnDecl::print(Printer& p) const {
        fn->filter->print(p);
     p << id.name;
 
-    if (bounds_and_params) print_type_params(p, bounds_and_params->params);
+    if (type_params) type_params->print(p);
     print_parens(p, fn->param);
-
-    if (bounds_and_params) print_bounds(p, bounds_and_params->bounds);
+    if (where_clauses)
+        where_clauses->print(p << ' ');
 
     if (fn->ret_type) {
         p << " -> ";
@@ -551,7 +541,8 @@ inline void print_fields(Printer& p, const PtrVector<FieldDecl>& fields, bool is
 void StructDecl::print(Printer& p) const {
     if (attrs) attrs->print(p);
     p << log::keyword_style("struct") << ' ' << id.name;
-    if (bounds_and_params) bounds_and_params->print(p);
+    if (type_params)   type_params->print(p);
+    if (where_clauses) where_clauses->print(p << ' ');
     if (!is_tuple_like || !fields.empty())
         print_fields(p, fields, is_tuple_like);
     if (is_tuple_like)
@@ -569,7 +560,8 @@ void OptionDecl::print(Printer& p) const {
 void EnumDecl::print(Printer& p) const {
     if (attrs) attrs->print(p);
     p << log::keyword_style("enum") << ' ' << id.name;
-    if (bounds_and_params) bounds_and_params->print(p);
+    if (type_params)   type_params->print(p);
+    if (where_clauses) where_clauses->print(p << ' ');
     p << " {";
     if (!options.empty()) {
         p << p.indent();
@@ -585,11 +577,12 @@ void EnumDecl::print(Printer& p) const {
 void TraitDecl::print(Printer& p) const {
     if (attrs) attrs->print(p);
     p << log::keyword_style("trait") << ' ' << id.name;
-    if (bounds_and_params) bounds_and_params->print(p);
+    if (type_params)   type_params->print(p);
+    if (where_clauses) where_clauses->print(p << ' ');
     p << " {" << p.indent() ;
-    for (auto& f:fns) {
+    for (auto& decl : decls) {
         p << p.endl();
-        f->print(p);
+        decl->print(p);
     }
     p << p.unindent() << p.endl() << '}';
 }
@@ -597,17 +590,13 @@ void TraitDecl::print(Printer& p) const {
 void ImplDecl::print(Printer& p) const {
     if (attrs) attrs->print(p);
     p << log::keyword_style("impl") << ' ' ;
-    if (bounds_and_params) {
-        print_type_params(p, bounds_and_params->params);
-        p << ' ';
-    }
-    trait_type->print(p);
-    p << ' ';
-    if (bounds_and_params) print_bounds(p, bounds_and_params->bounds);
-    p << ' ' << '{' << p.indent();
-    for (auto& f:fns) {
+    if (type_params) type_params->print(p);
+    impled_type->print(p);
+    if (where_clauses) where_clauses->print(p << ' ');
+    p << " {" << p.indent();
+    for (auto& decl : decls) {
         p << p.endl();
-        f->print(p);
+        decl->print(p);
     }
     p << p.unindent() << p.endl() << '}';
 }
@@ -615,7 +604,8 @@ void ImplDecl::print(Printer& p) const {
 void TypeDecl::print(Printer& p) const {
     if (attrs) attrs->print(p);
     p << log::keyword_style("type") << ' ' <<  id.name;
-    if (bounds_and_params) bounds_and_params->print(p);
+    if (type_params)   type_params->print(p);
+    if (where_clauses) where_clauses->print(p << ' ');
     p << " = ";
     aliased_type->print(p);
     p << ';';
@@ -793,10 +783,11 @@ void TypeVar::print(Printer& p) const {
 }
 
 void ForallType::print(Printer& p) const {
-    assert(decl.bounds_and_params && !decl.bounds_and_params->params.empty());
+    assert(decl.type_params);
     p << log::keyword_style("forall");
-    decl.bounds_and_params->print(p);
-    p << ' ';
+    decl.type_params->print(p);
+    if (decl.where_clauses) decl.where_clauses->print(p << ' ');
+    p << " . ";
     body->print(p);
 }
 

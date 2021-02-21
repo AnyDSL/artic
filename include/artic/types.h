@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <unordered_set>
 #include <optional>
+#include <string_view>
 #include <ostream>
 
 #include "artic/cast.h"
@@ -374,62 +375,48 @@ private:
     friend class TypeTable;
 };
 
-/// Base class for types that can be polymorphic
+/// Base class for types that _may_ be polymorphic.
 struct PolyType : public Type {
-
     PolyType(TypeTable& type_table)
-    : Type(type_table)
+        : Type(type_table)
     {}
 
-    virtual const ast::TypeBoundsAndParams* bounds_and_params() const = 0;
+    virtual const ast::TypeParamList*   type_params() const = 0;
+    virtual const ast::WhereClauseList* where_clauses() const = 0;
 
-    const std::vector<const Type*> type_params() const {
-        std::vector<const Type*> res;
-        if (bounds_and_params()) {
-            res.reserve(bounds_and_params()->params.size());
-            for (auto& p: bounds_and_params()->params)
-                res.emplace_back(p->type);
-        }
+    /// Returns a map from the type parameters of this polymorphic type to the provided arguments.
+    std::unordered_map<const TypeVar*, const artic::Type*> replace_map(const ArrayRef<const Type*>&) const;
+};
 
-        return res;
-    }
+/// Helper mixin to extract the type parameter list and where clauses from a particular `Decl`.
+template <typename Super, typename Decl>
+struct PolyTypeFromDecl : public Super {
+    const Decl& decl;
 
-    const std::vector<const Type*> bounds() const {
-        std::vector<const Type*> res;
-        if (bounds_and_params()) {
-            res.reserve(bounds_and_params()->bounds.size());
-            for (auto& b: bounds_and_params()->bounds)
-                res.emplace_back(b->type);
-        }
+    const ast::TypeParamList*   type_params()   const override { return decl.type_params.get(); }
+    const ast::WhereClauseList* where_clauses() const override { return decl.where_clauses.get(); }
 
-        return res;
-    }
-
-
+protected:
+    PolyTypeFromDecl(TypeTable& type_table, const Decl& decl)
+        : Super(type_table), decl(decl)
+    {}
 };
 
 /// Type of a polymorphic function.
-struct ForallType : public PolyType {
-    const ast::FnDecl& decl;
+struct ForallType : public PolyTypeFromDecl<PolyType, ast::FnDecl> {
     mutable const Type* body = nullptr;
 
     /// Returns the type of the body with type variables
     /// substituted with the given arguments.
     const Type* instantiate(const ArrayRef<const Type*>&) const;
-    /// Maps the parameters of this polymorphic function to the arguments provided
-    std::unordered_map<const TypeVar*, const artic::Type*> replace_map(const ArrayRef<const Type*>&) const;
 
-
-    const ast::TypeBoundsAndParams* bounds_and_params() const override {
-        return decl.bounds_and_params.get();
-    }
     void print(Printer&) const override;
     bool equals(const Type*) const override;
     size_t hash() const override;
 
 private:
     ForallType(TypeTable& type_table, const ast::FnDecl& decl)
-        : PolyType(type_table), decl(decl)
+        : PolyTypeFromDecl(type_table, decl)
     {}
 
     friend class TypeTable;
@@ -448,26 +435,16 @@ struct UserType : public PolyType {
     }
 };
 
-/// Base class for complex, user-declared types.
+/// Base class for complex, user-declared types that contains members or fields.
 struct ComplexType : public UserType {
     ComplexType(TypeTable& type_table)
         : UserType(type_table)
     {}
 
-    template <typename Fields>
-    static std::optional<size_t> find_member(const std::string_view& name, const PtrVector<Fields>& fields)  {
-        auto it = std::find_if(
-                fields.begin(),
-                fields.end(),
-                [&name] (auto& f) {
-                    return f->id.name == name;
-                });
-        return it != fields.end()
-               ? std::make_optional(it - fields.begin())
-               : std::nullopt;
-    }
+    std::optional<size_t> find_member(const std::string_view&) const;
 
-    virtual std::optional<size_t> find_member(const std::string_view&) const = 0;
+    virtual bool has_default_value(size_t) const { return false; }
+    virtual std::string_view member_name(size_t) const = 0;
     virtual const Type* member_type(size_t) const = 0;
     virtual size_t member_count() const = 0;
 
@@ -479,6 +456,9 @@ struct ComplexType : public UserType {
 struct StructType : public ComplexType {
     const ast::RecordDecl& decl;
 
+    const ast::TypeParamList*   type_params()   const override;
+    const ast::WhereClauseList* where_clauses() const override;
+
     void print(Printer&) const override;
     bool equals(const Type*) const override;
     size_t hash() const override;
@@ -487,8 +467,8 @@ struct StructType : public ComplexType {
     const thorin::Type* convert(Emitter&, const Type*) const override;
     std::string stringify(Emitter&) const override;
 
-    const ast::TypeBoundsAndParams* bounds_and_params() const override;
-    std::optional<size_t> find_member(const std::string_view&) const override;
+    std::string_view member_name(size_t) const override;
+    bool has_default_value(size_t) const override;
     const Type* member_type(size_t) const override;
     size_t member_count() const override;
 
@@ -502,9 +482,7 @@ private:
     friend class TypeTable;
 };
 
-struct EnumType : public ComplexType {
-    const ast::EnumDecl& decl;
-
+struct EnumType : public PolyTypeFromDecl<ComplexType, ast::EnumDecl> {
     void print(Printer&) const override;
     bool equals(const Type*) const override;
     size_t hash() const override;
@@ -513,11 +491,7 @@ struct EnumType : public ComplexType {
     const thorin::Type* convert(Emitter&, const Type*) const override;
     std::string stringify(Emitter&) const override;
 
-    const ast::TypeBoundsAndParams* bounds_and_params() const override {
-        return decl.bounds_and_params.get();
-    }
-
-    std::optional<size_t> find_member(const std::string_view&) const override;
+    std::string_view member_name(size_t) const override;
     const Type* member_type(size_t) const override;
     size_t member_count() const override;
 
@@ -527,51 +501,42 @@ struct EnumType : public ComplexType {
 
 private:
     EnumType(TypeTable& type_table, const ast::EnumDecl& decl)
-        : ComplexType(type_table), decl(decl)
+        : PolyTypeFromDecl(type_table, decl)
     {}
 
     friend class TypeTable;
 };
 
-struct TraitType : public ComplexType {
-    const ast::TraitDecl& decl;
-
+struct TraitType : public PolyTypeFromDecl<ComplexType, ast::TraitDecl> {
     void print(Printer&) const override;
     bool equals(const Type*) const override;
     size_t hash() const override;
 
-    const ast::TypeBoundsAndParams* bounds_and_params() const override {
-        return decl.bounds_and_params.get();
-    }
-    std::optional<size_t> find_member(const std::string_view&) const override;
+    std::string_view member_name(size_t) const override;
+    bool has_default_value(size_t) const override;
     const Type* member_type(size_t) const override;
     size_t member_count() const override;
 
 private:
     TraitType(TypeTable& type_table, const ast::TraitDecl& decl)
-    : ComplexType(type_table), decl(decl)
+        : PolyTypeFromDecl(type_table, decl)
     {}
 
     friend class TypeTable;
 };
 
-struct ImplType : public ComplexType {
-    const ast::ImplDecl& decl;
-
+struct ImplType : public PolyTypeFromDecl<ComplexType, ast::ImplDecl> {
     void print(Printer&) const override;
     bool equals(const Type*) const override;
     size_t hash() const override;
 
-    const ast::TypeBoundsAndParams* bounds_and_params() const override {
-        return decl.bounds_and_params.get();
-    }
-    std::optional<size_t> find_member(const std::string_view&) const override;
+    std::string_view member_name(size_t) const override;
     const Type* member_type(size_t) const override;
     size_t member_count() const override;
 
 private:
     ImplType(TypeTable& type_table, const ast::ImplDecl& decl)
-    : ComplexType(type_table), decl(decl)
+        : PolyTypeFromDecl(type_table, decl)
     {}
 
     friend class TypeTable;
@@ -580,14 +545,14 @@ private:
 struct ModType : public ComplexType {
     const ast::ModDecl& decl;
 
+    const ast::TypeParamList*   type_params()   const override { return nullptr; }
+    const ast::WhereClauseList* where_clauses() const override { return nullptr; }
+
     void print(Printer&) const override;
     bool equals(const Type*) const override;
     size_t hash() const override;
 
-    const ast::TypeBoundsAndParams* bounds_and_params() const override {
-        return nullptr;
-    }
-    std::optional<size_t> find_member(const std::string_view&) const override;
+    std::string_view member_name(size_t) const override;
     const Type* member_type(size_t) const override;
     size_t member_count() const override;
 
@@ -602,6 +567,7 @@ private:
             : name(name), decl(decl)
         {}
     };
+
     using Members = std::vector<Member>;
     mutable std::unique_ptr<Members> members_;
 
@@ -614,20 +580,14 @@ private:
     friend class TypeTable;
 };
 
-struct TypeAlias : public UserType {
-    const ast::TypeDecl& decl;
-
+struct TypeAlias : public PolyTypeFromDecl<UserType, ast::TypeDecl> {
     void print(Printer&) const override;
     bool equals(const Type*) const override;
     size_t hash() const override;
 
-    const ast::TypeBoundsAndParams* bounds_and_params() const override {
-        return decl.bounds_and_params.get();
-    }
-
 private:
     TypeAlias(TypeTable& type_table, const ast::TypeDecl& decl)
-        : UserType(type_table), decl(decl)
+        : PolyTypeFromDecl(type_table, decl)
     {}
 
     friend class TypeTable;
@@ -639,10 +599,7 @@ struct TypeApp : public Type {
     Array<const Type*> type_args;
 
     /// Gets the replacement map required to expand this type application.
-    std::unordered_map<const TypeVar*, const Type*> replace_map() const {
-        assert(applied->bounds_and_params() && !applied->bounds_and_params()->params.empty());
-        return replace_map(applied->bounds_and_params()->params, type_args);
-    }
+    std::unordered_map<const TypeVar*, const Type*> replace_map() const;
 
     /// Returns the type of the given member of the applied type, if it is a complex type.
     const Type* member_type(size_t i) const {
@@ -663,10 +620,6 @@ struct TypeApp : public Type {
     void variance(std::unordered_map<const TypeVar*, TypeVariance>&, bool) const override;
     void bounds(std::unordered_map<const TypeVar*, TypeBounds>&, const Type*, bool) const override;
     bool is_sized(std::unordered_set<const Type*>&) const override;
-
-    static std::unordered_map<const TypeVar*, const Type*> replace_map(
-        const PtrVector<ast::TypeParam>& type_params,
-        const ArrayRef<const Type*>& type_args);
 
 private:
     TypeApp(
@@ -745,34 +698,9 @@ public:
     /// or returns the type alias expanded with the given type arguments.
     const Type* type_app(const UserType*, const ArrayRef<const Type*>&);
 
-    /// Returns nullptr if the impl is not already registered
-    const ImplType* register_impl(const ast::ModDecl* scope, const ImplType* impl);
-
-    const std::vector<const Type*> find_all_impls(const ast::ModDecl*, const Type* type, ArrayRef<const Type*> additional_bounds = {});
-    const Type* find_impl(const ast::ModDecl*, const Type* type);
-    const Type* find_impl(const ast::ModDecl*, std::string trait_name, SmallArray<const Type*> args);
-
-    /// This method checks if the impl can be used to justify the type
-    /// Example:
-    /// impl T[i32] can justify T[i32]
-    /// impl[A] T[A] where Add[A] can also justify T[i32]
-    /// impl[A] T[A] where Add[A] can not justify T[bool]
-    bool check_impl(const ast::ModDecl*, const Type* type, const ImplType* impl, Array<const Type*> additional_bounds = {});
-    bool in_additional_bound(const Type* type, const Type* additional_bound);
-    /// Returns a map that unifies poly and target (if one exists), i.e.
-    /// poly->replace(replace_map(poly, target)) == target always holds if such map exists
-    const std::unordered_map<const TypeVar*, const Type*> replace_map(const Type* poly, const Type* target);
-
-    /// Each type is mapped to all impls that can justify it
-    /// Generic impls are using the trait-type of the trait they implement as keys
-    /// Example (Add[i32] -> impl Add[i32] ...); (Add -> impl[A] Add[A] ...)
-    /// Because of that when looking for Add[i64] one needs to check both the Add and the Add[i64] keys in each scope
-    typedef std::unordered_map<const Type*, std::vector<const ImplType*>> types_to_impls;
-    std::unordered_map<const ast::ModDecl*, types_to_impls> mod_impls;
-    /// Maps types to their implementation. This avoids frequent recalculation
-    std::unordered_map<const Type*, const Type*> type_impl_table;
-    /// Used to locate the traits that define operators and literal conversions
-    std::unordered_map<std::string, const TraitType*> known_traits;
+    /// Map containing all built-in traits (e.g. "Add", "Mul", ...).
+    /// Will be filled by the `TypeChecker` when processing the prelude.
+    std::unordered_map<std::string, const TraitType*> builtin_traits;
 
 private:
     template <typename T, typename... Args>

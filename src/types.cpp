@@ -441,61 +441,64 @@ bool TypeApp::is_sized(std::unordered_set<const Type*>& seen) const {
 
 // Complex Types -------------------------------------------------------------------
 
-const ast::TypeBoundsAndParams* StructType::bounds_and_params() const {
-    return decl.isa<ast::StructDecl>()
-        ? decl.as<ast::StructDecl>()->bounds_and_params.get()
-        : decl.as<ast::OptionDecl>()->parent->bounds_and_params.get();
+const ast::TypeParamList* StructType::type_params()   const {
+    return decl.isa<ast::StructDecl>() ? decl.as<ast::StructDecl>()->type_params.get() : nullptr;
 }
 
-std::optional<size_t> StructType::find_member(const std::string_view& name) const {
-    return ComplexType::find_member(name, decl.fields);
+const ast::WhereClauseList* StructType::where_clauses() const {
+    return decl.isa<ast::StructDecl>() ? decl.as<ast::StructDecl>()->where_clauses.get() : nullptr;
+}
+
+std::optional<size_t> ComplexType::find_member(const std::string_view& name) const {
+    for (size_t i = 0, n = member_count(); i < n; ++i) {
+        if (member_name(i) == name)
+            return std::make_optional(i);
+    }
+    return std::nullopt;
+}
+
+std::string_view StructType::member_name(size_t i) const {
+    return decl.fields[i]->id.name;
+}
+
+std::string_view EnumType::member_name(size_t i) const {
+    return decl.options[i]->id.name;
+}
+
+std::string_view TraitType::member_name(size_t i) const {
+    return decl.decls[i]->id.name;
+}
+
+std::string_view ImplType::member_name(size_t i) const {
+    return decl.decls[i]->id.name;
+}
+
+std::string_view ModType::member_name(size_t i) const {
+    return members()[i].decl.id.name;
 }
 
 const Type* StructType::member_type(size_t i) const {
     return decl.fields[i]->ast::Node::type;
 }
 
-size_t StructType::member_count() const {
-    return decl.fields.size();
-}
-
-std::optional<size_t> EnumType::find_member(const std::string_view& name) const {
-    return ComplexType::find_member(name, decl.options);
-}
-
-std::optional<size_t> TraitType::find_member(const std::string_view& name) const {
-    return ComplexType::find_member(name, decl.fns);
-}
-
-std::optional<size_t> ImplType::find_member(const std::string_view& name) const {
-    return ComplexType::find_member(name, decl.fns);
-}
-
-std::optional<size_t> ModType::find_member(const std::string_view& name) const {
-    auto it = std::find_if(
-            members().begin(),
-            members().end(),
-            [&name] (auto& member) { return member.name == name; });
-    return it != members().end()
-           ? std::make_optional(it - members().begin())
-           : std::nullopt;
-}
-
-
 const Type* EnumType::member_type(size_t i) const {
     return decl.options[i]->type;
 }
 
 const Type* TraitType::member_type(size_t i) const {
-    return decl.fns[i]->type;
+    return decl.decls[i]->type;
 }
 
 const Type* ImplType::member_type(size_t i) const {
-    return decl.fns[i]->type;
+    return decl.decls[i]->type;
 }
 
 const Type* ModType::member_type(size_t i) const {
     return members()[i].decl.type;
+}
+
+size_t StructType::member_count() const {
+    return decl.fields.size();
 }
 
 size_t EnumType::member_count() const {
@@ -503,11 +506,11 @@ size_t EnumType::member_count() const {
 }
 
 size_t TraitType::member_count() const {
-    return decl.fns.size();
+    return decl.decls.size();
 }
 
 size_t ImplType::member_count() const {
-    return decl.fns.size();
+    return decl.decls.size();
 }
 
 size_t ModType::member_count() const {
@@ -519,6 +522,7 @@ ast::NamedDecl& ModType::member(size_t i) const {
 }
 
 const ModType::Members& ModType::members() const {
+    // Lazily compute the member list
     if (!members_) {
         members_ = std::make_unique<ModType::Members>();
         for (auto& decl : decl.decls) {
@@ -593,19 +597,25 @@ const Type* Type::join(const Type* other) const {
     return type_table.top_type();
 }
 
-const Type* ForallType::instantiate(const ArrayRef<const Type*>& args) const {
-    return body->replace(replace_map(args));
-}
-
-std::unordered_map<const TypeVar *, const Type *>
-ForallType::replace_map(const ArrayRef<const Type*> & args) const {
+static std::unordered_map<const TypeVar*, const Type*> replace_map(
+    const PtrVector<ast::TypeParam>& type_params,
+    const ArrayRef<const Type*>& type_args)
+{
     std::unordered_map<const TypeVar*, const Type*> map;
-    assert(decl.bounds_and_params && decl.bounds_and_params->params.size() == args.size());
-    for (size_t i = 0, n = args.size(); i < n; ++i) {
-        assert(decl.bounds_and_params->params[i]->type);
-        map.emplace(decl.bounds_and_params->params[i]->type->as<TypeVar>(), args[i]);
+    assert(type_params.size() == type_args.size());
+    for (size_t i = 0, n = type_args.size(); i < n; ++i) {
+        assert(type_params[i]->type);
+        map.emplace(type_params[i]->type->as<TypeVar>(), type_args[i]);
     }
     return map;
+}
+
+std::unordered_map<const TypeVar*, const Type*> PolyType::replace_map(const ArrayRef<const Type*>& args) const {
+    return artic::replace_map(type_params()->params, args);
+}
+
+const Type* ForallType::instantiate(const ArrayRef<const Type*>& args) const {
+    return body->replace(replace_map(args));
 }
 
 bool StructType::is_tuple_like() const {
@@ -617,19 +627,6 @@ bool EnumType::is_trivial() const {
         decl.options.begin(),
         decl.options.end(),
         [] (auto& o) { return is_unit_type(o->type); });
-}
-
-std::unordered_map<const TypeVar*, const Type*> TypeApp::replace_map(
-    const PtrVector<ast::TypeParam>& type_params,
-    const ArrayRef<const Type*>& type_args)
-{
-    std::unordered_map<const TypeVar*, const Type*> map;
-    assert(type_params.size() == type_args.size());
-    for (size_t i = 0, n = type_args.size(); i < n; ++i) {
-        assert(type_params[i]->type);
-        map.emplace(type_params[i]->type->as<TypeVar>(), type_args[i]);
-    }
-    return map;
 }
 
 // Helpers -------------------------------------------------------------------------
@@ -785,11 +782,11 @@ const TypeAlias* TypeTable::type_alias(const ast::TypeDecl& decl) {
 const Type* TypeTable::type_app(const UserType* applied, const ArrayRef<const Type*>& type_args) {
     if (auto type_alias = applied->isa<TypeAlias>()) {
         assert(
-            type_alias->bounds_and_params() &&
-            !type_alias->bounds_and_params()->params.empty() &&
+            type_alias->type_params() &&
+            !type_alias->type_params()->params.empty() &&
             type_alias->decl.aliased_type->type
         );
-        auto map = TypeApp::replace_map(type_alias->bounds_and_params()->params, type_args);
+        auto map = artic::replace_map(type_alias->type_params()->params, type_args);
         return type_alias->decl.aliased_type->type->replace(map);
     }
     return insert<TypeApp>(applied, std::move(type_args));
@@ -804,6 +801,8 @@ const T* TypeTable::insert(Args&&... args) {
     return (*it)->template as<T>();
 }
 
+// TODO: Move type-checking code to the type-checker
+#if 0
 const ImplType* TypeTable::register_impl(const ast::ModDecl* scope, const ImplType* impl) {
     auto [type_app, trait_type] = match_app<TraitType>(impl->decl.trait_type->type);
     const Type* target = impl->type_params().empty() ? impl->decl.trait_type->type : trait_type;
@@ -813,7 +812,7 @@ const ImplType* TypeTable::register_impl(const ast::ModDecl* scope, const ImplTy
     // Checks that there is a single declarations of the same implementation
     if (impl->type_params().empty()) {
         auto aux = scope;
-        while   (aux != nullptr) {
+        while (aux != nullptr) {
             auto bucket = mod_impls[aux].find(target);
             if (bucket != mod_impls[aux].end())
                 return bucket->second.front();
@@ -943,5 +942,6 @@ const std::unordered_map<const TypeVar*, const Type*>
     }
     return res;
 }
+#endif
 
 } // namespace artic

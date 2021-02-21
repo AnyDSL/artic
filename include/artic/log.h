@@ -277,7 +277,7 @@ private:
     void diagnostic(const Loc&, log::Style, char);
 
 protected:
-    ~Logger() {}
+    virtual ~Logger() {}
 };
 
 } // namespace artic

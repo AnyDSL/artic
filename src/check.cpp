@@ -269,7 +269,7 @@ const Type* TypeChecker::check(const Loc& loc, const Literal& lit, const Type* e
         return infer(loc, lit);
     if (lit.is_integer() || lit.is_double()) {
         auto trait_name = lit.is_integer() ? "FromInt" : "FromFloat";
-        check_op_impl_defined(loc, trait_name, {expected});
+        check_impl_exists(loc, type_table.builtin_traits[trait_name], { expected });
         return expected;
     } else if (lit.is_bool()) {
         if (!is_bool_type(expected))
@@ -298,82 +298,45 @@ static inline const artic::Type* member_type(
     return type_app ? type_app->member_type(index) : complex_type->member_type(index);
 }
 
-template <typename Fields>
-void TypeChecker::check_fields(
-    const Loc& loc, const StructType* struct_type, const TypeApp* type_app,
-    const Fields& fields, const std::string_view& msg,
-    bool has_etc, bool accept_defaults)
-{
-    std::vector<bool> seen(struct_type->decl.fields.size(), false);
-    for (size_t i = 0, n = fields.size(); i < n; ++i) {
+template <bool AcceptEtc, bool SetIndex, typename Members>
+void TypeChecker::check_members(const Loc& loc, const Type* type, const Members& members) {
+    bool has_etc = false;
+    auto [type_app, complex_type] = match_app<ComplexType>(type);
+    assert(complex_type);
+    SmallArray<bool> seen(complex_type->member_count(), false);
+    for (size_t i = 0, n = members.size(); i < n; ++i) {
         // Skip the field if it is '...'
-        if (fields[i]->is_etc()) {
-            has_etc = true;
-            continue;
+        if constexpr (AcceptEtc) {
+            if (members[i]->is_etc()) {
+                has_etc = true;
+                continue;
+            }
         }
-        auto index = struct_type->find_member(fields[i]->id.name);
+        auto index = complex_type->find_member(members[i]->id.name);
         if (!index)
-            return (void)unknown_member(fields[i]->loc, struct_type, fields[i]->id.name);
+            return (void)unknown_member(members[i]->loc, complex_type, members[i]->id.name);
         if (seen[*index])
-            return (void)error(loc, "field '{}' specified more than once", fields[i]->id.name);
+            return (void)error(loc, "member '{}' specified more than once", members[i]->id.name);
         seen[*index] = true;
-        fields[i]->index = *index;
-        check(*fields[i], member_type(type_app, struct_type, *index));
+        if constexpr (SetIndex)
+            members[i]->index = *index;
+        check(*members[i], member_type(type_app, complex_type, *index));
     }
-    // Check that all fields have been specified, unless '...' was used
+    // Check that all members have been specified, unless '...' was used
     if (!has_etc && !std::all_of(seen.begin(), seen.end(), [] (bool b) { return b; })) {
         for (size_t i = 0, n = seen.size(); i < n; ++i) {
-            if (!seen[i] && (!accept_defaults || !struct_type->decl.fields[i]->init))
-                error(loc, "missing field '{}' in structure {}", struct_type->decl.fields[i]->id.name, msg);
+            if (!seen[i] && !complex_type->has_default_value(i))
+                error(loc, "missing member '{}' in '{}'", complex_type->member_name(i), *complex_type);
         }
     }
 }
 
-template <typename Fns>
-const Type* TypeChecker::check_impl_fns(
-    const Loc& loc,
-    const TraitType* trait_type,
-    const TypeApp* type_app,
-    const Fns& fns,
-    const std::string_view& msg) {
-    std::vector<bool> defined(trait_type->decl.fns.size(), false);
-    std::vector<bool> seen(trait_type->decl.fns.size(), false);
-    for (size_t i = 0, n = fns.size(); i < n; ++i) {
-        auto index = trait_type->find_member(fns[i]->id.name);
-        if (!index)
-            return unknown_member(fns[i]->loc, trait_type, fns[i]->id.name);
-        if (seen[*index]) {
-            error(loc, "function '{}' specified more than once", fns[i]->id.name);
-            return type_table.type_error();
-        }
+void TypeChecker::check_impl_exists(const Loc& loc, const Type* type) {
+    // TODO
+}
 
-        if (fns[i]->fn->body == nullptr) {
-            if (fns[i]->fn->defined_without_body()) {
-                seen[*index] = true;
-                defined[*index] = true;
-            }
-        } else {
-            seen[*index] = true;
-            defined[*index] = true;
-        }
-
-        auto fn_type = type_app ? type_app->member_type(*index) : trait_type->member_type(*index);
-        check(*fns[i]->fn, fn_type);
-        fns[i]->type = fn_type;
-    }
-    //Add default definitions
-    for (size_t i =0; i < trait_type->decl.fns.size(); i++) {
-        auto index = trait_type->find_member(trait_type->decl.fns[i]->id.name);
-        defined[*index] = defined[*index] || trait_type->decl.fns[i]->fn->body != nullptr;
-    }
-    // Check that all functions have ben defined
-    for (size_t i = 0, n = seen.size(); i < n; ++i) {
-        if (!defined[i]) {
-            error(loc, "missing function definition '{}' in trait '{}'", trait_type->decl.fns[i]->id.name, msg);
-            return type_table.type_error();
-        }
-    }
-    return type_app ? type_app->as<Type>() : trait_type;
+void TypeChecker::check_impl_exists(const Loc& loc, const TraitType* trait_type, const ArrayRef<const Type*>& args) {
+    check_impl_exists(loc, type_table.type_app(trait_type, args)->as<TypeApp>());
 }
 
 void TypeChecker::check_block(const Loc& loc, const PtrVector<ast::Stmt>& stmts, bool last_semi) {
@@ -433,17 +396,6 @@ bool TypeChecker::check_filter(const ast::Expr& expr) {
     else if (is_mutable)
         note("cannot use mutable variables in filters");
     return false;
-}
-
-
-void TypeChecker::check_type_has_single_impl(const Loc& loc, const Type *type, Array<const Type*> available_bounds) {
-    auto candidates = type_table.find_all_impls(current_scope, type, available_bounds);
-    if (candidates.empty())
-        error(loc, "The trait '{}' is not implemented", *type);
-    else if (candidates.size() > 1)
-        error(loc, "The trait '{}' has multiple implementations", *type);
-    else
-        type_table.type_impl_table[type] = candidates.front();
 }
 
 void TypeChecker::check_refutability(const ast::Ptrn& ptrn, bool must_be_trivial) {
@@ -537,11 +489,11 @@ bool TypeChecker::infer_type_args(
     auto variance = forall_type->body->as<FnType>()->codom->variance(true);
     for (auto& bound : bounds) {
         size_t index = std::find_if(
-            forall_type->bounds_and_params()->params.begin(),
-            forall_type->bounds_and_params()->params.end(),
+            forall_type->type_params()->params.begin(),
+            forall_type->type_params()->params.end(),
             [&] (auto& param) { return param->type == bound.first; }) -
-            forall_type->bounds_and_params()->params.begin();
-        assert(index < forall_type->bounds_and_params()->params.size());
+            forall_type->type_params()->params.begin();
+        assert(index < forall_type->type_params()->params.size());
 
         // Check that the provided arguments are compatible with the computed bounds
         if (type_args[index]) {
@@ -586,7 +538,7 @@ bool TypeChecker::infer_type_args(
         if (!type_args[i]) {
             error(
                 loc, "cannot infer type argument for type variable '{}'",
-                *forall_type->type_params()[i]);
+                *forall_type->type_params()->params[i]);
             return false;
         }
     }
@@ -596,69 +548,19 @@ bool TypeChecker::infer_type_args(
 const Type* TypeChecker::infer_record_type(const TypeApp* type_app, const StructType* struct_type, size_t& index) {
     // If the structure type comes from an option, return the corresponding enumeration type
     if (auto option_decl = struct_type->decl.isa<ast::OptionDecl>()) {
-        auto enum_type = infer(*option_decl->parent)->as<artic::EnumType>();
+        auto enum_decl = option_decl->parent();
+        auto enum_type = infer(*enum_decl)->as<artic::EnumType>();
         index = std::find_if(
-            option_decl->parent->options.begin(),
-            option_decl->parent->options.end(),
+            enum_decl->options.begin(),
+            enum_decl->options.end(),
             [struct_type] (auto& option) { return option->type == struct_type; })
-            - option_decl->parent->options.begin();
-        assert(index < option_decl->parent->options.size());
+            - enum_decl->options.begin();
+        assert(index < enum_decl->options.size());
         if (type_app)
             return type_table.type_app(enum_type, type_app->type_args);
         return enum_type;
     }
     return type_app ? type_app->as<Type>() : struct_type;
-}
-
-void TypeChecker::check_op_impl_defined(const Loc& loc, std::string name, SmallArray<const Type*> args) {
-    auto trait = type_table.known_traits[name];
-    auto needed_impl = type_table.type_app(trait, std::move(args));
-    if (!trait_bound_exists(needed_impl))
-        check_type_has_single_impl(loc, needed_impl, collect_type_bounds());
-}
-
-void TypeChecker::check_bound_valid(const Type* bound, Loc& loc) {
-    auto [type_app, trait_type] = match_app<TraitType>(bound);
-    if (trait_type) {
-        if (!contains_var(bound))
-            check_type_has_single_impl(loc, bound, collect_type_bounds());
-    } else {
-        error(loc, "only traits are allowed as type bounds");
-    }
-}
-
-bool bound_implies_trait(const Type* bound, const Type* trait) {
-    if (bound == trait)
-        return true;
-    if (bound == nullptr)
-        return false;
-    auto [type_app, trait_type] = match_app<TraitType>(bound);
-    auto& where = trait_type->bounds();
-    return std::any_of(where.begin(), where.end(), [=](auto& w) {
-        auto aux = w->replace(type_app->replace_map());
-        return bound_implies_trait(aux, trait);
-    });
-}
-
-bool TypeChecker::trait_bound_exists(const Type* type) {
-    for (auto decl: decls_) {
-        if (auto poly = decl->type->isa<PolyType>()) {
-            for (auto& bound: poly->bounds())
-                if (bound_implies_trait(bound, type)) return true;
-        }
-    }
-    return false;
-}
-
-std::vector<const Type*> TypeChecker::collect_type_bounds() {
-    std::vector<const Type*> res;
-    for (auto decl: decls_) {
-        if (auto poly = decl->type->isa<PolyType>()) {
-            for (auto& bound: poly->bounds())
-                res.push_back(bound);
-        }
-    }
-    return res;
 }
 
 namespace ast {
@@ -702,12 +604,9 @@ const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, Ptr<Ex
         auto& elem = elems[i];
 
         // Apply type arguments (if any)
-        auto user_type   = type->isa<artic::UserType>();
-        auto forall_type = type->isa<artic::ForallType>();
-        if ((user_type && !user_type->type_params().empty()) || forall_type) {
-            const size_t type_param_count = user_type
-                ? user_type->type_params().size()
-                : forall_type->type_params().size();
+        if (auto poly_type = type->isa<artic::PolyType>()) {
+            auto forall_type = type->isa<artic::ForallType>();
+            auto type_param_count = poly_type->type_params() ? poly_type->type_params()->params.size() : 0;
             if (type_param_count == elem.args.size() ||
                 (forall_type && arg && type_param_count > elem.args.size())) {
                 std::vector<const artic::Type*> type_args(type_param_count);
@@ -720,28 +619,12 @@ const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, Ptr<Ex
                         return checker.type_table.type_error();
                 }
                 elem.inferred_args = type_args;
-                //check trait bounds
-                std::unordered_map<const artic::TypeVar*, const artic::Type*> map;
-                auto bounds = type->as<PolyType>()->bounds();
 
-                if (forall_type)
-                    map = forall_type->replace_map(type_args);
-                else {
-                    for (size_t i = 0; i < type_args.size(); ++i)
-                        map.emplace(user_type->type_params()[i]->as<TypeVar>(), type_args[i]);
-                }
-                // Bounds on traits are checked when the trait is implemented, not when the trait is used
-                if (forall_type || !user_type->isa<TraitType>()) {
-                    for (auto& b: bounds) {
-                        auto type_inst = b->replace(map);
-                        if (!checker.trait_bound_exists(type_inst))
-                            checker.check_type_has_single_impl(loc, type_inst, checker.collect_type_bounds());
-                    }
-                }
+                // TODO: Check that where clauses are met
 
-                type = user_type
-                    ? checker.type_table.type_app(user_type, std::move(type_args))
-                    : forall_type->instantiate(type_args);
+                type = forall_type
+                    ? forall_type->instantiate(type_args)
+                    : checker.type_table.type_app(type->as<UserType>(), std::move(type_args));
             } else {
                 checker.error(elem.loc, "expected {} type argument(s), but got {}", type_param_count, elem.args.size());
                 return checker.type_table.type_error();
@@ -775,50 +658,38 @@ const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, Ptr<Ex
                     checker.error(elems[i + 1].loc, "'super' can only be used on modules");
                     return checker.type_table.type_error();
                 }
-                type = checker.type_table.mod_type(*mod_type->decl.super);
-            } else if (auto [type_app, enum_type] = match_app<EnumType>(type); enum_type) {
-                auto index = enum_type->find_member(elems[i + 1].id.name);
-                if (!index)
-                    return checker.unknown_member(elem.loc, enum_type, elems[i + 1].id.name);
-                elems[i + 1].index = *index;
-                if (enum_type->decl.options[*index]->struct_type) {
-                    // If the enumeration option uses the record syntax, we use the corresponding structure type
-                    type = enum_type->decl.options[*index]->struct_type;
-                    is_value = false;
-                    is_ctor = true;
-                } else {
-                    auto member = member_type(type_app, enum_type, *index);
-                    type = is_unit_type(member) ? type : checker.type_table.fn_type(member, type);
-                    is_value = is_ctor = true;
+                type = checker.type_table.mod_type(*mod_type->decl.super());
+            }
+            if (auto [type_app, complex_type] = match_app<ComplexType>(type); complex_type) {
+                auto member_index = complex_type->find_member(elems[i + 1].id.name);
+                if (!member_index)
+                    return checker.unknown_member(elem.loc, complex_type, elems[i + 1].id.name);
+                elems[i + 1].index = *member_index;
+                if (auto enum_type = complex_type->isa<EnumType>()) {
+                    if (enum_type->decl.options[*member_index]->struct_type) {
+                        // If the enumeration option uses the record syntax, we use the corresponding structure type
+                        type = enum_type->decl.options[*member_index]->struct_type;
+                        is_value = false;
+                        is_ctor = true;
+                    } else {
+                        auto member = member_type(type_app, enum_type, *member_index);
+                        type = is_unit_type(member) ? type : checker.type_table.fn_type(member, type);
+                        is_value = is_ctor = true;
+                    }
+                } else if (auto trait_type = complex_type->isa<TraitType>()) {
+                    is_value = true;
+                    is_ctor = false;
+                    type = member_type(type_app, trait_type, *member_index);
+                } else if (auto mod_type = complex_type->isa<ModType>()) {
+                    auto& member = mod_type->member(*member_index);
+                    // We do not want infer the declaration if it is a module, since we can immediately
+                    // create a type for it and lazily infer member types as required.
+                    type = member.isa<ModDecl>()
+                        ? checker.type_table.mod_type(*member.as<ModDecl>())
+                        : checker.infer(mod_type->member(*member_index));
+                    is_value = member.isa<ValueDecl>();
+                    is_ctor  = member.isa<CtorDecl>();
                 }
-            } else if (auto [type_app, trait_type] = match_app<TraitType>(type); trait_type) {
-                auto index = trait_type->find_member(elems[i + 1].id.name);
-                if (!index)
-                    return checker.unknown_member(elem.loc, trait_type, elems[i + 1].id.name);
-                elems[i + 1].index = *index;
-                is_value = true;
-                is_ctor = false;
-                if (!checker.trait_bound_exists(type))
-                    checker.check_type_has_single_impl(loc, type, checker.collect_type_bounds());
-
-                if (type_app) {
-                    auto map = type_app->replace_map(trait_type->bounds_and_params()->params, type_app->type_args);
-                    type = trait_type->member_type(*index)->replace(map);
-                } else
-                    type = trait_type->member_type(*index);
-            } else if (auto mod_type = type->isa<ModType>()) {
-                auto index = mod_type->find_member(elems[i + 1].id.name);
-                if (!index)
-                    return checker.unknown_member(elems[i + 1].loc, mod_type, elems[i + 1].id.name);
-                elems[i + 1].index = *index;
-                auto& member = mod_type->member(*index);
-                // We do not want infer the declaration if it is a module, since we can immediately
-                // create a type for it and lazily infer member types as required.
-                type = member.isa<ModDecl>()
-                    ? checker.type_table.mod_type(*member.as<ModDecl>())
-                    : checker.infer(mod_type->member(*index));
-                is_value = member.isa<ValueDecl>();
-                is_ctor  = member.isa<CtorDecl>();
             } else
                 return checker.type_expected(elem.loc, type, "module, trait, or enum");
         }
@@ -843,50 +714,50 @@ const artic::Type* Filter::check(TypeChecker& checker, const artic::Type* expect
 
 // Attributes ----------------------------------------------------------------------
 
-static std::vector<std::string> builtin_fns = {
-    "alignof", "bitcast", "insert", "select", "sizeof", "undef", "compare",
-    "add", "sub", "mul", "div", "rem", "lshift", "rshift", "and", "or", "xor", "not",
-    "lt", "gt", "le", "ge", "eq", "ne"
-};
-
 void NamedAttr::check(TypeChecker& checker, const ast::Node* node) {
     if (name == "export" || name == "import") {
         auto fn_expr = node->isa<FnExpr>();
-        auto fn_decl = node->isa<FnDecl>() ? node->as<FnDecl>() : (fn_expr ? fn_expr->parent : nullptr);
-        if (fn_decl) {
-            auto type = fn_expr ? fn_expr->type : fn_decl->type;
-            if (name == "export") {
-                auto fn_type = type->isa<artic::FnType>();
-                if (!fn_type)
-                    checker.error(fn_decl->loc, "polymorphic functions cannot be exported");
-                else if (type->order() > 1)
-                    checker.error(fn_decl->loc, "higher-order functions cannot be exported");
-                else if (!fn_decl->fn->body)
-                    checker.error(fn_decl->loc, "exported functions must have a body");
-                else
-                    checker.check_attrs(*this, { { "name", AttrType::String } });
-            } else if (name == "import") {
-                if (checker.check_attrs(*this, std::array<AttrType, 2> {
-                        AttrType { "cc", AttrType::String },
-                        AttrType { "name", AttrType::String }
-                    })) {
-                    auto name = fn_decl->id.name;
-                    if (auto name_attr = find("name"))
-                        name = name_attr->as<LiteralAttr>()->lit.as_string();
-                    if (auto cc_attr = find("cc")) {
-                        auto& cc = cc_attr->as<LiteralAttr>()->lit.as_string();
-                        if (cc == "builtin") {
-                            if (std::find(builtin_fns.begin(), builtin_fns.end(), name) == builtin_fns.end())
-                                checker.error(fn_decl->loc, "unsupported built-in function '{}'", name);
-                        } else if (cc != "C" && cc != "device" && cc != "thorin")
-                            checker.error(cc_attr->loc, "invalid calling convention '{}'", cc);
-                    }
+        if (!fn_expr)
+            checker.error(loc, "attribute '{}' is only valid for functions", name);
+        else if (name == "export") {
+            auto fn_type = fn_expr->type->isa<artic::FnType>();
+            if (!fn_type)
+                checker.error(fn_expr->loc, "polymorphic functions cannot be exported");
+            else if (type->order() > 1)
+                checker.error(fn_expr->loc, "higher-order functions cannot be exported");
+            else if (!fn_expr->body)
+                checker.error(fn_expr->loc, "exported functions must have a body");
+            else
+                checker.check_attrs(*this, { { "name", AttrType::String } });
+        } else if (name == "import") {
+            if (checker.check_attrs(*this, std::array {
+                    AttrType { "cc", AttrType::String },
+                    AttrType { "name", AttrType::String }
+                })) {
+                auto name = fn_expr->fn_decl ? fn_expr->fn_decl->id.name : "";
+                if (auto name_attr = find("name"))
+                    name = name_attr->as<LiteralAttr>()->lit.as_string();
+                if (name == "") {
+                    checker.error(fn_expr->loc, "imported functions must have a name");
+                    checker.note("use the '#[import(name = \"...\")]' to specify the imported function name");
                 }
-                if (fn_decl->fn->body)
-                    checker.error(fn_decl->loc, "imported functions cannot have a body");
+                if (auto cc_attr = find("cc")) {
+                    auto& cc = cc_attr->as<LiteralAttr>()->lit.as_string();
+                    if (cc == "builtin") {
+                        static const auto builtin_fns = std::array {
+                            "alignof", "bitcast", "insert", "select", "sizeof", "undef", "compare",
+                            "add", "sub", "mul", "div", "rem", "lshift", "rshift", "and", "or", "xor", "not",
+                            "lt", "gt", "le", "ge", "eq", "ne"
+                        };
+                        if (std::find(builtin_fns.begin(), builtin_fns.end(), name) == builtin_fns.end())
+                            checker.error(fn_expr->loc, "unsupported built-in function '{}'", name);
+                    } else if (cc != "C" && cc != "device" && cc != "thorin")
+                        checker.error(cc_attr->loc, "invalid calling convention '{}'", cc);
+                }
             }
-        } else
-            checker.error(loc, "attribute '{}' is only valid for function declarations", name);
+            if (fn_expr->body)
+                checker.error(fn_expr->loc, "imported functions cannot have a body");
+        }
     } else if (name == "allow_undecidable_impl") {
         if (!node->isa<ImplDecl>())
             checker.error(loc, "attribute '{}' is only valid for trait impls");
@@ -1011,7 +882,7 @@ const artic::Type* RecordExpr::infer(TypeChecker& checker) {
         (struct_type->decl.isa<StructDecl>() &&
          struct_type->decl.as<StructDecl>()->is_tuple_like))
         return checker.type_expected(expr ? expr->loc : this->loc, type, "record-like structure");
-    checker.check_fields(loc, struct_type, type_app, fields, "expression", static_cast<bool>(expr), true);
+    checker.check_members<false, true>(loc, type, fields);
     return checker.infer_record_type(type_app, struct_type, variant_index);
 }
 
@@ -1406,9 +1277,14 @@ const artic::Type* UnaryExpr::infer(TypeChecker& checker) {
         return checker.type_table.type_error();
     }
     auto prim_type = arg_type;
+    // SIMD types are assumed to support the same operations as primitive types.
+    // Since SIMD types cannot be created from user types, there is no risk of accepting
+    // unsupported SIMD operations.
     if (is_simd_type(prim_type))
         prim_type = prim_type->as<artic::SizedArrayType>()->elem;
-    checker.check_op_impl_defined(loc, UnaryExpr::tag_to_trait_name(tag), {prim_type});
+    checker.check_impl_exists(loc,
+        checker.type_table.builtin_traits[UnaryExpr::tag_to_trait_name(tag)],
+        { prim_type });
     if (tag == PostDec || tag == PreDec || tag == PostInc || tag == PreInc)
         arg->write_to();
     return arg_type;
@@ -1419,7 +1295,7 @@ const artic::Type* UnaryExpr::check(TypeChecker& checker, const artic::Type* exp
         case Plus:
         case Minus:
         case Not:
-                checker.coerce(arg, expected);
+            checker.coerce(arg, expected);
             break;
         default:
             break;
@@ -1444,6 +1320,7 @@ const artic::Type* BinaryExpr::infer(TypeChecker& checker) {
     }
 
     auto prim_type = left_type;
+    // See above.
     if (is_simd_type(prim_type))
         prim_type = prim_type->as<artic::SizedArrayType>()->elem;
     switch (remove_eq(tag)) {
@@ -1452,7 +1329,9 @@ const artic::Type* BinaryExpr::infer(TypeChecker& checker) {
         case LogicOr:
             break;
         default:
-            checker.check_op_impl_defined(loc, BinaryExpr::tag_to_trait_name(tag), {prim_type});
+            checker.check_impl_exists(loc,
+                checker.type_table.builtin_traits[BinaryExpr::tag_to_trait_name(tag)],
+                { prim_type });
             break;
     }
     if (has_eq()) {
@@ -1559,17 +1438,14 @@ const artic::Type* TypeParam::infer(TypeChecker& checker) {
     return checker.type_table.type_var(*this);
 }
 
-const artic::Type* TypeBoundsAndParams::infer(TypeChecker& checker) {
-    for (auto& bound: bounds) {
-        bound->type = bound->path.type = bound->path.infer(checker, false);
-        checker.check_bound_valid(bound->type, bound->loc);
-    }
+const artic::Type* TypeParamList::infer(TypeChecker& checker) {
+    for (auto& param : params) checker.infer(*param);
+    return nullptr;
+}
 
-    for (auto& param: params)
-        checker.infer(*param);
-
-    /// The list itself is does not need a type.
-    return checker.type_table.unit_type();
+const artic::Type* WhereClauseList::infer(TypeChecker& checker) {
+    for (auto& clause : clauses) checker.infer(*clause);
+    return nullptr;
 }
 
 const artic::Type* PtrnDecl::check(TypeChecker&, const artic::Type* expected) {
@@ -1605,17 +1481,19 @@ const artic::Type* StaticDecl::infer(TypeChecker& checker) {
 
 const artic::Type* FnDecl::infer(TypeChecker& checker) {
     const artic::Type* forall = nullptr;
-    if (has_params()) {
+
+    if (type_params)   checker.infer(*type_params);
+    if (where_clauses) checker.infer(*where_clauses);
+
+    if (type_params) {
         forall = checker.type_table.forall_type(*this);
         // Set the type of this function right now, in case
         // we need to check it trait bounds when inferring the bodies' type
         type = forall;
     }
+
     if (!checker.enter_decl(this))
         return checker.type_table.type_error();
-
-    if(bounds_and_params)
-        checker.infer(*bounds_and_params);
 
     const artic::Type* fn_type = nullptr;
     if (fn->ret_type) {
@@ -1660,15 +1538,15 @@ const artic::Type* FieldDecl::infer(TypeChecker& checker) {
 
 const artic::Type* StructDecl::infer(TypeChecker& checker) {
     auto struct_type = checker.type_table.struct_type(*this);
-    if (bounds_and_params)
-        checker.infer(*bounds_and_params);
+
+    if (type_params)   checker.infer(*type_params);
+    if (where_clauses) checker.infer(*where_clauses);
 
     if (!checker.enter_decl(this))
         return checker.type_table.type_error();
 
-
     // Set the type before entering the fields
-    type = struct_type;
+    this->type = struct_type;
     for (auto& field : fields)
         checker.infer(*field);
 
@@ -1691,14 +1569,14 @@ const artic::Type* OptionDecl::infer(TypeChecker& checker) {
 const artic::Type* EnumDecl::infer(TypeChecker& checker) {
     auto enum_type = checker.type_table.enum_type(*this);
 
+    if (type_params)   checker.infer(*type_params);
+    if (where_clauses) checker.infer(*where_clauses);
+
     if (!checker.enter_decl(this))
         return checker.type_table.type_error();
 
-    if (bounds_and_params)
-        checker.infer(*bounds_and_params);
-
     // Set the type before entering the options
-    type = enum_type;
+    this->type = enum_type;
     for (auto& option : options)
         checker.infer(*option);
 
@@ -1706,159 +1584,143 @@ const artic::Type* EnumDecl::infer(TypeChecker& checker) {
     return enum_type;
 }
 
-static std::vector<std::string> known_trait_names{
-    "Add", "Sub", "Mul", "Div", "Rem", "LShift", "RShift",
-    "And", "Or", "Xor",
-    "CmpLT", "CmpGT", "CmpLE", "CmpGE", "CmpEq", "CmpNE",
-    "Plus", "Minus", "Not", "Inc", "Dec",
-    "FromInt", "FromFloat"
-};
-
 const artic::Type* TraitDecl::infer(TypeChecker& checker) {
     auto trait_type = checker.type_table.trait_type(*this);
+
+    if (type_params)   checker.infer(*type_params);
+    if (where_clauses) checker.infer(*where_clauses);
 
     if (!checker.enter_decl(this))
         return checker.type_table.type_error();
 
-    if (bounds_and_params)
-        checker.infer(*bounds_and_params);
+    // Set the type before entering the members
+    this->type = trait_type;
+    for (auto& decl : decls)
+        checker.infer(*decl);
 
-    // Set the type before entering the fields in case its bounds are needed
-    type = trait_type;
-    for (auto& f: fns)
-        checker.infer(*f);
+    static auto builtin_trait_names = std::array {
+        "Add", "Sub", "Mul", "Div", "Rem", "LShift", "RShift",
+        "And", "Or", "Xor",
+        "CmpLT", "CmpGT", "CmpLE", "CmpGE", "CmpEq", "CmpNE",
+        "Plus", "Minus", "Not", "Inc", "Dec",
+        "FromInt", "FromFloat"
+    };
 
-    if (!trait_type->is_sized())
-        checker.unsized_type(loc, trait_type);
-
-    auto it = std::find(known_trait_names.begin(), known_trait_names.end(), id.name);
-    if (it != known_trait_names.end())
-        checker.type_table.known_traits[*it] = trait_type;
+    auto it = std::find(builtin_trait_names.begin(), builtin_trait_names.end(), id.name);
+    if (it != builtin_trait_names.end())
+        checker.type_table.builtin_traits[*it] = trait_type;
 
     checker.exit_decl(this);
     return trait_type;
 }
 
-static int count_var_occurrence(const artic::Type* param, const artic::Type* in) {
-    if (in == param) return 1;
-    else if (in->isa<artic::TypeApp>()) {
-        int res = 0;
-        for (auto arg: in->as<artic::TypeApp>()->type_args)
-            res += count_var_occurrence(param, arg);
+// Count the number of times a variable occurs in a type.
+static size_t count_var_occurs(const artic::Type* type, const artic::TypeVar* var) {
+    if (var == type) return 1;
+    if (type->isa<artic::TypeApp>()) {
+        size_t res = 0;
+        for (auto arg : type->as<artic::TypeApp>()->type_args)
+            res += count_var_occurs(arg, var);
         return res;
     }
     return 0;
 }
 
-static int count_vars_ctors(const artic::Type* t) {
-    if (t->isa<artic::TypeVar>())
-        return 1;
-    else if (t->isa<artic::TypeApp>() && contains_var(t)) {
-        int res = 1;
-        for (auto& arg: t->as<artic::TypeApp>()->type_args)
+// Count the number of type constructors appearing in a type.
+static size_t count_vars_ctors(const artic::Type* type) {
+    if (type->isa<artic::TypeVar>()) return 1;
+    if (type->isa<artic::TypeApp>() && contains_var(type)) {
+        size_t res = 1;
+        for (auto& arg : type->as<artic::TypeApp>()->type_args)
             res += count_vars_ctors(arg);
         return res;
     }
     return 0;
 }
 
+// Check the Paterson conditions, and returns the first clause that is not respecting them, if any.
+static inline TypeApp* check_paterson_conditions(
+    const artic::Type* impled_type,
+    const TypeParamList& type_params,
+    const WhereClauseList& where_clauses)
+{
+    // Check that all bounds have at most as many variables as the trait implemented by this declaration
+    for (auto& param : type_params.params) {
+        auto var = param->type->as<artic::TypeVar>();
+        auto head_count = count_var_occurs(impled_type, var);
+        for (auto& clause : where_clauses.clauses) {
+            if (count_var_occurs(clause->type, var) > head_count)
+                return clause.get();
+        }
+    }
+    // Check that all bounds have fewer constructors than the trait implemented by this declaration
+    auto head_count = count_vars_ctors(impled_type);
+    for (auto& clause : where_clauses.clauses) {
+        if (count_vars_ctors(clause->type) >= head_count)
+            return clause.get();
+    }
+    return nullptr;
+}
+
 const artic::Type* ImplDecl::infer(TypeChecker& checker) {
+    auto impl_type = checker.type_table.impl_type(*this);
+
+    if (type_params)   checker.infer(*type_params);
+    if (where_clauses) checker.infer(*where_clauses);
+
     if (!checker.enter_decl(this))
         return checker.type_table.type_error();
-    if(bounds_and_params)
-        checker.infer(*bounds_and_params);
 
-    trait_type->type = trait_type->path.type = trait_type->path.infer(checker, false);
-    auto [type_app, trait_type] = match_app<artic::TraitType>(this->trait_type->type);
-    if (!trait_type) {
+    // The implemented type must be a trait
+    if (!match_app<artic::TraitType>(checker.infer(*impled_type)).second) {
         checker.exit_decl(this);
-        return checker.type_expected(loc, this->trait_type->type, "trait");
+        return checker.type_expected(loc, impled_type->type, "trait");
     }
 
-    for (auto b: trait_type->bounds()) {
-        auto b_t = b->replace(type_app->replace_map());
-        checker.check_bound_valid(b_t, this->loc);
-    }
-    /* If one imposes no restrictions on the impl's it is possible that the type checking algorithm diverges.
-    * Here we check if this impl fulfills the conditions that guarantee that the type checking process terminates
-    * See : Understanding functional dependencies via constraint handling rules
-    */
-    if (bounds_and_params) {
-        // We check that all bounds have at most as many variables as the trait implemented by this declaration
-        for (const auto& param: bounds_and_params->params) {
-            int head_count = count_var_occurrence(param->type, this->trait_type->type);
-            for (auto& b: bounds_and_params->bounds) {
-                if ((count_var_occurrence(param->type, b->type) > head_count)) {
-                    if (!attrs ||  !attrs->find("allow_undecidable_impl"))
-                        checker.error("Constraint '{}' violates a paterson conditions in '{}'. This might cause the type inference algorithm to diverge. \n See 'Understanding functional dependencies via constraint handling rules' for details", *b, *this);
-                }
-            }
+    // If one imposes no restrictions on the `where` clauses of this `impl`, it is possible to make the type checking algorithm diverge.
+    // Here we check if this `impl` fulfills the Paterson conditions, which guarantee that the type checking process terminates.
+    // See: "Understanding Functional Dependencies via Constraint Handling Rules", by M. Sulzmann et al.
+    if (type_params && (!attrs || !attrs->find("allow_undecidable_impl"))) {
+        if (auto invalid_clause = check_paterson_conditions(impled_type->type, *type_params, *where_clauses)) {
+            checker.error(loc, "clause '{}' may cause the type inference to diverge", *invalid_clause);
+            checker.note("use the `allow_undecidable_impl` attribute to disable this behavior");
+            return checker.type_table.type_error();
         }
-        // We check that all bounds have fewer constructors than the trait implemented by this declaration
-        int head_count = count_vars_ctors(this->trait_type->type);
-        for (auto& b: bounds_and_params->bounds) {
-            if ((count_vars_ctors(b->type) >= head_count)) {
-                if (!attrs ||  !attrs->find("allow_undecidable_impl"))
-                    checker.error("Constraint '{}' violates a paterson conditions in '{}'. This might cause the type inference algorithm to diverge. \n See 'Understanding functional dependencies via constraint handling rules' for details", *b, *this);
-            }
-        }
-
     }
-    auto conflict = checker.type_table.register_impl(checker.current_scope, checker.type_table.impl_type(*this));
-    if (conflict) {
-        checker.exit_decl(this);
-        checker.error(loc, "Trait '{}' is already defined", *this->trait_type);
-        checker.note(conflict->decl.loc, "previously declared here");
-        return checker.type_table.type_error();
-    }
-    // Set type now in cas eon of the fns need some trait bound
-    this->type = checker.type_table.impl_type(*this);
 
-    checker.check_impl_fns(loc, trait_type, type_app, fns, this->trait_type->path.elems.front().id.name );
+    // Set type now in case one of the functions inside need it
+    this->type = impl_type;
+    checker.check_members<false, false>(loc, impled_type->type, decls);
     checker.exit_decl(this);
-    return this->type;
+    return impl_type;
 }
 
 const artic::Type* TypeDecl::infer(TypeChecker& checker) {
+    auto type_alias = checker.type_table.type_alias(*this);
+
+    if (type_params)   checker.infer(*type_params);
+    if (where_clauses) checker.infer(*where_clauses);
+
     if (!checker.enter_decl(this))
         return checker.type_table.type_error();
-    const artic::Type* type = nullptr;
-    if (bounds_and_params && !bounds_and_params->params.empty()) {
-        type = checker.type_table.type_alias(*this);
-        checker.infer(*bounds_and_params);
-        checker.infer(*aliased_type);
-    } else {
-        if (bounds_and_params)
-            checker.infer(*bounds_and_params);
-        // Directly expand non-polymorphic type aliases
-        type = checker.infer(*aliased_type);
-    }
-
+    auto type = checker.infer(*aliased_type);
     checker.exit_decl(this);
-    return type;
+
+    // Directly expand non-polymorphic type aliases
+    return type_params ? type_alias : type;
 }
 
 const artic::Type* ModDecl::infer(TypeChecker& checker) {
-    checker.type_table.mod_impls[this] = {};
-    auto old = checker.current_scope;
-    checker.current_scope = this;
-    // Impls must be collected first in order to know if traits used in other decls exist
-    for (auto& decl : decls) {
-        if (decl->isa<ImplDecl>()) {
-            checker.infer(*decl);
-        }
-    }
-    for (auto& decl : decls) {
-        if (!decl->isa<ImplDecl>())
-            checker.infer(*decl);
-    }
+    // Update the current module
+    auto old = checker.current_mod;
+    checker.current_mod = this;
     for (auto& decl : decls) {
         if (decl->isa<StructDecl>() || decl->isa<EnumDecl>()) {
             if (!decl->type->is_sized())
                 checker.unsized_type(decl->loc, decl->type);
         }
     }
-    checker.current_scope = old;
+    checker.current_mod = old;
     return checker.type_table.mod_type(*this);
 }
 
@@ -1917,7 +1779,7 @@ const artic::Type* RecordPtrn::infer(TypeChecker& checker) {
         (struct_type->decl.isa<StructDecl>() &&
          struct_type->decl.as<StructDecl>()->is_tuple_like))
         return checker.type_expected(path.loc, path.type, "structure");
-    checker.check_fields(loc, struct_type, type_app, fields, "pattern");
+    checker.check_members<true, true>(loc, path.type, fields);
     return checker.infer_record_type(type_app, struct_type, variant_index);
 }
 
