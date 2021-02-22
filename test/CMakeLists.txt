@@ -162,7 +162,8 @@ add_failure_test(NAME failure_missing_impl3     COMMAND artic --print-ast ${CMAK
 add_failure_test(NAME failure_impl_diff_mod1    COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/failure/impl_diff_mod1.art)
 add_failure_test(NAME failure_impl_diff_mod2    COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/failure/impl_diff_mod2.art)
 add_failure_test(NAME failure_impl_nested       COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/failure/impl_nested.art)
-add_failure_test(NAME failure_impl_overlap      COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/failure/impl_overlap.art)
+add_failure_test(NAME failure_impl_overlap1     COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/failure/impl_overlap1.art)
+add_failure_test(NAME failure_impl_overlap2     COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/failure/impl_overlap2.art)
 add_failure_test(NAME failure_not_sized         COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/not_sized.art)
 
 set(CODEGEN_TESTS "")

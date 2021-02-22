@@ -36,6 +36,7 @@ public:
     const Type* incompatible_type(const Loc&, const std::string_view&, const Type*);
     const Type* type_expected(const Loc&, const Type*, const std::string_view&);
     const Type* trait_not_allowed_here(const Loc &loc, const Type *type);
+    const Type* multiple_trait_defs(const Loc&, const ImplType* conflict);
     const Type* unknown_member(const Loc&, const UserType*, const std::string_view&);
     const Type* cannot_infer(const Loc&, const std::string_view&);
     const Type* unreachable_code(const Loc&, const Loc&, const Loc&);
@@ -80,6 +81,7 @@ public:
     bool check_attrs(const ast::NamedAttr&, const ArrayRef<AttrType>&);
     bool check_filter(const ast::Expr&);
     void check_type_has_single_impl(const Loc& loc, const Type* type, Array<const Type*> available_bounds);
+    void check_impls_overlap();
     void check_refutability(const ast::Ptrn&, bool);
 
     template <typename InferElems>

@@ -749,6 +749,7 @@ public:
     const ImplType* register_impl(const ast::ModDecl* scope, const ImplType* impl);
 
     const std::vector<const Type*> find_all_impls(const ast::ModDecl*, const Type* type, ArrayRef<const Type*> additional_bounds = {});
+    std::vector<const ImplType*> search_all_buckets(const Type* bucket_key, const ast::ModDecl* scope);
     const Type* find_impl(const ast::ModDecl*, const Type* type);
     const Type* find_impl(const ast::ModDecl*, std::string trait_name, SmallArray<const Type*> args);
 

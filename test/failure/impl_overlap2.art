@@ -1,0 +1,8 @@
+trait T[_] {}
+trait B1[_] {}
+
+impl T[i32] {}
+impl B1[i32]
+
+#[allow_undecidable_impl]
+impl[A] T[A] where B1[A] {}

@@ -52,6 +52,12 @@ const Type* TypeChecker::trait_not_allowed_here(const Loc& loc, const artic::Typ
     return type_table.type_error();
 }
 
+const Type* TypeChecker::multiple_trait_defs(const Loc& loc, const ImplType* conflict) {
+    error(loc, "Trait '{}' is already defined", *conflict->decl.trait_type);
+    note(conflict->decl.loc, "previously declared here");
+    return type_table.type_error();
+}
+
 const Type* TypeChecker::unknown_member(const Loc& loc, const UserType* user_type, const std::string_view& member) {
     if (auto mod_type = user_type->isa<ModType>(); mod_type && mod_type->decl.id.name == "")
         error(loc, "no member '{}' in top-level module", member);
@@ -447,7 +453,6 @@ bool TypeChecker::check_filter(const ast::Expr& expr) {
     return false;
 }
 
-
 void TypeChecker::check_type_has_single_impl(const Loc& loc, const Type *type, Array<const Type*> available_bounds) {
     auto candidates = type_table.find_all_impls(current_scope, type, available_bounds);
     if (candidates.empty())
@@ -456,6 +461,21 @@ void TypeChecker::check_type_has_single_impl(const Loc& loc, const Type *type, A
         error(loc, "The trait '{}' has multiple implementations", *type);
     else
         type_table.type_impl_table[type] = candidates.front();
+}
+
+void TypeChecker::check_impls_overlap() {
+    auto scope = current_scope;
+    while (scope != nullptr) {
+        for (auto it: type_table.mod_impls[scope]) {
+            if (auto type_app = it.first->isa<TypeApp>()) {
+                for (auto& i: type_table.search_all_buckets(type_app->applied, scope)) {
+                    if (!i->type_params().empty() && type_table.check_impl(scope, it.first, i, {}))
+                        multiple_trait_defs(it.second->decl.loc, i);
+                }
+            }
+        }
+        scope = scope->super;
+    }
 }
 
 void TypeChecker::check_refutability(const ast::Ptrn& ptrn, bool must_be_trivial) {
@@ -1819,9 +1839,7 @@ const artic::Type* ImplDecl::infer(TypeChecker& checker) {
     auto conflict = checker.type_table.register_impl(checker.current_scope, checker.type_table.impl_type(*this));
     if (conflict) {
         checker.exit_decl(this);
-        checker.error(loc, "Trait '{}' is already defined", *this->trait_type);
-        checker.note(conflict->decl.loc, "previously declared here");
-        return checker.type_table.type_error();
+        return checker.multiple_trait_defs(loc, conflict);
     }
     // Set type now in cas eon of the fns need some trait bound
     this->type = checker.type_table.impl_type(*this);
@@ -1870,6 +1888,7 @@ const artic::Type* ModDecl::infer(TypeChecker& checker) {
                 checker.unsized_type(decl->loc, decl->type);
         }
     }
+    checker.check_impls_overlap();
     checker.current_scope = old;
     return checker.type_table.mod_type(*this);
 }

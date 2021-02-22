@@ -823,7 +823,19 @@ const ImplType* TypeTable::register_impl(const ast::ModDecl* scope, const ImplTy
     return nullptr;
 }
 
-const std::vector<const Type*>  TypeTable::find_all_impls(const ast::ModDecl* scope, const Type* type, ArrayRef<const Type*> additional_bounds) {
+std::vector<const ImplType*> TypeTable::search_all_buckets(const Type* bucket_key, const ast::ModDecl* scope) {
+    std::vector<const ImplType*> res;
+    auto current_scope = scope;
+    while (current_scope != nullptr) {
+        auto& impls = mod_impls[current_scope];
+        if (impls.find(bucket_key) != impls.end())
+            res.push_back(impls[bucket_key]);
+        current_scope = current_scope->find_parent_module();
+    }
+    return res;
+};
+
+const std::vector<const Type*> TypeTable::find_all_impls(const ast::ModDecl* scope, const Type* type, ArrayRef<const Type*> additional_bounds) {
     std::vector<const Type *> result;
     /// This check ensures that the impl resolution does not try to find implementations for generic trait uses
     /// while still checking the bound when the trait is concrete
@@ -851,22 +863,17 @@ const std::vector<const Type*>  TypeTable::find_all_impls(const ast::ModDecl* sc
         }
     };
 
-    auto search_all_buckets = [&](const Type* bucket_key) {
-        auto current_scope = scope;
-        while (current_scope != nullptr) {
-            auto& impls = mod_impls[current_scope];
-            if (impls.find(bucket_key) != impls.end()) {
-                auto& i = impls[bucket_key];
-                if (check_impl(current_scope, type, i, additional_bounds))
-                    add_impl_to_result(i);
-            }
-            current_scope = current_scope->find_parent_module();
-        }
-    };
+    for (auto& i: search_all_buckets(type, scope)) {
+        if (check_impl(i->decl.find_parent_module(), type, i, additional_bounds))
+            add_impl_to_result(i);
+    }
 
-    search_all_buckets(type);
-    if (auto app = type->isa<TypeApp>())
-        search_all_buckets(app->applied);
+    auto key = type->isa<TypeApp>() ? type->as<TypeApp>()->applied : type;
+
+    for (auto& i: search_all_buckets(key, scope)) {
+        if (check_impl(i->decl.find_parent_module(), type, i, additional_bounds))
+            add_impl_to_result(i);
+    }
 
     return result;
 }
