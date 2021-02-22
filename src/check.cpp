@@ -582,9 +582,9 @@ const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, Ptr<Ex
         auto& elem = elems[i];
 
         // Apply type arguments (if any)
-        if (auto poly_type = type->isa<artic::PolyType>()) {
+        if (auto poly_type = type->isa<artic::PolyType>(); poly_type && poly_type->type_params()) {
             auto forall_type = type->isa<artic::ForallType>();
-            auto type_param_count = poly_type->type_params() ? poly_type->type_params()->params.size() : 0;
+            auto type_param_count = poly_type->type_params()->params.size();
             if (type_param_count == elem.args.size() ||
                 (forall_type && arg && type_param_count > elem.args.size())) {
                 std::vector<const artic::Type*> type_args(type_param_count);
@@ -1573,7 +1573,7 @@ const artic::Type* TraitDecl::infer(TypeChecker& checker) {
     for (auto& decl : decls)
         checker.infer(*decl);
 
-    static auto builtin_trait_names = std::array {
+    static const auto builtin_trait_names = std::array {
         "Add", "Sub", "Mul", "Div", "Rem", "LShift", "RShift",
         "And", "Or", "Xor",
         "CmpLT", "CmpGT", "CmpLE", "CmpGE", "CmpEq", "CmpNE",
