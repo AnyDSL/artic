@@ -358,8 +358,20 @@ const Type* TypeChecker::check_impl_fns(
         }
 
         auto fn_type = type_app ? type_app->member_type(*index) : trait_type->member_type(*index);
-        check(*fns[i]->fn, fn_type);
-        fns[i]->type = fn_type;
+        const Type* expected;
+        if(!fns[i]->has_params()) {
+            expected = fn_type;
+        } else {
+            std::vector<const Type*> args;
+            for (auto& p: fns[i]->bounds_and_params->params)
+                args.emplace_back(infer(*p));
+            auto forall_type = fn_type->template isa<ForallType>();
+            if (!forall_type)
+                return incompatible_types(fns[i]->loc, fns[i]->type, fn_type);
+            expected = type_app ? forall_type->instantiate(args)->replace(type_app->replace_map()) : forall_type->instantiate(args);
+        }
+        check(*fns[i]->fn, expected);
+        fns[i]->type = expected;
     }
     //Add default definitions
     for (size_t i =0; i < trait_type->decl.fns.size(); i++) {
@@ -1608,7 +1620,7 @@ const artic::Type* FnDecl::infer(TypeChecker& checker) {
     if (has_params()) {
         forall = checker.type_table.forall_type(*this);
         // Set the type of this function right now, in case
-        // we need to check it trait bounds when inferring the bodies' type
+        // we need to check its trait bounds when inferring the bodies' type
         type = forall;
     }
     if (!checker.enter_decl(this))

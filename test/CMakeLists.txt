@@ -75,6 +75,7 @@ add_test(NAME simple_hash                       COMMAND artic --print-ast ${CMAK
 add_test(NAME simple_compare                    COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/compare.art)
 add_test(NAME simple_generic_traits1            COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/generic_traits1.art)
 add_test(NAME simple_generic_traits2            COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/generic_traits2.art)
+add_test(NAME simple_poly_fn_traits            COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/poly_fn_traits.art)
 add_test(NAME simple_transitive_bound           COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/transitive_bound.art)
 add_test(NAME simple_default_impl               COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/default_impl.art)
 add_test(NAME simple_single_fn_multi_types      COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/single_fn_multi_types.art)

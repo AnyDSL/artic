@@ -1,0 +1,14 @@
+trait T {
+    fn f[U](U)->U;
+}
+impl T { fn f[U](a:U) = a;}
+
+trait T2[A]{
+    fn f(A)->(A);
+}
+impl[A] T2[A]{ fn f(b:A) = (b);}
+
+trait T3[A]{
+    fn f[U](U, A)->(U, A);
+}
+impl[A] T3[A]{ fn f[U](a:U, b:A) = (a,b);}
