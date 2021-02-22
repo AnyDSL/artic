@@ -965,7 +965,7 @@ const thorin::Def* Path::emit(Emitter& emitter) const {
         } else if (!is_ctor) {
             std::unordered_map<const artic::TypeVar*, const artic::Type*> map;
             // If type arguments are present, this is a polymorphic application
-            if (elems[i].inferred_args.empty()) {
+            if (!elems[i].inferred_args.empty()) {
                 for (size_t j = 0, n = elems[i].inferred_args.size(); j < n; ++j) {
                     auto var = decl->as<FnDecl>()->type_params->params[j]->type->as<artic::TypeVar>();
                     auto type = elems[i].inferred_args[j]->replace(emitter.type_vars);

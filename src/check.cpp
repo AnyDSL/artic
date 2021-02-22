@@ -853,7 +853,7 @@ const artic::Type* RecordExpr::infer(TypeChecker& checker) {
         (struct_type->decl.isa<StructDecl>() &&
          struct_type->decl.as<StructDecl>()->is_tuple_like))
         return checker.type_expected(expr ? expr->loc : this->loc, type, "record-like structure");
-    checker.check_members(loc, type, false, fields, [&] (auto& field, size_t index) {
+    checker.check_members(loc, type, static_cast<bool>(expr), fields, [&] (auto& field, size_t index) {
         field.index = index;
         checker.check(field, member_type(type, index));
     });
@@ -1761,7 +1761,7 @@ const artic::Type* RecordPtrn::infer(TypeChecker& checker) {
     checker.check_members(loc, path.type, has_etc(), has_etc() ? ArrayRef(fields).skip_back() : ArrayRef(fields),
         [&] (auto& field, size_t index) {
             field.index = index;
-            checker.check(field, member_type(type, index));
+            checker.check(field, member_type(path.type, index));
         });
     return checker.infer_record_type(type_app, struct_type, variant_index);
 }
