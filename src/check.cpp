@@ -46,12 +46,6 @@ const Type* TypeChecker::type_expected(const Loc& loc, const artic::Type* type, 
     return type_table.type_error();
 }
 
-const Type* TypeChecker::trait_not_allowed_here(const Loc& loc, const artic::Type* type) {
-    if (should_report_error(type))
-        error(loc, "Traits are only allowed in type bounds as impl targets");
-    return type_table.type_error();
-}
-
 const Type* TypeChecker::unknown_member(const Loc& loc, const UserType* user_type, const std::string_view& member) {
     if (auto mod_type = user_type->isa<ModType>(); mod_type && mod_type->decl.id.name == "")
         error(loc, "no member '{}' in top-level module", member);
@@ -269,7 +263,7 @@ const Type* TypeChecker::check(const Loc& loc, const Literal& lit, const Type* e
         return infer(loc, lit);
     if (lit.is_integer() || lit.is_double()) {
         auto trait_name = lit.is_integer() ? "FromInt" : "FromFloat";
-        check_impl_exists(loc, type_table.builtin_traits[trait_name], { expected });
+        check_impl_exists(loc, type_table.builtin_traits[trait_name], std::array { expected });
         return expected;
     } else if (lit.is_bool()) {
         if (!is_bool_type(expected))
@@ -296,39 +290,6 @@ static inline const artic::Type* member_type(
     size_t index)
 {
     return type_app ? type_app->member_type(index) : complex_type->member_type(index);
-}
-
-template <bool AcceptEtc, bool SetIndex, typename Members>
-void TypeChecker::check_members(const Loc& loc, const Type* type, const Members& members) {
-    bool has_etc = false;
-    auto [type_app, complex_type] = match_app<ComplexType>(type);
-    assert(complex_type);
-    SmallArray<bool> seen(complex_type->member_count(), false);
-    for (size_t i = 0, n = members.size(); i < n; ++i) {
-        // Skip the field if it is '...'
-        if constexpr (AcceptEtc) {
-            if (members[i]->is_etc()) {
-                has_etc = true;
-                continue;
-            }
-        }
-        auto index = complex_type->find_member(members[i]->id.name);
-        if (!index)
-            return (void)unknown_member(members[i]->loc, complex_type, members[i]->id.name);
-        if (seen[*index])
-            return (void)error(loc, "member '{}' specified more than once", members[i]->id.name);
-        seen[*index] = true;
-        if constexpr (SetIndex)
-            members[i]->index = *index;
-        check(*members[i], member_type(type_app, complex_type, *index));
-    }
-    // Check that all members have been specified, unless '...' was used
-    if (!has_etc && !std::all_of(seen.begin(), seen.end(), [] (bool b) { return b; })) {
-        for (size_t i = 0, n = seen.size(); i < n; ++i) {
-            if (!seen[i] && !complex_type->has_default_value(i))
-                error(loc, "missing member '{}' in '{}'", complex_type->member_name(i), *complex_type);
-        }
-    }
 }
 
 void TypeChecker::check_impl_exists(const Loc& loc, const Type* type) {
@@ -436,14 +397,31 @@ bool TypeChecker::check_attrs(const ast::NamedAttr& named_attr, const ArrayRef<A
     return true;
 }
 
+template <typename Members, typename CheckMember>
+void TypeChecker::check_members(const Loc& loc, const Type* type, bool accept_missing, const Members& members, CheckMember&& check_member) {
+    auto [type_app, complex_type] = match_app<ComplexType>(type);
+    assert(complex_type);
+    SmallArray<bool> seen(complex_type->member_count(), false);
+    for (size_t i = 0, n = members.size(); i < n; ++i) {
+        auto index = complex_type->find_member(members[i]->id.name);
+        if (!index)
+            return (void)unknown_member(members[i]->loc, complex_type, members[i]->id.name);
+        if (seen[*index])
+            return (void)error(loc, "member '{}' specified more than once", members[i]->id.name);
+        seen[*index] = true;
+        check_member(*members[i], *index);
+    }
+    // Check that all members have been specified, unless '...' was used
+    if (!accept_missing && !std::all_of(seen.begin(), seen.end(), [] (bool b) { return b; })) {
+        for (size_t i = 0, n = seen.size(); i < n; ++i) {
+            if (!seen[i] && !complex_type->has_default_value(i))
+                error(loc, "missing member '{}' in '{}'", complex_type->member_name(i), *complex_type);
+        }
+    }
+}
+
 template <typename InferElems>
-const Type* TypeChecker::infer_array(
-    const Loc& loc,
-    const std::string_view& msg,
-    size_t elem_count,
-    bool is_simd,
-    const InferElems& infer_elems)
-{
+const Type* TypeChecker::infer_array(const Loc& loc, const std::string_view& msg, size_t elem_count, bool is_simd, InferElems&& infer_elems) {
     if (elem_count == 0)
         return cannot_infer(loc, msg);
     auto elem_type = infer_elems();
@@ -459,7 +437,7 @@ const Type* TypeChecker::check_array(
     const Type* expected,
     size_t elem_count,
     bool is_simd,
-    const CheckElems& check_elems)
+    CheckElems&& check_elems)
 {
     auto array_type = remove_ptr(expected).second->isa<ArrayType>();
     if (!array_type)
@@ -720,20 +698,16 @@ void NamedAttr::check(TypeChecker& checker, const ast::Node* node) {
         if (!fn_expr)
             checker.error(loc, "attribute '{}' is only valid for functions", name);
         else if (name == "export") {
-            auto fn_type = fn_expr->type->isa<artic::FnType>();
-            if (!fn_type)
+            if (fn_expr->fn_decl && fn_expr->fn_decl->type_params)
                 checker.error(fn_expr->loc, "polymorphic functions cannot be exported");
-            else if (type->order() > 1)
+            else if (fn_expr->type->order() > 1)
                 checker.error(fn_expr->loc, "higher-order functions cannot be exported");
             else if (!fn_expr->body)
                 checker.error(fn_expr->loc, "exported functions must have a body");
             else
-                checker.check_attrs(*this, { { "name", AttrType::String } });
+                checker.check_attrs(*this, std::array { AttrType { "name", AttrType::String } });
         } else if (name == "import") {
-            if (checker.check_attrs(*this, std::array {
-                    AttrType { "cc", AttrType::String },
-                    AttrType { "name", AttrType::String }
-                })) {
+            if (checker.check_attrs(*this, std::array { AttrType { "cc", AttrType::String }, AttrType { "name", AttrType::String } })) {
                 auto name = fn_expr->fn_decl ? fn_expr->fn_decl->id.name : "";
                 if (auto name_attr = find("name"))
                     name = name_attr->as<LiteralAttr>()->lit.as_string();
@@ -821,10 +795,7 @@ const artic::Type* PtrType::infer(TypeChecker& checker) {
 }
 
 const artic::Type* TypeApp::infer(TypeChecker& checker) {
-    auto type = path.infer(checker, false);
-    if(auto [type_app, trait] = match_app<TraitType>(type); trait)
-        return path.type = checker.trait_not_allowed_here(loc, type);
-    return path.type = type;
+    return path.type = path.infer(checker, false);
 }
 
 
@@ -882,7 +853,10 @@ const artic::Type* RecordExpr::infer(TypeChecker& checker) {
         (struct_type->decl.isa<StructDecl>() &&
          struct_type->decl.as<StructDecl>()->is_tuple_like))
         return checker.type_expected(expr ? expr->loc : this->loc, type, "record-like structure");
-    checker.check_members<false, true>(loc, type, fields);
+    checker.check_members(loc, type, false, fields, [&] (auto& field, size_t index) {
+        field.index = index;
+        checker.check(field, member_type(type, index));
+    });
     return checker.infer_record_type(type_app, struct_type, variant_index);
 }
 
@@ -1284,7 +1258,7 @@ const artic::Type* UnaryExpr::infer(TypeChecker& checker) {
         prim_type = prim_type->as<artic::SizedArrayType>()->elem;
     checker.check_impl_exists(loc,
         checker.type_table.builtin_traits[UnaryExpr::tag_to_trait_name(tag)],
-        { prim_type });
+        std::array { prim_type });
     if (tag == PostDec || tag == PreDec || tag == PostInc || tag == PreInc)
         arg->write_to();
     return arg_type;
@@ -1331,7 +1305,7 @@ const artic::Type* BinaryExpr::infer(TypeChecker& checker) {
         default:
             checker.check_impl_exists(loc,
                 checker.type_table.builtin_traits[BinaryExpr::tag_to_trait_name(tag)],
-                { prim_type });
+                std::array { prim_type });
             break;
     }
     if (has_eq()) {
@@ -1487,9 +1461,9 @@ const artic::Type* FnDecl::infer(TypeChecker& checker) {
 
     if (type_params) {
         forall = checker.type_table.forall_type(*this);
-        // Set the type of this function right now, in case
-        // we need to check it trait bounds when inferring the bodies' type
-        type = forall;
+        // Set the type of this function right now, in case,
+        // for instance, `return` is encountered in the body.
+        this->type = forall;
     }
 
     if (!checker.enter_decl(this))
@@ -1498,25 +1472,26 @@ const artic::Type* FnDecl::infer(TypeChecker& checker) {
     const artic::Type* fn_type = nullptr;
     if (fn->ret_type) {
         fn_type = checker.type_table.fn_type(checker.infer(*fn->param), checker.infer(*fn->ret_type));
-        fn->type = fn_type;
+        if (!type_params)
+            this->type = fn_type;
+        this->fn->type = fn_type;
         if (fn->filter)
             checker.check(*fn->filter, checker.type_table.bool_type());
+        checker.check_refutability(*fn->param, true);
+        if (fn->body)
+            checker.check(*fn->body, fn_type->as<artic::FnType>()->codom);
         if (fn->attrs)
             fn->attrs->check(checker, fn.get());
-        checker.check_refutability(*fn->param, true);
     } else
         fn_type = checker.infer(*fn);
 
-
-    // Set the type of this function right now, in case
-    // the `return` keyword is encountered in the body.
-    type = forall ? forall : fn_type;
     if (forall)
         forall->as<ForallType>()->body = fn_type;
-    if (fn->ret_type && fn->body)
-        checker.check(*fn->body, fn_type->as<artic::FnType>()->codom);
+    if (!type_params)
+        this->type = fn_type;
+
     checker.exit_decl(this);
-    return type;
+    return this->type;
 }
 
 const artic::Type* FnDecl::check(TypeChecker& checker, [[maybe_unused]] const artic::Type* expected) {
@@ -1690,7 +1665,9 @@ const artic::Type* ImplDecl::infer(TypeChecker& checker) {
 
     // Set type now in case one of the functions inside need it
     this->type = impl_type;
-    checker.check_members<false, false>(loc, impled_type->type, decls);
+    checker.check_members(loc, impled_type->type, false, decls, [&] (auto& decl, size_t index) {
+        // TODO
+    });
     checker.exit_decl(this);
     return impl_type;
 }
@@ -1714,6 +1691,8 @@ const artic::Type* ModDecl::infer(TypeChecker& checker) {
     // Update the current module
     auto old = checker.current_mod;
     checker.current_mod = this;
+    for (auto& decl : decls)
+        checker.infer(*decl);
     for (auto& decl : decls) {
         if (decl->isa<StructDecl>() || decl->isa<EnumDecl>()) {
             if (!decl->type->is_sized())
@@ -1779,7 +1758,11 @@ const artic::Type* RecordPtrn::infer(TypeChecker& checker) {
         (struct_type->decl.isa<StructDecl>() &&
          struct_type->decl.as<StructDecl>()->is_tuple_like))
         return checker.type_expected(path.loc, path.type, "structure");
-    checker.check_members<true, true>(loc, path.type, fields);
+    checker.check_members(loc, path.type, has_etc(), has_etc() ? ArrayRef(fields).skip_back() : ArrayRef(fields),
+        [&] (auto& field, size_t index) {
+            field.index = index;
+            checker.check(field, member_type(type, index));
+        });
     return checker.infer_record_type(type_app, struct_type, variant_index);
 }
 

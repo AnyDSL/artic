@@ -16,7 +16,7 @@ add_library(libartic
     ast.cpp
     bind.cpp
     check.cpp
-    #emit.cpp
+    emit.cpp
     lexer.cpp
     log.cpp
     parser.cpp

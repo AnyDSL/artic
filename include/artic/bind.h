@@ -28,15 +28,14 @@ public:
     void bind_head(ast::Decl&);
     void bind(ast::Node&);
 
-    void push_scope(ast::Node& parent) { scopes_.emplace_back(parent); }
+    void push_scope(ast::Node&);
     void pop_scope();
 
     template <typename Pred>
     const SymbolTable* find_scope(Pred&& pred) const {
-        assert(!scopes_.empty());
         for (size_t i = scopes_.size(); i > 0; --i) {
-            if (pred(scopes_[i]))
-                return &scopes_[i];
+            if (pred(scopes_[i - 1]))
+                return &scopes_[i - 1];
         }
         return nullptr;
     }

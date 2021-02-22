@@ -690,7 +690,6 @@ struct FnExpr : public Expr {
     const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) override;
     const artic::Type* check(TypeChecker&, const artic::Type*) override;
-    void bind(NameBinder&, bool);
     void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
@@ -1304,7 +1303,7 @@ struct FnDecl : public ValueDecl {
         , where_clauses(std::move(where_clauses))
         , fn(std::move(fn))
     {
-        fn->fn_decl = this;
+        this->fn->fn_decl = this;
     }
 
     const thorin::Def* emit(Emitter&) const override;

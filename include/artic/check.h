@@ -63,9 +63,6 @@ public:
     const Type* infer(const Loc&, const Literal&);
     const Type* check(const Loc&, const Literal&, const Type*);
 
-    template <bool AcceptEtc, bool SetIndex, typename Members>
-    void check_members(const Loc&, const Type*, const Members&);
-
     void check_impl_exists(const Loc&, const Type*);
     void check_impl_exists(const Loc&, const TraitType*, const ArrayRef<const Type*>&);
 
@@ -74,10 +71,13 @@ public:
     bool check_filter(const ast::Expr&);
     void check_refutability(const ast::Ptrn&, bool);
 
+    template <typename Members, typename CheckMember>
+    void check_members(const Loc&, const Type*, bool, const Members&, CheckMember&&);
+
     template <typename InferElems>
-    const Type* infer_array(const Loc&, const std::string_view&, size_t, bool, const InferElems&);
+    const Type* infer_array(const Loc&, const std::string_view&, size_t, bool, InferElems&&);
     template <typename CheckElems>
-    const Type* check_array(const Loc&, const std::string_view&, const Type*, size_t, bool, const CheckElems&);
+    const Type* check_array(const Loc&, const std::string_view&, const Type*, size_t, bool, CheckElems&&);
 
     bool infer_type_args(const Loc&, const ForallType*, const Type*, std::vector<const Type*>&);
     const Type* infer_record_type(const TypeApp*, const StructType*, size_t&);

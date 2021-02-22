@@ -74,17 +74,25 @@ public:
         : ArrayRef(std::data(c), std::size(c))
     {}
 
-    ArrayRef(const T& one)
-        : ArrayRef(&one, 1)
-    {}
-
     const T* data() const { return data_; }
     size_t size() const { return size_; }
+
+    ArrayRef skip_front(size_t front = 1) const {
+        assert(size() > front);
+        return ArrayRef(data() + front, size() - front);
+    }
+
+    ArrayRef skip_back(size_t back = 1) const {
+        assert(size() > back);
+        return ArrayRef(data(), size() - back);
+    }
 
 private:
     const T* data_;
     size_t size_;
 };
+
+template<typename Container> ArrayRef(const Container&) -> ArrayRef<typename Container::value_type>;
 
 /// Dynamically-sized, non-growing array.
 template <typename T>

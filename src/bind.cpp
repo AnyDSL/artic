@@ -18,6 +18,12 @@ void NameBinder::bind(ast::Node& node) {
     node.bind(*this);
 }
 
+void NameBinder::push_scope(ast::Node& parent) {
+    if (auto decl = parent.isa<ast::Decl>())
+        decl->parent = find_parent<ast::Decl>();
+    scopes_.push_back(parent);
+}
+
 static inline bool is_top_level(const SymbolTable& scope) {
     return
         scope.parent.isa<ast::ModDecl>() &&
@@ -31,8 +37,8 @@ void NameBinder::pop_scope() {
             !is_top_level(scopes_.back()) &&
             !decl->isa<ast::FieldDecl>() &&
             !decl->isa<ast::OptionDecl>() &&
-            !(decl->isa<ast::FnDecl>() &&
-                    (decl->parent->isa<ast::TraitDecl>() || decl->parent->isa<ast::ImplDecl>()))) {
+            !(decl->parent->isa<ast::TraitDecl>() || decl->parent->isa<ast::ImplDecl>()))
+        {
             warn(decl->loc, "unused identifier '{}'", pair.first);
             note("prefix unused identifiers with '_'");
         }
@@ -269,7 +275,7 @@ void ForExpr::bind(NameBinder& binder) {
     auto loop_body = call->callee->as<CallExpr>()->arg->as<FnExpr>();
     if (loop_body->attrs)
         loop_body->attrs->bind(binder);
-    loop_body->bind(binder, true);
+    loop_body->bind(binder);
     binder.bind(*call->arg);
 }
 

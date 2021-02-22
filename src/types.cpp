@@ -449,6 +449,16 @@ const ast::WhereClauseList* StructType::where_clauses() const {
     return decl.isa<ast::StructDecl>() ? decl.as<ast::StructDecl>()->where_clauses.get() : nullptr;
 }
 
+bool StructType::has_default_value(size_t i) const {
+    return decl.fields[i]->init != nullptr;
+}
+
+bool TraitType::has_default_value(size_t i) const {
+    return
+        decl.decls[i]->isa<ast::FnDecl>() &&
+        decl.decls[i]->as<ast::FnDecl>()->fn->body;
+}
+
 std::optional<size_t> ComplexType::find_member(const std::string_view& name) const {
     for (size_t i = 0, n = member_count(); i < n; ++i) {
         if (member_name(i) == name)
@@ -642,7 +652,7 @@ bool is_int_type(const Type* type) {
             case ast::PrimType::I16:
             case ast::PrimType::I32:
             case ast::PrimType::I64:
-                return true; 
+                return true;
             default:
                 break;
         }
@@ -656,7 +666,7 @@ bool is_float_type(const Type* type) {
             case ast::PrimType::F16:
             case ast::PrimType::F32:
             case ast::PrimType::F64:
-                return true; 
+                return true;
             default:
                 break;
         }
@@ -710,7 +720,7 @@ const TupleType* TypeTable::tuple_type(const ArrayRef<const Type*>& elems) {
 const SizedArrayType* TypeTable::sized_array_type(const Type* elem, size_t size, bool is_simd) {
     return insert<SizedArrayType>(elem, size, is_simd);
 }
- 
+
 const UnsizedArrayType* TypeTable::unsized_array_type(const Type* elem) {
     return insert<UnsizedArrayType>(elem);
 }

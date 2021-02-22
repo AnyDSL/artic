@@ -599,7 +599,10 @@ struct TypeApp : public Type {
     Array<const Type*> type_args;
 
     /// Gets the replacement map required to expand this type application.
-    std::unordered_map<const TypeVar*, const Type*> replace_map() const;
+    std::unordered_map<const TypeVar*, const Type*> replace_map() const {
+        assert(applied->type_params());
+        return applied->replace_map(type_args);
+    }
 
     /// Returns the type of the given member of the applied type, if it is a complex type.
     const Type* member_type(size_t i) const {

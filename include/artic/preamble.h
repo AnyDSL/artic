@@ -1,9 +1,7 @@
 #ifndef ARTIC_PREAMBLE_H
 #define ARTIC_PREAMBLE_H
 
-#include <string>
-
-static std::string preamble = R"(
+static const char* preamble = R"(
 trait Add[T] { fn add(T,T) -> T; }
 trait Sub[T] { fn sub(T,T) -> T; }
 trait Mul[T] { fn mul(T,T) -> T; }
@@ -248,32 +246,33 @@ impl Not[u64] { #[import(cc = "builtin")] fn not(u64) -> u64; }
 impl Not[bool] { #[import(cc = "builtin")] fn not(bool) -> bool; }
 
 #[allow_undecidable_impl]
-impl[T] Plus[T] where FromInt[T], Add[T] { fn plus(x: T) = 0 + x; }
+impl[T] Plus[T] where FromInt[T], Add[T] { fn @plus(x: T) = 0 + x; }
 
 #[allow_undecidable_impl]
-impl[T] Minus[T] where FromInt[T], Sub[T] { fn minus(x: T) = 0 - x; }
+impl[T] Minus[T] where FromInt[T], Sub[T] { fn @minus(x: T) = 0 - x; }
 
 #[allow_undecidable_impl]
-impl[T] Inc[T] where FromInt[T], Add[T] { fn inc(x: T) = x + 1; }
+impl[T] Inc[T] where FromInt[T], Add[T] { fn @inc(x: T) = x + 1; }
 
 #[allow_undecidable_impl]
-impl[T] Dec[T] where FromInt[T], Sub[T]{ fn dec(x: T) = x - 1; }
-trait BitOps[T] where Not[T], And[T], Or[T], Xor[T] {}
-trait Shift[T] where LShift[T], RShift[T] {}
-trait Num[T] where Add[T], Sub[T], Mul[T], Div[T], Rem[T], FromInt[T] {}
-trait Int[T] where Num[T], Shift[T], BitOps[T] {}
-trait Float[T] where Num[T], FromFloat[T] {}
+impl[T] Dec[T] where FromInt[T], Sub[T]{ fn @dec(x: T) = x - 1; }
+
+trait BitOps[T] where Not[T], And[T], Or[T], Xor[T];
+trait Shift[T] where LShift[T], RShift[T];
+trait Num[T] where Add[T], Sub[T], Mul[T], Div[T], Rem[T], FromInt[T];
+trait Int[T] where Num[T], Shift[T], BitOps[T];
+trait Float[T] where Num[T], FromFloat[T];
 
 #[allow_undecidable_impl]
-impl[T] BitOps[T] where Not[T], And[T], Or[T], Xor[T] {}
+impl[T] BitOps[T] where Not[T], And[T], Or[T], Xor[T];
 #[allow_undecidable_impl]
-impl[T] Shift[T] where LShift[T], RShift[T] {}
+impl[T] Shift[T] where LShift[T], RShift[T];
 #[allow_undecidable_impl]
-impl[T] Num[T] where Add[T], Sub[T], Mul[T], Div[T], Rem[T], FromInt[T] {}
+impl[T] Num[T] where Add[T], Sub[T], Mul[T], Div[T], Rem[T], FromInt[T];
 #[allow_undecidable_impl]
-impl[T] Int[T] where Num[T], Shift[T], BitOps[T] {}
+impl[T] Int[T] where Num[T], Shift[T], BitOps[T];
 #[allow_undecidable_impl]
-impl[T] Float[T] where Num[T], FromFloat[T] {}
+impl[T] Float[T] where Num[T], FromFloat[T];
 )";
 
 

@@ -144,16 +144,10 @@ public:
 
     const thorin::Def* builtin(const ast::FnDecl&, thorin::Continuation*);
 
-    void add_poly_vars_to_emitter(const PolyType*, const artic::Array<const Type*>&);
-    const thorin::Def* emit_operator_fn(std::string&, const Type*);
-
     const thorin::Def* comparator(const Loc&, const Type*);
 
     thorin::Debug debug_info(const ast::NamedDecl&);
     thorin::Debug debug_info(const ast::Node&, const std::string_view& = "");
-
-    const ast::ModDecl* current_scope;
-
 };
 
 /// Helper function to compile a set of files and generate an AST and a thorin module.

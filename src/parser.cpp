@@ -1266,15 +1266,19 @@ std::pair<Ptr<ast::Expr>, Ptr<ast::Expr>> Parser::parse_cond_and_block() {
 
 PtrVector<ast::NamedDecl> Parser::parse_trait_or_impl_contents() {
     PtrVector<ast::NamedDecl> decls;
-    while (ahead().tag() != Token::End && ahead().tag() != Token::RBrace) {
-        auto decl = parse_decl(false);
-        // We currently only support functions,
-        // but we might add associated types (or constants) in the future.
-        if (!decl->isa<ast::FnDecl>())
-            error(decl->loc, "only functions are allowed here");
-        else
-            decls.emplace_back(decl.release()->as<ast::NamedDecl>());
-    }
+    if (accept(Token::LBrace)) {
+        while (ahead().tag() != Token::End && ahead().tag() != Token::RBrace) {
+            auto decl = parse_decl(false);
+            // We currently only support functions,
+            // but we might add associated types (or constants) in the future.
+            if (!decl->isa<ast::FnDecl>())
+                error(decl->loc, "only functions are allowed here");
+            else
+                decls.emplace_back(decl.release()->as<ast::NamedDecl>());
+        }
+        expect(Token::RBrace);
+    } else
+        expect(Token::Semi);
     return decls;
 }
 

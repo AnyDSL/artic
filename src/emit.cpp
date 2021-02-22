@@ -752,38 +752,17 @@ const thorin::Def* Emitter::emit(const ast::Node& node, const Literal& lit) {
         ops.back() = world.literal_pu8(0, {});
         return world.definite_array(ops, debug_info(node));
     } else {
-        std::string trait_name = lit.is_integer() ? "FromInt" : "FromFloat";
-        auto fn = emit_operator_fn(trait_name, node.type);
-        auto value = lit.is_integer() ? world.literal_pu64(lit.as_integer(), debug_info(node)) : world.literal_qf64(lit.is_double() ? lit.as_double() : lit.as_integer(), debug_info(node));
-        return call(fn, value, debug_info(node));
+        auto literal_value = lit.is_integer()
+            ? world.literal_pu64(lit.as_integer(), debug_info(node))
+            : world.literal_qf64(lit.as_double(), debug_info(node));
+        // TODO: Literals with `FromInt`/`FromFloat`
+        return literal_value;
     }
 }
 
-#define FN_ARGS (thorin::World& w, const thorin::Def* p1, const thorin::Def* p2)
-static std::unordered_map<std::string, const thorin::Def*(*)FN_ARGS> builtins {
-    std::make_pair("add",       []FN_ARGS{return w.arithop_add(p1, p2);}),
-    std::make_pair("sub",       []FN_ARGS{return w.arithop_sub(p1, p2);}),
-    std::make_pair("mul",       []FN_ARGS{return w.arithop_mul(p1, p2);}),
-    std::make_pair("div",       []FN_ARGS{return w.arithop_div(p1, p2);}),
-    std::make_pair("rem",       []FN_ARGS{return w.arithop_rem(p1, p2);}),
-    std::make_pair("lshift",    []FN_ARGS{return w.arithop_shl(p1, p2);}),
-    std::make_pair("rshift",    []FN_ARGS{return w.arithop_shr(p1, p2);}),
-    std::make_pair("and",       []FN_ARGS{return w.arithop_and(p1, p2);}),
-    std::make_pair("or",        []FN_ARGS{return w.arithop_or(p1, p2);}),
-    std::make_pair("xor",       []FN_ARGS{return w.arithop_xor(p1, p2);}),
-    std::make_pair("not",       []FN_ARGS{return w.arithop_not(p1);}),
-    std::make_pair("lt",        []FN_ARGS{return w.cmp_lt(p1, p2);}),
-    std::make_pair("gt",        []FN_ARGS{return w.cmp_gt(p1, p2);}),
-    std::make_pair("le",        []FN_ARGS{return w.cmp_le(p1, p2);}),
-    std::make_pair("ge",        []FN_ARGS{return w.cmp_ge(p1, p2);}),
-    std::make_pair("eq",        []FN_ARGS{return w.cmp_eq(p1, p2);}),
-    std::make_pair("ne",        []FN_ARGS{return w.cmp_ne(p1, p2);})
-};
-
-
 const thorin::Def* Emitter::builtin(const ast::FnDecl& fn_decl, thorin::Continuation* cont) {
     if (cont->name() == "alignof") {
-        auto target_type = fn_decl.bounds_and_params->params[0]->type->convert(*this);
+        auto target_type = fn_decl.type_params->params[0]->type->convert(*this);
         cont->jump(cont->params().back(), { cont->param(0), world.align_of(target_type) }, debug_info(fn_decl));
     } else if (cont->name() == "bitcast") {
         auto param = tuple_from_params(cont, true);
@@ -800,10 +779,10 @@ const thorin::Def* Emitter::builtin(const ast::FnDecl& fn_decl, thorin::Continua
             call_args(cont->param(0), world.select(cont->param(1), cont->param(2), cont->param(3))),
             debug_info(fn_decl));
     } else if (cont->name() == "sizeof") {
-        auto target_type = fn_decl.bounds_and_params->params[0]->type->convert(*this);
+        auto target_type = fn_decl.type_params->params[0]->type->convert(*this);
         cont->jump(cont->params().back(), { cont->param(0), world.size_of(target_type) }, debug_info(fn_decl));
     } else if (cont->name() == "undef") {
-        auto target_type = fn_decl.bounds_and_params->params[0]->type->convert(*this);
+        auto target_type = fn_decl.type_params->params[0]->type->convert(*this);
         cont->jump(cont->params().back(), call_args(cont->param(0), world.bottom(target_type)), debug_info(fn_decl));
     } else if (cont->name() == "not") {
         cont->jump(cont->params().back(), {cont->param(0), world.arithop_not(cont->param(1))} , debug_info(fn_decl));
@@ -812,39 +791,35 @@ const thorin::Def* Emitter::builtin(const ast::FnDecl& fn_decl, thorin::Continua
         auto mono_type = member_type(fn_decl.fn->param->type->replace(type_vars), 1)->as<PtrType>()->pointee;
         auto ret_val = call(comparator(fn_decl.loc, mono_type), tuple_from_params(cont, true));
         jump(cont->params().back(), ret_val);
-    } else if (builtins.find(cont->name().str()) != builtins.end()) {
-        cont->jump(cont->params().back(), {cont->param(0), builtins[cont->name().str()](world, cont->param(1), cont->param(2))} , debug_info(fn_decl));
     } else {
-        assert(false);
+        using ArithBuiltin = std::function<const thorin::Def* (thorin::World&, const thorin::Def*, const thorin::Def*)>;
+        static const std::unordered_map<std::string, ArithBuiltin> arith_builtins {
+            std::make_pair("add",    [] (auto& w, auto* p1, auto* p2) { return w.arithop_add(p1, p2); }),
+            std::make_pair("sub",    [] (auto& w, auto* p1, auto* p2) { return w.arithop_sub(p1, p2); }),
+            std::make_pair("mul",    [] (auto& w, auto* p1, auto* p2) { return w.arithop_mul(p1, p2); }),
+            std::make_pair("div",    [] (auto& w, auto* p1, auto* p2) { return w.arithop_div(p1, p2); }),
+            std::make_pair("rem",    [] (auto& w, auto* p1, auto* p2) { return w.arithop_rem(p1, p2); }),
+            std::make_pair("lshift", [] (auto& w, auto* p1, auto* p2) { return w.arithop_shl(p1, p2); }),
+            std::make_pair("rshift", [] (auto& w, auto* p1, auto* p2) { return w.arithop_shr(p1, p2); }),
+            std::make_pair("and",    [] (auto& w, auto* p1, auto* p2) { return w.arithop_and(p1, p2); }),
+            std::make_pair("or",     [] (auto& w, auto* p1, auto* p2) { return w.arithop_or (p1, p2); }),
+            std::make_pair("xor",    [] (auto& w, auto* p1, auto* p2) { return w.arithop_xor(p1, p2); }),
+            std::make_pair("not",    [] (auto& w, auto* p1, auto* p2) { return w.arithop_not(p1);  }),
+            std::make_pair("lt",     [] (auto& w, auto* p1, auto* p2) { return w.cmp_lt(p1, p2);   }),
+            std::make_pair("gt",     [] (auto& w, auto* p1, auto* p2) { return w.cmp_gt(p1, p2);   }),
+            std::make_pair("le",     [] (auto& w, auto* p1, auto* p2) { return w.cmp_le(p1, p2);   }),
+            std::make_pair("ge",     [] (auto& w, auto* p1, auto* p2) { return w.cmp_ge(p1, p2);   }),
+            std::make_pair("eq",     [] (auto& w, auto* p1, auto* p2) { return w.cmp_eq(p1, p2);   }),
+            std::make_pair("ne",     [] (auto& w, auto* p1, auto* p2) { return w.cmp_ne(p1, p2);   })
+        };
+        assert(arith_builtins.count(cont->name().str()) > 0);
+        cont->jump(cont->params().back(),
+            { cont->param(0), arith_builtins.find(cont->name().str())->second(world, cont->param(1), cont->param(2)) },
+            debug_info(fn_decl));
     }
     cont->set_all_true_filter();
     return cont;
 }
-
-const thorin::Def* Emitter::emit_operator_fn(std::string& trait_name, const Type* arg) {
-    arg = arg->replace(type_vars);
-    if (arg->isa<RefType>()) arg = arg->as<RefType>()->pointee;
-    auto impl = arg->type_table.find_impl(current_scope, trait_name, {arg});
-    auto [type_app, impl_type] = match_app<ImplType>(impl);
-    std::unordered_map<const artic::TypeVar*, const artic::Type*> old_vars;
-    old_vars.insert(type_vars.begin(), type_vars.end());
-    add_poly_vars_to_emitter(impl_type, type_app->type_args);
-    auto fn = emit(*impl_type->decl.fns[0]);
-    impl_type->decl.fns[0]->def = nullptr;
-    std::swap(old_vars, type_vars);
-    return fn;
-}
-
-void Emitter::add_poly_vars_to_emitter(const PolyType* poly, const artic::Array<const Type*>& args) {
-    if (!poly->type_params().empty()) {
-        std::unordered_map<const artic::TypeVar*, const artic::Type*> map;
-        for (auto i =0; i < args.size(); i++)
-            map.insert({poly->type_params()[i]->as<artic::TypeVar>(), args[i]->replace(type_vars)});
-        map.insert(type_vars.begin(), type_vars.end());
-        std::swap(map, type_vars);
-    }
-}
-
 
 const thorin::Def* Emitter::comparator(const Loc& loc, const Type* type) {
     if (auto it = comparators.find(type); it != comparators.end())
@@ -983,41 +958,31 @@ const thorin::Def* Path::emit(Emitter& emitter) const {
     const auto* decl = start_decl;
     for (size_t i = 0, n = elems.size(); i < n; ++i) {
         if (elems[i].is_super())
-            decl = i == 0 ? start_decl : decl->as<ModDecl>()->super;
+            decl = i == 0 ? start_decl : decl->as<ModDecl>()->super();
 
         if (auto mod_type = elems[i].type->isa<ModType>()) {
             decl = &mod_type->member(elems[i + 1].index);
         } else if (!is_ctor) {
-            std::unordered_map<const artic::TypeVar*, const artic::Type*> old_vars;
-            old_vars.insert(emitter.type_vars.begin(), emitter.type_vars.end());
-            if (!elems[i].inferred_args.empty())
-                emitter.add_poly_vars_to_emitter(decl->type->as<PolyType>(), elems[i].inferred_args);
-
-            const thorin::Def*  def;
-            if (auto trait_type = decl->type->isa<TraitType>()) {
-                auto impl = decl->type->type_table.find_impl(emitter.current_scope, elems[i].type->replace(emitter.type_vars));
-                auto [type_app, impl_type] = match_app<ImplType>(impl);
-                emitter.add_poly_vars_to_emitter(impl_type, type_app->type_args);
-                auto index = impl_type->find_member(elems[i+1].id.name);
-                const FnDecl* fn;
-                if (!index) {
-                    auto default_index = trait_type->find_member(elems[i+1].id.name);
-                    fn = trait_type->decl.fns[*default_index].get();
-                } else
-                    fn = impl_type->decl.fns[*index].get();
-                def = emitter.emit(*fn);
-                // the emitter might have set a def for the decl despite the definition for the expression being deleted
-                fn->def = fn->fn->def;
-            } else {
-               def = emitter.emit(*decl);
+            std::unordered_map<const artic::TypeVar*, const artic::Type*> map;
+            // If type arguments are present, this is a polymorphic application
+            if (elems[i].inferred_args.empty()) {
+                for (size_t j = 0, n = elems[i].inferred_args.size(); j < n; ++j) {
+                    auto var = decl->as<FnDecl>()->type_params->params[j]->type->as<artic::TypeVar>();
+                    auto type = elems[i].inferred_args[j]->replace(emitter.type_vars);
+                    map.emplace(var, type);
+                }
+                // We need to also add the caller's map in case the function is nested in another
+                map.insert(emitter.type_vars.begin(), emitter.type_vars.end());
+                std::swap(map, emitter.type_vars);
             }
+            auto def = emitter.emit(*decl);
             if (!elems[i].inferred_args.empty()) {
                 // Polymorphic nodes are emitted with the map from type variable
                 // to concrete type, which means that the emitted node cannot be
                 // kept around: Another instantiation may be using a different map,
                 // which would conflict with this one.
                 decl->def = nullptr;
-                std::swap(old_vars, emitter.type_vars);
+                std::swap(map, emitter.type_vars);
             }
             return def;
         } else if (match_app<StructType>(elems[i].type).second) {
@@ -1379,7 +1344,11 @@ const thorin::Def* UnaryExpr::emit(Emitter& emitter) const {
         op = emitter.emit(*arg);
     }
     const thorin::Def* res = nullptr;
-    if (tag == Deref || tag == Known || tag == Forget || is_simd_type(arg->type) || (type->isa<artic::PrimType>() && is_constant())) {
+    // TODO: Thorin does not support having call expressions to initialize constants,
+    // so we have a special case here so that we can initialize constants with expressions such as `1 + 1`.
+    if (tag == Deref || tag == Known || tag == Forget ||
+        is_simd_type(arg->type) || (type->isa<artic::PrimType>() && is_constant()))
+    {
         switch (tag) {
             case Plus:
                 [[fallthrough]];
@@ -1408,9 +1377,8 @@ const thorin::Def* UnaryExpr::emit(Emitter& emitter) const {
                 return nullptr;
         }
     } else {
-        auto trait_name = UnaryExpr::tag_to_trait_name(tag);
-        auto fn = emitter.emit_operator_fn(trait_name, arg->type);
-        res = emitter.call(fn, op, emitter.debug_info(*this));
+        // TODO
+        assert(false);
     }
     if (ptr) {
         emitter.store(ptr, res, emitter.debug_info(*this));
@@ -1475,7 +1443,8 @@ const thorin::Def* BinaryExpr::emit(Emitter& emitter) const {
         arg_type = arg_type->as<artic::SizedArrayType>()->elem;
     if (tag == Eq)
         res = rhs;
-    else if (is_simd_type(left->type) || (arg_type->isa<artic::PrimType>() && is_constant())) { // constants and simd require direct codegen instead of detour through definition
+    // See TODO above
+    else if (is_simd_type(left->type) || (arg_type->isa<artic::PrimType>() && is_constant())) {
         switch (remove_eq(tag)) {
             case Add:   res = emitter.world.arithop_add(lhs, rhs, emitter.debug_info(*this)); break;
             case Sub:   res = emitter.world.arithop_sub(lhs, rhs, emitter.debug_info(*this)); break;
@@ -1499,13 +1468,8 @@ const thorin::Def* BinaryExpr::emit(Emitter& emitter) const {
                 return nullptr;
         }
     } else {
-        auto trait_name = BinaryExpr::tag_to_trait_name(remove_eq(tag));
-        auto fn = emitter.emit_operator_fn(trait_name, left->type);
-        thorin::Array<const thorin::Def*> args(2);
-        args[0] = lhs;
-        args[1] = rhs;
-        auto value = emitter.world.tuple(args);
-        res = emitter.call(fn, value, emitter.debug_info(*this));
+        // TODO
+        assert(false);
     }
     if (has_eq()) {
         emitter.store(ptr, res, emitter.debug_info(*this));
@@ -1579,42 +1543,23 @@ const thorin::Def* StaticDecl::emit(Emitter& emitter) const {
     return emitter.world.global(value, is_mut, emitter.debug_info(*this));
 }
 
-/// Collects the type variables which a function may use
-std::vector<const artic::Type*> get_enclosing_type_vars (const FnDecl* fn) {
-    std::vector<const artic::Type*> res;
-    const Decl* current_decl = fn;
-    while (current_decl != nullptr) {
-        if (auto poly = current_decl->type->isa<PolyType>()) {
-            for (auto t: poly->type_params())
-                res.push_back(t);
-        }
-        current_decl = current_decl->parent;
-    }
-    return res;
-
-}
-
 const thorin::Def* FnDecl::emit(Emitter& emitter) const {
     auto _ = emitter.save_state();
     const thorin::FnType* cont_type = nullptr;
     Emitter::MonoFn mono_fn { this, {} };
-    auto vars = get_enclosing_type_vars(this);
-    if (!vars.empty()) {
-        for (auto &v : vars) {
-           mono_fn.type_args.push_back(v->replace(emitter.type_vars));
-        }
+    if (type_params) {
+        for (auto& param : type_params->params)
+            mono_fn.type_args.push_back(param->type->replace(emitter.type_vars));
         // Try to find an existing monomorphized version of this function with that type
         if (auto it = emitter.mono_fns.find(mono_fn); it != emitter.mono_fns.end())
             return it->second;
         emitter.poly_defs.emplace_back();
-    }
-    if (has_params())
         cont_type = type->as<artic::ForallType>()->body->convert(emitter)->as<thorin::FnType>();
-    else
+    } else
         cont_type = type->convert(emitter)->as<thorin::FnType>();
 
     auto cont = emitter.world.continuation(cont_type, emitter.debug_info(*this));
-    if (!vars.empty())
+    if (type_params)
         emitter.mono_fns.emplace(std::move(mono_fn), cont);
 
     cont->params().back()->debug().set("ret");
@@ -1660,7 +1605,7 @@ const thorin::Def* FnDecl::emit(Emitter& emitter) const {
     // Clear the thorin IR generated for this entire function
     // if the function is polymorphic, so as to allow multiple
     // instantiations with different types.
-    if (!vars.empty()) {
+    if (type_params) {
         for (auto& def : emitter.poly_defs.back())
             *def = nullptr;
         emitter.poly_defs.pop_back();
@@ -1690,16 +1635,13 @@ const thorin::Def* TypeDecl::emit(Emitter&) const {
 }
 
 const thorin::Def* ModDecl::emit(Emitter& emitter) const {
-    auto old = emitter.current_scope;
-    emitter.current_scope = this;
     for (auto& decl : decls) {
         // Do not emit polymorphic functions directly: Those will be emitted from
         // the call site, where the type arguments are known.
-        if (auto fn_decl = decl->isa<FnDecl>(); fn_decl && fn_decl->has_params())
+        if (auto fn_decl = decl->isa<FnDecl>(); fn_decl && fn_decl->type_params)
             continue;
         emitter.emit(*decl);
     }
-    emitter.current_scope = old;
     return nullptr;
 }
 
@@ -1881,13 +1823,14 @@ inline std::string stringify_params(
 }
 
 std::string StructType::stringify(Emitter& emitter) const {
-    if (type_params().empty())
+    if (!type_params())
         return decl.id.name;
-    return stringify_params(emitter, decl.id.name + "_", bounds_and_params()->params);
+    return stringify_params(emitter, decl.id.name + "_", type_params()->params);
 }
 
 const thorin::Type* StructType::convert(Emitter& emitter, const Type* parent) const {
-    if (auto it = emitter.types.find(this); type_params().empty() && it != emitter.types.end())
+    // Return existing an existing structure type if the type is monomorphic
+    if (auto it = emitter.types.find(this); !type_params() && it != emitter.types.end())
         return it->second;
     auto type = emitter.world.struct_type(stringify(emitter), decl.fields.size());
     emitter.types[parent] = type;
@@ -1899,13 +1842,14 @@ const thorin::Type* StructType::convert(Emitter& emitter, const Type* parent) co
 }
 
 std::string EnumType::stringify(Emitter& emitter) const {
-    if (type_params().empty())
+    if (!type_params())
         return decl.id.name;
-    return stringify_params(emitter, decl.id.name + "_", decl.bounds_and_params->params);
+    return stringify_params(emitter, decl.id.name + "_", type_params()->params);
 }
 
 const thorin::Type* EnumType::convert(Emitter& emitter, const Type* parent) const {
-    if (auto it = emitter.types.find(this); type_params().empty() && it != emitter.types.end())
+    // See comment above
+    if (auto it = emitter.types.find(this); !type_params() && it != emitter.types.end())
         return it->second;
     auto type = emitter.world.variant_type(stringify(emitter), decl.options.size());
     emitter.types[parent] = type;
@@ -1981,9 +1925,9 @@ static bool lex_and_parse(Log& log, std::string name, std::istream& is, bool war
         return false;
 
     program.decls.insert(
-            program.decls.end(),
-            std::make_move_iterator(module->decls.begin()),
-            std::make_move_iterator(module->decls.end())
+        program.decls.end(),
+        std::make_move_iterator(module->decls.begin()),
+        std::make_move_iterator(module->decls.end())
     );
     return true;
 }
@@ -2001,8 +1945,8 @@ bool compile(
     assert(file_data.size() == file_names.size());
     std::istringstream is(preamble);
 
-    if (!lex_and_parse(log, "preamble", is, warns_as_errors, program))
-        return false;
+    [[maybe_unused]] auto preamble_ok = lex_and_parse(log, "preamble", is, warns_as_errors, program);
+    assert(preamble_ok);
 
     for (size_t i = 0, n = file_names.size(); i < n; ++i) {
         if (log.locator)
