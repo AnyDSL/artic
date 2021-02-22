@@ -588,6 +588,7 @@ bool UnaryExpr::is_constant() const {
     switch (tag) {
         case Plus:
         case Minus:
+            return arg->is_constant() && can_avoid_impl_call(type);
         case Known:
         case Forget:
             return arg->is_constant();
@@ -609,7 +610,7 @@ bool BinaryExpr::has_side_effect() const {
 }
 
 bool BinaryExpr::is_constant() const {
-    return !has_eq() && left->is_constant() && right->is_constant();
+    return !has_eq() && left->is_constant() && right->is_constant() && can_avoid_impl_call(type);
 }
 
 bool FilterExpr::has_side_effect() const {

@@ -135,18 +135,6 @@ const Type* TypeChecker::expect(const Loc& loc, const Type* type, const Type* ex
     return type;
 }
 
-inline std::pair<const RefType*, const Type*> remove_ref(const Type* type) {
-    if (auto ref_type = type->isa<RefType>())
-        return std::make_pair(ref_type, ref_type->pointee);
-    return std::make_pair(nullptr, type);
-}
-
-inline std::pair<const Type*, const Type*> remove_ptr(const Type* type) {
-    if (auto ptr_type = type->isa<PtrType>())
-        return std::make_pair(ptr_type, ptr_type->pointee);
-    return std::make_pair(nullptr, type);
-}
-
 const Type* TypeChecker::deref(Ptr<ast::Expr>& expr) {
     auto [ref_type, type] = remove_ref(infer(*expr));
     if (ref_type)
@@ -637,11 +625,10 @@ const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, Ptr<Ex
                     return checker.type_table.type_error();
                 }
                 type = checker.type_table.mod_type(*mod_type->decl.super());
-            }
-            if (auto [type_app, complex_type] = match_app<ComplexType>(type); complex_type) {
+            } else if (auto [type_app, complex_type] = match_app<ComplexType>(type); complex_type) {
                 auto member_index = complex_type->find_member(elems[i + 1].id.name);
                 if (!member_index)
-                    return checker.unknown_member(elem.loc, complex_type, elems[i + 1].id.name);
+                    return checker.unknown_member(elems[i + 1].loc, complex_type, elems[i + 1].id.name);
                 elems[i + 1].index = *member_index;
                 if (auto enum_type = complex_type->isa<EnumType>()) {
                     if (enum_type->decl.options[*member_index]->struct_type) {

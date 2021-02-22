@@ -19,8 +19,6 @@ void NameBinder::bind(ast::Node& node) {
 }
 
 void NameBinder::push_scope(ast::Node& parent) {
-    if (auto decl = parent.isa<ast::Decl>())
-        decl->parent = find_parent<ast::Decl>();
     scopes_.push_back(parent);
 }
 
@@ -49,6 +47,8 @@ void NameBinder::pop_scope() {
 void NameBinder::insert_symbol(ast::NamedDecl& decl, const std::string& name) {
     assert(!scopes_.empty());
     assert(!name.empty());
+
+    decl.parent = find_parent<ast::Decl>();
 
     // Do not bind anonymous variables
     if (name[0] == '_') return;
@@ -190,11 +190,15 @@ void RepeatArrayExpr::bind(NameBinder& binder) {
 }
 
 void FnExpr::bind(NameBinder& binder) {
-    binder.push_scope(*this);
+    // It is important to bind to the for loop and not this node
+    // in case this is the body of a for loop, since we do not
+    // want to re-bind `return` to the return continuation of the body.
+    auto expr = for_expr ? for_expr->as<Expr>() : this;
+    binder.push_scope(*expr);
     if (param)    binder.bind(*param);
     if (ret_type) binder.bind(*ret_type);
     if (filter)   binder.bind(*filter);
-    binder.push_scope(*this);
+    binder.push_scope(*expr);
     binder.bind(*body);
     binder.pop_scope();
     binder.pop_scope();
@@ -292,14 +296,7 @@ void ContinueExpr::bind(NameBinder& binder) {
 }
 
 void ReturnExpr::bind(NameBinder& binder) {
-    auto scope = binder.find_scope([] (auto& scope) {
-        // We want to find the closest parent function that is _not_ a for loop.
-        // (for loops have anonymous functions as a loop body, and they do not re-bind `return`)
-        return
-            scope.parent.template isa<FnExpr>() &&
-            !scope.parent.template as<FnExpr>()->for_expr;
-    });
-    fn = scope ? scope->parent.as<FnExpr>() : nullptr;
+    fn = binder.find_parent<FnExpr>();
     if (!fn)
         binder.error(loc, "use of '{}' outside of a function", *this->as<Node>());
 }
@@ -433,7 +430,8 @@ void StructDecl::bind(NameBinder& binder) {
 }
 
 void OptionDecl::bind(NameBinder& binder) {
-    if (param) binder.bind(*param);
+    if (param)
+        binder.bind(*param);
     else {
         for (auto& field : fields)
             binder.bind(*field);
@@ -468,6 +466,7 @@ void TraitDecl::bind(NameBinder& binder) {
 }
 
 void ImplDecl::bind(NameBinder& binder) {
+    parent = find_parent<Decl>();
     binder.push_scope(*this);
     if (type_params)   binder.bind(*type_params);
     if (where_clauses) binder.bind(*where_clauses);

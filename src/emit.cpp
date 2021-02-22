@@ -1344,9 +1344,7 @@ const thorin::Def* UnaryExpr::emit(Emitter& emitter) const {
         op = emitter.emit(*arg);
     }
     const thorin::Def* res = nullptr;
-    // TODO: Thorin does not support having call expressions to initialize constants,
-    // so we have a special case here so that we can initialize constants with expressions such as `1 + 1`.
-    if (tag == Deref || tag == Known || tag == Forget || is_simd_type(arg->type) || type->isa<artic::PrimType>()) {
+    if (tag == Deref || tag == Known || tag == Forget || can_avoid_impl_call(type)) {
         switch (tag) {
             case Plus:
                 [[fallthrough]];
@@ -1442,7 +1440,7 @@ const thorin::Def* BinaryExpr::emit(Emitter& emitter) const {
     if (tag == Eq)
         res = rhs;
     // See TODO above
-    else if (is_simd_type(left->type) || arg_type->isa<artic::PrimType>()) {
+    else if (can_avoid_impl_call(right->type)) {
         switch (remove_eq(tag)) {
             case Add:   res = emitter.world.arithop_add(lhs, rhs, emitter.debug_info(*this)); break;
             case Sub:   res = emitter.world.arithop_sub(lhs, rhs, emitter.debug_info(*this)); break;

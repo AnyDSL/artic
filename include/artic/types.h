@@ -669,6 +669,24 @@ std::pair<const TypeApp*, const T*> match_app(const Type* type) {
     return std::make_pair(nullptr, type->isa<T>());
 }
 
+template <typename T = PtrType>
+std::pair<const T*, const Type*> remove_ptr(const Type* type) {
+    if (auto ptr_type = type->isa<T>())
+        return std::make_pair(ptr_type, ptr_type->pointee);
+    return std::make_pair(nullptr, type);
+}
+
+static const auto remove_ref = remove_ptr<RefType>;
+
+// Thorin does not support having call expressions to initialize constants,
+// so we treat expressions like `1 + 1` specially so that we can use them in places
+// where constants are expected (e.g. initializers for global variables).
+inline bool can_avoid_impl_call(const artic::Type* type) {
+    assert(type);
+    type = remove_ref(type).second;
+    return type->isa<artic::PrimType>() || is_simd_type(type);
+}
+
 /// Hash table containing all types.
 class TypeTable {
 public:
