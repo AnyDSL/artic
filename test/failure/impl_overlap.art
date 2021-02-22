@@ -1,0 +1,8 @@
+trait T[_] {}
+trait B1[_] {}
+trait B2[_] {}
+
+#[allow_undecidable_impl]
+impl[A] T[A] where B1[A] {}
+#[allow_undecidable_impl]
+impl[A] T[A] where B2[A] {}

@@ -811,20 +811,15 @@ const ImplType* TypeTable::register_impl(const ast::ModDecl* scope, const ImplTy
     auto bucket = impls.find(target);
 
     // Checks that there is a single declarations of the same implementation
-    if (impl->type_params().empty()) {
-        auto aux = scope;
-        while   (aux != nullptr) {
-            auto bucket = mod_impls[aux].find(target);
-            if (bucket != mod_impls[aux].end())
-                return bucket->second.front();
-            aux = aux->super;
-        }
+    auto aux = scope;
+    while (aux != nullptr) {
+        auto bucket = mod_impls[aux].find(target);
+        if (bucket != mod_impls[aux].end())
+            return bucket->second;
+        aux = aux->super;
     }
 
-    if (bucket != impls.end())
-        impls[target].push_back(impl);
-    else
-        impls[target] = {impl};
+    impls[target] = impl;
     return nullptr;
 }
 
@@ -861,10 +856,9 @@ const std::vector<const Type*>  TypeTable::find_all_impls(const ast::ModDecl* sc
         while (current_scope != nullptr) {
             auto& impls = mod_impls[current_scope];
             if (impls.find(bucket_key) != impls.end()) {
-                for (auto i:impls[bucket_key]) {
-                    if (check_impl(current_scope, type, i, additional_bounds))
-                        add_impl_to_result(i);
-                }
+                auto& i = impls[bucket_key];
+                if (check_impl(current_scope, type, i, additional_bounds))
+                    add_impl_to_result(i);
             }
             current_scope = current_scope->find_parent_module();
         }

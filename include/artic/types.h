@@ -763,11 +763,11 @@ public:
     /// poly->replace(replace_map(poly, target)) == target always holds if such map exists
     const std::unordered_map<const TypeVar*, const Type*> replace_map(const Type* poly, const Type* target);
 
-    /// Each type is mapped to all impls that can justify it
+    /// Each type is mapped to the impl that can justify it
     /// Generic impls are using the trait-type of the trait they implement as keys
     /// Example (Add[i32] -> impl Add[i32] ...); (Add -> impl[A] Add[A] ...)
     /// Because of that when looking for Add[i64] one needs to check both the Add and the Add[i64] keys in each scope
-    typedef std::unordered_map<const Type*, std::vector<const ImplType*>> types_to_impls;
+    typedef std::unordered_map<const Type*, const ImplType*> types_to_impls;
     std::unordered_map<const ast::ModDecl*, types_to_impls> mod_impls;
     /// Maps types to their implementation. This avoids frequent recalculation
     std::unordered_map<const Type*, const Type*> type_impl_table;
