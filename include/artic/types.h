@@ -761,11 +761,11 @@ private:
     const TypeError*  type_error_  = nullptr;
 };
 
-/// Helper object that keeps track of which `impl`s are visible,
-/// and connects traits to their implementation.
+/// Helper class that helps connecting a particular traits to an implementation. It holds a map
+/// from trait type to a set of implementation candidates for that trait, on a per-module basis.
 class ImplResolver {
 public:
-    /// Registers the given implementation.
+    /// Registers the given implementation into the candidate set.
     void register_impl(const ImplType*);
 
     /// Finds an implementation for a *monomorphic* trait in the given module or its parents.
