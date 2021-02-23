@@ -503,11 +503,14 @@ void FnDecl::print(Printer& p) const {
     }
 
     if (fn->body) {
-        if (fn->body->isa<BlockExpr>())
+        bool block_body = fn->body->isa<BlockExpr>();
+        if (block_body)
             p << ' ';
         else
             p << " = ";
         fn->body->print(p);
+        if (!block_body)
+            p << ';';
     } else
         p << ';';
 }
@@ -579,26 +582,33 @@ void TraitDecl::print(Printer& p) const {
     p << log::keyword_style("trait") << ' ' << id.name;
     if (type_params)   type_params->print(p);
     if (where_clauses) where_clauses->print(p << ' ');
-    p << " {" << p.indent() ;
-    for (auto& decl : decls) {
-        p << p.endl();
-        decl->print(p);
-    }
-    p << p.unindent() << p.endl() << '}';
+    if (!decls.empty()) {
+        p << " {" << p.indent() ;
+        for (auto& decl : decls) {
+            p << p.endl();
+            decl->print(p);
+        }
+        p << p.unindent() << p.endl() << '}';
+    } else
+        p << ';';
 }
 
 void ImplDecl::print(Printer& p) const {
     if (attrs) attrs->print(p);
-    p << log::keyword_style("impl") << ' ' ;
+    p << log::keyword_style("impl");
     if (type_params) type_params->print(p);
+    p << ' ';
     impled_type->print(p);
     if (where_clauses) where_clauses->print(p << ' ');
-    p << " {" << p.indent();
-    for (auto& decl : decls) {
-        p << p.endl();
-        decl->print(p);
-    }
-    p << p.unindent() << p.endl() << '}';
+    if (!decls.empty()) {
+        p << " {" << p.indent();
+        for (auto& decl : decls) {
+            p << p.endl();
+            decl->print(p);
+        }
+        p << p.unindent() << p.endl() << '}';
+    } else
+        p << ';';
 }
 
 void TypeDecl::print(Printer& p) const {
