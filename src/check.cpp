@@ -1584,7 +1584,7 @@ static size_t count_var_occurs(const artic::Type* type, const artic::TypeVar* va
 // Count the number of type constructors appearing in a type.
 static size_t count_vars_ctors(const artic::Type* type) {
     if (type->isa<artic::TypeVar>()) return 1;
-    if (type->isa<artic::TypeApp>() && contains_var(type)) {
+    if (type->isa<artic::TypeApp>() && type->contains_var()) {
         size_t res = 1;
         for (auto& arg : type->as<artic::TypeApp>()->type_args)
             res += count_vars_ctors(arg);

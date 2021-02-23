@@ -703,10 +703,6 @@ bool is_unit_type(const Type* type) {
     return type->isa<TupleType>() && type->as<TupleType>()->args.empty();
 }
 
-bool contains_var(const Type* t) {
-    return !t->variance().empty();
-}
-
 // Type table ----------------------------------------------------------------------
 
 TypeTable::~TypeTable() {

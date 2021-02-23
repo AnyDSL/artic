@@ -93,6 +93,9 @@ struct Type : public Cast<Type> {
         return vars;
     }
 
+    /// Returns true if this type contains at least one type variable.
+    bool contains_var() const { return !variance().empty(); }
+
     /// Returns whether this type can be represented in memory or not.
     bool is_sized() const {
         std::unordered_set<const Type*> seen;
@@ -647,8 +650,6 @@ bool is_prim_type(const Type*, ast::PrimType::Tag);
 bool is_simd_type(const Type*);
 bool is_unit_type(const Type*);
 inline bool is_bool_type(const Type* type) { return is_prim_type(type, ast::PrimType::Bool); }
-
-bool contains_var(const Type* t);
 
 inline const Type* member_type(const Type* type, size_t i) {
     if (auto type_app = type->isa<TypeApp>())
