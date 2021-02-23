@@ -9,19 +9,6 @@ bool TypeChecker::run(ast::ModDecl& module) {
     return errors == 0;
 }
 
-bool TypeChecker::enter_decl(const ast::Decl* decl) {
-    auto [_, success] = decls_.emplace(decl);
-    if (!success) {
-        error(decl->loc, "cannot infer type for recursive declaration");
-        return false;
-    }
-    return true;
-}
-
-void TypeChecker::exit_decl(const ast::Decl* decl) {
-    decls_.erase(decl);
-}
-
 // Error messages ------------------------------------------------------------------
 
 bool TypeChecker::should_report_error(const Type* type) {
@@ -178,7 +165,7 @@ const Type* TypeChecker::try_coerce(Ptr<ast::Expr>& expr, const Type* expected) 
     }
     // If the expected type does not contain any type variable,
     // it is safe to coerce the expression to it.
-    return expected->variance().empty() ? coerce(expr, expected) : deref(expr);
+    return !expected->contains_var() ? coerce(expr, expected) : deref(expr);
 }
 
 const Type* TypeChecker::join(Ptr<ast::Expr>& left, Ptr<ast::Expr>& right) {
@@ -192,21 +179,32 @@ const Type* TypeChecker::join(Ptr<ast::Expr>& left, Ptr<ast::Expr>& right) {
     return type;
 }
 
-const Type* TypeChecker::check(ast::Node& node, const Type* expected) {
-    assert(!node.type); // Nodes can only be visited once
-    node.type = node.check(*this, expected);
+template <typename Action>
+const Type* TypeChecker::check_or_infer(ast::Node& node, Action&& action) {
+    // This avoids infinite recursion when inferring the type of recursive
+    // declarations such as functions/structures/enumerations.
+    auto decl = node.isa<ast::Decl>();
+    if (decl && !decls_.emplace(decl).second) {
+        error(decl->loc, "cannot infer type for recursive declaration");
+        return type_table.type_error();
+    }
+    node.type = action();
+    if (decl)
+        decls_.erase(decl);
     if (node.attrs)
         node.attrs->check(*this, &node);
     return node.type;
 }
 
+const Type* TypeChecker::check(ast::Node& node, const Type* expected) {
+    assert(!node.type); // Nodes can only be visited once
+    return check_or_infer(node, [&] { return node.check(*this, expected); });
+}
+
 const Type* TypeChecker::infer(ast::Node& node) {
     if (node.type)
         return node.type;
-    node.type = node.infer(*this);
-    if (node.attrs)
-        node.attrs->check(*this, &node);
-    return node.type;
+    return check_or_infer(node, [&] { return node.infer(*this); });
 }
 
 const Type* TypeChecker::infer(ast::Ptrn& ptrn, Ptr<ast::Expr>& expr) {
@@ -533,7 +531,7 @@ namespace ast {
 
 const artic::Type* Node::check(TypeChecker& checker, const artic::Type* expected) {
     // By default, try to infer, and then check that types match
-    auto type = checker.infer(*this);
+    auto type = infer(checker);
     if (type != expected)
         return checker.incompatible_types(loc, type, expected);
     return type;
@@ -721,7 +719,7 @@ void NamedAttr::check(TypeChecker& checker, const ast::Node* node) {
         }
     } else if (name == "allow_undecidable_impl") {
         if (!node->isa<ImplDecl>())
-            checker.error(loc, "attribute '{}' is only valid for trait impls");
+            checker.error(loc, "attribute '{}' is only valid for trait implementations");
     } else
        checker.invalid_attr(loc, name);
 }
@@ -1423,8 +1421,6 @@ const artic::Type* LetDecl::infer(TypeChecker& checker) {
 }
 
 const artic::Type* StaticDecl::infer(TypeChecker& checker) {
-    if (!checker.enter_decl(this))
-        return checker.type_table.type_error();
     const artic::Type* value_type = nullptr;
     if (type) {
         value_type = checker.infer(*type);
@@ -1436,7 +1432,6 @@ const artic::Type* StaticDecl::infer(TypeChecker& checker) {
         return checker.cannot_infer(loc, "static variable");
     if (init && !init->is_constant())
         checker.error(init->loc, "only constants are allowed as static variable initializers");
-    checker.exit_decl(this);
     return checker.type_table.ref_type(value_type, is_mut, 0);
 }
 
@@ -1452,9 +1447,6 @@ const artic::Type* FnDecl::infer(TypeChecker& checker) {
         // for instance, `return` is encountered in the body.
         this->type = forall;
     }
-
-    if (!checker.enter_decl(this))
-        return checker.type_table.type_error();
 
     const artic::Type* fn_type = nullptr;
     if (fn->ret_type) {
@@ -1477,7 +1469,6 @@ const artic::Type* FnDecl::infer(TypeChecker& checker) {
     if (!type_params)
         this->type = fn_type;
 
-    checker.exit_decl(this);
     return this->type;
 }
 
@@ -1497,15 +1488,11 @@ const artic::Type* StructDecl::infer(TypeChecker& checker) {
     if (type_params)   checker.infer(*type_params);
     if (where_clauses) checker.infer(*where_clauses);
 
-    if (!checker.enter_decl(this))
-        return checker.type_table.type_error();
-
     // Set the type before entering the fields
     this->type = struct_type;
     for (auto& field : fields)
         checker.infer(*field);
 
-    checker.exit_decl(this);
     return struct_type;
 }
 
@@ -1527,15 +1514,11 @@ const artic::Type* EnumDecl::infer(TypeChecker& checker) {
     if (type_params)   checker.infer(*type_params);
     if (where_clauses) checker.infer(*where_clauses);
 
-    if (!checker.enter_decl(this))
-        return checker.type_table.type_error();
-
     // Set the type before entering the options
     this->type = enum_type;
     for (auto& option : options)
         checker.infer(*option);
 
-    checker.exit_decl(this);
     return enum_type;
 }
 
@@ -1544,9 +1527,6 @@ const artic::Type* TraitDecl::infer(TypeChecker& checker) {
 
     if (type_params)   checker.infer(*type_params);
     if (where_clauses) checker.infer(*where_clauses);
-
-    if (!checker.enter_decl(this))
-        return checker.type_table.type_error();
 
     // Set the type before entering the members
     this->type = trait_type;
@@ -1565,7 +1545,6 @@ const artic::Type* TraitDecl::infer(TypeChecker& checker) {
     if (it != builtin_trait_names.end())
         checker.type_table.builtin_traits[*it] = trait_type;
 
-    checker.exit_decl(this);
     return trait_type;
 }
 
@@ -1623,14 +1602,9 @@ const artic::Type* ImplDecl::infer(TypeChecker& checker) {
     if (type_params)   checker.infer(*type_params);
     if (where_clauses) checker.infer(*where_clauses);
 
-    if (!checker.enter_decl(this))
-        return checker.type_table.type_error();
-
     // The implemented type must be a trait
-    if (!match_app<artic::TraitType>(checker.infer(*impled_type)).second) {
-        checker.exit_decl(this);
+    if (!match_app<artic::TraitType>(checker.infer(*impled_type)).second)
         return checker.type_expected(loc, impled_type->type, "trait");
-    }
 
     // If one imposes no restrictions on the `where` clauses of this `impl`, it is possible to make the type checking algorithm diverge.
     // Here we check if this `impl` fulfills the Paterson conditions, which guarantee that the type checking process terminates.
@@ -1668,7 +1642,7 @@ const artic::Type* ImplDecl::infer(TypeChecker& checker) {
         } else
             checker.check(decl, expected_type);
     });
-    checker.exit_decl(this);
+
     return impl_type;
 }
 
@@ -1678,10 +1652,7 @@ const artic::Type* TypeDecl::infer(TypeChecker& checker) {
     if (type_params)   checker.infer(*type_params);
     if (where_clauses) checker.infer(*where_clauses);
 
-    if (!checker.enter_decl(this))
-        return checker.type_table.type_error();
     auto type = checker.infer(*aliased_type);
-    checker.exit_decl(this);
 
     // Directly expand non-polymorphic type aliases
     return type_params ? type_alias : type;
@@ -1704,10 +1675,7 @@ const artic::Type* ModDecl::infer(TypeChecker& checker) {
 }
 
 const artic::Type* UseDecl::infer(TypeChecker& checker) {
-    if (!checker.enter_decl(this))
-        return checker.type_table.type_error();
     auto path_type = checker.infer(path);
-    checker.exit_decl(this);
     if (!path_type->isa<artic::ModType>())
         return checker.type_expected(path.loc, path_type, "module");
     return path_type;

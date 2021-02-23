@@ -24,12 +24,6 @@ public:
     /// Returns true on success, otherwise false.
     bool run(ast::ModDecl&);
 
-    // Should be called to avoid infinite recursion
-    // when inferring the type of recursive declarations
-    // such as functions/structures/enumerations.
-    bool enter_decl(const ast::Decl*);
-    void exit_decl(const ast::Decl*);
-
     bool should_report_error(const Type*);
 
     // Error messages
@@ -85,6 +79,9 @@ public:
     ast::ModDecl* current_mod;
 
 private:
+    template <typename Action>
+    const Type* check_or_infer(ast::Node&, Action&&);
+
     std::unordered_set<const ast::Decl*> decls_;
 };
 
