@@ -1709,7 +1709,7 @@ const artic::Type* UseDecl::infer(TypeChecker& checker) {
     auto path_type = checker.infer(path);
     checker.exit_decl(this);
     if (!path_type->isa<artic::ModType>())
-        return checker.type_expected(path.loc, path_type, "module type");
+        return checker.type_expected(path.loc, path_type, "module");
     return path_type;
 }
 
