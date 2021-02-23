@@ -1706,7 +1706,6 @@ const artic::Type* TypeDecl::infer(TypeChecker& checker) {
 }
 
 const artic::Type* ModDecl::infer(TypeChecker& checker) {
-    // Update the current module
     for (auto& decl : decls)
         checker.infer(*decl);
     for (auto& decl : decls) {
