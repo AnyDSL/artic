@@ -1624,7 +1624,7 @@ const artic::Type* ImplDecl::infer(TypeChecker& checker) {
 
         // If the trait member is a polymorphic function, we must do a substitution
         // so that the type variables of one type match the other.
-        // Note that this does not really handle inverting the order in which type variables
+        // Note that this does *not* handle inverting the order in which type variables
         // appear. For instance, the following code is rejected:
         //
         //     trait Faz[V] { fn faz[T, U](t: T, u: U, v: V) = (t, u, v); }

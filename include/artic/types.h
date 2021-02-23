@@ -774,9 +774,10 @@ public:
 
     /// Iterates through all `impl` candidates for a given trait,
     /// by inspecting the given module and its parents.
+    /// The function returns the first `impl` for which the visitor
+    /// function returns `true`.
     const ImplType* forall_candidates(
-        const ast::ModDecl*,
-        const TraitType*,
+        const ast::ModDecl*, const TraitType*,
         std::function<bool (const ImplType*)>);
 
 private:

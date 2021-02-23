@@ -867,8 +867,9 @@ void ImplResolver::register_impl(const ImplType* impl_type) {
     impl_candidates_[CandidateKey { mod_decl, trait_type }].push_back(impl_type);
 }
 
-const ImplType* ImplResolver::find_impl(const ast::ModDecl*, const Type*) {
+const ImplType* ImplResolver::find_impl(const ast::ModDecl* mod_decl, const Type* trait_type) {
     // TODO
+    assert(!trait_type->contains_var());
     return nullptr;
 }
 
