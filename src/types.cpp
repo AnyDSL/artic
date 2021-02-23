@@ -819,6 +819,34 @@ const T* TypeTable::insert(Args&&... args) {
     return (*it)->template as<T>();
 }
 
+// Implementation resolver ---------------------------------------------------------
+
+template <typename ImplVisitor>
+const ImplType* forall_impl_candidates(const TraitType*, ImplVisitor&&) {
+    return nullptr;
+}
+
+const ImplType* ImplResolver::register_impl(const ImplType* impl) {
+    return forall_impl_candidates(
+        match_app<TraitType>(impl->decl.impled_type->type).second,
+        [&] (const ImplType* other) -> const ImplType* {
+            assert(other->decl.impled_type->type);
+            // Three cases:
+            // - The two `impl`s are polymorphic: They are in conflict if there's
+            //   a type substitution that maps one to the other, disregarding `where` clauses.
+            // - The two `impl`s are monomorphic: They are in conflict if they implement the same type.
+            // - One `impl` is polymorphic and the other is not: They are in conflict if one
+            //   can be used instead of another, taking into account `where` clauses.
+            if (other->type_params() && impl->type_params()) {
+            } else if (!other->type_params() && !impl->type_params()) {
+                if (other->decl.impled_type->type == impl->decl.impled_type->type)
+                    return other;
+            } else {
+            }
+            return nullptr;
+        });
+}
+
 // TODO: Move type-checking code to the type-checker
 #if 0
 const ImplType* TypeTable::register_impl(const ast::ModDecl* scope, const ImplType* impl) {

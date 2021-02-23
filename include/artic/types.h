@@ -751,6 +751,17 @@ private:
     const TypeError*  type_error_  = nullptr;
 };
 
+/// Helper object that keeps track of which `impl`s are visible,
+/// and connects traits to their implementation.
+class ImplResolver {
+public:
+    /// Registers the given implementation or returns an existing one that is in conflict.
+    const ImplType* register_impl(const ImplType*);
+
+private:
+    std::unordered_map<const Type*, const ImplType*> trait_to_impl_;
+};
+
 } // namespace artic
 
 #endif // ARTIC_TYPES_H

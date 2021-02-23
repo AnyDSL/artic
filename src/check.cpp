@@ -1617,6 +1617,11 @@ const artic::Type* ImplDecl::infer(TypeChecker& checker) {
         }
     }
 
+    if (auto existing_impl = checker.impl_resolver.register_impl(impl_type)) {
+        checker.error(loc, "this implementation conflicts with another");
+        checker.note(existing_impl->decl.loc, "the conflicting implementation is here");
+    }
+
     // Set type now in case one of the functions inside need it
     this->type = impl_type;
     checker.check_members(loc, impled_type->type, false, decls, [&] (auto& decl, size_t index) {
