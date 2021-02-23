@@ -1609,17 +1609,12 @@ const artic::Type* ImplDecl::infer(TypeChecker& checker) {
     // If one imposes no restrictions on the `where` clauses of this `impl`, it is possible to make the type checking algorithm diverge.
     // Here we check if this `impl` fulfills the Paterson conditions, which guarantee that the type checking process terminates.
     // See: "Understanding Functional Dependencies via Constraint Handling Rules", by M. Sulzmann et al.
-    if (type_params && (!attrs || !attrs->find("allow_undecidable_impl"))) {
+    if (type_params && where_clauses && (!attrs || !attrs->find("allow_undecidable_impl"))) {
         if (auto invalid_clause = check_paterson_conditions(impled_type->type, *type_params, *where_clauses)) {
             checker.error(loc, "clause '{}' may cause the type inference to diverge", *invalid_clause);
             checker.note("use the `allow_undecidable_impl` attribute to disable this behavior");
             return checker.type_table.type_error();
         }
-    }
-
-    if (auto existing_impl = checker.impl_resolver.register_impl(impl_type)) {
-        checker.error(loc, "this implementation conflicts with another");
-        checker.note(existing_impl->decl.loc, "the conflicting implementation is here");
     }
 
     // Set type now in case one of the functions inside need it
@@ -1648,7 +1643,54 @@ const artic::Type* ImplDecl::infer(TypeChecker& checker) {
             checker.check(decl, expected_type);
     });
 
+    checker.impl_resolver.register_impl(impl_type);
     return impl_type;
+}
+
+void ImplDecl::check_conflicts(TypeChecker& checker) {
+    auto impl_type = this->type->isa<ImplType>();
+    // This may happen if the `impl` contained an error
+    if (!impl_type)
+        return;
+
+    // Check that implementations are not in conflict
+    auto mod_decl = find_parent<ast::ModDecl>();
+    auto existing_impl = checker.impl_resolver.forall_candidates(mod_decl,
+        match_app<artic::TraitType>(impled_type->type).second,
+        [&] (const artic::ImplType* other_impl) -> bool {
+            if (other_impl == impl_type)
+                return false;
+            // Three cases:
+            // 1. The two `impl`s are polymorphic: They are in conflict if there's
+            //    a type substitution that maps one to the other, disregarding `where` clauses.
+            // 2. The two `impl`s are monomorphic: They are in conflict if they implement the same type.
+            // 3. One `impl` is polymorphic and the other is not: They are in conflict if one
+            //    can be used instead of another, taking into account `where` clauses.
+            std::unordered_map<const artic::TypeVar*, const artic::Type*> map;
+            // Case 1. & 2. can just use unification to determine if there is a conflict
+            if (unify(impl_type->impled_type(), other_impl->impled_type(), map)) {
+                auto mono_impl = other_impl->type_params() ? impl_type : other_impl;
+                auto poly_impl = other_impl->type_params() ? other_impl : impl_type;
+                if (!mono_impl->type_params() && poly_impl->type_params()) {
+                    // This handles point 3. specifically.
+                    // In this case, there is a conflict if *all* the `where` clauses of the
+                    // polymorphic `impl` can be realized, after substitution with the
+                    // map obtained from unification.
+                    if (poly_impl->where_clauses()) {
+                        for (auto& clause : poly_impl->where_clauses()->clauses) {
+                            if (!checker.impl_resolver.find_impl(mod_decl, clause->type->replace(map)))
+                                return false;
+                        }
+                    }
+                }
+                return true;
+            }
+            return false;
+        });
+    if (existing_impl) {
+        checker.error(loc, "this implementation conflicts with another");
+        checker.note(existing_impl->decl.loc, "the conflicting implementation is here");
+    }
 }
 
 const artic::Type* TypeDecl::infer(TypeChecker& checker) {
@@ -1665,17 +1707,15 @@ const artic::Type* TypeDecl::infer(TypeChecker& checker) {
 
 const artic::Type* ModDecl::infer(TypeChecker& checker) {
     // Update the current module
-    auto old = checker.current_mod;
-    checker.current_mod = this;
     for (auto& decl : decls)
         checker.infer(*decl);
     for (auto& decl : decls) {
         if (decl->isa<StructDecl>() || decl->isa<EnumDecl>()) {
             if (!decl->type->is_sized())
                 checker.unsized_type(decl->loc, decl->type);
-        }
+        } else if (auto impl_decl = decl->isa<ImplDecl>())
+            impl_decl->check_conflicts(checker);
     }
-    checker.current_mod = old;
     return checker.type_table.mod_type(*this);
 }
 

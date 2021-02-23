@@ -466,7 +466,8 @@ void TraitDecl::bind(NameBinder& binder) {
 }
 
 void ImplDecl::bind(NameBinder& binder) {
-    parent = find_parent<Decl>();
+    parent = binder.find_parent<Decl>();
+    assert(parent);
     binder.push_scope(*this);
     if (type_params)   binder.bind(*type_params);
     if (where_clauses) binder.bind(*where_clauses);

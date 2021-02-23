@@ -599,6 +599,40 @@ bool Type::subtype(const Type* other) const {
     return false;
 }
 
+bool unify(
+    const Type* from, const Type* to,
+    std::unordered_map<const TypeVar*, const Type*>& map)
+{
+    if (from == to)
+        return true;
+    if (auto from_var = from->isa<TypeVar>())
+        return map.emplace(from_var, to).second;
+    auto from_tuple = from->isa<TupleType>();
+    auto to_tuple = to->isa<TupleType>();
+    if (from_tuple && to_tuple) {
+        if (from_tuple->args.size() != to_tuple->args.size())
+            return false;
+        for (size_t i = 0, n = from_tuple->args.size(); i < n; ++i) {
+            if (!unify(from_tuple->args[i], to_tuple->args[i], map))
+                return false;
+        }
+        return true;
+    }
+    auto from_app = from->isa<TypeApp>();
+    auto to_app = to->isa<TypeApp>();
+    if (from_app && to_app) {
+        if (from_app->type_args.size() != to_app->type_args.size() ||
+            !unify(from_app->applied, to_app->applied, map))
+            return false;
+        for (size_t i = 0, n = from_app->type_args.size(); i < n; ++i) {
+            if (!unify(from_app->type_args[i], to_app->type_args[i], map))
+                return false;
+        }
+        return true;
+    }
+    return false;
+}
+
 const Type* Type::join(const Type* other) const {
     if (subtype(other))
         return other;
@@ -701,6 +735,11 @@ bool is_simd_type(const Type* type) {
 
 bool is_unit_type(const Type* type) {
     return type->isa<TupleType>() && type->as<TupleType>()->args.empty();
+}
+
+ImplType* impl_exists(const ast::ModDecl*, const Type*) {
+    // TODO
+    return nullptr;
 }
 
 // Type table ----------------------------------------------------------------------
@@ -821,30 +860,36 @@ const T* TypeTable::insert(Args&&... args) {
 
 // Implementation resolver ---------------------------------------------------------
 
-template <typename ImplVisitor>
-const ImplType* forall_impl_candidates(const TraitType*, ImplVisitor&&) {
+void ImplResolver::register_impl(const ImplType* impl_type) {
+    auto trait_type = match_app<TraitType>(impl_type->impled_type()).second;
+    auto mod_decl = impl_type->decl.find_parent<ast::ModDecl>();
+    assert(trait_type && mod_decl);
+    impl_candidates_[CandidateKey { mod_decl, trait_type }].push_back(impl_type);
+}
+
+const ImplType* ImplResolver::find_impl(const ast::ModDecl*, const Type*) {
+    // TODO
     return nullptr;
 }
 
-const ImplType* ImplResolver::register_impl(const ImplType* impl) {
-    return forall_impl_candidates(
-        match_app<TraitType>(impl->decl.impled_type->type).second,
-        [&] (const ImplType* other) -> const ImplType* {
-            assert(other->decl.impled_type->type);
-            // Three cases:
-            // - The two `impl`s are polymorphic: They are in conflict if there's
-            //   a type substitution that maps one to the other, disregarding `where` clauses.
-            // - The two `impl`s are monomorphic: They are in conflict if they implement the same type.
-            // - One `impl` is polymorphic and the other is not: They are in conflict if one
-            //   can be used instead of another, taking into account `where` clauses.
-            if (other->type_params() && impl->type_params()) {
-            } else if (!other->type_params() && !impl->type_params()) {
-                if (other->decl.impled_type->type == impl->decl.impled_type->type)
-                    return other;
-            } else {
-            }
-            return nullptr;
-        });
+const ImplType* ImplResolver::forall_candidates(
+    const ast::ModDecl* mod_decl,
+    const TraitType* trait_type,
+    std::function<bool (const ImplType*)> visitor)
+{
+    while (mod_decl) {
+        auto& candidates = impl_candidates_[CandidateKey { mod_decl, trait_type }];
+        for (auto impl_type : candidates) {
+            if (visitor(impl_type))
+                return impl_type;
+        }
+        mod_decl = mod_decl->find_parent<ast::ModDecl>();
+    }
+    return nullptr;
+}
+
+size_t ImplResolver::Hash::operator () (const CandidateKey& key) const {
+    return fnv::Hash().combine(key.first).combine(key.second);
 }
 
 // TODO: Move type-checking code to the type-checker

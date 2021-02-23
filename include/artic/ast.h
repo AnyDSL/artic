@@ -1475,6 +1475,8 @@ struct ImplDecl : public Decl {
         , decls(std::move(decls))
      {}
 
+     void check_conflicts(TypeChecker&);
+
      const thorin::Def* emit(Emitter&) const override;
      const artic::Type* infer(TypeChecker&) override;
      void bind(NameBinder&) override;

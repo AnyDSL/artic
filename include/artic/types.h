@@ -112,6 +112,10 @@ struct Type : public Cast<Type> {
     void dump() const;
 };
 
+/// Unifies two types, returns true if they can be unified, in which case the map is filled
+/// with a substitution mapping `from` to `to`, and returns false otherwise.
+bool unify(const Type*, const Type*, std::unordered_map<const TypeVar*, const Type*>&);
+
 /// The type of an attribute.
 struct AttrType {
     std::string name;
@@ -532,6 +536,11 @@ private:
 };
 
 struct ImplType : public PolyTypeFromDecl<ComplexType, ast::ImplDecl> {
+    const Type* impled_type() const {
+        assert(decl.impled_type->type);
+        return decl.impled_type->type;
+    }
+
     void print(Printer&) const override;
     bool equals(const Type*) const override;
     size_t hash() const override;
@@ -682,9 +691,10 @@ std::pair<const T*, const Type*> remove_ptr(const Type* type) {
 
 static const auto remove_ref = remove_ptr<RefType>;
 
-// Thorin does not support having call expressions to initialize constants,
-// so we treat expressions like `1 + 1` specially so that we can use them in places
-// where constants are expected (e.g. initializers for global variables).
+/// Helper function to work around a Thorin limitation: Since Thorin does not support
+/// having call expressions to initialize constants, we treat expressions like `1 + 1`
+/// specially so that we can use them in places where constants are expected
+/// (e.g. initializers for global variables).
 inline bool can_avoid_impl_call(const artic::Type* type) {
     assert(type);
     type = remove_ref(type).second;
@@ -755,11 +765,25 @@ private:
 /// and connects traits to their implementation.
 class ImplResolver {
 public:
-    /// Registers the given implementation or returns an existing one that is in conflict.
-    const ImplType* register_impl(const ImplType*);
+    /// Registers the given implementation.
+    void register_impl(const ImplType*);
+
+    /// Finds an implementation for a *monomorphic* trait in the given module or its parents.
+    /// If none can be found, returns null.
+    const ImplType* find_impl(const ast::ModDecl*, const Type*);
+
+    /// Iterates through all `impl` candidates for a given trait,
+    /// by inspecting the given module and its parents.
+    const ImplType* forall_candidates(
+        const ast::ModDecl*,
+        const TraitType*,
+        std::function<bool (const ImplType*)>);
 
 private:
-    std::unordered_map<const Type*, const ImplType*> trait_to_impl_;
+    using ImplCandidates = std::vector<const ImplType*>;
+    using CandidateKey = std::pair<const ast::ModDecl*, const TraitType*>;
+    struct Hash { size_t operator () (const CandidateKey&) const; };
+    std::unordered_map<CandidateKey, ImplCandidates, Hash> impl_candidates_;
 };
 
 } // namespace artic

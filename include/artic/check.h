@@ -77,8 +77,6 @@ public:
     bool infer_type_args(const Loc&, const ForallType*, const Type*, std::vector<const Type*>&);
     const Type* infer_record_type(const TypeApp*, const StructType*, size_t&);
 
-    ast::ModDecl* current_mod;
-
 private:
     template <typename Action>
     const Type* check_or_infer(ast::Node&, Action&&);
