@@ -1308,7 +1308,6 @@ struct FnDecl : public ValueDecl {
 
     const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) override;
-    const artic::Type* check(TypeChecker&, const artic::Type*) override;
     void bind_head(NameBinder&) override;
     void bind(NameBinder&) override;
     void print(Printer&) const override;

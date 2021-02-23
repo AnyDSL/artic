@@ -1481,13 +1481,6 @@ const artic::Type* FnDecl::infer(TypeChecker& checker) {
     return this->type;
 }
 
-const artic::Type* FnDecl::check(TypeChecker& checker, [[maybe_unused]] const artic::Type* expected) {
-    // Inside a block expression, statements are expected to type as (),
-    // so we ignore the expected type here.
-    assert(expected == checker.type_table.unit_type());
-    return infer(checker);
-}
-
 const artic::Type* FieldDecl::infer(TypeChecker& checker) {
     auto field_type = checker.infer(*type);
     if (init) {
