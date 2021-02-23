@@ -384,6 +384,9 @@ struct PolyType : public Type {
     virtual const ast::TypeParamList*   type_params() const = 0;
     virtual const ast::WhereClauseList* where_clauses() const = 0;
 
+    Array<const Type*> type_params_as_array() const;
+    Array<const Type*> where_clauses_as_array() const;
+
     /// Returns a map from the type parameters of this polymorphic type to the provided arguments.
     std::unordered_map<const TypeVar*, const artic::Type*> replace_map(const ArrayRef<const Type*>&) const;
 };

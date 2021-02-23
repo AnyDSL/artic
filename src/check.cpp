@@ -1646,7 +1646,27 @@ const artic::Type* ImplDecl::infer(TypeChecker& checker) {
     // Set type now in case one of the functions inside need it
     this->type = impl_type;
     checker.check_members(loc, impled_type->type, false, decls, [&] (auto& decl, size_t index) {
-        // TODO
+        auto expected_type = member_type(impled_type->type, index);
+
+        // If the trait member is a polymorphic function, we must do a substitution
+        // so that the type variables of one type match the other.
+        // Note that this does not really handle inverting the order in which type variables
+        // appear. For instance, the following code is rejected:
+        //
+        //     trait Faz[V] { fn faz[T, U](t: T, u: U, v: V) = (t, u, v); }
+        //     impl Faz[i32] { fn faz[U, T](t: T, u: U, v: i32) = (t, u, v); }
+        //
+        if (auto forall_type = expected_type->isa<artic::ForallType>()) {
+            auto decl_type = checker.infer(decl);
+            if (auto decl_forall_type = decl_type->template isa<artic::ForallType>()) {
+                expected_type = forall_type->instantiate(decl_forall_type->type_params_as_array());
+                if (auto type_app = impled_type->type->isa<artic::TypeApp>())
+                    expected_type = expected_type->replace(type_app->replace_map());
+                checker.expect(decl.loc, decl_forall_type->body, expected_type);
+            } else
+                checker.type_expected(decl.loc, decl_type, "polymorphic function");
+        } else
+            checker.check(decl, expected_type);
     });
     checker.exit_decl(this);
     return impl_type;

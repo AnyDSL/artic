@@ -607,21 +607,34 @@ const Type* Type::join(const Type* other) const {
     return type_table.top_type();
 }
 
-static std::unordered_map<const TypeVar*, const Type*> replace_map(
-    const PtrVector<ast::TypeParam>& type_params,
-    const ArrayRef<const Type*>& type_args)
-{
+std::unordered_map<const TypeVar*, const Type*> PolyType::replace_map(const ArrayRef<const Type*>& args) const {
+    assert(type_params() && type_params()->params.size() == args.size());
     std::unordered_map<const TypeVar*, const Type*> map;
-    assert(type_params.size() == type_args.size());
-    for (size_t i = 0, n = type_args.size(); i < n; ++i) {
-        assert(type_params[i]->type);
-        map.emplace(type_params[i]->type->as<TypeVar>(), type_args[i]);
+    for (size_t i = 0, n = args.size(); i < n; ++i) {
+        assert(type_params()->params[i]->type);
+        map.emplace(type_params()->params[i]->type->as<TypeVar>(), args[i]);
     }
     return map;
 }
 
-std::unordered_map<const TypeVar*, const Type*> PolyType::replace_map(const ArrayRef<const Type*>& args) const {
-    return artic::replace_map(type_params()->params, args);
+template <typename T>
+Array<const Type*> extract_types(const PtrVector<T>& nodes) {
+    Array<const Type*> types(nodes.size());
+    for (size_t i = 0, n = nodes.size(); i < n; ++i) {
+        assert(nodes[i]->type);
+        types[i] = nodes[i]->type;
+    }
+    return types;
+}
+
+Array<const Type*> PolyType::type_params_as_array() const {
+    if (!type_params()) return {};
+    return extract_types(type_params()->params);
+}
+
+Array<const Type*> PolyType::where_clauses_as_array() const {
+    if (!where_clauses()) return {};
+    return extract_types(where_clauses()->clauses);
 }
 
 const Type* ForallType::instantiate(const ArrayRef<const Type*>& args) const {
@@ -796,8 +809,7 @@ const Type* TypeTable::type_app(const UserType* applied, const ArrayRef<const Ty
             !type_alias->type_params()->params.empty() &&
             type_alias->decl.aliased_type->type
         );
-        auto map = artic::replace_map(type_alias->type_params()->params, type_args);
-        return type_alias->decl.aliased_type->type->replace(map);
+        return type_alias->decl.aliased_type->type->replace(type_alias->replace_map(type_args));
     }
     return insert<TypeApp>(applied, std::move(type_args));
 }
