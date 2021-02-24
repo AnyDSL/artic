@@ -780,14 +780,15 @@ public:
     /// If none can be found, returns null. This may return a type coming from a where clause.
     const Type* find_impl(const ast::Decl* decl, const Type* trait_type);
 
-    /// Iterates through all `impl` candidates for a given trait,
-    /// by inspecting the given module and its parents.
-    /// The function returns the first `impl` for which the visitor
+    /// Iterates through all `impl` candidates for a given trait, by inspecting the
+    /// given declaration and its parents. It starts by visiting available `where` clauses,
+    /// and returns the first for which the clause visitor function returns true. If that fails,
+    /// it walks up the module tree, looking for the first `impl` for which the `impl` visitor
     /// function returns `true`.
     const Type* forall_candidates(
         const ast::Decl*, const TraitType*,
-        std::function<bool (const Type*)>,
-        std::function<bool (const ImplType*)>);
+        std::function<bool (const Type*)> clause_visitor,
+        std::function<bool (const ImplType*)> impl_visitor);
 
 private:
     using ImplCandidates = std::vector<const ImplType*>;
