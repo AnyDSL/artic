@@ -196,7 +196,7 @@ Ptr<ast::ImplDecl> Parser::parse_impl_decl() {
     Tracker tracker(this);
     eat(Token::Impl);
     auto type_params = parse_type_param_list();
-    auto impled_type = parse_type_app();
+    auto impled_type = parse_trait_app();
     auto where_clauses = parse_where_clause_list();
     auto decls = parse_trait_or_impl_contents();
     return make_ptr<ast::ImplDecl>(tracker(), std::move(type_params), std::move(where_clauses), std::move(impled_type), std::move(decls));
@@ -1078,6 +1078,12 @@ Ptr<ast::TypeApp> Parser::parse_type_app() {
     return make_ptr<ast::TypeApp>(tracker(), std::move(path));
 }
 
+Ptr<ast::TraitApp> Parser::parse_trait_app() {
+    Tracker tracker(this);
+    auto path = parse_path();
+    return make_ptr<ast::TraitApp>(tracker(), std::move(path));
+}
+
 Ptr<ast::ErrorType> Parser::parse_error_type() {
     Tracker tracker(this);
     error(ahead().loc(), "expected type, got '{}'", ahead().string());
@@ -1150,10 +1156,10 @@ Ptr<ast::TypeParamList> Parser::parse_type_param_list() {
 
 Ptr<ast::WhereClauseList> Parser::parse_where_clause_list() {
     Tracker tracker(this);
-    PtrVector<ast::TypeApp> clauses;
+    PtrVector<ast::TraitApp> clauses;
     if (accept(Token::Where)) {
         do {
-            clauses.emplace_back(parse_type_app());
+            clauses.emplace_back(parse_trait_app());
         }
         while (accept(Token::Comma));
     }

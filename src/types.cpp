@@ -195,37 +195,6 @@ size_t TypeApp::hash() const {
     return h;
 }
 
-// Contains ------------------------------------------------------------------------
-
-bool TupleType::contains(const Type* type) const {
-    return
-        type == this ||
-        std::any_of(args.begin(), args.end(), [type] (auto a) {
-            return a->contains(type);
-        });
-}
-
-bool ArrayType::contains(const Type* type) const {
-    return type == this || elem->contains(type);
-}
-
-bool AddrType::contains(const Type* type) const {
-    return type == this || pointee->contains(type);
-}
-
-bool FnType::contains(const Type* type) const {
-    return type == this || dom->contains(type) || codom->contains(type);
-}
-
-bool TypeApp::contains(const Type* type) const {
-    return
-        type == this ||
-        applied->contains(type) ||
-        std::any_of(type_args.begin(), type_args.end(), [type] (auto a) {
-            return a->contains(type);
-        });
-}
-
 // Replace -------------------------------------------------------------------------
 
 const Type* TupleType::replace(const ReplaceMap& map) const {
@@ -438,7 +407,6 @@ bool TypeApp::is_sized(std::unordered_set<const Type*>& seen) const {
         });
 }
 
-
 // Complex Types -------------------------------------------------------------------
 
 const ast::TypeParamList* StructType::type_params()   const {
@@ -599,33 +567,30 @@ bool Type::subtype(const Type* other) const {
     return false;
 }
 
-bool unify(
-    const Type* from, const Type* to,
-    std::unordered_map<const TypeVar*, const Type*>& map)
-{
-    if (from == to)
+bool Type::unify(const Type* to, ReplaceMap& map) const {
+    if (this == to)
         return true;
-    if (auto from_var = from->isa<TypeVar>())
+    if (auto from_var = isa<TypeVar>())
         return map.emplace(from_var, to).second;
-    auto from_tuple = from->isa<TupleType>();
+    auto from_tuple = isa<TupleType>();
     auto to_tuple = to->isa<TupleType>();
     if (from_tuple && to_tuple) {
         if (from_tuple->args.size() != to_tuple->args.size())
             return false;
         for (size_t i = 0, n = from_tuple->args.size(); i < n; ++i) {
-            if (!unify(from_tuple->args[i], to_tuple->args[i], map))
+            if (!from_tuple->args[i]->unify(to_tuple->args[i], map))
                 return false;
         }
         return true;
     }
-    auto from_app = from->isa<TypeApp>();
+    auto from_app = isa<TypeApp>();
     auto to_app = to->isa<TypeApp>();
     if (from_app && to_app) {
         if (from_app->type_args.size() != to_app->type_args.size() ||
-            !unify(from_app->applied, to_app->applied, map))
+            !from_app->applied->unify(to_app->applied, map))
             return false;
         for (size_t i = 0, n = from_app->type_args.size(); i < n; ++i) {
-            if (!unify(from_app->type_args[i], to_app->type_args[i], map))
+            if (!from_app->type_args[i]->unify(to_app->type_args[i], map))
                 return false;
         }
         return true;
@@ -874,7 +839,7 @@ const Type* ImplResolver::find_impl(const ast::Decl* decl, const Type* target_ty
         [&] (const ImplType* impl_type) {
             // Check that the `impl` matches the target type
             ReplaceMap map;
-            if (!unify(impl_type->impled_type(), target_type, map))
+            if (!impl_type->impled_type()->unify(target_type, map))
                 return false;
             // Now check that the `where` clauses of the `impl` can be met
             if (impl_type->where_clauses()) {
@@ -887,22 +852,32 @@ const Type* ImplResolver::find_impl(const ast::Decl* decl, const Type* target_ty
         });
 }
 
+static inline const ast::WhereClauseList* extract_where_clauses(const ast::Decl& decl) {
+    // This is needed since monomorphic `FnDecl`s can still have a list of `where` clauses
+    if (decl.type && decl.type->isa<PolyType>())
+        return decl.type->as<PolyType>()->where_clauses();
+    else if (auto fn_decl = decl.isa<ast::FnDecl>())
+        return fn_decl->where_clauses.get();
+    else
+        return nullptr;
+}
+
 const Type* ImplResolver::forall_candidates(
     const ast::Decl* decl,
     const TraitType* trait_type,
     std::function<bool (const Type*)> clause_visitor,
     std::function<bool (const ImplType*)> impl_visitor)
 {
-    // Walk up functions to collect `where` clauses
-    auto fn_decl = decl->isa<ast::FnDecl>();
-    while (fn_decl) {
-        if (fn_decl->where_clauses) {
-            for (auto& clause : fn_decl->where_clauses->clauses) {
+    // Walk up functions/impls/... to collect `where` clauses
+    auto poly_decl = decl;
+    while (poly_decl) {
+        if (auto where_clauses = extract_where_clauses(*poly_decl)) {
+            for (auto& clause : where_clauses->clauses) {
                 if (clause_visitor(clause->type))
                     return clause->type;
             }
         }
-        fn_decl = fn_decl->find_parent<ast::FnDecl>();
+        poly_decl = poly_decl->find_parent<ast::Decl>();
     }
     // Walk up the modules to collect `impl`s
     auto mod_decl = decl->find_parent<ast::ModDecl>();

@@ -11,24 +11,20 @@ bool TypeChecker::run(ast::ModDecl& module) {
 
 // Error messages ------------------------------------------------------------------
 
-bool TypeChecker::should_report_error(const Type* type) {
-    return !type->contains(type_table.type_error());
-}
-
 const Type* TypeChecker::incompatible_types(const Loc& loc, const Type* type, const Type* expected) {
-    if (should_report_error(expected) && should_report_error(type))
+    if (!expected->has_error && !type->has_error)
         error(loc, "expected type '{}', but got type '{}'", *expected, *type);
     return type_table.type_error();
 }
 
 const Type* TypeChecker::incompatible_type(const Loc& loc, const std::string_view& msg, const Type* expected) {
-    if (should_report_error(expected))
+    if (!expected->has_error)
         error(loc, "expected type '{}', but got {}", *expected, msg);
     return type_table.type_error();
 }
 
 const Type* TypeChecker::type_expected(const Loc& loc, const artic::Type* type, const std::string_view& name) {
-    if (should_report_error(type))
+    if (!type->has_error)
         error(loc, "expected {} type, but got '{}'", name, *type);
     return type_table.type_error();
 }
@@ -63,13 +59,13 @@ const Type* TypeChecker::bad_arguments(const Loc& loc, const std::string_view& m
 }
 
 const Type* TypeChecker::invalid_cast(const Loc& loc, const Type* type, const Type* expected) {
-    if (should_report_error(type) && should_report_error(expected))
+    if (!type->has_error && !expected->has_error)
         error(loc, "invalid cast from '{}' to '{}'", *type, *expected);
     return type_table.type_error();
 }
 
 const Type* TypeChecker::invalid_simd(const Loc& loc, const Type* elem_type) {
-    if (should_report_error(elem_type))
+    if (!elem_type->has_error)
         error(loc, "expected primitive type for simd type component, but got '{}'", *elem_type);
     return type_table.type_error();
 }
@@ -165,7 +161,7 @@ const Type* TypeChecker::try_coerce(Ptr<ast::Expr>& expr, const Type* expected) 
     }
     // If the expected type does not contain any type variable,
     // it is safe to coerce the expression to it.
-    return !expected->contains_var() ? coerce(expr, expected) : deref(expr);
+    return expected->vars().empty() ? coerce(expr, expected) : deref(expr);
 }
 
 const Type* TypeChecker::join(Ptr<ast::Expr>& left, Ptr<ast::Expr>& right) {
@@ -184,13 +180,26 @@ const Type* TypeChecker::check_or_infer(ast::Node& node, Action&& action) {
     // This avoids infinite recursion when inferring the type of recursive
     // declarations such as functions/structures/enumerations.
     auto decl = node.isa<ast::Decl>();
-    if (decl && !decls_.emplace(decl).second) {
-        error(decl->loc, "cannot infer type for recursive declaration");
-        return type_table.type_error();
+    if (decl) {
+        if (!decls_.emplace(decl).second) {
+            error(decl->loc, "cannot infer type for recursive declaration");
+            return type_table.type_error();
+        }
+        if (decl->isa<ast::ModDecl>() || decl->isa<ast::FnDecl>())
+            last_fn_or_mod_ = decl;
     }
     node.type = action();
-    if (decl)
+    if (decl) {
+        if (decl == last_fn_or_mod_) {
+            if (auto fn_decl = last_fn_or_mod_->find_parent<ast::FnDecl>())
+                last_fn_or_mod_ = fn_decl;
+            else if (auto mod_decl = last_fn_or_mod_->find_parent<ast::ModDecl>())
+                last_fn_or_mod_ = mod_decl;
+            else
+                assert(false);
+        }
         decls_.erase(decl);
+    }
     if (node.attrs)
         node.attrs->check(*this, &node);
     return node.type;
@@ -279,7 +288,8 @@ static inline const artic::Type* member_type(
 }
 
 void TypeChecker::check_impl_exists(const Loc& loc, const Type* type) {
-    // TODO
+    if (!impl_resolver.find_impl(last_fn_or_mod_, type))
+        error(loc, "cannot find an implementation for trait '{}'", *type);
 }
 
 void TypeChecker::check_impl_exists(const Loc& loc, const TraitType* trait_type, const ArrayRef<const Type*>& args) {
@@ -584,7 +594,20 @@ const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, Ptr<Ex
                 }
                 elem.inferred_args = type_args;
 
-                // TODO: Check that where clauses are met
+                // Check that *polymorphic* `where` clauses that depend on the instantiated variables are met
+                if (!poly_type->isa<artic::TraitType>() && poly_type->where_clauses() && poly_type->type_params()) {
+                    for (auto& clause : poly_type->where_clauses()->clauses) {
+                        if (std::any_of(
+                            poly_type->type_params()->params.begin(),
+                            poly_type->type_params()->params.end(),
+                            [&] (auto& param) {
+                                return clause->type->vars().count(param->type->template as<artic::TypeVar>()) > 0;
+                            }))
+                        {
+                            checker.check_impl_exists(loc, clause->type);
+                        }
+                    }
+                }
 
                 type = forall_type
                     ? forall_type->instantiate(type_args)
@@ -780,9 +803,18 @@ const artic::Type* PtrType::infer(TypeChecker& checker) {
 }
 
 const artic::Type* TypeApp::infer(TypeChecker& checker) {
-    return path.type = path.infer(checker, false);
+    path.type = path.infer(checker, false);
+    if (match_app<artic::TraitType>(path.type).second)
+        checker.error(loc, "traits are not allowed here");
+    return path.type;
 }
 
+const artic::Type* TraitApp::infer(TypeChecker& checker) {
+    path.type = path.infer(checker, false);
+    if (!match_app<artic::TraitType>(path.type).second)
+        return checker.type_expected(loc, path.type, "trait");
+    return path.type;
+}
 
 // Statements ----------------------------------------------------------------------
 
@@ -1231,7 +1263,7 @@ const artic::Type* UnaryExpr::infer(TypeChecker& checker) {
     if (tag == Deref) {
         if (auto ptr_type = arg_type->isa<artic::PtrType>())
             return checker.type_table.ref_type(ptr_type->pointee, ptr_type->is_mut, ptr_type->addr_space);
-        if (checker.should_report_error(arg_type))
+        if (!arg_type->has_error)
             checker.error(loc, "cannot dereference non-pointer type '{}'", *arg_type);
         return checker.type_table.type_error();
     }
@@ -1563,7 +1595,7 @@ static size_t count_var_occurs(const artic::Type* type, const artic::TypeVar* va
 // Count the number of type constructors appearing in a type.
 static size_t count_vars_ctors(const artic::Type* type) {
     if (type->isa<artic::TypeVar>()) return 1;
-    if (type->isa<artic::TypeApp>() && type->contains_var()) {
+    if (type->isa<artic::TypeApp>() && type->vars().size() > 0) {
         size_t res = 1;
         for (auto& arg : type->as<artic::TypeApp>()->type_args)
             res += count_vars_ctors(arg);
@@ -1668,7 +1700,7 @@ void ImplDecl::check_conflicts(TypeChecker& checker) {
             //    can be used instead of another, taking into account `where` clauses.
             // Case 1. & 2. can just use unification to determine if there is a conflict
             ReplaceMap map;
-            if (unify(impl_type->impled_type(), other_impl->impled_type(), map)) {
+            if (impl_type->impled_type()->unify(other_impl->impled_type(), map)) {
                 auto mono_impl = other_impl->type_params() ? impl_type : other_impl;
                 auto poly_impl = other_impl->type_params() ? other_impl : impl_type;
                 if (!mono_impl->type_params() && poly_impl->type_params()) {

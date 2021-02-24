@@ -93,6 +93,7 @@ private:
     Ptr<ast::FnType>          parse_fn_type();
     Ptr<ast::PtrType>         parse_ptr_type();
     Ptr<ast::TypeApp>         parse_type_app();
+    Ptr<ast::TraitApp>        parse_trait_app();
     Ptr<ast::ErrorType>       parse_error_type();
 
     Ptr<ast::Filter>          parse_filter();

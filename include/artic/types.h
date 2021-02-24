@@ -51,9 +51,17 @@ struct TypeBounds {
 /// the same `TypeTable` object.
 struct Type : public Cast<Type> {
     TypeTable& type_table;
+    bool has_error = false;
 
     Type(TypeTable& type_table)
         : type_table(type_table)
+    {}
+
+    Type(Type&& other)
+        : type_table(other.type_table)
+        , has_error(other.has_error)
+        , variance_{ std::move(other.variance_[0]), std::move(other.variance_[1]) }
+        , vars_(std::move(other.vars_))
     {}
 
     virtual ~Type() {}
@@ -61,7 +69,6 @@ struct Type : public Cast<Type> {
     virtual void print(Printer&) const = 0;
     virtual bool equals(const Type*) const = 0;
     virtual size_t hash() const = 0;
-    virtual bool contains(const Type* type) const { return this == type; }
     virtual const Type* replace(const ReplaceMap&) const { return this; }
 
     /// Converts this type to a Thorin type
@@ -70,11 +77,11 @@ struct Type : public Cast<Type> {
     /// used as C union/structure/typedef name.
     virtual std::string stringify(Emitter&) const;
 
-    virtual size_t order(std::unordered_set<const Type*>&) const;
-    virtual bool is_sized(std::unordered_set<const Type*>&) const;
-
-    virtual void variance(TypeVarMap<TypeVariance>&, bool) const;
-    virtual void bounds(TypeVarMap<TypeBounds>&, const Type*, bool) const;
+    /// Returns whether this type can be represented in memory or not (that is, if it has a finite size).
+    bool is_sized() const {
+        std::unordered_set<const Type*> seen;
+        return is_sized(seen);
+    }
 
     /// Returns the number of times a function type constructor is present in the type.
     size_t order() const {
@@ -82,42 +89,57 @@ struct Type : public Cast<Type> {
         return order(seen);
     }
 
+    /// Computes the set of type variables appearing in this type.
+    const std::unordered_set<const TypeVar*>& vars() const {
+        if (!vars_) {
+            vars_ = std::make_unique<std::unordered_set<const TypeVar*>>();
+            for (auto [var, _] : variance())
+                vars_->emplace(var);
+        }
+        return *vars_;
+    }
+
     /// Computes the variance of the set of type variables that appear in this type.
-    TypeVarMap<TypeVariance> variance(bool dir = true) const {
-        std::unordered_map<const TypeVar*, TypeVariance> vars;
-        variance(vars, dir);
-        return vars;
+    const TypeVarMap<TypeVariance>& variance(bool dir = true) const {
+        auto index = dir ? 1 : 0;
+        if (!variance_[index]) {
+            variance_[index] = std::make_unique<TypeVarMap<TypeVariance>>();
+            variance(*variance_[index], dir);
+        }
+        return *variance_[index];
     }
 
     /// Computes the bounds of the type variables that appear in this type.
     TypeVarMap<TypeBounds> bounds(const Type* arg, bool dir = true) const {
-        std::unordered_map<const TypeVar*, TypeBounds> vars;
-        bounds(vars, arg, dir);
-        return vars;
-    }
-
-    /// Returns true if this type contains at least one type variable.
-    bool contains_var() const { return !variance().empty(); }
-
-    /// Returns whether this type can be represented in memory or not.
-    bool is_sized() const {
-        std::unordered_set<const Type*> seen;
-        return is_sized(seen);
+        TypeVarMap<TypeBounds> b;
+        bounds(b, arg, dir);
+        return b;
     }
 
     /// Returns true if this type is a sub-type of another.
     bool subtype(const Type*) const;
+    /// Unifies this type with another. Returns true if they can be unified, in which case the
+    /// map is filled with a substitution mapping this type to the other.
+    bool unify(const Type*, ReplaceMap&) const;
 
     /// Returns the least upper bound between this type and another.
     const Type* join(const Type*) const;
 
     /// Prints the type on the console, for debugging.
     void dump() const;
-};
 
-/// Unifies two types, returns true if they can be unified, in which case the map is filled
-/// with a substitution mapping `from` to `to`, and returns false otherwise.
-bool unify(const Type*, const Type*, ReplaceMap&);
+    // These are implemented by specific types.
+    virtual size_t order(std::unordered_set<const Type*>&) const;
+    virtual bool is_sized(std::unordered_set<const Type*>&) const;
+
+    virtual void variance(TypeVarMap<TypeVariance>&, bool) const;
+    virtual void bounds(TypeVarMap<TypeBounds>&, const Type*, bool) const;
+
+private:
+    // Cached data, in order to avoid recomputing these all the time.
+    mutable std::array<std::unique_ptr<TypeVarMap<TypeVariance>>, 2> variance_;
+    mutable std::unique_ptr<std::unordered_set<const TypeVar*>> vars_;
+};
 
 /// The type of an attribute.
 struct AttrType {
@@ -152,22 +174,25 @@ struct TupleType : public Type {
     void print(Printer&) const override;
     bool equals(const Type*) const override;
     size_t hash() const override;
-    bool contains(const Type*) const override;
     const Type* replace(const ReplaceMap&) const override;
 
     const thorin::Type* convert(Emitter&) const override;
     std::string stringify(Emitter&) const override;
+
+private:
+    TupleType(TypeTable& type_table, const ArrayRef<const Type*>& args)
+        : Type(type_table), args(args)
+    {
+        has_error = std::any_of(
+            args.begin(), args.end(),
+            [] (const Type* arg) { return arg->has_error; });
+    }
 
     size_t order(std::unordered_set<const Type*>&) const override;
     bool is_sized(std::unordered_set<const Type*>&) const override;
 
     void variance(TypeVarMap<TypeVariance>&, bool) const override;
     void bounds(TypeVarMap<TypeBounds>&, const Type*, bool) const override;
-
-private:
-    TupleType(TypeTable& type_table, const ArrayRef<const Type*>& args)
-        : Type(type_table), args(args)
-    {}
 
     friend class TypeTable;
 };
@@ -176,17 +201,18 @@ private:
 struct ArrayType : public Type {
     const Type* elem;
 
-    ArrayType(TypeTable& type_table, const Type* elem)
-        : Type(type_table), elem(elem)
-    {}
-
-    bool contains(const Type*) const override;
-
+protected:
     size_t order(std::unordered_set<const Type*>&) const override;
     bool is_sized(std::unordered_set<const Type*>&) const override;
 
     void variance(TypeVarMap<TypeVariance>&, bool) const override;
     void bounds(TypeVarMap<TypeBounds>&, const Type*, bool) const override;
+
+    ArrayType(TypeTable& type_table, const Type* elem)
+        : Type(type_table), elem(elem)
+    {
+        has_error = elem->has_error;
+    }
 };
 
 /// An array whose size is known at compile-time.
@@ -236,19 +262,21 @@ struct AddrType : public Type {
     bool is_mut;
     size_t addr_space;
 
-    AddrType(TypeTable& type_table, const Type* pointee, bool is_mut, size_t addr_space)
-        : Type(type_table), pointee(pointee), is_mut(is_mut), addr_space(addr_space)
-    {}
-
     bool equals(const Type*) const override;
     size_t hash() const override;
-    bool contains(const Type*) const override;
 
+protected:
     size_t order(std::unordered_set<const Type*>&) const override;
     bool is_sized(std::unordered_set<const Type*>&) const override;
 
     void variance(TypeVarMap<TypeVariance>&, bool) const override;
     void bounds(TypeVarMap<TypeBounds>&, const Type*, bool) const override;
+
+    AddrType(TypeTable& type_table, const Type* pointee, bool is_mut, size_t addr_space)
+        : Type(type_table), pointee(pointee), is_mut(is_mut), addr_space(addr_space)
+    {
+        has_error = pointee->has_error;
+    }
 };
 
 /// A pointer type, as the result of taking the address of an object.
@@ -289,23 +317,24 @@ struct FnType : public Type {
     void print(Printer&) const override;
     bool equals(const Type*) const override;
     size_t hash() const override;
-    bool contains(const Type*) const override;
 
     const Type* replace(const ReplaceMap&) const override;
 
     const thorin::Type* convert(Emitter&) const override;
     std::string stringify(Emitter&) const override;
 
+private:
+    FnType(TypeTable& type_table, const Type* dom, const Type* codom)
+        : Type(type_table), dom(dom), codom(codom)
+    {
+        has_error = dom->has_error || codom->has_error;
+    }
+
     size_t order(std::unordered_set<const Type*>&) const override;
     bool is_sized(std::unordered_set<const Type*>&) const override;
 
     void variance(TypeVarMap<TypeVariance>&, bool) const override;
     void bounds(TypeVarMap<TypeBounds>&, const Type*, bool) const override;
-
-private:
-    FnType(TypeTable& type_table, const Type* dom, const Type* codom)
-        : Type(type_table), dom(dom), codom(codom)
-    {}
 
     friend class TypeTable;
 };
@@ -360,7 +389,9 @@ struct TypeError : public TopType {
 private:
     TypeError(TypeTable& type_table)
         : TopType(type_table)
-    {}
+    {
+        has_error = true;
+    }
 
     friend class TypeTable;
 };
@@ -378,13 +409,13 @@ struct TypeVar : public Type {
     const thorin::Type* convert(Emitter&) const override;
     std::string stringify(Emitter&) const override;
 
-    void variance(TypeVarMap<TypeVariance>&, bool) const override;
-    void bounds(TypeVarMap<TypeBounds>&, const Type*, bool) const override;
-
 private:
     TypeVar(TypeTable& type_table, const ast::TypeParam& param)
         : Type(type_table), param(param)
     {}
+
+    void variance(TypeVarMap<TypeVariance>&, bool) const override;
+    void bounds(TypeVarMap<TypeBounds>&, const Type*, bool) const override;
 
     friend class TypeTable;
 };
@@ -466,6 +497,8 @@ struct ComplexType : public UserType {
     virtual size_t member_count() const = 0;
 
     using Type::is_sized;
+
+protected:
     size_t order(std::unordered_set<const Type*>&) const override;
     bool is_sized(std::unordered_set<const Type*>&) const override;
 };
@@ -634,18 +667,11 @@ struct TypeApp : public Type {
     void print(Printer&) const override;
     bool equals(const Type*) const override;
     size_t hash() const override;
-    bool contains(const Type*) const override;
 
     const Type* replace(const ReplaceMap&) const override;
 
     const thorin::Type* convert(Emitter&) const override;
     std::string stringify(Emitter&) const override;
-
-    size_t order(std::unordered_set<const Type*>&) const override;
-    bool is_sized(std::unordered_set<const Type*>&) const override;
-
-    void variance(TypeVarMap<TypeVariance>&, bool) const override;
-    void bounds(TypeVarMap<TypeBounds>&, const Type*, bool) const override;
 
 private:
     TypeApp(
@@ -655,7 +681,18 @@ private:
         : Type(type_table)
         , applied(applied)
         , type_args(std::move(type_args))
-    {}
+    {
+        has_error = applied->has_error ||
+            std::any_of(
+                type_args.begin(), type_args.end(),
+                [] (const Type* type_arg) { return type_arg->has_error; });
+    }
+
+    size_t order(std::unordered_set<const Type*>&) const override;
+    bool is_sized(std::unordered_set<const Type*>&) const override;
+
+    void variance(TypeVarMap<TypeVariance>&, bool) const override;
+    void bounds(TypeVarMap<TypeBounds>&, const Type*, bool) const override;
 
     friend class TypeTable;
 };

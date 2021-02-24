@@ -25,13 +25,10 @@ public:
     /// Returns true on success, otherwise false.
     bool run(ast::ModDecl&);
 
-    bool should_report_error(const Type*);
-
     // Error messages
     const Type* incompatible_types(const Loc&, const Type*, const Type*);
     const Type* incompatible_type(const Loc&, const std::string_view&, const Type*);
     const Type* type_expected(const Loc&, const Type*, const std::string_view&);
-    const Type* trait_not_allowed_here(const Loc &loc, const Type *type);
     const Type* unknown_member(const Loc&, const UserType*, const std::string_view&);
     const Type* cannot_infer(const Loc&, const std::string_view&);
     const Type* unreachable_code(const Loc&, const Loc&, const Loc&);
@@ -82,6 +79,7 @@ private:
     const Type* check_or_infer(ast::Node&, Action&&);
 
     std::unordered_set<const ast::Decl*> decls_;
+    const ast::Decl* last_fn_or_mod_ = nullptr;
 };
 
 } // namespace artic

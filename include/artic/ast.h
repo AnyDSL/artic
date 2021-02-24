@@ -421,6 +421,15 @@ struct TypeApp : public Type {
     void print(Printer&) const override;
 };
 
+/// A trait type application.
+struct TraitApp : public TypeApp {
+    TraitApp(const Loc& loc, Path&& path)
+        : TypeApp(loc, std::move(path))
+    {}
+
+    const artic::Type* infer(TypeChecker&) override;
+};
+
 /// Type resulting from a parsing error.
 struct ErrorType : public Type {
     ErrorType(const Loc& loc)
@@ -1217,9 +1226,9 @@ struct TypeParamList : public Node {
 
 /// Where clause list, of the form `where T, U, ...`.
 struct WhereClauseList : public Node {
-    PtrVector<TypeApp> clauses;
+    PtrVector<TraitApp> clauses;
 
-    WhereClauseList(const Loc& loc, PtrVector<TypeApp>&& clauses)
+    WhereClauseList(const Loc& loc, PtrVector<TraitApp>&& clauses)
         : Node(loc), clauses(std::move(clauses))
     {}
 
@@ -1459,14 +1468,14 @@ struct TraitDecl : public NamedDecl {
 struct ImplDecl : public Decl {
     Ptr<TypeParamList> type_params;
     Ptr<WhereClauseList> where_clauses;
-    Ptr<TypeApp> impled_type;
+    Ptr<TraitApp> impled_type;
     PtrVector<NamedDecl> decls;
 
     ImplDecl(
         const Loc& loc,
         Ptr<TypeParamList>&& type_params,
         Ptr<WhereClauseList>&& where_clauses,
-        Ptr<TypeApp>&& impled_type,
+        Ptr<TraitApp>&& impled_type,
         PtrVector<NamedDecl>&& decls)
         : Decl(loc)
         , type_params(std::move(type_params))

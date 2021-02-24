@@ -6,7 +6,7 @@
 #include "artic/parser.h"
 #include "artic/bind.h"
 #include "artic/check.h"
-#include "artic/preamble.h"
+#include "artic/prelude.h"
 
 #include <thorin/def.h>
 #include <thorin/type.h>
@@ -792,29 +792,29 @@ const thorin::Def* Emitter::builtin(const ast::FnDecl& fn_decl, thorin::Continua
         auto ret_val = call(comparator(fn_decl.loc, mono_type), tuple_from_params(cont, true));
         jump(cont->params().back(), ret_val);
     } else {
-        using ArithBuiltin = std::function<const thorin::Def* (thorin::World&, const thorin::Def*, const thorin::Def*)>;
+        using ArithBuiltin = std::function<const thorin::Def* (thorin::World&, const thorin::Continuation*)>;
         static const std::unordered_map<std::string, ArithBuiltin> arith_builtins {
-            std::make_pair("add",    [] (auto& w, auto* p1, auto* p2) { return w.arithop_add(p1, p2); }),
-            std::make_pair("sub",    [] (auto& w, auto* p1, auto* p2) { return w.arithop_sub(p1, p2); }),
-            std::make_pair("mul",    [] (auto& w, auto* p1, auto* p2) { return w.arithop_mul(p1, p2); }),
-            std::make_pair("div",    [] (auto& w, auto* p1, auto* p2) { return w.arithop_div(p1, p2); }),
-            std::make_pair("rem",    [] (auto& w, auto* p1, auto* p2) { return w.arithop_rem(p1, p2); }),
-            std::make_pair("lshift", [] (auto& w, auto* p1, auto* p2) { return w.arithop_shl(p1, p2); }),
-            std::make_pair("rshift", [] (auto& w, auto* p1, auto* p2) { return w.arithop_shr(p1, p2); }),
-            std::make_pair("and",    [] (auto& w, auto* p1, auto* p2) { return w.arithop_and(p1, p2); }),
-            std::make_pair("or",     [] (auto& w, auto* p1, auto* p2) { return w.arithop_or (p1, p2); }),
-            std::make_pair("xor",    [] (auto& w, auto* p1, auto* p2) { return w.arithop_xor(p1, p2); }),
-            std::make_pair("not",    [] (auto& w, auto* p1, auto* p2) { return w.arithop_not(p1);  }),
-            std::make_pair("lt",     [] (auto& w, auto* p1, auto* p2) { return w.cmp_lt(p1, p2);   }),
-            std::make_pair("gt",     [] (auto& w, auto* p1, auto* p2) { return w.cmp_gt(p1, p2);   }),
-            std::make_pair("le",     [] (auto& w, auto* p1, auto* p2) { return w.cmp_le(p1, p2);   }),
-            std::make_pair("ge",     [] (auto& w, auto* p1, auto* p2) { return w.cmp_ge(p1, p2);   }),
-            std::make_pair("eq",     [] (auto& w, auto* p1, auto* p2) { return w.cmp_eq(p1, p2);   }),
-            std::make_pair("ne",     [] (auto& w, auto* p1, auto* p2) { return w.cmp_ne(p1, p2);   })
+            std::make_pair("add",    [] (auto& w, auto* cont) { return w.arithop_add(cont->param(1), cont->param(2)); }),
+            std::make_pair("sub",    [] (auto& w, auto* cont) { return w.arithop_sub(cont->param(1), cont->param(2)); }),
+            std::make_pair("mul",    [] (auto& w, auto* cont) { return w.arithop_mul(cont->param(1), cont->param(2)); }),
+            std::make_pair("div",    [] (auto& w, auto* cont) { return w.arithop_div(cont->param(1), cont->param(2)); }),
+            std::make_pair("rem",    [] (auto& w, auto* cont) { return w.arithop_rem(cont->param(1), cont->param(2)); }),
+            std::make_pair("lshift", [] (auto& w, auto* cont) { return w.arithop_shl(cont->param(1), cont->param(2)); }),
+            std::make_pair("rshift", [] (auto& w, auto* cont) { return w.arithop_shr(cont->param(1), cont->param(2)); }),
+            std::make_pair("and",    [] (auto& w, auto* cont) { return w.arithop_and(cont->param(1), cont->param(2)); }),
+            std::make_pair("or",     [] (auto& w, auto* cont) { return w.arithop_or (cont->param(1), cont->param(2)); }),
+            std::make_pair("xor",    [] (auto& w, auto* cont) { return w.arithop_xor(cont->param(1), cont->param(2)); }),
+            std::make_pair("not",    [] (auto& w, auto* cont) { return w.arithop_not(cont->param(1)); }),
+            std::make_pair("lt",     [] (auto& w, auto* cont) { return w.cmp_lt(cont->param(1), cont->param(2)); }),
+            std::make_pair("gt",     [] (auto& w, auto* cont) { return w.cmp_gt(cont->param(1), cont->param(2)); }),
+            std::make_pair("le",     [] (auto& w, auto* cont) { return w.cmp_le(cont->param(1), cont->param(2)); }),
+            std::make_pair("ge",     [] (auto& w, auto* cont) { return w.cmp_ge(cont->param(1), cont->param(2)); }),
+            std::make_pair("eq",     [] (auto& w, auto* cont) { return w.cmp_eq(cont->param(1), cont->param(2)); }),
+            std::make_pair("ne",     [] (auto& w, auto* cont) { return w.cmp_ne(cont->param(1), cont->param(2)); })
         };
         assert(arith_builtins.count(cont->name().str()) > 0);
         cont->jump(cont->params().back(),
-            { cont->param(0), arith_builtins.find(cont->name().str())->second(world, cont->param(1), cont->param(2)) },
+            { cont->param(0), arith_builtins.find(cont->name().str())->second(world, cont) },
             debug_info(fn_decl));
     }
     cont->set_all_true_filter();
@@ -1884,12 +1884,13 @@ const thorin::Type* TypeApp::convert(Emitter& emitter) const {
 
 // A read-only buffer from memory, not performing any copy.
 struct MemBuf : public std::streambuf {
-    MemBuf(const std::string& str) {
-        setg(
-            const_cast<char*>(str.data()),
-            const_cast<char*>(str.data()),
-            const_cast<char*>(str.data() + str.size()));
+    MemBuf(const char* data, size_t size) {
+        setg(const_cast<char*>(data), const_cast<char*>(data), const_cast<char*>(data + size));
     }
+
+    MemBuf(const std::string_view& str)
+        : MemBuf(str.data(), str.size())
+    {}
 
     std::streampos seekoff(std::streamoff off, std::ios_base::seekdir way, std::ios_base::openmode) override {
         if (way == std::ios_base::beg)
@@ -1912,7 +1913,9 @@ struct MemBuf : public std::streambuf {
     }
 };
 
-static bool lex_and_parse(Log& log, std::string name, std::istream& is, bool warns_as_errors, ast::ModDecl& program) {
+static bool lex_and_parse(Log& log, std::string name, const std::string_view& data, bool warns_as_errors, ast::ModDecl& program) {
+    MemBuf mem_buf(data);
+    std::istream is(&mem_buf);
     Lexer lexer(log, name, is);
     Parser parser(log, lexer);
     parser.warns_as_errors = warns_as_errors;
@@ -1939,17 +1942,20 @@ bool compile(
     Log& log)
 {
     assert(file_data.size() == file_names.size());
-    std::istringstream is(preamble);
 
-    [[maybe_unused]] auto preamble_ok = lex_and_parse(log, "preamble", is, warns_as_errors, program);
-    assert(preamble_ok);
+    // In debug mode, register the prelude so that error messages
+    // can be easily traced back to their source.
+#ifndef NDEBUG
+    if (log.locator)
+        log.locator->register_file("prelude", prelude);
+#endif
+    [[maybe_unused]] auto is_prelude_ok = lex_and_parse(log, "prelude", prelude, warns_as_errors, program);
+    assert(is_prelude_ok);
 
     for (size_t i = 0, n = file_names.size(); i < n; ++i) {
         if (log.locator)
             log.locator->register_file(file_names[i], file_data[i]);
-        MemBuf mem_buf(file_data[i]);
-        std::istream is(&mem_buf);
-        if (!lex_and_parse(log, file_names[i], is, warns_as_errors, program))
+        if (!lex_and_parse(log, file_names[i], file_data[i], warns_as_errors, program))
             return false;
     }
 
