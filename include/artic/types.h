@@ -23,6 +23,10 @@ class TypeTable;
 class Emitter;
 struct TypeVar;
 
+template <typename T>
+using TypeVarMap = std::unordered_map<const TypeVar*, T>;
+using ReplaceMap = TypeVarMap<const Type*>;
+
 /// Variance for a type variable appearing in a type. It represents the
 /// way the type changes when the type variable changes, with respect
 /// to the subtyping relation.
@@ -58,9 +62,7 @@ struct Type : public Cast<Type> {
     virtual bool equals(const Type*) const = 0;
     virtual size_t hash() const = 0;
     virtual bool contains(const Type* type) const { return this == type; }
-    virtual const Type* replace(const std::unordered_map<const TypeVar*, const Type*>&) const {
-        return this;
-    }
+    virtual const Type* replace(const ReplaceMap&) const { return this; }
 
     /// Converts this type to a Thorin type
     virtual const thorin::Type* convert(Emitter&) const;
@@ -69,9 +71,10 @@ struct Type : public Cast<Type> {
     virtual std::string stringify(Emitter&) const;
 
     virtual size_t order(std::unordered_set<const Type*>&) const;
-    virtual void variance(std::unordered_map<const TypeVar*, TypeVariance>&, bool) const;
-    virtual void bounds(std::unordered_map<const TypeVar*, TypeBounds>&, const Type*, bool) const;
     virtual bool is_sized(std::unordered_set<const Type*>&) const;
+
+    virtual void variance(TypeVarMap<TypeVariance>&, bool) const;
+    virtual void bounds(TypeVarMap<TypeBounds>&, const Type*, bool) const;
 
     /// Returns the number of times a function type constructor is present in the type.
     size_t order() const {
@@ -80,14 +83,14 @@ struct Type : public Cast<Type> {
     }
 
     /// Computes the variance of the set of type variables that appear in this type.
-    std::unordered_map<const TypeVar*, TypeVariance> variance(bool dir = true) const {
+    TypeVarMap<TypeVariance> variance(bool dir = true) const {
         std::unordered_map<const TypeVar*, TypeVariance> vars;
         variance(vars, dir);
         return vars;
     }
 
     /// Computes the bounds of the type variables that appear in this type.
-    std::unordered_map<const TypeVar*, TypeBounds> bounds(const Type* arg, bool dir = true) const {
+    TypeVarMap<TypeBounds> bounds(const Type* arg, bool dir = true) const {
         std::unordered_map<const TypeVar*, TypeBounds> vars;
         bounds(vars, arg, dir);
         return vars;
@@ -114,7 +117,7 @@ struct Type : public Cast<Type> {
 
 /// Unifies two types, returns true if they can be unified, in which case the map is filled
 /// with a substitution mapping `from` to `to`, and returns false otherwise.
-bool unify(const Type*, const Type*, std::unordered_map<const TypeVar*, const Type*>&);
+bool unify(const Type*, const Type*, ReplaceMap&);
 
 /// The type of an attribute.
 struct AttrType {
@@ -150,15 +153,16 @@ struct TupleType : public Type {
     bool equals(const Type*) const override;
     size_t hash() const override;
     bool contains(const Type*) const override;
-    const Type* replace(const std::unordered_map<const TypeVar*, const Type*>&) const override;
+    const Type* replace(const ReplaceMap&) const override;
 
     const thorin::Type* convert(Emitter&) const override;
     std::string stringify(Emitter&) const override;
 
     size_t order(std::unordered_set<const Type*>&) const override;
-    void variance(std::unordered_map<const TypeVar*, TypeVariance>&, bool) const override;
-    void bounds(std::unordered_map<const TypeVar*, TypeBounds>&, const Type*, bool) const override;
     bool is_sized(std::unordered_set<const Type*>&) const override;
+
+    void variance(TypeVarMap<TypeVariance>&, bool) const override;
+    void bounds(TypeVarMap<TypeBounds>&, const Type*, bool) const override;
 
 private:
     TupleType(TypeTable& type_table, const ArrayRef<const Type*>& args)
@@ -179,9 +183,10 @@ struct ArrayType : public Type {
     bool contains(const Type*) const override;
 
     size_t order(std::unordered_set<const Type*>&) const override;
-    void variance(std::unordered_map<const TypeVar*, TypeVariance>&, bool) const override;
-    void bounds(std::unordered_map<const TypeVar*, TypeBounds>&, const Type*, bool) const override;
     bool is_sized(std::unordered_set<const Type*>&) const override;
+
+    void variance(TypeVarMap<TypeVariance>&, bool) const override;
+    void bounds(TypeVarMap<TypeBounds>&, const Type*, bool) const override;
 };
 
 /// An array whose size is known at compile-time.
@@ -193,7 +198,7 @@ struct SizedArrayType : public ArrayType {
     bool equals(const Type*) const override;
     size_t hash() const override;
 
-    const Type* replace(const std::unordered_map<const TypeVar*, const Type*>&) const override;
+    const Type* replace(const ReplaceMap&) const override;
 
     const thorin::Type* convert(Emitter&) const override;
     std::string stringify(Emitter&) const override;
@@ -212,7 +217,7 @@ struct UnsizedArrayType : public ArrayType {
     bool equals(const Type*) const override;
     size_t hash() const override;
 
-    const Type* replace(const std::unordered_map<const TypeVar*, const Type*>&) const override;
+    const Type* replace(const ReplaceMap&) const override;
 
     const thorin::Type* convert(Emitter&) const override;
     std::string stringify(Emitter&) const override;
@@ -240,16 +245,17 @@ struct AddrType : public Type {
     bool contains(const Type*) const override;
 
     size_t order(std::unordered_set<const Type*>&) const override;
-    void variance(std::unordered_map<const TypeVar*, TypeVariance>&, bool) const override;
-    void bounds(std::unordered_map<const TypeVar*, TypeBounds>&, const Type*, bool) const override;
     bool is_sized(std::unordered_set<const Type*>&) const override;
+
+    void variance(TypeVarMap<TypeVariance>&, bool) const override;
+    void bounds(TypeVarMap<TypeBounds>&, const Type*, bool) const override;
 };
 
 /// A pointer type, as the result of taking the address of an object.
 struct PtrType : public AddrType {
     void print(Printer&) const override;
 
-    const Type* replace(const std::unordered_map<const TypeVar*, const Type*>&) const override;
+    const Type* replace(const ReplaceMap&) const override;
 
     const thorin::Type* convert(Emitter&) const override;
     std::string stringify(Emitter&) const override;
@@ -265,7 +271,7 @@ private:
 /// The type of mutable identifiers or expressions.
 struct RefType : public AddrType {
     void print(Printer&) const override;
-    const Type* replace(const std::unordered_map<const TypeVar*, const Type*>&) const override;
+    const Type* replace(const ReplaceMap&) const override;
 
 private:
     RefType(TypeTable& type_table, const Type* pointee, bool is_mut, size_t addr_space)
@@ -285,15 +291,16 @@ struct FnType : public Type {
     size_t hash() const override;
     bool contains(const Type*) const override;
 
-    const Type* replace(const std::unordered_map<const TypeVar*, const Type*>&) const override;
+    const Type* replace(const ReplaceMap&) const override;
 
     const thorin::Type* convert(Emitter&) const override;
     std::string stringify(Emitter&) const override;
 
     size_t order(std::unordered_set<const Type*>&) const override;
-    void variance(std::unordered_map<const TypeVar*, TypeVariance>&, bool) const override;
-    void bounds(std::unordered_map<const TypeVar*, TypeBounds>&, const Type*, bool) const override;
     bool is_sized(std::unordered_set<const Type*>&) const override;
+
+    void variance(TypeVarMap<TypeVariance>&, bool) const override;
+    void bounds(TypeVarMap<TypeBounds>&, const Type*, bool) const override;
 
 private:
     FnType(TypeTable& type_table, const Type* dom, const Type* codom)
@@ -366,13 +373,13 @@ struct TypeVar : public Type {
     bool equals(const Type*) const override;
     size_t hash() const override;
 
-    const Type* replace(const std::unordered_map<const TypeVar*, const Type*>&) const override;
+    const Type* replace(const ReplaceMap&) const override;
 
     const thorin::Type* convert(Emitter&) const override;
     std::string stringify(Emitter&) const override;
 
-    void variance(std::unordered_map<const TypeVar*, TypeVariance>&, bool) const override;
-    void bounds(std::unordered_map<const TypeVar*, TypeBounds>&, const Type*, bool) const override;
+    void variance(TypeVarMap<TypeVariance>&, bool) const override;
+    void bounds(TypeVarMap<TypeBounds>&, const Type*, bool) const override;
 
 private:
     TypeVar(TypeTable& type_table, const ast::TypeParam& param)
@@ -395,7 +402,7 @@ struct PolyType : public Type {
     Array<const Type*> where_clauses_as_array() const;
 
     /// Returns a map from the type parameters of this polymorphic type to the provided arguments.
-    std::unordered_map<const TypeVar*, const artic::Type*> replace_map(const ArrayRef<const Type*>&) const;
+    ReplaceMap replace_map(const ArrayRef<const Type*>&) const;
 };
 
 /// Helper mixin to extract the type parameter list and where clauses from a particular `Decl`.
@@ -614,7 +621,7 @@ struct TypeApp : public Type {
     Array<const Type*> type_args;
 
     /// Gets the replacement map required to expand this type application.
-    std::unordered_map<const TypeVar*, const Type*> replace_map() const {
+    ReplaceMap replace_map() const {
         assert(applied->type_params());
         return applied->replace_map(type_args);
     }
@@ -629,15 +636,16 @@ struct TypeApp : public Type {
     size_t hash() const override;
     bool contains(const Type*) const override;
 
-    const Type* replace(const std::unordered_map<const TypeVar*, const Type*>&) const override;
+    const Type* replace(const ReplaceMap&) const override;
 
     const thorin::Type* convert(Emitter&) const override;
     std::string stringify(Emitter&) const override;
 
     size_t order(std::unordered_set<const Type*>&) const override;
-    void variance(std::unordered_map<const TypeVar*, TypeVariance>&, bool) const override;
-    void bounds(std::unordered_map<const TypeVar*, TypeBounds>&, const Type*, bool) const override;
     bool is_sized(std::unordered_set<const Type*>&) const override;
+
+    void variance(TypeVarMap<TypeVariance>&, bool) const override;
+    void bounds(TypeVarMap<TypeBounds>&, const Type*, bool) const override;
 
 private:
     TypeApp(
@@ -768,16 +776,17 @@ public:
     /// Registers the given implementation into the candidate set.
     void register_impl(const ImplType*);
 
-    /// Finds an implementation for a *monomorphic* trait in the given module or its parents.
-    /// If none can be found, returns null.
-    const ImplType* find_impl(const ast::ModDecl*, const Type*);
+    /// Finds an implementation for a trait in by inspecting the given declaration and its parents.
+    /// If none can be found, returns null. This may return a type coming from a where clause.
+    const Type* find_impl(const ast::Decl* decl, const Type* trait_type);
 
     /// Iterates through all `impl` candidates for a given trait,
     /// by inspecting the given module and its parents.
     /// The function returns the first `impl` for which the visitor
     /// function returns `true`.
-    const ImplType* forall_candidates(
-        const ast::ModDecl*, const TraitType*,
+    const Type* forall_candidates(
+        const ast::Decl*, const TraitType*,
+        std::function<bool (const Type*)>,
         std::function<bool (const ImplType*)>);
 
 private:

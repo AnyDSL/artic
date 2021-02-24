@@ -228,40 +228,40 @@ bool TypeApp::contains(const Type* type) const {
 
 // Replace -------------------------------------------------------------------------
 
-const Type* TupleType::replace(const std::unordered_map<const TypeVar*, const Type*>& map) const {
+const Type* TupleType::replace(const ReplaceMap& map) const {
     SmallArray<const Type*> new_args(args.size());
     for (size_t i = 0, n = args.size(); i < n; ++i)
         new_args[i] = args[i]->replace(map);
     return type_table.tuple_type(std::move(new_args));
 }
 
-const Type* SizedArrayType::replace(const std::unordered_map<const TypeVar*, const Type*>& map) const {
+const Type* SizedArrayType::replace(const ReplaceMap& map) const {
     return type_table.sized_array_type(elem->replace(map), size, is_simd);
 }
 
-const Type* UnsizedArrayType::replace(const std::unordered_map<const TypeVar*, const Type*>& map) const {
+const Type* UnsizedArrayType::replace(const ReplaceMap& map) const {
     return type_table.unsized_array_type(elem->replace(map));
 }
 
-const Type* PtrType::replace(const std::unordered_map<const TypeVar*, const Type*>& map) const {
+const Type* PtrType::replace(const ReplaceMap& map) const {
     return type_table.ptr_type(pointee->replace(map), is_mut, addr_space);
 }
 
-const Type* RefType::replace(const std::unordered_map<const TypeVar*, const Type*>& map) const {
+const Type* RefType::replace(const ReplaceMap& map) const {
     return type_table.ref_type(pointee->replace(map), is_mut, addr_space);
 }
 
-const Type* FnType::replace(const std::unordered_map<const TypeVar*, const Type*>& map) const {
+const Type* FnType::replace(const ReplaceMap& map) const {
     return type_table.fn_type(dom->replace(map), codom->replace(map));
 }
 
-const Type* TypeVar::replace(const std::unordered_map<const TypeVar*, const Type*>& map) const {
+const Type* TypeVar::replace(const ReplaceMap& map) const {
     if (auto it = map.find(this); it != map.end())
         return it->second;
     return this;
 }
 
-const Type* TypeApp::replace(const std::unordered_map<const TypeVar*, const Type*>& map) const {
+const Type* TypeApp::replace(const ReplaceMap& map) const {
     SmallArray<const Type*> new_type_args(type_args.size());
     for (size_t i = 0, n = type_args.size(); i < n; ++i)
         new_type_args[i] = type_args[i]->replace(map);
@@ -311,27 +311,27 @@ size_t TypeApp::order(std::unordered_set<const Type*>& seen) const {
 
 // Variance ------------------------------------------------------------------------
 
-void Type::variance(std::unordered_map<const TypeVar*, TypeVariance>&, bool) const {}
+void Type::variance(TypeVarMap<TypeVariance>&, bool) const {}
 
-void TupleType::variance(std::unordered_map<const TypeVar*, TypeVariance>& vars, bool dir) const {
+void TupleType::variance(TypeVarMap<TypeVariance>& vars, bool dir) const {
     for (auto arg : args)
         arg->variance(vars, dir);
 }
 
-void ArrayType::variance(std::unordered_map<const TypeVar*, TypeVariance>& vars, bool dir) const {
+void ArrayType::variance(TypeVarMap<TypeVariance>& vars, bool dir) const {
     elem->variance(vars, dir);
 }
 
-void AddrType::variance(std::unordered_map<const TypeVar*, TypeVariance>& vars, bool dir) const {
+void AddrType::variance(TypeVarMap<TypeVariance>& vars, bool dir) const {
     pointee->variance(vars, dir);
 }
 
-void FnType::variance(std::unordered_map<const TypeVar*, TypeVariance>& vars, bool dir) const {
+void FnType::variance(TypeVarMap<TypeVariance>& vars, bool dir) const {
     dom->variance(vars, !dir);
     codom->variance(vars, dir);
 }
 
-void TypeVar::variance(std::unordered_map<const TypeVar*, TypeVariance>& vars, bool dir) const {
+void TypeVar::variance(TypeVarMap<TypeVariance>& vars, bool dir) const {
     if (auto it = vars.find(this); it != vars.end()) {
         bool var_dir = it->second == TypeVariance::Covariant ? true : false;
         if (var_dir != dir)
@@ -340,40 +340,40 @@ void TypeVar::variance(std::unordered_map<const TypeVar*, TypeVariance>& vars, b
         vars.emplace(this, dir ? TypeVariance::Covariant : TypeVariance::Contravariant);
 }
 
-void TypeApp::variance(std::unordered_map<const TypeVar*, TypeVariance>& vars, bool dir) const {
+void TypeApp::variance(TypeVarMap<TypeVariance>& vars, bool dir) const {
     for (auto type_arg : type_args)
         type_arg->variance(vars, dir);
 }
 
 // Bounds --------------------------------------------------------------------------
 
-void Type::bounds(std::unordered_map<const TypeVar*, TypeBounds>&, const Type*, bool) const {}
+void Type::bounds(TypeVarMap<TypeBounds>&, const Type*, bool) const {}
 
-void TupleType::bounds(std::unordered_map<const TypeVar*, TypeBounds>& bounds, const Type* type, bool dir) const {
+void TupleType::bounds(TypeVarMap<TypeBounds>& bounds, const Type* type, bool dir) const {
     if (auto tuple_type = type->isa<TupleType>()) {
         for (size_t i = 0, n = std::min(args.size(), tuple_type->args.size()); i < n; ++i)
             args[i]->bounds(bounds, tuple_type->args[i], dir);
     }
 }
 
-void ArrayType::bounds(std::unordered_map<const TypeVar*, TypeBounds>& bounds, const Type* type, bool dir) const {
+void ArrayType::bounds(TypeVarMap<TypeBounds>& bounds, const Type* type, bool dir) const {
     if (auto array_type = type->isa<ArrayType>())
         elem->bounds(bounds, array_type->elem, dir);
 }
 
-void AddrType::bounds(std::unordered_map<const TypeVar*, TypeBounds>& bounds, const Type* type, bool dir) const {
+void AddrType::bounds(TypeVarMap<TypeBounds>& bounds, const Type* type, bool dir) const {
     if (auto addr_type = type->isa<AddrType>())
         pointee->bounds(bounds, addr_type->pointee, dir);
 }
 
-void FnType::bounds(std::unordered_map<const TypeVar*, TypeBounds>& bounds, const Type* type, bool dir) const {
+void FnType::bounds(TypeVarMap<TypeBounds>& bounds, const Type* type, bool dir) const {
     if (auto fn_type = type->isa<FnType>()) {
         dom->bounds(bounds, fn_type->dom, !dir);
         codom->bounds(bounds, fn_type->codom, dir);
     }
 }
 
-void TypeVar::bounds(std::unordered_map<const TypeVar*, TypeBounds>& bounds, const Type* type, bool dir) const {
+void TypeVar::bounds(TypeVarMap<TypeBounds>& bounds, const Type* type, bool dir) const {
     TypeBounds type_bounds;
     if (dir)
         type_bounds = TypeBounds { type, type_table.top_type() };
@@ -386,7 +386,7 @@ void TypeVar::bounds(std::unordered_map<const TypeVar*, TypeBounds>& bounds, con
         bounds[this] = type_bounds;
 }
 
-void TypeApp::bounds(std::unordered_map<const TypeVar*, TypeBounds>& bounds, const Type* type, bool dir) const {
+void TypeApp::bounds(TypeVarMap<TypeBounds>& bounds, const Type* type, bool dir) const {
     if (auto type_app = type->isa<TypeApp>()) {
         for (size_t i = 0, n = std::min(type_args.size(), type_app->type_args.size()); i < n; ++i)
             type_args[i]->bounds(bounds, type_app->type_args[i], dir);
@@ -641,9 +641,9 @@ const Type* Type::join(const Type* other) const {
     return type_table.top_type();
 }
 
-std::unordered_map<const TypeVar*, const Type*> PolyType::replace_map(const ArrayRef<const Type*>& args) const {
+ReplaceMap PolyType::replace_map(const ArrayRef<const Type*>& args) const {
     assert(type_params() && type_params()->params.size() == args.size());
-    std::unordered_map<const TypeVar*, const Type*> map;
+    ReplaceMap map;
     for (size_t i = 0, n = args.size(); i < n; ++i) {
         assert(type_params()->params[i]->type);
         map.emplace(type_params()->params[i]->type->as<TypeVar>(), args[i]);
@@ -867,21 +867,49 @@ void ImplResolver::register_impl(const ImplType* impl_type) {
     impl_candidates_[CandidateKey { mod_decl, trait_type }].push_back(impl_type);
 }
 
-const ImplType* ImplResolver::find_impl(const ast::ModDecl* mod_decl, const Type* trait_type) {
-    // TODO
-    assert(!trait_type->contains_var());
-    return nullptr;
+const Type* ImplResolver::find_impl(const ast::Decl* decl, const Type* target_type) {
+    auto [type_app, trait_type] = match_app<TraitType>(target_type);
+    return forall_candidates(decl, trait_type,
+        [&] (const Type* type) { return type == target_type; },
+        [&] (const ImplType* impl_type) {
+            // Check that the `impl` matches the target type
+            ReplaceMap map;
+            if (!unify(impl_type->impled_type(), target_type, map))
+                return false;
+            // Now check that the `where` clauses of the `impl` can be met
+            if (impl_type->where_clauses()) {
+                for (auto& clause : impl_type->where_clauses()->clauses) {
+                    if (!find_impl(decl, clause->type))
+                        return false;
+                }
+            }
+            return true;
+        });
 }
 
-const ImplType* ImplResolver::forall_candidates(
-    const ast::ModDecl* mod_decl,
+const Type* ImplResolver::forall_candidates(
+    const ast::Decl* decl,
     const TraitType* trait_type,
-    std::function<bool (const ImplType*)> visitor)
+    std::function<bool (const Type*)> clause_visitor,
+    std::function<bool (const ImplType*)> impl_visitor)
 {
+    // Walk up functions to collect `where` clauses
+    auto fn_decl = decl->isa<ast::FnDecl>();
+    while (fn_decl) {
+        if (fn_decl->where_clauses) {
+            for (auto& clause : fn_decl->where_clauses->clauses) {
+                if (clause_visitor(clause->type))
+                    return clause->type;
+            }
+        }
+        fn_decl = fn_decl->find_parent<ast::FnDecl>();
+    }
+    // Walk up the modules to collect `impl`s
+    auto mod_decl = decl->find_parent<ast::ModDecl>();
     while (mod_decl) {
         auto& candidates = impl_candidates_[CandidateKey { mod_decl, trait_type }];
         for (auto impl_type : candidates) {
-            if (visitor(impl_type))
+            if (impl_visitor(impl_type))
                 return impl_type;
         }
         mod_decl = mod_decl->find_parent<ast::ModDecl>();

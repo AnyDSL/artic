@@ -1654,9 +1654,9 @@ void ImplDecl::check_conflicts(TypeChecker& checker) {
         return;
 
     // Check that implementations are not in conflict
-    auto mod_decl = find_parent<ast::ModDecl>();
-    auto existing_impl = checker.impl_resolver.forall_candidates(mod_decl,
+    auto existing_impl = checker.impl_resolver.forall_candidates(this,
         match_app<artic::TraitType>(impled_type->type).second,
+        [&] (const artic::Type*) { return false; },
         [&] (const artic::ImplType* other_impl) -> bool {
             if (other_impl == impl_type)
                 return false;
@@ -1666,8 +1666,8 @@ void ImplDecl::check_conflicts(TypeChecker& checker) {
             // 2. The two `impl`s are monomorphic: They are in conflict if they implement the same type.
             // 3. One `impl` is polymorphic and the other is not: They are in conflict if one
             //    can be used instead of another, taking into account `where` clauses.
-            std::unordered_map<const artic::TypeVar*, const artic::Type*> map;
             // Case 1. & 2. can just use unification to determine if there is a conflict
+            ReplaceMap map;
             if (unify(impl_type->impled_type(), other_impl->impled_type(), map)) {
                 auto mono_impl = other_impl->type_params() ? impl_type : other_impl;
                 auto poly_impl = other_impl->type_params() ? other_impl : impl_type;
@@ -1678,7 +1678,7 @@ void ImplDecl::check_conflicts(TypeChecker& checker) {
                     // map obtained from unification.
                     if (poly_impl->where_clauses()) {
                         for (auto& clause : poly_impl->where_clauses()->clauses) {
-                            if (!checker.impl_resolver.find_impl(mod_decl, clause->type->replace(map)))
+                            if (!checker.impl_resolver.find_impl(this, clause->type->replace(map)))
                                 return false;
                         }
                     }
@@ -1689,7 +1689,7 @@ void ImplDecl::check_conflicts(TypeChecker& checker) {
         });
     if (existing_impl) {
         checker.error(loc, "this implementation conflicts with another");
-        checker.note(existing_impl->decl.loc, "the conflicting implementation is here");
+        checker.note(existing_impl->as<artic::ImplType>()->decl.loc, "the conflicting implementation is here");
     }
 }
 
