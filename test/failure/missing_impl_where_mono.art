@@ -1,0 +1,2 @@
+trait F[A] { fn f() = 1; }
+fn test() where F[i32] = F[i32]::f();

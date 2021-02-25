@@ -1,0 +1,2 @@
+trait F[A];
+fn test() = F[i32]::f();

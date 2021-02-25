@@ -1,6 +1,0 @@
-trait T[_] {}
-struct S[A] where T[A] {
-    el: A
-}
-
-fn test[A](a: A) = S[A] { el = a };

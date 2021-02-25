@@ -198,6 +198,14 @@ impl CmpEq[f16] { #[import(cc = "builtin")] fn eq(f16, f16) -> bool; }
 impl CmpEq[f32] { #[import(cc = "builtin")] fn eq(f32, f32) -> bool; }
 impl CmpEq[f64] { #[import(cc = "builtin")] fn eq(f64, f64) -> bool; }
 impl CmpEq[bool] { #[import(cc = "builtin")] fn eq(bool, bool) -> bool; }
+impl[T] CmpEq[&addrspace(0)T] { #[import(cc = "builtin")] fn eq(&addrspace(0)T, &addrspace(0)T) -> bool; }
+impl[T] CmpEq[&addrspace(1)T] { #[import(cc = "builtin")] fn eq(&addrspace(1)T, &addrspace(1)T) -> bool; }
+impl[T] CmpEq[&addrspace(2)T] { #[import(cc = "builtin")] fn eq(&addrspace(2)T, &addrspace(2)T) -> bool; }
+impl[T] CmpEq[&addrspace(3)T] { #[import(cc = "builtin")] fn eq(&addrspace(3)T, &addrspace(3)T) -> bool; }
+impl[T] CmpEq[&mut addrspace(0)T] { #[import(cc = "builtin")] fn eq(&mut addrspace(0)T, &mut addrspace(0)T) -> bool; }
+impl[T] CmpEq[&mut addrspace(1)T] { #[import(cc = "builtin")] fn eq(&mut addrspace(1)T, &mut addrspace(1)T) -> bool; }
+impl[T] CmpEq[&mut addrspace(2)T] { #[import(cc = "builtin")] fn eq(&mut addrspace(2)T, &mut addrspace(2)T) -> bool; }
+impl[T] CmpEq[&mut addrspace(3)T] { #[import(cc = "builtin")] fn eq(&mut addrspace(3)T, &mut addrspace(3)T) -> bool; }
 
 impl CmpNE[i8 ] { #[import(cc = "builtin")] fn ne(i8 , i8 ) -> bool; }
 impl CmpNE[i16] { #[import(cc = "builtin")] fn ne(i16, i16) -> bool; }
@@ -211,6 +219,14 @@ impl CmpNE[f16] { #[import(cc = "builtin")] fn ne(f16, f16) -> bool; }
 impl CmpNE[f32] { #[import(cc = "builtin")] fn ne(f32, f32) -> bool; }
 impl CmpNE[f64] { #[import(cc = "builtin")] fn ne(f64, f64) -> bool; }
 impl CmpNE[bool] { #[import(cc = "builtin")] fn ne(bool, bool) -> bool; }
+impl[T] CmpNE[&addrspace(0)T] { #[import(cc = "builtin")] fn ne(&addrspace(0)T, &addrspace(0)T) -> bool; }
+impl[T] CmpNE[&addrspace(1)T] { #[import(cc = "builtin")] fn ne(&addrspace(1)T, &addrspace(1)T) -> bool; }
+impl[T] CmpNE[&addrspace(2)T] { #[import(cc = "builtin")] fn ne(&addrspace(2)T, &addrspace(2)T) -> bool; }
+impl[T] CmpNE[&addrspace(3)T] { #[import(cc = "builtin")] fn ne(&addrspace(3)T, &addrspace(3)T) -> bool; }
+impl[T] CmpNE[&mut addrspace(0)T] { #[import(cc = "builtin")] fn ne(&mut addrspace(0)T, &mut addrspace(0)T) -> bool; }
+impl[T] CmpNE[&mut addrspace(1)T] { #[import(cc = "builtin")] fn ne(&mut addrspace(1)T, &mut addrspace(1)T) -> bool; }
+impl[T] CmpNE[&mut addrspace(2)T] { #[import(cc = "builtin")] fn ne(&mut addrspace(2)T, &mut addrspace(2)T) -> bool; }
+impl[T] CmpNE[&mut addrspace(3)T] { #[import(cc = "builtin")] fn ne(&mut addrspace(3)T, &mut addrspace(3)T) -> bool; }
 
 impl FromInt[i8 ] { fn from_int(x: u64) -> i8  = x as i8 ; }
 impl FromInt[i16] { fn from_int(x: u64) -> i16 = x as i16; }
@@ -260,7 +276,8 @@ impl[T] Dec[T] where FromInt[T], Sub[T] { fn @dec(x: T) = x - 1; }
 
 trait BitOps[T] where Not[T], And[T], Or[T], Xor[T];
 trait Shift[T] where LShift[T], RShift[T];
-trait Num[T] where Add[T], Sub[T], Mul[T], Div[T], Rem[T], FromInt[T];
+trait Cmp[T] where CmpGT[T], CmpGE[T], CmpLT[T], CmpLE[T], CmpEq[T], CmpNE[T];
+trait Num[T] where Add[T], Sub[T], Mul[T], Div[T], Rem[T], FromInt[T], Cmp[T];
 trait Int[T] where Num[T], Shift[T], BitOps[T];
 trait Float[T] where Num[T], FromFloat[T];
 

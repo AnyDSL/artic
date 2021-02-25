@@ -16,7 +16,7 @@ void Log::print_summary() {
         out << "\n" << log::style("compilation succeeded", log::Style::Cyan, log::Style::Bold) << " with "
             << warns << " " << log::style("warning(s)", log::Style::Yellow, log::Style::Bold) << "\n";
     }
-    if (is_full()) {
+    if (has_omitted_messages()) {
         out << log::style(
             "(some messages were omitted, run without `--max-errors` to get the full log)",
             log::Style::White, log::Style::Bold) << "\n";

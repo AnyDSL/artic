@@ -178,9 +178,8 @@ struct Log {
         : out(out), locator(locator), errors(errors), warns(warns)
     {}
 
-    bool is_full() const {
-        return max_errors > 0 && errors >= max_errors;
-    }
+    bool is_full() const { return max_errors > 0 && errors >= max_errors; }
+    bool has_omitted_messages() const { return max_errors > 0 && errors > max_errors; }
 
     void print_summary();
 

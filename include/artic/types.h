@@ -118,9 +118,11 @@ struct Type : public Cast<Type> {
 
     /// Returns true if this type is a sub-type of another.
     bool subtype(const Type*) const;
-    /// Unifies this type with another. Returns true if they can be unified, in which case the
-    /// map is filled with a substitution mapping this type to the other.
-    bool unify(const Type*, ReplaceMap&) const;
+    /// Tries to unify this type with another. Upon success, returns a substitution mapping the type to the argument.
+    std::optional<ReplaceMap> unify(const Type* type) const {
+        ReplaceMap map;
+        return unify(type, map) ? std::make_optional(map) : std::nullopt;
+    }
 
     /// Returns the least upper bound between this type and another.
     const Type* join(const Type*) const;
@@ -136,6 +138,8 @@ struct Type : public Cast<Type> {
     virtual void bounds(TypeVarMap<TypeBounds>&, const Type*, bool) const;
 
 private:
+    bool unify(const Type*, ReplaceMap&) const;
+
     // Cached data, in order to avoid recomputing these all the time.
     mutable std::array<std::unique_ptr<TypeVarMap<TypeVariance>>, 2> variance_;
     mutable std::unique_ptr<std::unordered_set<const TypeVar*>> vars_;
@@ -567,10 +571,14 @@ struct TraitType : public PolyTypeFromDecl<ComplexType, ast::TraitDecl> {
     const Type* member_type(size_t) const override;
     size_t member_count() const override;
 
+    bool can_imply(const TraitType*) const;
+
 private:
     TraitType(TypeTable& type_table, const ast::TraitDecl& decl)
         : PolyTypeFromDecl(type_table, decl)
     {}
+
+    mutable std::unordered_map<const TraitType*, bool> implied_traits_;
 
     friend class TypeTable;
 };

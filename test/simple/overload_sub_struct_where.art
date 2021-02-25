@@ -1,0 +1,5 @@
+struct S[T] where Sub[T] (T);
+impl[U] Sub[S[U]] where Sub[U] {
+    fn @sub(a: S[U], b: S[U]) = S[U](a.0 - b.0);
+}
+fn test[T](a: S[T], b: S[T]) where Sub[T] = a - b;

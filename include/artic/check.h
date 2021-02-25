@@ -74,12 +74,13 @@ public:
     void check_impl_exists(const Loc&, const ast::Decl*, const Type*);
     void check_impl_exists(const Loc&, const ast::Decl*, const TraitType*, const ArrayRef<const Type*>&);
 
-    const Type* find_impl(const ast::Decl* decl, const Type* trait_type);
+    const Type* find_impl(const ast::Decl*, const Type*);
     const Type* forall_clauses_and_impl_candidates(
-        const ast::Decl*, const TraitType*,
-        std::function<bool (const Type*)> clause_visitor,
-        std::function<bool (const ImplType*)> impl_visitor);
+        const ast::Decl*, const Type*,
+        std::function<bool (const Type*)>,
+        std::function<bool (const ImplType*)>);
 
+    /// The last declaration that has been seen, in the order where nodes are inferred/checked.
     const ast::Decl* last_decl = nullptr;
 
 private:

@@ -10,7 +10,7 @@ bool NameBinder::run(ast::ModDecl& mod) {
 
 void NameBinder::bind_head(ast::Decl& decl) {
     decl.parent = find_parent<ast::Decl>();
-    assert(decl.parent || decl.is_top_level_module());
+    assert(decl.parent || (decl.isa<ast::ModDecl>() && decl.as<ast::ModDecl>()->is_top_level()));
     decl.bind_head(*this);
 }
 
@@ -28,9 +28,10 @@ void NameBinder::pop_scope() {
     for (auto& pair : scopes_.back().symbols) {
         auto decl = pair.second.decl;
         if (pair.second.use_count == 0 &&
-            !scopes_.back().parent.is_top_level_module() &&
             !decl->isa<ast::FieldDecl>() &&
             !decl->isa<ast::OptionDecl>() &&
+            !decl->isa<ast::ModDecl>() &&
+            !decl->parent->isa<ast::ModDecl>() &&
             !decl->parent->isa<ast::TraitDecl>() &&
             !decl->parent->isa<ast::ImplDecl>())
         {

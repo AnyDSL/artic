@@ -1,3 +1,0 @@
-trait T {}
-
-fn test(a: (T,T)) = 1;

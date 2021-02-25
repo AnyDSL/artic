@@ -21,7 +21,7 @@ list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake/modules)
 if (CODE_COVERAGE AND CMAKE_BUILD_TYPE STREQUAL "Debug")
     include(CodeCoverage)
     append_coverage_compiler_flags()
-endif()
+endif ()
 
 set(COLOR_TTY_AVAILABLE TRUE)
 if (WIN32)

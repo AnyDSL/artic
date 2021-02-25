@@ -583,6 +583,14 @@ bool Type::unify(const Type* to, ReplaceMap& map) const {
         }
         return true;
     }
+    auto from_ptr = isa<PtrType>();
+    auto to_ptr = to->isa<PtrType>();
+    if (from_ptr && to_ptr) {
+        return
+            from_ptr->addr_space == to_ptr->addr_space &&
+            from_ptr->is_mut == to_ptr->is_mut &&
+            from_ptr->pointee->unify(to_ptr->pointee, map);
+    }
     auto from_app = isa<TypeApp>();
     auto to_app = to->isa<TypeApp>();
     if (from_app && to_app) {
@@ -651,6 +659,24 @@ bool EnumType::is_trivial() const {
         [] (auto& o) { return is_unit_type(o->type); });
 }
 
+bool TraitType::can_imply(const TraitType* other) const {
+    if (other == this)
+        return true;
+    if (!where_clauses())
+        return false;
+    if (auto it = implied_traits_.find(other); it != implied_traits_.end())
+        return it->second;
+    return implied_traits_[other] = std::any_of(
+        where_clauses()->clauses.begin(),
+        where_clauses()->clauses.end(),
+        [other] (auto& clause) {
+            assert(clause->type);
+            if (auto trait_type = match_app<TraitType>(clause->type).second)
+                return trait_type->can_imply(other);
+            return false;
+        });
+}
+
 // Helpers -------------------------------------------------------------------------
 
 bool is_int_type(const Type* type) {
@@ -700,11 +726,6 @@ bool is_simd_type(const Type* type) {
 
 bool is_unit_type(const Type* type) {
     return type->isa<TupleType>() && type->as<TupleType>()->args.empty();
-}
-
-ImplType* impl_exists(const ast::ModDecl*, const Type*) {
-    // TODO
-    return nullptr;
 }
 
 // Type table ----------------------------------------------------------------------

@@ -1,0 +1,9 @@
+trait T[_] { fn foo() = 1; }
+
+mod A {
+    impl super::T[bool];
+}
+
+mod B {
+    fn f() = super::T[bool]::foo();
+}

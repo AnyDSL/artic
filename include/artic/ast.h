@@ -76,9 +76,6 @@ struct Node : public Cast<Node> {
     /// Prints the node with the given formatting parameters.
     virtual void print(Printer&) const = 0;
 
-    /// Returns true if this node is the implicitly-defined top-level module.
-    bool is_top_level_module() const;
-
     /// Prints the node on the console, for debugging.
     void dump() const;
 };

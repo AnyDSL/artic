@@ -1,8 +1,8 @@
-trait T[_]{ fn foo() = 1;}
+trait T[_];
 
-mod M1 {
+mod A {
     impl super::T[bool]{}
-    mod M2 {
+    mod B {
         impl super::super::T[bool]{}
     }
 }

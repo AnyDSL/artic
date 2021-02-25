@@ -1,2 +1,2 @@
-#[export] fn test1(p: &addrspace(3)i32, q: &(&addrspace(3)i32)) = q == &p
-#[export] fn test2(p: &addrspace(3)i32) = &(*p) == p
+#[export] fn test1(p: &addrspace(3)i32, q: &(&addrspace(3)i32)) = q == &p;
+#[export] fn test2(p: &addrspace(3)i32) = &(*p) == p;

@@ -1,5 +1,0 @@
-trait T[A]{}
-
-fn one[A](a: A) where T[A] = a;
-fn two[A](a: A) where T[A] = one(a);
-fn three[A](a: A) where T[A] = two(a);

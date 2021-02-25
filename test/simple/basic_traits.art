@@ -1,0 +1,7 @@
+trait Id[A] { fn id(_: A) -> A; }
+impl[A] Id[A] { fn id(a: A) = a; }
+
+trait Foo { fn foo() -> i32; }
+impl Foo { fn foo() = 1; }
+
+fn example(x: i32) -> i32 = Id[i32]::id(x) + Foo::foo();

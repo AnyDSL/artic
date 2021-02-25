@@ -6,10 +6,6 @@
 
 namespace artic::ast {
 
-bool Node::is_top_level_module() const {
-    return isa<ast::ModDecl>() && as<ast::ModDecl>()->is_top_level();
-}
-
 bool Type::is_tuple() const { return isa<TupleType>(); }
 bool Expr::is_tuple() const { return isa<TupleExpr>(); }
 bool Ptrn::is_tuple() const { return isa<TuplePtrn>(); }
@@ -590,6 +586,7 @@ bool UnaryExpr::has_side_effect() const {
 
 bool UnaryExpr::is_constant() const {
     switch (tag) {
+        case Not:
         case Plus:
         case Minus:
             return arg->is_constant() && can_avoid_impl_call(type);
