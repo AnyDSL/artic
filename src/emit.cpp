@@ -1344,7 +1344,10 @@ const thorin::Def* UnaryExpr::emit(Emitter& emitter) const {
         op = emitter.emit(*arg);
     }
     const thorin::Def* res = nullptr;
-    if (tag == Deref || tag == Known || tag == Forget || can_avoid_impl_call(type)) {
+    // TODO: Thorin currently does not support constant expressions that have calls in them,
+    // so we have a quick and dirty test to see if it is one of the supported types for which
+    // we can generate the code directly without calls.
+    if (tag == Deref || tag == Known || tag == Forget || can_avoid_impl_call(type->replace(emitter.type_vars))) {
         switch (tag) {
             case Plus:
                 [[fallthrough]];
@@ -1439,8 +1442,8 @@ const thorin::Def* BinaryExpr::emit(Emitter& emitter) const {
         arg_type = arg_type->as<artic::SizedArrayType>()->elem;
     if (tag == Eq)
         res = rhs;
-    // See TODO above
-    else if (can_avoid_impl_call(right->type)) {
+    // See TODO in `BinaryExpr::emit()`
+    else if (can_avoid_impl_call(right->type->replace(emitter.type_vars))) {
         switch (remove_eq(tag)) {
             case Add:   res = emitter.world.arithop_add(lhs, rhs, emitter.debug_info(*this)); break;
             case Sub:   res = emitter.world.arithop_sub(lhs, rhs, emitter.debug_info(*this)); break;

@@ -1,5 +1,4 @@
-trait Pow[T, U] where FromInt[T], Mul[T], CmpEq[U], FromInt[U], Rem[U], Div[U], Sub[U];
-fn @(?n) pow[T, U](x: T, n: U) -> T where Pow[T, U] {
+fn @(?n) pow[T, U](x: T, n: U) -> T where FromInt[T], Mul[T], CmpEq[U], FromInt[U], Rem[U], Div[U], Sub[U] {
     if n == 0 {
         1
     } else if n % 2 == 0 {
@@ -9,3 +8,5 @@ fn @(?n) pow[T, U](x: T, n: U) -> T where Pow[T, U] {
         x * pow(x, n - 1)
     }
 }
+#[export]
+fn pow5(x: i32) = pow(x, 5);
