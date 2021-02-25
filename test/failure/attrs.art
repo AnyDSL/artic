@@ -10,3 +10,5 @@ fn foobar() {}
 fn foobarbaz() {}
 #[export]
 fn bazfoo() -> ();
+#[allow_undecidable_impl]
+fn barfoo() -> ();

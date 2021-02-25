@@ -74,9 +74,8 @@ public:
     void check_impl_exists(const Loc&, const Type*);
     void check_impl_exists(const Loc&, const TraitType*, const ArrayRef<const Type*>&);
 
-    void register_impl(const ImplType*);
     const Type* find_impl(const ast::Decl* decl, const Type* trait_type);
-    const Type* forall_candidates(
+    const Type* forall_clauses_and_impl_candidates(
         const ast::Decl*, const TraitType*,
         std::function<bool (const Type*)> clause_visitor,
         std::function<bool (const ImplType*)> impl_visitor);

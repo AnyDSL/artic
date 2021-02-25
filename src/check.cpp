@@ -540,7 +540,7 @@ void TypeChecker::check_impl_exists(const Loc& loc, const TraitType* trait_type,
 
 const Type* TypeChecker::find_impl(const ast::Decl* decl, const Type* target_type) {
     auto [type_app, trait_type] = match_app<TraitType>(target_type);
-    return forall_candidates(decl, trait_type,
+    return forall_clauses_and_impl_candidates(decl, trait_type,
         [&] (const Type* type) { return type == target_type; },
         [&] (const ImplType* impl_type) {
             // Check that the `impl` matches the target type
@@ -568,7 +568,7 @@ static inline const ast::WhereClauseList* extract_where_clauses(const ast::Decl&
         return nullptr;
 }
 
-const Type* TypeChecker::forall_candidates(
+const Type* TypeChecker::forall_clauses_and_impl_candidates(
     const ast::Decl* decl,
     const TraitType* trait_type,
     std::function<bool (const Type*)> clause_visitor,
@@ -601,9 +601,10 @@ const Type* TypeChecker::forall_candidates(
 }
 
 auto TypeChecker::impl_candidates(const ast::ModDecl* mod_decl, const TraitType* trait_type) -> const ImplCandidates& {
+    // This function gets the set of implementations that implement the given trait type in a module.
+    // The returned implementations are only candidates, and not exact matches.
     if (auto it = impl_candidates_.find(mod_decl); it != impl_candidates_.end())
         return it->second[trait_type];
-    // We need to build the implementation candidates that have to be tested in that module
     auto& mod_candidates = impl_candidates_[mod_decl];
     for (auto& decl : mod_decl->decls) {
         if (auto impl_decl = decl->isa<ast::ImplDecl>()) {
@@ -1765,7 +1766,7 @@ void ImplDecl::check_conflicts(TypeChecker& checker) {
         return;
 
     // Check that implementations are not in conflict
-    auto existing_impl = checker.forall_candidates(this,
+    auto existing_impl = checker.forall_clauses_and_impl_candidates(this,
         match_app<artic::TraitType>(impled_type->type).second,
         [&] (const artic::Type*) { return false; },
         [&] (const artic::ImplType* other_impl) -> bool {
