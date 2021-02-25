@@ -76,7 +76,7 @@ public:
 
     const Type* find_impl(const ast::Decl*, const Type*);
     const Type* forall_clauses_and_impl_candidates(
-        const ast::Decl*, const Type*,
+        const ast::Decl*, const TraitType*,
         std::function<bool (const Type*)>,
         std::function<bool (const ImplType*)>);
 

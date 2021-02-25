@@ -555,7 +555,7 @@ static bool is_trait_implying_another(const Type* type, const Type* target_type)
 }
 
 const Type* TypeChecker::find_impl(const ast::Decl* decl, const Type* target_type) {
-    return forall_clauses_and_impl_candidates(decl, target_type,
+    return forall_clauses_and_impl_candidates(decl, match_app<TraitType>(target_type).second,
         [&] (const Type* type) { return is_trait_implying_another(type, target_type); },
         [&] (const ImplType* impl_type) {
             // Check that the `impl` matches the target type
@@ -584,21 +584,10 @@ static inline const ast::WhereClauseList* extract_where_clauses(const ast::Decl&
 }
 
 const Type* TypeChecker::forall_clauses_and_impl_candidates(
-    const ast::Decl* decl, const Type* target_type,
+    const ast::Decl* decl, const TraitType* trait_type,
     std::function<bool (const Type*)> clause_visitor,
     std::function<bool (const ImplType*)> impl_visitor)
 {
-    auto [type_app, trait_type] = match_app<TraitType>(target_type);
-
-    // Try the where clauses of this trait first
-    if (trait_type->where_clauses()) {
-        for (auto& clause : trait_type->where_clauses()->clauses) {
-            auto clause_type = type_app ? clause->type->replace(type_app->replace_map()) : clause->type;
-            if (clause_visitor(clause_type))
-                return clause_type;
-        }
-    }
-
     // Walk up functions/impls/... to collect `where` clauses
     auto poly_decl = decl;
     while (poly_decl) {
@@ -610,6 +599,7 @@ const Type* TypeChecker::forall_clauses_and_impl_candidates(
         }
         poly_decl = poly_decl->find_parent<ast::Decl>();
     }
+
     // Walk up the modules to collect `impl`s
     auto mod_decl = decl->isa<ast::ModDecl>();
     if (!mod_decl)
@@ -1797,7 +1787,7 @@ void ImplDecl::check_conflicts(TypeChecker& checker) {
 
     // Check that implementations are not in conflict
     auto existing_impl = checker.forall_clauses_and_impl_candidates(
-        this, impled_type->type,
+        this, match_app<TraitType>(impled_type->type).second,
         [&] (const artic::Type*) { return false; },
         [&] (const artic::ImplType* other_impl) -> bool {
             if (other_impl == impl_type)

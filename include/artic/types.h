@@ -571,6 +571,8 @@ struct TraitType : public PolyTypeFromDecl<ComplexType, ast::TraitDecl> {
     const Type* member_type(size_t) const override;
     size_t member_count() const override;
 
+    /// Returns true if the trait type *can* imply another because of its `where` clauses.
+    /// This is used as an early and cheap test to avoid recursing during type-checking.
     bool can_imply(const TraitType*) const;
 
 private:
