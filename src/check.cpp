@@ -1579,11 +1579,16 @@ const artic::Type* FnDecl::infer(TypeChecker& checker) {
         this->type = forall;
     }
 
-    const artic::Type* fn_type = nullptr;
+    auto fn_type = fn->ret_type
+        ? checker.type_table.fn_type(checker.infer(*fn->param), checker.infer(*fn->ret_type))
+        : checker.infer(*fn);
+
+    if (!type_params)
+        this->type = fn_type;
+    else
+        forall->as<ForallType>()->body = fn_type;
+
     if (fn->ret_type) {
-        fn_type = checker.type_table.fn_type(checker.infer(*fn->param), checker.infer(*fn->ret_type));
-        if (!type_params)
-            this->type = fn_type;
         this->fn->type = fn_type;
         if (fn->filter)
             checker.check(*fn->filter, checker.type_table.bool_type());
@@ -1592,13 +1597,7 @@ const artic::Type* FnDecl::infer(TypeChecker& checker) {
             checker.check(*fn->body, fn_type->as<artic::FnType>()->codom);
         if (fn->attrs)
             fn->attrs->check(checker, fn.get());
-    } else
-        fn_type = checker.infer(*fn);
-
-    if (forall)
-        forall->as<ForallType>()->body = fn_type;
-    if (!type_params)
-        this->type = fn_type;
+    }
 
     return this->type;
 }
