@@ -24,7 +24,7 @@ public:
     Ptr<ast::ModDecl> parse();
 
 private:
-    Ptr<ast::Decl>            parse_decl(bool = false);
+    Ptr<ast::Decl>            parse_decl(bool = true);
     Ptr<ast::LetDecl>         parse_let_decl();
     Ptr<ast::FnDecl>          parse_fn_decl();
     Ptr<ast::FieldDecl>       parse_field_decl(bool);
@@ -102,7 +102,7 @@ private:
     Ptr<ast::Attr>            parse_attr();
 
     Ptr<ast::TypeParamList>   parse_type_param_list();
-    Ptr<ast::WhereClauseList> parse_where_clause_list();
+    Ptr<ast::WhereClauseList> parse_where_clause_list(const ast::TypeParamList*);
 
     ast::Path                 parse_path(ast::Identifier&&, bool);
     ast::Path                 parse_path(bool allow_types = true) { return parse_path(parse_path_elem(), allow_types); }

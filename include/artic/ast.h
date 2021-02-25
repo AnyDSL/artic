@@ -76,6 +76,9 @@ struct Node : public Cast<Node> {
     /// Prints the node with the given formatting parameters.
     virtual void print(Printer&) const = 0;
 
+    /// Returns true if this node is the implicitly-defined top-level module.
+    bool is_top_level_module() const;
+
     /// Prints the node on the console, for debugging.
     void dump() const;
 };
@@ -88,8 +91,6 @@ log::Output& operator << (log::Output&, const Node&);
 struct Decl : public Node {
     Decl(const Loc& loc) : Node(loc) {}
 
-    /// Set to true if this declaration is at the top level of a module.
-    bool is_top_level = false;
     /// Declaration enclosing this one. Set during name-binding.
     Decl* parent = nullptr;
 
@@ -197,16 +198,16 @@ struct Path : public Node {
     ast::NamedDecl* start_decl;
 
     // Set during type-checking
-    bool is_value = false;
-    bool is_ctor = false;
+    bool is_value : 1;
+    bool is_ctor  : 1;
 
     Path(const Loc& loc, std::vector<Elem>&& elems)
-        : Node(loc), elems(std::move(elems))
+        : Node(loc), elems(std::move(elems)), is_value(false), is_ctor(false)
     {}
 
-    const artic::Type* infer(TypeChecker&, bool, Ptr<Expr>* = nullptr);
+    const artic::Type* infer(TypeChecker&, bool, bool, Ptr<Expr>*);
     const artic::Type* infer(TypeChecker& checker) override {
-        return infer(checker, false, nullptr);
+        return infer(checker, false, true, {});
     }
 
     const thorin::Def* emit(Emitter&) const override;
@@ -1227,12 +1228,17 @@ struct TypeParamList : public Node {
 /// Where clause list, of the form `where T, U, ...`.
 struct WhereClauseList : public Node {
     PtrVector<TraitApp> clauses;
+    const ast::TypeParamList* type_params;
 
-    WhereClauseList(const Loc& loc, PtrVector<TraitApp>&& clauses)
-        : Node(loc), clauses(std::move(clauses))
+    WhereClauseList(
+        const Loc& loc,
+        PtrVector<TraitApp>&& clauses,
+        const ast::TypeParamList* type_params)
+        : Node(loc), clauses(std::move(clauses)), type_params(type_params)
     {}
 
     const artic::Type* infer(TypeChecker&) override;
+
     void bind(NameBinder&) override;
     void print(Printer&) const override;
 };

@@ -6,6 +6,10 @@
 
 namespace artic::ast {
 
+bool Node::is_top_level_module() const {
+    return isa<ast::ModDecl>() && as<ast::ModDecl>()->is_top_level();
+}
+
 bool Type::is_tuple() const { return isa<TupleType>(); }
 bool Expr::is_tuple() const { return isa<TupleExpr>(); }
 bool Ptrn::is_tuple() const { return isa<TuplePtrn>(); }

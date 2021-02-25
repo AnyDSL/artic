@@ -2,6 +2,5 @@ trait F[A] where G[A] { fn f() = 1; }
 trait G[A] {}
 impl G[i32] {}
 
-
 #[export]
 fn test() = F[i32]::f();

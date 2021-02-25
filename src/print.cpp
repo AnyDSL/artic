@@ -554,10 +554,10 @@ void StructDecl::print(Printer& p) const {
 
 void OptionDecl::print(Printer& p) const {
     p << id.name;
-    if (param)
-        print_parens(p, param);
-    else
+    if (has_fields)
         print_fields(p, fields, false);
+    else if (param)
+        print_parens(p, param);
 }
 
 void EnumDecl::print(Printer& p) const {

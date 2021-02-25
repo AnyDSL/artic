@@ -71,14 +71,16 @@ public:
     const Type* infer_record_type(const TypeApp*, const StructType*, size_t&);
 
     // Trait-related functions
-    void check_impl_exists(const Loc&, const Type*);
-    void check_impl_exists(const Loc&, const TraitType*, const ArrayRef<const Type*>&);
+    void check_impl_exists(const Loc&, const ast::Decl*, const Type*);
+    void check_impl_exists(const Loc&, const ast::Decl*, const TraitType*, const ArrayRef<const Type*>&);
 
     const Type* find_impl(const ast::Decl* decl, const Type* trait_type);
     const Type* forall_clauses_and_impl_candidates(
         const ast::Decl*, const TraitType*,
         std::function<bool (const Type*)> clause_visitor,
         std::function<bool (const ImplType*)> impl_visitor);
+
+    const ast::Decl* last_decl = nullptr;
 
 private:
     template <typename Action>
@@ -90,8 +92,7 @@ private:
         const ast::ModDecl*,
         std::unordered_map<const TraitType*, ImplCandidates>> impl_candidates_;
 
-    std::unordered_set<const ast::Decl*> decls_;
-    const ast::Decl* last_fn_or_mod_ = nullptr;
+    std::unordered_set<const ast::Decl*> visited_decls_;
 };
 
 } // namespace artic

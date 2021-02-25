@@ -9,6 +9,8 @@ bool NameBinder::run(ast::ModDecl& mod) {
 }
 
 void NameBinder::bind_head(ast::Decl& decl) {
+    decl.parent = find_parent<ast::Decl>();
+    assert(decl.parent || decl.is_top_level_module());
     decl.bind_head(*this);
 }
 
@@ -22,20 +24,15 @@ void NameBinder::push_scope(ast::Node& parent) {
     scopes_.push_back(parent);
 }
 
-static inline bool is_top_level(const SymbolTable& scope) {
-    return
-        scope.parent.isa<ast::ModDecl>() &&
-        scope.parent.as<ast::ModDecl>()->is_top_level();
-}
-
 void NameBinder::pop_scope() {
     for (auto& pair : scopes_.back().symbols) {
         auto decl = pair.second.decl;
         if (pair.second.use_count == 0 &&
-            !is_top_level(scopes_.back()) &&
+            !scopes_.back().parent.is_top_level_module() &&
             !decl->isa<ast::FieldDecl>() &&
             !decl->isa<ast::OptionDecl>() &&
-            !(decl->parent->isa<ast::TraitDecl>() || decl->parent->isa<ast::ImplDecl>()))
+            !decl->parent->isa<ast::TraitDecl>() &&
+            !decl->parent->isa<ast::ImplDecl>())
         {
             warn(decl->loc, "unused identifier '{}'", pair.first);
             note("prefix unused identifiers with '_'");
@@ -48,8 +45,6 @@ void NameBinder::insert_symbol(ast::NamedDecl& decl, const std::string& name) {
     assert(!scopes_.empty());
     assert(!name.empty());
 
-    decl.parent = find_parent<ast::Decl>();
-
     // Do not bind anonymous variables
     if (name[0] == '_') return;
 
@@ -59,7 +54,7 @@ void NameBinder::insert_symbol(ast::NamedDecl& decl, const std::string& name) {
         note(shadow_symbol->decl->loc, "previously declared here");
     } else if (
         warn_on_shadowing && shadow_symbol &&
-        decl.isa<ast::PtrnDecl>() && !shadow_symbol->decl->is_top_level) {
+        decl.isa<ast::PtrnDecl>() && !shadow_symbol->decl->parent->isa<ast::ModDecl>()) {
         warn(decl.loc, "declaration shadows identifier '{}'", name);
         note(shadow_symbol->decl->loc, "previously declared here");
     }
@@ -330,6 +325,7 @@ void TypedPtrn::bind(NameBinder& binder) {
 }
 
 void IdPtrn::bind(NameBinder& binder) {
+    binder.bind_head(*decl);
     binder.bind(*decl);
     if (sub_ptrn)
         binder.bind(*sub_ptrn);
@@ -368,6 +364,7 @@ void TypeParam::bind(NameBinder& binder) {
 }
 
 void TypeParamList::bind(NameBinder& binder) {
+    for (auto& param : params) binder.bind_head(*param);
     for (auto& param : params) binder.bind(*param);
 }
 
@@ -425,17 +422,21 @@ void StructDecl::bind(NameBinder& binder) {
     binder.push_scope(*this);
     if (type_params)   binder.bind(*type_params);
     if (where_clauses) binder.bind(*where_clauses);
-    for (auto& field : fields) binder.bind(*field);
+    for (auto& field : fields) {
+        binder.bind_head(*field);
+        binder.bind(*field);
+    }
     binder.pop_scope();
 }
 
 void OptionDecl::bind(NameBinder& binder) {
-    if (param)
-        binder.bind(*param);
-    else {
-        for (auto& field : fields)
+    if (has_fields) {
+        for (auto& field : fields) {
+            binder.bind_head(*field);
             binder.bind(*field);
-    }
+        }
+    } else if (param)
+        binder.bind(*param);
     binder.insert_symbol(*this);
 }
 
@@ -447,8 +448,10 @@ void EnumDecl::bind(NameBinder& binder) {
     binder.push_scope(*this);
     if (type_params)   binder.bind(*type_params);
     if (where_clauses) binder.bind(*where_clauses);
-    for (auto& option : options)
+    for (auto& option : options) {
+        binder.bind_head(*option);
         binder.bind(*option);
+    }
     binder.pop_scope();
 }
 
@@ -460,20 +463,18 @@ void TraitDecl::bind(NameBinder& binder) {
     binder.push_scope(*this);
     if (type_params)   binder.bind(*type_params);
     if (where_clauses) binder.bind(*where_clauses);
-    for (auto& decl : decls) decl->bind_head(binder);
-    for (auto& decl : decls) decl->bind(binder);
+    for (auto& decl : decls) binder.bind_head(*decl);
+    for (auto& decl : decls) binder.bind(*decl);
     binder.pop_scope();
 }
 
 void ImplDecl::bind(NameBinder& binder) {
-    parent = binder.find_parent<Decl>();
-    assert(parent);
     binder.push_scope(*this);
     if (type_params)   binder.bind(*type_params);
     if (where_clauses) binder.bind(*where_clauses);
     impled_type->bind(binder);
-    for (auto& decl : decls) decl->bind_head(binder);
-    for (auto& decl : decls) decl->bind(binder);
+    for (auto& decl : decls) binder.bind_head(*decl);
+    for (auto& decl : decls) binder.bind(*decl);
     binder.pop_scope();
 }
 

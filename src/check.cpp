@@ -182,24 +182,17 @@ const Type* TypeChecker::check_or_infer(ast::Node& node, Action&& action) {
     // declarations such as functions/structures/enumerations.
     auto decl = node.isa<ast::Decl>();
     if (decl) {
-        if (!decls_.emplace(decl).second) {
+        if (!visited_decls_.emplace(decl).second) {
             error(decl->loc, "cannot infer type for recursive declaration");
             return type_table.type_error();
         }
-        if (decl->isa<ast::ModDecl>() || decl->isa<ast::FnDecl>())
-            last_fn_or_mod_ = decl;
+        last_decl = decl;
     }
     node.type = action();
     if (decl) {
-        if (decl == last_fn_or_mod_) {
-            if (auto fn_decl = last_fn_or_mod_->find_parent<ast::FnDecl>())
-                last_fn_or_mod_ = fn_decl;
-            else if (auto mod_decl = last_fn_or_mod_->find_parent<ast::ModDecl>())
-                last_fn_or_mod_ = mod_decl;
-            else
-                assert(false);
-        }
-        decls_.erase(decl);
+        last_decl = decl->find_parent<ast::Decl>();
+        assert(last_decl || decl->is_top_level_module());
+        visited_decls_.erase(decl);
     }
     if (node.attrs)
         node.attrs->check(*this, &node);
@@ -259,7 +252,7 @@ const Type* TypeChecker::check(const Loc& loc, const Literal& lit, const Type* e
         return infer(loc, lit);
     if (lit.is_integer() || lit.is_double()) {
         auto trait_name = lit.is_integer() ? "FromInt" : "FromFloat";
-        check_impl_exists(loc, type_table.builtin_traits[trait_name], std::array { expected });
+        check_impl_exists(loc, last_decl, type_table.builtin_traits[trait_name], std::array { expected });
         return expected;
     } else if (lit.is_bool()) {
         if (!is_bool_type(expected))
@@ -280,12 +273,15 @@ const Type* TypeChecker::check(const Loc& loc, const Literal& lit, const Type* e
     }
 }
 
-static inline const artic::Type* member_type(
-    const artic::TypeApp* type_app,
-    const artic::ComplexType* complex_type,
-    size_t index)
-{
+static inline const artic::Type* member_type(const TypeApp* type_app, const ComplexType* complex_type, size_t index) {
     return type_app ? type_app->member_type(index) : complex_type->member_type(index);
+}
+
+static inline bool depends_on_any_type_param(const Type* type, const ast::TypeParamList* type_params) {
+    assert(type_params);
+    return std::any_of(
+        type_params->params.begin(), type_params->params.end(),
+        [&] (auto& param) { return type->vars().count(param->type->template as<TypeVar>()) > 0; });
 }
 
 void TypeChecker::check_block(const Loc& loc, const PtrVector<ast::Stmt>& stmts, bool last_semi) {
@@ -529,13 +525,13 @@ const Type* TypeChecker::infer_record_type(const TypeApp* type_app, const Struct
     return type_app ? type_app->as<Type>() : struct_type;
 }
 
-void TypeChecker::check_impl_exists(const Loc& loc, const Type* type) {
-    if (!find_impl(last_fn_or_mod_, type))
+void TypeChecker::check_impl_exists(const Loc& loc, const ast::Decl* context, const Type* type) {
+    if (!find_impl(context, type))
         error(loc, "cannot find an implementation for trait '{}'", *type);
 }
 
-void TypeChecker::check_impl_exists(const Loc& loc, const TraitType* trait_type, const ArrayRef<const Type*>& args) {
-    check_impl_exists(loc, type_table.type_app(trait_type, args)->as<TypeApp>());
+void TypeChecker::check_impl_exists(const Loc& loc, const ast::Decl* context, const TraitType* trait_type, const ArrayRef<const Type*>& args) {
+    check_impl_exists(loc, context, type_table.type_app(trait_type, args));
 }
 
 const Type* TypeChecker::find_impl(const ast::Decl* decl, const Type* target_type) {
@@ -608,8 +604,7 @@ auto TypeChecker::impl_candidates(const ast::ModDecl* mod_decl, const TraitType*
     auto& mod_candidates = impl_candidates_[mod_decl];
     for (auto& decl : mod_decl->decls) {
         if (auto impl_decl = decl->isa<ast::ImplDecl>()) {
-            auto impl_type = infer(*impl_decl)->isa<ImplType>();
-            if (impl_type) {
+            if (auto impl_type = infer(*impl_decl)->isa<ImplType>()) {
                 if (auto other_trait = match_app<TraitType>(impl_type->impled_type()).second)
                     mod_candidates[other_trait].push_back(impl_type);
             }
@@ -644,7 +639,7 @@ const artic::Type* Ptrn::check(TypeChecker& checker, const artic::Type* expected
 
 // Path ----------------------------------------------------------------------------
 
-const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, Ptr<Expr>* arg) {
+const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, bool impl_required, Ptr<Expr>* arg) {
     if (!start_decl)
         return checker.type_table.type_error();
 
@@ -675,24 +670,22 @@ const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, Ptr<Ex
                 }
                 elem.inferred_args = type_args;
 
-                // Check that *polymorphic* `where` clauses that depend on the instantiated variables are met
-                if (!poly_type->isa<artic::TraitType>() && poly_type->where_clauses() && poly_type->type_params()) {
+                if (auto trait_type = poly_type->isa<artic::TraitType>()) {
+                    // Implementation checking is only enabled for trait types when
+                    // we are using them, not when we are implementing or defining them.
+                    if (impl_required)
+                        checker.check_impl_exists(elem.loc, checker.last_decl, trait_type, type_args);
+                } else if (poly_type->where_clauses() && poly_type->type_params()) {
+                    // Check that *polymorphic* `where` clauses that depend on the instantiated variables are met
                     for (auto& clause : poly_type->where_clauses()->clauses) {
-                        if (std::any_of(
-                            poly_type->type_params()->params.begin(),
-                            poly_type->type_params()->params.end(),
-                            [&] (auto& param) {
-                                return clause->type->vars().count(param->type->template as<artic::TypeVar>()) > 0;
-                            }))
-                        {
-                            checker.check_impl_exists(loc, clause->type);
-                        }
+                        if (depends_on_any_type_param(clause->type, poly_type->type_params()))
+                            checker.check_impl_exists(elem.loc, checker.last_decl, clause->type);
                     }
                 }
 
                 type = forall_type
                     ? forall_type->instantiate(type_args)
-                    : checker.type_table.type_app(type->as<UserType>(), std::move(type_args));
+                    : checker.type_table.type_app(type->as<UserType>(), type_args);
             } else {
                 checker.error(elem.loc, "expected {} type argument(s), but got {}", type_param_count, elem.args.size());
                 return checker.type_table.type_error();
@@ -884,14 +877,14 @@ const artic::Type* PtrType::infer(TypeChecker& checker) {
 }
 
 const artic::Type* TypeApp::infer(TypeChecker& checker) {
-    path.type = path.infer(checker, false);
+    path.type = path.infer(checker, false, true, {});
     if (match_app<artic::TraitType>(path.type).second)
         checker.error(loc, "traits are not allowed here");
     return path.type;
 }
 
 const artic::Type* TraitApp::infer(TypeChecker& checker) {
-    path.type = path.infer(checker, false);
+    path.type = path.infer(checker, false, false, {});
     if (!match_app<artic::TraitType>(path.type).second)
         return checker.type_expected(loc, path.type, "trait");
     return path.type;
@@ -929,7 +922,7 @@ const artic::Type* TypedExpr::infer(TypeChecker& checker) {
 }
 
 const artic::Type* PathExpr::infer(TypeChecker& checker) {
-    return path.infer(checker, true);
+    return path.infer(checker, true, true, {});
 }
 
 const artic::Type* LiteralExpr::infer(TypeChecker& checker) {
@@ -1079,7 +1072,7 @@ static inline PathExpr* callee_path(Expr* expr) {
 const artic::Type* CallExpr::infer(TypeChecker& checker) {
     // Perform type argument inference when possible
     if (auto path_expr = callee_path(callee.get()))
-        path_expr->type = path_expr->path.infer(checker, true, &arg);
+        path_expr->type = path_expr->path.infer(checker, true, true, &arg);
 
     auto [ref_type, callee_type] = remove_ref(checker.infer(*callee));
     if (auto fn_type = callee_type->isa<artic::FnType>()) {
@@ -1354,7 +1347,7 @@ const artic::Type* UnaryExpr::infer(TypeChecker& checker) {
     // unsupported SIMD operations.
     if (is_simd_type(prim_type))
         prim_type = prim_type->as<artic::SizedArrayType>()->elem;
-    checker.check_impl_exists(loc,
+    checker.check_impl_exists(loc, checker.last_decl,
         checker.type_table.builtin_traits[UnaryExpr::tag_to_trait_name(tag)],
         std::array { prim_type });
     if (tag == PostDec || tag == PreDec || tag == PostInc || tag == PreInc)
@@ -1401,7 +1394,7 @@ const artic::Type* BinaryExpr::infer(TypeChecker& checker) {
         case LogicOr:
             break;
         default:
-            checker.check_impl_exists(loc,
+            checker.check_impl_exists(loc, checker.last_decl,
                 checker.type_table.builtin_traits[BinaryExpr::tag_to_trait_name(tag)],
                 std::array { prim_type });
             break;
@@ -1516,7 +1509,12 @@ const artic::Type* TypeParamList::infer(TypeChecker& checker) {
 }
 
 const artic::Type* WhereClauseList::infer(TypeChecker& checker) {
-    for (auto& clause : clauses) checker.infer(*clause);
+    for (auto& clause : clauses) {
+        auto clause_type = checker.infer(*clause);
+        // Check monomorphic `where` clauses right now
+        if (!type_params || !depends_on_any_type_param(clause_type, type_params))
+            checker.check_impl_exists(clause->loc, checker.last_decl->find_parent<ast::Decl>(), clause_type);
+    }
     return nullptr;
 }
 
@@ -1877,7 +1875,7 @@ const artic::Type* FieldPtrn::check(TypeChecker& checker, const artic::Type* exp
 }
 
 const artic::Type* RecordPtrn::infer(TypeChecker& checker) {
-    path.type = path.infer(checker, false);
+    path.type = path.infer(checker, false, true, {});
     auto [type_app, struct_type] = match_app<artic::StructType>(path.type);
     if (!struct_type ||
         (struct_type->decl.isa<StructDecl>() &&
@@ -1892,7 +1890,7 @@ const artic::Type* RecordPtrn::infer(TypeChecker& checker) {
 }
 
 const artic::Type* CtorPtrn::infer(TypeChecker& checker) {
-    auto path_type = path.infer(checker, true);
+    auto path_type = path.infer(checker, true, true, {});
     if (!path.is_ctor) {
         checker.error(path.loc, "structure or enumeration constructor expected");
         return checker.type_table.type_error();
