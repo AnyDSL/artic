@@ -78,12 +78,12 @@ public:
     size_t size() const { return size_; }
 
     ArrayRef skip_front(size_t front = 1) const {
-        assert(size() > front);
+        assert(size() >= front);
         return ArrayRef(data() + front, size() - front);
     }
 
     ArrayRef skip_back(size_t back = 1) const {
-        assert(size() > back);
+        assert(size() >= back);
         return ArrayRef(data(), size() - back);
     }
 

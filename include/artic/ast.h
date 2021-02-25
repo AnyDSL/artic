@@ -1523,8 +1523,7 @@ struct TypeDecl : public NamedDecl {
 /// Module definition.
 struct ModDecl : public NamedDecl {
     PtrVector<Decl> decls;
-
-    std::vector<const NamedDecl*> members;
+    size_t prelude_size = 0;
 
     /// Constructor for the implicitly defined top-level global module.
     explicit ModDecl()

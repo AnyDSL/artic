@@ -650,7 +650,7 @@ void ModDecl::print(Printer& p) const {
     bool anon = id.name == "";
     if (!anon)
         p << log::keyword_style("mod") << ' ' << id.name << " {" << p.indent() << p.endl();
-    print_list(p, p.endl(), decls, [&] (auto& decl) {
+    print_list(p, p.endl(), ArrayRef { decls }.skip_front(prelude_size), [&] (auto& decl) {
         decl->print(p);
     });
     if (!anon)

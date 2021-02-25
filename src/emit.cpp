@@ -1951,6 +1951,7 @@ bool compile(
 #endif
     [[maybe_unused]] auto is_prelude_ok = lex_and_parse(log, "prelude", prelude, warns_as_errors, program);
     assert(is_prelude_ok);
+    program.prelude_size = program.decls.size();
 
     for (size_t i = 0, n = file_names.size(); i < n; ++i) {
         if (log.locator)
