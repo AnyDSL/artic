@@ -1,6 +1,7 @@
 #include <algorithm>
 
 #include "artic/check.h"
+#include "artic/hash.h"
 
 namespace artic {
 
@@ -287,15 +288,6 @@ static inline const artic::Type* member_type(
     return type_app ? type_app->member_type(index) : complex_type->member_type(index);
 }
 
-void TypeChecker::check_impl_exists(const Loc& loc, const Type* type) {
-    if (!impl_resolver.find_impl(last_fn_or_mod_, type))
-        error(loc, "cannot find an implementation for trait '{}'", *type);
-}
-
-void TypeChecker::check_impl_exists(const Loc& loc, const TraitType* trait_type, const ArrayRef<const Type*>& args) {
-    check_impl_exists(loc, type_table.type_app(trait_type, args)->as<TypeApp>());
-}
-
 void TypeChecker::check_block(const Loc& loc, const PtrVector<ast::Stmt>& stmts, bool last_semi) {
     assert(!stmts.empty());
     // Make sure there is no unreachable code and warn about statements with no effect
@@ -537,6 +529,94 @@ const Type* TypeChecker::infer_record_type(const TypeApp* type_app, const Struct
     return type_app ? type_app->as<Type>() : struct_type;
 }
 
+void TypeChecker::check_impl_exists(const Loc& loc, const Type* type) {
+    if (!find_impl(last_fn_or_mod_, type))
+        error(loc, "cannot find an implementation for trait '{}'", *type);
+}
+
+void TypeChecker::check_impl_exists(const Loc& loc, const TraitType* trait_type, const ArrayRef<const Type*>& args) {
+    check_impl_exists(loc, type_table.type_app(trait_type, args)->as<TypeApp>());
+}
+
+const Type* TypeChecker::find_impl(const ast::Decl* decl, const Type* target_type) {
+    auto [type_app, trait_type] = match_app<TraitType>(target_type);
+    return forall_candidates(decl, trait_type,
+        [&] (const Type* type) { return type == target_type; },
+        [&] (const ImplType* impl_type) {
+            // Check that the `impl` matches the target type
+            ReplaceMap map;
+            if (!impl_type->impled_type()->unify(target_type, map))
+                return false;
+            // Now check that the `where` clauses of the `impl` can be met
+            if (impl_type->where_clauses()) {
+                for (auto& clause : impl_type->where_clauses()->clauses) {
+                    if (!find_impl(decl, clause->type->replace(map)))
+                        return false;
+                }
+            }
+            return true;
+        });
+}
+
+static inline const ast::WhereClauseList* extract_where_clauses(const ast::Decl& decl) {
+    // This is needed since monomorphic `FnDecl`s can still have a list of `where` clauses
+    if (decl.type && decl.type->isa<PolyType>())
+        return decl.type->as<PolyType>()->where_clauses();
+    else if (auto fn_decl = decl.isa<ast::FnDecl>())
+        return fn_decl->where_clauses.get();
+    else
+        return nullptr;
+}
+
+const Type* TypeChecker::forall_candidates(
+    const ast::Decl* decl,
+    const TraitType* trait_type,
+    std::function<bool (const Type*)> clause_visitor,
+    std::function<bool (const ImplType*)> impl_visitor)
+{
+    // Walk up functions/impls/... to collect `where` clauses
+    auto poly_decl = decl;
+    while (poly_decl) {
+        if (auto where_clauses = extract_where_clauses(*poly_decl)) {
+            for (auto& clause : where_clauses->clauses) {
+                if (clause_visitor(clause->type))
+                    return clause->type;
+            }
+        }
+        poly_decl = poly_decl->find_parent<ast::Decl>();
+    }
+    // Walk up the modules to collect `impl`s
+    auto mod_decl = decl->isa<ast::ModDecl>();
+    if (!mod_decl)
+        mod_decl = decl->find_parent<ast::ModDecl>();
+    while (mod_decl) {
+        auto& candidates = impl_candidates(mod_decl, trait_type);
+        for (auto impl_type : candidates) {
+            if (impl_visitor(impl_type))
+                return impl_type;
+        }
+        mod_decl = mod_decl->find_parent<ast::ModDecl>();
+    }
+    return nullptr;
+}
+
+auto TypeChecker::impl_candidates(const ast::ModDecl* mod_decl, const TraitType* trait_type) -> const ImplCandidates& {
+    if (auto it = impl_candidates_.find(mod_decl); it != impl_candidates_.end())
+        return it->second[trait_type];
+    // We need to build the implementation candidates that have to be tested in that module
+    auto& mod_candidates = impl_candidates_[mod_decl];
+    for (auto& decl : mod_decl->decls) {
+        if (auto impl_decl = decl->isa<ast::ImplDecl>()) {
+            auto impl_type = infer(*impl_decl)->isa<ImplType>();
+            if (impl_type) {
+                if (auto other_trait = match_app<TraitType>(impl_type->impled_type()).second)
+                    mod_candidates[other_trait].push_back(impl_type);
+            }
+        }
+    }
+    return mod_candidates[trait_type];
+}
+
 namespace ast {
 
 const artic::Type* Node::check(TypeChecker& checker, const artic::Type* expected) {
@@ -742,7 +822,7 @@ void NamedAttr::check(TypeChecker& checker, const ast::Node* node) {
         }
     } else if (name == "allow_undecidable_impl") {
         if (!node->isa<ImplDecl>())
-            checker.error(loc, "attribute '{}' is only valid for trait implementations");
+            checker.error(loc, "attribute '{}' is only valid for trait implementations", name);
     } else
        checker.invalid_attr(loc, name);
 }
@@ -1675,7 +1755,6 @@ const artic::Type* ImplDecl::infer(TypeChecker& checker) {
             checker.check(decl, expected_type);
     });
 
-    checker.impl_resolver.register_impl(impl_type);
     return impl_type;
 }
 
@@ -1686,7 +1765,7 @@ void ImplDecl::check_conflicts(TypeChecker& checker) {
         return;
 
     // Check that implementations are not in conflict
-    auto existing_impl = checker.impl_resolver.forall_candidates(this,
+    auto existing_impl = checker.forall_candidates(this,
         match_app<artic::TraitType>(impled_type->type).second,
         [&] (const artic::Type*) { return false; },
         [&] (const artic::ImplType* other_impl) -> bool {
@@ -1710,7 +1789,7 @@ void ImplDecl::check_conflicts(TypeChecker& checker) {
                     // map obtained from unification.
                     if (poly_impl->where_clauses()) {
                         for (auto& clause : poly_impl->where_clauses()->clauses) {
-                            if (!checker.impl_resolver.find_impl(this, clause->type->replace(map)))
+                            if (!checker.find_impl(this, clause->type->replace(map)))
                                 return false;
                         }
                     }
@@ -1738,6 +1817,7 @@ const artic::Type* TypeDecl::infer(TypeChecker& checker) {
 }
 
 const artic::Type* ModDecl::infer(TypeChecker& checker) {
+    this->type = checker.type_table.mod_type(*this);
     for (auto& decl : decls)
         checker.infer(*decl);
     for (auto& decl : decls) {
@@ -1747,7 +1827,7 @@ const artic::Type* ModDecl::infer(TypeChecker& checker) {
         } else if (auto impl_decl = decl->isa<ImplDecl>())
             impl_decl->check_conflicts(checker);
     }
-    return checker.type_table.mod_type(*this);
+    return this->type;
 }
 
 const artic::Type* UseDecl::infer(TypeChecker& checker) {

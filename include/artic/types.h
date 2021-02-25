@@ -806,34 +806,6 @@ private:
     const TypeError*  type_error_  = nullptr;
 };
 
-/// Helper class that helps connecting a particular traits to an implementation. It holds a map
-/// from trait type to a set of implementation candidates for that trait, on a per-module basis.
-class ImplResolver {
-public:
-    /// Registers the given implementation into the candidate set.
-    void register_impl(const ImplType*);
-
-    /// Finds an implementation for a trait in by inspecting the given declaration and its parents.
-    /// If none can be found, returns null. This may return a type coming from a where clause.
-    const Type* find_impl(const ast::Decl* decl, const Type* trait_type);
-
-    /// Iterates through all `impl` candidates for a given trait, by inspecting the
-    /// given declaration and its parents. It starts by visiting available `where` clauses,
-    /// and returns the first for which the clause visitor function returns true. If that fails,
-    /// it walks up the module tree, looking for the first `impl` for which the `impl` visitor
-    /// function returns `true`.
-    const Type* forall_candidates(
-        const ast::Decl*, const TraitType*,
-        std::function<bool (const Type*)> clause_visitor,
-        std::function<bool (const ImplType*)> impl_visitor);
-
-private:
-    using ImplCandidates = std::vector<const ImplType*>;
-    using CandidateKey = std::pair<const ast::ModDecl*, const TraitType*>;
-    struct Hash { size_t operator () (const CandidateKey&) const; };
-    std::unordered_map<CandidateKey, ImplCandidates, Hash> impl_candidates_;
-};
-
 } // namespace artic
 
 #endif // ARTIC_TYPES_H

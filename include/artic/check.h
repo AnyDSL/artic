@@ -14,12 +14,11 @@ namespace artic {
 /// Utility class to perform bidirectional type checking.
 class TypeChecker : public Logger {
 public:
-    TypeChecker(Log& log, TypeTable& type_table, ImplResolver& impl_resolver)
-        : Logger(log), type_table(type_table), impl_resolver(impl_resolver)
+    TypeChecker(Log& log, TypeTable& type_table)
+        : Logger(log), type_table(type_table)
     {}
 
     TypeTable& type_table;
-    ImplResolver& impl_resolver;
 
     /// Performs type checking on a whole program.
     /// Returns true on success, otherwise false.
@@ -55,9 +54,6 @@ public:
     const Type* infer(const Loc&, const Literal&);
     const Type* check(const Loc&, const Literal&, const Type*);
 
-    void check_impl_exists(const Loc&, const Type*);
-    void check_impl_exists(const Loc&, const TraitType*, const ArrayRef<const Type*>&);
-
     void check_block(const Loc&, const PtrVector<ast::Stmt>&, bool);
     bool check_attrs(const ast::NamedAttr&, const ArrayRef<AttrType>&);
     bool check_filter(const ast::Expr&);
@@ -74,9 +70,26 @@ public:
     bool infer_type_args(const Loc&, const ForallType*, const Type*, std::vector<const Type*>&);
     const Type* infer_record_type(const TypeApp*, const StructType*, size_t&);
 
+    // Trait-related functions
+    void check_impl_exists(const Loc&, const Type*);
+    void check_impl_exists(const Loc&, const TraitType*, const ArrayRef<const Type*>&);
+
+    void register_impl(const ImplType*);
+    const Type* find_impl(const ast::Decl* decl, const Type* trait_type);
+    const Type* forall_candidates(
+        const ast::Decl*, const TraitType*,
+        std::function<bool (const Type*)> clause_visitor,
+        std::function<bool (const ImplType*)> impl_visitor);
+
 private:
     template <typename Action>
     const Type* check_or_infer(ast::Node&, Action&&);
+
+    using ImplCandidates = std::vector<const ImplType*>;
+    const ImplCandidates& impl_candidates(const ast::ModDecl*, const TraitType*);
+    std::unordered_map<
+        const ast::ModDecl*,
+        std::unordered_map<const TraitType*, ImplCandidates>> impl_candidates_;
 
     std::unordered_set<const ast::Decl*> decls_;
     const ast::Decl* last_fn_or_mod_ = nullptr;

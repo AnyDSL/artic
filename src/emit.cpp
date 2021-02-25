@@ -1965,8 +1965,7 @@ bool compile(
         name_binder.warn_on_shadowing = true;
 
     TypeTable type_table;
-    ImplResolver impl_resolver;
-    TypeChecker type_checker(log, type_table, impl_resolver);
+    TypeChecker type_checker(log, type_table);
     type_checker.warns_as_errors = warns_as_errors;
 
     if (!name_binder.run(program) || !type_checker.run(program))
