@@ -293,5 +293,4 @@ impl[T] Int[T] where Num[T], Shift[T], BitOps[T];
 impl[T] Float[T] where Num[T], FromFloat[T];
 )";
 
-
-#endif // ARTIC_PREAMBLE_H
+#endif // ARTIC_PRELUDE_H
