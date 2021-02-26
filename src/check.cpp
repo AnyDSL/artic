@@ -1475,7 +1475,7 @@ const artic::Type* CastExpr::infer(TypeChecker& checker) {
     auto expected = checker.infer(*type);
     auto type = checker.deref(expr);
     if (type == expected) {
-        checker.warn(loc, "cast source and destination types are identical");
+        checker.warn(loc, "identical source and destination types in cast expression");
         return expected;
     }
 
@@ -1610,6 +1610,9 @@ const artic::Type* FnDecl::infer(TypeChecker& checker) {
         if (fn->attrs)
             fn->attrs->check(checker, fn.get());
     }
+
+    if (!fn->body && fn->filter)
+        checker.warn(fn->filter->loc, "this filter will be ignored since the function has no body");
 
     return this->type;
 }
