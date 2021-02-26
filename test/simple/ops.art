@@ -18,7 +18,7 @@ fn test_float[T](mut a: T, mut b: T) where Float[T] =
     (a + b,  a - b, a * b, a / b, a % b,
     a < b, a <= b, a > b, a >= b, a == b, a != b,
     a += b,  a -= b, a *= b, a /= b, a %= b,
-    ++a, --a, b++, b--, &a, *&a, ?a, $a);
+    &a, *&a, ?a, $a);
 
 static _ = test_float[f16];
 static _ = test_float[f32];

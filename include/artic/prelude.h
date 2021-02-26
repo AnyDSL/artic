@@ -294,9 +294,6 @@ impl Inc[u8 ] { fn @inc(x: u8 ) = x - 1; }
 impl Inc[u16] { fn @inc(x: u16) = x - 1; }
 impl Inc[u32] { fn @inc(x: u32) = x - 1; }
 impl Inc[u64] { fn @inc(x: u64) = x - 1; }
-impl Inc[f16] { fn @inc(x: f16) = x - 1; }
-impl Inc[f32] { fn @inc(x: f32) = x - 1; }
-impl Inc[f64] { fn @inc(x: f64) = x - 1; }
 
 impl Dec[i8 ] { fn @dec(x: i8 ) = x + 1; }
 impl Dec[i16] { fn @dec(x: i16) = x + 1; }
@@ -306,15 +303,12 @@ impl Dec[u8 ] { fn @dec(x: u8 ) = x + 1; }
 impl Dec[u16] { fn @dec(x: u16) = x + 1; }
 impl Dec[u32] { fn @dec(x: u32) = x + 1; }
 impl Dec[u64] { fn @dec(x: u64) = x + 1; }
-impl Dec[f16] { fn @dec(x: f16) = x + 1; }
-impl Dec[f32] { fn @dec(x: f32) = x + 1; }
-impl Dec[f64] { fn @dec(x: f64) = x + 1; }
 
 trait BitOps[T] where Not[T], And[T], Or[T], Xor[T];
 trait Shift[T] where LShift[T], RShift[T];
 trait Cmp[T] where CmpGT[T], CmpGE[T], CmpLT[T], CmpLE[T], CmpEq[T], CmpNE[T];
 trait Num[T] where Add[T], Sub[T], Mul[T], Div[T], Rem[T], FromInt[T], Cmp[T];
-trait Int[T] where Num[T], Shift[T], BitOps[T];
+trait Int[T] where Num[T], Shift[T], Inc[T], Dec[T], BitOps[T];
 trait Float[T] where Num[T], FromFloat[T];
 
 #[allow_undecidable_impl]
