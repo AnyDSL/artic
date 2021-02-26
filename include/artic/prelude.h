@@ -262,17 +262,53 @@ impl Not[u32] { #[import(cc = "builtin")] fn not(u32) -> u32; }
 impl Not[u64] { #[import(cc = "builtin")] fn not(u64) -> u64; }
 impl Not[bool] { #[import(cc = "builtin")] fn not(bool) -> bool; }
 
-#[allow_undecidable_impl]
-impl[T] Plus[T] where FromInt[T], Add[T] { fn @plus(x: T) = 0 + x; }
+impl Plus[i8 ] { fn @plus(x: i8 ) = x; }
+impl Plus[i16] { fn @plus(x: i16) = x; }
+impl Plus[i32] { fn @plus(x: i32) = x; }
+impl Plus[i64] { fn @plus(x: i64) = x; }
+impl Plus[u8 ] { fn @plus(x: u8 ) = x; }
+impl Plus[u16] { fn @plus(x: u16) = x; }
+impl Plus[u32] { fn @plus(x: u32) = x; }
+impl Plus[u64] { fn @plus(x: u64) = x; }
+impl Plus[f16] { fn @plus(x: f16) = x; }
+impl Plus[f32] { fn @plus(x: f32) = x; }
+impl Plus[f64] { fn @plus(x: f64) = x; }
 
-#[allow_undecidable_impl]
-impl[T] Minus[T] where FromInt[T], Sub[T] { fn @minus(x: T) = 0 - x; }
+impl Minus[i8 ] { fn @minus(x: i8 ) = 0 - x; }
+impl Minus[i16] { fn @minus(x: i16) = 0 - x; }
+impl Minus[i32] { fn @minus(x: i32) = 0 - x; }
+impl Minus[i64] { fn @minus(x: i64) = 0 - x; }
+impl Minus[u8 ] { fn @minus(x: u8 ) = 0 - x; }
+impl Minus[u16] { fn @minus(x: u16) = 0 - x; }
+impl Minus[u32] { fn @minus(x: u32) = 0 - x; }
+impl Minus[u64] { fn @minus(x: u64) = 0 - x; }
+impl Minus[f16] { fn @minus(x: f16) = 0 - x; }
+impl Minus[f32] { fn @minus(x: f32) = 0 - x; }
+impl Minus[f64] { fn @minus(x: f64) = 0 - x; }
 
-#[allow_undecidable_impl]
-impl[T] Inc[T] where FromInt[T], Add[T] { fn @inc(x: T) = x + 1; }
+impl Inc[i8 ] { fn @inc(x: i8 ) = x - 1; }
+impl Inc[i16] { fn @inc(x: i16) = x - 1; }
+impl Inc[i32] { fn @inc(x: i32) = x - 1; }
+impl Inc[i64] { fn @inc(x: i64) = x - 1; }
+impl Inc[u8 ] { fn @inc(x: u8 ) = x - 1; }
+impl Inc[u16] { fn @inc(x: u16) = x - 1; }
+impl Inc[u32] { fn @inc(x: u32) = x - 1; }
+impl Inc[u64] { fn @inc(x: u64) = x - 1; }
+impl Inc[f16] { fn @inc(x: f16) = x - 1; }
+impl Inc[f32] { fn @inc(x: f32) = x - 1; }
+impl Inc[f64] { fn @inc(x: f64) = x - 1; }
 
-#[allow_undecidable_impl]
-impl[T] Dec[T] where FromInt[T], Sub[T] { fn @dec(x: T) = x - 1; }
+impl Dec[i8 ] { fn @dec(x: i8 ) = x + 1; }
+impl Dec[i16] { fn @dec(x: i16) = x + 1; }
+impl Dec[i32] { fn @dec(x: i32) = x + 1; }
+impl Dec[i64] { fn @dec(x: i64) = x + 1; }
+impl Dec[u8 ] { fn @dec(x: u8 ) = x + 1; }
+impl Dec[u16] { fn @dec(x: u16) = x + 1; }
+impl Dec[u32] { fn @dec(x: u32) = x + 1; }
+impl Dec[u64] { fn @dec(x: u64) = x + 1; }
+impl Dec[f16] { fn @dec(x: f16) = x + 1; }
+impl Dec[f32] { fn @dec(x: f32) = x + 1; }
+impl Dec[f64] { fn @dec(x: f64) = x + 1; }
 
 trait BitOps[T] where Not[T], And[T], Or[T], Xor[T];
 trait Shift[T] where LShift[T], RShift[T];

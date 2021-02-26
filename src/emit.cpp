@@ -454,6 +454,25 @@ bool Emitter::run(const ast::ModDecl& mod) {
     return errors == 0;
 }
 
+static inline thorin::Location location(const Loc& loc) {
+    return thorin::Location(
+        loc.file->c_str(),
+        loc.begin.row,
+        loc.begin.col,
+        loc.end.row,
+        loc.end.col);
+}
+
+thorin::Debug Emitter::debug_info(const ast::NamedDecl& decl) {
+    return thorin::Debug { location(decl.loc), decl.id.name };
+}
+
+thorin::Debug Emitter::debug_info(const ast::Node& node, const std::string_view& name) {
+    if (auto named_decl = node.isa<ast::NamedDecl>(); named_decl && name == "")
+        return debug_info(*named_decl);
+    return thorin::Debug { location(node.loc), std::string(name) };
+}
+
 thorin::Continuation* Emitter::basic_block(thorin::Debug debug) {
     return world.continuation(world.fn_type(), debug);
 }
@@ -821,6 +840,26 @@ const thorin::Def* Emitter::builtin(const ast::FnDecl& fn_decl, thorin::Continua
     return cont;
 }
 
+const thorin::Def* Emitter::impl_call(const Loc& loc, const Type* impl_or_where, size_t member_index, const thorin::Def* arg) {
+    if (auto [type_app, impl_type] = match_app<ImplType>(impl_or_where); impl_type) {
+        // Add the type variables defined by the impl to the set of type variables
+        ReplaceMap map;
+        if (impl_type->type_params()) {
+            assert(type_app && impl_type->type_params()->params.size() == type_app->type_args.size());
+            for (size_t i = 0, n = type_app->type_args.size(); i < n; ++i)
+                map.emplace(impl_type->type_params()->params[i]->type->as<TypeVar>(), type_app->type_args[i]);
+            std::swap(map, type_vars);
+        }
+        auto impl_fn = emit(*impl_type->decl.decls[member_index]->as<ast::FnDecl>());
+        if (impl_type->type_params())
+            std::swap(map, type_vars);
+        return call(impl_fn, arg, thorin::Debug { location(loc) });
+    } else {
+        assert(false);
+        return nullptr;
+    }
+}
+
 const thorin::Def* Emitter::comparator(const Loc& loc, const Type* type) {
     if (auto it = comparators.find(type); it != comparators.end())
         return it->second;
@@ -918,25 +957,6 @@ const thorin::Def* Emitter::comparator(const Loc& loc, const Type* type) {
     return comparators[type] = comparator_fn;
 }
 
-static inline thorin::Location location(const Loc& loc) {
-    return thorin::Location(
-        loc.file->c_str(),
-        loc.begin.row,
-        loc.begin.col,
-        loc.end.row,
-        loc.end.col);
-}
-
-thorin::Debug Emitter::debug_info(const ast::NamedDecl& decl) {
-    return thorin::Debug { location(decl.loc), decl.id.name };
-}
-
-thorin::Debug Emitter::debug_info(const ast::Node& node, const std::string_view& name) {
-    if (auto named_decl = node.isa<ast::NamedDecl>(); named_decl && name == "")
-        return debug_info(*named_decl);
-    return thorin::Debug { location(node.loc), std::string(name) };
-}
-
 namespace ast {
 
 const thorin::Def* Node::emit(Emitter&) const {
@@ -963,7 +983,7 @@ const thorin::Def* Path::emit(Emitter& emitter) const {
         if (auto mod_type = elems[i].type->isa<ModType>()) {
             decl = &mod_type->member(elems[i + 1].index);
         } else if (!is_ctor) {
-            std::unordered_map<const artic::TypeVar*, const artic::Type*> map;
+            ReplaceMap map;
             // If type arguments are present, this is a polymorphic application
             if (!elems[i].inferred_args.empty()) {
                 for (size_t j = 0, n = elems[i].inferred_args.size(); j < n; ++j) {
@@ -1376,8 +1396,8 @@ const thorin::Def* UnaryExpr::emit(Emitter& emitter) const {
                 return nullptr;
         }
     } else {
-        // TODO
-        assert(false);
+        assert(impl_type);
+        res = emitter.impl_call(loc, impl_type, 0, op);
     }
     if (ptr) {
         emitter.store(ptr, res, emitter.debug_info(*this));
@@ -1442,7 +1462,7 @@ const thorin::Def* BinaryExpr::emit(Emitter& emitter) const {
         arg_type = arg_type->as<artic::SizedArrayType>()->elem;
     if (tag == Eq)
         res = rhs;
-    // See TODO in `BinaryExpr::emit()`
+    // See TODO in `UnaryExpr::emit()`
     else if (can_avoid_impl_call(right->type->replace(emitter.type_vars))) {
         switch (remove_eq(tag)) {
             case Add:   res = emitter.world.arithop_add(lhs, rhs, emitter.debug_info(*this)); break;

@@ -106,6 +106,9 @@ public:
 
     SavedState save_state() { return SavedState(*this); }
 
+    thorin::Debug debug_info(const ast::NamedDecl&);
+    thorin::Debug debug_info(const ast::Node&, const std::string_view& = "");
+
     void redundant_case(const ast::CaseExpr&);
     void non_exhaustive_match(const ast::MatchExpr&);
 
@@ -145,9 +148,7 @@ public:
     const thorin::Def* builtin(const ast::FnDecl&, thorin::Continuation*);
 
     const thorin::Def* comparator(const Loc&, const Type*);
-
-    thorin::Debug debug_info(const ast::NamedDecl&);
-    thorin::Debug debug_info(const ast::Node&, const std::string_view& = "");
+    const thorin::Def* impl_call(const Loc&, const Type*, size_t, const thorin::Def*);
 };
 
 /// Helper function to compile a set of files and generate an AST and a thorin module.

@@ -71,14 +71,14 @@ public:
     const Type* infer_record_type(const TypeApp*, const StructType*, size_t&);
 
     // Trait-related functions
-    void check_impl_exists(const Loc&, const ast::Decl*, const Type*);
-    void check_impl_exists(const Loc&, const ast::Decl*, const TraitType*, const ArrayRef<const Type*>&);
+    const Type* check_impl_exists(const Loc&, const ast::Decl*, const Type*);
+    const Type* check_impl_exists(const Loc&, const ast::Decl*, const TraitType*, const ArrayRef<const Type*>&);
 
     const Type* find_impl(const ast::Decl*, const Type*);
     const Type* forall_clauses_and_impl_candidates(
         const ast::Decl*, const TraitType*,
-        std::function<bool (const Type*)>,
-        std::function<bool (const ImplType*)>);
+        std::function<const Type* (const Type*)>,
+        std::function<const Type* (const ImplType*)>);
 
     /// The last declaration that has been seen, in the order where nodes are inferred/checked.
     const ast::Decl* last_decl = nullptr;

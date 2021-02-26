@@ -526,13 +526,17 @@ const Type* TypeChecker::infer_record_type(const TypeApp* type_app, const Struct
     return type_app ? type_app->as<Type>() : struct_type;
 }
 
-void TypeChecker::check_impl_exists(const Loc& loc, const ast::Decl* context, const Type* type) {
-    if (!type->has_error && !find_impl(context, type))
+const Type* TypeChecker::check_impl_exists(const Loc& loc, const ast::Decl* context, const Type* type) {
+    if (!type->has_error) {
+        if (auto impl = find_impl(context, type))
+            return impl;
         error(loc, "cannot find an implementation for trait '{}'", *type);
+    }
+    return nullptr;
 }
 
-void TypeChecker::check_impl_exists(const Loc& loc, const ast::Decl* context, const TraitType* trait_type, const ArrayRef<const Type*>& args) {
-    check_impl_exists(loc, context, type_table.type_app(trait_type, args));
+const Type* TypeChecker::check_impl_exists(const Loc& loc, const ast::Decl* context, const TraitType* trait_type, const ArrayRef<const Type*>& args) {
+    return check_impl_exists(loc, context, type_table.type_app(trait_type, args));
 }
 
 static bool is_trait_implying_another(const Type* type, const Type* target_type) {
@@ -556,20 +560,28 @@ static bool is_trait_implying_another(const Type* type, const Type* target_type)
 
 const Type* TypeChecker::find_impl(const ast::Decl* decl, const Type* target_type) {
     return forall_clauses_and_impl_candidates(decl, match_app<TraitType>(target_type).second,
-        [&] (const Type* type) { return is_trait_implying_another(type, target_type); },
-        [&] (const ImplType* impl_type) {
+        [&] (const Type* type) -> const Type* {
+            return is_trait_implying_another(type, target_type) ? target_type : nullptr;
+        },
+        [&] (const ImplType* impl_type) -> const Type* {
             // Check that the `impl` matches the target type
             if (auto map = impl_type->impled_type()->unify(target_type)) {
                 // Now check that the `where` clauses of the `impl` can be met
                 if (impl_type->where_clauses()) {
                     for (auto& clause : impl_type->where_clauses()->clauses) {
                         if (!find_impl(decl, clause->type->replace(*map)))
-                            return false;
+                            return nullptr;
                     }
                 }
-                return true;
+                if (!impl_type->type_params())
+                    return impl_type;
+                // If this implementation is polymorphic, we need to create type arguments for it.
+                SmallArray<const Type*> type_args(impl_type->type_params()->params.size());
+                for (size_t i = 0, n = type_args.size(); i < n; ++i)
+                    type_args[i] = (*map)[impl_type->type_params()->params[i]->type->as<TypeVar>()];
+                return type_table.type_app(impl_type, type_args);
             }
-            return false;
+            return nullptr;
         });
 }
 
@@ -585,16 +597,16 @@ static inline const ast::WhereClauseList* extract_where_clauses(const ast::Decl&
 
 const Type* TypeChecker::forall_clauses_and_impl_candidates(
     const ast::Decl* decl, const TraitType* trait_type,
-    std::function<bool (const Type*)> clause_visitor,
-    std::function<bool (const ImplType*)> impl_visitor)
+    std::function<const Type* (const Type*)> clause_visitor,
+    std::function<const Type* (const ImplType*)> impl_visitor)
 {
     // Walk up functions/impls/... to collect `where` clauses
     auto poly_decl = decl;
     while (poly_decl) {
         if (auto where_clauses = extract_where_clauses(*poly_decl)) {
             for (auto& clause : where_clauses->clauses) {
-                if (clause_visitor(clause->type))
-                    return clause->type;
+                if (auto type = clause_visitor(clause->type))
+                    return type;
             }
         }
         poly_decl = poly_decl->find_parent<ast::Decl>();
@@ -607,8 +619,8 @@ const Type* TypeChecker::forall_clauses_and_impl_candidates(
     while (mod_decl) {
         auto& candidates = impl_candidates(mod_decl, trait_type);
         for (auto impl_type : candidates) {
-            if (impl_visitor(impl_type))
-                return impl_type;
+            if (auto type = impl_visitor(impl_type))
+                return type;
         }
         mod_decl = mod_decl->find_parent<ast::ModDecl>();
     }
@@ -1367,7 +1379,7 @@ const artic::Type* UnaryExpr::infer(TypeChecker& checker) {
     // unsupported SIMD operations.
     if (is_simd_type(prim_type))
         prim_type = prim_type->as<artic::SizedArrayType>()->elem;
-    checker.check_impl_exists(loc, checker.last_decl,
+    impl_type = checker.check_impl_exists(loc, checker.last_decl,
         checker.type_table.builtin_traits[UnaryExpr::tag_to_trait_name(tag)],
         std::array { prim_type });
     if (tag == PostDec || tag == PreDec || tag == PostInc || tag == PreInc)
@@ -1785,12 +1797,12 @@ void ImplDecl::check_conflicts(TypeChecker& checker) {
         return;
 
     // Check that implementations are not in conflict
-    auto existing_impl = checker.forall_clauses_and_impl_candidates(
+    auto other_impl = checker.forall_clauses_and_impl_candidates(
         this, match_app<TraitType>(impled_type->type).second,
-        [&] (const artic::Type*) { return false; },
-        [&] (const artic::ImplType* other_impl) -> bool {
+        [&] (const artic::Type*) -> const artic::Type* { return nullptr; },
+        [&] (const artic::ImplType* other_impl) -> const artic::Type* {
             if (other_impl == impl_type)
-                return false;
+                return nullptr;
             // Three cases:
             // 1. The two `impl`s are polymorphic: They are in conflict if there's
             //    a type substitution that maps one to the other, disregarding `where` clauses.
@@ -1809,17 +1821,17 @@ void ImplDecl::check_conflicts(TypeChecker& checker) {
                     if (poly_impl->where_clauses()) {
                         for (auto& clause : poly_impl->where_clauses()->clauses) {
                             if (!checker.find_impl(this, clause->type->replace(*map)))
-                                return false;
+                                return nullptr;
                         }
                     }
                 }
-                return true;
+                return other_impl;
             }
-            return false;
+            return nullptr;
         });
-    if (existing_impl) {
+    if (other_impl) {
         checker.error(loc, "this implementation conflicts with another");
-        checker.note(existing_impl->as<artic::ImplType>()->decl.loc, "the conflicting implementation is here");
+        checker.note(other_impl->as<artic::ImplType>()->decl.loc, "the conflicting implementation is here");
     }
 }
 

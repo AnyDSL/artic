@@ -975,6 +975,9 @@ struct UnaryExpr : public Expr {
     Tag tag;
     Ptr<Expr> arg;
 
+    // Set during type-checking. Is either a type referering to an `impl` or a `where` clause.
+    const artic::Type* impl_type = nullptr;
+
     UnaryExpr(const Loc& loc, Tag tag, Ptr<Expr>&& arg)
         : Expr(loc), tag(tag), arg(std::move(arg))
     {}
