@@ -1379,7 +1379,7 @@ const artic::Type* UnaryExpr::infer(TypeChecker& checker) {
     // unsupported SIMD operations.
     if (is_simd_type(prim_type))
         prim_type = prim_type->as<artic::SizedArrayType>()->elem;
-    impl_type = checker.check_impl_exists(loc, checker.last_decl,
+    this->impl_or_where = checker.check_impl_exists(loc, checker.last_decl,
         checker.type_table.builtin_traits[UnaryExpr::tag_to_trait_name(tag)],
         std::array { prim_type });
     if (tag == PostDec || tag == PreDec || tag == PostInc || tag == PreInc)
@@ -1426,7 +1426,7 @@ const artic::Type* BinaryExpr::infer(TypeChecker& checker) {
         case LogicOr:
             break;
         default:
-            checker.check_impl_exists(loc, checker.last_decl,
+            this->impl_or_where = checker.check_impl_exists(loc, checker.last_decl,
                 checker.type_table.builtin_traits[BinaryExpr::tag_to_trait_name(tag)],
                 std::array { prim_type });
             break;

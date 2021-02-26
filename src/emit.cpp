@@ -1396,8 +1396,8 @@ const thorin::Def* UnaryExpr::emit(Emitter& emitter) const {
                 return nullptr;
         }
     } else {
-        assert(impl_type);
-        res = emitter.impl_call(loc, impl_type, 0, op);
+        assert(impl_or_where);
+        res = emitter.impl_call(loc, impl_or_where, 0, op);
     }
     if (ptr) {
         emitter.store(ptr, res, emitter.debug_info(*this));
@@ -1487,8 +1487,8 @@ const thorin::Def* BinaryExpr::emit(Emitter& emitter) const {
                 return nullptr;
         }
     } else {
-        // TODO
-        assert(false);
+        assert(impl_or_where);
+        res = emitter.impl_call(loc, impl_or_where, 0, emitter.world.tuple({ lhs, rhs }));
     }
     if (has_eq()) {
         emitter.store(ptr, res, emitter.debug_info(*this));
