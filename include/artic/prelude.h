@@ -316,9 +316,9 @@ impl[T] BitOps[T] where Not[T], And[T], Or[T], Xor[T];
 #[allow_undecidable_impl]
 impl[T] Shift[T] where LShift[T], RShift[T];
 #[allow_undecidable_impl]
-impl[T] Num[T] where Add[T], Sub[T], Mul[T], Div[T], Rem[T], FromInt[T];
+impl[T] Num[T] where Add[T], Sub[T], Mul[T], Div[T], Rem[T], FromInt[T], Cmp[T];
 #[allow_undecidable_impl]
-impl[T] Int[T] where Num[T], Shift[T], BitOps[T];
+impl[T] Int[T] where Num[T], Shift[T], BitOps[T], Inc[T], Dec[T];
 #[allow_undecidable_impl]
 impl[T] Float[T] where Num[T], FromFloat[T];
 )";

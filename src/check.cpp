@@ -531,6 +531,7 @@ const Type* TypeChecker::check_impl_exists(const Loc& loc, const ast::Decl* cont
         if (auto impl = find_impl(context, type))
             return impl;
         error(loc, "cannot find an implementation for trait '{}'", *type);
+        note(context->loc, "required here");
     }
     return nullptr;
 }
@@ -1752,8 +1753,20 @@ const artic::Type* ImplDecl::infer(TypeChecker& checker) {
     if (where_clauses) checker.infer(*where_clauses);
 
     // The implemented type must be a trait
-    if (!match_app<artic::TraitType>(checker.infer(*impled_type)).second)
+    auto trait_type = match_app<artic::TraitType>(checker.infer(*impled_type)).second;
+    if (!trait_type)
         return checker.type_expected(loc, impled_type->type, "trait");
+
+    // Check that the `where` clauses of the trait are met in this `impl`
+    if (trait_type->where_clauses()) {
+        auto target_type = trait_type->type_params()
+            ? checker.type_table.type_app(trait_type, trait_type->type_params_as_array())
+            : trait_type;
+        if (auto map = target_type->unify(impled_type->type)) {
+            for (auto& clause : trait_type->where_clauses()->clauses)
+                checker.check_impl_exists(clause->loc, this, clause->type->replace(*map));
+        }
+    }
 
     // If one imposes no restrictions on the `where` clauses of this `impl`, it is possible to make the type checking algorithm diverge.
     // Here we check if this `impl` fulfills the Paterson conditions, which guarantee that the type checking process terminates.
