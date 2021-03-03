@@ -323,7 +323,7 @@ int main(int argc, char** argv) {
             if (!file)
                 log::error("cannot open '{}' for writing", name);
             else
-                cg.emit(file);
+                cg.emit_stream(file);
         };
         if (opts.emit_c) {
             thorin::Cont2Config kernel_configs;
