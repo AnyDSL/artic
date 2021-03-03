@@ -734,8 +734,11 @@ void Emitter::bind(const ast::IdPtrn& id_ptrn, const thorin::Def* value) {
         auto ptr = alloc(value->type(), debug_info(*id_ptrn.decl));
         store(ptr, value);
         id_ptrn.decl->def = ptr;
-        if (!id_ptrn.decl->written_to)
+        if (!id_ptrn.decl->written_to) {
             warn(id_ptrn.loc, "mutable variable '{}' is never written to", id_ptrn.decl->id.name);
+            // Avoid emitting the same warning message with each and every polymorphic instantiation
+            id_ptrn.decl->written_to = true;
+        }
     } else {
         id_ptrn.decl->def = value;
         value->debug().set(id_ptrn.decl->id.name);
