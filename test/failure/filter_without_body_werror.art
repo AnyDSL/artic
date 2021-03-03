@@ -1,0 +1,2 @@
+#[import(cc = "C")]
+fn @function_without_body() -> ();
