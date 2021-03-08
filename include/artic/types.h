@@ -23,8 +23,8 @@ class TypeTable;
 class Emitter;
 struct TypeVar;
 
-template <typename T>
-using TypeVarMap = std::unordered_map<const TypeVar*, T>;
+template <typename T> using TypeMap = std::unordered_map<const Type*, T>;
+template <typename T> using TypeVarMap = std::unordered_map<const TypeVar*, T>;
 using ReplaceMap = TypeVarMap<const Type*>;
 
 /// Variance for a type variable appearing in a type. It represents the

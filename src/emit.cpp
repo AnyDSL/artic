@@ -447,6 +447,21 @@ void PtrnCompiler::dump() const {
     }
     p << ')' << p.unindent() << p.endl();
 }
+
+void Emitter::MonoFn::dump() const {
+    Printer p(log::out);
+    p << decl->id.name << " [";
+    for (size_t i = 0, n = type_args.size(); i < n; ++i) {
+        type_args[i]->print(p);
+        if (i != n - 1) p << ", ";
+    }
+    p << "] where ";
+    for (size_t i = 0, n = where_clauses.size(); i < n; ++i) {
+        where_clauses[i]->print(p);
+        if (i != n - 1) p << ", ";
+    }
+    p << p.endl();
+}
 #endif // GCOV_EXCL_STOP
 
 bool Emitter::run(const ast::ModDecl& mod) {
@@ -634,6 +649,37 @@ void Emitter::branch_with_mem(
     jump(branch_true_with_mem);
     enter(branch_false);
     jump(branch_false_with_mem);
+}
+
+template <typename Decl>
+void collect_type_params_and_where_clauses(Emitter& emitter, const Decl& decl, Emitter::MonoFn& mono_fn) {
+    if (decl.type_params.get()) {
+        for (auto& param : decl.type_params->params)
+            mono_fn.type_args.push_back(param->type->replace(emitter.type_vars));
+    }
+    if (decl.where_clauses.get()) {
+        for (auto& clause : decl.where_clauses->clauses)
+            mono_fn.where_clauses.push_back(emitter.type_to_impl[clause->type->replace(emitter.type_vars)]);
+    }
+}
+
+auto Emitter::mono_fn(const ast::FnDecl& fn_decl) -> MonoFn {
+    MonoFn mono_fn { &fn_decl, {}, {} };
+    collect_type_params_and_where_clauses(*this, fn_decl, mono_fn);
+
+    // If the function is in a polymorphic trait or `impl`, add their type variables as well
+    const ast::Decl* parent = &fn_decl;
+    while (parent) {
+        if (auto fn_decl = parent->find_parent<ast::FnDecl>())
+            collect_type_params_and_where_clauses(*this, *fn_decl, mono_fn), parent = fn_decl;
+        else if (auto trait_decl = parent->find_parent<ast::TraitDecl>())
+            collect_type_params_and_where_clauses(*this, *trait_decl, mono_fn), parent = trait_decl;
+        else if (auto impl_decl = parent->find_parent<ast::ImplDecl>())
+            collect_type_params_and_where_clauses(*this, *impl_decl, mono_fn), parent = impl_decl;
+        else
+            break;
+    }
+    return mono_fn;
 }
 
 const thorin::Def* Emitter::alloc(const thorin::Type* type, thorin::Debug debug) {
@@ -843,23 +889,51 @@ const thorin::Def* Emitter::builtin(const ast::FnDecl& fn_decl, thorin::Continua
     return cont;
 }
 
-const thorin::Def* Emitter::impl_call(const Loc& loc, const Type* impl_or_where, size_t member_index, const thorin::Def* arg) {
-    if (auto [type_app, impl_type] = match_app<ImplType>(impl_or_where); impl_type) {
-        // Add the type variables defined by the impl to the set of type variables
-        ReplaceMap map;
-        if (impl_type->type_params()) {
-            assert(type_app && impl_type->type_params()->params.size() == type_app->type_args.size());
-            for (size_t i = 0, n = type_app->type_args.size(); i < n; ++i)
-                map.emplace(impl_type->type_params()->params[i]->type->as<TypeVar>(), type_app->type_args[i]);
-            std::swap(map, type_vars);
-        }
-        auto impl_fn = emit(*impl_type->decl.decls[member_index]->as<ast::FnDecl>());
-        if (impl_type->type_params())
-            std::swap(map, type_vars);
-        return call(impl_fn, arg, thorin::Debug { location(loc) });
+const thorin::Def* Emitter::struct_ctor(const Type* type) {
+    if (auto it = struct_ctors.find(type); it != struct_ctors.end())
+        return it->second;
+
+    // Tuple-like structures with no fields are not functions, just values
+    auto converted_type = type->convert(*this)->as<thorin::StructType>();
+    auto struct_type = match_app<StructType>(type).second;
+    if (struct_type->is_tuple_like() && struct_type->member_count() == 0)
+        return struct_ctors[type] = world.struct_agg(converted_type, {}, debug_info(struct_type->decl));
+
+    // Create a constructor for this (tuple-like) structure
+    auto cont_type = function_type_with_mem(world.tuple_type(converted_type->ops()), converted_type);
+    auto cont = world.continuation(cont_type, debug_info(struct_type->decl));
+    cont->set_all_true_filter();
+    auto _ = save_state();
+    enter(cont);
+    auto cont_param = tuple_from_params(cont, true);
+    thorin::Array<const thorin::Def*> struct_ops(converted_type->num_ops());
+    for (size_t i = 0, n = struct_ops.size(); i < n; ++i)
+        struct_ops[i] = world.extract(cont_param, i);
+    auto struct_value = world.struct_agg(converted_type, struct_ops);
+    jump(cont->params().back(), struct_value, debug_info(struct_type->decl));
+    return struct_ctors[type] = cont;
+}
+
+const thorin::Def* Emitter::variant_ctor(const Type* type, size_t index) {
+    Emitter::VariantCtor ctor { index, type };
+    if (auto it = variant_ctors.find(ctor); it != variant_ctors.end())
+        return it->second;
+    auto enum_type = match_app<EnumType>(type).second;
+    auto converted_type = type->convert(*this);
+    auto variant_type = converted_type->as<thorin::VariantType>();
+    auto param_type = member_type(type, ctor.index);
+    if (is_unit_type(param_type)) {
+        // This is a constructor without parameters
+        return variant_ctors[ctor] = world.variant(variant_type, world.tuple({}), ctor.index);
     } else {
-        assert(false);
-        return nullptr;
+        // This is a constructor with parameters: return a function
+        auto cont = world.continuation(
+            function_type_with_mem(param_type->convert(*this), converted_type),
+            debug_info(*enum_type->decl.options[ctor.index]));
+        auto ret_value = world.variant(variant_type, tuple_from_params(cont, true), ctor.index);
+        cont->jump(cont->params().back(), { cont->param(0), ret_value });
+        cont->set_all_true_filter();
+        return variant_ctors[ctor] = cont;
     }
 }
 
@@ -960,6 +1034,61 @@ const thorin::Def* Emitter::comparator(const Loc& loc, const Type* type) {
     return comparators[type] = comparator_fn;
 }
 
+const ast::NamedDecl* Emitter::impl_member(
+    const Type* impl_or_where,
+    size_t trait_member_index,
+    const std::vector<const Type*>* inferred_clauses,
+    ReplaceMap& new_type_vars,
+    TypeMap<const Type*>& new_type_to_impl)
+{
+    if (!match_app<ImplType>(impl_or_where).second)
+        impl_or_where = type_to_impl[impl_or_where->replace(type_vars)];
+
+    auto [type_app, impl_type] = match_app<ImplType>(impl_or_where);
+    assert(impl_type);
+
+    // Find the index of the member in the implementation from its index in the trait.
+    auto [trait_app, trait_type] = match_app<TraitType>(impl_type->impled_type());
+    if (auto impl_member_index = impl_type->find_member(trait_type->member_name(trait_member_index))) {
+        // Add the type variables defined by the impl to the set of type variables
+        if (impl_type->type_params()) {
+            assert(type_app && impl_type->type_params()->params.size() == type_app->type_args.size());
+            for (size_t i = 0, n = type_app->type_args.size(); i < n; ++i)
+                new_type_vars.emplace(impl_type->type_params()->params[i]->type->as<TypeVar>(), type_app->type_args[i]);
+        }
+
+        // Set the where clauses appropriately
+        if (impl_type->where_clauses()) {
+            assert(inferred_clauses && impl_type->where_clauses()->clauses.size() == inferred_clauses->size());
+            for (size_t i = 0, n = inferred_clauses->size(); i < n; ++i) {
+                if (!(*inferred_clauses)[i])
+                    continue;
+                new_type_to_impl.emplace(
+                    impl_type->where_clauses()->clauses[i]->type->replace(new_type_vars),
+                    (*inferred_clauses)[i]->replace(type_vars));
+            }
+        }
+
+        return impl_type->decl.decls[*impl_member_index].get();
+    }
+
+    // If the function does not exist in the impl, it must be a function with a default implementation in the trait.
+    assert(false);
+    return nullptr;
+}
+
+const thorin::Def* Emitter::impl_member(const Type* impl_or_where, size_t trait_member_index) {
+    ReplaceMap new_type_vars;
+    TypeMap<const Type*> new_type_to_impl;
+    auto decl = impl_member(impl_or_where, trait_member_index, nullptr, new_type_vars, new_type_to_impl);
+    std::swap(new_type_vars, type_vars);
+    std::swap(new_type_to_impl, type_to_impl);
+    auto def = emit(*decl);
+    std::swap(new_type_vars, type_vars);
+    std::swap(new_type_to_impl, type_to_impl);
+    return def;
+}
+
 namespace ast {
 
 const thorin::Def* Node::emit(Emitter&) const {
@@ -970,91 +1099,79 @@ const thorin::Def* Node::emit(Emitter&) const {
 // Path ----------------------------------------------------------------------------
 
 const thorin::Def* Path::emit(Emitter& emitter) const {
-    // Currently only supports paths of the form A/A::B/A[T, ...]/A[T, ...]::B
-    if (auto struct_decl = start_decl->isa<StructDecl>();
-        struct_decl && struct_decl->is_tuple_like && struct_decl->fields.empty()) {
-        return emitter.world.struct_agg(
-            type->convert(emitter)->as<thorin::StructType>(), {},
-            emitter.debug_info(*this));
-    }
-
     const auto* decl = start_decl;
+
+    auto keep_vars = true;
+    ReplaceMap new_type_vars;
+    TypeMap<const artic::Type*> new_type_to_impl;
     for (size_t i = 0, n = elems.size(); i < n; ++i) {
         if (elems[i].is_super())
             decl = i == 0 ? start_decl : decl->as<ModDecl>()->super();
 
         if (auto mod_type = elems[i].type->isa<ModType>()) {
             decl = &mod_type->member(elems[i + 1].index);
-        } else if (!is_ctor) {
-            ReplaceMap map;
-            // If type arguments are present, this is a polymorphic application
+        } else if (is_ctor) {
+            // Structure or variant constructors
+            if (auto [type_app, struct_type] = match_app<StructType>(elems[i].type); struct_type)
+                return emitter.struct_ctor(type_app ? type_app->replace(emitter.type_vars) : struct_type);
+            else if (auto [type_app, enum_type] = match_app<artic::EnumType>(elems[i].type); enum_type)
+                return emitter.variant_ctor(type_app ? type_app->replace(emitter.type_vars) : enum_type, elems[i + 1].index);
+            else
+                assert(false);
+        } else if (auto [type_app, trait_type] = match_app<artic::TraitType>(elems[i].type); trait_type) {
+            decl = emitter.impl_member(elems[i].impl_or_where, elems[i + 1].index, &elems[i].inferred_clauses, new_type_vars, new_type_to_impl);
+            // We *must* forget the context (the type variables and instances that already exist at the location of the path),
+            // since the `impl` that we are generating is not part of the current scope.
+            keep_vars = false;
+        } else {
+            auto forall_type = decl->type->isa<artic::ForallType>();
+
+            // If type arguments are present, this is a polymorphic application, so we need to
+            // record the map from type variable to concrete type.
             if (!elems[i].inferred_args.empty()) {
+                assert(forall_type && forall_type->type_params());
                 for (size_t j = 0, n = elems[i].inferred_args.size(); j < n; ++j) {
-                    auto var = decl->as<FnDecl>()->type_params->params[j]->type->as<artic::TypeVar>();
+                    auto var = forall_type->type_params()->params[j]->type->as<artic::TypeVar>();
                     auto type = elems[i].inferred_args[j]->replace(emitter.type_vars);
-                    map.emplace(var, type);
+                    new_type_vars.emplace(var, type);
                 }
-                // We need to also add the caller's map in case the function is nested in another
-                map.insert(emitter.type_vars.begin(), emitter.type_vars.end());
-                std::swap(map, emitter.type_vars);
+                if (keep_vars) new_type_vars.insert(emitter.type_vars.begin(), emitter.type_vars.end());
             }
-            auto def = emitter.emit(*decl);
-            if (!elems[i].inferred_args.empty()) {
+
+            // If `where` clauses are present, we need to place the corresponding `impl`s in the map from type to `impl`
+            if (!elems[i].inferred_clauses.empty()) {
+                assert(forall_type && forall_type->where_clauses());
+                for (size_t j = 0, n = elems[i].inferred_clauses.size(); j < n; ++j) {
+                    auto impl_type = elems[i].inferred_clauses[j];
+                    auto clause_type = forall_type->where_clauses()->clauses[j]->type->replace(emitter.type_vars);
+                    assert(impl_type);
+                    // Follow the chain of `where` clauses to find the actual implementation
+                    while (!match_app<ImplType>(impl_type).second) {
+                        impl_type = emitter.type_to_impl[impl_type];
+                        assert(impl_type);
+                    }
+                    new_type_to_impl[clause_type->replace(new_type_vars)] = impl_type;
+                }
+                if (keep_vars) new_type_to_impl.insert(emitter.type_to_impl.begin(), emitter.type_to_impl.end());
+            }
+
+            auto has_type_vars = !new_type_vars.empty();
+            auto has_type_to_impl = !new_type_to_impl.empty();
+            if (has_type_vars)    std::swap(new_type_vars, emitter.type_vars);
+            if (has_type_to_impl) std::swap(new_type_to_impl, emitter.type_to_impl);
+            this->def = emitter.emit(*decl);
+            if (has_type_to_impl) std::swap(new_type_to_impl, emitter.type_to_impl);
+            if (has_type_vars) {
+                std::swap(new_type_vars, emitter.type_vars);
                 // Polymorphic nodes are emitted with the map from type variable
                 // to concrete type, which means that the emitted node cannot be
                 // kept around: Another instantiation may be using a different map,
                 // which would conflict with this one.
                 decl->def = nullptr;
-                std::swap(map, emitter.type_vars);
-            }
-            return def;
-        } else if (match_app<StructType>(elems[i].type).second) {
-            if (auto it = emitter.struct_ctors.find(elems[i].type); it != emitter.struct_ctors.end())
-                return it->second;
-            // Create a constructor for this (tuple-like) structure
-            auto struct_type = elems[i].type->convert(emitter)->as<thorin::StructType>();
-            auto cont_type = emitter.function_type_with_mem(emitter.world.tuple_type(struct_type->ops()), struct_type);
-            auto cont = emitter.world.continuation(cont_type, emitter.debug_info(*this));
-            cont->set_all_true_filter();
-            auto _ = emitter.save_state();
-            emitter.enter(cont);
-            auto cont_param = emitter.tuple_from_params(cont, true);
-            thorin::Array<const thorin::Def*> struct_ops(struct_type->num_ops());
-            for (size_t i = 0, n = struct_ops.size(); i < n; ++i)
-                struct_ops[i] = emitter.world.extract(cont_param, i);
-            auto struct_value = emitter.world.struct_agg(struct_type, struct_ops);
-            emitter.jump(cont->params().back(), struct_value, emitter.debug_info(*this));
-            return emitter.struct_ctors[elems[i].type] = cont;
-        } else if (auto [type_app, enum_type] = match_app<artic::EnumType>(elems[i].type); enum_type) {
-            // Find the variant constructor for that enum, if it exists.
-            // Remember that the type application (if present) might be polymorphic (i.e. `E[T, U]::A`), and that, thus,
-            // we need to replace bound type variables (`T` and `U` in the previous example) to find the constructor in the map.
-            Emitter::VariantCtor ctor { elems[i + 1].index, type_app ? type_app->replace(emitter.type_vars) : enum_type };
-            if (auto it = emitter.variant_ctors.find(ctor); it != emitter.variant_ctors.end())
-                return it->second;
-            auto converted_type = (type_app
-                ? type_app->convert(emitter)
-                : enum_type->convert(emitter));
-            auto variant_type = converted_type->as<thorin::VariantType>();
-            auto param_type = member_type(elems[i].type, ctor.index);
-            if (is_unit_type(param_type)) {
-                // This is a constructor without parameters
-                return emitter.variant_ctors[ctor] = emitter.world.variant(variant_type, emitter.world.tuple({}), ctor.index);
-            } else {
-                // This is a constructor with parameters: return a function
-                auto cont = emitter.world.continuation(
-                    emitter.function_type_with_mem(param_type->convert(emitter), converted_type),
-                    emitter.debug_info(*enum_type->decl.options[ctor.index]));
-                auto ret_value = emitter.world.variant(variant_type, emitter.tuple_from_params(cont, true), ctor.index);
-                cont->jump(cont->params().back(), { cont->param(0), ret_value });
-                cont->set_all_true_filter();
-                return emitter.variant_ctors[ctor] = cont;
             }
         }
     }
-
-    assert(false);
-    return nullptr;
+    return this->def;
 }
 
 // Filter --------------------------------------------------------------------------
@@ -1400,7 +1517,7 @@ const thorin::Def* UnaryExpr::emit(Emitter& emitter) const {
         }
     } else {
         assert(impl_or_where);
-        res = emitter.impl_call(loc, impl_or_where, 0, op);
+        return emitter.call(emitter.impl_member(impl_or_where, 0), op, emitter.debug_info(*this));
     }
     if (ptr) {
         emitter.store(ptr, res, emitter.debug_info(*this));
@@ -1491,7 +1608,10 @@ const thorin::Def* BinaryExpr::emit(Emitter& emitter) const {
         }
     } else {
         assert(impl_or_where);
-        res = emitter.impl_call(loc, impl_or_where, 0, emitter.world.tuple({ lhs, rhs }));
+        return emitter.call(
+            emitter.impl_member(impl_or_where, 0),
+            emitter.world.tuple({ lhs, rhs }),
+            emitter.debug_info(*this));
     }
     if (has_eq()) {
         emitter.store(ptr, res, emitter.debug_info(*this));
@@ -1550,6 +1670,11 @@ const thorin::Def* AsmExpr::emit(Emitter& emitter) const {
 
 // Declarations --------------------------------------------------------------------
 
+const thorin::Def* Decl::emit(Emitter&) const {
+    // Default implementation for declarations: Does nothing.
+    return nullptr;
+}
+
 const thorin::Def* LetDecl::emit(Emitter& emitter) const {
     auto value = init
         ? emitter.emit(*init)
@@ -1567,21 +1692,20 @@ const thorin::Def* StaticDecl::emit(Emitter& emitter) const {
 
 const thorin::Def* FnDecl::emit(Emitter& emitter) const {
     auto _ = emitter.save_state();
-    const thorin::FnType* cont_type = nullptr;
-    Emitter::MonoFn mono_fn { this, {} };
-    if (type_params) {
-        for (auto& param : type_params->params)
-            mono_fn.type_args.push_back(param->type->replace(emitter.type_vars));
+    auto mono_fn = emitter.mono_fn(*this);
+    auto is_polymorphic = !mono_fn.type_args.empty();
+    if (is_polymorphic) {
         // Try to find an existing monomorphized version of this function with that type
         if (auto it = emitter.mono_fns.find(mono_fn); it != emitter.mono_fns.end())
             return it->second;
         emitter.poly_defs.emplace_back();
-        cont_type = type->as<artic::ForallType>()->body->convert(emitter)->as<thorin::FnType>();
-    } else
-        cont_type = type->convert(emitter)->as<thorin::FnType>();
+    }
+    auto cont_type = type_params
+        ? type->as<artic::ForallType>()->body->convert(emitter)->as<thorin::FnType>()
+        : type->convert(emitter)->as<thorin::FnType>();
 
     auto cont = emitter.world.continuation(cont_type, emitter.debug_info(*this));
-    if (type_params)
+    if (is_polymorphic)
         emitter.mono_fns.emplace(std::move(mono_fn), cont);
 
     cont->params().back()->debug().set("ret");
@@ -1627,33 +1751,13 @@ const thorin::Def* FnDecl::emit(Emitter& emitter) const {
     // Clear the thorin IR generated for this entire function
     // if the function is polymorphic, so as to allow multiple
     // instantiations with different types.
-    if (type_params) {
+    if (is_polymorphic) {
         for (auto& def : emitter.poly_defs.back())
             *def = nullptr;
         emitter.poly_defs.pop_back();
         fn->def = def = nullptr;
     }
     return cont;
-}
-
-const thorin::Def* StructDecl::emit(Emitter&) const {
-    return nullptr;
-}
-
-const thorin::Def* EnumDecl::emit(Emitter&) const {
-    return nullptr;
-}
-
-const thorin::Def* TraitDecl::emit(Emitter&) const {
-    return nullptr;
-}
-
-const thorin::Def* ImplDecl::emit(Emitter&) const {
-    return nullptr;
-}
-
-const thorin::Def* TypeDecl::emit(Emitter&) const {
-    return nullptr;
 }
 
 const thorin::Def* ModDecl::emit(Emitter& emitter) const {
@@ -1664,10 +1768,6 @@ const thorin::Def* ModDecl::emit(Emitter& emitter) const {
             continue;
         emitter.emit(*decl);
     }
-    return nullptr;
-}
-
-const thorin::Def* UseDecl::emit(Emitter&) const {
     return nullptr;
 }
 

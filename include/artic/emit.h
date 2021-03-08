@@ -64,6 +64,11 @@ public:
     struct MonoFn {
         const ast::FnDecl* decl;
         std::vector<const Type*> type_args;
+        std::vector<const Type*> where_clauses;
+
+#ifndef NDEBUG
+        void dump() const;
+#endif
     };
 
     struct Hash {
@@ -74,6 +79,8 @@ public:
             auto h = fnv::Hash().combine(mono_fn.decl);
             for (auto type_arg : mono_fn.type_args)
                 h.combine(type_arg);
+            for (auto clause : mono_fn.where_clauses)
+                h.combine(clause);
             return h;
         }
     };
@@ -83,7 +90,10 @@ public:
             return left.index == right.index && left.type == right.type;
         }
         bool operator () (const MonoFn& left, const MonoFn& right) const {
-            return left.decl == right.decl && left.type_args == right.type_args;
+            return
+                left.decl == right.decl &&
+                left.type_args == right.type_args &&
+                left.where_clauses == right.where_clauses;
         }
     };
 
@@ -91,6 +101,8 @@ public:
     std::unordered_map<const Type*, const thorin::Type*> types;
     /// Map from the currently bound type variables to monomorphic types.
     std::unordered_map<const TypeVar*, const Type*> type_vars;
+    /// Map from a monomorphic type to the corresponding implementation.
+    std::unordered_map<const Type*, const Type*> type_to_impl;
     /// Map from monomorphic function signature to emitted thorin function.
     std::unordered_map<MonoFn, thorin::Continuation*, Hash, Compare> mono_fns;
     /// Map from enum type and variant index to variant constructor.
@@ -132,6 +144,8 @@ public:
     void branch(const thorin::Def*, const thorin::Def*, const thorin::Def*, thorin::Debug = {});
     void branch_with_mem(const thorin::Def*, const thorin::Def*, const thorin::Def*, thorin::Debug = {});
 
+    MonoFn mono_fn(const ast::FnDecl&);
+
     const thorin::Def* alloc(const thorin::Type*, thorin::Debug = {});
     void store(const thorin::Def*, const thorin::Def*, thorin::Debug = {});
     const thorin::Def* load(const thorin::Def*, thorin::Debug = {});
@@ -147,8 +161,13 @@ public:
 
     const thorin::Def* builtin(const ast::FnDecl&, thorin::Continuation*);
 
+    const thorin::Def* struct_ctor(const Type*);
+    const thorin::Def* variant_ctor(const Type*, size_t);
+
     const thorin::Def* comparator(const Loc&, const Type*);
-    const thorin::Def* impl_call(const Loc&, const Type*, size_t, const thorin::Def*);
+
+    const ast::NamedDecl* impl_member(const Type*, size_t, const std::vector<const Type*>*, ReplaceMap&, TypeMap<const Type*>&);
+    const thorin::Def* impl_member(const Type*, size_t);
 };
 
 /// Helper function to compile a set of files and generate an AST and a thorin module.

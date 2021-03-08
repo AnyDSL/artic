@@ -802,7 +802,10 @@ void TraitType::print(Printer& p) const {
 }
 
 void ImplType::print(Printer& p) const {
-    decl.print(p);
+    if (auto trait_type = match_app<TraitType>(impled_type()).second)
+        trait_type->print(p);
+    else
+        p << log::error_style("<invalid impl>");
 }
 
 void ModType::print(Printer& p) const {

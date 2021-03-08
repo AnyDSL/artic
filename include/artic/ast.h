@@ -105,6 +105,8 @@ struct Decl : public Node {
 
     /// Binds the declaration to its AST node, without entering sub-AST nodes.
     virtual void bind_head(NameBinder&) {}
+
+    const thorin::Def* emit(Emitter&) const override;
 };
 
 /// Base class for types.
@@ -176,9 +178,11 @@ struct Path : public Node {
         PtrVector<Type> args;
 
         // These members are set during type-checking
-        const artic::Type* type = nullptr;
         size_t index = 0;
+        const artic::Type* type = nullptr;
+        const artic::Type* impl_or_where = nullptr;
         std::vector<const artic::Type*> inferred_args;
+        std::vector<const artic::Type*> inferred_clauses;
 
         bool is_super() const { return id.name == "super"; }
 
@@ -1383,7 +1387,6 @@ struct StructDecl : public RecordDecl {
         , is_tuple_like(is_tuple_like)
     {}
 
-    const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) override;
     void bind_head(NameBinder&) override;
     void bind(NameBinder&) override;
@@ -1441,7 +1444,6 @@ struct EnumDecl : public CtorDecl {
         , options(std::move(options))
     {}
 
-    const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) override;
     void bind_head(NameBinder&) override;
     void bind(NameBinder&) override;
@@ -1466,7 +1468,6 @@ struct TraitDecl : public NamedDecl {
         , decls(std::move(decls))
     {}
 
-    const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) override;
     void bind_head(NameBinder&) override;
     void bind(NameBinder&) override;
@@ -1495,7 +1496,6 @@ struct ImplDecl : public Decl {
 
      void check_conflicts(TypeChecker&);
 
-     const thorin::Def* emit(Emitter&) const override;
      const artic::Type* infer(TypeChecker&) override;
      void bind(NameBinder&) override;
      void print(Printer&) const override;
@@ -1519,7 +1519,6 @@ struct TypeDecl : public NamedDecl {
         , aliased_type(std::move(aliased_type))
     {}
 
-    const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) override;
     void bind_head(NameBinder&) override;
     void bind(NameBinder&) override;
@@ -1561,7 +1560,6 @@ struct UseDecl : public NamedDecl {
         : NamedDecl(loc, std::move(id)), path(std::move(path))
     {}
 
-    const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) override;
     void bind_head(NameBinder&) override;
     void bind(NameBinder&) override;

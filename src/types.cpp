@@ -824,6 +824,8 @@ const TypeAlias* TypeTable::type_alias(const ast::TypeDecl& decl) {
 }
 
 const Type* TypeTable::type_app(const UserType* applied, const ArrayRef<const Type*>& type_args) {
+    if (type_args.empty())
+        return applied;
     if (auto type_alias = applied->isa<TypeAlias>()) {
         assert(
             type_alias->type_params() &&

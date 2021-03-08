@@ -531,7 +531,6 @@ const Type* TypeChecker::check_impl_exists(const Loc& loc, const ast::Decl* cont
         if (auto impl = find_impl(context, type))
             return impl;
         error(loc, "cannot find an implementation for trait '{}'", *type);
-        note(context->loc, "required here");
     }
     return nullptr;
 }
@@ -686,9 +685,9 @@ const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, bool i
         auto& elem = elems[i];
 
         // Apply type arguments (if any)
-        if (auto poly_type = type->isa<artic::PolyType>(); poly_type && poly_type->type_params()) {
+        if (auto poly_type = type->isa<artic::PolyType>(); poly_type) {
             auto forall_type = type->isa<artic::ForallType>();
-            auto type_param_count = poly_type->type_params()->params.size();
+            auto type_param_count = poly_type->type_params() ? poly_type->type_params()->params.size() : 0;
             if (type_param_count == elem.args.size() ||
                 (forall_type && arg && type_param_count > elem.args.size())) {
                 std::vector<const artic::Type*> type_args(type_param_count);
@@ -706,13 +705,15 @@ const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, bool i
                     // Implementation checking is only enabled for trait types when
                     // we are using them, not when we are implementing or defining them.
                     if (impl_required)
-                        checker.check_impl_exists(elem.loc, checker.last_decl, trait_type, type_args);
+                        elem.impl_or_where = checker.check_impl_exists(elem.loc, checker.last_decl, trait_type, type_args);
                 } else if (poly_type->where_clauses() && poly_type->type_params()) {
                     // Check that *polymorphic* `where` clauses that depend on the instantiated variables are met
                     auto map = poly_type->replace_map(type_args);
                     for (auto& clause : poly_type->where_clauses()->clauses) {
+                        const artic::Type* clause_impl = nullptr;
                         if (depends_on_any_type_param(clause->type, poly_type->type_params()))
-                            checker.check_impl_exists(elem.loc, checker.last_decl, clause->type->replace(map));
+                            clause_impl = checker.check_impl_exists(elem.loc, checker.last_decl, clause->type->replace(map));
+                        elem.inferred_clauses.push_back(clause_impl);
                     }
                 }
 
@@ -1774,7 +1775,7 @@ const artic::Type* ImplDecl::infer(TypeChecker& checker) {
     if (type_params && where_clauses && (!attrs || !attrs->find("allow_undecidable_impl"))) {
         if (auto invalid_clause = check_paterson_conditions(impled_type->type, *type_params, *where_clauses)) {
             checker.error(loc, "clause '{}' may cause the type inference to diverge", *invalid_clause);
-            checker.note("use the `allow_undecidable_impl` attribute to disable this behavior");
+            checker.note("use the 'allow_undecidable_impl' attribute to disable this behavior");
             return checker.type_table.type_error();
         }
     }

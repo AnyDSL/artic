@@ -320,6 +320,8 @@ impl[T] Num[T] where Add[T], Sub[T], Mul[T], Div[T], Rem[T], FromInt[T], Cmp[T];
 #[allow_undecidable_impl]
 impl[T] Int[T] where Num[T], Shift[T], BitOps[T], Inc[T], Dec[T];
 #[allow_undecidable_impl]
+impl[T] Cmp[T] where CmpGT[T], CmpGE[T], CmpLT[T], CmpLE[T], CmpEq[T], CmpNE[T];
+#[allow_undecidable_impl]
 impl[T] Float[T] where Num[T], FromFloat[T];
 )";
 
