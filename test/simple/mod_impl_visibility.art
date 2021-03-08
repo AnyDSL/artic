@@ -1,4 +1,4 @@
-trait T[_]{ fn foo() = 1;}
+trait T[_]{ fn foo() = 1; }
 impl T[i32] {}
 
 mod A {

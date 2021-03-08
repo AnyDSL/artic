@@ -2,11 +2,11 @@ struct Vec2[A](A, A);
 struct Vec3[A] { a: A, b: A, c: A }
 
 impl[A] Add[Vec3[A]] where Add[A] {
-	fn add(a: Vec3[A], b: Vec3[A]) = Vec3[A] { a = Add[A]::add(a.a, b.a), b = a.b + b.b, c = Add[A]::add(a.c, b.c) };
+    fn add(a: Vec3[A], b: Vec3[A]) = Vec3[A] { a = Add[A]::add(a.a, b.a), b = a.b + b.b, c = Add[A]::add(a.c, b.c) };
 }
 
 impl[A] Add[Vec2[A]] where Add[A] {
-	fn add(a: Vec2[A], b: Vec2[A]) { let Vec2[A](b0, b1) = b; Vec2[A](Add[A]::add(a.0, b0), a.1 + b1) }
+    fn add(a: Vec2[A], b: Vec2[A]) { let Vec2[A](b0, b1) = b; Vec2[A](Add[A]::add(a.0, b0), a.1 + b1) }
 }
 
 fn double1[T](t: T) where Add[T] = t + t;
