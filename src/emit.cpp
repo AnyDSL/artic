@@ -1035,12 +1035,12 @@ const thorin::Def* Emitter::comparator(const Loc& loc, const Type* type) {
 }
 
 const ast::NamedDecl* Emitter::impl_member(
-    const Type* impl_or_where,
+    ResolvedImpl& resolved_impl,
     size_t trait_member_index,
-    const std::vector<const Type*>* inferred_clauses,
     ReplaceMap& new_type_vars,
     TypeMap<const Type*>& new_type_to_impl)
 {
+#if 0
     if (!match_app<ImplType>(impl_or_where).second)
         impl_or_where = type_to_impl[impl_or_where->replace(type_vars)];
 
@@ -1071,16 +1071,17 @@ const ast::NamedDecl* Emitter::impl_member(
 
         return impl_type->decl.decls[*impl_member_index].get();
     }
+#endif
 
     // If the function does not exist in the impl, it must be a function with a default implementation in the trait.
     assert(false);
     return nullptr;
 }
 
-const thorin::Def* Emitter::impl_member(const Type* impl_or_where, size_t trait_member_index) {
+const thorin::Def* Emitter::impl_member(ResolvedImpl& resolved_impl, size_t trait_member_index) {
     ReplaceMap new_type_vars;
     TypeMap<const Type*> new_type_to_impl;
-    auto decl = impl_member(impl_or_where, trait_member_index, nullptr, new_type_vars, new_type_to_impl);
+    auto decl = impl_member(resolved_impl, trait_member_index, new_type_vars, new_type_to_impl);
     std::swap(new_type_vars, type_vars);
     std::swap(new_type_to_impl, type_to_impl);
     auto def = emit(*decl);
@@ -1119,7 +1120,10 @@ const thorin::Def* Path::emit(Emitter& emitter) const {
             else
                 assert(false);
         } else if (auto [type_app, trait_type] = match_app<artic::TraitType>(elems[i].type); trait_type) {
-            decl = emitter.impl_member(elems[i].impl_or_where, elems[i + 1].index, &elems[i].inferred_clauses, new_type_vars, new_type_to_impl);
+            // TODO:
+            //decl = emitter.impl_member(elems[i].impl_or_where, elems[i + 1].index, &elems[i].inferred_clauses, new_type_vars, new_type_to_impl);
+            assert(false);
+
             // We *must* forget the context (the type variables and instances that already exist at the location of the path),
             // since the `impl` that we are generating is not part of the current scope.
             keep_vars = false;
@@ -1139,6 +1143,7 @@ const thorin::Def* Path::emit(Emitter& emitter) const {
             }
 
             // If `where` clauses are present, we need to place the corresponding `impl`s in the map from type to `impl`
+#if 0
             if (!elems[i].inferred_clauses.empty()) {
                 assert(forall_type && forall_type->where_clauses());
                 for (size_t j = 0, n = elems[i].inferred_clauses.size(); j < n; ++j) {
@@ -1154,6 +1159,7 @@ const thorin::Def* Path::emit(Emitter& emitter) const {
                 }
                 if (keep_vars) new_type_to_impl.insert(emitter.type_to_impl.begin(), emitter.type_to_impl.end());
             }
+#endif
 
             auto has_type_vars = !new_type_vars.empty();
             auto has_type_to_impl = !new_type_to_impl.empty();
@@ -1516,8 +1522,8 @@ const thorin::Def* UnaryExpr::emit(Emitter& emitter) const {
                 return nullptr;
         }
     } else {
-        assert(impl_or_where);
-        return emitter.call(emitter.impl_member(impl_or_where, 0), op, emitter.debug_info(*this));
+        assert(op_impl);
+        return emitter.call(emitter.impl_member(*op_impl, 0), op, emitter.debug_info(*this));
     }
     if (ptr) {
         emitter.store(ptr, res, emitter.debug_info(*this));
@@ -1607,9 +1613,9 @@ const thorin::Def* BinaryExpr::emit(Emitter& emitter) const {
                 return nullptr;
         }
     } else {
-        assert(impl_or_where);
+        assert(op_impl);
         return emitter.call(
-            emitter.impl_member(impl_or_where, 0),
+            emitter.impl_member(*op_impl, 0),
             emitter.world.tuple({ lhs, rhs }),
             emitter.debug_info(*this));
     }

@@ -519,16 +519,20 @@ const Type* TypeChecker::infer_record_type(const TypeApp* type_app, const Struct
     return type_app ? type_app->as<Type>() : struct_type;
 }
 
-const Type* TypeChecker::check_impl_exists(const Loc& loc, const ast::Decl* context, const Type* type) {
+std::unique_ptr<ResolvedImpl> TypeChecker::check_impl_exists(const Loc& loc, const ast::Decl* context, const Type* type) {
     if (!type->has_error) {
         if (auto impl = find_impl(context, type))
             return impl;
         error(loc, "cannot find an implementation for trait '{}'", *type);
     }
-    return nullptr;
+    return {};
 }
 
-const Type* TypeChecker::check_impl_exists(const Loc& loc, const ast::Decl* context, const TraitType* trait_type, const ArrayRef<const Type*>& args) {
+std::unique_ptr<ResolvedImpl> TypeChecker::check_impl_exists(
+    const Loc& loc, const ast::Decl* context,
+    const TraitType* trait_type,
+    const ArrayRef<const Type*>& args)
+{
     return check_impl_exists(loc, context, type_table.type_app(trait_type, args));
 }
 
@@ -551,30 +555,38 @@ static bool is_trait_implying_another(const Type* type, const Type* target_type)
     return false;
 }
 
-const Type* TypeChecker::find_impl(const ast::Decl* decl, const Type* target_type, bool only_impls) {
+std::unique_ptr<ResolvedImpl> TypeChecker::find_impl(const ast::Decl* decl, const Type* target_type) {
     return forall_clauses_and_impl_candidates(decl, match_app<TraitType>(target_type).second,
-        [&] (const Type* type) -> const Type* {
-            return !only_impls && is_trait_implying_another(type, target_type) ? target_type : nullptr;
+        [&] (const Type* type) -> std::unique_ptr<ResolvedImpl> {
+            return is_trait_implying_another(type, target_type)
+                ? std::make_unique<ResolvedImpl>(target_type)
+                : std::unique_ptr<ResolvedImpl>{};
         },
-        [&] (const ImplType* impl_type) -> const Type* {
+        [&] (const ImplType* impl_type) -> std::unique_ptr<ResolvedImpl> {
             // Check that the `impl` matches the target type
             if (auto map = impl_type->impled_type()->unify(target_type)) {
                 // Now check that the `where` clauses of the `impl` can be met
+                std::vector<ResolvedImpl> resolved_clauses;
                 if (impl_type->where_clauses()) {
                     for (auto& clause : impl_type->where_clauses()->clauses) {
-                        if (!find_impl(decl, clause->type->replace(*map), only_impls))
-                            return nullptr;
+                        auto resolved_impl = find_impl(decl, clause->type->replace(*map));
+                        if (!resolved_impl)
+                            return {};
+                        resolved_clauses.emplace_back(*resolved_impl);
                     }
                 }
                 if (!impl_type->type_params())
-                    return impl_type;
+                    return std::make_unique<ResolvedImpl>(impl_type, std::move(resolved_clauses));
+
                 // If this implementation is polymorphic, we need to create type arguments for it.
                 SmallArray<const Type*> type_args(impl_type->type_params()->params.size());
                 for (size_t i = 0, n = type_args.size(); i < n; ++i)
                     type_args[i] = (*map)[impl_type->type_params()->params[i]->type->as<TypeVar>()];
-                return type_table.type_app(impl_type, type_args);
+                return std::make_unique<ResolvedImpl>(
+                    type_table.type_app(impl_type, type_args),
+                    std::move(resolved_clauses));
             }
-            return nullptr;
+            return {};
         });
 }
 
@@ -588,18 +600,19 @@ static inline const ast::WhereClauseList* extract_where_clauses(const ast::Decl&
         return nullptr;
 }
 
-const Type* TypeChecker::forall_clauses_and_impl_candidates(
+template <typename ClauseVisitor, typename ImplVisitor>
+auto TypeChecker::forall_clauses_and_impl_candidates(
     const ast::Decl* decl, const TraitType* trait_type,
-    std::function<const Type* (const Type*)> clause_visitor,
-    std::function<const Type* (const ImplType*)> impl_visitor)
+    ClauseVisitor&& clause_visitor, ImplVisitor&& impl_visitor)
+    -> std::invoke_result_t<ClauseVisitor, const Type*>
 {
     // Walk up functions/impls/... to collect `where` clauses
     auto poly_decl = decl;
     while (poly_decl) {
         if (auto where_clauses = extract_where_clauses(*poly_decl)) {
             for (auto& clause : where_clauses->clauses) {
-                if (auto type = clause_visitor(clause->type))
-                    return type;
+                if (auto res = clause_visitor(clause->type))
+                    return res;
             }
         }
         poly_decl = poly_decl->find_parent<ast::Decl>();
@@ -612,12 +625,13 @@ const Type* TypeChecker::forall_clauses_and_impl_candidates(
     while (mod_decl) {
         auto& candidates = impl_candidates(mod_decl, trait_type);
         for (auto impl_type : candidates) {
-            if (auto type = impl_visitor(impl_type))
-                return type;
+            if (auto res = impl_visitor(impl_type))
+                return res;
         }
         mod_decl = mod_decl->find_parent<ast::ModDecl>();
     }
-    return nullptr;
+
+    return {};
 }
 
 auto TypeChecker::impl_candidates(const ast::ModDecl* mod_decl, const TraitType* trait_type) -> const ImplCandidates& {
@@ -698,15 +712,15 @@ const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, bool i
                     // Implementation checking is only enabled for trait types when
                     // we are using them, not when we are implementing or defining them.
                     if (impl_required)
-                        elem.impl_or_where = checker.check_impl_exists(elem.loc, parent_decl, trait_type, type_args);
+                        elem.trait_impl = checker.check_impl_exists(elem.loc, parent_decl, trait_type, type_args);
                 } else if (poly_type->where_clauses() && poly_type->type_params()) {
                     // Check that *polymorphic* `where` clauses that depend on the instantiated variables are met
                     auto map = poly_type->replace_map(type_args);
                     for (auto& clause : poly_type->where_clauses()->clauses) {
-                        const artic::Type* clause_impl = nullptr;
+                        std::unique_ptr<ResolvedImpl> clause_impl;
                         if (depends_on_any_type_param(clause->type, poly_type->type_params()))
                             clause_impl = checker.check_impl_exists(elem.loc, parent_decl, clause->type->replace(map));
-                        elem.inferred_clauses.push_back(clause_impl);
+                        elem.where_impls.emplace_back(std::move(clause_impl));
                     }
                 }
 
@@ -822,7 +836,7 @@ void NamedAttr::check(TypeChecker& checker, const ast::Node* node) {
                     name = name_attr->as<LiteralAttr>()->lit.as_string();
                 if (name == "") {
                     checker.error(fn_expr->loc, "imported functions must have a name");
-                    checker.note("use the '#[import(name = \"...\")]' to specify the imported function name");
+                    checker.note("use '#[import(name = \"...\")]' to specify the imported function name");
                 }
                 if (auto cc_attr = find("cc")) {
                     auto& cc = cc_attr->as<LiteralAttr>()->lit.as_string();
@@ -1374,7 +1388,7 @@ const artic::Type* UnaryExpr::infer(TypeChecker& checker) {
     // unsupported SIMD operations.
     if (is_simd_type(prim_type))
         prim_type = prim_type->as<artic::SizedArrayType>()->elem;
-    this->impl_or_where = checker.check_impl_exists(loc, parent_decl,
+    this->op_impl = checker.check_impl_exists(loc, parent_decl,
         checker.type_table.builtin_traits[UnaryExpr::tag_to_trait_name(tag)],
         std::array { prim_type });
     if (tag == PostDec || tag == PreDec || tag == PostInc || tag == PreInc)
@@ -1421,7 +1435,7 @@ const artic::Type* BinaryExpr::infer(TypeChecker& checker) {
         case LogicOr:
             break;
         default:
-            this->impl_or_where = checker.check_impl_exists(loc, parent_decl,
+            this->op_impl = checker.check_impl_exists(loc, parent_decl,
                 checker.type_table.builtin_traits[BinaryExpr::tag_to_trait_name(tag)],
                 std::array { prim_type });
             break;
@@ -1768,7 +1782,7 @@ const artic::Type* ImplDecl::infer(TypeChecker& checker) {
     if (type_params && where_clauses && (!attrs || !attrs->find("allow_undecidable_impl"))) {
         if (auto invalid_clause = check_paterson_conditions(impled_type->type, *type_params, *where_clauses)) {
             checker.error(loc, "clause '{}' may cause the type inference to diverge", *invalid_clause);
-            checker.note("use the 'allow_undecidable_impl' attribute to disable this behavior");
+            checker.note("use '#[allow_undecidable_impl]' to disable this behavior");
             return checker.type_table.type_error();
         }
     }

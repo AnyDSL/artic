@@ -3,6 +3,7 @@
 
 #include "artic/parser.h"
 #include "artic/print.h"
+#include "artic/types.h"
 
 namespace artic {
 

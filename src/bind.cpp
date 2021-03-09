@@ -1,5 +1,6 @@
 #include "artic/bind.h"
 #include "artic/ast.h"
+#include "artic/types.h"
 
 namespace artic {
 

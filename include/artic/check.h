@@ -2,6 +2,7 @@
 #define ARTIC_CHECK_H
 
 #include <unordered_set>
+#include <type_traits>
 #include <optional>
 
 #include "artic/ast.h"
@@ -71,14 +72,15 @@ public:
     const Type* infer_record_type(const TypeApp*, const StructType*, size_t&);
 
     // Trait-related functions
-    const Type* check_impl_exists(const Loc&, const ast::Decl*, const Type*);
-    const Type* check_impl_exists(const Loc&, const ast::Decl*, const TraitType*, const ArrayRef<const Type*>&);
+    std::unique_ptr<ResolvedImpl> check_impl_exists(const Loc&, const ast::Decl*, const Type*);
+    std::unique_ptr<ResolvedImpl> check_impl_exists(const Loc&, const ast::Decl*, const TraitType*, const ArrayRef<const Type*>&);
 
-    const Type* find_impl(const ast::Decl*, const Type*, bool = false);
-    const Type* forall_clauses_and_impl_candidates(
-        const ast::Decl*, const TraitType*,
-        std::function<const Type* (const Type*)>,
-        std::function<const Type* (const ImplType*)>);
+    std::unique_ptr<ResolvedImpl> find_impl(const ast::Decl*, const Type*);
+
+    template <typename ClauseVisitor, typename ImplVisitor>
+    auto forall_clauses_and_impl_candidates(
+        const ast::Decl*, const TraitType*, ClauseVisitor&&, ImplVisitor&&)
+        -> std::invoke_result_t<ClauseVisitor, const Type*>;
 
 private:
     template <typename Action>

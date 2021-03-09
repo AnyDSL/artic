@@ -756,6 +756,21 @@ inline bool can_avoid_impl_call(const artic::Type* type) {
     return type->isa<artic::PrimType>() || is_simd_type(type);
 }
 
+/// Helper data structure to store the result of implementation resolution.
+/// This stores either a where clause, or an implementation along with
+/// associated `where` clauses, themselves resolved to some implementation.
+struct ResolvedImpl {
+    const Type* type;
+    std::vector<ResolvedImpl> resolved_clauses;
+
+    bool is_impl() const { return match_app<ImplType>(type).second; }
+    bool is_where_clause() const { return !is_impl(); }
+
+    ResolvedImpl(const Type* type, std::vector<ResolvedImpl>&& resolved_clauses = {})
+        : type(type), resolved_clauses(std::move(resolved_clauses))
+    {}
+};
+
 /// Hash table containing all types.
 class TypeTable {
 public:

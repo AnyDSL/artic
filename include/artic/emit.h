@@ -166,8 +166,8 @@ public:
 
     const thorin::Def* comparator(const Loc&, const Type*);
 
-    const ast::NamedDecl* impl_member(const Type*, size_t, const std::vector<const Type*>*, ReplaceMap&, TypeMap<const Type*>&);
-    const thorin::Def* impl_member(const Type*, size_t);
+    const ast::NamedDecl* impl_member(ResolvedImpl&, size_t, ReplaceMap&, TypeMap<const Type*>&);
+    const thorin::Def* impl_member(ResolvedImpl&, size_t);
 };
 
 /// Helper function to compile a set of files and generate an AST and a thorin module.

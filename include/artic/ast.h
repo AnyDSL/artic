@@ -19,6 +19,7 @@ namespace thorin {
 namespace artic {
 
 struct Type;
+struct ResolvedImpl;
 struct Printer;
 class NameBinder;
 class TypeChecker;
@@ -185,9 +186,10 @@ struct Path : public Node {
         // These members are set during type-checking
         size_t index = 0;
         const artic::Type* type = nullptr;
-        const artic::Type* impl_or_where = nullptr;
         std::vector<const artic::Type*> inferred_args;
-        std::vector<const artic::Type*> inferred_clauses;
+
+        Ptr<ResolvedImpl> trait_impl;
+        PtrVector<ResolvedImpl> where_impls;
 
         bool is_super() const { return id.name == "super"; }
 
@@ -984,8 +986,8 @@ struct UnaryExpr : public Expr {
     Tag tag;
     Ptr<Expr> arg;
 
-    // Set during type-checking. Is either a type referring to an `impl` or a `where` clause.
-    const artic::Type* impl_or_where = nullptr;
+    // Set during type-checking. Contains the operator's implementation (or `where` clause).
+    Ptr<ResolvedImpl> op_impl;
 
     UnaryExpr(const Loc& loc, Tag tag, Ptr<Expr>&& arg)
         : Expr(loc), tag(tag), arg(std::move(arg))
@@ -1033,7 +1035,7 @@ struct BinaryExpr : public Expr {
     Ptr<Expr> right;
 
     // See comment in `UnaryExpr`.
-    const artic::Type* impl_or_where = nullptr;
+    Ptr<ResolvedImpl> op_impl;
 
     BinaryExpr(
         const Loc& loc,
