@@ -1824,20 +1824,10 @@ void ArrayPtrn::emit(Emitter& emitter, const thorin::Def* value) const {
 
 // Types ---------------------------------------------------------------------------
 
-std::string Type::stringify(Emitter&) const {
-    // Should never be called
-    assert(false);
-    return std::string();
-}
-
 const thorin::Type* Type::convert(Emitter&) const {
     // Should never be called
     assert(false);
     return nullptr;
-}
-
-std::string PrimType::stringify(Emitter&) const {
-    return ast::PrimType::tag_to_string(tag);
 }
 
 const thorin::Type* PrimType::convert(Emitter& emitter) const {
@@ -1860,27 +1850,11 @@ const thorin::Type* PrimType::convert(Emitter& emitter) const {
     }
 }
 
-std::string TupleType::stringify(Emitter& emitter) const {
-    if (args.empty())
-        return "unit";
-    std::string str = "tuple_";
-    for (size_t i = 0, n = args.size(); i < n; ++i) {
-        str += args[i]->stringify(emitter);
-        if (i != n - 1)
-            str += "_";
-    }
-    return str;
-}
-
 const thorin::Type* TupleType::convert(Emitter& emitter) const {
     thorin::Array<const thorin::Type*> ops(args.size());
     for (size_t i = 0, n = args.size(); i < n; ++i)
         ops[i] = args[i]->convert(emitter);
     return emitter.world.tuple_type(ops);
-}
-
-std::string SizedArrayType::stringify(Emitter& emitter) const {
-    return "array_" + std::to_string(size) + "_" + elem->stringify(emitter);
 }
 
 const thorin::Type* SizedArrayType::convert(Emitter& emitter) const {
@@ -1889,40 +1863,20 @@ const thorin::Type* SizedArrayType::convert(Emitter& emitter) const {
     return emitter.world.definite_array_type(elem->convert(emitter), size);
 }
 
-std::string UnsizedArrayType::stringify(Emitter& emitter) const {
-    return "array_" + elem->stringify(emitter);
-}
-
 const thorin::Type* UnsizedArrayType::convert(Emitter& emitter) const {
     return emitter.world.indefinite_array_type(elem->convert(emitter));
-}
-
-std::string PtrType::stringify(Emitter& emitter) const {
-    return "ptr_" + pointee->stringify(emitter);
 }
 
 const thorin::Type* PtrType::convert(Emitter& emitter) const {
     return emitter.world.ptr_type(pointee->convert(emitter), 1, -1, thorin::AddrSpace(addr_space));
 }
 
-std::string FnType::stringify(Emitter& emitter) const {
-    return "fn_" + dom->stringify(emitter) + "_" + codom->stringify(emitter);
-}
-
 const thorin::Type* FnType::convert(Emitter& emitter) const {
     return emitter.function_type_with_mem(dom->convert(emitter), codom->convert(emitter));
 }
 
-std::string NoRetType::stringify(Emitter&) const {
-    return "no_ret";
-}
-
 const thorin::Type* NoRetType::convert(Emitter& emitter) const {
     return emitter.no_ret()->type();
-}
-
-std::string TypeVar::stringify(Emitter& emitter) const {
-    return emitter.type_vars[this]->stringify(emitter);
 }
 
 const thorin::Type* TypeVar::convert(Emitter& emitter) const {
@@ -1936,31 +1890,11 @@ const thorin::Type* UserType::convert(Emitter&, const Type*) const {
     return nullptr;
 }
 
-inline std::string stringify_params(
-    Emitter& emitter,
-    const std::string& prefix,
-    const PtrVector<ast::TypeParam>& params)
-{
-    auto str = prefix;
-    for (size_t i = 0, n = params.size(); i < n; ++i) {
-        str += params[i]->type->stringify(emitter);
-        if (i != n - 1)
-            str += "_";
-    }
-    return str;
-}
-
-std::string StructType::stringify(Emitter& emitter) const {
-    if (!type_params())
-        return decl.id.name;
-    return stringify_params(emitter, decl.id.name + "_", type_params()->params);
-}
-
 const thorin::Type* StructType::convert(Emitter& emitter, const Type* parent) const {
     // Return existing an existing structure type if the type is monomorphic
     if (auto it = emitter.types.find(this); !type_params() && it != emitter.types.end())
         return it->second;
-    auto type = emitter.world.struct_type(stringify(emitter), decl.fields.size());
+    auto type = emitter.world.struct_type(stringify(emitter.type_vars), decl.fields.size());
     emitter.types[parent] = type;
     for (size_t i = 0, n = decl.fields.size(); i < n; ++i) {
         type->set(i, decl.fields[i]->ast::Node::type->convert(emitter));
@@ -1969,31 +1903,17 @@ const thorin::Type* StructType::convert(Emitter& emitter, const Type* parent) co
     return type;
 }
 
-std::string EnumType::stringify(Emitter& emitter) const {
-    if (!type_params())
-        return decl.id.name;
-    return stringify_params(emitter, decl.id.name + "_", type_params()->params);
-}
-
 const thorin::Type* EnumType::convert(Emitter& emitter, const Type* parent) const {
     // See comment above
     if (auto it = emitter.types.find(this); !type_params() && it != emitter.types.end())
         return it->second;
-    auto type = emitter.world.variant_type(stringify(emitter), decl.options.size());
+    auto type = emitter.world.variant_type(stringify(emitter.type_vars), decl.options.size());
     emitter.types[parent] = type;
     for (size_t i = 0, n = decl.options.size(); i < n; ++i) {
         type->set(i, decl.options[i]->type->convert(emitter));
         type->set_op_name(i, decl.options[i]->id.name);
     }
     return type;
-}
-
-std::string TypeApp::stringify(Emitter& emitter) const {
-    auto map = replace(emitter.type_vars)->as<TypeApp>()->replace_map();
-    std::swap(emitter.type_vars, map);
-    auto str = applied->stringify(emitter);
-    std::swap(emitter.type_vars, map);
-    return str;
 }
 
 const thorin::Type* TypeApp::convert(Emitter& emitter) const {

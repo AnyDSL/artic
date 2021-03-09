@@ -75,7 +75,7 @@ struct Type : public Cast<Type> {
     virtual const thorin::Type* convert(Emitter&) const;
     /// Converts this type into a string that can be
     /// used as C union/structure/typedef name.
-    virtual std::string stringify(Emitter&) const;
+    virtual std::string stringify(const ReplaceMap& = {}) const;
 
     /// Returns whether this type can be represented in memory or not (that is, if it has a finite size).
     bool is_sized() const {
@@ -162,7 +162,7 @@ struct PrimType : public Type {
     size_t hash() const override;
 
     const thorin::Type* convert(Emitter&) const override;
-    std::string stringify(Emitter&) const override;
+    std::string stringify(const ReplaceMap&) const override;
 
 private:
     PrimType(TypeTable& type_table, ast::PrimType::Tag tag)
@@ -181,7 +181,7 @@ struct TupleType : public Type {
     const Type* replace(const ReplaceMap&) const override;
 
     const thorin::Type* convert(Emitter&) const override;
-    std::string stringify(Emitter&) const override;
+    std::string stringify(const ReplaceMap&) const override;
 
 private:
     TupleType(TypeTable& type_table, const ArrayRef<const Type*>& args)
@@ -231,7 +231,7 @@ struct SizedArrayType : public ArrayType {
     const Type* replace(const ReplaceMap&) const override;
 
     const thorin::Type* convert(Emitter&) const override;
-    std::string stringify(Emitter&) const override;
+    std::string stringify(const ReplaceMap&) const override;
 
 private:
     SizedArrayType(TypeTable& type_table, const Type* elem, size_t size, bool is_simd)
@@ -250,7 +250,7 @@ struct UnsizedArrayType : public ArrayType {
     const Type* replace(const ReplaceMap&) const override;
 
     const thorin::Type* convert(Emitter&) const override;
-    std::string stringify(Emitter&) const override;
+    std::string stringify(const ReplaceMap&) const override;
 
 private:
     UnsizedArrayType(TypeTable& type_table, const Type* elem)
@@ -290,7 +290,7 @@ struct PtrType : public AddrType {
     const Type* replace(const ReplaceMap&) const override;
 
     const thorin::Type* convert(Emitter&) const override;
-    std::string stringify(Emitter&) const override;
+    std::string stringify(const ReplaceMap&) const override;
 
 private:
     PtrType(TypeTable& type_table, const Type* pointee, bool is_mut, size_t addr_space)
@@ -325,7 +325,7 @@ struct FnType : public Type {
     const Type* replace(const ReplaceMap&) const override;
 
     const thorin::Type* convert(Emitter&) const override;
-    std::string stringify(Emitter&) const override;
+    std::string stringify(const ReplaceMap&) const override;
 
 private:
     FnType(TypeTable& type_table, const Type* dom, const Type* codom)
@@ -376,7 +376,7 @@ struct NoRetType : public BottomType {
     void print(Printer&) const override;
 
     const thorin::Type* convert(Emitter&) const override;
-    std::string stringify(Emitter&) const override;
+    std::string stringify(const ReplaceMap&) const override;
 
 private:
     NoRetType(TypeTable& type_table)
@@ -411,7 +411,7 @@ struct TypeVar : public Type {
     const Type* replace(const ReplaceMap&) const override;
 
     const thorin::Type* convert(Emitter&) const override;
-    std::string stringify(Emitter&) const override;
+    std::string stringify(const ReplaceMap&) const override;
 
 private:
     TypeVar(TypeTable& type_table, const ast::TypeParam& param)
@@ -519,7 +519,7 @@ struct StructType : public ComplexType {
 
     using UserType::convert;
     const thorin::Type* convert(Emitter&, const Type*) const override;
-    std::string stringify(Emitter&) const override;
+    std::string stringify(const ReplaceMap&) const override;
 
     std::string_view member_name(size_t) const override;
     bool has_default_value(size_t) const override;
@@ -543,7 +543,7 @@ struct EnumType : public PolyTypeFromDecl<ComplexType, ast::EnumDecl> {
 
     using UserType::convert;
     const thorin::Type* convert(Emitter&, const Type*) const override;
-    std::string stringify(Emitter&) const override;
+    std::string stringify(const ReplaceMap&) const override;
 
     std::string_view member_name(size_t) const override;
     const Type* member_type(size_t) const override;
@@ -681,7 +681,7 @@ struct TypeApp : public Type {
     const Type* replace(const ReplaceMap&) const override;
 
     const thorin::Type* convert(Emitter&) const override;
-    std::string stringify(Emitter&) const override;
+    std::string stringify(const ReplaceMap&) const override;
 
 private:
     TypeApp(

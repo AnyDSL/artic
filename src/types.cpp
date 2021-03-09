@@ -511,6 +511,87 @@ const ModType::Members& ModType::members() const {
     return *members_;
 }
 
+// Stringify -----------------------------------------------------------------------
+
+std::string Type::stringify(const ReplaceMap&) const {
+    // Should never be called
+    assert(false);
+    return std::string();
+}
+
+std::string PrimType::stringify(const ReplaceMap&) const {
+    return ast::PrimType::tag_to_string(tag);
+}
+
+std::string TupleType::stringify(const ReplaceMap& map) const {
+    if (args.empty())
+        return "unit";
+    std::string str = "tuple_";
+    for (size_t i = 0, n = args.size(); i < n; ++i) {
+        str += args[i]->stringify(map);
+        if (i != n - 1)
+            str += "_";
+    }
+    return str;
+}
+
+std::string SizedArrayType::stringify(const ReplaceMap& map) const {
+    return "array_" + std::to_string(size) + "x" + elem->stringify(map);
+}
+
+std::string UnsizedArrayType::stringify(const ReplaceMap& map) const {
+    return "array_" + elem->stringify(map);
+}
+
+std::string PtrType::stringify(const ReplaceMap& map) const {
+    return "ptr_" + pointee->stringify(map);
+}
+
+std::string FnType::stringify(const ReplaceMap& map) const {
+    return "fn_" + dom->stringify(map) + "_" + codom->stringify(map);
+}
+
+std::string NoRetType::stringify(const ReplaceMap&) const {
+    return "no_ret";
+}
+
+std::string TypeVar::stringify(const ReplaceMap& map) const {
+    if (auto it = map.find(this); it != map.end())
+        return it->second->stringify(map);
+    assert(false);
+    return "";
+}
+
+inline std::string stringify_params(
+    const ReplaceMap& map,
+    const std::string& prefix,
+    const PtrVector<ast::TypeParam>& params)
+{
+    auto str = prefix;
+    for (size_t i = 0, n = params.size(); i < n; ++i) {
+        str += params[i]->type->stringify(map);
+        if (i != n - 1)
+            str += "_";
+    }
+    return str;
+}
+
+std::string StructType::stringify(const ReplaceMap& map) const {
+    if (!type_params())
+        return decl.id.name;
+    return stringify_params(map, decl.id.name + "_", type_params()->params);
+}
+
+std::string EnumType::stringify(const ReplaceMap& map) const {
+    if (!type_params())
+        return decl.id.name;
+    return stringify_params(map, decl.id.name + "_", type_params()->params);
+}
+
+std::string TypeApp::stringify(const ReplaceMap& map) const {
+    return applied->stringify(replace(map)->as<TypeApp>()->replace_map());
+}
+
 // Misc. ---------------------------------------------------------------------------
 
 bool Type::subtype(const Type* other) const {
