@@ -9,14 +9,16 @@ bool NameBinder::run(ast::ModDecl& mod) {
 }
 
 void NameBinder::bind_head(ast::Decl& decl) {
-    decl.parent = find_parent<ast::Decl>();
-    assert(decl.parent || (decl.isa<ast::ModDecl>() && decl.as<ast::ModDecl>()->is_top_level()));
+    decl.parent_decl = find_parent<ast::Decl>();
+    assert(decl.parent_decl || (decl.isa<ast::ModDecl>() && decl.as<ast::ModDecl>()->is_top_level()));
     decl.bind_head(*this);
 }
 
 void NameBinder::bind(ast::Node& node) {
     if (node.attrs)
         node.attrs->bind(*this);
+    if (!node.parent_decl)
+        node.parent_decl = find_parent<ast::Decl>();
     node.bind(*this);
 }
 
@@ -31,9 +33,9 @@ void NameBinder::pop_scope() {
             !decl->isa<ast::FieldDecl>() &&
             !decl->isa<ast::OptionDecl>() &&
             !decl->isa<ast::ModDecl>() &&
-            !decl->parent->isa<ast::ModDecl>() &&
-            !decl->parent->isa<ast::TraitDecl>() &&
-            !decl->parent->isa<ast::ImplDecl>())
+            !decl->parent_decl->isa<ast::ModDecl>() &&
+            !decl->parent_decl->isa<ast::TraitDecl>() &&
+            !decl->parent_decl->isa<ast::ImplDecl>())
         {
             warn(decl->loc, "unused identifier '{}'", pair.first);
             note("prefix unused identifiers with '_'");
@@ -55,7 +57,7 @@ void NameBinder::insert_symbol(ast::NamedDecl& decl, const std::string& name) {
         note(shadow_symbol->decl->loc, "previously declared here");
     } else if (
         warn_on_shadowing && shadow_symbol &&
-        decl.isa<ast::PtrnDecl>() && !shadow_symbol->decl->parent->isa<ast::ModDecl>()) {
+        decl.isa<ast::PtrnDecl>() && !shadow_symbol->decl->parent_decl->isa<ast::ModDecl>()) {
         warn(decl.loc, "declaration shadows identifier '{}'", name);
         note(shadow_symbol->decl->loc, "previously declared here");
     }

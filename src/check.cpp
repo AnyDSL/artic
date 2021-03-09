@@ -181,20 +181,13 @@ const Type* TypeChecker::check_or_infer(ast::Node& node, Action&& action) {
     // This avoids infinite recursion when inferring the type of recursive
     // declarations such as functions/structures/enumerations.
     auto decl = node.isa<ast::Decl>();
-    auto prev_decl = last_decl;
-    if (decl) {
-        if (!visited_decls_.emplace(decl).second) {
-            error(decl->loc, "cannot infer type for recursive declaration");
-            return type_table.type_error();
-        }
-        last_decl = decl;
+    if (decl && !visited_decls_.emplace(decl).second) {
+        error(decl->loc, "cannot infer type for recursive declaration");
+        return type_table.type_error();
     }
     node.type = action();
-    if (decl) {
+    if (decl)
         visited_decls_.erase(decl);
-        last_decl = prev_decl;
-        assert(last_decl || (decl->isa<ast::ModDecl>() && decl->as<ast::ModDecl>()->is_top_level()));
-    }
     if (node.attrs)
         node.attrs->check(*this, &node);
     return node.type;
@@ -248,12 +241,12 @@ const Type* TypeChecker::infer(const Loc&, const Literal& lit) {
     }
 }
 
-const Type* TypeChecker::check(const Loc& loc, const Literal& lit, const Type* expected) {
+const Type* TypeChecker::check(const Loc& loc, const ast::Decl* parent_decl, const Literal& lit, const Type* expected) {
     if (expected->isa<NoRetType>())
         return infer(loc, lit);
     if (lit.is_integer() || lit.is_double()) {
         auto trait_name = lit.is_integer() ? "FromInt" : "FromFloat";
-        check_impl_exists(loc, last_decl, type_table.builtin_traits[trait_name], std::array { expected });
+        check_impl_exists(loc, parent_decl, type_table.builtin_traits[trait_name], std::array { expected });
         return expected;
     } else if (lit.is_bool()) {
         if (!is_bool_type(expected))
@@ -558,10 +551,10 @@ static bool is_trait_implying_another(const Type* type, const Type* target_type)
     return false;
 }
 
-const Type* TypeChecker::find_impl(const ast::Decl* decl, const Type* target_type) {
+const Type* TypeChecker::find_impl(const ast::Decl* decl, const Type* target_type, bool only_impls) {
     return forall_clauses_and_impl_candidates(decl, match_app<TraitType>(target_type).second,
         [&] (const Type* type) -> const Type* {
-            return is_trait_implying_another(type, target_type) ? target_type : nullptr;
+            return !only_impls && is_trait_implying_another(type, target_type) ? target_type : nullptr;
         },
         [&] (const ImplType* impl_type) -> const Type* {
             // Check that the `impl` matches the target type
@@ -569,7 +562,7 @@ const Type* TypeChecker::find_impl(const ast::Decl* decl, const Type* target_typ
                 // Now check that the `where` clauses of the `impl` can be met
                 if (impl_type->where_clauses()) {
                     for (auto& clause : impl_type->where_clauses()->clauses) {
-                        if (!find_impl(decl, clause->type->replace(*map)))
+                        if (!find_impl(decl, clause->type->replace(*map), only_impls))
                             return nullptr;
                     }
                 }
@@ -705,14 +698,14 @@ const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, bool i
                     // Implementation checking is only enabled for trait types when
                     // we are using them, not when we are implementing or defining them.
                     if (impl_required)
-                        elem.impl_or_where = checker.check_impl_exists(elem.loc, checker.last_decl, trait_type, type_args);
+                        elem.impl_or_where = checker.check_impl_exists(elem.loc, parent_decl, trait_type, type_args);
                 } else if (poly_type->where_clauses() && poly_type->type_params()) {
                     // Check that *polymorphic* `where` clauses that depend on the instantiated variables are met
                     auto map = poly_type->replace_map(type_args);
                     for (auto& clause : poly_type->where_clauses()->clauses) {
                         const artic::Type* clause_impl = nullptr;
                         if (depends_on_any_type_param(clause->type, poly_type->type_params()))
-                            clause_impl = checker.check_impl_exists(elem.loc, checker.last_decl, clause->type->replace(map));
+                            clause_impl = checker.check_impl_exists(elem.loc, parent_decl, clause->type->replace(map));
                         elem.inferred_clauses.push_back(clause_impl);
                     }
                 }
@@ -964,7 +957,7 @@ const artic::Type* LiteralExpr::infer(TypeChecker& checker) {
 }
 
 const artic::Type* LiteralExpr::check(TypeChecker& checker, const artic::Type* expected) {
-    return checker.check(loc, lit, expected);
+    return checker.check(loc, parent_decl, lit, expected);
 }
 
 const artic::Type* FieldExpr::check(TypeChecker& checker, const artic::Type* expected) {
@@ -1381,7 +1374,7 @@ const artic::Type* UnaryExpr::infer(TypeChecker& checker) {
     // unsupported SIMD operations.
     if (is_simd_type(prim_type))
         prim_type = prim_type->as<artic::SizedArrayType>()->elem;
-    this->impl_or_where = checker.check_impl_exists(loc, checker.last_decl,
+    this->impl_or_where = checker.check_impl_exists(loc, parent_decl,
         checker.type_table.builtin_traits[UnaryExpr::tag_to_trait_name(tag)],
         std::array { prim_type });
     if (tag == PostDec || tag == PreDec || tag == PostInc || tag == PreInc)
@@ -1428,7 +1421,7 @@ const artic::Type* BinaryExpr::infer(TypeChecker& checker) {
         case LogicOr:
             break;
         default:
-            this->impl_or_where = checker.check_impl_exists(loc, checker.last_decl,
+            this->impl_or_where = checker.check_impl_exists(loc, parent_decl,
                 checker.type_table.builtin_traits[BinaryExpr::tag_to_trait_name(tag)],
                 std::array { prim_type });
             break;
@@ -1547,7 +1540,7 @@ const artic::Type* WhereClauseList::infer(TypeChecker& checker) {
         auto clause_type = checker.infer(*clause);
         // Check monomorphic `where` clauses right now
         if (!type_params || !depends_on_any_type_param(clause_type, type_params))
-            checker.check_impl_exists(clause->loc, checker.last_decl->find_parent<ast::Decl>(), clause_type);
+            checker.check_impl_exists(clause->loc, parent_decl->find_parent<ast::Decl>(), clause_type);
     }
     return nullptr;
 }
@@ -1900,7 +1893,7 @@ const artic::Type* LiteralPtrn::infer(TypeChecker& checker) {
 }
 
 const artic::Type* LiteralPtrn::check(TypeChecker& checker, const artic::Type* expected) {
-    auto type = checker.check(loc, lit, expected);
+    auto type = checker.check(loc, parent_decl, lit, expected);
     if (is_float_type(type))
         return checker.type_expected(loc, type, "integer, boolean, or string");
     return type;

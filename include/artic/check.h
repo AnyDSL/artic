@@ -52,7 +52,7 @@ public:
     const Type* infer(ast::Ptrn&, Ptr<ast::Expr>&);
 
     const Type* infer(const Loc&, const Literal&);
-    const Type* check(const Loc&, const Literal&, const Type*);
+    const Type* check(const Loc&, const ast::Decl*, const Literal&, const Type*);
 
     void check_block(const Loc&, const PtrVector<ast::Stmt>&, bool);
     bool check_attrs(const ast::NamedAttr&, const ArrayRef<AttrType>&);
@@ -74,14 +74,11 @@ public:
     const Type* check_impl_exists(const Loc&, const ast::Decl*, const Type*);
     const Type* check_impl_exists(const Loc&, const ast::Decl*, const TraitType*, const ArrayRef<const Type*>&);
 
-    const Type* find_impl(const ast::Decl*, const Type*);
+    const Type* find_impl(const ast::Decl*, const Type*, bool = false);
     const Type* forall_clauses_and_impl_candidates(
         const ast::Decl*, const TraitType*,
         std::function<const Type* (const Type*)>,
         std::function<const Type* (const ImplType*)>);
-
-    /// The last declaration that has been seen, in the order where nodes are inferred/checked.
-    const ast::Decl* last_decl = nullptr;
 
 private:
     template <typename Action>

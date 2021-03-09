@@ -44,6 +44,8 @@ struct Identifier {
     {}
 };
 
+struct Decl;
+
 /// Base class for all AST nodes.
 struct Node : public Cast<Node> {
     /// Location of the node in the source file.
@@ -53,6 +55,9 @@ struct Node : public Cast<Node> {
     mutable const artic::Type* type = nullptr;
     /// IR definition assigned after IR emission.
     mutable const thorin::Def* def = nullptr;
+
+    /// Declaration enclosing this node. Set during name-binding.
+    Decl* parent_decl = nullptr;
 
     /// List of attributes associated with the node.
     Ptr<struct AttrList> attrs;
@@ -76,6 +81,10 @@ struct Node : public Cast<Node> {
     /// Prints the node with the given formatting parameters.
     virtual void print(Printer&) const = 0;
 
+    /// Finds the closest parent that is of the given type.
+    template <typename T>
+    T* find_parent() const;
+
     /// Prints the node on the console, for debugging.
     void dump() const;
 };
@@ -88,26 +97,22 @@ log::Output& operator << (log::Output&, const Node&);
 struct Decl : public Node {
     Decl(const Loc& loc) : Node(loc) {}
 
-    /// Declaration enclosing this one. Set during name-binding.
-    Decl* parent = nullptr;
-
-    /// Finds the closest parent that is of the given type.
-    template <typename T>
-    T* find_parent() const {
-        Decl* cur = parent;
-        while (cur) {
-            if (cur->template isa<T>())
-                return cur->template as<T>();
-            cur = cur->parent;
-        }
-        return nullptr;
-    }
-
     /// Binds the declaration to its AST node, without entering sub-AST nodes.
     virtual void bind_head(NameBinder&) {}
 
     const thorin::Def* emit(Emitter&) const override;
 };
+
+template <typename T>
+T* Node::find_parent() const {
+    Decl* decl = parent_decl;
+    while (decl) {
+        if (decl->template isa<T>())
+            return decl->template as<T>();
+        decl = decl->parent_decl;
+    }
+    return nullptr;
+}
 
 /// Base class for types.
 struct Type : public Node {
