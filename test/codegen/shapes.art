@@ -1,61 +1,12 @@
-#[import(cc = "C")] fn print_i32(i32) -> ();
-
-fn @range_step(body: fn (i32) -> ()) = @|beg: i32, end: i32, step: i32| {
-    fn loop(a: i32, b: i32) -> () {
-        if a < b {
-            @body(a);
-            loop(a + step, b)
+fn @range(body: fn (i32) -> ()) {
+    fn loop(beg: i32, end: i32) -> () {
+        if beg < end {
+            @body(beg);
+            loop(beg + 1, end)
         }
     }
-    loop(beg, end)
-};
-
-fn range(body: fn (i32) -> ()) = @|a: i32, b: i32| range_step(body)(a, b, 1);
-
-struct Vec3 {
-    x: f32,
-    y: f32,
-    z: f32
+    loop
 }
-
-fn vec3_apply_unary(v: Vec3, f: fn(f32) -> f32) = Vec3 {
-    x = f(v.x),
-    y = f(v.y),
-    z = f(v.z)
-};
-
-fn vec3_apply_binary(a: Vec3, b: Vec3, f: fn(f32, f32) -> f32) = Vec3 {
-    x = f(a.x, b.x),
-    y = f(a.y, b.y),
-    z = f(a.z, b.z)
-};
-
-impl Add[Vec3] {
-    fn add(a: Vec3, b: Vec3) = vec3_apply_binary(a, b, |a, b| a + b);
-}
-
-impl Sub[Vec3] {
-    fn sub(a: Vec3, b: Vec3) = vec3_apply_binary(a, b, |a, b| a - b);
-}
-
-fn min(a:f32, b:f32) {
-    if (a < b) {
-        a
-    } else {
-        b
-    }
-}
-
-fn max(a:f32, b:f32) {
-    if (a > b) {
-        a
-    } else {
-       b
-    }
-}
-
-fn vec3_min(a: Vec3, b: Vec3) = vec3_apply_binary(a, b, |a, b| min(a,b));
-fn vec3_max(a: Vec3, b: Vec3) = vec3_apply_binary(a, b, |a, b| max(a,b));
 
 struct BBox {
     min: Vec3,
@@ -68,55 +19,70 @@ struct Sphere {
 }
 
 struct Triangle {
-    vertices: [Vec3 * 3],
-    normal: Vec3
+    verts: [Vec3 * 3]
 }
-
-fn bbox_from_sphere(s: Sphere) = BBox {
-    min = s.center - Vec3 { x = s.radius, y = s.radius, z = s.radius },
-    max = s.center + Vec3 { x = s.radius, y = s.radius, z = s.radius }
-};
-
-fn bbox_from_triangle(t: Triangle) = BBox {
-    min = vec3_min(vec3_min(t.vertices(0), t.vertices(1)), t.vertices(2)),
-    max = vec3_min(vec3_min(t.vertices(0), t.vertices(1)), t.vertices(2)),
-};
 
 
 trait Shape[T] {
-    fn get_bbox(T) -> BBox;
+    fn bbox(T) -> BBox;
 }
 
 impl Shape[Sphere] {
-    fn get_bbox(s: Sphere) = bbox_from_sphere(s);
+    fn bbox(s: Sphere) = BBox {
+        min = s.center - vec_const[Vec3](s.radius),
+        max = s.center + vec_const[Vec3](s.radius)
+    };
 }
 
 impl Shape[Triangle] {
-    fn get_bbox(s: Triangle) = bbox_from_triangle(s);
+    fn bbox(t: Triangle) = BBox {
+        min = min(min(t.verts(0), t.verts(1)), t.verts(2)),
+        max = max(max(t.verts(0), t.verts(1)), t.verts(2))
+    };
 }
 
-// length >= 1
-fn overall_bbox[T](list: &[T], length: i32) -> BBox where Shape[T] {
-    let mut acc = Shape[T]::get_bbox(list(0));
-    for i in range(1, length) {
-        let bbox = Shape[T]::get_bbox(list(i));
-        acc.min = vec3_min(acc.min, bbox.min);
-        acc.max = vec3_max(acc.max, bbox.max);
+fn empty_bbox() = BBox {
+    min = vec_const[Vec3]((+1:f32) / 0),
+    max = vec_const[Vec3]((-1:f32) / 0)
+};
+
+fn extend(bbox: BBox, other: BBox) = BBox {
+    min = min(bbox.min, other.min),
+    max = max(bbox.max, other.max)
+};
+
+fn overall_bbox[T](shapes: &[T], length: i32) where Shape[T] {
+    let mut bbox = empty_bbox();
+    for i in range(0, length) {
+        bbox = extend(bbox, Shape[T]::bbox(shapes(i)));
     }
-    return (acc)
+    bbox
 }
 
 #[export]
-fn main(_argc: i32, _argv: &[&[u8]]) {
-    let s1 = Sphere{ center = Vec3{ x = 0, y = 0, z = 0}, radius = 1};
-    let s2 = Sphere{ center = Vec3{ x = 1, y = 1, z = 1}, radius = 1};
-    let list = [s1, s2];
-    let b = overall_bbox[Sphere](list, 2);
-    print_i32(b.min.x as i32);
-    print_i32(b.min.y as i32);
-    print_i32(b.min.z as i32);
-    print_i32(b.max.x as i32);
-    print_i32(b.max.y as i32);
-    print_i32(b.max.z as i32);
-    0
+fn main() {
+    let s1 = Sphere { center = vec_const[Vec3](0), radius = 1 };
+    let s2 = Sphere { center = vec_const[Vec3](1), radius = 1 };
+    let t1 = Triangle {
+        verts = [
+            Vec3 { x = 0, y = 1, z = 0 },
+            Vec3 { x = 1, y = 0, z = 0 },
+            Vec3 { x = 1, y = 1, z = 0 },
+        ]
+    };
+    let t2 = Triangle {
+        verts = [
+            Vec3 { x = 0, y = 1, z = 1 },
+            Vec3 { x = 1, y = 0, z = 1 },
+            Vec3 { x = 1, y = 1, z = 1 },
+        ]
+    };
+    let b1 = overall_bbox[Sphere]([s1, s2], 2);
+    let b2 = overall_bbox[Triangle]([t1, t2], 2);
+    let ok =
+        b1.min.x == -1 && b1.min.y == -1 && b1.min.z == -1 &&
+        b1.max.x ==  2 && b1.max.y ==  2 && b1.max.z ==  2 &&
+        b2.min.x ==  0 && b2.min.y ==  0 && b2.min.z ==  0 &&
+        b2.max.x ==  1 && b2.max.y ==  1 && b2.max.z ==  1;
+    if ok { 0 } else { 1 }
 }

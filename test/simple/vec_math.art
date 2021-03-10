@@ -81,8 +81,10 @@ fn @normalize[V](v: V) where Mul[V], Dot[V], VecConst[V] = v * vec_const[V](1 / 
 fn @lerp[V](x: V, y: V, k: f32) where Mul[V], Add[V], VecConst[V] = x * vec_const[V](1 - k) + y * vec_const[V](k);
 fn @lerp2[V](x: V, y: V, z: V, u: f32, v: f32) where Mul[V], Add[V], VecConst[V] = vec_const[V](1 - u - v) * x + vec_const[V](u) * y + vec_const[V](v) * z;
 
-#[allow_undecidable_impl] impl[V] Min[V] where VecZip[V] { fn @min(a: V, b: V) = vec_zip(a, b, |x, y| if x < y { x } else { y }); }
-#[allow_undecidable_impl] impl[V] Max[V] where VecZip[V] { fn @max(a: V, b: V) = vec_zip(a, b, |x, y| if x < y { x } else { y }); }
+impl Min[f32] { fn @min(a: f32, b: f32) = if a < b { a } else { b }; }
+impl Max[f32] { fn @max(a: f32, b: f32) = if a > b { a } else { b }; }
+#[allow_undecidable_impl] impl[V] Min[V] where VecZip[V] { fn @min(a: V, b: V) = vec_zip(a, b, |x, y| Min[f32]::min(x, y)); }
+#[allow_undecidable_impl] impl[V] Max[V] where VecZip[V] { fn @max(a: V, b: V) = vec_zip(a, b, |x, y| Max[f32]::max(x, y)); }
 
 static normalize2 = normalize[Vec2];
 static normalize3 = normalize[Vec3];
