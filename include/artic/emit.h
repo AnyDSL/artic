@@ -170,6 +170,7 @@ public:
 
     const thorin::Def* comparator(const Loc&, const Type*);
 
+    void register_where_clause(const Type*, TypeMap<const Type*>&);
     void register_where_clauses(
         const ReplaceMap&,
         const ast::WhereClauseList*,

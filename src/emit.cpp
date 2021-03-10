@@ -1015,8 +1015,25 @@ const thorin::Def* Emitter::comparator(const Loc& loc, const Type* type) {
     return comparators[type] = comparator_fn;
 }
 
+void Emitter::register_where_clause(const Type* clause_type, TypeMap<const Type*>& new_type_to_impl) {
+    assert(clause_type->vars().size() == 0);
+    assert(type_to_impl.count(clause_type));
+    auto target_impl = type_to_impl[clause_type];
+    new_type_to_impl.emplace(clause_type, target_impl);
+
+    // Add the `where` clauses of the `impl` targetted by this clause
+    auto [type_app, impl_type] = match_app<ImplType>(target_impl);
+    if (impl_type->where_clauses()) {
+        auto map = type_app ? type_app->replace_map() : ReplaceMap {};
+        for (auto& clause : impl_type->where_clauses()->clauses) {
+            auto other_clause = clause->type->replace(map);
+            new_type_to_impl.emplace(other_clause, type_to_impl[other_clause]);
+        }
+    }
+}
+
 void Emitter::register_where_clauses(
-    const ReplaceMap& replace_map,
+    const ReplaceMap& map,
     const ast::WhereClauseList* where_clauses,
     const std::vector<ResolvedImpl>& resolved_impls,
     TypeMap<const Type*>& new_type_to_impl)
@@ -1024,8 +1041,9 @@ void Emitter::register_where_clauses(
     if (!where_clauses)
         return;
     for (size_t i = 0, n = resolved_impls.size(); i < n; ++i) {
-        auto [type_app, impl_type] = match_app<ImplType>(resolved_impls[i].type);
-        auto clause_type = where_clauses->clauses[i]->type->replace(replace_map);
+        auto [type_app, impl_type] = match_app<ImplType>(resolved_impls[i].type->replace(type_vars));
+        auto clause_type = where_clauses->clauses[i]->type->replace(map);
+        assert(clause_type->vars().size() == 0);
         if (impl_type) {
             // This is an implementation: We need to register it, and we have to
             // process the potential dependencies of that implementation and register
@@ -1037,8 +1055,8 @@ void Emitter::register_where_clauses(
                 new_type_to_impl);
         } else {
             // This is a where clause: We only need to look up the corresponding impl in
-            // the existing map from type to implementations.
-            new_type_to_impl.emplace(clause_type, type_to_impl[resolved_impls[i].type]);
+            // the existing map from type to implementations, and add its dependencies.
+            register_where_clause(clause_type, new_type_to_impl);
         }
     }
 }
@@ -1049,33 +1067,50 @@ const ast::NamedDecl* Emitter::impl_member(
     ReplaceMap& new_type_vars,
     TypeMap<const Type*>& new_type_to_impl)
 {
-    auto target_type = resolved_impl.is_where_clause()
-        ? type_to_impl[resolved_impl.type->replace(type_vars)]
-        : resolved_impl.type;
-    auto [type_app, impl_type] = match_app<ImplType>(target_type);
-    assert(impl_type);
+    auto target_type = resolved_impl.type->replace(type_vars);
+    if (resolved_impl.is_where_clause())
+        target_type = type_to_impl[target_type];
+
+    const TypeApp* type_app;
+    const ComplexType* impl_or_trait_type;
+    std::tie(type_app, impl_or_trait_type) = match_app<ImplType>(target_type);
+    assert(impl_or_trait_type);
 
     // Find the index of the member in the implementation from its index in the trait.
-    auto [trait_app, trait_type] = match_app<TraitType>(impl_type->impled_type());
-    if (auto impl_member_index = impl_type->find_member(trait_type->member_name(trait_member_index))) {
-        // Add the type variables defined by the impl to the set of type variables
-        if (impl_type->type_params()) {
-            assert(type_app && impl_type->type_params()->params.size() == type_app->type_args.size());
-            for (size_t i = 0, n = type_app->type_args.size(); i < n; ++i)
-                new_type_vars.emplace(impl_type->type_params()->params[i]->type->as<TypeVar>(), type_app->type_args[i]);
-        }
-
-        register_where_clauses(
-            type_app ? type_app->replace_map() : ReplaceMap {},
-            impl_type->where_clauses(),
-            resolved_impl.resolved_clauses,
-            new_type_to_impl);
-        return impl_type->decl.decls[*impl_member_index].get();
+    auto impled_type = impl_or_trait_type->as<ImplType>()->impled_type();
+    auto impl_member_index = impl_or_trait_type->as<ImplType>()->find_member(
+        match_app<TraitType>(impled_type).second->member_name(trait_member_index));
+    const ast::NamedDecl* member = nullptr;
+    if (impl_member_index) {
+        // Use the member in the `impl`
+        member = impl_or_trait_type->as<ImplType>()->decl.decls[*impl_member_index].get();
+    } else {
+        // Use the default value present in the trait instead
+        std::tie(type_app, impl_or_trait_type) = match_app<TraitType>(impled_type->replace(type_vars));
+        member = impl_or_trait_type->as<TraitType>()->decl.decls[trait_member_index].get();
     }
 
-    // If the function does not exist in the impl, it must be a function with a default implementation in the trait.
-    assert(false && "TODO");
-    return nullptr;
+    // Add the type variables defined by the impl to the set of type variables
+    if (impl_or_trait_type->type_params()) {
+        assert(type_app && impl_or_trait_type->type_params()->params.size() == type_app->type_args.size());
+        for (size_t i = 0, n = type_app->type_args.size(); i < n; ++i) {
+            new_type_vars.emplace(
+                impl_or_trait_type->type_params()->params[i]->type->as<TypeVar>(),
+                type_app->type_args[i]->replace(type_vars));
+        }
+    }
+
+    if (resolved_impl.is_where_clause()) {
+        register_where_clause(resolved_impl.type->replace(type_vars), new_type_to_impl);
+    } else {
+        register_where_clauses(
+            type_app ? type_app->replace_map() : ReplaceMap {},
+            impl_or_trait_type->where_clauses(),
+            resolved_impl.resolved_clauses,
+            new_type_to_impl);
+    }
+
+    return member;
 }
 
 const thorin::Def* Emitter::impl_member(ResolvedImpl& resolved_impl, size_t trait_member_index) {
@@ -1184,21 +1219,20 @@ const thorin::Def* Path::emit(Emitter& emitter) const {
 
             // If `where` clauses are present, we need to place the corresponding `impl`s in the map from type to `impl`
             if (!elems[i].where_impls.empty()) {
-                emitter.register_where_clauses(
-                    forall_type->replace_map(elems[i].inferred_args),
-                    forall_type->where_clauses(),
-                    elems[i].where_impls,
-                    new_type_to_impl);
+                auto map = forall_type->replace_map(elems[i].inferred_args);
+                for (auto& pair : map) pair.second = pair.second->replace(emitter.type_vars);
+                emitter.register_where_clauses(map, forall_type->where_clauses(), elems[i].where_impls, new_type_to_impl);
                 if (keep_context) new_type_to_impl.insert(emitter.type_to_impl.begin(), emitter.type_to_impl.end());
             }
 
-            auto has_type_vars = !new_type_vars.empty();
-            auto has_type_to_impl = !new_type_to_impl.empty();
-            if (has_type_vars)    std::swap(new_type_vars, emitter.type_vars);
-            if (has_type_to_impl) std::swap(new_type_to_impl, emitter.type_to_impl);
+            auto is_polymorphic = !new_type_vars.empty() || !new_type_to_impl.empty();
+            if (is_polymorphic) {
+                std::swap(new_type_vars, emitter.type_vars);
+                std::swap(new_type_to_impl, emitter.type_to_impl);
+            }
             this->def = emitter.emit(*decl);
-            if (has_type_to_impl) std::swap(new_type_to_impl, emitter.type_to_impl);
-            if (has_type_vars) {
+            if (is_polymorphic) {
+                std::swap(new_type_to_impl, emitter.type_to_impl);
                 std::swap(new_type_vars, emitter.type_vars);
                 // Polymorphic nodes are emitted with the map from type variable
                 // to concrete type, which means that the emitted node cannot be
