@@ -802,10 +802,10 @@ void TraitType::print(Printer& p) const {
 }
 
 void ImplType::print(Printer& p) const {
-    if (auto trait_type = match_app<TraitType>(impled_type()).second)
-        trait_type->print(p);
-    else
-        p << log::error_style("<invalid impl>");
+    p << log::keyword_style("impl");
+    if (decl.type_params) decl.type_params->print(p);
+    impled_type()->print(p << ' ');
+    if (decl.where_clauses) decl.where_clauses->print(p << ' ');
 }
 
 void ModType::print(Printer& p) const {
@@ -817,7 +817,9 @@ void TypeAlias::print(Printer& p) const {
 }
 
 void TypeApp::print(Printer& p) const {
+    if (applied->isa<ImplType>()) p << '(';
     applied->print(p);
+    if (applied->isa<ImplType>()) p << ')';
     p << '[';
     print_list(p, ", ", type_args, [&] (auto& a) {
         a->print(p);

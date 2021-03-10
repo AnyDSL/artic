@@ -450,18 +450,19 @@ void PtrnCompiler::dump() const {
 
 void Emitter::MonoFn::dump() const {
     Printer p(log::out);
-    p << decl->id.name << " [" << p.indent() << p.endl();
+    p << decl->id.name << " [" << p.indent();
     for (auto type_and_var : type_vars) {
+        p << p.endl();
         type_and_var.first->print(p);
         type_and_var.second->print(p << " -> ");
-        p << p.endl();
     }
-    p << p.unindent() << p.endl() << "] where " << p.indent() << p.endl();
+    p << p.unindent() << p.endl() << "] where " << p.indent();
     for (auto type_and_impl : type_to_impl) {
-        type_and_impl.first->print(p);
-        type_and_impl.second->print(p << " -> ");
         p << p.endl();
+        type_and_impl.first->print(p);
+        type_and_impl.second->print(p << " impl'ed by ");
     }
+    p << p.unindent() << p.endl();
 }
 #endif // GCOV_EXCL_STOP
 
