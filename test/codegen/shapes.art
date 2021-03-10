@@ -22,9 +22,9 @@ struct Triangle {
     verts: [Vec3 * 3]
 }
 
-
 trait Shape[T] {
-    fn bbox(T) -> BBox;
+    fn bbox(T) = empty_bbox();
+    fn class_id() -> i32;
 }
 
 impl Shape[Sphere] {
@@ -32,6 +32,7 @@ impl Shape[Sphere] {
         min = s.center - vec_const[Vec3](s.radius),
         max = s.center + vec_const[Vec3](s.radius)
     };
+    fn class_id() = 1;
 }
 
 impl Shape[Triangle] {
@@ -39,6 +40,7 @@ impl Shape[Triangle] {
         min = min(min(t.verts(0), t.verts(1)), t.verts(2)),
         max = max(max(t.verts(0), t.verts(1)), t.verts(2))
     };
+    fn class_id() = 2;
 }
 
 fn empty_bbox() = BBox {
@@ -57,6 +59,20 @@ fn overall_bbox[T](shapes: &[T], length: i32) where Shape[T] {
         bbox = extend(bbox, Shape[T]::bbox(shapes(i)));
     }
     bbox
+}
+
+struct Point {
+    pos: Vec3
+}
+
+mod foo {
+    impl super::Shape[super::Point] { fn class_id() = 7; }
+    fn point_id() = super::Shape[super::Point]::class_id();
+}
+
+mod bar {
+    impl super::Shape[super::Point] { fn class_id() = 5; }
+    fn point_id() = super::Shape[super::Point]::class_id();
 }
 
 #[export]
@@ -80,6 +96,7 @@ fn main() {
     let b1 = overall_bbox[Sphere]([s1, s2], 2);
     let b2 = overall_bbox[Triangle]([t1, t2], 2);
     let ok =
+        foo::point_id() != bar::point_id() &&
         b1.min.x == -1 && b1.min.y == -1 && b1.min.z == -1 &&
         b1.max.x ==  2 && b1.max.y ==  2 && b1.max.z ==  2 &&
         b2.min.x ==  0 && b2.min.y ==  0 && b2.min.z ==  0 &&
