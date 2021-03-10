@@ -189,7 +189,7 @@ struct Path : public Node {
         std::vector<const artic::Type*> inferred_args;
 
         Ptr<ResolvedImpl> trait_impl;
-        PtrVector<ResolvedImpl> where_impls;
+        std::vector<ResolvedImpl> where_impls;
 
         bool is_super() const { return id.name == "super"; }
 
@@ -435,6 +435,9 @@ struct TraitApp : public TypeApp {
     TraitApp(const Loc& loc, Path&& path)
         : TypeApp(loc, std::move(path))
     {}
+
+    // Set during type-checking, for non-polymorphic `where` clauses.
+    Ptr<ResolvedImpl> impl;
 
     const artic::Type* infer(TypeChecker&) override;
 };

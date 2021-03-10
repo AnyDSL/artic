@@ -271,13 +271,6 @@ static inline const artic::Type* member_type(const TypeApp* type_app, const Comp
     return type_app ? type_app->member_type(index) : complex_type->member_type(index);
 }
 
-static inline bool depends_on_any_type_param(const Type* type, const ast::TypeParamList* type_params) {
-    assert(type_params);
-    return std::any_of(
-        type_params->params.begin(), type_params->params.end(),
-        [&] (auto& param) { return type->vars().count(param->type->template as<TypeVar>()) > 0; });
-}
-
 void TypeChecker::check_block(const Loc& loc, const PtrVector<ast::Stmt>& stmts, bool last_semi) {
     assert(!stmts.empty());
     // Make sure there is no unreachable code and warn about statements with no effect
@@ -714,13 +707,16 @@ const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, bool i
                     if (impl_required)
                         elem.trait_impl = checker.check_impl_exists(elem.loc, parent_decl, trait_type, type_args);
                 } else if (poly_type->where_clauses() && poly_type->type_params()) {
-                    // Check that *polymorphic* `where` clauses that depend on the instantiated variables are met
                     auto map = poly_type->replace_map(type_args);
                     for (auto& clause : poly_type->where_clauses()->clauses) {
-                        std::unique_ptr<ResolvedImpl> clause_impl;
-                        if (depends_on_any_type_param(clause->type, poly_type->type_params()))
-                            clause_impl = checker.check_impl_exists(elem.loc, parent_decl, clause->type->replace(map));
-                        elem.where_impls.emplace_back(std::move(clause_impl));
+                        if (clause->impl) {
+                            // Monomorphic clauses have already been checked
+                            elem.where_impls.emplace_back(*clause->impl);
+                        } else {
+                            // Check that *polymorphic* `where` clauses are met
+                            if (auto where_impl = checker.check_impl_exists(elem.loc, parent_decl, clause->type->replace(map)))
+                                elem.where_impls.emplace_back(*where_impl);
+                        }
                     }
                 }
 
@@ -1549,12 +1545,19 @@ const artic::Type* TypeParamList::infer(TypeChecker& checker) {
     return nullptr;
 }
 
+static inline bool depends_on_any_type_param(const artic::Type* type, const ast::TypeParamList* type_params) {
+    assert(type_params);
+    return std::any_of(
+        type_params->params.begin(), type_params->params.end(),
+        [&] (auto& param) { return type->vars().count(param->type->template as<TypeVar>()) > 0; });
+}
+
 const artic::Type* WhereClauseList::infer(TypeChecker& checker) {
     for (auto& clause : clauses) {
         auto clause_type = checker.infer(*clause);
         // Check monomorphic `where` clauses right now
         if (!type_params || !depends_on_any_type_param(clause_type, type_params))
-            checker.check_impl_exists(clause->loc, parent_decl->find_parent<ast::Decl>(), clause_type);
+            clause->impl = checker.check_impl_exists(clause->loc, parent_decl->find_parent<ast::Decl>(), clause_type);
     }
     return nullptr;
 }

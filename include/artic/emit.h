@@ -63,8 +63,8 @@ public:
     // has been instantiated.
     struct MonoFn {
         const ast::FnDecl* decl;
-        std::vector<const Type*> type_args;
-        std::vector<const Type*> where_clauses;
+        std::vector<std::pair<const TypeVar*, const Type*>> type_vars;
+        std::vector<std::pair<const Type*, const Type*>> type_to_impl;
 
 #ifndef NDEBUG
         void dump() const;
@@ -77,10 +77,14 @@ public:
         }
         size_t operator () (const MonoFn& mono_fn) const {
             auto h = fnv::Hash().combine(mono_fn.decl);
-            for (auto type_arg : mono_fn.type_args)
-                h.combine(type_arg);
-            for (auto clause : mono_fn.where_clauses)
-                h.combine(clause);
+            for (auto type_and_var : mono_fn.type_vars) {
+                h.combine(type_and_var.first);
+                h.combine(type_and_var.second);
+            }
+            for (auto type_and_impl : mono_fn.type_to_impl) {
+                h.combine(type_and_impl.first);
+                h.combine(type_and_impl.second);
+            }
             return h;
         }
     };
@@ -92,8 +96,8 @@ public:
         bool operator () (const MonoFn& left, const MonoFn& right) const {
             return
                 left.decl == right.decl &&
-                left.type_args == right.type_args &&
-                left.where_clauses == right.where_clauses;
+                left.type_vars == right.type_vars &&
+                left.type_to_impl == right.type_to_impl;
         }
     };
 
@@ -165,6 +169,12 @@ public:
     const thorin::Def* variant_ctor(const Type*, size_t);
 
     const thorin::Def* comparator(const Loc&, const Type*);
+
+    void register_where_clauses(
+        const ReplaceMap&,
+        const ast::WhereClauseList*,
+        const std::vector<ResolvedImpl>&,
+        TypeMap<const Type*>&);
 
     const ast::NamedDecl* impl_member(ResolvedImpl&, size_t, ReplaceMap&, TypeMap<const Type*>&);
     const thorin::Def* impl_member(ResolvedImpl&, size_t);

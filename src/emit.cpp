@@ -450,17 +450,18 @@ void PtrnCompiler::dump() const {
 
 void Emitter::MonoFn::dump() const {
     Printer p(log::out);
-    p << decl->id.name << " [";
-    for (size_t i = 0, n = type_args.size(); i < n; ++i) {
-        type_args[i]->print(p);
-        if (i != n - 1) p << ", ";
+    p << decl->id.name << " [" << p.indent() << p.endl();
+    for (auto type_and_var : type_vars) {
+        type_and_var.first->print(p);
+        type_and_var.second->print(p << " -> ");
+        p << p.endl();
     }
-    p << "] where ";
-    for (size_t i = 0, n = where_clauses.size(); i < n; ++i) {
-        where_clauses[i]->print(p);
-        if (i != n - 1) p << ", ";
+    p << p.unindent() << p.endl() << "] where " << p.indent() << p.endl();
+    for (auto type_and_impl : type_to_impl) {
+        type_and_impl.first->print(p);
+        type_and_impl.second->print(p << " -> ");
+        p << p.endl();
     }
-    p << p.endl();
 }
 #endif // GCOV_EXCL_STOP
 
@@ -651,34 +652,13 @@ void Emitter::branch_with_mem(
     jump(branch_false_with_mem);
 }
 
-template <typename Decl>
-void collect_type_params_and_where_clauses(Emitter& emitter, const Decl& decl, Emitter::MonoFn& mono_fn) {
-    if (decl.type_params.get()) {
-        for (auto& param : decl.type_params->params)
-            mono_fn.type_args.push_back(param->type->replace(emitter.type_vars));
-    }
-    if (decl.where_clauses.get()) {
-        for (auto& clause : decl.where_clauses->clauses)
-            mono_fn.where_clauses.push_back(emitter.type_to_impl[clause->type->replace(emitter.type_vars)]);
-    }
-}
-
 auto Emitter::mono_fn(const ast::FnDecl& fn_decl) -> MonoFn {
     MonoFn mono_fn { &fn_decl, {}, {} };
-    collect_type_params_and_where_clauses(*this, fn_decl, mono_fn);
-
-    // If the function is in a polymorphic trait or `impl`, add their type variables as well
-    const ast::Decl* parent = &fn_decl;
-    while (parent) {
-        if (auto fn_decl = parent->find_parent<ast::FnDecl>())
-            collect_type_params_and_where_clauses(*this, *fn_decl, mono_fn), parent = fn_decl;
-        else if (auto trait_decl = parent->find_parent<ast::TraitDecl>())
-            collect_type_params_and_where_clauses(*this, *trait_decl, mono_fn), parent = trait_decl;
-        else if (auto impl_decl = parent->find_parent<ast::ImplDecl>())
-            collect_type_params_and_where_clauses(*this, *impl_decl, mono_fn), parent = impl_decl;
-        else
-            break;
-    }
+    mono_fn.type_vars   .insert(mono_fn.type_vars   .end(), type_vars   .begin(), type_vars   .end());
+    mono_fn.type_to_impl.insert(mono_fn.type_to_impl.end(), type_to_impl.begin(), type_to_impl.end());
+    // Order matters since we need to hash each type var sequentially
+    std::sort(mono_fn.type_vars   .begin(), mono_fn.type_vars   .end());
+    std::sort(mono_fn.type_to_impl.begin(), mono_fn.type_to_impl.end());
     return mono_fn;
 }
 
@@ -1034,17 +1014,44 @@ const thorin::Def* Emitter::comparator(const Loc& loc, const Type* type) {
     return comparators[type] = comparator_fn;
 }
 
+void Emitter::register_where_clauses(
+    const ReplaceMap& replace_map,
+    const ast::WhereClauseList* where_clauses,
+    const std::vector<ResolvedImpl>& resolved_impls,
+    TypeMap<const Type*>& new_type_to_impl)
+{
+    if (!where_clauses)
+        return;
+    for (size_t i = 0, n = resolved_impls.size(); i < n; ++i) {
+        auto [type_app, impl_type] = match_app<ImplType>(resolved_impls[i].type);
+        auto clause_type = where_clauses->clauses[i]->type->replace(replace_map);
+        if (impl_type) {
+            // This is an implementation: We need to register it, and we have to
+            // process the potential dependencies of that implementation and register
+            // them too.
+            new_type_to_impl.emplace(clause_type, resolved_impls[i].type);
+            register_where_clauses(
+                type_app ? type_app->replace_map() : ReplaceMap {},
+                impl_type->where_clauses(), resolved_impls[i].resolved_clauses,
+                new_type_to_impl);
+        } else {
+            // This is a where clause: We only need to look up the corresponding impl in
+            // the existing map from type to implementations.
+            new_type_to_impl.emplace(clause_type, type_to_impl[resolved_impls[i].type]);
+        }
+    }
+}
+
 const ast::NamedDecl* Emitter::impl_member(
     ResolvedImpl& resolved_impl,
     size_t trait_member_index,
     ReplaceMap& new_type_vars,
     TypeMap<const Type*>& new_type_to_impl)
 {
-#if 0
-    if (!match_app<ImplType>(impl_or_where).second)
-        impl_or_where = type_to_impl[impl_or_where->replace(type_vars)];
-
-    auto [type_app, impl_type] = match_app<ImplType>(impl_or_where);
+    auto target_type = resolved_impl.is_where_clause()
+        ? type_to_impl[resolved_impl.type->replace(type_vars)]
+        : resolved_impl.type;
+    auto [type_app, impl_type] = match_app<ImplType>(target_type);
     assert(impl_type);
 
     // Find the index of the member in the implementation from its index in the trait.
@@ -1057,24 +1064,16 @@ const ast::NamedDecl* Emitter::impl_member(
                 new_type_vars.emplace(impl_type->type_params()->params[i]->type->as<TypeVar>(), type_app->type_args[i]);
         }
 
-        // Set the where clauses appropriately
-        if (impl_type->where_clauses()) {
-            assert(inferred_clauses && impl_type->where_clauses()->clauses.size() == inferred_clauses->size());
-            for (size_t i = 0, n = inferred_clauses->size(); i < n; ++i) {
-                if (!(*inferred_clauses)[i])
-                    continue;
-                new_type_to_impl.emplace(
-                    impl_type->where_clauses()->clauses[i]->type->replace(new_type_vars),
-                    (*inferred_clauses)[i]->replace(type_vars));
-            }
-        }
-
+        register_where_clauses(
+            type_app ? type_app->replace_map() : ReplaceMap {},
+            impl_type->where_clauses(),
+            resolved_impl.resolved_clauses,
+            new_type_to_impl);
         return impl_type->decl.decls[*impl_member_index].get();
     }
-#endif
 
     // If the function does not exist in the impl, it must be a function with a default implementation in the trait.
-    assert(false);
+    assert(false && "TODO");
     return nullptr;
 }
 
@@ -1099,10 +1098,47 @@ const thorin::Def* Node::emit(Emitter&) const {
 
 // Path ----------------------------------------------------------------------------
 
+static bool has_where_clauses_or_type_params(const Decl* decl) {
+    auto has_where_or_params = [] (auto* decl) { return decl->type_params || decl->where_clauses; };
+    return
+        (decl->isa<FnDecl>()    && has_where_or_params(decl->as<FnDecl>()   )) ||
+        (decl->isa<TraitDecl>() && has_where_or_params(decl->as<TraitDecl>())) ||
+        (decl->isa<ImplDecl>()  && has_where_or_params(decl->as<ImplDecl>() ));
+}
+
+static bool have_common_poly_parent(const Decl* left, const Decl* right) {
+    std::unordered_set<const ast::Decl*> seen;
+
+    // Put all the parents of the right side in the set
+    auto decl = right;
+    while (decl) {
+        seen.emplace(decl);
+        decl = decl->parent_decl;
+    }
+
+    // Find the common parent
+    decl = left;
+    while (true) {
+        if (seen.count(decl) > 0)
+            break;
+        decl = decl->parent_decl;
+        if (!decl)
+            return false;
+    }
+
+    // See if the common parent depends on type variables or where clauses
+    while (decl) {
+        if (has_where_clauses_or_type_params(decl))
+            return true;
+        decl = decl->parent_decl;
+    }
+    return false;
+}
+
 const thorin::Def* Path::emit(Emitter& emitter) const {
     const auto* decl = start_decl;
 
-    auto keep_vars = true;
+    auto keep_context = true;
     ReplaceMap new_type_vars;
     TypeMap<const artic::Type*> new_type_to_impl;
     for (size_t i = 0, n = elems.size(); i < n; ++i) {
@@ -1120,15 +1156,18 @@ const thorin::Def* Path::emit(Emitter& emitter) const {
             else
                 assert(false);
         } else if (auto [type_app, trait_type] = match_app<artic::TraitType>(elems[i].type); trait_type) {
-            // TODO:
-            //decl = emitter.impl_member(elems[i].impl_or_where, elems[i + 1].index, &elems[i].inferred_clauses, new_type_vars, new_type_to_impl);
-            assert(false);
+            decl = emitter.impl_member(*elems[i].trait_impl, elems[i + 1].index, new_type_vars, new_type_to_impl);
 
             // We *must* forget the context (the type variables and instances that already exist at the location of the path),
             // since the `impl` that we are generating is not part of the current scope.
-            keep_vars = false;
+            keep_context = false;
         } else {
             auto forall_type = decl->type->isa<artic::ForallType>();
+
+            // We need to know if we have to keep the current type variables and `where` clauses.
+            // If the function to emit shares a polymorphic parent, then it may depend on the type variables
+            // declared by that parent, which means we need to keep the context.
+            keep_context &= have_common_poly_parent(parent_decl, decl);
 
             // If type arguments are present, this is a polymorphic application, so we need to
             // record the map from type variable to concrete type.
@@ -1139,27 +1178,18 @@ const thorin::Def* Path::emit(Emitter& emitter) const {
                     auto type = elems[i].inferred_args[j]->replace(emitter.type_vars);
                     new_type_vars.emplace(var, type);
                 }
-                if (keep_vars) new_type_vars.insert(emitter.type_vars.begin(), emitter.type_vars.end());
+                if (keep_context) new_type_vars.insert(emitter.type_vars.begin(), emitter.type_vars.end());
             }
 
             // If `where` clauses are present, we need to place the corresponding `impl`s in the map from type to `impl`
-#if 0
-            if (!elems[i].inferred_clauses.empty()) {
-                assert(forall_type && forall_type->where_clauses());
-                for (size_t j = 0, n = elems[i].inferred_clauses.size(); j < n; ++j) {
-                    auto impl_type = elems[i].inferred_clauses[j];
-                    auto clause_type = forall_type->where_clauses()->clauses[j]->type->replace(emitter.type_vars);
-                    assert(impl_type);
-                    // Follow the chain of `where` clauses to find the actual implementation
-                    while (!match_app<ImplType>(impl_type).second) {
-                        impl_type = emitter.type_to_impl[impl_type];
-                        assert(impl_type);
-                    }
-                    new_type_to_impl[clause_type->replace(new_type_vars)] = impl_type;
-                }
-                if (keep_vars) new_type_to_impl.insert(emitter.type_to_impl.begin(), emitter.type_to_impl.end());
+            if (!elems[i].where_impls.empty()) {
+                emitter.register_where_clauses(
+                    forall_type->replace_map(elems[i].inferred_args),
+                    forall_type->where_clauses(),
+                    elems[i].where_impls,
+                    new_type_to_impl);
+                if (keep_context) new_type_to_impl.insert(emitter.type_to_impl.begin(), emitter.type_to_impl.end());
             }
-#endif
 
             auto has_type_vars = !new_type_vars.empty();
             auto has_type_to_impl = !new_type_to_impl.empty();
@@ -1699,7 +1729,7 @@ const thorin::Def* StaticDecl::emit(Emitter& emitter) const {
 const thorin::Def* FnDecl::emit(Emitter& emitter) const {
     auto _ = emitter.save_state();
     auto mono_fn = emitter.mono_fn(*this);
-    auto is_polymorphic = !mono_fn.type_args.empty();
+    auto is_polymorphic = !mono_fn.type_vars.empty() || !mono_fn.type_to_impl.empty();
     if (is_polymorphic) {
         // Try to find an existing monomorphized version of this function with that type
         if (auto it = emitter.mono_fns.find(mono_fn); it != emitter.mono_fns.end())
