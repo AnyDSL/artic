@@ -632,7 +632,18 @@ auto TypeChecker::impl_candidates(const ast::ModDecl* mod_decl, const TraitType*
     // The returned implementations are only candidates, and not exact matches.
     if (auto it = impl_candidates_.find(mod_decl); it != impl_candidates_.end())
         return it->second[trait_type];
-    auto& mod_candidates = impl_candidates_[mod_decl];
+    // Note: We cannot really modify directly the set of `impl` candidates, since the call to `infer()`
+    // contained below might itself trigger a search of for potential `impl` candidates. Consider for
+    // instance the following code:
+    //
+    //     struct S[T] where Bar[T] { ... }
+    //     trait Foo { ... }
+    //     impl[V] Bar[V] { ... }
+    //     impl[U] Foo[S[U]] { ... }
+    //
+    // In this example, inferring the impl for `Foo` requires to do a search for `Bar[U]` in the list
+    // of candidates, since the structure `S` has a trait requirement.
+    std::unordered_map<const TraitType*, ImplCandidates> mod_candidates;
     for (auto& decl : mod_decl->decls) {
         if (auto impl_decl = decl->isa<ast::ImplDecl>()) {
             if (auto impl_type = infer(*impl_decl)->isa<ImplType>()) {
@@ -641,7 +652,7 @@ auto TypeChecker::impl_candidates(const ast::ModDecl* mod_decl, const TraitType*
             }
         }
     }
-    return mod_candidates[trait_type];
+    return (impl_candidates_[mod_decl] = mod_candidates)[trait_type];
 }
 
 namespace ast {
