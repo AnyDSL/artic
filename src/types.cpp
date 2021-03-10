@@ -22,6 +22,10 @@ TypeBounds& TypeBounds::meet(const TypeBounds& bounds) {
 
 // Equals ---------------------------------------------------------------------------
 
+bool Type::equals(const Type* other) const {
+    return other == this;
+}
+
 bool PrimType::equals(const Type* other) const {
     return other->isa<PrimType>() && other->as<PrimType>()->tag == tag;
 }
@@ -66,38 +70,6 @@ bool BottomType::equals(const Type* other) const {
 
 bool TopType::equals(const Type* other) const {
     return typeid(*other) == typeid(*this);
-}
-
-bool TypeVar::equals(const Type* other) const {
-    return other == this;
-}
-
-bool ForallType::equals(const Type* other) const {
-    return other == this;
-}
-
-bool StructType::equals(const Type* other) const {
-    return other == this;
-}
-
-bool EnumType::equals(const Type* other) const {
-    return other == this;
-}
-
-bool TraitType::equals(const Type* other) const {
-    return other == this;
-}
-
-bool ImplType::equals(const Type* other) const {
-    return other == this;
-}
-
-bool ModType::equals(const Type* other) const {
-    return other == this;
-}
-
-bool TypeAlias::equals(const Type* other) const {
-    return other == this;
 }
 
 bool TypeApp::equals(const Type* other) const {

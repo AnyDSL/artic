@@ -67,7 +67,7 @@ struct Type : public Cast<Type> {
     virtual ~Type() {}
 
     virtual void print(Printer&) const = 0;
-    virtual bool equals(const Type*) const = 0;
+    virtual bool equals(const Type*) const;
     virtual size_t hash() const = 0;
     virtual const Type* replace(const ReplaceMap&) const { return this; }
 
@@ -405,7 +405,6 @@ struct TypeVar : public Type {
     const ast::TypeParam& param;
 
     void print(Printer&) const override;
-    bool equals(const Type*) const override;
     size_t hash() const override;
 
     const Type* replace(const ReplaceMap&) const override;
@@ -463,7 +462,6 @@ struct ForallType : public PolyTypeFromDecl<PolyType, ast::FnDecl> {
     const Type* instantiate(const ArrayRef<const Type*>&) const;
 
     void print(Printer&) const override;
-    bool equals(const Type*) const override;
     size_t hash() const override;
 
 private:
@@ -514,7 +512,6 @@ struct StructType : public ComplexType {
     const ast::WhereClauseList* where_clauses() const override;
 
     void print(Printer&) const override;
-    bool equals(const Type*) const override;
     size_t hash() const override;
 
     using UserType::convert;
@@ -538,7 +535,6 @@ private:
 
 struct EnumType : public PolyTypeFromDecl<ComplexType, ast::EnumDecl> {
     void print(Printer&) const override;
-    bool equals(const Type*) const override;
     size_t hash() const override;
 
     using UserType::convert;
@@ -563,7 +559,6 @@ private:
 
 struct TraitType : public PolyTypeFromDecl<ComplexType, ast::TraitDecl> {
     void print(Printer&) const override;
-    bool equals(const Type*) const override;
     size_t hash() const override;
 
     std::string_view member_name(size_t) const override;
@@ -592,7 +587,6 @@ struct ImplType : public PolyTypeFromDecl<ComplexType, ast::ImplDecl> {
     }
 
     void print(Printer&) const override;
-    bool equals(const Type*) const override;
     size_t hash() const override;
 
     std::string_view member_name(size_t) const override;
@@ -614,7 +608,6 @@ struct ModType : public ComplexType {
     const ast::WhereClauseList* where_clauses() const override { return nullptr; }
 
     void print(Printer&) const override;
-    bool equals(const Type*) const override;
     size_t hash() const override;
 
     std::string_view member_name(size_t) const override;
@@ -647,7 +640,6 @@ private:
 
 struct TypeAlias : public PolyTypeFromDecl<UserType, ast::TypeDecl> {
     void print(Printer&) const override;
-    bool equals(const Type*) const override;
     size_t hash() const override;
 
 private:
