@@ -6,6 +6,10 @@
 
 namespace artic::ast {
 
+bool Path::is_where_clause_head() const {
+    return trait_app && &trait_app->path == this;
+}
+
 bool Type::is_tuple() const { return isa<TupleType>(); }
 bool Expr::is_tuple() const { return isa<TupleExpr>(); }
 bool Ptrn::is_tuple() const { return isa<TuplePtrn>(); }

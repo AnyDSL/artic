@@ -2,7 +2,6 @@
 #include <algorithm>
 
 #include "artic/types.h"
-#include "artic/hash.h"
 
 namespace artic {
 
@@ -126,38 +125,6 @@ size_t BottomType::hash() const {
 
 size_t TopType::hash() const {
     return fnv::Hash().combine(typeid(*this).hash_code());
-}
-
-size_t TypeVar::hash() const {
-    return fnv::Hash().combine(&param);
-}
-
-size_t ForallType::hash() const {
-    return fnv::Hash().combine(&decl);
-}
-
-size_t StructType::hash() const {
-    return fnv::Hash().combine(&decl);
-}
-
-size_t EnumType::hash() const {
-    return fnv::Hash().combine(&decl);
-}
-
-size_t TraitType::hash() const {
-    return fnv::Hash().combine(&decl);
-}
-
-size_t ImplType::hash() const {
-    return fnv::Hash().combine(&decl);
-}
-
-size_t ModType::hash() const {
-    return fnv::Hash().combine(&decl);
-}
-
-size_t TypeAlias::hash() const {
-    return fnv::Hash().combine(&decl);
 }
 
 size_t TypeApp::hash() const {
@@ -427,24 +394,30 @@ std::string_view ModType::member_name(size_t i) const {
     return members()[i].decl.id.name;
 }
 
+static inline const Type* type_or_error(TypeTable& type_table, const Type* type) {
+    // If the member/field might not have a type yet, return an error.
+    // This may happen if there is a recursive declaration that lacks an annotation.
+    return type ? type : type_table.type_error();
+}
+
 const Type* StructType::member_type(size_t i) const {
-    return decl.fields[i]->ast::Node::type;
+    return type_or_error(type_table, decl.fields[i]->ast::Node::type);
 }
 
 const Type* EnumType::member_type(size_t i) const {
-    return decl.options[i]->type;
+    return type_or_error(type_table, decl.options[i]->type);
 }
 
 const Type* TraitType::member_type(size_t i) const {
-    return decl.decls[i]->type;
+    return type_or_error(type_table, decl.decls[i]->type);
 }
 
 const Type* ImplType::member_type(size_t i) const {
-    return decl.decls[i]->type;
+    return type_or_error(type_table, decl.decls[i]->type);
 }
 
 const Type* ModType::member_type(size_t i) const {
-    return members()[i].decl.type;
+    return type_or_error(type_table, members()[i].decl.type);
 }
 
 size_t StructType::member_count() const {

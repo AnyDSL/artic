@@ -69,6 +69,8 @@ public:
         return best;
     }
 
+    ast::TraitApp* trait_app = nullptr;
+
 private:
     // Levenshtein distance is used to suggest similar identifiers to the user
     static constexpr size_t levenshtein_threshold() { return 3; }

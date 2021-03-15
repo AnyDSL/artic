@@ -19,6 +19,7 @@ namespace thorin {
 namespace artic {
 
 struct Type;
+struct PolyType;
 struct ResolvedImpl;
 struct Printer;
 class NameBinder;
@@ -176,6 +177,8 @@ struct Ptrn : public Node {
 
 // Path ----------------------------------------------------------------------------
 
+struct TraitApp;
+
 /// A path of the form A[T1, ..., TN]:: ... ::Z[U1, ..., UN]
 struct Path : public Node {
     struct Elem {
@@ -191,31 +194,38 @@ struct Path : public Node {
         Ptr<ResolvedImpl> trait_impl;
         std::vector<ResolvedImpl> where_impls;
 
-        bool is_super() const { return id.name == "super"; }
-
         Elem(const Loc& loc, Identifier&& id, PtrVector<Type>&& args)
             : loc(loc), id(std::move(id)), args(std::move(args))
         {}
+
+        bool is_super() const { return id.name == "super"; }
+
+        void check_impls(TypeChecker&, const Path*, const artic::PolyType*);
     };
 
     std::vector<Elem> elems;
 
-    // Set during name-binding, corresponds to the declaration that
+    // Set during name-binding. Corresponds to the declaration that
     // is associated with the _first_ element of the path.
     // The rest of the path is resolved during type-checking.
-    ast::NamedDecl* start_decl;
+    NamedDecl* start_decl = nullptr;
+
+    // Set during name binding. Trait application that contains this path, if any.
+    TraitApp* trait_app;
 
     // Set during type-checking
     bool is_value : 1;
     bool is_ctor  : 1;
 
-    Path(const Loc& loc, std::vector<Elem>&& elems)
-        : Node(loc), elems(std::move(elems)), is_value(false), is_ctor(false)
+    Path(const Loc& loc, std::vector<Elem>&& elems, TraitApp* trait_app = nullptr)
+        : Node(loc), elems(std::move(elems)), trait_app(trait_app), is_value(false), is_ctor(false)
     {}
 
-    const artic::Type* infer(TypeChecker&, bool, bool, Ptr<Expr>*);
+    bool is_where_clause_head() const;
+
+    const artic::Type* infer(TypeChecker&, bool, Ptr<Expr>*);
     const artic::Type* infer(TypeChecker& checker) override {
-        return infer(checker, false, true, {});
+        return infer(checker, false, {});
     }
 
     const thorin::Def* emit(Emitter&) const override;
@@ -436,9 +446,13 @@ struct TraitApp : public TypeApp {
         : TypeApp(loc, std::move(path))
     {}
 
-    // Set during type-checking, for non-polymorphic `where` clauses.
+    // Set during type-checking
     Ptr<ResolvedImpl> impl;
+    std::vector<std::tuple<Path*, const artic::PolyType*, Path::Elem*>> impl_checks;
 
+    void check_impls(TypeChecker&);
+
+    void bind(NameBinder&) override;
     const artic::Type* infer(TypeChecker&) override;
 };
 
@@ -1254,8 +1268,9 @@ struct WhereClauseList : public Node {
         : Node(loc), clauses(std::move(clauses)), type_params(type_params)
     {}
 
-    const artic::Type* infer(TypeChecker&) override;
+    void check_impls(TypeChecker&);
 
+    const artic::Type* infer(TypeChecker&) override;
     void bind(NameBinder&) override;
     void print(Printer&) const override;
 };

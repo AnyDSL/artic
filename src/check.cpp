@@ -681,7 +681,7 @@ const artic::Type* Ptrn::check(TypeChecker& checker, const artic::Type* expected
 
 // Path ----------------------------------------------------------------------------
 
-const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, bool impl_required, Ptr<Expr>* arg) {
+const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, Ptr<Expr>* arg) {
     if (!start_decl)
         return checker.type_table.type_error();
 
@@ -712,26 +712,13 @@ const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, bool i
                 }
                 elem.inferred_args = type_args;
 
-                if (auto trait_type = poly_type->isa<artic::TraitType>()) {
-                    // Implementation checking is only enabled for trait types when
-                    // we are using them, not when we are implementing or defining them.
-                    if (impl_required)
-                        elem.trait_impl = checker.check_impl_exists(elem.loc, parent_decl, trait_type, type_args);
-                } else if (poly_type->where_clauses() && poly_type->type_params()) {
-                    auto map = poly_type->replace_map(type_args);
-                    for (auto& clause : poly_type->where_clauses()->clauses) {
-                        if (clause->impl) {
-                            // Monomorphic clauses have already been checked
-                            elem.where_impls.emplace_back(*clause->impl);
-                        } else {
-                            // Check that *polymorphic* `where` clauses are met
-                            if (auto where_impl = checker.check_impl_exists(elem.loc, parent_decl, clause->type->replace(map)))
-                                elem.where_impls.emplace_back(*where_impl);
-                        }
-                    }
-                }
+                if (trait_app) {
+                    // Trait applications must delay `impl` checks. See `ImplDecl::infer` for more details.
+                    trait_app->impl_checks.emplace_back(this, poly_type, &elem);
+                } else
+                    elem.check_impls(checker, this, poly_type);
 
-                type = forall_type
+                elem.type = type = forall_type
                     ? forall_type->instantiate(type_args)
                     : checker.type_table.type_app(type->as<UserType>(), type_args);
             } else {
@@ -808,6 +795,30 @@ const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, bool i
         return checker.type_table.type_error();
     }
     return type;
+}
+
+void Path::Elem::check_impls(TypeChecker& checker, const Path* path, const artic::PolyType* poly_type) {
+    if (auto trait_type = poly_type->isa<TraitType>()) {
+        // Implementation checking is only enabled for trait types when
+        // we are using them, not when we are implementing or defining them.
+        if (!path->is_where_clause_head()) {
+            assert(!trait_impl);
+            trait_impl = checker.check_impl_exists(loc, path->parent_decl, trait_type, inferred_args);
+        }
+    } else if (poly_type->where_clauses() && poly_type->type_params()) {
+        assert(where_impls.empty());
+        auto map = poly_type->replace_map(inferred_args);
+        for (auto& clause : poly_type->where_clauses()->clauses) {
+            if (clause->impl) {
+                // Monomorphic clauses have already been checked
+                where_impls.emplace_back(*clause->impl);
+            } else {
+                // Check that not-yet-checked `where` clauses can be satisfied
+                if (auto where_impl = checker.check_impl_exists(loc, path->parent_decl, clause->type->replace(map)))
+                    where_impls.emplace_back(*where_impl);
+            }
+        }
+    }
 }
 
 // Filter --------------------------------------------------------------------------
@@ -925,17 +936,22 @@ const artic::Type* PtrType::infer(TypeChecker& checker) {
 }
 
 const artic::Type* TypeApp::infer(TypeChecker& checker) {
-    path.type = path.infer(checker, false, true, {});
+    path.type = path.infer(checker, false, {});
     if (match_app<artic::TraitType>(path.type).second)
         checker.error(loc, "traits are not allowed here");
     return path.type;
 }
 
 const artic::Type* TraitApp::infer(TypeChecker& checker) {
-    path.type = path.infer(checker, false, false, {});
+    path.type = path.infer(checker, false, {});
     if (!match_app<artic::TraitType>(path.type).second)
         return checker.type_expected(loc, path.type, "trait");
     return path.type;
+}
+
+void TraitApp::check_impls(TypeChecker& checker) {
+    for (auto [path, type, elem] : impl_checks)
+        elem->check_impls(checker, path, type);
 }
 
 // Statements ----------------------------------------------------------------------
@@ -970,7 +986,7 @@ const artic::Type* TypedExpr::infer(TypeChecker& checker) {
 }
 
 const artic::Type* PathExpr::infer(TypeChecker& checker) {
-    return path.infer(checker, true, true, {});
+    return path.infer(checker, true, {});
 }
 
 const artic::Type* LiteralExpr::infer(TypeChecker& checker) {
@@ -991,7 +1007,7 @@ const artic::Type* RecordExpr::infer(TypeChecker& checker) {
     if (!struct_type ||
         (struct_type->decl.isa<StructDecl>() &&
          struct_type->decl.as<StructDecl>()->is_tuple_like))
-        return checker.type_expected(expr ? expr->loc : this->loc, type, "record-like structure");
+        return checker.type_expected(expr ? expr->loc : loc, type, "record-like structure");
     checker.check_members(loc, type, static_cast<bool>(expr), fields, [&] (auto& field, size_t index) {
         field.index = index;
         checker.check(field, member_type(type, index));
@@ -1120,7 +1136,7 @@ static inline PathExpr* callee_path(Expr* expr) {
 const artic::Type* CallExpr::infer(TypeChecker& checker) {
     // Perform type argument inference when possible
     if (auto path_expr = callee_path(callee.get()))
-        path_expr->type = path_expr->path.infer(checker, true, true, &arg);
+        path_expr->type = path_expr->path.infer(checker, true, &arg);
 
     auto [ref_type, callee_type] = remove_ref(checker.infer(*callee));
     if (auto fn_type = callee_type->isa<artic::FnType>()) {
@@ -1395,7 +1411,7 @@ const artic::Type* UnaryExpr::infer(TypeChecker& checker) {
     // unsupported SIMD operations.
     if (is_simd_type(prim_type))
         prim_type = prim_type->as<artic::SizedArrayType>()->elem;
-    this->op_impl = checker.check_impl_exists(loc, parent_decl,
+    op_impl = checker.check_impl_exists(loc, parent_decl,
         checker.type_table.builtin_traits[UnaryExpr::tag_to_trait_name(tag)],
         std::array { prim_type });
     if (tag == PostDec || tag == PreDec || tag == PostInc || tag == PreInc)
@@ -1442,7 +1458,7 @@ const artic::Type* BinaryExpr::infer(TypeChecker& checker) {
         case LogicOr:
             break;
         default:
-            this->op_impl = checker.check_impl_exists(loc, parent_decl,
+            op_impl = checker.check_impl_exists(loc, parent_decl,
                 checker.type_table.builtin_traits[BinaryExpr::tag_to_trait_name(tag)],
                 std::array { prim_type });
             break;
@@ -1564,13 +1580,21 @@ static inline bool depends_on_any_type_param(const artic::Type* type, const ast:
 }
 
 const artic::Type* WhereClauseList::infer(TypeChecker& checker) {
-    for (auto& clause : clauses) {
-        auto clause_type = checker.infer(*clause);
-        // Check monomorphic `where` clauses right now
-        if (!type_params || !depends_on_any_type_param(clause_type, type_params))
-            clause->impl = checker.check_impl_exists(clause->loc, parent_decl->find_parent<ast::Decl>(), clause_type);
-    }
+    for (auto& clause : clauses) checker.infer(*clause);
+    // Implementations and traits delay their `impl` checks.
+    // See `ImplDecl::infer` for more details.
+    if (!parent_decl->isa<ImplDecl>() && !parent_decl->isa<TraitDecl>())
+        check_impls(checker);
     return nullptr;
+}
+
+void WhereClauseList::check_impls(TypeChecker& checker) {
+    for (auto& clause : clauses) {
+        // Check monomorphic `where` clauses immediately, not when instancing them.
+        if (!type_params || !depends_on_any_type_param(clause->type, type_params))
+            clause->impl = checker.check_impl_exists(clause->loc, parent_decl->find_parent<Decl>(), clause->type);
+        clause->check_impls(checker);
+    }
 }
 
 const artic::Type* PtrnDecl::check(TypeChecker&, const artic::Type* expected) {
@@ -1611,7 +1635,7 @@ const artic::Type* FnDecl::infer(TypeChecker& checker) {
         forall = checker.type_table.forall_type(*this);
         // Set the type of this function right now, in case,
         // for instance, `return` is encountered in the body.
-        this->type = forall;
+        type = forall;
     }
 
     auto fn_type = fn->ret_type
@@ -1619,12 +1643,12 @@ const artic::Type* FnDecl::infer(TypeChecker& checker) {
         : checker.infer(*fn);
 
     if (!type_params)
-        this->type = fn_type;
+        type = fn_type;
     else
         forall->as<ForallType>()->body = fn_type;
 
     if (fn->ret_type) {
-        this->fn->type = fn_type;
+        fn->type = fn_type;
         if (fn->filter)
             checker.check(*fn->filter, checker.type_table.bool_type());
         checker.check_refutability(*fn->param, true);
@@ -1637,7 +1661,7 @@ const artic::Type* FnDecl::infer(TypeChecker& checker) {
     if (!fn->body && fn->filter)
         checker.warn(fn->filter->loc, "this filter will be ignored since the function has no body");
 
-    return this->type;
+    return type;
 }
 
 const artic::Type* FieldDecl::infer(TypeChecker& checker) {
@@ -1657,7 +1681,7 @@ const artic::Type* StructDecl::infer(TypeChecker& checker) {
     if (where_clauses) checker.infer(*where_clauses);
 
     // Set the type before entering the fields
-    this->type = struct_type;
+    type = struct_type;
     for (auto& field : fields)
         checker.infer(*field);
 
@@ -1683,7 +1707,7 @@ const artic::Type* EnumDecl::infer(TypeChecker& checker) {
     if (where_clauses) checker.infer(*where_clauses);
 
     // Set the type before entering the options
-    this->type = enum_type;
+    type = enum_type;
     for (auto& option : options)
         checker.infer(*option);
 
@@ -1697,9 +1721,12 @@ const artic::Type* TraitDecl::infer(TypeChecker& checker) {
     if (where_clauses) checker.infer(*where_clauses);
 
     // Set the type before entering the members
-    this->type = trait_type;
+    type = trait_type;
     for (auto& decl : decls)
         checker.infer(*decl);
+
+    if (where_clauses)
+        where_clauses->check_impls(checker);
 
     static const auto builtin_trait_names = std::array {
         "Add", "Sub", "Mul", "Div", "Rem", "LShift", "RShift",
@@ -1765,21 +1792,20 @@ static inline TypeApp* check_paterson_conditions(
 }
 
 const artic::Type* ImplDecl::infer(TypeChecker& checker) {
-    auto impl_type = checker.type_table.impl_type(*this);
-
-    // Set type now in case one of the functions inside need it,
-    // or the implemented type needs it.
-    this->type = impl_type;
-
     if (type_params)   checker.infer(*type_params);
     if (where_clauses) checker.infer(*where_clauses);
 
     // The implemented type must be a trait
-    auto trait_type = match_app<artic::TraitType>(checker.infer(*impled_type)).second;
-    if (!trait_type)
+    if (!match_app<artic::TraitType>(checker.infer(*impled_type)).second)
         return checker.type_expected(loc, impled_type->type, "trait");
 
+    // The implemented type can mention a type that has a `where` clause referring
+    // to the same trait as the one implemented here, which means this `impl` can
+    // become a candidate for it.
+    type = checker.type_table.impl_type(*this);
+
     // Check that the `where` clauses of the trait are met in this `impl`
+    auto trait_type = match_app<TraitType>(impled_type->type).second;
     if (trait_type->where_clauses()) {
         auto target_type = trait_type->type_params()
             ? checker.type_table.type_app(trait_type, trait_type->type_params_as_array())
@@ -1790,9 +1816,20 @@ const artic::Type* ImplDecl::infer(TypeChecker& checker) {
         }
     }
 
-    // If one imposes no restrictions on the `where` clauses of this `impl`, it is possible to make the type checking algorithm diverge.
-    // Here we check if this `impl` fulfills the Paterson conditions, which guarantee that the type checking process terminates.
-    // See: "Understanding Functional Dependencies via Constraint Handling Rules", by M. Sulzmann et al.
+    // Implementation checks were delayed so that the full signature for this `impl` is
+    // available *before* running any additional `impl` check. The reason for this is that
+    // we need the full implemented type and `where` clauses of this implementation type-checked
+    // so that we know if this `impl` is a valid candidate for a particular trait or not.
+    impled_type->check_impls(checker);
+    if (where_clauses)
+        where_clauses->check_impls(checker);
+
+    // If one imposes no restrictions on the `where` clauses of this `impl`,
+    // it is possible to make the type checking algorithm diverge. Here, we check
+    // if this `impl` fulfills the Paterson conditions, which guarantee that the
+    // type checking process terminates.
+    // See: "Understanding Functional Dependencies via Constraint Handling Rules",
+    // by M. Sulzmann et al.
     if (type_params && where_clauses && (!attrs || !attrs->find("allow_undecidable_impl"))) {
         if (auto invalid_clause = check_paterson_conditions(impled_type->type, *type_params, *where_clauses)) {
             checker.error(loc, "clause '{}' may cause the type inference to diverge", *invalid_clause);
@@ -1825,11 +1862,12 @@ const artic::Type* ImplDecl::infer(TypeChecker& checker) {
             checker.check(decl, expected_type);
     });
 
-    return impl_type;
+    return type;
 }
 
 void ImplDecl::check_conflicts(TypeChecker& checker) {
-    auto impl_type = this->type->isa<ImplType>();
+    auto impl_type = type->isa<ImplType>();
+
     // This may happen if the `impl` contained an error
     if (!impl_type)
         return;
@@ -1886,7 +1924,7 @@ const artic::Type* TypeDecl::infer(TypeChecker& checker) {
 }
 
 const artic::Type* ModDecl::infer(TypeChecker& checker) {
-    this->type = checker.type_table.mod_type(*this);
+    type = checker.type_table.mod_type(*this);
     for (auto& decl : decls)
         checker.infer(*decl);
     for (auto& decl : decls) {
@@ -1896,7 +1934,7 @@ const artic::Type* ModDecl::infer(TypeChecker& checker) {
         } else if (auto impl_decl = decl->isa<ImplDecl>())
             impl_decl->check_conflicts(checker);
     }
-    return this->type;
+    return type;
 }
 
 const artic::Type* UseDecl::infer(TypeChecker& checker) {
@@ -1945,7 +1983,7 @@ const artic::Type* FieldPtrn::check(TypeChecker& checker, const artic::Type* exp
 }
 
 const artic::Type* RecordPtrn::infer(TypeChecker& checker) {
-    path.type = path.infer(checker, false, true, {});
+    path.type = path.infer(checker, false, {});
     auto [type_app, struct_type] = match_app<artic::StructType>(path.type);
     if (!struct_type ||
         (struct_type->decl.isa<StructDecl>() &&
@@ -1960,7 +1998,7 @@ const artic::Type* RecordPtrn::infer(TypeChecker& checker) {
 }
 
 const artic::Type* CtorPtrn::infer(TypeChecker& checker) {
-    auto path_type = path.infer(checker, true, true, {});
+    auto path_type = path.infer(checker, true, {});
     if (!path.is_ctor) {
         checker.error(path.loc, "structure or enumeration constructor expected");
         return checker.type_table.type_error();

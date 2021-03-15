@@ -10,6 +10,7 @@
 #include "artic/cast.h"
 #include "artic/ast.h"
 #include "artic/array.h"
+#include "artic/hash.h"
 
 namespace thorin {
     class TypeTable;
@@ -400,12 +401,28 @@ private:
     friend class TypeTable;
 };
 
-/// Type variable, introduced by a polymorphic structure/enum/function declaration.
-struct TypeVar : public Type {
-    const ast::TypeParam& param;
+/// Helper mixin to build hash and equality functions for a type that has a `Decl`.
+template <typename Super, typename Decl>
+struct TypeFromDecl : public Super {
+    const Decl& decl;
 
+    size_t hash() const override {
+        return fnv::Hash().combine(&decl);
+    }
+
+    bool equals(const Type* other) const override {
+        return other->isa<TypeFromDecl>() && &other->as<TypeFromDecl>()->decl == &decl;
+    }
+
+protected:
+    TypeFromDecl(TypeTable& type_table, const Decl& decl)
+        : Super(type_table), decl(decl)
+    {}
+};
+
+/// Type variable, introduced by a polymorphic structure/enum/function declaration.
+struct TypeVar : public TypeFromDecl<Type, ast::TypeParam> {
     void print(Printer&) const override;
-    size_t hash() const override;
 
     const Type* replace(const ReplaceMap&) const override;
 
@@ -414,7 +431,7 @@ struct TypeVar : public Type {
 
 private:
     TypeVar(TypeTable& type_table, const ast::TypeParam& param)
-        : Type(type_table), param(param)
+        : TypeFromDecl(type_table, param)
     {}
 
     void variance(TypeVarMap<TypeVariance>&, bool) const override;
@@ -441,15 +458,13 @@ struct PolyType : public Type {
 
 /// Helper mixin to extract the type parameter list and where clauses from a particular `Decl`.
 template <typename Super, typename Decl>
-struct PolyTypeFromDecl : public Super {
-    const Decl& decl;
-
-    const ast::TypeParamList*   type_params()   const override { return decl.type_params.get(); }
-    const ast::WhereClauseList* where_clauses() const override { return decl.where_clauses.get(); }
+struct PolyTypeFromDecl : public TypeFromDecl<Super, Decl> {
+    const ast::TypeParamList*   type_params()   const override { return this->decl.type_params.get(); }
+    const ast::WhereClauseList* where_clauses() const override { return this->decl.where_clauses.get(); }
 
 protected:
     PolyTypeFromDecl(TypeTable& type_table, const Decl& decl)
-        : Super(type_table), decl(decl)
+        : TypeFromDecl<Super, Decl>(type_table, decl)
     {}
 };
 
@@ -462,7 +477,6 @@ struct ForallType : public PolyTypeFromDecl<PolyType, ast::FnDecl> {
     const Type* instantiate(const ArrayRef<const Type*>&) const;
 
     void print(Printer&) const override;
-    size_t hash() const override;
 
 private:
     ForallType(TypeTable& type_table, const ast::FnDecl& decl)
@@ -505,14 +519,11 @@ protected:
     bool is_sized(std::unordered_set<const Type*>&) const override;
 };
 
-struct StructType : public ComplexType {
-    const ast::RecordDecl& decl;
-
+struct StructType : public TypeFromDecl<ComplexType, ast::RecordDecl> {
     const ast::TypeParamList*   type_params()   const override;
     const ast::WhereClauseList* where_clauses() const override;
 
     void print(Printer&) const override;
-    size_t hash() const override;
 
     using UserType::convert;
     const thorin::Type* convert(Emitter&, const Type*) const override;
@@ -527,7 +538,7 @@ struct StructType : public ComplexType {
 
 private:
     StructType(TypeTable& type_table, const ast::RecordDecl& decl)
-        : ComplexType(type_table), decl(decl)
+        : TypeFromDecl(type_table, decl)
     {}
 
     friend class TypeTable;
@@ -535,7 +546,6 @@ private:
 
 struct EnumType : public PolyTypeFromDecl<ComplexType, ast::EnumDecl> {
     void print(Printer&) const override;
-    size_t hash() const override;
 
     using UserType::convert;
     const thorin::Type* convert(Emitter&, const Type*) const override;
@@ -559,7 +569,6 @@ private:
 
 struct TraitType : public PolyTypeFromDecl<ComplexType, ast::TraitDecl> {
     void print(Printer&) const override;
-    size_t hash() const override;
 
     std::string_view member_name(size_t) const override;
     bool has_default_value(size_t) const override;
@@ -587,7 +596,6 @@ struct ImplType : public PolyTypeFromDecl<ComplexType, ast::ImplDecl> {
     }
 
     void print(Printer&) const override;
-    size_t hash() const override;
 
     std::string_view member_name(size_t) const override;
     const Type* member_type(size_t) const override;
@@ -601,14 +609,11 @@ private:
     friend class TypeTable;
 };
 
-struct ModType : public ComplexType {
-    const ast::ModDecl& decl;
-
+struct ModType : public TypeFromDecl<ComplexType, ast::ModDecl> {
     const ast::TypeParamList*   type_params()   const override { return nullptr; }
     const ast::WhereClauseList* where_clauses() const override { return nullptr; }
 
     void print(Printer&) const override;
-    size_t hash() const override;
 
     std::string_view member_name(size_t) const override;
     const Type* member_type(size_t) const override;
@@ -630,7 +635,7 @@ private:
     mutable std::unique_ptr<Members> members_;
 
     ModType(TypeTable& type_table, const ast::ModDecl& decl)
-        : ComplexType(type_table), decl(decl)
+        : TypeFromDecl(type_table, decl)
     {}
 
     const Members& members() const;
@@ -640,7 +645,6 @@ private:
 
 struct TypeAlias : public PolyTypeFromDecl<UserType, ast::TypeDecl> {
     void print(Printer&) const override;
-    size_t hash() const override;
 
 private:
     TypeAlias(TypeTable& type_table, const ast::TypeDecl& decl)
