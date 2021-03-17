@@ -1284,7 +1284,14 @@ const thorin::Def* PathExpr::emit(Emitter& emitter) const {
 }
 
 const thorin::Def* LiteralExpr::emit(Emitter& emitter) const {
-    return emitter.emit(*this, lit);
+    if (!is_constant()) {
+        assert(lit_impl);
+        auto value = lit.is_double()
+            ? emitter.world.literal_qf64(lit.as_double(), emitter.debug_info(*this))
+            : emitter.world.literal_pu64(lit.as_integer(), emitter.debug_info(*this));
+        return emitter.call(emitter.impl_member(*lit_impl, 0), value, emitter.debug_info(*this));
+    } else
+        return emitter.emit(*this, lit);
 }
 
 const thorin::Def* ArrayExpr::emit(Emitter& emitter) const {
@@ -1835,7 +1842,7 @@ const thorin::Def* ModDecl::emit(Emitter& emitter) const {
     for (auto& decl : decls) {
         // Do not emit polymorphic functions directly: Those will be emitted from
         // the call site, where the type arguments are known.
-        if (auto fn_decl = decl->isa<FnDecl>(); fn_decl && fn_decl->type_params)
+        if (auto fn_decl = decl->isa<FnDecl>(); fn_decl && (fn_decl->type_params || fn_decl->where_clauses))
             continue;
         emitter.emit(*decl);
     }

@@ -1,0 +1,6 @@
+struct S(i32);
+struct T(f32);
+impl FromInt[S] { fn from_int(u: u64) = S(u as i32); }
+impl FromFloat[T] { fn from_float(f: f64) = T(f as f32); }
+#[export] fn foo() -> T = 1.0;
+#[export] fn bar() -> S = 1;

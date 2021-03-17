@@ -78,6 +78,8 @@ struct Node : public Cast<Node> {
     virtual const artic::Type* infer(TypeChecker&);
     /// Checks that the node types and has the given type.
     virtual const artic::Type* check(TypeChecker&, const artic::Type*);
+    /// Performs late checks (like `impl` checks), once every node has been checked and inferred.
+    virtual void check_late(TypeChecker&) {}
     /// Emits an IR definition for this node.
     virtual const thorin::Def* emit(Emitter&) const;
     /// Prints the node with the given formatting parameters.
@@ -177,8 +179,6 @@ struct Ptrn : public Node {
 
 // Path ----------------------------------------------------------------------------
 
-struct TraitApp;
-
 /// A path of the form A[T1, ..., TN]:: ... ::Z[U1, ..., UN]
 struct Path : public Node {
     struct Elem {
@@ -210,23 +210,28 @@ struct Path : public Node {
     // The rest of the path is resolved during type-checking.
     NamedDecl* start_decl = nullptr;
 
-    // Set during name binding. Trait application that contains this path, if any.
-    TraitApp* trait_app;
-
     // Set during type-checking
     bool is_value : 1;
     bool is_ctor  : 1;
+    bool is_where_clause_head : 1;
 
-    Path(const Loc& loc, std::vector<Elem>&& elems, TraitApp* trait_app = nullptr)
-        : Node(loc), elems(std::move(elems)), trait_app(trait_app), is_value(false), is_ctor(false)
+    // Delayed `impl` checks to run for the polymorphic elements of this path.
+    std::vector<std::pair<ast::Path::Elem*, const artic::PolyType*>> impl_checks;
+
+    Path(const Loc& loc, std::vector<Elem>&& elems)
+        : Node(loc)
+        , elems(std::move(elems))
+        , is_value(false)
+        , is_ctor(false)
+        , is_where_clause_head(false)
     {}
-
-    bool is_where_clause_head() const;
 
     const artic::Type* infer(TypeChecker&, bool, Ptr<Expr>*);
     const artic::Type* infer(TypeChecker& checker) override {
         return infer(checker, false, {});
     }
+
+    void check_late(TypeChecker&) override;
 
     const thorin::Def* emit(Emitter&) const override;
     void bind(NameBinder&) override;
@@ -444,15 +449,10 @@ struct TypeApp : public Type {
 struct TraitApp : public TypeApp {
     TraitApp(const Loc& loc, Path&& path)
         : TypeApp(loc, std::move(path))
-    {}
+    {
+        this->path.is_where_clause_head = true;
+    }
 
-    // Set during type-checking
-    Ptr<ResolvedImpl> impl;
-    std::vector<std::tuple<Path*, const artic::PolyType*, Path::Elem*>> impl_checks;
-
-    void check_impls(TypeChecker&);
-
-    void bind(NameBinder&) override;
     const artic::Type* infer(TypeChecker&) override;
 };
 
@@ -550,6 +550,10 @@ struct PathExpr : public Expr {
 struct LiteralExpr : public Expr {
     Literal lit;
 
+    // Set during (late) type-checking.
+    // Contains the implementation required to convert this literal to its target type.
+    Ptr<ResolvedImpl> lit_impl;
+
     LiteralExpr(const Loc& loc, const Literal& lit)
         : Expr(loc), lit(lit)
     {}
@@ -561,6 +565,8 @@ struct LiteralExpr : public Expr {
     const artic::Type* check(TypeChecker&, const artic::Type*) override;
     void bind(NameBinder&) override;
     void print(Printer&) const override;
+
+    void check_late(TypeChecker&) override;
 };
 
 /// Field expression, part of a record expression.
@@ -1003,7 +1009,7 @@ struct UnaryExpr : public Expr {
     Tag tag;
     Ptr<Expr> arg;
 
-    // Set during type-checking. Contains the operator's implementation (or `where` clause).
+    // Set during (late) type-checking. Contains the operator's implementation (or `where` clause).
     Ptr<ResolvedImpl> op_impl;
 
     UnaryExpr(const Loc& loc, Tag tag, Ptr<Expr>&& arg)
@@ -1022,6 +1028,8 @@ struct UnaryExpr : public Expr {
     const artic::Type* check(TypeChecker&, const artic::Type*) override;
     void bind(NameBinder&) override;
     void print(Printer&) const override;
+
+    void check_late(TypeChecker&) override;
 
     bool is_inc() const { return is_inc(tag); }
     bool is_dec() const { return is_dec(tag); }
@@ -1078,6 +1086,8 @@ struct BinaryExpr : public Expr {
     const artic::Type* check(TypeChecker&, const artic::Type*) override;
     void bind(NameBinder&) override;
     void print(Printer&) const override;
+
+    void check_late(TypeChecker&) override;
 
     static Tag remove_eq(Tag);
     static bool has_eq(Tag);
@@ -1519,7 +1529,7 @@ struct ImplDecl : public Decl {
         , decls(std::move(decls))
      {}
 
-     void check_conflicts(TypeChecker&);
+     void check_late(TypeChecker&) override;
 
      const artic::Type* infer(TypeChecker&) override;
      void bind(NameBinder&) override;

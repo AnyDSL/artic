@@ -1,3 +1,4 @@
 trait F[A] { fn f() = 1; }
 type B = i32;
 fn test() where F[B] = F[B]::f();
+fn foo() = test();

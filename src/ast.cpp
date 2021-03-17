@@ -6,10 +6,6 @@
 
 namespace artic::ast {
 
-bool Path::is_where_clause_head() const {
-    return trait_app && &trait_app->path == this;
-}
-
 bool Type::is_tuple() const { return isa<TupleType>(); }
 bool Expr::is_tuple() const { return isa<TupleExpr>(); }
 bool Ptrn::is_tuple() const { return isa<TuplePtrn>(); }
@@ -378,8 +374,7 @@ bool TypedExpr::is_constant() const {
 }
 
 bool PathExpr::is_constant() const {
-    assert(type);
-    return !type->isa<artic::RefType>();
+    return type && !type->isa<artic::RefType>();
 }
 
 void PathExpr::write_to() const {
@@ -390,7 +385,8 @@ void PathExpr::write_to() const {
 }
 
 bool LiteralExpr::is_constant() const {
-    return true;
+    // This literal is only constant if its type is a primitive type or a string
+    return type && (type->isa<artic::PrimType>() || is_string_type(type));
 }
 
 bool FieldExpr::is_jumping() const {
@@ -498,8 +494,7 @@ bool BlockExpr::has_side_effect() const {
 }
 
 bool CallExpr::is_jumping() const {
-    assert(type);
-    return type->isa<artic::NoRetType>();
+    return type && type->isa<artic::NoRetType>();
 }
 
 bool CallExpr::has_side_effect() const {
@@ -593,7 +588,7 @@ bool UnaryExpr::is_constant() const {
         case Not:
         case Plus:
         case Minus:
-            return arg->is_constant() && can_avoid_impl_call(type);
+            return type && arg->is_constant() && can_avoid_impl_call(type);
         case Known:
         case Forget:
             return arg->is_constant();
@@ -615,7 +610,7 @@ bool BinaryExpr::has_side_effect() const {
 }
 
 bool BinaryExpr::is_constant() const {
-    return !has_eq() && left->is_constant() && right->is_constant() && can_avoid_impl_call(type);
+    return type && !has_eq() && left->is_constant() && right->is_constant() && can_avoid_impl_call(type);
 }
 
 bool FilterExpr::has_side_effect() const {
@@ -643,7 +638,6 @@ bool ImplicitCastExpr::has_side_effect() const {
 }
 
 bool ImplicitCastExpr::is_constant() const {
-    assert(expr->type);
     if (auto path_expr = expr->isa<PathExpr>();
         path_expr && path_expr->path.elems.size() == 1 && path_expr->path.start_decl)
     {
@@ -700,9 +694,8 @@ void RecordPtrn::collect_bound_ptrns(std::vector<const IdPtrn*>& bound_ptrns) co
 }
 
 bool RecordPtrn::is_trivial() const {
-    assert(type);
     return
-        match_app<StructType>(type).second &&
+        type && match_app<StructType>(type).second &&
         std::all_of(fields.begin(), fields.end(), [] (auto& field) {
             return field->is_trivial();
         });
@@ -713,8 +706,7 @@ void CtorPtrn::collect_bound_ptrns(std::vector<const IdPtrn*>& bound_ptrns) cons
 }
 
 bool CtorPtrn::is_trivial() const {
-    assert(type);
-    return match_app<StructType>(type).second && (!arg || arg->is_trivial());
+    return type && match_app<StructType>(type).second && (!arg || arg->is_trivial());
 }
 
 void TuplePtrn::collect_bound_ptrns(std::vector<const IdPtrn*>& bound_ptrns) const {

@@ -641,8 +641,12 @@ const Type* Type::join(const Type* other) const {
 }
 
 ReplaceMap PolyType::replace_map(const ArrayRef<const Type*>& args) const {
-    assert(type_params() && type_params()->params.size() == args.size());
     ReplaceMap map;
+    if (!type_params()) {
+        assert(args.empty());
+        return map;
+    }
+    assert(type_params()->params.size() == args.size());
     for (size_t i = 0, n = args.size(); i < n; ++i) {
         assert(type_params()->params[i]->type);
         map.emplace(type_params()->params[i]->type->as<TypeVar>(), args[i]);
@@ -752,6 +756,15 @@ bool is_simd_type(const Type* type) {
 
 bool is_unit_type(const Type* type) {
     return type->isa<TupleType>() && type->as<TupleType>()->args.empty();
+}
+
+bool is_string_type(const Type* type) {
+    if (auto sized_array_type = type->isa<SizedArrayType>()) {
+        return
+            !sized_array_type->is_simd &&
+            is_prim_type(sized_array_type->elem, ast::PrimType::U8);
+    }
+    return false;
 }
 
 // Type table ----------------------------------------------------------------------

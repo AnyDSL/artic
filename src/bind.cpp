@@ -86,7 +86,6 @@ void Path::bind(NameBinder& binder) {
         } else
             start_decl = symbol->decl;
     }
-    trait_app = binder.trait_app;
     // Bind the type arguments of each element
     for (auto& elem : elems) {
         for (auto& arg : elem.args)
@@ -138,13 +137,6 @@ void PtrType::bind(NameBinder& binder) {
 
 void TypeApp::bind(NameBinder& binder) {
     binder.bind(path);
-}
-
-void TraitApp::bind(NameBinder& binder) {
-    auto old_trait = binder.trait_app;
-    binder.trait_app = this;
-    binder.bind(path);
-    binder.trait_app = old_trait;
 }
 
 void ErrorType::bind(NameBinder&) {}

@@ -53,12 +53,14 @@ public:
     const Type* infer(ast::Ptrn&, Ptr<ast::Expr>&);
 
     const Type* infer(const Loc&, const Literal&);
-    const Type* check(const Loc&, const ast::Decl*, const Literal&, const Type*);
+    const Type* check(const Loc&, const Literal&, const Type*);
 
     void check_block(const Loc&, const PtrVector<ast::Stmt>&, bool);
     bool check_attrs(const ast::NamedAttr&, const ArrayRef<AttrType>&);
     bool check_filter(const ast::Expr&);
     void check_refutability(const ast::Ptrn&, bool);
+
+    void check_later(ast::Node* node) { late_checks_.push_back(node); }
 
     template <typename Members, typename CheckMember>
     void check_members(const Loc&, const Type*, bool, const Members&, CheckMember&&);
@@ -93,6 +95,7 @@ private:
         std::unordered_map<const TraitType*, ImplCandidates>> impl_candidates_;
 
     std::unordered_set<const ast::Decl*> visited_decls_;
+    std::vector<ast::Node*> late_checks_;
 };
 
 } // namespace artic

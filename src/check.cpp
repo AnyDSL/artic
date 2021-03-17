@@ -7,6 +7,8 @@ namespace artic {
 
 bool TypeChecker::run(ast::ModDecl& module) {
     infer(module);
+    for (auto node : late_checks_)
+        node->check_late(*this);
     return errors == 0;
 }
 
@@ -241,12 +243,11 @@ const Type* TypeChecker::infer(const Loc&, const Literal& lit) {
     }
 }
 
-const Type* TypeChecker::check(const Loc& loc, const ast::Decl* parent_decl, const Literal& lit, const Type* expected) {
+const Type* TypeChecker::check(const Loc& loc, const Literal& lit, const Type* expected) {
     if (expected->isa<NoRetType>())
         return infer(loc, lit);
     if (lit.is_integer() || lit.is_double()) {
-        auto trait_name = lit.is_integer() ? "FromInt" : "FromFloat";
-        check_impl_exists(loc, parent_decl, type_table.builtin_traits[trait_name], std::array { expected });
+        // The implementation is checked later on
         return expected;
     } else if (lit.is_bool()) {
         if (!is_bool_type(expected))
@@ -712,11 +713,8 @@ const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, Ptr<Ex
                 }
                 elem.inferred_args = type_args;
 
-                if (trait_app) {
-                    // Trait applications must delay `impl` checks. See `ImplDecl::infer` for more details.
-                    trait_app->impl_checks.emplace_back(this, poly_type, &elem);
-                } else
-                    elem.check_impls(checker, this, poly_type);
+                // Remember to check that the existence of `impl`s for this path element later
+                impl_checks.emplace_back(&elem, poly_type);
 
                 elem.type = type = forall_type
                     ? forall_type->instantiate(type_args)
@@ -794,6 +792,7 @@ const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, Ptr<Ex
         checker.error(loc, "{} expected, but got '{}'", value_expected ? "value" : "type", *this);
         return checker.type_table.type_error();
     }
+    checker.check_later(this);
     return type;
 }
 
@@ -801,24 +800,24 @@ void Path::Elem::check_impls(TypeChecker& checker, const Path* path, const artic
     if (auto trait_type = poly_type->isa<TraitType>()) {
         // Implementation checking is only enabled for trait types when
         // we are using them, not when we are implementing or defining them.
-        if (!path->is_where_clause_head()) {
+        if (!path->is_where_clause_head) {
             assert(!trait_impl);
             trait_impl = checker.check_impl_exists(loc, path->parent_decl, trait_type, inferred_args);
         }
-    } else if (poly_type->where_clauses() && poly_type->type_params()) {
+    } else if (poly_type->where_clauses()) {
         assert(where_impls.empty());
         auto map = poly_type->replace_map(inferred_args);
         for (auto& clause : poly_type->where_clauses()->clauses) {
-            if (clause->impl) {
-                // Monomorphic clauses have already been checked
-                where_impls.emplace_back(*clause->impl);
-            } else {
-                // Check that not-yet-checked `where` clauses can be satisfied
-                if (auto where_impl = checker.check_impl_exists(loc, path->parent_decl, clause->type->replace(map)))
-                    where_impls.emplace_back(*where_impl);
-            }
+            // Check that not-yet-checked `where` clauses can be satisfied
+            if (auto where_impl = checker.check_impl_exists(loc, path->parent_decl, clause->type->replace(map)))
+                where_impls.emplace_back(*where_impl);
         }
     }
+}
+
+void Path::check_late(TypeChecker& checker) {
+    for (auto [elem, type] : impl_checks)
+        elem->check_impls(checker, this, type);
 }
 
 // Filter --------------------------------------------------------------------------
@@ -839,7 +838,7 @@ void NamedAttr::check(TypeChecker& checker, const ast::Node* node) {
         if (!fn_expr)
             checker.error(loc, "attribute '{}' is only valid for functions", name);
         else if (name == "export") {
-            if (fn_expr->fn_decl && fn_expr->fn_decl->type_params)
+            if (fn_expr->fn_decl && (fn_expr->fn_decl->type_params || fn_expr->fn_decl->where_clauses))
                 checker.error(fn_expr->loc, "polymorphic functions cannot be exported");
             else if (fn_expr->type->order() > 1)
                 checker.error(fn_expr->loc, "higher-order functions cannot be exported");
@@ -949,11 +948,6 @@ const artic::Type* TraitApp::infer(TypeChecker& checker) {
     return path.type;
 }
 
-void TraitApp::check_impls(TypeChecker& checker) {
-    for (auto [path, type, elem] : impl_checks)
-        elem->check_impls(checker, path, type);
-}
-
 // Statements ----------------------------------------------------------------------
 
 const artic::Type* DeclStmt::infer(TypeChecker& checker) {
@@ -990,11 +984,21 @@ const artic::Type* PathExpr::infer(TypeChecker& checker) {
 }
 
 const artic::Type* LiteralExpr::infer(TypeChecker& checker) {
+    checker.check_later(this);
     return checker.infer(loc, lit);
 }
 
 const artic::Type* LiteralExpr::check(TypeChecker& checker, const artic::Type* expected) {
-    return checker.check(loc, parent_decl, lit, expected);
+    checker.check_later(this);
+    return checker.check(loc, lit, expected);
+}
+
+void LiteralExpr::check_late(TypeChecker& checker) {
+    if (lit.is_integer() || lit.is_double()) {
+        auto trait_name = lit.is_integer() ? "FromInt" : "FromFloat";
+        lit_impl = checker.check_impl_exists(loc, parent_decl,
+            checker.type_table.builtin_traits[trait_name], std::array { type });
+    }
 }
 
 const artic::Type* FieldExpr::check(TypeChecker& checker, const artic::Type* expected) {
@@ -1045,9 +1049,9 @@ const artic::Type* ArrayExpr::infer(TypeChecker& checker) {
 const artic::Type* ArrayExpr::check(TypeChecker& checker, const artic::Type* expected) {
     return checker.check_array(loc, "array expression",
         expected, elems.size(), is_simd, [&] (auto elem_type) {
-        for (auto& elem : elems)
-            checker.coerce(elem, elem_type);
-    });
+            for (auto& elem : elems)
+                checker.coerce(elem, elem_type);
+        });
 }
 
 const artic::Type* RepeatArrayExpr::infer(TypeChecker& checker) {
@@ -1060,8 +1064,8 @@ const artic::Type* RepeatArrayExpr::infer(TypeChecker& checker) {
 const artic::Type* RepeatArrayExpr::check(TypeChecker& checker, const artic::Type* expected) {
     return checker.check_array(loc, "array expression",
         expected, size, is_simd, [&] (auto elem_type) {
-        checker.coerce(elem, elem_type);
-    });
+            checker.coerce(elem, elem_type);
+        });
 }
 
 const artic::Type* FnExpr::infer(TypeChecker& checker) {
@@ -1405,18 +1409,35 @@ const artic::Type* UnaryExpr::infer(TypeChecker& checker) {
             checker.error(loc, "cannot dereference non-pointer type '{}'", *arg_type);
         return checker.type_table.type_error();
     }
-    auto prim_type = arg_type;
-    // SIMD types are assumed to support the same operations as primitive types.
-    // Since SIMD types cannot be created from user types, there is no risk of accepting
-    // unsupported SIMD operations.
-    if (is_simd_type(prim_type))
-        prim_type = prim_type->as<artic::SizedArrayType>()->elem;
-    op_impl = checker.check_impl_exists(loc, parent_decl,
-        checker.type_table.builtin_traits[UnaryExpr::tag_to_trait_name(tag)],
-        std::array { prim_type });
+    checker.check_later(this);
     if (tag == PostDec || tag == PreDec || tag == PostInc || tag == PreInc)
         arg->write_to();
     return arg_type;
+}
+
+void UnaryExpr::check_late(TypeChecker& checker) {
+    switch (tag) {
+        case Plus:
+        case Minus:
+        case Not:
+        case PreInc:
+        case PreDec:
+        case PostInc:
+        case PostDec: {
+            auto prim_type = remove_ref(arg->type).second;
+            // SIMD types are assumed to support the same operations as primitive types.
+            // Since SIMD types cannot be created from user types, there is no risk of accepting
+            // unsupported SIMD operations.
+            if (is_simd_type(prim_type))
+                prim_type = prim_type->as<artic::SizedArrayType>()->elem;
+            op_impl = checker.check_impl_exists(loc, parent_decl,
+                checker.type_table.builtin_traits[UnaryExpr::tag_to_trait_name(tag)],
+                std::array { prim_type });
+            break;
+        }
+        default:
+            break;
+    }
 }
 
 const artic::Type* UnaryExpr::check(TypeChecker& checker, const artic::Type* expected) {
@@ -1448,21 +1469,7 @@ const artic::Type* BinaryExpr::infer(TypeChecker& checker) {
         right_type = checker.coerce(right, left_type);
     }
 
-    auto prim_type = left_type;
-    // See above.
-    if (is_simd_type(prim_type))
-        prim_type = prim_type->as<artic::SizedArrayType>()->elem;
-    switch (remove_eq(tag)) {
-        case Eq:
-        case LogicAnd:
-        case LogicOr:
-            break;
-        default:
-            op_impl = checker.check_impl_exists(loc, parent_decl,
-                checker.type_table.builtin_traits[BinaryExpr::tag_to_trait_name(tag)],
-                std::array { prim_type });
-            break;
-    }
+    checker.check_later(this);
     if (has_eq()) {
         left->write_to();
         if (!left_ref || !left_ref->is_mut)
@@ -1473,6 +1480,25 @@ const artic::Type* BinaryExpr::infer(TypeChecker& checker) {
     if (has_cmp())
         return checker.type_table.bool_type();
     return right_type;
+}
+
+void BinaryExpr::check_late(TypeChecker& checker) {
+    switch (remove_eq(tag)) {
+        case Eq:
+        case LogicAnd:
+        case LogicOr:
+            break;
+        default: {
+            // See comment above.
+            auto prim_type = right->type;
+            if (is_simd_type(prim_type))
+                prim_type = prim_type->as<artic::SizedArrayType>()->elem;
+            op_impl = checker.check_impl_exists(loc, parent_decl,
+                checker.type_table.builtin_traits[BinaryExpr::tag_to_trait_name(tag)],
+                std::array { prim_type });
+            break;
+        }
+    }
 }
 
 const artic::Type* BinaryExpr::check(TypeChecker& checker, const artic::Type* expected) {
@@ -1573,7 +1599,8 @@ const artic::Type* TypeParamList::infer(TypeChecker& checker) {
 }
 
 static inline bool depends_on_any_type_param(const artic::Type* type, const ast::TypeParamList* type_params) {
-    assert(type_params);
+    if (!type_params)
+        return false;
     return std::any_of(
         type_params->params.begin(), type_params->params.end(),
         [&] (auto& param) { return type->vars().count(param->type->template as<TypeVar>()) > 0; });
@@ -1581,20 +1608,7 @@ static inline bool depends_on_any_type_param(const artic::Type* type, const ast:
 
 const artic::Type* WhereClauseList::infer(TypeChecker& checker) {
     for (auto& clause : clauses) checker.infer(*clause);
-    // Implementations and traits delay their `impl` checks.
-    // See `ImplDecl::infer` for more details.
-    if (!parent_decl->isa<ImplDecl>() && !parent_decl->isa<TraitDecl>())
-        check_impls(checker);
     return nullptr;
-}
-
-void WhereClauseList::check_impls(TypeChecker& checker) {
-    for (auto& clause : clauses) {
-        // Check monomorphic `where` clauses immediately, not when instancing them.
-        if (!type_params || !depends_on_any_type_param(clause->type, type_params))
-            clause->impl = checker.check_impl_exists(clause->loc, parent_decl->find_parent<Decl>(), clause->type);
-        clause->check_impls(checker);
-    }
 }
 
 const artic::Type* PtrnDecl::check(TypeChecker&, const artic::Type* expected) {
@@ -1631,7 +1645,7 @@ const artic::Type* FnDecl::infer(TypeChecker& checker) {
     if (type_params)   checker.infer(*type_params);
     if (where_clauses) checker.infer(*where_clauses);
 
-    if (type_params) {
+    if (where_clauses || type_params) {
         forall = checker.type_table.forall_type(*this);
         // Set the type of this function right now, in case,
         // for instance, `return` is encountered in the body.
@@ -1642,7 +1656,7 @@ const artic::Type* FnDecl::infer(TypeChecker& checker) {
         ? checker.type_table.fn_type(checker.infer(*fn->param), checker.infer(*fn->ret_type))
         : checker.infer(*fn);
 
-    if (!type_params)
+    if (!forall)
         type = fn_type;
     else
         forall->as<ForallType>()->body = fn_type;
@@ -1725,9 +1739,6 @@ const artic::Type* TraitDecl::infer(TypeChecker& checker) {
     for (auto& decl : decls)
         checker.infer(*decl);
 
-    if (where_clauses)
-        where_clauses->check_impls(checker);
-
     static const auto builtin_trait_names = std::array {
         "Add", "Sub", "Mul", "Div", "Rem", "LShift", "RShift",
         "And", "Or", "Xor",
@@ -1804,26 +1815,6 @@ const artic::Type* ImplDecl::infer(TypeChecker& checker) {
     // become a candidate for it.
     type = checker.type_table.impl_type(*this);
 
-    // Check that the `where` clauses of the trait are met in this `impl`
-    auto trait_type = match_app<TraitType>(impled_type->type).second;
-    if (trait_type->where_clauses()) {
-        auto target_type = trait_type->type_params()
-            ? checker.type_table.type_app(trait_type, trait_type->type_params_as_array())
-            : trait_type;
-        if (auto map = target_type->unify(impled_type->type)) {
-            for (auto& clause : trait_type->where_clauses()->clauses)
-                checker.check_impl_exists(clause->loc, this, clause->type->replace(*map));
-        }
-    }
-
-    // Implementation checks were delayed so that the full signature for this `impl` is
-    // available *before* running any additional `impl` check. The reason for this is that
-    // we need the full implemented type and `where` clauses of this implementation type-checked
-    // so that we know if this `impl` is a valid candidate for a particular trait or not.
-    impled_type->check_impls(checker);
-    if (where_clauses)
-        where_clauses->check_impls(checker);
-
     // If one imposes no restrictions on the `where` clauses of this `impl`,
     // it is possible to make the type checking algorithm diverge. Here, we check
     // if this `impl` fulfills the Paterson conditions, which guarantee that the
@@ -1862,17 +1853,30 @@ const artic::Type* ImplDecl::infer(TypeChecker& checker) {
             checker.check(decl, expected_type);
     });
 
+    checker.check_later(this);
     return type;
 }
 
-void ImplDecl::check_conflicts(TypeChecker& checker) {
+void ImplDecl::check_late(TypeChecker& checker) {
     auto impl_type = type->isa<ImplType>();
-
     // This may happen if the `impl` contained an error
     if (!impl_type)
         return;
 
-    // Check that implementations are not in conflict
+    // `impl` checks are disabled for `TraitApp`s, but we still need to check that
+    // the `where` clauses of the implemented trait are actually met.
+    auto trait_type = match_app<TraitType>(impled_type->type).second;
+    if (trait_type->where_clauses()) {
+        auto target_type = trait_type->type_params()
+            ? checker.type_table.type_app(trait_type, trait_type->type_params_as_array())
+            : trait_type;
+        if (auto map = target_type->unify(impled_type->type)) {
+            for (auto& clause : trait_type->where_clauses()->clauses)
+                checker.check_impl_exists(clause->loc, this, clause->type->replace(*map));
+        }
+    }
+
+    // Check that other implementations are not in conflict
     auto other_impl = checker.forall_clauses_and_impl_candidates(
         this, match_app<TraitType>(impled_type->type).second,
         [&] (const artic::Type*) -> const artic::Type* { return nullptr; },
@@ -1931,8 +1935,7 @@ const artic::Type* ModDecl::infer(TypeChecker& checker) {
         if (decl->isa<StructDecl>() || decl->isa<EnumDecl>()) {
             if (!decl->type->is_sized())
                 checker.unsized_type(decl->loc, decl->type);
-        } else if (auto impl_decl = decl->isa<ImplDecl>())
-            impl_decl->check_conflicts(checker);
+        }
     }
     return type;
 }
@@ -1953,14 +1956,14 @@ const artic::Type* TypedPtrn::infer(TypeChecker& checker) {
 
 const artic::Type* LiteralPtrn::infer(TypeChecker& checker) {
     auto type = checker.infer(loc, lit);
-    if (is_float_type(type))
+    if (!is_int_type(type) && !is_bool_type(type) && !is_string_type(type))
         return checker.type_expected(loc, type, "integer, boolean, or string");
     return type;
 }
 
 const artic::Type* LiteralPtrn::check(TypeChecker& checker, const artic::Type* expected) {
-    auto type = checker.check(loc, parent_decl, lit, expected);
-    if (is_float_type(type))
+    auto type = checker.check(loc, lit, expected);
+    if (!is_int_type(type) && !is_bool_type(type) && !is_string_type(type))
         return checker.type_expected(loc, type, "integer, boolean, or string");
     return type;
 }
