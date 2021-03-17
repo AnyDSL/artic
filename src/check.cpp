@@ -585,13 +585,9 @@ std::unique_ptr<ResolvedImpl> TypeChecker::find_impl(const ast::Decl* decl, cons
 }
 
 static inline const ast::WhereClauseList* extract_where_clauses(const ast::Decl& decl) {
-    // This is needed since monomorphic `FnDecl`s can still have a list of `where` clauses
-    if (decl.type && decl.type->isa<PolyType>())
-        return decl.type->as<PolyType>()->where_clauses();
-    else if (auto fn_decl = decl.isa<ast::FnDecl>())
-        return fn_decl->where_clauses.get();
-    else
-        return nullptr;
+    return decl.type && decl.type->isa<PolyType>()
+        ? decl.type->as<PolyType>()->where_clauses()
+        : nullptr;
 }
 
 template <typename ClauseVisitor, typename ImplVisitor>
