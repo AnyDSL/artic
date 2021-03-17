@@ -19,6 +19,8 @@ namespace thorin {
 namespace artic {
 
 struct Type;
+struct PolyType;
+struct ResolvedImpl;
 struct Printer;
 class NameBinder;
 class TypeChecker;
@@ -44,6 +46,8 @@ struct Identifier {
     {}
 };
 
+struct Decl;
+
 /// Base class for all AST nodes.
 struct Node : public Cast<Node> {
     /// Location of the node in the source file.
@@ -53,6 +57,9 @@ struct Node : public Cast<Node> {
     mutable const artic::Type* type = nullptr;
     /// IR definition assigned after IR emission.
     mutable const thorin::Def* def = nullptr;
+
+    /// Declaration enclosing this node. Set during name-binding.
+    Decl* parent_decl = nullptr;
 
     /// List of attributes associated with the node.
     Ptr<struct AttrList> attrs;
@@ -71,10 +78,16 @@ struct Node : public Cast<Node> {
     virtual const artic::Type* infer(TypeChecker&);
     /// Checks that the node types and has the given type.
     virtual const artic::Type* check(TypeChecker&, const artic::Type*);
+    /// Performs late checks (like `impl` checks), once every node has been checked and inferred.
+    virtual void check_late(TypeChecker&) {}
     /// Emits an IR definition for this node.
     virtual const thorin::Def* emit(Emitter&) const;
     /// Prints the node with the given formatting parameters.
     virtual void print(Printer&) const = 0;
+
+    /// Finds the closest parent that is of the given type.
+    template <typename T>
+    T* find_parent() const;
 
     /// Prints the node on the console, for debugging.
     void dump() const;
@@ -88,12 +101,22 @@ log::Output& operator << (log::Output&, const Node&);
 struct Decl : public Node {
     Decl(const Loc& loc) : Node(loc) {}
 
-    /// Set to true if this declaration is at the top level of a module.
-    bool is_top_level = false;
-
     /// Binds the declaration to its AST node, without entering sub-AST nodes.
     virtual void bind_head(NameBinder&) {}
+
+    const thorin::Def* emit(Emitter&) const override;
 };
+
+template <typename T>
+T* Node::find_parent() const {
+    Decl* decl = parent_decl;
+    while (decl) {
+        if (decl->template isa<T>())
+            return decl->template as<T>();
+        decl = decl->parent_decl;
+    }
+    return nullptr;
+}
 
 /// Base class for types.
 struct Type : public Node {
@@ -164,36 +187,51 @@ struct Path : public Node {
         PtrVector<Type> args;
 
         // These members are set during type-checking
-        const artic::Type* type = nullptr;
         size_t index = 0;
+        const artic::Type* type = nullptr;
         std::vector<const artic::Type*> inferred_args;
 
-        bool is_super() const { return id.name == "super"; }
+        Ptr<ResolvedImpl> trait_impl;
+        std::vector<ResolvedImpl> where_impls;
 
         Elem(const Loc& loc, Identifier&& id, PtrVector<Type>&& args)
             : loc(loc), id(std::move(id)), args(std::move(args))
         {}
+
+        bool is_super() const { return id.name == "super"; }
+
+        void check_impls(TypeChecker&, const Path*, const artic::PolyType*);
     };
 
     std::vector<Elem> elems;
 
-    // Set during name-binding, corresponds to the declaration that
+    // Set during name-binding. Corresponds to the declaration that
     // is associated with the _first_ element of the path.
     // The rest of the path is resolved during type-checking.
-    ast::NamedDecl* start_decl;
+    NamedDecl* start_decl = nullptr;
 
     // Set during type-checking
-    bool is_value = false;
-    bool is_ctor = false;
+    bool is_value : 1;
+    bool is_ctor  : 1;
+    bool is_where_clause_head : 1;
+
+    // Delayed `impl` checks to run for the polymorphic elements of this path.
+    std::vector<std::pair<ast::Path::Elem*, const artic::PolyType*>> impl_checks;
 
     Path(const Loc& loc, std::vector<Elem>&& elems)
-        : Node(loc), elems(std::move(elems))
+        : Node(loc)
+        , elems(std::move(elems))
+        , is_value(false)
+        , is_ctor(false)
+        , is_where_clause_head(false)
     {}
 
-    const artic::Type* infer(TypeChecker&, bool, Ptr<Expr>* = nullptr);
+    const artic::Type* infer(TypeChecker&, bool, Ptr<Expr>*);
     const artic::Type* infer(TypeChecker& checker) override {
-        return infer(checker, false, nullptr);
+        return infer(checker, false, {});
     }
+
+    void check_late(TypeChecker&) override;
 
     const thorin::Def* emit(Emitter&) const override;
     void bind(NameBinder&) override;
@@ -407,6 +445,17 @@ struct TypeApp : public Type {
     void print(Printer&) const override;
 };
 
+/// A trait type application.
+struct TraitApp : public TypeApp {
+    TraitApp(const Loc& loc, Path&& path)
+        : TypeApp(loc, std::move(path))
+    {
+        this->path.is_where_clause_head = true;
+    }
+
+    const artic::Type* infer(TypeChecker&) override;
+};
+
 /// Type resulting from a parsing error.
 struct ErrorType : public Type {
     ErrorType(const Loc& loc)
@@ -501,6 +550,10 @@ struct PathExpr : public Expr {
 struct LiteralExpr : public Expr {
     Literal lit;
 
+    // Set during (late) type-checking.
+    // Contains the implementation required to convert this literal to its target type.
+    Ptr<ResolvedImpl> lit_impl;
+
     LiteralExpr(const Loc& loc, const Literal& lit)
         : Expr(loc), lit(lit)
     {}
@@ -512,6 +565,8 @@ struct LiteralExpr : public Expr {
     const artic::Type* check(TypeChecker&, const artic::Type*) override;
     void bind(NameBinder&) override;
     void print(Printer&) const override;
+
+    void check_late(TypeChecker&) override;
 };
 
 /// Field expression, part of a record expression.
@@ -642,12 +697,20 @@ struct RepeatArrayExpr : public Expr {
     void print(Printer&) const override;
 };
 
+struct FnDecl;
+struct ForExpr;
+
 /// Anonymous function expression.
 struct FnExpr : public Expr {
     Ptr<Filter> filter;
     Ptr<Ptrn>   param;
     Ptr<Type>   ret_type;
     Ptr<Expr>   body;
+
+    /// Pointer to the for loop that defines this function as its body (if any).
+    ForExpr* for_expr = nullptr;
+    /// Pointer to the function declaration that uses this function (if any).
+    FnDecl* fn_decl = nullptr;
 
     FnExpr(
         const Loc& loc,
@@ -663,11 +726,11 @@ struct FnExpr : public Expr {
     {}
 
     bool is_constant() const override;
+    bool is_builtin() const;
 
     const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) override;
     const artic::Type* check(TypeChecker&, const artic::Type*) override;
-    void bind(NameBinder&, bool);
     void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
@@ -871,7 +934,9 @@ struct ForExpr : public LoopExpr {
 
     ForExpr(const Loc& loc, Ptr<CallExpr>&& call)
         : LoopExpr(loc), call(std::move(call))
-    {}
+    {
+        this->call->callee->as<CallExpr>()->arg->as<FnExpr>()->for_expr = this;
+    }
 
     bool is_jumping() const override;
     bool has_side_effect() const override;
@@ -944,6 +1009,9 @@ struct UnaryExpr : public Expr {
     Tag tag;
     Ptr<Expr> arg;
 
+    // Set during (late) type-checking. Contains the operator's implementation (or `where` clause).
+    Ptr<ResolvedImpl> op_impl;
+
     UnaryExpr(const Loc& loc, Tag tag, Ptr<Expr>&& arg)
         : Expr(loc), tag(tag), arg(std::move(arg))
     {}
@@ -961,6 +1029,8 @@ struct UnaryExpr : public Expr {
     void bind(NameBinder&) override;
     void print(Printer&) const override;
 
+    void check_late(TypeChecker&) override;
+
     bool is_inc() const { return is_inc(tag); }
     bool is_dec() const { return is_dec(tag); }
 
@@ -968,6 +1038,7 @@ struct UnaryExpr : public Expr {
     static bool is_dec(Tag tag) { return tag == PreDec || tag == PostDec; }
 
     static std::string tag_to_string(Tag);
+    static std::string tag_to_trait_name(Tag);
     static Tag tag_from_token(const Token&, bool);
 };
 
@@ -987,6 +1058,9 @@ struct BinaryExpr : public Expr {
     Tag tag;
     Ptr<Expr> left;
     Ptr<Expr> right;
+
+    // See comment in `UnaryExpr`.
+    Ptr<ResolvedImpl> op_impl;
 
     BinaryExpr(
         const Loc& loc,
@@ -1013,6 +1087,8 @@ struct BinaryExpr : public Expr {
     void bind(NameBinder&) override;
     void print(Printer&) const override;
 
+    void check_late(TypeChecker&) override;
+
     static Tag remove_eq(Tag);
     static bool has_eq(Tag);
     static bool has_cmp(Tag);
@@ -1022,6 +1098,7 @@ struct BinaryExpr : public Expr {
     static int max_precedence();
 
     static std::string tag_to_string(Tag);
+    static std::string tag_to_trait_name(Tag);
     static Tag tag_from_token(const Token&);
 };
 
@@ -1176,7 +1253,7 @@ struct TypeParam : public NamedDecl {
     void print(Printer&) const override;
 };
 
-/// Type parameter list, of the form [T, U, ...]
+/// Type parameter list, of the form `[T, U, ...]`.
 struct TypeParamList : public Node {
     PtrVector<TypeParam> params;
 
@@ -1184,6 +1261,26 @@ struct TypeParamList : public Node {
         : Node(loc), params(std::move(params))
     {}
 
+    const artic::Type* infer(TypeChecker&) override;
+    void bind(NameBinder&) override;
+    void print(Printer&) const override;
+};
+
+/// Where clause list, of the form `where T, U, ...`.
+struct WhereClauseList : public Node {
+    PtrVector<TraitApp> clauses;
+    const ast::TypeParamList* type_params;
+
+    WhereClauseList(
+        const Loc& loc,
+        PtrVector<TraitApp>&& clauses,
+        const ast::TypeParamList* type_params)
+        : Node(loc), clauses(std::move(clauses)), type_params(type_params)
+    {}
+
+    void check_impls(TypeChecker&);
+
+    const artic::Type* infer(TypeChecker&) override;
     void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
@@ -1246,24 +1343,28 @@ struct StaticDecl : public ValueDecl {
     void print(Printer&) const override;
 };
 
-/// Function declaration.
+/// Function declaration, of the form `fn foo[A, B, ...](...) where C, D, ... { ... }`.
 struct FnDecl : public ValueDecl {
-    Ptr<FnExpr> fn;
     Ptr<TypeParamList> type_params;
+    Ptr<WhereClauseList> where_clauses;
+    Ptr<FnExpr> fn;
 
     FnDecl(
         const Loc& loc,
         Identifier&& id,
-        Ptr<FnExpr>&& fn,
-        Ptr<TypeParamList>&& type_params)
+        Ptr<TypeParamList>&& type_params,
+        Ptr<WhereClauseList>&& where_clauses,
+        Ptr<FnExpr>&& fn)
         : ValueDecl(loc, std::move(id))
-        , fn(std::move(fn))
         , type_params(std::move(type_params))
-    {}
+        , where_clauses(std::move(where_clauses))
+        , fn(std::move(fn))
+    {
+        this->fn->fn_decl = this;
+    }
 
     const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) override;
-    const artic::Type* check(TypeChecker&, const artic::Type*) override;
     void bind_head(NameBinder&) override;
     void bind(NameBinder&) override;
     void print(Printer&) const override;
@@ -1302,23 +1403,25 @@ struct RecordDecl : public CtorDecl {
     {}
 };
 
-/// Structure type declarations.
+/// Structure type declaration, of the form `struct Foo[A, B, ...] where C, D, ... { ... }`.
 struct StructDecl : public RecordDecl {
-    Ptr<TypeParamList> type_params;
+    Ptr<TypeParamList>   type_params;
+    Ptr<WhereClauseList> where_clauses;
     bool is_tuple_like;
 
     StructDecl(
         const Loc& loc,
         Identifier&& id,
         Ptr<TypeParamList>&& type_params,
+        Ptr<WhereClauseList>&& where_clauses,
         PtrVector<FieldDecl>&& fields,
         bool is_tuple_like)
         : RecordDecl(loc, std::move(id), std::move(fields))
         , type_params(std::move(type_params))
+        , where_clauses(std::move(where_clauses))
         , is_tuple_like(is_tuple_like)
     {}
 
-    const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) override;
     void bind_head(NameBinder&) override;
     void bind(NameBinder&) override;
@@ -1336,9 +1439,6 @@ struct OptionDecl : public RecordDecl {
     // Note: can be a type application of a structure type
     const artic::Type* struct_type = nullptr;
 
-    // Set at name-binding time, points to the parent enumeration
-    EnumDecl* parent = nullptr;
-
     OptionDecl(
         const Loc& loc,
         Identifier&& id,
@@ -1350,49 +1450,110 @@ struct OptionDecl : public RecordDecl {
         , has_fields(has_fields)
     {}
 
+    EnumDecl* parent() const {
+        auto parent = find_parent<EnumDecl>();
+        assert(parent);
+        return parent;
+    }
+
     const artic::Type* infer(TypeChecker&) override;
     void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
 
-/// Enumeration declaration.
+/// Enumeration declaration, of the form `enum Foo[A, B, ...] where C, D, ... { ... }`.
 struct EnumDecl : public CtorDecl {
     Ptr<TypeParamList> type_params;
+    Ptr<WhereClauseList> where_clauses;
     PtrVector<OptionDecl> options;
 
     EnumDecl(
         const Loc& loc,
         Identifier&& id,
         Ptr<TypeParamList>&& type_params,
+        Ptr<WhereClauseList>&& where_clauses,
         PtrVector<OptionDecl>&& options)
         : CtorDecl(loc, std::move(id))
         , type_params(std::move(type_params))
+        , where_clauses(std::move(where_clauses))
         , options(std::move(options))
     {}
 
-    const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) override;
     void bind_head(NameBinder&) override;
     void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
 
-/// Type alias declaration.
+/// Trait declaration, of the form `trait Foo[A, B, ...] where C, D, ... { ... }`.
+struct TraitDecl : public NamedDecl {
+    Ptr<TypeParamList> type_params;
+    Ptr<WhereClauseList> where_clauses;
+    PtrVector<NamedDecl> decls;
+
+    TraitDecl(
+        const Loc& loc,
+        Identifier&& id,
+        Ptr<TypeParamList>&& type_params,
+        Ptr<WhereClauseList>&& where_clauses,
+        PtrVector<NamedDecl>&& decls)
+        : NamedDecl(loc, std::move(id))
+        , type_params(std::move(type_params))
+        , where_clauses(std::move(where_clauses))
+        , decls(std::move(decls))
+    {}
+
+    const artic::Type* infer(TypeChecker&) override;
+    void bind_head(NameBinder&) override;
+    void bind(NameBinder&) override;
+    void print(Printer&) const override;
+};
+
+/// Trait implementation, of the form `impl[A, B, ...] Foo[D, E, ...] where F, G, ... { ... }`.
+struct ImplDecl : public Decl {
+    Ptr<TypeParamList> type_params;
+    Ptr<WhereClauseList> where_clauses;
+    Ptr<TraitApp> impled_type;
+    PtrVector<NamedDecl> decls;
+
+    ImplDecl(
+        const Loc& loc,
+        Ptr<TypeParamList>&& type_params,
+        Ptr<WhereClauseList>&& where_clauses,
+        Ptr<TraitApp>&& impled_type,
+        PtrVector<NamedDecl>&& decls)
+        : Decl(loc)
+        , type_params(std::move(type_params))
+        , where_clauses(std::move(where_clauses))
+        , impled_type(std::move(impled_type))
+        , decls(std::move(decls))
+     {}
+
+     void check_late(TypeChecker&) override;
+
+     const artic::Type* infer(TypeChecker&) override;
+     void bind(NameBinder&) override;
+     void print(Printer&) const override;
+};
+
+/// Type alias declaration, of the form `type Foo[A, B, ...] where C, D, ... = ...`.
 struct TypeDecl : public NamedDecl {
     Ptr<TypeParamList> type_params;
+    Ptr<WhereClauseList> where_clauses;
     Ptr<Type> aliased_type;
 
     TypeDecl(
         const Loc& loc,
         Identifier&& id,
         Ptr<TypeParamList>&& type_params,
+        Ptr<WhereClauseList>&& where_clauses,
         Ptr<Type>&& aliased_type)
         : NamedDecl(loc, std::move(id))
         , type_params(std::move(type_params))
+        , where_clauses(std::move(where_clauses))
         , aliased_type(std::move(aliased_type))
     {}
 
-    const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) override;
     void bind_head(NameBinder&) override;
     void bind(NameBinder&) override;
@@ -1402,13 +1563,9 @@ struct TypeDecl : public NamedDecl {
 /// Module definition.
 struct ModDecl : public NamedDecl {
     PtrVector<Decl> decls;
-    ModDecl* super = nullptr;
+    size_t prelude_size = 0;
 
-    std::vector<const NamedDecl*> members;
-
-    /// Constructor for the implicitly defined global module.
-    /// When using this constructor, the user is responsible for calling
-    /// `set_super()` once the declarations have been added to the module.
+    /// Constructor for the implicitly defined top-level global module.
     explicit ModDecl()
         : NamedDecl(Loc(), Identifier())
     {}
@@ -1416,11 +1573,12 @@ struct ModDecl : public NamedDecl {
     /// Constructor for a regular module declaration.
     ModDecl(const Loc& loc, Identifier&& id, PtrVector<Decl>&& decls)
         : NamedDecl(loc, std::move(id)), decls(std::move(decls))
-    {
-        set_super();
-    }
+    {}
 
-    void set_super();
+    bool is_top_level() const { return id.name == ""; }
+
+    /// Returns the super-module of this module, or `nullptr` if there is none.
+    ast::ModDecl* super() const { return find_parent<ast::ModDecl>(); }
 
     const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) override;
@@ -1437,7 +1595,6 @@ struct UseDecl : public NamedDecl {
         : NamedDecl(loc, std::move(id)), path(std::move(path))
     {}
 
-    const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) override;
     void bind_head(NameBinder&) override;
     void bind(NameBinder&) override;

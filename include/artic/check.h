@@ -2,6 +2,7 @@
 #define ARTIC_CHECK_H
 
 #include <unordered_set>
+#include <type_traits>
 #include <optional>
 
 #include "artic/ast.h"
@@ -24,14 +25,7 @@ public:
     /// Returns true on success, otherwise false.
     bool run(ast::ModDecl&);
 
-    // Should be called to avoid infinite recursion
-    // when inferring the type of recursive declarations
-    // such as functions/structures/enumerations.
-    bool enter_decl(const ast::Decl*);
-    void exit_decl(const ast::Decl*);
-
-    bool should_report_error(const Type*);
-
+    // Error messages
     const Type* incompatible_types(const Loc&, const Type*, const Type*);
     const Type* incompatible_type(const Loc&, const std::string_view&, const Type*);
     const Type* type_expected(const Loc&, const Type*, const std::string_view&);
@@ -61,27 +55,47 @@ public:
     const Type* infer(const Loc&, const Literal&);
     const Type* check(const Loc&, const Literal&, const Type*);
 
-    template <typename Fields>
-    void check_fields(
-        const Loc&, const StructType*, const TypeApp*,
-        const Fields&, const std::string_view&,
-        bool = false, bool = false);
-
     void check_block(const Loc&, const PtrVector<ast::Stmt>&, bool);
     bool check_attrs(const ast::NamedAttr&, const ArrayRef<AttrType>&);
     bool check_filter(const ast::Expr&);
     void check_refutability(const ast::Ptrn&, bool);
 
+    void check_later(ast::Node* node) { late_checks_.push_back(node); }
+
+    template <typename Members, typename CheckMember>
+    void check_members(const Loc&, const Type*, bool, const Members&, CheckMember&&);
+
     template <typename InferElems>
-    const Type* infer_array(const Loc&, const std::string_view&, size_t, bool, const InferElems&);
+    const Type* infer_array(const Loc&, const std::string_view&, size_t, bool, InferElems&&);
     template <typename CheckElems>
-    const Type* check_array(const Loc&, const std::string_view&, const Type*, size_t, bool, const CheckElems&);
+    const Type* check_array(const Loc&, const std::string_view&, const Type*, size_t, bool, CheckElems&&);
 
     bool infer_type_args(const Loc&, const ForallType*, const Type*, std::vector<const Type*>&);
     const Type* infer_record_type(const TypeApp*, const StructType*, size_t&);
 
+    // Trait-related functions
+    std::unique_ptr<ResolvedImpl> check_impl_exists(const Loc&, const ast::Decl*, const Type*);
+    std::unique_ptr<ResolvedImpl> check_impl_exists(const Loc&, const ast::Decl*, const TraitType*, const ArrayRef<const Type*>&);
+
+    std::unique_ptr<ResolvedImpl> find_impl(const ast::Decl*, const Type*);
+
+    template <typename ClauseVisitor, typename ImplVisitor>
+    auto forall_clauses_and_impl_candidates(
+        const ast::Decl*, const TraitType*, ClauseVisitor&&, ImplVisitor&&)
+        -> std::invoke_result_t<ClauseVisitor, const Type*>;
+
 private:
-    std::unordered_set<const ast::Decl*> decls_;
+    template <typename Action>
+    const Type* check_or_infer(ast::Node&, Action&&);
+
+    using ImplCandidates = std::vector<const ImplType*>;
+    const ImplCandidates& impl_candidates(const ast::ModDecl*, const TraitType*);
+    std::unordered_map<
+        const ast::ModDecl*,
+        std::unordered_map<const TraitType*, ImplCandidates>> impl_candidates_;
+
+    std::unordered_set<const ast::Decl*> visited_decls_;
+    std::vector<ast::Node*> late_checks_;
 };
 
 } // namespace artic

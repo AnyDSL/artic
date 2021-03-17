@@ -1,0 +1,3 @@
+trait T[_] {}
+struct S[A] where T[A];
+fn test[B]() = S[B];

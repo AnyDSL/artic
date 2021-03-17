@@ -1,0 +1,91 @@
+struct Math { sqrtf: fn (f32) -> f32 }
+
+static math = Math { sqrtf = |x| x };
+
+trait Min[T] { fn min(T, T) -> T; }
+trait Max[T] { fn max(T, T) -> T; }
+fn @min[T](a: T, b: T) where Min[T] = Min[T]::min(a, b);
+fn @max[T](a: T, b: T) where Max[T] = Max[T]::max(a, b);
+
+trait VecConst[V] { fn vec_const(f32) -> V; }
+impl VecConst[Vec2] { fn @vec_const(x: f32) = vec2(x, x); }
+impl VecConst[Vec3] { fn @vec_const(x: f32) = vec3(x, x, x); }
+impl VecConst[Vec4] { fn @vec_const(x: f32) = vec4(x, x, x, x); }
+fn @vec_const[V](x: f32) where VecConst[V] = VecConst[V]::vec_const(x);
+
+trait VecMap[V] { fn vec_map(V, fn (f32) -> f32) -> V; }
+impl VecMap[Vec2] { fn @vec_map(v: Vec2, f: fn (f32) -> f32) = vec2(@f(v.x), @f(v.y)); }
+impl VecMap[Vec3] { fn @vec_map(v: Vec3, f: fn (f32) -> f32) = vec3(@f(v.x), @f(v.y), @f(v.z)); }
+impl VecMap[Vec4] { fn @vec_map(v: Vec4, f: fn (f32) -> f32) = vec4(@f(v.x), @f(v.y), @f(v.z), @f(v.w)); }
+fn @vec_map[V](v: V, f: fn (f32) -> f32) where VecMap[V] = VecMap[V]::vec_map(v, f);
+
+trait VecZip[V] { fn vec_zip(V, V, fn (f32, f32) -> f32) -> V; }
+impl VecZip[Vec2] { fn @vec_zip(a: Vec2, b: Vec2, f: fn (f32, f32) -> f32) = vec2(@f(a.x, b.x), @f(a.y, b.y)); }
+impl VecZip[Vec3] { fn @vec_zip(a: Vec3, b: Vec3, f: fn (f32, f32) -> f32) = vec3(@f(a.x, b.x), @f(a.y, b.y), @f(a.z, b.z)); }
+impl VecZip[Vec4] { fn @vec_zip(a: Vec4, b: Vec4, f: fn (f32, f32) -> f32) = vec4(@f(a.x, b.x), @f(a.y, b.y), @f(a.z, b.z), @f(a.w, b.w)); }
+fn @vec_zip[V](a: V, b: V, f: fn (f32, f32) -> f32) where VecZip[V] = VecZip[V]::vec_zip(a, b, f);
+
+trait Dot[V] { fn dot(V, V) -> f32; }
+impl Dot[Vec2] { fn @dot(a: Vec2, b: Vec2) = a.x * b.x + a.y * b.y; }
+impl Dot[Vec3] { fn @dot(a: Vec3, b: Vec3) = a.x * b.x + a.y * b.y + a.z * b.z; }
+impl Dot[Vec4] { fn @dot(a: Vec4, b: Vec4) = a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w; }
+fn @dot[V](a: V, b: V) where Dot[V] = Dot[V]::dot(a, b);
+
+#[allow_undecidable_impl] impl[V] Add[V] where VecZip[V] { fn @add(x: V, y: V) = vec_zip(x, y, |x, y| x + y); }
+#[allow_undecidable_impl] impl[V] Sub[V] where VecZip[V] { fn @sub(x: V, y: V) = vec_zip(x, y, |x, y| x - y); }
+#[allow_undecidable_impl] impl[V] Mul[V] where VecZip[V] { fn @mul(x: V, y: V) = vec_zip(x, y, |x, y| x * y); }
+#[allow_undecidable_impl] impl[V] Div[V] where VecZip[V] { fn @div(x: V, y: V) = vec_zip(x, y, |x, y| x / y); }
+#[allow_undecidable_impl] impl[V] Rem[V] where VecZip[V] { fn @rem(x: V, y: V) = vec_zip(x, y, |x, y| x % y); }
+#[allow_undecidable_impl] impl[V] Minus[V] where VecMap[V] { fn @minus(v: V) = vec_map(v, |x| -x); }
+
+struct Vec2 {
+    x: f32,
+    y: f32
+}
+
+struct Vec3 {
+    x: f32,
+    y: f32,
+    z: f32
+}
+
+struct Vec4 {
+    x: f32,
+    y: f32,
+    z: f32,
+    w: f32
+}
+
+fn @vec2(x: f32, y: f32) -> Vec2 { Vec2 { x = x, y = y } }
+fn @vec3(x: f32, y: f32, z: f32) -> Vec3 { Vec3 { x = x, y = y, z = z } }
+fn @vec4(x: f32, y: f32, z: f32, w: f32) -> Vec4 { Vec4 { x = x, y = y, z = z, w = w } }
+
+trait ToVec2[V] { fn to_vec2(V) -> Vec2; }
+impl ToVec2[Vec2] { fn @to_vec2(v: Vec2) = v; }
+impl ToVec2[Vec3] { fn @to_vec2(v: Vec3) = vec2(v.x, v.y); }
+impl ToVec2[Vec4] { fn @to_vec2(v: Vec4) = vec2(v.x, v.y); }
+fn @to_vec2[V](v: V) where ToVec2[V] = ToVec2[V]::to_vec2(v);
+fn @to_vec3(v: Vec4) = vec3(v.x, v.y, v.z);
+
+fn @cross(a: Vec3, b: Vec3) -> Vec3 {
+    vec3(
+        a.y * b.z - a.z * b.y,
+        a.z * b.x - a.x * b.z,
+        a.x * b.y - a.y * b.x)
+}
+
+fn @length2[V](v: V) where Dot[V] = dot(v, v);
+fn @length[V](v: V) where Dot[V] = math.sqrtf(length2(v));
+fn @reflect[V](v: V, n: V) where Sub[V], Mul[V], Dot[V], VecConst[V] = n * vec_const[V](2 * dot(n, v)) - v;
+fn @normalize[V](v: V) where Mul[V], Dot[V], VecConst[V] = v * vec_const[V](1 / length(v));
+fn @lerp[V](x: V, y: V, k: f32) where Mul[V], Add[V], VecConst[V] = x * vec_const[V](1 - k) + y * vec_const[V](k);
+fn @lerp2[V](x: V, y: V, z: V, u: f32, v: f32) where Mul[V], Add[V], VecConst[V] = vec_const[V](1 - u - v) * x + vec_const[V](u) * y + vec_const[V](v) * z;
+
+impl Min[f32] { fn @min(a: f32, b: f32) = if a < b { a } else { b }; }
+impl Max[f32] { fn @max(a: f32, b: f32) = if a > b { a } else { b }; }
+#[allow_undecidable_impl] impl[V] Min[V] where VecZip[V] { fn @min(a: V, b: V) = vec_zip(a, b, |x, y| Min[f32]::min(x, y)); }
+#[allow_undecidable_impl] impl[V] Max[V] where VecZip[V] { fn @max(a: V, b: V) = vec_zip(a, b, |x, y| Max[f32]::max(x, y)); }
+
+static normalize2 = normalize[Vec2];
+static normalize3 = normalize[Vec3];
+static normalize4 = normalize[Vec4];

@@ -26,6 +26,38 @@ void print_parens(Printer& p, const E& e) {
     }
 }
 
+template <typename Tuple>
+void print_tuple(Printer& p, const Tuple& tuple) {
+    p << '(';
+    print_list(p, ", ", tuple.args, [&] (auto& arg) {
+        arg->print(p);
+    });
+    p << ')';
+}
+
+template <typename PtrType>
+void print_ptr_type(Printer& p, const PtrType& ptr_type) {
+    p << '&';
+    if (ptr_type.is_mut)
+        p << log::keyword_style("mut") << ' ';
+    if (ptr_type.addr_space != 0)
+        p << log::keyword_style("addrspace") << '(' << ptr_type.addr_space << ')';
+    if (ptr_type.pointee->template isa<PtrType>())
+        p << '(';
+    ptr_type.pointee->print(p);
+    if (ptr_type.pointee->template isa<PtrType>())
+        p << ')';
+}
+
+template <typename SizedArrayType>
+void print_sized_array_type(Printer& p, const SizedArrayType& sized_array_type) {
+    if (sized_array_type.is_simd)
+        p << log::keyword_style("simd");
+    p << '[';
+    sized_array_type.elem->print(p);
+    p << " * " << sized_array_type.size << ']';
+}
+
 // AST nodes -----------------------------------------------------------------------
 
 namespace ast {
@@ -132,11 +164,7 @@ void RecordExpr::print(Printer& p) const {
 }
 
 void TupleExpr::print(Printer& p) const {
-    p << '(';
-    print_list(p, ", ", args, [&] (auto& a) {
-        a->print(p);
-    });
-    p << ')';
+    print_tuple(p, *this);
 }
 
 void ArrayExpr::print(Printer& p) const {
@@ -412,11 +440,7 @@ void CtorPtrn::print(Printer& p) const {
 }
 
 void TuplePtrn::print(Printer& p) const {
-    p << '(';
-    print_list(p, ", ", args, [&] (auto& arg) {
-        arg->print(p);
-    });
-    p << ')';
+    print_tuple(p, *this);
 }
 
 void ArrayPtrn::print(Printer& p) const {
@@ -440,10 +464,15 @@ void TypeParam::print(Printer& p) const {
 void TypeParamList::print(Printer& p) const {
     if (!params.empty()) {
         p << '[';
-        print_list(p, ", ", params, [&] (auto& param) {
-            param->print(p);
-        });
+        print_list(p, ", ", params, [&] (auto& param) { param->print(p); });
         p << ']';
+    }
+}
+
+void WhereClauseList::print(Printer& p) const {
+    if (!clauses.empty()) {
+        p << log::keyword_style("where") << " ";
+        print_list(p, ", ", clauses, [&] (auto& clause) { clause->print(p); });
     }
 }
 
@@ -481,7 +510,7 @@ void StaticDecl::print(Printer& p) const {
 }
 
 void FnDecl::print(Printer& p) const {
-    if (attrs) attrs->print(p);
+    if (fn->attrs) fn->attrs->print(p);
     p << log::keyword_style("fn") << ' ';
     if (fn->filter)
        fn->filter->print(p);
@@ -489,6 +518,8 @@ void FnDecl::print(Printer& p) const {
 
     if (type_params) type_params->print(p);
     print_parens(p, fn->param);
+    if (where_clauses)
+        where_clauses->print(p << ' ');
 
     if (fn->ret_type) {
         p << " -> ";
@@ -496,11 +527,14 @@ void FnDecl::print(Printer& p) const {
     }
 
     if (fn->body) {
-        if (fn->body->isa<BlockExpr>())
+        bool block_body = fn->body->isa<BlockExpr>();
+        if (block_body)
             p << ' ';
         else
             p << " = ";
         fn->body->print(p);
+        if (!block_body)
+            p << ';';
     } else
         p << ';';
 }
@@ -534,7 +568,8 @@ inline void print_fields(Printer& p, const PtrVector<FieldDecl>& fields, bool is
 void StructDecl::print(Printer& p) const {
     if (attrs) attrs->print(p);
     p << log::keyword_style("struct") << ' ' << id.name;
-    if (type_params) type_params->print(p);
+    if (type_params)   type_params->print(p);
+    if (where_clauses) where_clauses->print(p << ' ');
     if (!is_tuple_like || !fields.empty())
         print_fields(p, fields, is_tuple_like);
     if (is_tuple_like)
@@ -543,16 +578,17 @@ void StructDecl::print(Printer& p) const {
 
 void OptionDecl::print(Printer& p) const {
     p << id.name;
-    if (param)
-        print_parens(p, param);
-    else
+    if (has_fields)
         print_fields(p, fields, false);
+    else if (param)
+        print_parens(p, param);
 }
 
 void EnumDecl::print(Printer& p) const {
     if (attrs) attrs->print(p);
     p << log::keyword_style("enum") << ' ' << id.name;
-    if (type_params) type_params->print(p);
+    if (type_params)   type_params->print(p);
+    if (where_clauses) where_clauses->print(p << ' ');
     p << " {";
     if (!options.empty()) {
         p << p.indent();
@@ -565,10 +601,45 @@ void EnumDecl::print(Printer& p) const {
     p << '}';
 }
 
+void TraitDecl::print(Printer& p) const {
+    if (attrs) attrs->print(p);
+    p << log::keyword_style("trait") << ' ' << id.name;
+    if (type_params)   type_params->print(p);
+    if (where_clauses) where_clauses->print(p << ' ');
+    if (!decls.empty()) {
+        p << " {" << p.indent() ;
+        for (auto& decl : decls) {
+            p << p.endl();
+            decl->print(p);
+        }
+        p << p.unindent() << p.endl() << '}';
+    } else
+        p << ';';
+}
+
+void ImplDecl::print(Printer& p) const {
+    if (attrs) attrs->print(p);
+    p << log::keyword_style("impl");
+    if (type_params) type_params->print(p);
+    p << ' ';
+    impled_type->print(p);
+    if (where_clauses) where_clauses->print(p << ' ');
+    if (!decls.empty()) {
+        p << " {" << p.indent();
+        for (auto& decl : decls) {
+            p << p.endl();
+            decl->print(p);
+        }
+        p << p.unindent() << p.endl() << '}';
+    } else
+        p << ';';
+}
+
 void TypeDecl::print(Printer& p) const {
     if (attrs) attrs->print(p);
     p << log::keyword_style("type") << ' ' <<  id.name;
-    if (type_params) type_params->print(p);
+    if (type_params)   type_params->print(p);
+    if (where_clauses) where_clauses->print(p << ' ');
     p << " = ";
     aliased_type->print(p);
     p << ';';
@@ -579,7 +650,7 @@ void ModDecl::print(Printer& p) const {
     bool anon = id.name == "";
     if (!anon)
         p << log::keyword_style("mod") << ' ' << id.name << " {" << p.indent() << p.endl();
-    print_list(p, p.endl(), decls, [&] (auto& decl) {
+    print_list(p, p.endl(), ArrayRef { decls }.skip_front(prelude_size), [&] (auto& decl) {
         decl->print(p);
     });
     if (!anon)
@@ -603,24 +674,15 @@ void PrimType::print(Printer& p) const {
 }
 
 void TupleType::print(Printer& p) const {
-    p << '(';
-    print_list(p, ", ", args, [&] (auto& arg) {
-        arg->print(p);
-    });
-    p << ')';
+    print_tuple(p, *this);
 }
 
 void SizedArrayType::print(Printer& p) const {
-    if (is_simd)
-        p << log::keyword_style("simd");
-    p << '[';
-    elem->print(p);
-    p << " * " << size << ']';
+    print_sized_array_type(p, *this);
 }
 
 void UnsizedArrayType::print(Printer& p) const {
-    p << '[';
-    elem->print(p);
+    elem->print(p << '[');
     p << ']';
 }
 
@@ -634,16 +696,7 @@ void FnType::print(Printer& p) const {
 }
 
 void PtrType::print(Printer& p) const {
-    p << '&';
-    if (is_mut)
-        p << log::keyword_style("mut") << ' ';
-    if (addr_space != 0)
-        p << log::keyword_style("addrspace") << '(' << addr_space << ')';
-    if (pointee->isa<PtrType>())
-        p << '(';
-    pointee->print(p);
-    if (pointee->isa<PtrType>())
-        p << ')';
+    print_ptr_type(p, *this);
 }
 
 void TypeApp::print(Printer& p) const {
@@ -675,38 +728,20 @@ void PrimType::print(Printer& p) const {
 }
 
 void TupleType::print(Printer& p) const {
-    p << '(';
-    print_list(p, ", ", args, [&] (auto& a) {
-        a->print(p);
-    });
-    p << ')';
+    print_tuple(p, *this);
 }
 
 void SizedArrayType::print(Printer& p) const {
-    if (is_simd)
-        p << log::keyword_style("simd");
-    p << '[';
-    elem->print(p);
-    p << " * " << size << ']';
+    print_sized_array_type(p, *this);
 }
 
 void UnsizedArrayType::print(Printer& p) const {
-    p << '[';
-    elem->print(p);
+    elem->print(p << '[');
     p << ']';
 }
 
 void PtrType::print(Printer& p) const {
-    p << '&';
-    if (is_mut)
-        p << log::keyword_style("mut") << ' ';
-    if (addr_space != 0)
-        p << log::keyword_style("addrspace") << '(' << addr_space << ')';
-    if (pointee->isa<PtrType>())
-        p << '(';
-    pointee->print(p);
-    if (pointee->isa<PtrType>())
-        p << ')';
+    print_ptr_type(p, *this);
 }
 
 void RefType::print(Printer& p) const {
@@ -742,14 +777,15 @@ void TypeError::print(Printer& p) const {
 }
 
 void TypeVar::print(Printer& p) const {
-    p << param.id.name;
+    p << decl.id.name;
 }
 
 void ForallType::print(Printer& p) const {
     assert(decl.type_params);
     p << log::keyword_style("forall");
     decl.type_params->print(p);
-    p << ' ';
+    if (decl.where_clauses) decl.where_clauses->print(p << ' ');
+    p << " . ";
     body->print(p);
 }
 
@@ -761,6 +797,17 @@ void EnumType::print(Printer& p) const {
     p << decl.id.name;
 }
 
+void TraitType::print(Printer& p) const {
+    p << decl.id.name;
+}
+
+void ImplType::print(Printer& p) const {
+    p << log::keyword_style("impl");
+    if (decl.type_params) decl.type_params->print(p);
+    impled_type()->print(p << ' ');
+    if (decl.where_clauses) decl.where_clauses->print(p << ' ');
+}
+
 void ModType::print(Printer& p) const {
     p << decl.id.name;
 }
@@ -770,7 +817,9 @@ void TypeAlias::print(Printer& p) const {
 }
 
 void TypeApp::print(Printer& p) const {
+    if (applied->isa<ImplType>()) p << '(';
     applied->print(p);
+    if (applied->isa<ImplType>()) p << ')';
     p << '[';
     print_list(p, ", ", type_args, [&] (auto& a) {
         a->print(p);

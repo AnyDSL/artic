@@ -1,0 +1,8 @@
+trait T[_];
+
+mod A {
+    impl super::T[bool]{}
+    mod B {
+        impl super::super::T[bool]{}
+    }
+}

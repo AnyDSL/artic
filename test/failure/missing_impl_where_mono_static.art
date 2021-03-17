@@ -1,0 +1,3 @@
+trait T[A] {}
+fn test1[B](b: B) where T[B] = b;
+static test2 = test1[bool];

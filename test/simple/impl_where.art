@@ -1,0 +1,18 @@
+struct Vec2[A](A, A);
+struct Vec3[A] { a: A, b: A, c: A }
+
+impl[A] Add[Vec3[A]] where Add[A] {
+    fn add(a: Vec3[A], b: Vec3[A]) = Vec3[A] { a = Add[A]::add(a.a, b.a), b = a.b + b.b, c = Add[A]::add(a.c, b.c) };
+}
+
+impl[B] Add[Vec2[B]] where Add[B] {
+    fn add(a: Vec2[B], b: Vec2[B]) { let Vec2[B](b0, b1) = b; Vec2[B](Add[B]::add(a.0, b0), a.1 + b1) }
+}
+
+fn double1[T](t: T) where Add[T] = t + t;
+fn double2[T](t: T) where Add[T] = Add[T]::add(t, t);
+
+fn test1(x: Vec3[i32]) -> Vec3[i32] = double1(x);
+fn test2(x: Vec2[i32]) -> Vec2[i32] = double1(x);
+fn test3(x: Vec3[i32]) -> Vec3[i32] = double2(x);
+fn test4(x: Vec2[i32]) -> Vec2[i32] = double2(x);

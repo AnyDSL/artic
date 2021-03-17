@@ -1,0 +1,5 @@
+trait T[A];
+
+fn three[C](c: C) where T[C] = two(c);
+fn two[B](b: B) where T[B] = one(b);
+fn one[A](a: A) where T[A] = a;

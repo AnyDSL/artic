@@ -1,0 +1,20 @@
+enum E {
+    A, B(i32)
+}
+enum F[T] {
+    A, B(T)
+}
+enum G[T, U] {
+    A, B(T, U)
+}
+
+static _ : E = E::B;
+static _ : i32 = E::A;
+static _ = F::A;
+static _ : i32 = F[i32]::A;
+static _ : F = F[i32]::A;
+static _ : F[i32] = F[i32]::B;
+static _ = G::A;
+static _ : i32 = G[i32, i64]::A;
+static _ : G = G[i32, i64]::A;
+static _ : G[i32, i64] = G[i32, i64]::B;

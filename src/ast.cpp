@@ -54,9 +54,12 @@ PrimType::Tag PrimType::tag_from_token(const Token& token) {
 
 std::string UnaryExpr::tag_to_string(Tag tag) {
     switch (tag) {
-        case Not:   return "!";
-        case Plus:  return "+";
-        case Minus: return "-";
+        case Not:    return "!";
+        case Plus:   return "+";
+        case Minus:  return "-";
+        case Deref:  return "*";
+        case Known:  return "?";
+        case Forget: return "$";
         case PostInc:
         case PreInc:
             return "++";
@@ -66,9 +69,23 @@ std::string UnaryExpr::tag_to_string(Tag tag) {
         case AddrOf:
         case AddrOfMut:
             return "&";
-        case Deref:  return "*";
-        case Known:  return "?";
-        case Forget: return "$";
+        default:
+            assert(false);
+            return "";
+    }
+}
+
+std::string UnaryExpr::tag_to_trait_name(Tag tag) {
+    switch (tag) {
+        case Not:   return "Not";
+        case Plus:  return "Plus";
+        case Minus: return "Minus";
+        case PostInc:
+        case PreInc:
+            return "Inc";
+        case PostDec:
+        case PreDec:
+            return "Dec";
         default:
             assert(false);
             return "";
@@ -188,38 +205,62 @@ int BinaryExpr::max_precedence() { return 10; }
 
 std::string BinaryExpr::tag_to_string(Tag tag) {
     switch (tag) {
-        case Eq: return "=";
-        case AddEq: return "+=";
-        case SubEq: return "-=";
-        case MulEq: return "*=";
-        case DivEq: return "/=";
-        case RemEq: return "%=";
-        case AndEq: return "&=";
-        case OrEq:  return "|=";
-        case XorEq: return "^=";
+        case Eq:      return "=";
+        case AddEq:   return "+=";
+        case SubEq:   return "-=";
+        case MulEq:   return "*=";
+        case DivEq:   return "/=";
+        case RemEq:   return "%=";
+        case AndEq:   return "&=";
+        case OrEq:    return "|=";
+        case XorEq:   return "^=";
         case LShftEq: return "<<=";
         case RShftEq: return ">>=";
 
-        case Add: return "+";
-        case Sub: return "-";
-        case Mul: return "*";
-        case Div: return "/";
-        case Rem: return "%";
-        case And: return "&";
-        case Or:  return "|";
-        case Xor: return "^";
+        case Add:   return "+";
+        case Sub:   return "-";
+        case Mul:   return "*";
+        case Div:   return "/";
+        case Rem:   return "%";
+        case And:   return "&";
+        case Or:    return "|";
+        case Xor:   return "^";
         case LShft: return "<<";
         case RShft: return ">>";
 
         case LogicAnd: return "&&";
-        case LogicOr:   return "||";
+        case LogicOr:  return "||";
 
-        case CmpLT:  return "<";
-        case CmpGT:  return ">";
-        case CmpLE:  return "<=";
-        case CmpGE:  return ">=";
-        case CmpEq:  return "==";
-        case CmpNE: return "==";
+        case CmpLT: return "<";
+        case CmpGT: return ">";
+        case CmpLE: return "<=";
+        case CmpGE: return ">=";
+        case CmpEq: return "==";
+        case CmpNE: return "!=";
+        default:
+            assert(false);
+            return "";
+    }
+}
+
+std::string BinaryExpr::tag_to_trait_name(Tag tag) {
+    switch (remove_eq(tag)) {
+        case Add:   return "Add";
+        case Sub:   return "Sub";
+        case Mul:   return "Mul";
+        case Div:   return "Div";
+        case Rem:   return "Rem";
+        case And:   return "And";
+        case Or:    return "Or";
+        case Xor:   return "Xor";
+        case LShft: return "LShift";
+        case RShft: return "RShift";
+        case CmpLT: return "CmpLT";
+        case CmpGT: return "CmpGT";
+        case CmpLE: return "CmpLE";
+        case CmpGE: return "CmpGE";
+        case CmpEq: return "CmpEq";
+        case CmpNE: return "CmpNE";
         default:
             assert(false);
             return "";
@@ -228,31 +269,31 @@ std::string BinaryExpr::tag_to_string(Tag tag) {
 
 BinaryExpr::Tag BinaryExpr::tag_from_token(const Token& token) {
     switch (token.tag()) {
-        case Token::Eq: return Eq;
-        case Token::AddEq: return AddEq;
-        case Token::SubEq: return SubEq;
-        case Token::MulEq: return MulEq;
-        case Token::DivEq: return DivEq;
-        case Token::RemEq: return RemEq;
-        case Token::AndEq: return AndEq;
-        case Token::OrEq: return OrEq;
-        case Token::XorEq: return XorEq;
+        case Token::Eq:      return Eq;
+        case Token::AddEq:   return AddEq;
+        case Token::SubEq:   return SubEq;
+        case Token::MulEq:   return MulEq;
+        case Token::DivEq:   return DivEq;
+        case Token::RemEq:   return RemEq;
+        case Token::AndEq:   return AndEq;
+        case Token::OrEq:    return OrEq;
+        case Token::XorEq:   return XorEq;
         case Token::LShftEq: return LShftEq;
         case Token::RShftEq: return RShftEq;
 
-        case Token::Add: return Add;
-        case Token::Sub: return Sub;
-        case Token::Mul: return Mul;
-        case Token::Div: return Div;
-        case Token::Rem: return Rem;
-        case Token::And: return And;
-        case Token::Or: return Or;
-        case Token::Xor: return Xor;
+        case Token::Add:   return Add;
+        case Token::Sub:   return Sub;
+        case Token::Mul:   return Mul;
+        case Token::Div:   return Div;
+        case Token::Rem:   return Rem;
+        case Token::And:   return And;
+        case Token::Or:    return Or;
+        case Token::Xor:   return Xor;
         case Token::LShft: return LShft;
         case Token::RShft: return RShft;
 
         case Token::LogicAnd: return LogicAnd;
-        case Token::LogicOr:   return LogicOr;
+        case Token::LogicOr:  return LogicOr;
 
         case Token::CmpLT: return CmpLT;
         case Token::CmpGT: return CmpGT;
@@ -260,14 +301,9 @@ BinaryExpr::Tag BinaryExpr::tag_from_token(const Token& token) {
         case Token::CmpGE: return CmpGE;
         case Token::CmpEq: return CmpEq;
         case Token::CmpNE: return CmpNE;
-        default: return Error;
-    }
-}
 
-void ModDecl::set_super() {
-    for (auto& decl : decls) {
-        if (auto mod_decl = decl->isa<ModDecl>())
-            mod_decl->super = this;
+        default:
+            return Error;
     }
 }
 
@@ -338,8 +374,7 @@ bool TypedExpr::is_constant() const {
 }
 
 bool PathExpr::is_constant() const {
-    assert(type);
-    return !type->isa<artic::RefType>();
+    return type && !type->isa<artic::RefType>();
 }
 
 void PathExpr::write_to() const {
@@ -350,7 +385,8 @@ void PathExpr::write_to() const {
 }
 
 bool LiteralExpr::is_constant() const {
-    return true;
+    // This literal is only constant if its type is a primitive type or a string
+    return type && (type->isa<artic::PrimType>() || is_string_type(type));
 }
 
 bool FieldExpr::is_jumping() const {
@@ -435,6 +471,16 @@ bool FnExpr::is_constant() const {
     return true;
 }
 
+bool FnExpr::is_builtin() const {
+    if (attrs) {
+        if (auto import_attr = attrs->find("import")) {
+            if (auto cc_attr = import_attr->find("cc"))
+                return cc_attr->as<ast::LiteralAttr>()->lit.as_string() == "builtin";
+        }
+    }
+    return false;
+}
+
 bool BlockExpr::is_jumping() const {
     return std::any_of(stmts.begin(), stmts.end(), [] (auto& stmt) {
         return stmt->is_jumping();
@@ -448,8 +494,7 @@ bool BlockExpr::has_side_effect() const {
 }
 
 bool CallExpr::is_jumping() const {
-    assert(type);
-    return type->isa<artic::NoRetType>();
+    return type && type->isa<artic::NoRetType>();
 }
 
 bool CallExpr::has_side_effect() const {
@@ -540,8 +585,10 @@ bool UnaryExpr::has_side_effect() const {
 
 bool UnaryExpr::is_constant() const {
     switch (tag) {
+        case Not:
         case Plus:
         case Minus:
+            return type && arg->is_constant() && can_avoid_impl_call(type);
         case Known:
         case Forget:
             return arg->is_constant();
@@ -563,7 +610,7 @@ bool BinaryExpr::has_side_effect() const {
 }
 
 bool BinaryExpr::is_constant() const {
-    return !has_eq() && left->is_constant() && right->is_constant();
+    return type && !has_eq() && left->is_constant() && right->is_constant() && can_avoid_impl_call(type);
 }
 
 bool FilterExpr::has_side_effect() const {
@@ -591,7 +638,6 @@ bool ImplicitCastExpr::has_side_effect() const {
 }
 
 bool ImplicitCastExpr::is_constant() const {
-    assert(expr->type);
     if (auto path_expr = expr->isa<PathExpr>();
         path_expr && path_expr->path.elems.size() == 1 && path_expr->path.start_decl)
     {
@@ -648,9 +694,8 @@ void RecordPtrn::collect_bound_ptrns(std::vector<const IdPtrn*>& bound_ptrns) co
 }
 
 bool RecordPtrn::is_trivial() const {
-    assert(type);
     return
-        match_app<StructType>(type).second &&
+        type && match_app<StructType>(type).second &&
         std::all_of(fields.begin(), fields.end(), [] (auto& field) {
             return field->is_trivial();
         });
@@ -661,8 +706,7 @@ void CtorPtrn::collect_bound_ptrns(std::vector<const IdPtrn*>& bound_ptrns) cons
 }
 
 bool CtorPtrn::is_trivial() const {
-    assert(type);
-    return match_app<StructType>(type).second && (!arg || arg->is_trivial());
+    return type && match_app<StructType>(type).second && (!arg || arg->is_trivial());
 }
 
 void TuplePtrn::collect_bound_ptrns(std::vector<const IdPtrn*>& bound_ptrns) const {

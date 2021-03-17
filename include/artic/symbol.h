@@ -10,6 +10,7 @@
 namespace artic {
 
 namespace ast {
+    struct Node;
     struct NamedDecl;
 }
 
@@ -24,11 +25,11 @@ struct Symbol {
 
 /// Table containing a map from symbol name to declaration site.
 struct SymbolTable {
-    bool top_level;
+    ast::Node& parent;
     std::unordered_map<std::string, Symbol> symbols;
 
-    SymbolTable(bool top_level = false)
-        : top_level(top_level)
+    SymbolTable(ast::Node& parent)
+        : parent(parent)
     {}
 
     Symbol* find(const std::string& name) {

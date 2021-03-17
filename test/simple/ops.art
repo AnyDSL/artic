@@ -1,27 +1,28 @@
-fn test() -> bool {
-    let a = 1 * 2 + 33 / (-5);
-    let b = (a >> (5 & 2)) - a;
-    let c = (b ^ 6) << (+5);
-    let d = !(c == 3) || (b >= 5 && a <= 5) || (c + 2 >= 6 && a < 9) || a != 3;
-    let e = true == false || true != false || (1.0 % 2.0) == 1.0 || (true ^ false | true & false);
-    let mut x = 2;
-    x += 3;
-    x -= 6;
-    x *= 4;
-    x /= 2;
-    x %= 8;
-    x += --x;
-    x -= ++x;
-    x += x--;
-    x -= x++;
-    x &= 33;
-    x ^= 5;
-    x |= x;
-    x <<= 1;
-    x >>= 1;
-    x++;
-    x--;
-    $test;
-    $x = 3;
-    ?x
-}
+fn test_int[T](mut a: T, mut b: T) where Int[T] =
+    (a + b,  a - b, a * b, a / b, a % b, a >> b, a << b,
+    a & b, a | b, a ^ b,
+    a < b, a <= b, a > b, a >= b, a == b, a != b,
+    a += b,  a -= b, a *= b, a /= b, a %= b, a >>= b, a <<= b,
+    ++a, --a, b++, b--, !a, &a, *&a, ?a, $a);
+    
+static _ = test_int[i8 ];
+static _ = test_int[i16];
+static _ = test_int[i32];
+static _ = test_int[i64];
+static _ = test_int[u8 ];
+static _ = test_int[u16];
+static _ = test_int[u32];
+static _ = test_int[u64];
+
+fn test_float[T](mut a: T, mut b: T) where Float[T] =
+    (a + b,  a - b, a * b, a / b, a % b,
+    a < b, a <= b, a > b, a >= b, a == b, a != b,
+    a += b,  a -= b, a *= b, a /= b, a %= b,
+    &a, *&a, ?a, $a);
+
+static _ = test_float[f16];
+static _ = test_float[f32];
+static _ = test_float[f64];
+
+fn test_bool(mut a: bool, mut b: bool) =
+    (a && b, a || b, a & b, a | b, a ^ b, a == b, a != b, !a, &a, *&a, ?a, $a);

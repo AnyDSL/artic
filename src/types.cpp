@@ -2,7 +2,6 @@
 #include <algorithm>
 
 #include "artic/types.h"
-#include "artic/hash.h"
 
 namespace artic {
 
@@ -21,6 +20,10 @@ TypeBounds& TypeBounds::meet(const TypeBounds& bounds) {
 }
 
 // Equals ---------------------------------------------------------------------------
+
+bool Type::equals(const Type* other) const {
+    return other == this;
+}
 
 bool PrimType::equals(const Type* other) const {
     return other->isa<PrimType>() && other->as<PrimType>()->tag == tag;
@@ -66,30 +69,6 @@ bool BottomType::equals(const Type* other) const {
 
 bool TopType::equals(const Type* other) const {
     return typeid(*other) == typeid(*this);
-}
-
-bool TypeVar::equals(const Type* other) const {
-    return other == this;
-}
-
-bool ForallType::equals(const Type* other) const {
-    return other == this;
-}
-
-bool StructType::equals(const Type* other) const {
-    return other == this;
-}
-
-bool EnumType::equals(const Type* other) const {
-    return other == this;
-}
-
-bool ModType::equals(const Type* other) const {
-    return other == this;
-}
-
-bool TypeAlias::equals(const Type* other) const {
-    return other == this;
 }
 
 bool TypeApp::equals(const Type* other) const {
@@ -148,30 +127,6 @@ size_t TopType::hash() const {
     return fnv::Hash().combine(typeid(*this).hash_code());
 }
 
-size_t TypeVar::hash() const {
-    return fnv::Hash().combine(&param);
-}
-
-size_t ForallType::hash() const {
-    return fnv::Hash().combine(&decl);
-}
-
-size_t StructType::hash() const {
-    return fnv::Hash().combine(&decl);
-}
-
-size_t EnumType::hash() const {
-    return fnv::Hash().combine(&decl);
-}
-
-size_t ModType::hash() const {
-    return fnv::Hash().combine(&decl);
-}
-
-size_t TypeAlias::hash() const {
-    return fnv::Hash().combine(&decl);
-}
-
 size_t TypeApp::hash() const {
     auto h = fnv::Hash().combine(typeid(*this).hash_code()).combine(applied);
     for (auto a : type_args)
@@ -179,73 +134,42 @@ size_t TypeApp::hash() const {
     return h;
 }
 
-// Contains ------------------------------------------------------------------------
-
-bool TupleType::contains(const Type* type) const {
-    return
-        type == this ||
-        std::any_of(args.begin(), args.end(), [type] (auto a) {
-            return a->contains(type);
-        });
-}
-
-bool ArrayType::contains(const Type* type) const {
-    return type == this || elem->contains(type);
-}
-
-bool AddrType::contains(const Type* type) const {
-    return type == this || pointee->contains(type);
-}
-
-bool FnType::contains(const Type* type) const {
-    return type == this || dom->contains(type) || codom->contains(type);
-}
-
-bool TypeApp::contains(const Type* type) const {
-    return
-        type == this ||
-        applied->contains(type) ||
-        std::any_of(type_args.begin(), type_args.end(), [type] (auto a) {
-            return a->contains(type);
-        });
-}
-
 // Replace -------------------------------------------------------------------------
 
-const Type* TupleType::replace(const std::unordered_map<const TypeVar*, const Type*>& map) const {
+const Type* TupleType::replace(const ReplaceMap& map) const {
     SmallArray<const Type*> new_args(args.size());
     for (size_t i = 0, n = args.size(); i < n; ++i)
         new_args[i] = args[i]->replace(map);
     return type_table.tuple_type(std::move(new_args));
 }
 
-const Type* SizedArrayType::replace(const std::unordered_map<const TypeVar*, const Type*>& map) const {
+const Type* SizedArrayType::replace(const ReplaceMap& map) const {
     return type_table.sized_array_type(elem->replace(map), size, is_simd);
 }
 
-const Type* UnsizedArrayType::replace(const std::unordered_map<const TypeVar*, const Type*>& map) const {
+const Type* UnsizedArrayType::replace(const ReplaceMap& map) const {
     return type_table.unsized_array_type(elem->replace(map));
 }
 
-const Type* PtrType::replace(const std::unordered_map<const TypeVar*, const Type*>& map) const {
+const Type* PtrType::replace(const ReplaceMap& map) const {
     return type_table.ptr_type(pointee->replace(map), is_mut, addr_space);
 }
 
-const Type* RefType::replace(const std::unordered_map<const TypeVar*, const Type*>& map) const {
+const Type* RefType::replace(const ReplaceMap& map) const {
     return type_table.ref_type(pointee->replace(map), is_mut, addr_space);
 }
 
-const Type* FnType::replace(const std::unordered_map<const TypeVar*, const Type*>& map) const {
+const Type* FnType::replace(const ReplaceMap& map) const {
     return type_table.fn_type(dom->replace(map), codom->replace(map));
 }
 
-const Type* TypeVar::replace(const std::unordered_map<const TypeVar*, const Type*>& map) const {
+const Type* TypeVar::replace(const ReplaceMap& map) const {
     if (auto it = map.find(this); it != map.end())
         return it->second;
     return this;
 }
 
-const Type* TypeApp::replace(const std::unordered_map<const TypeVar*, const Type*>& map) const {
+const Type* TypeApp::replace(const ReplaceMap& map) const {
     SmallArray<const Type*> new_type_args(type_args.size());
     for (size_t i = 0, n = type_args.size(); i < n; ++i)
         new_type_args[i] = type_args[i]->replace(map);
@@ -295,27 +219,27 @@ size_t TypeApp::order(std::unordered_set<const Type*>& seen) const {
 
 // Variance ------------------------------------------------------------------------
 
-void Type::variance(std::unordered_map<const TypeVar*, TypeVariance>&, bool) const {}
+void Type::variance(TypeVarMap<TypeVariance>&, bool) const {}
 
-void TupleType::variance(std::unordered_map<const TypeVar*, TypeVariance>& vars, bool dir) const {
+void TupleType::variance(TypeVarMap<TypeVariance>& vars, bool dir) const {
     for (auto arg : args)
         arg->variance(vars, dir);
 }
 
-void ArrayType::variance(std::unordered_map<const TypeVar*, TypeVariance>& vars, bool dir) const {
+void ArrayType::variance(TypeVarMap<TypeVariance>& vars, bool dir) const {
     elem->variance(vars, dir);
 }
 
-void AddrType::variance(std::unordered_map<const TypeVar*, TypeVariance>& vars, bool dir) const {
+void AddrType::variance(TypeVarMap<TypeVariance>& vars, bool dir) const {
     pointee->variance(vars, dir);
 }
 
-void FnType::variance(std::unordered_map<const TypeVar*, TypeVariance>& vars, bool dir) const {
+void FnType::variance(TypeVarMap<TypeVariance>& vars, bool dir) const {
     dom->variance(vars, !dir);
     codom->variance(vars, dir);
 }
 
-void TypeVar::variance(std::unordered_map<const TypeVar*, TypeVariance>& vars, bool dir) const {
+void TypeVar::variance(TypeVarMap<TypeVariance>& vars, bool dir) const {
     if (auto it = vars.find(this); it != vars.end()) {
         bool var_dir = it->second == TypeVariance::Covariant ? true : false;
         if (var_dir != dir)
@@ -324,40 +248,40 @@ void TypeVar::variance(std::unordered_map<const TypeVar*, TypeVariance>& vars, b
         vars.emplace(this, dir ? TypeVariance::Covariant : TypeVariance::Contravariant);
 }
 
-void TypeApp::variance(std::unordered_map<const TypeVar*, TypeVariance>& vars, bool dir) const {
+void TypeApp::variance(TypeVarMap<TypeVariance>& vars, bool dir) const {
     for (auto type_arg : type_args)
         type_arg->variance(vars, dir);
 }
 
 // Bounds --------------------------------------------------------------------------
 
-void Type::bounds(std::unordered_map<const TypeVar*, TypeBounds>&, const Type*, bool) const {}
+void Type::bounds(TypeVarMap<TypeBounds>&, const Type*, bool) const {}
 
-void TupleType::bounds(std::unordered_map<const TypeVar*, TypeBounds>& bounds, const Type* type, bool dir) const {
+void TupleType::bounds(TypeVarMap<TypeBounds>& bounds, const Type* type, bool dir) const {
     if (auto tuple_type = type->isa<TupleType>()) {
         for (size_t i = 0, n = std::min(args.size(), tuple_type->args.size()); i < n; ++i)
             args[i]->bounds(bounds, tuple_type->args[i], dir);
     }
 }
 
-void ArrayType::bounds(std::unordered_map<const TypeVar*, TypeBounds>& bounds, const Type* type, bool dir) const {
+void ArrayType::bounds(TypeVarMap<TypeBounds>& bounds, const Type* type, bool dir) const {
     if (auto array_type = type->isa<ArrayType>())
         elem->bounds(bounds, array_type->elem, dir);
 }
 
-void AddrType::bounds(std::unordered_map<const TypeVar*, TypeBounds>& bounds, const Type* type, bool dir) const {
+void AddrType::bounds(TypeVarMap<TypeBounds>& bounds, const Type* type, bool dir) const {
     if (auto addr_type = type->isa<AddrType>())
         pointee->bounds(bounds, addr_type->pointee, dir);
 }
 
-void FnType::bounds(std::unordered_map<const TypeVar*, TypeBounds>& bounds, const Type* type, bool dir) const {
+void FnType::bounds(TypeVarMap<TypeBounds>& bounds, const Type* type, bool dir) const {
     if (auto fn_type = type->isa<FnType>()) {
         dom->bounds(bounds, fn_type->dom, !dir);
         codom->bounds(bounds, fn_type->codom, dir);
     }
 }
 
-void TypeVar::bounds(std::unordered_map<const TypeVar*, TypeBounds>& bounds, const Type* type, bool dir) const {
+void TypeVar::bounds(TypeVarMap<TypeBounds>& bounds, const Type* type, bool dir) const {
     TypeBounds type_bounds;
     if (dir)
         type_bounds = TypeBounds { type, type_table.top_type() };
@@ -370,7 +294,7 @@ void TypeVar::bounds(std::unordered_map<const TypeVar*, TypeBounds>& bounds, con
         bounds[this] = type_bounds;
 }
 
-void TypeApp::bounds(std::unordered_map<const TypeVar*, TypeBounds>& bounds, const Type* type, bool dir) const {
+void TypeApp::bounds(TypeVarMap<TypeBounds>& bounds, const Type* type, bool dir) const {
     if (auto type_app = type->isa<TypeApp>()) {
         for (size_t i = 0, n = std::min(type_args.size(), type_app->type_args.size()); i < n; ++i)
             type_args[i]->bounds(bounds, type_app->type_args[i], dir);
@@ -424,64 +348,92 @@ bool TypeApp::is_sized(std::unordered_set<const Type*>& seen) const {
 
 // Complex Types -------------------------------------------------------------------
 
-const ast::TypeParamList* StructType::type_params() const {
-    return decl.isa<ast::StructDecl>()
-        ? decl.as<ast::StructDecl>()->type_params.get()
-        : decl.as<ast::OptionDecl>()->parent->type_params.get();
+const ast::TypeParamList* StructType::type_params()   const {
+    return decl.isa<ast::StructDecl>() ? decl.as<ast::StructDecl>()->type_params.get() : nullptr;
 }
 
-std::optional<size_t> StructType::find_member(const std::string_view& name) const {
-    auto it = std::find_if(
-        decl.fields.begin(),
-        decl.fields.end(),
-        [&name] (auto& f) {
-            return f->id.name == name;
-        });
-    return it != decl.fields.end()
-        ? std::make_optional(it - decl.fields.begin())
-        : std::nullopt;
+const ast::WhereClauseList* StructType::where_clauses() const {
+    return decl.isa<ast::StructDecl>() ? decl.as<ast::StructDecl>()->where_clauses.get() : nullptr;
+}
+
+bool StructType::has_default_value(size_t i) const {
+    return decl.fields[i]->init != nullptr;
+}
+
+bool TraitType::has_default_value(size_t i) const {
+    return
+        decl.decls[i]->isa<ast::FnDecl>() &&
+        decl.decls[i]->as<ast::FnDecl>()->fn->body;
+}
+
+std::optional<size_t> ComplexType::find_member(const std::string_view& name) const {
+    for (size_t i = 0, n = member_count(); i < n; ++i) {
+        if (member_name(i) == name)
+            return std::make_optional(i);
+    }
+    return std::nullopt;
+}
+
+std::string_view StructType::member_name(size_t i) const {
+    return decl.fields[i]->id.name;
+}
+
+std::string_view EnumType::member_name(size_t i) const {
+    return decl.options[i]->id.name;
+}
+
+std::string_view TraitType::member_name(size_t i) const {
+    return decl.decls[i]->id.name;
+}
+
+std::string_view ImplType::member_name(size_t i) const {
+    return decl.decls[i]->id.name;
+}
+
+std::string_view ModType::member_name(size_t i) const {
+    return members()[i].decl.id.name;
+}
+
+static inline const Type* type_or_error(TypeTable& type_table, const Type* type) {
+    // If the member/field might not have a type yet, return an error.
+    // This may happen if there is a recursive declaration that lacks an annotation.
+    return type ? type : type_table.type_error();
 }
 
 const Type* StructType::member_type(size_t i) const {
-    return decl.fields[i]->ast::Node::type;
+    return type_or_error(type_table, decl.fields[i]->ast::Node::type);
+}
+
+const Type* EnumType::member_type(size_t i) const {
+    return type_or_error(type_table, decl.options[i]->type);
+}
+
+const Type* TraitType::member_type(size_t i) const {
+    return type_or_error(type_table, decl.decls[i]->type);
+}
+
+const Type* ImplType::member_type(size_t i) const {
+    return type_or_error(type_table, decl.decls[i]->type);
+}
+
+const Type* ModType::member_type(size_t i) const {
+    return type_or_error(type_table, members()[i].decl.type);
 }
 
 size_t StructType::member_count() const {
     return decl.fields.size();
 }
 
-std::optional<size_t> EnumType::find_member(const std::string_view& name) const {
-    auto it = std::find_if(
-        decl.options.begin(),
-        decl.options.end(),
-        [&name] (auto& o) {
-            return o->id.name == name;
-        });
-    return it != decl.options.end()
-        ? std::make_optional(it - decl.options.begin())
-        : std::nullopt;
-}
-
-const Type* EnumType::member_type(size_t i) const {
-    return decl.options[i]->type;
-}
-
 size_t EnumType::member_count() const {
     return decl.options.size();
 }
 
-std::optional<size_t> ModType::find_member(const std::string_view& name) const {
-    auto it = std::find_if(
-        members().begin(),
-        members().end(),
-        [&name] (auto& member) { return member.name == name; });
-    return it != members().end()
-        ? std::make_optional(it - members().begin())
-        : std::nullopt;
+size_t TraitType::member_count() const {
+    return decl.decls.size();
 }
 
-const Type* ModType::member_type(size_t i) const {
-    return members()[i].decl.type;
+size_t ImplType::member_count() const {
+    return decl.decls.size();
 }
 
 size_t ModType::member_count() const {
@@ -493,6 +445,7 @@ ast::NamedDecl& ModType::member(size_t i) const {
 }
 
 const ModType::Members& ModType::members() const {
+    // Lazily compute the member list
     if (!members_) {
         members_ = std::make_unique<ModType::Members>();
         for (auto& decl : decl.decls) {
@@ -501,6 +454,87 @@ const ModType::Members& ModType::members() const {
         }
     }
     return *members_;
+}
+
+// Stringify -----------------------------------------------------------------------
+
+std::string Type::stringify(const ReplaceMap&) const {
+    // Should never be called
+    assert(false);
+    return std::string();
+}
+
+std::string PrimType::stringify(const ReplaceMap&) const {
+    return ast::PrimType::tag_to_string(tag);
+}
+
+std::string TupleType::stringify(const ReplaceMap& map) const {
+    if (args.empty())
+        return "unit";
+    std::string str = "tuple_";
+    for (size_t i = 0, n = args.size(); i < n; ++i) {
+        str += args[i]->stringify(map);
+        if (i != n - 1)
+            str += "_";
+    }
+    return str;
+}
+
+std::string SizedArrayType::stringify(const ReplaceMap& map) const {
+    return "array_" + std::to_string(size) + "x" + elem->stringify(map);
+}
+
+std::string UnsizedArrayType::stringify(const ReplaceMap& map) const {
+    return "array_" + elem->stringify(map);
+}
+
+std::string PtrType::stringify(const ReplaceMap& map) const {
+    return "ptr_" + pointee->stringify(map);
+}
+
+std::string FnType::stringify(const ReplaceMap& map) const {
+    return "fn_" + dom->stringify(map) + "_" + codom->stringify(map);
+}
+
+std::string NoRetType::stringify(const ReplaceMap&) const {
+    return "no_ret";
+}
+
+std::string TypeVar::stringify(const ReplaceMap& map) const {
+    if (auto it = map.find(this); it != map.end())
+        return it->second->stringify(map);
+    assert(false);
+    return "";
+}
+
+inline std::string stringify_params(
+    const ReplaceMap& map,
+    const std::string& prefix,
+    const PtrVector<ast::TypeParam>& params)
+{
+    auto str = prefix;
+    for (size_t i = 0, n = params.size(); i < n; ++i) {
+        str += params[i]->type->stringify(map);
+        if (i != n - 1)
+            str += "_";
+    }
+    return str;
+}
+
+std::string StructType::stringify(const ReplaceMap& map) const {
+    if (!type_params())
+        return decl.id.name;
+    return stringify_params(map, decl.id.name + "_", type_params()->params);
+}
+
+std::string EnumType::stringify(const ReplaceMap& map) const {
+    if (!type_params())
+        return decl.id.name;
+    return stringify_params(map, decl.id.name + "_", type_params()->params);
+}
+
+std::string TypeApp::stringify(const ReplaceMap& map) const {
+    return applied->stringify(replace(map)->as<TypeApp>()->replace_map());
 }
 
 // Misc. ---------------------------------------------------------------------------
@@ -559,6 +593,45 @@ bool Type::subtype(const Type* other) const {
     return false;
 }
 
+bool Type::unify(const Type* to, ReplaceMap& map) const {
+    if (this == to)
+        return true;
+    if (auto from_var = isa<TypeVar>())
+        return map.emplace(from_var, to).second;
+    auto from_tuple = isa<TupleType>();
+    auto to_tuple = to->isa<TupleType>();
+    if (from_tuple && to_tuple) {
+        if (from_tuple->args.size() != to_tuple->args.size())
+            return false;
+        for (size_t i = 0, n = from_tuple->args.size(); i < n; ++i) {
+            if (!from_tuple->args[i]->unify(to_tuple->args[i], map))
+                return false;
+        }
+        return true;
+    }
+    auto from_ptr = isa<PtrType>();
+    auto to_ptr = to->isa<PtrType>();
+    if (from_ptr && to_ptr) {
+        return
+            from_ptr->addr_space == to_ptr->addr_space &&
+            from_ptr->is_mut == to_ptr->is_mut &&
+            from_ptr->pointee->unify(to_ptr->pointee, map);
+    }
+    auto from_app = isa<TypeApp>();
+    auto to_app = to->isa<TypeApp>();
+    if (from_app && to_app) {
+        if (from_app->type_args.size() != to_app->type_args.size() ||
+            !from_app->applied->unify(to_app->applied, map))
+            return false;
+        for (size_t i = 0, n = from_app->type_args.size(); i < n; ++i) {
+            if (!from_app->type_args[i]->unify(to_app->type_args[i], map))
+                return false;
+        }
+        return true;
+    }
+    return false;
+}
+
 const Type* Type::join(const Type* other) const {
     if (subtype(other))
         return other;
@@ -567,14 +640,42 @@ const Type* Type::join(const Type* other) const {
     return type_table.top_type();
 }
 
-const Type* ForallType::instantiate(const ArrayRef<const Type*>& args) const {
-    std::unordered_map<const TypeVar*, const Type*> map;
-    assert(decl.type_params && decl.type_params->params.size() == args.size());
-    for (size_t i = 0, n = args.size(); i < n; ++i) {
-        assert(decl.type_params->params[i]->type);
-        map.emplace(decl.type_params->params[i]->type->as<TypeVar>(), args[i]); 
+ReplaceMap PolyType::replace_map(const ArrayRef<const Type*>& args) const {
+    ReplaceMap map;
+    if (!type_params()) {
+        assert(args.empty());
+        return map;
     }
-    return body->replace(map);
+    assert(type_params()->params.size() == args.size());
+    for (size_t i = 0, n = args.size(); i < n; ++i) {
+        assert(type_params()->params[i]->type);
+        map.emplace(type_params()->params[i]->type->as<TypeVar>(), args[i]);
+    }
+    return map;
+}
+
+template <typename T>
+Array<const Type*> extract_types(const PtrVector<T>& nodes) {
+    Array<const Type*> types(nodes.size());
+    for (size_t i = 0, n = nodes.size(); i < n; ++i) {
+        assert(nodes[i]->type);
+        types[i] = nodes[i]->type;
+    }
+    return types;
+}
+
+Array<const Type*> PolyType::type_params_as_array() const {
+    if (!type_params()) return {};
+    return extract_types(type_params()->params);
+}
+
+Array<const Type*> PolyType::where_clauses_as_array() const {
+    if (!where_clauses()) return {};
+    return extract_types(where_clauses()->clauses);
+}
+
+const Type* ForallType::instantiate(const ArrayRef<const Type*>& args) const {
+    return body->replace(replace_map(args));
 }
 
 bool StructType::is_tuple_like() const {
@@ -588,17 +689,22 @@ bool EnumType::is_trivial() const {
         [] (auto& o) { return is_unit_type(o->type); });
 }
 
-std::unordered_map<const TypeVar*, const Type*> TypeApp::replace_map(
-    const ast::TypeParamList& type_params,
-    const ArrayRef<const Type*>& type_args)
-{
-    std::unordered_map<const TypeVar*, const Type*> map;
-    assert(type_params.params.size() == type_args.size());
-    for (size_t i = 0, n = type_args.size(); i < n; ++i) {
-        assert(type_params.params[i]->type);
-        map.emplace(type_params.params[i]->type->as<TypeVar>(), type_args[i]);
-    }
-    return map;
+bool TraitType::can_imply(const TraitType* other) const {
+    if (other == this)
+        return true;
+    if (!where_clauses())
+        return false;
+    if (auto it = implied_traits_.find(other); it != implied_traits_.end())
+        return it->second;
+    return implied_traits_[other] = std::any_of(
+        where_clauses()->clauses.begin(),
+        where_clauses()->clauses.end(),
+        [other] (auto& clause) {
+            assert(clause->type);
+            if (auto trait_type = match_app<TraitType>(clause->type).second)
+                return trait_type->can_imply(other);
+            return false;
+        });
 }
 
 // Helpers -------------------------------------------------------------------------
@@ -614,7 +720,7 @@ bool is_int_type(const Type* type) {
             case ast::PrimType::I16:
             case ast::PrimType::I32:
             case ast::PrimType::I64:
-                return true; 
+                return true;
             default:
                 break;
         }
@@ -628,7 +734,7 @@ bool is_float_type(const Type* type) {
             case ast::PrimType::F16:
             case ast::PrimType::F32:
             case ast::PrimType::F64:
-                return true; 
+                return true;
             default:
                 break;
         }
@@ -650,6 +756,15 @@ bool is_simd_type(const Type* type) {
 
 bool is_unit_type(const Type* type) {
     return type->isa<TupleType>() && type->as<TupleType>()->args.empty();
+}
+
+bool is_string_type(const Type* type) {
+    if (auto sized_array_type = type->isa<SizedArrayType>()) {
+        return
+            !sized_array_type->is_simd &&
+            is_prim_type(sized_array_type->elem, ast::PrimType::U8);
+    }
+    return false;
 }
 
 // Type table ----------------------------------------------------------------------
@@ -678,7 +793,7 @@ const TupleType* TypeTable::tuple_type(const ArrayRef<const Type*>& elems) {
 const SizedArrayType* TypeTable::sized_array_type(const Type* elem, size_t size, bool is_simd) {
     return insert<SizedArrayType>(elem, size, is_simd);
 }
- 
+
 const UnsizedArrayType* TypeTable::unsized_array_type(const Type* elem) {
     return insert<UnsizedArrayType>(elem);
 }
@@ -731,6 +846,14 @@ const EnumType* TypeTable::enum_type(const ast::EnumDecl& decl) {
     return insert<EnumType>(decl);
 }
 
+const TraitType* TypeTable::trait_type(const ast::TraitDecl& decl) {
+    return insert<TraitType>(decl);
+}
+
+const ImplType* TypeTable::impl_type(const ast::ImplDecl& impl) {
+    return insert<ImplType>(impl);
+}
+
 const ModType* TypeTable::mod_type(const ast::ModDecl& decl) {
     return insert<ModType>(decl);
 }
@@ -740,10 +863,15 @@ const TypeAlias* TypeTable::type_alias(const ast::TypeDecl& decl) {
 }
 
 const Type* TypeTable::type_app(const UserType* applied, const ArrayRef<const Type*>& type_args) {
+    if (type_args.empty())
+        return applied;
     if (auto type_alias = applied->isa<TypeAlias>()) {
-        assert(type_alias->type_params() && type_alias->decl.aliased_type->type);
-        auto map = TypeApp::replace_map(*type_alias->type_params(), type_args);
-        return type_alias->decl.aliased_type->type->replace(map);
+        assert(
+            type_alias->type_params() &&
+            !type_alias->type_params()->params.empty() &&
+            type_alias->decl.aliased_type->type
+        );
+        return type_alias->decl.aliased_type->type->replace(type_alias->replace_map(type_args));
     }
     return insert<TypeApp>(applied, std::move(type_args));
 }

@@ -1,5 +1,6 @@
 #include "artic/bind.h"
 #include "artic/ast.h"
+#include "artic/types.h"
 
 namespace artic {
 
@@ -9,22 +10,34 @@ bool NameBinder::run(ast::ModDecl& mod) {
 }
 
 void NameBinder::bind_head(ast::Decl& decl) {
+    decl.parent_decl = find_parent<ast::Decl>();
+    assert(decl.parent_decl || (decl.isa<ast::ModDecl>() && decl.as<ast::ModDecl>()->is_top_level()));
     decl.bind_head(*this);
 }
 
 void NameBinder::bind(ast::Node& node) {
     if (node.attrs)
         node.attrs->bind(*this);
+    if (!node.parent_decl)
+        node.parent_decl = find_parent<ast::Decl>();
     node.bind(*this);
+}
+
+void NameBinder::push_scope(ast::Node& parent) {
+    scopes_.push_back(parent);
 }
 
 void NameBinder::pop_scope() {
     for (auto& pair : scopes_.back().symbols) {
         auto decl = pair.second.decl;
         if (pair.second.use_count == 0 &&
-            !scopes_.back().top_level &&
             !decl->isa<ast::FieldDecl>() &&
-            !decl->isa<ast::OptionDecl>()) {
+            !decl->isa<ast::OptionDecl>() &&
+            !decl->isa<ast::ModDecl>() &&
+            !decl->parent_decl->isa<ast::ModDecl>() &&
+            !decl->parent_decl->isa<ast::TraitDecl>() &&
+            !decl->parent_decl->isa<ast::ImplDecl>())
+        {
             warn(decl->loc, "unused identifier '{}'", pair.first);
             note("prefix unused identifiers with '_'");
         }
@@ -45,7 +58,7 @@ void NameBinder::insert_symbol(ast::NamedDecl& decl, const std::string& name) {
         note(shadow_symbol->decl->loc, "previously declared here");
     } else if (
         warn_on_shadowing && shadow_symbol &&
-        decl.isa<ast::PtrnDecl>() && !shadow_symbol->decl->is_top_level) {
+        decl.isa<ast::PtrnDecl>() && !shadow_symbol->decl->parent_decl->isa<ast::ModDecl>()) {
         warn(decl.loc, "declaration shadows identifier '{}'", name);
         note(shadow_symbol->decl->loc, "previously declared here");
     }
@@ -61,7 +74,7 @@ void Path::bind(NameBinder& binder) {
     if (first.id.name[0] == '_')
         binder.error(first.id.loc, "identifiers beginning with '_' cannot be referenced");
     else if (first.is_super()) {
-        start_decl = binder.cur_mod->super;
+        start_decl = binder.find_parent<ast::ModDecl>()->super();
         if (!start_decl)
             binder.error(first.id.loc, "top-level module has no super-module");
     } else {
@@ -175,28 +188,23 @@ void RepeatArrayExpr::bind(NameBinder& binder) {
     binder.bind(*elem);
 }
 
-void FnExpr::bind(NameBinder& binder, bool in_for_loop) {
-    binder.push_scope();
+void FnExpr::bind(NameBinder& binder) {
+    // It is important to bind to the for loop and not this node
+    // in case this is the body of a for loop, since we do not
+    // want to re-bind `return` to the return continuation of the body.
+    auto expr = for_expr ? for_expr->as<Expr>() : this;
+    binder.push_scope(*expr);
     if (param)    binder.bind(*param);
     if (ret_type) binder.bind(*ret_type);
     if (filter)   binder.bind(*filter);
-    binder.push_scope();
-    // Do not rebind the current `return` to this function
-    // for anonymous functions introduced as for loop bodies.
-    ast::FnExpr* old_fn = binder.cur_fn;
-    if (!in_for_loop) binder.cur_fn = this;
+    binder.push_scope(*expr);
     binder.bind(*body);
-    binder.cur_fn = old_fn;
     binder.pop_scope();
     binder.pop_scope();
-}
-
-void FnExpr::bind(NameBinder& binder) {
-    bind(binder, false);
 }
 
 void BlockExpr::bind(NameBinder& binder) {
-    binder.push_scope();
+    binder.push_scope(*this);
     for (auto& stmt : stmts) {
         if (auto decl_stmt = stmt->isa<DeclStmt>())
             binder.bind_head(*decl_stmt->decl);
@@ -225,7 +233,7 @@ void ProjExpr::bind(NameBinder& binder) {
 }
 
 void IfExpr::bind(NameBinder& binder) {
-    binder.push_scope();
+    binder.push_scope(*this);
     if (cond)
         binder.bind(*cond);
     else {
@@ -238,7 +246,7 @@ void IfExpr::bind(NameBinder& binder) {
 }
 
 void CaseExpr::bind(NameBinder& binder) {
-    binder.push_scope();
+    binder.push_scope(*this);
     binder.bind(*ptrn);
     binder.bind(*expr);
     binder.pop_scope();
@@ -251,17 +259,14 @@ void MatchExpr::bind(NameBinder& binder) {
 }
 
 void WhileExpr::bind(NameBinder& binder) {
-    binder.push_scope();
+    binder.push_scope(*this);
     if (cond)
         binder.bind(*cond);
     else {
         binder.bind(*ptrn);
         binder.bind(*expr);
     }
-    auto old_loop = binder.cur_loop;
-    binder.cur_loop = this;
     binder.bind(*body);
-    binder.cur_loop = old_loop;
     binder.pop_scope();
 }
 
@@ -270,30 +275,27 @@ void ForExpr::bind(NameBinder& binder) {
     // iterate(|i| { ... })(...)
     // continue() and break() should only be available to the lambda
     binder.bind(*call->callee->as<CallExpr>()->callee);
-    auto old_loop = binder.cur_loop;
-    binder.cur_loop = this;
     auto loop_body = call->callee->as<CallExpr>()->arg->as<FnExpr>();
     if (loop_body->attrs)
         loop_body->attrs->bind(binder);
-    loop_body->bind(binder, true);
-    binder.cur_loop = old_loop;
+    loop_body->bind(binder);
     binder.bind(*call->arg);
 }
 
 void BreakExpr::bind(NameBinder& binder) {
-    loop = binder.cur_loop;
+    loop = binder.find_parent<LoopExpr>();
     if (!loop)
         binder.error(loc, "use of '{}' outside of a loop", *this->as<Node>());
 }
 
 void ContinueExpr::bind(NameBinder& binder) {
-    loop = binder.cur_loop;
+    loop = binder.find_parent<LoopExpr>();
     if (!loop)
         binder.error(loc, "use of '{}' outside of a loop", *this->as<Node>());
 }
 
 void ReturnExpr::bind(NameBinder& binder) {
-    fn = binder.cur_fn;
+    fn = binder.find_parent<FnExpr>();
     if (!fn)
         binder.error(loc, "use of '{}' outside of a function", *this->as<Node>());
 }
@@ -327,6 +329,7 @@ void TypedPtrn::bind(NameBinder& binder) {
 }
 
 void IdPtrn::bind(NameBinder& binder) {
+    binder.bind_head(*decl);
     binder.bind(*decl);
     if (sub_ptrn)
         binder.bind(*sub_ptrn);
@@ -365,7 +368,12 @@ void TypeParam::bind(NameBinder& binder) {
 }
 
 void TypeParamList::bind(NameBinder& binder) {
+    for (auto& param : params) binder.bind_head(*param);
     for (auto& param : params) binder.bind(*param);
+}
+
+void WhereClauseList::bind(NameBinder& binder) {
+    for (auto& clause : clauses) binder.bind(*clause);
 }
 
 void PtrnDecl::bind(NameBinder& binder) {
@@ -391,10 +399,9 @@ void FnDecl::bind_head(NameBinder& binder) {
 }
 
 void FnDecl::bind(NameBinder& binder) {
-    binder.push_scope();
-    if (type_params)
-        binder.bind(*type_params);
-
+    binder.push_scope(*this);
+    if (type_params)   binder.bind(*type_params);
+    if (where_clauses) binder.bind(*where_clauses);
     if (fn->body)
         binder.bind(*fn);
     else {
@@ -416,18 +423,24 @@ void StructDecl::bind_head(NameBinder& binder) {
 }
 
 void StructDecl::bind(NameBinder& binder) {
-    binder.push_scope();
-    if (type_params) binder.bind(*type_params);
-    for (auto& field : fields) binder.bind(*field);
+    binder.push_scope(*this);
+    if (type_params)   binder.bind(*type_params);
+    if (where_clauses) binder.bind(*where_clauses);
+    for (auto& field : fields) {
+        binder.bind_head(*field);
+        binder.bind(*field);
+    }
     binder.pop_scope();
 }
 
 void OptionDecl::bind(NameBinder& binder) {
-    if (param) binder.bind(*param);
-    else {
-        for (auto& field : fields)
+    if (has_fields) {
+        for (auto& field : fields) {
+            binder.bind_head(*field);
             binder.bind(*field);
-    }
+        }
+    } else if (param)
+        binder.bind(*param);
     binder.insert_symbol(*this);
 }
 
@@ -436,12 +449,36 @@ void EnumDecl::bind_head(NameBinder& binder) {
 }
 
 void EnumDecl::bind(NameBinder& binder) {
-    binder.push_scope();
-    if (type_params) binder.bind(*type_params);
+    binder.push_scope(*this);
+    if (type_params)   binder.bind(*type_params);
+    if (where_clauses) binder.bind(*where_clauses);
     for (auto& option : options) {
-        option->parent = this;
+        binder.bind_head(*option);
         binder.bind(*option);
     }
+    binder.pop_scope();
+}
+
+void TraitDecl::bind_head(NameBinder& binder) {
+    binder.insert_symbol(*this);
+}
+
+void TraitDecl::bind(NameBinder& binder) {
+    binder.push_scope(*this);
+    if (type_params)   binder.bind(*type_params);
+    if (where_clauses) binder.bind(*where_clauses);
+    for (auto& decl : decls) binder.bind_head(*decl);
+    for (auto& decl : decls) binder.bind(*decl);
+    binder.pop_scope();
+}
+
+void ImplDecl::bind(NameBinder& binder) {
+    binder.push_scope(*this);
+    if (type_params)   binder.bind(*type_params);
+    if (where_clauses) binder.bind(*where_clauses);
+    impled_type->bind(binder);
+    for (auto& decl : decls) binder.bind_head(*decl);
+    for (auto& decl : decls) binder.bind(*decl);
     binder.pop_scope();
 }
 
@@ -450,8 +487,9 @@ void TypeDecl::bind_head(NameBinder& binder) {
 }
 
 void TypeDecl::bind(NameBinder& binder) {
-    binder.push_scope();
-    if (type_params) binder.bind(*type_params);
+    binder.push_scope(*this);
+    if (type_params)   binder.bind(*type_params);
+    if (where_clauses) binder.bind(*where_clauses);
     binder.bind(*aliased_type);
     binder.pop_scope();
 }
@@ -465,13 +503,11 @@ void ModDecl::bind(NameBinder& binder) {
     // Symbols defined outside the module are not visible inside it.
     std::vector<SymbolTable> old_scopes;
     std::swap(binder.scopes_, old_scopes);
-    auto old_mod = binder.cur_mod;
-    binder.cur_mod = this;
-    binder.push_scope();
+    binder.push_scope(*this);
     for (auto& decl : decls) binder.bind_head(*decl);
     for (auto& decl : decls) binder.bind(*decl);
+    binder.pop_scope();
     std::swap(binder.scopes_, old_scopes);
-    binder.cur_mod = old_mod;
 }
 
 void UseDecl::bind_head(NameBinder& binder) {
