@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.4.3 FATAL_ERROR)
 project(artic)
 
 set(PROJECT_VERSION_MAJOR 0)
-set(PROJECT_VERSION_MINOR 2)
+set(PROJECT_VERSION_MINOR 3)
 set(CMAKE_CONFIGURATION_TYPES "Debug;Release" CACHE STRING "limited config" FORCE)
 
 option(BUILD_SHARED_LIBS "Build shared libraries" ON)
