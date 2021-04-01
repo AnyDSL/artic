@@ -301,7 +301,6 @@ int main(int argc, char** argv) {
     if (opts.opt_level == 1)
         world.cleanup();
     if (opts.emit_c_int) {
-        assert(false);
         auto name = opts.module_name + ".h";
         std::ofstream file(name);
         if (!file)
