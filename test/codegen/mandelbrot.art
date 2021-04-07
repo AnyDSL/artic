@@ -1,8 +1,8 @@
 /* Ported from Impala */
 
-#[import(cc = "C")] fn atoi(&[u8]) -> i32;
+#[import(cc = "C")] fn atoi(&[i8]) -> i32;
 #[import(cc = "C")] fn print_ppm_header(&[u8], i32, i32) -> ();
-#[import(cc = "C")] fn putchar(u8) -> ();
+#[import(cc = "C")] fn putchar(i32) -> i32;
 
 fn @range(body: fn (i32) -> ()) {
     fn loop(beg: i32, end: i32) -> () {
@@ -15,7 +15,7 @@ fn @range(body: fn (i32) -> ()) {
 }
 
 #[export]
-fn main(argc: i32, argv: &[&[u8]]) -> i32 {
+fn main(argc: i32, argv: &[&[i8]]) -> i32 {
     let n = if argc >= 2 { atoi(argv(1)) } else { 0 };
     let (w, h) = (n, n);
     let iter = 50;
@@ -49,7 +49,7 @@ fn main(argc: i32, argv: &[&[u8]]) -> i32 {
 
             if bit_count == 8 || x == w - 1 {
                 if x == w - 1 { bits <<= (8 - (w as u8) % 8); }
-                putchar(bits);
+                putchar(bits as i32);
                 bits = 0;
                 bit_count = 0;
             }
