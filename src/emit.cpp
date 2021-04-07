@@ -1519,20 +1519,20 @@ const thorin::Def* FnDecl::emit(Emitter& emitter) const {
     // Set the calling convention and export the continuation if needed
     if (attrs) {
         if (auto export_attr = attrs->find("export")) {
-            cont->make_exported();
             if (auto name_attr = export_attr->find("name"))
                 cont->set_name(name_attr->as<LiteralAttr>()->lit.as_string());
+            cont->make_external();
         } else if (auto import_attr = attrs->find("import")) {
             if (auto name_attr = import_attr->find("name"))
                 cont->set_name(name_attr->as<LiteralAttr>()->lit.as_string());
             if (auto cc_attr = import_attr->find("cc")) {
                 auto cc = cc_attr->as<LiteralAttr>()->lit.as_string();
                 if (cc == "device") {
+                    cont->make_external();
                     cont->attributes().cc = thorin::CC::Device;
-                    cont->make_imported();
                 } else if (cc == "C") {
+                    cont->make_external();
                     cont->attributes().cc = thorin::CC::C;
-                    cont->make_imported();
                 } else if (cc == "thorin")
                     cont->set_intrinsic();
                 else if (cc == "builtin")
