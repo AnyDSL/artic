@@ -152,7 +152,6 @@ bool compile(
     bool enable_all_warns,
     ast::ModDecl& program,
     thorin::World& world,
-    thorin::LogLevel log_level,
     Log& log);
 
 } // namespace artic

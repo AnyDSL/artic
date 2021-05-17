@@ -1865,7 +1865,6 @@ bool compile(
     bool enable_all_warns,
     ast::ModDecl& program,
     thorin::World& world,
-    thorin::LogLevel log_level,
     Log& log)
 {
     assert(file_data.size() == file_names.size());
@@ -1903,8 +1902,6 @@ bool compile(
     if (!name_binder.run(program) || !type_checker.run(program))
         return false;
 
-    world.set(log_level);
-    world.set(std::make_shared<thorin::Stream>(std::cerr));
     Emitter emitter(log, world);
     emitter.warns_as_errors = warns_as_errors;
     return emitter.run(program);
@@ -1917,7 +1914,6 @@ bool compile(
     const std::vector<std::string>& file_names,
     const std::vector<std::string>& file_data,
     thorin::World& world,
-    thorin::LogLevel log_level,
     std::ostream& error_stream)
 {
     using namespace artic;
@@ -1925,5 +1921,5 @@ bool compile(
     log::Output out(error_stream, false);
     Log log(out, &locator);
     ast::ModDecl program;
-    return artic::compile(file_names, file_data, false, false, program, world, log_level, log);
+    return artic::compile(file_names, file_data, false, false, program, world, log);
 }

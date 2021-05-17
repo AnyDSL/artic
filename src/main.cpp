@@ -272,16 +272,15 @@ int main(int argc, char** argv) {
     }
 
     thorin::World world(opts.module_name);
+    world.set(opts.log_level);
+    world.set(std::make_shared<thorin::Stream>(std::cerr));
+
     ast::ModDecl program;
     bool success = compile(
-        opts.files,
-        file_data,
+        opts.files, file_data,
         opts.warns_as_errors,
         opts.enable_all_warns,
-        program,
-        world,
-        opts.log_level,
-        log);
+        program, world, log);
 
     log.print_summary();
 
