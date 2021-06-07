@@ -784,28 +784,28 @@ const thorin::Def* Emitter::builtin(const ast::FnDecl& fn_decl, thorin::Continua
         auto ret_val = call(comparator(fn_decl.loc, mono_type), tuple_from_params(cont, true));
         jump(cont->params().back(), ret_val);
     } else {
-        static const std::unordered_map<std::string, std::function<const thorin::Def* ()>> functions = {
-            { "copysign", [&] { return world.copysign(cont->param(1), cont->param(2)); } },
-            { "fabs",     [&] { return world.fabs(cont->param(1)); } },
-            { "cos",      [&] { return world.cos(cont->param(1)); } },
-            { "sin",      [&] { return world.sin(cont->param(1)); } },
-            { "tan",      [&] { return world.tan(cont->param(1)); } },
-            { "acos",     [&] { return world.acos(cont->param(1)); } },
-            { "asin",     [&] { return world.asin(cont->param(1)); } },
-            { "atan",     [&] { return world.atan(cont->param(1)); } },
-            { "atan2",    [&] { return world.atan2(cont->param(1), cont->param(2)); } },
-            { "sqrt",     [&] { return world.sqrt(cont->param(1)); } },
-            { "cbrt",     [&] { return world.cbrt(cont->param(1)); } },
-            { "pow",      [&] { return world.pow(cont->param(1), cont->param(2)); } },
-            { "exp",      [&] { return world.exp(cont->param(1)); } },
-            { "exp2",     [&] { return world.exp2(cont->param(1)); } },
-            { "log",      [&] { return world.log(cont->param(1)); } },
-            { "log2",     [&] { return world.log2(cont->param(1)); } },
-            { "log10",    [&] { return world.log10(cont->param(1)); } }
+        static const std::unordered_map<std::string, std::function<const thorin::Def* (const thorin::Continuation*)>> functions = {
+            { "copysign", [&] (const thorin::Continuation* cont) { return world.copysign(cont->param(1), cont->param(2)); } },
+            { "fabs",     [&] (const thorin::Continuation* cont) { return world.fabs(cont->param(1)); } },
+            { "cos",      [&] (const thorin::Continuation* cont) { return world.cos(cont->param(1)); } },
+            { "sin",      [&] (const thorin::Continuation* cont) { return world.sin(cont->param(1)); } },
+            { "tan",      [&] (const thorin::Continuation* cont) { return world.tan(cont->param(1)); } },
+            { "acos",     [&] (const thorin::Continuation* cont) { return world.acos(cont->param(1)); } },
+            { "asin",     [&] (const thorin::Continuation* cont) { return world.asin(cont->param(1)); } },
+            { "atan",     [&] (const thorin::Continuation* cont) { return world.atan(cont->param(1)); } },
+            { "atan2",    [&] (const thorin::Continuation* cont) { return world.atan2(cont->param(1), cont->param(2)); } },
+            { "sqrt",     [&] (const thorin::Continuation* cont) { return world.sqrt(cont->param(1)); } },
+            { "cbrt",     [&] (const thorin::Continuation* cont) { return world.cbrt(cont->param(1)); } },
+            { "pow",      [&] (const thorin::Continuation* cont) { return world.pow(cont->param(1), cont->param(2)); } },
+            { "exp",      [&] (const thorin::Continuation* cont) { return world.exp(cont->param(1)); } },
+            { "exp2",     [&] (const thorin::Continuation* cont) { return world.exp2(cont->param(1)); } },
+            { "log",      [&] (const thorin::Continuation* cont) { return world.log(cont->param(1)); } },
+            { "log2",     [&] (const thorin::Continuation* cont) { return world.log2(cont->param(1)); } },
+            { "log10",    [&] (const thorin::Continuation* cont) { return world.log10(cont->param(1)); } }
         };
         assert(functions.count(cont->name()) > 0);
         enter(cont);
-        jump(cont->params().back(), functions.at(cont->name())());
+        jump(cont->params().back(), functions.at(cont->name())(cont));
     }
     cont->set_all_true_filter();
     return cont;
