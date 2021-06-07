@@ -722,8 +722,16 @@ void NamedAttr::check(TypeChecker& checker, const ast::Node* node) {
                     if (auto cc_attr = find("cc")) {
                         auto& cc = cc_attr->as<LiteralAttr>()->lit.as_string();
                         if (cc == "builtin") {
-                            if (name != "alignof" && name != "bitcast" && name != "insert" && name != "select" &&
-                                name != "sizeof"  && name != "undef"   && name != "compare")
+                            static const std::unordered_set<std::string> builtins = {
+                                "alignof", "bitcast", "insert", "select", "sizeof", "undef", "compare",
+                                "fabs", "copysignf",
+                                "cos", "sin", "tan",
+                                "acos", "asin", "atan", "atan2",
+                                "sqrt", "cbrt",
+                                "pow", "exp", "exp2",
+                                "log", "log2", "log10",
+                            };
+                            if (builtins.count(name) == 0)
                                 checker.error(fn_decl->loc, "unsupported built-in function");
                         } else if (cc != "C" && cc != "device" && cc != "thorin")
                             checker.error(cc_attr->loc, "invalid calling convention '{}'", cc);
