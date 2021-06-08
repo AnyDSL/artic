@@ -231,6 +231,8 @@ struct AddrType : public Type {
     size_t hash() const override;
     bool contains(const Type*) const override;
 
+    bool is_compatible_with(const AddrType* other) const;
+
     size_t order(std::unordered_set<const Type*>&) const override;
     void variance(std::unordered_map<const TypeVar*, TypeVariance>&, bool) const override;
     void bounds(std::unordered_map<const TypeVar*, TypeBounds>&, const Type*, bool) const override;

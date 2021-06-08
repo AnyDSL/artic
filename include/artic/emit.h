@@ -141,6 +141,9 @@ public:
 
     thorin::Debug debug_info(const ast::NamedDecl&);
     thorin::Debug debug_info(const ast::Node&, const std::string_view& = "");
+
+private:
+    const thorin::Def* cast_pointers(const thorin::Def*, const AddrType*, const AddrType*, thorin::Debug);
 };
 
 /// Helper function to compile a set of files and generate an AST and a thorin module.

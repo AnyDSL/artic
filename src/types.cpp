@@ -508,36 +508,33 @@ const ModType::Members& ModType::members() const {
 bool Type::subtype(const Type* other) const {
     if (this == other || isa<BottomType>() || other->isa<TopType>())
         return true;
-    // ref U <: T if U <: T
-    if (auto ref_type = isa<RefType>())
-        return ref_type->pointee->subtype(other);
-    else if (auto other_ptr_type = other->isa<PtrType>()) {
-        if (other_ptr_type->pointee->isa<PtrType>())
-            return false;
-        // U <: &T if U <: T
-        if (!other_ptr_type->is_mut && subtype(other_ptr_type->pointee))
+
+    auto other_ptr_type = other->isa<PtrType>(); 
+
+    // Take the address of values automatically:
+    // U <: &T if U <: T (only for generic pointers)
+    if (other_ptr_type &&
+        !other_ptr_type->is_mut &&
+        other_ptr_type->addr_space == 0 &&
+        subtype(other_ptr_type->pointee))
+        return true;
+
+    if (auto ref_type = isa<RefType>()) {
+        // ref U <: &T if U <: T
+        if (other_ptr_type &&
+            ref_type->is_compatible_with(other_ptr_type) &&
+            ref_type->pointee->subtype(other_ptr_type->pointee))
             return true;
-        if (auto ptr_type = isa<PtrType>();
-            ptr_type && ptr_type->addr_space == other_ptr_type->addr_space &&
-            (ptr_type->is_mut || !other_ptr_type->is_mut)) {
-            // &U <: &T if U <: T
-            // &mut U <: &T if U <: T
-            if (ptr_type->pointee->subtype(other_ptr_type->pointee))
-                return true;
-            // &[T * N] <: &[T]
-            if (auto other_array_type = other_ptr_type->pointee->isa<UnsizedArrayType>()) {
-                if (auto sized_array_type = ptr_type->pointee->isa<SizedArrayType>())
-                    return
-                        sized_array_type->elem == other_array_type->elem &&
-                        !sized_array_type->is_simd;
-            }
-        }
-        // [T * N] <: &[T] (only valid for generic pointers)
-        if (auto other_array_type = other_ptr_type->pointee->isa<UnsizedArrayType>();
-            other_ptr_type->addr_space == 0 && other_array_type) {
-            if (auto sized_array_type = isa<SizedArrayType>())
-                return sized_array_type->elem == other_array_type->elem && !sized_array_type->is_simd;
-        }
+        // ref U <: T if U <: T
+        return ref_type->pointee->subtype(other);
+    } else if (auto ptr_type = isa<AddrType>(); ptr_type && other_ptr_type && ptr_type->is_compatible_with(other_ptr_type)) {
+        // &U <: &T if U <: T
+        // &mut U <: &T if U <: T
+        return ptr_type->pointee->subtype(other_ptr_type->pointee);
+    } else if (auto sized_array_type = isa<SizedArrayType>(); sized_array_type && !sized_array_type->is_simd) {
+        // [U * N] <: [T] if U <: T
+        if (auto other_array_type = other->isa<UnsizedArrayType>())
+            return sized_array_type->elem->subtype(other_array_type->elem);
     } else if (auto tuple_type = isa<TupleType>()) {
         if (auto other_tuple_type = other->isa<TupleType>();
             other_tuple_type && other_tuple_type->args.size() == tuple_type->args.size()) {
@@ -565,6 +562,10 @@ const Type* Type::join(const Type* other) const {
     if (other->subtype(this))
         return this;
     return type_table.top_type();
+}
+
+bool AddrType::is_compatible_with(const AddrType* other) const {
+    return other->addr_space == addr_space && (is_mut || !other->is_mut);
 }
 
 const Type* ForallType::instantiate(const ArrayRef<const Type*>& args) const {

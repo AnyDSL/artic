@@ -654,30 +654,71 @@ const thorin::Def* Emitter::no_ret() {
     return world.bottom(world.unit());
 }
 
+static inline bool is_compatible(const Type* from, const Type* to) {
+    // This function allows casting &[&[i32 * 4] * 5] directly to `&[&[i32]]`,
+    // without loading the pointer and extracting each individual elements.
+    if (from == to)
+        return true;
+    auto from_addr_type = from->isa<AddrType>();
+    auto to_addr_type   = to->isa<AddrType>();
+    if (from_addr_type && to_addr_type && from_addr_type->addr_space == to_addr_type->addr_space) {
+        auto from_array_type = from_addr_type->pointee->isa<ArrayType>();
+        auto to_array_type   = to_addr_type->pointee->isa<ArrayType>();
+        if (from_array_type && to_array_type)
+            return is_compatible(from_array_type->elem, to_array_type->elem);
+    }
+    return false;
+}
+
+const thorin::Def* Emitter::cast_pointers(
+    const thorin::Def* def,
+    const AddrType* from_addr_type,
+    const AddrType* to_addr_type,
+    thorin::Debug debug)
+{
+    const thorin::Def* addr = def;
+    if (!is_compatible(from_addr_type, to_addr_type)) {
+        // We have to downcast the value pointed at
+        assert(from_addr_type->pointee->subtype(to_addr_type->pointee));
+        auto casted_val = down_cast(load(def, debug), from_addr_type->pointee, to_addr_type->pointee, debug);
+        addr = addr_of(casted_val, debug);
+    }
+    return world.bitcast(to_addr_type->convert(*this), addr, debug);
+}
+
 const thorin::Def* Emitter::down_cast(const thorin::Def* def, const Type* from, const Type* to, thorin::Debug debug) {
     // This function mirrors the subtyping relation and thus should be kept in sync
     assert(from->subtype(to));
     if (to == from || to->isa<TopType>())
         return def;
-    else if (from->isa<BottomType>())
-        return world.bottom(to->convert(*this));
-    else if (auto from_ref_type = from->isa<RefType>(); from_ref_type && from_ref_type->pointee->subtype(to))
-        return down_cast(load(def, debug), from_ref_type->pointee, to, debug);
-    else if (auto to_ptr_type = to->isa<PtrType>()) {
-        if (!to_ptr_type->is_mut && from->subtype(to_ptr_type->pointee))
-            return down_cast(addr_of(def, debug), from, to_ptr_type->pointee, debug);
-        if (auto from_ptr_type = from->isa<PtrType>();
-            from_ptr_type && (from_ptr_type->is_mut || !to_ptr_type->is_mut)) {
-            if (from_ptr_type->pointee->subtype(to_ptr_type->pointee))
-                return down_cast(def, from_ptr_type->pointee, to_ptr_type->pointee, debug);
 
-            assert(to_ptr_type->pointee->isa<UnsizedArrayType>());
-            assert(from_ptr_type->pointee->isa<SizedArrayType>());
-            return world.bitcast(to->convert(*this), def, debug);
-        }
-        assert(to_ptr_type->pointee->isa<UnsizedArrayType>());
-        assert(from->isa<SizedArrayType>());
-        return world.bitcast(to->convert(*this), addr_of(def, debug), debug);
+    if (from->isa<BottomType>())
+        return world.bottom(to->convert(*this));
+
+    auto to_ptr_type = to->isa<PtrType>();
+    if (to_ptr_type &&
+        !to_ptr_type->is_mut &&
+        to_ptr_type->addr_space == 0 &&
+        from->subtype(to_ptr_type->pointee))
+        return world.bitcast(to->convert(*this), addr_of(down_cast(def, from, to_ptr_type->pointee, debug)), debug);
+
+    if (auto from_ref_type = from->isa<RefType>()) {
+        if (to_ptr_type && from_ref_type->is_compatible_with(to_ptr_type) && from_ref_type->pointee->subtype(to_ptr_type->pointee))
+            return cast_pointers(def, from_ref_type, to_ptr_type, debug);
+        return down_cast(load(def, debug), from_ref_type->pointee, to, debug);
+    } else if (auto from_ptr_type = from->isa<PtrType>(); from_ptr_type && to_ptr_type) {
+        assert(from_ptr_type->is_compatible_with(to_ptr_type));
+        return cast_pointers(def, from_ptr_type, to_ptr_type, debug);
+    } else if (auto from_sized_array_type = from->isa<SizedArrayType>()) {
+        // Here, the returned value does not have the target type (it is a definite array instead
+        // of an indefinite one). This is because Thorin does not have indefinite array values.
+        // However, this is not important since indefinite arrays can only be used with pointers,
+        // and we always emit bitcasts when down-casting those.
+        auto to_elem = to->as<ArrayType>()->elem;
+        thorin::Array<const thorin::Def*> elems(from_sized_array_type->size);
+        for (size_t i = 0, n = from_sized_array_type->size; i < n; ++i)
+            elems[i] = down_cast(world.extract(def, i), from_sized_array_type->elem, to_elem, debug);
+        return world.definite_array(to_elem->convert(*this), elems, debug);
     } else if (auto from_tuple_type = from->isa<TupleType>()) {
         thorin::Array<const thorin::Def*> ops(from_tuple_type->args.size());
         for (size_t i = 0, n = ops.size(); i < n; ++i)
