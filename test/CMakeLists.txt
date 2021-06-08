@@ -68,7 +68,9 @@ add_test(NAME simple_escape      COMMAND artic --print-ast ${CMAKE_CURRENT_SOURC
 add_test(NAME simple_asm         COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/asm.art)
 add_test(NAME simple_simd        COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/simd.art)
 add_test(NAME simple_type_args   COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/type_args.art)
-add_test(NAME simple_subtype     COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/subtype.art)
+add_test(NAME simple_subtype1    COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/subtype1.art)
+add_test(NAME simple_subtype2    COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/subtype2.art)
+add_test(NAME simple_subtype3    COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/subtype3.art)
 add_test(NAME simple_compare     COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/compare.art)
 add_test(NAME simple_double_ptr  COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/double_ptr.art)
 
