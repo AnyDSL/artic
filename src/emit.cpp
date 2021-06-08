@@ -754,6 +754,67 @@ const thorin::Def* Emitter::emit(const ast::Node& node, const Literal& lit) {
     }
 }
 
+// Note: The following functions assume IEEE-754 representation for floating-point numbers.
+
+template <typename T, std::enable_if_t<std::is_unsigned_v<T>, int> = 0>
+static inline T bitmask(size_t first_bit, size_t last_bit) {
+    return (T(-1) >> (sizeof(T) * CHAR_BIT - (last_bit - first_bit))) << first_bit;
+}
+
+static inline const thorin::Def* mantissa_mask(thorin::World& world, const thorin::Type* type, thorin::Debug dbg = {}) {
+    switch (type->as<thorin::PrimType>()->primtype_tag()) {
+        case thorin::PrimType_pf16:
+        case thorin::PrimType_qf16:
+            return world.literal_pu16(bitmask<uint16_t>(0, 10), dbg);
+        case thorin::PrimType_pf32:
+        case thorin::PrimType_qf32:
+            return world.literal_pu32(bitmask<uint32_t>(0, 23), dbg);
+        case thorin::PrimType_pf64:
+        case thorin::PrimType_qf64:
+            return world.literal_pu64(bitmask<uint64_t>(0, 52), dbg);
+        default:
+            assert(false);
+            return nullptr;
+    }
+}
+
+static inline const thorin::Def* exponent_mask(thorin::World& world, const thorin::Type* type, thorin::Debug dbg = {}) {
+    switch (type->as<thorin::PrimType>()->primtype_tag()) {
+        case thorin::PrimType_pf16:
+        case thorin::PrimType_qf16:
+            return world.literal_pu16(bitmask<uint16_t>(10, 15), dbg);
+        case thorin::PrimType_pf32:
+        case thorin::PrimType_qf32:
+            return world.literal_pu32(bitmask<uint32_t>(23, 31), dbg);
+        case thorin::PrimType_pf64:
+        case thorin::PrimType_qf64:
+            return world.literal_pu64(bitmask<uint64_t>(52, 63), dbg);
+        default:
+            assert(false);
+            return nullptr;
+    }
+}
+
+static inline const thorin::Def* isnan(const thorin::Def* val) {
+    auto& world = val->world();
+    auto exponent_mask = artic::exponent_mask(world, val->type());
+    auto mantissa_mask = artic::mantissa_mask(world, val->type());
+    auto uint_val = world.bitcast(exponent_mask->type(), val);
+    auto exponent = world.arithop_and(uint_val, exponent_mask);
+    auto mantissa = world.arithop_and(uint_val, mantissa_mask);
+    return world.arithop_and(
+        world.cmp_eq(exponent, exponent_mask), // The exponent must be all 1s
+        world.cmp_ne(mantissa, world.zero(uint_val->type()))); // The mantissa must be non-zero
+}
+
+static inline const thorin::Def* isfinite(const thorin::Def* val) {
+    auto& world = val->world();
+    auto exponent_mask = artic::exponent_mask(world, val->type());
+    auto uint_val = world.bitcast(exponent_mask->type(), val);
+    auto exponent = world.arithop_and(uint_val, exponent_mask);
+    return world.cmp_ne(exponent, exponent_mask); // The exponent must not be all 1s
+}
+
 const thorin::Def* Emitter::builtin(const ast::FnDecl& fn_decl, thorin::Continuation* cont) {
     if (cont->name() == "alignof") {
         auto target_type = fn_decl.type_params->params[0]->type->convert(*this);
@@ -801,7 +862,9 @@ const thorin::Def* Emitter::builtin(const ast::FnDecl& fn_decl, thorin::Continua
             { "exp2",     [&] (const thorin::Continuation* cont) { return world.exp2(cont->param(1)); } },
             { "log",      [&] (const thorin::Continuation* cont) { return world.log(cont->param(1)); } },
             { "log2",     [&] (const thorin::Continuation* cont) { return world.log2(cont->param(1)); } },
-            { "log10",    [&] (const thorin::Continuation* cont) { return world.log10(cont->param(1)); } }
+            { "log10",    [&] (const thorin::Continuation* cont) { return world.log10(cont->param(1)); } },
+            { "isnan",    [&] (const thorin::Continuation* cont) { return isnan(cont->param(1)); } },
+            { "isfinite", [&] (const thorin::Continuation* cont) { return isfinite(cont->param(1)); } },
         };
         assert(functions.count(cont->name()) > 0);
         enter(cont);
