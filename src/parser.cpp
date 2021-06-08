@@ -984,7 +984,9 @@ Ptr<ast::Type> Parser::parse_type() {
         case Token::Fn:     return parse_fn_type();
         case Token::Id:     return parse_named_type();
         case Token::LParen: return parse_tuple_type();
-        case Token::And:    return parse_ptr_type();
+        case Token::LogicAnd:
+        case Token::And:
+            return parse_ptr_type();
         case Token::Simd:
         case Token::LBracket:
             return parse_array_type();
@@ -1051,13 +1053,19 @@ Ptr<ast::FnType> Parser::parse_fn_type() {
 
 Ptr<ast::PtrType> Parser::parse_ptr_type() {
     Tracker tracker(this);
-    eat(Token::And);
+    // Accept '&&' as the beginning of a double pointer type
+    auto double_ptr = accept(Token::LogicAnd);
+    if (!double_ptr)
+        eat(Token::And);
     bool is_mut = accept(Token::Mut);
     size_t addr_space = 0;
     if (ahead().tag() == Token::AddrSpace)
         addr_space = parse_addr_space();
     auto pointee = parse_type();
-    return make_ptr<ast::PtrType>(tracker(), std::move(pointee), is_mut, addr_space);
+    auto inner_ptr = make_ptr<ast::PtrType>(tracker(), std::move(pointee), is_mut, addr_space);
+    return double_ptr
+        ? make_ptr<ast::PtrType>(tracker(), std::move(inner_ptr), false, 0)
+        : std::move(inner_ptr);
 }
 
 Ptr<ast::TypeApp> Parser::parse_type_app() {
