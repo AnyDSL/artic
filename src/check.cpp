@@ -1523,7 +1523,7 @@ const artic::Type* FnDecl::infer(TypeChecker& checker) {
     if (forall)
         forall->as<ForallType>()->body = fn_type;
     if (fn->ret_type && fn->body)
-        checker.check(*fn->body, fn_type->as<artic::FnType>()->codom);
+        checker.coerce(fn->body, fn_type->as<artic::FnType>()->codom);
     checker.exit_decl(this);
     return type;
 }
