@@ -664,6 +664,7 @@ log::Output& operator << (log::Output& out, const Node& node) {
 
 void Node::dump() const {
     Printer p(log::out);
+    p.show_implicit_casts = true;
     print(p);
     p << '\n';
 }
