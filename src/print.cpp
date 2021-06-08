@@ -501,6 +501,8 @@ void FnDecl::print(Printer& p) const {
         else
             p << " = ";
         fn->body->print(p);
+        if (!fn->body->isa<BlockExpr>())
+            p << ';';
     } else
         p << ';';
 }
