@@ -724,7 +724,7 @@ void NamedAttr::check(TypeChecker& checker, const ast::Node* node) {
                         if (cc == "builtin") {
                             static const std::unordered_set<std::string> builtins = {
                                 "alignof", "bitcast", "insert", "select", "sizeof", "undef", "compare",
-                                "fabs", "copysignf",
+                                "fabs", "copysign",
                                 "cos", "sin", "tan",
                                 "acos", "asin", "atan", "atan2",
                                 "sqrt", "cbrt",
