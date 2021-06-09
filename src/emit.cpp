@@ -887,8 +887,14 @@ const thorin::Def* Emitter::builtin(const ast::FnDecl& fn_decl, thorin::Continua
         jump(cont->params().back(), ret_val);
     } else {
         static const std::unordered_map<std::string, std::function<const thorin::Def* (const thorin::Continuation*)>> functions = {
-            { "copysign", [&] (const thorin::Continuation* cont) { return world.copysign(cont->param(1), cont->param(2)); } },
             { "fabs",     [&] (const thorin::Continuation* cont) { return world.fabs(cont->param(1)); } },
+            { "copysign", [&] (const thorin::Continuation* cont) { return world.copysign(cont->param(1), cont->param(2)); } },
+            { "signbit",  [&] (const thorin::Continuation* cont) { return world.signbit(cont->param(1)); } },
+            { "round",    [&] (const thorin::Continuation* cont) { return world.round(cont->param(1)); } },
+            { "ceil",     [&] (const thorin::Continuation* cont) { return world.ceil(cont->param(1)); } },
+            { "floor",    [&] (const thorin::Continuation* cont) { return world.floor(cont->param(1)); } },
+            { "fmin",     [&] (const thorin::Continuation* cont) { return world.fmin(cont->param(1), cont->param(2)); } },
+            { "fmax",     [&] (const thorin::Continuation* cont) { return world.fmax(cont->param(1), cont->param(2)); } },
             { "cos",      [&] (const thorin::Continuation* cont) { return world.cos(cont->param(1)); } },
             { "sin",      [&] (const thorin::Continuation* cont) { return world.sin(cont->param(1)); } },
             { "tan",      [&] (const thorin::Continuation* cont) { return world.tan(cont->param(1)); } },
