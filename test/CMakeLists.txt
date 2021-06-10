@@ -73,6 +73,7 @@ add_test(NAME simple_subtype2    COMMAND artic --print-ast ${CMAKE_CURRENT_SOURC
 add_test(NAME simple_subtype3    COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/subtype3.art)
 add_test(NAME simple_compare     COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/compare.art)
 add_test(NAME simple_double_ptr  COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/double_ptr.art)
+add_test(NAME simple_math        COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/math.art)
 
 add_failure_test(NAME failure_annot          COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/annot.art)
 add_failure_test(NAME failure_comment        COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/comment.art)

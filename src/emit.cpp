@@ -803,16 +803,10 @@ static inline T bitmask(size_t first_bit, size_t last_bit) {
 }
 
 static inline const thorin::Def* mantissa_mask(thorin::World& world, const thorin::Type* type, thorin::Debug dbg = {}) {
-    switch (type->as<thorin::PrimType>()->primtype_tag()) {
-        case thorin::PrimType_pf16:
-        case thorin::PrimType_qf16:
-            return world.literal_pu16(bitmask<uint16_t>(0, 10), dbg);
-        case thorin::PrimType_pf32:
-        case thorin::PrimType_qf32:
-            return world.literal_pu32(bitmask<uint32_t>(0, 23), dbg);
-        case thorin::PrimType_pf64:
-        case thorin::PrimType_qf64:
-            return world.literal_pu64(bitmask<uint64_t>(0, 52), dbg);
+    switch (num_bits(type->as<thorin::PrimType>()->primtype_tag())) {
+        case 16: return world.literal_pu16(bitmask<uint16_t>(0, 10), dbg);
+        case 32: return world.literal_pu32(bitmask<uint32_t>(0, 23), dbg);
+        case 64: return world.literal_pu64(bitmask<uint64_t>(0, 52), dbg);
         default:
             assert(false);
             return nullptr;
@@ -820,20 +814,33 @@ static inline const thorin::Def* mantissa_mask(thorin::World& world, const thori
 }
 
 static inline const thorin::Def* exponent_mask(thorin::World& world, const thorin::Type* type, thorin::Debug dbg = {}) {
-    switch (type->as<thorin::PrimType>()->primtype_tag()) {
-        case thorin::PrimType_pf16:
-        case thorin::PrimType_qf16:
-            return world.literal_pu16(bitmask<uint16_t>(10, 15), dbg);
-        case thorin::PrimType_pf32:
-        case thorin::PrimType_qf32:
-            return world.literal_pu32(bitmask<uint32_t>(23, 31), dbg);
-        case thorin::PrimType_pf64:
-        case thorin::PrimType_qf64:
-            return world.literal_pu64(bitmask<uint64_t>(52, 63), dbg);
+    switch (num_bits(type->as<thorin::PrimType>()->primtype_tag())) {
+        case 16: return world.literal_pu16(bitmask<uint16_t>(10, 15), dbg);
+        case 32: return world.literal_pu32(bitmask<uint32_t>(23, 31), dbg);
+        case 64: return world.literal_pu64(bitmask<uint64_t>(52, 63), dbg);
         default:
             assert(false);
             return nullptr;
     }
+}
+
+static inline const thorin::Def* sign_mask(thorin::World& world, const thorin::Type* type, thorin::Debug dbg = {}) {
+    switch (num_bits(type->as<thorin::PrimType>()->primtype_tag())) {
+        case 16: return world.literal_pu16(bitmask<uint16_t>(15, 16), dbg);
+        case 32: return world.literal_pu32(bitmask<uint32_t>(31, 32), dbg);
+        case 64: return world.literal_pu64(bitmask<uint64_t>(63, 64), dbg);
+        default:
+            assert(false);
+            return nullptr;
+    }
+}
+
+static inline const thorin::Def* signbit(const thorin::Def* val) {
+    auto& world = val->world();
+    auto sign_mask = artic::sign_mask(world, val->type());
+    auto uint_val = world.bitcast(sign_mask->type(), val);
+    auto sign = world.arithop_and(uint_val, sign_mask);
+    return world.cmp_ne(sign, world.zero(uint_val->type()));
 }
 
 static inline const thorin::Def* isnan(const thorin::Def* val) {
@@ -889,7 +896,7 @@ const thorin::Def* Emitter::builtin(const ast::FnDecl& fn_decl, thorin::Continua
         static const std::unordered_map<std::string, std::function<const thorin::Def* (const thorin::Continuation*)>> functions = {
             { "fabs",     [&] (const thorin::Continuation* cont) { return world.fabs(cont->param(1)); } },
             { "copysign", [&] (const thorin::Continuation* cont) { return world.copysign(cont->param(1), cont->param(2)); } },
-            { "signbit",  [&] (const thorin::Continuation* cont) { return world.signbit(cont->param(1)); } },
+            { "signbit",  [&] (const thorin::Continuation* cont) { return signbit(cont->param(1)); } },
             { "round",    [&] (const thorin::Continuation* cont) { return world.round(cont->param(1)); } },
             { "ceil",     [&] (const thorin::Continuation* cont) { return world.ceil(cont->param(1)); } },
             { "floor",    [&] (const thorin::Continuation* cont) { return world.floor(cont->param(1)); } },
