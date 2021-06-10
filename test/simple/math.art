@@ -1,0 +1,66 @@
+#[import(cc = "builtin")] fn fabs[T](T) -> T;
+#[import(cc = "builtin")] fn copysign[T](T, T) -> T;
+#[import(cc = "builtin")] fn signbit[T](T) -> bool;
+#[import(cc = "builtin")] fn round[T](T) -> T;
+#[import(cc = "builtin")] fn ceil[T](T) -> T;
+#[import(cc = "builtin")] fn floor[T](T) -> T;
+#[import(cc = "builtin")] fn fmin[T](T, T) -> T;
+#[import(cc = "builtin")] fn fmax[T](T, T) -> T;
+#[import(cc = "builtin")] fn cos[T](T) -> T;
+#[import(cc = "builtin")] fn sin[T](T) -> T;
+#[import(cc = "builtin")] fn tan[T](T) -> T;
+#[import(cc = "builtin")] fn acos[T](T) -> T;
+#[import(cc = "builtin")] fn asin[T](T) -> T;
+#[import(cc = "builtin")] fn atan[T](T) -> T;
+#[import(cc = "builtin")] fn atan2[T](T, T) -> T;
+#[import(cc = "builtin")] fn sqrt[T](T) -> T;
+#[import(cc = "builtin")] fn cbrt[T](T) -> T;
+#[import(cc = "builtin")] fn pow[T](T, T) -> T;
+#[import(cc = "builtin")] fn exp[T](T) -> T;
+#[import(cc = "builtin")] fn exp2[T](T) -> T;
+#[import(cc = "builtin")] fn log[T](T) -> T;
+#[import(cc = "builtin")] fn log2[T](T) -> T;
+#[import(cc = "builtin")] fn log10[T](T) -> T;
+#[import(cc = "builtin")] fn isnan[T](T) -> bool;
+#[import(cc = "builtin")] fn isfinite[T](T) -> bool;
+
+fn test_math(x: f32, y: f32) {
+    fabs(x) +
+    copysign(x, y) +
+    (if signbit(x) { 1.0 } else { 0.0 }) +
+    round(x) +
+    ceil(x) +
+    floor(x) +
+    fmin(x, y) +
+    fmax(x, y) +
+    cos(x) +
+    sin(x) +
+    tan(x) +
+    acos(x) +
+    asin(x) +
+    atan(x) +
+    atan2(x, y) +
+    sqrt(x) +
+    cbrt(x) +
+    pow(x, y) +
+    exp(x) +
+    exp2(x) +
+    log(x) +
+    log2(x) +
+    log10(x) +
+    (if isnan(x) { 1.0 } else { 0.0 }) +
+    (if isfinite(x) { 1.0 } else { 0.0 })
+}
+
+#[export] fn test(x: f32, y: f32) {
+    test_math(0.0, 0.0) +
+    test_math(0.0, 1.0) +
+    test_math(1.0, 0.0) +
+    test_math(1.0, 1.0) +
+    test_math(0.0, x) +
+    test_math(1.0, x) +
+    test_math(x, 0.0) +
+    test_math(x, 1.0) +
+    test_math(x, y) +
+    test_math(y, x)
+}
