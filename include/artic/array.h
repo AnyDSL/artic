@@ -65,7 +65,9 @@ struct MutableStorage : ImmutableStorage<T, Derived> {
 template <typename T>
 class ArrayRef : public ImmutableStorage<T, ArrayRef<T>> {
 public:
-    ArrayRef(const T* data = nullptr, size_t size = 0)
+    ArrayRef() : ArrayRef(nullptr, 0) {}
+
+    ArrayRef(const T* data, size_t size)
         : data_(data), size_(size)
     {}
 
@@ -74,7 +76,7 @@ public:
         : ArrayRef(std::data(c), std::size(c))
     {}
 
-    ArrayRef(const T& one)
+    explicit ArrayRef(const T& one)
         : ArrayRef(&one, 1)
     {}
 
@@ -118,6 +120,8 @@ public:
     T* data() { return data_.get(); }
     const T* data() const { return data_.get(); }
     size_t size() const { return size_; }
+
+    ArrayRef<T> ref() const { return ArrayRef<T>(*this); }
 
     void shrink(size_t i) {
         assert(i <= size());
@@ -178,6 +182,34 @@ private:
     std::unique_ptr<T[]> data_;
     size_t size_;
 };
+
+// Helper functions for `concat()`
+namespace detail {
+
+inline size_t total_size() { return 0; }
+
+template <typename T, typename... Args>
+inline size_t total_size(const ArrayRef<T>& ref, Args&&... args) {
+    return ref.size() + total_size(std::forward<Args>(args)...);
+}
+
+template <typename T>
+inline T* copy_all(T* ptr) { return ptr; }
+
+template <typename T, typename... Args>
+inline T* copy_all(T* ptr, const ArrayRef<T>& ref, Args&&... args) {
+    std::copy(ref.begin(), ref.end(), ptr);
+    return copy_all(ptr + ref.size(), std::forward<Args>(args)...);
+}
+
+} // namespace detail
+
+template <typename T, typename... Args>
+inline Array<T> concat(const ArrayRef<T>& ref, Args&&... args) {
+    Array<T> array(detail::total_size(ref, std::forward<Args>(args)...));
+    detail::copy_all(array.data(), ref, std::forward<Args>(args)...);
+    return array;
+}
 
 } // namespace artic
 

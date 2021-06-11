@@ -1,18 +1,6 @@
 add_library(libartic
-    ../include/artic/ast.h
-    ../include/artic/bind.h
-    ../include/artic/cast.h
-    ../include/artic/check.h
-    ../include/artic/emit.h
-    ../include/artic/lexer.h
-    ../include/artic/loc.h
-    ../include/artic/locator.h
-    ../include/artic/log.h
-    ../include/artic/parser.h
-    ../include/artic/print.h
-    ../include/artic/symbol.h
-    ../include/artic/token.h
-    ../include/artic/types.h
+    ir/node.cpp
+    ir/module.cpp
     ast.cpp
     bind.cpp
     check.cpp

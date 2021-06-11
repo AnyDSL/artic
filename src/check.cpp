@@ -710,7 +710,7 @@ void NamedAttr::check(TypeChecker& checker, const ast::Node* node) {
                 else if (!fn_decl->fn->body)
                     checker.error(fn_decl->loc, "exported functions must have a body");
                 else
-                    checker.check_attrs(*this, { { "name", AttrType::String } });
+                    checker.check_attrs(*this, ArrayRef(AttrType { "name", AttrType::String }));
             } else if (name == "import") {
                 if (checker.check_attrs(*this, std::array<AttrType, 2> {
                         AttrType { "cc", AttrType::String },

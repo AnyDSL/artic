@@ -7,6 +7,8 @@
 #include <string>
 #include <type_traits>
 
+#include "artic/array.h"
+
 namespace artic::fnv {
 
 template <size_t Bits> struct Offset {};
@@ -27,8 +29,11 @@ struct Hash {
 
     Hash& combine(const std::string_view& s) { return combine(s.data(), (s.size() * CHAR_BIT) / 8); }
 
-    template <typename T, std::enable_if_t<std::is_pod<T>::value, int> = 0>
+    template <typename T, std::enable_if_t<std::is_trivial_v<T> && std::is_standard_layout_v<T>, int> = 0>
     Hash& combine(const T& t) { return combine(&t, (sizeof(T) * CHAR_BIT) / 8); }
+
+    template <typename T>
+    Hash& combine(const ArrayRef<T>& t) { return combine(t.data(), t.size()); }
 
     template <typename T>
     Hash& combine(const T* t, size_t size) {
