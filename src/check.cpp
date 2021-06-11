@@ -736,7 +736,7 @@ void NamedAttr::check(TypeChecker& checker, const ast::Node* node) {
                             };
                             if (builtins.count(name) == 0)
                                 checker.error(fn_decl->loc, "unsupported built-in function");
-                        } else if (cc != "C" && cc != "device" && cc != "thorin")
+                        } else if (cc != "C" && cc != "device")
                             checker.error(cc_attr->loc, "invalid calling convention '{}'", cc);
                     }
                 }

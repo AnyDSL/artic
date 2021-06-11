@@ -1,7 +1,7 @@
 #ifndef ARTIC_LOG_H
 #define ARTIC_LOG_H
 
-#include <iostream>
+#include <ostream>
 #include <cstring>
 #include <cassert>
 #include <utility>
@@ -32,13 +32,8 @@ struct Output {
     {}
 };
 
-#ifdef COLORIZE
-static Output err(std::cerr, isatty(fileno(stderr)));
-static Output out(std::cout, isatty(fileno(stdout)));
-#else
-static Output err(std::cerr, false);
-static Output out(std::cout, false);
-#endif
+extern Output err;
+extern Output out;
 
 template <typename T>
 struct Fill {
@@ -133,9 +128,20 @@ Fill<T> fill(const T& t, size_t n) {
     return Fill<T>(t, n);
 }
 
-template <typename T> auto error_style(const T& t)    -> decltype(log::style(t, log::Style(), log::Style())) { return log::style(t, log::Style::Red, log::Style::Bold); }
-template <typename T> auto keyword_style(const T& t)  -> decltype(log::style(t, log::Style())) { return log::style(t, log::Style::Green);  }
-template <typename T> auto literal_style(const T& t)  -> decltype(log::style(t, log::Style())) { return log::style(t, log::Style::Blue);   }
+template <typename T>
+auto error_style(const T& t) -> decltype(log::style(t, log::Style(), log::Style())) {
+    return log::style(t, log::Style::Red, log::Style::Bold);
+}
+
+template <typename T>
+auto keyword_style(const T& t) -> decltype(log::style(t, log::Style())) {
+    return log::style(t, log::Style::Green);
+}
+
+template <typename T>
+auto literal_style(const T& t) -> decltype(log::style(t, log::Style())) {
+    return log::style(t, log::Style::Blue);
+}
 
 inline void format(Output& out, const char* fmt) {
 #ifndef NDEBUG
@@ -164,9 +170,9 @@ void format(Output& out, const char* fmt, T&& t, Args&&... args) {
 
 template <typename... Args>
 void error(const char* fmt, Args&&... args) {
-    log::format(err, "{}: ", error_style("error"));
-    log::format(err, fmt, std::forward<Args>(args)...);
-    out.stream << std::endl;
+    format(err, "{}: ", error_style("error"));
+    format(err, fmt, std::forward<Args>(args)...);
+    err.stream << std::endl;
 }
 
 } // namespace log

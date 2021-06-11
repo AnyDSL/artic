@@ -2,9 +2,12 @@
 
 namespace artic::ir {
 
-static const Node* simplify(const Node* node) {
-    // TODO
-    return node;
+Module::Module(Module&& other)
+    : type_table(other.type_table), nodes_(std::move(other.nodes_))
+{
+    var_count_ = std::exchange(other.var_count_, 0);
+    for (auto pair : nodes_)
+        const_cast<Node*>(pair.first)->module_ = this;
 }
 
 Module::~Module() {
@@ -12,12 +15,20 @@ Module::~Module() {
         delete pair.first;
 }
 
+const Var* Module::new_var(const Type* type, Loc&& loc) {
+    return new_var(type, "", std::forward<Loc>(loc));
+}
+
+const Var* Module::new_var(const Type* type, const std::string_view& name, Loc&& loc) {
+    return var(type, name, var_count_++, std::forward<Loc>(loc));
+}
+
 const Lit* Module::lit(const Type* type, const Literal& lit) {
     return insert_as<Lit>(type, lit);
 }
 
-const Var* Module::var(const Type* type, const std::string_view& name, Loc&& loc) {
-    return insert_as<Var>(type, name, std::forward<Loc>(loc));
+const Var* Module::var(const Type* type, const std::string_view& name, size_t id, Loc&& loc) {
+    return insert_as<Var>(type, name, id, std::forward<Loc>(loc));
 }
 
 const Fn* Module::fn(const Var* var, const Node* body, Loc&& loc) {
@@ -35,6 +46,13 @@ const Node* Module::let(
     Loc&& loc)
 {
     return insert<Let>(vars, vals, body, std::forward<Loc>(loc));
+}
+
+// Simplify ------------------------------------------------------------------------
+
+static const Node* simplify(const Node* node) {
+    // TODO
+    return node;
 }
 
 template <typename T, typename... Args>

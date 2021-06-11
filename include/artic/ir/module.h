@@ -14,13 +14,17 @@ public:
     Module(TypeTable& type_table)
         : type_table(type_table)
     {}
+    Module(Module&&);
 
     ~Module();
 
     TypeTable& type_table;
 
+    const Var* new_var(const Type*, Loc&& = {});
+    const Var* new_var(const Type*, const std::string_view&, Loc&& = {});
+
     const Lit* lit(const Type*, const Literal&);
-    const Var* var(const Type*, const std::string_view&, Loc&& = {});
+    const Var* var(const Type*, const std::string_view&, size_t, Loc&& = {});
     const Fn* fn(const Var*, const Node*, Loc&& = {});
     const Node* app(const Node*, const Node*, Loc&& = {});
     const Node* let(const ArrayRef<const Node*>&, const ArrayRef<const Node*>&, const Node*, Loc&& = {});
@@ -44,6 +48,7 @@ private:
     };
 
     std::unordered_map<const Node*, const Node*, HashNode, CompareNodes> nodes_;
+    size_t var_count_ = 0;
 };
 
 } // namespace artic::ir

@@ -9,12 +9,8 @@
 #include "artic/emit.h"
 #include "artic/locator.h"
 
-#include <thorin/world.h>
-#include <thorin/be/codegen.h>
-#include <thorin/be/c/c.h>
-#ifdef ENABLE_LLVM
-#include <thorin/be/llvm/cpu.h>
-#endif
+#include "artic/ir/module.h"
+#include "artic/ir/node.h"
 
 using namespace artic;
 
@@ -29,28 +25,22 @@ static std::string_view file_without_ext(std::string_view path) {
 }
 
 static void usage() {
-    log::out << "usage: artic [options] files...\n"
-                "options:\n"
-                "  -h     --help                 Displays this message\n"
-                "         --version              Displays the version number\n"
-                "         --no-color             Disables colors in error messages\n"
-                " -Wall   --enable-all-warnings  Enables all warnings\n"
-                " -Werror --warnings-as-errors   Treat warnings as errors\n"
-                "         --max-errors <n>       Sets the maximum number of error messages (unlimited by default)\n"
-                "         --print-ast            Prints the AST after parsing and type-checking\n"
-                "         --show-implicit-casts  Shows implicit casts as comments when printing the AST\n"
-                "         --emit-thorin          Prints the Thorin IR after code generation\n"
-                "         --emit-c-interface     Emits C interface for exported functions and imported types\n"
-                "         --log-level <lvl>      Changes the log level in Thorin (lvl = debug, verbose, info, warn, or error, defaults to error)\n"
-                "         --tab-width <n>        Sets the width of the TAB character in error messages or when printing the AST (in spaces, defaults to 2)\n"
-                "         --emit-c               Emits C code in the output file\n"
-#ifdef ENABLE_LLVM
-                "         --emit-llvm            Emits LLVM IR in the output file\n"
-#endif
-                "  -g     --debug                Enable debug information in the output file\n"
-                "  -On                           Sets the optimization level (n = 0, 1, 2, or 3, defaults to 0)\n"
-                "  -o <name>                     Sets the module name (defaults to the first file name without its extension)\n"
-                ;
+    log::out <<
+        "usage: artic [options] files...\n"
+        "options:\n"
+        "  -h     --help                 Displays this message\n"
+        "         --version              Displays the version number\n"
+        "         --no-color             Disables colors in error messages\n"
+        " -Wall   --enable-all-warnings  Enables all warnings\n"
+        " -Werror --warnings-as-errors   Treat warnings as errors\n"
+        "         --max-errors <n>       Sets the maximum number of error messages (unlimited by default)\n"
+        "         --print-ast            Prints the AST after parsing and type-checking\n"
+        "         --show-implicit-casts  Shows implicit casts as comments when printing the AST\n"
+        "         --tab-width <n>        Sets the width of the TAB character in error messages or when printing the AST (in spaces, defaults to 2)\n"
+        "  -g     --debug                Enable debug information in the output file\n"
+        "  -On                           Sets the optimization level (n = 0, 1, 2, or 3, defaults to 0)\n"
+        "  -o <name>                     Sets the module name (defaults to the first file name without its extension)\n"
+        ;
 }
 
 static void version() {
@@ -89,15 +79,10 @@ struct ProgramOptions {
     bool enable_all_warns = false;
     bool debug = false;
     bool print_ast = false;
-    bool emit_thorin = false;
-    bool emit_c_int = false;
-    bool emit_c = false;
-    bool emit_llvm = false;
     bool show_implicit_casts = false;
     unsigned opt_level = 0;
     size_t max_errors = 0;
     size_t tab_width = 2;
-    thorin::LogLevel log_level = thorin::LogLevel::Error;
 
     bool matches(const char* arg, const char* opt) {
         return !strcmp(arg, opt);
@@ -151,42 +136,10 @@ struct ProgramOptions {
                     print_ast = true;
                 } else if (matches(argv[i], "--show-implicit-casts")) {
                     show_implicit_casts = true;
-                } else if (matches(argv[i], "--emit-thorin")) {
-                    emit_thorin = true;
-                } else if (matches(argv[i], "--emit-c-interface")) {
-                    emit_c_int = true;
-                } else if (matches(argv[i], "--log-level")) {
-                    if (!check_arg(argc, argv, i))
-                        return false;
-                    i++;
-                    using namespace std::string_literals;
-                    if (argv[i] == "debug"s)
-                        log_level = thorin::LogLevel::Debug;
-                    else if (argv[i] == "verbose"s)
-                        log_level = thorin::LogLevel::Verbose;
-                    else if (argv[i] == "info"s)
-                        log_level = thorin::LogLevel::Info;
-                    else if (argv[i] == "warn"s)
-                        log_level = thorin::LogLevel::Warn;
-                    else if (argv[i] == "error"s)
-                        log_level = thorin::LogLevel::Error;
-                    else {
-                        log::error("unknown log level '{}'", argv[i]);
-                        return false;
-                    }
                 } else if (matches(argv[i], "--tab-width")) {
                     if (!check_arg(argc, argv, i))
                         return false;
                     tab_width = std::strtoull(argv[++i], NULL, 10);
-                } else if (matches(argv[i], "--emit-llvm")) {
-#ifdef ENABLE_LLVM
-                    emit_llvm = true;
-#else
-                    log::error("Thorin is built without LLVM support, use '--emit-c' instead");
-                    return false;
-#endif
-                } else if (matches(argv[i], "--emit-c")) {
-                    emit_c = true;
                 } else if (matches(argv[i], "-O0")) {
                     opt_level = 0;
                 } else if (matches(argv[i], "-O1")) {
@@ -271,16 +224,12 @@ int main(int argc, char** argv) {
         file_data.emplace_back(tabs_to_spaces(*data, opts.tab_width));
     }
 
-    thorin::World world(opts.module_name);
-    world.set(opts.log_level);
-    world.set(std::make_shared<thorin::Stream>(std::cerr));
-
     ast::ModDecl program;
-    bool success = compile(
+    auto module = compile(
         opts.files, file_data,
         opts.warns_as_errors,
         opts.enable_all_warns,
-        program, world, log);
+        program, log);
 
     log.print_summary();
 
@@ -294,49 +243,8 @@ int main(int argc, char** argv) {
         log::out << "\n";
     }
 
-    if (!success)
+    if (!module)
         return EXIT_FAILURE;
 
-    if (opts.opt_level == 1)
-        world.cleanup();
-    if (opts.emit_c_int) {
-        auto name = opts.module_name + ".h";
-        std::ofstream file(name);
-        if (!file)
-            log::error("cannot open '{}' for writing", name);
-        else {
-            thorin::Stream stream(file);
-            thorin::c::emit_c_int(world, stream);
-        }
-    }
-    if (opts.opt_level > 1 || opts.emit_c || opts.emit_llvm)
-        world.opt();
-    if (opts.emit_thorin)
-        world.dump();
-    if (opts.emit_c || opts.emit_llvm) {
-        thorin::DeviceBackends backends(world, opts.opt_level, opts.debug);
-        auto emit_to_file = [&] (thorin::CodeGen& cg) {
-            auto name = opts.module_name + cg.file_ext();
-            std::ofstream file(name);
-            if (!file)
-                log::error("cannot open '{}' for writing", name);
-            else
-                cg.emit_stream(file);
-        };
-        if (opts.emit_c) {
-            thorin::Cont2Config kernel_configs;
-            thorin::c::CodeGen cg(world, kernel_configs, thorin::c::Lang::C99, opts.debug);
-            emit_to_file(cg);
-        }
-#ifdef ENABLE_LLVM
-        if (opts.emit_llvm) {
-            thorin::llvm::CPUCodeGen cg(world, opts.opt_level, opts.debug);
-            emit_to_file(cg);
-        }
-#endif
-        for (auto& cg : backends.cgs) {
-            if (cg) emit_to_file(*cg);
-        }
-    }
     return EXIT_SUCCESS;
 }

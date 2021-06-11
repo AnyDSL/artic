@@ -1,5 +1,19 @@
+#include <iostream>
+
 #include "artic/locator.h"
 #include "artic/log.h"
+
+namespace artic::log {
+
+#ifdef COLORIZE
+Output err(std::cerr, isatty(fileno(stderr)));
+Output out(std::cout, isatty(fileno(stdout)));
+#else
+Output err(std::cerr, false);
+Output out(std::cout, false);
+#endif
+
+} // namespace artic::log
 
 namespace artic {
 

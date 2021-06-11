@@ -8,8 +8,16 @@
 namespace artic::ir {
 
 const Node* Node::rebuild(const Type* type, const ArrayRef<const Node*>& operands, Loc&& loc) const {
-    return rebuild(module, type, operands, std::forward<Loc>(loc));
+    return rebuild(module(), type, operands, std::forward<Loc>(loc));
 }
+
+void Node::dump() const {
+    Printer printer(log::out);
+    print(printer);
+    log::out << '\n';
+}
+
+// Equals --------------------------------------------------------------------------
 
 bool Node::equals(const Node* other) const {
     return
@@ -18,6 +26,16 @@ bool Node::equals(const Node* other) const {
         other->operands == operands;
 }
 
+bool Lit::equals(const Node* other) const {
+    return Node::equals(other) && other->as<Lit>()->value == value;
+}
+
+bool Var::equals(const Node* other) const {
+    return Node::equals(other) && other->as<Var>()->id == id;
+}
+
+// Hash ----------------------------------------------------------------------------
+
 size_t Node::hash() const {
     return fnv::Hash()
         .combine(type)
@@ -25,9 +43,12 @@ size_t Node::hash() const {
         .combine(operands.ref());
 }
 
-void Node::dump() {
-    Printer printer(log::out);
-    print(printer);
+size_t Lit::hash() const {
+    return fnv::Hash().combine(type).combine(value.hash());
+}
+
+size_t Var::hash() const {
+    return fnv::Hash().combine(type).combine(id);
 }
 
 // Constructors --------------------------------------------------------------------
@@ -36,8 +57,8 @@ Lit::Lit(Module& module, const Type* type, const Literal& lit)
     : Node(module, type, {}, {}), value(lit)
 {}
 
-Var::Var(Module& module, const Type* type, const std::string_view& name, Loc&& loc)
-    : Node(module, type, {}, std::forward<Loc>(loc)), name(name)
+Var::Var(Module& module, const Type* type, const std::string_view& name, size_t id, Loc&& loc)
+    : Node(module, type, {}, std::forward<Loc>(loc)), name(name), id(id)
 {}
 
 Fn::Fn(Module& module, const Var* var, const Node* body, Loc&& loc)
@@ -64,7 +85,7 @@ const Node* Lit::rebuild(Module& module, const Type* type, const ArrayRef<const 
 }
 
 const Node* Var::rebuild(Module& module, const Type* type, const ArrayRef<const Node*>&, Loc&& loc) const {
-    return module.var(type, name, std::forward<Loc>(loc));
+    return module.var(type, name, id, std::forward<Loc>(loc));
 }
 
 const Node* Fn::rebuild(Module& module, const Type*, const ArrayRef<const Node*>&, Loc&& loc) const {
@@ -75,11 +96,17 @@ const Node* App::rebuild(Module& module, const Type*, const ArrayRef<const Node*
     return module.app(callee(), arg(), std::forward<Loc>(loc));
 }
 
-const Node* Let::rebuild(Module&, const Type*, const ArrayRef<const Node*>&, Loc&& loc) const {
+const Node* Let::rebuild(Module& module, const Type*, const ArrayRef<const Node*>&, Loc&& loc) const {
     return module.let(vars(), vals(), body(), std::forward<Loc>(loc));
 }
 
 // Print ---------------------------------------------------------------------------
+
+static inline void print_var(Printer& p, const Var* var) {
+    var->print(p);
+    p << ": ";
+    var->type->print(p);
+}
 
 void Node::print(Printer& p) const {
     // Default impl.
@@ -97,12 +124,12 @@ void Lit::print(Printer& p) const {
 }
 
 void Var::print(Printer& p) const {
-    p << name;
+    p << name << "_" << id;
 }
 
 void Fn::print(Printer& p) const {
     p << log::keyword_style("fn") << ' ';
-    var()->print(p);
+    print_var(p, var());
     p << " => ";
     body()->print(p);
 }
@@ -118,9 +145,7 @@ void Let::print(Printer& p) const {
     p << log::keyword_style("let") << p.indent();
     for (size_t i = 0, n = var_count(); i < n; ++i) {
         p << p.endl();
-        var(i)->print(p);
-        p << ": ";
-        var(i)->type->print(p);
+        print_var(p, var(i));
         p << " = ";
         val(i)->print(p);
     }

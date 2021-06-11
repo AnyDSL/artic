@@ -26,10 +26,10 @@ struct Node : public Cast<Node> {
         const Type* type,
         ArrayRef<const Node*>&& operands,
         Loc&& loc)
-        : module(module)
-        , type(type)
+        : type(type)
         , operands(std::move(operands))
         , loc(std::move(loc))
+        , module_(&module)
     {}
 
     Node(Node&&) = default;
@@ -39,17 +39,22 @@ struct Node : public Cast<Node> {
     virtual const Node* rebuild(Module&, const Type*, const ArrayRef<const Node*>&, Loc&& = {}) const = 0;
     virtual void print(Printer&) const;
 
+    virtual bool equals(const Node*) const;
+    virtual size_t hash() const;
+
     const Node* rebuild(const Type*, const ArrayRef<const Node*>&, Loc&&) const;
 
-    bool equals(const Node*) const;
-    size_t hash() const;
+    Module& module() const { return *module_; }
+    void dump() const;
 
-    void dump();
-
-    Module& module;
     const Type* type;
     Array<const Node*> operands;
     Loc loc;
+
+private:
+    friend class Module;
+
+    Module* module_;
 };
 
 struct Lit final : Node {
@@ -57,15 +62,22 @@ struct Lit final : Node {
 
     Literal value;
 
+    bool equals(const Node*) const override;
+    size_t hash() const override;
+
     std::string_view node_name() const override { return "lit"; }
     const Node* rebuild(Module&, const Type*, const ArrayRef<const Node*>&, Loc&&) const override;
     void print(Printer&) const override;
 };
 
 struct Var final : Node {
-    Var(Module&, const Type*, const std::string_view&, Loc&&);
+    Var(Module&, const Type*, const std::string_view&, size_t, Loc&&);
 
     std::string name;
+    size_t id;
+
+    bool equals(const Node*) const override;
+    size_t hash() const override;
 
     std::string_view node_name() const override { return "var"; }
     const Node* rebuild(Module&, const Type*, const ArrayRef<const Node*>&, Loc&&) const override;
@@ -98,7 +110,7 @@ struct Let final : Node {
     Let(Module&, const ArrayRef<const Node*>&, const ArrayRef<const Node*>&, const Node*, Loc&&);
 
     const Node* body() const { return operands.back(); }
-    const Node* var(size_t i) const { return vars()[i]; }
+    const Var* var(size_t i) const { return vars()[i]->as<Var>(); }
     const Node* val(size_t i) const { return vals()[i]; }
     ArrayRef<const Node*> vars() const { return ArrayRef(operands.data(), var_count()); }
     ArrayRef<const Node*> vals() const { return ArrayRef(operands.data() + var_count(), var_count()); }

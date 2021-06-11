@@ -6,6 +6,7 @@
 #include <cassert>
 
 #include "artic/loc.h"
+#include "artic/hash.h"
 
 namespace artic {
 
@@ -95,8 +96,7 @@ struct Literal {
         Double,
         Integer,
         Bool
-    };
-    Tag tag;
+    } tag;
     std::string string;
     union {
         uint8_t  char_;
@@ -124,6 +124,34 @@ struct Literal {
     Literal(bool b)        : tag(Bool),    bool_(b)   {}
     Literal(uint8_t c)     : tag(Char),    char_(c)   {}
     Literal(std::string s) : tag(String),  string(s)  {}
+
+    size_t hash() const {
+        switch (tag) {
+            case Char:    return fnv::Hash().combine(as_char());
+            case String:  return fnv::Hash().combine(as_string());
+            case Double:  return fnv::Hash().combine(as_double());
+            case Integer: return fnv::Hash().combine(as_integer());
+            case Bool:    return fnv::Hash().combine(as_bool());
+            default:
+                assert(false);
+                return 0;
+        }
+    }
+
+    bool operator == (const Literal& other) const {
+        if (tag != other.tag)
+            return false;
+        switch (tag) {
+            case Char:    return as_char()    == other.as_char();
+            case String:  return as_string()  == other.as_string();
+            case Double:  return as_double()  == other.as_double();
+            case Integer: return as_integer() == other.as_integer();
+            case Bool:    return as_bool()    == other.as_bool();
+            default:
+                assert(false);
+                return false;
+        }
+    }
 };
 
 inline std::ostream& operator << (std::ostream& os, const Literal& lit) {
