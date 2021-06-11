@@ -27,6 +27,9 @@ set_target_properties(libartic PROPERTIES PREFIX "" CXX_STANDARD 17)
 
 target_link_libraries(libartic PUBLIC ${Thorin_LIBRARIES})
 target_include_directories(libartic PUBLIC ${Thorin_INCLUDE_DIRS} ${CMAKE_CURRENT_SOURCE_DIR}/../include)
+if (${COLORIZE})
+    target_compile_definitions(libartic PUBLIC -DCOLORIZE)
+endif()
 
 add_executable(artic main.cpp ${BACKEND})
 set_target_properties(artic PROPERTIES CXX_STANDARD 17)
@@ -36,7 +39,3 @@ if (Thorin_HAS_LLVM_SUPPORT)
     target_compile_definitions(artic PUBLIC -DENABLE_LLVM)
     llvm_config(artic ${AnyDSL_LLVM_LINK_SHARED} core support)
 endif ()
-
-if (${COLORIZE})
-    target_compile_definitions(artic PUBLIC -DCOLORIZE)
-endif()

@@ -32,13 +32,8 @@ struct Output {
     {}
 };
 
-#ifdef COLORIZE
-static Output err(std::cerr, isatty(fileno(stderr)));
-static Output out(std::cout, isatty(fileno(stdout)));
-#else
-static Output err(std::cerr, false);
-static Output out(std::cout, false);
-#endif
+extern Output err;
+extern Output out;
 
 template <typename T>
 struct Fill {
