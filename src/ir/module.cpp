@@ -48,6 +48,15 @@ const Node* Module::let(
     return insert<Let>(vars, vals, body, std::forward<Loc>(loc));
 }
 
+const Node* Module::letrec(
+    const ArrayRef<const Node*>& vars,
+    const ArrayRef<const Node*>& vals,
+    const Node* body,
+    Loc&& loc)
+{
+    return insert<LetRec>(vars, vals, body, std::forward<Loc>(loc));
+}
+
 // Simplify ------------------------------------------------------------------------
 
 static const Node* simplify(const Node* node) {

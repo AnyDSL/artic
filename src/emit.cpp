@@ -14,6 +14,7 @@ namespace artic {
 
 bool Emitter::run(const ast::ModDecl& mod) {
     emit(mod);
+    mod.node->dump();
     return errors == 0;
 }
 
@@ -172,7 +173,8 @@ const ir::Node* StaticDecl::emit(Emitter& emitter) const {
 }
 
 const ir::Node* FnDecl::emit(Emitter& emitter) const {
-    return emitter.emit(*fn);
+    emitter.emit(*fn);
+    return node;
 }
 
 const ir::Node* StructDecl::emit(Emitter&) const {
@@ -188,8 +190,19 @@ const ir::Node* TypeDecl::emit(Emitter&) const {
 }
 
 const ir::Node* ModDecl::emit(Emitter& emitter) const {
-    for (auto& decl : decls)
-        emitter.emit(*decl)->dump();
+    std::vector<const ir::Node*> vars;
+    std::vector<const ir::Node*> vals;
+    for (auto& decl : decls) {
+        if (auto value_decl = decl->isa<ValueDecl>()) {
+            auto var = emitter.module.new_var(decl->type, value_decl->id.name, Loc(decl->loc));
+            decl->node = var;
+            vars.push_back(var);
+            vals.push_back(emitter.emit(*decl));
+        }
+    }
+    // TODO: Make tuple out of everything
+    auto body = vars[0];
+    return emitter.module.letrec(vars, vals, body, Loc(loc));
 }
 
 const ir::Node* UseDecl::emit(Emitter&) const {

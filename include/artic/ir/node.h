@@ -106,9 +106,7 @@ struct App final : Node {
     void print(Printer&) const override;
 };
 
-struct Let final : Node {
-    Let(Module&, const ArrayRef<const Node*>&, const ArrayRef<const Node*>&, const Node*, Loc&&);
-
+struct LetBase : Node {
     const Node* body() const { return operands.back(); }
     const Var* var(size_t i) const { return vars()[i]->as<Var>(); }
     const Node* val(size_t i) const { return vals()[i]; }
@@ -116,9 +114,24 @@ struct Let final : Node {
     ArrayRef<const Node*> vals() const { return ArrayRef(operands.data() + var_count(), var_count()); }
     size_t var_count() const { return (operands.size() - 1) / 2; }
 
+    void print(Printer&) const override;
+
+protected:
+    LetBase(Module&, const ArrayRef<const Node*>&, const ArrayRef<const Node*>&, const Node*, Loc&&);
+};
+
+struct Let final : LetBase {
+    Let(Module&, const ArrayRef<const Node*>&, const ArrayRef<const Node*>&, const Node*, Loc&&);
+
     std::string_view node_name() const override { return "let"; }
     const Node* rebuild(Module&, const Type*, const ArrayRef<const Node*>&, Loc&&) const override;
-    void print(Printer&) const override;
+};
+
+struct LetRec final : LetBase {
+    LetRec(Module&, const ArrayRef<const Node*>&, const ArrayRef<const Node*>&, const Node*, Loc&&);
+
+    std::string_view node_name() const override { return "letrec"; }
+    const Node* rebuild(Module&, const Type*, const ArrayRef<const Node*>&, Loc&&) const override;
 };
 
 } // namespace artic::ir
