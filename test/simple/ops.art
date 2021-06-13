@@ -5,6 +5,10 @@ fn test() -> bool {
     let d = !(c == 3) || (b >= 5 && a <= 5) || (c + 2 >= 6 && a < 9) || a != 3;
     let e = true == false || true != false || (1.0 % 2.0) == 1.0 || (true ^ false | true & false);
     let mut x = 2;
+    let _ = (2 * 4) * (a as i64);
+    let _ = 2 * (a as i64);
+    let _ = {2} * (a as i64);
+    let _ = (-2) * (a as i64);
     x += 3;
     x -= 6;
     x *= 4;

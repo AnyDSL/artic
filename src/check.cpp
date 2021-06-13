@@ -1055,9 +1055,9 @@ const artic::Type* ProjExpr::infer(TypeChecker& checker) {
         : result_type;
 }
 
-inline const LiteralExpr* is_int_or_float_literal(const Expr* expr) {
-    // Detect integer or floating point literals. This code
-    // also accepts block expressions containing a literal and
+inline const LiteralExpr* is_untyped_int_or_float_literal(const Expr* expr) {
+    // Detect integer or floating point literals whose type is not annotated.
+    // This code also accepts block expressions containing a literal and
     // unary +/- operators.
     while (true) {
         if (auto unary_expr = expr->isa<UnaryExpr>()) {
@@ -1099,8 +1099,8 @@ const artic::Type* IfExpr::infer(TypeChecker& checker) {
         // if x { 1 } else { 1.0 }
         //
         // where u has a known (integer or floating-point) type.
-        auto lit_true = is_int_or_float_literal(if_true.get());
-        auto lit_false = is_int_or_float_literal(if_false.get());
+        auto lit_true = is_untyped_int_or_float_literal(if_true.get());
+        auto lit_false = is_untyped_int_or_float_literal(if_false.get());
         if (lit_true && lit_false) {
             if (lit_true->lit.is_double())
                 checker.coerce(if_false, checker.deref(if_true));
@@ -1298,6 +1298,15 @@ const artic::Type* UnaryExpr::check(TypeChecker& checker, const artic::Type* exp
     return checker.expect(loc, infer(checker), expected);
 }
 
+inline bool is_untyped(const Expr& expr) {
+    // Returns true if the given expression is untyped.
+    // This allows detection of inference of expressions such as `(2 * 4) + x`, where
+    // the type of the left hand side cannot be inferred on its own without knowing the type of `x`.
+    if (auto binary_expr = expr.isa<BinaryExpr>(); binary_expr && !binary_expr->has_eq())
+        return is_untyped(*binary_expr->left) && is_untyped(*binary_expr->right);
+    return is_untyped_int_or_float_literal(&expr);
+}
+
 const artic::Type* BinaryExpr::infer(TypeChecker& checker) {
     const artic::RefType* left_ref = nullptr;
     const artic::Type* left_type   = nullptr;
@@ -1305,7 +1314,7 @@ const artic::Type* BinaryExpr::infer(TypeChecker& checker) {
     if (is_logic()) {
         left_type  = checker.coerce(left, checker.type_table.bool_type());
         right_type = checker.coerce(right, checker.type_table.bool_type());
-    } else if (!has_eq() && is_int_or_float_literal(left.get())) {
+    } else if (!has_eq() && is_untyped(*left)) {
         // Expressions like `1 + x` should be handled by inferring the right-hand side first
         right_type = checker.deref(right);
         left_type  = checker.coerce(left, right_type);
