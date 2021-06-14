@@ -4,16 +4,20 @@
 #include <cstddef>
 #include <unordered_set>
 #include <optional>
+#include <string_view>
 #include <ostream>
 
 #include "artic/cast.h"
 #include "artic/ast.h"
 #include "artic/array.h"
+#include "artic/hash.h"
 
 namespace thorin {
-    class TypeTable;
-    class Type;
-}
+
+class TypeTable;
+class Type;
+
+} // namespace thorin
 
 namespace artic {
 
@@ -21,6 +25,10 @@ struct Printer;
 class TypeTable;
 class Emitter;
 struct TypeVar;
+
+template <typename T> using TypeMap = std::unordered_map<const Type*, T>;
+template <typename T> using TypeVarMap = std::unordered_map<const TypeVar*, T>;
+using ReplaceMap = TypeVarMap<const Type*>;
 
 /// Variance for a type variable appearing in a type. It represents the
 /// way the type changes when the type variable changes, with respect
@@ -57,9 +65,7 @@ struct Type : public Cast<Type> {
     virtual bool equals(const Type*) const = 0;
     virtual size_t hash() const = 0;
     virtual bool contains(const Type* type) const { return this == type; }
-    virtual const Type* replace(const std::unordered_map<const TypeVar*, const Type*>&) const {
-        return this;
-    }
+    virtual const Type* replace(const ReplaceMap&) const { return this; }
 
     /// Converts this type to a Thorin type
     virtual const thorin::Type* convert(Emitter&) const;
@@ -68,8 +74,8 @@ struct Type : public Cast<Type> {
     virtual std::string stringify(Emitter&) const;
 
     virtual size_t order(std::unordered_set<const Type*>&) const;
-    virtual void variance(std::unordered_map<const TypeVar*, TypeVariance>&, bool) const;
-    virtual void bounds(std::unordered_map<const TypeVar*, TypeBounds>&, const Type*, bool) const;
+    virtual void variance(TypeVarMap<TypeVariance>&, bool) const;
+    virtual void bounds(TypeVarMap<TypeBounds>&, const Type*, bool) const;
     virtual bool is_sized(std::unordered_set<const Type*>&) const;
 
     /// Returns the number of times a function type constructor is present in the type.
@@ -79,15 +85,15 @@ struct Type : public Cast<Type> {
     }
 
     /// Computes the variance of the set of type variables that appear in this type.
-    std::unordered_map<const TypeVar*, TypeVariance> variance(bool dir = true) const {
-        std::unordered_map<const TypeVar*, TypeVariance> vars;
+    TypeVarMap<TypeVariance> variance(bool dir = true) const {
+        TypeVarMap<TypeVariance> vars;
         variance(vars, dir);
         return vars;
     }
 
     /// Computes the bounds of the type variables that appear in this type.
-    std::unordered_map<const TypeVar*, TypeBounds> bounds(const Type* arg, bool dir = true) const {
-        std::unordered_map<const TypeVar*, TypeBounds> vars;
+    TypeVarMap<TypeBounds> bounds(const Type* arg, bool dir = true) const {
+        TypeVarMap<TypeBounds> vars;
         bounds(vars, arg, dir);
         return vars;
     }
@@ -142,14 +148,14 @@ struct TupleType : public Type {
     bool equals(const Type*) const override;
     size_t hash() const override;
     bool contains(const Type*) const override;
-    const Type* replace(const std::unordered_map<const TypeVar*, const Type*>&) const override;
+    const Type* replace(const ReplaceMap&) const override;
 
     const thorin::Type* convert(Emitter&) const override;
     std::string stringify(Emitter&) const override;
 
     size_t order(std::unordered_set<const Type*>&) const override;
-    void variance(std::unordered_map<const TypeVar*, TypeVariance>&, bool) const override;
-    void bounds(std::unordered_map<const TypeVar*, TypeBounds>&, const Type*, bool) const override;
+    void variance(TypeVarMap<TypeVariance>&, bool) const override;
+    void bounds(TypeVarMap<TypeBounds>&, const Type*, bool) const override;
     bool is_sized(std::unordered_set<const Type*>&) const override;
 
 private:
@@ -171,8 +177,8 @@ struct ArrayType : public Type {
     bool contains(const Type*) const override;
 
     size_t order(std::unordered_set<const Type*>&) const override;
-    void variance(std::unordered_map<const TypeVar*, TypeVariance>&, bool) const override;
-    void bounds(std::unordered_map<const TypeVar*, TypeBounds>&, const Type*, bool) const override;
+    void variance(TypeVarMap<TypeVariance>&, bool) const override;
+    void bounds(TypeVarMap<TypeBounds>&, const Type*, bool) const override;
     bool is_sized(std::unordered_set<const Type*>&) const override;
 };
 
@@ -185,7 +191,7 @@ struct SizedArrayType : public ArrayType {
     bool equals(const Type*) const override;
     size_t hash() const override;
 
-    const Type* replace(const std::unordered_map<const TypeVar*, const Type*>&) const override;
+    const Type* replace(const ReplaceMap&) const override;
 
     const thorin::Type* convert(Emitter&) const override;
     std::string stringify(Emitter&) const override;
@@ -204,7 +210,7 @@ struct UnsizedArrayType : public ArrayType {
     bool equals(const Type*) const override;
     size_t hash() const override;
 
-    const Type* replace(const std::unordered_map<const TypeVar*, const Type*>&) const override;
+    const Type* replace(const ReplaceMap&) const override;
 
     const thorin::Type* convert(Emitter&) const override;
     std::string stringify(Emitter&) const override;
@@ -234,8 +240,8 @@ struct AddrType : public Type {
     bool is_compatible_with(const AddrType* other) const;
 
     size_t order(std::unordered_set<const Type*>&) const override;
-    void variance(std::unordered_map<const TypeVar*, TypeVariance>&, bool) const override;
-    void bounds(std::unordered_map<const TypeVar*, TypeBounds>&, const Type*, bool) const override;
+    void variance(TypeVarMap<TypeVariance>&, bool) const override;
+    void bounds(TypeVarMap<TypeBounds>&, const Type*, bool) const override;
     bool is_sized(std::unordered_set<const Type*>&) const override;
 };
 
@@ -243,7 +249,7 @@ struct AddrType : public Type {
 struct PtrType : public AddrType {
     void print(Printer&) const override;
 
-    const Type* replace(const std::unordered_map<const TypeVar*, const Type*>&) const override;
+    const Type* replace(const ReplaceMap&) const override;
 
     const thorin::Type* convert(Emitter&) const override;
     std::string stringify(Emitter&) const override;
@@ -259,7 +265,7 @@ private:
 /// The type of mutable identifiers or expressions.
 struct RefType : public AddrType {
     void print(Printer&) const override;
-    const Type* replace(const std::unordered_map<const TypeVar*, const Type*>&) const override;
+    const Type* replace(const ReplaceMap&) const override;
 
 private:
     RefType(TypeTable& type_table, const Type* pointee, bool is_mut, size_t addr_space)
@@ -279,14 +285,14 @@ struct FnType : public Type {
     size_t hash() const override;
     bool contains(const Type*) const override;
 
-    const Type* replace(const std::unordered_map<const TypeVar*, const Type*>&) const override;
+    const Type* replace(const ReplaceMap&) const override;
 
     const thorin::Type* convert(Emitter&) const override;
     std::string stringify(Emitter&) const override;
 
     size_t order(std::unordered_set<const Type*>&) const override;
-    void variance(std::unordered_map<const TypeVar*, TypeVariance>&, bool) const override;
-    void bounds(std::unordered_map<const TypeVar*, TypeBounds>&, const Type*, bool) const override;
+    void variance(TypeVarMap<TypeVariance>&, bool) const override;
+    void bounds(TypeVarMap<TypeBounds>&, const Type*, bool) const override;
     bool is_sized(std::unordered_set<const Type*>&) const override;
 
 private:
@@ -352,33 +358,70 @@ private:
     friend class TypeTable;
 };
 
+/// Helper mixin to build hash and equality functions for a type that has a `Decl`.
+template <typename Super, typename Decl>
+struct TypeFromDecl : public Super {
+    const Decl& decl;
+
+    size_t hash() const override {
+        return fnv::Hash().combine(&decl);
+    }
+
+    bool equals(const Type* other) const override {
+        return other->isa<TypeFromDecl>() && &other->as<TypeFromDecl>()->decl == &decl;
+    }
+
+protected:
+    TypeFromDecl(TypeTable& type_table, const Decl& decl)
+        : Super(type_table), decl(decl)
+    {}
+};
+
 /// Type variable, introduced by a polymorphic structure/enum/function declaration.
-struct TypeVar : public Type {
-    const ast::TypeParam& param;
-
+struct TypeVar : public TypeFromDecl<Type, ast::TypeParam> {
     void print(Printer&) const override;
-    bool equals(const Type*) const override;
-    size_t hash() const override;
 
-    const Type* replace(const std::unordered_map<const TypeVar*, const Type*>&) const override;
+    const Type* replace(const ReplaceMap&) const override;
 
     const thorin::Type* convert(Emitter&) const override;
     std::string stringify(Emitter&) const override;
 
-    void variance(std::unordered_map<const TypeVar*, TypeVariance>&, bool) const override;
-    void bounds(std::unordered_map<const TypeVar*, TypeBounds>&, const Type*, bool) const override;
+    void variance(TypeVarMap<TypeVariance>&, bool) const override;
+    void bounds(TypeVarMap<TypeBounds>&, const Type*, bool) const override;
 
 private:
     TypeVar(TypeTable& type_table, const ast::TypeParam& param)
-        : Type(type_table), param(param)
+        : TypeFromDecl(type_table, param)
     {}
 
     friend class TypeTable;
 };
 
+/// Base class for types that _may_ be polymorphic.
+struct PolyType : public Type {
+    PolyType(TypeTable& type_table)
+        : Type(type_table)
+    {}
+
+    virtual const ast::TypeParamList* type_params() const = 0;
+
+    /// Returns a map from the type parameters of this polymorphic type to the provided arguments.
+    ReplaceMap replace_map(const ArrayRef<const Type*>&) const;
+};
+
+/// Helper mixin to extract the type parameter list from a particular `Decl`.
+template <typename Super, typename Decl>
+struct PolyTypeFromDecl : public TypeFromDecl<Super, Decl> {
+    const ast::TypeParamList* type_params() const override { return this->decl.type_params.get(); }
+
+protected:
+    PolyTypeFromDecl(TypeTable& type_table, const Decl& decl)
+        : TypeFromDecl<Super, Decl>(type_table, decl)
+    {}
+};
+
 /// Type of a polymorphic function.
-struct ForallType : public Type {
-    const ast::FnDecl& decl;
+struct ForallType : public PolyTypeFromDecl<PolyType, ast::FnDecl> {
     mutable const Type* body = nullptr;
 
     /// Returns the type of the body with type variables
@@ -386,24 +429,21 @@ struct ForallType : public Type {
     const Type* instantiate(const ArrayRef<const Type*>&) const;
 
     void print(Printer&) const override;
-    bool equals(const Type*) const override;
-    size_t hash() const override;
 
 private:
     ForallType(TypeTable& type_table, const ast::FnDecl& decl)
-        : Type(type_table), decl(decl)
+        : PolyTypeFromDecl(type_table, decl)
     {}
 
     friend class TypeTable;
 };
 
 /// Base class for user-declared types.
-struct UserType : public Type {
+struct UserType : public PolyType {
     UserType(TypeTable& type_table)
-        : Type(type_table)
+        : PolyType(type_table)
     {}
 
-    virtual const ast::TypeParamList* type_params() const = 0;
     virtual const thorin::Type* convert(Emitter&, const Type*) const;
 
     const thorin::Type* convert(Emitter& emitter) const override {
@@ -417,7 +457,9 @@ struct ComplexType : public UserType {
         : UserType(type_table)
     {}
 
-    virtual std::optional<size_t> find_member(const std::string_view&) const = 0;
+    std::optional<size_t> find_member(const std::string_view&) const;
+
+    virtual std::string_view member_name(size_t) const = 0;
     virtual const Type* member_type(size_t) const = 0;
     virtual size_t member_count() const = 0;
 
@@ -426,19 +468,16 @@ struct ComplexType : public UserType {
     bool is_sized(std::unordered_set<const Type*>&) const override;
 };
 
-struct StructType : public ComplexType {
-    const ast::RecordDecl& decl;
+struct StructType : public TypeFromDecl<ComplexType, ast::RecordDecl> {
+    const ast::TypeParamList* type_params() const override;
 
     void print(Printer&) const override;
-    bool equals(const Type*) const override;
-    size_t hash() const override;
 
     using UserType::convert;
     const thorin::Type* convert(Emitter&, const Type*) const override;
     std::string stringify(Emitter&) const override;
 
-    const ast::TypeParamList* type_params() const override;
-    std::optional<size_t> find_member(const std::string_view&) const override;
+    std::string_view member_name(size_t) const override;
     const Type* member_type(size_t) const override;
     size_t member_count() const override;
 
@@ -446,18 +485,14 @@ struct StructType : public ComplexType {
 
 private:
     StructType(TypeTable& type_table, const ast::RecordDecl& decl)
-        : ComplexType(type_table), decl(decl)
+        : TypeFromDecl(type_table, decl)
     {}
 
     friend class TypeTable;
 };
 
-struct EnumType : public ComplexType {
-    const ast::EnumDecl& decl;
-
+struct EnumType : public PolyTypeFromDecl<ComplexType, ast::EnumDecl> {
     void print(Printer&) const override;
-    bool equals(const Type*) const override;
-    size_t hash() const override;
 
     using UserType::convert;
     const thorin::Type* convert(Emitter&, const Type*) const override;
@@ -467,7 +502,7 @@ struct EnumType : public ComplexType {
         return decl.type_params.get();
     }
 
-    std::optional<size_t> find_member(const std::string_view&) const override;
+    std::string_view member_name(size_t) const override;
     const Type* member_type(size_t) const override;
     size_t member_count() const override;
 
@@ -477,22 +512,18 @@ struct EnumType : public ComplexType {
 
 private:
     EnumType(TypeTable& type_table, const ast::EnumDecl& decl)
-        : ComplexType(type_table), decl(decl)
+        : PolyTypeFromDecl(type_table, decl)
     {}
 
     friend class TypeTable;
 };
 
-struct ModType : public ComplexType {
-    const ast::ModDecl& decl;
-
-    void print(Printer&) const override;
-    bool equals(const Type*) const override;
-    size_t hash() const override;
-
+struct ModType : public TypeFromDecl<ComplexType, ast::ModDecl> {
     const ast::TypeParamList* type_params() const override { return nullptr; }
 
-    std::optional<size_t> find_member(const std::string_view&) const override;
+    void print(Printer&) const override;
+
+    std::string_view member_name(size_t) const override;
     const Type* member_type(size_t) const override;
     size_t member_count() const override;
 
@@ -511,7 +542,7 @@ private:
     mutable std::unique_ptr<Members> members_;
 
     ModType(TypeTable& type_table, const ast::ModDecl& decl)
-        : ComplexType(type_table), decl(decl)
+        : TypeFromDecl(type_table, decl)
     {}
 
     const Members& members() const;
@@ -519,12 +550,9 @@ private:
     friend class TypeTable;
 };
 
-struct TypeAlias : public UserType {
-    const ast::TypeDecl& decl;
-
+/// A type alias, introduced by the keyword `type`.
+struct TypeAlias : public PolyTypeFromDecl<UserType, ast::TypeDecl> {
     void print(Printer&) const override;
-    bool equals(const Type*) const override;
-    size_t hash() const override;
 
     const ast::TypeParamList* type_params() const override {
         return decl.type_params.get();
@@ -532,7 +560,7 @@ struct TypeAlias : public UserType {
 
 private:
     TypeAlias(TypeTable& type_table, const ast::TypeDecl& decl)
-        : UserType(type_table), decl(decl)
+        : PolyTypeFromDecl(type_table, decl)
     {}
 
     friend class TypeTable;
@@ -544,7 +572,7 @@ struct TypeApp : public Type {
     Array<const Type*> type_args;
 
     /// Gets the replacement map required to expand this type application.
-    std::unordered_map<const TypeVar*, const Type*> replace_map() const {
+    ReplaceMap replace_map() const {
         assert(applied->type_params());
         return replace_map(*applied->type_params(), type_args);
     }
@@ -559,17 +587,17 @@ struct TypeApp : public Type {
     size_t hash() const override;
     bool contains(const Type*) const override;
 
-    const Type* replace(const std::unordered_map<const TypeVar*, const Type*>&) const override;
+    const Type* replace(const ReplaceMap&) const override;
 
     const thorin::Type* convert(Emitter&) const override;
     std::string stringify(Emitter&) const override;
 
     size_t order(std::unordered_set<const Type*>&) const override;
-    void variance(std::unordered_map<const TypeVar*, TypeVariance>&, bool) const override;
-    void bounds(std::unordered_map<const TypeVar*, TypeBounds>&, const Type*, bool) const override;
+    void variance(TypeVarMap<TypeVariance>&, bool) const override;
+    void bounds(TypeVarMap<TypeBounds>&, const Type*, bool) const override;
     bool is_sized(std::unordered_set<const Type*>&) const override;
 
-    static std::unordered_map<const TypeVar*, const Type*> replace_map(
+    static ReplaceMap replace_map(
         const ast::TypeParamList& type_params,
         const ArrayRef<const Type*>& type_args);
 
