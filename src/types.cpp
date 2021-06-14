@@ -2,7 +2,6 @@
 #include <algorithm>
 
 #include "artic/types.h"
-#include "artic/hash.h"
 
 namespace artic {
 
@@ -68,30 +67,6 @@ bool TopType::equals(const Type* other) const {
     return typeid(*other) == typeid(*this);
 }
 
-bool TypeVar::equals(const Type* other) const {
-    return other == this;
-}
-
-bool ForallType::equals(const Type* other) const {
-    return other == this;
-}
-
-bool StructType::equals(const Type* other) const {
-    return other == this;
-}
-
-bool EnumType::equals(const Type* other) const {
-    return other == this;
-}
-
-bool ModType::equals(const Type* other) const {
-    return other == this;
-}
-
-bool TypeAlias::equals(const Type* other) const {
-    return other == this;
-}
-
 bool TypeApp::equals(const Type* other) const {
     return
         other->isa<TypeApp>() &&
@@ -146,30 +121,6 @@ size_t BottomType::hash() const {
 
 size_t TopType::hash() const {
     return fnv::Hash().combine(typeid(*this).hash_code());
-}
-
-size_t TypeVar::hash() const {
-    return fnv::Hash().combine(&param);
-}
-
-size_t ForallType::hash() const {
-    return fnv::Hash().combine(&decl);
-}
-
-size_t StructType::hash() const {
-    return fnv::Hash().combine(&decl);
-}
-
-size_t EnumType::hash() const {
-    return fnv::Hash().combine(&decl);
-}
-
-size_t ModType::hash() const {
-    return fnv::Hash().combine(&decl);
-}
-
-size_t TypeAlias::hash() const {
-    return fnv::Hash().combine(&decl);
 }
 
 size_t TypeApp::hash() const {
@@ -424,22 +375,22 @@ bool TypeApp::is_sized(std::unordered_set<const Type*>& seen) const {
 
 // Complex Types -------------------------------------------------------------------
 
+std::optional<size_t> ComplexType::find_member(const std::string_view& name) const {
+    for (size_t i = 0, n = member_count(); i < n; ++i) {
+        if (member_name(i) == name)
+            return std::make_optional(i);
+    }
+    return std::nullopt;
+}
+
 const ast::TypeParamList* StructType::type_params() const {
     return decl.isa<ast::StructDecl>()
         ? decl.as<ast::StructDecl>()->type_params.get()
         : decl.as<ast::OptionDecl>()->parent->type_params.get();
 }
 
-std::optional<size_t> StructType::find_member(const std::string_view& name) const {
-    auto it = std::find_if(
-        decl.fields.begin(),
-        decl.fields.end(),
-        [&name] (auto& f) {
-            return f->id.name == name;
-        });
-    return it != decl.fields.end()
-        ? std::make_optional(it - decl.fields.begin())
-        : std::nullopt;
+std::string_view StructType::member_name(size_t i) const {
+    return decl.fields[i]->id.name;
 }
 
 const Type* StructType::member_type(size_t i) const {
@@ -450,16 +401,8 @@ size_t StructType::member_count() const {
     return decl.fields.size();
 }
 
-std::optional<size_t> EnumType::find_member(const std::string_view& name) const {
-    auto it = std::find_if(
-        decl.options.begin(),
-        decl.options.end(),
-        [&name] (auto& o) {
-            return o->id.name == name;
-        });
-    return it != decl.options.end()
-        ? std::make_optional(it - decl.options.begin())
-        : std::nullopt;
+std::string_view EnumType::member_name(size_t i) const {
+    return decl.options[i]->id.name;
 }
 
 const Type* EnumType::member_type(size_t i) const {
@@ -470,14 +413,8 @@ size_t EnumType::member_count() const {
     return decl.options.size();
 }
 
-std::optional<size_t> ModType::find_member(const std::string_view& name) const {
-    auto it = std::find_if(
-        members().begin(),
-        members().end(),
-        [&name] (auto& member) { return member.name == name; });
-    return it != members().end()
-        ? std::make_optional(it - members().begin())
-        : std::nullopt;
+std::string_view ModType::member_name(size_t i) const {
+    return members()[i].name;
 }
 
 const Type* ModType::member_type(size_t i) const {
@@ -740,7 +677,7 @@ const TypeAlias* TypeTable::type_alias(const ast::TypeDecl& decl) {
     return insert<TypeAlias>(decl);
 }
 
-const Type* TypeTable::type_app(const UserType* applied, const ArrayRef<const Type*>& type_args) {
+const Type* TypeTable::type_app(const ComplexType* applied, const ArrayRef<const Type*>& type_args) {
     if (auto type_alias = applied->isa<TypeAlias>()) {
         assert(type_alias->type_params() && type_alias->decl.aliased_type->type);
         auto map = TypeApp::replace_map(*type_alias->type_params(), type_args);

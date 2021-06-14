@@ -35,7 +35,7 @@ public:
     const Type* incompatible_types(const Loc&, const Type*, const Type*);
     const Type* incompatible_type(const Loc&, const std::string_view&, const Type*);
     const Type* type_expected(const Loc&, const Type*, const std::string_view&);
-    const Type* unknown_member(const Loc&, const UserType*, const std::string_view&);
+    const Type* unknown_member(const Loc&, const ComplexType*, const std::string_view&);
     const Type* cannot_infer(const Loc&, const std::string_view&);
     const Type* unreachable_code(const Loc&, const Loc&, const Loc&);
     const Type* mutable_expected(const Loc&);

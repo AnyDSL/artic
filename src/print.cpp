@@ -745,7 +745,7 @@ void TypeError::print(Printer& p) const {
 }
 
 void TypeVar::print(Printer& p) const {
-    p << param.id.name;
+    p << decl.id.name;
 }
 
 void ForallType::print(Printer& p) const {

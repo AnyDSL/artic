@@ -46,7 +46,7 @@ const Type* TypeChecker::type_expected(const Loc& loc, const artic::Type* type, 
     return type_table.type_error();
 }
 
-const Type* TypeChecker::unknown_member(const Loc& loc, const UserType* user_type, const std::string_view& member) {
+const Type* TypeChecker::unknown_member(const Loc& loc, const ComplexType* user_type, const std::string_view& member) {
     if (auto mod_type = user_type->isa<ModType>(); mod_type && mod_type->decl.id.name == "")
         error(loc, "no member '{}' in top-level module", member);
     else
@@ -591,7 +591,7 @@ const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, Ptr<Ex
         auto& elem = elems[i];
 
         // Apply type arguments (if any)
-        auto user_type   = type->isa<artic::UserType>();
+        auto user_type   = type->isa<artic::ComplexType>();
         auto forall_type = type->isa<artic::ForallType>();
         if ((user_type && user_type->type_params()) || forall_type) {
             const size_t type_param_count = user_type
