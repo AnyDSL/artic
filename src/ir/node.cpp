@@ -75,7 +75,7 @@ LetBase::LetBase(
     const ArrayRef<const Node*>& vals,
     const Node* body,
     Loc&& loc)
-    : Node(module, body->type, concat(vars, vals, ArrayRef(body)), std::forward<Loc>(loc))
+    : Node(module, body->type, concat(vars, vals, ArrayRef(&body, 1)), std::forward<Loc>(loc))
 {}
 
 Let::Let(
