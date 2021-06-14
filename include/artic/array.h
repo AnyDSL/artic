@@ -74,10 +74,6 @@ public:
         : ArrayRef(std::data(c), std::size(c))
     {}
 
-    ArrayRef(const T& one)
-        : ArrayRef(&one, 1)
-    {}
-
     const T* data() const { return data_; }
     size_t size() const { return size_; }
 
