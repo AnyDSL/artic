@@ -403,7 +403,7 @@ struct PolyType : public Type {
         : Type(type_table)
     {}
 
-    virtual const ast::TypeParamList* type_params() const = 0;
+    virtual const ast::TypeParamList* type_params() const { return nullptr; }
 
     /// Returns a map from the type parameters of this polymorphic type to the provided arguments.
     ReplaceMap replace_map(const ArrayRef<const Type*>&) const;
@@ -498,10 +498,6 @@ struct EnumType : public PolyTypeFromDecl<ComplexType, ast::EnumDecl> {
     const thorin::Type* convert(Emitter&, const Type*) const override;
     std::string stringify(Emitter&) const override;
 
-    const ast::TypeParamList* type_params() const override {
-        return decl.type_params.get();
-    }
-
     std::string_view member_name(size_t) const override;
     const Type* member_type(size_t) const override;
     size_t member_count() const override;
@@ -519,8 +515,6 @@ private:
 };
 
 struct ModType : public TypeFromDecl<ComplexType, ast::ModDecl> {
-    const ast::TypeParamList* type_params() const override { return nullptr; }
-
     void print(Printer&) const override;
 
     std::string_view member_name(size_t) const override;
@@ -553,10 +547,6 @@ private:
 /// A type alias, introduced by the keyword `type`.
 struct TypeAlias : public PolyTypeFromDecl<UserType, ast::TypeDecl> {
     void print(Printer&) const override;
-
-    const ast::TypeParamList* type_params() const override {
-        return decl.type_params.get();
-    }
 
 private:
     TypeAlias(TypeTable& type_table, const ast::TypeDecl& decl)
