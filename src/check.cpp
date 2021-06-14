@@ -5,7 +5,7 @@
 namespace artic {
 
 bool TypeChecker::run(ast::ModDecl& module) {
-    module.infer(*this);
+    infer(module);
     return errors == 0;
 }
 

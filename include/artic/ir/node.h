@@ -24,10 +24,10 @@ struct Node : public Cast<Node> {
     Node(
         Module& module,
         const Type* type,
-        ArrayRef<const Node*>&& operands,
+        const ArrayRef<const Node*>& operands,
         Loc&& loc)
         : type(type)
-        , operands(std::move(operands))
+        , operands(operands)
         , loc(std::move(loc))
         , module_(&module)
     {}
@@ -106,7 +106,9 @@ struct App final : Node {
     void print(Printer&) const override;
 };
 
-struct LetBase : Node {
+struct Let final : Node {
+    Let(Module&, const ArrayRef<const Node*>&, const ArrayRef<const Node*>&, const Node*, Loc&&);
+
     const Node* body() const { return operands.back(); }
     const Var* var(size_t i) const { return vars()[i]->as<Var>(); }
     const Node* val(size_t i) const { return vals()[i]; }
@@ -114,23 +116,23 @@ struct LetBase : Node {
     ArrayRef<const Node*> vals() const { return ArrayRef(operands.data() + var_count(), var_count()); }
     size_t var_count() const { return (operands.size() - 1) / 2; }
 
-    void print(Printer&) const override;
-
-protected:
-    LetBase(Module&, const ArrayRef<const Node*>&, const ArrayRef<const Node*>&, const Node*, Loc&&);
-};
-
-struct Let final : LetBase {
-    Let(Module&, const ArrayRef<const Node*>&, const ArrayRef<const Node*>&, const Node*, Loc&&);
-
     std::string_view node_name() const override { return "let"; }
+    void print(Printer&) const override;
     const Node* rebuild(Module&, const Type*, const ArrayRef<const Node*>&, Loc&&) const override;
 };
 
-struct LetRec final : LetBase {
-    LetRec(Module&, const ArrayRef<const Node*>&, const ArrayRef<const Node*>&, const Node*, Loc&&);
+struct Mod final : Node {
+    Mod(
+        Module&,
+        const ModType* type,
+        const ArrayRef<const Node*>& members,
+        Loc&& loc);
 
-    std::string_view node_name() const override { return "letrec"; }
+    const ModType* type() const { return this->Node::type->as<ModType>(); }
+    ArrayRef<const Node*> members() const { return operands; }
+
+    std::string_view node_name() const override { return "mod"; }
+    void print(Printer&) const override;
     const Node* rebuild(Module&, const Type*, const ArrayRef<const Node*>&, Loc&&) const override;
 };
 

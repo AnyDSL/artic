@@ -92,7 +92,7 @@ const ir::Node* TupleExpr::emit(Emitter& emitter) const {
 const ir::Node* FnExpr::emit(Emitter& emitter) const {
     auto param = emitter.module.new_var(this->param->type, "param", Loc(this->param->loc));
     emitter.emit(*this->param, param);
-    auto body  = emitter.emit(*this->body);
+    auto body = emitter.emit(*this->body);
     return emitter.module.fn(param, body, Loc(loc));
 }
 
@@ -173,8 +173,7 @@ const ir::Node* StaticDecl::emit(Emitter& emitter) const {
 }
 
 const ir::Node* FnDecl::emit(Emitter& emitter) const {
-    emitter.emit(*fn);
-    return node;
+    return emitter.emit(*fn);
 }
 
 const ir::Node* StructDecl::emit(Emitter&) const {
@@ -190,19 +189,12 @@ const ir::Node* TypeDecl::emit(Emitter&) const {
 }
 
 const ir::Node* ModDecl::emit(Emitter& emitter) const {
-    std::vector<const ir::Node*> vars;
-    std::vector<const ir::Node*> vals;
+    std::vector<const ir::Node*> members;
     for (auto& decl : decls) {
-        if (auto value_decl = decl->isa<ValueDecl>()) {
-            auto var = emitter.module.new_var(decl->type, value_decl->id.name, Loc(decl->loc));
-            decl->node = var;
-            vars.push_back(var);
-            vals.push_back(emitter.emit(*decl));
-        }
+        if (auto value_decl = decl->isa<ValueDecl>())
+            members.push_back(emitter.emit(*decl));
     }
-    // TODO: Make tuple out of everything
-    auto body = vars[0];
-    return emitter.module.letrec(vars, vals, body, Loc(loc));
+    return emitter.module.mod(type->as<artic::ModType>(), members, Loc(loc));
 }
 
 const ir::Node* UseDecl::emit(Emitter&) const {

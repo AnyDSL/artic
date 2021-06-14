@@ -69,7 +69,7 @@ App::App(Module& module, const Node* callee, const Node* arg, Loc&& loc)
     : Node(module, callee->type->as<FnType>()->codom, Array { callee, arg }, std::forward<Loc>(loc))
 {}
 
-LetBase::LetBase(
+Let::Let(
     Module& module,
     const ArrayRef<const Node*>& vars,
     const ArrayRef<const Node*>& vals,
@@ -78,22 +78,12 @@ LetBase::LetBase(
     : Node(module, body->type, concat(vars, vals, ArrayRef(&body, 1)), std::forward<Loc>(loc))
 {}
 
-Let::Let(
+Mod::Mod(
     Module& module,
-    const ArrayRef<const Node*>& vars,
-    const ArrayRef<const Node*>& vals,
-    const Node* body,
+    const ModType* type,
+    const ArrayRef<const Node*>& members,
     Loc&& loc)
-    : LetBase(module, vars, vals, body, std::forward<Loc>(loc))
-{}
-
-LetRec::LetRec(
-    Module& module,
-    const ArrayRef<const Node*>& vars,
-    const ArrayRef<const Node*>& vals,
-    const Node* body,
-    Loc&& loc)
-    : LetBase(module, vars, vals, body, std::forward<Loc>(loc))
+    : Node(module, type, members, std::forward<Loc>(loc))
 {}
 
 // Rebuild -------------------------------------------------------------------------
@@ -118,8 +108,8 @@ const Node* Let::rebuild(Module& module, const Type*, const ArrayRef<const Node*
     return module.let(vars(), vals(), body(), std::forward<Loc>(loc));
 }
 
-const Node* LetRec::rebuild(Module& module, const Type*, const ArrayRef<const Node*>&, Loc&& loc) const {
-    return module.letrec(vars(), vals(), body(), std::forward<Loc>(loc));
+const Node* Mod::rebuild(Module& module, const Type* type, const ArrayRef<const Node*>& members, Loc&& loc) const {
+    return module.mod(type->as<ModType>(), members, std::forward<Loc>(loc));
 }
 
 // Print ---------------------------------------------------------------------------
@@ -163,8 +153,8 @@ void App::print(Printer& p) const {
     if (arg()->isa<App>()) p << ')';
 }
 
-void LetBase::print(Printer& p) const {
-    p << log::keyword_style(node_name()) << p.indent();
+void Let::print(Printer& p) const {
+    p << log::keyword_style("let") << p.indent();
     for (size_t i = 0, n = var_count(); i < n; ++i) {
         p << p.endl();
         print_var(p, var(i));
@@ -173,6 +163,16 @@ void LetBase::print(Printer& p) const {
     }
     p << p.unindent() << p.endl() << log::keyword_style("in") << ' ';
     body()->print(p);
+}
+
+void Mod::print(Printer& p) const {
+    p << log::keyword_style("mod") << " {" << p.indent();
+    for (size_t i = 0, n = members().size(); i < n; ++i) {
+        p << p.endl() << type()->member_name(i) << " = ";
+        operands[i]->print(p);
+        if (i != n - 1) p << ",";
+    }
+    p << p.unindent() << p.endl() << '}';
 }
 
 } // namespace artic::ir
