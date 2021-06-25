@@ -17,6 +17,16 @@
     #endif
 #endif
 
+#ifdef _MSC_VER
+    #ifdef ARTIC_EXPORT
+        #define ARTIC_GLOBAL __declspec(dllexport)
+    #else
+        #define ARTIC_GLOBAL __declspec(dllimport)
+    #endif
+#else
+#define ARTIC_GLOBAL
+#endif
+
 #include "artic/loc.h"
 
 namespace artic {
@@ -32,8 +42,8 @@ struct Output {
     {}
 };
 
-extern Output err;
-extern Output out;
+extern ARTIC_GLOBAL Output err;
+extern ARTIC_GLOBAL Output out;
 
 template <typename T>
 struct Fill {

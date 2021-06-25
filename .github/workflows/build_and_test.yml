@@ -43,6 +43,9 @@ jobs:
     - name: Build Artic
       run: cmake --build ${{github.workspace}}/artic/build --config ${{matrix.build-type}}
 
+    - name: Set path to Thorin
+      run: echo "${{github.workspace}}/thorin/build/bin" >> $GITHUB_PATH
+
     - name: Test Artic
       working-directory: ${{github.workspace}}/artic/build
       run: ctest -C ${{matrix.build-type}} --output-on-failure

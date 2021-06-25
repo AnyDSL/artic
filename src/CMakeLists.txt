@@ -27,6 +27,7 @@ set_target_properties(libartic PROPERTIES PREFIX "" CXX_STANDARD 17)
 
 target_link_libraries(libartic PUBLIC ${Thorin_LIBRARIES})
 target_include_directories(libartic PUBLIC ${Thorin_INCLUDE_DIRS} ../include)
+target_compile_definitions(libartic PRIVATE -DARTIC_EXPORT)
 if (${COLORIZE})
     target_compile_definitions(libartic PUBLIC -DCOLORIZE)
 endif()
