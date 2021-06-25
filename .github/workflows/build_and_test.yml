@@ -38,7 +38,7 @@ jobs:
       run: cmake --build ${{github.workspace}}/thorin/build --config ${{matrix.build-type}}
       
     - name: Configure Artic
-      run: cmake -S ${{github.workspace}}/artic -B ${{github.workspace}}/artic/build -DThorin_DIR=${{github.workspace}}/thorin/build/share/anydsl/cmake -DCMAKE_BUILD_TYPE=${{matrix.build-type}}
+      run: cmake -S ${{github.workspace}}/artic -B ${{github.workspace}}/artic/build -DThorin_DIR=${{github.workspace}}/thorin/build/share/anydsl/cmake -DCMAKE_BUILD_TYPE=${{matrix.build-type}} -DBUILD_TESTING=ON
 
     - name: Build Artic
       run: cmake --build ${{github.workspace}}/artic/build --config ${{matrix.build-type}}
