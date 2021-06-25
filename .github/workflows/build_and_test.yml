@@ -1,0 +1,46 @@
+name: build-and-test
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build-and-test:
+    name: Build and test on ${{matrix.os}} in ${{matrix.build-type}} mode
+    runs-on: ${{matrix.os}}
+    strategy:
+      matrix:
+        build-type: [Debug, Release]
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        repository: AnyDSL/artic
+        path: artic
+
+    - uses: actions/checkout@v2
+      with:
+        repository: AnyDSL/thorin
+        path: thorin
+
+    - uses: actions/checkout@v2
+      with:
+        repository: AnyDSL/half
+        path: half
+
+    - name: Configure CMake
+      run:
+        cmake -S {{runner.workspace}}/thorin -B ${{runner.workspace}}/thorin/build -DHalf_DIR=${{runner.workspace}}/half -DCMAKE_BUILD_TYPE=${{matrix.build-type}}
+        cmake -S {{runner.workspace}}/artic -B ${{runner.workspace}}/artic/build -DThorin_DIR=${{runner.workspace}}/thorin -DCMAKE_BUILD_TYPE=${{matrix.build-type}}
+
+    - name: Build
+      run:
+        cmake --build ${{runner.workspace}}/thorin/build --config ${{matrix.build-type}}
+        cmake --build ${{runner.workspace}}/artic/build --config ${{matrix.build-type}}
+
+    - name: Test
+      working-directory: ${{github.workspace}}/artic/build
+      run: ctest -C ${{matrix.build-type}}
