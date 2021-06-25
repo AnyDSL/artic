@@ -32,7 +32,7 @@ jobs:
         path: half
 
     - name: Configure Thorin
-      run: cmake -S ${{github.workspace}}/thorin -B ${{github.workspace}}/thorin/build -DHalf_DIR=${{github.workspace}}/half -DCMAKE_BUILD_TYPE=${{matrix.build-type}}
+      run: cmake -S ${{github.workspace}}/thorin -B ${{github.workspace}}/thorin/build -DHalf_DIR=${{github.workspace}}/half -DCMAKE_BUILD_TYPE=${{matrix.build-type}} -DCMAKE_DISABLE_FIND_PACKAGE_LLVM
 
     - name: Build Thorin
       run: cmake --build ${{github.workspace}}/thorin/build --config ${{matrix.build-type}}
