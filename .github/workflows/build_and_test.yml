@@ -45,4 +45,4 @@ jobs:
 
     - name: Test Artic
       working-directory: ${{github.workspace}}/artic/build
-      run: ctest -C ${{matrix.build-type}}
+      run: ctest -C ${{matrix.build-type}} --verbose
