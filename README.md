@@ -1,6 +1,6 @@
 # ![](logo.svg)
 
-![build-and-test](https://github.com/AnyDSL/artic/actions/workflows/build-and-test.yml/badge.svg)
+![build-and-test](https://github.com/AnyDSL/artic/workflows/build-and-test/badge.svg)
 
 The AlteRnaTive  [Impala](https://github.com/AnyDSL/impala) Compiler.
 
