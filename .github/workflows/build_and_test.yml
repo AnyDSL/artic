@@ -33,11 +33,11 @@ jobs:
 
     - name: Configure Thorin
       shell: bash # Necessary because of the $GITHUB_WORKSPACE variable
-      run: cmake -S ${{GITHUB_WORKSPACE}}/thorin -B ${{runner.workspace}}/thorin/build -DHalf_DIR=${{runner.workspace}}/half -DCMAKE_BUILD_TYPE=${{matrix.build-type}}
+      run: cmake -S $GITHUB_WORKSPACE/thorin -B ${{runner.workspace}}/thorin/build -DHalf_DIR=${{runner.workspace}}/half -DCMAKE_BUILD_TYPE=${{matrix.build-type}}
 
     - name: Configure Artic
       shell: bash # Necessary because of the $GITHUB_WORKSPACE variable
-      run: cmake -S ${{GITHUB_WORKSPACE}}/artic -B ${{runner.workspace}}/artic/build -DThorin_DIR=${{runner.workspace}}/thorin -DCMAKE_BUILD_TYPE=${{matrix.build-type}}
+      run: cmake -S $GITHUB_WORKSPACE/artic -B ${{runner.workspace}}/artic/build -DThorin_DIR=${{runner.workspace}}/thorin -DCMAKE_BUILD_TYPE=${{matrix.build-type}}
 
     - name: Build Thorin
       run: cmake --build ${{runner.workspace}}/thorin/build --config ${{matrix.build-type}}
