@@ -57,7 +57,7 @@ jobs:
 
     # Set the Thorin DLL path for Windows
     - name: Set path to Thorin (Windows only)
-      if: startsWith("${{github.workspace}}", "windows")
+      if: startsWith(matrix.os, 'windows')
       run: echo "${{github.workspace}}/thorin/build/bin/${{matrix.build-type}}" >> $GITHUB_PATH
 
     - name: Test Artic
