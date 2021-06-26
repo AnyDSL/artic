@@ -55,13 +55,14 @@ jobs:
     - name: Build Artic
       run: cmake --build ${{github.workspace}}/artic/build --config ${{matrix.build-type}}
 
-    # Set the Thorin DLL path for Windows
-    - name: Set path to Thorin (Windows only)
+    # Copy the Thorin DLL for Windows (when it exists)
+    - name: Copy Thorin DLL (Windows only)
       if: startsWith(matrix.os, 'windows')
-      run: echo "${{github.workspace}}/thorin/build/bin/${{matrix.build-type}}" >> $GITHUB_PATH
-      
-    - name: Show current path
-      run: echo "$PATH"
+      continue-on-error: true
+      run: >
+        cmake -E copy
+        "${{github.workspace}}/thorin/build/bin/${{matrix.build-type}}/thorin.dll"
+        "${{github.workspace}}/artic/build/bin/${{matrix.build-type}}/thorin.dll"
 
     - name: Test Artic
       working-directory: ${{github.workspace}}/artic/build
