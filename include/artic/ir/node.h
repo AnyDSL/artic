@@ -106,30 +106,59 @@ struct App final : Node {
     void print(Printer&) const override;
 };
 
-struct Let final : Node {
-    Let(Module&, const ArrayRef<const Node*>&, const ArrayRef<const Node*>&, const Node*, Loc&&);
+struct Scope : Node {
+    Scope(
+        Module& module,
+        const Type* type,
+        const ArrayRef<const Node*>& vars,
+        const ArrayRef<const Node*>& vals,
+        const Node* body,
+        Loc&& loc);
 
-    const Node* body() const { return operands.back(); }
     const Var* var(size_t i) const { return vars()[i]->as<Var>(); }
     const Node* val(size_t i) const { return vals()[i]; }
-    ArrayRef<const Node*> vars() const { return ArrayRef(operands.data(), var_count()); }
-    ArrayRef<const Node*> vals() const { return ArrayRef(operands.data() + var_count(), var_count()); }
-    size_t var_count() const { return (operands.size() - 1) / 2; }
+    ArrayRef<const Node*> vars() const { return vars(operands); }
+    ArrayRef<const Node*> vals() const { return vals(operands); }
+    size_t var_count() const { return var_count(operands); }
+
+    static ArrayRef<const Node*> vars(const ArrayRef<const Node*>& operands) {
+        return ArrayRef(operands.data(), var_count(operands));
+    }
+
+    static ArrayRef<const Node*> vals(const ArrayRef<const Node*>& operands) {
+        auto n = var_count(operands);
+        return ArrayRef(operands.data() + n, n);
+    }
+
+    static size_t var_count(const ArrayRef<const Node*>& operands) {
+        return operands.size() / 2;
+    }
+};
+
+struct Let final : Scope {
+    Let(
+        Module& module,
+        const ArrayRef<const Node*>& vars,
+        const ArrayRef<const Node*>& vals,
+        const Node* body,
+        Loc&& loc);
+
+    const Node* body() const { return operands.back(); }
 
     std::string_view node_name() const override { return "let"; }
     void print(Printer&) const override;
     const Node* rebuild(Module&, const Type*, const ArrayRef<const Node*>&, Loc&&) const override;
 };
 
-struct Mod final : Node {
+struct Mod final : Scope {
     Mod(
-        Module&,
+        Module& module,
         const ModType* type,
-        const ArrayRef<const Node*>& members,
+        const ArrayRef<const Node*>& vars,
+        const ArrayRef<const Node*>& vals,
         Loc&& loc);
 
     const ModType* type() const { return this->Node::type->as<ModType>(); }
-    ArrayRef<const Node*> members() const { return operands; }
 
     std::string_view node_name() const override { return "mod"; }
     void print(Printer&) const override;

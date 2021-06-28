@@ -28,7 +28,7 @@ public:
     const Fn* fn(const Var*, const Node*, Loc&& = {});
     const Node* app(const Node*, const Node*, Loc&& = {});
     const Node* let(const ArrayRef<const Node*>&, const ArrayRef<const Node*>&, const Node*, Loc&& = {});
-    const Mod* mod(const ModType*, const ArrayRef<const Node*>&, Loc&& = {});
+    const Mod* mod(const ModType*, const ArrayRef<const Node*>&, const ArrayRef<const Node*>&, Loc&& = {});
 
 private:
     template <typename T, typename... Args>

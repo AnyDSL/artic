@@ -69,21 +69,32 @@ App::App(Module& module, const Node* callee, const Node* arg, Loc&& loc)
     : Node(module, callee->type->as<FnType>()->codom, Array { callee, arg }, std::forward<Loc>(loc))
 {}
 
+Scope::Scope(
+    Module& module,
+    const Type* type,
+    const ArrayRef<const Node*>& vars,
+    const ArrayRef<const Node*>& vals,
+    const Node* body,
+    Loc&& loc)
+    : Node(module, type, concat(vars, vals, ArrayRef(&body, body != nullptr ? 1 : 0)), std::forward<Loc>(loc))
+{}
+
 Let::Let(
     Module& module,
     const ArrayRef<const Node*>& vars,
     const ArrayRef<const Node*>& vals,
     const Node* body,
     Loc&& loc)
-    : Node(module, body->type, concat(vars, vals, ArrayRef(&body, 1)), std::forward<Loc>(loc))
+    : Scope(module, body->type, vars, vals, body, std::forward<Loc>(loc))
 {}
 
 Mod::Mod(
     Module& module,
     const ModType* type,
-    const ArrayRef<const Node*>& members,
+    const ArrayRef<const Node*>& vars,
+    const ArrayRef<const Node*>& vals,
     Loc&& loc)
-    : Node(module, type, members, std::forward<Loc>(loc))
+    : Scope(module, type, vars, vals, nullptr, std::forward<Loc>(loc))
 {}
 
 // Rebuild -------------------------------------------------------------------------
@@ -96,20 +107,28 @@ const Node* Var::rebuild(Module& module, const Type* type, const ArrayRef<const 
     return module.var(type, name, id, std::forward<Loc>(loc));
 }
 
-const Node* Fn::rebuild(Module& module, const Type*, const ArrayRef<const Node*>&, Loc&& loc) const {
-    return module.fn(var(), body(), std::forward<Loc>(loc));
+const Node* Fn::rebuild(Module& module, const Type*, const ArrayRef<const Node*>& operands, Loc&& loc) const {
+    return module.fn(operands[0]->as<Var>(), operands[1], std::forward<Loc>(loc));
 }
 
-const Node* App::rebuild(Module& module, const Type*, const ArrayRef<const Node*>&, Loc&& loc) const {
-    return module.app(callee(), arg(), std::forward<Loc>(loc));
+const Node* App::rebuild(Module& module, const Type*, const ArrayRef<const Node*>& operands, Loc&& loc) const {
+    return module.app(operands[0], operands[1], std::forward<Loc>(loc));
 }
 
-const Node* Let::rebuild(Module& module, const Type*, const ArrayRef<const Node*>&, Loc&& loc) const {
-    return module.let(vars(), vals(), body(), std::forward<Loc>(loc));
+const Node* Let::rebuild(Module& module, const Type*, const ArrayRef<const Node*>& operands, Loc&& loc) const {
+    return module.let(
+        Scope::vars(operands),
+        Scope::vals(operands),
+        operands.back(),
+        std::forward<Loc>(loc));
 }
 
-const Node* Mod::rebuild(Module& module, const Type* type, const ArrayRef<const Node*>& members, Loc&& loc) const {
-    return module.mod(type->as<ModType>(), members, std::forward<Loc>(loc));
+const Node* Mod::rebuild(Module& module, const Type* type, const ArrayRef<const Node*>& operands, Loc&& loc) const {
+    return module.mod(
+        type->as<ModType>(),
+        Scope::vars(operands),
+        Scope::vals(operands),
+        std::forward<Loc>(loc));
 }
 
 // Print ---------------------------------------------------------------------------
@@ -167,10 +186,12 @@ void Let::print(Printer& p) const {
 
 void Mod::print(Printer& p) const {
     p << log::keyword_style("mod") << " {" << p.indent();
-    for (size_t i = 0, n = members().size(); i < n; ++i) {
-        p << p.endl() << type()->member_name(i) << " = ";
-        operands[i]->print(p);
-        if (i != n - 1) p << ",";
+    for (size_t i = 0, n = var_count(); i < n; ++i) {
+        p << p.endl();
+        var(i)->print(p);
+        p << " = " ;
+        val(i)->print(p);
+        p << ';';
     }
     p << p.unindent() << p.endl() << '}';
 }

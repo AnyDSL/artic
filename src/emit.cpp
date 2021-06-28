@@ -189,12 +189,14 @@ const ir::Node* TypeDecl::emit(Emitter&) const {
 }
 
 const ir::Node* ModDecl::emit(Emitter& emitter) const {
-    std::vector<const ir::Node*> members;
+    std::vector<const ir::Node*> vars, vals;
     for (auto& decl : decls) {
-        if (auto value_decl = decl->isa<ValueDecl>())
-            members.push_back(emitter.emit(*decl));
+        if (auto value_decl = decl->isa<ValueDecl>()) {
+            vars.push_back(emitter.module.new_var(decl->type, value_decl->id.name, Loc(decl->loc)));
+            vals.push_back(emitter.emit(*decl));
+        }
     }
-    return emitter.module.mod(type->as<artic::ModType>(), members, Loc(loc));
+    return emitter.module.mod(type->as<artic::ModType>(), vars, vals, Loc(loc));
 }
 
 const ir::Node* UseDecl::emit(Emitter&) const {

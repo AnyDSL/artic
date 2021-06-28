@@ -50,10 +50,11 @@ const Node* Module::let(
 
 const Mod* Module::mod(
     const ModType* type,
-    const ArrayRef<const Node*>& members,
+    const ArrayRef<const Node*>& vars,
+    const ArrayRef<const Node*>& vals,
     Loc&& loc)
 {
-    return insert_as<Mod>(type, members, std::forward<Loc>(loc));
+    return insert_as<Mod>(type, vars, vals, std::forward<Loc>(loc));
 }
 
 // Simplify ------------------------------------------------------------------------
