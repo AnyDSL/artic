@@ -6,11 +6,11 @@
 namespace artic::log {
 
 #ifdef COLORIZE
-Output err(std::cerr, isatty(fileno(stderr)));
-Output out(std::cout, isatty(fileno(stdout)));
+ARTIC_GLOBAL Output err(std::cerr, isatty(fileno(stderr)));
+ARTIC_GLOBAL Output out(std::cout, isatty(fileno(stdout)));
 #else
-Output err(std::cerr, false);
-Output out(std::cout, false);
+ARTIC_GLOBAL Output err(std::cerr, false);
+ARTIC_GLOBAL Output out(std::cout, false);
 #endif
 
 } // namespace artic::log

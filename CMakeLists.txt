@@ -7,6 +7,7 @@ set(CMAKE_CONFIGURATION_TYPES "Debug;Release" CACHE STRING "limited config" FORC
 
 option(BUILD_SHARED_LIBS "Build shared libraries" ON)
 option(CODE_COVERAGE "Enable code coverage using gcov in Debug builds" OFF)
+set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS 1)
 
 if (CMAKE_BUILD_TYPE STREQUAL "")
     set(CMAKE_BUILD_TYPE Debug CACHE STRING "Debug or Release" FORCE)
