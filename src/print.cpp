@@ -271,7 +271,7 @@ void ForExpr::print(Printer& p) const {
     lambda->param->print(p);
     p << ' ' << log::keyword_style("in") << ' ';
     iter->print(p);
-    call->arg->print(p);
+    print_parens(p, call->arg);
     p << ' ';
     lambda->body->print(p);
 }
