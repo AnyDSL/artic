@@ -547,7 +547,7 @@ void OptionDecl::print(Printer& p) const {
     p << id.name;
     if (param)
         print_parens(p, param);
-    else
+    else if (fields.size() > 0)
         print_fields(p, fields, false);
 }
 
