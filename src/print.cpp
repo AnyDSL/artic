@@ -340,7 +340,7 @@ void ImplicitCastExpr::print(Printer& p) const {
 }
 
 void AsmExpr::print(Printer& p) const {
-    p << log::keyword_style("asm") << p.indent() << p.endl()
+    p << log::keyword_style("asm") << '(' << p.indent() << p.endl()
       << '\"' << src << '\"' << p.endl();
     auto print_constr = [&] (auto& constr) {
         p << '\"' << constr.name << "\"(";
