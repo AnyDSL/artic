@@ -326,7 +326,10 @@ void FilterExpr::print(Printer& p) const {
 }
 
 void CastExpr::print(Printer& p) const {
-    expr->print(p);
+    if (expr->isa<BinaryExpr>())
+        print_parens(p, expr);
+    else
+        expr->print(p);
     p << ' ' << log::keyword_style("as") << ' ';
     type->print(p);
 }
