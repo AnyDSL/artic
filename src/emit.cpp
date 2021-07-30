@@ -24,6 +24,7 @@ public:
         const ast::Node* node;
 
         bool is_redundant = true;
+        thorin::Continuation* cont = nullptr;
         const thorin::Continuation* target;
         std::vector<const struct ast::IdPtrn*> bound_ptrns;
 
@@ -379,16 +380,18 @@ private:
 };
 
 const thorin::Def* PtrnCompiler::MatchCase::emit(Emitter& emitter) {
-    thorin::Array<const thorin::Type*> param_types(bound_ptrns.size());
-    for (size_t i = 0, n = bound_ptrns.size(); i < n; ++i)
-        param_types[i] = bound_ptrns[i]->type->convert(emitter);
-    auto cont = emitter.basic_block_with_mem(emitter.world.tuple_type(param_types), emitter.debug_info(*node, ""));
-    auto _ = emitter.save_state();
-    emitter.enter(cont);
-    auto tuple = emitter.tuple_from_params(cont);
-    for (size_t i = 0, n = bound_ptrns.size(); i < n; ++i)
-        emitter.bind(*bound_ptrns[i], n == 1 ? tuple : emitter.world.extract(tuple, i));
-    emitter.jump(target, emitter.emit(*expr), emitter.debug_info(*node));
+    if (!cont) {
+        thorin::Array<const thorin::Type*> param_types(bound_ptrns.size());
+        for (size_t i = 0, n = bound_ptrns.size(); i < n; ++i)
+            param_types[i] = bound_ptrns[i]->type->convert(emitter);
+        cont = emitter.basic_block_with_mem(emitter.world.tuple_type(param_types), emitter.debug_info(*node, "case_body"));
+        auto _ = emitter.save_state();
+        emitter.enter(cont);
+        auto tuple = emitter.tuple_from_params(cont);
+        for (size_t i = 0, n = bound_ptrns.size(); i < n; ++i)
+            emitter.bind(*bound_ptrns[i], n == 1 ? tuple : emitter.world.extract(tuple, i));
+        emitter.jump(target, emitter.emit(*expr), emitter.debug_info(*node));
+    }
     return cont;
 }
 
