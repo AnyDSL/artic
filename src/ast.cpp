@@ -219,7 +219,7 @@ std::string BinaryExpr::tag_to_string(Tag tag) {
         case CmpLE:  return "<=";
         case CmpGE:  return ">=";
         case CmpEq:  return "==";
-        case CmpNE: return "==";
+        case CmpNE: return "!=";
         default:
             assert(false);
             return "";
