@@ -212,13 +212,13 @@ std::string BinaryExpr::tag_to_string(Tag tag) {
         case RShft: return ">>";
 
         case LogicAnd: return "&&";
-        case LogicOr:   return "||";
+        case LogicOr:  return "||";
 
-        case CmpLT:  return "<";
-        case CmpGT:  return ">";
-        case CmpLE:  return "<=";
-        case CmpGE:  return ">=";
-        case CmpEq:  return "==";
+        case CmpLT: return "<";
+        case CmpGT: return ">";
+        case CmpLE: return "<=";
+        case CmpGE: return ">=";
+        case CmpEq: return "==";
         case CmpNE: return "!=";
         default:
             assert(false);
