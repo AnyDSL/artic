@@ -283,12 +283,14 @@ private:
                 if (row.first[col])
                     matched_values.emplace(row.first[col]->as<ast::IdPtrn>(), values[col].first);
                 remove_col(row.first, col);
-                for (auto& ctor : ctors) {
-                    ctor.second.push_back(row);
+                for (auto& [ctor_index, ctor_rows] : ctors) {
+                    // Wildcard rows "fall" in all sub-trees
+                    ctor_rows.push_back(row);
                     if (enum_type) {
-                        auto index = thorin::primlit_value<uint64_t>(ctor.first);
+                        auto index = thorin::primlit_value<uint64_t>(ctor_index);
+                        // If the sub-tree introduces the extracted contents of an enum variant, add a dummy column to the row
                         if (!is_unit_type(enum_type->member_type(index)))
-                            ctor.second.back().first.push_back(nullptr);
+                            ctor_rows.back().first.push_back(nullptr);
                     }
                 }
                 wildcards.emplace_back(std::move(row));
