@@ -1419,7 +1419,7 @@ const thorin::Def* ForExpr::emit(Emitter& emitter) const {
     auto inner_call = emitter.call(inner_callee, body_cont, emitter.debug_info(*this, "inner_call"));
     return emitter.call(
         inner_call, emitter.emit(*call->arg),
-        break_->as_continuation(),
+        break_->as_nom<thorin::Continuation>(),
         emitter.debug_info(*this, "outer_call"));
 }
 
@@ -1434,7 +1434,7 @@ const thorin::Def* ContinueExpr::emit(Emitter&) const {
 }
 
 const thorin::Def* ReturnExpr::emit(Emitter&) const {
-    return fn->def->as_continuation()->params().back();
+    return fn->def->as_nom<thorin::Continuation>()->params().back();
 }
 
 const thorin::Def* UnaryExpr::emit(Emitter& emitter) const {
@@ -1659,17 +1659,17 @@ const thorin::Def* FnDecl::emit(Emitter& emitter) const {
         if (auto export_attr = attrs->find("export")) {
             if (auto name_attr = export_attr->find("name"))
                 cont->set_name(name_attr->as<LiteralAttr>()->lit.as_string());
-            cont->make_external();
+            emitter.world.make_external(cont);
         } else if (auto import_attr = attrs->find("import")) {
             if (auto name_attr = import_attr->find("name"))
                 cont->set_name(name_attr->as<LiteralAttr>()->lit.as_string());
             if (auto cc_attr = import_attr->find("cc")) {
                 auto cc = cc_attr->as<LiteralAttr>()->lit.as_string();
                 if (cc == "device") {
-                    cont->make_external();
+                    emitter.world.make_external(cont);
                     cont->attributes().cc = thorin::CC::Device;
                 } else if (cc == "C") {
-                    cont->make_external();
+                    emitter.world.make_external(cont);
                     cont->attributes().cc = thorin::CC::C;
                 } else if (cc == "thorin")
                     cont->set_intrinsic();
