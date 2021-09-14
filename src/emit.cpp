@@ -734,8 +734,13 @@ const thorin::Def* Emitter::down_cast(const thorin::Def* def, const Type* from, 
         auto cont = world.continuation(to->convert(*this)->as<thorin::FnType>(), debug);
         enter(cont);
         auto param = down_cast(tuple_from_params(cont, true), to->as<FnType>()->dom, from_fn_type->dom, debug);
-        auto value = down_cast(call(def, param, debug), from_fn_type->codom, to->as<FnType>()->codom, debug);
-        jump(cont->params().back(), value, debug);
+        // No-ret functions downcast to returning ones, but call() can't work with those (see also CallExpr, IfExpr)
+        if (from->as<FnType>()->codom->isa<artic::NoRetType>()) {
+            jump(def, param, debug);
+        } else {
+            auto value = down_cast(call(def, param, debug), from_fn_type->codom, to->as<FnType>()->codom, debug);
+            jump(cont->params().back(), value, debug);
+        }
         return cont;
     }
     assert(false);
