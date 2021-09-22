@@ -1875,6 +1875,8 @@ std::string FnType::stringify(Emitter& emitter) const {
 }
 
 const thorin::Type* FnType::convert(Emitter& emitter) const {
+    if (codom->isa<BottomType>())
+        return emitter.continuation_type_with_mem(dom->convert(emitter));
     return emitter.function_type_with_mem(dom->convert(emitter), codom->convert(emitter));
 }
 
