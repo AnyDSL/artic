@@ -771,6 +771,7 @@ void Emitter::bind(const ast::IdPtrn& id_ptrn, const thorin::Def* value) {
         id_ptrn.decl->def = value;
         value->set_name(id_ptrn.decl->id.name);
     }
+    assert(id_ptrn.type->convert(*this) == value->type());
 }
 
 const thorin::Def* Emitter::emit(const ast::Node& node, const Literal& lit) {
