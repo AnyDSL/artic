@@ -671,6 +671,7 @@ static inline bool is_compatible(const Type* from, const Type* to) {
         auto to_array_type   = to_addr_type->pointee->isa<ArrayType>();
         if (from_array_type && to_array_type)
             return is_compatible(from_array_type->elem, to_array_type->elem);
+        return is_compatible(from_addr_type->pointee, to_addr_type->pointee);
     }
     return false;
 }
@@ -701,6 +702,7 @@ const thorin::Def* Emitter::down_cast(const thorin::Def* def, const Type* from, 
         return world.bottom(to->convert(*this));
 
     auto to_ptr_type = to->isa<PtrType>();
+    // Casting a value to a pointer to the type of the value effectively creates an allocation
     if (to_ptr_type &&
         !to_ptr_type->is_mut &&
         to_ptr_type->addr_space == 0 &&
