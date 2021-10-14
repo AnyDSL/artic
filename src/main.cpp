@@ -93,6 +93,10 @@ struct ProgramOptions {
     bool emit_c_int = false;
     bool emit_c = false;
     bool emit_llvm = false;
+    std::string host_triple;
+    std::string host_cpu;
+    std::string host_attr;
+    std::string hls_flags;
     bool show_implicit_casts = false;
     unsigned opt_level = 0;
     size_t max_errors = 0;
@@ -187,6 +191,22 @@ struct ProgramOptions {
 #endif
                 } else if (matches(argv[i], "--emit-c")) {
                     emit_c = true;
+                } else if (matches(argv[i], "--host-triple")) {
+                    if (!check_arg(argc, argv, i))
+                        return false;
+                    host_triple = argv[++i];
+                } else if (matches(argv[i], "--host-cpu")) {
+                    if (!check_arg(argc, argv, i))
+                        return false;
+                    host_cpu = argv[++i];
+                } else if (matches(argv[i], "--host-attr")) {
+                    if (!check_arg(argc, argv, i))
+                        return false;
+                    host_attr = argv[++i];
+                } else if (matches(argv[i], "--hls-flags")) {
+                    if (!check_arg(argc, argv, i))
+                        return false;
+                    hls_flags = argv[++i];
                 } else if (matches(argv[i], "-O0")) {
                     opt_level = 0;
                 } else if (matches(argv[i], "-O1")) {
@@ -314,7 +334,7 @@ int main(int argc, char** argv) {
     if (opts.emit_thorin)
         world.dump();
     if (opts.emit_c || opts.emit_llvm) {
-        thorin::DeviceBackends backends(world, opts.opt_level, opts.debug);
+        thorin::DeviceBackends backends(world, opts.opt_level, opts.debug, opts.hls_flags);
         auto emit_to_file = [&] (thorin::CodeGen& cg) {
             auto name = opts.module_name + cg.file_ext();
             std::ofstream file(name);
@@ -325,12 +345,12 @@ int main(int argc, char** argv) {
         };
         if (opts.emit_c) {
             thorin::Cont2Config kernel_configs;
-            thorin::c::CodeGen cg(world, kernel_configs, thorin::c::Lang::C99, opts.debug);
+            thorin::c::CodeGen cg(world, kernel_configs, thorin::c::Lang::C99, opts.debug, opts.hls_flags);
             emit_to_file(cg);
         }
 #ifdef ENABLE_LLVM
         if (opts.emit_llvm) {
-            thorin::llvm::CPUCodeGen cg(world, opts.opt_level, opts.debug);
+            thorin::llvm::CPUCodeGen cg(world, opts.opt_level, opts.debug, opts.host_triple, opts.host_cpu, opts.host_attr);
             emit_to_file(cg);
         }
 #endif
