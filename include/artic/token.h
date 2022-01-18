@@ -132,7 +132,26 @@ inline std::ostream& operator << (std::ostream& os, const Literal& lit) {
         case Literal::Integer: return os << lit.as_integer();
         case Literal::Bool:    return os << (lit.as_bool() ? "true" : "false");
         case Literal::Char:    return os << '\'' << lit.as_char() << '\'';
-        case Literal::String:  return os << '\"' << lit.as_string() << '\"';
+        case Literal::String: {
+            os << '\"';
+            // Escapes again escapable characters
+            for (char c : lit.as_string()) {
+                switch (c) {
+                    case '\t': os << "\\t" ; break;
+                    case '\n': os << "\\n" ; break;
+                    case '\a': os << "\\a" ; break;
+                    case '\b': os << "\\b" ; break;
+                    case '\r': os << "\\r" ; break;
+                    case '\v': os << "\\v" ; break;
+                    case '\f': os << "\\f" ; break;
+                    case '\\': os << "\\\\"; break;
+                    case '\'': os << "\\\'"; break;
+                    case '\"': os << "\\\""; break;
+                    default: os << c; break;
+                }
+            }
+            return os << '\"';
+        }
         default:
             assert(false);
             return os;

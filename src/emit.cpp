@@ -671,6 +671,7 @@ static inline bool is_compatible(const Type* from, const Type* to) {
         auto to_array_type   = to_addr_type->pointee->isa<ArrayType>();
         if (from_array_type && to_array_type)
             return is_compatible(from_array_type->elem, to_array_type->elem);
+        return is_compatible(from_addr_type->pointee, to_addr_type->pointee);
     }
     return false;
 }
@@ -701,6 +702,7 @@ const thorin::Def* Emitter::down_cast(const thorin::Def* def, const Type* from, 
         return world.bottom(to->convert(*this));
 
     auto to_ptr_type = to->isa<PtrType>();
+    // Casting a value to a pointer to the type of the value effectively creates an allocation
     if (to_ptr_type &&
         !to_ptr_type->is_mut &&
         to_ptr_type->addr_space == 0 &&
@@ -734,8 +736,13 @@ const thorin::Def* Emitter::down_cast(const thorin::Def* def, const Type* from, 
         auto cont = world.continuation(to->convert(*this)->as<thorin::FnType>(), debug);
         enter(cont);
         auto param = down_cast(tuple_from_params(cont, true), to->as<FnType>()->dom, from_fn_type->dom, debug);
-        auto value = down_cast(call(def, param, debug), from_fn_type->codom, to->as<FnType>()->codom, debug);
-        jump(cont->params().back(), value, debug);
+        // No-ret functions downcast to returning ones, but call() can't work with those (see also CallExpr, IfExpr)
+        if (from->as<FnType>()->codom->isa<artic::NoRetType>()) {
+            jump(def, param, debug);
+        } else {
+            auto value = down_cast(call(def, param, debug), from_fn_type->codom, to->as<FnType>()->codom, debug);
+            jump(cont->params().back(), value, debug);
+        }
         return cont;
     }
     assert(false);
@@ -766,6 +773,7 @@ void Emitter::bind(const ast::IdPtrn& id_ptrn, const thorin::Def* value) {
         id_ptrn.decl->def = value;
         value->set_name(id_ptrn.decl->id.name);
     }
+    assert(id_ptrn.type->convert(*this) == value->type());
 }
 
 const thorin::Def* Emitter::emit(const ast::Node& node, const Literal& lit) {
@@ -1869,6 +1877,8 @@ std::string FnType::stringify(Emitter& emitter) const {
 }
 
 const thorin::Type* FnType::convert(Emitter& emitter) const {
+    if (codom->isa<BottomType>())
+        return emitter.continuation_type_with_mem(dom->convert(emitter));
     return emitter.function_type_with_mem(dom->convert(emitter), codom->convert(emitter));
 }
 

@@ -5,7 +5,7 @@ Trees", by L. Maranget. This process works in several steps:
 
 1. Constructing the initial pattern matrix and value vector,
 2. Expanding the pattern matrix/value vector,
-3. selecting a column, and
+3. Selecting a column, and
 4. Generating code for that column.
 
 Additionally, because the algorithm is based on decision trees, it is easy to determine if some
@@ -82,9 +82,9 @@ constructor. For instance, in the previous example, assuming the selected column
 get two sub-matrices. One for the `true` constructor:
 
 ```rust
-E::A   _
-5      _
-_      _
+_   E::A
+5   _
+_   _
 ```
 
 The other for `false`:
