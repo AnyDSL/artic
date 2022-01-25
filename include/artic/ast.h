@@ -438,7 +438,7 @@ struct DeclStmt : public Stmt {
     void print(Printer&) const override;
 };
 
-// Statement containing a declaration.
+// Statement evaluating an expression.
 struct ExprStmt : public Stmt {
     Ptr<Expr> expr;
 
