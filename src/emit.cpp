@@ -937,7 +937,7 @@ const thorin::Def* Emitter::builtin(const ast::FnDecl& fn_decl, thorin::Continua
         enter(cont);
         jump(cont->params().back(), functions.at(cont->name())(cont));
     }
-    cont->set_all_true_filter();
+    cont->set_filter(cont->all_true_filter());
     return cont;
 }
 
@@ -1114,7 +1114,7 @@ const thorin::Def* Path::emit(Emitter& emitter) const {
             auto struct_type = elems[i].type->convert(emitter)->as<thorin::StructType>();
             auto cont_type = emitter.function_type_with_mem(emitter.world.tuple_type(struct_type->ops()), struct_type);
             auto cont = emitter.world.continuation(cont_type, emitter.debug_info(*this));
-            cont->set_all_true_filter();
+            cont->set_filter(cont->all_true_filter());
             auto _ = emitter.save_state();
             emitter.enter(cont);
             auto cont_param = emitter.tuple_from_params(cont, true);
@@ -1146,7 +1146,7 @@ const thorin::Def* Path::emit(Emitter& emitter) const {
                     emitter.debug_info(*enum_type->decl.options[ctor.index]));
                 auto ret_value = emitter.world.variant(variant_type, emitter.tuple_from_params(cont, true), ctor.index);
                 cont->jump(cont->params().back(), { cont->param(0), ret_value });
-                cont->set_all_true_filter();
+                cont->set_filter(cont->all_true_filter());
                 return emitter.variant_ctors[ctor] = cont;
             }
         }
@@ -1270,7 +1270,7 @@ const thorin::Def* FnExpr::emit(Emitter& emitter) const {
     emitter.enter(cont);
     emitter.emit(*param, emitter.tuple_from_params(cont, true));
     if (filter)
-        cont->set_filter(thorin::Array<const thorin::Def*>(cont->num_params(), emitter.emit(*filter)));
+        cont->set_filter(emitter.world.filter(thorin::Array<const thorin::Def*>(cont->num_params(), emitter.emit(*filter))));
     auto value = emitter.emit(*body);
     emitter.jump(cont->params().back(), value);
     return cont;
@@ -1432,7 +1432,7 @@ const thorin::Def* ForExpr::emit(Emitter& emitter) const {
     auto inner_call = emitter.call(inner_callee, body_cont, emitter.debug_info(*this, "inner_call"));
     return emitter.call(
         inner_call, emitter.emit(*call->arg),
-        break_->as_continuation(),
+        break_->as_nom<thorin::Continuation>(),
         emitter.debug_info(*this, "outer_call"));
 }
 
@@ -1447,7 +1447,7 @@ const thorin::Def* ContinueExpr::emit(Emitter&) const {
 }
 
 const thorin::Def* ReturnExpr::emit(Emitter&) const {
-    return fn->def->as_continuation()->params().back();
+    return fn->def->as_nom<thorin::Continuation>()->params().back();
 }
 
 const thorin::Def* UnaryExpr::emit(Emitter& emitter) const {
@@ -1672,17 +1672,17 @@ const thorin::Def* FnDecl::emit(Emitter& emitter) const {
         if (auto export_attr = attrs->find("export")) {
             if (auto name_attr = export_attr->find("name"))
                 cont->set_name(name_attr->as<LiteralAttr>()->lit.as_string());
-            cont->make_external();
+            emitter.world.make_external(cont);
         } else if (auto import_attr = attrs->find("import")) {
             if (auto name_attr = import_attr->find("name"))
                 cont->set_name(name_attr->as<LiteralAttr>()->lit.as_string());
             if (auto cc_attr = import_attr->find("cc")) {
                 auto cc = cc_attr->as<LiteralAttr>()->lit.as_string();
                 if (cc == "device") {
-                    cont->make_external();
+                    emitter.world.make_external(cont);
                     cont->attributes().cc = thorin::CC::Device;
                 } else if (cc == "C") {
-                    cont->make_external();
+                    emitter.world.make_external(cont);
                     cont->attributes().cc = thorin::CC::C;
                 } else if (cc == "thorin")
                     cont->set_intrinsic();
@@ -1700,7 +1700,7 @@ const thorin::Def* FnDecl::emit(Emitter& emitter) const {
         emitter.enter(cont);
         emitter.emit(*fn->param, emitter.tuple_from_params(cont, true));
         if (fn->filter)
-            cont->set_filter(thorin::Array<const thorin::Def*>(cont->num_params(), emitter.emit(*fn->filter)));
+            cont->set_filter(emitter.world.filter(thorin::Array<const thorin::Def*>(cont->num_params(), emitter.emit(*fn->filter))));
         auto value = emitter.emit(*fn->body);
         emitter.jump(cont->params().back(), value, emitter.debug_info(*fn->body));
     }
