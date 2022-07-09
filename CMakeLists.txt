@@ -34,6 +34,7 @@ set(COLORIZE ${COLOR_TTY_AVAILABLE} CACHE BOOL "Set to TRUE to enable colorized 
 find_package(Thorin REQUIRED)
 
 add_subdirectory(src)
+option(BUILD_TESTING "Build tests" OFF)
 if (BUILD_TESTING)
     include(CTest)
     add_subdirectory(test)
