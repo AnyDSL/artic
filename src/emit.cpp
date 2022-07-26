@@ -1686,6 +1686,8 @@ const thorin::Def* FnDecl::emit(Emitter& emitter) const {
                     cont->attributes().cc = thorin::CC::C;
                 } else if (cc == "thorin")
                     cont->set_intrinsic();
+                else if (cc == "plugin")
+                    cont->attributes().intrinsic = thorin::Intrinsic::Plugin;
                 else if (cc == "builtin")
                     emitter.builtin(*this, cont);
             }
