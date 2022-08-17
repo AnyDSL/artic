@@ -306,12 +306,12 @@ int main(int argc, char** argv) {
 
     if (opts.print_ast) {
         if (log.errors > 0 || log.warns > 0)
-            log::out << "\n";
+            log::out << '\n';
         Printer p(log::out);
         p.show_implicit_casts = opts.show_implicit_casts;
         p.tab = std::string(opts.tab_width, ' ');
         program.print(p);
-        log::out << "\n";
+        log::out << '\n';
         log::out.stream.flush();
     }
 
