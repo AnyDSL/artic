@@ -312,6 +312,7 @@ int main(int argc, char** argv) {
         p.tab = std::string(opts.tab_width, ' ');
         program.print(p);
         log::out << "\n";
+        log::out.stream.flush();
     }
 
     if (!success)
