@@ -216,7 +216,7 @@ public:
 private:
     Loc loc_;
     Tag tag_;
-    Literal lit_;
+    Literal lit_ = Literal();
     std::string str_;
 };
 

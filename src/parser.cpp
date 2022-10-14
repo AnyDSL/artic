@@ -10,6 +10,8 @@ Parser::Parser(Log& log, Lexer& lexer)
     : Logger(log), lexer_(lexer)
 {
     for (int i = 0; i < max_ahead; i++)
+        ahead_[i] = Token(Loc());
+    for (int i = 0; i < max_ahead; i++)
         next();
 }
 
