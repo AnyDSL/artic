@@ -12,6 +12,9 @@
 #include <thorin/world.h>
 #include <thorin/be/codegen.h>
 #include <thorin/be/c/c.h>
+#ifdef ENABLE_JSON
+#include <thorin/be/json/json.h>
+#endif
 #ifdef ENABLE_LLVM
 #include <thorin/be/llvm/cpu.h>
 #endif
@@ -92,6 +95,7 @@ struct ProgramOptions {
     bool emit_thorin = false;
     bool emit_c_int = false;
     bool emit_c = false;
+    bool emit_json = false;
     bool emit_llvm = false;
     std::string host_triple;
     std::string host_cpu;
@@ -157,6 +161,13 @@ struct ProgramOptions {
                     show_implicit_casts = true;
                 } else if (matches(argv[i], "--emit-thorin")) {
                     emit_thorin = true;
+                } else if (matches(argv[i], "--emit-json")) {
+#ifdef ENABLE_JSON
+                    emit_json = true;
+#else
+                    log::error("Thorin is built without json support");
+                    return false;
+#endif
                 } else if (matches(argv[i], "--emit-c-interface")) {
                     emit_c_int = true;
                 } else if (matches(argv[i], "--log-level")) {
@@ -334,7 +345,7 @@ int main(int argc, char** argv) {
         world.opt();
     if (opts.emit_thorin)
         world.dump();
-    if (opts.emit_c || opts.emit_llvm) {
+    if (opts.emit_json || opts.emit_c || opts.emit_llvm) {
         thorin::DeviceBackends backends(world, opts.opt_level, opts.debug, opts.hls_flags);
         auto emit_to_file = [&] (thorin::CodeGen& cg) {
             auto name = opts.module_name + cg.file_ext();
@@ -347,6 +358,11 @@ int main(int argc, char** argv) {
         if (opts.emit_c) {
             thorin::Cont2Config kernel_configs;
             thorin::c::CodeGen cg(world, kernel_configs, thorin::c::Lang::C99, opts.debug, opts.hls_flags);
+            emit_to_file(cg);
+        }
+        if (opts.emit_json) {
+            thorin::Cont2Config kernel_configs;
+            thorin::json::CodeGen cg(world, kernel_configs, opts.debug);
             emit_to_file(cg);
         }
 #ifdef ENABLE_LLVM
