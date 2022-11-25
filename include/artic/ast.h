@@ -1295,6 +1295,7 @@ struct ImplicitDecl : public Decl {
             , is_generator(is_generator)
     {}
 
+    const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) override;
     void bind(NameBinder&) override;
     void resolve_summons(Summoner&) override;

@@ -31,6 +31,7 @@ private:
     friend ast::SummonExpr;
     friend ast::ImplicitDecl;
     friend ast::ModDecl;
+    friend ast::BlockExpr;
 };
 
 } // namespace artic

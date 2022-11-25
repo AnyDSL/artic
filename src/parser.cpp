@@ -437,7 +437,7 @@ Ptr<ast::ErrorPtrn> Parser::parse_error_ptrn() {
 // Statements ----------------------------------------------------------------------
 
 Ptr<ast::Stmt> Parser::parse_stmt() {
-    if (ahead().tag() == Token::Let || ahead().tag() == Token::Fn)
+    if (ahead().tag() == Token::Let || ahead().tag() == Token::Fn || ahead().tag() == Token::Implicit)
         return parse_decl_stmt();
     Tracker tracker(this);
     Ptr<ast::Expr> expr;
@@ -607,6 +607,7 @@ Ptr<ast::BlockExpr> Parser::parse_block_expr() {
             case Token::Asm:
             case Token::Simd:
             case Token::Let:
+            case Token::Implicit:
             case Token::Fn:
                 if (!last_semi && !stmts.empty() && stmts.back()->needs_semicolon())
                     error(ahead().loc(), "expected ';', but got '{}'", ahead().string());

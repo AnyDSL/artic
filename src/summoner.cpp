@@ -93,8 +93,10 @@ void FnExpr::resolve_summons(artic::Summoner& summoner) {
 }
 
 void BlockExpr::resolve_summons(artic::Summoner& summoner) {
+    summoner.push_scope();
     for (auto& stmt: stmts)
         stmt->resolve_summons(summoner);
+    summoner.pop_scope();
 }
 
 void CallExpr::resolve_summons(artic::Summoner& summoner) {

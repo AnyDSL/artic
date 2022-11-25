@@ -1645,6 +1645,10 @@ const thorin::Def* LetDecl::emit(Emitter& emitter) const {
     return nullptr;
 }
 
+const thorin::Def* ImplicitDecl::emit(artic::Emitter&) const {
+    return nullptr;
+}
+
 const thorin::Def* StaticDecl::emit(Emitter& emitter) const {
     auto value = init
         ? emitter.emit(*init)
