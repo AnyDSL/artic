@@ -31,6 +31,7 @@ private:
     Ptr<ast::StructDecl>    parse_struct_decl();
     Ptr<ast::OptionDecl>    parse_option_decl();
     Ptr<ast::EnumDecl>      parse_enum_decl();
+    Ptr<ast::ImplicitDecl>  parse_implicit_decl();
     Ptr<ast::StaticDecl>    parse_static_decl();
     Ptr<ast::TypeDecl>      parse_type_decl();
     Ptr<ast::TypeParam>     parse_type_param();
@@ -58,6 +59,7 @@ private:
     Ptr<ast::Expr>          parse_typed_expr(Ptr<ast::Expr>&&);
     Ptr<ast::PathExpr>      parse_path_expr();
     Ptr<ast::LiteralExpr>   parse_literal_expr();
+    Ptr<ast::SummonExpr>    parse_summon_expr();
     Ptr<ast::FieldExpr>     parse_field_expr();
     Ptr<ast::RecordExpr>    parse_record_expr(ast::Path &&path);
     Ptr<ast::RecordExpr>    parse_record_expr(Ptr<ast::Expr> &&expr);

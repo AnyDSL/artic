@@ -38,14 +38,15 @@ Ptr<ast::Decl> Parser::parse_decl(bool is_top_level) {
                 note("use a static variable instead");
             }
             break;
-        case Token::Fn:     decl = parse_fn_decl();     break;
-        case Token::Struct: decl = parse_struct_decl(); break;
-        case Token::Enum:   decl = parse_enum_decl();   break;
-        case Token::Type:   decl = parse_type_decl();   break;
-        case Token::Static: decl = parse_static_decl(); break;
-        case Token::Mod:    decl = parse_mod_decl();    break;
-        case Token::Use:    decl = parse_use_decl();    break;
-        default:            decl = parse_error_decl();  break;
+        case Token::Fn:       decl = parse_fn_decl();       break;
+        case Token::Struct:   decl = parse_struct_decl();   break;
+        case Token::Enum:     decl = parse_enum_decl();     break;
+        case Token::Type:     decl = parse_type_decl();     break;
+        case Token::Implicit: decl = parse_implicit_decl(); break;
+        case Token::Static:   decl = parse_static_decl();   break;
+        case Token::Mod:      decl = parse_mod_decl();      break;
+        case Token::Use:      decl = parse_use_decl();      break;
+        default:              decl = parse_error_decl();    break;
     }
     decl->attrs = std::move(attrs);
     decl->is_top_level = is_top_level;
@@ -193,6 +194,20 @@ Ptr<ast::TypeDecl> Parser::parse_type_decl() {
     auto aliased_type = parse_type();
     expect(Token::Semi);
     return make_ptr<ast::TypeDecl>(tracker(), std::move(id), std::move(type_params), std::move(aliased_type));
+}
+
+Ptr<ast::ImplicitDecl> Parser::parse_implicit_decl() {
+    Tracker tracker(this);
+    eat(Token::Implicit);
+
+    Ptr<ast::Type> type = nullptr;
+    if (ahead().tag() != Token::Eq)
+        type = parse_type();
+
+    expect(Token::Eq);
+    auto value = parse_expr(true);
+    expect(Token::Semi);
+    return make_ptr<ast::ImplicitDecl>(tracker(), std::move(type), std::move(value));
 }
 
 Ptr<ast::StaticDecl> Parser::parse_static_decl() {
@@ -471,6 +486,15 @@ Ptr<ast::LiteralExpr> Parser::parse_literal_expr() {
     Tracker tracker(this);
     auto lit = parse_lit();
     return make_ptr<ast::LiteralExpr>(tracker(), lit);
+}
+
+Ptr<ast::SummonExpr> Parser::parse_summon_expr() {
+    Tracker tracker(this);
+    eat(Token::Summon);
+    expect(Token::LBracket);
+    auto t = parse_type();
+    expect(Token::RBracket);
+    return make_ptr<ast::SummonExpr>(tracker(), std::move(t));
 }
 
 Ptr<ast::FieldExpr> Parser::parse_field_expr() {
@@ -828,6 +852,7 @@ Ptr<ast::Expr> Parser::parse_primary_expr(bool allow_structs, bool allow_casts) 
         case Token::Continue: expr = parse_continue_expr(); break;
         case Token::Return:   expr = parse_return_expr();   break;
         case Token::Asm:      expr = parse_asm_expr();      break;
+        case Token::Summon:   expr = parse_summon_expr();   break;
         default:
             expr = parse_error_expr();
             break;

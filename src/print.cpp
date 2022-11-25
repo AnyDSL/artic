@@ -473,10 +473,10 @@ void LetDecl::print(Printer& p) const {
 }
 
 void ImplicitDecl::print(Printer& p) const {
-    p << log::keyword_style("implicit") << ' ';
+    p << log::keyword_style("implicit");
     if (type) {
-        type->print(p);
         p << ' ';
+        type->print(p);
     }
     p << " = ";
     value->print(p);
