@@ -6,6 +6,7 @@
 #include "artic/parser.h"
 #include "artic/bind.h"
 #include "artic/check.h"
+#include "artic/summoner.h"
 
 #include <thorin/def.h>
 #include <thorin/type.h>
@@ -1198,6 +1199,12 @@ const thorin::Def* LiteralExpr::emit(Emitter& emitter) const {
     return emitter.emit(*this, lit);
 }
 
+const thorin::Def* SummonExpr::emit(Emitter& emitter) const {
+    if (resolved) return resolved->emit(emitter);
+    emitter.error("Emitted an unresolved SummonExpr, {} !", *this);
+    return emitter.world.bottom(Node::type->convert(emitter));
+}
+
 const thorin::Def* ArrayExpr::emit(Emitter& emitter) const {
     thorin::Array<const thorin::Def*> ops(elems.size());
     for (size_t i = 0, n = elems.size(); i < n; ++i)
@@ -1735,6 +1742,9 @@ const thorin::Def* ModDecl::emit(Emitter& emitter) const {
         // the call site, where the type arguments are known.
         if (auto fn_decl = decl->isa<FnDecl>(); fn_decl && fn_decl->type_params)
             continue;
+        // Likewise, we do not emit implicit declarations
+        if (auto implicit = decl->isa<ImplicitDecl>())
+            continue;
         emitter.emit(*decl);
     }
     return nullptr;
@@ -2052,7 +2062,9 @@ bool compile(
     TypeChecker type_checker(log, type_table);
     type_checker.warns_as_errors = warns_as_errors;
 
-    if (!name_binder.run(program) || !type_checker.run(program))
+    Summoner summoner(log);
+
+    if (!name_binder.run(program) || !type_checker.run(program) || !summoner.run(program))
         return false;
 
     Emitter emitter(log, world);

@@ -110,6 +110,10 @@ void LiteralExpr::print(Printer& p) const {
 }
 
 void SummonExpr::print(Printer& p) const {
+    if (resolved) {
+        resolved->print(p);
+        return;
+    }
     p << log::keyword_style("summon") << "[";
     if (type) type->print(p);
     p << "]";
