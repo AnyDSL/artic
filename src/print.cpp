@@ -743,6 +743,11 @@ void RefType::print(Printer& p) const {
     pointee->print(p);
 }
 
+void ImplicitParamType::print(artic::Printer& p) const {
+    p << "implicit ";
+    underlying->print(p);
+}
+
 void FnType::print(Printer& p) const {
     p << log::keyword_style("fn") << ' ';
     if (!dom->isa<TupleType>()) p << '(';

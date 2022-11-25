@@ -1886,8 +1886,16 @@ const thorin::Type* PtrType::convert(Emitter& emitter) const {
     return emitter.world.ptr_type(pointee->convert(emitter), 1, -1, thorin::AddrSpace(addr_space));
 }
 
+std::string ImplicitParamType::stringify(Emitter& emitter) const {
+    return "implicit_" + underlying->stringify(emitter);
+}
+
 std::string FnType::stringify(Emitter& emitter) const {
     return "fn_" + dom->stringify(emitter) + "_" + codom->stringify(emitter);
+}
+
+const thorin::Type* ImplicitParamType::convert(artic::Emitter& emitter) const {
+    return underlying->convert(emitter);
 }
 
 const thorin::Type* FnType::convert(Emitter& emitter) const {
