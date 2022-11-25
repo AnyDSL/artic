@@ -151,6 +151,10 @@ void PathExpr::bind(NameBinder& binder) {
 
 void LiteralExpr::bind(NameBinder&) {}
 
+void SummonExpr::bind(artic::NameBinder& binder) {
+    if (type) binder.bind(*type);
+}
+
 void FieldExpr::bind(NameBinder& binder) {
     binder.bind(*expr);
 }
@@ -375,6 +379,11 @@ void PtrnDecl::bind(NameBinder& binder) {
 void LetDecl::bind(NameBinder& binder) {
     if (init) binder.bind(*init);
     binder.bind(*ptrn);
+}
+
+void ImplicitDecl::bind(artic::NameBinder& binder) {
+    if (type) type->bind(binder);
+    value->bind(binder);
 }
 
 void StaticDecl::bind_head(NameBinder& binder) {

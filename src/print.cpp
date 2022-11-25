@@ -109,6 +109,12 @@ void LiteralExpr::print(Printer& p) const {
     p << std::showpoint << log::literal_style(lit);
 }
 
+void SummonExpr::print(Printer& p) const {
+    p << log::keyword_style("summon") << "[";
+    if (type) type->print(p);
+    p << "]";
+}
+
 void FieldExpr::print(Printer& p) const {
     p << id.name << " = ";
     expr->print(p);
@@ -463,6 +469,17 @@ void LetDecl::print(Printer& p) const {
         p << " = ";
         init->print(p);
     }
+    p << ';';
+}
+
+void ImplicitDecl::print(Printer& p) const {
+    p << log::keyword_style("implicit") << ' ';
+    if (type) {
+        type->print(p);
+        p << ' ';
+    }
+    p << " = ";
+    value->print(p);
     p << ';';
 }
 

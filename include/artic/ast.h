@@ -514,6 +514,20 @@ struct LiteralExpr : public Expr {
     void print(Printer&) const override;
 };
 
+/// Expression summoning an implicit value.
+struct SummonExpr : public Expr {
+    Ptr<Type> type;
+
+    SummonExpr(const Loc& loc, Ptr<Type>&& type)
+        : Expr(loc), type(std::move(type))
+    {}
+
+    const artic::Type* infer(TypeChecker&) override;
+    const artic::Type* check(TypeChecker&, const artic::Type*) override;
+    void bind(NameBinder&) override;
+    void print(Printer&) const override;
+};
+
 /// Field expression, part of a record expression.
 struct FieldExpr : public Expr {
     Identifier id;
@@ -1216,6 +1230,27 @@ struct LetDecl : public Decl {
     {}
 
     const thorin::Def* emit(Emitter&) const override;
+    const artic::Type* infer(TypeChecker&) override;
+    void bind(NameBinder&) override;
+    void print(Printer&) const override;
+};
+
+/// Declaration that introduces an implicit value, or implicit value generator in the scope
+struct ImplicitDecl : public Decl {
+    Ptr<Type> type;
+    Ptr<Expr> value;
+    bool is_generator;
+
+    ImplicitDecl(const Loc& loc,
+                 Ptr<Type>&& type,
+                 Ptr<Expr>&& value,
+                 bool is_generator = false)
+            : Decl(loc)
+            , type(std::move(type))
+            , value(std::move(value))
+            , is_generator(is_generator)
+    {}
+
     const artic::Type* infer(TypeChecker&) override;
     void bind(NameBinder&) override;
     void print(Printer&) const override;

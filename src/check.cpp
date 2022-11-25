@@ -849,6 +849,22 @@ const artic::Type* LiteralExpr::check(TypeChecker& checker, const artic::Type* e
     return checker.check(loc, lit, expected);
 }
 
+const artic::Type* SummonExpr::infer(artic::TypeChecker& checker) {
+    if (type) return checker.infer(*type);
+    checker.error(loc, "summoning a value without a type");
+    return checker.type_table.type_error();
+}
+
+const artic::Type* SummonExpr::check(artic::TypeChecker& checker, const artic::Type* expected) {
+    if (type) {
+        auto got = checker.infer(*this);
+        if (!expected->subtype(got))
+            return checker.incompatible_types(loc, got, expected);
+        return got;
+    }
+    return expected;
+}
+
 const artic::Type* FieldExpr::check(TypeChecker& checker, const artic::Type* expected) {
     return checker.coerce(expr, expected);
 }
@@ -1489,6 +1505,18 @@ const artic::Type* LetDecl::infer(TypeChecker& checker) {
         checker.infer(*ptrn);
     checker.check_refutability(*ptrn, true);
     return checker.type_table.unit_type();
+}
+
+const artic::Type* ImplicitDecl::infer(TypeChecker& checker) {
+    const artic::Type* t = nullptr;
+    assert(!is_generator && "TODO");
+    if (type) {
+        t = checker.infer(*type);
+        checker.coerce(value, t);
+    } else {
+        t = checker.infer(*value);
+    }
+    return t;
 }
 
 const artic::Type* StaticDecl::infer(TypeChecker& checker) {
