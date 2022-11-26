@@ -27,6 +27,8 @@ add_test(NAME simple_if_let      COMMAND artic --print-ast ${CMAKE_CURRENT_SOURC
 add_test(NAME simple_implicit1   COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/implicit1.art)
 add_test(NAME simple_implicit2   COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/implicit2.art)
 add_test(NAME simple_implicit3   COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/implicit3.art)
+add_test(NAME simple_implicit4   COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/implicit4.art)
+add_test(NAME simple_implicit5   COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/implicit5.art)
 add_test(NAME simple_while       COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/while.art)
 add_test(NAME simple_while_let   COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/while_let.art)
 add_test(NAME simple_for         COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/for.art)
