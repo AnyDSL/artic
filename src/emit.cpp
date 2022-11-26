@@ -702,6 +702,9 @@ const thorin::Def* Emitter::down_cast(const thorin::Def* def, const Type* from, 
     if (from->isa<BottomType>())
         return world.bottom(to->convert(*this));
 
+    if (to->isa<ImplicitParamType>())
+        return def;
+
     auto to_ptr_type = to->isa<PtrType>();
     // Casting a value to a pointer to the type of the value effectively creates an allocation
     if (to_ptr_type &&

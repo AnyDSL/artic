@@ -482,6 +482,9 @@ bool Type::subtype(const Type* other) const {
     if (this == other || isa<BottomType>() || other->isa<TopType>())
         return true;
 
+    if (auto implicit = other->isa<ImplicitParamType>())
+        return this->subtype(implicit->underlying);
+
     auto other_ptr_type = other->isa<PtrType>(); 
 
     // Take the address of values automatically:
