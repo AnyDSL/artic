@@ -60,7 +60,7 @@ void TypedExpr::resolve_summons(artic::Summoner& summoner) {
 }
 
 void SummonExpr::resolve_summons(artic::Summoner& summoner) {
-    resolved = summoner.resolve(Node::type);
+    resolved = summoner.resolve(type);
 }
 
 void FieldExpr::resolve_summons(artic::Summoner& summoner) {

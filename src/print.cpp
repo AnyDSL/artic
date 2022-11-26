@@ -116,6 +116,7 @@ void SummonExpr::print(Printer& p) const {
     }
     p << log::keyword_style("summon") << "[";
     if (type) type->print(p);
+    else if (type_expr) type_expr->print(p);
     p << "]";
 }
 

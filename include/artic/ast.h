@@ -528,12 +528,12 @@ struct LiteralExpr : public Expr {
 
 /// Expression summoning an implicit value.
 struct SummonExpr : public Expr {
-    Ptr<Type> type;
+    Ptr<Type> type_expr;
 
     const Expr* resolved = nullptr;
 
-    SummonExpr(const Loc& loc, Ptr<Type>&& type)
-        : Expr(loc), type(std::move(type))
+    SummonExpr(const Loc& loc, Ptr<Type>&& type_expr)
+        : Expr(loc), type_expr(std::move(type_expr))
     {}
 
     const thorin::Def* emit(Emitter&) const override;

@@ -1205,7 +1205,7 @@ const thorin::Def* LiteralExpr::emit(Emitter& emitter) const {
 const thorin::Def* SummonExpr::emit(Emitter& emitter) const {
     if (resolved) return resolved->emit(emitter);
     emitter.error("Emitted an unresolved SummonExpr, {} !", *this);
-    return emitter.world.bottom(Node::type->convert(emitter));
+    return emitter.world.bottom(type->convert(emitter));
 }
 
 const thorin::Def* ArrayExpr::emit(Emitter& emitter) const {

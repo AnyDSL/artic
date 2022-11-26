@@ -157,7 +157,12 @@ const Type* TypeChecker::deref(Ptr<ast::Expr>& expr) {
 const Type* TypeChecker::coerce(Ptr<ast::Expr>& expr, const Type* expected) {
     auto type = expr->type ? expr->type : check(*expr, expected);
     if (type != expected) {
-        if (type->subtype(expected)) {
+        if (auto implicit = expected->isa<ImplicitParamType>()) {
+            Ptr<ast::Expr> summoned = make_ptr<ast::SummonExpr>(expr->loc, Ptr<ast::Type>());
+            summoned->type = implicit->underlying;
+            expr.swap(summoned);
+            return implicit->underlying;
+        } else if (type->subtype(expected)) {
             expr = make_ptr<ast::ImplicitCastExpr>(expr->loc, std::move(expr), expected);
             return expected;
         } else
@@ -850,7 +855,7 @@ const artic::Type* LiteralExpr::check(TypeChecker& checker, const artic::Type* e
 }
 
 const artic::Type* SummonExpr::infer(artic::TypeChecker& checker) {
-    if (type) return checker.infer(*type);
+    if (type_expr) return checker.infer(*type_expr);
     checker.error(loc, "summoning a value without a type");
     return checker.type_table.type_error();
 }
@@ -894,6 +899,12 @@ const artic::Type* TupleExpr::check(TypeChecker& checker, const artic::Type* exp
         for (size_t i = 0, n = args.size(); i < n; ++i)
             checker.coerce(args[i], tuple_type->args[i]);
         return expected;
+    }
+    // Allow the empty tuple () to type as an implicit param
+    if (auto implicit = expected->isa<ImplicitParamType>()) {
+        auto inferred = infer(checker);
+        if (is_unit_type(inferred))
+            return inferred;
     }
     return checker.incompatible_type(loc, "tuple expression", expected);
 }

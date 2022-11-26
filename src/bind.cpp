@@ -152,7 +152,7 @@ void PathExpr::bind(NameBinder& binder) {
 void LiteralExpr::bind(NameBinder&) {}
 
 void SummonExpr::bind(artic::NameBinder& binder) {
-    if (type) binder.bind(*type);
+    if (type_expr) binder.bind(*type_expr);
 }
 
 void FieldExpr::bind(NameBinder& binder) {

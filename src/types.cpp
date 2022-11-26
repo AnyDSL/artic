@@ -483,7 +483,7 @@ bool Type::subtype(const Type* other) const {
         return true;
 
     if (auto implicit = other->isa<ImplicitParamType>())
-        return this->subtype(implicit->underlying);
+        return this->subtype(implicit->underlying) || is_unit_type(this);
 
     auto other_ptr_type = other->isa<PtrType>(); 
 
