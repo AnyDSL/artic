@@ -616,6 +616,7 @@ Ptr<ast::BlockExpr> Parser::parse_block_expr() {
             case Token::Simd:
             case Token::Let:
             case Token::Implicit:
+            case Token::Summon:
             case Token::Fn:
                 if (!last_semi && !stmts.empty() && stmts.back()->needs_semicolon())
                     error(ahead().loc(), "expected ';', but got '{}'", ahead().string());
