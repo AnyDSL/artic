@@ -154,14 +154,39 @@ const Type* TypeChecker::deref(Ptr<ast::Expr>& expr) {
     return type;
 }
 
+static bool contains_implicit(const artic::Type* type) {
+    if (type->isa<ImplicitParamType>())
+        return true;
+    else if(auto tuple_t = type->isa<artic::TupleType>(); tuple_t && !is_unit_type(tuple_t)) {
+        return std::any_of(tuple_t->args.begin(), tuple_t->args.end(), [&](auto arg){ return arg->template isa<ImplicitParamType>(); });
+    }
+    return false;
+}
+
 const Type* TypeChecker::coerce(Ptr<ast::Expr>& expr, const Type* expected) {
     auto type = expr->type ? expr->type : check(*expr, expected);
     if (type != expected) {
-        if (auto implicit = expected->isa<ImplicitParamType>()) {
-            Ptr<ast::Expr> summoned = make_ptr<ast::SummonExpr>(expr->loc, Ptr<ast::Type>());
-            summoned->type = implicit->underlying;
-            expr.swap(summoned);
-            return implicit->underlying;
+        if (contains_implicit(expected)) {
+            if (auto implicit = expected->isa<ImplicitParamType>()) {
+                Ptr<ast::Expr> summoned = make_ptr<ast::SummonExpr>(expr->loc, Ptr<ast::Type>());
+                summoned->type = implicit->underlying;
+                expr.swap(summoned);
+                return implicit->underlying;
+            } else {
+                // auto original = expr->isa<ast::TupleExpr>();
+                auto tuple_t = expected->as<TupleType>();
+                PtrVector<ast::Expr> args;
+                for (auto& arg : tuple_t->args) {
+                    if (auto implicit = arg->isa<ImplicitParamType>()) {
+                        Ptr<ast::Expr> summoned = make_ptr<ast::SummonExpr>(expr->loc, Ptr<ast::Type>());
+                        summoned->type = implicit->underlying;
+                        args.push_back(std::move(summoned));
+                    } else {
+                        assert(false);
+                    }
+                }
+                expr = make_ptr<ast::TupleExpr>(expr->loc, std::move(args));
+            }
         } else if (type->subtype(expected)) {
             expr = make_ptr<ast::ImplicitCastExpr>(expr->loc, std::move(expr), expected);
             return expected;
@@ -893,18 +918,16 @@ const artic::Type* TupleExpr::infer(TypeChecker& checker) {
 }
 
 const artic::Type* TupleExpr::check(TypeChecker& checker, const artic::Type* expected) {
+    // Allow the empty tuple () when expecting an implicit param, or a tuple of implicit params
+    if (contains_implicit(expected) && args.empty()) {
+        return nullptr;
+    }
     if (auto tuple_type = expected->isa<artic::TupleType>()) {
         if (args.size() != tuple_type->args.size())
             return checker.bad_arguments(loc, "tuple expression", args.size(), tuple_type->args.size());
         for (size_t i = 0, n = args.size(); i < n; ++i)
             checker.coerce(args[i], tuple_type->args[i]);
         return expected;
-    }
-    // Allow the empty tuple () to type as an implicit param
-    if (auto implicit = expected->isa<ImplicitParamType>()) {
-        auto inferred = infer(checker);
-        if (is_unit_type(inferred))
-            return inferred;
     }
     return checker.incompatible_type(loc, "tuple expression", expected);
 }
