@@ -179,26 +179,27 @@ const Type* TypeChecker::coerce(Ptr<ast::Expr>& expr, const Type* expected) {
         auto deconstructed = expr->isa<ast::TupleExpr>();
         auto tuple_t = expected->as<TupleType>();
         PtrVector<ast::Expr> args;
-        size_t i = 0;
-        for (auto& arg : tuple_t->args) {
-            if (auto implicit = arg->isa<ImplicitParamType>()) {
+        for (size_t i = 0; i < tuple_t->args.size(); i++) {
+            if (!deconstructed) {
+                if (i == 0 && !is_unit(expr)) {
+                    args.push_back(std::move(expr));
+                    continue;
+                }
+            } else {
+                if (i < deconstructed->args.size()) {
+                    args.push_back(std::move(deconstructed->args[i]));
+                    continue;
+                }
+            }
+
+            if (auto implicit = tuple_t->args[i]->isa<ImplicitParamType>()) {
                 Ptr<ast::Expr> summoned = make_ptr<ast::SummonExpr>(loc, Ptr<ast::Type>());
                 summoned->type = implicit->underlying;
                 args.push_back(std::move(summoned));
-            } else {
-                // we just had _one_ non-implicit argument, so there is no list to deconstruct, we use the expr
-                if (!deconstructed) {
-                    if (i > 0)
-                        return bad_arguments(loc, "fn parameters", 1, i); // TODO these error messages are bad
-                    args.push_back(std::move(expr));
-                } else {
-                    // otherwise we
-                    if (i >= deconstructed->args.size())
-                        return bad_arguments(loc, "fn parameters", deconstructed->args.size(), i);
-                    args.push_back(std::move(deconstructed->args[i]));
-                }
+                continue;
             }
-            i++;
+
+            bad_arguments(loc, "non-implicit arguments", i, tuple_t->args.size());
         }
         expr = make_ptr<ast::TupleExpr>(loc, std::move(args));
     }

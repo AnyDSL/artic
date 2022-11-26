@@ -103,6 +103,7 @@ add_failure_test(NAME failure_if             COMMAND artic ${CMAKE_CURRENT_SOURC
 add_failure_test(NAME failure_if_let         COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/if_let.art)
 add_failure_test(NAME failure_implicit1      COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/implicit1.art)
 add_failure_test(NAME failure_implicit2      COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/implicit2.art)
+add_failure_test(NAME failure_implicit3      COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/implicit3.art)
 add_failure_test(NAME failure_while_let      COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/while_let.art)
 add_failure_test(NAME failure_structs1       COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/structs1.art)
 add_failure_test(NAME failure_structs2       COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/structs2.art)
