@@ -1696,6 +1696,14 @@ const artic::Type* IdPtrn::check(TypeChecker& checker, const artic::Type* expect
     return expected;
 }
 
+const artic::Type * ImplicitParamPtrn::infer(artic::TypeChecker& checker) {
+    return underlying->infer(checker);
+}
+
+const artic::Type * ImplicitParamPtrn::check(artic::TypeChecker& checker, const artic::Type* expected) {
+    return underlying->check(checker, expected);
+}
+
 const artic::Type* FieldPtrn::check(TypeChecker& checker, const artic::Type* expected) {
     return checker.check(*ptrn, expected);
 }

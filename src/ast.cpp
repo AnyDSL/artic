@@ -633,6 +633,10 @@ bool LiteralPtrn::is_trivial() const {
     return false;
 }
 
+bool ImplicitParamPtrn::is_trivial() const {
+    return underlying->is_trivial();
+}
+
 void FieldPtrn::collect_bound_ptrns(std::vector<const IdPtrn*>& bound_ptrns) const {
     if (ptrn)
         ptrn->collect_bound_ptrns(bound_ptrns);

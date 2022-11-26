@@ -397,6 +397,11 @@ void LiteralPtrn::print(Printer& p) const {
     p << std::showpoint << log::literal_style(lit);
 }
 
+void ImplicitParamPtrn::print(Printer& p) const {
+    p << log::keyword_style("implicit") << ' ';
+    underlying->print(p);
+}
+
 void FieldPtrn::print(Printer& p) const {
     if (is_etc()) {
         p << "...";

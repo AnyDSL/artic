@@ -1602,6 +1602,23 @@ struct LiteralPtrn : public Ptrn {
     void print(Printer&) const override;
 };
 
+struct ImplicitParamPtrn : public Ptrn {
+    Ptr<Ptrn> underlying;
+
+    ImplicitParamPtrn(const Loc& loc, Ptr<Ptrn>&& underlying)
+        : Ptrn(loc), underlying(std::move(underlying))
+    {}
+
+    bool is_trivial() const override;
+
+    void emit(Emitter&, const thorin::Def*) const override;
+    const artic::Type* infer(TypeChecker&) override;
+    const artic::Type* check(TypeChecker&, const artic::Type*) override;
+    void bind(NameBinder&) override;
+    void resolve_summons(Summoner&) override {};
+    void print(Printer&) const override;
+};
+
 /// A pattern that matches against a structure field.
 struct FieldPtrn : public Ptrn {
     Identifier id;

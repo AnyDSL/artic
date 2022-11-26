@@ -338,6 +338,10 @@ void IdPtrn::bind(NameBinder& binder) {
 
 void LiteralPtrn::bind(NameBinder&) {}
 
+void ImplicitParamPtrn::bind(artic::NameBinder& binder) {
+    underlying->bind(binder);
+}
+
 void FieldPtrn::bind(NameBinder& binder) {
     if (ptrn) binder.bind(*ptrn);
 }

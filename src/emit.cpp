@@ -1776,6 +1776,10 @@ void IdPtrn::emit(Emitter& emitter, const thorin::Def* value) const {
         emitter.emit(*sub_ptrn, value);
 }
 
+void ImplicitParamPtrn::emit(artic::Emitter& emitter, const thorin::Def* value) const {
+    underlying->emit(emitter, value);
+}
+
 void FieldPtrn::emit(Emitter& emitter, const thorin::Def* value) const {
     emitter.emit(*ptrn, value);
 }
