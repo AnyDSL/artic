@@ -361,8 +361,7 @@ int main(int argc, char** argv) {
             emit_to_file(cg);
         }
         if (opts.emit_json) {
-            thorin::Cont2Config kernel_configs;
-            thorin::json::CodeGen cg(world, kernel_configs, opts.debug);
+            thorin::json::CodeGen cg(world, opts.debug, opts.host_triple, opts.host_cpu, opts.host_attr);
             emit_to_file(cg);
         }
 #ifdef ENABLE_LLVM
