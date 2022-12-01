@@ -635,7 +635,7 @@ void Emitter::store(const thorin::Def* ptr, const thorin::Def* value, thorin::De
 
 const thorin::Def* Emitter::load(const thorin::Def* ptr, thorin::Debug debug) {
     // Allow loads from globals at the top level (where `state.mem` is null)
-    if (auto global = ptr->isa<thorin::Global>(); global && !global->is_mutable())
+    if (auto global = ptr->isa<thorin::Global>(); global && !global->is_mutable() && (!global->is_external() || !global->init()->isa<thorin::Bottom>()))
         return global->init();
     assert(state.mem);
     auto pair = world.load(state.mem, ptr, debug);
