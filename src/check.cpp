@@ -744,8 +744,19 @@ void NamedAttr::check(TypeChecker& checker, const ast::Node* node) {
                 if (fn_decl->fn->body)
                     checker.error(fn_decl->loc, "imported functions cannot have a body");
             }
-        } else
-            checker.error(loc, "attribute '{}' is only valid for function declarations", name);
+        } else if (auto staticdecl = node->isa<StaticDecl>()) {
+            if (name == "import") {
+                checker.error(loc, "attribute '{}' is only valid for function declarations", name);
+            }
+            if (!staticdecl->is_top_level) {
+                checker.error(loc, "attribute '{}' is only valid for top level declarations", name);
+            }
+        } else {
+            if (name == "import")
+                checker.error(loc, "attribute '{}' is only valid for function declarations", name);
+            else
+                checker.error(loc, "attribute '{}' is only valid for function and static declarations", name);
+        }
     } else
         checker.invalid_attr(loc, name);
 }
