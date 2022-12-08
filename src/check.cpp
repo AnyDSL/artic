@@ -1516,6 +1516,12 @@ const artic::Type* StaticDecl::infer(TypeChecker& checker) {
         return checker.cannot_infer(loc, "static variable");
     if (init && !init->is_constant())
         checker.error(init->loc, "only constants are allowed as static variable initializers");
+    for (auto child : this->others) {
+        if(child->type) {
+            auto other_type = checker.infer(*child->type);
+            checker.expect(child->type->loc, other_type, value_type);
+        }
+    }
     checker.exit_decl(this);
     return checker.type_table.ref_type(value_type, is_mut, 0);
 }

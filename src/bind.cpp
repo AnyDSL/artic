@@ -378,6 +378,33 @@ void LetDecl::bind(NameBinder& binder) {
 }
 
 void StaticDecl::bind_head(NameBinder& binder) {
+    auto pre_symbol = binder.find_symbol(this->id.name);
+    if (pre_symbol) {
+        auto pre_decl = pre_symbol->decl;
+
+        if(!pre_decl->isa<StaticDecl>()) {
+            binder.error(loc, "identifier '{}' already declared", this->id.name);
+            binder.note(pre_decl->loc, "previously declared here");
+            return;
+        }
+        auto pre_static = pre_decl->as<StaticDecl>();
+
+        if (init) {
+            if(pre_static->init) {
+                binder.error(loc, "overwriting init of '{}'", this->id.name);
+                binder.note(pre_decl->loc, "previously declared here");
+            }
+
+            binder.remove_symbol(this->id.name);
+
+            this->others.push_back(pre_static);
+        } else {
+            pre_static->others.push_back(this);
+
+            return;
+        }
+    }
+
     binder.insert_symbol(*this);
 }
 
