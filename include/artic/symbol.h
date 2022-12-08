@@ -36,6 +36,10 @@ struct SymbolTable {
         return it != symbols.end() ? &it->second : nullptr;
     }
 
+    void erase(const std::string& name) {
+        symbols.erase(name);
+    }
+
     template <typename T, typename DistanceFn>
     Symbol* find_similar(const std::string& name, T& min, DistanceFn distance) {
         Symbol* best = nullptr;

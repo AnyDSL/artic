@@ -1225,6 +1225,8 @@ struct LetDecl : public Decl {
 struct StaticDecl : public ValueDecl {
     Ptr<Type> type;
     Ptr<Expr> init;
+    std::vector<StaticDecl*> others;
+
     bool is_mut;
 
     StaticDecl(

@@ -178,7 +178,7 @@ if (Thorin_HAS_LLVM_SUPPORT)
             COMMAND $<TARGET_FILE:clang> ${test_NAME}.ll ${MATH_LIB} ${HELPERS_OBJ} -o test_${test_NAME}
             DEPENDS artic clang test_helpers ${test_SOURCE_FILE}
             WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
-        add_custom_target(test_${test_NAME} ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/test_${test_NAME})
+        add_custom_target(test_target_${test_NAME} ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/test_${test_NAME})
         add_test(
             NAME ${test_NAME}
             COMMAND
