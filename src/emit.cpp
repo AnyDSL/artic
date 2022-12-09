@@ -909,7 +909,7 @@ const thorin::Def* Emitter::builtin(const ast::FnDecl& fn_decl, thorin::Continua
         static const std::unordered_map<std::string, std::function<const thorin::Def* (Emitter*, const thorin::Continuation*)>> functions = {
             { "fabs",     [] (Emitter* self, const thorin::Continuation* cont) { return self->world.fabs(cont->param(1)); } },
             { "copysign", [] (Emitter* self, const thorin::Continuation* cont) { return self->world.copysign(cont->param(1), cont->param(2)); } },
-            { "signbit",  [] (Emitter* self, const thorin::Continuation* cont) { (void)self; return signbit(cont->param(1)); } },
+            { "signbit",  [] (Emitter*     , const thorin::Continuation* cont) { return signbit(cont->param(1)); } },
             { "round",    [] (Emitter* self, const thorin::Continuation* cont) { return self->world.round(cont->param(1)); } },
             { "ceil",     [] (Emitter* self, const thorin::Continuation* cont) { return self->world.ceil(cont->param(1)); } },
             { "floor",    [] (Emitter* self, const thorin::Continuation* cont) { return self->world.floor(cont->param(1)); } },
@@ -930,8 +930,8 @@ const thorin::Def* Emitter::builtin(const ast::FnDecl& fn_decl, thorin::Continua
             { "log",      [] (Emitter* self, const thorin::Continuation* cont) { return self->world.log(cont->param(1)); } },
             { "log2",     [] (Emitter* self, const thorin::Continuation* cont) { return self->world.log2(cont->param(1)); } },
             { "log10",    [] (Emitter* self, const thorin::Continuation* cont) { return self->world.log10(cont->param(1)); } },
-            { "isnan",    [] (Emitter* self, const thorin::Continuation* cont) { (void)self; return isnan(cont->param(1)); } },
-            { "isfinite", [] (Emitter* self, const thorin::Continuation* cont) { (void)self; return isfinite(cont->param(1)); } },
+            { "isnan",    [] (Emitter*     , const thorin::Continuation* cont) { return isnan(cont->param(1)); } },
+            { "isfinite", [] (Emitter*     , const thorin::Continuation* cont) { return isfinite(cont->param(1)); } },
         };
         assert(functions.count(cont->name()) > 0);
         enter(cont);
