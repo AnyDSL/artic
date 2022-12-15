@@ -980,7 +980,7 @@ const thorin::Def* Emitter::comparator(const Loc& loc, const Type* type) {
             // just compare the tags.
             if (!match_app<EnumType>(type).second->is_trivial()) {
                 thorin::Array<thorin::Continuation*> targets(
-                    converted_type->num_ops() - 1, [&] (auto) { return basic_block(); });
+                    converted_type->num_ops() - 1, [&] (auto) { return basic_block_with_mem(); });
                 thorin::Array<const thorin::Def*> defs(
                     converted_type->num_ops() - 1, [&] (size_t i) { return ctor_index(i); });
                 auto otherwise  = basic_block_with_mem();
