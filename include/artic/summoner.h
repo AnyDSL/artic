@@ -23,7 +23,7 @@ private:
     void pop_scope();
 
     void insert(const artic::Type*, const ast::Expr*);
-    const ast::Expr* resolve(const artic::Type*);
+    const ast::Expr* resolve(const artic::Type*, const artic::Loc& at);
 
     bool error = false;
     std::vector<TypeMap<const ast::Expr*>> scopes;
@@ -32,6 +32,8 @@ private:
     friend ast::ImplicitDecl;
     friend ast::ModDecl;
     friend ast::BlockExpr;
+    friend ast::FnExpr;
+    friend ast::ImplicitParamPtrn;
 };
 
 } // namespace artic

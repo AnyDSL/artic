@@ -29,7 +29,7 @@ void Summoner::insert(const artic::Type* t, const ast::Expr* e) {
     scope.emplace(t, e);
 }
 
-const ast::Expr* Summoner::resolve(const artic::Type* t) {
+const ast::Expr* Summoner::resolve(const artic::Type* t, const artic::Loc& at) {
     for (auto& scope : scopes) {
         auto found = scope.find(t);
         if (found != scope.end())
@@ -37,7 +37,7 @@ const ast::Expr* Summoner::resolve(const artic::Type* t) {
         // TODO: use subtyping relations and generators
     }
     error = true;
-    log::error("Could not summon a {}", *t);
+    log::error("Could not summon an implicit value of type {} at {}", *t, at);
     return nullptr;
 }
 
@@ -60,7 +60,7 @@ void TypedExpr::resolve_summons(artic::Summoner& summoner) {
 }
 
 void SummonExpr::resolve_summons(artic::Summoner& summoner) {
-    resolved = summoner.resolve(type);
+    resolved = summoner.resolve(type, loc);
 }
 
 void FieldExpr::resolve_summons(artic::Summoner& summoner) {
@@ -88,8 +88,10 @@ void RepeatArrayExpr::resolve_summons(artic::Summoner& summoner) {
 }
 
 void FnExpr::resolve_summons(artic::Summoner& summoner) {
+    summoner.push_scope();
     param->resolve_summons(summoner);
     if(body) body->resolve_summons(summoner);
+    summoner.pop_scope();
 }
 
 void BlockExpr::resolve_summons(artic::Summoner& summoner) {
@@ -213,6 +215,10 @@ void TypedPtrn::resolve_summons(artic::Summoner& summoner) {
 void IdPtrn::resolve_summons(artic::Summoner& summoner) {
     decl->resolve_summons(summoner);
     if (sub_ptrn) sub_ptrn->resolve_summons(summoner);
+}
+
+void ImplicitParamPtrn::resolve_summons(artic::Summoner& summoner) {
+    summoner.insert(underlying->type, underlying->to_expr());
 }
 
 void FieldPtrn::resolve_summons(artic::Summoner& summoner) {

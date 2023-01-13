@@ -146,12 +146,16 @@ struct IdPtrn;
 struct Ptrn : public Node {
     Ptrn(const Loc& loc) : Node(loc) {}
 
+    Ptr<Expr> as_expr;
+
     bool is_tuple() const;
 
     const artic::Type* check(TypeChecker&, const artic::Type*) override;
 
     /// Collect patterns that bind an identifier to a value in this pattern.
     virtual void collect_bound_ptrns(std::vector<const IdPtrn*>&) const;
+    /// Rewrites the pattern into an expression
+    virtual const Expr* to_expr() { return as_expr.get(); }
     /// Returns true when the pattern is trivial (e.g. always matches).
     virtual bool is_trivial() const = 0;
     /// Emits IR for the pattern, given a value to bind it to.
@@ -1561,6 +1565,7 @@ struct TypedPtrn : public Ptrn {
     void emit(Emitter&, const thorin::Def*) const override;
     const artic::Type* infer(TypeChecker&) override;
     void bind(NameBinder&) override;
+    const Expr* to_expr() override;
     void resolve_summons(Summoner&) override;
     void print(Printer&) const override;
 };
@@ -1581,6 +1586,7 @@ struct IdPtrn : public Ptrn {
     const artic::Type* infer(TypeChecker&) override;
     const artic::Type* check(TypeChecker&, const artic::Type*) override;
     void bind(NameBinder&) override;
+    const Expr* to_expr() override;
     void resolve_summons(Summoner&) override;
     void print(Printer&) const override;
 };
@@ -1598,6 +1604,7 @@ struct LiteralPtrn : public Ptrn {
     const artic::Type* infer(TypeChecker&) override;
     const artic::Type* check(TypeChecker&, const artic::Type*) override;
     void bind(NameBinder&) override;
+    const Expr* to_expr() override;
     void resolve_summons(Summoner&) override {};
     void print(Printer&) const override;
 };
@@ -1615,7 +1622,7 @@ struct ImplicitParamPtrn : public Ptrn {
     const artic::Type* infer(TypeChecker&) override;
     const artic::Type* check(TypeChecker&, const artic::Type*) override;
     void bind(NameBinder&) override;
-    void resolve_summons(Summoner&) override {};
+    void resolve_summons(Summoner&) override;
     void print(Printer&) const override;
 };
 
