@@ -761,9 +761,10 @@ void NamedAttr::check(TypeChecker& checker, const ast::Node* node) {
                 else
                     checker.check_attrs(*this, std::array<AttrType, 1> { AttrType { "name", AttrType::String } });
             } else if (name == "import") {
-                if (checker.check_attrs(*this, std::array<AttrType, 2> {
+                if (checker.check_attrs(*this, std::array<AttrType, 3> {
                         AttrType { "cc", AttrType::String },
-                        AttrType { "name", AttrType::String }
+                        AttrType { "name", AttrType::String },
+                        AttrType { "depends", AttrType::Path }
                     }))
                 {
                     auto name = fn_decl->id.name;
