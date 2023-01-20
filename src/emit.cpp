@@ -1691,6 +1691,10 @@ const thorin::Def* FnDecl::emit(Emitter& emitter) const {
                 else if (cc == "builtin")
                     emitter.builtin(*this, cont);
             }
+            if (auto depends_attr = import_attr->find("depends")) {
+                auto depends = depends_attr->as<PathAttr>();
+                cont->attributes().depends = depends->path.emit(emitter)->as<thorin::Continuation>();
+            }
         }
     }
 
