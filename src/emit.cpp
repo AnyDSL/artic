@@ -635,7 +635,7 @@ void Emitter::store(const thorin::Def* ptr, const thorin::Def* value, thorin::De
 
 const thorin::Def* Emitter::load(const thorin::Def* ptr, thorin::Debug debug) {
     // Allow loads from globals at the top level (where `state.mem` is null)
-    if (auto global = ptr->isa<thorin::Global>(); global && !global->is_mutable())
+    if (auto global = ptr->isa<thorin::Global>(); global && !global->is_mutable() && (!global->is_external() || !global->init()->isa<thorin::Bottom>()))
         return global->init();
     assert(state.mem);
     auto pair = world.load(state.mem, ptr, debug);
@@ -1642,7 +1642,17 @@ const thorin::Def* StaticDecl::emit(Emitter& emitter) const {
     auto value = init
         ? emitter.emit(*init)
         : emitter.world.bottom(Node::type->as<artic::RefType>()->pointee->convert(emitter));
-    return emitter.world.global(value, is_mut, emitter.debug_info(*this));
+    auto global = emitter.world.global(value, is_mut, emitter.debug_info(*this));
+
+    if (attrs) {
+        if (auto export_attr = attrs->find("export")) {
+            if (auto name_attr = export_attr->find("name"))
+                global->set_name(name_attr->as<LiteralAttr>()->lit.as_string());
+            emitter.world.make_external(const_cast<thorin::Def*>(global));
+        }
+    }
+
+    return global;
 }
 
 const thorin::Def* FnDecl::emit(Emitter& emitter) const {
