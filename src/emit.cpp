@@ -1686,6 +1686,11 @@ const thorin::Def* FnDecl::emit(Emitter& emitter) const {
                 else if (cc == "builtin")
                     emitter.builtin(*this, cont);
             }
+        } else if (auto intern_attr = attrs->find("intern")) {
+            if (auto name_attr = intern_attr->find("name"))
+                cont->set_name(name_attr->as<LiteralAttr>()->lit.as_string());
+            emitter.world.make_external(cont);
+            cont->attributes().cc = thorin::CC::Internal;
         }
     }
 

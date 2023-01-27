@@ -757,6 +757,8 @@ void NamedAttr::check(TypeChecker& checker, const ast::Node* node) {
             else
                 checker.error(loc, "attribute '{}' is only valid for function and static declarations", name);
         }
+    } else if (name == "intern") {
+        checker.check_attrs(*this, std::array<AttrType, 1> { AttrType { "name", AttrType::String } });
     } else
         checker.invalid_attr(loc, name);
 }
