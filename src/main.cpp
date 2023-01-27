@@ -360,10 +360,12 @@ int main(int argc, char** argv) {
             thorin::c::CodeGen cg(world, kernel_configs, thorin::c::Lang::C99, opts.debug, opts.hls_flags);
             emit_to_file(cg);
         }
+#ifdef ENABLE_JSON
         if (opts.emit_json) {
             thorin::json::CodeGen cg(world, opts.debug, opts.host_triple, opts.host_cpu, opts.host_attr);
             emit_to_file(cg);
         }
+#endif
 #ifdef ENABLE_LLVM
         if (opts.emit_llvm) {
             thorin::llvm::CPUCodeGen cg(world, opts.opt_level, opts.debug, opts.host_triple, opts.host_cpu, opts.host_attr);
