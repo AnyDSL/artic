@@ -189,7 +189,7 @@ if (Thorin_HAS_LLVM_SUPPORT)
                 "-DTEST_ARGS=${test_ARGS}"
                 -P ${CMAKE_CURRENT_SOURCE_DIR}/run_codegen_test.cmake
             WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
-        list(APPEND CODEGEN_TESTS test_${test_NAME})
+        list(APPEND CODEGEN_TESTS test_target_${test_NAME})
         set(CODEGEN_TESTS ${CODEGEN_TESTS} PARENT_SCOPE)
     endfunction()
 
