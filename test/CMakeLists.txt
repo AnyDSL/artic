@@ -146,7 +146,9 @@ if (Thorin_HAS_LLVM_SUPPORT)
     # This version is required for the --ignore-eol flag used when comparing files
     cmake_minimum_required(VERSION 3.14 FATAL_ERROR)
 
-    find_package(Clang REQUIRED CONFIG PATHS ${LLVM_DIR}/../clang NO_DEFAULT_PATH)
+    if (NOT TARGET clang)
+        find_package(Clang REQUIRED CONFIG PATHS ${LLVM_DIR}/../clang NO_DEFAULT_PATH)
+    endif()
 
     # Compile the helper functions into an object file
     set(HELPERS_OBJ ${CMAKE_CURRENT_BINARY_DIR}/test_helpers.o)
@@ -178,7 +180,7 @@ if (Thorin_HAS_LLVM_SUPPORT)
             COMMAND $<TARGET_FILE:clang> ${test_NAME}.ll ${MATH_LIB} ${HELPERS_OBJ} -o test_${test_NAME}
             DEPENDS artic clang test_helpers ${test_SOURCE_FILE}
             WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
-        add_custom_target(test_${test_NAME} ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/test_${test_NAME})
+        add_custom_target(test_target_${test_NAME} ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/test_${test_NAME})
         add_test(
             NAME ${test_NAME}
             COMMAND
@@ -189,7 +191,7 @@ if (Thorin_HAS_LLVM_SUPPORT)
                 "-DTEST_ARGS=${test_ARGS}"
                 -P ${CMAKE_CURRENT_SOURCE_DIR}/run_codegen_test.cmake
             WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
-        list(APPEND CODEGEN_TESTS test_${test_NAME})
+        list(APPEND CODEGEN_TESTS test_target_${test_NAME})
         set(CODEGEN_TESTS ${CODEGEN_TESTS} PARENT_SCOPE)
     endfunction()
 
