@@ -414,6 +414,16 @@ void StaticDecl::bind(NameBinder& binder) {
 }
 
 void FnDecl::bind_head(NameBinder& binder) {
+    if (this->attrs && this->attrs->find("intern")) {
+        auto shadow = binder.find_symbol(this->id.name);
+        if (shadow) {
+            auto shadow_decl = shadow->decl->as<FnDecl>();
+            if (shadow_decl->fn->body)
+                return;
+            else
+                binder.remove_symbol(this->id.name);
+        }
+    }
     binder.insert_symbol(*this);
 }
 
