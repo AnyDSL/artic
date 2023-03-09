@@ -346,7 +346,6 @@ int main(int argc, char** argv) {
     if (opts.emit_thorin)
         thorin.world().dump_scoped();
     if (opts.emit_json || opts.emit_c || opts.emit_llvm) {
-        thorin::DeviceBackends backends(thorin.world(), opts.opt_level, opts.debug, opts.hls_flags);
         auto emit_to_file = [&] (thorin::CodeGen& cg) {
             auto name = opts.module_name + cg.file_ext();
             std::ofstream file(name);
@@ -355,25 +354,28 @@ int main(int argc, char** argv) {
             else
                 cg.emit_stream(file);
         };
-        if (opts.emit_c) {
-            thorin::Cont2Config kernel_configs;
-            thorin::c::CodeGen cg(thorin, kernel_configs, thorin::c::Lang::C99, opts.debug, opts.hls_flags);
-            emit_to_file(cg);
-        }
 #ifdef ENABLE_JSON
         if (opts.emit_json) {
             thorin::json::CodeGen cg(thorin, opts.debug, opts.host_triple, opts.host_cpu, opts.host_attr);
             emit_to_file(cg);
         }
 #endif
+        if (opts.emit_c || opts.emit_llvm) {
+            thorin::DeviceBackends backends(thorin.world(), opts.opt_level, opts.debug, opts.hls_flags);
+            if (opts.emit_c) {
+                thorin::Cont2Config kernel_configs;
+                thorin::c::CodeGen cg(thorin, kernel_configs, thorin::c::Lang::C99, opts.debug, opts.hls_flags);
+                emit_to_file(cg);
+            }
 #ifdef ENABLE_LLVM
-        if (opts.emit_llvm) {
-            thorin::llvm::CPUCodeGen cg(thorin, opts.opt_level, opts.debug, opts.host_triple, opts.host_cpu, opts.host_attr);
-            emit_to_file(cg);
-        }
+            if (opts.emit_llvm) {
+                thorin::llvm::CPUCodeGen cg(thorin, opts.opt_level, opts.debug, opts.host_triple, opts.host_cpu, opts.host_attr);
+                emit_to_file(cg);
+            }
 #endif
-        for (auto& cg : backends.cgs) {
-            if (cg) emit_to_file(*cg);
+            for (auto& cg : backends.cgs) {
+                if (cg) emit_to_file(*cg);
+            }
         }
     }
     return EXIT_SUCCESS;
