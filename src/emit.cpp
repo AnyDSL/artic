@@ -1531,7 +1531,8 @@ const thorin::Def* BinaryExpr::emit(Emitter& emitter) const {
     const thorin::Def* ptr = nullptr;
     if (left->type->isa<artic::RefType>()) {
         ptr = emitter.emit(*left);
-        lhs = emitter.load(ptr, emitter.debug_info(*this));
+        if (tag != Eq)
+            lhs = emitter.load(ptr, emitter.debug_info(*this));
     } else {
         lhs = emitter.emit(*left);
     }
