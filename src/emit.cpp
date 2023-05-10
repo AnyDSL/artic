@@ -502,6 +502,10 @@ const thorin::FnType* Emitter::continuation_type_with_mem(const thorin::Type* fr
         return world.fn_type({ world.mem_type(), from });
 }
 
+static const thorin::ReturnType* cont_type_to_return_type(const thorin::FnType* t) {
+    return t->world().return_type(t->types());
+}
+
 const thorin::FnType* Emitter::function_type_with_mem(const thorin::Type* from, const thorin::Type* to) {
     // Flatten one level of tuples in the domain and codomain:
     // If the input is `fn (i32, i64) -> (f32, f64)`, we produce the
@@ -511,10 +515,10 @@ const thorin::FnType* Emitter::function_type_with_mem(const thorin::Type* from, 
         types[0] = world.mem_type();
         for (size_t i = 0, n = tuple_type->num_ops(); i < n; ++i)
             types[i + 1] = tuple_type->types()[i];
-        types.back() = continuation_type_with_mem(to);
+        types.back() = cont_type_to_return_type(continuation_type_with_mem(to));
         return world.fn_type(types);
     } else
-        return world.fn_type({ world.mem_type(), from, continuation_type_with_mem(to) });
+        return world.fn_type({ world.mem_type(), from, cont_type_to_return_type(continuation_type_with_mem(to)) });
 }
 
 const thorin::Def* Emitter::tuple_from_params(thorin::Continuation* cont, bool ret) {
