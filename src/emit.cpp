@@ -535,7 +535,7 @@ const thorin::Def* Emitter::tuple_from_params(thorin::Continuation* cont, bool r
 std::vector<const thorin::Def*> Emitter::call_args(
     const thorin::Def* mem,
     const thorin::Def* arg,
-    const thorin::Def* cont)
+    const thorin::Continuation* cont)
 {
     // Create a list of operands for a call to a function/continuation
     std::vector<const thorin::Def*> ops;
@@ -546,7 +546,7 @@ std::vector<const thorin::Def*> Emitter::call_args(
     } else
         ops.push_back(arg);
     if (cont)
-        ops.push_back(cont);
+        ops.push_back(world.return_point(cont));
     return ops;
 }
 
