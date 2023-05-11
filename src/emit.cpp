@@ -580,7 +580,7 @@ const thorin::Def* Emitter::call(const thorin::Def* callee, const thorin::Def* a
     if (!state.cont)
         return nullptr;
     auto cont_type = callee->type()->as<thorin::FnType>()->ops().back()->as<thorin::FnType>();
-    auto cont = world.continuation(cont_type, thorin::Debug("cont"));
+    auto cont = world.continuation(world.fn_type(cont_type->types()), thorin::Debug("cont"));
     return call(callee, arg, cont, debug);
 }
 
