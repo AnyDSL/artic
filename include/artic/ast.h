@@ -670,6 +670,9 @@ struct FnExpr : public Expr {
     void bind(NameBinder&, bool);
     void bind(NameBinder&) override;
     void print(Printer&) const override;
+
+    /// IR definition assigned after IR emission.
+    mutable const thorin::Def* ret = nullptr;
 };
 
 /// Block of code, whose result is the last expression in the block.
