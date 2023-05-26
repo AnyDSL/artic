@@ -1262,11 +1262,11 @@ static void wrap_return_in_control(const FnExpr& fn, Emitter& emitter) {
 
     auto jpt = emitter.world.join_point_type( { emitter.world.mem_type(), codom });
     auto start = emitter.world.continuation(emitter.world.fn_type({emitter.world.mem_type(), jpt}), { "start" });
+    start->param(1)->set_name("ret_token");
 
     auto ret_helper = emitter.world.continuation(emitter.world.fn_type(jpt->types()), "ret_helper");
     ret_helper->jump(start->param(1), ret_helper->params_as_defs());
     fn.ret = ret_helper;
-    fn.ret->set_name("ret_token");
 
     emitter.jump(emitter.world.control({ codom }), emitter.world.tuple({ start, end }));
     emitter.enter(start);
