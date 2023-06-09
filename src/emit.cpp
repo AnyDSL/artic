@@ -1252,20 +1252,35 @@ const thorin::Def* TupleExpr::emit(Emitter& emitter) const {
 /// Sets the 'ret' field of FnExpr, making sure to wrap the function body in a control/join construct
 static void wrap_return_in_control(const FnExpr& fn, Emitter& emitter) {
     auto codom = fn.type->as<artic::FnType>()->codom->convert(emitter);
+    auto t = codom->isa<thorin::TupleType>();
     // return continuation just calls the actual return parameter
     // in the future, return parameters may be eliminated altogether and this could just be a direct-style value yield
     auto end = emitter.world.continuation(emitter.world.fn_type({emitter.world.mem_type(), codom }), { "end" });
-    if (is_type_unit(codom))
-        end->jump(fn.def->as_nom<thorin::Continuation>()->params().back(), { end->param(0) });
-    else
+    if (t) {
+        std::vector<const thorin::Def*> args;
+        args.push_back(end->param(0));
+        int i = 0;
+        for (auto f : t->ops()) {
+            args.push_back(emitter.world.extract(end->param(1), i++));
+        }
+        end->jump(fn.def->as_nom<thorin::Continuation>()->params().back(), args);
+    } else
         end->jump(fn.def->as_nom<thorin::Continuation>()->params().back(), end->params_as_defs());
 
     auto jpt = emitter.world.join_point_type( { emitter.world.mem_type(), codom });
     auto start = emitter.world.continuation(emitter.world.fn_type({emitter.world.mem_type(), jpt}), { "start" });
     start->param(1)->set_name("ret_token");
 
-    auto ret_helper = emitter.world.continuation(emitter.world.fn_type(jpt->types()), "ret_helper");
-    ret_helper->jump(start->param(1), ret_helper->params_as_defs());
+    auto ret_helper = emitter.world.continuation(emitter.continuation_type_with_mem(codom), "ret_helper");
+    if (t) {
+        std::vector<const thorin::Def*> elements;
+        int i = 1;
+        for (auto f : t->ops()) {
+            elements.push_back(ret_helper->param(i++));
+        }
+        ret_helper->jump(start->param(1), { ret_helper->param(0), emitter.world.tuple(elements) });
+    } else
+        ret_helper->jump(start->param(1), ret_helper->params_as_defs());
     fn.ret = ret_helper;
 
     emitter.jump(emitter.world.control({ codom }), emitter.world.tuple({ start, end }));
