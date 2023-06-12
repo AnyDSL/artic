@@ -110,10 +110,15 @@ public:
     const thorin::Def* ctor_index(const ast::Ptrn& ptrn);
     const thorin::Def* ctor_index(size_t, thorin::Debug = {});
 
+    /// Flattens one level of tuple type and adds a memory token
+    thorin::Array<const thorin::Type*> spread_type(const thorin::Type*);
+    thorin::Array<const thorin::Def*> spread_value(const thorin::Def*);
+    thorin::Array<const thorin::Type*> unwrap_tuple_type(const thorin::Type*);
+
     const thorin::FnType* continuation_type_with_mem(const thorin::Type*);
     const thorin::FnType* function_type_with_mem(const thorin::Type*, const thorin::Type*);
     const thorin::Def* tuple_from_params(thorin::Continuation*, bool = false);
-    std::vector<const thorin::Def*> call_args(const thorin::Def*, const thorin::Def*, const thorin::Continuation* = nullptr);
+    std::vector<const thorin::Def*> call_args(const thorin::Def*, const thorin::Def*);
 
     void enter(thorin::Continuation*);
     void jump(const thorin::Def*, thorin::Debug = {});

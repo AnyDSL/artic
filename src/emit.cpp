@@ -460,11 +460,11 @@ bool Emitter::run(const ast::ModDecl& mod) {
 }
 
 thorin::Continuation* Emitter::basic_block(thorin::Debug debug) {
-    return world.continuation(world.fn_type(), debug);
+    return world.continuation(world.cont_type(), debug);
 }
 
 thorin::Continuation* Emitter::basic_block_with_mem(thorin::Debug debug) {
-    return world.continuation(world.fn_type({ world.mem_type() }), debug);
+    return world.continuation(world.cont_type({ world.mem_type() }), debug);
 }
 
 thorin::Continuation* Emitter::basic_block_with_mem(const thorin::Type* param, thorin::Debug debug) {
@@ -491,34 +491,54 @@ void Emitter::non_exhaustive_match(const ast::MatchExpr& match) {
     error(match.loc, "non exhaustive match expression");
 }
 
-const thorin::FnType* Emitter::continuation_type_with_mem(const thorin::Type* from) {
-    if (auto tuple_type = from->isa<thorin::TupleType>()) {
+thorin::Array<const thorin::Type*> Emitter::spread_type(const thorin::Type* t) {
+    if (auto tuple_type = t->isa<thorin::TupleType>()) {
         thorin::Array<const thorin::Type*> types(1 + tuple_type->num_ops());
         types[0] = world.mem_type();
         for (size_t i = 0, n = tuple_type->num_ops(); i < n; ++i)
             types[i + 1] = tuple_type->types()[i];
-        return world.fn_type(types);
+        return types;
     } else
-        return world.fn_type({ world.mem_type(), from });
+        return { world.mem_type(), t };
 }
 
-static const thorin::ReturnType* cont_type_to_return_type(const thorin::FnType* t) {
-    return t->world().return_type(t->types());
+thorin::Array<const thorin::Type*> Emitter::unwrap_tuple_type(const thorin::Type* t) {
+    if (auto tuple_type = t->isa<thorin::TupleType>()) {
+        thorin::Array<const thorin::Type*> types(0 + tuple_type->num_ops());
+        for (size_t i = 0, n = tuple_type->num_ops(); i < n; ++i)
+            types[i + 0] = tuple_type->types()[i];
+        return types;
+    } else
+        return { t };
+}
+
+thorin::Array<const thorin::Def*> Emitter::spread_value(const thorin::Def* v) {
+    if (auto outer_tuple_t = v->type()->isa<thorin::TupleType>()) {
+        auto m = world.extract(v, thorin::u32(0));
+             v = world.extract(v, thorin::u32(1));
+        if (auto tuple_type = v->type()->isa<thorin::TupleType>()) {
+            thorin::Array<const thorin::Def*> values(1 + tuple_type->num_ops());
+            values[0] = m;
+            for (size_t i = 0, n = tuple_type->num_ops(); i < n; ++i)
+                values[i + 1] = world.extract(v, thorin::u32(i));
+            return values;
+        } else
+            return { m, v };
+    } else {
+        assert(is_mem(v));
+        return { v };
+    }
+}
+
+const thorin::FnType* Emitter::continuation_type_with_mem(const thorin::Type* from) {
+    return world.cont_type(spread_type(from));
 }
 
 const thorin::FnType* Emitter::function_type_with_mem(const thorin::Type* from, const thorin::Type* to) {
     // Flatten one level of tuples in the domain and codomain:
     // If the input is `fn (i32, i64) -> (f32, f64)`, we produce the
     // thorin type `fn (mem, i32, i64, fn (mem, f32, f64))`.
-    if (auto tuple_type = from->isa<thorin::TupleType>()) {
-        thorin::Array<const thorin::Type*> types(2 + tuple_type->num_ops());
-        types[0] = world.mem_type();
-        for (size_t i = 0, n = tuple_type->num_ops(); i < n; ++i)
-            types[i + 1] = tuple_type->types()[i];
-        types.back() = cont_type_to_return_type(continuation_type_with_mem(to));
-        return world.fn_type(types);
-    } else
-        return world.fn_type({ world.mem_type(), from, cont_type_to_return_type(continuation_type_with_mem(to)) });
+    return world.fn_type(spread_type(from), world.tuple_type(spread_type(to)));
 }
 
 const thorin::Def* Emitter::tuple_from_params(thorin::Continuation* cont, bool ret) {
@@ -534,8 +554,7 @@ const thorin::Def* Emitter::tuple_from_params(thorin::Continuation* cont, bool r
 
 std::vector<const thorin::Def*> Emitter::call_args(
     const thorin::Def* mem,
-    const thorin::Def* arg,
-    const thorin::Continuation* cont)
+    const thorin::Def* arg)
 {
     // Create a list of operands for a call to a function/continuation
     std::vector<const thorin::Def*> ops;
@@ -545,8 +564,6 @@ std::vector<const thorin::Def*> Emitter::call_args(
             ops.push_back(world.extract(arg, i));
     } else
         ops.push_back(arg);
-    if (cont)
-        ops.push_back(world.return_point(cont));
     return ops;
 }
 
@@ -579,8 +596,8 @@ void Emitter::jump(const thorin::Def* callee, const thorin::Def* arg, thorin::De
 const thorin::Def* Emitter::call(const thorin::Def* callee, const thorin::Def* arg, thorin::Debug debug) {
     if (!state.cont)
         return nullptr;
-    auto cont_type = callee->type()->as<thorin::FnType>()->ops().back()->as<thorin::FnType>();
-    auto cont = world.continuation(world.fn_type(cont_type->types()), thorin::Debug("cont"));
+    auto codom = callee->type()->as<thorin::FnType>()->codomain();
+    auto cont = world.continuation(world.cont_type(unwrap_tuple_type(codom)), thorin::Debug("cont"));
     return call(callee, arg, cont, debug);
 }
 
@@ -592,7 +609,8 @@ const thorin::Def* Emitter::call(
 {
     if (!state.cont)
         return nullptr;
-    state.cont->jump(callee, call_args(state.mem, arg, cont), debug);
+    auto app = world.app(callee, call_args(state.mem, arg), debug);
+    state.cont->jump(cont, spread_value(app), debug);
     enter(cont);
     return tuple_from_params(cont);
 }
@@ -1252,27 +1270,13 @@ const thorin::Def* TupleExpr::emit(Emitter& emitter) const {
 /// Sets the 'ret' field of FnExpr, making sure to wrap the function body in a control/join construct
 static void wrap_return_in_control(const FnExpr& fn, Emitter& emitter) {
     auto codom = fn.type->as<artic::FnType>()->codom->convert(emitter);
-    auto t = codom->isa<thorin::TupleType>();
-    // return continuation just calls the actual return parameter
-    // in the future, return parameters may be eliminated altogether and this could just be a direct-style value yield
-    auto end = emitter.world.continuation(emitter.world.fn_type({emitter.world.mem_type(), codom }), { "end" });
-    if (t) {
-        std::vector<const thorin::Def*> args;
-        args.push_back(end->param(0));
-        int i = 0;
-        for (auto f : t->ops()) {
-            args.push_back(emitter.world.extract(end->param(1), i++));
-        }
-        end->jump(fn.def->as_nom<thorin::Continuation>()->params().back(), args);
-    } else
-        end->jump(fn.def->as_nom<thorin::Continuation>()->params().back(), end->params_as_defs());
 
-    auto jpt = emitter.world.join_point_type( { emitter.world.mem_type(), codom });
-    auto start = emitter.world.continuation(emitter.world.fn_type({emitter.world.mem_type(), jpt}), { "start" });
+    auto jpt = emitter.world.join_point_type({ emitter.world.mem_type(), codom });
+    auto start = emitter.world.continuation(emitter.world.cont_type({ emitter.world.mem_type(), jpt }), { "start" });
     start->param(1)->set_name("ret_token");
 
     auto ret_helper = emitter.world.continuation(emitter.continuation_type_with_mem(codom), "ret_helper");
-    if (t) {
+    if (auto t = codom->isa<thorin::TupleType>()) {
         std::vector<const thorin::Def*> elements;
         int i = 1;
         for (auto f : t->ops()) {
@@ -1283,7 +1287,7 @@ static void wrap_return_in_control(const FnExpr& fn, Emitter& emitter) {
         ret_helper->jump(start->param(1), ret_helper->params_as_defs());
     fn.ret = ret_helper;
 
-    emitter.jump(emitter.world.control({ codom }), emitter.world.tuple({ start, end }));
+    emitter.jump(emitter.world.control(codom), start);
     emitter.enter(start);
 }
 
