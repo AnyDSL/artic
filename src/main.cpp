@@ -48,6 +48,7 @@ static void usage() {
                 "         --emit-llvm            Emits LLVM IR in the output file\n"
 #endif
                 "  -g     --debug                Enable debug information in the output file\n"
+                "         --plugin <file>        Load additional code transformations as plugins\n"
                 "  -On                           Sets the optimization level (n = 0, 1, 2, or 3, defaults to 0)\n"
                 "  -o <name>                     Sets the module name (defaults to the first file name without its extension)\n"
                 ;
@@ -102,6 +103,7 @@ struct ProgramOptions {
     size_t max_errors = 0;
     size_t tab_width = 2;
     thorin::LogLevel log_level = thorin::LogLevel::Error;
+    std::vector<std::string> plugin_files;
 
     bool matches(const char* arg, const char* opt) {
         return !strcmp(arg, opt);
@@ -151,6 +153,8 @@ struct ProgramOptions {
                     }
                 } else if (matches(argv[i], "-g", "--debug")) {
                     debug = true;
+                } else if (matches(argv[i], "--plugin")) {
+                    plugin_files.push_back(argv[++i]);
                 } else if (matches(argv[i], "--print-ast")) {
                     print_ast = true;
                 } else if (matches(argv[i], "--show-implicit-casts")) {
@@ -317,6 +321,10 @@ int main(int argc, char** argv) {
 
     if (!success)
         return EXIT_FAILURE;
+
+    for (auto plugin_to_load : opts.plugin_files) {
+        world.register_plugin(plugin_to_load);
+    }
 
     if (opts.opt_level == 1)
         world.cleanup();

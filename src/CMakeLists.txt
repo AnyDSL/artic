@@ -42,3 +42,5 @@ if (Thorin_HAS_LLVM_SUPPORT)
     target_compile_definitions(artic PUBLIC -DENABLE_LLVM)
     llvm_config(artic ${AnyDSL_LLVM_LINK_SHARED} core support)
 endif ()
+
+target_link_libraries(artic PUBLIC dl)

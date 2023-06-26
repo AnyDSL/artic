@@ -761,9 +761,10 @@ void NamedAttr::check(TypeChecker& checker, const ast::Node* node) {
                 else
                     checker.check_attrs(*this, std::array<AttrType, 1> { AttrType { "name", AttrType::String } });
             } else if (name == "import") {
-                if (checker.check_attrs(*this, std::array<AttrType, 2> {
+                if (checker.check_attrs(*this, std::array<AttrType, 3> {
                         AttrType { "cc", AttrType::String },
-                        AttrType { "name", AttrType::String }
+                        AttrType { "name", AttrType::String },
+                        AttrType { "depends", AttrType::Path }
                     }))
                 {
                     auto name = fn_decl->id.name;
@@ -786,7 +787,7 @@ void NamedAttr::check(TypeChecker& checker, const ast::Node* node) {
                             };
                             if (builtins.count(name) == 0)
                                 checker.error(fn_decl->loc, "unsupported built-in function");
-                        } else if (cc != "C" && cc != "device" && cc != "thorin")
+                        } else if (cc != "C" && cc != "device" && cc != "thorin" && cc != "plugin")
                             checker.error(cc_attr->loc, "invalid calling convention '{}'", cc);
                     }
                 }
