@@ -761,8 +761,8 @@ void NamedAttr::check(TypeChecker& checker, const ast::Node* node) {
                 auto fn_type = fn_decl->type->isa<artic::FnType>();
                 if (!fn_type)
                     checker.error(fn_decl->loc, "polymorphic functions cannot be exported");
-                else if (fn_decl->type->order() > 1)
-                    checker.error(fn_decl->loc, "higher-order functions cannot be exported");
+                //else if (fn_decl->type->order() > 1)
+                //    checker.error(fn_decl->loc, "higher-order functions cannot be exported");
                 else if (!fn_decl->fn->body)
                     checker.error(fn_decl->loc, "exported functions must have a body");
                 else
