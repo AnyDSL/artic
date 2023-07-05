@@ -299,6 +299,10 @@ int main(int argc, char** argv) {
     world.set(opts.log_level);
     world.set(std::make_shared<thorin::Stream>(std::cerr));
 
+    for (auto plugin_to_load : opts.plugin_files) {
+        world.load_plugin(plugin_to_load.c_str());
+    }
+
     ast::ModDecl program;
     bool success = compile(
         opts.files, file_data,
@@ -321,10 +325,6 @@ int main(int argc, char** argv) {
 
     if (!success)
         return EXIT_FAILURE;
-
-    for (auto plugin_to_load : opts.plugin_files) {
-        world.register_plugin(plugin_to_load.c_str());
-    }
 
     if (opts.opt_level == 1)
         world.cleanup();
