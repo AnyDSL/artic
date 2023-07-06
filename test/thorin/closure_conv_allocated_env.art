@@ -1,0 +1,12 @@
+#[import(cc="C")]
+fn leak(fn(i32) -> (i32, i32)) -> ();
+
+// this time the environment is too big to fit in a pointer and must be allocated/extracted from
+#[export]
+fn foo(x: i32, z: i32) -> i32 {
+  fn f(y: i32) { (x + y, z) }
+
+  leak(f);
+  
+  return (0)
+}

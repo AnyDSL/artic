@@ -1,9 +1,10 @@
 #[import(cc="C")]
 fn bar() -> ();
 
+// we capture the return continuation of foo here
 #[export]
 fn foo(f: fn(i32, fn(i32) -> ()) -> ()) -> i32 {
   f(5, return);
   
-  return (9)
+  0
 }
