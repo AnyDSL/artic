@@ -1,6 +1,9 @@
 #[import(cc="C")]
 fn leak(fn(i32) -> i32) -> ();
 
+// we have two closures who can call each other
+// this requires the closure for g to consume f's "self" parameter
+// otherwise closure conversion just diverges
 #[export]
 fn foo(i: i32) -> i32 {
   fn f(x: i32) -> i32 {

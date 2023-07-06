@@ -1,11 +1,12 @@
 #[import(cc="C")]
 fn bar() -> ();
 
+// similar to the last one but now we capture a 'break' continuation
 #[export]
 fn foo(f: fn(i32) -> i32) -> i32 {
   while true {
      if (f(5) > 6) { break() }
   }
   
-  return (9)
+  0
 }
