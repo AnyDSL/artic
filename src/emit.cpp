@@ -1303,7 +1303,7 @@ const thorin::Def* FnExpr::emit(Emitter& emitter) const {
     wrap_return_in_control(*this, emitter);
 
     auto value = emitter.emit(*body);
-    emitter.jump(cont->params().back(), value);
+    emitter.jump(ret, value);
     return cont;
 }
 
@@ -1744,7 +1744,7 @@ const thorin::Def* FnDecl::emit(Emitter& emitter) const {
             cont->set_filter(emitter.world.filter(thorin::Array<const thorin::Def*>(cont->num_params(), emitter.emit(*fn->filter))));
         wrap_return_in_control(*fn, emitter);
         auto value = emitter.emit(*fn->body);
-        emitter.jump(cont->params().back(), value, emitter.debug_info(*fn->body));
+        emitter.jump(fn->ret, value, emitter.debug_info(*fn->body));
     }
 
     // Clear the thorin IR generated for this entire function
