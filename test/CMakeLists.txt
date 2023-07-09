@@ -84,10 +84,12 @@ add_test(NAME simple_double_ptr  COMMAND artic --print-ast ${CMAKE_CURRENT_SOURC
 add_test(NAME simple_math        COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/math.art)
 
 add_test(NAME closure_conv_no_op         COMMAND artic --print-ast --emit-c ${CMAKE_CURRENT_SOURCE_DIR}/thorin/closure_conv_no_op.art)
+add_test(NAME closure_conv_empty_env     COMMAND artic --print-ast --emit-c ${CMAKE_CURRENT_SOURCE_DIR}/thorin/closure_conv_empty_env.art)
 add_test(NAME closure_conv_thin_env      COMMAND artic --print-ast --emit-c ${CMAKE_CURRENT_SOURCE_DIR}/thorin/closure_conv_thin_env.art)
 add_test(NAME closure_conv_allocated_env COMMAND artic --print-ast --emit-c ${CMAKE_CURRENT_SOURCE_DIR}/thorin/closure_conv_allocated_env.art)
 add_test(NAME closure_conv_capture1      COMMAND artic --print-ast --emit-c ${CMAKE_CURRENT_SOURCE_DIR}/thorin/closure_conv_capture1.art)
 add_test(NAME closure_conv_capture2      COMMAND artic --print-ast --emit-c ${CMAKE_CURRENT_SOURCE_DIR}/thorin/closure_conv_capture2.art)
+add_test(NAME closure_conv_capture_bb    COMMAND artic --print-ast --emit-c ${CMAKE_CURRENT_SOURCE_DIR}/thorin/closure_conv_capture_bb.art)
 
 add_failure_test(NAME failure_annot          COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/annot.art)
 add_failure_test(NAME failure_comment        COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/comment.art)
