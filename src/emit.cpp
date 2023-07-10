@@ -1255,7 +1255,7 @@ static void wrap_return_in_control(const FnExpr& fn, Emitter& emitter) {
     auto t = codom->isa<thorin::TupleType>();
     // return continuation just calls the actual return parameter
     // in the future, return parameters may be eliminated altogether and this could just be a direct-style value yield
-    auto end = emitter.world.continuation(emitter.world.fn_type({emitter.world.mem_type(), codom }), { "end" });
+    auto end = emitter.world.continuation(emitter.world.fn_type({emitter.world.mem_type(), codom }), { fn.def->debug().name + "_end" });
     if (t) {
         std::vector<const thorin::Def*> args;
         args.push_back(end->param(0));
@@ -1268,10 +1268,10 @@ static void wrap_return_in_control(const FnExpr& fn, Emitter& emitter) {
         end->jump(fn.def->as_nom<thorin::Continuation>()->params().back(), end->params_as_defs());
 
     auto jpt = emitter.world.join_point_type( { emitter.world.mem_type(), codom });
-    auto start = emitter.world.continuation(emitter.world.fn_type({emitter.world.mem_type(), jpt}), { "start" });
+    auto start = emitter.world.continuation(emitter.world.fn_type({emitter.world.mem_type(), jpt}), { fn.def->debug().name + "_start" });
     start->param(1)->set_name("ret_token");
 
-    auto ret_helper = emitter.world.continuation(emitter.continuation_type_with_mem(codom), "ret_helper");
+    auto ret_helper = emitter.world.continuation(emitter.continuation_type_with_mem(codom), fn.def->debug().name + "_ret_helper");
     if (t) {
         std::vector<const thorin::Def*> elements;
         int i = 1;
