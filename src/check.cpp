@@ -1030,8 +1030,14 @@ const artic::Type* CallExpr::infer(TypeChecker& checker) {
 const artic::Type* ProjExpr::infer(TypeChecker& checker) {
     auto [ref_type, expr_type] = remove_ref(checker.infer(*expr));
     auto ptr_type = expr_type->isa<artic::PtrType>();
-    if (ptr_type)
+    if (ptr_type) {
+        // Must dereference references to pointers, such that the pointer offset is computed on the
+        // pointer, not on the reference to the pointer (references and pointers are both emitted as
+        // pointers).
+        if (ref_type)
+            checker.deref(expr);
         expr_type = ptr_type->pointee;
+    }
 
     const artic::Type* result_type = nullptr;
     auto [type_app, struct_type] = match_app<StructType>(expr_type);
