@@ -1,0 +1,18 @@
+#[import(cc="C")]
+fn out(i32) -> ();
+
+fn bar(a: i32, b: fn() -> ()) -> () {
+  out(a);
+  b()
+}
+
+// we capture the return continuation of foo here
+#[export]
+fn foo(x: i32, y: &i32) -> i32 {
+  while true {
+    //bar(5, continue);
+    bar(5, break);
+    bar(5, break);
+  }
+  x + *y
+}
