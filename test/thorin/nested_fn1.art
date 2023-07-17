@@ -1,0 +1,21 @@
+#[import(cc="C")]
+fn out(i32) -> ();
+
+#[export]
+fn foo(mut i: i32) -> i32 {
+  fn f(mut x: i32) -> i32 {
+     if (x == i) {
+         x *= 3;
+     }
+     out(x);
+     x * 3
+  }
+
+  f(i);
+
+  i += 1;
+
+  f(i);
+
+  0
+}
