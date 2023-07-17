@@ -1,12 +1,11 @@
 #[import(cc="C")]
-fn bar() -> ();
+fn leak2(i32, fn() -> ()) -> ();
 
 // similar to the last one but now we capture a 'break' continuation
 #[export]
-fn foo(f: fn(i32) -> i32) -> i32 {
+fn foo() -> i32 {
   while true {
-     if (f(5) > 6) { break() }
+    leak2(5, break);
   }
-  
   0
 }
