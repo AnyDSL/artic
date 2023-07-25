@@ -15,6 +15,7 @@ fn foo(count: i32, buf: &mut[i32]) -> i32 {
         acc += buf(i);
     }
     range(inner)(0, count);
-    range(inner)(0, count);
+    range(inner)(0, count); // we now use 'inner' in two places so it cannot be inlined!
     acc
 }
+

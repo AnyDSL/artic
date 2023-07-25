@@ -11,8 +11,10 @@ fn @range(body: fn (i32) -> ()) {
 #[export]
 fn foo(count: i32, buf: &mut[i32]) -> i32 {
     let mut acc = 0;
-    for i in range(0, count) {
+    fn inner(i: i32) {
         acc += buf(i);
     }
+    range(inner)(0, count);
     acc
 }
+

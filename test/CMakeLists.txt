@@ -93,6 +93,9 @@ add_test(NAME closure_conv_capture_bb        COMMAND artic --print-ast --emit-c 
 add_test(NAME closure_conv_capture_top_level COMMAND artic --print-ast --emit-c ${CMAKE_CURRENT_SOURCE_DIR}/thorin/closure_conv_capture_top_level.art)
 add_test(NAME closure_conv_rec               COMMAND artic --print-ast --emit-c ${CMAKE_CURRENT_SOURCE_DIR}/thorin/closure_conv_rec.art)
 add_test(NAME closure_conv_rec2              COMMAND artic --print-ast --emit-c ${CMAKE_CURRENT_SOURCE_DIR}/thorin/closure_conv_rec2.art)
+add_test(NAME range_loop1                    COMMAND artic --print-ast --emit-c ${CMAKE_CURRENT_SOURCE_DIR}/thorin/range_loop1.art)
+add_test(NAME range_loop2                    COMMAND artic --print-ast --emit-c ${CMAKE_CURRENT_SOURCE_DIR}/thorin/range_loop2.art)
+add_test(NAME range_loop3                    COMMAND artic --print-ast --emit-c ${CMAKE_CURRENT_SOURCE_DIR}/thorin/range_loop3.art)
 
 add_failure_test(NAME failure_annot          COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/annot.art)
 add_failure_test(NAME failure_comment        COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/comment.art)
