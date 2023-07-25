@@ -10,6 +10,7 @@
 #include "artic/locator.h"
 
 #include <thorin/world.h>
+#include <thorin/util/scoped_dump.h>
 #include <thorin/be/codegen.h>
 #include <thorin/be/c/c.h>
 #ifdef ENABLE_JSON
@@ -344,7 +345,7 @@ int main(int argc, char** argv) {
     if (opts.opt_level > 1 || opts.emit_c || opts.emit_llvm)
         thorin.opt();
     if (opts.emit_thorin)
-        thorin.world().dump();
+        scoped_world(thorin.world())->dump();
     if (opts.emit_json || opts.emit_c || opts.emit_llvm) {
         thorin::DeviceBackends backends(thorin.world(), opts.opt_level, opts.debug, opts.hls_flags);
         auto emit_to_file = [&] (thorin::CodeGen& cg) {
