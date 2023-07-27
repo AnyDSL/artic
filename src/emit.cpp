@@ -496,7 +496,7 @@ const thorin::FnType* Emitter::continuation_type_with_mem(const thorin::Type* fr
         thorin::Array<const thorin::Type*> types(1 + tuple_type->num_ops());
         types[0] = world.mem_type();
         for (size_t i = 0, n = tuple_type->num_ops(); i < n; ++i)
-            types[i + 1] = tuple_type->op(i);
+            types[i + 1] = tuple_type->types()[i];
         return world.fn_type(types);
     } else
         return world.fn_type({ world.mem_type(), from });
@@ -510,7 +510,7 @@ const thorin::FnType* Emitter::function_type_with_mem(const thorin::Type* from, 
         thorin::Array<const thorin::Type*> types(2 + tuple_type->num_ops());
         types[0] = world.mem_type();
         for (size_t i = 0, n = tuple_type->num_ops(); i < n; ++i)
-            types[i + 1] = tuple_type->op(i);
+            types[i + 1] = tuple_type->types()[i];
         types.back() = continuation_type_with_mem(to);
         return world.fn_type(types);
     } else
@@ -640,7 +640,7 @@ const thorin::Def* Emitter::addr_of(const thorin::Def* def, thorin::Debug debug)
 const thorin::Def* Emitter::no_ret() {
     // Thorin does not have a type that can encode a no-return type,
     // so we return an empty tuple instead.
-    return world.bottom(world.unit());
+    return world.bottom(world.unit_type());
 }
 
 static inline bool is_compatible(const Type* from, const Type* to) {
@@ -963,6 +963,7 @@ const thorin::Def* Emitter::comparator(const Loc& loc, const Type* type) {
             break;
         }
         case thorin::Node_VariantType: {
+            auto variant_type = converted_type->as<thorin::VariantType>();
             // TODO: Change thorin to be able to extract the address of the index,
             // along with the address of the contained object, instead of always loading it.
             left  = load(left);
@@ -995,12 +996,12 @@ const thorin::Def* Emitter::comparator(const Loc& loc, const Type* type) {
                     auto _ = save_state();
                     enter(i == n - 1 ? otherwise : targets[i]);
                     // No payload, return true
-                    if (thorin::is_type_unit(converted_type->op(i))) {
+                    if (thorin::is_type_unit(variant_type->types()[i])) {
                         jump(join_true);
                         continue;
                     }
-                    auto left_ptr  = alloc(converted_type->op(i));
-                    auto right_ptr = alloc(converted_type->op(i));
+                    auto left_ptr  = alloc(variant_type->types()[i]);
+                    auto right_ptr = alloc(variant_type->types()[i]);
                     store(left_ptr,  world.variant_extract(left, i));
                     store(right_ptr, world.variant_extract(right, i));
                     auto is_eq = call(comparator(loc, member_type(type, i)),
@@ -1097,7 +1098,7 @@ const thorin::Def* Path::emit(Emitter& emitter) const {
                 return it->second;
             // Create a constructor for this (tuple-like) structure
             auto struct_type = elems[i].type->convert(emitter)->as<thorin::StructType>();
-            auto cont_type = emitter.function_type_with_mem(emitter.world.tuple_type(struct_type->ops()), struct_type);
+            auto cont_type = emitter.function_type_with_mem(emitter.world.tuple_type(struct_type->types()), struct_type);
             auto cont = emitter.world.continuation(cont_type, emitter.debug_info(*this));
             cont->set_filter(cont->all_true_filter());
             auto _ = emitter.save_state();
@@ -1360,8 +1361,8 @@ const thorin::Def* MatchExpr::emit(Emitter& emitter) const {
 const thorin::Def* WhileExpr::emit(Emitter& emitter) const {
     auto while_head = emitter.basic_block_with_mem(emitter.debug_info(*this, "while_head"));
     auto while_exit = emitter.basic_block_with_mem(emitter.debug_info(*this, "while_exit"));
-    auto while_continue = emitter.basic_block_with_mem(emitter.world.unit(), emitter.debug_info(*this, "while_continue"));
-    auto while_break    = emitter.basic_block_with_mem(emitter.world.unit(), emitter.debug_info(*this, "while_break"));
+    auto while_continue = emitter.basic_block_with_mem(emitter.world.unit_type(), emitter.debug_info(*this, "while_continue"));
+    auto while_break    = emitter.basic_block_with_mem(emitter.world.unit_type(), emitter.debug_info(*this, "while_break"));
 
     emitter.jump(while_head);
     emitter.enter(while_continue);
@@ -1926,7 +1927,7 @@ const thorin::Type* StructType::convert(Emitter& emitter, const Type* parent) co
     auto type = emitter.world.struct_type(stringify(emitter), decl.fields.size());
     emitter.types[parent] = type;
     for (size_t i = 0, n = decl.fields.size(); i < n; ++i) {
-        type->set(i, decl.fields[i]->ast::Node::type->convert(emitter));
+        type->set_op(i, decl.fields[i]->ast::Node::type->convert(emitter));
         type->set_op_name(i, decl.fields[i]->id.name.empty() ? "_" + std::to_string(i) : decl.fields[i]->id.name);
     }
     return type;
@@ -1944,7 +1945,7 @@ const thorin::Type* EnumType::convert(Emitter& emitter, const Type* parent) cons
     auto type = emitter.world.variant_type(stringify(emitter), decl.options.size());
     emitter.types[parent] = type;
     for (size_t i = 0, n = decl.options.size(); i < n; ++i) {
-        type->set(i, decl.options[i]->type->convert(emitter));
+        type->set_op(i, decl.options[i]->type->convert(emitter));
         type->set_op_name(i, decl.options[i]->id.name);
     }
     return type;
