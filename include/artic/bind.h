@@ -46,6 +46,15 @@ public:
         insert_symbol(decl, decl.id.name);
     }
 
+    void remove_symbol(const std::string& name) {
+        for (auto it = scopes_.rbegin(); it != scopes_.rend(); it++) {
+            if (auto symbol = it->find(name)) {
+                it->erase(name);
+                return;
+            }
+        }
+    }
+
     Symbol* find_symbol(const std::string& name) {
         for (auto it = scopes_.rbegin(); it != scopes_.rend(); it++) {
             if (auto symbol = it->find(name)) {
