@@ -41,4 +41,4 @@ if (Thorin_HAS_LLVM_SUPPORT)
     llvm_config(artic ${AnyDSL_LLVM_LINK_SHARED} core support)
 endif ()
 
-target_link_libraries(artic PUBLIC dl)
+target_link_libraries(artic PUBLIC ${CMAKE_DL_LIBS})
