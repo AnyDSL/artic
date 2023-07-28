@@ -1676,6 +1676,10 @@ const thorin::Def* FnDecl::emit(Emitter& emitter) const {
         } else if (auto import_attr = attrs->find("import")) {
             if (auto name_attr = import_attr->find("name"))
                 cont->set_name(name_attr->as<LiteralAttr>()->lit.as_string());
+            if (auto depends_attr = import_attr->find("depends")) {
+                auto depends = depends_attr->as<PathAttr>();
+                cont->attributes().depends = depends->path.emit(emitter)->as<thorin::Continuation>();
+            }
             if (auto cc_attr = import_attr->find("cc")) {
                 auto cc = cc_attr->as<LiteralAttr>()->lit.as_string();
                 if (cc == "device") {
@@ -1687,13 +1691,10 @@ const thorin::Def* FnDecl::emit(Emitter& emitter) const {
                 } else if (cc == "thorin")
                     cont->set_intrinsic();
                 else if (cc == "plugin")
-                    cont->attributes().intrinsic = thorin::Intrinsic::Plugin;
+                    // any depends are guaranteed to be emitted earlier
+                    emitter.world.link_plugin_intrinsic(cont);
                 else if (cc == "builtin")
                     emitter.builtin(*this, cont);
-            }
-            if (auto depends_attr = import_attr->find("depends")) {
-                auto depends = depends_attr->as<PathAttr>();
-                cont->attributes().depends = depends->path.emit(emitter)->as<thorin::Continuation>();
             }
         }
     }
