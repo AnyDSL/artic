@@ -345,7 +345,7 @@ int main(int argc, char** argv) {
     if (opts.opt_level > 1 || opts.emit_c || opts.emit_llvm)
         thorin.opt();
     if (opts.emit_thorin)
-        scoped_world(thorin.world())->dump();
+        thorin.world().dump_scoped();
     if (opts.emit_json || opts.emit_c || opts.emit_llvm) {
         thorin::DeviceBackends backends(thorin.world(), opts.opt_level, opts.debug, opts.hls_flags);
         auto emit_to_file = [&] (thorin::CodeGen& cg) {
