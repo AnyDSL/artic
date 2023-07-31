@@ -1,0 +1,22 @@
+#[import(cc = "thorin", name = "parallel")] fn thorin_parallel(_num_threads: i32, _lower: i32, _upper: i32, _body: fn(i32) -> ()) -> ();
+fn @parallel(body: fn(i32) -> ()) = @|num_threads: i32, lower: i32, upper: i32| thorin_parallel(num_threads, lower, upper, body);
+
+fn mul(x: i32, y: i32) = x * y;
+
+fn @range(body: fn (i32) -> ()) {
+    fn loop(a: i32, b: i32) -> () {
+        if a < b {
+            body(a);
+            loop(a + 1, b)
+        }
+    }
+    loop
+}
+
+#[export]
+fn parallel_test(n: i32, a: &[i32], b: &[i32], c: &mut[i32]) -> i32 {
+    for i in parallel(4, 0, n) {
+        c(i) = mul(a(i), a(i)) + mul(b(i), b(i));
+    }
+    0
+}
