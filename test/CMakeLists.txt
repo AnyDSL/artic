@@ -87,6 +87,10 @@ add_test(NAME closure_conv_rec2              COMMAND artic --print-ast --emit-c 
 add_test(NAME range_loop1                    COMMAND artic --print-ast --emit-c ${CMAKE_CURRENT_SOURCE_DIR}/thorin/range_loop1.art)
 add_test(NAME range_loop2                    COMMAND artic --print-ast --emit-c ${CMAKE_CURRENT_SOURCE_DIR}/thorin/range_loop2.art)
 add_test(NAME range_loop3                    COMMAND artic --print-ast --emit-c ${CMAKE_CURRENT_SOURCE_DIR}/thorin/range_loop3.art)
+add_test(NAME parallel_basic                 COMMAND artic --print-ast --emit-llvm ${CMAKE_CURRENT_SOURCE_DIR}/thorin/parallel_basic.art)
+add_test(NAME parallel_functions1            COMMAND artic --print-ast --emit-llvm ${CMAKE_CURRENT_SOURCE_DIR}/thorin/parallel_functions1.art)
+add_test(NAME parallel_functions2            COMMAND artic --print-ast --emit-llvm ${CMAKE_CURRENT_SOURCE_DIR}/thorin/parallel_functions2.art)
+add_test(NAME parallel_functions3            COMMAND artic --print-ast --emit-llvm ${CMAKE_CURRENT_SOURCE_DIR}/thorin/parallel_functions3.art)
 
 add_failure_test(NAME failure_annot          COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/annot.art)
 add_failure_test(NAME failure_comment        COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/comment.art)
