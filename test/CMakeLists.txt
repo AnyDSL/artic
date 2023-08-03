@@ -100,6 +100,7 @@ add_test(NAME parallel_basic                 COMMAND artic --print-ast --emit-ll
 add_test(NAME parallel_functions1            COMMAND artic --print-ast --emit-llvm ${CMAKE_CURRENT_SOURCE_DIR}/thorin/parallel_functions1.art)
 add_test(NAME parallel_functions2            COMMAND artic --print-ast --emit-llvm ${CMAKE_CURRENT_SOURCE_DIR}/thorin/parallel_functions2.art)
 add_test(NAME parallel_functions3            COMMAND artic --print-ast --emit-llvm ${CMAKE_CURRENT_SOURCE_DIR}/thorin/parallel_functions3.art)
+add_test(NAME busted_scheduler               COMMAND artic --print-ast --emit-llvm ${CMAKE_CURRENT_SOURCE_DIR}/thorin/busted_scheduler.art)
 
 add_failure_test(NAME failure_annot          COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/annot.art)
 add_failure_test(NAME failure_comment        COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/comment.art)
