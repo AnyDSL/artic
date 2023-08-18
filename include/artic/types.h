@@ -112,6 +112,9 @@ struct Type : public Cast<Type> {
 
     /// Prints the type on the console, for debugging.
     void dump() const;
+
+    /// Dumps the type to a string. Used for type mangling.
+    std::string to_string() const;
 };
 
 /// The type of an attribute.

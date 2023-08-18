@@ -828,4 +828,12 @@ void Type::dump() const {
     p << '\n';
 }
 
+std::string Type::to_string() const {
+    std::ostringstream stream;
+    log::Output stringout(stream, false);
+    Printer p(stringout, "");
+    print(p);
+    return stream.str();
+}
+
 } // namespace artic

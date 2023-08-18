@@ -12,6 +12,8 @@
 #include <thorin/type.h>
 #include <thorin/world.h>
 
+#include <regex>
+
 namespace artic {
 
 /// Pattern matching compiler inspired from
@@ -1681,13 +1683,37 @@ const thorin::Def* FnDecl::emit(Emitter& emitter) const {
     // Set the calling convention and export the continuation if needed
     if (attrs) {
         if (auto export_attr = attrs->find("export")) {
-            if (auto name_attr = export_attr->find("name"))
-                cont->set_name(name_attr->as<LiteralAttr>()->lit.as_string());
+            if (auto name_attr = export_attr->find("name")) {
+                std::string mono_name = name_attr->as<LiteralAttr>()->lit.as_string();
+                if (type_params) {
+                    for (auto& param : type_params->params) {
+                        auto replacement_type = param->type->replace(emitter.type_vars);
+                        std::string param_name = param->id.name;
+                        //TODO: this string can contain arbitrary characters, the resulting function name might be broken.
+                        //This should be made somewhat more robust in the future.
+                        std::string param_type = replacement_type->to_string();
+                        mono_name = std::regex_replace(mono_name, std::regex("\\$" + param_name), param_type);
+                    }
+                }
+                cont->set_name(mono_name);
+            }
             emitter.world.make_external(cont);
             cont->attributes().cc = thorin::CC::C;
         } else if (auto import_attr = attrs->find("import")) {
-            if (auto name_attr = import_attr->find("name"))
-                cont->set_name(name_attr->as<LiteralAttr>()->lit.as_string());
+            if (auto name_attr = import_attr->find("name")) {
+                std::string mono_name = name_attr->as<LiteralAttr>()->lit.as_string();
+                if (type_params) {
+                    for (auto& param : type_params->params) {
+                        auto replacement_type = param->type->replace(emitter.type_vars);
+                        std::string param_name = param->id.name;
+                        //TODO: this string can contain arbitrary characters, the resulting function name might be broken.
+                        //This should be made somewhat more robust in the future.
+                        std::string param_type = replacement_type->to_string();
+                        mono_name = std::regex_replace(mono_name, std::regex("\\$" + param_name), param_type);
+                    }
+                }
+                cont->set_name(mono_name);
+            }
             if (auto cc_attr = import_attr->find("cc")) {
                 auto cc = cc_attr->as<LiteralAttr>()->lit.as_string();
                 if (cc == "device") {

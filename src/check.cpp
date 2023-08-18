@@ -1640,6 +1640,16 @@ const artic::Type* FnDecl::infer(TypeChecker& checker) {
     if (fn->ret_type && fn->body)
         checker.coerce(fn->body, fn_type->as<artic::FnType>()->codom);
     checker.exit_decl(this);
+
+    if (attrs) {
+        if (auto import_attr = attrs->find("import")) {
+                if (auto depends_attr = import_attr->find("depends")) {
+                    auto depends = const_cast<PathAttr*>(depends_attr->as<PathAttr>());
+                    depends->path.infer(checker, true);
+                }
+        }
+    }
+
     return type;
 }
 

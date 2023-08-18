@@ -13,8 +13,9 @@ void NameBinder::bind_head(ast::Decl& decl) {
 }
 
 void NameBinder::bind(ast::Node& node) {
-    if (node.attrs)
-        node.attrs->bind(*this);
+    if (!node.isa<ast::FnDecl>())
+        if (node.attrs)
+            node.attrs->bind(*this);
     node.bind(*this);
 }
 
@@ -444,6 +445,9 @@ void FnDecl::bind(NameBinder& binder) {
     binder.push_scope();
     if (type_params)
         binder.bind(*type_params);
+
+    if (attrs)
+        attrs->bind(binder);
 
     if (fn->body)
         binder.bind(*fn);
