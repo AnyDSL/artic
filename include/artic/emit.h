@@ -103,9 +103,9 @@ public:
     void redundant_case(const ast::CaseExpr&);
     void non_exhaustive_match(const ast::MatchExpr&);
 
-    thorin::Continuation* basic_block(thorin::Debug = {});
-    thorin::Continuation* basic_block_with_mem(thorin::Debug = {});
-    thorin::Continuation* basic_block_with_mem(const thorin::Type*, thorin::Debug = {});
+    thorin::Continuation* basic_block(thorin::Debug);
+    thorin::Continuation* basic_block_with_mem(thorin::Debug);
+    thorin::Continuation* basic_block_with_mem(const thorin::Type*, thorin::Debug);
 
     const thorin::Def* ctor_index(const ast::Ptrn& ptrn);
     const thorin::Def* ctor_index(size_t, thorin::Debug = {});
@@ -118,8 +118,8 @@ public:
     void enter(thorin::Continuation*);
     void jump(const thorin::Def*, thorin::Debug = {});
     void jump(const thorin::Def*, const thorin::Def*, thorin::Debug = {});
-    const thorin::Def* call(const thorin::Def*, const thorin::Def*, thorin::Debug = {});
-    const thorin::Def* call(const thorin::Def*, const thorin::Def*, thorin::Continuation*, thorin::Debug = {});
+    const thorin::Def* call(const thorin::Def*, const thorin::Def*, thorin::Debug);
+    const thorin::Def* call(const thorin::Def*, const thorin::Def*, thorin::Continuation*, thorin::Debug);
     void branch(const thorin::Def*, const thorin::Def*, const thorin::Def*, thorin::Debug = {});
 
     const thorin::Def* alloc(const thorin::Type*, thorin::Debug = {});
