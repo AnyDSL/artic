@@ -160,7 +160,7 @@ static bool is_unit(Ptr<ast::Expr>& expr) {
 }
 
 static bool is_tuple_type_with_implicits(const artic::Type* type) {
-    if(auto tuple_t = type->isa<artic::TupleType>(); tuple_t && !is_unit_type(tuple_t))
+    if (auto tuple_t = type->isa<artic::TupleType>(); tuple_t && !is_unit_type(tuple_t))
         return std::any_of(tuple_t->args.begin(), tuple_t->args.end(), [&](auto arg){ return arg->template isa<ImplicitParamType>(); });
     return false;
 }

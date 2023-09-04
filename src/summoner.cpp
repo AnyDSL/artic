@@ -90,7 +90,7 @@ void RepeatArrayExpr::resolve_summons(artic::Summoner& summoner) {
 void FnExpr::resolve_summons(artic::Summoner& summoner) {
     summoner.push_scope();
     param->resolve_summons(summoner);
-    if(body) body->resolve_summons(summoner);
+    if (body) body->resolve_summons(summoner);
     summoner.pop_scope();
 }
 
