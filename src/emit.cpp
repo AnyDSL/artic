@@ -6,6 +6,7 @@
 #include "artic/parser.h"
 #include "artic/bind.h"
 #include "artic/check.h"
+#include "artic/summoner.h"
 
 #include <thorin/def.h>
 #include <thorin/type.h>
@@ -701,6 +702,9 @@ const thorin::Def* Emitter::down_cast(const thorin::Def* def, const Type* from, 
     if (from->isa<BottomType>())
         return world.bottom(to->convert(*this));
 
+    if (to->isa<ImplicitParamType>())
+        return def;
+
     auto to_ptr_type = to->isa<PtrType>();
     // Casting a value to a pointer to the type of the value effectively creates an allocation
     if (to_ptr_type &&
@@ -1198,6 +1202,12 @@ const thorin::Def* LiteralExpr::emit(Emitter& emitter) const {
     return emitter.emit(*this, lit);
 }
 
+const thorin::Def* SummonExpr::emit(Emitter& emitter) const {
+    if (resolved) return resolved->emit(emitter);
+    emitter.error("Emitted an unresolved SummonExpr, {} !", *this);
+    return emitter.world.bottom(type->convert(emitter));
+}
+
 const thorin::Def* ArrayExpr::emit(Emitter& emitter) const {
     thorin::Array<const thorin::Def*> ops(elems.size());
     for (size_t i = 0, n = elems.size(); i < n; ++i)
@@ -1638,6 +1648,10 @@ const thorin::Def* LetDecl::emit(Emitter& emitter) const {
     return nullptr;
 }
 
+const thorin::Def* ImplicitDecl::emit(artic::Emitter&) const {
+    return nullptr;
+}
+
 const thorin::Def* StaticDecl::emit(Emitter& emitter) const {
     auto value = init
         ? emitter.emit(*init)
@@ -1735,6 +1749,9 @@ const thorin::Def* ModDecl::emit(Emitter& emitter) const {
         // the call site, where the type arguments are known.
         if (auto fn_decl = decl->isa<FnDecl>(); fn_decl && fn_decl->type_params)
             continue;
+        // Likewise, we do not emit implicit declarations
+        if (auto implicit = decl->isa<ImplicitDecl>())
+            continue;
         emitter.emit(*decl);
     }
     return nullptr;
@@ -1760,6 +1777,10 @@ void IdPtrn::emit(Emitter& emitter, const thorin::Def* value) const {
     emitter.bind(*this, value);
     if (sub_ptrn)
         emitter.emit(*sub_ptrn, value);
+}
+
+void ImplicitParamPtrn::emit(artic::Emitter& emitter, const thorin::Def* value) const {
+    underlying->emit(emitter, value);
 }
 
 void FieldPtrn::emit(Emitter& emitter, const thorin::Def* value) const {
@@ -1872,8 +1893,16 @@ const thorin::Type* PtrType::convert(Emitter& emitter) const {
     return emitter.world.ptr_type(pointee->convert(emitter), 1, -1, thorin::AddrSpace(addr_space));
 }
 
+std::string ImplicitParamType::stringify(Emitter& emitter) const {
+    return "implicit_" + underlying->stringify(emitter);
+}
+
 std::string FnType::stringify(Emitter& emitter) const {
     return "fn_" + dom->stringify(emitter) + "_" + codom->stringify(emitter);
+}
+
+const thorin::Type* ImplicitParamType::convert(artic::Emitter& emitter) const {
+    return underlying->convert(emitter);
 }
 
 const thorin::Type* FnType::convert(Emitter& emitter) const {
@@ -2052,7 +2081,9 @@ bool compile(
     TypeChecker type_checker(log, type_table);
     type_checker.warns_as_errors = warns_as_errors;
 
-    if (!name_binder.run(program) || !type_checker.run(program))
+    Summoner summoner(log);
+
+    if (!name_binder.run(program) || !type_checker.run(program) || !summoner.run(program))
         return false;
 
     Emitter emitter(log, world);

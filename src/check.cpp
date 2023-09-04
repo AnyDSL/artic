@@ -154,7 +154,56 @@ const Type* TypeChecker::deref(Ptr<ast::Expr>& expr) {
     return type;
 }
 
+static bool is_unit(Ptr<ast::Expr>& expr) {
+    auto tuple_expr = expr->isa<ast::TupleExpr>();
+    return tuple_expr && tuple_expr->args.empty();
+}
+
+static bool is_tuple_type_with_implicits(const artic::Type* type) {
+    if (auto tuple_t = type->isa<artic::TupleType>(); tuple_t && !is_unit_type(tuple_t))
+        return std::any_of(tuple_t->args.begin(), tuple_t->args.end(), [&](auto arg){ return arg->template isa<ImplicitParamType>(); });
+    return false;
+}
+
 const Type* TypeChecker::coerce(Ptr<ast::Expr>& expr, const Type* expected) {
+    if (auto implicit = expected->isa<ImplicitParamType>()) {
+        // Only the empty tuple () can be coerced into a Summon[T]
+        if (is_unit(expr)) {
+            Ptr<ast::Expr> summoned = make_ptr<ast::SummonExpr>(expr->loc, Ptr<ast::Type>());
+            summoned->type = implicit->underlying;
+            expr.swap(summoned);
+            return implicit->underlying;
+        }
+    } else if (is_tuple_type_with_implicits(expected)) {
+        auto loc = expr->loc;
+        auto deconstructed = expr->isa<ast::TupleExpr>();
+        auto tuple_t = expected->as<TupleType>();
+        PtrVector<ast::Expr> args;
+        for (size_t i = 0; i < tuple_t->args.size(); i++) {
+            if (!deconstructed) {
+                if (i == 0 && !is_unit(expr)) {
+                    args.push_back(std::move(expr));
+                    continue;
+                }
+            } else {
+                if (i < deconstructed->args.size()) {
+                    args.push_back(std::move(deconstructed->args[i]));
+                    continue;
+                }
+            }
+
+            if (auto implicit = tuple_t->args[i]->isa<ImplicitParamType>()) {
+                Ptr<ast::Expr> summoned = make_ptr<ast::SummonExpr>(loc, Ptr<ast::Type>());
+                summoned->type = implicit->underlying;
+                args.push_back(std::move(summoned));
+                continue;
+            }
+
+            bad_arguments(loc, "non-implicit arguments", i, tuple_t->args.size());
+        }
+        expr = make_ptr<ast::TupleExpr>(loc, std::move(args));
+    }
+
     auto type = expr->type ? expr->type : check(*expr, expected);
     if (type != expected) {
         if (type->subtype(expected)) {
@@ -849,6 +898,22 @@ const artic::Type* LiteralExpr::check(TypeChecker& checker, const artic::Type* e
     return checker.check(loc, lit, expected);
 }
 
+const artic::Type* SummonExpr::infer(artic::TypeChecker& checker) {
+    if (type_expr) return checker.infer(*type_expr);
+    checker.error(loc, "summoning a value without a type");
+    return checker.type_table.type_error();
+}
+
+const artic::Type* SummonExpr::check(artic::TypeChecker& checker, const artic::Type* expected) {
+    if (type) {
+        auto got = checker.infer(*this);
+        if (!expected->subtype(got))
+            return checker.incompatible_types(loc, got, expected);
+        return got;
+    }
+    return expected;
+}
+
 const artic::Type* FieldExpr::check(TypeChecker& checker, const artic::Type* expected) {
     return checker.coerce(expr, expected);
 }
@@ -1497,6 +1562,18 @@ const artic::Type* LetDecl::infer(TypeChecker& checker) {
     return checker.type_table.unit_type();
 }
 
+const artic::Type* ImplicitDecl::infer(TypeChecker& checker) {
+    const artic::Type* t = nullptr;
+    assert(!is_generator && "TODO");
+    if (type) {
+        t = checker.infer(*type);
+        checker.coerce(value, t);
+    } else {
+        t = checker.infer(*value);
+    }
+    return t;
+}
+
 const artic::Type* StaticDecl::infer(TypeChecker& checker) {
     if (!checker.enter_decl(this))
         return checker.type_table.type_error();
@@ -1672,6 +1749,16 @@ const artic::Type* IdPtrn::check(TypeChecker& checker, const artic::Type* expect
     if (sub_ptrn)
         checker.check(*sub_ptrn, expected);
     return expected;
+}
+
+const artic::Type* ImplicitParamPtrn::infer(artic::TypeChecker& checker) {
+    checker.infer(*underlying);
+    return checker.type_table.implicit_param_type(underlying->type);
+}
+
+const artic::Type * ImplicitParamPtrn::check(artic::TypeChecker& checker, const artic::Type* expected) {
+    checker.check(*underlying, expected);
+    return checker.type_table.implicit_param_type(underlying->type);
 }
 
 const artic::Type* FieldPtrn::check(TypeChecker& checker, const artic::Type* expected) {

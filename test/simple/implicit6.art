@@ -1,0 +1,25 @@
+struct Emergency {
+    number: i32
+}
+
+fn @call_help(implicit e: Emergency) = e.number;
+
+mod usa {
+    implicit super::Emergency = super::Emergency { number = 911 };
+
+    #[export]
+    fn fire() = super::call_help();
+}
+
+mod eu {
+    implicit super::Emergency = super::Emergency { number = 112 };
+
+    #[export]
+    fn fire() = super::call_help();
+
+    #[export]
+    fn fire_but_in_belgium() -> i32 {
+        implicit super::Emergency = super::Emergency { number = 100 };
+        return (super::call_help())
+    }
+}
