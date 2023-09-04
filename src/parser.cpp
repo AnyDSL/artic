@@ -1019,6 +1019,7 @@ Ptr<ast::Type> Parser::parse_type() {
     Ptr<ast::Type> type;
     switch (ahead().tag()) {
         case Token::Fn:     return parse_fn_type();
+        case Token::Super:
         case Token::Id:     return parse_named_type();
         case Token::LParen: return parse_tuple_type();
         case Token::LogicAnd:
