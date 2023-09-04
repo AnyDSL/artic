@@ -200,12 +200,14 @@ void RecordDecl::resolve_summons(artic::Summoner& summoner) {
 }
 
 void ModDecl::resolve_summons(artic::Summoner& summoner) {
+    summoner.push_scope();
     for (auto& decl: decls)
         if (auto impl_decl = decl->isa<ImplicitDecl>())
             summoner.insert(decl->type, impl_decl->value.get());
 
     for (auto& decl: decls)
         decl->resolve_summons(summoner);
+    summoner.pop_scope();
 }
 
 void TypedPtrn::resolve_summons(artic::Summoner& summoner) {
