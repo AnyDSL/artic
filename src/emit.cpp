@@ -1670,6 +1670,7 @@ const thorin::Def* FnDecl::emit(Emitter& emitter) const {
             if (auto name_attr = export_attr->find("name"))
                 cont->set_name(name_attr->as<LiteralAttr>()->lit.as_string());
             emitter.world.make_external(cont);
+            cont->attributes().cc = thorin::CC::C;
         } else if (auto import_attr = attrs->find("import")) {
             if (auto name_attr = import_attr->find("name"))
                 cont->set_name(name_attr->as<LiteralAttr>()->lit.as_string());
@@ -1690,7 +1691,7 @@ const thorin::Def* FnDecl::emit(Emitter& emitter) const {
             if (auto name_attr = intern_attr->find("name"))
                 cont->set_name(name_attr->as<LiteralAttr>()->lit.as_string());
             emitter.world.make_external(cont);
-            cont->attributes().cc = thorin::CC::Internal;
+            cont->attributes().cc = thorin::CC::Thorin;
         }
     }
 
