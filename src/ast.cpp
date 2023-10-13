@@ -600,7 +600,7 @@ bool ImplicitCastExpr::is_constant() const {
             return !static_decl->is_mut;
         }
     }
-    return false;
+    return expr->is_constant();
 }
 
 bool AsmExpr::has_side_effect() const {
