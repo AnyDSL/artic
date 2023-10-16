@@ -109,6 +109,17 @@ void LiteralExpr::print(Printer& p) const {
     p << std::showpoint << log::literal_style(lit);
 }
 
+void SummonExpr::print(Printer& p) const {
+    if (resolved) {
+        resolved->print(p);
+        return;
+    }
+    p << log::keyword_style("summon") << "[";
+    if (type) type->print(p);
+    else if (type_expr) type_expr->print(p);
+    p << "]";
+}
+
 void FieldExpr::print(Printer& p) const {
     p << id.name << " = ";
     expr->print(p);
@@ -387,6 +398,11 @@ void LiteralPtrn::print(Printer& p) const {
     p << std::showpoint << log::literal_style(lit);
 }
 
+void ImplicitParamPtrn::print(Printer& p) const {
+    p << log::keyword_style("implicit") << ' ';
+    underlying->print(p);
+}
+
 void FieldPtrn::print(Printer& p) const {
     if (is_etc()) {
         p << "...";
@@ -463,6 +479,17 @@ void LetDecl::print(Printer& p) const {
         p << " = ";
         init->print(p);
     }
+    p << ';';
+}
+
+void ImplicitDecl::print(Printer& p) const {
+    p << log::keyword_style("implicit");
+    if (type) {
+        p << ' ';
+        type->print(p);
+    }
+    p << " = ";
+    value->print(p);
     p << ';';
 }
 
@@ -720,6 +747,11 @@ void RefType::print(Printer& p) const {
         p << "mutable ";
     p << "reference to ";
     pointee->print(p);
+}
+
+void ImplicitParamType::print(artic::Printer& p) const {
+    p << "implicit ";
+    underlying->print(p);
 }
 
 void FnType::print(Printer& p) const {

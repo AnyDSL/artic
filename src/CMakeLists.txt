@@ -10,6 +10,7 @@ add_library(libartic
     ../include/artic/log.h
     ../include/artic/parser.h
     ../include/artic/print.h
+    ../include/artic/summoner.h
     ../include/artic/symbol.h
     ../include/artic/token.h
     ../include/artic/types.h
@@ -21,6 +22,7 @@ add_library(libartic
     log.cpp
     parser.cpp
     print.cpp
+    summoner.cpp
     types.cpp)
 
 set_target_properties(libartic PROPERTIES PREFIX "" CXX_STANDARD 17)
