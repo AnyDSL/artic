@@ -712,14 +712,25 @@ void NamedAttr::check(TypeChecker& checker, const ast::Node* node) {
                 else
                     checker.check_attrs(*this, std::array<AttrType, 1> { AttrType { "name", AttrType::String } });
             } else if (name == "import") {
-                if (checker.check_attrs(*this, std::array<AttrType, 2> {
+                if (checker.check_attrs(*this, std::array<AttrType, 3> {
                         AttrType { "cc", AttrType::String },
-                        AttrType { "name", AttrType::String }
+                        AttrType { "name", AttrType::String },
+                        AttrType { "interface", AttrType::String }
                     }))
                 {
                     auto name = fn_decl->id.name;
                     if (auto name_attr = find("name"))
                         name = name_attr->as<LiteralAttr>()->lit.as_string();
+                    if (auto interface_attr = find("interface")) {
+                        auto interface = interface_attr->as<LiteralAttr>()->lit.as_string();
+                        const std::unordered_set<std::string> interfaces = {
+                            "stream", "async", "window", "buffer", "circular_buffer", "free_running"
+                        };
+
+                        if (interface != "stream" && interface != "cascade" && interface != "async" &&
+                                interface != "window" && interface != "buffer" && interface != "free_running")
+                            checker.error(fn_decl->loc, "invalid interface '{}'", interface);
+                    }
                     if (auto cc_attr = find("cc")) {
                         auto& cc = cc_attr->as<LiteralAttr>()->lit.as_string();
                         if (cc == "builtin") {
