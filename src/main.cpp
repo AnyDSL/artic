@@ -379,7 +379,6 @@ int main(int argc, char** argv) {
             } else
                 if (cg) emit_to_file(*cg);
         }
-        //TODO: for CGRA make a cg object and pass it to emit_to_file similar to llvm
     }
     return EXIT_SUCCESS;
 }
