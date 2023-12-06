@@ -349,15 +349,37 @@ int main(int argc, char** argv) {
             thorin::c::CodeGen cg(world, kernel_configs, thorin::c::Lang::C99, opts.debug, opts.hls_flags);
             emit_to_file(cg);
         }
+        // add a param similar to Lang for connected params
+        //thorin::config_script::CodeGen cg(world, opts.debug);
+        //thorin::config_script::CodeGen cg(world, opts.debug, thorin::config_script::test);
+        //emit_to_file(cg);
 #ifdef ENABLE_LLVM
         if (opts.emit_llvm) {
             thorin::llvm::CPUCodeGen cg(world, opts.opt_level, opts.debug, opts.host_triple, opts.host_cpu, opts.host_attr);
             emit_to_file(cg);
         }
 #endif
+        //FOR C-based codes
         for (auto& cg : backends.cgs) {
-            if (cg) emit_to_file(*cg);
+            //auto CodeGen_ptr = dynamic_cast<thorin::c::CodeGen*>(cg.get());
+            auto CodeGen_ptr = isa<thorin::c::CodeGen*>(cg.get());
+            if (CodeGen_ptr && CodeGen_ptr->get_lang() == thorin::c::Lang::CGRA) {
+                    auto name_kernels = opts.module_name + cg->file_ext();
+                    auto name_graph   = opts.module_name + "_graph" + cg->file_ext();
+                    std::ofstream kernel_file(name_kernels);
+                    std::ofstream graph_file(name_graph);
+                    if (!kernel_file)
+                        log::error("cannot open '{}' for writing", name_kernels);
+                    else if (!graph_file)
+                        log::error("cannot open '{}' for writing", name_graph);
+                    else {
+                        CodeGen_ptr->emit_stream(kernel_file, graph_file);
+                    }
+
+            } else
+                if (cg) emit_to_file(*cg);
         }
+        //TODO: for CGRA make a cg object and pass it to emit_to_file similar to llvm
     }
     return EXIT_SUCCESS;
 }
