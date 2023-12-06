@@ -1684,8 +1684,30 @@ const thorin::Def* FnDecl::emit(Emitter& emitter) const {
                 } else if (cc == "C") {
                     emitter.world.make_external(cont);
                     cont->attributes().cc = thorin::CC::C;
-                } else if (cc == "thorin")
+                } else if (cc == "thorin") {
                     cont->set_intrinsic();
+                    if (cont->intrinsic() == thorin::Intrinsic::CGRA) {
+                        if (auto interface_attr = import_attr->find("interface")) {
+                            auto interface = interface_attr->as<LiteralAttr>()->lit.as_string();
+                            if (interface == "stream")
+                                cont->attributes().interface = thorin::Interface::Stream;
+                            if (interface == "cascade")
+                                cont->attributes().interface = thorin::Interface::Cascade;
+                            if (interface == "window")
+                                cont->attributes().interface = thorin::Interface::Window;
+                            if (interface == "buffer")
+                                cont->attributes().interface = thorin::Interface::Buffer;
+                            if (interface == "circular_buffer")
+                                cont->attributes().interface = thorin::Interface::Circular_buffer;
+                            if (interface == "free_running")
+                                cont->attributes().interface = thorin::Interface::Free_running;
+                        } else {
+                            emitter.warn(loc, "missing interface attribute for CGRA intrinsic");
+                        }
+
+                    }
+
+                }
                 else if (cc == "builtin")
                     emitter.builtin(*this, cont);
             }

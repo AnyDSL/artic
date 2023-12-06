@@ -12,6 +12,7 @@
 #include <thorin/world.h>
 #include <thorin/be/codegen.h>
 #include <thorin/be/c/c.h>
+#include <thorin/be/config_script/config_script.h>
 #ifdef ENABLE_LLVM
 #include <thorin/be/llvm/cpu.h>
 #endif
