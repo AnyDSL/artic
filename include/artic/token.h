@@ -30,6 +30,8 @@ namespace artic {
     f(Enum, "enum") \
     f(Type, "type") \
     f(Static, "static") \
+    f(Implicit, "implicit") \
+    f(Summon, "summon") \
     f(Mod, "mod") \
     f(Use, "use") \
     f(Super, "super") \

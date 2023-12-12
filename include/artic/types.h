@@ -275,6 +275,32 @@ private:
     friend class TypeTable;
 };
 
+struct ImplicitParamType : public Type {
+    const Type* underlying;
+
+    void print(Printer&) const override;
+    bool equals(const Type*) const override;
+    size_t hash() const override;
+    bool contains(const Type*) const override;
+
+    const Type* replace(const ReplaceMap&) const override;
+
+    const thorin::Type* convert(Emitter&) const override;
+    std::string stringify(Emitter&) const override;
+
+    size_t order(std::unordered_set<const Type*>&) const override;
+    void variance(TypeVarMap<TypeVariance>&, bool) const override;
+    void bounds(TypeVarMap<TypeBounds>&, const Type*, bool) const override;
+    bool is_sized(std::unordered_set<const Type*>&) const override;
+private:
+    ImplicitParamType(TypeTable& type_table, const Type* underlying)
+        : Type(type_table)
+        , underlying(underlying)
+    {}
+
+    friend class TypeTable;
+};
+
 /// Function type (can represent continuations when the codomain is a `NoRetType`).
 struct FnType : public Type {
     const Type* dom;
@@ -639,26 +665,27 @@ class TypeTable {
 public:
     ~TypeTable();
 
-    const PrimType*         prim_type(ast::PrimType::Tag);
-    const PrimType*         bool_type();
-    const TupleType*        unit_type();
-    const TupleType*        tuple_type(const ArrayRef<const Type*>&);
-    const SizedArrayType*   sized_array_type(const Type*, size_t, bool);
-    const UnsizedArrayType* unsized_array_type(const Type*);
-    const PtrType*          ptr_type(const Type*, bool, size_t);
-    const RefType*          ref_type(const Type*, bool, size_t);
-    const FnType*           fn_type(const Type*, const Type*);
-    const FnType*           cn_type(const Type*);
-    const BottomType*       bottom_type();
-    const TopType*          top_type();
-    const NoRetType*        no_ret_type();
-    const TypeError*        type_error();
-    const TypeVar*          type_var(const ast::TypeParam&);
-    const ForallType*       forall_type(const ast::FnDecl&);
-    const StructType*       struct_type(const ast::RecordDecl&);
-    const EnumType*         enum_type(const ast::EnumDecl&);
-    const ModType*          mod_type(const ast::ModDecl&);
-    const TypeAlias*        type_alias(const ast::TypeDecl&);
+    const PrimType*          prim_type(ast::PrimType::Tag);
+    const PrimType*          bool_type();
+    const TupleType*         unit_type();
+    const TupleType*         tuple_type(const ArrayRef<const Type*>&);
+    const SizedArrayType*    sized_array_type(const Type*, size_t, bool);
+    const UnsizedArrayType*  unsized_array_type(const Type*);
+    const PtrType*           ptr_type(const Type*, bool, size_t);
+    const RefType*           ref_type(const Type*, bool, size_t);
+    const ImplicitParamType* implicit_param_type(const Type*);
+    const FnType*            fn_type(const Type*, const Type*);
+    const FnType*            cn_type(const Type*);
+    const BottomType*        bottom_type();
+    const TopType*           top_type();
+    const NoRetType*         no_ret_type();
+    const TypeError*         type_error();
+    const TypeVar*           type_var(const ast::TypeParam&);
+    const ForallType*        forall_type(const ast::FnDecl&);
+    const StructType*        struct_type(const ast::RecordDecl&);
+    const EnumType*          enum_type(const ast::EnumDecl&);
+    const ModType*           mod_type(const ast::ModDecl&);
+    const TypeAlias*         type_alias(const ast::TypeDecl&);
 
     /// Creates a type application for structures/enumeration types,
     /// or returns the type alias expanded with the given type arguments.

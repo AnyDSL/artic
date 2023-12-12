@@ -31,6 +31,7 @@ private:
     Ptr<ast::StructDecl>    parse_struct_decl();
     Ptr<ast::OptionDecl>    parse_option_decl();
     Ptr<ast::EnumDecl>      parse_enum_decl();
+    Ptr<ast::ImplicitDecl>  parse_implicit_decl();
     Ptr<ast::StaticDecl>    parse_static_decl();
     Ptr<ast::TypeDecl>      parse_type_decl();
     Ptr<ast::TypeParam>     parse_type_param();
@@ -39,14 +40,14 @@ private:
     Ptr<ast::UseDecl>       parse_use_decl();
     Ptr<ast::ErrorDecl>     parse_error_decl();
 
-    Ptr<ast::Ptrn>          parse_ptrn(bool = false);
+    Ptr<ast::Ptrn>          parse_ptrn(bool = false, bool = false);
     Ptr<ast::Ptrn>          parse_typed_ptrn(Ptr<ast::Ptrn>&&);
     Ptr<ast::IdPtrn>        parse_id_ptrn(ast::Identifier&&, bool);
     Ptr<ast::LiteralPtrn>   parse_literal_ptrn();
     Ptr<ast::FieldPtrn>     parse_field_ptrn();
     Ptr<ast::RecordPtrn>    parse_record_ptrn(ast::Path &&path);
     Ptr<ast::CtorPtrn>      parse_ctor_ptrn(ast::Path&& path);
-    Ptr<ast::Ptrn>          parse_tuple_ptrn(bool = false, Token::Tag = Token::LParen, Token::Tag = Token::RParen);
+    Ptr<ast::Ptrn>          parse_tuple_ptrn(bool = false, bool = false, Token::Tag = Token::LParen, Token::Tag = Token::RParen);
     Ptr<ast::ArrayPtrn>     parse_array_ptrn();
     Ptr<ast::ErrorPtrn>     parse_error_ptrn();
 
@@ -58,6 +59,7 @@ private:
     Ptr<ast::Expr>          parse_typed_expr(Ptr<ast::Expr>&&);
     Ptr<ast::PathExpr>      parse_path_expr();
     Ptr<ast::LiteralExpr>   parse_literal_expr();
+    Ptr<ast::SummonExpr>    parse_summon_expr();
     Ptr<ast::FieldExpr>     parse_field_expr();
     Ptr<ast::RecordExpr>    parse_record_expr(ast::Path &&path);
     Ptr<ast::RecordExpr>    parse_record_expr(Ptr<ast::Expr> &&expr);

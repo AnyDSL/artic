@@ -1,4 +1,6 @@
 mod foo {
     fn bar() = super::baz();
+    static t = super::T { x = 0 };
 }
 fn baz() {}
+struct T { x: i32 }

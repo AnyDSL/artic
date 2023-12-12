@@ -52,6 +52,12 @@ bool AddrType::equals(const Type* other) const {
         other->as<AddrType>()->is_mut == is_mut;
 }
 
+bool ImplicitParamType::equals(const artic::Type* other) const {
+    return
+        other->isa<ImplicitParamType>() &&
+        other->as<ImplicitParamType>()->underlying == underlying;
+}
+
 bool FnType::equals(const Type* other) const {
     return
         other->isa<FnType>() &&
@@ -108,6 +114,12 @@ size_t AddrType::hash() const {
         .combine(is_mut);
 }
 
+size_t ImplicitParamType::hash() const {
+    return fnv::Hash()
+        .combine(typeid(*this).hash_code())
+        .combine(underlying);
+}
+
 size_t FnType::hash() const {
     return fnv::Hash()
         .combine(typeid(*this).hash_code())
@@ -148,6 +160,10 @@ bool AddrType::contains(const Type* type) const {
     return type == this || pointee->contains(type);
 }
 
+bool ImplicitParamType::contains(const artic::Type* type) const {
+    return type == this || underlying->contains(type);
+}
+
 bool FnType::contains(const Type* type) const {
     return type == this || dom->contains(type) || codom->contains(type);
 }
@@ -186,6 +202,10 @@ const Type* RefType::replace(const std::unordered_map<const TypeVar*, const Type
     return type_table.ref_type(pointee->replace(map), is_mut, addr_space);
 }
 
+const Type* ImplicitParamType::replace(const artic::ReplaceMap& map) const {
+    return type_table.implicit_param_type(underlying->replace(map));
+}
+
 const Type* FnType::replace(const std::unordered_map<const TypeVar*, const Type*>& map) const {
     return type_table.fn_type(dom->replace(map), codom->replace(map));
 }
@@ -207,6 +227,10 @@ const Type* TypeApp::replace(const std::unordered_map<const TypeVar*, const Type
 
 size_t Type::order(std::unordered_set<const Type*>&) const {
     return 0;
+}
+
+size_t ImplicitParamType::order(std::unordered_set<const Type*>& seen) const {
+    return underlying->order(seen);
 }
 
 size_t FnType::order(std::unordered_set<const Type*>& seen) const {
@@ -266,6 +290,10 @@ void FnType::variance(std::unordered_map<const TypeVar*, TypeVariance>& vars, bo
     codom->variance(vars, dir);
 }
 
+void ImplicitParamType::variance(TypeVarMap<artic::TypeVariance>& vars, bool dir) const {
+    return underlying->variance(vars, dir);
+}
+
 void TypeVar::variance(std::unordered_map<const TypeVar*, TypeVariance>& vars, bool dir) const {
     if (auto it = vars.find(this); it != vars.end()) {
         bool var_dir = it->second == TypeVariance::Covariant ? true : false;
@@ -301,6 +329,10 @@ void AddrType::bounds(std::unordered_map<const TypeVar*, TypeBounds>& bounds, co
         pointee->bounds(bounds, addr_type->pointee, dir);
 }
 
+void ImplicitParamType::bounds(TypeVarMap<artic::TypeBounds>& bounds, const artic::Type* type, bool dir) const {
+    underlying->bounds(bounds, type, dir);
+}
+
 void FnType::bounds(std::unordered_map<const TypeVar*, TypeBounds>& bounds, const Type* type, bool dir) const {
     if (auto fn_type = type->isa<FnType>()) {
         dom->bounds(bounds, fn_type->dom, !dir);
@@ -332,6 +364,10 @@ void TypeApp::bounds(std::unordered_map<const TypeVar*, TypeBounds>& bounds, con
 
 bool Type::is_sized(std::unordered_set<const Type*>&) const {
     return true;
+}
+
+bool ImplicitParamType::is_sized(std::unordered_set<const Type*>& seen) const {
+    return underlying->is_sized(seen);
 }
 
 bool FnType::is_sized(std::unordered_set<const Type*>& seen) const {
@@ -445,6 +481,9 @@ const ModType::Members& ModType::members() const {
 bool Type::subtype(const Type* other) const {
     if (this == other || isa<BottomType>() || other->isa<TopType>())
         return true;
+
+    if (auto implicit = other->isa<ImplicitParamType>())
+        return this->subtype(implicit->underlying) || is_unit_type(this);
 
     auto other_ptr_type = other->isa<PtrType>(); 
 
@@ -627,6 +666,10 @@ const PtrType* TypeTable::ptr_type(const Type* pointee, bool is_mut, size_t addr
 
 const RefType* TypeTable::ref_type(const Type* pointee, bool is_mut, size_t addr_space) {
     return insert<RefType>(pointee, is_mut, addr_space);
+}
+
+const ImplicitParamType* TypeTable::implicit_param_type(const Type* underlying) {
+    return insert<ImplicitParamType>(underlying);
 }
 
 const FnType* TypeTable::fn_type(const Type* dom, const Type* codom) {

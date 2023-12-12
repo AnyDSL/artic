@@ -59,6 +59,20 @@ fn main() -> i32 {
     S[i32] { elem = select[i32](true, 0, 1) }.elem
 }
 ```
+ - __Experimental__: [Implicits](doc/implicits.md) provide a form of ad-hoc polymorphism, similar to Rust traits:
+```rust
+struct Vec3f {
+    x: f32, y: f32, z: f32
+}
+struct Len[T] {
+    len: fn(T) -> f32
+}
+
+implicit = Len[Vec3f] {
+    len = | v | sqrt(v.x * v.x + v.y * v.y + v.z * v.z)
+};
+fn longest(a: Vec3f, b: Vec3f, implicit l: Len[Vec3f]) = if (l.len(a) > l.len(b)) { a } else { b };
+```
  - The type inference algorithm is now bidirectional type checking, which means
    that type information is propagated _locally_, not globally. This gives improved
    error messages and better support for advanced type system features, at the cost

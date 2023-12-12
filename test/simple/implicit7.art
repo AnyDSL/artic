@@ -1,0 +1,12 @@
+struct Zero[T] { value: T }
+struct Cmp[T] { cmp: fn(T, T) -> bool }
+
+implicit = Zero[i32] { value = 0 };
+implicit = Cmp[i32] { cmp = |x, y| x == y };
+
+fn is_zero[T](value: T, implicit zero: Zero[T], implicit cmp: Cmp[T]) -> bool {
+    cmp.cmp(value, zero.value)
+}
+
+#[export]
+fn foo(i: i32) = if (is_zero[i32](i)) { 1 } else { 0 };

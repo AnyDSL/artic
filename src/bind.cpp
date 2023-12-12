@@ -151,6 +151,10 @@ void PathExpr::bind(NameBinder& binder) {
 
 void LiteralExpr::bind(NameBinder&) {}
 
+void SummonExpr::bind(artic::NameBinder& binder) {
+    if (type_expr) binder.bind(*type_expr);
+}
+
 void FieldExpr::bind(NameBinder& binder) {
     binder.bind(*expr);
 }
@@ -334,6 +338,10 @@ void IdPtrn::bind(NameBinder& binder) {
 
 void LiteralPtrn::bind(NameBinder&) {}
 
+void ImplicitParamPtrn::bind(artic::NameBinder& binder) {
+    underlying->bind(binder);
+}
+
 void FieldPtrn::bind(NameBinder& binder) {
     if (ptrn) binder.bind(*ptrn);
 }
@@ -375,6 +383,11 @@ void PtrnDecl::bind(NameBinder& binder) {
 void LetDecl::bind(NameBinder& binder) {
     if (init) binder.bind(*init);
     binder.bind(*ptrn);
+}
+
+void ImplicitDecl::bind(artic::NameBinder& binder) {
+    if (type) type->bind(binder);
+    value->bind(binder);
 }
 
 void StaticDecl::bind_head(NameBinder& binder) {

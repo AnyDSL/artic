@@ -600,7 +600,7 @@ bool ImplicitCastExpr::is_constant() const {
             return !static_decl->is_mut;
         }
     }
-    return false;
+    return expr->is_constant();
 }
 
 bool AsmExpr::has_side_effect() const {
@@ -619,6 +619,12 @@ bool TypedPtrn::is_trivial() const {
     return !ptrn || ptrn->is_trivial();
 }
 
+const Expr* TypedPtrn::to_expr() {
+    if (!ptrn)
+        return nullptr;
+    return ptrn->to_expr();
+}
+
 void IdPtrn::collect_bound_ptrns(std::vector<const IdPtrn*>& bound_ptrns) const {
     bound_ptrns.emplace_back(this);
     if (sub_ptrn)
@@ -629,8 +635,32 @@ bool IdPtrn::is_trivial() const {
     return !sub_ptrn || sub_ptrn->is_trivial();
 }
 
+const Expr* IdPtrn::to_expr() {
+    if (as_expr)
+        return as_expr.get();
+    Identifier id = decl->id;
+    std::vector<Path::Elem> elems;
+    elems.push_back(Path::Elem( loc, std::move(id), {} ));
+    Path path = Path(loc, std::move(elems));
+    path.start_decl = decl.get();
+    path.is_value = true;
+    as_expr = make_ptr<PathExpr>(std::move(path));
+    return as_expr.get();
+}
+
 bool LiteralPtrn::is_trivial() const {
     return false;
+}
+
+const Expr* LiteralPtrn::to_expr() {
+    if (as_expr)
+        return as_expr.get();
+    as_expr = make_ptr<LiteralExpr>(loc, lit);
+    return as_expr.get();
+}
+
+bool ImplicitParamPtrn::is_trivial() const {
+    return underlying->is_trivial();
 }
 
 void FieldPtrn::collect_bound_ptrns(std::vector<const IdPtrn*>& bound_ptrns) const {

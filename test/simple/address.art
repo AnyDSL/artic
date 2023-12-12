@@ -12,3 +12,5 @@ fn test3(i: i32) = s(i);
 fn test4(i: i32) = (&[1, 2, 3, 4])(i);
 #[export]
 fn test5(mut x: [i32 * 4], i: i32) = &mut x(i);
+#[export]
+fn test6(mut x: &mut (i32, i32)) = &mut x.0;

@@ -1,0 +1,4 @@
+implicit i32 = 42;
+
+fn foo(implicit i: i32) {}
+fn bar() { foo() }

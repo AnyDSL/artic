@@ -1,0 +1,4 @@
+implicit i32 = 42;
+
+fn foo(explicit: bool, implicit i: i32) {}
+fn bar() { foo(false, false) }

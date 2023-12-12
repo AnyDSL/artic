@@ -10,6 +10,7 @@ add_library(libartic
     ../include/artic/log.h
     ../include/artic/parser.h
     ../include/artic/print.h
+    ../include/artic/summoner.h
     ../include/artic/symbol.h
     ../include/artic/token.h
     ../include/artic/types.h
@@ -21,6 +22,7 @@ add_library(libartic
     log.cpp
     parser.cpp
     print.cpp
+    summoner.cpp
     types.cpp)
 
 set_target_properties(libartic PROPERTIES PREFIX "" CXX_STANDARD 17)
@@ -38,7 +40,9 @@ target_compile_definitions(artic PUBLIC -DARTIC_VERSION_MAJOR=${PROJECT_VERSION_
 target_link_libraries(artic PUBLIC libartic)
 if (Thorin_HAS_JSON_SUPPORT)
     target_compile_definitions(artic PUBLIC -DENABLE_JSON)
-    find_package(nlohmann_json 3.2.0 REQUIRED)
+    if (NOT TARGET nlohmann_json)
+        find_package(nlohmann_json 3.2.0 REQUIRED)
+    endif()
     target_link_libraries(artic PUBLIC nlohmann_json::nlohmann_json)
 endif()
 if (Thorin_HAS_LLVM_SUPPORT)
