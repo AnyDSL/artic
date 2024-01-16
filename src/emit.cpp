@@ -6,6 +6,7 @@
 #include "artic/parser.h"
 #include "artic/bind.h"
 #include "artic/check.h"
+#include "artic/summoner.h"
 
 #include <thorin/def.h>
 #include <thorin/type.h>
@@ -701,6 +702,9 @@ const thorin::Def* Emitter::down_cast(const thorin::Def* def, const Type* from, 
     if (from->isa<BottomType>())
         return world.bottom(to->convert(*this));
 
+    if (to->isa<ImplicitParamType>())
+        return def;
+
     auto to_ptr_type = to->isa<PtrType>();
     // Casting a value to a pointer to the type of the value effectively creates an allocation
     if (to_ptr_type &&
@@ -906,36 +910,36 @@ const thorin::Def* Emitter::builtin(const ast::FnDecl& fn_decl, thorin::Continua
         auto ret_val = call(comparator(fn_decl.loc, mono_type), tuple_from_params(cont, true));
         jump(cont->params().back(), ret_val);
     } else {
-        static const std::unordered_map<std::string, std::function<const thorin::Def* (const thorin::Continuation*)>> functions = {
-            { "fabs",     [&] (const thorin::Continuation* cont) { return world.fabs(cont->param(1)); } },
-            { "copysign", [&] (const thorin::Continuation* cont) { return world.copysign(cont->param(1), cont->param(2)); } },
-            { "signbit",  [&] (const thorin::Continuation* cont) { return signbit(cont->param(1)); } },
-            { "round",    [&] (const thorin::Continuation* cont) { return world.round(cont->param(1)); } },
-            { "ceil",     [&] (const thorin::Continuation* cont) { return world.ceil(cont->param(1)); } },
-            { "floor",    [&] (const thorin::Continuation* cont) { return world.floor(cont->param(1)); } },
-            { "fmin",     [&] (const thorin::Continuation* cont) { return world.fmin(cont->param(1), cont->param(2)); } },
-            { "fmax",     [&] (const thorin::Continuation* cont) { return world.fmax(cont->param(1), cont->param(2)); } },
-            { "cos",      [&] (const thorin::Continuation* cont) { return world.cos(cont->param(1)); } },
-            { "sin",      [&] (const thorin::Continuation* cont) { return world.sin(cont->param(1)); } },
-            { "tan",      [&] (const thorin::Continuation* cont) { return world.tan(cont->param(1)); } },
-            { "acos",     [&] (const thorin::Continuation* cont) { return world.acos(cont->param(1)); } },
-            { "asin",     [&] (const thorin::Continuation* cont) { return world.asin(cont->param(1)); } },
-            { "atan",     [&] (const thorin::Continuation* cont) { return world.atan(cont->param(1)); } },
-            { "atan2",    [&] (const thorin::Continuation* cont) { return world.atan2(cont->param(1), cont->param(2)); } },
-            { "sqrt",     [&] (const thorin::Continuation* cont) { return world.sqrt(cont->param(1)); } },
-            { "cbrt",     [&] (const thorin::Continuation* cont) { return world.cbrt(cont->param(1)); } },
-            { "pow",      [&] (const thorin::Continuation* cont) { return world.pow(cont->param(1), cont->param(2)); } },
-            { "exp",      [&] (const thorin::Continuation* cont) { return world.exp(cont->param(1)); } },
-            { "exp2",     [&] (const thorin::Continuation* cont) { return world.exp2(cont->param(1)); } },
-            { "log",      [&] (const thorin::Continuation* cont) { return world.log(cont->param(1)); } },
-            { "log2",     [&] (const thorin::Continuation* cont) { return world.log2(cont->param(1)); } },
-            { "log10",    [&] (const thorin::Continuation* cont) { return world.log10(cont->param(1)); } },
-            { "isnan",    [&] (const thorin::Continuation* cont) { return isnan(cont->param(1)); } },
-            { "isfinite", [&] (const thorin::Continuation* cont) { return isfinite(cont->param(1)); } },
+        static const std::unordered_map<std::string, std::function<const thorin::Def* (Emitter*, const thorin::Continuation*)>> functions = {
+            { "fabs",     [] (Emitter* self, const thorin::Continuation* cont) { return self->world.fabs(cont->param(1)); } },
+            { "copysign", [] (Emitter* self, const thorin::Continuation* cont) { return self->world.copysign(cont->param(1), cont->param(2)); } },
+            { "signbit",  [] (Emitter*     , const thorin::Continuation* cont) { return signbit(cont->param(1)); } },
+            { "round",    [] (Emitter* self, const thorin::Continuation* cont) { return self->world.round(cont->param(1)); } },
+            { "ceil",     [] (Emitter* self, const thorin::Continuation* cont) { return self->world.ceil(cont->param(1)); } },
+            { "floor",    [] (Emitter* self, const thorin::Continuation* cont) { return self->world.floor(cont->param(1)); } },
+            { "fmin",     [] (Emitter* self, const thorin::Continuation* cont) { return self->world.fmin(cont->param(1), cont->param(2)); } },
+            { "fmax",     [] (Emitter* self, const thorin::Continuation* cont) { return self->world.fmax(cont->param(1), cont->param(2)); } },
+            { "cos",      [] (Emitter* self, const thorin::Continuation* cont) { return self->world.cos(cont->param(1)); } },
+            { "sin",      [] (Emitter* self, const thorin::Continuation* cont) { return self->world.sin(cont->param(1)); } },
+            { "tan",      [] (Emitter* self, const thorin::Continuation* cont) { return self->world.tan(cont->param(1)); } },
+            { "acos",     [] (Emitter* self, const thorin::Continuation* cont) { return self->world.acos(cont->param(1)); } },
+            { "asin",     [] (Emitter* self, const thorin::Continuation* cont) { return self->world.asin(cont->param(1)); } },
+            { "atan",     [] (Emitter* self, const thorin::Continuation* cont) { return self->world.atan(cont->param(1)); } },
+            { "atan2",    [] (Emitter* self, const thorin::Continuation* cont) { return self->world.atan2(cont->param(1), cont->param(2)); } },
+            { "sqrt",     [] (Emitter* self, const thorin::Continuation* cont) { return self->world.sqrt(cont->param(1)); } },
+            { "cbrt",     [] (Emitter* self, const thorin::Continuation* cont) { return self->world.cbrt(cont->param(1)); } },
+            { "pow",      [] (Emitter* self, const thorin::Continuation* cont) { return self->world.pow(cont->param(1), cont->param(2)); } },
+            { "exp",      [] (Emitter* self, const thorin::Continuation* cont) { return self->world.exp(cont->param(1)); } },
+            { "exp2",     [] (Emitter* self, const thorin::Continuation* cont) { return self->world.exp2(cont->param(1)); } },
+            { "log",      [] (Emitter* self, const thorin::Continuation* cont) { return self->world.log(cont->param(1)); } },
+            { "log2",     [] (Emitter* self, const thorin::Continuation* cont) { return self->world.log2(cont->param(1)); } },
+            { "log10",    [] (Emitter* self, const thorin::Continuation* cont) { return self->world.log10(cont->param(1)); } },
+            { "isnan",    [] (Emitter*     , const thorin::Continuation* cont) { return isnan(cont->param(1)); } },
+            { "isfinite", [] (Emitter*     , const thorin::Continuation* cont) { return isfinite(cont->param(1)); } },
         };
         assert(functions.count(cont->name()) > 0);
         enter(cont);
-        jump(cont->params().back(), functions.at(cont->name())(cont));
+        jump(cont->params().back(), functions.at(cont->name())(this, cont));
     }
     cont->set_filter(cont->all_true_filter());
     return cont;
@@ -1196,6 +1200,12 @@ const thorin::Def* PathExpr::emit(Emitter& emitter) const {
 
 const thorin::Def* LiteralExpr::emit(Emitter& emitter) const {
     return emitter.emit(*this, lit);
+}
+
+const thorin::Def* SummonExpr::emit(Emitter& emitter) const {
+    if (resolved) return resolved->emit(emitter);
+    emitter.error("Emitted an unresolved SummonExpr, {} !", *this);
+    return emitter.world.bottom(type->convert(emitter));
 }
 
 const thorin::Def* ArrayExpr::emit(Emitter& emitter) const {
@@ -1638,6 +1648,10 @@ const thorin::Def* LetDecl::emit(Emitter& emitter) const {
     return nullptr;
 }
 
+const thorin::Def* ImplicitDecl::emit(artic::Emitter&) const {
+    return nullptr;
+}
+
 const thorin::Def* StaticDecl::emit(Emitter& emitter) const {
     auto value = init
         ? emitter.emit(*init)
@@ -1757,6 +1771,9 @@ const thorin::Def* ModDecl::emit(Emitter& emitter) const {
         // the call site, where the type arguments are known.
         if (auto fn_decl = decl->isa<FnDecl>(); fn_decl && fn_decl->type_params)
             continue;
+        // Likewise, we do not emit implicit declarations
+        if (auto implicit = decl->isa<ImplicitDecl>())
+            continue;
         emitter.emit(*decl);
     }
     return nullptr;
@@ -1782,6 +1799,10 @@ void IdPtrn::emit(Emitter& emitter, const thorin::Def* value) const {
     emitter.bind(*this, value);
     if (sub_ptrn)
         emitter.emit(*sub_ptrn, value);
+}
+
+void ImplicitParamPtrn::emit(artic::Emitter& emitter, const thorin::Def* value) const {
+    underlying->emit(emitter, value);
 }
 
 void FieldPtrn::emit(Emitter& emitter, const thorin::Def* value) const {
@@ -1894,8 +1915,16 @@ const thorin::Type* PtrType::convert(Emitter& emitter) const {
     return emitter.world.ptr_type(pointee->convert(emitter), 1, -1, thorin::AddrSpace(addr_space));
 }
 
+std::string ImplicitParamType::stringify(Emitter& emitter) const {
+    return "implicit_" + underlying->stringify(emitter);
+}
+
 std::string FnType::stringify(Emitter& emitter) const {
     return "fn_" + dom->stringify(emitter) + "_" + codom->stringify(emitter);
+}
+
+const thorin::Type* ImplicitParamType::convert(artic::Emitter& emitter) const {
+    return underlying->convert(emitter);
 }
 
 const thorin::Type* FnType::convert(Emitter& emitter) const {
@@ -2074,7 +2103,9 @@ bool compile(
     TypeChecker type_checker(log, type_table);
     type_checker.warns_as_errors = warns_as_errors;
 
-    if (!name_binder.run(program) || !type_checker.run(program))
+    Summoner summoner(log);
+
+    if (!name_binder.run(program) || !type_checker.run(program) || !summoner.run(program))
         return false;
 
     Emitter emitter(log, world);

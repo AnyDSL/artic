@@ -10,6 +10,8 @@ Parser::Parser(Log& log, Lexer& lexer)
     : Logger(log), lexer_(lexer)
 {
     for (int i = 0; i < max_ahead; i++)
+        ahead_[i] = Token(Loc());
+    for (int i = 0; i < max_ahead; i++)
         next();
 }
 
@@ -36,14 +38,15 @@ Ptr<ast::Decl> Parser::parse_decl(bool is_top_level) {
                 note("use a static variable instead");
             }
             break;
-        case Token::Fn:     decl = parse_fn_decl();     break;
-        case Token::Struct: decl = parse_struct_decl(); break;
-        case Token::Enum:   decl = parse_enum_decl();   break;
-        case Token::Type:   decl = parse_type_decl();   break;
-        case Token::Static: decl = parse_static_decl(); break;
-        case Token::Mod:    decl = parse_mod_decl();    break;
-        case Token::Use:    decl = parse_use_decl();    break;
-        default:            decl = parse_error_decl();  break;
+        case Token::Fn:       decl = parse_fn_decl();       break;
+        case Token::Struct:   decl = parse_struct_decl();   break;
+        case Token::Enum:     decl = parse_enum_decl();     break;
+        case Token::Type:     decl = parse_type_decl();     break;
+        case Token::Implicit: decl = parse_implicit_decl(); break;
+        case Token::Static:   decl = parse_static_decl();   break;
+        case Token::Mod:      decl = parse_mod_decl();      break;
+        case Token::Use:      decl = parse_use_decl();      break;
+        default:              decl = parse_error_decl();    break;
     }
     decl->attrs = std::move(attrs);
     decl->is_top_level = is_top_level;
@@ -77,7 +80,7 @@ Ptr<ast::FnDecl> Parser::parse_fn_decl() {
 
     Ptr<ast::Ptrn> param;
     if (ahead().tag() == Token::LParen)
-        param = parse_tuple_ptrn(true);
+        param = parse_tuple_ptrn(true, true);
     else
         error(ahead().loc(), "parameter list expected in function definition");
 
@@ -193,6 +196,20 @@ Ptr<ast::TypeDecl> Parser::parse_type_decl() {
     return make_ptr<ast::TypeDecl>(tracker(), std::move(id), std::move(type_params), std::move(aliased_type));
 }
 
+Ptr<ast::ImplicitDecl> Parser::parse_implicit_decl() {
+    Tracker tracker(this);
+    eat(Token::Implicit);
+
+    Ptr<ast::Type> type = nullptr;
+    if (ahead().tag() != Token::Eq)
+        type = parse_type();
+
+    expect(Token::Eq);
+    auto value = parse_expr(true);
+    expect(Token::Semi);
+    return make_ptr<ast::ImplicitDecl>(tracker(), std::move(type), std::move(value));
+}
+
 Ptr<ast::StaticDecl> Parser::parse_static_decl() {
     Tracker tracker(this);
     eat(Token::Static);
@@ -264,14 +281,14 @@ Ptr<ast::ErrorDecl> Parser::parse_error_decl() {
 
 // Patterns ------------------------------------------------------------------------
 
-Ptr<ast::Ptrn> Parser::parse_ptrn(bool is_fn_param) {
+Ptr<ast::Ptrn> Parser::parse_ptrn(bool allow_types, bool allow_implicits) {
     Ptr<ast::Ptrn> ptrn;
     switch (ahead().tag()) {
         case Token::Super:
         case Token::Id:
             {
                 if (auto tag = ast::PrimType::tag_from_token(ahead()); tag != ast::PrimType::Error) {
-                    if (!is_fn_param)
+                    if (!allow_types)
                         return parse_error_ptrn();
                     auto type = parse_prim_type(tag);
                     return make_ptr<ast::TypedPtrn>(type->loc, Ptr<ast::Ptrn>(), std::move(type));
@@ -281,11 +298,11 @@ Ptr<ast::Ptrn> Parser::parse_ptrn(bool is_fn_param) {
                     ahead().tag() == Token::LBracket ||
                     ahead().tag() == Token::LParen ||
                     ahead().tag() == Token::LBrace ||
-                    (is_fn_param && ahead().tag() != Token::Colon && ahead().tag() != Token::As)) {
+                    (allow_types && ahead().tag() != Token::Colon && ahead().tag() != Token::As)) {
                     auto path = parse_path(std::move(id), true);
                     if (ahead().tag() == Token::LBrace)
                         ptrn = parse_record_ptrn(std::move(path));
-                    else if (is_fn_param) {
+                    else if (allow_types) {
                         auto type = make_ptr<ast::TypeApp>(path.loc, std::move(path));
                         return make_ptr<ast::TypedPtrn>(path.loc, Ptr<ast::Ptrn>(), std::move(type));
                     } else
@@ -300,22 +317,30 @@ Ptr<ast::Ptrn> Parser::parse_ptrn(bool is_fn_param) {
                 ptrn = parse_id_ptrn(parse_id(), true);
             }
             break;
-        case Token::LParen: ptrn = parse_tuple_ptrn(is_fn_param); break;
-        case Token::Lit:    ptrn = parse_literal_ptrn();          break;
+        case Token::LParen: ptrn = parse_tuple_ptrn(allow_types, false); break;
+        case Token::Lit:    ptrn = parse_literal_ptrn(); break;
         case Token::Simd:
         case Token::LBracket:
-            if (!is_fn_param || (ahead(1).tag() == Token::Id && ahead(2).tag() == Token::Colon)) {
+            if (!allow_types || (ahead(1).tag() == Token::Id && ahead(2).tag() == Token::Colon)) {
                 ptrn = parse_array_ptrn();
                 break;
             }
             [[fallthrough]];
         case Token::And:
         case Token::Fn:
-            if (is_fn_param) {
+            if (allow_types) {
                 auto type = parse_type();
                 return make_ptr<ast::TypedPtrn>(type->loc, Ptr<ast::Ptrn>(), std::move(type));
             }
             [[fallthrough]];
+        case Token::Implicit:
+            {
+                if (!allow_implicits)
+                    return parse_error_ptrn();
+                eat(Token::Implicit);
+                auto underlying = parse_ptrn();
+                return make_ptr<ast::ImplicitParamPtrn>(underlying->loc, std::move(underlying));
+            }
         default:
             ptrn = parse_error_ptrn();
             break;
@@ -385,12 +410,12 @@ Ptr<ast::CtorPtrn> Parser::parse_ctor_ptrn(ast::Path&& path) {
     return make_ptr<ast::CtorPtrn>(tracker(), std::move(path), std::move(arg));
 }
 
-Ptr<ast::Ptrn> Parser::parse_tuple_ptrn(bool is_fn_param, Token::Tag beg, Token::Tag end) {
+Ptr<ast::Ptrn> Parser::parse_tuple_ptrn(bool allow_types, bool allow_implicits, Token::Tag beg, Token::Tag end) {
     Tracker tracker(this);
     eat(beg);
     PtrVector<ast::Ptrn> args;
     parse_list(end, Token::Comma, [&] {
-        args.emplace_back(parse_ptrn(is_fn_param));
+        args.emplace_back(parse_ptrn(allow_types, allow_implicits));
     });
     if (args.size() == 1) {
         args[0]->loc = tracker();
@@ -420,7 +445,7 @@ Ptr<ast::ErrorPtrn> Parser::parse_error_ptrn() {
 // Statements ----------------------------------------------------------------------
 
 Ptr<ast::Stmt> Parser::parse_stmt() {
-    if (ahead().tag() == Token::Let || ahead().tag() == Token::Fn)
+    if (ahead().tag() == Token::Let || ahead().tag() == Token::Fn || ahead().tag() == Token::Implicit)
         return parse_decl_stmt();
     Tracker tracker(this);
     Ptr<ast::Expr> expr;
@@ -469,6 +494,15 @@ Ptr<ast::LiteralExpr> Parser::parse_literal_expr() {
     Tracker tracker(this);
     auto lit = parse_lit();
     return make_ptr<ast::LiteralExpr>(tracker(), lit);
+}
+
+Ptr<ast::SummonExpr> Parser::parse_summon_expr() {
+    Tracker tracker(this);
+    eat(Token::Summon);
+    expect(Token::LBracket);
+    auto t = parse_type();
+    expect(Token::RBracket);
+    return make_ptr<ast::SummonExpr>(tracker(), std::move(t));
 }
 
 Ptr<ast::FieldExpr> Parser::parse_field_expr() {
@@ -581,6 +615,8 @@ Ptr<ast::BlockExpr> Parser::parse_block_expr() {
             case Token::Asm:
             case Token::Simd:
             case Token::Let:
+            case Token::Implicit:
+            case Token::Summon:
             case Token::Fn:
                 if (!last_semi && !stmts.empty() && stmts.back()->needs_semicolon())
                     error(ahead().loc(), "expected ';', but got '{}'", ahead().string());
@@ -609,7 +645,7 @@ Ptr<ast::FnExpr> Parser::parse_fn_expr(Ptr<ast::Filter>&& filter, bool nested) {
         parse_nested = parse_list(
             std::array<Token::Tag, 2>{ Token::Or, Token::LogicOr },
             std::array<Token::Tag, 1>{ Token::Comma }, [&] {
-                args.emplace_back(parse_ptrn(false));
+                args.emplace_back(parse_ptrn(false, true));
             }) == 1;
         if (args.size() == 1) {
             ptrn = std::move(args.front());
@@ -734,7 +770,7 @@ Ptr<ast::Expr> Parser::parse_for_expr() {
         ahead(2).tag() == Token::Mut ||
         ahead(2).tag() == Token::Comma ||
         ahead(2).tag() == Token::Colon)
-        ptrn = parse_tuple_ptrn(false, Token::For, Token::In);
+        ptrn = parse_tuple_ptrn(false, false, Token::For, Token::In);
     else {
         eat(Token::For);
         ptrn = make_ptr<ast::TuplePtrn>(tracker(), PtrVector<ast::Ptrn>{});
@@ -826,6 +862,7 @@ Ptr<ast::Expr> Parser::parse_primary_expr(bool allow_structs, bool allow_casts) 
         case Token::Continue: expr = parse_continue_expr(); break;
         case Token::Return:   expr = parse_return_expr();   break;
         case Token::Asm:      expr = parse_asm_expr();      break;
+        case Token::Summon:   expr = parse_summon_expr();   break;
         default:
             expr = parse_error_expr();
             break;
@@ -982,6 +1019,7 @@ Ptr<ast::Type> Parser::parse_type() {
     Ptr<ast::Type> type;
     switch (ahead().tag()) {
         case Token::Fn:     return parse_fn_type();
+        case Token::Super:
         case Token::Id:     return parse_named_type();
         case Token::LParen: return parse_tuple_type();
         case Token::LogicAnd:
