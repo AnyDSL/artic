@@ -1752,6 +1752,11 @@ const thorin::Def* FnDecl::emit(Emitter& emitter) const {
             cont->set_filter(emitter.world.filter(thorin::Array<const thorin::Def*>(cont->num_params(), emitter.emit(*fn->filter))));
         auto value = emitter.emit(*fn->body);
         emitter.jump(cont->params().back(), value, emitter.debug_info(*fn->body));
+    } else if (fn->filter) {
+        emitter.enter(cont);
+        emitter.emit(*fn->param, emitter.tuple_from_params(cont, true));
+
+        cont->set_filter(emitter.world.filter(thorin::Array<const thorin::Def*>(cont->num_params(), emitter.emit(*fn->filter))));
     }
 
     // Clear the thorin IR generated for this entire function

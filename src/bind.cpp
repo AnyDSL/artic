@@ -455,6 +455,8 @@ void FnDecl::bind(NameBinder& binder) {
         binder.bind(*fn->param);
         if (fn->ret_type)
             binder.bind(*fn->ret_type);
+        if (fn->filter)
+            binder.bind(*fn->filter);
     }
     binder.pop_scope();
 }
