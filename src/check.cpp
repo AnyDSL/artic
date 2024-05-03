@@ -761,10 +761,11 @@ void NamedAttr::check(TypeChecker& checker, const ast::Node* node) {
                 else
                     checker.check_attrs(*this, std::array<AttrType, 1> { AttrType { "name", AttrType::String } });
             } else if (name == "import") {
-                if (checker.check_attrs(*this, std::array<AttrType, 3> {
+                if (checker.check_attrs(*this, std::array<AttrType, 4> {
                         AttrType { "cc", AttrType::String },
                         AttrType { "name", AttrType::String },
-                        AttrType { "interface", AttrType::String }
+                        AttrType { "interface", AttrType::String },
+                        AttrType { "size", AttrType::Integer }
                     }))
                 {
                     auto name = fn_decl->id.name;
@@ -775,6 +776,14 @@ void NamedAttr::check(TypeChecker& checker, const ast::Node* node) {
                         const std::unordered_set<std::string> interfaces = {
                             "stream", "async", "window", "buffer", "circular_buffer", "free_running"
                         };
+                        if (interface == "window") {
+                            if (auto size_attr = find("size")) {
+                                auto size = size_attr->as<LiteralAttr>()->lit.as_integer();
+                                if (size < 1)
+                                    checker.error(size_attr->loc, "invalid window size '{}'", size);
+                            } else
+                                checker.error(loc, "missing 'size' attribute for window interface");
+                        }
 
                         if (interface != "stream" && interface != "cascade" && interface != "async" &&
                                 interface != "window" && interface != "buffer" && interface != "free_running")

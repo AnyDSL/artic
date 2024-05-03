@@ -1707,8 +1707,11 @@ const thorin::Def* FnDecl::emit(Emitter& emitter) const {
                                 cont->attributes().interface = thorin::Interface::Stream;
                             if (interface == "cascade")
                                 cont->attributes().interface = thorin::Interface::Cascade;
-                            if (interface == "window")
+                            if (interface == "window") {
                                 cont->attributes().interface = thorin::Interface::Window;
+                                if (auto size_attr = import_attr->find("size"))
+                                    cont->attributes().buf_size = size_attr->as<LiteralAttr>()->lit.as_integer();
+                            }
                             if (interface == "buffer")
                                 cont->attributes().interface = thorin::Interface::Buffer;
                             if (interface == "circular_buffer")
