@@ -36,7 +36,7 @@ static void usage() {
                 "options:\n"
                 "  -h     --help                 Displays this message\n"
                 "         --version              Displays the version number\n"
-                "         --no-color             Disables colors in error messages\n"
+                "         --no-color             Disables colors in messages\n"
                 " -Wall   --enable-all-warnings  Enables all warnings\n"
                 " -Werror --warnings-as-errors   Treat warnings as errors\n"
                 "         --max-errors <n>       Sets the maximum number of error messages (unlimited by default)\n"
@@ -344,7 +344,7 @@ int main(int argc, char** argv) {
     if (opts.opt_level > 1 || opts.emit_c || opts.emit_llvm)
         thorin.opt();
     if (opts.emit_thorin)
-        thorin.world().dump_scoped();
+        thorin.world().dump_scoped(!opts.no_color);
     if (opts.emit_json || opts.emit_c || opts.emit_llvm) {
         auto emit_to_file = [&] (thorin::CodeGen& cg) {
             auto name = opts.module_name + cg.file_ext();
