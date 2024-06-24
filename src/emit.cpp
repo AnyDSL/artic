@@ -1658,7 +1658,7 @@ const thorin::Def* StaticDecl::emit(Emitter& emitter) const {
 
 const thorin::Def* FnDecl::emit(Emitter& emitter) const {
     auto _ = emitter.save_state();
-    const thorin::FnType* cont_type = nullptr;
+    const artic::FnType* fn_type = nullptr;
     Emitter::MonoFn mono_fn { this, {} };
     if (type_params) {
         for (auto& param : type_params->params)
@@ -1667,12 +1667,12 @@ const thorin::Def* FnDecl::emit(Emitter& emitter) const {
         if (auto it = emitter.mono_fns.find(mono_fn); it != emitter.mono_fns.end())
             return it->second;
         emitter.poly_defs.emplace_back();
-        cont_type = type->as<artic::ForallType>()->body->convert(emitter)->as<thorin::FnType>();
+        fn_type = type->as<artic::ForallType>()->body->as<artic::FnType>();
     } else {
-        cont_type = type->convert(emitter)->as<thorin::FnType>();
+        fn_type = type->as<artic::FnType>();
     }
 
-    auto cont = emitter.world.continuation(cont_type, emitter.debug_info(*this));
+    auto cont = emitter.world.continuation(fn_type->convert(emitter)->as<thorin::FnType>(), emitter.debug_info(*this));
     if (type_params)
         emitter.mono_fns.emplace(std::move(mono_fn), cont);
 
@@ -1715,7 +1715,7 @@ const thorin::Def* FnDecl::emit(Emitter& emitter) const {
         fn->def = def = cont;
 
         emitter.enter(cont);
-        emitter.emit(*fn->param, emitter.tuple_from_params(cont, true));
+        emitter.emit(*fn->param, emitter.tuple_from_params(cont, !fn_type->codom->isa<artic::NoRetType>()));
         if (fn->filter)
             cont->set_filter(emitter.world.filter(thorin::Array<const thorin::Def*>(cont->num_params(), emitter.emit(*fn->filter))));
         auto value = emitter.emit(*fn->body);

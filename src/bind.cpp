@@ -126,6 +126,8 @@ void TypeApp::bind(NameBinder& binder) {
     binder.bind(path);
 }
 
+void NoCodomType::bind(NameBinder&) {}
+
 void ErrorType::bind(NameBinder&) {}
 
 // Statements ----------------------------------------------------------------------
