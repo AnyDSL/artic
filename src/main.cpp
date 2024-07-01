@@ -18,6 +18,9 @@
 #ifdef ENABLE_LLVM
 #include <thorin/be/llvm/cpu.h>
 #endif
+#ifdef ENABLE_SPIRV
+#include <thorin/be/spirv/spirv.h>
+#endif
 
 using namespace artic;
 
@@ -98,6 +101,7 @@ struct ProgramOptions {
     bool emit_c = false;
     bool emit_json = false;
     bool emit_llvm = false;
+    bool emit_spirv = false;
     std::string host_triple;
     std::string host_cpu;
     std::string host_attr;
@@ -200,6 +204,14 @@ struct ProgramOptions {
                     emit_llvm = true;
 #else
                     log::error("Thorin is built without LLVM support, use '--emit-c' instead");
+                    return false;
+#endif
+                } else if (matches(argv[i], "--emit-spirv")) {
+#ifdef ENABLE_SPIRV
+                    emit_host_code = true;
+                    emit_spirv = true;
+#else
+                    log::error("Thorin is built without SPIR-V support");
                     return false;
 #endif
                 } else if (matches(argv[i], "--emit-c")) {
@@ -373,6 +385,14 @@ int main(int argc, char** argv) {
 #ifdef ENABLE_LLVM
         if (opts.emit_llvm) {
             thorin::llvm::CPUCodeGen cg(thorin, opts.opt_level, opts.debug, opts.host_triple, opts.host_cpu, opts.host_attr);
+            emit_to_file(cg);
+        }
+#endif
+#ifdef ENABLE_SPIRV
+        if (opts.emit_spirv) {
+            thorin::spirv::SpvTargetInfo target_info;
+
+            thorin::spirv::CodeGen cg(thorin, target_info, opts.debug);
             emit_to_file(cg);
         }
 #endif
