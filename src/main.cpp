@@ -94,6 +94,7 @@ struct ProgramOptions {
     bool print_ast = false;
     bool emit_thorin = false;
     bool emit_c_int = false;
+    bool emit_host_code = false;
     bool emit_c = false;
     bool emit_json = false;
     bool emit_llvm = false;
@@ -195,12 +196,14 @@ struct ProgramOptions {
                     tab_width = std::strtoull(argv[++i], NULL, 10);
                 } else if (matches(argv[i], "--emit-llvm")) {
 #ifdef ENABLE_LLVM
+                    emit_host_code = true;
                     emit_llvm = true;
 #else
                     log::error("Thorin is built without LLVM support, use '--emit-c' instead");
                     return false;
 #endif
                 } else if (matches(argv[i], "--emit-c")) {
+                    emit_host_code = true;
                     emit_c = true;
                 } else if (matches(argv[i], "--host-triple")) {
                     if (!check_arg(argc, argv, i))
@@ -341,7 +344,7 @@ int main(int argc, char** argv) {
             thorin::c::emit_c_int(thorin, stream);
         }
     }
-    if (opts.opt_level > 1 || opts.emit_c || opts.emit_llvm)
+    if (opts.opt_level > 1 || opts.emit_host_code)
         thorin.opt();
     if (opts.emit_thorin)
         thorin.world().dump_scoped(!opts.no_color);
@@ -360,7 +363,7 @@ int main(int argc, char** argv) {
         emit_to_file(cg);
     }
 #endif
-    if (opts.emit_c || opts.emit_llvm) {
+    if (opts.emit_host_code) {
         thorin::DeviceBackends backends(thorin.world(), opts.opt_level, opts.debug, opts.hls_flags);
         if (opts.emit_c) {
             thorin::Cont2Config kernel_configs;
