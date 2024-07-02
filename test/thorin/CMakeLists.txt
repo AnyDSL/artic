@@ -26,6 +26,7 @@ function(add_thorin_test)
             -DC=${TEST_USE_C}
             -DLLVM=${TEST_USE_LLVM}
             -DSPIRV=${TEST_USE_SPIRV}
+            -DMSVC=${MSVC}
     -P ${PROJECT_SOURCE_DIR}/test/thorin/oracle.cmake)
 endfunction()
 
