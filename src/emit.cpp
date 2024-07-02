@@ -1893,7 +1893,7 @@ std::string PtrType::stringify(Emitter& emitter) const {
 }
 
 const thorin::Type* PtrType::convert(Emitter& emitter) const {
-    return emitter.world.ptr_type(pointee->convert(emitter), 1, -1, thorin::AddrSpace(addr_space));
+    return emitter.world.ptr_type(pointee->convert(emitter), 1, thorin::AddrSpace(addr_space));
 }
 
 std::string ImplicitParamType::stringify(Emitter& emitter) const {
