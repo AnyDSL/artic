@@ -1,3 +1,9 @@
+if (C)
+    set(OPTIONAL_EMIT_C "--emit-c")
+else ()
+    set(OPTIONAL_EMIT_C "")
+endif()
+
 if (LLVM)
     set(OPTIONAL_EMIT_LLVM "--emit-llvm")
 else ()
@@ -10,11 +16,13 @@ else ()
     set(OPTIONAL_EMIT_SPIRV "")
 endif()
 
-execute_process(COMMAND ${COMPILER} ${SRC} --emit-c ${OPTIONAL_EMIT_LLVM} ${OPTIONAL_EMIT_SPIRV} ${TARGS} COMMAND_ERROR_IS_FATAL ANY COMMAND_ECHO STDOUT)
+execute_process(COMMAND ${COMPILER} ${SRC} -O1 ${OPTIONAL_EMIT_C} ${OPTIONAL_EMIT_LLVM} ${OPTIONAL_EMIT_SPIRV} ${TARGS} COMMAND_ERROR_IS_FATAL ANY COMMAND_ECHO STDOUT)
 message("Ran thorin on :${SRC}")
 
-execute_process(COMMAND ${C_COMPILER} ${DST}/${T}.c -c COMMAND_ERROR_IS_FATAL ANY COMMAND_ECHO STDOUT)
-message("Validated C output for ${T}")
+if (C)
+    execute_process(COMMAND ${C_COMPILER} ${DST}/${T}.c -c COMMAND_ERROR_IS_FATAL ANY COMMAND_ECHO STDOUT)
+    message("Validated C output for ${T}")
+endif()
 
 if (LLVM)
     find_program(LLC "llc")
