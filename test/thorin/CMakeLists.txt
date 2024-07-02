@@ -28,3 +28,4 @@ function(add_thorin_test)
 endfunction()
 
 add_thorin_test(NAME hello_world SOURCE_FILE hello_world)
+add_thorin_test(NAME llvm_intrinsic SOURCE_FILE llvm_intrinsic NO_C NO_SPIRV)
