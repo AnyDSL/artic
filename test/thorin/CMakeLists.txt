@@ -11,8 +11,10 @@ endmacro()
 function(add_thorin_test)
     cmake_parse_arguments(test "NO_C;NO_LLVM;NO_SPIRV" "NAME;SOURCE_FILE" "ARGS" ${ARGN})
     assign_me_bool(TEST_USE_C NOT ${test_NO_C})
-    assign_me_bool(TEST_USE_LLVM ${Thorin_HAS_LLVM_SUPPORT} AND NOT ${test_NO_LLVM})
-    assign_me_bool(TEST_USE_SPIRV ${Thorin_HAS_SPIRV_SUPPORT} AND NOT ${test_NO_SPIRV})
+    assign_me_bool(HAS_LLVM ${Thorin_HAS_LLVM_SUPPORT})
+    assign_me_bool(TEST_USE_LLVM ${HAS_LLVM} AND NOT ${test_NO_LLVM})
+    assign_me_bool(HAS_SPIRV ${Thorin_HAS_SPIRV_SUPPORT})
+    assign_me_bool(TEST_USE_SPIRV ${HAS_SPIRV} AND NOT ${test_NO_SPIRV})
 
     add_test(NAME thorin_${test_NAME} COMMAND ${CMAKE_COMMAND}
             -DCOMPILER=$<TARGET_FILE:artic>
