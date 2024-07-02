@@ -1,0 +1,33 @@
+if (LLVM)
+    set(OPTIONAL_EMIT_LLVM "--emit-llvm")
+else ()
+    set(OPTIONAL_EMIT_LLVM "")
+endif()
+
+if (SPIRV)
+    set(OPTIONAL_EMIT_SPIRV "--emit-spirv")
+else ()
+    set(OPTIONAL_EMIT_SPIRV "")
+endif()
+
+execute_process(COMMAND ${COMPILER} ${SRC} --emit-c ${OPTIONAL_EMIT_LLVM} ${OPTIONAL_EMIT_SPIRV} ${TARGS} COMMAND_ERROR_IS_FATAL ANY COMMAND_ECHO STDOUT)
+message("Ran thorin on :${SRC}")
+
+execute_process(COMMAND ${C_COMPILER} ${DST}/${T}.c -c COMMAND_ERROR_IS_FATAL ANY COMMAND_ECHO STDOUT)
+message("Validated C output for ${T}")
+
+if (LLVM)
+    find_program(LLC "llc")
+    if (LLC)
+        execute_process(COMMAND llc ${DST}/${T}.ll COMMAND_ERROR_IS_FATAL ANY COMMAND_ECHO STDOUT)
+        message("Validated LLVM output for ${T}")
+    endif()
+endif()
+
+if (SPIRV)
+    find_program(SPIRV_VALIDATOR "spirv-val")
+    if (SPIRV_VALIDATOR)
+        execute_process(COMMAND ${SPIRV_VALIDATOR} ${DST}/${T}.spv COMMAND_ERROR_IS_FATAL ANY)
+        message("Validated SPIR-V output for ${T}")
+    endif ()
+endif()

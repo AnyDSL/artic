@@ -230,6 +230,8 @@ if (Thorin_HAS_LLVM_SUPPORT)
         SOURCE_FILE ${CMAKE_CURRENT_SOURCE_DIR}/codegen/compare.art)
 endif ()
 
+add_subdirectory(thorin)
+
 if (CODE_COVERAGE AND CMAKE_BUILD_TYPE STREQUAL "Debug")
     set(COVERAGE_EXCLUDES "${CMAKE_CURRENT_SOURCE_DIR}/codegen/*")
     setup_target_for_coverage_gcovr_html(
