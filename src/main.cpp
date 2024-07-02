@@ -390,9 +390,9 @@ int main(int argc, char** argv) {
 #endif
 #ifdef ENABLE_SPIRV
         if (opts.emit_spirv) {
-            thorin::spirv::SpvTargetInfo target_info;
+            thorin::spirv::Target target;
 
-            thorin::spirv::CodeGen cg(thorin, target_info, opts.debug);
+            thorin::spirv::CodeGen cg(thorin, target, opts.debug);
             emit_to_file(cg);
         }
 #endif
