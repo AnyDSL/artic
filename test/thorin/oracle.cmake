@@ -19,7 +19,7 @@ endif()
 execute_process(COMMAND ${COMPILER} ${SRC} -O1 ${OPTIONAL_EMIT_C} ${OPTIONAL_EMIT_LLVM} ${OPTIONAL_EMIT_SPIRV} ${TARGS} COMMAND_ERROR_IS_FATAL ANY COMMAND_ECHO STDOUT)
 message("Ran thorin on :${SRC}")
 
-if (C)
+if (C AND NOT MSVC)
     execute_process(COMMAND ${C_COMPILER} ${DST}/${T}.c -c COMMAND_ERROR_IS_FATAL ANY COMMAND_ECHO STDOUT)
     message("Validated C output for ${T}")
 endif()
