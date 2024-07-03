@@ -1876,7 +1876,7 @@ std::string SizedArrayType::stringify(Emitter& emitter) const {
 
 const thorin::Type* SizedArrayType::convert(Emitter& emitter) const {
     if (is_simd)
-        return emitter.world.prim_type(elem->convert(emitter)->as<thorin::PrimType>()->primtype_tag(), size);
+        return emitter.world.vector_or_scalar_type(elem->convert(emitter)->as<thorin::ScalarType>(), size);
     return emitter.world.definite_array_type(elem->convert(emitter), size);
 }
 
@@ -1893,7 +1893,7 @@ std::string PtrType::stringify(Emitter& emitter) const {
 }
 
 const thorin::Type* PtrType::convert(Emitter& emitter) const {
-    return emitter.world.ptr_type(pointee->convert(emitter), 1, thorin::AddrSpace(addr_space));
+    return emitter.world.ptr_type(pointee->convert(emitter), thorin::AddrSpace(addr_space));
 }
 
 std::string ImplicitParamType::stringify(Emitter& emitter) const {
