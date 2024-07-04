@@ -524,6 +524,15 @@ void ModDecl::bind(NameBinder& binder) {
     binder.cur_mod = old_mod;
 }
 
+std::optional<NamedDecl*> ModDecl::find_member(const std::string_view& name) const {
+    for (const auto& decl : decls) {
+        if (auto named = decl->isa<NamedDecl>())
+            if (named->id.name == name)
+                return std::make_optional(named);
+    }
+    return std::nullopt;
+}
+
 void UseDecl::bind_head(NameBinder& binder) {
     if (id.name != "")
         binder.insert_symbol(*this);

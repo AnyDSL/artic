@@ -1519,6 +1519,7 @@ struct ModDecl : public NamedDecl {
     }
 
     void set_super();
+    std::optional<NamedDecl*> find_member(const std::string_view& name) const;
 
     const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) override;
