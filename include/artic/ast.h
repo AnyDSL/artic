@@ -4,6 +4,7 @@
 #include <memory>
 #include <vector>
 #include <variant>
+#include <optional>
 
 #include "artic/loc.h"
 #include "artic/log.h"
@@ -198,9 +199,9 @@ struct Path : public Node {
         : Node(loc), elems(std::move(elems))
     {}
 
-    const artic::Type* infer(TypeChecker&, bool, Ptr<Expr>* = nullptr);
+    const artic::Type* infer(TypeChecker&, std::optional<bool>, Ptr<Expr>* = nullptr);
     const artic::Type* infer(TypeChecker& checker) override {
-        return infer(checker, false, nullptr);
+        return infer(checker, std::nullopt, nullptr);
     }
 
     const thorin::Def* emit(Emitter&) const override;
@@ -1207,6 +1208,8 @@ struct NamedDecl : public Decl {
     NamedDecl(const Loc& loc, Identifier&& id)
         : Decl(loc), id(std::move(id))
     {}
+
+    virtual bool is_value();
 };
 
 /// Value declaration associated with an identifier.
@@ -1214,6 +1217,8 @@ struct ValueDecl : public NamedDecl {
     ValueDecl(const Loc& loc, Identifier&& id)
         : NamedDecl(loc, std::move(id))
     {}
+
+    bool is_value() override;
 };
 
 /// Datatype declaration with a constructor associated with an identifier.
@@ -1529,6 +1534,9 @@ struct ModDecl : public NamedDecl {
 struct UseDecl : public NamedDecl {
     Path path;
 
+    // Set during type-checking
+    bool is_value_ = false;
+
     UseDecl(const Loc& loc, Path&& path, Identifier&& id)
         : NamedDecl(loc, std::move(id)), path(std::move(path))
     {}
@@ -1539,6 +1547,8 @@ struct UseDecl : public NamedDecl {
     void bind(NameBinder&) override;
     void resolve_summons(Summoner&) override {};
     void print(Printer&) const override;
+
+    bool is_value() override;
 };
 
 /// Incorrect declaration, coming from parsing.

@@ -625,14 +625,14 @@ const artic::Type* Ptrn::check(TypeChecker& checker, const artic::Type* expected
 
 // Path ----------------------------------------------------------------------------
 
-const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, Ptr<Expr>* arg) {
+const artic::Type* Path::infer(TypeChecker& checker, std::optional<bool> value_expected, Ptr<Expr>* arg) {
     if (!start_decl)
         return checker.type_table.type_error();
 
     type = elems[0].is_super()
         ? checker.type_table.mod_type(*start_decl->as<ModDecl>())
         : checker.infer(*start_decl);
-    is_value = elems.size() == 1 && start_decl->isa<ValueDecl>();
+    is_value = elems.size() == 1 && start_decl->is_value();
     is_ctor  = start_decl->isa<CtorDecl>();
 
     // Inspect every element of the path
@@ -673,7 +673,7 @@ const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, Ptr<Ex
 
         // Treat tuple-like structure constructors as functions
         if (auto [type_app, struct_type] = match_app<StructType>(type);
-            is_ctor && value_expected && struct_type && struct_type->is_tuple_like()) {
+            is_ctor && (*value_expected && value_expected) && struct_type && struct_type->is_tuple_like()) {
             if (struct_type->member_count() > 0) {
                 SmallArray<const artic::Type*> tuple_args(struct_type->member_count());
                 for (size_t i = 0, n = struct_type->member_count(); i < n; ++i)
@@ -723,15 +723,15 @@ const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, Ptr<Ex
                 type = member.isa<ModDecl>()
                     ? checker.type_table.mod_type(*member.as<ModDecl>())
                     : checker.infer(mod_type->member(*index));
-                is_value = member.isa<ValueDecl>();
+                is_value = member.is_value();
                 is_ctor  = member.isa<CtorDecl>();
             } else
                 return checker.type_expected(elem.loc, type, "module or enum");
         }
     }
 
-    if (is_value != value_expected) {
-        checker.error(loc, "{} expected, but got '{}'", value_expected ? "value" : "type", *this);
+    if (value_expected && is_value != *value_expected) {
+        checker.error(loc, "{} expected, but got '{}'", *value_expected ? "value" : "type", *this);
         return checker.type_table.type_error();
     }
     return type;
@@ -1732,9 +1732,8 @@ const artic::Type* UseDecl::infer(TypeChecker& checker) {
     if (!checker.enter_decl(this))
         return checker.type_table.type_error();
     auto path_type = checker.infer(path);
+    is_value_ = path.is_value;
     checker.exit_decl(this);
-    if (!path_type->isa<artic::ModType>())
-        return checker.type_expected(path.loc, path_type, "module type");
     return path_type;
 }
 

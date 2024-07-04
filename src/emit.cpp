@@ -1760,7 +1760,9 @@ const thorin::Def* ModDecl::emit(Emitter& emitter) const {
     return nullptr;
 }
 
-const thorin::Def* UseDecl::emit(Emitter&) const {
+const thorin::Def* UseDecl::emit(Emitter& emitter) const {
+    if (path.is_value)
+        return path.emit(emitter);
     return nullptr;
 }
 

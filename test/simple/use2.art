@@ -1,0 +1,14 @@
+mod blob {
+    struct Blob { x: i32 }
+
+    fn g(x: i32, y: i32) = x + y;
+}
+
+use blob::Blob;
+use blob::g;
+
+fn main(a: i32) -> Blob {
+    let x = g(a, -a);
+    let b = Blob { x = x };
+    b
+}
