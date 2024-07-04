@@ -1504,8 +1504,6 @@ struct ModDecl : public NamedDecl {
     PtrVector<Decl> decls;
     ModDecl* super = nullptr;
 
-    std::vector<const NamedDecl*> members;
-
     /// Constructor for the implicitly defined global module.
     /// When using this constructor, the user is responsible for calling
     /// `set_super()` once the declarations have been added to the module.
