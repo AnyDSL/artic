@@ -1181,6 +1181,7 @@ const thorin::Def* TypedExpr::emit(Emitter& emitter) const {
 }
 
 const thorin::Def* PathExpr::emit(Emitter& emitter) const {
+    assert(emitter.emit(path));
     return emitter.emit(path);
 }
 
