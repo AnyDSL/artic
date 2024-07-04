@@ -536,12 +536,54 @@ std::optional<NamedDecl*> ModDecl::find_member(const std::string_view& name) con
 void UseDecl::bind_head(NameBinder& binder) {
     if (id.name != "")
         binder.insert_symbol(*this);
-    else
+    else if (path.elems.back().id.name != "*")
         binder.insert_symbol(*this, path.elems.back().id.name);
+    else {
+        path.bind(binder);
+        NamedDecl* decl = path.start_decl;
+        ModDecl* mod = nullptr;
+        for (size_t i = 1; i < path.elems.size(); i++) {
+            if ((mod = decl->isa<ModDecl>())) {
+                if (i == path.elems.size() - 1)
+                    break;
+                auto member = mod->find_member(path.elems[i].id.name);
+                if (member) {
+                    decl = *member;
+                } else {
+                    binder.error(path.elems[i].id.loc, "no member '{}' in '{}'", path.elems[i].id.name, mod->id.name);
+                    return;
+                }
+            } else {
+                binder.error(path.elems[i].id.loc, "'{}' is not a module", decl);
+            }
+        }
+
+        for (auto& decl : mod->decls) {
+            auto member = decl->isa<NamedDecl>();
+            if (!member)
+                continue;
+            std::vector<Path::Elem> member_path_elements;
+            for (auto& elem : path.elems) {
+                assert(elem.args.empty());
+                auto nelem = Path::Elem(elem.loc, std::move(Identifier(elem.id)), std::move(PtrVector<Type>()));
+                member_path_elements.emplace_back(std::move(nelem));
+            }
+            member_path_elements.back().id.name = member->id.name;
+            Path member_path(path.loc, std::move(member_path_elements));
+            Identifier nid = member->id;
+            wildcard_imports.push_back(std::make_unique<UseDecl>(loc, std::move(member_path), std::move(nid)));
+            wildcard_imports.back()->bind_head(binder);
+        }
+
+    }
 }
 
 void UseDecl::bind(NameBinder& binder) {
     path.bind(binder);
+
+    for (auto& m : wildcard_imports) {
+        m->bind(binder);
+    }
 }
 
 void ErrorDecl::bind(NameBinder&) {}

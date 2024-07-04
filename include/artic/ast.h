@@ -1533,6 +1533,8 @@ struct ModDecl : public NamedDecl {
 struct UseDecl : public NamedDecl {
     Path path;
 
+    PtrVector<UseDecl> wildcard_imports;
+
     // Set during type-checking
     bool is_value_ = false;
 

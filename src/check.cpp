@@ -628,6 +628,8 @@ const artic::Type* Ptrn::check(TypeChecker& checker, const artic::Type* expected
 const artic::Type* Path::infer(TypeChecker& checker, std::optional<bool> value_expected, Ptr<Expr>* arg) {
     if (!start_decl)
         return checker.type_table.type_error();
+    if (elems.back().id.name == "*")
+        return nullptr;
 
     type = elems[0].is_super()
         ? checker.type_table.mod_type(*start_decl->as<ModDecl>())
