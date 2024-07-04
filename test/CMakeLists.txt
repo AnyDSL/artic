@@ -65,6 +65,7 @@ add_test(NAME simple_mod3        COMMAND artic --print-ast ${CMAKE_CURRENT_SOURC
 add_test(NAME simple_use1        COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/use1.art)
 add_test(NAME simple_use2        COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/use2.art)
 add_test(NAME simple_use3        COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/use3.art)
+add_test(NAME simple_use4        COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/use4.art)
 add_test(NAME simple_poly_fn1    COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/poly_fn1.art)
 add_test(NAME simple_poly_fn2    COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/poly_fn2.art)
 add_test(NAME simple_nested_fns  COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/nested_fns.art)
