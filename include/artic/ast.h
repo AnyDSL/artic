@@ -51,6 +51,7 @@ struct Node : public Cast<Node> {
     /// Location of the node in the source file.
     Loc loc;
 
+    mutable bool bound = false;
     /// Type assigned after type inference. Not all nodes are typeable.
     mutable const artic::Type* type = nullptr;
     /// IR definition assigned after IR emission.
@@ -172,12 +173,16 @@ struct Path : public Node {
         Identifier id;
         PtrVector<Type> args;
 
+        // Set during name-binding
+        NamedDecl* decl = nullptr;
+
         // These members are set during type-checking
         const artic::Type* type = nullptr;
         size_t index = 0;
         std::vector<const artic::Type*> inferred_args;
 
         bool is_super() const { return id.name == "super"; }
+        bool is_wildcard() const { return id.name == "*"; }
 
         Elem(const Loc& loc, Identifier&& id, PtrVector<Type>&& args)
             : loc(loc), id(std::move(id)), args(std::move(args))
@@ -189,7 +194,8 @@ struct Path : public Node {
     // Set during name-binding, corresponds to the declaration that
     // is associated with the _first_ element of the path.
     // The rest of the path is resolved during type-checking.
-    ast::NamedDecl* start_decl;
+    ast::NamedDecl* start_decl = nullptr;
+    ast::NamedDecl* decl = nullptr;
 
     // Set during type-checking
     bool is_value = false;
@@ -1468,6 +1474,8 @@ struct EnumDecl : public CtorDecl {
         , options(std::move(options))
     {}
 
+    std::optional<OptionDecl*> find_member(const std::string_view&) const;
+
     const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) override;
     void bind_head(NameBinder&) override;
@@ -1533,6 +1541,7 @@ struct ModDecl : public NamedDecl {
 struct UseDecl : public NamedDecl {
     Path path;
 
+    NamedDecl* bound_to;
     PtrVector<UseDecl> wildcard_imports;
 
     // Set during type-checking
@@ -1549,6 +1558,7 @@ struct UseDecl : public NamedDecl {
     void resolve_summons(Summoner&) override {};
     void print(Printer&) const override;
 
+    void bind_wildcard(NameBinder&);
     bool is_value() override;
 };
 
