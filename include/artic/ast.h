@@ -205,9 +205,10 @@ struct Path : public Node {
         : Node(loc), elems(std::move(elems))
     {}
 
-    const artic::Type* infer(TypeChecker&, std::optional<bool>, Ptr<Expr>* = nullptr);
+    const artic::Type* infer(TypeChecker&, Ptr<Expr>*);
+    const artic::Type* infer(TypeChecker&, bool, Ptr<Expr>* = nullptr);
     const artic::Type* infer(TypeChecker& checker) override {
-        return infer(checker, std::nullopt, nullptr);
+        return infer(checker, nullptr);
     }
 
     const thorin::Def* emit(Emitter&) const override;
