@@ -602,22 +602,12 @@ void UseDecl::bind_wildcard(artic::NameBinder& binder) {
         return;
 
     binder.bind(path);
-    NamedDecl* decl = path.start_decl;
-    ModDecl* mod = nullptr;
-    for (size_t i = 1; i < path.elems.size(); i++) {
-        if ((mod = decl->isa<ModDecl>())) {
-            if (i == path.elems.size() - 1)
-                break;
-            auto member = mod->find_member(path.elems[i].id.name);
-            if (member) {
-                decl = *member;
-            } else {
-                binder.error(path.elems[i].id.loc, "no member '{}' in '{}'", path.elems[i].id.name, mod->id.name);
-                return;
-            }
-        } else {
-            binder.error(path.elems[i].id.loc, "'{}' is not a module", decl);
-        }
+    assert(path.elems.size() >= 2);
+    auto& penultimate = path.elems[path.elems.size() - 2];
+    NamedDecl* decl = penultimate.decl;
+    auto mod = decl->isa<ModDecl>();
+    if (!mod) {
+        binder.error(penultimate.id.loc, "'{}' is not a module", decl->id.name);
     }
 
     for (auto& decl : mod->decls) {
