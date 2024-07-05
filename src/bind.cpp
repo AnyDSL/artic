@@ -604,13 +604,13 @@ void UseDecl::bind_wildcard(artic::NameBinder& binder) {
     binder.bind(path);
     assert(path.elems.size() >= 2);
     auto& penultimate = path.elems[path.elems.size() - 2];
-    NamedDecl* decl = penultimate.decl;
-    auto mod = decl->isa<ModDecl>();
-    if (!mod) {
-        binder.error(penultimate.id.loc, "'{}' is not a module", decl->id.name);
+    NamedDecl* importee = penultimate.decl;
+    auto imported_mod = importee->isa<ModDecl>();
+    if (!imported_mod) {
+        binder.error(penultimate.id.loc, "'{}' is not a module", importee->id.name);
     }
 
-    for (auto& decl : mod->decls) {
+    for (auto& decl : imported_mod->decls) {
         auto member = decl->isa<NamedDecl>();
         if (!member)
             continue;
