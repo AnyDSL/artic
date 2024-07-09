@@ -199,7 +199,6 @@ struct Path : public Node {
 
     // Set during type-checking
     bool is_value = false;
-    bool is_ctor = false;
 
     Path(const Loc& loc, std::vector<Elem>&& elems)
         : Node(loc), elems(std::move(elems))

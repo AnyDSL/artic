@@ -635,7 +635,6 @@ const artic::Type* Path::infer(TypeChecker& checker, Ptr<Expr>* arg) {
         ? checker.type_table.mod_type(*start_decl->as<ModDecl>())
         : checker.infer(*start_decl);
     is_value = elems.size() == 1 && start_decl->is_value();
-    is_ctor  = start_decl->isa<CtorDecl>();
 
     // Inspect every element of the path
     for (size_t i = 0, n = elems.size(); i < n; ++i) {
@@ -693,11 +692,10 @@ const artic::Type* Path::infer(TypeChecker& checker, Ptr<Expr>* arg) {
                     if (type_app)
                         type = checker.type_table.type_app(type->as<StructType>(), type_app->type_args);
                     is_value = false;
-                    is_ctor = true;
                 } else {
                     auto member = member_type(type_app, enum_type, *index);
                     type = is_unit_type(member) ? type : checker.type_table.fn_type(member, type);
-                    is_value = is_ctor = true;
+                    is_value = true;
                 }
             } else if (auto mod_type = type->isa<ModType>()) {
                 auto index = mod_type->find_member(elems[i + 1].id.name);
@@ -711,7 +709,6 @@ const artic::Type* Path::infer(TypeChecker& checker, Ptr<Expr>* arg) {
                     ? checker.type_table.mod_type(*member.as<ModDecl>())
                     : checker.infer(mod_type->member(*index));
                 is_value = member.is_value();
-                is_ctor  = member.isa<CtorDecl>();
             } else
                 return checker.type_expected(elem.loc, type, "module or enum");
         }
@@ -722,6 +719,8 @@ const artic::Type* Path::infer(TypeChecker& checker, Ptr<Expr>* arg) {
 
 const artic::Type* Path::infer(artic::TypeChecker& checker, bool value_expected, Ptr<artic::ast::Expr>* arg) {
     infer(checker, arg);
+
+    auto is_ctor = decl->isa<CtorDecl>();
 
     // Treat tuple-like structure constructors as functions
     if (auto [type_app, struct_type] = match_app<StructType>(type);
