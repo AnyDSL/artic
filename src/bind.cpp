@@ -66,63 +66,67 @@ namespace ast {
 // Path ----------------------------------------------------------------------------
 
 void Path::bind(NameBinder& binder) {
-    decl = binder.cur_mod;
+    NamedDecl* decl = binder.cur_mod;
+    size_t i = 0;
     for (auto& elem : elems) {
         assert(decl);
 
-        while (true) {
-            if (elem.id.name[0] == '_')
-                binder.error(elem.id.loc, "identifiers beginning with '_' cannot be referenced");
-            else if (elem.is_super()) {
-                if (auto mod = decl->isa<ModDecl>()) {
-                    if (!mod->super)
-                        binder.error(elem.id.loc, "top-level module has no super-module");
-                    else
-                        decl = mod->super;
-                } else
-                    binder.error(elem.id.loc, "''super' can only be used on modules");
-            } else if (elem.is_wildcard()) {
-                if (!start_decl) {
-                    binder.error(elem.loc, "wildcards cannot appear at the start of a path!");
-                    return;
-                }
-                decl = nullptr;
-            } else if (decl == binder.cur_mod) {
-                auto symbol = binder.find_symbol(elem.id.name);
-                if (!symbol) {
-                    binder.error(elem.id.loc, "unknown identifier '{}'", elem.id.name);
-                    if (auto similar = binder.find_similar_symbol(elem.id.name))
-                        binder.note("did you mean '{}'?", similar->decl->id.name);
-                } else
-                    decl = symbol->decl;
-            } else if (auto mod = decl->isa<ModDecl>()) {
-                auto member = mod->find_member(elem.id.name);
-                if (!member) {
-                    binder.unknown_member(elem.loc, mod, elem.id.name);
-                    return;
-                }
-                decl = *member;
-            } else if (auto use = decl->isa<UseDecl>()) {
-                binder.bind(*use);
-                assert(use->bound_to);
-                decl = use->bound_to;
-                continue;
-            } else if (auto enu = decl->isa<EnumDecl>()) {
-                auto found = enu->find_member(elem.id.name);
-                if (!found) {
-                    binder.unknown_member(elem.loc, mod, elem.id.name);
-                    return;
-                }
-                decl = *found;
-            } else {
-                // ...
-                assert(false);
+        // We need to look inside UseDecls to bind paths properly.
+        while (auto use = decl->isa<UseDecl>()) {
+            binder.bind(*use);
+            assert(use->bound_to);
+            decl = use->bound_to;
+        }
+
+        if (elem.id.name[0] == '_')
+            binder.error(elem.id.loc, "identifiers beginning with '_' cannot be referenced");
+        else if (elem.is_super()) {
+            if (auto mod = decl->isa<ModDecl>()) {
+                if (!mod->super)
+                    binder.error(elem.id.loc, "top-level module has no super-module");
+                else
+                    decl = mod->super;
+            } else
+                binder.error(elem.id.loc, "''super' can only be used on modules");
+        } else if (elem.is_wildcard()) {
+            if (!start_decl) {
+                binder.error(elem.loc, "wildcards cannot appear at the start of a path!");
+                return;
             }
-            break;
+            decl = nullptr;
+        } else if (i == 0) {
+            assert(decl == binder.cur_mod);
+            auto symbol = binder.find_symbol(elem.id.name);
+            if (!symbol) {
+                binder.error(elem.id.loc, "unknown identifier '{}'", elem.id.name);
+                if (auto similar = binder.find_similar_symbol(elem.id.name))
+                    binder.note("did you mean '{}'?", similar->decl->id.name);
+            } else
+                decl = symbol->decl;
+        } else if (auto mod = decl->isa<ModDecl>()) {
+            auto member = mod->find_member(elem.id.name);
+            if (!member) {
+                binder.unknown_member(elem.loc, mod, elem.id.name);
+                return;
+            }
+            decl = *member;
+        } else if (auto enu = decl->isa<EnumDecl>()) {
+            auto found = enu->find_member(elem.id.name);
+            if (!found) {
+                binder.unknown_member(elem.loc, mod, elem.id.name);
+                return;
+            }
+            decl = *found;
+        } else {
+            // ...
+            assert(false);
         }
 
         if (!start_decl)
             start_decl = decl;
+
+        if (i++ == elems.size() - 1)
+            this->decl = decl;
 
         elem.decl = decl;
 
