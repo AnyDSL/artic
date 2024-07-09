@@ -1,0 +1,14 @@
+enum G[T] { A, B(bool), C { x: bool, y: T }, D {} }
+#[export]
+fn woah(k: G[i32]) {
+    match k {
+        G[i32]::A => 1,
+        G[i32]::B(true) => 3,
+        G[i32]::B(false) => 4,
+        G[i32]::C { x = true, y = 1 }  => 5,
+        G[i32]::C { x = true, y = _ } => 6,
+        G[i32]::C { x = false, y = 2 } => 7,
+        G[i32]::C { x = false, y = _ } => 8,
+        G[i32]::D {} => 9
+    }
+}

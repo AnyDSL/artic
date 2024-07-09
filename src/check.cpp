@@ -703,6 +703,8 @@ const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, Ptr<Ex
                 if (enum_type->decl.options[*index]->struct_type) {
                     // If the enumeration option uses the record syntax, we use the corresponding structure type
                     type = enum_type->decl.options[*index]->struct_type;
+                    if (type_app)
+                        type = checker.type_table.type_app(type->as<StructType>(), type_app->type_args);
                     is_value = false;
                     is_ctor = true;
                 } else {
