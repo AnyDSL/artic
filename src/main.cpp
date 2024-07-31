@@ -365,8 +365,8 @@ int main(int argc, char** argv) {
             //auto CodeGen_ptr = dynamic_cast<thorin::c::CodeGen*>(cg.get());
             auto CodeGen_ptr = isa<thorin::c::CodeGen*>(cg.get());
             if (CodeGen_ptr && CodeGen_ptr->get_lang() == thorin::c::Lang::CGRA) {
-                    auto name_kernels = opts.module_name + cg->file_ext();
-                    auto name_graph   = opts.module_name + "_graph" + cg->file_ext();
+                    auto name_kernels = opts.module_name + "_kernel" + cg->file_ext();
+                    auto name_graph   = opts.module_name + "_graph"  + cg->file_ext();
                     std::ofstream kernel_file(name_kernels);
                     std::ofstream graph_file(name_graph);
                     if (!kernel_file)
