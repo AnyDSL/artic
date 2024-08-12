@@ -422,8 +422,13 @@ bool TypeChecker::check_filter(const ast::Expr& expr) {
             is_mutable = true;
         else
             return true;
-    } else if (expr.isa<ast::LiteralExpr>())
+    } else if (expr.isa<ast::LiteralExpr>()) {
         return true;
+    } else if (auto proj = expr.isa<ast::ProjExpr>()) {
+        //This needs to be supported to inspect struct and tuple members.
+        //TODO: Not sure if this check coveres all possible problematic cases.
+        return check_filter(*proj->expr);
+    }
 
     error(expr.loc, "unsupported expression in filter");
     if (is_logic_or)
