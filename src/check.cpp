@@ -1463,8 +1463,14 @@ const artic::Type* BinaryExpr::infer(TypeChecker& checker) {
         return checker.type_table.unit_type();
     }
     checker.coerce(left, left_type);
-    if (has_cmp())
-        return checker.type_table.bool_type();
+    if (has_cmp()) {
+        if (is_simd_type(left_type)) {
+            auto vector_width = left_type->as<artic::SizedArrayType>()->size;
+            return checker.type_table.sized_array_type(checker.type_table.bool_type(), vector_width, true);
+        } else {
+            return checker.type_table.bool_type();
+        }
+    }
     return right_type;
 }
 
