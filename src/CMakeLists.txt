@@ -17,6 +17,7 @@ add_library(libartic
     ast.cpp
     bind.cpp
     check.cpp
+    cyclomatic.cpp
     emit.cpp
     lexer.cpp
     log.cpp

@@ -9,6 +9,13 @@
 #include "artic/emit.h"
 #include "artic/locator.h"
 
+#include "artic/lexer.h"
+#include "artic/parser.h"
+#include "artic/bind.h"
+#include "artic/summoner.h"
+#include "artic/check.h"
+#include "artic/cycl.h"
+
 #include <thorin/world.h>
 #include <thorin/be/codegen.h>
 #include <thorin/be/c/c.h>
@@ -98,6 +105,8 @@ struct ProgramOptions {
     bool emit_c = false;
     bool emit_json = false;
     bool emit_llvm = false;
+    bool cyclomatic_complexity = false;
+    bool halstead_complexity = false;
     std::string host_triple;
     std::string host_cpu;
     std::string host_attr;
@@ -174,6 +183,10 @@ struct ProgramOptions {
 #endif
                 } else if (matches(argv[i], "--emit-c-interface")) {
                     emit_c_int = true;
+                } else if (matches(argv[i], "--halstead")) {
+                    halstead_complexity = true;
+                } else if (matches(argv[i], "--cyclomatic")) {
+                    cyclomatic_complexity = true;
                 } else if (matches(argv[i], "--log-level")) {
                     if (!check_arg(argc, argv, i))
                         return false;
@@ -273,6 +286,35 @@ static std::string tabs_to_spaces(const std::string& str, size_t indent) {
     return res;
 }
 
+struct MemBuf : public std::streambuf {
+    MemBuf(const std::string& str) {
+        setg(
+            const_cast<char*>(str.data()),
+            const_cast<char*>(str.data()),
+            const_cast<char*>(str.data() + str.size()));
+    }
+
+    std::streampos seekoff(std::streamoff off, std::ios_base::seekdir way, std::ios_base::openmode) override {
+        if (way == std::ios_base::beg)
+            setg(eback(), eback() + off, egptr());
+        else if (way == std::ios_base::cur)
+            setg(eback(), gptr() + off, egptr());
+        else if (way == std::ios_base::end)
+            setg(eback(), egptr() + off, egptr());
+        else
+            return std::streampos(-1);
+        return gptr() - eback();
+    }
+
+    std::streampos seekpos(std::streampos pos, std::ios_base::openmode mode) override {
+        return seekoff(std::streamoff(pos), std::ios_base::beg, mode);
+    }
+
+    std::streamsize showmanyc() override {
+        return egptr() - gptr();
+    }
+};
+
 int main(int argc, char** argv) {
     ProgramOptions opts;
     if (!opts.parse(argc, argv))
@@ -304,6 +346,86 @@ int main(int argc, char** argv) {
             return EXIT_FAILURE;
         }
         file_data.emplace_back(tabs_to_spaces(*data, opts.tab_width));
+    }
+
+    if (opts.halstead_complexity) {
+        std::set<Token::Tag> token_set;
+        long int n_tokens = 0;
+
+        for (size_t i = 0, n = opts.files.size(); i < n; ++i) {
+            MemBuf mem_buf(file_data[i]);
+            std::istream is(&mem_buf);
+
+            Lexer lexer(log, opts.files[i], is);
+
+            while (true) {
+                Token ntok = lexer.next();
+                if (ntok.tag() == Token::End)
+                    break;
+
+                token_set.insert(ntok.tag());
+                n_tokens++;
+            }
+        }
+
+        long int n_unique_tokens = token_set.size();
+        float halstead = n_tokens * std::log2(n_unique_tokens);
+
+        if (opts.log_level <= thorin::LogLevel::Info)
+            log::out << "Halstead complexity is ";
+        log::out << halstead;
+        if (opts.log_level <= thorin::LogLevel::Info) {
+            log::out << " (";
+            log::out << n_tokens;
+            log::out << ", ";
+            log::out << n_unique_tokens;
+            log::out << ")";
+        }
+        log::out << "\n";
+
+        log.print_summary();
+
+        return EXIT_SUCCESS;
+    }
+
+    if (opts.cyclomatic_complexity) {
+        ast::ModDecl program;
+
+        for (size_t i = 0, n = opts.files.size(); i < n; ++i) {
+            MemBuf mem_buf(file_data[i]);
+            std::istream is(&mem_buf);
+
+            Lexer lexer(log, opts.files[i], is);
+            Parser parser(log, lexer);
+            parser.warns_as_errors = opts.warns_as_errors;
+            auto module = parser.parse();
+            if (log.errors > 0)
+                return EXIT_FAILURE;
+
+            program.decls.insert(
+                program.decls.end(),
+                std::make_move_iterator(module->decls.begin()),
+                std::make_move_iterator(module->decls.end())
+            );
+        }
+
+        program.set_super();
+
+        //Printer p(log::out);
+        //p.show_implicit_casts = opts.show_implicit_casts;
+        //p.tab = std::string(opts.tab_width, ' ');
+        //program.print(p);
+        //log::out << "\n";
+
+        Cyclomatic cycl(log);
+        auto cycl_complexity = cycl.run(program);
+
+        if (opts.log_level <= thorin::LogLevel::Info) {
+            log::out << "Cyclomatic complexity ";
+        }
+        log::out << cycl_complexity << "\n";
+
+        return EXIT_SUCCESS;
     }
 
     thorin::Thorin thorin(opts.module_name);

@@ -23,6 +23,7 @@ struct Printer;
 class NameBinder;
 class TypeChecker;
 class Emitter;
+class Cyclomatic;
 class Summoner;
 
 template <typename T> using Ptr = std::unique_ptr<T>;
@@ -78,6 +79,8 @@ struct Node : public Cast<Node> {
     virtual const thorin::Def* emit(Emitter&) const;
     /// Prints the node with the given formatting parameters.
     virtual void print(Printer&) const = 0;
+    /// Compute cyclomatic complexity of this node.
+    virtual int cycl(Cyclomatic&) const;
 
     /// Prints the node on the console, for debugging.
     void dump() const;
@@ -448,6 +451,7 @@ struct DeclStmt : public Stmt {
     void bind(NameBinder&) override;
     void resolve_summons(Summoner&) override;
     void print(Printer&) const override;
+    int cycl(Cyclomatic&) const override;
 };
 
 // Statement evaluating an expression.
@@ -468,6 +472,7 @@ struct ExprStmt : public Stmt {
     void bind(NameBinder&) override;
     void resolve_summons(Summoner&) override;
     void print(Printer&) const override;
+    int cycl(Cyclomatic&) const override;
 };
 
 // Expressions ---------------------------------------------------------------------
@@ -710,6 +715,7 @@ struct FnExpr : public Expr {
     void bind(NameBinder&) override;
     void resolve_summons(Summoner&) override;
     void print(Printer&) const override;
+    int cycl(Cyclomatic&) const override;
 };
 
 /// Block of code, whose result is the last expression in the block.
@@ -730,6 +736,7 @@ struct BlockExpr : public Expr {
     void bind(NameBinder&) override;
     void resolve_summons(Summoner&) override;
     void print(Printer&) const override;
+    int cycl(Cyclomatic&) const override;
 };
 
 /// Function or constructor call with a single expression (can be a tuple) for the arguments.
@@ -831,6 +838,7 @@ struct IfExpr : public Expr {
     void bind(NameBinder&) override;
     void resolve_summons(Summoner&) override;
     void print(Printer&) const override;
+    int cycl(Cyclomatic&) const override;
 };
 
 /// Case within a match expression.
@@ -910,6 +918,7 @@ struct WhileExpr : public LoopExpr {
     void bind(NameBinder&) override;
     void resolve_summons(Summoner&) override;
     void print(Printer&) const override;
+    int cycl(Cyclomatic&) const override;
 };
 
 /// For loop expression.
@@ -928,6 +937,7 @@ struct ForExpr : public LoopExpr {
     void bind(NameBinder&) override;
     void resolve_summons(Summoner&) override;
     void print(Printer&) const override;
+    int cycl(Cyclomatic&) const override;
 };
 
 /// Break expression.
@@ -1356,6 +1366,7 @@ struct FnDecl : public ValueDecl {
     void bind(NameBinder&) override;
     void resolve_summons(Summoner&) override;
     void print(Printer&) const override;
+    int cycl(Cyclomatic&) const override;
 };
 
 /// Structure field declaration.
@@ -1518,6 +1529,7 @@ struct ModDecl : public NamedDecl {
     void set_super();
 
     const thorin::Def* emit(Emitter&) const override;
+    int cycl(Cyclomatic&) const override;
     const artic::Type* infer(TypeChecker&) override;
     void bind_head(NameBinder&) override;
     void bind(NameBinder&) override;
