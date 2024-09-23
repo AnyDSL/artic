@@ -349,8 +349,13 @@ int main(int argc, char** argv) {
     }
 
     if (opts.halstead_complexity) {
-        std::set<Token::Tag> token_set;
-        long int n_tokens = 0;
+        std::set<Token::Tag> operator_set;
+
+        std::set<Token::Tag> operand_token_set;
+        std::set<std::string> operand_id_set;
+
+        long int operator_tokens = 0;
+        long int operand_tokens = 0;
 
         for (size_t i = 0, n = opts.files.size(); i < n; ++i) {
             MemBuf mem_buf(file_data[i]);
@@ -363,20 +368,37 @@ int main(int argc, char** argv) {
                 if (ntok.tag() == Token::End)
                     break;
 
-                token_set.insert(ntok.tag());
-                n_tokens++;
+                switch (ntok.tag()) {
+                case Token::Id:
+                    operand_id_set.insert(ntok.string());
+                    operand_tokens++;
+                    break;
+                default:
+                    operator_set.insert(ntok.tag());
+                    operator_tokens++;
+                }
             }
         }
 
-        long int n_unique_tokens = token_set.size();
-        float halstead = n_tokens * std::log2(n_unique_tokens);
+        long int n1 = operator_set.size();
+        long int n2 = operand_id_set.size() + operand_token_set.size();
+
+        long int N1 = operator_tokens;
+        long int N2 = operand_tokens;
+
+        long int n_unique_tokens = n1 + n2;
+        float halstead_volume = (N1 + N2) * std::log2(n_unique_tokens);
+
+        float halstead_difficulty = (n1 / 2.0f) * (N2 / (n2 * 1.0f));
+
+        float halstead_effort = halstead_volume * halstead_difficulty;
 
         if (opts.log_level <= thorin::LogLevel::Info)
             log::out << "Halstead complexity is ";
-        log::out << halstead;
+        log::out << halstead_effort;
         if (opts.log_level <= thorin::LogLevel::Info) {
             log::out << " (";
-            log::out << n_tokens;
+            log::out << N1 + N2;
             log::out << ", ";
             log::out << n_unique_tokens;
             log::out << ")";
