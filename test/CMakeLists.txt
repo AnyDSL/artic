@@ -158,7 +158,7 @@ if (Thorin_HAS_LLVM_SUPPORT)
     cmake_minimum_required(VERSION 3.14 FATAL_ERROR)
 
     if (NOT TARGET clang)
-        find_package(Clang REQUIRED CONFIG PATHS ${LLVM_DIR}/../clang NO_DEFAULT_PATH)
+        find_package(Clang REQUIRED CONFIG PATHS ${LLVM_DIR}/../clang)
     endif()
 
     # Compile the helper functions into an object file
