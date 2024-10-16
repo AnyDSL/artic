@@ -422,8 +422,13 @@ bool TypeChecker::check_filter(const ast::Expr& expr) {
             is_mutable = true;
         else
             return true;
-    } else if (expr.isa<ast::LiteralExpr>())
+    } else if (expr.isa<ast::LiteralExpr>()) {
         return true;
+    } else if (auto proj = expr.isa<ast::ProjExpr>()) {
+        //This needs to be supported to inspect struct and tuple members.
+        //TODO: Not sure if this check coveres all possible problematic cases.
+        return check_filter(*proj->expr);
+    }
 
     error(expr.loc, "unsupported expression in filter");
     if (is_logic_or)
@@ -703,6 +708,8 @@ const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, Ptr<Ex
                 if (enum_type->decl.options[*index]->struct_type) {
                     // If the enumeration option uses the record syntax, we use the corresponding structure type
                     type = enum_type->decl.options[*index]->struct_type;
+                    if (type_app)
+                        type = checker.type_table.type_app(type->as<StructType>(), type_app->type_args);
                     is_value = false;
                     is_ctor = true;
                 } else {
