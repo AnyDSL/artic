@@ -1204,7 +1204,7 @@ const thorin::Def* ArrayExpr::emit(Emitter& emitter) const {
 }
 
 const thorin::Def* RepeatArrayExpr::emit(Emitter& emitter) const {
-    thorin::Array<const thorin::Def*> ops(size, emitter.emit(*elem));
+    thorin::Array<const thorin::Def*> ops(std::get<size_t>(size), emitter.emit(*elem));
     return is_simd
         ? emitter.world.vector(ops, emitter.debug_info(*this))
         : emitter.world.definite_array(ops, emitter.debug_info(*this));

@@ -113,6 +113,12 @@ void ArrayType::bind(NameBinder& binder) {
     binder.bind(*elem);
 }
 
+void SizedArrayType::bind(NameBinder& binder) {
+    binder.bind(*elem);
+    if (std::holds_alternative<ast::Path>(size))
+        binder.bind(std::get<ast::Path>(size));
+}
+
 void FnType::bind(NameBinder& binder) {
     binder.bind(*from);
     if (to) binder.bind(*to);
@@ -179,6 +185,8 @@ void ArrayExpr::bind(NameBinder& binder) {
 
 void RepeatArrayExpr::bind(NameBinder& binder) {
     binder.bind(*elem);
+    if (std::holds_alternative<ast::Path>(size))
+        binder.bind(std::get<ast::Path>(size));
 }
 
 void FnExpr::bind(NameBinder& binder, bool in_for_loop) {
