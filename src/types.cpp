@@ -476,6 +476,12 @@ const ModType::Members& ModType::members() const {
     return *members_;
 }
 
+const Type* TypeApp::member_type(size_t i) const {
+    if (auto enum_t = applied->isa<EnumType>(); enum_t && enum_t->decl.options[i]->struct_type)
+        return type_table.type_app(enum_t->decl.options[i]->struct_type->as<StructType>(), type_args);
+    return applied->as<ComplexType>()->member_type(i)->replace(replace_map());
+}
+
 // Misc. ---------------------------------------------------------------------------
 
 bool Type::subtype(const Type* other) const {

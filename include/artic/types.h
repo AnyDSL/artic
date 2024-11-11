@@ -597,9 +597,7 @@ struct TypeApp : public Type {
     }
 
     /// Returns the type of the given member of the applied type, if it is a complex type.
-    const Type* member_type(size_t i) const {
-        return applied->as<ComplexType>()->member_type(i)->replace(replace_map());
-    }
+    const Type* member_type(size_t i) const;
 
     void print(Printer&) const override;
     bool equals(const Type*) const override;

@@ -108,8 +108,9 @@ private:
     ast::AsmExpr::Constr    parse_constr();
     Literal                 parse_lit();
     std::string             parse_str();
-    std::optional<size_t>   parse_array_size();
     size_t                  parse_addr_space();
+
+    std::optional<std::variant<size_t, ast::Path>>   parse_array_size();
 
     std::pair<Ptr<ast::Expr>, Ptr<ast::Expr>> parse_cond_and_block();
 
