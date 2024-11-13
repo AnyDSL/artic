@@ -1,0 +1,10 @@
+static n = 3;
+
+#[export]
+fn test() {
+    let a = [3; n] : [i32 * n];
+    let b = [4; n];
+    let mut c : [i32 * n];
+    c(0) = a(0);
+    c(1) = b(1);
+}

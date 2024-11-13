@@ -55,6 +55,7 @@ add_test(NAME simple_mut         COMMAND artic --print-ast --warnings-as-errors 
 add_test(NAME simple_static      COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/static.art)
 add_test(NAME simple_arrays1     COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/arrays1.art)
 add_test(NAME simple_arrays2     COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/arrays2.art)
+add_test(NAME simple_arrays3     COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/arrays3.art)
 add_test(NAME simple_sort        COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/sort.art)
 add_test(NAME simple_filters1    COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/filters1.art)
 add_test(NAME simple_filters2    COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/filters2.art)
