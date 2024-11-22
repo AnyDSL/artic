@@ -422,8 +422,13 @@ bool TypeChecker::check_filter(const ast::Expr& expr) {
             is_mutable = true;
         else
             return true;
-    } else if (expr.isa<ast::LiteralExpr>())
+    } else if (expr.isa<ast::LiteralExpr>()) {
         return true;
+    } else if (auto proj = expr.isa<ast::ProjExpr>()) {
+        //This needs to be supported to inspect struct and tuple members.
+        //TODO: Not sure if this check coveres all possible problematic cases.
+        return check_filter(*proj->expr);
+    }
 
     error(expr.loc, "unsupported expression in filter");
     if (is_logic_or)
@@ -885,6 +890,8 @@ const artic::Type* UnsizedArrayType::infer(TypeChecker& checker) {
 }
 
 const artic::Type* FnType::infer(TypeChecker& checker) {
+    if (to->isa<ast::NoCodomType>())
+        return checker.type_table.cn_type(checker.infer(*from));
     return checker.type_table.fn_type(checker.infer(*from), checker.infer(*to));
 }
 
@@ -899,6 +906,10 @@ const artic::Type* PtrType::infer(TypeChecker& checker) {
 
 const artic::Type* TypeApp::infer(TypeChecker& checker) {
     return path.type = path.infer(checker, false);
+}
+
+const artic::Type* NoCodomType::infer(TypeChecker& checker) {
+    return checker.type_table.no_ret_type();
 }
 
 // Statements ----------------------------------------------------------------------

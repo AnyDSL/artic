@@ -85,8 +85,12 @@ Ptr<ast::FnDecl> Parser::parse_fn_decl() {
         error(ahead().loc(), "parameter list expected in function definition");
 
     Ptr<ast::Type> ret_type;
-    if (accept(Token::Arrow))
-        ret_type = parse_type();
+    if (accept(Token::Arrow)) {
+        if (accept(Token::Not))
+            ret_type = make_ptr<ast::NoCodomType>(prev_);
+        else
+            ret_type = parse_type();
+    }
 
     Ptr<ast::Expr> body;
     if (ahead().tag() == Token::LBrace)
@@ -1087,7 +1091,11 @@ Ptr<ast::FnType> Parser::parse_fn_type() {
     else
         from = parse_error_type();
     expect(Token::Arrow);
-    auto to = parse_type();
+    Ptr<ast::Type> to;
+    if (accept(Token::Not))
+        to = make_ptr<ast::NoCodomType>(prev_);
+    else
+        to = parse_type();
     return make_ptr<ast::FnType>(tracker(), std::move(from), std::move(to));
 }
 

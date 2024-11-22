@@ -675,10 +675,8 @@ void UnsizedArrayType::print(Printer& p) const {
 void FnType::print(Printer& p) const {
     p << log::keyword_style("fn") << ' ';
     print_parens(p, from);
-    if (to) {
-        p << " -> ";
-        to->print(p);
-    }
+    p << " -> ";
+    to->print(p);
 }
 
 void PtrType::print(Printer& p) const {
@@ -696,6 +694,10 @@ void PtrType::print(Printer& p) const {
 
 void TypeApp::print(Printer& p) const {
     path.print(p);
+}
+
+void NoCodomType::print(artic::Printer& p) const {
+    p << "!";
 }
 
 void ErrorType::print(Printer& p) const {

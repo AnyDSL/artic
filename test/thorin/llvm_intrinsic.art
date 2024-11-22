@@ -1,0 +1,6 @@
+#[import(cc = "device", name = "llvm.exp.f32")] fn cpu_expf(_: f32) -> f32;
+
+#[export]
+fn foo(f: f32) -> f32 {
+    cpu_expf(f - 0.5) + 0.5
+}

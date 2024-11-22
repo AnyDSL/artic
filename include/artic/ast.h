@@ -419,6 +419,17 @@ struct TypeApp : public Type {
     void print(Printer&) const override;
 };
 
+/// The codomain of functions that don't return anything.
+struct NoCodomType : public Type {
+    NoCodomType(const Loc& loc)
+        : Type(loc)
+    {}
+
+    const artic::Type* infer(TypeChecker&) override;
+    void bind(NameBinder&) override;
+    void print(Printer&) const override;
+};
+
 /// Type resulting from a parsing error.
 struct ErrorType : public Type {
     ErrorType(const Loc& loc)
