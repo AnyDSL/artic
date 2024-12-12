@@ -60,7 +60,8 @@ void TypedExpr::resolve_summons(artic::Summoner& summoner) {
 }
 
 void SummonExpr::resolve_summons(artic::Summoner& summoner) {
-    resolved = summoner.resolve(type, loc);
+    if (!resolved)
+        resolved = summoner.resolve(type, loc);
 }
 
 void FieldExpr::resolve_summons(artic::Summoner& summoner) {
@@ -221,6 +222,12 @@ void IdPtrn::resolve_summons(artic::Summoner& summoner) {
 
 void ImplicitParamPtrn::resolve_summons(artic::Summoner& summoner) {
     summoner.insert(underlying->type, underlying->to_expr());
+}
+
+void DefaultParamPtrn::resolve_summons(artic::Summoner& summoner) {
+    default_expr->resolve_summons(summoner);
+
+    underlying->resolve_summons(summoner);
 }
 
 void FieldPtrn::resolve_summons(artic::Summoner& summoner) {

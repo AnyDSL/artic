@@ -302,7 +302,7 @@ Ptr<ast::Ptrn> Parser::parse_ptrn(bool allow_types, bool allow_implicits) {
                     ahead().tag() == Token::LBracket ||
                     ahead().tag() == Token::LParen ||
                     ahead().tag() == Token::LBrace ||
-                    (allow_types && ahead().tag() != Token::Colon && ahead().tag() != Token::As)) {
+                    (allow_types && ahead().tag() != Token::Colon && ahead().tag() != Token::As && ahead().tag() != Token::Eq)) {
                     auto path = parse_path(std::move(id), true);
                     if (ahead().tag() == Token::LBrace)
                         ptrn = parse_record_ptrn(std::move(path));
@@ -311,8 +311,13 @@ Ptr<ast::Ptrn> Parser::parse_ptrn(bool allow_types, bool allow_implicits) {
                         return make_ptr<ast::TypedPtrn>(path.loc, Ptr<ast::Ptrn>(), std::move(type));
                     } else
                         ptrn = parse_ctor_ptrn(std::move(path));
-                } else
+                } else {
                     ptrn = parse_id_ptrn(std::move(id), false);
+                    if (allow_implicits && accept(Token::Eq)) {
+                        auto default_expr = parse_expr();
+                        ptrn = make_ptr<ast::DefaultParamPtrn>(ptrn->loc, std::move(ptrn), std::move(default_expr));
+                    }
+                }
             }
             break;
         case Token::Mut:
@@ -349,7 +354,12 @@ Ptr<ast::Ptrn> Parser::parse_ptrn(bool allow_types, bool allow_implicits) {
             ptrn = parse_error_ptrn();
             break;
     }
-    return parse_typed_ptrn(std::move(ptrn));
+    ptrn = parse_typed_ptrn(std::move(ptrn));
+    if (allow_implicits && accept(Token::Eq)) {
+        auto default_expr = parse_expr();
+        ptrn = make_ptr<ast::DefaultParamPtrn>(ptrn->loc, std::move(ptrn), std::move(default_expr));
+    }
+    return ptrn;
 }
 
 Ptr<ast::Ptrn> Parser::parse_typed_ptrn(Ptr<ast::Ptrn>&& ptrn) {
