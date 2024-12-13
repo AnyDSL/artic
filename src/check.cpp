@@ -174,6 +174,15 @@ const Type* TypeChecker::coerce(Ptr<ast::Expr>& expr, const Type* expected) {
             expr.swap(summoned);
             return implicit->underlying;
         }
+    } else if (auto default_type = expected->isa<DefaultParamType>()) {
+        if (is_unit(expr)) {
+            Ptr<ast::SummonExpr> summoned = make_ptr<ast::SummonExpr>(expr->loc, Ptr<ast::Type>());
+            summoned->type = default_type->underlying;
+            summoned->resolved = default_type->expr;
+            Ptr<ast::Expr> swapexp = std::move(summoned);
+            expr.swap(swapexp);
+            return default_type->underlying;
+        }
     } else if (is_tuple_type_with_implicits(expected)) {
         auto loc = expr->loc;
         auto deconstructed = expr->isa<ast::TupleExpr>();
