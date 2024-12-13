@@ -161,7 +161,7 @@ static bool is_unit(Ptr<ast::Expr>& expr) {
 
 static bool is_tuple_type_with_implicits(const artic::Type* type) {
     if (auto tuple_t = type->isa<artic::TupleType>(); tuple_t && !is_unit_type(tuple_t))
-        return std::any_of(tuple_t->args.begin(), tuple_t->args.end(), [&](auto arg){ return arg->template isa<ImplicitParamType>(); });
+        return std::any_of(tuple_t->args.begin(), tuple_t->args.end(), [&](auto arg){ return arg->template isa<ImplicitParamType>() || arg->template isa<DefaultParamType>(); });
     return false;
 }
 
@@ -173,6 +173,15 @@ const Type* TypeChecker::coerce(Ptr<ast::Expr>& expr, const Type* expected) {
             summoned->type = implicit->underlying;
             expr.swap(summoned);
             return implicit->underlying;
+        }
+    } else if (auto default_type = expected->isa<DefaultParamType>()) {
+        if (is_unit(expr)) {
+            Ptr<ast::SummonExpr> summoned = make_ptr<ast::SummonExpr>(expr->loc, Ptr<ast::Type>());
+            summoned->type = default_type->underlying;
+            summoned->resolved = default_type->expr;
+            Ptr<ast::Expr> swapexp = std::move(summoned);
+            expr.swap(swapexp);
+            return default_type->underlying;
         }
     } else if (is_tuple_type_with_implicits(expected)) {
         auto loc = expr->loc;
@@ -195,6 +204,13 @@ const Type* TypeChecker::coerce(Ptr<ast::Expr>& expr, const Type* expected) {
             if (auto implicit = tuple_t->args[i]->isa<ImplicitParamType>()) {
                 Ptr<ast::Expr> summoned = make_ptr<ast::SummonExpr>(loc, Ptr<ast::Type>());
                 summoned->type = implicit->underlying;
+                args.push_back(std::move(summoned));
+                continue;
+            }
+            if (auto default_type = tuple_t->args[i]->isa<DefaultParamType>()) {
+                Ptr<ast::SummonExpr> summoned = make_ptr<ast::SummonExpr>(loc, Ptr<ast::Type>());
+                summoned->type = default_type->underlying;
+                summoned->resolved = default_type->expr;
                 args.push_back(std::move(summoned));
                 continue;
             }
@@ -1879,6 +1895,19 @@ const artic::Type* ImplicitParamPtrn::infer(artic::TypeChecker& checker) {
 
 const artic::Type * ImplicitParamPtrn::check(artic::TypeChecker& checker, const artic::Type* expected) {
     checker.check(*underlying, expected);
+    return checker.type_table.implicit_param_type(underlying->type);
+}
+
+//TODO: we can use the default expression to infer the type of this pattern, and need to check it as well.
+const artic::Type* DefaultParamPtrn::infer(artic::TypeChecker& checker) {
+    checker.infer(*default_expr);
+    checker.check(*underlying, default_expr->type);
+    return checker.type_table.default_param_type(default_expr->type, &*default_expr);
+}
+
+const artic::Type *DefaultParamPtrn::check(artic::TypeChecker& checker, const artic::Type* expected) {
+    checker.check(*underlying, expected);
+    checker.check(*default_expr, expected);
     return checker.type_table.implicit_param_type(underlying->type);
 }
 

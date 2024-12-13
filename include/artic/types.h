@@ -301,6 +301,34 @@ private:
     friend class TypeTable;
 };
 
+struct DefaultParamType : public Type {
+    const Type* underlying;
+    const ast::Expr* expr;
+
+    void print(Printer&) const override;
+    bool equals(const Type*) const override;
+    size_t hash() const override;
+    bool contains(const Type*) const override;
+
+    const Type* replace(const ReplaceMap&) const override;
+
+    const thorin::Type* convert(Emitter&) const override;
+    std::string stringify(Emitter&) const override;
+
+    size_t order(std::unordered_set<const Type*>&) const override;
+    void variance(TypeVarMap<TypeVariance>&, bool) const override;
+    void bounds(TypeVarMap<TypeBounds>&, const Type*, bool) const override;
+    bool is_sized(std::unordered_set<const Type*>&) const override;
+private:
+    DefaultParamType(TypeTable& type_table, const Type* underlying, const ast::Expr* expr)
+        : Type(type_table)
+        , underlying(underlying)
+        , expr(expr)
+    {}
+
+    friend class TypeTable;
+};
+
 /// Function type (can represent continuations when the codomain is a `NoRetType`).
 struct FnType : public Type {
     const Type* dom;
@@ -672,6 +700,7 @@ public:
     const PtrType*           ptr_type(const Type*, bool, size_t);
     const RefType*           ref_type(const Type*, bool, size_t);
     const ImplicitParamType* implicit_param_type(const Type*);
+    const DefaultParamType*  default_param_type(const Type*, const ast::Expr*);
     const FnType*            fn_type(const Type*, const Type*);
     const FnType*            cn_type(const Type*);
     const BottomType*        bottom_type();
