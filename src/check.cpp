@@ -161,7 +161,7 @@ static bool is_unit(Ptr<ast::Expr>& expr) {
 
 static bool is_tuple_type_with_implicits(const artic::Type* type) {
     if (auto tuple_t = type->isa<artic::TupleType>(); tuple_t && !is_unit_type(tuple_t))
-        return std::any_of(tuple_t->args.begin(), tuple_t->args.end(), [&](auto arg){ return arg->template isa<ImplicitParamType>() || arg->template isa<DefaultParamType>(); });
+        return std::any_of(tuple_t->args.begin(), tuple_t->args.end(), [&](auto arg){ return arg->template isa<ImplicitParamType>(); });
     return false;
 }
 
@@ -173,15 +173,6 @@ const Type* TypeChecker::coerce(Ptr<ast::Expr>& expr, const Type* expected) {
             summoned->type = implicit->underlying;
             expr.swap(summoned);
             return implicit->underlying;
-        }
-    } else if (auto default_type = expected->isa<DefaultParamType>()) {
-        if (is_unit(expr)) {
-            Ptr<ast::SummonExpr> summoned = make_ptr<ast::SummonExpr>(expr->loc, Ptr<ast::Type>());
-            summoned->type = default_type->underlying;
-            summoned->resolved = default_type->expr;
-            Ptr<ast::Expr> swapexp = std::move(summoned);
-            expr.swap(swapexp);
-            return default_type->underlying;
         }
     } else if (is_tuple_type_with_implicits(expected)) {
         auto loc = expr->loc;
@@ -204,13 +195,6 @@ const Type* TypeChecker::coerce(Ptr<ast::Expr>& expr, const Type* expected) {
             if (auto implicit = tuple_t->args[i]->isa<ImplicitParamType>()) {
                 Ptr<ast::Expr> summoned = make_ptr<ast::SummonExpr>(loc, Ptr<ast::Type>());
                 summoned->type = implicit->underlying;
-                args.push_back(std::move(summoned));
-                continue;
-            }
-            if (auto default_type = tuple_t->args[i]->isa<DefaultParamType>()) {
-                Ptr<ast::SummonExpr> summoned = make_ptr<ast::SummonExpr>(loc, Ptr<ast::Type>());
-                summoned->type = default_type->underlying;
-                summoned->resolved = default_type->expr;
                 args.push_back(std::move(summoned));
                 continue;
             }
@@ -1184,6 +1168,33 @@ const artic::Type* CallExpr::infer(TypeChecker& checker) {
     auto [ref_type, callee_type] = remove_ref(checker.infer(*callee));
     if (auto fn_type = callee_type->isa<artic::FnType>()) {
         checker.coerce(callee, fn_type);
+
+        artic::ast::TupleExpr* args_tuple = arg->isa<TupleExpr>();
+
+        const artic::TupleType* from_tuple = fn_type->dom->isa<artic::TupleType>();
+        const artic::ast::PathExpr* path_expr = callee_path(callee.get());
+        const artic::ast::FnDecl* fn_decl = nullptr;
+        const artic::ast::FnExpr* decl = nullptr;
+        const artic::ast::TuplePtrn* fn_params = nullptr;
+
+        if (path_expr) {
+            fn_decl = path_expr->path.start_decl->isa<FnDecl>();
+            if (fn_decl) {
+                decl = fn_decl->fn.get();
+                fn_params = decl->param->isa<TuplePtrn>();
+
+                if (fn_params) {
+                    for (int i = args_tuple->args.size(); i < fn_params->args.size(); i++) {
+                        auto default_param = fn_params->args[i]->isa<DefaultParamPtrn>();
+                        if (default_param) {
+                            auto default_expr = default_param->default_expr.get();
+                            args_tuple->args.push_back(std::unique_ptr<Expr>(default_expr));
+                        }
+                    }
+                }
+            }
+        }
+
         checker.coerce(arg, fn_type->dom);
         return fn_type->codom;
     } else {
@@ -1902,7 +1913,7 @@ const artic::Type * ImplicitParamPtrn::check(artic::TypeChecker& checker, const 
 const artic::Type* DefaultParamPtrn::infer(artic::TypeChecker& checker) {
     checker.infer(*default_expr);
     checker.check(*underlying, default_expr->type);
-    return checker.type_table.default_param_type(default_expr->type, &*default_expr);
+    return default_expr->type;
 }
 
 const artic::Type *DefaultParamPtrn::check(artic::TypeChecker& checker, const artic::Type* expected) {

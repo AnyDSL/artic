@@ -779,11 +779,6 @@ void ImplicitParamType::print(artic::Printer& p) const {
     underlying->print(p);
 }
 
-void DefaultParamType::print(artic::Printer& p) const {
-    p << "default ";
-    underlying->print(p);
-}
-
 void FnType::print(Printer& p) const {
     p << log::keyword_style("fn") << ' ';
     if (!dom->isa<TupleType>()) p << '(';

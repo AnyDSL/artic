@@ -688,8 +688,6 @@ const thorin::Def* Emitter::down_cast(const thorin::Def* def, const Type* from, 
 
     if (to->isa<ImplicitParamType>())
         return def;
-    if (to->isa<DefaultParamType>())
-        return def;
 
     auto to_ptr_type = to->isa<PtrType>();
     // Casting a value to a pointer to the type of the value effectively creates an allocation
@@ -1906,19 +1904,11 @@ std::string ImplicitParamType::stringify(Emitter& emitter) const {
     return "implicit_" + underlying->stringify(emitter);
 }
 
-std::string DefaultParamType::stringify(Emitter& emitter) const {
-    return "default_" + underlying->stringify(emitter);
-}
-
 std::string FnType::stringify(Emitter& emitter) const {
     return "fn_" + dom->stringify(emitter) + "_" + codom->stringify(emitter);
 }
 
 const thorin::Type* ImplicitParamType::convert(artic::Emitter& emitter) const {
-    return underlying->convert(emitter);
-}
-
-const thorin::Type* DefaultParamType::convert(artic::Emitter& emitter) const {
     return underlying->convert(emitter);
 }
 
