@@ -91,13 +91,6 @@ struct Type : public Cast<Type> {
         return vars;
     }
 
-    /// Computes the bounds of the type variables that appear in this type.
-    TypeVarMap<TypeBounds> bounds(const Type* arg, bool dir = true) const {
-        TypeVarMap<TypeBounds> vars;
-        bounds(vars, arg, dir);
-        return vars;
-    }
-
     /// Returns whether this type can be represented in memory or not.
     bool is_sized() const {
         std::unordered_set<const Type*> seen;
@@ -303,7 +296,7 @@ private:
 
 /// Function type (can represent continuations when the codomain is a `NoRetType`).
 struct FnType : public Type {
-    const Type* dom;
+    Array<const Type*> dom;
     const Type* codom;
 
     void print(Printer&) const override;
@@ -321,8 +314,11 @@ struct FnType : public Type {
     void bounds(TypeVarMap<TypeBounds>&, const Type*, bool) const override;
     bool is_sized(std::unordered_set<const Type*>&) const override;
 
+    /// Computes the bounds of the type variables that appear in this type.
+    TypeVarMap<TypeBounds> dom_bounds(const Type* arg, bool dir = true) const;
+
 private:
-    FnType(TypeTable& type_table, const Type* dom, const Type* codom)
+    FnType(TypeTable& type_table, const ArrayRef<const Type*>& dom, const Type* codom)
         : Type(type_table), dom(dom), codom(codom)
     {}
 
@@ -672,8 +668,8 @@ public:
     const PtrType*           ptr_type(const Type*, bool, size_t);
     const RefType*           ref_type(const Type*, bool, size_t);
     const ImplicitParamType* implicit_param_type(const Type*);
-    const FnType*            fn_type(const Type*, const Type*);
-    const FnType*            cn_type(const Type*);
+    const FnType*            fn_type(const ArrayRef<const Type*>&, const Type*);
+    const FnType*            cn_type(const ArrayRef<const Type*>&);
     const BottomType*        bottom_type();
     const TopType*           top_type();
     const NoRetType*         no_ret_type();
@@ -688,6 +684,9 @@ public:
     /// Creates a type application for structures/enumeration types,
     /// or returns the type alias expanded with the given type arguments.
     const Type* type_app(const UserType*, const ArrayRef<const Type*>&);
+
+    ArrayRef<const Type*> deconstruct_domain_type(const Type*);
+    const Type* construct_domain_type(const ArrayRef<const Type*>&);
 
 private:
     template <typename T, typename... Args>

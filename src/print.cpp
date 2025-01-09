@@ -774,9 +774,14 @@ void ImplicitParamType::print(artic::Printer& p) const {
 
 void FnType::print(Printer& p) const {
     p << log::keyword_style("fn") << ' ';
-    if (!dom->isa<TupleType>()) p << '(';
-    dom->print(p);
-    if (!dom->isa<TupleType>()) p << ')';
+    p << '(';
+    bool first = true;
+    for (auto param : dom) {
+        if (first) first = false;
+        else p << ", ";
+        param->print(p);
+    }
+    p << ')';
     p << " -> ";
     codom->print(p);
 }

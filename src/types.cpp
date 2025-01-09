@@ -121,10 +121,10 @@ size_t ImplicitParamType::hash() const {
 }
 
 size_t FnType::hash() const {
-    return fnv::Hash()
-        .combine(typeid(*this).hash_code())
-        .combine(dom)
-        .combine(codom);
+    auto hash = fnv::Hash();
+    for (auto param : dom)
+        hash = hash.combine(param);
+    return hash.combine(codom);
 }
 
 size_t BottomType::hash() const {
@@ -165,7 +165,11 @@ bool ImplicitParamType::contains(const artic::Type* type) const {
 }
 
 bool FnType::contains(const Type* type) const {
-    return type == this || dom->contains(type) || codom->contains(type);
+    for (auto param : dom) {
+        if (param->contains(type))
+            return param;
+    }
+    return type == this || codom->contains(type);
 }
 
 bool TypeApp::contains(const Type* type) const {
@@ -207,7 +211,10 @@ const Type* ImplicitParamType::replace(const artic::ReplaceMap& map) const {
 }
 
 const Type* FnType::replace(const std::unordered_map<const TypeVar*, const Type*>& map) const {
-    return type_table.fn_type(dom->replace(map), codom->replace(map));
+    std::vector<const Type*> ndom;
+    for (auto param : dom)
+        ndom.push_back(param->replace(map));
+    return type_table.fn_type(ndom, codom->replace(map));
 }
 
 const Type* TypeVar::replace(const std::unordered_map<const TypeVar*, const Type*>& map) const {
@@ -234,7 +241,13 @@ size_t ImplicitParamType::order(std::unordered_set<const Type*>& seen) const {
 }
 
 size_t FnType::order(std::unordered_set<const Type*>& seen) const {
-    return 1 + std::max(dom->order(seen), codom->order(seen));
+    size_t max_order = 0;
+    for (auto param : dom) {
+        auto order = param->order(seen);
+        if (order > max_order)
+            max_order = order;
+    }
+    return 1 + std::max(max_order, codom->order(seen));
 }
 
 size_t TupleType::order(std::unordered_set<const Type*>& seen) const {
@@ -286,7 +299,8 @@ void AddrType::variance(std::unordered_map<const TypeVar*, TypeVariance>& vars, 
 }
 
 void FnType::variance(std::unordered_map<const TypeVar*, TypeVariance>& vars, bool dir) const {
-    dom->variance(vars, !dir);
+    for (auto param : dom)
+        param->variance(vars, !dir);
     codom->variance(vars, dir);
 }
 
@@ -335,9 +349,20 @@ void ImplicitParamType::bounds(TypeVarMap<artic::TypeBounds>& bounds, const arti
 
 void FnType::bounds(std::unordered_map<const TypeVar*, TypeBounds>& bounds, const Type* type, bool dir) const {
     if (auto fn_type = type->isa<FnType>()) {
-        dom->bounds(bounds, fn_type->dom, !dir);
+        assert(dom.size() == fn_type->dom.size());
+        for (size_t i = 0; i < dom.size(); i++)
+            dom[i]->bounds(bounds, fn_type->dom[i], !dir);
         codom->bounds(bounds, fn_type->codom, dir);
     }
+}
+
+TypeVarMap<TypeBounds> FnType::dom_bounds(const Type* arg, bool dir) const {
+    TypeVarMap<TypeBounds> vars;
+    auto types = type_table.deconstruct_domain_type(arg);
+    assert(types.size() == dom.size());
+    for (size_t i = 0; i < dom.size(); i++)
+        dom[i]->bounds(vars, types[i], dir);
+    return vars;
 }
 
 void TypeVar::bounds(std::unordered_map<const TypeVar*, TypeBounds>& bounds, const Type* type, bool dir) const {
@@ -371,7 +396,10 @@ bool ImplicitParamType::is_sized(std::unordered_set<const Type*>& seen) const {
 }
 
 bool FnType::is_sized(std::unordered_set<const Type*>& seen) const {
-    return dom->is_sized(seen) && codom->is_sized(seen);
+    for (auto param : dom)
+        if (!param->is_sized(seen))
+            return false;
+    return codom->is_sized(seen);
 }
 
 bool TupleType::is_sized(std::unordered_set<const Type*>& seen) const {
@@ -530,9 +558,15 @@ bool Type::subtype(const Type* other) const {
     } else if (auto fn_type = isa<FnType>()) {
         if (auto other_fn_type = other->isa<FnType>()) {
             // fn (V) -> W <: fn (T) -> U if T <: V and W <: U
-            return
-                other_fn_type->dom->subtype(fn_type->dom) &&
-                fn_type->codom->subtype(other_fn_type->codom);
+            if (fn_type->dom.size() != other_fn_type->dom.size())
+                return false;
+            for (size_t i = 0; i < fn_type->dom.size(); i++) {
+                auto param = fn_type->dom[i];
+                auto other_param = other_fn_type->dom[i];
+                if (!other_param->subtype(param))
+                    return false;
+            }
+            return fn_type->codom->subtype(other_fn_type->codom);
         }
     }
     return false;
@@ -655,7 +689,7 @@ const TupleType* TypeTable::unit_type() {
 }
 
 const TupleType* TypeTable::tuple_type(const ArrayRef<const Type*>& elems) {
-    return insert<TupleType>(std::move(elems));
+    return insert<TupleType>(elems);
 }
 
 const SizedArrayType* TypeTable::sized_array_type(const Type* elem, size_t size, bool is_simd) {
@@ -678,11 +712,11 @@ const ImplicitParamType* TypeTable::implicit_param_type(const Type* underlying) 
     return insert<ImplicitParamType>(underlying);
 }
 
-const FnType* TypeTable::fn_type(const Type* dom, const Type* codom) {
+const FnType* TypeTable::fn_type(const ArrayRef<const Type*>& dom, const Type* codom) {
     return insert<FnType>(dom, codom);
 }
 
-const FnType* TypeTable::cn_type(const Type* dom) {
+const FnType* TypeTable::cn_type(const ArrayRef<const Type*>& dom) {
     return fn_type(dom, no_ret_type());
 }
 
@@ -733,6 +767,22 @@ const Type* TypeTable::type_app(const UserType* applied, const ArrayRef<const Ty
         return type_alias->decl.aliased_type->type->replace(map);
     }
     return insert<TypeApp>(applied, std::move(type_args));
+}
+
+ArrayRef<const Type*> TypeTable::deconstruct_domain_type(const artic::Type* type) {
+    if (auto tuple_type = type->isa<TupleType>()) {
+        return tuple_type->args;
+    }
+    //SmallArray<const Type*, 1> x((size_t) 1);
+    //x[0] = type;
+    SmallArray<const Type*> x { type };
+    return tuple_type(x)->args;
+}
+
+const Type* TypeTable::construct_domain_type(const ArrayRef<const Type*>& types) {
+    if (types.size() == 1)
+        return types[0];
+    return tuple_type(types);
 }
 
 template <typename T, typename... Args>

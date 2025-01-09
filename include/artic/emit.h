@@ -19,12 +19,13 @@ struct StructType;
 /// Helper class for Thorin IR generation.
 class Emitter : public Logger {
 public:
-    Emitter(Log& log, thorin::World& world, Arena& arena)
-        : Logger(log), world(world), arena(arena)
+    Emitter(Log& log, thorin::World& world, Arena& arena, TypeTable& type_table)
+        : Logger(log), world(world), arena(arena), type_table(type_table)
     {}
 
     thorin::World& world;
     Arena& arena;
+    TypeTable& type_table;
 
     struct State {
         const thorin::Def* mem = nullptr;
