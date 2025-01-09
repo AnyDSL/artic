@@ -2059,6 +2059,7 @@ std::tuple<Ptr<ast::ModDecl>, bool> compile(
     bool warns_as_errors,
     bool enable_all_warns,
     Arena& arena,
+    TypeTable& type_table,
     thorin::World& world,
     Log& log)
 {
@@ -2091,7 +2092,6 @@ std::tuple<Ptr<ast::ModDecl>, bool> compile(
     if (enable_all_warns)
         name_binder.warn_on_shadowing = true;
 
-    TypeTable type_table;
     TypeChecker type_checker(log, type_table, arena);
     type_checker.warns_as_errors = warns_as_errors;
 
@@ -2121,5 +2121,6 @@ bool compile(
     log::Output out(error_stream, false);
     Log log(out, &locator);
     Arena arena;
-    return get<1>(artic::compile(file_names, file_data, false, false, arena, world, log));
+    TypeTable type_table;
+    return get<1>(artic::compile(file_names, file_data, false, false, arena, type_table, world, log));
 }

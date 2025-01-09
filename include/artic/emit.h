@@ -154,6 +154,7 @@ std::tuple<Ptr<ast::ModDecl>, bool> compile(
     bool warns_as_errors,
     bool enable_all_warns,
     Arena& arena,
+    TypeTable& table,
     thorin::World& world,
     Log& log);
 
