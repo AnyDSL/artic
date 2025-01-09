@@ -5,6 +5,7 @@
 #include <vector>
 #include <variant>
 
+#include "artic/arena.h"
 #include "artic/loc.h"
 #include "artic/log.h"
 #include "artic/cast.h"
@@ -25,11 +26,12 @@ class TypeChecker;
 class Emitter;
 class Summoner;
 
-template <typename T> using Ptr = std::unique_ptr<T>;
-template <typename T> using PtrVector = std::vector<std::unique_ptr<T>>;
+template <typename T> using Ptr = arena_ptr<T>;
+template <typename T> using PtrVector = std::vector<Ptr<T>>;
 template <typename T, typename... Args>
-std::unique_ptr<T> make_ptr(Args&&... args) {
-    return std::make_unique<T>(std::forward<Args>(args)...);
+
+Ptr<T> make_ptr(Args&&... args) {
+    return Ptr(new T(std::forward<Args>(args)...));
 }
 
 namespace ast {

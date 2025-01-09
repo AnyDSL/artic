@@ -782,7 +782,7 @@ Ptr<ast::Expr> Parser::parse_for_expr() {
 
     auto expr = parse_expr();
     auto call_loc = expr->loc;
-    Ptr<ast::CallExpr> call(expr->isa<ast::CallExpr>() ? expr.release()->as<ast::CallExpr>() : nullptr);
+    Ptr<ast::CallExpr> call(expr->isa<ast::CallExpr>() ? expr->as<ast::CallExpr>() : nullptr);
     if (!call) {
         error(ahead().loc(), "invalid for loop expression");
         return make_ptr<ast::ErrorExpr>(tracker());
@@ -798,7 +798,7 @@ Ptr<ast::Expr> Parser::parse_for_expr() {
     // Cannot use body->loc directly because std::move(body) might be executed first
     auto lambda = make_ptr<ast::FnExpr>(lambda_loc, nullptr, std::move(ptrn), nullptr, std::move(body));
 
-    Ptr<ast::Expr> callee(call->callee.release());
+    Ptr<ast::Expr> callee(call->callee.get());
     call->callee = make_ptr<ast::CallExpr>(call_loc, std::move(callee), std::move(lambda));
     return make_ptr<ast::ForExpr>(tracker(), std::move(call));
 }
