@@ -321,12 +321,12 @@ int main(int argc, char** argv) {
     thorin.world().set(opts.log_level);
     thorin.world().set(std::make_shared<thorin::Stream>(std::cerr));
 
-    ast::ModDecl program;
-    bool success = compile(
+    Arena arena;
+    auto program = compile(
         opts.files, file_data,
         opts.warns_as_errors,
         opts.enable_all_warns,
-        program, thorin.world(), log);
+        arena, thorin.world(), log);
 
     log.print_summary();
 
@@ -336,12 +336,12 @@ int main(int argc, char** argv) {
         Printer p(log::out);
         p.show_implicit_casts = opts.show_implicit_casts;
         p.tab = std::string(opts.tab_width, ' ');
-        program.print(p);
+        program->print(p);
         log::out << '\n';
         log::out.stream.flush();
     }
 
-    if (!success)
+    if (!program)
         return EXIT_FAILURE;
 
     if (opts.opt_level == 1)

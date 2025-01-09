@@ -2,6 +2,8 @@
 #define ARTIC_ARENA_H
 
 #include <type_traits>
+#include <memory>
+#include <vector>
 
 template<typename T>
 /** works like unique_ptr but doesn't actually own anything */
@@ -36,6 +38,25 @@ struct arena_ptr {
         other._ptr = _ptr;
         _ptr = tmp;
     }
+};
+
+struct Arena {
+    Arena();
+    ~Arena();
+
+    template<typename T, typename ...Args>
+    arena_ptr<T> make_ptr(Args&& ...args) {
+        void* ptr = alloc(sizeof(T));
+        new (ptr) T (std::forward<Args>(args)...);
+        return arena_ptr<T>(static_cast<T*>(ptr));
+    }
+private:
+    void* alloc(size_t);
+    void grow();
+
+    size_t _block_size;
+    size_t _available;
+    std::vector<void*> _data;
 };
 
 #endif // ARTIC_ARENA_H
