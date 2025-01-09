@@ -150,7 +150,7 @@ inline std::pair<const Type*, const Type*> remove_ptr(const Type* type) {
 const Type* TypeChecker::deref(Ptr<ast::Expr>& expr) {
     auto [ref_type, type] = remove_ref(infer(*expr));
     if (ref_type)
-        expr = make_ptr<ast::ImplicitCastExpr>(expr->loc, std::move(expr), type);
+        expr = _arena.make_ptr<ast::ImplicitCastExpr>(expr->loc, std::move(expr), type);
     return type;
 }
 
@@ -169,7 +169,7 @@ const Type* TypeChecker::coerce(Ptr<ast::Expr>& expr, const Type* expected) {
     if (auto implicit = expected->isa<ImplicitParamType>()) {
         // Only the empty tuple () can be coerced into a Summon[T]
         if (is_unit(expr)) {
-            Ptr<ast::Expr> summoned = make_ptr<ast::SummonExpr>(expr->loc, Ptr<ast::Type>());
+            Ptr<ast::Expr> summoned = _arena.make_ptr<ast::SummonExpr>(expr->loc, Ptr<ast::Type>());
             summoned->type = implicit->underlying;
             expr.swap(summoned);
             return implicit->underlying;
@@ -193,7 +193,7 @@ const Type* TypeChecker::coerce(Ptr<ast::Expr>& expr, const Type* expected) {
             }
 
             if (auto implicit = tuple_t->args[i]->isa<ImplicitParamType>()) {
-                Ptr<ast::Expr> summoned = make_ptr<ast::SummonExpr>(loc, Ptr<ast::Type>());
+                Ptr<ast::Expr> summoned = _arena.make_ptr<ast::SummonExpr>(loc, Ptr<ast::Type>());
                 summoned->type = implicit->underlying;
                 args.push_back(std::move(summoned));
                 continue;
@@ -201,13 +201,13 @@ const Type* TypeChecker::coerce(Ptr<ast::Expr>& expr, const Type* expected) {
 
             bad_arguments(loc, "non-implicit arguments", i, tuple_t->args.size());
         }
-        expr = make_ptr<ast::TupleExpr>(loc, std::move(args));
+        expr = _arena.make_ptr<ast::TupleExpr>(loc, std::move(args));
     }
 
     auto type = expr->type ? expr->type : check(*expr, expected);
     if (type != expected) {
         if (type->subtype(expected)) {
-            expr = make_ptr<ast::ImplicitCastExpr>(expr->loc, std::move(expr), expected);
+            expr = _arena.make_ptr<ast::ImplicitCastExpr>(expr->loc, std::move(expr), expected);
             return expected;
         } else
             return incompatible_types(expr->loc, type, expected);
