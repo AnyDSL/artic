@@ -527,7 +527,7 @@ bool TypeChecker::infer_type_args(
     const Type* arg_type,
     std::vector<const Type*>& type_args)
 {
-    auto bounds = forall_type->body->as<FnType>()->dom->bounds(arg_type);
+    auto bounds = forall_type->body->as<FnType>()->dom_bounds(arg_type);
     auto variance = forall_type->body->as<FnType>()->codom->variance(true);
     for (auto& bound : bounds) {
         size_t index = std::find_if(
@@ -658,7 +658,7 @@ const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, Ptr<Ex
                     type_args[i] = checker.infer(*elem.args[i]);
                 // Infer type arguments when not all type arguments are given
                 if (type_param_count != elem.args.size() && i == n - 1) {
-                    auto arg_type = checker.try_coerce(*arg, forall_type->body->as<artic::FnType>()->dom);
+                    auto arg_type = checker.try_coerce(*arg, checker.type_table.construct_domain_type(forall_type->body->as<artic::FnType>()->dom));
                     if (!checker.infer_type_args(loc, forall_type, arg_type, type_args))
                         return checker.type_table.type_error();
                 }
@@ -683,10 +683,7 @@ const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, Ptr<Ex
                 SmallArray<const artic::Type*> tuple_args(struct_type->member_count());
                 for (size_t i = 0, n = struct_type->member_count(); i < n; ++i)
                     tuple_args[i] = member_type(type_app, struct_type, i);
-                auto dom = struct_type->member_count() == 1
-                    ? tuple_args.front()
-                    : checker.type_table.tuple_type(tuple_args);
-                type = checker.type_table.fn_type(dom, type);
+                type = checker.type_table.fn_type(tuple_args, type);
             }
             is_value = true;
         }
@@ -714,7 +711,7 @@ const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, Ptr<Ex
                     is_ctor = true;
                 } else {
                     auto member = member_type(type_app, enum_type, *index);
-                    type = is_unit_type(member) ? type : checker.type_table.fn_type(member, type);
+                    type = is_unit_type(member) ? type : checker.type_table.fn_type(checker.type_table.deconstruct_domain_type(member), type);
                     is_value = is_ctor = true;
                 }
             } else if (auto mod_type = type->isa<ModType>()) {
@@ -891,8 +888,8 @@ const artic::Type* UnsizedArrayType::infer(TypeChecker& checker) {
 
 const artic::Type* FnType::infer(TypeChecker& checker) {
     if (to->isa<ast::NoCodomType>())
-        return checker.type_table.cn_type(checker.infer(*from));
-    return checker.type_table.fn_type(checker.infer(*from), checker.infer(*to));
+        return checker.type_table.cn_type(checker.type_table.deconstruct_domain_type(checker.infer(*from)));
+    return checker.type_table.fn_type(checker.type_table.deconstruct_domain_type(checker.infer(*from)), checker.infer(*to));
 }
 
 const artic::Type* PtrType::infer(TypeChecker& checker) {
@@ -1106,7 +1103,7 @@ const artic::Type* FnExpr::infer(TypeChecker& checker) {
     }
     checker.check_refutability(*param, true);
     return body_type
-        ? checker.type_table.fn_type(param_type, body_type)
+        ? checker.type_table.fn_type(checker.type_table.deconstruct_domain_type(param_type), body_type)
         : checker.cannot_infer(loc, "function");
 }
 
@@ -1115,12 +1112,12 @@ const artic::Type* FnExpr::check(TypeChecker& checker, const artic::Type* expect
         return checker.incompatible_type(loc, "function", expected);
 
     auto codom = expected->as<artic::FnType>()->codom;
-    auto param_type = checker.check(*param, expected->as<artic::FnType>()->dom);
+    auto param_type = checker.check(*param, checker.type_table.construct_domain_type(expected->as<artic::FnType>()->dom));
     auto body_type = ret_type ? checker.check(*ret_type, codom) : codom;
     checker.check_refutability(*param, true);
     // Set the type of the expression before entering the body,
     // in case `return` appears in it.
-    type = checker.type_table.fn_type(param_type, body_type);
+    type = checker.type_table.fn_type(checker.type_table.deconstruct_domain_type(param_type), body_type);
     body_type = checker.coerce(body, body_type);
     if (filter)
         checker.check(*filter, checker.type_table.bool_type());
@@ -1168,7 +1165,7 @@ const artic::Type* CallExpr::infer(TypeChecker& checker) {
     auto [ref_type, callee_type] = remove_ref(checker.infer(*callee));
     if (auto fn_type = callee_type->isa<artic::FnType>()) {
         checker.coerce(callee, fn_type);
-        checker.coerce(arg, fn_type->dom);
+        checker.coerce(arg, checker.type_table.construct_domain_type(fn_type->dom));
         return fn_type->codom;
     } else {
         // Accept pointers to arrays
@@ -1368,7 +1365,7 @@ const artic::Type* BreakExpr::infer(TypeChecker& checker) {
             return checker.cannot_infer(loc, "break expression");
     } else
         assert(false);
-    return checker.type_table.cn_type(domain);
+    return checker.type_table.cn_type(checker.type_table.deconstruct_domain_type(domain));
 }
 
 const artic::Type* ContinueExpr::infer(TypeChecker& checker) {
@@ -1380,7 +1377,7 @@ const artic::Type* ContinueExpr::infer(TypeChecker& checker) {
         if (type && type->isa<artic::FnType>()) {
             // The type of `continue` is a continuation that takes as parameter
             // the return type of the loop body lambda function.
-            type = type->as<artic::FnType>()->dom;
+            type = type->as<artic::FnType>()->dom[0];
             if (type->isa<artic::FnType>())
                 domain = type->as<artic::FnType>()->codom;
         }
@@ -1388,7 +1385,7 @@ const artic::Type* ContinueExpr::infer(TypeChecker& checker) {
             return checker.cannot_infer(loc, "continue expression");
     } else
         assert(false);
-    return checker.type_table.cn_type(domain);
+    return checker.type_table.cn_type(checker.type_table.deconstruct_domain_type(domain));
 }
 
 const artic::Type* ReturnExpr::infer(TypeChecker& checker) {
@@ -1402,8 +1399,10 @@ const artic::Type* ReturnExpr::infer(TypeChecker& checker) {
             // directly from the return type annotation.
             arg_type = fn->ret_type->type;
         }
-        if (arg_type)
-           return checker.type_table.cn_type(arg_type);
+        if (arg_type) {
+            SmallArray<const artic::Type*> arr { arg_type };
+            return checker.type_table.cn_type(arr);
+        }
     }
     checker.error(loc, "cannot infer the type of '{}'", log::keyword_style("return"));
     if (fn)
@@ -1725,7 +1724,7 @@ const artic::Type* FnDecl::infer(TypeChecker& checker) {
 
     const artic::Type* fn_type = nullptr;
     if (fn->ret_type) {
-        fn_type = checker.type_table.fn_type(checker.infer(*fn->param), checker.infer(*fn->ret_type));
+        fn_type = checker.type_table.fn_type(checker.type_table.deconstruct_domain_type(checker.infer(*fn->param)), checker.infer(*fn->ret_type));
         if (fn->filter)
             checker.check(*fn->filter, checker.type_table.bool_type());
         checker.check_refutability(*fn->param, true);
@@ -1917,7 +1916,7 @@ const artic::Type* CtorPtrn::infer(TypeChecker& checker) {
             checker.error(loc, "missing arguments to enumeration or structure constructor");
             return checker.type_table.type_error();
         }
-        checker.check(*arg, fn_type->dom);
+        checker.check(*arg, checker.type_table.construct_domain_type(fn_type->dom));
         if (match_app<artic::EnumType>(fn_type->codom).second)
             variant_index = path.elems.back().index;
         return fn_type->codom;

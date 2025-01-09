@@ -723,7 +723,7 @@ const thorin::Def* Emitter::down_cast(const thorin::Def* def, const Type* from, 
         auto _ = save_state();
         auto cont = world.continuation(to->convert(*this)->as<thorin::FnType>(), debug);
         enter(cont);
-        auto param = down_cast(tuple_from_params(cont, true), to->as<FnType>()->dom, from_fn_type->dom, debug);
+        auto param = down_cast(tuple_from_params(cont, true), type_table.construct_domain_type(to->as<FnType>()->dom), type_table.construct_domain_type(from_fn_type->dom), debug);
         // No-ret functions downcast to returning ones, but call() can't work with those (see also CallExpr, IfExpr)
         if (from->as<FnType>()->codom->isa<artic::NoRetType>()) {
             jump(def, param, debug);
@@ -1911,7 +1911,7 @@ std::string ImplicitParamType::stringify(Emitter& emitter) const {
 }
 
 std::string FnType::stringify(Emitter& emitter) const {
-    return "fn_" + dom->stringify(emitter) + "_" + codom->stringify(emitter);
+    return "fn_" + emitter.type_table.construct_domain_type(dom)->stringify(emitter) + "_" + codom->stringify(emitter);
 }
 
 const thorin::Type* ImplicitParamType::convert(artic::Emitter& emitter) const {
@@ -1920,8 +1920,8 @@ const thorin::Type* ImplicitParamType::convert(artic::Emitter& emitter) const {
 
 const thorin::Type* FnType::convert(Emitter& emitter) const {
     if (codom->isa<BottomType>())
-        return emitter.continuation_type_with_mem(dom->convert(emitter));
-    return emitter.function_type_with_mem(dom->convert(emitter), codom->convert(emitter));
+        return emitter.continuation_type_with_mem(emitter.type_table.construct_domain_type(dom)->convert(emitter));
+    return emitter.function_type_with_mem(emitter.type_table.construct_domain_type(dom)->convert(emitter), codom->convert(emitter));
 }
 
 std::string NoRetType::stringify(Emitter&) const {
@@ -2100,7 +2100,7 @@ std::tuple<Ptr<ast::ModDecl>, bool> compile(
     if (!name_binder.run(*program) || !type_checker.run(*program) || !summoner.run(*program))
         return std::make_tuple(std::move(program), false);
 
-    Emitter emitter(log, world, arena);
+    Emitter emitter(log, world, arena, type_table);
     emitter.warns_as_errors = warns_as_errors;
     if (!emitter.run(*program))
         return std::make_tuple(std::move(program), false);
