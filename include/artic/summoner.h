@@ -11,8 +11,8 @@ namespace artic {
 
 class Summoner : public Logger {
 public:
-    Summoner(Log& log)
-        : Logger(log)
+    Summoner(Log& log, Arena& arena)
+        : Logger(log), _arena(arena)
     {}
 
     /// Eliminates all SummonExpr from the program
@@ -27,6 +27,8 @@ private:
 
     bool error = false;
     std::vector<TypeMap<const ast::Expr*>> scopes;
+
+    Arena& _arena;
 
     friend ast::SummonExpr;
     friend ast::ImplicitDecl;

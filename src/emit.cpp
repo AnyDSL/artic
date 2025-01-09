@@ -204,7 +204,7 @@ private:
                         assert(literal_ptrn->lit.as_string().size() + 1 == member_count);
                         const char* str = literal_ptrn->lit.as_string().c_str();
                         for (size_t j = 0; j < member_count; ++j) {
-                            auto char_ptrn = make_ptr<ast::LiteralPtrn>(literal_ptrn->loc, uint8_t(str[j]));
+                            auto char_ptrn = emitter.arena.make_ptr<ast::LiteralPtrn>(literal_ptrn->loc, uint8_t(str[j]));
                             char_ptrn->type = type->type_table.prim_type(ast::PrimType::U8);
                             new_elems[j] = char_ptrn.get();
                             tmp_ptrns.emplace_back(std::move(char_ptrn));
@@ -1307,12 +1307,12 @@ const thorin::Def* ProjExpr::emit(Emitter& emitter) const {
     return emitter.world.extract(emitter.emit(*expr), index, emitter.debug_info(*this));
 }
 
-static inline std::pair<Ptr<IdPtrn>, Ptr<TupleExpr>> dummy_case(const Loc& loc, const artic::Type* type) {
+static inline std::pair<Ptr<IdPtrn>, Ptr<TupleExpr>> dummy_case(const Loc& loc, const artic::Type* type, Arena& arena) {
     // Create a dummy wildcard pattern '_' and empty tuple '()'
     // for the else/break branches of an `if let`/`while let`.
-    auto anon_decl   = make_ptr<ast::PtrnDecl>(loc, Identifier(loc, "_"), false);
-    auto anon_ptrn   = make_ptr<ast::IdPtrn>(loc, std::move(anon_decl), nullptr);
-    auto empty_tuple = make_ptr<ast::TupleExpr>(loc, PtrVector<ast::Expr>());
+    auto anon_decl   = arena.make_ptr<ast::PtrnDecl>(loc, Identifier(loc, "_"), false);
+    auto anon_ptrn   = arena.make_ptr<ast::IdPtrn>(loc, std::move(anon_decl), nullptr);
+    auto empty_tuple = arena.make_ptr<ast::TupleExpr>(loc, PtrVector<ast::Expr>());
     anon_ptrn->type  = type;
     return std::make_pair(std::move(anon_ptrn), std::move(empty_tuple));
 }
@@ -1338,7 +1338,7 @@ const thorin::Def* IfExpr::emit(Emitter& emitter) const {
         auto false_value = if_false ? emitter.emit(*if_false) : emitter.world.tuple({});
         if (join) emitter.jump(join, false_value);
     } else {
-        auto [else_ptrn, empty_tuple] = dummy_case(loc, expr->type);
+        auto [else_ptrn, empty_tuple] = dummy_case(loc, expr->type, emitter.arena);
 
         std::vector<PtrnCompiler::MatchCase> match_cases;
         match_cases.emplace_back(ptrn.get(), if_true.get(), this, join);
@@ -1390,7 +1390,7 @@ const thorin::Def* WhileExpr::emit(Emitter& emitter) const {
         emitter.emit(*body);
         emitter.jump(while_head);
     } else {
-        auto [else_ptrn, empty_tuple] = dummy_case(loc, expr->type);
+        auto [else_ptrn, empty_tuple] = dummy_case(loc, expr->type, emitter.arena);
 
         std::vector<PtrnCompiler::MatchCase> match_cases;
         match_cases.emplace_back(ptrn.get(), body.get(), this, while_head);
@@ -2043,16 +2043,17 @@ struct MemBuf : public std::streambuf {
     }
 };
 
-bool compile(
+Ptr<ast::ModDecl> compile(
     const std::vector<std::string>& file_names,
     const std::vector<std::string>& file_data,
     bool warns_as_errors,
     bool enable_all_warns,
-    ast::ModDecl& program,
+    Arena& arena,
     thorin::World& world,
     Log& log)
 {
     assert(file_data.size() == file_names.size());
+    auto program = arena.make_ptr<ast::ModDecl>();
     for (size_t i = 0, n = file_names.size(); i < n; ++i) {
         if (log.locator)
             log.locator->register_file(file_names[i], file_data[i]);
@@ -2060,20 +2061,20 @@ bool compile(
         std::istream is(&mem_buf);
 
         Lexer lexer(log, file_names[i], is);
-        Parser parser(log, lexer);
+        Parser parser(log, lexer, arena);
         parser.warns_as_errors = warns_as_errors;
         auto module = parser.parse();
         if (log.errors > 0)
-            return false;
+            return nullptr;
 
-        program.decls.insert(
-            program.decls.end(),
+        program->decls.insert(
+            program->decls.end(),
             std::make_move_iterator(module->decls.begin()),
             std::make_move_iterator(module->decls.end())
         );
     }
 
-    program.set_super();
+    program->set_super();
 
     NameBinder name_binder(log);
     name_binder.warns_as_errors = warns_as_errors;
@@ -2081,17 +2082,19 @@ bool compile(
         name_binder.warn_on_shadowing = true;
 
     TypeTable type_table;
-    TypeChecker type_checker(log, type_table);
+    TypeChecker type_checker(log, type_table, arena);
     type_checker.warns_as_errors = warns_as_errors;
 
-    Summoner summoner(log);
+    Summoner summoner(log, arena);
 
-    if (!name_binder.run(program) || !type_checker.run(program) || !summoner.run(program))
-        return false;
+    if (!name_binder.run(*program) || !type_checker.run(*program) || !summoner.run(*program))
+        return nullptr;
 
-    Emitter emitter(log, world);
+    Emitter emitter(log, world, arena);
     emitter.warns_as_errors = warns_as_errors;
-    return emitter.run(program);
+    if (!emitter.run(*program))
+        return nullptr;
+    return program;
 }
 
 } // namespace artic
@@ -2107,6 +2110,6 @@ bool compile(
     Locator locator;
     log::Output out(error_stream, false);
     Log log(out, &locator);
-    ast::ModDecl program;
-    return artic::compile(file_names, file_data, false, false, program, world, log);
+    Arena arena;
+    return artic::compile(file_names, file_data, false, false, arena, world, log);
 }

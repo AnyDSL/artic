@@ -14,6 +14,7 @@ add_library(libartic
     ../include/artic/symbol.h
     ../include/artic/token.h
     ../include/artic/types.h
+    arena.cpp
     ast.cpp
     bind.cpp
     check.cpp

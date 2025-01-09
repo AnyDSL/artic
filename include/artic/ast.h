@@ -28,11 +28,6 @@ class Summoner;
 
 template <typename T> using Ptr = arena_ptr<T>;
 template <typename T> using PtrVector = std::vector<Ptr<T>>;
-template <typename T, typename... Args>
-
-Ptr<T> make_ptr(Args&&... args) {
-    return Ptr(new T(std::forward<Args>(args)...));
-}
 
 namespace ast {
 
@@ -157,7 +152,7 @@ struct Ptrn : public Node {
     /// Collect patterns that bind an identifier to a value in this pattern.
     virtual void collect_bound_ptrns(std::vector<const IdPtrn*>&) const;
     /// Rewrites the pattern into an expression
-    virtual const Expr* to_expr() { return as_expr.get(); }
+    virtual const Expr* to_expr(Arena&) { return as_expr.get(); }
     /// Returns true when the pattern is trivial (e.g. always matches).
     virtual bool is_trivial() const = 0;
     /// Emits IR for the pattern, given a value to bind it to.
@@ -1581,7 +1576,7 @@ struct TypedPtrn : public Ptrn {
     void emit(Emitter&, const thorin::Def*) const override;
     const artic::Type* infer(TypeChecker&) override;
     void bind(NameBinder&) override;
-    const Expr* to_expr() override;
+    const Expr* to_expr(Arena&) override;
     void resolve_summons(Summoner&) override;
     void print(Printer&) const override;
 };
@@ -1602,7 +1597,7 @@ struct IdPtrn : public Ptrn {
     const artic::Type* infer(TypeChecker&) override;
     const artic::Type* check(TypeChecker&, const artic::Type*) override;
     void bind(NameBinder&) override;
-    const Expr* to_expr() override;
+    const Expr* to_expr(Arena&) override;
     void resolve_summons(Summoner&) override;
     void print(Printer&) const override;
 };
@@ -1620,7 +1615,7 @@ struct LiteralPtrn : public Ptrn {
     const artic::Type* infer(TypeChecker&) override;
     const artic::Type* check(TypeChecker&, const artic::Type*) override;
     void bind(NameBinder&) override;
-    const Expr* to_expr() override;
+    const Expr* to_expr(Arena&) override;
     void resolve_summons(Summoner&) override {};
     void print(Printer&) const override;
 };
