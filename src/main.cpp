@@ -322,11 +322,12 @@ int main(int argc, char** argv) {
     thorin.world().set(std::make_shared<thorin::Stream>(std::cerr));
 
     Arena arena;
+    TypeTable type_table;
     auto [program, success] = compile(
         opts.files, file_data,
         opts.warns_as_errors,
         opts.enable_all_warns,
-        arena, thorin.world(), log);
+        arena, type_table, thorin.world(), log);
 
     log.print_summary();
 
