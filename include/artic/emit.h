@@ -148,7 +148,7 @@ private:
 
 /// Helper function to compile a set of files and generate an AST and a thorin module.
 /// Errors are reported in the log, and this function returns true on success.
-Ptr<ast::ModDecl> compile(
+std::tuple<Ptr<ast::ModDecl>, bool> compile(
     const std::vector<std::string>& file_names,
     const std::vector<std::string>& file_data,
     bool warns_as_errors,

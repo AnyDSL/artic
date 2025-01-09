@@ -2053,7 +2053,7 @@ struct MemBuf : public std::streambuf {
     }
 };
 
-Ptr<ast::ModDecl> compile(
+std::tuple<Ptr<ast::ModDecl>, bool> compile(
     const std::vector<std::string>& file_names,
     const std::vector<std::string>& file_data,
     bool warns_as_errors,
@@ -2075,7 +2075,7 @@ Ptr<ast::ModDecl> compile(
         parser.warns_as_errors = warns_as_errors;
         auto module = parser.parse();
         if (log.errors > 0)
-            return nullptr;
+            return std::make_tuple(std::move(program), false);
 
         program->decls.insert(
             program->decls.end(),
@@ -2098,13 +2098,13 @@ Ptr<ast::ModDecl> compile(
     Summoner summoner(log, arena);
 
     if (!name_binder.run(*program) || !type_checker.run(*program) || !summoner.run(*program))
-        return nullptr;
+        return std::make_tuple(std::move(program), false);
 
     Emitter emitter(log, world, arena);
     emitter.warns_as_errors = warns_as_errors;
     if (!emitter.run(*program))
-        return nullptr;
-    return program;
+        return std::make_tuple(std::move(program), false);
+    return std::make_tuple(std::move(program), true);
 }
 
 } // namespace artic
@@ -2121,5 +2121,5 @@ bool compile(
     log::Output out(error_stream, false);
     Log log(out, &locator);
     Arena arena;
-    return artic::compile(file_names, file_data, false, false, arena, world, log);
+    return get<1>(artic::compile(file_names, file_data, false, false, arena, world, log));
 }

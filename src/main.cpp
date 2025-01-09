@@ -322,7 +322,7 @@ int main(int argc, char** argv) {
     thorin.world().set(std::make_shared<thorin::Stream>(std::cerr));
 
     Arena arena;
-    auto program = compile(
+    auto [program, success] = compile(
         opts.files, file_data,
         opts.warns_as_errors,
         opts.enable_all_warns,
@@ -341,7 +341,7 @@ int main(int argc, char** argv) {
         log::out.stream.flush();
     }
 
-    if (!program)
+    if (!success)
         return EXIT_FAILURE;
 
     if (opts.opt_level == 1)
