@@ -191,7 +191,7 @@ void RepeatArrayExpr::bind(NameBinder& binder) {
 
 void FnExpr::bind(NameBinder& binder, bool in_for_loop) {
     binder.push_scope();
-    if (param)    binder.bind(*param);
+    for (auto& param : params) binder.bind(*param);
     if (ret_type) binder.bind(*ret_type);
     if (filter)   binder.bind(*filter);
     binder.push_scope();
@@ -458,7 +458,7 @@ void FnDecl::bind(NameBinder& binder) {
     if (fn->body)
         binder.bind(*fn);
     else {
-        binder.bind(*fn->param);
+        for (auto& param : fn->params) binder.bind(*param);
         if (fn->ret_type)
             binder.bind(*fn->ret_type);
     }

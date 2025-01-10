@@ -78,9 +78,9 @@ Ptr<ast::FnDecl> Parser::parse_fn_decl() {
     if (ahead().tag() == Token::LBracket)
         type_params = parse_type_params();
 
-    Ptr<ast::Ptrn> param;
+    Array<Ptr<ast::Ptrn>> params;
     if (ahead().tag() == Token::LParen)
-        param = parse_tuple_ptrn(true, true);
+        params = (std::get<0>(parse_fn_params(Token::LParen)));
     else
         error(ahead().loc(), "parameter list expected in function definition");
 
@@ -106,7 +106,7 @@ Ptr<ast::FnDecl> Parser::parse_fn_decl() {
         expect(Token::Semi);
     }
 
-    auto fn = _arena.make_ptr<ast::FnExpr>(tracker(), std::move(filter), std::move(param), std::move(ret_type), std::move(body));
+    auto fn = _arena.make_ptr<ast::FnExpr>(tracker(), std::move(filter), std::move(params), std::move(ret_type), std::move(body));
     return _arena.make_ptr<ast::FnDecl>(tracker(), std::move(id), std::move(fn), std::move(type_params));
 }
 
@@ -321,7 +321,7 @@ Ptr<ast::Ptrn> Parser::parse_ptrn(bool allow_types, bool allow_implicits) {
                 ptrn = parse_id_ptrn(parse_id(), true);
             }
             break;
-        case Token::LParen: ptrn = parse_tuple_ptrn(allow_types, false); break;
+        case Token::LParen: ptrn = parse_tuple_ptrn(allow_types); break;
         case Token::Lit:    ptrn = parse_literal_ptrn(); break;
         case Token::Simd:
         case Token::LBracket:
@@ -414,18 +414,38 @@ Ptr<ast::CtorPtrn> Parser::parse_ctor_ptrn(ast::Path&& path) {
     return _arena.make_ptr<ast::CtorPtrn>(tracker(), std::move(path), std::move(arg));
 }
 
-Ptr<ast::Ptrn> Parser::parse_tuple_ptrn(bool allow_types, bool allow_implicits, Token::Tag beg, Token::Tag end) {
+Ptr<ast::Ptrn> Parser::parse_tuple_ptrn(bool allow_types, Token::Tag beg, Token::Tag end) {
     Tracker tracker(this);
     eat(beg);
     PtrVector<ast::Ptrn> args;
     parse_list(end, Token::Comma, [&] {
-        args.emplace_back(parse_ptrn(allow_types, allow_implicits));
+        args.emplace_back(parse_ptrn(allow_types, false));
     });
     if (args.size() == 1) {
         args[0]->loc = tracker();
         return std::move(args[0]);
     }
     return _arena.make_ptr<ast::TuplePtrn>(tracker(), std::move(args));
+}
+
+std::tuple<Array<Ptr<ast::Ptrn>>, bool> Parser::parse_fn_params(std::optional<Token::Tag> beg) {
+    Tracker tracker(this);
+    if (beg)
+        eat(*beg);
+    PtrVector<ast::Ptrn> args;
+    bool nested_lam = false;
+    if (beg && *beg == Token::LParen)
+        parse_list(Token::RParen, Token::Comma, [&] {
+            args.emplace_back(parse_ptrn(true, true));
+        });
+    else
+        nested_lam = parse_list(std::array<Token::Tag, 2>{ Token::Or, Token::LogicOr },std::array<Token::Tag, 1>{ Token::Comma }, [&] {
+            args.emplace_back(parse_ptrn(true, true));
+        }) == 1;
+    Array<Ptr<ast::Ptrn>> arr(args.size());
+    for (size_t i = 0; i < args.size(); i++)
+        arr[i] = std::move(args[i].get());
+    return std::make_tuple(std::move(arr), nested_lam);
 }
 
 Ptr<ast::ArrayPtrn> Parser::parse_array_ptrn() {
@@ -640,26 +660,14 @@ Ptr<ast::FnExpr> Parser::parse_fn_expr(Ptr<ast::Filter>&& filter, bool nested) {
     Tracker tracker(this);
 
     // Parse arguments
-    Ptr<ast::Ptrn> ptrn;
+    Array<Ptr<ast::Ptrn>> params;
     bool parse_nested = false;
     if (ahead().tag() == Token::Or || nested) {
-        if (!nested) eat(Token::Or);
+        std::tie(params, parse_nested) = parse_fn_params(nested ? std::nullopt : std::make_optional(Token::Or));
+    } else if (accept(Token::LogicOr)) {
 
-        PtrVector<ast::Ptrn> args;
-        parse_nested = parse_list(
-            std::array<Token::Tag, 2>{ Token::Or, Token::LogicOr },
-            std::array<Token::Tag, 1>{ Token::Comma }, [&] {
-                args.emplace_back(parse_ptrn(false, true));
-            }) == 1;
-        if (args.size() == 1) {
-            ptrn = std::move(args.front());
-        } else {
-            ptrn = _arena.make_ptr<ast::TuplePtrn>(tracker(), std::move(args));
-        }
-    } else if (accept(Token::LogicOr))
-        ptrn = _arena.make_ptr<ast::TuplePtrn>(tracker(), PtrVector<ast::Ptrn>{});
-    else
-        ptrn = parse_error_ptrn();
+    } else
+        parse_error_ptrn();
 
     Ptr<ast::Expr> body;
     Ptr<ast::Type> ret_type;
@@ -673,7 +681,7 @@ Ptr<ast::FnExpr> Parser::parse_fn_expr(Ptr<ast::Filter>&& filter, bool nested) {
             ret_type = parse_type();
         body = parse_expr();
     }
-    return _arena.make_ptr<ast::FnExpr>(tracker(), std::move(filter), std::move(ptrn), std::move(ret_type), std::move(body));
+    return _arena.make_ptr<ast::FnExpr>(tracker(), std::move(filter), std::move(params), std::move(ret_type), std::move(body));
 }
 
 Ptr<ast::CallExpr> Parser::parse_call_expr(Ptr<ast::Expr>&& callee) {
@@ -767,17 +775,20 @@ Ptr<ast::Expr> Parser::parse_for_expr() {
     Tracker tracker(this);
 
     // Accept `for fun() { ... }`
-    Ptr<ast::Ptrn> ptrn;
+    Array<Ptr<ast::Ptrn>> params;
     if (ahead(1).tag() == Token::In ||
         ahead(1).tag() == Token::LParen ||
         ahead(2).tag() == Token::In ||
         ahead(2).tag() == Token::Mut ||
         ahead(2).tag() == Token::Comma ||
-        ahead(2).tag() == Token::Colon)
-        ptrn = parse_tuple_ptrn(false, false, Token::For, Token::In);
-    else {
+        ahead(2).tag() == Token::Colon) {
+        Ptr<ast::Ptrn> ptrn = parse_tuple_ptrn(false, Token::For, Token::In);
+        if (auto tuple_ptr = ptrn->isa<ast::TuplePtrn>())
+            params = tuple_ptr->args;
+        else
+            params = { ptrn };
+    } else {
         eat(Token::For);
-        ptrn = _arena.make_ptr<ast::TuplePtrn>(tracker(), PtrVector<ast::Ptrn>{});
     }
 
     auto expr = parse_expr();
@@ -796,7 +807,7 @@ Ptr<ast::Expr> Parser::parse_for_expr() {
 
     auto lambda_loc = body->loc;
     // Cannot use body->loc directly because std::move(body) might be executed first
-    auto lambda = _arena.make_ptr<ast::FnExpr>(lambda_loc, nullptr, std::move(ptrn), nullptr, std::move(body));
+    auto lambda = _arena.make_ptr<ast::FnExpr>(lambda_loc, nullptr, std::move(params), nullptr, std::move(body));
 
     Ptr<ast::Expr> callee(call->callee.get());
     call->callee = _arena.make_ptr<ast::CallExpr>(call_loc, std::move(callee), std::move(lambda));

@@ -40,6 +40,7 @@ public:
     const Type* unreachable_code(const Loc&, const Loc&, const Loc&);
     const Type* mutable_expected(const Loc&);
     const Type* bad_arguments(const Loc&, const std::string_view&, size_t, size_t);
+    const Type* bad_parameters(const Loc&, const std::string_view&, size_t, size_t);
     const Type* invalid_cast(const Loc&, const Type*, const Type*);
     const Type* invalid_simd(const Loc&, const Type*);
     void invalid_ptrn(const Loc&, bool);

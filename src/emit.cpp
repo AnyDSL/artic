@@ -900,7 +900,7 @@ const thorin::Def* Emitter::builtin(const ast::FnDecl& fn_decl, thorin::Continua
         cont->jump(cont->params().back(), call_args(cont->param(0), world.bottom(target_type)), debug_info(fn_decl));
     } else if (cont->name() == "compare") {
         enter(cont);
-        auto mono_type = member_type(fn_decl.fn->param->type->replace(type_vars), 1)->as<PtrType>()->pointee;
+        auto mono_type = fn_decl.fn->params[1]->type->replace(type_vars)->as<PtrType>()->pointee;
         auto ret_val = call(comparator(fn_decl.loc, mono_type), tuple_from_params(cont, true));
         jump(cont->params().back(), ret_val);
     } else {
@@ -1274,7 +1274,8 @@ const thorin::Def* FnExpr::emit(Emitter& emitter) const {
     // Set the IR node before entering the body
     def = cont;
     emitter.enter(cont);
-    emitter.emit(*param, emitter.tuple_from_params(cont, true));
+    for (size_t i = 0; i < params.size(); i++)
+        emitter.emit(*params[i], cont->param(i + 1));
     if (filter)
         cont->set_filter(emitter.world.filter(thorin::Array<const thorin::Def*>(cont->num_params(), emitter.emit(*filter))));
     auto value = emitter.emit(*body);
@@ -1429,7 +1430,8 @@ const thorin::Def* ForExpr::emit(Emitter& emitter) const {
         continue_ = body_cont->params().back();
         continue_->set_name("for_continue");
         emitter.enter(body_cont);
-        emitter.emit(*body_fn->param, emitter.tuple_from_params(body_cont, true));
+        for (size_t i = 0; i < body_fn->params.size(); i++)
+            emitter.emit(*body_fn->params[i], body_cont->param(i + 1));
         emitter.jump(body_cont->params().back(), emitter.emit(*body_fn->body));
     }
 
@@ -1725,7 +1727,8 @@ const thorin::Def* FnDecl::emit(Emitter& emitter) const {
         fn->def = def = cont;
 
         emitter.enter(cont);
-        emitter.emit(*fn->param, emitter.tuple_from_params(cont, !fn_type->codom->isa<artic::NoRetType>()));
+        for (size_t i = 0; i < fn->params.size(); i++)
+            emitter.emit(*fn->params[i], cont->param(i + 1));
         if (fn->filter)
             cont->set_filter(emitter.world.filter(thorin::Array<const thorin::Def*>(cont->num_params(), emitter.emit(*fn->filter))));
         auto value = emitter.emit(*fn->body);

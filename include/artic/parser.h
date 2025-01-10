@@ -47,7 +47,7 @@ private:
     Ptr<ast::FieldPtrn>     parse_field_ptrn();
     Ptr<ast::RecordPtrn>    parse_record_ptrn(ast::Path &&path);
     Ptr<ast::CtorPtrn>      parse_ctor_ptrn(ast::Path&& path);
-    Ptr<ast::Ptrn>          parse_tuple_ptrn(bool = false, bool = false, Token::Tag = Token::LParen, Token::Tag = Token::RParen);
+    Ptr<ast::Ptrn>          parse_tuple_ptrn(bool = false, Token::Tag = Token::LParen, Token::Tag = Token::RParen);
     Ptr<ast::ArrayPtrn>     parse_array_ptrn();
     Ptr<ast::ErrorPtrn>     parse_error_ptrn();
 
@@ -113,6 +113,8 @@ private:
     std::optional<std::variant<size_t, ast::Path>>   parse_array_size();
 
     std::pair<Ptr<ast::Expr>, Ptr<ast::Expr>> parse_cond_and_block();
+
+    std::tuple<Array<Ptr<ast::Ptrn>>, bool> parse_fn_params(std::optional<Token::Tag>);
 
     struct Tracker {
         const Parser* parser;
