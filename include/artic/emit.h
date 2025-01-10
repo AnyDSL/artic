@@ -107,13 +107,13 @@ public:
 
     thorin::Continuation* basic_block(thorin::Debug = {});
     thorin::Continuation* basic_block_with_mem(thorin::Debug = {});
-    thorin::Continuation* basic_block_with_mem(const thorin::Type*, thorin::Debug = {});
+    thorin::Continuation* basic_block_with_mem(const ArrayRef<const thorin::Type*>&, thorin::Debug = {});
 
     const thorin::Def* ctor_index(const ast::Ptrn& ptrn);
     const thorin::Def* ctor_index(size_t, thorin::Debug = {});
 
-    const thorin::FnType* continuation_type_with_mem(const thorin::Type*);
-    const thorin::FnType* function_type_with_mem(const thorin::Type*, const thorin::Type*);
+    const thorin::FnType* continuation_type_with_mem(const ArrayRef<const thorin::Type*>&);
+    const thorin::FnType* function_type_with_mem(const ArrayRef<const thorin::Type*>&, const thorin::Type*);
     const thorin::Def* tuple_from_params(thorin::Continuation*, bool = false);
     std::vector<const thorin::Def*> call_args(const thorin::Def*, const thorin::Def*, const thorin::Def* = nullptr);
 
@@ -136,6 +136,8 @@ public:
     void emit(const ast::Ptrn&, const thorin::Def*);
     void bind(const ast::IdPtrn&, const thorin::Def*);
     const thorin::Def* emit(const ast::Node&, const Literal&);
+
+    Array<const thorin::Type*> convert_types(const ArrayRef<const Type*>&);
 
     const thorin::Def* builtin(const ast::FnDecl&, thorin::Continuation*);
     const thorin::Def* comparator(const Loc&, const Type*);
