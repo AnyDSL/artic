@@ -5,6 +5,7 @@
 #include <vector>
 #include <variant>
 
+#include "artic/array.h"
 #include "artic/arena.h"
 #include "artic/loc.h"
 #include "artic/log.h"
@@ -377,10 +378,10 @@ struct UnsizedArrayType : public ArrayType {
 
 /// Function type, consisting of domain and codomain types.
 struct FnType : public Type {
-    Ptr<Type> from;
+    Array<Ptr<Type>> from;
     Ptr<Type> to;
 
-    FnType(const Loc& loc, Ptr<Type>&& from, Ptr<Type>&& to)
+    FnType(const Loc& loc, Array<Ptr<Type>>&& from, Ptr<Type>&& to)
         : Type(loc), from(std::move(from)), to(std::move(to))
     {}
 
