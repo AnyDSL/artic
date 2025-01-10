@@ -887,9 +887,12 @@ const artic::Type* UnsizedArrayType::infer(TypeChecker& checker) {
 }
 
 const artic::Type* FnType::infer(TypeChecker& checker) {
+    SmallArray<const artic::Type*> dom(from.size());
+    for (size_t i = 0; i < from.size(); i++)
+        dom[i] = checker.infer(*from[i]);
     if (to->isa<ast::NoCodomType>())
-        return checker.type_table.cn_type(checker.type_table.deconstruct_domain_type(checker.infer(*from)));
-    return checker.type_table.fn_type(checker.type_table.deconstruct_domain_type(checker.infer(*from)), checker.infer(*to));
+        return checker.type_table.cn_type(dom);
+    return checker.type_table.fn_type(dom, checker.infer(*to));
 }
 
 const artic::Type* PtrType::infer(TypeChecker& checker) {

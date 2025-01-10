@@ -120,7 +120,7 @@ void SizedArrayType::bind(NameBinder& binder) {
 }
 
 void FnType::bind(NameBinder& binder) {
-    binder.bind(*from);
+    for (auto& param : from) binder.bind(*param);
     if (to) binder.bind(*to);
 }
 

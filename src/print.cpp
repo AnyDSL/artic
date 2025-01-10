@@ -26,6 +26,18 @@ void print_parens(Printer& p, const E& e) {
     }
 }
 
+template <typename E>
+void print_list_parens(Printer& p, const ArrayRef<E>& e) {
+    p << '(';
+    bool first = true;
+    for (auto& i : e) {
+        if (first) first = false;
+        else p << ", ";
+        i->print(p);
+    }
+    p << ')';
+}
+
 // AST nodes -----------------------------------------------------------------------
 
 namespace ast {
@@ -674,7 +686,7 @@ void UnsizedArrayType::print(Printer& p) const {
 
 void FnType::print(Printer& p) const {
     p << log::keyword_style("fn") << ' ';
-    print_parens(p, from);
+    print_list_parens<Ptr<ast::Type>>(p, from);
     p << " -> ";
     to->print(p);
 }

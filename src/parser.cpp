@@ -1096,7 +1096,16 @@ Ptr<ast::FnType> Parser::parse_fn_type() {
         to = _arena.make_ptr<ast::NoCodomType>(prev_);
     else
         to = parse_type();
-    return _arena.make_ptr<ast::FnType>(tracker(), std::move(from), std::move(to));
+    if (auto tuple_t = from->isa<ast::TupleType>()) {
+        Array<Ptr<ast::Type>> args(tuple_t->args.size());
+        for (size_t i = 0; i < tuple_t->args.size(); i++)
+            args[i] = tuple_t->args[i].get();
+        return _arena.make_ptr<ast::FnType>(tracker(), std::move(args), std::move(to));
+    } else {
+        Array<Ptr<ast::Type>> args((size_t) 1);
+        args[0] = std::move(from);
+        return _arena.make_ptr<ast::FnType>(tracker(), std::move(args), std::move(to));
+    }
 }
 
 Ptr<ast::PtrType> Parser::parse_ptr_type() {
