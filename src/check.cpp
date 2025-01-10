@@ -75,6 +75,11 @@ const Type* TypeChecker::bad_arguments(const Loc& loc, const std::string_view& m
     return type_table.type_error();
 }
 
+const Type* TypeChecker::bad_parameters(const Loc& loc, const std::string_view& msg, size_t count, size_t expected) {
+    error(loc, "expected {} parameters(s) in {}, but got {}", expected, msg, count);
+    return type_table.type_error();
+}
+
 const Type* TypeChecker::invalid_cast(const Loc& loc, const Type* type, const Type* expected) {
     if (should_report_error(type) && should_report_error(expected))
         error(loc, "invalid cast from '{}' to '{}'", *type, *expected);
@@ -1094,7 +1099,11 @@ const artic::Type* RepeatArrayExpr::check(TypeChecker& checker, const artic::Typ
 }
 
 const artic::Type* FnExpr::infer(TypeChecker& checker) {
-    auto param_type = checker.infer(*param);
+    Array<const artic::Type*> param_types(params.size());
+    for (size_t i = 0; i < params.size(); i++) {
+        param_types[i] = checker.infer(*params[i]);
+        checker.check_refutability(*params[i], true);
+    }
     if (filter)
         checker.check(*filter, checker.type_table.bool_type());
     auto body_type = ret_type ? checker.infer(*ret_type) : nullptr;
@@ -1104,23 +1113,29 @@ const artic::Type* FnExpr::infer(TypeChecker& checker) {
         else
             body_type = checker.deref(body);
     }
-    checker.check_refutability(*param, true);
     return body_type
-        ? checker.type_table.fn_type(checker.type_table.deconstruct_domain_type(param_type), body_type)
+        ? checker.type_table.fn_type(param_types, body_type)
         : checker.cannot_infer(loc, "function");
 }
 
 const artic::Type* FnExpr::check(TypeChecker& checker, const artic::Type* expected) {
-    if (!expected->isa<artic::FnType>())
+    auto expected_fn_type = expected->isa<artic::FnType>();
+    if (!expected_fn_type)
         return checker.incompatible_type(loc, "function", expected);
+    if (expected_fn_type->dom.size() != params.size())
+        return checker.bad_parameters(loc, "function", params.size(), expected_fn_type->dom.size());
 
-    auto codom = expected->as<artic::FnType>()->codom;
-    auto param_type = checker.check(*param, checker.type_table.construct_domain_type(expected->as<artic::FnType>()->dom));
+    auto& dom = expected_fn_type->dom;
+    Array<const artic::Type*> param_types(params.size());
+    for (size_t i = 0; i < params.size(); i++) {
+        param_types[i] = checker.check(*params[i], dom[i]);
+        checker.check_refutability(*params[i], true);
+    }
+    auto codom = expected_fn_type->codom;
     auto body_type = ret_type ? checker.check(*ret_type, codom) : codom;
-    checker.check_refutability(*param, true);
     // Set the type of the expression before entering the body,
     // in case `return` appears in it.
-    type = checker.type_table.fn_type(checker.type_table.deconstruct_domain_type(param_type), body_type);
+    type = checker.type_table.fn_type(param_types, body_type);
     body_type = checker.coerce(body, body_type);
     if (filter)
         checker.check(*filter, checker.type_table.bool_type());
@@ -1727,10 +1742,14 @@ const artic::Type* FnDecl::infer(TypeChecker& checker) {
 
     const artic::Type* fn_type = nullptr;
     if (fn->ret_type) {
-        fn_type = checker.type_table.fn_type(checker.type_table.deconstruct_domain_type(checker.infer(*fn->param)), checker.infer(*fn->ret_type));
+        Array<const artic::Type*> param_types(fn->params.size());
+        for (size_t i = 0; i < fn->params.size(); i++) {
+            param_types[i] = checker.infer(*fn->params[i]);
+            checker.check_refutability(*fn->params[i], true);
+        }
+        fn_type = checker.type_table.fn_type(param_types, checker.infer(*fn->ret_type));
         if (fn->filter)
             checker.check(*fn->filter, checker.type_table.bool_type());
-        checker.check_refutability(*fn->param, true);
     } else
         fn_type = checker.infer(*fn);
 

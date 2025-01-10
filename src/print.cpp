@@ -28,14 +28,14 @@ void print_parens(Printer& p, const E& e) {
 
 template <typename E>
 void print_list_parens(Printer& p, const ArrayRef<E>& e) {
-    p << '(';
+    if (e.size() != 1) p << '(';
     bool first = true;
     for (auto& i : e) {
         if (first) first = false;
         else p << ", ";
         i->print(p);
     }
-    p << ')';
+    if (e.size() != 1) p << ')';
 }
 
 // AST nodes -----------------------------------------------------------------------
@@ -192,13 +192,9 @@ void FnExpr::print(Printer& p) const {
     if (filter)
         filter->print(p);
     p << '|';
-    if (auto tuple = param->isa<TuplePtrn>()) {
-        print_list(p, ", ", tuple->args, [&] (auto& a) {
-            a->print(p);
-        });
-    } else {
-        param->print(p);
-    }
+    print_list(p, ", ", params, [&] (auto& a) {
+        a->print(p);
+    });
     p << "| ";
     if (ret_type) {
         p << "-> ";
@@ -299,7 +295,9 @@ void ForExpr::print(Printer& p) const {
     auto& iter = call->callee->as<ast::CallExpr>()->callee;
     auto lambda = call->callee->as<ast::CallExpr>()->arg->as<ast::FnExpr>();
     p << log::keyword_style("for") << ' ';
-    lambda->param->print(p);
+    print_list(p, ", ", lambda->params, [&] (auto& a) {
+        a->print(p);
+    });
     p << ' ' << log::keyword_style("in") << ' ';
     iter->print(p);
     print_parens(p, call->arg);
@@ -538,8 +536,11 @@ void FnDecl::print(Printer& p) const {
     p << id.name;
 
     if (type_params) type_params->print(p);
-    print_parens(p, fn->param);
-
+    p << "(";
+    print_list(p, ", ", fn->params, [&] (auto& a) {
+        a->print(p);
+    });
+    p << ")";
     if (fn->ret_type) {
         p << " -> ";
         fn->ret_type->print(p);

@@ -693,20 +693,20 @@ struct RepeatArrayExpr : public Expr {
 
 /// Anonymous function expression.
 struct FnExpr : public Expr {
-    Ptr<Filter> filter;
-    Ptr<Ptrn>   param;
-    Ptr<Type>   ret_type;
-    Ptr<Expr>   body;
+    Ptr<Filter>      filter;
+    Array<Ptr<Ptrn>> params;
+    Ptr<Type>        ret_type;
+    Ptr<Expr>        body;
 
     FnExpr(
         const Loc& loc,
         Ptr<Filter>&& filter,
-        Ptr<Ptrn>&& param,
+        Array<Ptr<Ptrn>>&& params,
         Ptr<Type>&& ret_type,
         Ptr<Expr>&& body)
         : Expr(loc)
         , filter(std::move(filter))
-        , param(std::move(param))
+        , params(std::move(params))
         , ret_type(std::move(ret_type))
         , body(std::move(body))
     {}
