@@ -14,6 +14,7 @@ add_library(libartic
     ../include/artic/symbol.h
     ../include/artic/token.h
     ../include/artic/types.h
+    arena.cpp
     ast.cpp
     bind.cpp
     check.cpp
@@ -25,7 +26,7 @@ add_library(libartic
     summoner.cpp
     types.cpp)
 
-set_target_properties(libartic PROPERTIES PREFIX "" CXX_STANDARD 17)
+set_target_properties(libartic PROPERTIES PREFIX "" CXX_STANDARD 20)
 
 target_link_libraries(libartic PUBLIC ${Thorin_LIBRARIES})
 target_include_directories(libartic PUBLIC ${Thorin_INCLUDE_DIRS} ../include)
@@ -35,7 +36,7 @@ if (${COLORIZE})
 endif()
 
 add_executable(artic main.cpp)
-set_target_properties(artic PROPERTIES CXX_STANDARD 17)
+set_target_properties(artic PROPERTIES CXX_STANDARD 20)
 target_compile_definitions(artic PUBLIC -DARTIC_VERSION_MAJOR=${PROJECT_VERSION_MAJOR} -DARTIC_VERSION_MINOR=${PROJECT_VERSION_MINOR})
 target_link_libraries(artic PUBLIC libartic)
 if (Thorin_HAS_JSON_SUPPORT)
