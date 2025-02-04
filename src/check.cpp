@@ -1169,31 +1169,78 @@ const artic::Type* CallExpr::infer(TypeChecker& checker) {
     if (auto fn_type = callee_type->isa<artic::FnType>()) {
         checker.coerce(callee, fn_type);
 
-        artic::ast::TupleExpr* args_tuple = arg->isa<TupleExpr>();
+        do {
+            assert(arg);
 
-        const artic::TupleType* from_tuple = fn_type->dom->isa<artic::TupleType>();
-        const artic::ast::PathExpr* path_expr = callee_path(callee.get());
-        const artic::ast::FnDecl* fn_decl = nullptr;
-        const artic::ast::FnExpr* decl = nullptr;
-        const artic::ast::TuplePtrn* fn_params = nullptr;
+            static artic::Loc arg_loc = arg->loc;
 
-        if (path_expr) {
-            fn_decl = path_expr->path.start_decl->isa<FnDecl>();
-            if (fn_decl) {
-                decl = fn_decl->fn.get();
-                fn_params = decl->param->isa<TuplePtrn>();
+            const artic::ast::PathExpr* path_expr = callee_path(callee.get());
+            if (!path_expr) break;
 
-                if (fn_params) {
-                    for (int i = args_tuple->args.size(); i < fn_params->args.size(); i++) {
-                        auto default_param = fn_params->args[i]->isa<DefaultParamPtrn>();
-                        if (default_param) {
-                            auto default_expr = default_param->default_expr.get();
-                            args_tuple->args.push_back(arena_ptr(default_expr));
-                        }
+            const artic::ast::FnDecl* fn_decl = path_expr->path.start_decl->isa<FnDecl>();
+            if (!fn_decl) break;
+
+            const artic::ast::FnExpr* decl = fn_decl->fn.get();
+            assert(decl);
+
+            artic::ast::TupleExpr* args_tuple = arg->isa<TupleExpr>();
+
+            const artic::TupleType* dom_tuple_type = fn_type->dom->isa<artic::TupleType>();
+
+            if (dom_tuple_type) {
+                const artic::ast::TuplePtrn* fn_params = decl->param->isa<TuplePtrn>();
+                if (!fn_params) break;
+
+                if (args_tuple) {
+                    if (args_tuple->args.size() == fn_params->args.size()) break;
+                } else {
+                    if (1 == fn_params->args.size()) break; //Actually impossible!
+                }
+
+                bool resolve_defaults = false;
+                for (int i = args_tuple ? args_tuple->args.size() : 1; i < fn_params->args.size(); i++) {
+                    auto default_param = fn_params->args[i]->isa<DefaultParamPtrn>();
+                    if (default_param) {
+                        resolve_defaults = true;
                     }
                 }
+                if (!resolve_defaults) break;
+
+                PtrVector<ast::Expr> args;
+
+                //Shovel all old arguments into the new args tuple.
+                if (args_tuple) {
+                    for (int i = 0; i < args_tuple->args.size(); i++) {
+                        args.push_back(std::move(args_tuple->args[i]));
+                    }
+                } else {
+                    args.push_back(std::move(arg));
+                }
+
+                //Construct new arguments from default expressions..
+                for (int i = args_tuple ? args_tuple->args.size() : 1; i < fn_params->args.size(); i++) {
+                    auto default_param = fn_params->args[i]->isa<DefaultParamPtrn>();
+                    if (default_param) {
+                        auto default_expr = default_param->default_expr.get();
+                        args.push_back(arena_ptr(default_expr));
+                    }
+                }
+
+                arg = checker._arena.make_ptr<ast::TupleExpr>(arg_loc, std::move(args));
+            } else {
+                if (args_tuple && args_tuple->args.size() > 0) {
+                    checker.warn(arg_loc, "Too many arguments for call expression!");
+                    break; //Something is wrong here, give up.
+                }
+                if (!args_tuple) break; // one parameter requested and supplied. Nothing to do here.
+
+                const artic::ast::DefaultParamPtrn* default_param = decl->param->isa<DefaultParamPtrn>();
+                if (!default_param) break;
+
+                auto default_expr = default_param->default_expr.get();
+                arg = arena_ptr(default_expr);
             }
-        }
+        } while (false);
 
         checker.coerce(arg, fn_type->dom);
         return fn_type->codom;
