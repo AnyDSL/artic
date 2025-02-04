@@ -220,7 +220,13 @@ void IdPtrn::resolve_summons(artic::Summoner& summoner) {
 }
 
 void ImplicitParamPtrn::resolve_summons(artic::Summoner& summoner) {
-    summoner.insert(underlying->type, underlying->to_expr());
+    summoner.insert(underlying->type, underlying->to_expr(summoner._arena));
+}
+
+void DefaultParamPtrn::resolve_summons(artic::Summoner& summoner) {
+    default_expr->resolve_summons(summoner);
+
+    underlying->resolve_summons(summoner);
 }
 
 void FieldPtrn::resolve_summons(artic::Summoner& summoner) {

@@ -14,8 +14,8 @@ namespace artic {
 /// Utility class to perform bidirectional type checking.
 class TypeChecker : public Logger {
 public:
-    TypeChecker(Log& log, TypeTable& type_table)
-        : Logger(log), type_table(type_table)
+    TypeChecker(Log& log, TypeTable& type_table, Arena& arena)
+        : Logger(log), type_table(type_table), _arena(arena)
     {}
 
     TypeTable& type_table;
@@ -82,6 +82,9 @@ public:
 
 private:
     std::unordered_set<const ast::Decl*> decls_;
+    Arena& _arena;
+
+friend class artic::ast::CallExpr; //Needs access to _arena. Please fix.
 };
 
 } // namespace artic
