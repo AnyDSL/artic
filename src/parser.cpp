@@ -262,7 +262,7 @@ Ptr<ast::ModDecl> Parser::parse_mod_decl() {
 Ptr<ast::UseDecl> Parser::parse_use_decl() {
     Tracker tracker(this);
     eat(Token::Use);
-    auto path = parse_path();
+    auto path = parse_path(true);
     ast::Identifier id;
     if (accept(Token::As))
         id = parse_id();
@@ -303,7 +303,7 @@ Ptr<ast::Ptrn> Parser::parse_ptrn(bool allow_types, bool allow_implicits) {
                     ahead().tag() == Token::LParen ||
                     ahead().tag() == Token::LBrace ||
                     (allow_types && ahead().tag() != Token::Colon && ahead().tag() != Token::As)) {
-                    auto path = parse_path(std::move(id), true);
+                    auto path = parse_path(std::move(id), false);
                     if (ahead().tag() == Token::LBrace)
                         ptrn = parse_record_ptrn(std::move(path));
                     else if (allow_types) {
@@ -490,7 +490,7 @@ Ptr<ast::Expr> Parser::parse_typed_expr(Ptr<ast::Expr>&& expr) {
 }
 
 Ptr<ast::PathExpr> Parser::parse_path_expr() {
-    auto path = parse_path(true);
+    auto path = parse_path();
     return make_ptr<ast::PathExpr>(std::move(path));
 }
 
@@ -1181,7 +1181,7 @@ Ptr<ast::Attr> Parser::parse_attr() {
     }
 }
 
-ast::Path Parser::parse_path(ast::Identifier&& id, bool allow_types) {
+ast::Path Parser::parse_path(ast::Identifier&& id, bool allow_wildcard) {
     Tracker tracker(this, id.loc);
 
     std::vector<ast::Path::Elem> elems;
@@ -1189,22 +1189,26 @@ ast::Path Parser::parse_path(ast::Identifier&& id, bool allow_types) {
         Tracker elem_tracker(this, id.loc);
         PtrVector<ast::Type> args;
         // Do not accept type arguments on `super`
-        if (allow_types && id.name != "super" && accept(Token::LBracket)) {
+        if (id.name != "super" && accept(Token::LBracket)) {
             parse_list(Token::RBracket, Token::Comma, [&] {
                 args.emplace_back(parse_type());
             });
         }
         elems.emplace_back(elem_tracker(), std::move(id), std::move(args));
+        if (id.name == "*")
+            break;
         if (!accept(Token::DblColon))
             break;
-        id = parse_path_elem();
+        id = parse_path_elem(allow_wildcard);
     } while (true) ;
 
     return ast::Path(tracker(), std::move(elems));
 }
 
-ast::Identifier Parser::parse_path_elem() {
+ast::Identifier Parser::parse_path_elem(bool allow_wildcard) {
     auto prev_loc = ahead().loc();
+    if (allow_wildcard && accept(Token::Mul))
+        return ast::Identifier(prev_loc, "*");
     return accept(Token::Super) ? ast::Identifier(prev_loc, "super") : parse_id();
 }
 
