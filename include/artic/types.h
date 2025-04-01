@@ -582,6 +582,19 @@ private:
     friend class TypeTable;
 };
 
+struct ExtType : public PolyTypeFromDecl<UserType, ast::ExtTypeDecl> {
+    void print(Printer&) const override;
+
+private:
+    ExtType(TypeTable& type_table, const ast::ExtTypeDecl& decl)
+        : PolyTypeFromDecl(type_table, decl)
+    {}
+
+    const thorin::Type* convert(Emitter&) const override;
+
+    friend class TypeTable;
+};
+
 /// An application of a complex type with polymorphic parameters.
 struct TypeApp : public Type {
     const UserType* applied;
@@ -684,6 +697,7 @@ public:
     const EnumType*          enum_type(const ast::EnumDecl&);
     const ModType*           mod_type(const ast::ModDecl&);
     const TypeAlias*         type_alias(const ast::TypeDecl&);
+    const ExtType*           ext_type(const ast::ExtTypeDecl&);
 
     /// Creates a type application for structures/enumeration types,
     /// or returns the type alias expanded with the given type arguments.

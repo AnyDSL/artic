@@ -42,6 +42,7 @@ Ptr<ast::Decl> Parser::parse_decl(bool is_top_level) {
         case Token::Struct:   decl = parse_struct_decl();   break;
         case Token::Enum:     decl = parse_enum_decl();     break;
         case Token::Type:     decl = parse_type_decl();     break;
+        case Token::TypeExt:  decl = parse_ext_type_decl(); break;
         case Token::Implicit: decl = parse_implicit_decl(); break;
         case Token::Static:   decl = parse_static_decl();   break;
         case Token::Mod:      decl = parse_mod_decl();      break;
@@ -198,6 +199,28 @@ Ptr<ast::TypeDecl> Parser::parse_type_decl() {
     auto aliased_type = parse_type();
     expect(Token::Semi);
     return make_ptr<ast::TypeDecl>(tracker(), std::move(id), std::move(type_params), std::move(aliased_type));
+}
+
+Ptr<ast::ExtTypeDecl> Parser::parse_ext_type_decl() {
+    Tracker tracker(this);
+    eat(Token::TypeExt);
+    auto id = parse_id();
+
+    Ptr<ast::TypeParamList> type_params;
+    if (ahead().tag() == Token::LBracket)
+        type_params = parse_type_params();
+
+    PtrVector<std::string> type_args;
+    if (accept(Token::Eq)) {
+        expect(Token::LBrace);
+
+        parse_list(Token::RBrace, Token::Comma, [&] {
+            type_args.emplace_back(make_ptr<std::string>(parse_str()));
+        });
+    }
+
+    expect(Token::Semi);
+    return make_ptr<ast::ExtTypeDecl>(tracker(), std::move(id), std::move(type_params), std::move(type_args));
 }
 
 Ptr<ast::ImplicitDecl> Parser::parse_implicit_decl() {

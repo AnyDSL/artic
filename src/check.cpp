@@ -1816,6 +1816,11 @@ const artic::Type* TypeDecl::infer(TypeChecker& checker) {
     return type;
 }
 
+const artic::Type* ExtTypeDecl::infer(TypeChecker& checker) {
+    const artic::Type* type = checker.type_table.ext_type(*this);
+    return type;
+}
+
 const artic::Type* ModDecl::infer(TypeChecker& checker) {
     for (auto& decl : decls)
         checker.infer(*decl);

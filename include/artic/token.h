@@ -29,6 +29,7 @@ namespace artic {
     f(Struct, "struct") \
     f(Enum, "enum") \
     f(Type, "type") \
+    f(TypeExt, "type_ext") \
     f(Static, "static") \
     f(Implicit, "implicit") \
     f(Summon, "summon") \

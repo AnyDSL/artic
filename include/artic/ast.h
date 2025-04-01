@@ -1506,6 +1506,28 @@ struct TypeDecl : public NamedDecl {
     void print(Printer&) const override;
 };
 
+struct ExtTypeDecl : public NamedDecl {
+    Ptr<TypeParamList> type_params;
+    PtrVector<std::string> type_args;
+
+    ExtTypeDecl(
+        const Loc& loc,
+        Identifier&& id,
+        Ptr<TypeParamList>&& type_params,
+        PtrVector<std::string>&& type_args)
+        : NamedDecl(loc, std::move(id))
+        , type_params(std::move(type_params))
+        , type_args(std::move(type_args))
+    {}
+
+    const thorin::Def* emit(Emitter&) const override;
+    const artic::Type* infer(TypeChecker&) override;
+    void bind_head(NameBinder&) override;
+    void bind(NameBinder&) override;
+    void resolve_summons(Summoner&) override {};
+    void print(Printer&) const override;
+};
+
 /// Module definition.
 struct ModDecl : public NamedDecl {
     PtrVector<Decl> decls;

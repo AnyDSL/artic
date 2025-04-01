@@ -509,10 +509,20 @@ void TypeDecl::bind_head(NameBinder& binder) {
     binder.insert_symbol(*this);
 }
 
+void ExtTypeDecl::bind_head(NameBinder& binder) {
+    binder.insert_symbol(*this);
+}
+
 void TypeDecl::bind(NameBinder& binder) {
     binder.push_scope();
     if (type_params) binder.bind(*type_params);
     binder.bind(*aliased_type);
+    binder.pop_scope();
+}
+
+void ExtTypeDecl::bind(NameBinder& binder) {
+    binder.push_scope();
+    if (type_params) binder.bind(*type_params);
     binder.pop_scope();
 }
 

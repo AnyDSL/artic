@@ -1746,6 +1746,10 @@ const thorin::Def* TypeDecl::emit(Emitter&) const {
     return nullptr;
 }
 
+const thorin::Def* ExtTypeDecl::emit(Emitter&) const {
+    return nullptr;
+}
+
 const thorin::Def* ModDecl::emit(Emitter& emitter) const {
     for (auto& decl : decls) {
         // Do not emit polymorphic functions directly: Those will be emitted from
@@ -1935,6 +1939,14 @@ const thorin::Type* UserType::convert(Emitter&, const Type*) const {
     // Should never be called
     assert(false);
     return nullptr;
+}
+
+const thorin::Type* ExtType::convert(Emitter& emitter) const {
+    std::vector<std::string> args;
+    for (auto& arg : decl.type_args) {
+        args.emplace_back(*arg);
+    }
+    return emitter.world.extern_type(decl.id.name, args);
 }
 
 inline std::string stringify_params(

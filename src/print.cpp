@@ -614,6 +614,17 @@ void TypeDecl::print(Printer& p) const {
     p << ';';
 }
 
+void ExtTypeDecl::print(Printer& p) const {
+    if (attrs) attrs->print(p);
+    p << log::keyword_style("type_ext") << ' ' <<  id.name;
+    if (type_params) type_params->print(p);
+    p << " = { ";
+    print_list(p, ',', type_args, [&] (auto& arg) {
+        p << *arg;
+    });
+    p << " };";
+}
+
 void ModDecl::print(Printer& p) const {
     if (attrs) attrs->print(p);
     bool anon = id.name == "";
@@ -822,6 +833,10 @@ void ModType::print(Printer& p) const {
 }
 
 void TypeAlias::print(Printer& p) const {
+    p << decl.id.name;
+}
+
+void ExtType::print(Printer& p) const {
     p << decl.id.name;
 }
 
