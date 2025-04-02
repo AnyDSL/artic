@@ -1941,14 +1941,6 @@ const thorin::Type* UserType::convert(Emitter&, const Type*) const {
     return nullptr;
 }
 
-const thorin::Type* ExtType::convert(Emitter& emitter) const {
-    std::vector<std::string> args;
-    for (auto& arg : decl.type_args) {
-        args.emplace_back(*arg);
-    }
-    return emitter.world.extern_type(decl.id.name, args);
-}
-
 inline std::string stringify_params(
     Emitter& emitter,
     const std::string& prefix,
@@ -2023,6 +2015,26 @@ const thorin::Type* TypeApp::convert(Emitter& emitter) const {
     auto result = applied->convert(emitter, mono_type);
     std::swap(emitter.type_vars, map);
     return result;
+}
+
+std::string ExtType::stringify(Emitter& emitter) const {
+    if (!type_params())
+        return decl.id.name;
+    return stringify_params(emitter, decl.id.name + "_", type_params()->params);
+}
+
+const thorin::Type* ExtType::convert(Emitter& emitter, const Type* parent) const {
+    if (auto it = emitter.types.find(this); !type_params() && it != emitter.types.end())
+        return it->second;
+
+    std::vector<std::string> args;
+    for (auto& arg : decl.type_args) {
+        args.emplace_back(*arg);
+    }
+
+    auto type = emitter.world.extern_type(decl.id.name, args);
+    emitter.types[parent] = type;
+    return type;
 }
 
 // A read-only buffer from memory, not performing any copy.

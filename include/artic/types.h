@@ -590,7 +590,10 @@ private:
         : PolyTypeFromDecl(type_table, decl)
     {}
 
-    const thorin::Type* convert(Emitter&) const override;
+    using UserType::convert;
+    const thorin::Type* convert(Emitter&, const Type*) const override;
+
+    std::string stringify(Emitter&) const override;
 
     friend class TypeTable;
 };
