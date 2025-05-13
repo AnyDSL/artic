@@ -4,6 +4,7 @@
 #include <string>
 #include <ostream>
 #include <cassert>
+#include <cstdint>
 
 #include "artic/loc.h"
 
