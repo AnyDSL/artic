@@ -738,8 +738,18 @@ const thorin::Def* Emitter::down_cast(const thorin::Def* def, const Type* from, 
 }
 
 const thorin::Def* Emitter::emit(const ast::Node& node) {
-    if (node.def)
-        return node.def;
+    if (node.def) {
+        if (auto fndecl = node.isa<ast::FnDecl>()) {
+            if (!fndecl->type_params) {
+                return node.def;
+            }
+            //Multiple instances of the same FnDecl might be floating around.
+            //node.def might be set to the wrong instance!
+            //mono_fns is used to cache these instead.
+        } else {
+            return node.def;
+        }
+    }
     if (!poly_defs.empty())
         poly_defs.back().push_back(&node.def);
     return node.def = node.emit(*this);
