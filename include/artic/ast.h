@@ -5,6 +5,7 @@
 #include <vector>
 #include <variant>
 
+#include "artic/arena.h"
 #include "artic/loc.h"
 #include "artic/log.h"
 #include "artic/cast.h"
@@ -25,12 +26,8 @@ class TypeChecker;
 class Emitter;
 class Summoner;
 
-template <typename T> using Ptr = std::unique_ptr<T>;
-template <typename T> using PtrVector = std::vector<std::unique_ptr<T>>;
-template <typename T, typename... Args>
-std::unique_ptr<T> make_ptr(Args&&... args) {
-    return std::make_unique<T>(std::forward<Args>(args)...);
-}
+template <typename T> using Ptr = arena_ptr<T>;
+template <typename T> using PtrVector = std::vector<Ptr<T>>;
 
 namespace ast {
 
@@ -155,7 +152,7 @@ struct Ptrn : public Node {
     /// Collect patterns that bind an identifier to a value in this pattern.
     virtual void collect_bound_ptrns(std::vector<const IdPtrn*>&) const;
     /// Rewrites the pattern into an expression
-    virtual const Expr* to_expr() { return as_expr.get(); }
+    virtual const Expr* to_expr(Arena&) { return as_expr.get(); }
     /// Returns true when the pattern is trivial (e.g. always matches).
     virtual bool is_trivial() const = 0;
     /// Emits IR for the pattern, given a value to bind it to.
@@ -1579,7 +1576,7 @@ struct TypedPtrn : public Ptrn {
     void emit(Emitter&, const thorin::Def*) const override;
     const artic::Type* infer(TypeChecker&) override;
     void bind(NameBinder&) override;
-    const Expr* to_expr() override;
+    const Expr* to_expr(Arena&) override;
     void resolve_summons(Summoner&) override;
     void print(Printer&) const override;
 };
@@ -1600,7 +1597,7 @@ struct IdPtrn : public Ptrn {
     const artic::Type* infer(TypeChecker&) override;
     const artic::Type* check(TypeChecker&, const artic::Type*) override;
     void bind(NameBinder&) override;
-    const Expr* to_expr() override;
+    const Expr* to_expr(Arena&) override;
     void resolve_summons(Summoner&) override;
     void print(Printer&) const override;
 };
@@ -1618,7 +1615,7 @@ struct LiteralPtrn : public Ptrn {
     const artic::Type* infer(TypeChecker&) override;
     const artic::Type* check(TypeChecker&, const artic::Type*) override;
     void bind(NameBinder&) override;
-    const Expr* to_expr() override;
+    const Expr* to_expr(Arena&) override;
     void resolve_summons(Summoner&) override {};
     void print(Printer&) const override;
 };
@@ -1628,6 +1625,24 @@ struct ImplicitParamPtrn : public Ptrn {
 
     ImplicitParamPtrn(const Loc& loc, Ptr<Ptrn>&& underlying)
         : Ptrn(loc), underlying(std::move(underlying))
+    {}
+
+    bool is_trivial() const override;
+
+    void emit(Emitter&, const thorin::Def*) const override;
+    const artic::Type* infer(TypeChecker&) override;
+    const artic::Type* check(TypeChecker&, const artic::Type*) override;
+    void bind(NameBinder&) override;
+    void resolve_summons(Summoner&) override;
+    void print(Printer&) const override;
+};
+
+struct DefaultParamPtrn : public Ptrn {
+    Ptr<Ptrn> underlying;
+    Ptr<Expr> default_expr;
+
+    DefaultParamPtrn(const Loc& loc, Ptr<Ptrn>&& underlying, Ptr<Expr>&& default_expr)
+        : Ptrn(loc), underlying(std::move(underlying)), default_expr(std::move(default_expr))
     {}
 
     bool is_trivial() const override;
