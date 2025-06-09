@@ -604,7 +604,7 @@ bool ImplicitCastExpr::is_constant() const {
 }
 
 bool AsmExpr::has_side_effect() const {
-    return !outs.empty() || std::find(opts.begin(), opts.end(), "volatile") != opts.end();
+    return !outs.empty() || std::find(opts.begin(), opts.end(), "volatile") != opts.end() || std::find(clobs.begin(), clobs.end(), "memory") != clobs.end();
 }
 
 // Patterns ------------------------------------------------------------------------
