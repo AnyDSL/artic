@@ -1,0 +1,8 @@
+mod foo {
+    static x: i32 = 42;
+
+    fn f() = super::bar::y;
+}
+mod bar {
+    use super::foo::x as y;
+}
