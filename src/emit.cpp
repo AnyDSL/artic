@@ -1081,10 +1081,12 @@ const thorin::Def* Path::emit(Emitter& emitter) const {
     for (size_t i = 0, n = elems.size(); i < n; ++i) {
         if (elems[i].is_super())
             decl = i == 0 ? start_decl : decl->as<ModDecl>()->super;
+        if (elems[i].is_wildcard())
+            return nullptr;
 
         if (auto mod_type = elems[i].type->isa<ModType>()) {
             decl = &mod_type->member(elems[i + 1].index);
-        } else if (!is_ctor) {
+        } else if (!elems[i].decl->isa<CtorDecl>()) {
             // If type arguments are present, this is a polymorphic application
             std::unordered_map<const artic::TypeVar*, const artic::Type*> map;
             if (!elems[i].inferred_args.empty()) {
@@ -1191,6 +1193,7 @@ const thorin::Def* TypedExpr::emit(Emitter& emitter) const {
 }
 
 const thorin::Def* PathExpr::emit(Emitter& emitter) const {
+    assert(emitter.emit(path));
     return emitter.emit(path);
 }
 
@@ -1765,12 +1768,17 @@ const thorin::Def* ModDecl::emit(Emitter& emitter) const {
         // Likewise, we do not emit implicit declarations
         if (auto implicit = decl->isa<ImplicitDecl>())
             continue;
+        // Don't emit use declarations: they might point to modules. When used in expressions we'll emit them.
+        if (auto implicit = decl->isa<UseDecl>())
+            continue;
         emitter.emit(*decl);
     }
     return nullptr;
 }
 
-const thorin::Def* UseDecl::emit(Emitter&) const {
+const thorin::Def* UseDecl::emit(Emitter& emitter) const {
+    if (path.decl)
+        return emitter.emit(*path.decl);
     return nullptr;
 }
 

@@ -101,9 +101,9 @@ private:
     Ptr<ast::AttrList>      parse_attr_list();
     Ptr<ast::Attr>          parse_attr();
 
-    ast::Path               parse_path(ast::Identifier&&, bool);
-    ast::Path               parse_path(bool allow_types = true) { return parse_path(parse_path_elem(), allow_types); }
-    ast::Identifier         parse_path_elem();
+    ast::Path               parse_path(ast::Identifier&&, bool allow_wildcard);
+    ast::Path               parse_path(bool allow_wildcard = false) { return parse_path(parse_path_elem(), allow_wildcard); }
+    ast::Identifier         parse_path_elem(bool allow_wildcard = false);
     ast::Identifier         parse_id();
     ast::AsmExpr::Constr    parse_constr();
     Literal                 parse_lit();

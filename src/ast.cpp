@@ -607,6 +607,16 @@ bool AsmExpr::has_side_effect() const {
     return !outs.empty() || std::find(opts.begin(), opts.end(), "volatile") != opts.end();
 }
 
+// Decls ---------------------------------------------------------------------------
+
+bool NamedDecl::is_value() { return false; }
+
+bool ValueDecl::is_value() { return true; }
+
+bool UseDecl::is_value() {
+    return is_value_;
+}
+
 // Patterns ------------------------------------------------------------------------
 
 void Ptrn::collect_bound_ptrns(std::vector<const IdPtrn*>&) const {}
