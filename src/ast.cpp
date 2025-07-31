@@ -619,10 +619,10 @@ bool TypedPtrn::is_trivial() const {
     return !ptrn || ptrn->is_trivial();
 }
 
-const Expr* TypedPtrn::to_expr() {
+const Expr* TypedPtrn::to_expr(Arena& arena) {
     if (!ptrn)
         return nullptr;
-    return ptrn->to_expr();
+    return ptrn->to_expr(arena);
 }
 
 void IdPtrn::collect_bound_ptrns(std::vector<const IdPtrn*>& bound_ptrns) const {
@@ -635,7 +635,7 @@ bool IdPtrn::is_trivial() const {
     return !sub_ptrn || sub_ptrn->is_trivial();
 }
 
-const Expr* IdPtrn::to_expr() {
+const Expr* IdPtrn::to_expr(Arena& arena) {
     if (as_expr)
         return as_expr.get();
     Identifier id = decl->id;
@@ -644,7 +644,7 @@ const Expr* IdPtrn::to_expr() {
     Path path = Path(loc, std::move(elems));
     path.start_decl = decl.get();
     path.is_value = true;
-    as_expr = make_ptr<PathExpr>(std::move(path));
+    as_expr = arena.make_ptr<PathExpr>(std::move(path));
     return as_expr.get();
 }
 
@@ -652,14 +652,18 @@ bool LiteralPtrn::is_trivial() const {
     return false;
 }
 
-const Expr* LiteralPtrn::to_expr() {
+const Expr* LiteralPtrn::to_expr(Arena& arena) {
     if (as_expr)
         return as_expr.get();
-    as_expr = make_ptr<LiteralExpr>(loc, lit);
+    as_expr = arena.make_ptr<LiteralExpr>(loc, lit);
     return as_expr.get();
 }
 
 bool ImplicitParamPtrn::is_trivial() const {
+    return underlying->is_trivial();
+}
+
+bool DefaultParamPtrn::is_trivial() const {
     return underlying->is_trivial();
 }
 

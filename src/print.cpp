@@ -411,6 +411,13 @@ void ImplicitParamPtrn::print(Printer& p) const {
     underlying->print(p);
 }
 
+void DefaultParamPtrn::print(Printer& p) const {
+    p << log::keyword_style("default") << ' ';
+    underlying->print(p);
+    p << " = ";
+    default_expr->print(p);
+}
+
 void FieldPtrn::print(Printer& p) const {
     if (is_etc()) {
         p << "...";

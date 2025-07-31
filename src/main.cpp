@@ -321,12 +321,13 @@ int main(int argc, char** argv) {
     thorin.world().set(opts.log_level);
     thorin.world().set(std::make_shared<thorin::Stream>(std::cerr));
 
-    ast::ModDecl program;
-    bool success = compile(
+    Arena arena;
+    TypeTable type_table;
+    auto [program, success] = compile(
         opts.files, file_data,
         opts.warns_as_errors,
         opts.enable_all_warns,
-        program, thorin.world(), log);
+        arena, type_table, thorin.world(), log);
 
     log.print_summary();
 
@@ -336,7 +337,7 @@ int main(int argc, char** argv) {
         Printer p(log::out);
         p.show_implicit_casts = opts.show_implicit_casts;
         p.tab = std::string(opts.tab_width, ' ');
-        program.print(p);
+        program->print(p);
         log::out << '\n';
         log::out.stream.flush();
     }
@@ -347,13 +348,18 @@ int main(int argc, char** argv) {
     if (opts.opt_level == 1)
         thorin.cleanup();
     if (opts.emit_c_int) {
-        auto name = opts.module_name + ".h";
-        std::ofstream file(name);
-        if (!file)
-            log::error("cannot open '{}' for writing", name);
-        else {
-            thorin::Stream stream(file);
+        if (opts.module_name == "-") {
+            thorin::Stream stream(std::cout);
             thorin::c::emit_c_int(thorin, stream);
+        } else {
+            auto name = opts.module_name + ".h";
+            std::ofstream file(name);
+            if (!file)
+                log::error("cannot open '{}' for writing", name);
+            else {
+                thorin::Stream stream(file);
+                thorin::c::emit_c_int(thorin, stream);
+            }
         }
     }
     if (opts.opt_level > 1 || opts.emit_host_code)
@@ -362,12 +368,16 @@ int main(int argc, char** argv) {
         thorin.world().dump_scoped(!opts.no_color);
 
     auto emit_to_file = [&] (thorin::CodeGen& cg) {
-        auto name = opts.module_name + cg.file_ext();
-        std::ofstream file(name);
-        if (!file)
-            log::error("cannot open '{}' for writing", name);
-        else
-            cg.emit_stream(file);
+        if (opts.module_name == "-") {
+            cg.emit_stream(std::cout);
+        } else {
+            auto name = opts.module_name + cg.file_ext();
+            std::ofstream file(name);
+            if (!file)
+                log::error("cannot open '{}' for writing", name);
+            else
+                cg.emit_stream(file);
+        }
     };
 #ifdef ENABLE_JSON
     if (opts.emit_json) {
