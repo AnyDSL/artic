@@ -4,6 +4,7 @@
 #include <type_traits>
 #include <memory>
 #include <vector>
+#include <tuple>
 
 template<typename T>
 /** works like unique_ptr but doesn't actually own anything */
@@ -44,10 +45,23 @@ struct Arena {
     Arena();
     ~Arena();
 
-    template<typename T, typename ...Args>
+    template<typename T, typename std::enable_if<std::is_trivially_destructible<T>::value, bool>::type = true, typename ...Args>
     arena_ptr<T> make_ptr(Args&& ...args) {
         void* ptr = alloc(sizeof(T));
         new (ptr) T (std::forward<Args>(args)...);
+        return arena_ptr<T>(static_cast<T*>(ptr));
+    }
+
+    template<typename T, typename std::enable_if<!std::is_trivially_destructible<T>::value, bool>::type = true, typename ...Args>
+    arena_ptr<T> make_ptr(Args&& ...args) {
+        void* ptr = alloc(sizeof(T));
+        new (ptr) T (std::forward<Args>(args)...);
+        auto deleter = [] (T* t) -> void {
+            t->~T();
+        };
+        auto fn = static_cast<void(*)(T*)>(deleter);
+        auto generic_fn = reinterpret_cast<void(*)(void*)>(fn);
+        _cleanup.emplace_back(generic_fn, ptr);
         return arena_ptr<T>(static_cast<T*>(ptr));
     }
 private:
@@ -57,6 +71,7 @@ private:
     size_t _block_size;
     size_t _available;
     std::vector<void*> _data;
+    std::vector<std::tuple<void (*)(void*), void*>> _cleanup;
 };
 
 #endif // ARTIC_ARENA_H

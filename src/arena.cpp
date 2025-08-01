@@ -8,6 +8,9 @@ Arena::Arena() : _block_size(4096) {
 }
 
 Arena::~Arena() {
+    for (auto [f, p] : _cleanup) {
+        f(p);
+    }
     for (auto& ptr : _data)
         free(ptr);
 }
