@@ -1,0 +1,14 @@
+#[import(cc="C")]
+fn leak2(i32, fn(i32) -> ()) -> ();
+
+// we capture the return continuation of foo here
+#[export]
+fn foo() -> i32 {
+  leak2(5, return);
+  0
+}
+
+#[export]
+fn bar() {
+  foo();
+}

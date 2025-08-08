@@ -1,0 +1,13 @@
+#[export]
+fn pow(x: i32, y: i32) -> i32 {
+    return (pow_tailrec(x, y, 1))
+}
+
+#[export]
+fn pow_tailrec(x: i32, n: i32, acc: i32) -> i32 {
+    if n > 1 {
+        pow_tailrec(x, n - 1, acc * x)
+    } else {
+        acc
+    }
+}

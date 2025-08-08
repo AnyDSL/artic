@@ -1,0 +1,5 @@
+// no actual closure conversion takes place, but the type of 'f' should be affected
+#[export]
+fn foo(f: fn(i32) -> i32) -> i32 {
+  f(42)
+}
