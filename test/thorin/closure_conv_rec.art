@@ -10,12 +10,12 @@ fn foo(i: i32) -> i32 {
      fn g(y: i32) -> i32 {
        f(x + y + i)
      }
-     
+
      leak(g);
      g(x)
   }
-  
+
   leak(f);
-  
+
   0
 }

@@ -7,6 +7,6 @@ fn foo(x: i32, z: i32) -> i32 {
   fn f(y: i32) { (x + y, z) }
 
   leak(f);
-  
+
   return (0)
 }
