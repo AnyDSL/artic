@@ -6,8 +6,8 @@
 
 namespace artic {
 
-Parser::Parser(Log& log, Lexer& lexer)
-    : Logger(log), lexer_(lexer)
+Parser::Parser(Log& log, Lexer& lexer, Arena& arena)
+    : Logger(log), lexer_(lexer), _arena(arena)
 {
     for (int i = 0; i < max_ahead; i++)
         ahead_[i] = Token(Loc());
@@ -20,7 +20,7 @@ Ptr<ast::ModDecl> Parser::parse() {
     PtrVector<ast::Decl> decls;
     while (ahead().tag() != Token::End)
         decls.emplace_back(parse_decl(true));
-    return make_ptr<ast::ModDecl>(tracker(), ast::Identifier(), std::move(decls));
+    return _arena.make_ptr<ast::ModDecl>(tracker(), ast::Identifier(), std::move(decls));
 }
 
 // Declarations --------------------------------------------------------------------
@@ -62,7 +62,7 @@ Ptr<ast::LetDecl> Parser::parse_let_decl() {
     if (accept(Token::Eq))
         init = parse_expr();
     expect(Token::Semi);
-    return make_ptr<ast::LetDecl>(tracker(), std::move(ptrn), std::move(init));
+    return _arena.make_ptr<ast::LetDecl>(tracker(), std::move(ptrn), std::move(init));
 }
 
 Ptr<ast::FnDecl> Parser::parse_fn_decl() {
@@ -87,7 +87,7 @@ Ptr<ast::FnDecl> Parser::parse_fn_decl() {
     Ptr<ast::Type> ret_type;
     if (accept(Token::Arrow)) {
         if (accept(Token::Not))
-            ret_type = make_ptr<ast::NoCodomType>(prev_);
+            ret_type = _arena.make_ptr<ast::NoCodomType>(prev_);
         else
             ret_type = parse_type();
     }
@@ -106,8 +106,8 @@ Ptr<ast::FnDecl> Parser::parse_fn_decl() {
         expect(Token::Semi);
     }
 
-    auto fn = make_ptr<ast::FnExpr>(tracker(), std::move(filter), std::move(param), std::move(ret_type), std::move(body));
-    return make_ptr<ast::FnDecl>(tracker(), std::move(id), std::move(fn), std::move(type_params));
+    auto fn = _arena.make_ptr<ast::FnExpr>(tracker(), std::move(filter), std::move(param), std::move(ret_type), std::move(body));
+    return _arena.make_ptr<ast::FnDecl>(tracker(), std::move(id), std::move(fn), std::move(type_params));
 }
 
 Ptr<ast::FieldDecl> Parser::parse_field_decl(bool is_tuple_like) {
@@ -119,7 +119,7 @@ Ptr<ast::FieldDecl> Parser::parse_field_decl(bool is_tuple_like) {
     Ptr<ast::Expr> init;
     if (accept(Token::Eq))
         init = parse_expr();
-    return make_ptr<ast::FieldDecl>(tracker(), std::move(id), std::move(type), std::move(init));
+    return _arena.make_ptr<ast::FieldDecl>(tracker(), std::move(id), std::move(type), std::move(init));
 }
 
 Ptr<ast::StructDecl> Parser::parse_struct_decl() {
@@ -145,7 +145,7 @@ Ptr<ast::StructDecl> Parser::parse_struct_decl() {
         expect(Token::Semi);
     }
 
-    return make_ptr<ast::StructDecl>(tracker(), std::move(id), std::move(type_params), std::move(fields), is_tuple_like);
+    return _arena.make_ptr<ast::StructDecl>(tracker(), std::move(id), std::move(type_params), std::move(fields), is_tuple_like);
 }
 
 Ptr<ast::OptionDecl> Parser::parse_option_decl() {
@@ -163,7 +163,7 @@ Ptr<ast::OptionDecl> Parser::parse_option_decl() {
         });
         has_fields = true;
     }
-    return make_ptr<ast::OptionDecl>(tracker(), std::move(id), std::move(param), std::move(fields), has_fields);
+    return _arena.make_ptr<ast::OptionDecl>(tracker(), std::move(id), std::move(param), std::move(fields), has_fields);
 }
 
 Ptr<ast::EnumDecl> Parser::parse_enum_decl() {
@@ -182,7 +182,7 @@ Ptr<ast::EnumDecl> Parser::parse_enum_decl() {
     });
     if (options.empty())
         error(tracker(), "enums require at least one alternative");
-    return make_ptr<ast::EnumDecl>(tracker(), std::move(id), std::move(type_params), std::move(options));
+    return _arena.make_ptr<ast::EnumDecl>(tracker(), std::move(id), std::move(type_params), std::move(options));
 }
 
 Ptr<ast::TypeDecl> Parser::parse_type_decl() {
@@ -197,7 +197,7 @@ Ptr<ast::TypeDecl> Parser::parse_type_decl() {
     expect(Token::Eq);
     auto aliased_type = parse_type();
     expect(Token::Semi);
-    return make_ptr<ast::TypeDecl>(tracker(), std::move(id), std::move(type_params), std::move(aliased_type));
+    return _arena.make_ptr<ast::TypeDecl>(tracker(), std::move(id), std::move(type_params), std::move(aliased_type));
 }
 
 Ptr<ast::ImplicitDecl> Parser::parse_implicit_decl() {
@@ -211,7 +211,7 @@ Ptr<ast::ImplicitDecl> Parser::parse_implicit_decl() {
     expect(Token::Eq);
     auto value = parse_expr(true);
     expect(Token::Semi);
-    return make_ptr<ast::ImplicitDecl>(tracker(), std::move(type), std::move(value));
+    return _arena.make_ptr<ast::ImplicitDecl>(tracker(), std::move(type), std::move(value));
 }
 
 Ptr<ast::StaticDecl> Parser::parse_static_decl() {
@@ -228,13 +228,13 @@ Ptr<ast::StaticDecl> Parser::parse_static_decl() {
     if (accept(Token::Eq))
         init = parse_expr();
     expect(Token::Semi);
-    return make_ptr<ast::StaticDecl>(tracker(), std::move(id), std::move(type), std::move(init), is_mut);
+    return _arena.make_ptr<ast::StaticDecl>(tracker(), std::move(id), std::move(type), std::move(init), is_mut);
 }
 
 Ptr<ast::TypeParam> Parser::parse_type_param() {
     Tracker tracker(this);
     auto id = parse_id();
-    return make_ptr<ast::TypeParam>(tracker(), std::move(id));
+    return _arena.make_ptr<ast::TypeParam>(tracker(), std::move(id));
 }
 
 Ptr<ast::TypeParamList> Parser::parse_type_params() {
@@ -244,7 +244,7 @@ Ptr<ast::TypeParamList> Parser::parse_type_params() {
     parse_list(Token::RBracket, Token::Comma, [&] {
         type_params.emplace_back(parse_type_param());
     });
-    return make_ptr<ast::TypeParamList>(tracker(), std::move(type_params));
+    return _arena.make_ptr<ast::TypeParamList>(tracker(), std::move(type_params));
 }
 
 Ptr<ast::ModDecl> Parser::parse_mod_decl() {
@@ -256,7 +256,7 @@ Ptr<ast::ModDecl> Parser::parse_mod_decl() {
     while (ahead().tag() != Token::End && ahead().tag() != Token::RBrace)
         decls.emplace_back(parse_decl(true));
     expect(Token::RBrace);
-    return make_ptr<ast::ModDecl>(tracker(), std::move(id), std::move(decls));
+    return _arena.make_ptr<ast::ModDecl>(tracker(), std::move(id), std::move(decls));
 }
 
 Ptr<ast::UseDecl> Parser::parse_use_decl() {
@@ -273,14 +273,14 @@ Ptr<ast::UseDecl> Parser::parse_use_decl() {
             log::keyword_style("use"), path,
             log::keyword_style("as"));
     }
-    return make_ptr<ast::UseDecl>(tracker(), std::move(path), std::move(id));
+    return _arena.make_ptr<ast::UseDecl>(tracker(), std::move(path), std::move(id));
 }
 
 Ptr<ast::ErrorDecl> Parser::parse_error_decl() {
     Tracker tracker(this);
     error(ahead().loc(), "expected declaration, got '{}'", ahead().string());
     next();
-    return make_ptr<ast::ErrorDecl>(tracker());
+    return _arena.make_ptr<ast::ErrorDecl>(tracker());
 }
 
 // Patterns ------------------------------------------------------------------------
@@ -295,7 +295,7 @@ Ptr<ast::Ptrn> Parser::parse_ptrn(bool allow_types, bool allow_implicits) {
                     if (!allow_types)
                         return parse_error_ptrn();
                     auto type = parse_prim_type(tag);
-                    return make_ptr<ast::TypedPtrn>(type->loc, Ptr<ast::Ptrn>(), std::move(type));
+                    return _arena.make_ptr<ast::TypedPtrn>(type->loc, Ptr<ast::Ptrn>(), std::move(type));
                 }
                 auto id = parse_path_elem();
                 if (ahead().tag() == Token::DblColon ||
@@ -307,8 +307,8 @@ Ptr<ast::Ptrn> Parser::parse_ptrn(bool allow_types, bool allow_implicits) {
                     if (ahead().tag() == Token::LBrace)
                         ptrn = parse_record_ptrn(std::move(path));
                     else if (allow_types) {
-                        auto type = make_ptr<ast::TypeApp>(path.loc, std::move(path));
-                        return make_ptr<ast::TypedPtrn>(path.loc, Ptr<ast::Ptrn>(), std::move(type));
+                        auto type = _arena.make_ptr<ast::TypeApp>(path.loc, std::move(path));
+                        return _arena.make_ptr<ast::TypedPtrn>(path.loc, Ptr<ast::Ptrn>(), std::move(type));
                     } else
                         ptrn = parse_ctor_ptrn(std::move(path));
                 } else
@@ -334,7 +334,7 @@ Ptr<ast::Ptrn> Parser::parse_ptrn(bool allow_types, bool allow_implicits) {
         case Token::Fn:
             if (allow_types) {
                 auto type = parse_type();
-                return make_ptr<ast::TypedPtrn>(type->loc, Ptr<ast::Ptrn>(), std::move(type));
+                return _arena.make_ptr<ast::TypedPtrn>(type->loc, Ptr<ast::Ptrn>(), std::move(type));
             }
             [[fallthrough]];
         case Token::Implicit:
@@ -343,7 +343,7 @@ Ptr<ast::Ptrn> Parser::parse_ptrn(bool allow_types, bool allow_implicits) {
                     return parse_error_ptrn();
                 eat(Token::Implicit);
                 auto underlying = parse_ptrn();
-                return make_ptr<ast::ImplicitParamPtrn>(underlying->loc, std::move(underlying));
+                return _arena.make_ptr<ast::ImplicitParamPtrn>(underlying->loc, std::move(underlying));
             }
         default:
             ptrn = parse_error_ptrn();
@@ -356,24 +356,24 @@ Ptr<ast::Ptrn> Parser::parse_typed_ptrn(Ptr<ast::Ptrn>&& ptrn) {
     Tracker tracker(this, ptrn->loc);
     if (accept(Token::Colon)) {
         auto type = parse_type();
-        return make_ptr<ast::TypedPtrn>(tracker(), std::move(ptrn), std::move(type));
+        return _arena.make_ptr<ast::TypedPtrn>(tracker(), std::move(ptrn), std::move(type));
     }
     return std::move(ptrn);
 }
 
 Ptr<ast::IdPtrn> Parser::parse_id_ptrn(ast::Identifier&& id, bool is_mut) {
     Tracker tracker(this, id.loc);
-    auto decl = make_ptr<ast::PtrnDecl>(tracker(), std::move(id), is_mut);
+    auto decl = _arena.make_ptr<ast::PtrnDecl>(tracker(), std::move(id), is_mut);
     Ptr<ast::Ptrn> sub_ptrn;
     if (accept(Token::As))
         sub_ptrn = parse_ptrn();
-    return make_ptr<ast::IdPtrn>(tracker(), std::move(decl), std::move(sub_ptrn));
+    return _arena.make_ptr<ast::IdPtrn>(tracker(), std::move(decl), std::move(sub_ptrn));
 }
 
 Ptr<ast::LiteralPtrn> Parser::parse_literal_ptrn() {
     Tracker tracker(this);
     auto lit = parse_lit();
-    return make_ptr<ast::LiteralPtrn>(tracker(), lit);
+    return _arena.make_ptr<ast::LiteralPtrn>(tracker(), lit);
 }
 
 Ptr<ast::FieldPtrn> Parser::parse_field_ptrn() {
@@ -389,7 +389,7 @@ Ptr<ast::FieldPtrn> Parser::parse_field_ptrn() {
         expect(Token::Eq);
         ptrn = parse_ptrn();
     }
-    return make_ptr<ast::FieldPtrn>(tracker(), std::move(id), std::move(ptrn));
+    return _arena.make_ptr<ast::FieldPtrn>(tracker(), std::move(id), std::move(ptrn));
 }
 
 Ptr<ast::RecordPtrn> Parser::parse_record_ptrn(ast::Path&& path) {
@@ -403,7 +403,7 @@ Ptr<ast::RecordPtrn> Parser::parse_record_ptrn(ast::Path&& path) {
     auto etc = std::find_if(fields.begin(), fields.end(), [] (auto& field) { return field->is_etc(); });
     if (etc != fields.end() && etc != fields.end() - 1)
         error((*etc)->loc, "'...' can only be used at the end of a record pattern");
-    return make_ptr<ast::RecordPtrn>(tracker(), std::move(path), std::move(fields));
+    return _arena.make_ptr<ast::RecordPtrn>(tracker(), std::move(path), std::move(fields));
 }
 
 Ptr<ast::CtorPtrn> Parser::parse_ctor_ptrn(ast::Path&& path) {
@@ -411,7 +411,7 @@ Ptr<ast::CtorPtrn> Parser::parse_ctor_ptrn(ast::Path&& path) {
     Ptr<ast::Ptrn> arg;
     if (ahead().tag() == Token::LParen)
         arg = parse_tuple_ptrn();
-    return make_ptr<ast::CtorPtrn>(tracker(), std::move(path), std::move(arg));
+    return _arena.make_ptr<ast::CtorPtrn>(tracker(), std::move(path), std::move(arg));
 }
 
 Ptr<ast::Ptrn> Parser::parse_tuple_ptrn(bool allow_types, bool allow_implicits, Token::Tag beg, Token::Tag end) {
@@ -425,7 +425,7 @@ Ptr<ast::Ptrn> Parser::parse_tuple_ptrn(bool allow_types, bool allow_implicits, 
         args[0]->loc = tracker();
         return std::move(args[0]);
     }
-    return make_ptr<ast::TuplePtrn>(tracker(), std::move(args));
+    return _arena.make_ptr<ast::TuplePtrn>(tracker(), std::move(args));
 }
 
 Ptr<ast::ArrayPtrn> Parser::parse_array_ptrn() {
@@ -436,14 +436,14 @@ Ptr<ast::ArrayPtrn> Parser::parse_array_ptrn() {
     parse_list(Token::RBracket, Token::Comma, [&] {
         elems.emplace_back(parse_ptrn());
     });
-    return make_ptr<ast::ArrayPtrn>(tracker(), std::move(elems), is_simd);
+    return _arena.make_ptr<ast::ArrayPtrn>(tracker(), std::move(elems), is_simd);
 }
 
 Ptr<ast::ErrorPtrn> Parser::parse_error_ptrn() {
     Tracker tracker(this);
     error(ahead().loc(), "expected pattern, got '{}'", ahead().string());
     next();
-    return make_ptr<ast::ErrorPtrn>(tracker());
+    return _arena.make_ptr<ast::ErrorPtrn>(tracker());
 }
 
 // Statements ----------------------------------------------------------------------
@@ -461,19 +461,19 @@ Ptr<ast::Stmt> Parser::parse_stmt() {
         default:
             return parse_expr_stmt();
     }
-    return make_ptr<ast::ExprStmt>(tracker(), std::move(expr));
+    return _arena.make_ptr<ast::ExprStmt>(tracker(), std::move(expr));
 }
 
 Ptr<ast::DeclStmt> Parser::parse_decl_stmt() {
     Tracker tracker(this);
     auto decl = parse_decl();
-    return make_ptr<ast::DeclStmt>(tracker(), std::move(decl));
+    return _arena.make_ptr<ast::DeclStmt>(tracker(), std::move(decl));
 }
 
 Ptr<ast::ExprStmt> Parser::parse_expr_stmt() {
     Tracker tracker(this);
     auto expr = parse_expr();
-    return make_ptr<ast::ExprStmt>(tracker(), std::move(expr));
+    return _arena.make_ptr<ast::ExprStmt>(tracker(), std::move(expr));
 }
 
 // Expressions ---------------------------------------------------------------------
@@ -486,18 +486,18 @@ Ptr<ast::Expr> Parser::parse_typed_expr(Ptr<ast::Expr>&& expr) {
     Tracker tracker(this, expr->loc);
     eat(Token::Colon);
     auto type = parse_type();
-    return make_ptr<ast::TypedExpr>(tracker(), std::move(expr), std::move(type));
+    return _arena.make_ptr<ast::TypedExpr>(tracker(), std::move(expr), std::move(type));
 }
 
 Ptr<ast::PathExpr> Parser::parse_path_expr() {
     auto path = parse_path(true);
-    return make_ptr<ast::PathExpr>(std::move(path));
+    return _arena.make_ptr<ast::PathExpr>(std::move(path));
 }
 
 Ptr<ast::LiteralExpr> Parser::parse_literal_expr() {
     Tracker tracker(this);
     auto lit = parse_lit();
-    return make_ptr<ast::LiteralExpr>(tracker(), lit);
+    return _arena.make_ptr<ast::LiteralExpr>(tracker(), lit);
 }
 
 Ptr<ast::SummonExpr> Parser::parse_summon_expr() {
@@ -506,7 +506,7 @@ Ptr<ast::SummonExpr> Parser::parse_summon_expr() {
     expect(Token::LBracket);
     auto t = parse_type();
     expect(Token::RBracket);
-    return make_ptr<ast::SummonExpr>(tracker(), std::move(t));
+    return _arena.make_ptr<ast::SummonExpr>(tracker(), std::move(t));
 }
 
 Ptr<ast::FieldExpr> Parser::parse_field_expr() {
@@ -514,7 +514,7 @@ Ptr<ast::FieldExpr> Parser::parse_field_expr() {
     auto id = parse_id();
     expect(Token::Eq);
     auto expr = parse_expr();
-    return make_ptr<ast::FieldExpr>(tracker(), std::move(id), std::move(expr));
+    return _arena.make_ptr<ast::FieldExpr>(tracker(), std::move(id), std::move(expr));
 }
 
 Ptr<ast::RecordExpr> Parser::parse_record_expr(ast::Path&& path) {
@@ -523,13 +523,13 @@ Ptr<ast::RecordExpr> Parser::parse_record_expr(ast::Path&& path) {
     // path.loc and std::move(path) in the argument list
     // (argument evaluation order is not defined).
     auto loc = path.loc;
-    auto type_app = make_ptr<ast::TypeApp>(loc, std::move(path));
+    auto type_app = _arena.make_ptr<ast::TypeApp>(loc, std::move(path));
     eat(Token::LBrace);
     PtrVector<ast::FieldExpr> fields;
     parse_list(Token::RBrace, Token::Comma, [&] {
         fields.emplace_back(parse_field_expr());
     });
-    return make_ptr<ast::RecordExpr>(tracker(), std::move(type_app), std::move(fields));
+    return _arena.make_ptr<ast::RecordExpr>(tracker(), std::move(type_app), std::move(fields));
 }
 
 Ptr<ast::RecordExpr> Parser::parse_record_expr(Ptr<ast::Expr>&& expr) {
@@ -540,7 +540,7 @@ Ptr<ast::RecordExpr> Parser::parse_record_expr(Ptr<ast::Expr>&& expr) {
     parse_list(Token::RBrace, Token::Comma, [&] {
         fields.emplace_back(parse_field_expr());
     });
-    return make_ptr<ast::RecordExpr>(tracker(), std::move(expr), std::move(fields));
+    return _arena.make_ptr<ast::RecordExpr>(tracker(), std::move(expr), std::move(fields));
 }
 
 Ptr<ast::Expr> Parser::parse_tuple_expr() {
@@ -554,7 +554,7 @@ Ptr<ast::Expr> Parser::parse_tuple_expr() {
         args[0]->loc = tracker();
         return std::move(args[0]);
     }
-    return make_ptr<ast::TupleExpr>(tracker(), std::move(args));
+    return _arena.make_ptr<ast::TupleExpr>(tracker(), std::move(args));
 }
 
 Ptr<ast::Expr> Parser::parse_array_expr() {
@@ -567,16 +567,16 @@ Ptr<ast::Expr> Parser::parse_array_expr() {
         auto size = parse_array_size();
         expect(Token::RBracket);
         if (size)
-            return make_ptr<ast::RepeatArrayExpr>(tracker(), std::move(elems.front()), std::move(*size), is_simd);
-        return make_ptr<ast::ArrayExpr>(tracker(), std::move(elems), is_simd);
+            return _arena.make_ptr<ast::RepeatArrayExpr>(tracker(), std::move(elems.front()), std::move(*size), is_simd);
+        return _arena.make_ptr<ast::ArrayExpr>(tracker(), std::move(elems), is_simd);
     } else if (accept(Token::Comma)) {
         parse_list(Token::RBracket, Token::Comma, [&] {
             elems.emplace_back(parse_expr());
         });
-        return make_ptr<ast::ArrayExpr>(tracker(), std::move(elems), is_simd);
+        return _arena.make_ptr<ast::ArrayExpr>(tracker(), std::move(elems), is_simd);
     } else {
         expect(Token::RBracket);
-        return make_ptr<ast::ArrayExpr>(tracker(), std::move(elems), is_simd);
+        return _arena.make_ptr<ast::ArrayExpr>(tracker(), std::move(elems), is_simd);
     }
 }
 
@@ -633,7 +633,7 @@ Ptr<ast::BlockExpr> Parser::parse_block_expr() {
         break;
     }
     expect(Token::RBrace);
-    return make_ptr<ast::BlockExpr>(tracker(), std::move(stmts), last_semi);
+    return _arena.make_ptr<ast::BlockExpr>(tracker(), std::move(stmts), last_semi);
 }
 
 Ptr<ast::FnExpr> Parser::parse_fn_expr(Ptr<ast::Filter>&& filter, bool nested) {
@@ -654,10 +654,10 @@ Ptr<ast::FnExpr> Parser::parse_fn_expr(Ptr<ast::Filter>&& filter, bool nested) {
         if (args.size() == 1) {
             ptrn = std::move(args.front());
         } else {
-            ptrn = make_ptr<ast::TuplePtrn>(tracker(), std::move(args));
+            ptrn = _arena.make_ptr<ast::TuplePtrn>(tracker(), std::move(args));
         }
     } else if (accept(Token::LogicOr))
-        ptrn = make_ptr<ast::TuplePtrn>(tracker(), PtrVector<ast::Ptrn>{});
+        ptrn = _arena.make_ptr<ast::TuplePtrn>(tracker(), PtrVector<ast::Ptrn>{});
     else
         ptrn = parse_error_ptrn();
 
@@ -673,13 +673,13 @@ Ptr<ast::FnExpr> Parser::parse_fn_expr(Ptr<ast::Filter>&& filter, bool nested) {
             ret_type = parse_type();
         body = parse_expr();
     }
-    return make_ptr<ast::FnExpr>(tracker(), std::move(filter), std::move(ptrn), std::move(ret_type), std::move(body));
+    return _arena.make_ptr<ast::FnExpr>(tracker(), std::move(filter), std::move(ptrn), std::move(ret_type), std::move(body));
 }
 
 Ptr<ast::CallExpr> Parser::parse_call_expr(Ptr<ast::Expr>&& callee) {
     Tracker tracker(this, callee->loc);
     auto args = parse_tuple_expr();
-    return make_ptr<ast::CallExpr>(tracker(), std::move(callee), std::move(args));
+    return _arena.make_ptr<ast::CallExpr>(tracker(), std::move(callee), std::move(args));
 }
 
 Ptr<ast::ProjExpr> Parser::parse_proj_expr(Ptr<ast::Expr>&& expr) {
@@ -688,10 +688,10 @@ Ptr<ast::ProjExpr> Parser::parse_proj_expr(Ptr<ast::Expr>&& expr) {
     if (ahead().is_literal() && ahead().literal().is_integer()) {
         size_t index = ahead().literal().as_integer();
         eat(Token::Lit);
-        return make_ptr<ast::ProjExpr>(tracker(), std::move(expr), index);
+        return _arena.make_ptr<ast::ProjExpr>(tracker(), std::move(expr), index);
     } else {
         auto id = parse_id();
-        return make_ptr<ast::ProjExpr>(tracker(), std::move(expr), std::move(id));
+        return _arena.make_ptr<ast::ProjExpr>(tracker(), std::move(expr), std::move(id));
     }
 }
 
@@ -719,11 +719,11 @@ Ptr<ast::IfExpr> Parser::parse_if_expr() {
 
         auto if_true = parse_block_expr();
         auto if_false = accept_else();
-        return make_ptr<ast::IfExpr>(tracker(), std::move(ptrn), std::move(expr), std::move(if_true), std::move(if_false));
+        return _arena.make_ptr<ast::IfExpr>(tracker(), std::move(ptrn), std::move(expr), std::move(if_true), std::move(if_false));
     } else {
         auto [cond, if_true] = parse_cond_and_block();
         auto if_false = accept_else();
-        return make_ptr<ast::IfExpr>(tracker(), std::move(cond), std::move(if_true), std::move(if_false));
+        return _arena.make_ptr<ast::IfExpr>(tracker(), std::move(cond), std::move(if_true), std::move(if_false));
     }
 }
 
@@ -732,7 +732,7 @@ Ptr<ast::CaseExpr> Parser::parse_case_expr() {
     auto ptrn = parse_ptrn();
     expect(Token::FatArrow);
     auto expr = parse_expr();
-    return make_ptr<ast::CaseExpr>(tracker(), std::move(ptrn), std::move(expr));
+    return _arena.make_ptr<ast::CaseExpr>(tracker(), std::move(ptrn), std::move(expr));
 }
 
 Ptr<ast::MatchExpr> Parser::parse_match_expr() {
@@ -744,7 +744,7 @@ Ptr<ast::MatchExpr> Parser::parse_match_expr() {
     parse_list(Token::RBrace, Token::Comma, [&] {
         cases.emplace_back(parse_case_expr());
     });
-    return make_ptr<ast::MatchExpr>(tracker(), std::move(arg), std::move(cases));
+    return _arena.make_ptr<ast::MatchExpr>(tracker(), std::move(arg), std::move(cases));
 }
 
 Ptr<ast::WhileExpr> Parser::parse_while_expr() {
@@ -756,10 +756,10 @@ Ptr<ast::WhileExpr> Parser::parse_while_expr() {
         auto expr = parse_expr(false);
 
         auto body = parse_block_expr();
-        return make_ptr<ast::WhileExpr>(tracker(), std::move(ptrn), std::move(expr), std::move(body));
+        return _arena.make_ptr<ast::WhileExpr>(tracker(), std::move(ptrn), std::move(expr), std::move(body));
     } else {
         auto[cond, body] = parse_cond_and_block();
-        return make_ptr<ast::WhileExpr>(tracker(), std::move(cond), std::move(body));
+        return _arena.make_ptr<ast::WhileExpr>(tracker(), std::move(cond), std::move(body));
     }
 }
 
@@ -777,15 +777,15 @@ Ptr<ast::Expr> Parser::parse_for_expr() {
         ptrn = parse_tuple_ptrn(false, false, Token::For, Token::In);
     else {
         eat(Token::For);
-        ptrn = make_ptr<ast::TuplePtrn>(tracker(), PtrVector<ast::Ptrn>{});
+        ptrn = _arena.make_ptr<ast::TuplePtrn>(tracker(), PtrVector<ast::Ptrn>{});
     }
 
     auto expr = parse_expr();
     auto call_loc = expr->loc;
-    Ptr<ast::CallExpr> call(expr->isa<ast::CallExpr>() ? expr.release()->as<ast::CallExpr>() : nullptr);
+    Ptr<ast::CallExpr> call(expr->isa<ast::CallExpr>() ? expr->as<ast::CallExpr>() : nullptr);
     if (!call) {
         error(ahead().loc(), "invalid for loop expression");
-        return make_ptr<ast::ErrorExpr>(tracker());
+        return _arena.make_ptr<ast::ErrorExpr>(tracker());
     }
 
     Ptr<ast::Expr> body;
@@ -796,29 +796,29 @@ Ptr<ast::Expr> Parser::parse_for_expr() {
 
     auto lambda_loc = body->loc;
     // Cannot use body->loc directly because std::move(body) might be executed first
-    auto lambda = make_ptr<ast::FnExpr>(lambda_loc, nullptr, std::move(ptrn), nullptr, std::move(body));
+    auto lambda = _arena.make_ptr<ast::FnExpr>(lambda_loc, nullptr, std::move(ptrn), nullptr, std::move(body));
 
-    Ptr<ast::Expr> callee(call->callee.release());
-    call->callee = make_ptr<ast::CallExpr>(call_loc, std::move(callee), std::move(lambda));
-    return make_ptr<ast::ForExpr>(tracker(), std::move(call));
+    Ptr<ast::Expr> callee(call->callee.get());
+    call->callee = _arena.make_ptr<ast::CallExpr>(call_loc, std::move(callee), std::move(lambda));
+    return _arena.make_ptr<ast::ForExpr>(tracker(), std::move(call));
 }
 
 Ptr<ast::BreakExpr> Parser::parse_break_expr() {
     Tracker tracker(this);
     eat(Token::Break);
-    return make_ptr<ast::BreakExpr>(tracker());
+    return _arena.make_ptr<ast::BreakExpr>(tracker());
 }
 
 Ptr<ast::ContinueExpr> Parser::parse_continue_expr() {
     Tracker tracker(this);
     eat(Token::Continue);
-    return make_ptr<ast::ContinueExpr>(tracker());
+    return _arena.make_ptr<ast::ContinueExpr>(tracker());
 }
 
 Ptr<ast::ReturnExpr> Parser::parse_return_expr() {
     Tracker tracker(this);
     eat(Token::Return);
-    return make_ptr<ast::ReturnExpr>(tracker());
+    return _arena.make_ptr<ast::ReturnExpr>(tracker());
 }
 
 Ptr<ast::Expr> Parser::parse_primary_expr(bool allow_structs, bool allow_casts) {
@@ -900,14 +900,14 @@ Ptr<ast::UnaryExpr> Parser::parse_prefix_expr(bool allow_structs) {
     if (tag == ast::UnaryExpr::AddrOf && accept(Token::Mut))
         tag = ast::UnaryExpr::AddrOfMut;
     auto expr = parse_primary_expr(allow_structs, false);
-    return make_ptr<ast::UnaryExpr>(tracker(), tag, std::move(expr));
+    return _arena.make_ptr<ast::UnaryExpr>(tracker(), tag, std::move(expr));
 }
 
 Ptr<ast::UnaryExpr> Parser::parse_postfix_expr(Ptr<ast::Expr>&& expr) {
     Tracker tracker(this, expr->loc);
     auto tag = ast::UnaryExpr::tag_from_token(ahead(), false);
     next();
-    return make_ptr<ast::UnaryExpr>(tracker(), tag, std::move(expr));
+    return _arena.make_ptr<ast::UnaryExpr>(tracker(), tag, std::move(expr));
 }
 
 Ptr<ast::Expr> Parser::parse_binary_expr(bool allow_structs, int max_prec) {
@@ -922,7 +922,7 @@ Ptr<ast::Expr> Parser::parse_binary_expr(bool allow_structs, int max_prec) {
         next();
 
         auto right = parse_binary_expr(allow_structs, prec - 1);
-        left = make_ptr<ast::BinaryExpr>(tracker(), tag, std::move(left), std::move(right));
+        left = _arena.make_ptr<ast::BinaryExpr>(tracker(), tag, std::move(left), std::move(right));
     }
     return left;
 }
@@ -933,7 +933,7 @@ Ptr<ast::Expr> Parser::parse_filter_expr(Ptr<ast::Filter>&& filter) {
     if (auto call_expr = expr->isa<ast::CallExpr>()) {
         if (call_expr->callee->isa<ast::FilterExpr>())
             warn(filter->loc, "redundant filter annotation");
-        call_expr->callee = make_ptr<ast::FilterExpr>(tracker(), std::move(filter), std::move(call_expr->callee));
+        call_expr->callee = _arena.make_ptr<ast::FilterExpr>(tracker(), std::move(filter), std::move(call_expr->callee));
     } else
         error(expr->loc, "invalid filter expression");
     return expr;
@@ -943,7 +943,7 @@ Ptr<ast::CastExpr> Parser::parse_cast_expr(Ptr<ast::Expr>&& expr) {
     Tracker tracker(this, expr->loc);
     eat(Token::As);
     auto type = parse_type();
-    return make_ptr<ast::CastExpr>(tracker(), std::move(expr), std::move(type));
+    return _arena.make_ptr<ast::CastExpr>(tracker(), std::move(expr), std::move(type));
 }
 
 Ptr<ast::AsmExpr> Parser::parse_asm_expr() {
@@ -1004,7 +1004,7 @@ error:
     error(ahead().loc(), "expected ':', or ')' in assembly expression");
 
 done:
-    return make_ptr<ast::AsmExpr>(
+    return _arena.make_ptr<ast::AsmExpr>(
        tracker(), std::move(src),
        std::move(ins), std::move(outs),
        std::move(clobs), std::move(opts));
@@ -1014,7 +1014,7 @@ Ptr<ast::ErrorExpr> Parser::parse_error_expr() {
     Tracker tracker(this);
     error(ahead().loc(), "expected expression, got '{}'", ahead().string());
     next();
-    return make_ptr<ast::ErrorExpr>(tracker());
+    return _arena.make_ptr<ast::ErrorExpr>(tracker());
 }
 
 // Types ---------------------------------------------------------------------------
@@ -1047,7 +1047,7 @@ Ptr<ast::Type> Parser::parse_named_type() {
 Ptr<ast::PrimType> Parser::parse_prim_type(ast::PrimType::Tag tag) {
     Tracker tracker(this);
     next();
-    return make_ptr<ast::PrimType>(tracker(), tag);
+    return _arena.make_ptr<ast::PrimType>(tracker(), tag);
 }
 
 Ptr<ast::Type> Parser::parse_tuple_type() {
@@ -1061,7 +1061,7 @@ Ptr<ast::Type> Parser::parse_tuple_type() {
         args[0]->loc = tracker();
         return std::move(args[0]);
     }
-    return make_ptr<ast::TupleType>(tracker(), std::move(args));
+    return _arena.make_ptr<ast::TupleType>(tracker(), std::move(args));
 }
 
 Ptr<ast::ArrayType> Parser::parse_array_type() {
@@ -1074,11 +1074,11 @@ Ptr<ast::ArrayType> Parser::parse_array_type() {
         auto size = parse_array_size();
         expect(Token::RBracket);
         if (size)
-            return make_ptr<ast::SizedArrayType>(tracker(), std::move(elem), std::move(*size), is_simd);
-        return make_ptr<ast::UnsizedArrayType>(tracker(), std::move(elem));
+            return _arena.make_ptr<ast::SizedArrayType>(tracker(), std::move(elem), std::move(*size), is_simd);
+        return _arena.make_ptr<ast::UnsizedArrayType>(tracker(), std::move(elem));
     } else {
         expect(Token::RBracket);
-        return make_ptr<ast::UnsizedArrayType>(tracker(), std::move(elem));
+        return _arena.make_ptr<ast::UnsizedArrayType>(tracker(), std::move(elem));
     }
 }
 
@@ -1093,10 +1093,10 @@ Ptr<ast::FnType> Parser::parse_fn_type() {
     expect(Token::Arrow);
     Ptr<ast::Type> to;
     if (accept(Token::Not))
-        to = make_ptr<ast::NoCodomType>(prev_);
+        to = _arena.make_ptr<ast::NoCodomType>(prev_);
     else
         to = parse_type();
-    return make_ptr<ast::FnType>(tracker(), std::move(from), std::move(to));
+    return _arena.make_ptr<ast::FnType>(tracker(), std::move(from), std::move(to));
 }
 
 Ptr<ast::PtrType> Parser::parse_ptr_type() {
@@ -1110,23 +1110,23 @@ Ptr<ast::PtrType> Parser::parse_ptr_type() {
     if (ahead().tag() == Token::AddrSpace)
         addr_space = parse_addr_space();
     auto pointee = parse_type();
-    auto inner_ptr = make_ptr<ast::PtrType>(tracker(), std::move(pointee), is_mut, addr_space);
+    auto inner_ptr = _arena.make_ptr<ast::PtrType>(tracker(), std::move(pointee), is_mut, addr_space);
     return double_ptr
-        ? make_ptr<ast::PtrType>(tracker(), std::move(inner_ptr), false, 0)
+        ? _arena.make_ptr<ast::PtrType>(tracker(), std::move(inner_ptr), false, 0)
         : std::move(inner_ptr);
 }
 
 Ptr<ast::TypeApp> Parser::parse_type_app() {
     Tracker tracker(this);
     auto path = parse_path();
-    return make_ptr<ast::TypeApp>(tracker(), std::move(path));
+    return _arena.make_ptr<ast::TypeApp>(tracker(), std::move(path));
 }
 
 Ptr<ast::ErrorType> Parser::parse_error_type() {
     Tracker tracker(this);
     error(ahead().loc(), "expected type, got '{}'", ahead().string());
     next();
-    return make_ptr<ast::ErrorType>(tracker());
+    return _arena.make_ptr<ast::ErrorType>(tracker());
 }
 
 Ptr<ast::Filter> Parser::parse_filter() {
@@ -1137,7 +1137,7 @@ Ptr<ast::Filter> Parser::parse_filter() {
         expr = parse_expr();
         expect(Token::RParen);
     }
-    return make_ptr<ast::Filter>(tracker(), std::move(expr));
+    return _arena.make_ptr<ast::Filter>(tracker(), std::move(expr));
 }
 
 Ptr<ast::AttrList> Parser::parse_attr_list() {
@@ -1148,7 +1148,7 @@ Ptr<ast::AttrList> Parser::parse_attr_list() {
     parse_list(Token::RBracket, Token::Comma, [&] {
         attrs.emplace_back(parse_attr());
     });
-    return make_ptr<ast::AttrList>(tracker(), std::move(attrs));
+    return _arena.make_ptr<ast::AttrList>(tracker(), std::move(attrs));
 }
 
 Ptr<ast::Attr> Parser::parse_attr() {
@@ -1162,13 +1162,13 @@ Ptr<ast::Attr> Parser::parse_attr() {
         if (ahead().tag() == Token::Lit) {
             auto lit = ahead().literal();
             eat(Token::Lit);
-            return make_ptr<ast::LiteralAttr>(tracker(), std::move(name), lit);
+            return _arena.make_ptr<ast::LiteralAttr>(tracker(), std::move(name), lit);
         } else if (ahead().tag() == Token::Id) {
             auto path = parse_path();
-            return make_ptr<ast::PathAttr>(tracker(), std::move(name), std::move(path));
+            return _arena.make_ptr<ast::PathAttr>(tracker(), std::move(name), std::move(path));
         } else {
             error(ahead().loc(), "expected attribute value, got '{}'", ahead().string());
-            return make_ptr<ast::NamedAttr>(tracker(), std::move(name), PtrVector<ast::Attr>());
+            return _arena.make_ptr<ast::NamedAttr>(tracker(), std::move(name), PtrVector<ast::Attr>());
         }
     } else {
         PtrVector<ast::Attr> args;
@@ -1177,7 +1177,7 @@ Ptr<ast::Attr> Parser::parse_attr() {
                 args.emplace_back(parse_attr());
             });
         }
-        return make_ptr<ast::NamedAttr>(tracker(), std::move(name), std::move(args));
+        return _arena.make_ptr<ast::NamedAttr>(tracker(), std::move(name), std::move(args));
     }
 }
 
