@@ -503,6 +503,10 @@ const thorin::FnType* Emitter::continuation_type_with_mem(const thorin::Type* fr
         return world.fn_type({ world.mem_type(), from });
 }
 
+static const thorin::ReturnType* cont_type_to_return_type(const thorin::FnType* t) {
+    return t->world().return_type(t->types());
+}
+
 const thorin::FnType* Emitter::function_type_with_mem(const thorin::Type* from, const thorin::Type* to) {
     // Flatten one level of tuples in the domain and codomain:
     // If the input is `fn (i32, i64) -> (f32, f64)`, we produce the
@@ -512,10 +516,10 @@ const thorin::FnType* Emitter::function_type_with_mem(const thorin::Type* from, 
         types[0] = world.mem_type();
         for (size_t i = 0, n = tuple_type->num_ops(); i < n; ++i)
             types[i + 1] = tuple_type->types()[i];
-        types.back() = continuation_type_with_mem(to);
+        types.back() = cont_type_to_return_type(continuation_type_with_mem(to));
         return world.fn_type(types);
     } else
-        return world.fn_type({ world.mem_type(), from, continuation_type_with_mem(to) });
+        return world.fn_type({ world.mem_type(), from, cont_type_to_return_type(continuation_type_with_mem(to)) });
 }
 
 const thorin::Def* Emitter::tuple_from_params(thorin::Continuation* cont, bool ret) {
@@ -532,7 +536,7 @@ const thorin::Def* Emitter::tuple_from_params(thorin::Continuation* cont, bool r
 std::vector<const thorin::Def*> Emitter::call_args(
     const thorin::Def* mem,
     const thorin::Def* arg,
-    const thorin::Def* cont)
+    const thorin::Continuation* cont)
 {
     // Create a list of operands for a call to a function/continuation
     std::vector<const thorin::Def*> ops;
@@ -543,7 +547,7 @@ std::vector<const thorin::Def*> Emitter::call_args(
     } else
         ops.push_back(arg);
     if (cont)
-        ops.push_back(cont);
+        ops.push_back(world.return_point(cont));
     return ops;
 }
 
@@ -577,7 +581,7 @@ const thorin::Def* Emitter::call(const thorin::Def* callee, const thorin::Def* a
     if (!state.cont)
         return nullptr;
     auto cont_type = callee->type()->as<thorin::FnType>()->ops().back()->as<thorin::FnType>();
-    auto cont = world.continuation(cont_type, thorin::Debug("cont"));
+    auto cont = world.continuation(world.fn_type(cont_type->types()), thorin::Debug("cont"));
     return call(callee, arg, cont, debug);
 }
 
@@ -1265,6 +1269,17 @@ const thorin::Def* TupleExpr::emit(Emitter& emitter) const {
     return emitter.world.tuple(ops);
 }
 
+/// Sets the 'ret' field of FnExpr, making sure to wrap the function body in a control/join construct
+static void wrap_return_in_control(const FnExpr& fn, Emitter& emitter) {
+    auto codom = fn.type->as<artic::FnType>()->codom->convert(emitter);
+    // return continuation just calls the actual return parameter
+    // in the future, return parameters may be eliminated altogether and this could just be a direct-style value yield
+    auto end = emitter.world.continuation(emitter.continuation_type_with_mem(codom), emitter.debug_info(fn, fn.def->debug().name + "_ret"));
+    end->jump(fn.def->as_nom<thorin::Continuation>()->ret_param(), end->params_as_defs());
+
+    fn.ret = end;
+}
+
 const thorin::Def* FnExpr::emit(Emitter& emitter) const {
     auto _ = emitter.save_state();
     auto cont = emitter.world.continuation(
@@ -1277,8 +1292,11 @@ const thorin::Def* FnExpr::emit(Emitter& emitter) const {
     emitter.emit(*param, emitter.tuple_from_params(cont, true));
     if (filter)
         cont->set_filter(emitter.world.filter(thorin::Array<const thorin::Def*>(cont->num_params(), emitter.emit(*filter))));
+
+    wrap_return_in_control(*this, emitter);
+
     auto value = emitter.emit(*body);
-    emitter.jump(cont->params().back(), value);
+    emitter.jump(ret, value);
     return cont;
 }
 
@@ -1453,7 +1471,7 @@ const thorin::Def* ContinueExpr::emit(Emitter&) const {
 }
 
 const thorin::Def* ReturnExpr::emit(Emitter&) const {
-    return fn->def->as_nom<thorin::Continuation>()->params().back();
+    return fn->ret;
 }
 
 const thorin::Def* UnaryExpr::emit(Emitter& emitter) const {
@@ -1728,8 +1746,9 @@ const thorin::Def* FnDecl::emit(Emitter& emitter) const {
         emitter.emit(*fn->param, emitter.tuple_from_params(cont, !fn_type->codom->isa<artic::NoRetType>()));
         if (fn->filter)
             cont->set_filter(emitter.world.filter(thorin::Array<const thorin::Def*>(cont->num_params(), emitter.emit(*fn->filter))));
+        wrap_return_in_control(*fn, emitter);
         auto value = emitter.emit(*fn->body);
-        emitter.jump(cont->params().back(), value, emitter.debug_info(*fn->body));
+        emitter.jump(fn->ret, value, emitter.debug_info(*fn->body));
     }
 
     // Clear the thorin IR generated for this entire function
