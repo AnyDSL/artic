@@ -1,9 +1,18 @@
 #[import(cc="C")]
-fn leak(fn(i32) -> i32) -> ();
+fn leak(fn(i32) -> !) -> ();
 
 #[export]
 fn foo(x: i32) -> i32 {
-  fn f(y: i32) { x }
+  let r = return;
+
+  // 'f' is a basic block within 'foo'
+  fn f(y: i32) -> ! {
+    if (x + y > 0) {
+      r(0)
+    } else {
+      r(y)
+    }
+  }
 
   leak(f);
 
