@@ -1,0 +1,20 @@
+#[import(cc="C")]
+fn leak(fn(i32) -> !) -> ();
+
+#[export]
+fn foo(x: i32) -> i32 {
+  let r = return;
+
+  // 'f' is a basic block within 'foo'
+  fn f(y: i32) -> ! {
+    if (x + y > 0) {
+      r(0)
+    } else {
+      r(y)
+    }
+  }
+
+  leak(f);
+
+  return (0)
+}

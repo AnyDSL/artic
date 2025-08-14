@@ -1,0 +1,17 @@
+#[import(cc = "thorin", name = "parallel")] fn thorin_parallel(_num_threads: i32, _lower: i32, _upper: i32, _body: fn(i32) -> ()) -> ();
+fn @parallel(body: fn(i32) -> ()) = @|num_threads: i32, lower: i32, upper: i32| thorin_parallel(num_threads, lower, upper, body);
+
+#[import(cc="C")]
+fn leak(fn(i32) -> i32) -> ();
+
+#[export]
+fn parallel_test(n: i32, a: &[i32], b: &[i32], c: &mut[i32]) -> i32 {
+    fn f(x: i32) = x * n;
+
+    for i in parallel(4, 0, n) {
+        // this requires lifting the local continuation 'f'
+        leak(f);
+        c(i) = f(a(i)) + f(b(i));
+    }
+    0
+}

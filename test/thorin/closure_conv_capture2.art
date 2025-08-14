@@ -1,0 +1,13 @@
+#[import(cc="C")]
+fn leak2(i32, fn() -> !) -> ();
+
+// similar to the last one but now we capture a 'break' continuation
+#[export]
+fn foo() -> i32 {
+  while true {
+    leak2(5, break);
+  }
+  // this basic block is unreachable from the CFG
+  // but should still be emitted as part of this foo's scope
+  0
+}
