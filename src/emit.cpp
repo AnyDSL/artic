@@ -1271,13 +1271,16 @@ const thorin::Def* TupleExpr::emit(Emitter& emitter) const {
 
 /// Sets the 'ret' field of FnExpr, making sure to wrap the function body in a control/join construct
 static void wrap_return_in_control(const FnExpr& fn, Emitter& emitter) {
-    auto codom = fn.type->as<artic::FnType>()->codom->convert(emitter);
-    // return continuation just calls the actual return parameter
-    // in the future, return parameters may be eliminated altogether and this could just be a direct-style value yield
-    auto end = emitter.world.continuation(emitter.continuation_type_with_mem(codom), emitter.debug_info(fn, fn.def->debug().name + "_ret"));
-    end->jump(fn.def->as_nom<thorin::Continuation>()->ret_param(), end->params_as_defs());
+    fn.ret = fn.def->as_nom<thorin::Continuation>()->ret_param();
 
-    fn.ret = end;
+    if (fn.ret) {
+        auto codom = fn.type->as<artic::FnType>()->codom->convert(emitter);
+        // return continuation just calls the actual return parameter
+        // in the future, return parameters may be eliminated altogether and this could just be a direct-style value yield
+        auto end = emitter.world.continuation(emitter.continuation_type_with_mem(codom), emitter.debug_info(fn, fn.def->debug().name + "_ret"));
+        end->jump(fn.ret, end->params_as_defs());
+        fn.ret = end;
+    }
 }
 
 const thorin::Def* FnExpr::emit(Emitter& emitter) const {
