@@ -1889,8 +1889,17 @@ std::string SizedArrayType::stringify(Emitter& emitter) const {
 }
 
 const thorin::Type* SizedArrayType::convert(Emitter& emitter) const {
-    if (is_simd)
-        return emitter.world.prim_type(elem->convert(emitter)->as<thorin::PrimType>()->primtype_tag(), size);
+    if (is_simd) {
+        auto elem_type = elem->convert(emitter);
+        if (auto prim_type = elem_type->isa<thorin::PrimType>())
+            return emitter.world.prim_type(prim_type->primtype_tag(), size);
+        else if (auto ptr_type = elem_type->isa<thorin::PtrType>())
+            return emitter.world.ptr_type(ptr_type->pointee(), size, ptr_type->addr_space());
+
+        //This should be unreachable after type checking.
+        assert(false);
+        return nullptr;
+    }
     return emitter.world.definite_array_type(elem->convert(emitter), size);
 }
 
