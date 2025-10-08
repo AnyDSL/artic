@@ -29,6 +29,7 @@ public:
     struct State {
         const thorin::Def* mem = nullptr;
         thorin::Continuation* cont = nullptr;
+        thorin::Continuation* inner_fn = nullptr;
     };
 
     struct SavedState {

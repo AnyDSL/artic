@@ -1290,6 +1290,7 @@ const thorin::Def* FnExpr::emit(Emitter& emitter) const {
         emitter.debug_info(*this));
     cont->params().back()->set_name("ret");
     // Set the IR node before entering the body
+    emitter.state.inner_fn = cont;
     def = cont;
     emitter.enter(cont);
     emitter.emit(*param, emitter.tuple_from_params(cont, true));
@@ -1311,6 +1312,11 @@ const thorin::Def* BlockExpr::emit(Emitter& emitter) const {
 }
 
 const thorin::Def* CallExpr::emit(Emitter& emitter) const {
+    if (emitter.state.inner_fn != nullptr) {
+        auto old_mem_param = emitter.state.inner_fn->mem_param();
+        auto new_mem = emitter.world.tie_mem(emitter.state.mem, old_mem_param, emitter.debug_info(*this));
+        emitter.state.mem = new_mem;
+    }
     if (callee->type->isa<artic::FnType>()) {
         auto fn = emitter.emit(*callee);
         auto value = emitter.emit(*arg);
@@ -1446,6 +1452,7 @@ const thorin::Def* ForExpr::emit(Emitter& emitter) const {
         body_cont = emitter.world.continuation(
             body_fn->type->convert(emitter)->as<thorin::FnType>(),
             emitter.debug_info(*body_fn, "for_body"));
+        emitter.state.inner_fn = body_cont;
         break_ = emitter.basic_block_with_mem(type->convert(emitter), emitter.debug_info(*this, "for_break"));
         continue_ = body_cont->params().back();
         continue_->set_name("for_continue");
@@ -1708,6 +1715,7 @@ const thorin::Def* FnDecl::emit(Emitter& emitter) const {
         emitter.mono_fns.emplace(std::move(mono_fn), cont);
 
     cont->params().back()->set_name("ret");
+    emitter.state.inner_fn = cont;
 
     // Set the calling convention and export the continuation if needed
     if (attrs) {
