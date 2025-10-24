@@ -362,8 +362,8 @@ int main(int argc, char** argv) {
     if (opts.emit_thorin)
         thorin.world().dump_scoped(!opts.no_color);
 
-    auto emit_to_file = [&] (thorin::CodeGen& cg) {
-        auto name = opts.module_name + cg.file_ext();
+    auto emit_to_file = [&] (thorin::CodeGen& cg, std::string file_ext) {
+        auto name = opts.module_name + file_ext;
         std::ofstream file(name);
         if (!file)
             log::error("cannot open '{}' for writing", name);
@@ -381,12 +381,12 @@ int main(int argc, char** argv) {
         if (opts.emit_c) {
             thorin::Cont2Config kernel_configs;
             thorin::c::CodeGen cg(thorin, kernel_configs, thorin::c::Lang::C99, opts.debug, opts.hls_flags);
-            emit_to_file(cg);
+            emit_to_file(cg, ".c");
         }
 #ifdef ENABLE_LLVM
         if (opts.emit_llvm) {
             thorin::llvm::CPUCodeGen cg(thorin, opts.opt_level, opts.debug, opts.host_triple, opts.host_cpu, opts.host_attr);
-            emit_to_file(cg);
+            emit_to_file(cg, ".ll");
         }
 #endif
 #ifdef ENABLE_SPIRV
@@ -394,11 +394,14 @@ int main(int argc, char** argv) {
             thorin::spirv::Target target;
 
             thorin::spirv::CodeGen cg(thorin, target, opts.debug);
-            emit_to_file(cg);
+            emit_to_file(cg, ".spv");
         }
 #endif
-        for (auto& cg : backends.cgs) {
-            if (cg) emit_to_file(*cg);
+        for (auto& backend : backends.backends()) {
+            if (!backend->thorin().world().empty()) {
+                auto cg = backend->create_cg();
+                emit_to_file(*cg, backend->file_extension());
+            }
         }
     }
     return EXIT_SUCCESS;
