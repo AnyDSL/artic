@@ -9,9 +9,11 @@
 #include "artic/emit.h"
 #include "artic/locator.h"
 
-#include <thorin/world.h>
+#include <thorin/thorin.h>
+#include <thorin/offload/offload.h>
 #include <thorin/be/codegen.h>
 #include <thorin/be/c/c.h>
+
 #ifdef ENABLE_JSON
 #include <thorin/be/json/json.h>
 #endif
@@ -317,7 +319,7 @@ int main(int argc, char** argv) {
         file_data.emplace_back(tabs_to_spaces(*data, opts.tab_width));
     }
 
-    thorin::Thorin thorin(opts.module_name);
+    thorin::Thorin thorin(opts.module_name, opts.opt_level, opts.debug, opts.hls_flags);
     thorin.world().set(opts.log_level);
     thorin.world().set(std::make_shared<thorin::Stream>(std::cerr));
 
@@ -358,7 +360,7 @@ int main(int argc, char** argv) {
         }
     }
     if (opts.opt_level > 1 || opts.emit_host_code)
-        thorin.opt();
+        thorin.compile();
     if (opts.emit_thorin)
         thorin.world().dump_scoped(!opts.no_color);
 
@@ -377,15 +379,15 @@ int main(int argc, char** argv) {
     }
 #endif
     if (opts.emit_host_code) {
-        thorin::DeviceBackends backends(thorin.world(), opts.opt_level, opts.debug, opts.hls_flags);
+        thorin::Offload& offload = thorin.offload();
         if (opts.emit_c) {
             thorin::Cont2Config kernel_configs;
-            thorin::c::CodeGen cg(thorin, kernel_configs, thorin::c::Lang::C99, opts.debug, opts.hls_flags);
+            thorin::c::CodeGen cg(thorin.world(), kernel_configs, thorin::c::Lang::C99, opts.debug, opts.hls_flags);
             emit_to_file(cg, ".c");
         }
 #ifdef ENABLE_LLVM
         if (opts.emit_llvm) {
-            thorin::llvm::CPUCodeGen cg(thorin, opts.opt_level, opts.debug, opts.host_triple, opts.host_cpu, opts.host_attr);
+            thorin::llvm::CPUCodeGen cg(thorin.world(), opts.opt_level, opts.debug, opts.host_triple, opts.host_cpu, opts.host_attr);
             emit_to_file(cg, ".ll");
         }
 #endif
@@ -393,12 +395,12 @@ int main(int argc, char** argv) {
         if (opts.emit_spirv) {
             thorin::spirv::Target target;
 
-            thorin::spirv::CodeGen cg(thorin, target, opts.debug);
+            thorin::spirv::CodeGen cg(thorin.world(), target, opts.debug);
             emit_to_file(cg, ".spv");
         }
 #endif
-        for (auto& backend : backends.backends()) {
-            if (!backend->thorin().world().empty()) {
+        for (auto& backend : offload.backends()) {
+            if (!backend->world().empty()) {
                 auto cg = backend->create_cg();
                 emit_to_file(*cg, backend->file_extension());
             }
