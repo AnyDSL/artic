@@ -24,7 +24,7 @@ fn @range_step(body: fn (i32) -> ()) = @|beg: i32, end: i32, step: i32| {
     loop(beg, end)
 };
 
-fn range(body: fn (i32) -> ()) = @|a: i32, b: i32| range_step(body)(a, b, 1);
+fn @range(body: fn (i32) -> ()) = @|a: i32, b: i32| range_step(body)(a, b, 1);
 
 /* The board is a 50 cell hexagonal pattern.  For    . . . . .
  * maximum speed the board will be implemented as     . . . . .
