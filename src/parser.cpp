@@ -222,7 +222,7 @@ Ptr<ast::ExtTypeDecl> Parser::parse_ext_type_decl() {
     });
 
     expect(Token::Semi);
-    return make_ptr<ast::ExtTypeDecl>(tracker(), std::move(id), std::move(type_name), std::move(type_params), std::move(args));
+    return _arena.make_ptr<ast::ExtTypeDecl>(tracker(), std::move(id), std::move(type_name), std::move(type_params), std::move(args));
 }
 
 Ptr<ast::ImplicitDecl> Parser::parse_implicit_decl() {
