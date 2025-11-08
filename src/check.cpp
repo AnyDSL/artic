@@ -83,7 +83,7 @@ const Type* TypeChecker::invalid_cast(const Loc& loc, const Type* type, const Ty
 
 const Type* TypeChecker::invalid_simd(const Loc& loc, const Type* elem_type) {
     if (should_report_error(elem_type))
-        error(loc, "expected primitive type for simd type component, but got '{}'", *elem_type);
+        error(loc, "expected primitive or pointer type for simd type component, but got '{}'", *elem_type);
     return type_table.type_error();
 }
 
@@ -489,7 +489,7 @@ const Type* TypeChecker::infer_array(
     if (elem_count == 0)
         return cannot_infer(loc, msg);
     auto elem_type = infer_elems();
-    if (is_simd && !elem_type->template isa<PrimType>())
+    if (is_simd && !(elem_type->template isa<PrimType>() || elem_type->template isa<PtrType>()))
         return invalid_simd(loc, elem_type);
     return type_table.sized_array_type(elem_type, elem_count, is_simd);
 }
@@ -509,7 +509,7 @@ const Type* TypeChecker::check_array(
     if (is_simd_type(array_type) != is_simd)
         return incompatible_type(loc, (is_simd ? "simd " : "non-simd ") + std::string(msg), expected);
     auto elem_type = array_type->elem;
-    if (is_simd && !elem_type->isa<PrimType>())
+    if (is_simd && !(elem_type->template isa<PrimType>() || elem_type->template isa<PtrType>()))
         return invalid_simd(loc, elem_type);
     check_elems(elem_type);
     if (auto sized_array_type = array_type->isa<artic::SizedArrayType>();
@@ -847,7 +847,7 @@ const artic::Type* TupleType::infer(TypeChecker& checker) {
 
 const artic::Type* SizedArrayType::infer(TypeChecker& checker) {
     auto elem_type = checker.infer(*elem);
-    if (is_simd && !elem_type->isa<artic::PrimType>())
+    if (is_simd && !(elem_type->template isa<artic::PrimType>() || elem_type->template isa<artic::PtrType>()))
         return checker.invalid_simd(loc, elem_type);
 
     if (std::holds_alternative<ast::Path>(size)) {
@@ -1022,7 +1022,7 @@ const artic::Type* ArrayExpr::check(TypeChecker& checker, const artic::Type* exp
 
 const artic::Type* RepeatArrayExpr::infer(TypeChecker& checker) {
     auto elem_type = checker.deref(elem);
-    if (is_simd && !elem_type->isa<artic::PrimType>())
+    if (is_simd && !(elem_type->template isa<artic::PrimType>() || elem_type->template isa<artic::PtrType>()))
         return checker.invalid_simd(loc, elem_type);
 
     if (std::holds_alternative<ast::Path>(size)) {
@@ -1814,6 +1814,27 @@ const artic::Type* TypeDecl::infer(TypeChecker& checker) {
     }
     checker.exit_decl(this);
     return type;
+}
+
+const artic::Type* ExtTypeDecl::infer(TypeChecker& checker) {
+    if (!checker.enter_decl(this))
+        return checker.type_table.type_error();
+    const ExtType* ext_type = checker.type_table.ext_type(*this);
+    // Set the type before entering the args
+    type = ext_type;
+    for (auto& arg : args_) {
+        if (auto t = std::get_if<Ptr<Type>>(&arg))
+            args_types_.emplace_back(checker.infer(**t));
+        else if (auto e = std::get_if<Ptr<Expr>>(&arg)) {
+            checker.infer(**e);
+            if (!(*e)->is_constant())
+                checker.error((*e)->loc, "only constants are allowed as external type members");
+            args_types_.emplace_back(nullptr);
+        } else
+            assert(false);
+    }
+    checker.exit_decl(this);
+    return ext_type;
 }
 
 const artic::Type* ModDecl::infer(TypeChecker& checker) {

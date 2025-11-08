@@ -509,10 +509,28 @@ void TypeDecl::bind_head(NameBinder& binder) {
     binder.insert_symbol(*this);
 }
 
+void ExtTypeDecl::bind_head(NameBinder& binder) {
+    binder.insert_symbol(*this);
+}
+
 void TypeDecl::bind(NameBinder& binder) {
     binder.push_scope();
     if (type_params) binder.bind(*type_params);
     binder.bind(*aliased_type);
+    binder.pop_scope();
+}
+
+void ExtTypeDecl::bind(NameBinder& binder) {
+    binder.push_scope();
+    //if (type_params) binder.bind(*type_params);
+    for (auto& arg : args_) {
+        if (auto t = std::get_if<Ptr<Type>>(&arg))
+            binder.bind(**t);
+        else if (auto e = std::get_if<Ptr<Expr>>(&arg))
+            binder.bind(**e);
+        else
+            assert(false);
+    }
     binder.pop_scope();
 }
 
