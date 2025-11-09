@@ -323,6 +323,14 @@ int main(int argc, char** argv) {
     thorin.world().set(opts.log_level);
     thorin.world().set(std::make_shared<thorin::Stream>(std::cerr));
 
+    thorin::register_c_offloading_backends(thorin.offload());
+#ifdef ENABLE_LLVM
+    thorin::register_llvm_offloading_backends(thorin.offload());
+#endif
+#ifdef ENABLE_SPIRV
+    thorin::register_spirv_offloading_backends(thorin.offload());
+#endif
+
     Arena arena;
     TypeTable type_table;
     auto [program, success] = compile(
