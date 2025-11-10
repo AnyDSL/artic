@@ -389,7 +389,7 @@ int main(int argc, char** argv) {
     if (opts.emit_host_code) {
         thorin::Offload& offload = thorin.offload();
         if (opts.emit_c) {
-            thorin::Cont2Config kernel_configs;
+            thorin::KernelConfigs kernel_configs;
             thorin::c::CodeGen cg(thorin.world(), kernel_configs, thorin::c::Lang::C99, opts.debug, opts.hls_flags);
             emit_to_file(cg, ".c");
         }
