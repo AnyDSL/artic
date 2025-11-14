@@ -382,8 +382,8 @@ int main(int argc, char** argv) {
     };
 #ifdef ENABLE_JSON
     if (opts.emit_json) {
-        thorin::json::CodeGen cg(thorin, opts.debug, opts.host_triple, opts.host_cpu, opts.host_attr);
-        emit_to_file(cg);
+        thorin::json::CodeGen cg(thorin.world(), opts.debug, opts.host_triple, opts.host_cpu, opts.host_attr);
+        emit_to_file(cg, ".thorin.json");
     }
 #endif
     if (opts.emit_host_code) {
