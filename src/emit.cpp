@@ -624,7 +624,7 @@ void Emitter::store(const thorin::Def* ptr, const thorin::Def* value, thorin::De
 
 const thorin::Def* Emitter::load(const thorin::Def* ptr, thorin::Debug debug) {
     // Allow loads from globals at the top level (where `state.mem` is null)
-    if (auto global = ptr->isa<thorin::Global>(); global && !global->is_mutable() && (!global->is_external() || !global->init()->isa<thorin::Bottom>()))
+    if (auto global = ptr->isa<thorin::Global>(); global && !global->is_mutable() && (!global->is_externally_visible() || !global->init()->isa<thorin::Bottom>()))
         return global->init();
     assert(state.mem);
     auto pair = world.load(state.mem, ptr, debug);
@@ -634,7 +634,7 @@ const thorin::Def* Emitter::load(const thorin::Def* ptr, thorin::Debug debug) {
 
 const thorin::Def* Emitter::addr_of(const thorin::Def* def, thorin::Debug debug) {
     if (!def->has_dep(thorin::Dep::Param)) {
-        return world.global(def, false, debug);
+        return world.global(def, false, false, debug);
     } else {
         auto ptr = alloc(def->type(), debug);
         store(ptr, def, debug);
@@ -1674,7 +1674,17 @@ const thorin::Def* StaticDecl::emit(Emitter& emitter) const {
     auto value = init
         ? emitter.emit(*init)
         : emitter.world.bottom(Node::type->as<artic::RefType>()->pointee->convert(emitter));
-    auto global = emitter.world.global(value, is_mut, emitter.debug_info(*this));
+
+    bool imported = false;
+    if (attrs) {
+        if (auto export_attr = attrs->find("import")) {
+            imported = true;
+            if (init) {
+                emitter.error(loc, "global variables can't be imported and initialized!");
+            }
+        }
+    }
+    auto global = emitter.world.global(value, is_mut, imported, emitter.debug_info(*this));
 
     if (attrs) {
         if (auto export_attr = attrs->find("export")) {
@@ -1711,28 +1721,35 @@ const thorin::Def* FnDecl::emit(Emitter& emitter) const {
 
     // Set the calling convention and export the continuation if needed
     if (attrs) {
-        if (auto export_attr = attrs->find("export")) {
-            if (auto name_attr = export_attr->find("name"))
-                cont->set_name(name_attr->as<LiteralAttr>()->lit.as_string());
-            emitter.world.make_external(cont);
-            cont->attributes().cc = thorin::CC::C;
-        } else if (auto import_attr = attrs->find("import")) {
+        bool is_exportable = fn->body;
+        if (auto import_attr = attrs->find("import")) {
             if (auto name_attr = import_attr->find("name"))
                 cont->set_name(name_attr->as<LiteralAttr>()->lit.as_string());
             if (auto cc_attr = import_attr->find("cc")) {
                 auto cc = cc_attr->as<LiteralAttr>()->lit.as_string();
                 if (cc == "device") {
-                    emitter.world.make_external(cont);
+                    //emitter.world.make_external(cont);
                     cont->attributes().cc = thorin::CC::Device;
                 } else if (cc == "C") {
-                    emitter.world.make_external(cont);
+                    is_exportable = true;
+                    //emitter.world.make_external(cont);
                     cont->attributes().cc = thorin::CC::C;
                 } else if (cc == "thorin")
                     cont->set_intrinsic();
                 else if (cc == "builtin")
                     emitter.builtin(*this, cont);
             }
-        } else if (auto intern_attr = attrs->find("intern")) {
+        }
+        if (auto export_attr = attrs->find("export")) {
+            if (!is_exportable)
+                emitter.error(loc, "exported functions must have a body");
+
+            if (auto name_attr = export_attr->find("name"))
+                cont->set_name(name_attr->as<LiteralAttr>()->lit.as_string());
+            emitter.world.make_external(cont);
+            cont->attributes().cc = thorin::CC::C;
+        }
+        if (auto intern_attr = attrs->find("intern")) {
             if (auto name_attr = intern_attr->find("name"))
                 cont->set_name(name_attr->as<LiteralAttr>()->lit.as_string());
             emitter.world.make_external(cont);
