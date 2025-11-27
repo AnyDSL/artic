@@ -1,0 +1,11 @@
+#[import(cc="C")]
+fn leak(fn(i8) -> i8) -> ();
+
+#[export]
+fn foo(x: i8) -> i8 {
+  fn f(y: i8) { x + y }
+
+  leak(f);
+
+  return (0)
+}

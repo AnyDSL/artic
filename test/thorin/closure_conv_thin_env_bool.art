@@ -1,0 +1,11 @@
+#[import(cc="C")]
+fn leak(fn(bool) -> bool) -> ();
+
+#[export]
+fn foo(x: bool) -> bool {
+  fn f(y: bool) { x ^ y }
+
+  leak(f);
+
+  return (false)
+}
