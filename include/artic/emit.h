@@ -114,7 +114,10 @@ public:
     const thorin::FnType* continuation_type_with_mem(const thorin::Type*);
     const thorin::FnType* function_type_with_mem(const thorin::Type*, const thorin::Type*);
     const thorin::Def* tuple_from_params(thorin::Continuation*, bool = false);
-    std::vector<const thorin::Def*> call_args(const thorin::Def*, const thorin::Def*, const thorin::Continuation* = nullptr);
+
+    //std::vector<const thorin::Def*> call_args(const thorin::Def*, const thorin::Def*, const thorin::Continuation* = nullptr);
+    std::vector<const thorin::Def*> call_args(const thorin::Def*, const thorin::Def*);
+    std::pair<const thorin::Def*, std::vector<const thorin::Def*>> deconstruct_return_tuple(const thorin::ReturnType* type, const thorin::Def* def);
 
     void enter(thorin::Continuation*);
     void jump(const thorin::Def*, thorin::Debug = {});

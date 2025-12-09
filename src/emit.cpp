@@ -533,10 +533,30 @@ const thorin::Def* Emitter::tuple_from_params(thorin::Continuation* cont, bool r
     return world.tuple(ops);
 }
 
+std::pair<const thorin::Def*, std::vector<const thorin::Def*>> Emitter::deconstruct_return_tuple(const thorin::ReturnType* type, const thorin::Def* def) {
+    std::vector<const thorin::Def*> ops;
+    const thorin::Def* mem = nullptr;
+    //ops.resize(type->num_ops());
+    if (type->num_ops() != 1) {
+        for (size_t i = 0, n = type->num_ops(); i < n; ++i) {
+            auto e = world.extract(def, i);
+            if (is_mem(e))
+                mem = e;
+            else
+                ops.push_back(e);
+        }
+    } else {
+        if (is_mem(def))
+            mem = def;
+        else
+            ops.push_back(def);
+    }
+    return { mem, ops };
+}
+
 std::vector<const thorin::Def*> Emitter::call_args(
     const thorin::Def* mem,
-    const thorin::Def* arg,
-    const thorin::Continuation* cont)
+    const thorin::Def* arg)
 {
     // Create a list of operands for a call to a function/continuation
     std::vector<const thorin::Def*> ops;
@@ -546,8 +566,6 @@ std::vector<const thorin::Def*> Emitter::call_args(
             ops.push_back(world.extract(arg, i));
     } else
         ops.push_back(arg);
-    if (cont)
-        ops.push_back(world.return_point(cont));
     return ops;
 }
 
@@ -593,9 +611,24 @@ const thorin::Def* Emitter::call(
 {
     if (!state.cont)
         return nullptr;
-    state.cont->jump(callee, call_args(state.mem, arg, cont), debug);
-    enter(cont);
-    return tuple_from_params(cont);
+    auto r = callee->type()->as<thorin::FnType>()->return_param_type();
+    if (r) {
+        auto result = world.app(callee, call_args(state.mem, arg));
+        auto [mem, results] = deconstruct_return_tuple(r, result);
+        auto result_without_mem = world.tuple(results);
+        if (mem) {
+            results.insert(results.begin(), mem);
+            state.mem = mem;
+        }
+        state.cont->jump(cont, results, debug);
+        enter(cont);
+        return result_without_mem;
+    } else {
+        state.cont->jump(callee, call_args(state.mem, arg));
+        enter(cont);
+        return nullptr;
+    }
+    //return tuple_from_params(cont);
 }
 
 void Emitter::branch(
