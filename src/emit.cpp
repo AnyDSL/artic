@@ -607,6 +607,13 @@ void Emitter::jump(const thorin::Def* callee, const thorin::Def* arg, thorin::De
     state.cont = nullptr;
 }
 
+void Emitter::finish(const thorin::Def* arg, thorin::Debug debug) {
+    if (!state.cont)
+        return;
+    state.cont->set_body(world.tuple(call_args(state.mem, arg), debug));
+    state.cont = nullptr;
+}
+
 const thorin::Def* Emitter::call(const thorin::Def* callee, const thorin::Def* arg, thorin::Debug debug) {
     if (!state.cont)
         return nullptr;
@@ -1815,7 +1822,8 @@ const thorin::Def* FnDecl::emit(Emitter& emitter) const {
             cont->set_filter(emitter.world.filter(thorin::Array<const thorin::Def*>(cont->num_params(), emitter.emit(*fn->filter))));
         wrap_return_in_control(*fn, emitter);
         auto value = emitter.emit(*fn->body);
-        emitter.jump(fn->ret, value, emitter.debug_info(*fn->body));
+        //emitter.jump(fn->ret, value, emitter.debug_info(*fn->body));
+        emitter.finish(value, emitter.debug_info(*fn->body));
     }
 
     // Clear the thorin IR generated for this entire function

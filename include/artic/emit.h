@@ -123,6 +123,7 @@ public:
     void enter(thorin::Continuation*);
     void jump(const thorin::Def*, thorin::Debug = {});
     void jump(const thorin::Def*, const thorin::Def*, thorin::Debug = {});
+    void finish(const thorin::Def* arg, thorin::Debug debug);
     const thorin::Def* call(const thorin::Def*, const thorin::Def*, thorin::Debug = {});
     const thorin::Def* call(const thorin::Def*, const thorin::Def*, thorin::Continuation*, thorin::Debug = {});
     void branch(const thorin::Def*, const thorin::Def*, const thorin::Def*, thorin::Debug = {});
