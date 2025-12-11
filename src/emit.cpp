@@ -597,6 +597,9 @@ void Emitter::jump(const thorin::Def* callee, thorin::Debug debug) {
         assert(num_params == 0);
         state.cont->jump(callee, {}, debug);
     }
+#ifndef NDEBUG
+    state.cont->verify();
+#endif
     state.cont = nullptr;
 }
 
@@ -604,6 +607,9 @@ void Emitter::jump(const thorin::Def* callee, const thorin::Def* arg, thorin::De
     if (!state.cont)
         return;
     state.cont->jump(callee, call_args(state.mem, arg), debug);
+#ifndef NDEBUG
+    state.cont->verify();
+#endif
     state.cont = nullptr;
 }
 
@@ -611,13 +617,16 @@ void Emitter::finish(const thorin::Def* arg, thorin::Debug debug) {
     if (!state.cont)
         return;
     state.cont->set_body(world.tuple(call_args(state.mem, arg), debug));
+#ifndef NDEBUG
+    state.cont->verify();
+#endif
     state.cont = nullptr;
 }
 
 const thorin::Def* Emitter::call(const thorin::Def* callee, const thorin::Def* arg, thorin::Debug debug) {
     if (!state.cont)
         return nullptr;
-    auto cont_type = callee->type()->as<thorin::FnType>()->ops().back()->as<thorin::FnType>();
+    //auto cont_type = callee->type()->as<thorin::FnType>()->ops().back()->as<thorin::FnType>();
     //auto cont = world.continuation(world.cont_type(*cont_type->codomain()), thorin::Debug("cont"));
     auto cont = world.continuation(world.cont_type({}), thorin::Debug("cont"));
     return call(callee, arg, cont, debug);
@@ -1324,17 +1333,28 @@ const thorin::Def* TupleExpr::emit(Emitter& emitter) const {
 
 /// Sets the 'ret' field of FnExpr, making sure to wrap the function body in a control/join construct
 static void wrap_return_in_control(const FnExpr& fn, Emitter& emitter) {
-    //fn.ret = fn.def->as_nom<thorin::Continuation>()->ret_param();
-    fn.ret = nullptr;
+    auto& world = emitter.world;
+    auto codom = fn.type->as<artic::FnType>()->codom->convert(emitter);
 
-    if (fn.ret) {
-        auto codom = fn.type->as<artic::FnType>()->codom->convert(emitter);
-        // return continuation just calls the actual return parameter
-        // in the future, return parameters may be eliminated altogether and this could just be a direct-style value yield
-        auto end = emitter.world.continuation(emitter.continuation_type_with_mem(codom), emitter.debug_info(fn, fn.def->debug().name + "_ret"));
-        end->jump(fn.ret, end->params_as_defs());
-        fn.ret = end;
-    }
+
+    //auto start = world.continuation(world.cont_type({world.return_type(emitter.flatten_domain(codom))}), "start");
+    auto start = world.continuation(emitter.continuation_type_with_mem(world.return_type(emitter.flatten_domain(codom))), "start");
+    start->params().back()->set_name("ret");
+    fn.ret = start->params().back();
+
+    auto control = world.control(start);
+    emitter.state.mem = world.extract(control, (uint32_t) 0);
+    emitter.finish(world.extract(control, 1), {});
+    //emitter.state.cont = start;
+    emitter.enter(start);
+
+    //if (fn.ret) {
+    //    // return continuation just calls the actual return parameter
+    //    // in the future, return parameters may be eliminated altogether and this could just be a direct-style value yield
+    //    auto end = emitter.world.continuation(emitter.continuation_type_with_mem(codom), emitter.debug_info(fn, fn.def->debug().name + "_ret"));
+    //    end->jump(fn.ret, end->params_as_defs());
+    //    fn.ret = end;
+    //}
 }
 
 const thorin::Def* FnExpr::emit(Emitter& emitter) const {
@@ -1342,7 +1362,6 @@ const thorin::Def* FnExpr::emit(Emitter& emitter) const {
     auto cont = emitter.world.continuation(
         type->convert(emitter)->as<thorin::FnType>(),
         emitter.debug_info(*this));
-    cont->params().back()->set_name("ret");
     // Set the IR node before entering the body
     def = cont;
     emitter.enter(cont);
@@ -1822,8 +1841,8 @@ const thorin::Def* FnDecl::emit(Emitter& emitter) const {
             cont->set_filter(emitter.world.filter(thorin::Array<const thorin::Def*>(cont->num_params(), emitter.emit(*fn->filter))));
         wrap_return_in_control(*fn, emitter);
         auto value = emitter.emit(*fn->body);
-        //emitter.jump(fn->ret, value, emitter.debug_info(*fn->body));
-        emitter.finish(value, emitter.debug_info(*fn->body));
+        emitter.jump(fn->ret, value, emitter.debug_info(*fn->body));
+        //emitter.finish(value, emitter.debug_info(*fn->body));
     }
 
     // Clear the thorin IR generated for this entire function
