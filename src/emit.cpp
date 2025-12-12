@@ -707,7 +707,7 @@ const thorin::Def* Emitter::addr_of(const thorin::Def* def, thorin::Debug debug)
 const thorin::Def* Emitter::no_ret() {
     // Thorin does not have a type that can encode a no-return type,
     // so we return an empty tuple instead.
-    return world.bottom(world.unit_type());
+    return world.bottom(world.bottom_type());
 }
 
 static inline bool is_compatible(const Type* from, const Type* to) {
@@ -1336,25 +1336,25 @@ static void wrap_return_in_control(const FnExpr& fn, Emitter& emitter) {
     auto& world = emitter.world;
     auto codom = fn.type->as<artic::FnType>()->codom->convert(emitter);
 
+    if (codom != world.bottom_type()) {
+        //auto start = world.continuation(world.cont_type({world.return_type(emitter.flatten_domain(codom))}), "start");
+        auto start = world.continuation(emitter.continuation_type_with_mem(world.return_type(emitter.flatten_domain(codom))), "start");
+        start->params().back()->set_name("ret");
+        fn.ret = start->params().back();
 
-    //auto start = world.continuation(world.cont_type({world.return_type(emitter.flatten_domain(codom))}), "start");
-    auto start = world.continuation(emitter.continuation_type_with_mem(world.return_type(emitter.flatten_domain(codom))), "start");
-    start->params().back()->set_name("ret");
-    fn.ret = start->params().back();
+        auto control = world.control(emitter.state.mem, start)->as<thorin::Control>();
+        emitter.state.mem = control->out_mem();
+        emitter.state.cont->set_body(control);
+        //emitter.finish(control->value(), {});
+        //emitter.state.cont = start;
+        emitter.enter(start);
 
-    auto control = world.control(emitter.state.mem, start)->as<thorin::Control>();
-    emitter.state.mem = control->out_mem();
-    emitter.finish(control->value(), {});
-    //emitter.state.cont = start;
-    emitter.enter(start);
-
-    //if (fn.ret) {
-    //    // return continuation just calls the actual return parameter
-    //    // in the future, return parameters may be eliminated altogether and this could just be a direct-style value yield
-    //    auto end = emitter.world.continuation(emitter.continuation_type_with_mem(codom), emitter.debug_info(fn, fn.def->debug().name + "_ret"));
-    //    end->jump(fn.ret, end->params_as_defs());
-    //    fn.ret = end;
-    //}
+        // return continuation just calls the actual return parameter
+        // in the future, return parameters may be eliminated altogether and this could just be a direct-style value yield
+        auto end = emitter.world.continuation(emitter.continuation_type_with_mem(codom), emitter.debug_info(fn, fn.def->debug().name + "_ret"));
+        end->jump(fn.ret, end->params_as_defs());
+        fn.ret = end;
+    }
 }
 
 const thorin::Def* FnExpr::emit(Emitter& emitter) const {
