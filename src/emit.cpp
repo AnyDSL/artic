@@ -1342,8 +1342,8 @@ static void wrap_return_in_control(const FnExpr& fn, Emitter& emitter) {
     start->params().back()->set_name("ret");
     fn.ret = start->params().back();
 
-    auto control = world.control(start)->as<thorin::Control>();
-    emitter.state.mem = control->mem();
+    auto control = world.control(emitter.state.mem, start)->as<thorin::Control>();
+    emitter.state.mem = control->out_mem();
     emitter.finish(control->value(), {});
     //emitter.state.cont = start;
     emitter.enter(start);
