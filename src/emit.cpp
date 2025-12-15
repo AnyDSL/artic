@@ -749,7 +749,6 @@ static std::tuple<const thorin::Control*, thorin::Continuation*, thorin::Continu
 
     //auto start = world.continuation(world.cont_type({world.return_type(emitter.flatten_domain(codom))}), "start");
     auto start = world.continuation(emitter.continuation_type_with_mem(world.return_type(dom)), dbg.name + "_start");
-    start->params().back()->set_name("ret");
     auto ret_param = start->params().back();
 
     auto control = world.control(emitter.state.mem, start)->as<thorin::Control>();
@@ -1218,7 +1217,7 @@ const thorin::Def* Path::emit(Emitter& emitter) const {
             for (size_t i = 0, n = struct_ops.size(); i < n; ++i)
                 struct_ops[i] = emitter.world.extract(cont_param, i);
             auto struct_value = emitter.world.struct_agg(struct_type, struct_ops);
-            emitter.jump(cont->params().back(), struct_value, emitter.debug_info(*this));
+            emitter.finish(struct_value, emitter.debug_info(*this));
             return emitter.struct_ctors[elems[i].type] = cont;
         } else if (auto [type_app, enum_type] = match_app<artic::EnumType>(elems[i].type); enum_type) {
             // Find the variant constructor for that enum, if it exists.
@@ -1241,7 +1240,7 @@ const thorin::Def* Path::emit(Emitter& emitter) const {
                     emitter.function_type_with_mem(param_type->convert(emitter), converted_type),
                     emitter.debug_info(*enum_type->decl.options[ctor.index]));
                 auto ret_value = emitter.world.variant(variant_type, emitter.tuple_from_params(cont), ctor.index);
-                cont->jump(cont->params().back(), { cont->param(0), ret_value });
+                cont->set_body(emitter.world.tuple({ cont->param(0), ret_value }));
                 cont->set_filter(cont->all_true_filter());
                 return emitter.variant_ctors[ctor] = cont;
             }
@@ -1816,8 +1815,6 @@ const thorin::Def* FnDecl::emit(Emitter& emitter) const {
     if (type_params)
         emitter.mono_fns.emplace(std::move(mono_fn), cont);
 
-    cont->params().back()->set_name("ret");
-
     // Set the calling convention and export the continuation if needed
     if (attrs) {
         bool is_exportable = fn->body;
@@ -1870,6 +1867,7 @@ const thorin::Def* FnDecl::emit(Emitter& emitter) const {
             auto [c, start, end] = control(*cont->type()->codomain(), emitter, cont->debug());
             cont->set_body(c);
             fn->ret = end;
+            end->set_name("ret");
             emitter.state.mem = c->out_mem();
             emitter.enter(start);
             emitter.enter(start);
