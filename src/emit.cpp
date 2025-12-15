@@ -743,6 +743,27 @@ const thorin::Def* Emitter::cast_pointers(
     return world.bitcast(to_addr_type->convert(*this), addr, debug);
 }
 
+/// Sets the 'ret' field of FnExpr, making sure to wrap the function body in a control/join construct
+static std::tuple<const thorin::Control*, thorin::Continuation*, thorin::Continuation*> control(thorin::Types dom, Emitter& emitter, thorin::Debug dbg) {
+    auto& world = emitter.world;
+
+    //auto start = world.continuation(world.cont_type({world.return_type(emitter.flatten_domain(codom))}), "start");
+    auto start = world.continuation(emitter.continuation_type_with_mem(world.return_type(dom)), dbg.name + "_start");
+    start->params().back()->set_name("ret");
+    auto ret_param = start->params().back();
+
+    auto control = world.control(emitter.state.mem, start)->as<thorin::Control>();
+    //emitter.finish(control->value(), {});
+    //emitter.state.cont = start;
+    //emitter.enter(start);
+
+    // return continuation just calls the actual return parameter
+    // in the future, return parameters may be eliminated altogether and this could just be a direct-style value yield
+    auto end = emitter.world.continuation(world.cont_type(dom), dbg.name + "_end");
+    end->jump(ret_param, end->params_as_defs());
+    return { control, start, end };
+}
+
 const thorin::Def* Emitter::down_cast(const thorin::Def* def, const Type* from, const Type* to, thorin::Debug debug) {
     // This function mirrors the subtyping relation and thus should be kept in sync
     assert(from->subtype(to));
@@ -790,12 +811,24 @@ const thorin::Def* Emitter::down_cast(const thorin::Def* def, const Type* from, 
         auto cont = world.continuation(to->convert(*this)->as<thorin::FnType>(), debug);
         enter(cont);
         auto param = down_cast(tuple_from_params(cont), to->as<FnType>()->dom, from_fn_type->dom, debug);
+
+        const thorin::Def* ret = nullptr;
+
+        if (cont->type()->codomain()) {
+            auto [c, start, end] = control(*cont->type()->codomain(), *this, cont->debug());
+            cont->set_body(c);
+            ret = end;
+            state.mem = c->out_mem();
+            enter(start);
+        }
+
         // No-ret functions downcast to returning ones, but call() can't work with those (see also CallExpr, IfExpr)
         if (from->as<FnType>()->codom->isa<artic::NoRetType>()) {
             jump(def, param, debug);
         } else {
             auto value = down_cast(call(def, param, debug), from_fn_type->codom, to->as<FnType>()->codom, debug);
-            jump(cont->params().back(), value, debug);
+            jump(ret, value, debug);
+            //finish(value, debug);
         }
         return cont;
     }
@@ -1329,27 +1362,6 @@ const thorin::Def* TupleExpr::emit(Emitter& emitter) const {
     for (size_t i = 0, n = args.size(); i < n; ++i)
         ops[i] = emitter.emit(*args[i]);
     return emitter.world.tuple(ops);
-}
-
-/// Sets the 'ret' field of FnExpr, making sure to wrap the function body in a control/join construct
-static std::tuple<const thorin::Control*, thorin::Continuation*, thorin::Continuation*> control(thorin::Types dom, Emitter& emitter, thorin::Debug dbg) {
-    auto& world = emitter.world;
-
-    //auto start = world.continuation(world.cont_type({world.return_type(emitter.flatten_domain(codom))}), "start");
-    auto start = world.continuation(emitter.continuation_type_with_mem(world.return_type(dom)), dbg.name + "_start");
-    start->params().back()->set_name("ret");
-    auto ret_param = start->params().back();
-
-    auto control = world.control(emitter.state.mem, start)->as<thorin::Control>();
-    //emitter.finish(control->value(), {});
-    //emitter.state.cont = start;
-    //emitter.enter(start);
-
-    // return continuation just calls the actual return parameter
-    // in the future, return parameters may be eliminated altogether and this could just be a direct-style value yield
-    auto end = emitter.world.continuation(world.cont_type(dom), dbg.name + "_end");
-    end->jump(ret_param, end->params_as_defs());
-    return { control, start, end };
 }
 
 const thorin::Def* FnExpr::emit(Emitter& emitter) const {
