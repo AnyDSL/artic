@@ -976,27 +976,25 @@ static inline const thorin::Def* isfinite(const thorin::Def* val) {
 const thorin::Def* Emitter::builtin(const ast::FnDecl& fn_decl, thorin::Continuation* cont) {
     if (cont->name() == "alignof") {
         auto target_type = fn_decl.type_params->params[0]->type->convert(*this);
-        cont->jump(cont->params().back(), { cont->param(0), world.align_of(target_type) }, debug_info(fn_decl));
+        cont->set_body(world.tuple({ cont->param(0), world.align_of(target_type) }, debug_info(fn_decl)));
     } else if (cont->name() == "bitcast") {
         auto param = tuple_from_params(cont);
         auto target_type = fn_decl.type->as<ForallType>()->body->as<FnType>()->codom->convert(*this);
-        cont->jump(cont->params().back(), call_args(cont->param(0), world.bitcast(target_type, param)), debug_info(fn_decl));
+        cont->set_body(world.tuple(call_args(cont->param(0), world.bitcast(target_type, param)), debug_info(fn_decl)));
     } else if (cont->name() == "insert") {
-        cont->jump(
-            cont->params().back(),
+        cont->set_body(world.tuple(
             call_args(cont->param(0), world.insert(cont->param(1), cont->param(2), cont->param(3))),
-            debug_info(fn_decl));
+            debug_info(fn_decl)));
     } else if (cont->name() == "select") {
-        cont->jump(
-            cont->params().back(),
+        cont->set_body(world.tuple(
             call_args(cont->param(0), world.select(cont->param(1), cont->param(2), cont->param(3))),
-            debug_info(fn_decl));
+            debug_info(fn_decl)));
     } else if (cont->name() == "sizeof") {
         auto target_type = fn_decl.type_params->params[0]->type->convert(*this);
-        cont->jump(cont->params().back(), { cont->param(0), world.size_of(target_type) }, debug_info(fn_decl));
+        cont->set_body(world.tuple({ cont->param(0), world.size_of(target_type) }, debug_info(fn_decl)));
     } else if (cont->name() == "undef") {
         auto target_type = fn_decl.type_params->params[0]->type->convert(*this);
-        cont->jump(cont->params().back(), call_args(cont->param(0), world.bottom(target_type)), debug_info(fn_decl));
+        cont->set_body(world.tuple(call_args(cont->param(0), world.bottom(target_type)), debug_info(fn_decl)));
     } else if (cont->name() == "compare") {
         enter(cont);
         auto mono_type = member_type(fn_decl.fn->param->type->replace(type_vars), 1)->as<PtrType>()->pointee;
@@ -1031,8 +1029,7 @@ const thorin::Def* Emitter::builtin(const ast::FnDecl& fn_decl, thorin::Continua
             { "isfinite", [] (Emitter*     , const thorin::Continuation* cont) { return isfinite(cont->param(1)); } },
         };
         assert(functions.count(cont->name()) > 0);
-        enter(cont);
-        jump(cont->params().back(), functions.at(cont->name())(this, cont));
+        cont->set_body(world.tuple({ cont->mem_param(), functions.at(cont->name())(this, cont) }));
     }
     cont->set_filter(cont->all_true_filter());
     return cont;
