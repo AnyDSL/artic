@@ -67,7 +67,7 @@ private:
     Ptr<ast::Expr>          parse_tuple_expr();
     Ptr<ast::Expr>          parse_array_expr();
     Ptr<ast::BlockExpr>     parse_block_expr();
-    Ptr<ast::FnExpr>        parse_fn_expr(Ptr<ast::Filter>&&, bool);
+    Ptr<ast::FnExpr>        parse_fn_expr(const std::vector<Token::Tag>*, Ptr<ast::Filter>&&, bool);
     Ptr<ast::CallExpr>      parse_call_expr(Ptr<ast::Expr>&&);
     Ptr<ast::ProjExpr>      parse_proj_expr(Ptr<ast::Expr>&&);
     Ptr<ast::IfExpr>        parse_if_expr();
@@ -114,6 +114,8 @@ private:
     std::optional<std::variant<size_t, ast::Path>>   parse_array_size();
 
     std::pair<Ptr<ast::Expr>, Ptr<ast::Expr>> parse_cond_and_block();
+
+    std::vector<Token::Tag> gather_fn_qualifiers();
 
     struct Tracker {
         const Parser* parser;

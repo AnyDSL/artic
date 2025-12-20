@@ -1,0 +1,1 @@
+pure pure fn foo(x: i32) = x;

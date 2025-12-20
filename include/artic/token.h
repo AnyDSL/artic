@@ -17,7 +17,8 @@ namespace artic {
     f(Let, "let") \
     f(Mut, "mut") \
     f(As, "as") \
-    f(Fn,  "fn") \
+    f(Fn, "fn") \
+    f(Pure, "pure") \
     f(If, "if") \
     f(Else, "else") \
     f(Match, "match") \

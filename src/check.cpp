@@ -686,7 +686,7 @@ const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, Ptr<Ex
                 auto dom = struct_type->member_count() == 1
                     ? tuple_args.front()
                     : checker.type_table.tuple_type(tuple_args);
-                type = checker.type_table.fn_type(dom, type);
+                type = checker.type_table.fn_type(false, dom, type);
             }
             is_value = true;
         }
@@ -714,7 +714,7 @@ const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, Ptr<Ex
                     is_ctor = true;
                 } else {
                     auto member = member_type(type_app, enum_type, *index);
-                    type = is_unit_type(member) ? type : checker.type_table.fn_type(member, type);
+                    type = is_unit_type(member) ? type : checker.type_table.fn_type(false, member, type);
                     is_value = is_ctor = true;
                 }
             } else if (auto mod_type = type->isa<ModType>()) {
@@ -889,8 +889,8 @@ const artic::Type* UnsizedArrayType::infer(TypeChecker& checker) {
 
 const artic::Type* FnType::infer(TypeChecker& checker) {
     if (to->isa<ast::NoCodomType>())
-        return checker.type_table.cn_type(checker.infer(*from));
-    return checker.type_table.fn_type(checker.infer(*from), checker.infer(*to));
+        return checker.type_table.cn_type(pure, checker.infer(*from));
+    return checker.type_table.fn_type(pure, checker.infer(*from), checker.infer(*to));
 }
 
 const artic::Type* PtrType::infer(TypeChecker& checker) {
@@ -1104,7 +1104,7 @@ const artic::Type* FnExpr::infer(TypeChecker& checker) {
     }
     checker.check_refutability(*param, true);
     return body_type
-        ? checker.type_table.fn_type(param_type, body_type)
+        ? checker.type_table.fn_type(pure, param_type, body_type)
         : checker.cannot_infer(loc, "function");
 }
 
@@ -1118,7 +1118,7 @@ const artic::Type* FnExpr::check(TypeChecker& checker, const artic::Type* expect
     checker.check_refutability(*param, true);
     // Set the type of the expression before entering the body,
     // in case `return` appears in it.
-    type = checker.type_table.fn_type(param_type, body_type);
+    type = checker.type_table.fn_type(pure, param_type, body_type);
     body_type = checker.coerce(body, body_type);
     if (filter)
         checker.check(*filter, checker.type_table.bool_type());
@@ -1366,7 +1366,7 @@ const artic::Type* BreakExpr::infer(TypeChecker& checker) {
             return checker.cannot_infer(loc, "break expression");
     } else
         assert(false);
-    return checker.type_table.cn_type(domain);
+    return checker.type_table.cn_type(false, domain);
 }
 
 const artic::Type* ContinueExpr::infer(TypeChecker& checker) {
@@ -1386,7 +1386,7 @@ const artic::Type* ContinueExpr::infer(TypeChecker& checker) {
             return checker.cannot_infer(loc, "continue expression");
     } else
         assert(false);
-    return checker.type_table.cn_type(domain);
+    return checker.type_table.cn_type(false, domain);
 }
 
 const artic::Type* ReturnExpr::infer(TypeChecker& checker) {
@@ -1401,7 +1401,7 @@ const artic::Type* ReturnExpr::infer(TypeChecker& checker) {
             arg_type = fn->ret_type->type;
         }
         if (arg_type)
-           return checker.type_table.cn_type(arg_type);
+           return checker.type_table.cn_type(false, arg_type);
     }
     checker.error(loc, "cannot infer the type of '{}'", log::keyword_style("return"));
     if (fn)
@@ -1723,7 +1723,7 @@ const artic::Type* FnDecl::infer(TypeChecker& checker) {
 
     const artic::Type* fn_type = nullptr;
     if (fn->ret_type) {
-        fn_type = checker.type_table.fn_type(checker.infer(*fn->param), checker.infer(*fn->ret_type));
+        fn_type = checker.type_table.fn_type(fn->pure, checker.infer(*fn->param), checker.infer(*fn->ret_type));
         if (fn->filter)
             checker.check(*fn->filter, checker.type_table.bool_type());
         checker.check_refutability(*fn->param, true);

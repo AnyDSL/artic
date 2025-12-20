@@ -177,6 +177,8 @@ void RepeatArrayExpr::print(Printer& p) const {
 }
 
 void FnExpr::print(Printer& p) const {
+    if (pure)
+        p << log::keyword_style("pure") << ' ';
     if (filter)
         filter->print(p);
     p << '|';
@@ -520,6 +522,8 @@ void StaticDecl::print(Printer& p) const {
 
 void FnDecl::print(Printer& p) const {
     if (attrs) attrs->print(p);
+    if (fn->pure)
+        p << log::keyword_style("pure") << ' ';
     p << log::keyword_style("fn") << ' ';
     if (fn->filter)
        fn->filter->print(p);
@@ -689,6 +693,8 @@ void UnsizedArrayType::print(Printer& p) const {
 }
 
 void FnType::print(Printer& p) const {
+    if (pure)
+        p << log::keyword_style("pure") << ' ';
     p << log::keyword_style("fn") << ' ';
     print_parens(p, from);
     p << " -> ";
@@ -789,6 +795,8 @@ void ImplicitParamType::print(artic::Printer& p) const {
 }
 
 void FnType::print(Printer& p) const {
+    if (pure)
+        p << log::keyword_style("pure") << ' ';
     p << log::keyword_style("fn") << ' ';
     if (!dom->isa<TupleType>()) p << '(';
     dom->print(p);

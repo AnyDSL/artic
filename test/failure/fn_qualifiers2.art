@@ -1,0 +1,2 @@
+// filters cannot go in front of the 'pure' keyword
+static foo = @ pure |x: i32| x;

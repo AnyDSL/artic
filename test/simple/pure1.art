@@ -1,0 +1,13 @@
+pure fn foo(x: i32) = x;
+
+fn apply_pure(n: i32, arr: &mut [i32], f: pure fn (i32) -> i32) {
+    let mut i = 0;
+    while (i < n) {
+        arr(i) = f(arr(i));
+        i += 1;
+    }
+}
+
+fn bar(n: i32, arr: &mut [i32]) {
+    apply_pure(n, arr, foo);
+}

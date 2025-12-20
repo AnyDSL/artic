@@ -38,6 +38,7 @@ Ptr<ast::Decl> Parser::parse_decl(bool is_top_level) {
                 note("use a static variable instead");
             }
             break;
+        case Token::Pure:
         case Token::Fn:       decl = parse_fn_decl();       break;
         case Token::Struct:   decl = parse_struct_decl();   break;
         case Token::Enum:     decl = parse_enum_decl();     break;
@@ -68,6 +69,13 @@ Ptr<ast::LetDecl> Parser::parse_let_decl() {
 
 Ptr<ast::FnDecl> Parser::parse_fn_decl() {
     Tracker tracker(this);
+    auto qualifiers = gather_fn_qualifiers();
+    bool pure = false;
+    for (auto t : qualifiers) {
+        if (t == Token::Pure)
+            pure = true;
+        eat(t);
+    }
     eat(Token::Fn);
 
     Ptr<ast::Filter> filter;
@@ -107,7 +115,7 @@ Ptr<ast::FnDecl> Parser::parse_fn_decl() {
         expect(Token::Semi);
     }
 
-    auto fn = _arena.make_ptr<ast::FnExpr>(tracker(), std::move(filter), std::move(param), std::move(ret_type), std::move(body));
+    auto fn = _arena.make_ptr<ast::FnExpr>(tracker(), pure, std::move(filter), std::move(param), std::move(ret_type), std::move(body));
     return _arena.make_ptr<ast::FnDecl>(tracker(), std::move(id), std::move(fn), std::move(type_params));
 }
 
@@ -356,6 +364,7 @@ Ptr<ast::Ptrn> Parser::parse_ptrn(bool allow_types, bool allow_implicits) {
             }
             [[fallthrough]];
         case Token::And:
+        case Token::Pure:
         case Token::Fn:
             if (allow_types) {
                 auto type = parse_type();
@@ -475,6 +484,8 @@ Ptr<ast::ErrorPtrn> Parser::parse_error_ptrn() {
 
 Ptr<ast::Stmt> Parser::parse_stmt() {
     if (ahead().tag() == Token::Let || ahead().tag() == Token::Fn || ahead().tag() == Token::Implicit)
+        return parse_decl_stmt();
+    if (auto prefix = gather_fn_qualifiers(); prefix.size() > 0 && ahead(prefix.size()).tag() == Token::Fn)
         return parse_decl_stmt();
     Tracker tracker(this);
     Ptr<ast::Expr> expr;
@@ -646,6 +657,7 @@ Ptr<ast::BlockExpr> Parser::parse_block_expr() {
             case Token::Let:
             case Token::Implicit:
             case Token::Summon:
+            case Token::Pure:
             case Token::Fn:
                 if (!last_semi && !stmts.empty() && stmts.back()->needs_semicolon())
                     error(ahead().loc(), "expected ';', but got '{}'", ahead().string());
@@ -661,8 +673,16 @@ Ptr<ast::BlockExpr> Parser::parse_block_expr() {
     return _arena.make_ptr<ast::BlockExpr>(tracker(), std::move(stmts), last_semi);
 }
 
-Ptr<ast::FnExpr> Parser::parse_fn_expr(Ptr<ast::Filter>&& filter, bool nested) {
+Ptr<ast::FnExpr> Parser::parse_fn_expr(const std::vector<Token::Tag>* qualifiers, Ptr<ast::Filter>&& filter, bool nested) {
     Tracker tracker(this);
+
+    bool pure = false;
+    if (qualifiers) {
+        for (auto t : *qualifiers) {
+            if (t == Token::Pure)
+                pure = true;
+        }
+    }
 
     // Parse arguments
     Ptr<ast::Ptrn> ptrn;
@@ -691,14 +711,14 @@ Ptr<ast::FnExpr> Parser::parse_fn_expr(Ptr<ast::Filter>&& filter, bool nested) {
 
     // Nested lambdas (i.e. |x||y| x+y)
     if (parse_nested) {
-        body = parse_fn_expr(nullptr, true);
+        body = parse_fn_expr(nullptr, nullptr, true);
     } else {
         // Optional return type
         if (accept(Token::Arrow))
             ret_type = parse_type();
         body = parse_expr();
     }
-    return _arena.make_ptr<ast::FnExpr>(tracker(), std::move(filter), std::move(ptrn), std::move(ret_type), std::move(body));
+    return _arena.make_ptr<ast::FnExpr>(tracker(), pure, std::move(filter), std::move(ptrn), std::move(ret_type), std::move(body));
 }
 
 Ptr<ast::CallExpr> Parser::parse_call_expr(Ptr<ast::Expr>&& callee) {
@@ -821,7 +841,7 @@ Ptr<ast::Expr> Parser::parse_for_expr() {
 
     auto lambda_loc = body->loc;
     // Cannot use body->loc directly because std::move(body) might be executed first
-    auto lambda = _arena.make_ptr<ast::FnExpr>(lambda_loc, nullptr, std::move(ptrn), nullptr, std::move(body));
+    auto lambda = _arena.make_ptr<ast::FnExpr>(lambda_loc, false, nullptr, std::move(ptrn), nullptr, std::move(body));
 
     Ptr<ast::Expr> callee(call->callee.get());
     call->callee = _arena.make_ptr<ast::CallExpr>(call_loc, std::move(callee), std::move(lambda));
@@ -874,6 +894,18 @@ Ptr<ast::Expr> Parser::parse_primary_expr(bool allow_structs, bool allow_casts) 
             if (allow_structs && ahead(0).tag() == Token::LBrace)
                 expr = parse_record_expr(std::move(expr->as<ast::PathExpr>()->path));
             break;
+        case Token::Pure: {
+            auto qualifiers = gather_fn_qualifiers();
+            // we can eagerly eat the qualifiers because we checked for a pure fn decl earlier in the call chain
+            for (auto t : qualifiers)
+                eat(t);
+            if (ahead().tag() == Token::At)
+                filter = parse_filter();
+            if (ahead().tag() != Token::LogicOr && ahead().tag() != Token::Or)
+                error(ahead().loc(), "expected 'fn' or lambda expression");
+            expr = parse_fn_expr(&qualifiers, std::move(filter), false);
+            break;
+        }
         case Token::At:
             filter = parse_filter();
             if (ahead().tag() != Token::LogicOr && ahead().tag() != Token::Or)
@@ -881,7 +913,7 @@ Ptr<ast::Expr> Parser::parse_primary_expr(bool allow_structs, bool allow_casts) 
             [[fallthrough]];
         case Token::LogicOr:
         case Token::Or:
-            expr = parse_fn_expr(std::move(filter), false);
+            expr = parse_fn_expr(nullptr, std::move(filter), false);
             break;
         case Token::If:       expr = parse_if_expr();       break;
         case Token::Match:    expr = parse_match_expr();    break;
@@ -1047,6 +1079,7 @@ Ptr<ast::ErrorExpr> Parser::parse_error_expr() {
 Ptr<ast::Type> Parser::parse_type() {
     Ptr<ast::Type> type;
     switch (ahead().tag()) {
+        case Token::Pure:
         case Token::Fn:     return parse_fn_type();
         case Token::Super:
         case Token::Id:     return parse_named_type();
@@ -1109,6 +1142,13 @@ Ptr<ast::ArrayType> Parser::parse_array_type() {
 
 Ptr<ast::FnType> Parser::parse_fn_type() {
     Tracker tracker(this);
+    auto qualifiers = gather_fn_qualifiers();
+    bool pure = false;
+    for (auto t : qualifiers) {
+        if (t == Token::Pure)
+            pure = true;
+        eat(t);
+    }
     eat(Token::Fn);
     Ptr<ast::Type> from;
     if (ahead().tag() == Token::LParen)
@@ -1121,7 +1161,7 @@ Ptr<ast::FnType> Parser::parse_fn_type() {
         to = _arena.make_ptr<ast::NoCodomType>(prev_);
     else
         to = parse_type();
-    return _arena.make_ptr<ast::FnType>(tracker(), std::move(from), std::move(to));
+    return _arena.make_ptr<ast::FnType>(tracker(), pure, std::move(from), std::move(to));
 }
 
 Ptr<ast::PtrType> Parser::parse_ptr_type() {
@@ -1306,6 +1346,26 @@ std::pair<Ptr<ast::Expr>, Ptr<ast::Expr>> Parser::parse_cond_and_block() {
     else
         block = parse_error_expr();
     return std::make_pair(std::move(cond), std::move(block));
+}
+
+std::vector<Token::Tag> Parser::gather_fn_qualifiers() {
+    std::vector<Token::Tag> r;
+    size_t i = 0;
+    while (true) {
+        Token::Tag t = ahead(i).tag();
+        if (t == Token::Pure) {
+            for (auto et : r) {
+                if (et == t) {
+                    error(ahead(i).loc(), "duplicate function qualifier '{}'", ahead(i).string());
+                }
+            }
+            r.emplace_back(t);
+        } else {
+            break;
+        }
+        i++;
+    }
+    return r;
 }
 
 } // namespace artic

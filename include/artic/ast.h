@@ -377,11 +377,12 @@ struct UnsizedArrayType : public ArrayType {
 
 /// Function type, consisting of domain and codomain types.
 struct FnType : public Type {
+    bool pure;
     Ptr<Type> from;
     Ptr<Type> to;
 
-    FnType(const Loc& loc, Ptr<Type>&& from, Ptr<Type>&& to)
-        : Type(loc), from(std::move(from)), to(std::move(to))
+    FnType(const Loc& loc, bool pure, Ptr<Type>&& from, Ptr<Type>&& to)
+        : Type(loc), pure(pure), from(std::move(from)), to(std::move(to))
     {}
 
     const artic::Type* infer(TypeChecker&) override;
@@ -692,6 +693,7 @@ struct RepeatArrayExpr : public Expr {
 
 /// Anonymous function expression.
 struct FnExpr : public Expr {
+    bool pure;
     Ptr<Filter> filter;
     Ptr<Ptrn>   param;
     Ptr<Type>   ret_type;
@@ -699,11 +701,13 @@ struct FnExpr : public Expr {
 
     FnExpr(
         const Loc& loc,
+        bool pure,
         Ptr<Filter>&& filter,
         Ptr<Ptrn>&& param,
         Ptr<Type>&& ret_type,
         Ptr<Expr>&& body)
         : Expr(loc)
+        , pure(pure)
         , filter(std::move(filter))
         , param(std::move(param))
         , ret_type(std::move(ret_type))

@@ -61,6 +61,7 @@ bool ImplicitParamType::equals(const artic::Type* other) const {
 bool FnType::equals(const Type* other) const {
     return
         other->isa<FnType>() &&
+        other->as<FnType>()->pure == pure &&
         other->as<FnType>()->dom == dom &&
         other->as<FnType>()->codom == codom;
 }
@@ -123,6 +124,7 @@ size_t ImplicitParamType::hash() const {
 size_t FnType::hash() const {
     return fnv::Hash()
         .combine(typeid(*this).hash_code())
+        .combine(pure)
         .combine(dom)
         .combine(codom);
 }
@@ -207,7 +209,7 @@ const Type* ImplicitParamType::replace(const artic::ReplaceMap& map) const {
 }
 
 const Type* FnType::replace(const std::unordered_map<const TypeVar*, const Type*>& map) const {
-    return type_table.fn_type(dom->replace(map), codom->replace(map));
+    return type_table.fn_type(pure, dom->replace(map), codom->replace(map));
 }
 
 const Type* TypeVar::replace(const std::unordered_map<const TypeVar*, const Type*>& map) const {
@@ -529,6 +531,8 @@ bool Type::subtype(const Type* other) const {
         }
     } else if (auto fn_type = isa<FnType>()) {
         if (auto other_fn_type = other->isa<FnType>()) {
+            if (other_fn_type->pure && !fn_type->pure)
+                return false;
             // fn (V) -> W <: fn (T) -> U if T <: V and W <: U
             return
                 other_fn_type->dom->subtype(fn_type->dom) &&
@@ -678,12 +682,12 @@ const ImplicitParamType* TypeTable::implicit_param_type(const Type* underlying) 
     return insert<ImplicitParamType>(underlying);
 }
 
-const FnType* TypeTable::fn_type(const Type* dom, const Type* codom) {
-    return insert<FnType>(dom, codom);
+const FnType* TypeTable::fn_type(bool pure, const Type* dom, const Type* codom) {
+    return insert<FnType>(pure, dom, codom);
 }
 
-const FnType* TypeTable::cn_type(const Type* dom) {
-    return fn_type(dom, no_ret_type());
+const FnType* TypeTable::cn_type(bool pure, const Type* dom) {
+    return fn_type(pure, dom, no_ret_type());
 }
 
 const BottomType* TypeTable::bottom_type() {

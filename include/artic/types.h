@@ -303,6 +303,7 @@ private:
 
 /// Function type (can represent continuations when the codomain is a `NoRetType`).
 struct FnType : public Type {
+    bool pure;
     const Type* dom;
     const Type* codom;
 
@@ -322,8 +323,8 @@ struct FnType : public Type {
     bool is_sized(std::unordered_set<const Type*>&) const override;
 
 private:
-    FnType(TypeTable& type_table, const Type* dom, const Type* codom)
-        : Type(type_table), dom(dom), codom(codom)
+    FnType(TypeTable& type_table, bool pure, const Type* dom, const Type* codom)
+        : Type(type_table), pure(pure), dom(dom), codom(codom)
     {}
 
     friend class TypeTable;
@@ -688,8 +689,8 @@ public:
     const PtrType*           ptr_type(const Type*, bool, size_t);
     const RefType*           ref_type(const Type*, bool, size_t);
     const ImplicitParamType* implicit_param_type(const Type*);
-    const FnType*            fn_type(const Type*, const Type*);
-    const FnType*            cn_type(const Type*);
+    const FnType*            fn_type(bool pure, const Type*, const Type*);
+    const FnType*            cn_type(bool pure, const Type*);
     const BottomType*        bottom_type();
     const TopType*           top_type();
     const NoRetType*         no_ret_type();
