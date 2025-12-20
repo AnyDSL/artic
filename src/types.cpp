@@ -686,8 +686,8 @@ const FnType* TypeTable::fn_type(bool pure, const Type* dom, const Type* codom) 
     return insert<FnType>(pure, dom, codom);
 }
 
-const FnType* TypeTable::cn_type(bool pure, const Type* dom) {
-    return fn_type(pure, dom, no_ret_type());
+const FnType* TypeTable::cn_type(const Type* dom) {
+    return fn_type(false, dom, no_ret_type());
 }
 
 const BottomType* TypeTable::bottom_type() {

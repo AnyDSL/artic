@@ -1,0 +1,5 @@
+fn foo() -> i32 {
+  let r = return;
+  let f = pure || { r(1) } ;
+  1
+}

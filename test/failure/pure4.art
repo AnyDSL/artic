@@ -1,0 +1,6 @@
+#[import(cc="thorin")]
+fn unreachable() -> !;
+
+static foo = pure || {
+    unreachable()
+};

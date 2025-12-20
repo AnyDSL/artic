@@ -3,6 +3,11 @@
 The `pure` keyword enables writing functions that only depend on their arguments, without side-effects.
 The compiler will aggressively move and merge calls to such functions.
 
+Pure functions must return a (non-empty) value.
+That means they cannot be continuations!
+This is because pure function calls are only kept if the return value is used, and so a pure function that never returns cannot possibly be used.
+Since this is useless behavior, we instead assume it's a programming mistake and diagnose this as an error.
+
 ## Syntax
 
 Instead of attributes, purity is annotated using a new syntax element: function qualifiers.

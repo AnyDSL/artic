@@ -71,6 +71,7 @@ public:
     bool check_attrs(const ast::NamedAttr&, const ArrayRef<AttrType>&);
     bool check_filter(const ast::Expr&);
     void check_refutability(const ast::Ptrn&, bool);
+    bool check_return_type_is_acceptable(Loc& loc, bool pure, const Type* codom);
 
     template <typename InferElems>
     const Type* infer_array(const Loc&, const std::string_view&, size_t, bool, const InferElems&);

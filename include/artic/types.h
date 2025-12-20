@@ -690,7 +690,7 @@ public:
     const RefType*           ref_type(const Type*, bool, size_t);
     const ImplicitParamType* implicit_param_type(const Type*);
     const FnType*            fn_type(bool pure, const Type*, const Type*);
-    const FnType*            cn_type(bool pure, const Type*);
+    const FnType*            cn_type(const Type*);
     const BottomType*        bottom_type();
     const TopType*           top_type();
     const NoRetType*         no_ret_type();

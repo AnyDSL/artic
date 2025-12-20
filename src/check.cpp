@@ -445,6 +445,22 @@ void TypeChecker::check_refutability(const ast::Ptrn& ptrn, bool must_be_trivial
         invalid_ptrn(ptrn.loc, must_be_trivial);
 }
 
+bool TypeChecker::check_return_type_is_acceptable(Loc& loc, bool pure, const Type* codom) {
+    if (!pure)
+        return true;
+    if (codom->isa<BottomType>()) {
+        error(loc, "pure functions must return something");
+        note("this function never returns");
+        return false;
+    }
+    if (auto tuple_t = codom->isa<TupleType>(); tuple_t && tuple_t->args.empty()) {
+        error(loc, "pure functions must return something");
+        note("this function returns no value");
+        return false;
+    }
+    return true;
+}
+
 bool TypeChecker::check_attrs(const ast::NamedAttr& named_attr, const ArrayRef<AttrType>& attr_types) {
     std::unordered_map<std::string_view, const ast::Attr*> seen;
     for (auto& attr : named_attr.args) {
@@ -888,9 +904,13 @@ const artic::Type* UnsizedArrayType::infer(TypeChecker& checker) {
 }
 
 const artic::Type* FnType::infer(TypeChecker& checker) {
-    if (to->isa<ast::NoCodomType>())
-        return checker.type_table.cn_type(pure, checker.infer(*from));
-    return checker.type_table.fn_type(pure, checker.infer(*from), checker.infer(*to));
+    auto codom = checker.infer(*to);
+    if (!checker.check_return_type_is_acceptable(loc, pure, codom))
+        return checker.type_table.type_error();
+    if (codom->isa<BottomType>()) {
+        return checker.type_table.cn_type(checker.infer(*from));
+    }
+    return checker.type_table.fn_type(pure, checker.infer(*from), codom);
 }
 
 const artic::Type* PtrType::infer(TypeChecker& checker) {
@@ -1102,6 +1122,7 @@ const artic::Type* FnExpr::infer(TypeChecker& checker) {
         else
             body_type = checker.deref(body);
     }
+    checker.check_return_type_is_acceptable(loc, pure, body_type);
     checker.check_refutability(*param, true);
     return body_type
         ? checker.type_table.fn_type(pure, param_type, body_type)
@@ -1120,6 +1141,7 @@ const artic::Type* FnExpr::check(TypeChecker& checker, const artic::Type* expect
     // in case `return` appears in it.
     type = checker.type_table.fn_type(pure, param_type, body_type);
     body_type = checker.coerce(body, body_type);
+    checker.check_return_type_is_acceptable(loc, pure, body_type);
     if (filter)
         checker.check(*filter, checker.type_table.bool_type());
     return type;
@@ -1366,7 +1388,7 @@ const artic::Type* BreakExpr::infer(TypeChecker& checker) {
             return checker.cannot_infer(loc, "break expression");
     } else
         assert(false);
-    return checker.type_table.cn_type(false, domain);
+    return checker.type_table.cn_type(domain);
 }
 
 const artic::Type* ContinueExpr::infer(TypeChecker& checker) {
@@ -1386,7 +1408,7 @@ const artic::Type* ContinueExpr::infer(TypeChecker& checker) {
             return checker.cannot_infer(loc, "continue expression");
     } else
         assert(false);
-    return checker.type_table.cn_type(false, domain);
+    return checker.type_table.cn_type(domain);
 }
 
 const artic::Type* ReturnExpr::infer(TypeChecker& checker) {
@@ -1401,7 +1423,7 @@ const artic::Type* ReturnExpr::infer(TypeChecker& checker) {
             arg_type = fn->ret_type->type;
         }
         if (arg_type)
-           return checker.type_table.cn_type(false, arg_type);
+           return checker.type_table.cn_type(arg_type);
     }
     checker.error(loc, "cannot infer the type of '{}'", log::keyword_style("return"));
     if (fn)
@@ -1729,6 +1751,8 @@ const artic::Type* FnDecl::infer(TypeChecker& checker) {
         checker.check_refutability(*fn->param, true);
     } else
         fn_type = checker.infer(*fn);
+
+    checker.check_return_type_is_acceptable(loc, fn->pure, fn_type->as<artic::FnType>()->codom);
 
     // Set the type of this function right now, in case
     // the `return` keyword is encountered in the body.
