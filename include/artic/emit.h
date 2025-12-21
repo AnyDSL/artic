@@ -111,13 +111,13 @@ public:
     const thorin::Def* ctor_index(const ast::Ptrn& ptrn);
     const thorin::Def* ctor_index(size_t, thorin::Debug = {});
 
+    thorin::Array<const thorin::Type*> flatten_domain(bool pure, const thorin::Type* t);
+    const thorin::ReturnType* return_type_with_mem(const thorin::Type*);
     const thorin::FnType* continuation_type_with_mem(const thorin::Type*);
-    const thorin::FnType* function_type_with_mem(const thorin::Type*, const thorin::Type*);
-    thorin::Array<const thorin::Type*> flatten_domain(const thorin::Type* t);
+    const thorin::FnType* function_type(bool pure, const thorin::Type*, const thorin::Type*);
     const thorin::Def* tuple_from_params(thorin::Continuation*);
 
-    //std::vector<const thorin::Def*> call_args(const thorin::Def*, const thorin::Def*, const thorin::Continuation* = nullptr);
-    std::vector<const thorin::Def*> call_args(const thorin::Def*, const thorin::Def*);
+    std::vector<const thorin::Def*> call_args(const thorin::FnType* callee_type, const thorin::Def*, const thorin::Def*);
     std::pair<const thorin::Def*, std::vector<const thorin::Def*>> deconstruct_return_tuple(ArrayRef<const thorin::Type*> codom, const thorin::Def* def);
 
     void enter(thorin::Continuation*);
@@ -127,6 +127,7 @@ public:
     const thorin::Def* call(const thorin::Def*, const thorin::Def*, thorin::Debug = {});
     const thorin::Def* call(const thorin::Def*, const thorin::Def*, thorin::Continuation*, thorin::Debug = {});
     void branch(const thorin::Def*, const thorin::Def*, const thorin::Def*, thorin::Debug = {});
+    std::tuple<const thorin::Control*, thorin::Continuation*, thorin::Continuation*> control(const artic::Type* dom, thorin::Debug dbg);
 
     const thorin::Def* alloc(const thorin::Type*, thorin::Debug = {});
     void store(const thorin::Def*, const thorin::Def*, thorin::Debug = {});
