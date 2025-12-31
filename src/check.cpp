@@ -428,6 +428,8 @@ bool TypeChecker::check_filter(const ast::Expr& expr) {
         //This needs to be supported to inspect struct and tuple members.
         //TODO: Not sure if this check coveres all possible problematic cases.
         return check_filter(*proj->expr);
+    } else if (auto impl_cast = expr.isa<ast::ImplicitCastExpr>()) {
+        return check_filter(*impl_cast->expr);
     }
 
     error(expr.loc, "unsupported expression in filter");
@@ -763,6 +765,7 @@ const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, Ptr<Ex
 const artic::Type* Filter::check(TypeChecker& checker, const artic::Type* expected) {
     if (expr) {
         checker.check(*expr, expected);
+        checker.deref(expr);
         checker.check_filter(*expr);
     }
     return expected;
