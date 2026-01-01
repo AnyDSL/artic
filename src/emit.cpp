@@ -649,7 +649,7 @@ const thorin::Def* Emitter::call(
     auto callee_type = callee->type()->as<thorin::FnType>();
     auto r = callee_type->codomain();
     if (r) {
-        auto result = world.app(callee, call_args(callee_type, state.mem, arg));
+        auto result = world.app(callee, call_args(callee_type, state.mem, arg), debug);
         auto [mem, results] = deconstruct_return_tuple(*r, result);
         auto result_without_mem = world.tuple(results);
         if (mem) {
@@ -659,7 +659,7 @@ const thorin::Def* Emitter::call(
         enter(cont);
         return result_without_mem;
     } else {
-        state.cont->jump(callee, call_args(callee_type, state.mem, arg));
+        state.cont->jump(callee, call_args(callee_type, state.mem, arg), debug);
         enter(cont);
         return nullptr;
     }
@@ -1381,9 +1381,6 @@ const thorin::Def* FnExpr::emit(Emitter& emitter) const {
     def = cont;
     emitter.state.mem = nullptr;
     emitter.enter(cont);
-    emitter.emit(*param, emitter.tuple_from_params(cont));
-    if (filter)
-        cont->set_filter(emitter.world.filter(thorin::Array<const thorin::Def*>(cont->num_params(), emitter.emit(*filter))));
 
     if (cont->type()->codomain()) {
         auto [c, start, end] = emitter.control(type->as<artic::FnType>()->codom, cont->debug());
@@ -1391,6 +1388,10 @@ const thorin::Def* FnExpr::emit(Emitter& emitter) const {
         ret = end;
         emitter.enter(start);
     }
+
+    emitter.emit(*param, emitter.tuple_from_params(cont));
+    if (filter)
+        cont->set_filter(emitter.world.filter(thorin::Array<const thorin::Def*>(cont->num_params(), emitter.emit(*filter))));
 
     auto value = emitter.emit(*body);
     emitter.jump(ret, value);
@@ -1872,9 +1873,6 @@ const thorin::Def* FnDecl::emit(Emitter& emitter) const {
 
         emitter.state.mem = nullptr;
         emitter.enter(cont);
-        emitter.emit(*fn->param, emitter.tuple_from_params(cont));
-        if (fn->filter)
-            cont->set_filter(emitter.world.filter(thorin::Array<const thorin::Def*>(cont->num_params(), emitter.emit(*fn->filter))));
 
         if (cont->type()->codomain()) {
             auto [c, start, end] = emitter.control(fn->type->as<artic::FnType>()->codom, cont->debug());
@@ -1885,6 +1883,10 @@ const thorin::Def* FnDecl::emit(Emitter& emitter) const {
             emitter.enter(start);
             emitter.enter(start);
         }
+
+        emitter.emit(*fn->param, emitter.tuple_from_params(cont));
+        if (fn->filter)
+            cont->set_filter(emitter.world.filter(thorin::Array<const thorin::Def*>(cont->num_params(), emitter.emit(*fn->filter))));
 
         auto value = emitter.emit(*fn->body);
         emitter.jump(fn->ret, value, emitter.debug_info(*fn->body));
