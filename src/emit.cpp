@@ -204,7 +204,7 @@ private:
                         assert(literal_ptrn->lit.as_string().size() + 1 == member_count);
                         const char* str = literal_ptrn->lit.as_string().c_str();
                         for (size_t j = 0; j < member_count; ++j) {
-                            auto char_ptrn = make_ptr<ast::LiteralPtrn>(literal_ptrn->loc, uint8_t(str[j]));
+                            auto char_ptrn = emitter.arena.make_ptr<ast::LiteralPtrn>(literal_ptrn->loc, uint8_t(str[j]));
                             char_ptrn->type = type->type_table.prim_type(ast::PrimType::U8);
                             new_elems[j] = char_ptrn.get();
                             tmp_ptrns.emplace_back(std::move(char_ptrn));
@@ -738,8 +738,18 @@ const thorin::Def* Emitter::down_cast(const thorin::Def* def, const Type* from, 
 }
 
 const thorin::Def* Emitter::emit(const ast::Node& node) {
-    if (node.def)
-        return node.def;
+    if (node.def) {
+        if (auto fndecl = node.isa<ast::FnDecl>()) {
+            if (!fndecl->type_params) {
+                return node.def;
+            }
+            //Multiple instances of the same FnDecl might be floating around.
+            //node.def might be set to the wrong instance!
+            //mono_fns is used to cache these instead.
+        } else {
+            return node.def;
+        }
+    }
     if (!poly_defs.empty())
         poly_defs.back().push_back(&node.def);
     return node.def = node.emit(*this);
@@ -1207,7 +1217,7 @@ const thorin::Def* ArrayExpr::emit(Emitter& emitter) const {
 }
 
 const thorin::Def* RepeatArrayExpr::emit(Emitter& emitter) const {
-    thorin::Array<const thorin::Def*> ops(size, emitter.emit(*elem));
+    thorin::Array<const thorin::Def*> ops(std::get<size_t>(size), emitter.emit(*elem));
     return is_simd
         ? emitter.world.vector(ops, emitter.debug_info(*this))
         : emitter.world.definite_array(ops, emitter.debug_info(*this));
@@ -1310,12 +1320,12 @@ const thorin::Def* ProjExpr::emit(Emitter& emitter) const {
     return emitter.world.extract(emitter.emit(*expr), index, emitter.debug_info(*this));
 }
 
-static inline std::pair<Ptr<IdPtrn>, Ptr<TupleExpr>> dummy_case(const Loc& loc, const artic::Type* type) {
+static inline std::pair<Ptr<IdPtrn>, Ptr<TupleExpr>> dummy_case(const Loc& loc, const artic::Type* type, Arena& arena) {
     // Create a dummy wildcard pattern '_' and empty tuple '()'
     // for the else/break branches of an `if let`/`while let`.
-    auto anon_decl   = make_ptr<ast::PtrnDecl>(loc, Identifier(loc, "_"), false);
-    auto anon_ptrn   = make_ptr<ast::IdPtrn>(loc, std::move(anon_decl), nullptr);
-    auto empty_tuple = make_ptr<ast::TupleExpr>(loc, PtrVector<ast::Expr>());
+    auto anon_decl   = arena.make_ptr<ast::PtrnDecl>(loc, Identifier(loc, "_"), false);
+    auto anon_ptrn   = arena.make_ptr<ast::IdPtrn>(loc, std::move(anon_decl), nullptr);
+    auto empty_tuple = arena.make_ptr<ast::TupleExpr>(loc, PtrVector<ast::Expr>());
     anon_ptrn->type  = type;
     return std::make_pair(std::move(anon_ptrn), std::move(empty_tuple));
 }
@@ -1341,7 +1351,7 @@ const thorin::Def* IfExpr::emit(Emitter& emitter) const {
         auto false_value = if_false ? emitter.emit(*if_false) : emitter.world.tuple({});
         if (join) emitter.jump(join, false_value);
     } else {
-        auto [else_ptrn, empty_tuple] = dummy_case(loc, expr->type);
+        auto [else_ptrn, empty_tuple] = dummy_case(loc, expr->type, emitter.arena);
 
         std::vector<PtrnCompiler::MatchCase> match_cases;
         match_cases.emplace_back(ptrn.get(), if_true.get(), this, join);
@@ -1393,7 +1403,7 @@ const thorin::Def* WhileExpr::emit(Emitter& emitter) const {
         emitter.emit(*body);
         emitter.jump(while_head);
     } else {
-        auto [else_ptrn, empty_tuple] = dummy_case(loc, expr->type);
+        auto [else_ptrn, empty_tuple] = dummy_case(loc, expr->type, emitter.arena);
 
         std::vector<PtrnCompiler::MatchCase> match_cases;
         match_cases.emplace_back(ptrn.get(), body.get(), this, while_head);
@@ -1661,7 +1671,7 @@ const thorin::Def* StaticDecl::emit(Emitter& emitter) const {
 
 const thorin::Def* FnDecl::emit(Emitter& emitter) const {
     auto _ = emitter.save_state();
-    const thorin::FnType* cont_type = nullptr;
+    const artic::FnType* fn_type = nullptr;
     Emitter::MonoFn mono_fn { this, {} };
     if (type_params) {
         for (auto& param : type_params->params)
@@ -1670,12 +1680,12 @@ const thorin::Def* FnDecl::emit(Emitter& emitter) const {
         if (auto it = emitter.mono_fns.find(mono_fn); it != emitter.mono_fns.end())
             return it->second;
         emitter.poly_defs.emplace_back();
-        cont_type = type->as<artic::ForallType>()->body->convert(emitter)->as<thorin::FnType>();
+        fn_type = type->as<artic::ForallType>()->body->as<artic::FnType>();
     } else {
-        cont_type = type->convert(emitter)->as<thorin::FnType>();
+        fn_type = type->as<artic::FnType>();
     }
 
-    auto cont = emitter.world.continuation(cont_type, emitter.debug_info(*this));
+    auto cont = emitter.world.continuation(fn_type->convert(emitter)->as<thorin::FnType>(), emitter.debug_info(*this));
     if (type_params)
         emitter.mono_fns.emplace(std::move(mono_fn), cont);
 
@@ -1718,7 +1728,7 @@ const thorin::Def* FnDecl::emit(Emitter& emitter) const {
         fn->def = def = cont;
 
         emitter.enter(cont);
-        emitter.emit(*fn->param, emitter.tuple_from_params(cont, true));
+        emitter.emit(*fn->param, emitter.tuple_from_params(cont, !fn_type->codom->isa<artic::NoRetType>()));
         if (fn->filter)
             cont->set_filter(emitter.world.filter(thorin::Array<const thorin::Def*>(cont->num_params(), emitter.emit(*fn->filter))));
         auto value = emitter.emit(*fn->body);
@@ -1883,8 +1893,17 @@ std::string SizedArrayType::stringify(Emitter& emitter) const {
 }
 
 const thorin::Type* SizedArrayType::convert(Emitter& emitter) const {
-    if (is_simd)
-        return emitter.world.prim_type(elem->convert(emitter)->as<thorin::PrimType>()->primtype_tag(), size);
+    if (is_simd) {
+        auto elem_type = elem->convert(emitter);
+        if (auto prim_type = elem_type->isa<thorin::PrimType>())
+            return emitter.world.prim_type(prim_type->primtype_tag(), size);
+        else if (auto ptr_type = elem_type->isa<thorin::PtrType>())
+            return emitter.world.ptr_type(ptr_type->pointee(), size, ptr_type->addr_space());
+
+        //This should be unreachable after type checking.
+        assert(false);
+        return nullptr;
+    }
     return emitter.world.definite_array_type(elem->convert(emitter), size);
 }
 
@@ -1901,7 +1920,7 @@ std::string PtrType::stringify(Emitter& emitter) const {
 }
 
 const thorin::Type* PtrType::convert(Emitter& emitter) const {
-    return emitter.world.ptr_type(pointee->convert(emitter), 1, -1, thorin::AddrSpace(addr_space));
+    return emitter.world.ptr_type(pointee->convert(emitter), 1, thorin::AddrSpace(addr_space));
 }
 
 std::string ImplicitParamType::stringify(Emitter& emitter) const {
@@ -2051,16 +2070,18 @@ struct MemBuf : public std::streambuf {
     }
 };
 
-bool compile(
+std::tuple<Ptr<ast::ModDecl>, bool> compile(
     const std::vector<std::string>& file_names,
     const std::vector<std::string>& file_data,
     bool warns_as_errors,
     bool enable_all_warns,
-    ast::ModDecl& program,
+    Arena& arena,
+    TypeTable& type_table,
     thorin::World& world,
     Log& log)
 {
     assert(file_data.size() == file_names.size());
+    auto program = arena.make_ptr<ast::ModDecl>();
     for (size_t i = 0, n = file_names.size(); i < n; ++i) {
         if (log.locator)
             log.locator->register_file(file_names[i], file_data[i]);
@@ -2068,38 +2089,39 @@ bool compile(
         std::istream is(&mem_buf);
 
         Lexer lexer(log, file_names[i], is);
-        Parser parser(log, lexer);
+        Parser parser(log, lexer, arena);
         parser.warns_as_errors = warns_as_errors;
         auto module = parser.parse();
         if (log.errors > 0)
-            return false;
+            return std::make_tuple(std::move(program), false);
 
-        program.decls.insert(
-            program.decls.end(),
+        program->decls.insert(
+            program->decls.end(),
             std::make_move_iterator(module->decls.begin()),
             std::make_move_iterator(module->decls.end())
         );
     }
 
-    program.set_super();
+    program->set_super();
 
-    NameBinder name_binder(log);
+    NameBinder name_binder(log, arena);
     name_binder.warns_as_errors = warns_as_errors;
     if (enable_all_warns)
         name_binder.warn_on_shadowing = true;
 
-    TypeTable type_table;
-    TypeChecker type_checker(log, type_table);
+    TypeChecker type_checker(log, type_table, arena);
     type_checker.warns_as_errors = warns_as_errors;
 
-    Summoner summoner(log);
+    Summoner summoner(log, arena);
 
-    if (!name_binder.run(program) || !type_checker.run(program) || !summoner.run(program))
-        return false;
+    if (!name_binder.run(*program) || !type_checker.run(*program) || !summoner.run(*program))
+        return std::make_tuple(std::move(program), false);
 
-    Emitter emitter(log, world);
+    Emitter emitter(log, world, arena);
     emitter.warns_as_errors = warns_as_errors;
-    return emitter.run(program);
+    if (!emitter.run(*program))
+        return std::make_tuple(std::move(program), false);
+    return std::make_tuple(std::move(program), true);
 }
 
 } // namespace artic
@@ -2115,6 +2137,7 @@ bool compile(
     Locator locator;
     log::Output out(error_stream, false);
     Log log(out, &locator);
-    ast::ModDecl program;
-    return artic::compile(file_names, file_data, false, false, program, world, log);
+    Arena arena;
+    TypeTable type_table;
+    return get<1>(artic::compile(file_names, file_data, false, false, arena, type_table, world, log));
 }

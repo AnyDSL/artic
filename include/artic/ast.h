@@ -6,6 +6,7 @@
 #include <variant>
 #include <optional>
 
+#include "artic/arena.h"
 #include "artic/loc.h"
 #include "artic/log.h"
 #include "artic/cast.h"
@@ -26,12 +27,8 @@ class TypeChecker;
 class Emitter;
 class Summoner;
 
-template <typename T> using Ptr = std::unique_ptr<T>;
-template <typename T> using PtrVector = std::vector<std::unique_ptr<T>>;
-template <typename T, typename... Args>
-std::unique_ptr<T> make_ptr(Args&&... args) {
-    return std::make_unique<T>(std::forward<Args>(args)...);
-}
+template <typename T> using Ptr = arena_ptr<T>;
+template <typename T> using PtrVector = std::vector<Ptr<T>>;
 
 namespace ast {
 
@@ -157,7 +154,7 @@ struct Ptrn : public Node {
     /// Collect patterns that bind an identifier to a value in this pattern.
     virtual void collect_bound_ptrns(std::vector<const IdPtrn*>&) const;
     /// Rewrites the pattern into an expression
-    virtual const Expr* to_expr() { return as_expr.get(); }
+    virtual const Expr* to_expr(Arena&) { return as_expr.get(); }
     /// Returns true when the pattern is trivial (e.g. always matches).
     virtual bool is_trivial() const = 0;
     /// Emits IR for the pattern, given a value to bind it to.
@@ -363,14 +360,15 @@ struct ArrayType : public Type {
 
 /// Sized array type.
 struct SizedArrayType : public ArrayType {
-    size_t size;
+    std::variant<size_t, ast::Path> size;
     bool is_simd;
 
-    SizedArrayType(const Loc& loc, Ptr<Type>&& elem, size_t size, bool is_simd)
-        : ArrayType(loc, std::move(elem)), size(size), is_simd(is_simd)
+    SizedArrayType(const Loc& loc, Ptr<Type>&& elem, std::variant<size_t, ast::Path>&& size, bool is_simd)
+        : ArrayType(loc, std::move(elem)), size(std::move(size)), is_simd(is_simd)
     {}
 
     const artic::Type* infer(TypeChecker&) override;
+    void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
 
@@ -418,6 +416,17 @@ struct TypeApp : public Type {
 
     TypeApp(const Loc& loc, Path&& path)
         : Type(loc), path(std::move(path))
+    {}
+
+    const artic::Type* infer(TypeChecker&) override;
+    void bind(NameBinder&) override;
+    void print(Printer&) const override;
+};
+
+/// The codomain of functions that don't return anything.
+struct NoCodomType : public Type {
+    NoCodomType(const Loc& loc)
+        : Type(loc)
     {}
 
     const artic::Type* infer(TypeChecker&) override;
@@ -669,11 +678,11 @@ struct ArrayExpr : public Expr {
 /// Array expression repeating a given value a given number of times.
 struct RepeatArrayExpr : public Expr {
     Ptr<Expr> elem;
-    size_t size;
+    std::variant<size_t, ast::Path> size;
     bool is_simd;
 
-    RepeatArrayExpr(const Loc& loc, Ptr<Expr>&& elem, size_t size, bool is_simd)
-        : Expr(loc), elem(std::move(elem)), size(size), is_simd(is_simd)
+    RepeatArrayExpr(const Loc& loc, Ptr<Expr>&& elem, std::variant<size_t, ast::Path>&& size, bool is_simd)
+        : Expr(loc), elem(std::move(elem)), size(std::move(size)), is_simd(is_simd)
     {}
 
     bool is_jumping() const override;
@@ -1588,7 +1597,7 @@ struct TypedPtrn : public Ptrn {
     void emit(Emitter&, const thorin::Def*) const override;
     const artic::Type* infer(TypeChecker&) override;
     void bind(NameBinder&) override;
-    const Expr* to_expr() override;
+    const Expr* to_expr(Arena&) override;
     void resolve_summons(Summoner&) override;
     void print(Printer&) const override;
 };
@@ -1609,7 +1618,7 @@ struct IdPtrn : public Ptrn {
     const artic::Type* infer(TypeChecker&) override;
     const artic::Type* check(TypeChecker&, const artic::Type*) override;
     void bind(NameBinder&) override;
-    const Expr* to_expr() override;
+    const Expr* to_expr(Arena&) override;
     void resolve_summons(Summoner&) override;
     void print(Printer&) const override;
 };
@@ -1627,7 +1636,7 @@ struct LiteralPtrn : public Ptrn {
     const artic::Type* infer(TypeChecker&) override;
     const artic::Type* check(TypeChecker&, const artic::Type*) override;
     void bind(NameBinder&) override;
-    const Expr* to_expr() override;
+    const Expr* to_expr(Arena&) override;
     void resolve_summons(Summoner&) override {};
     void print(Printer&) const override;
 };

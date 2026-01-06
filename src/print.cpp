@@ -165,7 +165,15 @@ void RepeatArrayExpr::print(Printer& p) const {
         p << log::keyword_style("simd");
     p << '[';
     elem->print(p);
-    p << "; " << size << ']';
+    p << "; ";
+    std::visit([&] (auto&& arg) {
+            using T = std::decay_t<decltype(arg)>;
+            if constexpr (std::is_same_v<T, size_t>)
+                p << arg;
+            else if constexpr (std::is_same_v<T, ast::Path&>)
+                arg->print(p);
+    }, size);
+    p << ']';
 }
 
 void FnExpr::print(Printer& p) const {
@@ -647,7 +655,15 @@ void SizedArrayType::print(Printer& p) const {
         p << log::keyword_style("simd");
     p << '[';
     elem->print(p);
-    p << " * " << size << ']';
+    p << " * ";
+    std::visit([&] (auto&& arg) {
+            using T = std::decay_t<decltype(arg)>;
+            if constexpr (std::is_same_v<T, size_t>)
+                p << arg;
+            else if constexpr (std::is_same_v<T, ast::Path&>)
+                arg->print(p);
+    }, size);
+    p << ']';
 }
 
 void UnsizedArrayType::print(Printer& p) const {
@@ -659,10 +675,8 @@ void UnsizedArrayType::print(Printer& p) const {
 void FnType::print(Printer& p) const {
     p << log::keyword_style("fn") << ' ';
     print_parens(p, from);
-    if (to) {
-        p << " -> ";
-        to->print(p);
-    }
+    p << " -> ";
+    to->print(p);
 }
 
 void PtrType::print(Printer& p) const {
@@ -680,6 +694,10 @@ void PtrType::print(Printer& p) const {
 
 void TypeApp::print(Printer& p) const {
     path.print(p);
+}
+
+void NoCodomType::print(artic::Printer& p) const {
+    p << "!";
 }
 
 void ErrorType::print(Printer& p) const {

@@ -17,7 +17,7 @@ namespace artic {
 /// Generates an AST from a stream of tokens.
 class Parser : public Logger {
 public:
-    Parser(Log& log, Lexer&);
+    Parser(Log& log, Lexer&, Arena&);
 
     /// Parses a program read from the Lexer object.
     /// Errors are reported by the Logger.
@@ -108,8 +108,9 @@ private:
     ast::AsmExpr::Constr    parse_constr();
     Literal                 parse_lit();
     std::string             parse_str();
-    std::optional<size_t>   parse_array_size();
     size_t                  parse_addr_space();
+
+    std::optional<std::variant<size_t, ast::Path>>   parse_array_size();
 
     std::pair<Ptr<ast::Expr>, Ptr<ast::Expr>> parse_cond_and_block();
 
@@ -207,6 +208,7 @@ private:
     Token ahead_[max_ahead];
     Lexer& lexer_;
     Loc prev_;
+    Arena& _arena;
 };
 
 } // namespace artic

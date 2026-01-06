@@ -19,11 +19,12 @@ struct StructType;
 /// Helper class for Thorin IR generation.
 class Emitter : public Logger {
 public:
-    Emitter(Log& log, thorin::World& world)
-        : Logger(log), world(world)
+    Emitter(Log& log, thorin::World& world, Arena& arena)
+        : Logger(log), world(world), arena(arena)
     {}
 
     thorin::World& world;
+    Arena& arena;
 
     struct State {
         const thorin::Def* mem = nullptr;
@@ -147,12 +148,13 @@ private:
 
 /// Helper function to compile a set of files and generate an AST and a thorin module.
 /// Errors are reported in the log, and this function returns true on success.
-bool compile(
+std::tuple<Ptr<ast::ModDecl>, bool> compile(
     const std::vector<std::string>& file_names,
     const std::vector<std::string>& file_data,
     bool warns_as_errors,
     bool enable_all_warns,
-    ast::ModDecl& program,
+    Arena& arena,
+    TypeTable& table,
     thorin::World& world,
     Log& log);
 

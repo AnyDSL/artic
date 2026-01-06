@@ -169,6 +169,12 @@ void ArrayType::bind(NameBinder& binder) {
     binder.bind(*elem);
 }
 
+void SizedArrayType::bind(NameBinder& binder) {
+    binder.bind(*elem);
+    if (std::holds_alternative<ast::Path>(size))
+        binder.bind(std::get<ast::Path>(size));
+}
+
 void FnType::bind(NameBinder& binder) {
     binder.bind(*from);
     if (to) binder.bind(*to);
@@ -181,6 +187,8 @@ void PtrType::bind(NameBinder& binder) {
 void TypeApp::bind(NameBinder& binder) {
     binder.bind(path);
 }
+
+void NoCodomType::bind(NameBinder&) {}
 
 void ErrorType::bind(NameBinder&) {}
 
@@ -233,6 +241,8 @@ void ArrayExpr::bind(NameBinder& binder) {
 
 void RepeatArrayExpr::bind(NameBinder& binder) {
     binder.bind(*elem);
+    if (std::holds_alternative<ast::Path>(size))
+        binder.bind(std::get<ast::Path>(size));
 }
 
 void FnExpr::bind(NameBinder& binder, bool in_for_loop) {
@@ -627,7 +637,7 @@ void UseDecl::bind_wildcard(artic::NameBinder& binder) {
         member_path_elements.back().id.name = member->id.name;
         Path member_path(path.loc, std::move(member_path_elements));
         Identifier nid = member->id;
-        wildcard_imports.push_back(std::make_unique<UseDecl>(loc, std::move(member_path), std::move(nid)));
+        wildcard_imports.push_back(binder.arena_.make_ptr<UseDecl>(loc, std::move(member_path), std::move(nid)));
         wildcard_imports.back()->bind_head(binder);
     }
 }

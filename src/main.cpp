@@ -18,6 +18,9 @@
 #ifdef ENABLE_LLVM
 #include <thorin/be/llvm/cpu.h>
 #endif
+#ifdef ENABLE_SPIRV
+#include <thorin/be/spirv/spirv.h>
+#endif
 
 using namespace artic;
 
@@ -94,9 +97,11 @@ struct ProgramOptions {
     bool print_ast = false;
     bool emit_thorin = false;
     bool emit_c_int = false;
+    bool emit_host_code = false;
     bool emit_c = false;
     bool emit_json = false;
     bool emit_llvm = false;
+    bool emit_spirv = false;
     std::string host_triple;
     std::string host_cpu;
     std::string host_attr;
@@ -195,12 +200,22 @@ struct ProgramOptions {
                     tab_width = std::strtoull(argv[++i], NULL, 10);
                 } else if (matches(argv[i], "--emit-llvm")) {
 #ifdef ENABLE_LLVM
+                    emit_host_code = true;
                     emit_llvm = true;
 #else
                     log::error("Thorin is built without LLVM support, use '--emit-c' instead");
                     return false;
 #endif
+                } else if (matches(argv[i], "--emit-spirv")) {
+#ifdef ENABLE_SPIRV
+                    emit_host_code = true;
+                    emit_spirv = true;
+#else
+                    log::error("Thorin is built without SPIR-V support");
+                    return false;
+#endif
                 } else if (matches(argv[i], "--emit-c")) {
+                    emit_host_code = true;
                     emit_c = true;
                 } else if (matches(argv[i], "--host-triple")) {
                     if (!check_arg(argc, argv, i))
@@ -306,12 +321,13 @@ int main(int argc, char** argv) {
     thorin.world().set(opts.log_level);
     thorin.world().set(std::make_shared<thorin::Stream>(std::cerr));
 
-    ast::ModDecl program;
-    bool success = compile(
+    Arena arena;
+    TypeTable type_table;
+    auto [program, success] = compile(
         opts.files, file_data,
         opts.warns_as_errors,
         opts.enable_all_warns,
-        program, thorin.world(), log);
+        arena, type_table, thorin.world(), log);
 
     log.print_summary();
 
@@ -321,7 +337,7 @@ int main(int argc, char** argv) {
         Printer p(log::out);
         p.show_implicit_casts = opts.show_implicit_casts;
         p.tab = std::string(opts.tab_width, ' ');
-        program.print(p);
+        program->print(p);
         log::out << '\n';
         log::out.stream.flush();
     }
@@ -332,50 +348,66 @@ int main(int argc, char** argv) {
     if (opts.opt_level == 1)
         thorin.cleanup();
     if (opts.emit_c_int) {
-        auto name = opts.module_name + ".h";
-        std::ofstream file(name);
-        if (!file)
-            log::error("cannot open '{}' for writing", name);
-        else {
-            thorin::Stream stream(file);
+        if (opts.module_name == "-") {
+            thorin::Stream stream(std::cout);
             thorin::c::emit_c_int(thorin, stream);
+        } else {
+            auto name = opts.module_name + ".h";
+            std::ofstream file(name);
+            if (!file)
+                log::error("cannot open '{}' for writing", name);
+            else {
+                thorin::Stream stream(file);
+                thorin::c::emit_c_int(thorin, stream);
+            }
         }
     }
-    if (opts.opt_level > 1 || opts.emit_c || opts.emit_llvm)
+    if (opts.opt_level > 1 || opts.emit_host_code)
         thorin.opt();
     if (opts.emit_thorin)
         thorin.world().dump_scoped(!opts.no_color);
-    if (opts.emit_json || opts.emit_c || opts.emit_llvm) {
-        auto emit_to_file = [&] (thorin::CodeGen& cg) {
+
+    auto emit_to_file = [&] (thorin::CodeGen& cg) {
+        if (opts.module_name == "-") {
+            cg.emit_stream(std::cout);
+        } else {
             auto name = opts.module_name + cg.file_ext();
             std::ofstream file(name);
             if (!file)
                 log::error("cannot open '{}' for writing", name);
             else
                 cg.emit_stream(file);
-        };
+        }
+    };
 #ifdef ENABLE_JSON
-        if (opts.emit_json) {
-            thorin::json::CodeGen cg(thorin, opts.debug, opts.host_triple, opts.host_cpu, opts.host_attr);
+    if (opts.emit_json) {
+        thorin::json::CodeGen cg(thorin, opts.debug, opts.host_triple, opts.host_cpu, opts.host_attr);
+        emit_to_file(cg);
+    }
+#endif
+    if (opts.emit_host_code) {
+        thorin::DeviceBackends backends(thorin.world(), opts.opt_level, opts.debug, opts.hls_flags);
+        if (opts.emit_c) {
+            thorin::Cont2Config kernel_configs;
+            thorin::c::CodeGen cg(thorin, kernel_configs, thorin::c::Lang::C99, opts.debug, opts.hls_flags);
+            emit_to_file(cg);
+        }
+#ifdef ENABLE_LLVM
+        if (opts.emit_llvm) {
+            thorin::llvm::CPUCodeGen cg(thorin, opts.opt_level, opts.debug, opts.host_triple, opts.host_cpu, opts.host_attr);
             emit_to_file(cg);
         }
 #endif
-        if (opts.emit_c || opts.emit_llvm) {
-            thorin::DeviceBackends backends(thorin.world(), opts.opt_level, opts.debug, opts.hls_flags);
-            if (opts.emit_c) {
-                thorin::Cont2Config kernel_configs;
-                thorin::c::CodeGen cg(thorin, kernel_configs, thorin::c::Lang::C99, opts.debug, opts.hls_flags);
-                emit_to_file(cg);
-            }
-#ifdef ENABLE_LLVM
-            if (opts.emit_llvm) {
-                thorin::llvm::CPUCodeGen cg(thorin, opts.opt_level, opts.debug, opts.host_triple, opts.host_cpu, opts.host_attr);
-                emit_to_file(cg);
-            }
+#ifdef ENABLE_SPIRV
+        if (opts.emit_spirv) {
+            thorin::spirv::Target target;
+
+            thorin::spirv::CodeGen cg(thorin, target, opts.debug);
+            emit_to_file(cg);
+        }
 #endif
-            for (auto& cg : backends.cgs) {
-                if (cg) emit_to_file(*cg);
-            }
+        for (auto& cg : backends.cgs) {
+            if (cg) emit_to_file(*cg);
         }
     }
     return EXIT_SUCCESS;

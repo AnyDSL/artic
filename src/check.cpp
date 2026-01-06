@@ -83,7 +83,7 @@ const Type* TypeChecker::invalid_cast(const Loc& loc, const Type* type, const Ty
 
 const Type* TypeChecker::invalid_simd(const Loc& loc, const Type* elem_type) {
     if (should_report_error(elem_type))
-        error(loc, "expected primitive type for simd type component, but got '{}'", *elem_type);
+        error(loc, "expected primitive or pointer type for simd type component, but got '{}'", *elem_type);
     return type_table.type_error();
 }
 
@@ -150,7 +150,7 @@ inline std::pair<const Type*, const Type*> remove_ptr(const Type* type) {
 const Type* TypeChecker::deref(Ptr<ast::Expr>& expr) {
     auto [ref_type, type] = remove_ref(infer(*expr));
     if (ref_type)
-        expr = make_ptr<ast::ImplicitCastExpr>(expr->loc, std::move(expr), type);
+        expr = _arena.make_ptr<ast::ImplicitCastExpr>(expr->loc, std::move(expr), type);
     return type;
 }
 
@@ -169,7 +169,7 @@ const Type* TypeChecker::coerce(Ptr<ast::Expr>& expr, const Type* expected) {
     if (auto implicit = expected->isa<ImplicitParamType>()) {
         // Only the empty tuple () can be coerced into a Summon[T]
         if (is_unit(expr)) {
-            Ptr<ast::Expr> summoned = make_ptr<ast::SummonExpr>(expr->loc, Ptr<ast::Type>());
+            Ptr<ast::Expr> summoned = _arena.make_ptr<ast::SummonExpr>(expr->loc, Ptr<ast::Type>());
             summoned->type = implicit->underlying;
             expr.swap(summoned);
             return implicit->underlying;
@@ -193,7 +193,7 @@ const Type* TypeChecker::coerce(Ptr<ast::Expr>& expr, const Type* expected) {
             }
 
             if (auto implicit = tuple_t->args[i]->isa<ImplicitParamType>()) {
-                Ptr<ast::Expr> summoned = make_ptr<ast::SummonExpr>(loc, Ptr<ast::Type>());
+                Ptr<ast::Expr> summoned = _arena.make_ptr<ast::SummonExpr>(loc, Ptr<ast::Type>());
                 summoned->type = implicit->underlying;
                 args.push_back(std::move(summoned));
                 continue;
@@ -201,13 +201,13 @@ const Type* TypeChecker::coerce(Ptr<ast::Expr>& expr, const Type* expected) {
 
             bad_arguments(loc, "non-implicit arguments", i, tuple_t->args.size());
         }
-        expr = make_ptr<ast::TupleExpr>(loc, std::move(args));
+        expr = _arena.make_ptr<ast::TupleExpr>(loc, std::move(args));
     }
 
     auto type = expr->type ? expr->type : check(*expr, expected);
     if (type != expected) {
         if (type->subtype(expected)) {
-            expr = make_ptr<ast::ImplicitCastExpr>(expr->loc, std::move(expr), expected);
+            expr = _arena.make_ptr<ast::ImplicitCastExpr>(expr->loc, std::move(expr), expected);
             return expected;
         } else
             return incompatible_types(expr->loc, type, expected);
@@ -422,8 +422,13 @@ bool TypeChecker::check_filter(const ast::Expr& expr) {
             is_mutable = true;
         else
             return true;
-    } else if (expr.isa<ast::LiteralExpr>())
+    } else if (expr.isa<ast::LiteralExpr>()) {
         return true;
+    } else if (auto proj = expr.isa<ast::ProjExpr>()) {
+        //This needs to be supported to inspect struct and tuple members.
+        //TODO: Not sure if this check coveres all possible problematic cases.
+        return check_filter(*proj->expr);
+    }
 
     error(expr.loc, "unsupported expression in filter");
     if (is_logic_or)
@@ -484,7 +489,7 @@ const Type* TypeChecker::infer_array(
     if (elem_count == 0)
         return cannot_infer(loc, msg);
     auto elem_type = infer_elems();
-    if (is_simd && !elem_type->template isa<PrimType>())
+    if (is_simd && !(elem_type->template isa<PrimType>() || elem_type->template isa<PtrType>()))
         return invalid_simd(loc, elem_type);
     return type_table.sized_array_type(elem_type, elem_count, is_simd);
 }
@@ -504,7 +509,7 @@ const Type* TypeChecker::check_array(
     if (is_simd_type(array_type) != is_simd)
         return incompatible_type(loc, (is_simd ? "simd " : "non-simd ") + std::string(msg), expected);
     auto elem_type = array_type->elem;
-    if (is_simd && !elem_type->isa<PrimType>())
+    if (is_simd && !(elem_type->template isa<PrimType>() || elem_type->template isa<PtrType>()))
         return invalid_simd(loc, elem_type);
     check_elems(elem_type);
     if (auto sized_array_type = array_type->isa<artic::SizedArrayType>();
@@ -850,9 +855,39 @@ const artic::Type* TupleType::infer(TypeChecker& checker) {
 
 const artic::Type* SizedArrayType::infer(TypeChecker& checker) {
     auto elem_type = checker.infer(*elem);
-    if (is_simd && !elem_type->isa<artic::PrimType>())
+    if (is_simd && !(elem_type->template isa<artic::PrimType>() || elem_type->template isa<artic::PtrType>()))
         return checker.invalid_simd(loc, elem_type);
-    return checker.type_table.sized_array_type(elem_type, size, is_simd);
+
+    if (std::holds_alternative<ast::Path>(size)) {
+        auto &path = std::get<ast::Path>(size);
+        const auto* decl = path.start_decl;
+
+        for (size_t i = 0, n = path.elems.size(); i < n; ++i) {
+            if (path.elems[i].is_super())
+                decl = i == 0 ? path.start_decl : decl->as<ModDecl>()->super;
+            if (auto mod_type = path.elems[i].type->isa<ModType>()) {
+                decl = &mod_type->member(path.elems[i + 1].index);
+            } else if (!decl->isa<CtorDecl>()) {
+                assert(path.elems[i].inferred_args.empty());
+                assert(decl->isa<StaticDecl>() && "The only supported type right now.");
+                break;
+            } else if (match_app<StructType>(path.elems[i].type).second) {
+                assert(false && "This is not supported as a size for repeated arrays.");
+            } else if (auto [type_app, enum_type] = match_app<artic::EnumType>(path.elems[i].type); enum_type) {
+                assert(false && "This is not supported as a size for repeated arrays.");
+            }
+        }
+
+        auto static_decl = decl->as<StaticDecl>();
+        assert(!static_decl->is_mut);
+        assert(static_decl->init);
+        auto& value = static_decl->init;
+        auto lit_value = value->as<LiteralExpr>()->lit;
+
+        size = lit_value.as_integer();
+    }
+
+    return checker.type_table.sized_array_type(elem_type, std::get<size_t>(size), is_simd);
 }
 
 const artic::Type* UnsizedArrayType::infer(TypeChecker& checker) {
@@ -863,6 +898,8 @@ const artic::Type* UnsizedArrayType::infer(TypeChecker& checker) {
 }
 
 const artic::Type* FnType::infer(TypeChecker& checker) {
+    if (to->isa<ast::NoCodomType>())
+        return checker.type_table.cn_type(checker.infer(*from));
     return checker.type_table.fn_type(checker.infer(*from), checker.infer(*to));
 }
 
@@ -877,6 +914,10 @@ const artic::Type* PtrType::infer(TypeChecker& checker) {
 
 const artic::Type* TypeApp::infer(TypeChecker& checker) {
     return path.type = path.infer(checker, false);
+}
+
+const artic::Type* NoCodomType::infer(TypeChecker& checker) {
+    return checker.type_table.no_ret_type();
 }
 
 // Statements ----------------------------------------------------------------------
@@ -989,14 +1030,73 @@ const artic::Type* ArrayExpr::check(TypeChecker& checker, const artic::Type* exp
 
 const artic::Type* RepeatArrayExpr::infer(TypeChecker& checker) {
     auto elem_type = checker.deref(elem);
-    if (is_simd && !elem_type->isa<artic::PrimType>())
+    if (is_simd && !(elem_type->template isa<artic::PrimType>() || elem_type->template isa<artic::PtrType>()))
         return checker.invalid_simd(loc, elem_type);
-    return checker.type_table.sized_array_type(elem_type, size, is_simd);
+
+    if (std::holds_alternative<ast::Path>(size)) {
+        auto &path = std::get<ast::Path>(size);
+        const auto* decl = path.start_decl;
+
+        for (size_t i = 0, n = path.elems.size(); i < n; ++i) {
+            if (path.elems[i].is_super())
+                decl = i == 0 ? path.start_decl : decl->as<ModDecl>()->super;
+            if (auto mod_type = path.elems[i].type->isa<ModType>()) {
+                decl = &mod_type->member(path.elems[i + 1].index);
+            } else if (!decl->isa<CtorDecl>()) {
+                assert(path.elems[i].inferred_args.empty());
+                assert(decl->isa<StaticDecl>() && "The only supported type right now.");
+                break;
+            } else if (match_app<StructType>(path.elems[i].type).second) {
+                assert(false && "This is not supported as a size for repeated arrays.");
+            } else if (auto [type_app, enum_type] = match_app<artic::EnumType>(path.elems[i].type); enum_type) {
+                assert(false && "This is not supported as a size for repeated arrays.");
+            }
+        }
+
+        auto static_decl = decl->as<StaticDecl>();
+        assert(!static_decl->is_mut);
+        assert(static_decl->init);
+        auto& value = static_decl->init;
+        auto lit_value = value->as<LiteralExpr>()->lit;
+
+        size = lit_value.as_integer();
+    }
+
+    return checker.type_table.sized_array_type(elem_type, std::get<size_t>(size), is_simd);
 }
 
 const artic::Type* RepeatArrayExpr::check(TypeChecker& checker, const artic::Type* expected) {
+    if (std::holds_alternative<ast::Path>(size)) {
+        auto &path = std::get<ast::Path>(size);
+        const auto* decl = path.start_decl;
+
+        for (size_t i = 0, n = path.elems.size(); i < n; ++i) {
+            if (path.elems[i].is_super())
+                decl = i == 0 ? path.start_decl : decl->as<ModDecl>()->super;
+            if (auto mod_type = path.elems[i].type->isa<ModType>()) {
+                decl = &mod_type->member(path.elems[i + 1].index);
+            } else if (!decl->isa<CtorDecl>()) {
+                assert(path.elems[i].inferred_args.empty());
+                assert(decl->isa<StaticDecl>() && "The only supported type right now.");
+                break;
+            } else if (match_app<StructType>(path.elems[i].type).second) {
+                assert(false && "This is not supported as a size for repeated arrays.");
+            } else if (auto [type_app, enum_type] = match_app<artic::EnumType>(path.elems[i].type); enum_type) {
+                assert(false && "This is not supported as a size for repeated arrays.");
+            }
+        }
+
+        auto static_decl = decl->as<StaticDecl>();
+        assert(!static_decl->is_mut);
+        assert(static_decl->init);
+        auto& value = static_decl->init;
+        auto lit_value = value->as<LiteralExpr>()->lit;
+
+        size = lit_value.as_integer();
+    }
+
     return checker.check_array(loc, "array expression",
-        expected, size, is_simd, [&] (auto elem_type) {
+        expected, std::get<size_t>(size), is_simd, [&] (auto elem_type) {
         checker.coerce(elem, elem_type);
     });
 }
