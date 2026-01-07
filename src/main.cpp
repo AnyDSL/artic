@@ -372,7 +372,7 @@ int main(int argc, char** argv) {
             cg.emit_stream(std::cout);
         } else {
             auto name = opts.module_name + cg.file_ext();
-            std::ofstream file(name);
+            std::ofstream file(name, std::ios_base::out | std::ios_base::binary);
             if (!file)
                 log::error("cannot open '{}' for writing", name);
             else
