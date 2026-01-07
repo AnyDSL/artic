@@ -667,7 +667,7 @@ const artic::Type* Path::infer(TypeChecker& checker, Ptr<Expr>* arg) {
                 type = user_type
                     ? checker.type_table.type_app(user_type, std::move(type_args))
                     : forall_type->instantiate(type_args);
-            } else {
+            } else if (!elem.args.empty() || /* we allow leaving out type params when importing definitions */ !is_use_path_) {
                 checker.error(elem.loc, "expected {} type argument(s), but got {}", type_param_count, elem.args.size());
                 return checker.type_table.type_error();
             }

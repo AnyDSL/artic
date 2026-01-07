@@ -187,6 +187,8 @@ struct Path : public Node {
     };
 
     std::vector<Elem> elems;
+    // use paths are allowed to have un-instantiated type params
+    bool is_use_path_ = false;
 
     // Set during name-binding, corresponds to the declaration that
     // is associated with the _first_ element of the path.
@@ -197,8 +199,8 @@ struct Path : public Node {
     // Set during type-checking
     bool is_value = false;
 
-    Path(const Loc& loc, std::vector<Elem>&& elems)
-        : Node(loc), elems(std::move(elems))
+    Path(const Loc& loc, bool is_use_path, std::vector<Elem>&& elems)
+        : Node(loc), is_use_path_(is_use_path), elems(std::move(elems))
     {}
 
     const artic::Type* infer(TypeChecker&, Ptr<Expr>*);

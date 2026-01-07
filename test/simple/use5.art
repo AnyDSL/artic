@@ -1,0 +1,10 @@
+mod A {
+    struct S[T] {
+        t: T
+    }
+
+    fn f(S[i32]) -> ();
+}
+
+use A::S;
+fn g(s: S[i32]) = A::f(s);

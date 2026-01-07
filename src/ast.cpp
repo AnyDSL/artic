@@ -651,7 +651,7 @@ const Expr* IdPtrn::to_expr(Arena& arena) {
     Identifier id = decl->id;
     std::vector<Path::Elem> elems;
     elems.push_back(Path::Elem( loc, std::move(id), {} ));
-    Path path = Path(loc, std::move(elems));
+    Path path = Path(loc, false, std::move(elems));
     path.start_decl = decl.get();
     path.is_value = true;
     as_expr = arena.make_ptr<PathExpr>(std::move(path));

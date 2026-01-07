@@ -1181,7 +1181,7 @@ Ptr<ast::Attr> Parser::parse_attr() {
     }
 }
 
-ast::Path Parser::parse_path(ast::Identifier&& id, bool allow_wildcard) {
+ast::Path Parser::parse_path(ast::Identifier&& id, bool is_use_path) {
     Tracker tracker(this, id.loc);
 
     std::vector<ast::Path::Elem> elems;
@@ -1199,10 +1199,10 @@ ast::Path Parser::parse_path(ast::Identifier&& id, bool allow_wildcard) {
             break;
         if (!accept(Token::DblColon))
             break;
-        id = parse_path_elem(allow_wildcard);
+        id = parse_path_elem(is_use_path);
     } while (true) ;
 
-    return ast::Path(tracker(), std::move(elems));
+    return ast::Path(tracker(), is_use_path, std::move(elems));
 }
 
 ast::Identifier Parser::parse_path_elem(bool allow_wildcard) {

@@ -635,7 +635,7 @@ void UseDecl::bind_wildcard(artic::NameBinder& binder) {
             member_path_elements.emplace_back(std::move(nelem));
         }
         member_path_elements.back().id.name = member->id.name;
-        Path member_path(path.loc, std::move(member_path_elements));
+        Path member_path(path.loc, false, std::move(member_path_elements));
         Identifier nid = member->id;
         wildcard_imports.push_back(binder.arena_.make_ptr<UseDecl>(loc, std::move(member_path), std::move(nid)));
         wildcard_imports.back()->bind_head(binder);
