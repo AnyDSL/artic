@@ -585,10 +585,6 @@ void ModDecl::bind(NameBinder& binder) {
     binder.cur_mod = this;
     binder.push_scope();
     for (auto& decl : decls) binder.bind_head(*decl);
-    for (auto& decl : decls) {
-        if (auto use = decl->isa<UseDecl>())
-            use->bind_wildcard(binder);
-    }
     for (auto& decl : decls) binder.bind(*decl);
     std::swap(binder.scopes_, old_scopes);
     binder.cur_mod = old_mod;
@@ -647,6 +643,7 @@ void UseDecl::bind_head(NameBinder& binder) {
         binder.insert_symbol(*this);
     else if (path.elems.back().id.name != "*")
         binder.insert_symbol(*this, path.elems.back().id.name);
+    bind_wildcard(binder);
 }
 
 void UseDecl::bind(NameBinder& binder) {
