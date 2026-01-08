@@ -1,0 +1,8 @@
+static mut x = 3;
+static y: i32;
+static arr1 = [3; x];
+static arr2 = [3; y];
+
+mod M {
+    static arr = [3; super::x];
+}

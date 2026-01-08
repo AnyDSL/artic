@@ -85,7 +85,7 @@ void Path::bind(NameBinder& binder) {
             } else
                 binder.error(elem.id.loc, "''super' can only be used on modules");
         } else if (elem.is_wildcard()) {
-            if (!start_decl) {
+            if (i == 0) {
                 binder.error(elem.loc, "wildcards cannot appear at the start of a path!");
                 return;
             }
@@ -118,8 +118,7 @@ void Path::bind(NameBinder& binder) {
             assert(false);
         }
 
-        if (!start_decl) {
-            assert(i == 0);
+        if (i == 0) {
             start_decl = decl;
         }
 

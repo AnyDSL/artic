@@ -1,5 +1,12 @@
 static n = 3;
 
+mod M {
+    static x = [3; super::n];
+
+    use super::n as m;
+    static y = [3; m];
+}
+
 #[export]
 fn test() {
     let a = [3; n] : [i32 * n];

@@ -163,6 +163,8 @@ struct Ptrn : public Node {
 
 // Path ----------------------------------------------------------------------------
 
+struct StaticDecl;
+
 /// A path of the form A[T1, ..., TN]:: ... ::Z[U1, ..., UN]
 struct Path : public Node {
     struct Elem {

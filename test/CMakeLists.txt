@@ -108,6 +108,8 @@ add_failure_test(NAME failure_uninferable3   COMMAND artic ${CMAKE_CURRENT_SOURC
 add_failure_test(NAME failure_noret          COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/noret.art)
 add_failure_test(NAME failure_arrays1        COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/arrays1.art)
 add_failure_test(NAME failure_arrays2        COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/arrays2.art)
+add_failure_test(NAME failure_arrays3        COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/arrays3.art)
+add_failure_test(NAME failure_arrays4        COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/arrays4.art)
 add_failure_test(NAME failure_if             COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/if.art)
 add_failure_test(NAME failure_if_let         COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/if_let.art)
 add_failure_test(NAME failure_implicit1      COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/implicit1.art)
