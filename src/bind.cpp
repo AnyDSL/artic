@@ -72,11 +72,7 @@ void Path::bind(NameBinder& binder) {
         assert(decl);
 
         // We need to look inside UseDecls to bind paths properly.
-        while (auto use = decl->isa<UseDecl>()) {
-            binder.bind(*use);
-            assert(use->bound_to);
-            decl = use->bound_to;
-        }
+        NamedDecl* actual_decl = resolve_use_decl(decl);
 
         if (elem.id.name[0] == '_')
             binder.error(elem.id.loc, "identifiers beginning with '_' cannot be referenced");
@@ -103,14 +99,14 @@ void Path::bind(NameBinder& binder) {
                     binder.note("did you mean '{}'?", similar->decl->id.name);
             } else
                 decl = symbol->decl;
-        } else if (auto mod = decl->isa<ModDecl>()) {
+        } else if (auto mod = actual_decl->isa<ModDecl>()) {
             auto member = mod->find_member(elem.id.name);
             if (!member) {
                 binder.unknown_member(elem.loc, mod, elem.id.name);
                 return;
             }
             decl = *member;
-        } else if (auto enu = decl->isa<EnumDecl>()) {
+        } else if (auto enu = actual_decl->isa<EnumDecl>()) {
             auto found = enu->find_member(elem.id.name);
             if (!found) {
                 binder.unknown_member(elem.loc, mod, elem.id.name);
@@ -122,8 +118,10 @@ void Path::bind(NameBinder& binder) {
             assert(false);
         }
 
-        if (!start_decl)
+        if (!start_decl) {
+            assert(i == 0);
             start_decl = decl;
+        }
 
         if (i++ == elems.size() - 1)
             this->decl = decl;

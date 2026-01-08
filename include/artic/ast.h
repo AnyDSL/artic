@@ -184,6 +184,8 @@ struct Path : public Node {
         Elem(const Loc& loc, Identifier&& id, PtrVector<Type>&& args)
             : loc(loc), id(std::move(id)), args(std::move(args))
         {}
+
+        const artic::Type* infer(TypeChecker& checker, const artic::Type* prev_elem_type, Path& path);
     };
 
     std::vector<Elem> elems;
@@ -198,6 +200,8 @@ struct Path : public Node {
 
     // Set during type-checking
     bool is_value = false;
+    // represents tuple-like enum options, or tuple-like structs
+    bool is_ctor = false;
 
     Path(const Loc& loc, bool is_use_path, std::vector<Elem>&& elems)
         : Node(loc), is_use_path_(is_use_path), elems(std::move(elems))
@@ -1225,8 +1229,6 @@ struct NamedDecl : public Decl {
     NamedDecl(const Loc& loc, Identifier&& id)
         : Decl(loc), id(std::move(id))
     {}
-
-    virtual bool is_value();
 };
 
 /// Value declaration associated with an identifier.
@@ -1234,8 +1236,6 @@ struct ValueDecl : public NamedDecl {
     ValueDecl(const Loc& loc, Identifier&& id)
         : NamedDecl(loc, std::move(id))
     {}
-
-    bool is_value() override;
 };
 
 /// Datatype declaration with a constructor associated with an identifier.
@@ -1555,9 +1555,6 @@ struct UseDecl : public NamedDecl {
     NamedDecl* bound_to;
     PtrVector<UseDecl> wildcard_imports;
 
-    // Set during type-checking
-    bool is_value_ = false;
-
     UseDecl(const Loc& loc, Path&& path, Identifier&& id)
         : NamedDecl(loc, std::move(id)), path(std::move(path))
     {}
@@ -1570,8 +1567,15 @@ struct UseDecl : public NamedDecl {
     void print(Printer&) const override;
 
     void bind_wildcard(NameBinder&);
-    bool is_value() override;
 };
+
+static inline NamedDecl* resolve_use_decl(NamedDecl* decl) {
+    while (auto use_decl = decl->isa<UseDecl>()) {
+        assert(use_decl->bound_to && "run binding first");
+        decl = use_decl->bound_to;
+    }
+    return decl;
+}
 
 /// Incorrect declaration, coming from parsing.
 struct ErrorDecl : public Decl {

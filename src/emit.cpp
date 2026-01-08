@@ -1069,24 +1069,24 @@ const thorin::Def* Node::emit(Emitter&) const {
 // Path ----------------------------------------------------------------------------
 
 const thorin::Def* Path::emit(Emitter& emitter) const {
-    // Currently only supports paths of the form A/A::B/A[T, ...]/A[T, ...]::B
-    if (auto struct_decl = start_decl->isa<StructDecl>();
-        struct_decl && struct_decl->is_tuple_like && struct_decl->fields.empty()) {
-        return emitter.world.struct_agg(
-            type->convert(emitter)->as<thorin::StructType>(), {},
-            emitter.debug_info(*this));
-    }
-
-    const auto* decl = start_decl;
     for (size_t i = 0, n = elems.size(); i < n; ++i) {
-        if (elems[i].is_super())
-            decl = i == 0 ? start_decl : decl->as<ModDecl>()->super;
         if (elems[i].is_wildcard())
             return nullptr;
+        const auto decl = resolve_use_decl(elems[i].decl);
+        if (elems[i].type->isa<ModType>())
+            continue;
+        if (elems[i].is_super())
+            continue;
 
-        if (auto mod_type = elems[i].type->isa<ModType>()) {
-            decl = &mod_type->member(elems[i + 1].index);
-        } else if (!elems[i].decl->isa<CtorDecl>()) {
+        if (auto struct_decl = decl->isa<StructDecl>();
+            struct_decl && struct_decl->is_tuple_like && struct_decl->fields.empty()) {
+            assert(is_ctor);
+            return emitter.world.struct_agg(
+                type->convert(emitter)->as<thorin::StructType>(), {},
+                emitter.debug_info(*this));
+            }
+
+        if (!is_ctor) {
             // If type arguments are present, this is a polymorphic application
             std::unordered_map<const artic::TypeVar*, const artic::Type*> map;
             if (!elems[i].inferred_args.empty()) {
@@ -1110,6 +1110,7 @@ const thorin::Def* Path::emit(Emitter& emitter) const {
             }
             return def;
         } else if (match_app<StructType>(elems[i].type).second) {
+            assert(is_ctor);
             if (auto it = emitter.struct_ctors.find(elems[i].type); it != emitter.struct_ctors.end())
                 return it->second;
             // Create a constructor for this (tuple-like) structure
@@ -1127,6 +1128,7 @@ const thorin::Def* Path::emit(Emitter& emitter) const {
             emitter.jump(cont->params().back(), struct_value, emitter.debug_info(*this));
             return emitter.struct_ctors[elems[i].type] = cont;
         } else if (auto [type_app, enum_type] = match_app<artic::EnumType>(elems[i].type); enum_type) {
+            assert(is_ctor);
             // Find the variant constructor for that enum, if it exists.
             // Remember that the type application (if present) might be polymorphic (i.e. `E[T, U]::A`), and that, thus,
             // we need to replace bound type variables (`T` and `U` in the previous example) to find the constructor in the map.
