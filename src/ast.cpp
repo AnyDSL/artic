@@ -593,9 +593,9 @@ bool ImplicitCastExpr::has_side_effect() const {
 bool ImplicitCastExpr::is_constant() const {
     assert(expr->type);
     if (auto path_expr = expr->isa<PathExpr>();
-        path_expr && path_expr->path.elems.size() == 1 && path_expr->path.start_decl)
+        path_expr && path_expr->path.elems.back().decl)
     {
-        if (auto static_decl = path_expr->path.start_decl->isa<StaticDecl>()) {
+        if (auto static_decl = path_expr->path.elems.back().decl->isa<StaticDecl>()) {
             // Allow using other constant static declarations as constants
             return !static_decl->is_mut;
         }
