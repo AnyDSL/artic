@@ -607,19 +607,17 @@ const Type* TypeChecker::infer_record_type(const TypeApp* type_app, const Struct
 size_t TypeChecker::path_to_size(ast::Path& path, const std::string_view& element) {
     auto decl = resolve_use_decl(path.elems.back().decl);
     auto static_decl = decl->isa<ast::StaticDecl>();
-    auto ty = static_decl->as<ast::Decl>()->type->isa<PrimType>();
-    auto ty_ok = ty && is_int_type(ty);
     ast::LiteralExpr* lit_value = nullptr;
     if (static_decl && !static_decl->is_mut && static_decl->init)
         lit_value = static_decl->init->isa<ast::LiteralExpr>();
-    if (ty_ok && lit_value)
+    if (lit_value && lit_value->lit.is_integer())
         return lit_value->lit.as_integer();
     error(path.loc, "{} can only be a literal, or a constant", element);
     if (static_decl->is_mut)
         note(static_decl->loc, "{} is mutable", path);
     if (!static_decl->init)
         note(static_decl->loc, "{} lacks an initializer", path);
-    if (!ty_ok)
+    if (!lit_value || !lit_value->lit.is_integer())
         note(static_decl->loc, "{} is not of an integer type", path);
     return 0;
 }
