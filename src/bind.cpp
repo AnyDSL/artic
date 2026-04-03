@@ -352,6 +352,11 @@ void ImplicitParamPtrn::bind(artic::NameBinder& binder) {
     underlying->bind(binder);
 }
 
+void DefaultParamPtrn::bind(artic::NameBinder& binder) {
+    underlying->bind(binder);
+    default_expr->bind(binder);
+}
+
 void FieldPtrn::bind(NameBinder& binder) {
     if (ptrn) binder.bind(*ptrn);
 }

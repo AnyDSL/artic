@@ -1168,6 +1168,80 @@ const artic::Type* CallExpr::infer(TypeChecker& checker) {
     auto [ref_type, callee_type] = remove_ref(checker.infer(*callee));
     if (auto fn_type = callee_type->isa<artic::FnType>()) {
         checker.coerce(callee, fn_type);
+
+        do {
+            assert(arg);
+
+            static artic::Loc arg_loc = arg->loc;
+
+            const artic::ast::PathExpr* path_expr = callee_path(callee.get());
+            if (!path_expr) break;
+
+            const artic::ast::FnDecl* fn_decl = path_expr->path.start_decl->isa<FnDecl>();
+            if (!fn_decl) break;
+
+            const artic::ast::FnExpr* decl = fn_decl->fn.get();
+            assert(decl);
+
+            artic::ast::TupleExpr* args_tuple = arg->isa<TupleExpr>();
+
+            const artic::TupleType* dom_tuple_type = fn_type->dom->isa<artic::TupleType>();
+
+            if (dom_tuple_type) {
+                const artic::ast::TuplePtrn* fn_params = decl->param->isa<TuplePtrn>();
+                if (!fn_params) break;
+
+                if (args_tuple) {
+                    if (args_tuple->args.size() == fn_params->args.size()) break;
+                } else {
+                    if (1 == fn_params->args.size()) break; //Actually impossible!
+                }
+
+                bool resolve_defaults = false;
+                for (int i = args_tuple ? args_tuple->args.size() : 1; i < fn_params->args.size(); i++) {
+                    auto default_param = fn_params->args[i]->isa<DefaultParamPtrn>();
+                    if (default_param) {
+                        resolve_defaults = true;
+                    }
+                }
+                if (!resolve_defaults) break;
+
+                PtrVector<ast::Expr> args;
+
+                //Shovel all old arguments into the new args tuple.
+                if (args_tuple) {
+                    for (int i = 0; i < args_tuple->args.size(); i++) {
+                        args.push_back(std::move(args_tuple->args[i]));
+                    }
+                } else {
+                    args.push_back(std::move(arg));
+                }
+
+                //Construct new arguments from default expressions..
+                for (int i = args_tuple ? args_tuple->args.size() : 1; i < fn_params->args.size(); i++) {
+                    auto default_param = fn_params->args[i]->isa<DefaultParamPtrn>();
+                    if (default_param) {
+                        auto default_expr = default_param->default_expr.get();
+                        args.push_back(arena_ptr(default_expr));
+                    }
+                }
+
+                arg = checker._arena.make_ptr<ast::TupleExpr>(arg_loc, std::move(args));
+            } else {
+                if (args_tuple && args_tuple->args.size() > 0) {
+                    checker.warn(arg_loc, "Too many arguments for call expression!");
+                    break; //Something is wrong here, give up.
+                }
+                if (!args_tuple) break; // one parameter requested and supplied. Nothing to do here.
+
+                const artic::ast::DefaultParamPtrn* default_param = decl->param->isa<DefaultParamPtrn>();
+                if (!default_param) break;
+
+                auto default_expr = default_param->default_expr.get();
+                arg = arena_ptr(default_expr);
+            }
+        } while (false);
+
         checker.coerce(arg, fn_type->dom);
         return fn_type->codom;
     } else {
@@ -1879,6 +1953,19 @@ const artic::Type* ImplicitParamPtrn::infer(artic::TypeChecker& checker) {
 
 const artic::Type * ImplicitParamPtrn::check(artic::TypeChecker& checker, const artic::Type* expected) {
     checker.check(*underlying, expected);
+    return checker.type_table.implicit_param_type(underlying->type);
+}
+
+//TODO: we can use the default expression to infer the type of this pattern, and need to check it as well.
+const artic::Type* DefaultParamPtrn::infer(artic::TypeChecker& checker) {
+    checker.infer(*default_expr);
+    checker.check(*underlying, default_expr->type);
+    return default_expr->type;
+}
+
+const artic::Type *DefaultParamPtrn::check(artic::TypeChecker& checker, const artic::Type* expected) {
+    checker.check(*underlying, expected);
+    checker.check(*default_expr, expected);
     return checker.type_table.implicit_param_type(underlying->type);
 }
 

@@ -83,6 +83,8 @@ public:
 private:
     std::unordered_set<const ast::Decl*> decls_;
     Arena& _arena;
+
+friend class artic::ast::CallExpr; //Needs access to _arena. Please fix.
 };
 
 } // namespace artic
