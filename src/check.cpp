@@ -1816,6 +1816,27 @@ const artic::Type* TypeDecl::infer(TypeChecker& checker) {
     return type;
 }
 
+const artic::Type* ExtTypeDecl::infer(TypeChecker& checker) {
+    if (!checker.enter_decl(this))
+        return checker.type_table.type_error();
+    const ExtType* ext_type = checker.type_table.ext_type(*this);
+    // Set the type before entering the args
+    type = ext_type;
+    for (auto& arg : args_) {
+        if (auto t = std::get_if<Ptr<Type>>(&arg))
+            args_types_.emplace_back(checker.infer(**t));
+        else if (auto e = std::get_if<Ptr<Expr>>(&arg)) {
+            checker.infer(**e);
+            if (!(*e)->is_constant())
+                checker.error((*e)->loc, "only constants are allowed as external type members");
+            args_types_.emplace_back(nullptr);
+        } else
+            assert(false);
+    }
+    checker.exit_decl(this);
+    return ext_type;
+}
+
 const artic::Type* ModDecl::infer(TypeChecker& checker) {
     for (auto& decl : decls)
         checker.infer(*decl);

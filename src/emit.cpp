@@ -1756,6 +1756,10 @@ const thorin::Def* TypeDecl::emit(Emitter&) const {
     return nullptr;
 }
 
+const thorin::Def* ExtTypeDecl::emit(Emitter&) const {
+    return nullptr;
+}
+
 const thorin::Def* ModDecl::emit(Emitter& emitter) const {
     for (auto& decl : decls) {
         // Do not emit polymorphic functions directly: Those will be emitted from
@@ -2030,6 +2034,31 @@ const thorin::Type* TypeApp::convert(Emitter& emitter) const {
     auto result = applied->convert(emitter, mono_type);
     std::swap(emitter.type_vars, map);
     return result;
+}
+
+std::string ExtType::stringify(Emitter& emitter) const {
+    if (!type_params())
+        return decl.id.name;
+    return stringify_params(emitter, decl.id.name + "_", type_params()->params);
+}
+
+const thorin::Type* ExtType::convert(Emitter& emitter, const Type* parent) const {
+    if (auto it = emitter.types.find(this); !type_params() && it != emitter.types.end())
+        return it->second;
+
+    auto type = emitter.world.extern_type(decl.type_name, decl.args_types_.size(), { decl.id.name });
+    emitter.types[parent] = type;
+
+    for (size_t i = 0; i < decl.args_types_.size(); i++) {
+        if (auto t = decl.args_types_[i]) {
+            type->set_op(i, t->convert(emitter));
+        } else if (auto e = std::get_if<Ptr<ast::Expr>>(&decl.args_[i]))
+            type->set_op(i, emitter.emit(**e));
+        else
+            assert(false);
+    }
+
+    return type;
 }
 
 // A read-only buffer from memory, not performing any copy.
