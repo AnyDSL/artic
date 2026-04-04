@@ -1,0 +1,18 @@
+#[import(cc="C")]
+fn puts(&[u8]) -> i32;
+
+#[import(cc="C", name="printf")]
+fn printfd(&[u8], i32) -> ();
+
+#[export]
+fn leak(f: fn(i32) -> i32) -> () {
+    printfd("fn(7) = %d\n", f(7));
+}
+
+#[import(cc="C")]
+fn foo(x: i32) -> i32;
+
+#[export]
+fn main(f: fn(i32) -> i32) -> () {
+    foo(4);
+}

@@ -75,3 +75,7 @@ void save_img(int32_t w, int32_t h, const double* img) {
     }
     free(out_row);
 }
+
+void* anydsl_alloc(int32_t dont_care, int64_t size) {
+    return malloc(size);
+}

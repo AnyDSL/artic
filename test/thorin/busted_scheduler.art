@@ -1,0 +1,26 @@
+#[import(cc="C")]
+fn bar() -> i32;
+
+#[import(cc="C")]
+fn leak(fn(i32) -> i32) -> ();
+
+// this breaks the scheduler on 802e2eafbbe6cd79d4bca47c9553f315bc4568ea
+// (with the inlining pass disabled)
+// the old early() scheduler was not able to properly cope with recursive aggregates (the closures of f and g)
+// and would end up scheduling one of them before `y` is computed.
+#[export]
+fn foo(z: i32) {
+    let y = bar();
+
+    fn f(x: i32) -> i32 {
+        g(x + y)
+    }
+
+    fn g(x: i32) -> i32 {
+        f(x + z)
+    }
+
+    leak(f);
+    leak(g);
+    0
+}

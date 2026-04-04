@@ -8,7 +8,7 @@ macro(assign_me_bool var)
     endif()
 endmacro()
 
-function(add_thorin_test)
+function(add_backend_test)
     cmake_parse_arguments(test "NO_C;NO_LLVM;NO_SPIRV" "NAME;SOURCE_FILE" "ARGS" ${ARGN})
     assign_me_bool(TEST_USE_C NOT ${test_NO_C})
     assign_me_bool(HAS_LLVM ${Thorin_HAS_LLVM_SUPPORT})
@@ -16,7 +16,7 @@ function(add_thorin_test)
     assign_me_bool(HAS_SPIRV ${Thorin_HAS_SPIRV_SUPPORT})
     assign_me_bool(TEST_USE_SPIRV ${HAS_SPIRV} AND NOT ${test_NO_SPIRV})
 
-    add_test(NAME thorin_${test_NAME} COMMAND ${CMAKE_COMMAND}
+    add_test(NAME backend_${test_NAME} COMMAND ${CMAKE_COMMAND}
             -DCOMPILER=$<TARGET_FILE:artic>
             -DC_COMPILER=${CMAKE_C_COMPILER}
             -DT=${test_NAME}
@@ -30,8 +30,8 @@ function(add_thorin_test)
     -P ${PROJECT_SOURCE_DIR}/test/thorin/oracle.cmake)
 endfunction()
 
-add_thorin_test(NAME hello_world SOURCE_FILE hello_world)
-add_thorin_test(NAME llvm_intrinsic SOURCE_FILE llvm_intrinsic NO_C NO_SPIRV)
-add_thorin_test(NAME spirv_builtin SOURCE_FILE spirv_builtin NO_C NO_LLVM)
-add_thorin_test(NAME control_flow SOURCE_FILE control_flow)
-add_thorin_test(NAME slot SOURCE_FILE slot)
+add_backend_test(NAME hello_world SOURCE_FILE hello_world)
+add_backend_test(NAME llvm_intrinsic SOURCE_FILE llvm_intrinsic NO_C NO_SPIRV)
+add_backend_test(NAME spirv_builtin SOURCE_FILE spirv_builtin NO_C NO_LLVM)
+add_backend_test(NAME control_flow SOURCE_FILE control_flow)
+add_backend_test(NAME slot SOURCE_FILE slot)

@@ -1,0 +1,21 @@
+#[import(cc="C")]
+fn leak(fn(i32) -> i32) -> ();
+
+// we have two closures who can call each other, neither is nested in the other.
+// this results in two mutually recursive closures: their environments include the other.
+// this is unequivocally painful to deal with.
+#[export]
+fn foo(i: i32) -> i32 {
+  fn f(x: i32) -> i32 {
+    g(x * i)
+  }
+
+  fn g(y: i32) -> i32 {
+    f(y + i)
+  }
+
+  leak(f);
+  leak(g);
+
+  0
+}
