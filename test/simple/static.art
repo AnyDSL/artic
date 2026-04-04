@@ -1,7 +1,12 @@
 static mut x = 1;
 static y = 0;
 static z = test;
+
+mod M {
+    static w = super::y;
+}
+
 #[export]
 fn test() {
-    x += y
+    x += y + M::w
 }

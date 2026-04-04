@@ -604,6 +604,24 @@ const Type* TypeChecker::infer_record_type(const TypeApp* type_app, const Struct
     return type_app ? type_app->as<Type>() : struct_type;
 }
 
+size_t TypeChecker::path_to_size(ast::Path& path, const std::string_view& element) {
+    auto decl = resolve_use_decl(path.elems.back().decl);
+    auto static_decl = decl->isa<ast::StaticDecl>();
+    ast::LiteralExpr* lit_value = nullptr;
+    if (static_decl && !static_decl->is_mut && static_decl->init)
+        lit_value = static_decl->init->isa<ast::LiteralExpr>();
+    if (lit_value && lit_value->lit.is_integer())
+        return lit_value->lit.as_integer();
+    error(path.loc, "{} can only be a literal, or a constant", element);
+    if (static_decl->is_mut)
+        note(static_decl->loc, "{} is mutable", path);
+    if (!static_decl->init)
+        note(static_decl->loc, "{} lacks an initializer", path);
+    if (!lit_value || !lit_value->lit.is_integer())
+        note(static_decl->loc, "{} is not of an integer type", path);
+    return 0;
+}
+
 namespace ast {
 
 const artic::Type* Node::check(TypeChecker& checker, const artic::Type* expected) {
@@ -630,23 +648,71 @@ const artic::Type* Ptrn::check(TypeChecker& checker, const artic::Type* expected
 
 // Path ----------------------------------------------------------------------------
 
-const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, Ptr<Expr>* arg) {
-    if (!start_decl)
-        return checker.type_table.type_error();
+const artic::Type* Path::Elem::infer(TypeChecker& checker, const artic::Type* prev_elem_type, Path& path) {
+    if (!prev_elem_type) {
+        if (is_super()) {
+            return type = checker.type_table.mod_type(*decl->as<ModDecl>());
+        } else {
+            return type = checker.infer(*decl);
+        }
+    } else if (is_super()) {
+        assert(prev_elem_type);
+        auto mod_type = prev_elem_type->isa<ModType>();
+        if (!mod_type) {
+            checker.error(loc, "'super' can only be used on modules");
+            return type = checker.type_table.type_error();
+        }
+        return type = checker.type_table.mod_type(*mod_type->decl.super);
+    } else if (auto mod_type = prev_elem_type->isa<ModType>()) {
+        auto index = mod_type->find_member(id.name);
+        if (!index)
+            return type = checker.unknown_member(loc, mod_type, id.name);
+        this->index = *index;
+        auto& member = mod_type->member(*index);
+        // We do not want infer the declaration if it is a module, since we can immediately
+        // create a type for it and lazily infer member types as required.
+        return type = member.isa<ModDecl>()
+            ? checker.type_table.mod_type(*member.as<ModDecl>())
+            : checker.infer(mod_type->member(*index));
+    } else if (auto [type_app, enum_type] = match_app<EnumType>(prev_elem_type); enum_type) {
+        auto index = enum_type->find_member(id.name);
+        if (!index)
+            return type = checker.unknown_member(loc, enum_type, id.name);
+        this->index = *index;
+        if (enum_type->decl.options[*index]->struct_type) {
+            // If the enumeration option uses the record syntax, we use the corresponding structure type
+            type = enum_type->decl.options[*index]->struct_type;
+            if (type_app)
+                type = checker.type_table.type_app(type->as<StructType>(), type_app->type_args);
+            return type;
+        } else {
+            auto member = member_type(type_app, enum_type, *index);
+            path.is_ctor = true;
+            if (is_unit_type(member)) {
+                return type = prev_elem_type;
+            } else {
+                return type = checker.type_table.fn_type(member, prev_elem_type);
+            }
+        }
+    } else
+        return checker.type_expected(loc, type, "module or enum");
+}
 
-    type = elems[0].is_super()
-        ? checker.type_table.mod_type(*start_decl->as<ModDecl>())
-        : checker.infer(*start_decl);
-    is_value = elems.size() == 1 && start_decl->isa<ValueDecl>();
-    is_ctor  = start_decl->isa<CtorDecl>();
+const artic::Type* Path::infer(TypeChecker& checker, Ptr<Expr>* arg) {
+    if (elems.back().is_wildcard())
+        return nullptr;
+    if (!decl)
+        return checker.type_table.type_error();
 
     // Inspect every element of the path
     for (size_t i = 0, n = elems.size(); i < n; ++i) {
         auto& elem = elems[i];
 
+        elem.infer(checker, i == 0 ? nullptr : elems[i - 1].type, *this);
+
         // Apply type arguments (if any)
-        auto user_type   = type->isa<artic::UserType>();
-        auto forall_type = type->isa<artic::ForallType>();
+        auto user_type   = elem.type->isa<artic::UserType>();
+        auto forall_type = elem.type->isa<artic::ForallType>();
         if ((user_type && user_type->type_params()) || forall_type) {
             const size_t type_param_count = user_type
                 ? user_type->type_params()->params.size()
@@ -663,10 +729,10 @@ const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, Ptr<Ex
                         return checker.type_table.type_error();
                 }
                 elem.inferred_args = type_args;
-                type = user_type
-                    ? checker.type_table.type_app(user_type, std::move(type_args))
+                elem.type = user_type
+                    ? checker.type_table.type_app(user_type, type_args)
                     : forall_type->instantiate(type_args);
-            } else {
+            } else if (!elem.args.empty() || /* we allow leaving out type params when importing definitions */ !is_use_path_) {
                 checker.error(elem.loc, "expected {} type argument(s), but got {}", type_param_count, elem.args.size());
                 return checker.type_table.type_error();
             }
@@ -674,71 +740,40 @@ const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, Ptr<Ex
             checker.error(elem.loc, "type arguments are not allowed here");
             return checker.type_table.type_error();
         }
-        elem.type = type;
+    }
 
-        // Treat tuple-like structure constructors as functions
-        if (auto [type_app, struct_type] = match_app<StructType>(type);
-            is_ctor && value_expected && struct_type && struct_type->is_tuple_like()) {
-            if (struct_type->member_count() > 0) {
-                SmallArray<const artic::Type*> tuple_args(struct_type->member_count());
-                for (size_t i = 0, n = struct_type->member_count(); i < n; ++i)
-                    tuple_args[i] = member_type(type_app, struct_type, i);
-                auto dom = struct_type->member_count() == 1
-                    ? tuple_args.front()
-                    : checker.type_table.tuple_type(tuple_args);
-                type = checker.type_table.fn_type(dom, type);
-            }
-            is_value = true;
-        }
+    return type = elems.back().type;
+}
 
-        // Perform a lookup inside the current object if the path is not finished
-        if (i != n - 1) {
-            if (elems[i + 1].is_super()) {
-                auto mod_type = type->isa<ModType>();
-                if (!mod_type) {
-                    checker.error(elems[i + 1].loc, "'super' can only be used on modules");
-                    return checker.type_table.type_error();
-                }
-                type = checker.type_table.mod_type(*mod_type->decl.super);
-            } else if (auto [type_app, enum_type] = match_app<EnumType>(type); enum_type) {
-                auto index = enum_type->find_member(elems[i + 1].id.name);
-                if (!index)
-                    return checker.unknown_member(elem.loc, enum_type, elems[i + 1].id.name);
-                elems[i + 1].index = *index;
-                if (enum_type->decl.options[*index]->struct_type) {
-                    // If the enumeration option uses the record syntax, we use the corresponding structure type
-                    type = enum_type->decl.options[*index]->struct_type;
-                    if (type_app)
-                        type = checker.type_table.type_app(type->as<StructType>(), type_app->type_args);
-                    is_value = false;
-                    is_ctor = true;
-                } else {
-                    auto member = member_type(type_app, enum_type, *index);
-                    type = is_unit_type(member) ? type : checker.type_table.fn_type(member, type);
-                    is_value = is_ctor = true;
-                }
-            } else if (auto mod_type = type->isa<ModType>()) {
-                auto index = mod_type->find_member(elems[i + 1].id.name);
-                if (!index)
-                    return checker.unknown_member(elems[i + 1].loc, mod_type, elems[i + 1].id.name);
-                elems[i + 1].index = *index;
-                auto& member = mod_type->member(*index);
-                // We do not want infer the declaration if it is a module, since we can immediately
-                // create a type for it and lazily infer member types as required.
-                type = member.isa<ModDecl>()
-                    ? checker.type_table.mod_type(*member.as<ModDecl>())
-                    : checker.infer(mod_type->member(*index));
-                is_value = member.isa<ValueDecl>();
-                is_ctor  = member.isa<CtorDecl>();
-            } else
-                return checker.type_expected(elem.loc, type, "module or enum");
+const artic::Type* Path::infer(artic::TypeChecker& checker, bool value_expected, Ptr<artic::ast::Expr>* arg) {
+    type = infer(checker, arg);
+
+    auto last_decl = resolve_use_decl(decl);
+
+    is_value |= static_cast<bool>(last_decl->isa<ValueDecl>());
+    is_value |= is_ctor;
+
+    // Treat tuple-like structure constructors as functions
+    if (auto [type_app, struct_type] = match_app<StructType>(type);
+            last_decl->isa<ast::StructDecl>() && value_expected && struct_type && struct_type->is_tuple_like()) {
+        if (struct_type->member_count() > 0) {
+            SmallArray<const artic::Type*> tuple_args(struct_type->member_count());
+            for (size_t i = 0, n = struct_type->member_count(); i < n; ++i)
+                tuple_args[i] = member_type(type_app, struct_type, i);
+            auto dom = struct_type->member_count() == 1
+                       ? tuple_args.front()
+                       : checker.type_table.tuple_type(tuple_args);
+            type = checker.type_table.fn_type(dom, type);
         }
+        is_value = true;
+        is_ctor = true;
     }
 
     if (is_value != value_expected) {
         checker.error(loc, "{} expected, but got '{}'", value_expected ? "value" : "type", *this);
         return checker.type_table.type_error();
     }
+
     return type;
 }
 
@@ -852,31 +887,8 @@ const artic::Type* SizedArrayType::infer(TypeChecker& checker) {
 
     if (std::holds_alternative<ast::Path>(size)) {
         auto &path = std::get<ast::Path>(size);
-        const auto* decl = path.start_decl;
-
-        for (size_t i = 0, n = path.elems.size(); i < n; ++i) {
-            if (path.elems[i].is_super())
-                decl = i == 0 ? path.start_decl : decl->as<ModDecl>()->super;
-            if (auto mod_type = path.elems[i].type->isa<ModType>()) {
-                decl = &mod_type->member(path.elems[i + 1].index);
-            } else if (!path.is_ctor) {
-                assert(path.elems[i].inferred_args.empty());
-                assert(decl->isa<StaticDecl>() && "The only supported type right now.");
-                break;
-            } else if (match_app<StructType>(path.elems[i].type).second) {
-                assert(false && "This is not supported as a size for repeated arrays.");
-            } else if (auto [type_app, enum_type] = match_app<artic::EnumType>(path.elems[i].type); enum_type) {
-                assert(false && "This is not supported as a size for repeated arrays.");
-            }
-        }
-
-        auto static_decl = decl->as<StaticDecl>();
-        assert(!static_decl->is_mut);
-        assert(static_decl->init);
-        auto& value = static_decl->init;
-        auto lit_value = value->as<LiteralExpr>()->lit;
-
-        size = lit_value.as_integer();
+        checker.infer(path);
+        size = checker.path_to_size(path, "sized array size");
     }
 
     return checker.type_table.sized_array_type(elem_type, std::get<size_t>(size), is_simd);
@@ -1027,31 +1039,8 @@ const artic::Type* RepeatArrayExpr::infer(TypeChecker& checker) {
 
     if (std::holds_alternative<ast::Path>(size)) {
         auto &path = std::get<ast::Path>(size);
-        const auto* decl = path.start_decl;
-
-        for (size_t i = 0, n = path.elems.size(); i < n; ++i) {
-            if (path.elems[i].is_super())
-                decl = i == 0 ? path.start_decl : decl->as<ModDecl>()->super;
-            if (auto mod_type = path.elems[i].type->isa<ModType>()) {
-                decl = &mod_type->member(path.elems[i + 1].index);
-            } else if (!path.is_ctor) {
-                assert(path.elems[i].inferred_args.empty());
-                assert(decl->isa<StaticDecl>() && "The only supported type right now.");
-                break;
-            } else if (match_app<StructType>(path.elems[i].type).second) {
-                assert(false && "This is not supported as a size for repeated arrays.");
-            } else if (auto [type_app, enum_type] = match_app<artic::EnumType>(path.elems[i].type); enum_type) {
-                assert(false && "This is not supported as a size for repeated arrays.");
-            }
-        }
-
-        auto static_decl = decl->as<StaticDecl>();
-        assert(!static_decl->is_mut);
-        assert(static_decl->init);
-        auto& value = static_decl->init;
-        auto lit_value = value->as<LiteralExpr>()->lit;
-
-        size = lit_value.as_integer();
+        checker.infer(path);
+        size = checker.path_to_size(path, "repeat array expression size");
     }
 
     return checker.type_table.sized_array_type(elem_type, std::get<size_t>(size), is_simd);
@@ -1060,31 +1049,8 @@ const artic::Type* RepeatArrayExpr::infer(TypeChecker& checker) {
 const artic::Type* RepeatArrayExpr::check(TypeChecker& checker, const artic::Type* expected) {
     if (std::holds_alternative<ast::Path>(size)) {
         auto &path = std::get<ast::Path>(size);
-        const auto* decl = path.start_decl;
-
-        for (size_t i = 0, n = path.elems.size(); i < n; ++i) {
-            if (path.elems[i].is_super())
-                decl = i == 0 ? path.start_decl : decl->as<ModDecl>()->super;
-            if (auto mod_type = path.elems[i].type->isa<ModType>()) {
-                decl = &mod_type->member(path.elems[i + 1].index);
-            } else if (!path.is_ctor) {
-                assert(path.elems[i].inferred_args.empty());
-                assert(decl->isa<StaticDecl>() && "The only supported type right now.");
-                break;
-            } else if (match_app<StructType>(path.elems[i].type).second) {
-                assert(false && "This is not supported as a size for repeated arrays.");
-            } else if (auto [type_app, enum_type] = match_app<artic::EnumType>(path.elems[i].type); enum_type) {
-                assert(false && "This is not supported as a size for repeated arrays.");
-            }
-        }
-
-        auto static_decl = decl->as<StaticDecl>();
-        assert(!static_decl->is_mut);
-        assert(static_decl->init);
-        auto& value = static_decl->init;
-        auto lit_value = value->as<LiteralExpr>()->lit;
-
-        size = lit_value.as_integer();
+        checker.infer(path);
+        size = checker.path_to_size(path, "repeat array expression size");
     }
 
     return checker.check_array(loc, "array expression",
@@ -1833,8 +1799,6 @@ const artic::Type* UseDecl::infer(TypeChecker& checker) {
         return checker.type_table.type_error();
     auto path_type = checker.infer(path);
     checker.exit_decl(this);
-    if (!path_type->isa<artic::ModType>())
-        return checker.type_expected(path.loc, path_type, "module type");
     return path_type;
 }
 
@@ -1899,7 +1863,7 @@ const artic::Type* RecordPtrn::infer(TypeChecker& checker) {
 
 const artic::Type* CtorPtrn::infer(TypeChecker& checker) {
     auto path_type = path.infer(checker, true);
-    if (!path.is_ctor) {
+    if (!path.decl->isa<CtorDecl>()) {
         checker.error(path.loc, "structure or enumeration constructor expected");
         return checker.type_table.type_error();
     }

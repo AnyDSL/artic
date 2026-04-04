@@ -1,0 +1,2 @@
+static b = true;
+static nah = [3; b];

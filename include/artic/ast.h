@@ -4,6 +4,7 @@
 #include <memory>
 #include <vector>
 #include <variant>
+#include <optional>
 
 #include "artic/arena.h"
 #include "artic/loc.h"
@@ -47,6 +48,7 @@ struct Node : public Cast<Node> {
     /// Location of the node in the source file.
     Loc loc;
 
+    mutable bool bound = false;
     /// Type assigned after type inference. Not all nodes are typeable.
     mutable const artic::Type* type = nullptr;
     /// IR definition assigned after IR emission.
@@ -161,6 +163,8 @@ struct Ptrn : public Node {
 
 // Path ----------------------------------------------------------------------------
 
+struct StaticDecl;
+
 /// A path of the form A[T1, ..., TN]:: ... ::Z[U1, ..., UN]
 struct Path : public Node {
     struct Elem {
@@ -168,36 +172,47 @@ struct Path : public Node {
         Identifier id;
         PtrVector<Type> args;
 
+        // Set during name-binding
+        NamedDecl* decl = nullptr;
+
         // These members are set during type-checking
         const artic::Type* type = nullptr;
         size_t index = 0;
         std::vector<const artic::Type*> inferred_args;
 
         bool is_super() const { return id.name == "super"; }
+        bool is_wildcard() const { return id.name == "*"; }
 
         Elem(const Loc& loc, Identifier&& id, PtrVector<Type>&& args)
             : loc(loc), id(std::move(id)), args(std::move(args))
         {}
+
+        const artic::Type* infer(TypeChecker& checker, const artic::Type* prev_elem_type, Path& path);
     };
 
     std::vector<Elem> elems;
+    // use paths are allowed to have un-instantiated type params
+    bool is_use_path_ = false;
 
     // Set during name-binding, corresponds to the declaration that
     // is associated with the _first_ element of the path.
     // The rest of the path is resolved during type-checking.
-    ast::NamedDecl* start_decl;
+    ast::NamedDecl* start_decl = nullptr;
+    ast::NamedDecl* decl = nullptr;
 
     // Set during type-checking
     bool is_value = false;
+    // represents tuple-like enum options, or tuple-like structs
     bool is_ctor = false;
 
-    Path(const Loc& loc, std::vector<Elem>&& elems)
-        : Node(loc), elems(std::move(elems))
+    Path(const Loc& loc, bool is_use_path, std::vector<Elem>&& elems)
+        : Node(loc), is_use_path_(is_use_path), elems(std::move(elems))
     {}
 
+    const artic::Type* infer(TypeChecker&, Ptr<Expr>*);
     const artic::Type* infer(TypeChecker&, bool, Ptr<Expr>* = nullptr);
     const artic::Type* infer(TypeChecker& checker) override {
-        return infer(checker, false, nullptr);
+        return infer(checker, nullptr);
     }
 
     const thorin::Def* emit(Emitter&) const override;
@@ -1472,6 +1487,8 @@ struct EnumDecl : public CtorDecl {
         , options(std::move(options))
     {}
 
+    std::optional<OptionDecl*> find_member(const std::string_view&) const;
+
     const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) override;
     void bind_head(NameBinder&) override;
@@ -1508,8 +1525,6 @@ struct ModDecl : public NamedDecl {
     PtrVector<Decl> decls;
     ModDecl* super = nullptr;
 
-    std::vector<const NamedDecl*> members;
-
     /// Constructor for the implicitly defined global module.
     /// When using this constructor, the user is responsible for calling
     /// `set_super()` once the declarations have been added to the module.
@@ -1525,6 +1540,7 @@ struct ModDecl : public NamedDecl {
     }
 
     void set_super();
+    std::optional<NamedDecl*> find_member(const std::string_view& name) const;
 
     const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) override;
@@ -1538,6 +1554,9 @@ struct ModDecl : public NamedDecl {
 struct UseDecl : public NamedDecl {
     Path path;
 
+    NamedDecl* bound_to;
+    PtrVector<UseDecl> wildcard_imports;
+
     UseDecl(const Loc& loc, Path&& path, Identifier&& id)
         : NamedDecl(loc, std::move(id)), path(std::move(path))
     {}
@@ -1548,7 +1567,17 @@ struct UseDecl : public NamedDecl {
     void bind(NameBinder&) override;
     void resolve_summons(Summoner&) override {};
     void print(Printer&) const override;
+
+    void bind_wildcard(NameBinder&);
 };
+
+static inline NamedDecl* resolve_use_decl(NamedDecl* decl) {
+    while (auto use_decl = decl->isa<UseDecl>()) {
+        assert(use_decl->bound_to && "run binding first");
+        decl = use_decl->bound_to;
+    }
+    return decl;
+}
 
 /// Incorrect declaration, coming from parsing.
 struct ErrorDecl : public Decl {

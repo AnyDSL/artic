@@ -125,7 +125,7 @@ mod A {
 ```rust
 mod A {
     use super::C;
-    fn foo() { C::baz() }
+    fn foo() { baz() }
     mod B {
         fn bar() { super::foo() }
     }
@@ -135,6 +135,17 @@ mod C {
     fn baz() { D::bar }
 }
 ```
+ - Wildcard imports are now supported:
+```rust
+mod A {
+    fn f() -> i32 = 42;
+    fn g() -> i32 = 69;
+}
+use A::*;
+
+fn main() = f() + g();
+```
+
  - Tuples cannot be indexed with constant integers anymore:
 ```rust
 let t = (1, 2);

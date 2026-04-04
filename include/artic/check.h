@@ -80,6 +80,8 @@ public:
     bool infer_type_args(const Loc&, const ForallType*, const Type*, std::vector<const Type*>&);
     const Type* infer_record_type(const TypeApp*, const StructType*, size_t&);
 
+    size_t path_to_size(ast::Path& path, const std::string_view&);
+
 private:
     std::unordered_set<const ast::Decl*> decls_;
     Arena& _arena;

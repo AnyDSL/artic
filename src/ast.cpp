@@ -593,9 +593,9 @@ bool ImplicitCastExpr::has_side_effect() const {
 bool ImplicitCastExpr::is_constant() const {
     assert(expr->type);
     if (auto path_expr = expr->isa<PathExpr>();
-        path_expr && path_expr->path.elems.size() == 1 && path_expr->path.start_decl)
+        path_expr && path_expr->path.elems.back().decl)
     {
-        if (auto static_decl = path_expr->path.start_decl->isa<StaticDecl>()) {
+        if (auto static_decl = path_expr->path.elems.back().decl->isa<StaticDecl>()) {
             // Allow using other constant static declarations as constants
             return !static_decl->is_mut;
         }
@@ -606,6 +606,8 @@ bool ImplicitCastExpr::is_constant() const {
 bool AsmExpr::has_side_effect() const {
     return !outs.empty() || std::find(opts.begin(), opts.end(), "volatile") != opts.end();
 }
+
+// Decls ---------------------------------------------------------------------------
 
 // Patterns ------------------------------------------------------------------------
 
@@ -641,7 +643,7 @@ const Expr* IdPtrn::to_expr(Arena& arena) {
     Identifier id = decl->id;
     std::vector<Path::Elem> elems;
     elems.push_back(Path::Elem( loc, std::move(id), {} ));
-    Path path = Path(loc, std::move(elems));
+    Path path = Path(loc, false, std::move(elems));
     path.start_decl = decl.get();
     path.is_value = true;
     as_expr = arena.make_ptr<PathExpr>(std::move(path));

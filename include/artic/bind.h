@@ -15,11 +15,12 @@ namespace artic {
 /// Binds identifiers to the nodes of the AST.
 class NameBinder : public Logger {
 public:
-    NameBinder(Log& log)
+    NameBinder(Log& log, Arena& arena)
         : Logger(log)
         , cur_fn(nullptr)
         , cur_loop(nullptr)
         , cur_mod(nullptr)
+        , arena_(arena)
     {
         push_scope(true);
     }
@@ -35,6 +36,7 @@ public:
     ast::FnExpr*   cur_fn;
     ast::LoopExpr* cur_loop;
     ast::ModDecl*  cur_mod;
+    Arena& arena_;
 
     void bind_head(ast::Decl&);
     void bind(ast::Node&);
@@ -72,6 +74,8 @@ public:
             best = it->find_similar(name, min, levenshtein);
         return best;
     }
+
+    void unknown_member(const Loc&, const ast::NamedDecl*, const std::string_view&);
 
 private:
     // Levenshtein distance is used to suggest similar identifiers to the user
