@@ -593,6 +593,7 @@ bool is_int_type(const Type* type) {
             case ast::PrimType::U16:
             case ast::PrimType::U32:
             case ast::PrimType::U64:
+            case ast::PrimType::I7:
             case ast::PrimType::I8:
             case ast::PrimType::I16:
             case ast::PrimType::I32:

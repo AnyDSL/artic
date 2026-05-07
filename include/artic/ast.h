@@ -299,6 +299,7 @@ struct AttrList : public NamedAttr {
 struct PrimType : public Type {
     enum Tag {
         Bool,
+        I7,
         I8,
         I16,
         I32,
