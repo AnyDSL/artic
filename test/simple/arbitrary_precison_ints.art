@@ -1,0 +1,36 @@
+fn test() {
+    // minimum widths
+    let _: i1 = 1;
+    let _: u1 = 1;
+
+    // byte-aligned
+    let _: i8 = 1;
+    let _: i16 = 1;
+    let _: i32 = 1;
+    let _: i64 = 1;
+
+    let _: u8 = 1;
+    let _: u16 = 1;
+    let _: u32 = 1;
+    let _: u64 = 1;
+
+    // non-byte-aligned
+    let _: i3 = 1;
+    let _: i7 = 1;
+    let _: i9 = 1;
+    let _: i17 = 1;
+
+    let _: u3 = 1;
+    let _: u7 = 1;
+    let _: u9 = 1;
+    let _: u17 = 1;
+
+    // >64-bit
+    let _: i65 = 1;
+    let _: i127 = 1;
+    let _: i128 = 1;
+
+    let _: u65 = 1;
+    let _: u127 = 1;
+    let _: u128 = 1;
+}

@@ -3,6 +3,7 @@
 
 #include "artic/ast.h"
 #include "artic/types.h"
+#include "artic/prim_types.h"
 
 namespace artic::ast {
 
@@ -12,42 +13,27 @@ bool Ptrn::is_tuple() const { return isa<TuplePtrn>(); }
 
 std::string PrimType::tag_to_string(Tag tag) {
     switch (tag) {
-        case Bool: return "bool";
-        case I8:   return "i8";
-        case I16:  return "i16";
-        case I32:  return "i32";
-        case I64:  return "i64";
-        case U8:   return "u8";
-        case U16:  return "u16";
-        case U32:  return "u32";
-        case U64:  return "u64";
-        case F16:  return "f16";
-        case F32:  return "f32";
-        case F64:  return "f64";
-        default:
-            assert(false);
-            return "";
+#define DECL_CASE(name, str)                                                                                           \
+    case name: return str;
+
+        ALL_PRIM_TYPES(DECL_CASE)
+
+#undef DECL_CASE
+
+        default: assert(false); return "";
     }
 }
 
 PrimType::Tag PrimType::tag_from_token(const Token& token) {
     static std::unordered_map<std::string, Tag> tag_map{
-        std::make_pair("bool", Bool),
 
-        std::make_pair("i8",  I8),
-        std::make_pair("i16", I16),
-        std::make_pair("i32", I32),
-        std::make_pair("i64", I64),
+#define DECL_MAP(name, str) std::make_pair(str, name),
 
-        std::make_pair("u8",  U8),
-        std::make_pair("u16", U16),
-        std::make_pair("u32", U32),
-        std::make_pair("u64", U64),
+        ALL_PRIM_TYPES(DECL_MAP)
 
-        std::make_pair("f16", F16),
-        std::make_pair("f32", F32),
-        std::make_pair("f64", F64),
+#undef DECL_MAP
     };
+
     auto it = tag_map.find(token.string());
     return it != tag_map.end() ? it->second : Error;
 }

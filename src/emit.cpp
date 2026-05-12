@@ -2109,10 +2109,10 @@ std::tuple<Ptr<ast::ModDecl>, bool> compile(
     if (!name_binder.run(*program) || !type_checker.run(*program) || !summoner.run(*program))
         return std::make_tuple(std::move(program), false);
 
-    Emitter emitter(log, world, arena);
-    emitter.warns_as_errors = warns_as_errors;
-    if (!emitter.run(*program))
-        return std::make_tuple(std::move(program), false);
+    // Emitter emitter(log, world, arena);
+    // emitter.warns_as_errors = warns_as_errors;
+    // if (!emitter.run(*program))
+    //     return std::make_tuple(std::move(program), false);
     return std::make_tuple(std::move(program), true);
 }
 

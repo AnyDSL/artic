@@ -11,6 +11,7 @@
 #include "artic/cast.h"
 #include "artic/token.h"
 #include "artic/symbol.h"
+#include "artic/prim_types.h"
 
 namespace thorin {
     class Def;
@@ -298,18 +299,12 @@ struct AttrList : public NamedAttr {
 /// Primitive type (integer, float, ...).
 struct PrimType : public Type {
     enum Tag {
-        Bool,
-        I8,
-        I16,
-        I32,
-        I64,
-        U8,
-        U16,
-        U32,
-        U64,
-        F16,
-        F32,
-        F64,
+#define DECL_ENUM(name, str) name,
+
+        ALL_PRIM_TYPES(DECL_ENUM)
+
+#undef DECL_ENUM
+
         Error
     };
 

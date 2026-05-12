@@ -589,19 +589,18 @@ std::unordered_map<const TypeVar*, const Type*> TypeApp::replace_map(
 bool is_int_type(const Type* type) {
     if (auto prim_type = type->isa<PrimType>()) {
         switch (prim_type->tag) {
-            case ast::PrimType::U8:
-            case ast::PrimType::U16:
-            case ast::PrimType::U32:
-            case ast::PrimType::U64:
-            case ast::PrimType::I8:
-            case ast::PrimType::I16:
-            case ast::PrimType::I32:
-            case ast::PrimType::I64:
-                return true; 
-            default:
-                break;
+#define DECL_CASE(name, str) case ast::PrimType::name:
+
+            INT_SIGNED_TYPES(DECL_CASE)
+            INT_UNSIGNED_TYPES(DECL_CASE)
+            return true;
+
+#undef DECL_CASE
+
+            default: break;
         }
     }
+
     return false;
 }
 
