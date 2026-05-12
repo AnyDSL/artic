@@ -1,0 +1,8 @@
+fn test() {
+    let _: i0 = 0;
+    let _: u0 = 0;
+    let _: i129 = 1;
+    let _: u129 = 1;
+    let _: i300 = 1;
+    let _: u300 = 1;
+}
