@@ -323,10 +323,18 @@ int main(int argc, char** argv) {
 
     Arena arena;
     TypeTable type_table;
+
+    bool only_ast = opts.print_ast && !opts.emit_thorin &&
+                   !opts.emit_c_int && !opts.emit_host_code &&
+                   !opts.emit_c && !opts.emit_json &&
+                   !opts.emit_llvm && !opts.emit_spirv &&
+                   opts.opt_level == 0;
+
     auto [program, success] = compile(
         opts.files, file_data,
         opts.warns_as_errors,
         opts.enable_all_warns,
+        only_ast,
         arena, type_table, thorin.world(), log);
 
     log.print_summary();

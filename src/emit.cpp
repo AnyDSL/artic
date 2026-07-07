@@ -2067,6 +2067,7 @@ std::tuple<Ptr<ast::ModDecl>, bool> compile(
     const std::vector<std::string>& file_data,
     bool warns_as_errors,
     bool enable_all_warns,
+    bool only_ast,
     Arena& arena,
     TypeTable& type_table,
     thorin::World& world,
@@ -2095,6 +2096,9 @@ std::tuple<Ptr<ast::ModDecl>, bool> compile(
     }
 
     program->set_super();
+
+    if (only_ast)
+        return std::make_tuple(std::move(program), true);
 
     NameBinder name_binder(log);
     name_binder.warns_as_errors = warns_as_errors;
@@ -2131,5 +2135,5 @@ bool compile(
     Log log(out, &locator);
     Arena arena;
     TypeTable type_table;
-    return get<1>(artic::compile(file_names, file_data, false, false, arena, type_table, world, log));
+    return get<1>(artic::compile(file_names, file_data, false, false, false, arena, type_table, world, log));
 }

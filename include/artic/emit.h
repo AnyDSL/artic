@@ -153,6 +153,7 @@ std::tuple<Ptr<ast::ModDecl>, bool> compile(
     const std::vector<std::string>& file_data,
     bool warns_as_errors,
     bool enable_all_warns,
+    bool only_ast,
     Arena& arena,
     TypeTable& table,
     thorin::World& world,
