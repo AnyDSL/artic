@@ -705,7 +705,7 @@ void ErrorType::print(Printer& p) const {
 }
 
 void ExprType::print(Printer& p) const {
-    p << log::keyword_style("type") << '[';
+    p << log::keyword_style("typeof") << '[';
     expr->print(p);
     p << ']';
 }

@@ -9,11 +9,11 @@ fn foo[T](s : &mut T) -> () {
 fn main() -> i32 {
     let a = 5 : i32;
 
-    let mut b : type[a];
+    let mut b : typeof[a];
 
     b = a;
 
-    foo[type[a]](b);
+    foo[typeof[a]](b);
 
-    b - 7 : type[a] + 1
+    b - 7 : typeof[a] + 1
 }
