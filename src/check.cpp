@@ -913,7 +913,10 @@ const artic::Type* NoCodomType::infer(TypeChecker& checker) {
 }
 
 const artic::Type* ExprType::infer(TypeChecker& checker) {
-    return checker.infer(*expr);
+    const artic::Type* left_ref;
+    const artic::Type* left_type;
+    std::tie(left_ref, left_type) = remove_ref(checker.infer(*expr));
+    return left_type;
 }
 
 // Statements ----------------------------------------------------------------------
