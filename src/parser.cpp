@@ -922,7 +922,22 @@ Ptr<ast::Expr> Parser::parse_binary_expr(bool allow_structs, int max_prec) {
         next();
 
         Ptr<ast::Expr> right = parse_binary_expr(allow_structs, prec - 1);
-        if (tag == ast::BinaryExpr::Tag::Add) {
+        if (tag == ast::BinaryExpr::Tag::Add ||
+            tag == ast::BinaryExpr::Tag::Sub ||
+            tag == ast::BinaryExpr::Tag::Mul ||
+            tag == ast::BinaryExpr::Tag::Div ||
+            tag == ast::BinaryExpr::Tag::Rem) {
+
+            static const std::unordered_map<ast::BinaryExpr::Tag, std::pair<std::string, std::string>> operators = {
+                { ast::BinaryExpr::Tag::Add, {"AddOp", "add"} },
+                { ast::BinaryExpr::Tag::Sub, {"SubOp", "sub"} },
+                { ast::BinaryExpr::Tag::Mul, {"MulOp", "mul"} },
+                { ast::BinaryExpr::Tag::Div, {"DivOp", "div"} },
+                { ast::BinaryExpr::Tag::Rem, {"RemOp", "rem"} }
+            };
+
+            auto [struct_id_str, op_id_str] = operators.at(tag);
+
             //This would be super illegal if we weren't also using our own arena.
             //Generally, this would require making copies, or using shared pointers.
             Ptr<ast::Type> path_left_type = _arena.make_ptr<ast::ExprType>(tracker(), &*left);
@@ -937,7 +952,7 @@ Ptr<ast::Expr> Parser::parse_binary_expr(bool allow_structs, int max_prec) {
             PtrVector<ast::Type> builtin_args;
             elems.emplace_back(tracker(), std::move(builtin_id), std::move(builtin_args));
 
-            auto op_struct_id = ast::Identifier(tracker(), "AddOp");
+            auto op_struct_id = ast::Identifier(tracker(), struct_id_str.c_str());
             elems.emplace_back(tracker(), std::move(op_struct_id), std::move(args));
 
             auto path = ast::Path(tracker(), std::move(elems));
@@ -945,7 +960,7 @@ Ptr<ast::Expr> Parser::parse_binary_expr(bool allow_structs, int max_prec) {
 
             auto op_struct = _arena.make_ptr<ast::SummonExpr>(tracker(), std::move(path_app));
 
-            auto op_id = ast::Identifier(tracker(), "add");
+            auto op_id = ast::Identifier(tracker(), op_id_str.c_str());
             auto proj_expr = _arena.make_ptr<ast::ProjExpr>(tracker(), std::move(op_struct), std::move(op_id));
 
             PtrVector<ast::Expr> args_ops;

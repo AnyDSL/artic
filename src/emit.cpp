@@ -923,7 +923,6 @@ const thorin::Def* Emitter::builtin(const ast::FnDecl& fn_decl, thorin::Continua
             { "sqrt",     [] (Emitter* self, const thorin::Continuation* cont) { return self->world.sqrt(cont->param(1)); } },
             { "cbrt",     [] (Emitter* self, const thorin::Continuation* cont) { return self->world.cbrt(cont->param(1)); } },
             { "pow",      [] (Emitter* self, const thorin::Continuation* cont) { return self->world.pow(cont->param(1), cont->param(2)); } },
-            { "add",      [] (Emitter* self, const thorin::Continuation* cont) { return self->world.arithop_add(cont->param(1), cont->param(2)); } },
             { "exp",      [] (Emitter* self, const thorin::Continuation* cont) { return self->world.exp(cont->param(1)); } },
             { "exp2",     [] (Emitter* self, const thorin::Continuation* cont) { return self->world.exp2(cont->param(1)); } },
             { "log",      [] (Emitter* self, const thorin::Continuation* cont) { return self->world.log(cont->param(1)); } },
@@ -931,6 +930,11 @@ const thorin::Def* Emitter::builtin(const ast::FnDecl& fn_decl, thorin::Continua
             { "log10",    [] (Emitter* self, const thorin::Continuation* cont) { return self->world.log10(cont->param(1)); } },
             { "isnan",    [] (Emitter*     , const thorin::Continuation* cont) { return isnan(cont->param(1)); } },
             { "isfinite", [] (Emitter*     , const thorin::Continuation* cont) { return isfinite(cont->param(1)); } },
+            { "add",      [] (Emitter* self, const thorin::Continuation* cont) { return self->world.arithop_add(cont->param(1), cont->param(2)); } },
+            { "sub",      [] (Emitter* self, const thorin::Continuation* cont) { return self->world.arithop_sub(cont->param(1), cont->param(2)); } },
+            { "mul",      [] (Emitter* self, const thorin::Continuation* cont) { return self->world.arithop_mul(cont->param(1), cont->param(2)); } },
+            { "div",      [] (Emitter* self, const thorin::Continuation* cont) { return self->world.arithop_div(cont->param(1), cont->param(2)); } },
+            { "rem",      [] (Emitter* self, const thorin::Continuation* cont) { return self->world.arithop_rem(cont->param(1), cont->param(2)); } },
         };
         assert(functions.count(cont->name()) > 0);
         enter(cont);

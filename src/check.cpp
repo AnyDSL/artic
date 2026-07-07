@@ -789,7 +789,8 @@ void NamedAttr::check(TypeChecker& checker, const ast::Node* node) {
                                 "sqrt", "cbrt",
                                 "pow", "exp", "exp2",
                                 "log", "log2", "log10",
-                                "isnan", "isfinite", "add"
+                                "isnan", "isfinite",
+                                "add", "sub", "mul", "div", "rem"
                             };
                             if (builtins.count(name) == 0)
                                 checker.error(fn_decl->loc, "unsupported built-in function");
