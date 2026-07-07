@@ -911,7 +911,7 @@ Ptr<ast::UnaryExpr> Parser::parse_postfix_expr(Ptr<ast::Expr>&& expr) {
 }
 
 Ptr<ast::Expr> Parser::parse_binary_expr(bool allow_structs, int max_prec) {
-    auto left = parse_primary_expr(allow_structs);
+    Ptr<ast::Expr> left = parse_primary_expr(allow_structs);
     while (true) {
         Tracker tracker(this, left->loc);
 
@@ -921,8 +921,42 @@ Ptr<ast::Expr> Parser::parse_binary_expr(bool allow_structs, int max_prec) {
         if (prec > max_prec) break;
         next();
 
-        auto right = parse_binary_expr(allow_structs, prec - 1);
-        left = _arena.make_ptr<ast::BinaryExpr>(tracker(), tag, std::move(left), std::move(right));
+        Ptr<ast::Expr> right = parse_binary_expr(allow_structs, prec - 1);
+        if (tag == ast::BinaryExpr::Tag::Add) {
+            //This would be super illegal if we weren't also using our own arena.
+            //Generally, this would require making copies, or using shared pointers.
+            Ptr<ast::Type> path_left_type = _arena.make_ptr<ast::ExprType>(tracker(), &*left);
+            Ptr<ast::Type> path_right_type = _arena.make_ptr<ast::ExprType>(tracker(), &*right);
+
+            PtrVector<ast::Type> args;
+            args.emplace_back(std::move(path_left_type));
+            args.emplace_back(std::move(path_right_type));
+
+            std::vector<ast::Path::Elem> elems;
+            auto builtin_id = ast::Identifier(tracker(), "builtin");
+            PtrVector<ast::Type> builtin_args;
+            elems.emplace_back(tracker(), std::move(builtin_id), std::move(builtin_args));
+
+            auto op_struct_id = ast::Identifier(tracker(), "AddOp");
+            elems.emplace_back(tracker(), std::move(op_struct_id), std::move(args));
+
+            auto path = ast::Path(tracker(), std::move(elems));
+            Ptr<ast::Type> path_app = _arena.make_ptr<ast::TypeApp>(tracker(), std::move(path));
+
+            auto op_struct = _arena.make_ptr<ast::SummonExpr>(tracker(), std::move(path_app));
+
+            auto op_id = ast::Identifier(tracker(), "add");
+            auto proj_expr = _arena.make_ptr<ast::ProjExpr>(tracker(), std::move(op_struct), std::move(op_id));
+
+            PtrVector<ast::Expr> args_ops;
+            args_ops.emplace_back(std::move(left));
+            args_ops.emplace_back(std::move(right));
+            auto ops_tuple = _arena.make_ptr<ast::TupleExpr>(tracker(), std::move(args_ops));
+
+            left = _arena.make_ptr<ast::CallExpr>(tracker(), std::move(proj_expr), std::move(ops_tuple));
+        } else {
+            left = _arena.make_ptr<ast::BinaryExpr>(tracker(), tag, std::move(left), std::move(right));
+        }
     }
     return left;
 }
