@@ -1,0 +1,19 @@
+#[import(cc = "builtin")] fn bitcast[T, U](_src: U) -> T;
+
+fn foo[T](s : &mut T) -> () {
+    let t = bitcast[&mut i32](s);
+    *t = *t + 1;
+}
+
+#[export]
+fn main() -> i32 {
+    let a = 5 : i32;
+
+    let mut b : type[a];
+
+    b = a;
+
+    foo[type[a]](b);
+
+    b - 7 : type[a] + 1
+}

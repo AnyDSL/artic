@@ -437,6 +437,20 @@ struct ErrorType : public Type {
     void print(Printer&) const override;
 };
 
+/// Type equivalent to the type inferred for an expression (type[<expr>]).
+struct ExprType : public Type {
+    Ptr<Expr> expr;
+
+    ExprType(const Loc& loc, Ptr<Expr>&& expr)
+        : Type(loc), expr(std::move(expr))
+    {}
+
+    const artic::Type* infer(TypeChecker&) override;
+    void bind(NameBinder&) override;
+    void resolve_summons(Summoner&) override;
+    void print(Printer&) const override;
+};
+
 // Statements ----------------------------------------------------------------------
 
 // Statement containing a declaration.

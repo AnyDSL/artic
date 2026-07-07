@@ -912,6 +912,10 @@ const artic::Type* NoCodomType::infer(TypeChecker& checker) {
     return checker.type_table.no_ret_type();
 }
 
+const artic::Type* ExprType::infer(TypeChecker& checker) {
+    return checker.infer(*expr);
+}
+
 // Statements ----------------------------------------------------------------------
 
 const artic::Type* DeclStmt::infer(TypeChecker& checker) {

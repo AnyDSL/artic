@@ -43,6 +43,10 @@ const ast::Expr* Summoner::resolve(const artic::Type* t, const artic::Loc& at) {
 
 namespace ast {
 
+void ExprType::resolve_summons(artic::Summoner& summoner) {
+    expr->resolve_summons(summoner);
+}
+
 void Filter::resolve_summons(artic::Summoner& summoner) {
     if (expr) expr->resolve_summons(summoner);
 }

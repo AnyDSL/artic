@@ -136,6 +136,10 @@ void NoCodomType::bind(NameBinder&) {}
 
 void ErrorType::bind(NameBinder&) {}
 
+void ExprType::bind(NameBinder& binder) {
+    binder.bind(*expr);
+}
+
 // Statements ----------------------------------------------------------------------
 
 void DeclStmt::bind(NameBinder& binder) {

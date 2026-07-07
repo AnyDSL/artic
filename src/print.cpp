@@ -704,6 +704,12 @@ void ErrorType::print(Printer& p) const {
     p << log::error_style("<invalid type>");
 }
 
+void ExprType::print(Printer& p) const {
+    p << log::keyword_style("type") << '[';
+    expr->print(p);
+    p << ']';
+}
+
 log::Output& operator << (log::Output& out, const Node& node) {
     Printer p(out);
     node.print(p);
