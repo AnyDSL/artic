@@ -327,8 +327,12 @@ void FilterExpr::bind(NameBinder& binder) {
 }
 
 void CastExpr::bind(NameBinder& binder) {
-    binder.bind(*expr);
-    binder.bind(*type);
+    if (overloaded) {
+        binder.bind(*overloaded);
+    } else {
+        binder.bind(*expr);
+        binder.bind(*type);
+    }
 }
 
 void ImplicitCastExpr::bind(NameBinder&) {}

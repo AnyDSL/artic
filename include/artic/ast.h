@@ -1167,6 +1167,7 @@ struct CastExpr : public Expr {
     Ptr<Type> type;
 
     bool needs_overloading;
+    Ptr<Expr> overloaded;
 
     CastExpr(
         const Loc& loc,

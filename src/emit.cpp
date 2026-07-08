@@ -1597,6 +1597,8 @@ const thorin::Def* FilterExpr::emit(Emitter& emitter) const {
 }
 
 const thorin::Def* CastExpr::emit(Emitter& emitter) const {
+    if (overloaded)
+        return overloaded->emit(emitter);
     return emitter.world.cast(Node::type->convert(emitter), emitter.emit(*expr), emitter.debug_info(*this));
 }
 

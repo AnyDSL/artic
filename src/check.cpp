@@ -1616,6 +1616,8 @@ const artic::Type* FilterExpr::infer(TypeChecker& checker) {
 }
 
 const artic::Type* CastExpr::infer(TypeChecker& checker) {
+    if (overloaded)
+        return checker.infer(*overloaded);
     auto expected = checker.infer(*type);
     auto type = checker.deref(expr);
     if (type == expected) {

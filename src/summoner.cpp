@@ -165,7 +165,11 @@ void FilterExpr::resolve_summons(artic::Summoner& summoner) {
 }
 
 void CastExpr::resolve_summons(artic::Summoner& summoner) {
-    expr->resolve_summons(summoner);
+    if (overloaded) {
+        overloaded->resolve_summons(summoner);
+    } else {
+        expr->resolve_summons(summoner);
+    }
 }
 
 void ImplicitCastExpr::resolve_summons(artic::Summoner& summoner) {

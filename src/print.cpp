@@ -349,6 +349,10 @@ void FilterExpr::print(Printer& p) const {
 }
 
 void CastExpr::print(Printer& p) const {
+    if (overloaded) {
+        overloaded->print(p);
+        return;
+    }
     if (expr->isa<BinaryExpr>())
         print_parens(p, expr);
     else

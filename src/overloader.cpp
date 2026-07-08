@@ -147,12 +147,7 @@ void UnaryExpr::resolve_overloads(artic::Overloader& overloader) {
 void BinaryExpr::resolve_overloads(artic::Overloader& overloader) {
     if (overloaded) {
         overloaded->resolve_overloads(overloader);
-
-        auto& name_binder = overloader._binder;
-        auto& type_checker = overloader._checker;
-
-        type_checker.infer(*overloaded);
-
+        overloader._checker.infer(*overloaded);
         return;
     }
 
@@ -214,8 +209,37 @@ void FilterExpr::resolve_overloads(artic::Overloader& overloader) {
 }
 
 void CastExpr::resolve_overloads(artic::Overloader& overloader) {
+    if (overloaded) {
+        overloaded->resolve_overloads(overloader);
+        overloader._checker.infer(*overloaded);
+        return;
+    }
+
     expr->resolve_overloads(overloader);
-    type->resolve_overloads(overloader);
+
+    if (needs_overloading) {
+        auto& arena = overloader._arena;
+
+        // ExprType holds raw pointers; safe because arena owns the objects.
+        auto expr_raw = expr.get();
+
+        PtrVector<ast::Type> type_args;
+        type_args.emplace_back(arena.make_ptr<ast::ExprType>(loc, expr_raw));
+        type_args.emplace_back(std::move(type));
+
+        std::vector<ast::Path::Elem> elems;
+        elems.emplace_back(loc, ast::Identifier(loc, "builtin"), PtrVector<ast::Type>{});
+        elems.emplace_back(loc, ast::Identifier(loc, std::string("CastOp")), std::move(type_args));
+
+        auto path_app  = arena.make_ptr<ast::TypeApp>(loc, ast::Path(loc, std::move(elems)));
+        auto op_struct = arena.make_ptr<ast::SummonExpr>(loc, std::move(path_app));
+        auto proj_expr = arena.make_ptr<ast::ProjExpr>(loc,
+            std::move(op_struct), ast::Identifier(loc, std::string("cast")));
+
+        overloaded = arena.make_ptr<ast::CallExpr>(loc, std::move(proj_expr), std::move(expr));
+
+        overloader._changed = true;
+    }
 }
 
 void ImplicitCastExpr::resolve_overloads(artic::Overloader& overloader) {
