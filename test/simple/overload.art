@@ -1,0 +1,55 @@
+mod builtin {
+    struct AddOp[S, T] {
+        add : fn(S, T) -> T
+    }
+}
+
+struct Vec2[T] {
+    x : T,
+    y : T
+}
+
+implicit builtin::AddOp[Vec2[f32], Vec2[f32]] = builtin::AddOp[Vec2[f32], Vec2[f32]] {
+    add = @|a : Vec2[f32], b : Vec2[f32]| {
+        Vec2[f32] { x = a.x + b.x, y = a.y + b.y }
+    }
+};
+
+implicit builtin::AddOp[Vec2[i32], Vec2[i32]] = builtin::AddOp[Vec2[i32], Vec2[i32]] {
+    add = @|a : Vec2[i32], b : Vec2[i32]| {
+        Vec2[i32] { x = a.x + b.x, y = a.y + b.y }
+    }
+};
+
+
+#[export]
+fn main () -> i32 {
+    let mut k = 0 : i32;
+
+    let a = Vec2[f32] {
+        x = 1,
+        y = 2
+    };
+
+    let b = Vec2[f32] {
+        x = 4,
+        y = 5
+    };
+
+    let c = Vec2[i32] {
+        x = 6,
+        y = 7
+    };
+
+    let d = Vec2[i32] {
+        x = 8,
+        y = 9
+    };
+
+    let r = a + b + b + a;
+    let s = c + d;
+
+    k = (r.x + r.y) as i32 + (s.x + s.y);
+
+    k
+}
