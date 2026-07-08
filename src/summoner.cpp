@@ -151,8 +151,12 @@ void UnaryExpr::resolve_summons(artic::Summoner& summoner) {
 }
 
 void BinaryExpr::resolve_summons(artic::Summoner& summoner) {
-    left->resolve_summons(summoner);
-    right->resolve_summons(summoner);
+    if (overloaded) {
+        overloaded->resolve_summons(summoner);
+    } else {
+        left->resolve_summons(summoner);
+        right->resolve_summons(summoner);
+    }
 }
 
 void FilterExpr::resolve_summons(artic::Summoner& summoner) {

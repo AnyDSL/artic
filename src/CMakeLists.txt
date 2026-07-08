@@ -24,6 +24,7 @@ add_library(libartic
     parser.cpp
     print.cpp
     summoner.cpp
+    overloader.cpp
     types.cpp)
 
 set_target_properties(libartic PROPERTIES PREFIX "" CXX_STANDARD 20)

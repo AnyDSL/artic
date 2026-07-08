@@ -321,6 +321,10 @@ void UnaryExpr::print(Printer& p) const {
 }
 
 void BinaryExpr::print(Printer& p) const {
+    if (overloaded) {
+        overloaded->print(p);
+        return;
+    }
     auto prec = BinaryExpr::precedence(tag);
     auto print_op = [prec, &p] (const Ptr<Expr>& e, bool is_right) {
         bool needs_parens = e->isa<IfExpr>() || e->isa<MatchExpr>();

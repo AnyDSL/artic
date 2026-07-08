@@ -31,6 +31,7 @@ public:
     bool run(ast::ModDecl&);
 
     bool warn_on_shadowing = false;
+    bool warn_on_unused = true;
 
     ast::FnExpr*   cur_fn;
     ast::LoopExpr* cur_loop;

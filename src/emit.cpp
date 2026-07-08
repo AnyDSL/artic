@@ -7,6 +7,7 @@
 #include "artic/bind.h"
 #include "artic/check.h"
 #include "artic/summoner.h"
+#include "artic/overloader.h"
 
 #include <thorin/def.h>
 #include <thorin/type.h>
@@ -930,11 +931,6 @@ const thorin::Def* Emitter::builtin(const ast::FnDecl& fn_decl, thorin::Continua
             { "log10",    [] (Emitter* self, const thorin::Continuation* cont) { return self->world.log10(cont->param(1)); } },
             { "isnan",    [] (Emitter*     , const thorin::Continuation* cont) { return isnan(cont->param(1)); } },
             { "isfinite", [] (Emitter*     , const thorin::Continuation* cont) { return isfinite(cont->param(1)); } },
-            { "add",      [] (Emitter* self, const thorin::Continuation* cont) { return self->world.arithop_add(cont->param(1), cont->param(2)); } },
-            { "sub",      [] (Emitter* self, const thorin::Continuation* cont) { return self->world.arithop_sub(cont->param(1), cont->param(2)); } },
-            { "mul",      [] (Emitter* self, const thorin::Continuation* cont) { return self->world.arithop_mul(cont->param(1), cont->param(2)); } },
-            { "div",      [] (Emitter* self, const thorin::Continuation* cont) { return self->world.arithop_div(cont->param(1), cont->param(2)); } },
-            { "rem",      [] (Emitter* self, const thorin::Continuation* cont) { return self->world.arithop_rem(cont->param(1), cont->param(2)); } },
         };
         assert(functions.count(cont->name()) > 0);
         enter(cont);
@@ -1540,6 +1536,8 @@ void BinaryExpr::emit_branch(
 }
 
 const thorin::Def* BinaryExpr::emit(Emitter& emitter) const {
+    if (overloaded)
+        return overloaded->emit(emitter);
     if (is_logic()) {
         auto join = emitter.basic_block_with_mem(emitter.world.type_bool(), emitter.debug_info(*this, "join"));
         auto join_true  = emitter.basic_block_with_mem(emitter.debug_info(*this, "join_true"));
@@ -2114,8 +2112,9 @@ std::tuple<Ptr<ast::ModDecl>, bool> compile(
     type_checker.warns_as_errors = warns_as_errors;
 
     Summoner summoner(log, arena);
+    Overloader overloader(log, arena, name_binder, type_checker);
 
-    if (!name_binder.run(*program) || !type_checker.run(*program) || !summoner.run(*program))
+    if (!name_binder.run(*program) || !type_checker.run(*program) || !overloader.run(*program) || !summoner.run(*program))
         return std::make_tuple(std::move(program), false);
 
     Emitter emitter(log, world, arena);

@@ -8,6 +8,7 @@
 #include "artic/types.h"
 #include "artic/log.h"
 #include "artic/array.h"
+#include "artic/overloader.h"
 
 namespace artic {
 
@@ -83,6 +84,8 @@ public:
 private:
     std::unordered_set<const ast::Decl*> decls_;
     Arena& _arena;
+
+    friend class Overloader;
 };
 
 } // namespace artic

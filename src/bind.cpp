@@ -21,7 +21,8 @@ void NameBinder::bind(ast::Node& node) {
 void NameBinder::pop_scope() {
     for (auto& pair : scopes_.back().symbols) {
         auto decl = pair.second.decl;
-        if (pair.second.use_count == 0 &&
+        if (warn_on_unused &&
+            pair.second.use_count == 0 &&
             !scopes_.back().top_level &&
             !decl->isa<ast::FieldDecl>() &&
             !decl->isa<ast::OptionDecl>()) {
@@ -233,8 +234,12 @@ void UnaryExpr::bind(NameBinder& binder) {
 }
 
 void BinaryExpr::bind(NameBinder& binder) {
-    binder.bind(*left);
-    binder.bind(*right);
+    if (overloaded) {
+        binder.bind(*overloaded);
+    } else {
+        binder.bind(*left);
+        binder.bind(*right);
+    }
 }
 
 void ProjExpr::bind(NameBinder& binder) {

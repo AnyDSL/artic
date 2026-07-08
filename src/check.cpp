@@ -790,7 +790,6 @@ void NamedAttr::check(TypeChecker& checker, const ast::Node* node) {
                                 "pow", "exp", "exp2",
                                 "log", "log2", "log10",
                                 "isnan", "isfinite",
-                                "add", "sub", "mul", "div", "rem"
                             };
                             if (builtins.count(name) == 0)
                                 checker.error(fn_decl->loc, "unsupported built-in function");
@@ -1503,6 +1502,9 @@ inline bool is_untyped(const Expr& expr) {
 }
 
 const artic::Type* BinaryExpr::infer(TypeChecker& checker) {
+    if (overloaded)
+        return checker.infer(*overloaded);
+
     const artic::RefType* left_ref = nullptr;
     const artic::Type* left_type   = nullptr;
     const artic::Type* right_type  = nullptr;
@@ -1522,8 +1524,10 @@ const artic::Type* BinaryExpr::infer(TypeChecker& checker) {
         auto prim_type = left_type;
         if (is_simd_type(prim_type))
             prim_type = prim_type->as<artic::SizedArrayType>()->elem;
-        if (!prim_type->isa<artic::PrimType>())
-            return checker.type_expected(left->loc, left_type, "primitive or simd");
+        if (!prim_type->isa<artic::PrimType>()) {
+            needs_overloading = true;
+            return right_type;
+        }
         switch (remove_eq(tag)) {
             case Add:
             case Sub:
@@ -1573,6 +1577,9 @@ const artic::Type* BinaryExpr::infer(TypeChecker& checker) {
 }
 
 const artic::Type* BinaryExpr::check(TypeChecker& checker, const artic::Type* expected) {
+    if (overloaded)
+        return checker.check(*overloaded, expected);
+
     auto coerce = [&] (const artic::Type* type) {
         checker.coerce(left, type);
         checker.coerce(right, type);
@@ -1636,7 +1643,9 @@ const artic::Type* CastExpr::infer(TypeChecker& checker) {
         return expected;
     if (allow_float && is_float_type(type))
         return expected;
-    return checker.invalid_cast(loc, type, expected);
+
+    needs_overloading = true;
+    return expected;
 }
 
 inline bool is_acceptable_asm_in_or_out(const artic::Type* type) {

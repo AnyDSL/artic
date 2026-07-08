@@ -25,6 +25,7 @@ class NameBinder;
 class TypeChecker;
 class Emitter;
 class Summoner;
+class Overloader;
 
 template <typename T> using Ptr = arena_ptr<T>;
 template <typename T> using PtrVector = std::vector<Ptr<T>>;
@@ -71,6 +72,8 @@ struct Node : public Cast<Node> {
     virtual const artic::Type* check(TypeChecker&, const artic::Type*);
     /// Resolves any SummonExpr within itself
     virtual void resolve_summons(Summoner&) = 0;
+    /// Resolves any operator overloads within itself
+    virtual void resolve_overloads(Overloader&) = 0;
     /// Emits an IR definition for this node.
     virtual const thorin::Def* emit(Emitter&) const;
     /// Prints the node with the given formatting parameters.
@@ -101,6 +104,7 @@ struct Type : public Node {
 
     bool is_tuple() const;
     void resolve_summons(Summoner&) override {};
+    void resolve_overloads(Overloader&) override {};
 };
 
 /// Base class for statements.
@@ -203,6 +207,7 @@ struct Path : public Node {
     const thorin::Def* emit(Emitter&) const override;
     void bind(NameBinder&) override;
     void resolve_summons(Summoner&) override {};
+    void resolve_overloads(Overloader&) override {}
     void print(Printer&) const override;
 };
 
@@ -220,6 +225,7 @@ struct Filter : public Node {
     const artic::Type* check(TypeChecker&, const artic::Type*) override;
     void bind(NameBinder&) override;
     void resolve_summons(Summoner&) override;
+    void resolve_overloads(Overloader&) override;
     void print(Printer&) const override;
 };
 
@@ -239,6 +245,7 @@ struct Attr : public Node {
     virtual const Attr* find(const std::string_view&) const;
 
     void resolve_summons(Summoner&) override {};
+    void resolve_overloads(Overloader&) override {}
     void bind(NameBinder&) override;
 };
 
@@ -448,6 +455,7 @@ struct ExprType : public Type {
     const artic::Type* infer(TypeChecker&) override;
     void bind(NameBinder&) override;
     void resolve_summons(Summoner&) override;
+    void resolve_overloads(Overloader&) override;
     void print(Printer&) const override;
 };
 
@@ -470,6 +478,7 @@ struct DeclStmt : public Stmt {
     const artic::Type* check(TypeChecker&, const artic::Type*) override;
     void bind(NameBinder&) override;
     void resolve_summons(Summoner&) override;
+    void resolve_overloads(Overloader&) override;
     void print(Printer&) const override;
 };
 
@@ -490,6 +499,7 @@ struct ExprStmt : public Stmt {
     const artic::Type* check(TypeChecker&, const artic::Type*) override;
     void bind(NameBinder&) override;
     void resolve_summons(Summoner&) override;
+    void resolve_overloads(Overloader&) override;
     void print(Printer&) const override;
 };
 
@@ -514,6 +524,7 @@ struct TypedExpr : public Expr {
     const artic::Type* infer(TypeChecker&) override;
     void bind(NameBinder&) override;
     void resolve_summons(Summoner&) override;
+    void resolve_overloads(Overloader&) override;
     void print(Printer&) const override;
 };
 
@@ -532,6 +543,7 @@ struct PathExpr : public Expr {
     const artic::Type* infer(TypeChecker&) override;
     void bind(NameBinder&) override;
     void resolve_summons(Summoner&) override {};
+    void resolve_overloads(Overloader&) override {}
     void print(Printer&) const override;
 };
 
@@ -550,6 +562,7 @@ struct LiteralExpr : public Expr {
     const artic::Type* check(TypeChecker&, const artic::Type*) override;
     void bind(NameBinder&) override;
     void resolve_summons(Summoner&) override {};
+    void resolve_overloads(Overloader&) override {}
     void print(Printer&) const override;
 };
 
@@ -568,6 +581,7 @@ struct SummonExpr : public Expr {
     const artic::Type* check(TypeChecker&, const artic::Type*) override;
     void bind(NameBinder&) override;
     void resolve_summons(Summoner&) override;
+    void resolve_overloads(Overloader&) override {}
     void print(Printer&) const override;
 };
 
@@ -597,6 +611,7 @@ struct FieldExpr : public Expr {
     const artic::Type* check(TypeChecker&, const artic::Type*) override;
     void bind(NameBinder&) override;
     void resolve_summons(Summoner&) override;
+    void resolve_overloads(Overloader&) override;
     void print(Printer&) const override;
 };
 
@@ -638,6 +653,7 @@ struct RecordExpr : public Expr {
     const artic::Type* infer(TypeChecker&) override;
     void bind(NameBinder&) override;
     void resolve_summons(Summoner&) override;
+    void resolve_overloads(Overloader&) override;
     void print(Printer&) const override;
 };
 
@@ -658,6 +674,7 @@ struct TupleExpr : public Expr {
     const artic::Type* check(TypeChecker&, const artic::Type*) override;
     void bind(NameBinder&) override;
     void resolve_summons(Summoner&) override;
+    void resolve_overloads(Overloader&) override;
     void print(Printer&) const override;
 };
 
@@ -679,6 +696,7 @@ struct ArrayExpr : public Expr {
     const artic::Type* check(TypeChecker&, const artic::Type*) override;
     void bind(NameBinder&) override;
     void resolve_summons(Summoner&) override;
+    void resolve_overloads(Overloader&) override;
     void print(Printer&) const override;
 };
 
@@ -701,6 +719,7 @@ struct RepeatArrayExpr : public Expr {
     const artic::Type* check(TypeChecker&, const artic::Type*) override;
     void bind(NameBinder&) override;
     void resolve_summons(Summoner&) override;
+    void resolve_overloads(Overloader&) override;
     void print(Printer&) const override;
 };
 
@@ -732,6 +751,7 @@ struct FnExpr : public Expr {
     void bind(NameBinder&, bool);
     void bind(NameBinder&) override;
     void resolve_summons(Summoner&) override;
+    void resolve_overloads(Overloader&) override;
     void print(Printer&) const override;
 };
 
@@ -752,6 +772,7 @@ struct BlockExpr : public Expr {
     const artic::Type* check(TypeChecker&, const artic::Type*) override;
     void bind(NameBinder&) override;
     void resolve_summons(Summoner&) override;
+    void resolve_overloads(Overloader&) override;
     void print(Printer&) const override;
 };
 
@@ -775,6 +796,7 @@ struct CallExpr : public Expr {
     const artic::Type* infer(TypeChecker&) override;
     void bind(NameBinder&) override;
     void resolve_summons(Summoner&) override;
+    void resolve_overloads(Overloader&) override;
     void print(Printer&) const override;
 };
 
@@ -808,6 +830,7 @@ struct ProjExpr : public Expr {
     const artic::Type* infer(TypeChecker&) override;
     void bind(NameBinder&) override;
     void resolve_summons(Summoner&) override;
+    void resolve_overloads(Overloader&) override;
     void print(Printer&) const override;
 };
 
@@ -853,6 +876,7 @@ struct IfExpr : public Expr {
     const artic::Type* check(TypeChecker&, const artic::Type*) override;
     void bind(NameBinder&) override;
     void resolve_summons(Summoner&) override;
+    void resolve_overloads(Overloader&) override;
     void print(Printer&) const override;
 };
 
@@ -872,6 +896,7 @@ struct CaseExpr : public Expr {
 
     void bind(NameBinder&) override;
     void resolve_summons(Summoner&) override;
+    void resolve_overloads(Overloader&) override;
     void print(Printer&) const override;
 };
 
@@ -894,6 +919,7 @@ struct MatchExpr : public Expr {
     const artic::Type* check(TypeChecker&, const artic::Type*) override;
     void bind(NameBinder&) override;
     void resolve_summons(Summoner&) override;
+    void resolve_overloads(Overloader&) override;
     void print(Printer&) const override;
 };
 
@@ -932,6 +958,7 @@ struct WhileExpr : public LoopExpr {
     const artic::Type* infer(TypeChecker&) override;
     void bind(NameBinder&) override;
     void resolve_summons(Summoner&) override;
+    void resolve_overloads(Overloader&) override;
     void print(Printer&) const override;
 };
 
@@ -950,6 +977,7 @@ struct ForExpr : public LoopExpr {
     const artic::Type* infer(TypeChecker&) override;
     void bind(NameBinder&) override;
     void resolve_summons(Summoner&) override;
+    void resolve_overloads(Overloader&) override;
     void print(Printer&) const override;
 };
 
@@ -965,6 +993,7 @@ struct BreakExpr : public Expr {
     const artic::Type* infer(TypeChecker&) override;
     void bind(NameBinder&) override;
     void resolve_summons(Summoner&) override {};
+    void resolve_overloads(Overloader&) override {}
     void print(Printer&) const override;
 };
 
@@ -980,6 +1009,7 @@ struct ContinueExpr : public Expr {
     const artic::Type* infer(TypeChecker&) override;
     void bind(NameBinder&) override;
     void resolve_summons(Summoner&) override {};
+    void resolve_overloads(Overloader&) override {}
     void print(Printer&) const override;
 };
 
@@ -994,6 +1024,7 @@ struct ReturnExpr : public Expr {
     const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) override;
     void resolve_summons(Summoner&) override {};
+    void resolve_overloads(Overloader&) override {}
     void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
@@ -1034,6 +1065,7 @@ struct UnaryExpr : public Expr {
     const artic::Type* check(TypeChecker&, const artic::Type*) override;
     void bind(NameBinder&) override;
     void resolve_summons(Summoner&) override;
+    void resolve_overloads(Overloader&) override;
     void print(Printer&) const override;
 
     bool is_inc() const { return is_inc(tag); }
@@ -1063,12 +1095,15 @@ struct BinaryExpr : public Expr {
     Ptr<Expr> left;
     Ptr<Expr> right;
 
+    bool needs_overloading;
+    Ptr<Expr> overloaded;
+
     BinaryExpr(
         const Loc& loc,
         Tag tag,
         Ptr<Expr>&& left,
         Ptr<Expr>&& right)
-        : Expr(loc), tag(tag), left(std::move(left)), right(std::move(right))
+        : Expr(loc), tag(tag), left(std::move(left)), right(std::move(right)), needs_overloading(false)
     {}
 
     bool has_eq() const { return has_eq(tag); }
@@ -1087,6 +1122,7 @@ struct BinaryExpr : public Expr {
     const artic::Type* check(TypeChecker&, const artic::Type*) override;
     void bind(NameBinder&) override;
     void resolve_summons(Summoner&) override;
+    void resolve_overloads(Overloader&) override;
     void print(Printer&) const override;
 
     static Tag remove_eq(Tag);
@@ -1121,6 +1157,7 @@ struct FilterExpr : public Expr {
     const artic::Type* infer(TypeChecker&) override;
     void bind(NameBinder&) override;
     void resolve_summons(Summoner&) override;
+    void resolve_overloads(Overloader&) override;
     void print(Printer&) const override;
 };
 
@@ -1129,11 +1166,13 @@ struct CastExpr : public Expr {
     Ptr<Expr> expr;
     Ptr<Type> type;
 
+    bool needs_overloading;
+
     CastExpr(
         const Loc& loc,
         Ptr<Expr>&& expr,
         Ptr<Type>&& type)
-        : Expr(loc), expr(std::move(expr)), type(std::move(type))
+        : Expr(loc), expr(std::move(expr)), type(std::move(type)), needs_overloading(false)
     {}
 
     bool is_jumping() const override;
@@ -1144,6 +1183,7 @@ struct CastExpr : public Expr {
     const artic::Type* infer(TypeChecker&) override;
     void bind(NameBinder&) override;
     void resolve_summons(Summoner&) override;
+    void resolve_overloads(Overloader&) override;
     void print(Printer&) const override;
 };
 
@@ -1167,6 +1207,7 @@ struct ImplicitCastExpr : public Expr {
     const thorin::Def* emit(Emitter&) const override;
     void bind(NameBinder&) override;
     void resolve_summons(Summoner&) override;
+    void resolve_overloads(Overloader&) override;
     void print(Printer&) const override;
 };
 
@@ -1207,6 +1248,7 @@ struct AsmExpr : public Expr {
     const artic::Type* infer(TypeChecker&) override;
     void bind(NameBinder&) override;
     void resolve_summons(Summoner&) override;
+    void resolve_overloads(Overloader&) override;
     void print(Printer&) const override;
 };
 
@@ -1218,6 +1260,7 @@ struct ErrorExpr : public Expr {
 
     void bind(NameBinder&) override;
     void resolve_summons(Summoner&) override {};
+    void resolve_overloads(Overloader&) override {};
     void print(Printer&) const override;
 };
 
@@ -1255,6 +1298,7 @@ struct TypeParam : public NamedDecl {
     const artic::Type* infer(TypeChecker&) override;
     void bind(NameBinder&) override;
     void resolve_summons(Summoner&) override {};
+    void resolve_overloads(Overloader&) override {}
     void print(Printer&) const override;
 };
 
@@ -1268,6 +1312,7 @@ struct TypeParamList : public Node {
 
     void bind(NameBinder&) override;
     void resolve_summons(Summoner&) override {};
+    void resolve_overloads(Overloader&) override {}
     void print(Printer&) const override;
 };
 
@@ -1285,6 +1330,7 @@ struct PtrnDecl : public ValueDecl {
     const artic::Type* check(TypeChecker&, const artic::Type*) override;
     void bind(NameBinder&) override;
     void resolve_summons(Summoner&) override {};
+    void resolve_overloads(Overloader&) override {}
     void print(Printer&) const override;
 };
 
@@ -1303,6 +1349,7 @@ struct LetDecl : public Decl {
     const artic::Type* infer(TypeChecker&) override;
     void bind(NameBinder&) override;
     void resolve_summons(Summoner&) override;
+    void resolve_overloads(Overloader&) override;
     void print(Printer&) const override;
 };
 
@@ -1326,6 +1373,7 @@ struct ImplicitDecl : public Decl {
     const artic::Type* infer(TypeChecker&) override;
     void bind(NameBinder&) override;
     void resolve_summons(Summoner&) override;
+    void resolve_overloads(Overloader&) override;
     void print(Printer&) const override;
 };
 
@@ -1354,6 +1402,7 @@ struct StaticDecl : public ValueDecl {
     void bind_head(NameBinder&) override;
     void bind(NameBinder&) override;
     void resolve_summons(Summoner&) override;
+    void resolve_overloads(Overloader&) override;
     void print(Printer&) const override;
 };
 
@@ -1378,6 +1427,7 @@ struct FnDecl : public ValueDecl {
     void bind_head(NameBinder&) override;
     void bind(NameBinder&) override;
     void resolve_summons(Summoner&) override;
+    void resolve_overloads(Overloader&) override;
     void print(Printer&) const override;
 };
 
@@ -1399,6 +1449,7 @@ struct FieldDecl : public NamedDecl {
     const artic::Type* infer(TypeChecker&) override;
     void bind(NameBinder&) override;
     void resolve_summons(Summoner&) override;
+    void resolve_overloads(Overloader&) override;
     void print(Printer&) const override;
 };
 
@@ -1415,6 +1466,7 @@ struct RecordDecl : public CtorDecl {
     {}
 
     void resolve_summons(Summoner&) override;
+    void resolve_overloads(Overloader&) override;
 };
 
 /// Structure type declarations.
@@ -1468,6 +1520,7 @@ struct OptionDecl : public RecordDecl {
     const artic::Type* infer(TypeChecker&) override;
     void bind(NameBinder&) override;
     void resolve_summons(Summoner&) override {};
+    void resolve_overloads(Overloader&) override {}
     void print(Printer&) const override;
 };
 
@@ -1491,6 +1544,7 @@ struct EnumDecl : public CtorDecl {
     void bind_head(NameBinder&) override;
     void bind(NameBinder&) override;
     void resolve_summons(Summoner&) override {};
+    void resolve_overloads(Overloader&) override {}
     void print(Printer&) const override;
 };
 
@@ -1514,6 +1568,7 @@ struct TypeDecl : public NamedDecl {
     void bind_head(NameBinder&) override;
     void bind(NameBinder&) override;
     void resolve_summons(Summoner&) override {};
+    void resolve_overloads(Overloader&) override {}
     void print(Printer&) const override;
 };
 
@@ -1546,6 +1601,7 @@ struct ModDecl : public NamedDecl {
     void bind(NameBinder&) override;
     void print(Printer&) const override;
     void resolve_summons(Summoner&) override;
+    void resolve_overloads(Overloader&) override;
 };
 
 /// Module use, with or without `as`.
@@ -1561,6 +1617,7 @@ struct UseDecl : public NamedDecl {
     void bind_head(NameBinder&) override;
     void bind(NameBinder&) override;
     void resolve_summons(Summoner&) override {};
+    void resolve_overloads(Overloader&) override {}
     void print(Printer&) const override;
 };
 
@@ -1570,6 +1627,7 @@ struct ErrorDecl : public Decl {
 
     void bind(NameBinder&) override;
     void resolve_summons(Summoner&) override {};
+    void resolve_overloads(Overloader&) override {};
     void print(Printer&) const override;
 };
 
@@ -1592,6 +1650,7 @@ struct TypedPtrn : public Ptrn {
     void bind(NameBinder&) override;
     const Expr* to_expr(Arena&) override;
     void resolve_summons(Summoner&) override;
+    void resolve_overloads(Overloader&) override;
     void print(Printer&) const override;
 };
 
@@ -1613,6 +1672,7 @@ struct IdPtrn : public Ptrn {
     void bind(NameBinder&) override;
     const Expr* to_expr(Arena&) override;
     void resolve_summons(Summoner&) override;
+    void resolve_overloads(Overloader&) override;
     void print(Printer&) const override;
 };
 
@@ -1631,6 +1691,7 @@ struct LiteralPtrn : public Ptrn {
     void bind(NameBinder&) override;
     const Expr* to_expr(Arena&) override;
     void resolve_summons(Summoner&) override {};
+    void resolve_overloads(Overloader&) override {}
     void print(Printer&) const override;
 };
 
@@ -1648,6 +1709,7 @@ struct ImplicitParamPtrn : public Ptrn {
     const artic::Type* check(TypeChecker&, const artic::Type*) override;
     void bind(NameBinder&) override;
     void resolve_summons(Summoner&) override;
+    void resolve_overloads(Overloader&) override;
     void print(Printer&) const override;
 };
 
@@ -1671,6 +1733,7 @@ struct FieldPtrn : public Ptrn {
     const artic::Type* check(TypeChecker&, const artic::Type*) override;
     void bind(NameBinder&) override;
     void resolve_summons(Summoner&) override;
+    void resolve_overloads(Overloader&) override;
     void print(Printer&) const override;
 };
 
@@ -1695,6 +1758,7 @@ struct RecordPtrn : public Ptrn {
     const artic::Type* infer(TypeChecker&) override;
     void bind(NameBinder&) override;
     void resolve_summons(Summoner&) override;
+    void resolve_overloads(Overloader&) override;
     void print(Printer&) const override;
 };
 
@@ -1717,6 +1781,7 @@ struct CtorPtrn : public Ptrn {
     const artic::Type* infer(TypeChecker&) override;
     void bind(NameBinder&) override;
     void resolve_summons(Summoner&) override;
+    void resolve_overloads(Overloader&) override;
     void print(Printer&) const override;
 };
 
@@ -1736,6 +1801,7 @@ struct TuplePtrn : public Ptrn {
     const artic::Type* check(TypeChecker&, const artic::Type*) override;
     void bind(NameBinder&) override;
     void resolve_summons(Summoner&) override;
+    void resolve_overloads(Overloader&) override;
     void print(Printer&) const override;
 };
 
@@ -1756,6 +1822,7 @@ struct ArrayPtrn : public Ptrn {
     const artic::Type* check(TypeChecker&, const artic::Type*) override;
     void bind(NameBinder&) override;
     void resolve_summons(Summoner&) override;
+    void resolve_overloads(Overloader&) override;
     void print(Printer&) const override;
 };
 
@@ -1767,6 +1834,7 @@ struct ErrorPtrn : public Ptrn {
 
     void bind(NameBinder&) override;
     void resolve_summons(Summoner&) override {};
+    void resolve_overloads(Overloader&) override {};
     void print(Printer&) const override;
 };
 
