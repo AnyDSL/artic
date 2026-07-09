@@ -1518,13 +1518,15 @@ const artic::Type* BinaryExpr::infer(TypeChecker& checker) {
     } else {
         std::tie(left_ref, left_type) = remove_ref(checker.infer(*left));
 
-        auto prim_type = left_type;
-        if (is_simd_type(prim_type))
-            prim_type = prim_type->as<artic::SizedArrayType>()->elem;
-        if (!prim_type->isa<artic::PrimType>()) {
-            needs_overloading = true;
-            right_type = checker.deref(right);
-            return right_type;
+        if (!has_eq()) {
+            auto prim_type = left_type;
+            if (is_simd_type(prim_type))
+                prim_type = prim_type->as<artic::SizedArrayType>()->elem;
+            if (!prim_type->isa<artic::PrimType>()) {
+                needs_overloading = true;
+                right_type = checker.deref(right);
+                return right_type;
+            }
         }
 
         right_type = checker.coerce(right, left_type);
