@@ -204,6 +204,10 @@ Ptr<ast::ImplicitDecl> Parser::parse_implicit_decl() {
     Tracker tracker(this);
     eat(Token::Implicit);
 
+    Ptr<ast::TypeParamList> type_params = nullptr;
+    if (ahead().tag() == Token::LBracket)
+        type_params = parse_type_params();
+
     Ptr<ast::Type> type = nullptr;
     if (ahead().tag() != Token::Eq)
         type = parse_type();
@@ -211,7 +215,7 @@ Ptr<ast::ImplicitDecl> Parser::parse_implicit_decl() {
     expect(Token::Eq);
     auto value = parse_expr(true);
     expect(Token::Semi);
-    return _arena.make_ptr<ast::ImplicitDecl>(tracker(), std::move(type), std::move(value));
+    return _arena.make_ptr<ast::ImplicitDecl>(tracker(), std::move(type), std::move(type_params), std::move(value));
 }
 
 Ptr<ast::StaticDecl> Parser::parse_static_decl() {

@@ -1310,15 +1310,18 @@ struct LetDecl : public Decl {
 /// Declaration that introduces an implicit value, or implicit value generator in the scope
 struct ImplicitDecl : public Decl {
     Ptr<Type> type;
+    Ptr<TypeParamList> type_params;
     Ptr<Expr> value;
     bool is_generator;
 
     ImplicitDecl(const Loc& loc,
                  Ptr<Type>&& type,
+                 Ptr<TypeParamList>&& type_params,
                  Ptr<Expr>&& value,
                  bool is_generator = false)
             : Decl(loc)
             , type(std::move(type))
+            , type_params(std::move(type_params))
             , value(std::move(value))
             , is_generator(is_generator)
     {}
