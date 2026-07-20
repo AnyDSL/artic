@@ -22,11 +22,17 @@ private:
     void push_scope();
     void pop_scope();
 
-    void insert(const artic::Type*, const ast::Expr*);
+    struct ImplicitSrc {
+        const ast::ImplicitDecl* decl;
+        const ast::Expr* expr;
+
+        std::optional<std::tuple<const ast::Expr*, int>> provide(const artic::Type*);
+    };
+
     const ast::Expr* resolve(const artic::Type*, const artic::Loc& at);
 
     bool error = false;
-    std::vector<TypeMap<const ast::Expr*>> scopes;
+    std::vector<std::vector<ImplicitSrc>> scopes;
 
     Arena& _arena;
 

@@ -18,23 +18,44 @@ void Summoner::pop_scope() {
     scopes.erase(scopes.begin());
 }
 
-void Summoner::insert(const artic::Type* t, const ast::Expr* e) {
-    assert(!scopes.empty());
-    auto& scope = scopes[0];
-    auto existing = scope.find(t);
-    if (existing != scope.end()) {
-        log::error("Ambiguity: two different implicit declarations for {} given in scope", *t);
-        return;
+std::optional<std::tuple<const ast::Expr*, int>> Summoner::ImplicitSrc::provide(const artic::Type* type) {
+    if (expr) {
+        if (expr->type == type) {
+            return {{ expr, 0 }};
+        }
+    } else {
+        if (decl->Node::type == type) {
+            return {{ &*decl->value, 0 }};
+        }
     }
-    scope.emplace(t, e);
+
+    return std::nullopt;
 }
 
 const ast::Expr* Summoner::resolve(const artic::Type* t, const artic::Loc& at) {
     for (auto& scope : scopes) {
-        auto found = scope.find(t);
-        if (found != scope.end())
-            return found->second;
-        // TODO: use subtyping relations and generators
+        // TODO: refactor this to allow for implicit casts when it's part of type inference
+        int best_score = -1;
+        std::vector<const ast::Expr*> valid_options;
+        for (auto& provider : scope) {
+            auto provided = provider.provide(t);
+            if (provided) {
+                auto [expr, score] = *provided;
+                if (score > best_score) {
+                    valid_options.clear();
+                    best_score = score;
+                }
+                valid_options.push_back(expr);
+            }
+        }
+
+        if (valid_options.size() == 1)
+            return valid_options[0];
+        if (!valid_options.empty()) {
+            error = true;
+            log::error("More than one available implicit value of type {} at {}", *t, at);
+            return nullptr;
+        }
     }
     error = true;
     log::error("Could not summon an implicit value of type {} at {}", *t, at);
@@ -178,7 +199,10 @@ void LetDecl::resolve_summons(artic::Summoner& summoner) {
 
 void ImplicitDecl::resolve_summons(artic::Summoner& summoner) {
     if (!is_top_level)
-        summoner.insert(Node::type, value.get());
+        summoner.scopes.front().push_back( Summoner::ImplicitSrc {
+            .decl = this,
+        });
+
     value->resolve_summons(summoner);
 }
 
@@ -203,7 +227,9 @@ void ModDecl::resolve_summons(artic::Summoner& summoner) {
     summoner.push_scope();
     for (auto& decl: decls)
         if (auto impl_decl = decl->isa<ImplicitDecl>())
-            summoner.insert(decl->type, impl_decl->value.get());
+            summoner.scopes.front().push_back( Summoner::ImplicitSrc {
+                .decl = impl_decl,
+            });
 
     for (auto& decl: decls)
         decl->resolve_summons(summoner);
@@ -220,7 +246,9 @@ void IdPtrn::resolve_summons(artic::Summoner& summoner) {
 }
 
 void ImplicitParamPtrn::resolve_summons(artic::Summoner& summoner) {
-    summoner.insert(underlying->type, underlying->to_expr(summoner._arena));
+    summoner.scopes.front().push_back( Summoner::ImplicitSrc {
+        .expr = this->to_expr(summoner._arena),
+    });
 }
 
 void FieldPtrn::resolve_summons(artic::Summoner& summoner) {
