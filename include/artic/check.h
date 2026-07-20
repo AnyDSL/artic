@@ -82,9 +82,44 @@ public:
 
     size_t path_to_size(ast::Path& path, const std::string_view&);
 
+    struct ScopeHelper {
+        TypeChecker& checker;
+
+        ScopeHelper(TypeChecker& checker) : checker(checker) {
+            checker.push_scope();
+        }
+        ScopeHelper(const ScopeHelper&) = delete;
+
+        ~ScopeHelper() {
+            checker.pop_scope();
+        }
+    };
+
 private:
     std::unordered_set<const ast::Decl*> decls_;
     Arena& _arena;
+
+    void push_scope();
+    void pop_scope();
+
+    struct ImplicitSrc {
+        const ast::ImplicitDecl* decl;
+        Ptr<ast::Expr> expr;
+
+        std::optional<std::tuple<Ptr<ast::Expr>, int>> provide(const artic::Type*);
+    };
+
+    Ptr<ast::Expr> summon(const artic::Type*, const artic::Loc& at);
+
+    //bool error = false;
+    std::vector<std::vector<ImplicitSrc>> scopes;
+
+    friend ast::SummonExpr;
+    friend ast::ImplicitDecl;
+    friend ast::ModDecl;
+    friend ast::BlockExpr;
+    friend ast::FnExpr;
+    friend ast::ImplicitParamPtrn;
 };
 
 } // namespace artic

@@ -6,7 +6,6 @@
 #include "artic/parser.h"
 #include "artic/bind.h"
 #include "artic/check.h"
-#include "artic/summoner.h"
 
 #include <thorin/def.h>
 #include <thorin/type.h>
@@ -2114,9 +2113,7 @@ std::tuple<Ptr<ast::ModDecl>, bool> compile(
     TypeChecker type_checker(log, type_table, arena);
     type_checker.warns_as_errors = warns_as_errors;
 
-    Summoner summoner(log, arena);
-
-    if (!name_binder.run(*program) || !type_checker.run(*program) || !summoner.run(*program))
+    if (!name_binder.run(*program) || !type_checker.run(*program))
         return std::make_tuple(std::move(program), false);
 
     Emitter emitter(log, world, arena);

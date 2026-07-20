@@ -5,6 +5,7 @@
 namespace artic {
 
 bool TypeChecker::run(ast::ModDecl& module) {
+    ScopeHelper sg(*this);
     infer(module);
     return errors == 0;
 }
@@ -20,6 +21,61 @@ bool TypeChecker::enter_decl(const ast::Decl* decl) {
 
 void TypeChecker::exit_decl(const ast::Decl* decl) {
     decls_.erase(decl);
+}
+
+void TypeChecker::push_scope() {
+    scopes.emplace(scopes.begin());
+}
+
+void TypeChecker::pop_scope() {
+    assert(!scopes.empty());
+    scopes.erase(scopes.begin());
+}
+
+// Implicits summoning -------------------------------------------------------------
+
+std::optional<std::tuple<Ptr<ast::Expr>, int>> TypeChecker::ImplicitSrc::provide(const artic::Type* type) {
+    if (expr) {
+        if (expr->type == type) {
+            return {{ expr.duplicate(), 0 }};
+        }
+    } else {
+        if (decl->Node::type == type) {
+            return {{ decl->value.duplicate(), 0 }};
+        }
+    }
+
+    return std::nullopt;
+}
+
+Ptr<ast::Expr> TypeChecker::summon(const artic::Type* t, const artic::Loc& at) {
+    for (auto& scope : scopes) {
+        // TODO: refactor this to allow for implicit casts when it's part of type inference
+        int best_score = -1;
+        std::vector<Ptr<ast::Expr>> valid_options;
+        for (auto& provider : scope) {
+            auto provided = provider.provide(t);
+            if (provided) {
+                auto& [expr, score] = *provided;
+                if (score > best_score) {
+                    valid_options.clear();
+                    best_score = score;
+                }
+                valid_options.push_back(expr.duplicate());
+            }
+        }
+
+        if (valid_options.size() == 1)
+            return valid_options[0].duplicate();
+        if (!valid_options.empty()) {
+            //error = true;
+            log::error("More than one available implicit value of type {} at {}", *t, at);
+            return nullptr;
+        }
+    }
+    //error = true;
+    log::error("Could not summon an implicit value of type {} at {}", *t, at);
+    return nullptr;
 }
 
 // Error messages ------------------------------------------------------------------
@@ -169,8 +225,7 @@ const Type* TypeChecker::coerce(Ptr<ast::Expr>& expr, const Type* expected) {
     if (auto implicit = expected->isa<ImplicitParamType>()) {
         // Only the empty tuple () can be coerced into a Summon[T]
         if (is_unit(expr)) {
-            Ptr<ast::Expr> summoned = _arena.make_ptr<ast::SummonExpr>(expr->loc, Ptr<ast::Type>());
-            summoned->type = implicit->underlying;
+            auto summoned = summon(implicit->underlying, expr->loc);
             expr.swap(summoned);
             return implicit->underlying;
         }
@@ -193,8 +248,7 @@ const Type* TypeChecker::coerce(Ptr<ast::Expr>& expr, const Type* expected) {
             }
 
             if (auto implicit = tuple_t->args[i]->isa<ImplicitParamType>()) {
-                Ptr<ast::Expr> summoned = _arena.make_ptr<ast::SummonExpr>(loc, Ptr<ast::Type>());
-                summoned->type = implicit->underlying;
+                auto summoned = summon(implicit->underlying, loc);
                 args.push_back(std::move(summoned));
                 continue;
             }
@@ -967,18 +1021,22 @@ const artic::Type* LiteralExpr::check(TypeChecker& checker, const artic::Type* e
 }
 
 const artic::Type* SummonExpr::infer(artic::TypeChecker& checker) {
-    if (type_expr) return checker.infer(*type_expr);
+    if (type_expr) {
+        resolved = &*checker.summon(type = checker.infer(*type_expr), loc);
+        return type;
+    }
     checker.error(loc, "summoning a value without a type");
     return checker.type_table.type_error();
 }
 
 const artic::Type* SummonExpr::check(artic::TypeChecker& checker, const artic::Type* expected) {
-    if (type) {
+    if (type_expr) {
         auto got = checker.infer(*this);
         if (!expected->subtype(got))
             return checker.incompatible_types(loc, got, expected);
         return got;
     }
+    resolved = &*checker.summon(expected, loc);
     return expected;
 }
 
@@ -1060,6 +1118,7 @@ const artic::Type* RepeatArrayExpr::check(TypeChecker& checker, const artic::Typ
 }
 
 const artic::Type* FnExpr::infer(TypeChecker& checker) {
+    TypeChecker::ScopeHelper sg(checker);
     auto param_type = checker.infer(*param);
     if (filter)
         checker.check(*filter, checker.type_table.bool_type());
@@ -1094,6 +1153,7 @@ const artic::Type* FnExpr::check(TypeChecker& checker, const artic::Type* expect
 }
 
 const artic::Type* BlockExpr::infer(TypeChecker& checker) {
+    TypeChecker::ScopeHelper sg(checker);
     if (stmts.empty())
         return checker.type_table.unit_type();
     for (auto& stmt : stmts)
@@ -1103,6 +1163,7 @@ const artic::Type* BlockExpr::infer(TypeChecker& checker) {
 }
 
 const artic::Type* BlockExpr::check(TypeChecker& checker, const artic::Type* expected) {
+    TypeChecker::ScopeHelper sg(checker);
     if (stmts.empty()) {
         if (!is_unit_type(expected))
             return checker.incompatible_type(loc, "empty block expression", expected);
@@ -1652,6 +1713,12 @@ const artic::Type* ImplicitDecl::infer(TypeChecker& checker) {
     } else {
         t = checker.infer(*value);
     }
+
+    if (!is_top_level)
+        checker.scopes.front().push_back(TypeChecker::ImplicitSrc {
+            .decl = this,
+        });
+
     return t;
 }
 
@@ -1783,6 +1850,12 @@ const artic::Type* TypeDecl::infer(TypeChecker& checker) {
 }
 
 const artic::Type* ModDecl::infer(TypeChecker& checker) {
+    TypeChecker::ScopeHelper sg(checker);
+    for (auto& decl: decls)
+        if (auto impl_decl = decl->isa<ImplicitDecl>())
+            checker.scopes.front().push_back(TypeChecker::ImplicitSrc {
+                .decl = impl_decl,
+            });
     for (auto& decl : decls)
         checker.infer(*decl);
     for (auto& decl : decls) {
@@ -1843,6 +1916,9 @@ const artic::Type* ImplicitParamPtrn::infer(artic::TypeChecker& checker) {
 
 const artic::Type * ImplicitParamPtrn::check(artic::TypeChecker& checker, const artic::Type* expected) {
     checker.check(*underlying, expected);
+    checker.scopes.front().push_back(TypeChecker::ImplicitSrc {
+        .expr = arena_ptr((Expr*) this->to_expr(checker._arena)),
+    });
     return checker.type_table.implicit_param_type(underlying->type);
 }
 

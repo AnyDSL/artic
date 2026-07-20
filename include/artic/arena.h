@@ -39,6 +39,10 @@ struct arena_ptr {
         other._ptr = _ptr;
         _ptr = tmp;
     }
+
+    arena_ptr duplicate() const {
+        return { _ptr };
+    }
 };
 
 struct Arena {
