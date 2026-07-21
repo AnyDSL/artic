@@ -1701,8 +1701,8 @@ const artic::Type* LetDecl::infer(TypeChecker& checker) {
 const artic::Type* ImplicitDecl::infer(TypeChecker& checker) {
     const artic::Type* t = nullptr;
     assert(!is_generator && "TODO");
-    if (type) {
-        t = checker.infer(*type);
+    if (type_annotation) {
+        t = checker.infer(*type_annotation);
         checker.coerce(value, t);
     } else {
         t = checker.infer(*value);

@@ -451,7 +451,7 @@ void LetDecl::bind(NameBinder& binder) {
 void ImplicitDecl::bind(artic::NameBinder& binder) {
     binder.push_scope();
     if (type_params) binder.bind(*type_params);
-    if (type) type->bind(binder);
+    if (type_annotation) type_annotation->bind(binder);
     value->bind(binder);
     binder.pop_scope();
 }
