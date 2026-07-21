@@ -1,0 +1,12 @@
+struct IThink { value: i32 }
+struct IAm { value: i32 }
+
+implicit = IThink { value = 1 };
+implicit IAm(implicit ithink: IThink) = IAm {
+    value = ithink.value
+};
+
+#[export]
+fn f() -> i32 {
+    summon[IAm].value
+}

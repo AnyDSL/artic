@@ -1,0 +1,20 @@
+struct Zero[T] { value: T }
+struct Cmp[T] { cmp: fn(T, T) -> bool }
+
+implicit = Zero[i32] { value = 0 };
+implicit = Cmp[i32] { cmp = |x, y| x == y };
+
+struct IsZero[T] {
+    is_zero: fn (T) -> bool
+}
+
+implicit[T] IsZero[T](implicit zero: Zero[T], implicit cmp: Cmp[T]) = IsZero[T] {
+    is_zero = | value | { cmp.cmp(value, zero.value) }
+};
+
+fn is_zero[T](value: T, implicit is_zero_impl: IsZero[T]) -> bool {
+    is_zero_impl.is_zero(value)
+}
+
+#[export]
+fn is_zero_i32(value: i32) = is_zero[i32](value);
