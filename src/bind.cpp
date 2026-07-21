@@ -452,7 +452,8 @@ void ImplicitDecl::bind(artic::NameBinder& binder) {
     binder.push_scope();
     if (type_params) binder.bind(*type_params);
     if (type_annotation) type_annotation->bind(binder);
-    value->bind(binder);
+    if (dependencies) dependencies->bind(binder);
+    body->bind(binder);
     binder.pop_scope();
 }
 

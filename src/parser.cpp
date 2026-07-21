@@ -80,7 +80,7 @@ Ptr<ast::FnDecl> Parser::parse_fn_decl() {
 
     Ptr<ast::Ptrn> param;
     if (ahead().tag() == Token::LParen)
-        param = parse_tuple_ptrn(true, true);
+        param = parse_tuple_ptrn(true, ParseImplicits::Allow);
     else
         error(ahead().loc(), "parameter list expected in function definition");
 
@@ -212,10 +212,14 @@ Ptr<ast::ImplicitDecl> Parser::parse_implicit_decl() {
     if (ahead().tag() != Token::Eq)
         type = parse_type();
 
+    Ptr<ast::Ptrn> dependencies = nullptr;
+    if (ahead().tag() != Token::Eq)
+        dependencies = parse_tuple_ptrn(false, ParseImplicits::OnlyImplicits);
+
     expect(Token::Eq);
-    auto value = parse_expr(true);
+    auto body = parse_expr(true);
     expect(Token::Semi);
-    return _arena.make_ptr<ast::ImplicitDecl>(tracker(), std::move(type), std::move(type_params), std::move(value));
+    return _arena.make_ptr<ast::ImplicitDecl>(tracker(), std::move(type), std::move(type_params), std::move(dependencies), std::move(body));
 }
 
 Ptr<ast::StaticDecl> Parser::parse_static_decl() {
@@ -289,7 +293,12 @@ Ptr<ast::ErrorDecl> Parser::parse_error_decl() {
 
 // Patterns ------------------------------------------------------------------------
 
-Ptr<ast::Ptrn> Parser::parse_ptrn(bool allow_types, bool allow_implicits) {
+Ptr<ast::Ptrn> Parser::parse_ptrn(bool allow_types, ParseImplicits allow_implicits) {
+    if (allow_implicits == ParseImplicits::OnlyImplicits && ahead().tag() != Token::Implicit) {
+        note(ahead().loc(), "Only implicit parameters accepted here");
+        return parse_error_ptrn();
+    }
+
     Ptr<ast::Ptrn> ptrn;
     switch (ahead().tag()) {
         case Token::Super:
@@ -325,7 +334,7 @@ Ptr<ast::Ptrn> Parser::parse_ptrn(bool allow_types, bool allow_implicits) {
                 ptrn = parse_id_ptrn(parse_id(), true);
             }
             break;
-        case Token::LParen: ptrn = parse_tuple_ptrn(allow_types, false); break;
+        case Token::LParen: ptrn = parse_tuple_ptrn(allow_types, ParseImplicits::Disallow); break;
         case Token::Lit:    ptrn = parse_literal_ptrn(); break;
         case Token::Simd:
         case Token::LBracket:
@@ -343,7 +352,7 @@ Ptr<ast::Ptrn> Parser::parse_ptrn(bool allow_types, bool allow_implicits) {
             [[fallthrough]];
         case Token::Implicit:
             {
-                if (!allow_implicits)
+                if (allow_implicits == ParseImplicits::Disallow)
                     return parse_error_ptrn();
                 eat(Token::Implicit);
                 auto underlying = parse_ptrn();
@@ -418,7 +427,7 @@ Ptr<ast::CtorPtrn> Parser::parse_ctor_ptrn(ast::Path&& path) {
     return _arena.make_ptr<ast::CtorPtrn>(tracker(), std::move(path), std::move(arg));
 }
 
-Ptr<ast::Ptrn> Parser::parse_tuple_ptrn(bool allow_types, bool allow_implicits, Token::Tag beg, Token::Tag end) {
+Ptr<ast::Ptrn> Parser::parse_tuple_ptrn(bool allow_types, ParseImplicits allow_implicits, Token::Tag beg, Token::Tag end) {
     Tracker tracker(this);
     eat(beg);
     PtrVector<ast::Ptrn> args;
@@ -653,7 +662,7 @@ Ptr<ast::FnExpr> Parser::parse_fn_expr(Ptr<ast::Filter>&& filter, bool nested) {
         parse_nested = parse_list(
             std::array<Token::Tag, 2>{ Token::Or, Token::LogicOr },
             std::array<Token::Tag, 1>{ Token::Comma }, [&] {
-                args.emplace_back(parse_ptrn(false, true));
+                args.emplace_back(parse_ptrn(false, ParseImplicits::Allow));
             }) == 1;
         if (args.size() == 1) {
             ptrn = std::move(args.front());
@@ -778,7 +787,7 @@ Ptr<ast::Expr> Parser::parse_for_expr() {
         ahead(2).tag() == Token::Mut ||
         ahead(2).tag() == Token::Comma ||
         ahead(2).tag() == Token::Colon)
-        ptrn = parse_tuple_ptrn(false, false, Token::For, Token::In);
+        ptrn = parse_tuple_ptrn(false, ParseImplicits::Disallow, Token::For, Token::In);
     else {
         eat(Token::For);
         ptrn = _arena.make_ptr<ast::TuplePtrn>(tracker(), PtrVector<ast::Ptrn>{});

@@ -2,6 +2,8 @@
 
 #include "artic/check.h"
 
+#include <thorin/util/utility.h>
+
 namespace artic {
 
 bool TypeChecker::run(ast::ModDecl& module) {
@@ -40,35 +42,69 @@ std::optional<std::tuple<Ptr<ast::Expr>, int>> TypeChecker::ImplicitSrc::provide
             return {{ expr.duplicate(), 0 }};
         }
     } else {
-        decl->Node::type->dump();
-        if (decl->Node::type == type) {
-            auto instance = checker._arena.make_ptr<ast::ImplicitInstantiationExpr>(decl);
-            checker.infer(*instance);
-            return {{ std::move(instance), 0 }};
-        }
-        if (auto forall = decl->type->isa<ForallType>()) {
-            std::vector<const artic::Type*> type_args(forall->type_params()->params.size());
+        checker.infer(*decl);
+        Ptr<ast::Expr> arg = nullptr;
+        const artic::Type* dependencies_type = nullptr;
+        if (decl->dependencies)
+            dependencies_type = decl->dependencies->type;
+
+        std::vector<const artic::Type*> type_args;
+
+        int cost = 0;
+
+        const artic::Type* decl_type = decl->type;
+
+        if (auto forall = decl_type->isa<ForallType>()) {
+            type_args.resize(forall->type_params()->params.size());
             if (checker.try_infer_implicit_type_args(at, forall, type, type_args)) {
-                auto instance = checker._arena.make_ptr<ast::ImplicitInstantiationExpr>(decl, std::move(type_args));
-                checker.infer(*instance);
-                return {{ std::move(instance), 1 }};
+                cost += 8;
+                decl_type = forall->instantiate(type_args);
+
+                if (dependencies_type) {
+                    std::unordered_map<const TypeVar*, const Type*> map;
+                    assert(forall->type_params() && forall->type_params()->params.size() == type_args.size());
+                    for (size_t i = 0, n = type_args.size(); i < n; ++i) {
+                        assert(forall->type_params()->params[i]->type);
+                        map.emplace(forall->type_params()->params[i]->type->as<TypeVar>(), type_args[i]);
+                    }
+                    dependencies_type = dependencies_type->replace(map);
+                }
+            } else {
+                // implicit match failure
+                return std::nullopt;
             }
         }
+
+        if (decl_type == type) {
+            cost += 0; // exact match
+        } else {
+            return std::nullopt;
+        }
+
+        if (dependencies_type) {
+            PtrVector<ast::Expr> empty;
+            arg = checker._arena.make_ptr<ast::TupleExpr>(at, std::move(empty));
+            checker.coerce(arg, dependencies_type);
+        }
+
+        auto instance = checker._arena.make_ptr<ast::ImplicitInstantiationExpr>(decl, std::move(type_args), std::move(arg));
+        checker.infer(*instance);
+        return {{ std::move(instance), cost }};
     }
 
-    return std::nullopt;
+    THORIN_UNREACHABLE;
 }
 
 Ptr<ast::Expr> TypeChecker::summon(const artic::Type* t, const artic::Loc& at) {
     for (auto& scope : scopes) {
         // TODO: refactor this to allow for implicit casts when it's part of type inference
-        int best_score = -1;
+        int best_score = INT_MAX;
         std::vector<Ptr<ast::Expr>> valid_options;
         for (auto& provider : scope) {
             auto provided = provider.provide(*this, t, at);
             if (provided) {
                 auto& [expr, score] = *provided;
-                if (score > best_score) {
+                if (score < best_score) {
                     valid_options.clear();
                     best_score = score;
                 }
@@ -1744,13 +1780,15 @@ const artic::Type* ImplicitDecl::infer(TypeChecker& checker) {
     if (!checker.enter_decl(this))
         return checker.type_table.type_error();
 
+    if (dependencies)
+        checker.infer(*dependencies);
+
     const artic::Type* t = nullptr;
-    assert(!is_generator && "TODO");
     if (type_annotation) {
         t = checker.infer(*type_annotation);
-        checker.coerce(value, t);
+        checker.coerce(body, t);
     } else {
-        t = checker.infer(*value);
+        t = checker.infer(*body);
     }
 
     type = forall ? forall : t;

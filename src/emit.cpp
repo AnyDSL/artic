@@ -1615,7 +1615,11 @@ const thorin::Def* ImplicitCastExpr::emit(Emitter& emitter) const {
 }
 
 const thorin::Def* ImplicitInstantiationExpr::emit(Emitter& emitter) const {
-    return emitter.emit_poly_decl(impl, &*impl->type_params, &type_args);
+    auto def = emitter.emit_poly_decl(impl, &*impl->type_params, &type_args);
+    if (arg) {
+        def = emitter.call(def, emitter.emit(*arg), def->debug());
+    }
+    return def;
 }
 
 const thorin::Def* AsmExpr::emit(Emitter& emitter) const {
@@ -1706,7 +1710,18 @@ static const thorin::Def* emit_maybe_poly_helper(Emitter& emitter, const Decl* d
 
 const thorin::Def* ImplicitDecl::emit(artic::Emitter& emitter) const {
     return emit_maybe_poly_helper<artic::Type>(emitter, this, type, type_params, def, [&](const artic::Type* t, SetHeadFn& set_head) {
-        set_head(emitter.emit(*value));
+        if (dependencies) {
+            auto fn_type = type->type_table.fn_type(dependencies->type, t);
+            auto _ = emitter.save_state();
+            auto generator = emitter.world.continuation(fn_type->convert(emitter)->as<thorin::FnType>(), emitter.debug_info(*this));
+            set_head(generator);
+            emitter.enter(generator);
+            emitter.emit(*dependencies, emitter.tuple_from_params(generator, true));
+            auto value = emitter.emit(*body);
+            emitter.jump(generator->params().back(), value, emitter.debug_info(*body));
+        } else {
+            set_head(emitter.emit(*body));
+        }
     });
 }
 

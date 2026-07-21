@@ -496,8 +496,11 @@ void ImplicitDecl::print(Printer& p) const {
         p << ' ';
         type->print(p);
     }
+    if (dependencies) {
+        print_parens(p, dependencies);
+    }
     p << " = ";
-    value->print(p);
+    body->print(p);
     p << ';';
 }
 

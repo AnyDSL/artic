@@ -24,6 +24,12 @@ public:
     Ptr<ast::ModDecl> parse();
 
 private:
+    enum class ParseImplicits {
+        Disallow,
+        Allow,
+        OnlyImplicits
+    };
+
     Ptr<ast::Decl>          parse_decl(bool = false);
     Ptr<ast::LetDecl>       parse_let_decl();
     Ptr<ast::FnDecl>        parse_fn_decl();
@@ -40,14 +46,14 @@ private:
     Ptr<ast::UseDecl>       parse_use_decl();
     Ptr<ast::ErrorDecl>     parse_error_decl();
 
-    Ptr<ast::Ptrn>          parse_ptrn(bool = false, bool = false);
+    Ptr<ast::Ptrn>          parse_ptrn(bool = false, ParseImplicits = ParseImplicits::Disallow);
     Ptr<ast::Ptrn>          parse_typed_ptrn(Ptr<ast::Ptrn>&&);
     Ptr<ast::IdPtrn>        parse_id_ptrn(ast::Identifier&&, bool);
     Ptr<ast::LiteralPtrn>   parse_literal_ptrn();
     Ptr<ast::FieldPtrn>     parse_field_ptrn();
     Ptr<ast::RecordPtrn>    parse_record_ptrn(ast::Path &&path);
     Ptr<ast::CtorPtrn>      parse_ctor_ptrn(ast::Path&& path);
-    Ptr<ast::Ptrn>          parse_tuple_ptrn(bool = false, bool = false, Token::Tag = Token::LParen, Token::Tag = Token::RParen);
+    Ptr<ast::Ptrn>          parse_tuple_ptrn(bool = false, ParseImplicits = ParseImplicits::Disallow, Token::Tag = Token::LParen, Token::Tag = Token::RParen);
     Ptr<ast::ArrayPtrn>     parse_array_ptrn();
     Ptr<ast::ErrorPtrn>     parse_error_ptrn();
 

@@ -1270,19 +1270,19 @@ struct LetDecl : public Decl {
 struct ImplicitDecl : public Decl {
     Ptr<Type> type_annotation;
     Ptr<TypeParamList> type_params;
-    Ptr<Expr> value;
-    bool is_generator;
+    Ptr<Ptrn> dependencies;
+    Ptr<Expr> body;
 
     ImplicitDecl(const Loc& loc,
                  Ptr<Type>&& type_annotation,
                  Ptr<TypeParamList>&& type_params,
-                 Ptr<Expr>&& value,
-                 bool is_generator = false)
+                 Ptr<Ptrn>&& dependencies,
+                 Ptr<Expr>&& value)
             : Decl(loc)
             , type_annotation(std::move(type_annotation))
             , type_params(std::move(type_params))
-            , value(std::move(value))
-            , is_generator(is_generator)
+            , dependencies(std::move(dependencies))
+            , body(std::move(value))
     {}
 
     const thorin::Def* emit(Emitter&) const override;
@@ -1294,9 +1294,9 @@ struct ImplicitDecl : public Decl {
 struct ImplicitInstantiationExpr : public Expr {
     ImplicitDecl* impl;
     std::vector<const artic::Type*> type_args;
+    Ptr<Expr> arg;
 
-    ImplicitInstantiationExpr(ImplicitDecl* impl) : Expr(impl->loc), impl(impl) {}
-    ImplicitInstantiationExpr(ImplicitDecl* impl, std::vector<const artic::Type*>&& type_args) : Expr(impl->loc), impl(impl), type_args(std::move(type_args)) {}
+    ImplicitInstantiationExpr(ImplicitDecl* impl, std::vector<const artic::Type*>&& type_args, Ptr<Expr>&& arg) : Expr(impl->loc), impl(impl), type_args(std::move(type_args)), arg(std::move(arg)) {}
 
     const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) override;
