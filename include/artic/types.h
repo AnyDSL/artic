@@ -683,6 +683,7 @@ public:
     const TypeError*         type_error();
     const TypeVar*           type_var(const ast::TypeParam&);
     const ForallType*        forall_type(const ast::FnDecl&);
+    const ForallType*        forall_type(const ast::ImplicitDecl&);
     const StructType*        struct_type(const ast::RecordDecl&);
     const EnumType*          enum_type(const ast::EnumDecl&);
     const ModType*           mod_type(const ast::ModDecl&);

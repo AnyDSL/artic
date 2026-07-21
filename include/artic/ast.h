@@ -1291,6 +1291,21 @@ struct ImplicitDecl : public Decl {
     void print(Printer&) const override;
 };
 
+struct ImplicitInstantiationExpr : public Expr {
+    ImplicitDecl* impl;
+    std::vector<const artic::Type*> type_args;
+
+    ImplicitInstantiationExpr(ImplicitDecl* impl) : Expr(impl->loc), impl(impl) {}
+    ImplicitInstantiationExpr(ImplicitDecl* impl, std::vector<const artic::Type*>&& type_args) : Expr(impl->loc), impl(impl), type_args(std::move(type_args)) {}
+
+    const thorin::Def* emit(Emitter&) const override;
+    const artic::Type* infer(TypeChecker&) override;
+    void bind(NameBinder&) override {
+        assert(false);
+    };
+    void print(Printer&) const override;
+};
+
 /// Static (top-level) declaration.
 struct StaticDecl : public ValueDecl {
     Ptr<Type> type;

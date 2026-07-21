@@ -34,14 +34,25 @@ void TypeChecker::pop_scope() {
 
 // Implicits summoning -------------------------------------------------------------
 
-std::optional<std::tuple<Ptr<ast::Expr>, int>> TypeChecker::ImplicitSrc::provide(const artic::Type* type) {
+std::optional<std::tuple<Ptr<ast::Expr>, int>> TypeChecker::ImplicitSrc::provide(TypeChecker& checker, const artic::Type* type, const artic::Loc& at) {
     if (expr) {
         if (expr->type == type) {
             return {{ expr.duplicate(), 0 }};
         }
     } else {
+        decl->Node::type->dump();
         if (decl->Node::type == type) {
-            return {{ decl->value.duplicate(), 0 }};
+            auto instance = checker._arena.make_ptr<ast::ImplicitInstantiationExpr>(decl);
+            checker.infer(*instance);
+            return {{ std::move(instance), 0 }};
+        }
+        if (auto forall = decl->type->isa<ForallType>()) {
+            std::vector<const artic::Type*> type_args(forall->type_params()->params.size());
+            if (checker.try_infer_implicit_type_args(at, forall, type, type_args)) {
+                auto instance = checker._arena.make_ptr<ast::ImplicitInstantiationExpr>(decl, std::move(type_args));
+                checker.infer(*instance);
+                return {{ std::move(instance), 1 }};
+            }
         }
     }
 
@@ -54,7 +65,7 @@ Ptr<ast::Expr> TypeChecker::summon(const artic::Type* t, const artic::Loc& at) {
         int best_score = -1;
         std::vector<Ptr<ast::Expr>> valid_options;
         for (auto& provider : scope) {
-            auto provided = provider.provide(t);
+            auto provided = provider.provide(*this, t, at);
             if (provided) {
                 auto& [expr, score] = *provided;
                 if (score > best_score) {
@@ -573,17 +584,14 @@ const Type* TypeChecker::check_array(
     return type_table.sized_array_type(elem_type, elem_count, is_simd);
 }
 
-bool TypeChecker::infer_type_args(
+bool TypeChecker::try_infer_type_args(
     const Loc& loc,
     const ForallType* forall_type,
-    const Type* arg_type,
-    const Type* ret_type,
-    std::vector<const Type*>& type_args)
+    TypeVarMap<TypeBounds>& bounds,
+    TypeVarMap<TypeVariance>& variance,
+    std::vector<const Type*>& type_args,
+    bool diagnose_failure_as_error)
 {
-    auto bounds = forall_type->body->as<FnType>()->dom->bounds(arg_type);
-    if (ret_type)
-        forall_type->body->as<FnType>()->codom->bounds(bounds, ret_type, false);
-    auto variance = forall_type->body->as<FnType>()->Type::variance(false);
     for (auto& bound : bounds) {
         size_t index = std::find_if(
             forall_type->type_params()->params.begin(),
@@ -596,7 +604,8 @@ bool TypeChecker::infer_type_args(
         if (type_args[index]) {
             if (!type_args[index]->subtype(bound.second.upper) ||
                 !bound.second.lower->subtype(type_args[index])) {
-                invalid_constraint(loc, bound.first, type_args[index], bound.second.lower, bound.second.upper);
+                if (diagnose_failure_as_error)
+                    invalid_constraint(loc, bound.first, type_args[index], bound.second.lower, bound.second.upper);
                 return false;
             }
             continue;
@@ -605,7 +614,8 @@ bool TypeChecker::infer_type_args(
         if (!bound.second.lower->subtype(bound.second.upper) ||
             bound.second.lower->isa<TopType>() ||
             bound.second.upper->isa<BottomType>()) {
-            invalid_constraint(loc, bound.first, nullptr, bound.second.lower, bound.second.upper);
+            if (diagnose_failure_as_error)
+                invalid_constraint(loc, bound.first, nullptr, bound.second.lower, bound.second.upper);
             return false;
         }
 
@@ -633,13 +643,39 @@ bool TypeChecker::infer_type_args(
     }
     for (size_t i = 0, n = type_args.size(); i < n; ++i) {
         if (!type_args[i]) {
-            error(
-                loc, "cannot infer type argument for type variable '{}'",
-                *forall_type->type_params()->params[i]->type);
+            if (diagnose_failure_as_error)
+                error(
+                    loc, "cannot infer type argument for type variable '{}'",
+                    *forall_type->type_params()->params[i]->type);
             return false;
         }
     }
     return true;
+}
+
+bool TypeChecker::infer_fn_type_args(
+    const Loc& loc,
+    const ForallType* forall_type,
+    const Type* arg_type,
+    const Type* ret_type,
+    std::vector<const Type*>& type_args) {
+    auto body = forall_type->body->as<FnType>();
+    auto bounds = body->dom->bounds(arg_type);
+    if (ret_type)
+        body->codom->bounds(bounds, ret_type, false);
+    auto variance = body->Type::variance(false);
+    return try_infer_type_args(loc, forall_type, bounds, variance, type_args, true);
+}
+
+bool TypeChecker::try_infer_implicit_type_args(
+    const Loc& loc,
+    const ForallType* forall_type,
+    const Type* expected_type,
+    std::vector<const Type*>& type_args) {
+    auto body = forall_type->body;
+    auto bounds = body->bounds(expected_type);
+    auto variance = body->variance(true);
+    return try_infer_type_args(loc, forall_type, bounds, variance, type_args, false);
 }
 
 const Type* TypeChecker::infer_record_type(const TypeApp* type_app, const StructType* struct_type, size_t& index) {
@@ -780,7 +816,7 @@ const artic::Type* Path::infer(TypeChecker& checker, Ptr<Expr>* arg, const artic
                 // Infer type arguments when not all type arguments are given
                 if (type_param_count != elem.args.size() && i == n - 1) {
                     auto arg_type = checker.try_coerce(*arg, forall_type->body->as<artic::FnType>()->dom);
-                    if (!checker.infer_type_args(loc, forall_type, arg_type, ret_type, type_args))
+                    if (!checker.infer_fn_type_args(loc, forall_type, arg_type, ret_type, type_args))
                         return checker.type_table.type_error();
                 }
                 elem.inferred_args = type_args;
@@ -1699,6 +1735,15 @@ const artic::Type* LetDecl::infer(TypeChecker& checker) {
 }
 
 const artic::Type* ImplicitDecl::infer(TypeChecker& checker) {
+    const artic::ForallType* forall = nullptr;
+    if (type_params) {
+        forall = checker.type_table.forall_type(*this);
+        for (auto& param : type_params->params)
+            checker.infer(*param);
+    }
+    if (!checker.enter_decl(this))
+        return checker.type_table.type_error();
+
     const artic::Type* t = nullptr;
     assert(!is_generator && "TODO");
     if (type_annotation) {
@@ -1708,12 +1753,24 @@ const artic::Type* ImplicitDecl::infer(TypeChecker& checker) {
         t = checker.infer(*value);
     }
 
+    type = forall ? forall : t;
+
     if (!is_top_level)
         checker.scopes.front().push_back(TypeChecker::ImplicitSrc {
             .decl = this,
         });
 
-    return t;
+    if (forall)
+        forall->body = t;
+    checker.exit_decl(this);
+    return type;
+}
+
+const artic::Type* ImplicitInstantiationExpr::infer(TypeChecker& checker) {
+    if (!type_args.empty()) {
+        return checker.infer(*impl)->as<ForallType>()->instantiate(type_args);
+    }
+    return checker.infer(*impl);
 }
 
 const artic::Type* StaticDecl::infer(TypeChecker& checker) {
@@ -1741,7 +1798,7 @@ const artic::Type* StaticDecl::infer(TypeChecker& checker) {
 }
 
 const artic::Type* FnDecl::infer(TypeChecker& checker) {
-    const artic::Type* forall = nullptr;
+    const artic::ForallType* forall = nullptr;
     if (type_params) {
         forall = checker.type_table.forall_type(*this);
         for (auto& param : type_params->params)
@@ -1764,7 +1821,7 @@ const artic::Type* FnDecl::infer(TypeChecker& checker) {
     type = forall ? forall : fn_type;
     fn->type = fn_type;
     if (forall)
-        forall->as<ForallType>()->body = fn_type;
+        forall->body = fn_type;
     if (fn->ret_type && fn->body)
         checker.coerce(fn->body, fn_type->as<artic::FnType>()->codom);
     checker.exit_decl(this);

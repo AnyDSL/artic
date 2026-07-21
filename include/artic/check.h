@@ -77,7 +77,9 @@ public:
     template <typename CheckElems>
     const Type* check_array(const Loc&, const std::string_view&, const Type*, size_t, bool, const CheckElems&);
 
-    bool infer_type_args(const Loc&, const ForallType*, const Type*, const Type*, std::vector<const Type*>&);
+    bool try_infer_type_args(const Loc&, const ForallType*, TypeVarMap<TypeBounds>& bounds, TypeVarMap<TypeVariance>& variance, std::vector<const Type*>&, bool);
+    bool infer_fn_type_args(const Loc&, const ForallType*, const Type*, const Type*, std::vector<const Type*>&);
+    bool try_infer_implicit_type_args(const Loc&, const ForallType*, const Type*, std::vector<const Type*>&);
     const Type* infer_record_type(const TypeApp*, const StructType*, size_t&);
 
     size_t path_to_size(ast::Path& path, const std::string_view&);
@@ -103,10 +105,10 @@ private:
     void pop_scope();
 
     struct ImplicitSrc {
-        const ast::ImplicitDecl* decl;
+        ast::ImplicitDecl* decl;
         Ptr<ast::Expr> expr;
 
-        std::optional<std::tuple<Ptr<ast::Expr>, int>> provide(const artic::Type*);
+        std::optional<std::tuple<Ptr<ast::Expr>, int>> provide(TypeChecker&, const artic::Type*, const artic::Loc& at);
     };
 
     Ptr<ast::Expr> summon(const artic::Type*, const artic::Loc& at);

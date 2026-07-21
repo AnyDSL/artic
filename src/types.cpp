@@ -710,6 +710,10 @@ const ForallType* TypeTable::forall_type(const ast::FnDecl& decl) {
     return insert<ForallType>(decl, *decl.type_params);
 }
 
+const ForallType* TypeTable::forall_type(const ast::ImplicitDecl& decl) {
+    return insert<ForallType>(decl, *decl.type_params);
+}
+
 const StructType* TypeTable::struct_type(const ast::RecordDecl& decl) {
     return insert<StructType>(decl);
 }

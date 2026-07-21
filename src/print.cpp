@@ -501,6 +501,20 @@ void ImplicitDecl::print(Printer& p) const {
     p << ';';
 }
 
+void ImplicitInstantiationExpr::print(Printer& p) const {
+    p << log::keyword_style("implicit_instantiation");
+    p << "[";
+    impl->type->print(p);
+    if (!type_args.empty()) {
+        p << " with [";
+        print_list(p, ", ", type_args, [&] (auto& type_arg) {
+            type_arg->print(p);
+        });
+        p << "]";
+    }
+    p << ']';
+}
+
 void StaticDecl::print(Printer& p) const {
     if (attrs) attrs->print(p);
     p << log::keyword_style("static") << ' ';

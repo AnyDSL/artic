@@ -53,11 +53,11 @@ public:
         const Type* type;
     };
 
-    // Monomorphic function, linked to the original (polymorphic) function
-    // via its declaration and the set of type arguments with which it
+    // Monomorphic declaration, linked to the original (polymorphic) function
+    // or value via its declaration and the set of type arguments with which it
     // has been instantiated.
-    struct MonoFn {
-        const ast::FnDecl* decl;
+    struct MonoDecl {
+        const ast::Decl* decl;
         std::vector<const Type*> type_args;
     };
 
@@ -65,9 +65,9 @@ public:
         size_t operator () (const VariantCtor& ctor) const {
             return fnv::Hash().combine(ctor.index).combine(ctor.type);
         }
-        size_t operator () (const MonoFn& mono_fn) const {
-            auto h = fnv::Hash().combine(mono_fn.decl);
-            for (auto type_arg : mono_fn.type_args)
+        size_t operator () (const MonoDecl& mono) const {
+            auto h = fnv::Hash().combine(mono.decl);
+            for (auto type_arg : mono.type_args)
                 h.combine(type_arg);
             return h;
         }
@@ -77,7 +77,7 @@ public:
         bool operator () (const VariantCtor& left, const VariantCtor& right) const {
             return left.index == right.index && left.type == right.type;
         }
-        bool operator () (const MonoFn& left, const MonoFn& right) const {
+        bool operator () (const MonoDecl& left, const MonoDecl& right) const {
             return left.decl == right.decl && left.type_args == right.type_args;
         }
     };
@@ -86,8 +86,8 @@ public:
     std::unordered_map<const Type*, const thorin::Type*> types;
     /// Map from the currently bound type variables to monomorphic types.
     std::unordered_map<const TypeVar*, const Type*> type_vars;
-    /// Map from monomorphic function signature to emitted thorin function.
-    std::unordered_map<MonoFn, thorin::Continuation*, Hash, Compare> mono_fns;
+    /// Map from monomorphic declaration to emitted thorin IR.
+    std::unordered_map<MonoDecl, const thorin::Def*, Hash, Compare> mono_decls;
     /// Map from enum type and variant index to variant constructor.
     std::unordered_map<VariantCtor, const thorin::Def*, Hash, Compare> variant_ctors;
     /// Map from struct type to structure constructor (for tuple-like structures).
@@ -135,6 +135,8 @@ public:
     void emit(const ast::Ptrn&, const thorin::Def*);
     void bind(const ast::IdPtrn&, const thorin::Def*);
     const thorin::Def* emit(const ast::Node&, const Literal&);
+
+    const thorin::Def* emit_poly_decl(ast::Decl*, ast::TypeParamList*, const std::vector<const artic::Type*>*);
 
     const thorin::Def* builtin(const ast::FnDecl&, thorin::Continuation*);
     const thorin::Def* comparator(const Loc&, const Type*);

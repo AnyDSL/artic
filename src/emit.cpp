@@ -1058,6 +1058,31 @@ thorin::Debug Emitter::debug_info(const ast::Node& node, const std::string_view&
     return thorin::Debug(std::string(name), location(node.loc));
 }
 
+const thorin::Def* Emitter::emit_poly_decl(ast::Decl* decl, ast::TypeParamList* type_params, const std::vector<const artic::Type*>* type_args) {
+    // If type arguments are present, this is a polymorphic application
+    std::unordered_map<const artic::TypeVar*, const artic::Type*> map;
+    if (type_args && !type_args->empty()) {
+        for (size_t j = 0, n = type_args->size(); j < n; ++j) {
+            auto var = type_params->params[j]->type->as<artic::TypeVar>();
+            auto type = type_args->at(j)->replace(type_vars);
+            map.emplace(var, type);
+        }
+        // We need to also add the caller's map in case the function is nested in another
+        map.insert(type_vars.begin(), type_vars.end());
+        std::swap(map, type_vars);
+    }
+    auto def = emit(*decl);
+    if (type_args && !type_args->empty()) {
+        // Polymorphic nodes are emitted with the map from type variable
+        // to concrete type, which means that the emitted node cannot be
+        // kept around: Another instantiation may be using a different map,
+        // which would conflict with this one.
+        decl->def = nullptr;
+        std::swap(map, type_vars);
+    }
+    return def;
+}
+
 namespace ast {
 
 const thorin::Def* Node::emit(Emitter&) const {
@@ -1086,28 +1111,12 @@ const thorin::Def* Path::emit(Emitter& emitter) const {
             }
 
         if (!is_ctor) {
-            // If type arguments are present, this is a polymorphic application
-            std::unordered_map<const artic::TypeVar*, const artic::Type*> map;
             if (!elems[i].inferred_args.empty()) {
-                for (size_t j = 0, n = elems[i].inferred_args.size(); j < n; ++j) {
-                    auto var = decl->as<FnDecl>()->type_params->params[j]->type->as<artic::TypeVar>();
-                    auto type = elems[i].inferred_args[j]->replace(emitter.type_vars);
-                    map.emplace(var, type);
-                }
-                // We need to also add the caller's map in case the function is nested in another
-                map.insert(emitter.type_vars.begin(), emitter.type_vars.end());
-                std::swap(map, emitter.type_vars);
+                if (auto fn_decl = decl->isa<FnDecl>())
+                    return emitter.emit_poly_decl(decl, &*fn_decl->type_params, &elems[i].inferred_args);
+                assert(false);
             }
-            auto def = emitter.emit(*decl);
-            if (!elems[i].inferred_args.empty()) {
-                // Polymorphic nodes are emitted with the map from type variable
-                // to concrete type, which means that the emitted node cannot be
-                // kept around: Another instantiation may be using a different map,
-                // which would conflict with this one.
-                decl->def = nullptr;
-                std::swap(map, emitter.type_vars);
-            }
-            return def;
+            return emitter.emit_poly_decl(decl, nullptr, nullptr);
         } else if (match_app<StructType>(elems[i].type).second) {
             assert(is_ctor);
             if (auto it = emitter.struct_ctors.find(elems[i].type); it != emitter.struct_ctors.end())
@@ -1605,6 +1614,10 @@ const thorin::Def* ImplicitCastExpr::emit(Emitter& emitter) const {
     return emitter.down_cast(emitter.emit(*expr), expr->type, type, emitter.debug_info(*this));
 }
 
+const thorin::Def* ImplicitInstantiationExpr::emit(Emitter& emitter) const {
+    return emitter.emit_poly_decl(impl, &*impl->type_params, &type_args);
+}
+
 const thorin::Def* AsmExpr::emit(Emitter& emitter) const {
     std::vector<const thorin::Type*> out_types;
     std::vector<const thorin::Def*> in_values;
@@ -1649,8 +1662,52 @@ const thorin::Def* LetDecl::emit(Emitter& emitter) const {
     return nullptr;
 }
 
-const thorin::Def* ImplicitDecl::emit(artic::Emitter&) const {
-    return nullptr;
+using SetHeadFn = std::function<void(const thorin::Def*)>;
+
+template<typename DeclType>
+static const thorin::Def* emit_maybe_poly_helper(Emitter& emitter, const Decl* decl, const artic::Type* type, const Ptr<TypeParamList>& type_params, const thorin::Def*& def, std::function<void(const DeclType*, SetHeadFn&)> f) {
+    Emitter::MonoDecl mono_fn { decl, {} };
+    const DeclType* decl_type = nullptr;
+    if (type_params) {
+        for (auto& param : type_params->params)
+            mono_fn.type_args.push_back(param->type->replace(emitter.type_vars));
+        // Try to find an existing monomorphized version of this function with that type
+        if (auto it = emitter.mono_decls.find(mono_fn); it != emitter.mono_decls.end())
+            return it->second;
+        emitter.poly_defs.emplace_back();
+        decl_type = type->as<artic::ForallType>()->body->as<DeclType>();
+    } else {
+        decl_type = type->as<DeclType>();
+    }
+
+    const thorin::Def* head;
+    SetHeadFn set_head = [&](const thorin::Def* def) {
+        head = def;
+
+        if (type_params)
+            emitter.mono_decls.emplace(std::move(mono_fn), def);
+    };
+
+    f(decl_type, set_head);
+    assert(head);
+
+    // Clear the thorin IR generated for this entire function
+    // if the function is polymorphic, so as to allow multiple
+    // instantiations with different types.
+    if (type_params) {
+        for (auto& def : emitter.poly_defs.back())
+            *def = nullptr;
+        emitter.poly_defs.pop_back();
+        decl->def = def = nullptr;
+    }
+
+    return head;
+}
+
+const thorin::Def* ImplicitDecl::emit(artic::Emitter& emitter) const {
+    return emit_maybe_poly_helper<artic::Type>(emitter, this, type, type_params, def, [&](const artic::Type* t, SetHeadFn& set_head) {
+        set_head(emitter.emit(*value));
+    });
 }
 
 const thorin::Def* StaticDecl::emit(Emitter& emitter) const {
@@ -1671,81 +1728,58 @@ const thorin::Def* StaticDecl::emit(Emitter& emitter) const {
 }
 
 const thorin::Def* FnDecl::emit(Emitter& emitter) const {
-    auto _ = emitter.save_state();
-    const artic::FnType* fn_type = nullptr;
-    Emitter::MonoFn mono_fn { this, {} };
-    if (type_params) {
-        for (auto& param : type_params->params)
-            mono_fn.type_args.push_back(param->type->replace(emitter.type_vars));
-        // Try to find an existing monomorphized version of this function with that type
-        if (auto it = emitter.mono_fns.find(mono_fn); it != emitter.mono_fns.end())
-            return it->second;
-        emitter.poly_defs.emplace_back();
-        fn_type = type->as<artic::ForallType>()->body->as<artic::FnType>();
-    } else {
-        fn_type = type->as<artic::FnType>();
-    }
+    return emit_maybe_poly_helper<artic::FnType>(emitter, this, type, type_params, fn->def, [&](const artic::FnType* fn_type, SetHeadFn& set_head) {
+        auto _ = emitter.save_state();
 
-    auto cont = emitter.world.continuation(fn_type->convert(emitter)->as<thorin::FnType>(), emitter.debug_info(*this));
-    if (type_params)
-        emitter.mono_fns.emplace(std::move(mono_fn), cont);
+        auto cont = emitter.world.continuation(fn_type->convert(emitter)->as<thorin::FnType>(), emitter.debug_info(*this));
+        set_head(cont);
 
-    cont->params().back()->set_name("ret");
+        cont->params().back()->set_name("ret");
 
-    // Set the calling convention and export the continuation if needed
-    if (attrs) {
-        if (auto export_attr = attrs->find("export")) {
-            if (auto name_attr = export_attr->find("name"))
-                cont->set_name(name_attr->as<LiteralAttr>()->lit.as_string());
-            emitter.world.make_external(cont);
-            cont->attributes().cc = thorin::CC::C;
-        } else if (auto import_attr = attrs->find("import")) {
-            if (auto name_attr = import_attr->find("name"))
-                cont->set_name(name_attr->as<LiteralAttr>()->lit.as_string());
-            if (auto cc_attr = import_attr->find("cc")) {
-                auto cc = cc_attr->as<LiteralAttr>()->lit.as_string();
-                if (cc == "device") {
-                    emitter.world.make_external(cont);
-                    cont->attributes().cc = thorin::CC::Device;
-                } else if (cc == "C") {
-                    emitter.world.make_external(cont);
-                    cont->attributes().cc = thorin::CC::C;
-                } else if (cc == "thorin")
-                    cont->set_intrinsic();
-                else if (cc == "builtin")
-                    emitter.builtin(*this, cont);
+        // Set the calling convention and export the continuation if needed
+        if (attrs) {
+            if (auto export_attr = attrs->find("export")) {
+                if (auto name_attr = export_attr->find("name"))
+                    cont->set_name(name_attr->as<LiteralAttr>()->lit.as_string());
+                emitter.world.make_external(cont);
+                cont->attributes().cc = thorin::CC::C;
+            } else if (auto import_attr = attrs->find("import")) {
+                if (auto name_attr = import_attr->find("name"))
+                    cont->set_name(name_attr->as<LiteralAttr>()->lit.as_string());
+                if (auto cc_attr = import_attr->find("cc")) {
+                    auto cc = cc_attr->as<LiteralAttr>()->lit.as_string();
+                    if (cc == "device") {
+                        emitter.world.make_external(cont);
+                        cont->attributes().cc = thorin::CC::Device;
+                    } else if (cc == "C") {
+                        emitter.world.make_external(cont);
+                        cont->attributes().cc = thorin::CC::C;
+                    } else if (cc == "thorin")
+                        cont->set_intrinsic();
+                    else if (cc == "builtin")
+                        emitter.builtin(*this, cont);
+                }
+            } else if (auto intern_attr = attrs->find("intern")) {
+                if (auto name_attr = intern_attr->find("name"))
+                    cont->set_name(name_attr->as<LiteralAttr>()->lit.as_string());
+                emitter.world.make_external(cont);
+                cont->attributes().cc = thorin::CC::Thorin;
             }
-        } else if (auto intern_attr = attrs->find("intern")) {
-            if (auto name_attr = intern_attr->find("name"))
-                cont->set_name(name_attr->as<LiteralAttr>()->lit.as_string());
-            emitter.world.make_external(cont);
-            cont->attributes().cc = thorin::CC::Thorin;
         }
-    }
 
-    if (fn->body) {
-        // Set the IR node before entering the body, in case
-        // we encounter `return` or a recursive call.
-        fn->def = def = cont;
+        if (fn->body) {
+            // Set the IR node before entering the body, in case
+            // we encounter `return` or a recursive call.
+            fn->def = def = cont;
 
-        emitter.enter(cont);
-        emitter.emit(*fn->param, emitter.tuple_from_params(cont, !fn_type->codom->isa<artic::NoRetType>()));
-        if (fn->filter)
-            cont->set_filter(emitter.world.filter(thorin::Array<const thorin::Def*>(cont->num_params(), emitter.emit(*fn->filter))));
-        auto value = emitter.emit(*fn->body);
-        emitter.jump(cont->params().back(), value, emitter.debug_info(*fn->body));
-    }
-
-    // Clear the thorin IR generated for this entire function
-    // if the function is polymorphic, so as to allow multiple
-    // instantiations with different types.
-    if (type_params) {
-        for (auto& def : emitter.poly_defs.back())
-            *def = nullptr;
-        emitter.poly_defs.pop_back();
-        fn->def = def = nullptr;
-    }
-    return cont;
+            emitter.enter(cont);
+            emitter.emit(*fn->param, emitter.tuple_from_params(cont, !fn_type->codom->isa<artic::NoRetType>()));
+            if (fn->filter)
+                cont->set_filter(emitter.world.filter(thorin::Array<const thorin::Def*>(cont->num_params(), emitter.emit(*fn->filter))));
+            auto value = emitter.emit(*fn->body);
+            emitter.jump(cont->params().back(), value, emitter.debug_info(*fn->body));
+        }
+    });
 }
 
 const thorin::Def* StructDecl::emit(Emitter&) const {

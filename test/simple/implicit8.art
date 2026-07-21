@@ -1,0 +1,17 @@
+#[import(cc = "builtin")] fn undef[T]() -> T;
+
+struct Zero[T] {
+    value: T
+}
+
+implicit[T] = Zero[T] { value = undef[T]() /* technically correct, the best kind of correct */ };
+
+#[export]
+fn f(x: i32) -> f32 {
+    summon[Zero[f32]].value
+}
+
+#[export]
+fn g() -> i32 {
+    summon[Zero[i32]].value
+}
