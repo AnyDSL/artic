@@ -68,13 +68,11 @@ Ptr<ast::Expr> TypeChecker::summon(const artic::Type* t, const artic::Loc& at) {
         if (valid_options.size() == 1)
             return valid_options[0].duplicate();
         if (!valid_options.empty()) {
-            //error = true;
-            log::error("More than one available implicit value of type {} at {}", *t, at);
+            error("More than one available implicit value of type {} at {}", *t, at);
             return nullptr;
         }
     }
-    //error = true;
-    log::error("Could not summon an implicit value of type {} at {}", *t, at);
+    error("Could not summon an implicit value of type {} at {}", *t, at);
     return nullptr;
 }
 
