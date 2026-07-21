@@ -1,0 +1,5 @@
+#[import(cc = "builtin")] fn undef[T]() -> T;
+
+fn hi() -> i32 {
+    undef()
+}

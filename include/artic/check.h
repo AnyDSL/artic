@@ -77,7 +77,7 @@ public:
     template <typename CheckElems>
     const Type* check_array(const Loc&, const std::string_view&, const Type*, size_t, bool, const CheckElems&);
 
-    bool infer_type_args(const Loc&, const ForallType*, const Type*, std::vector<const Type*>&);
+    bool infer_type_args(const Loc&, const ForallType*, const Type*, const Type*, std::vector<const Type*>&);
     const Type* infer_record_type(const TypeApp*, const StructType*, size_t&);
 
     size_t path_to_size(ast::Path& path, const std::string_view&);

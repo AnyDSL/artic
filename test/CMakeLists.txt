@@ -71,6 +71,7 @@ add_test(NAME simple_use5        COMMAND artic --print-ast ${CMAKE_CURRENT_SOURC
 add_test(NAME simple_use6        COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/use6.art)
 add_test(NAME simple_poly_fn1    COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/poly_fn1.art)
 add_test(NAME simple_poly_fn2    COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/poly_fn2.art)
+add_test(NAME simple_poly_fn3    COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/poly_fn3.art)
 add_test(NAME simple_nested_fns  COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/nested_fns.art)
 add_test(NAME simple_address     COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/address.art)
 add_test(NAME simple_church      COMMAND artic --print-ast ${CMAKE_CURRENT_SOURCE_DIR}/simple/church.art)

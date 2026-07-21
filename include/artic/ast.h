@@ -205,10 +205,10 @@ struct Path : public Node {
         : Node(loc), is_use_path_(is_use_path), elems(std::move(elems))
     {}
 
-    const artic::Type* infer(TypeChecker&, Ptr<Expr>*);
-    const artic::Type* infer(TypeChecker&, bool, Ptr<Expr>* = nullptr);
+    const artic::Type* infer(TypeChecker&, Ptr<Expr>*, const artic::Type*);
+    const artic::Type* infer(TypeChecker&, bool, Ptr<Expr>* = nullptr, const artic::Type* = nullptr);
     const artic::Type* infer(TypeChecker& checker) override {
-        return infer(checker, nullptr);
+        return infer(checker, nullptr, nullptr);
     }
 
     const thorin::Def* emit(Emitter&) const override;
@@ -754,6 +754,7 @@ struct CallExpr : public Expr {
 
     const thorin::Def* emit(Emitter&) const override;
     const artic::Type* infer(TypeChecker&) override;
+    const artic::Type* check(TypeChecker&, const artic::Type*) override;
     void bind(NameBinder&) override;
     void print(Printer&) const override;
 };

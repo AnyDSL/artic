@@ -577,10 +577,13 @@ bool TypeChecker::infer_type_args(
     const Loc& loc,
     const ForallType* forall_type,
     const Type* arg_type,
+    const Type* ret_type,
     std::vector<const Type*>& type_args)
 {
     auto bounds = forall_type->body->as<FnType>()->dom->bounds(arg_type);
-    auto variance = forall_type->body->as<FnType>()->codom->variance(true);
+    if (ret_type)
+        forall_type->body->as<FnType>()->codom->bounds(bounds, ret_type, false);
+    auto variance = forall_type->body->as<FnType>()->Type::variance(false);
     for (auto& bound : bounds) {
         size_t index = std::find_if(
             forall_type->decl.type_params->params.begin(),
@@ -750,7 +753,7 @@ const artic::Type* Path::Elem::infer(TypeChecker& checker, const artic::Type* pr
         return checker.type_expected(loc, type, "module or enum");
 }
 
-const artic::Type* Path::infer(TypeChecker& checker, Ptr<Expr>* arg) {
+const artic::Type* Path::infer(TypeChecker& checker, Ptr<Expr>* arg, const artic::Type* ret_type) {
     if (elems.back().is_wildcard())
         return nullptr;
     if (!decl)
@@ -777,7 +780,7 @@ const artic::Type* Path::infer(TypeChecker& checker, Ptr<Expr>* arg) {
                 // Infer type arguments when not all type arguments are given
                 if (type_param_count != elem.args.size() && i == n - 1) {
                     auto arg_type = checker.try_coerce(*arg, forall_type->body->as<artic::FnType>()->dom);
-                    if (!checker.infer_type_args(loc, forall_type, arg_type, type_args))
+                    if (!checker.infer_type_args(loc, forall_type, arg_type, ret_type, type_args))
                         return checker.type_table.type_error();
                 }
                 elem.inferred_args = type_args;
@@ -797,8 +800,8 @@ const artic::Type* Path::infer(TypeChecker& checker, Ptr<Expr>* arg) {
     return type = elems.back().type;
 }
 
-const artic::Type* Path::infer(artic::TypeChecker& checker, bool value_expected, Ptr<artic::ast::Expr>* arg) {
-    type = infer(checker, arg);
+const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, Ptr<ast::Expr>* arg, const artic::Type* ret_type) {
+    type = infer(checker, arg, ret_type);
 
     auto last_decl = resolve_use_decl(decl);
 
@@ -1185,10 +1188,10 @@ static inline PathExpr* callee_path(Expr* expr) {
     return expr->isa<PathExpr>();
 }
 
-const artic::Type* CallExpr::infer(TypeChecker& checker) {
+const artic::Type* CallExpr::check(TypeChecker& checker, const artic::Type* expected) {
     // Perform type argument inference when possible
     if (auto path_expr = callee_path(callee.get()))
-        path_expr->type = path_expr->path.infer(checker, true, &arg);
+        path_expr->type = path_expr->path.infer(checker, true, &arg, expected);
 
     auto [ref_type, callee_type] = remove_ref(checker.infer(*callee));
     if (auto fn_type = callee_type->isa<artic::FnType>()) {
@@ -1219,6 +1222,10 @@ const artic::Type* CallExpr::infer(TypeChecker& checker) {
             return checker.type_expected(callee->loc, callee_type, "function, array or constructor");
         }
     }
+}
+
+const artic::Type* CallExpr::infer(TypeChecker& checker) {
+    return check(checker, nullptr);
 }
 
 const artic::Type* ProjExpr::infer(TypeChecker& checker) {
