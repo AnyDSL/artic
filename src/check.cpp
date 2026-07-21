@@ -586,11 +586,11 @@ bool TypeChecker::infer_type_args(
     auto variance = forall_type->body->as<FnType>()->Type::variance(false);
     for (auto& bound : bounds) {
         size_t index = std::find_if(
-            forall_type->decl.type_params->params.begin(),
-            forall_type->decl.type_params->params.end(),
+            forall_type->type_params()->params.begin(),
+            forall_type->type_params()->params.end(),
             [&] (auto& param) { return param->type == bound.first; }) -
-            forall_type->decl.type_params->params.begin();
-        assert(index < forall_type->decl.type_params->params.size());
+            forall_type->type_params()->params.begin();
+        assert(index < forall_type->type_params()->params.size());
 
         // Check that the provided arguments are compatible with the computed bounds
         if (type_args[index]) {
@@ -635,7 +635,7 @@ bool TypeChecker::infer_type_args(
         if (!type_args[i]) {
             error(
                 loc, "cannot infer type argument for type variable '{}'",
-                *forall_type->decl.type_params->params[i]->type);
+                *forall_type->type_params()->params[i]->type);
             return false;
         }
     }
@@ -771,7 +771,7 @@ const artic::Type* Path::infer(TypeChecker& checker, Ptr<Expr>* arg, const artic
         if ((user_type && user_type->type_params()) || forall_type) {
             const size_t type_param_count = user_type
                 ? user_type->type_params()->params.size()
-                : forall_type->decl.type_params->params.size();
+                : forall_type->type_params()->params.size();
             if (type_param_count == elem.args.size() ||
                 (forall_type && arg && type_param_count > elem.args.size())) {
                 std::vector<const artic::Type*> type_args(type_param_count);

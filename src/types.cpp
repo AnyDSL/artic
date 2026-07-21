@@ -552,10 +552,10 @@ bool AddrType::is_compatible_with(const AddrType* other) const {
 
 const Type* ForallType::instantiate(const ArrayRef<const Type*>& args) const {
     std::unordered_map<const TypeVar*, const Type*> map;
-    assert(decl.type_params && decl.type_params->params.size() == args.size());
+    assert(type_params() && type_params()->params.size() == args.size());
     for (size_t i = 0, n = args.size(); i < n; ++i) {
-        assert(decl.type_params->params[i]->type);
-        map.emplace(decl.type_params->params[i]->type->as<TypeVar>(), args[i]); 
+        assert(type_params()->params[i]->type);
+        map.emplace(type_params()->params[i]->type->as<TypeVar>(), args[i]);
     }
     return body->replace(map);
 }
@@ -707,7 +707,7 @@ const TypeVar* TypeTable::type_var(const ast::TypeParam& param) {
 }
 
 const ForallType* TypeTable::forall_type(const ast::FnDecl& decl) {
-    return insert<ForallType>(decl);
+    return insert<ForallType>(decl, *decl.type_params);
 }
 
 const StructType* TypeTable::struct_type(const ast::RecordDecl& decl) {

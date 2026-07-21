@@ -802,9 +802,9 @@ void TypeVar::print(Printer& p) const {
 }
 
 void ForallType::print(Printer& p) const {
-    assert(decl.type_params);
+    assert(type_params());
     p << log::keyword_style("forall");
-    decl.type_params->print(p);
+    type_params()->print(p);
     p << ' ';
     body->print(p);
 }

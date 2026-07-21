@@ -438,16 +438,19 @@ struct PolyType : public Type {
 /// Helper mixin to extract the type parameter list from a particular `Decl`.
 template <typename Super, typename Decl>
 struct PolyTypeFromDecl : public TypeFromDecl<Super, Decl> {
-    const ast::TypeParamList* type_params() const override { return this->decl.type_params.get(); }
+    const ast::TypeParamList* type_params() const override { return &type_params_; }
 
 protected:
-    PolyTypeFromDecl(TypeTable& type_table, const Decl& decl)
-        : TypeFromDecl<Super, Decl>(type_table, decl)
+    PolyTypeFromDecl(TypeTable& type_table, const Decl& decl, const ast::TypeParamList& type_params)
+        : TypeFromDecl<Super, Decl>(type_table, decl), type_params_(type_params)
     {}
+
+private:
+    const ast::TypeParamList& type_params_;
 };
 
-/// Type of a polymorphic function.
-struct ForallType : public PolyTypeFromDecl<PolyType, ast::FnDecl> {
+/// Type of a polymorphic function or value.
+struct ForallType : public PolyTypeFromDecl<PolyType, ast::Decl> {
     mutable const Type* body = nullptr;
 
     /// Returns the type of the body with type variables
@@ -457,8 +460,8 @@ struct ForallType : public PolyTypeFromDecl<PolyType, ast::FnDecl> {
     void print(Printer&) const override;
 
 private:
-    ForallType(TypeTable& type_table, const ast::FnDecl& decl)
-        : PolyTypeFromDecl(type_table, decl)
+    ForallType(TypeTable& type_table, const ast::Decl& decl, const ast::TypeParamList& type_params)
+        : PolyTypeFromDecl(type_table, decl, type_params)
     {}
 
     friend class TypeTable;
@@ -534,7 +537,7 @@ struct EnumType : public PolyTypeFromDecl<ComplexType, ast::EnumDecl> {
 
 private:
     EnumType(TypeTable& type_table, const ast::EnumDecl& decl)
-        : PolyTypeFromDecl(type_table, decl)
+        : PolyTypeFromDecl(type_table, decl, *decl.type_params)
     {}
 
     friend class TypeTable;
@@ -576,7 +579,7 @@ struct TypeAlias : public PolyTypeFromDecl<UserType, ast::TypeDecl> {
 
 private:
     TypeAlias(TypeTable& type_table, const ast::TypeDecl& decl)
-        : PolyTypeFromDecl(type_table, decl)
+        : PolyTypeFromDecl(type_table, decl, *decl.type_params)
     {}
 
     friend class TypeTable;
