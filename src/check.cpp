@@ -1030,17 +1030,6 @@ const artic::Type* SummonExpr::infer(artic::TypeChecker& checker) {
     return checker.type_table.type_error();
 }
 
-const artic::Type* SummonExpr::check(artic::TypeChecker& checker, const artic::Type* expected) {
-    if (type_expr) {
-        auto got = checker.infer(*this);
-        if (!expected->subtype(got))
-            return checker.incompatible_types(loc, got, expected);
-        return got;
-    }
-    resolved = &*checker.summon(expected, loc);
-    return expected;
-}
-
 const artic::Type* FieldExpr::check(TypeChecker& checker, const artic::Type* expected) {
     return checker.coerce(expr, expected);
 }
