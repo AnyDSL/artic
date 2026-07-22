@@ -12,9 +12,11 @@
 #include "artic/array.h"
 #include "artic/hash.h"
 
+#include "artic/tir/tir.h"
+
 namespace thorin {
 
-class TypeTable;
+class Arena;
 class Type;
 
 } // namespace thorin
@@ -22,8 +24,10 @@ class Type;
 namespace artic {
 
 struct Printer;
-class TypeTable;
-class Emitter;
+
+namespace tir {
+
+// class Emitter;
 struct TypeVar;
 
 template <typename T> using TypeMap = std::unordered_map<const Type*, T>;
@@ -48,22 +52,15 @@ struct TypeBounds {
     TypeBounds& meet(const TypeBounds&);
 };
 
-/// Base class for all types. Types should be created by a `TypeTable`,
+/// Base class for all types. Types should be created by a `Arena`,
 /// which will hash them and place them into a set. This makes types
 /// comparable via pointer equality, as long as they were created with
-/// the same `TypeTable` object.
-struct Type : public Cast<Type> {
-    TypeTable& type_table;
-
-    Type(TypeTable& type_table)
-        : type_table(type_table)
+/// the same `Arena` object.
+struct Type : public Node {
+    Type(Arena& arena)
+        : Node(arena)
     {}
 
-    virtual ~Type() {}
-
-    virtual void print(Printer&) const = 0;
-    virtual bool equals(const Type*) const = 0;
-    virtual size_t hash() const = 0;
     virtual bool contains(const Type* type) const { return this == type; }
     virtual const Type* replace(const ReplaceMap&) const { return this; }
 
@@ -109,9 +106,6 @@ struct Type : public Cast<Type> {
 
     /// Returns the least upper bound between this type and another.
     const Type* join(const Type*) const;
-
-    /// Prints the type on the console, for debugging.
-    void dump() const;
 };
 
 /// The type of an attribute.
@@ -127,27 +121,29 @@ struct PrimType : public Type {
     ast::PrimType::Tag tag;
 
     void print(Printer&) const override;
-    bool equals(const Type*) const override;
+    bool equals(const Node*) const override;
     size_t hash() const override;
+    PrimType* rewrite(Rewriter&) const override;
 
     const thorin::Type* convert(Emitter&) const override;
     std::string stringify(Emitter&) const override;
 
 private:
-    PrimType(TypeTable& type_table, ast::PrimType::Tag tag)
-        : Type(type_table), tag(tag)
+    PrimType(Arena& arena, ast::PrimType::Tag tag)
+        : Type(arena), tag(tag)
     {}
 
-    friend class TypeTable;
+    friend class Arena;
 };
 
 struct TupleType : public Type {
     Array<const Type*> args;
 
     void print(Printer&) const override;
-    bool equals(const Type*) const override;
+    bool equals(const Node*) const override;
     size_t hash() const override;
     bool contains(const Type*) const override;
+    TupleType* rewrite(Rewriter&) const override;
     const Type* replace(const ReplaceMap&) const override;
 
     const thorin::Type* convert(Emitter&) const override;
@@ -159,22 +155,23 @@ struct TupleType : public Type {
     bool is_sized(std::unordered_set<const Type*>&) const override;
 
 private:
-    TupleType(TypeTable& type_table, const ArrayRef<const Type*>& args)
-        : Type(type_table), args(args)
+    TupleType(Arena& arena, const ArrayRef<const Type*>& args)
+        : Type(arena), args(args)
     {}
 
-    friend class TypeTable;
+    friend class Arena;
 };
 
 /// Base class for array types.
 struct ArrayType : public Type {
     const Type* elem;
 
-    ArrayType(TypeTable& type_table, const Type* elem)
-        : Type(type_table), elem(elem)
+    ArrayType(Arena& arena, const Type* elem)
+        : Type(arena), elem(elem)
     {}
 
     bool contains(const Type*) const override;
+    ArrayType* rewrite(Rewriter&) const override;
 
     size_t order(std::unordered_set<const Type*>&) const override;
     void variance(TypeVarMap<TypeVariance>&, bool) const override;
@@ -188,8 +185,9 @@ struct SizedArrayType : public ArrayType {
     bool is_simd;
 
     void print(Printer&) const override;
-    bool equals(const Type*) const override;
+    bool equals(const Node*) const override;
     size_t hash() const override;
+    SizedArrayType* rewrite(Rewriter&) const override;
 
     const Type* replace(const ReplaceMap&) const override;
 
@@ -197,18 +195,19 @@ struct SizedArrayType : public ArrayType {
     std::string stringify(Emitter&) const override;
 
 private:
-    SizedArrayType(TypeTable& type_table, const Type* elem, size_t size, bool is_simd)
-        : ArrayType(type_table, elem), size(size), is_simd(is_simd)
+    SizedArrayType(Arena& arena, const Type* elem, size_t size, bool is_simd)
+        : ArrayType(arena, elem), size(size), is_simd(is_simd)
     {}
 
-    friend class TypeTable;
+    friend class Arena;
 };
 
 /// An array whose size is not known at compile-time.
 struct UnsizedArrayType : public ArrayType {
     void print(Printer&) const override;
-    bool equals(const Type*) const override;
+    bool equals(const Node*) const override;
     size_t hash() const override;
+    UnsizedArrayType* rewrite(Rewriter&) const override;
 
     const Type* replace(const ReplaceMap&) const override;
 
@@ -216,11 +215,11 @@ struct UnsizedArrayType : public ArrayType {
     std::string stringify(Emitter&) const override;
 
 private:
-    UnsizedArrayType(TypeTable& type_table, const Type* elem)
-        : ArrayType(type_table, elem)
+    UnsizedArrayType(Arena& arena, const Type* elem)
+        : ArrayType(arena, elem)
     {}
 
-    friend class TypeTable;
+    friend class Arena;
 };
 
 /// Base type for pointer types.
@@ -229,13 +228,14 @@ struct AddrType : public Type {
     bool is_mut;
     size_t addr_space;
 
-    AddrType(TypeTable& type_table, const Type* pointee, bool is_mut, size_t addr_space)
-        : Type(type_table), pointee(pointee), is_mut(is_mut), addr_space(addr_space)
+    AddrType(Arena& arena, const Type* pointee, bool is_mut, size_t addr_space)
+        : Type(arena), pointee(pointee), is_mut(is_mut), addr_space(addr_space)
     {}
 
-    bool equals(const Type*) const override;
+    bool equals(const Node*) const override;
     size_t hash() const override;
     bool contains(const Type*) const override;
+    AddrType* rewrite(Rewriter&) const override;
 
     bool is_compatible_with(const AddrType* other) const;
 
@@ -249,17 +249,18 @@ struct AddrType : public Type {
 struct PtrType : public AddrType {
     void print(Printer&) const override;
 
+    PtrType* rewrite(Rewriter&) const override;
     const Type* replace(const ReplaceMap&) const override;
 
     const thorin::Type* convert(Emitter&) const override;
     std::string stringify(Emitter&) const override;
 
 private:
-    PtrType(TypeTable& type_table, const Type* pointee, bool is_mut, size_t addr_space)
-        : AddrType(type_table, pointee, is_mut, addr_space)
+    PtrType(Arena& arena, const Type* pointee, bool is_mut, size_t addr_space)
+        : AddrType(arena, pointee, is_mut, addr_space)
     {}
 
-    friend class TypeTable;
+    friend class Arena;
 };
 
 /// The type of mutable identifiers or expressions.
@@ -268,20 +269,21 @@ struct RefType : public AddrType {
     const Type* replace(const ReplaceMap&) const override;
 
 private:
-    RefType(TypeTable& type_table, const Type* pointee, bool is_mut, size_t addr_space)
-        : AddrType(type_table, pointee, is_mut, addr_space)
+    RefType(Arena& arena, const Type* pointee, bool is_mut, size_t addr_space)
+        : AddrType(arena, pointee, is_mut, addr_space)
     {}
 
-    friend class TypeTable;
+    friend class Arena;
 };
 
 struct ImplicitParamType : public Type {
     const Type* underlying;
 
     void print(Printer&) const override;
-    bool equals(const Type*) const override;
+    bool equals(const Node*) const override;
     size_t hash() const override;
     bool contains(const Type*) const override;
+    ImplicitParamType* rewrite(Rewriter&) const override;
 
     const Type* replace(const ReplaceMap&) const override;
 
@@ -293,12 +295,12 @@ struct ImplicitParamType : public Type {
     void bounds(TypeVarMap<TypeBounds>&, const Type*, bool) const override;
     bool is_sized(std::unordered_set<const Type*>&) const override;
 private:
-    ImplicitParamType(TypeTable& type_table, const Type* underlying)
-        : Type(type_table)
+    ImplicitParamType(Arena& arena, const Type* underlying)
+        : Type(arena)
         , underlying(underlying)
     {}
 
-    friend class TypeTable;
+    friend class Arena;
 };
 
 /// Function type (can represent continuations when the codomain is a `NoRetType`).
@@ -307,9 +309,10 @@ struct FnType : public Type {
     const Type* codom;
 
     void print(Printer&) const override;
-    bool equals(const Type*) const override;
+    bool equals(const Node*) const override;
     size_t hash() const override;
     bool contains(const Type*) const override;
+    FnType* rewrite(Rewriter&) const override;
 
     const Type* replace(const ReplaceMap&) const override;
 
@@ -322,39 +325,41 @@ struct FnType : public Type {
     bool is_sized(std::unordered_set<const Type*>&) const override;
 
 private:
-    FnType(TypeTable& type_table, const Type* dom, const Type* codom)
-        : Type(type_table), dom(dom), codom(codom)
+    FnType(Arena& arena, const Type* dom, const Type* codom)
+        : Type(arena), dom(dom), codom(codom)
     {}
 
-    friend class TypeTable;
+    friend class Arena;
 };
 
 /// Bottom type: Subtype of any other type
 struct BottomType : public Type {
     void print(Printer&) const override;
-    bool equals(const Type*) const override;
+    bool equals(const Node*) const override;
     size_t hash() const override;
+    BottomType* rewrite(Rewriter&) const override;
 
 protected:
-    BottomType(TypeTable& type_table)
-        : Type(type_table)
+    BottomType(Arena& arena)
+        : Type(arena)
     {}
 
-    friend class TypeTable;
+    friend class Arena;
 };
 
 /// Top type: Supertype of any other type
 struct TopType : public Type {
     void print(Printer&) const override;
-    bool equals(const Type*) const override;
+    bool equals(const Node*) const override;
     size_t hash() const override;
+    TopType* rewrite(Rewriter&) const override;
 
 protected:
-    TopType(TypeTable& type_table)
-        : Type(type_table)
+    TopType(Arena& arena)
+        : Type(arena)
     {}
 
-    friend class TypeTable;
+    friend class Arena;
 };
 
 /// Return type of continuations.
@@ -363,25 +368,27 @@ struct NoRetType : public BottomType {
 
     const thorin::Type* convert(Emitter&) const override;
     std::string stringify(Emitter&) const override;
+    NoRetType* rewrite(Rewriter&) const override;
 
 private:
-    NoRetType(TypeTable& type_table)
-        : BottomType(type_table)
+    NoRetType(Arena& arena)
+        : BottomType(arena)
     {}
 
-    friend class TypeTable;
+    friend class Arena;
 };
 
 /// The type of an error (syntax or type errors will produce that type).
 struct TypeError : public TopType {
     void print(Printer&) const override;
+    TypeError* rewrite(Rewriter&) const override;
 
 private:
-    TypeError(TypeTable& type_table)
-        : TopType(type_table)
+    TypeError(Arena& arena)
+        : TopType(arena)
     {}
 
-    friend class TypeTable;
+    friend class Arena;
 };
 
 /// Helper mixin to build hash and equality functions for a type that has a `Decl`.
@@ -393,13 +400,13 @@ struct TypeFromDecl : public Super {
         return fnv::Hash().combine(&decl);
     }
 
-    bool equals(const Type* other) const override {
+    bool equals(const Node* other) const override {
         return other->isa<TypeFromDecl>() && &other->as<TypeFromDecl>()->decl == &decl;
     }
 
 protected:
-    TypeFromDecl(TypeTable& type_table, const Decl& decl)
-        : Super(type_table), decl(decl)
+    TypeFromDecl(Arena& arena, const Decl& decl)
+        : Super(arena), decl(decl)
     {}
 };
 
@@ -407,6 +414,7 @@ protected:
 struct TypeVar : public TypeFromDecl<Type, ast::TypeParam> {
     void print(Printer&) const override;
 
+    TypeVar* rewrite(Rewriter&) const override;
     const Type* replace(const ReplaceMap&) const override;
 
     const thorin::Type* convert(Emitter&) const override;
@@ -416,17 +424,17 @@ struct TypeVar : public TypeFromDecl<Type, ast::TypeParam> {
     void bounds(TypeVarMap<TypeBounds>&, const Type*, bool) const override;
 
 private:
-    TypeVar(TypeTable& type_table, const ast::TypeParam& param)
-        : TypeFromDecl(type_table, param)
+    TypeVar(Arena& arena, const ast::TypeParam& param)
+        : TypeFromDecl(arena, param)
     {}
 
-    friend class TypeTable;
+    friend class Arena;
 };
 
 /// Base class for types that _may_ be polymorphic.
 struct PolyType : public Type {
-    PolyType(TypeTable& type_table)
-        : Type(type_table)
+    PolyType(Arena& arena)
+        : Type(arena)
     {}
 
     virtual const ast::TypeParamList* type_params() const { return nullptr; }
@@ -441,8 +449,8 @@ struct PolyTypeFromDecl : public TypeFromDecl<Super, Decl> {
     const ast::TypeParamList* type_params() const override { return &type_params_; }
 
 protected:
-    PolyTypeFromDecl(TypeTable& type_table, const Decl& decl, const ast::TypeParamList& type_params)
-        : TypeFromDecl<Super, Decl>(type_table, decl), type_params_(type_params)
+    PolyTypeFromDecl(Arena& arena, const Decl& decl, const ast::TypeParamList& type_params)
+        : TypeFromDecl<Super, Decl>(arena, decl), type_params_(type_params)
     {}
 
 private:
@@ -456,21 +464,22 @@ struct ForallType : public PolyTypeFromDecl<PolyType, ast::Decl> {
     /// Returns the type of the body with type variables
     /// substituted with the given arguments.
     const Type* instantiate(const ArrayRef<const Type*>&) const;
+    ForallType* rewrite(Rewriter&) const override;
 
     void print(Printer&) const override;
 
 private:
-    ForallType(TypeTable& type_table, const ast::Decl& decl, const ast::TypeParamList& type_params)
-        : PolyTypeFromDecl(type_table, decl, type_params)
+    ForallType(Arena& arena, const ast::Decl& decl, const ast::TypeParamList& type_params)
+        : PolyTypeFromDecl(arena, decl, type_params)
     {}
 
-    friend class TypeTable;
+    friend class Arena;
 };
 
 /// Base class for user-declared types.
 struct UserType : public PolyType {
-    UserType(TypeTable& type_table)
-        : PolyType(type_table)
+    UserType(Arena& arena)
+        : PolyType(arena)
     {}
 
     virtual const thorin::Type* convert(Emitter&, const Type*) const;
@@ -482,8 +491,8 @@ struct UserType : public PolyType {
 
 /// Base class for complex, user-declared types.
 struct ComplexType : public UserType {
-    ComplexType(TypeTable& type_table)
-        : UserType(type_table)
+    ComplexType(Arena& arena)
+        : UserType(arena)
     {}
 
     std::optional<size_t> find_member(const std::string_view&) const;
@@ -505,6 +514,7 @@ struct StructType : public TypeFromDecl<ComplexType, ast::RecordDecl> {
     using UserType::convert;
     const thorin::Type* convert(Emitter&, const Type*) const override;
     std::string stringify(Emitter&) const override;
+    StructType* rewrite(Rewriter&) const override;
 
     std::string_view member_name(size_t) const override;
     const Type* member_type(size_t) const override;
@@ -513,11 +523,11 @@ struct StructType : public TypeFromDecl<ComplexType, ast::RecordDecl> {
     bool is_tuple_like() const;
 
 private:
-    StructType(TypeTable& type_table, const ast::RecordDecl& decl)
-        : TypeFromDecl(type_table, decl)
+    StructType(Arena& arena, const ast::RecordDecl& decl)
+        : TypeFromDecl(arena, decl)
     {}
 
-    friend class TypeTable;
+    friend class Arena;
 };
 
 struct EnumType : public PolyTypeFromDecl<ComplexType, ast::EnumDecl> {
@@ -526,6 +536,7 @@ struct EnumType : public PolyTypeFromDecl<ComplexType, ast::EnumDecl> {
     using UserType::convert;
     const thorin::Type* convert(Emitter&, const Type*) const override;
     std::string stringify(Emitter&) const override;
+    EnumType* rewrite(Rewriter&) const override;
 
     std::string_view member_name(size_t) const override;
     const Type* member_type(size_t) const override;
@@ -536,15 +547,16 @@ struct EnumType : public PolyTypeFromDecl<ComplexType, ast::EnumDecl> {
     bool is_trivial() const;
 
 private:
-    EnumType(TypeTable& type_table, const ast::EnumDecl& decl)
-        : PolyTypeFromDecl(type_table, decl, *decl.type_params)
+    EnumType(Arena& arena, const ast::EnumDecl& decl)
+        : PolyTypeFromDecl(arena, decl, *decl.type_params)
     {}
 
-    friend class TypeTable;
+    friend class Arena;
 };
 
 struct ModType : public TypeFromDecl<ComplexType, ast::ModDecl> {
     void print(Printer&) const override;
+    ModType* rewrite(Rewriter&) const override;
 
     std::string_view member_name(size_t) const override;
     const Type* member_type(size_t) const override;
@@ -564,25 +576,26 @@ private:
     using Members = std::vector<Member>;
     mutable std::unique_ptr<Members> members_;
 
-    ModType(TypeTable& type_table, const ast::ModDecl& decl)
-        : TypeFromDecl(type_table, decl)
+    ModType(Arena& arena, const ast::ModDecl& decl)
+        : TypeFromDecl(arena, decl)
     {}
 
     const Members& members() const;
 
-    friend class TypeTable;
+    friend class Arena;
 };
 
 /// A type alias, introduced by the keyword `type`.
 struct TypeAlias : public PolyTypeFromDecl<UserType, ast::TypeDecl> {
     void print(Printer&) const override;
+    TypeAlias* rewrite(Rewriter&) const override;
 
 private:
-    TypeAlias(TypeTable& type_table, const ast::TypeDecl& decl)
-        : PolyTypeFromDecl(type_table, decl, *decl.type_params)
+    TypeAlias(Arena& arena, const ast::TypeDecl& decl)
+        : PolyTypeFromDecl(arena, decl, *decl.type_params)
     {}
 
-    friend class TypeTable;
+    friend class Arena;
 };
 
 /// An application of a complex type with polymorphic parameters.
@@ -600,9 +613,10 @@ struct TypeApp : public Type {
     const Type* member_type(size_t i) const;
 
     void print(Printer&) const override;
-    bool equals(const Type*) const override;
+    bool equals(const Node*) const override;
     size_t hash() const override;
     bool contains(const Type*) const override;
+    TypeApp* rewrite(Rewriter&) const override;
 
     const Type* replace(const ReplaceMap&) const override;
 
@@ -620,15 +634,15 @@ struct TypeApp : public Type {
 
 private:
     TypeApp(
-        TypeTable& type_table,
+        Arena& arena,
         const UserType* applied,
         const ArrayRef<const Type*>& type_args)
-        : Type(type_table)
+        : Type(arena)
         , applied(applied)
         , type_args(std::move(type_args))
     {}
 
-    friend class TypeTable;
+    friend class Arena;
 };
 
 bool is_int_type(const Type*);
@@ -661,61 +675,7 @@ std::pair<const TypeApp*, const T*> match_app(const Type* type) {
     return std::make_pair(nullptr, type->isa<T>());
 }
 
-/// Hash table containing all types.
-class TypeTable {
-public:
-    ~TypeTable();
-
-    const PrimType*          prim_type(ast::PrimType::Tag);
-    const PrimType*          bool_type();
-    const TupleType*         unit_type();
-    const TupleType*         tuple_type(const ArrayRef<const Type*>&);
-    const SizedArrayType*    sized_array_type(const Type*, size_t, bool);
-    const UnsizedArrayType*  unsized_array_type(const Type*);
-    const PtrType*           ptr_type(const Type*, bool, size_t);
-    const RefType*           ref_type(const Type*, bool, size_t);
-    const ImplicitParamType* implicit_param_type(const Type*);
-    const FnType*            fn_type(const Type*, const Type*);
-    const FnType*            cn_type(const Type*);
-    const BottomType*        bottom_type();
-    const TopType*           top_type();
-    const NoRetType*         no_ret_type();
-    const TypeError*         type_error();
-    const TypeVar*           type_var(const ast::TypeParam&);
-    const ForallType*        forall_type(const ast::FnDecl&);
-    const ForallType*        forall_type(const ast::ImplicitDecl&);
-    const StructType*        struct_type(const ast::RecordDecl&);
-    const EnumType*          enum_type(const ast::EnumDecl&);
-    const ModType*           mod_type(const ast::ModDecl&);
-    const TypeAlias*         type_alias(const ast::TypeDecl&);
-
-    /// Creates a type application for structures/enumeration types,
-    /// or returns the type alias expanded with the given type arguments.
-    const Type* type_app(const UserType*, const ArrayRef<const Type*>&);
-
-private:
-    template <typename T, typename... Args>
-    const T* insert(Args&&...);
-
-    struct HashType {
-        size_t operator () (const Type* type) const {
-            return type->hash();
-        }
-    };
-    struct CompareTypes {
-        bool operator () (const Type* left, const Type* right) const {
-            return left->equals(right);
-        }
-    };
-    std::unordered_set<const Type*, HashType, CompareTypes> types_;
-
-    const PrimType*   bool_type_   = nullptr;
-    const TupleType*  unit_type_   = nullptr;
-    const BottomType* bottom_type_ = nullptr;
-    const TopType*    top_type_    = nullptr;
-    const NoRetType*  no_ret_type_ = nullptr;
-    const TypeError*  type_error_  = nullptr;
-};
+} // namespace tir
 
 } // namespace artic
 

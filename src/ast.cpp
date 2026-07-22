@@ -2,7 +2,7 @@
 #include <algorithm>
 
 #include "artic/ast.h"
-#include "artic/types.h"
+#include "artic/tir/types.h"
 
 namespace artic::ast {
 
@@ -339,7 +339,7 @@ bool TypedExpr::is_constant() const {
 
 bool PathExpr::is_constant() const {
     assert(type);
-    return !type->isa<artic::RefType>();
+    return !type->isa<tir::RefType>();
 }
 
 void PathExpr::write_to() const {
@@ -449,7 +449,7 @@ bool BlockExpr::has_side_effect() const {
 
 bool CallExpr::is_jumping() const {
     assert(type);
-    return type->isa<artic::NoRetType>();
+    return type->isa<tir::NoRetType>();
 }
 
 bool CallExpr::has_side_effect() const {
@@ -682,7 +682,7 @@ void RecordPtrn::collect_bound_ptrns(std::vector<const IdPtrn*>& bound_ptrns) co
 bool RecordPtrn::is_trivial() const {
     assert(type);
     return
-        match_app<StructType>(type).second &&
+        match_app<tir::StructType>(type).second &&
         std::all_of(fields.begin(), fields.end(), [] (auto& field) {
             return field->is_trivial();
         });
@@ -694,7 +694,7 @@ void CtorPtrn::collect_bound_ptrns(std::vector<const IdPtrn*>& bound_ptrns) cons
 
 bool CtorPtrn::is_trivial() const {
     assert(type);
-    return match_app<StructType>(type).second && (!arg || arg->is_trivial());
+    return match_app<tir::StructType>(type).second && (!arg || arg->is_trivial());
 }
 
 void TuplePtrn::collect_bound_ptrns(std::vector<const IdPtrn*>& bound_ptrns) const {

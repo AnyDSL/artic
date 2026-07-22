@@ -8,7 +8,7 @@
 #include <thorin/world.h>
 
 #include "artic/ast.h"
-#include "artic/types.h"
+#include "tir/types.h"
 #include "artic/log.h"
 #include "artic/hash.h"
 

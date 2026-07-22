@@ -20,7 +20,12 @@ namespace thorin {
 
 namespace artic {
 
-struct Type;
+namespace tir {
+    struct Type;
+}
+
+using Type = tir::Type;
+//struct Type;
 struct Printer;
 class NameBinder;
 class TypeChecker;

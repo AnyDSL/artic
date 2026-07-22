@@ -12,7 +12,9 @@ add_library(libartic
     ../include/artic/print.h
     ../include/artic/symbol.h
     ../include/artic/token.h
-    ../include/artic/types.h
+    ../include/artic/tir/tir.h
+    ../include/artic/tir/arena.h
+    ../include/artic/tir/types.h
     arena.cpp
     ast.cpp
     bind.cpp
@@ -22,7 +24,10 @@ add_library(libartic
     log.cpp
     parser.cpp
     print.cpp
-    types.cpp)
+    tir/tir.cpp
+    tir/print.cpp
+    tir/rewrite.cpp
+    tir/types.cpp)
 
 set_target_properties(libartic PROPERTIES PREFIX "" CXX_STANDARD 20)
 

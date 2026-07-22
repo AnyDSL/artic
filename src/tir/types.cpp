@@ -1,9 +1,12 @@
 #include <typeinfo>
 #include <algorithm>
 
-#include "artic/types.h"
+#include "artic/tir/types.h"
+#include "artic/tir/arena.h"
 
 namespace artic {
+
+namespace tir {
 
 // Type Bounds ---------------------------------------------------------------------
 
@@ -11,25 +14,25 @@ TypeBounds& TypeBounds::meet(const TypeBounds& bounds) {
     if (lower->subtype(bounds.lower))
         lower = bounds.lower;
     else if (!bounds.lower->subtype(lower))
-        lower = lower->type_table.top_type();
+        lower = lower->arena.top_type();
     if (bounds.upper->subtype(upper))
         upper = bounds.upper;
     else if (!upper->subtype(bounds.upper))
-        upper = upper->type_table.bottom_type();
+        upper = upper->arena.bottom_type();
     return *this;
 }
 
 // Equals ---------------------------------------------------------------------------
 
-bool PrimType::equals(const Type* other) const {
+bool PrimType::equals(const Node* other) const {
     return other->isa<PrimType>() && other->as<PrimType>()->tag == tag;
 }
 
-bool TupleType::equals(const Type* other) const {
+bool TupleType::equals(const Node* other) const {
     return other->isa<TupleType>() && other->as<TupleType>()->args == args;
 }
 
-bool SizedArrayType::equals(const Type* other) const {
+bool SizedArrayType::equals(const Node* other) const {
     return
         other->isa<SizedArrayType>() &&
         other->as<SizedArrayType>()->elem == elem &&
@@ -37,13 +40,13 @@ bool SizedArrayType::equals(const Type* other) const {
         other->as<SizedArrayType>()->is_simd == is_simd;
 }
 
-bool UnsizedArrayType::equals(const Type* other) const {
+bool UnsizedArrayType::equals(const Node* other) const {
     return
         other->isa<UnsizedArrayType>() &&
         other->as<UnsizedArrayType>()->elem == elem;
 }
 
-bool AddrType::equals(const Type* other) const {
+bool AddrType::equals(const Node* other) const {
     return
         typeid(*other) == typeid(*this) &&
         other->isa<AddrType>() &&
@@ -52,28 +55,28 @@ bool AddrType::equals(const Type* other) const {
         other->as<AddrType>()->is_mut == is_mut;
 }
 
-bool ImplicitParamType::equals(const artic::Type* other) const {
+bool ImplicitParamType::equals(const Node* other) const {
     return
         other->isa<ImplicitParamType>() &&
         other->as<ImplicitParamType>()->underlying == underlying;
 }
 
-bool FnType::equals(const Type* other) const {
+bool FnType::equals(const Node* other) const {
     return
         other->isa<FnType>() &&
         other->as<FnType>()->dom == dom &&
         other->as<FnType>()->codom == codom;
 }
 
-bool BottomType::equals(const Type* other) const {
+bool BottomType::equals(const Node* other) const {
     return typeid(*other) == typeid(*this);
 }
 
-bool TopType::equals(const Type* other) const {
+bool TopType::equals(const Node* other) const {
     return typeid(*other) == typeid(*this);
 }
 
-bool TypeApp::equals(const Type* other) const {
+bool TypeApp::equals(const Node* other) const {
     return
         other->isa<TypeApp>() &&
         other->as<TypeApp>()->applied == applied &&
@@ -160,7 +163,7 @@ bool AddrType::contains(const Type* type) const {
     return type == this || pointee->contains(type);
 }
 
-bool ImplicitParamType::contains(const artic::Type* type) const {
+bool ImplicitParamType::contains(const Type* type) const {
     return type == this || underlying->contains(type);
 }
 
@@ -183,31 +186,31 @@ const Type* TupleType::replace(const std::unordered_map<const TypeVar*, const Ty
     SmallArray<const Type*> new_args(args.size());
     for (size_t i = 0, n = args.size(); i < n; ++i)
         new_args[i] = args[i]->replace(map);
-    return type_table.tuple_type(std::move(new_args));
+    return arena.tuple_type(std::move(new_args));
 }
 
 const Type* SizedArrayType::replace(const std::unordered_map<const TypeVar*, const Type*>& map) const {
-    return type_table.sized_array_type(elem->replace(map), size, is_simd);
+    return arena.sized_array_type(elem->replace(map), size, is_simd);
 }
 
 const Type* UnsizedArrayType::replace(const std::unordered_map<const TypeVar*, const Type*>& map) const {
-    return type_table.unsized_array_type(elem->replace(map));
+    return arena.unsized_array_type(elem->replace(map));
 }
 
 const Type* PtrType::replace(const std::unordered_map<const TypeVar*, const Type*>& map) const {
-    return type_table.ptr_type(pointee->replace(map), is_mut, addr_space);
+    return arena.ptr_type(pointee->replace(map), is_mut, addr_space);
 }
 
 const Type* RefType::replace(const std::unordered_map<const TypeVar*, const Type*>& map) const {
-    return type_table.ref_type(pointee->replace(map), is_mut, addr_space);
+    return arena.ref_type(pointee->replace(map), is_mut, addr_space);
 }
 
-const Type* ImplicitParamType::replace(const artic::ReplaceMap& map) const {
-    return type_table.implicit_param_type(underlying->replace(map));
+const Type* ImplicitParamType::replace(const ReplaceMap& map) const {
+    return arena.implicit_param_type(underlying->replace(map));
 }
 
 const Type* FnType::replace(const std::unordered_map<const TypeVar*, const Type*>& map) const {
-    return type_table.fn_type(dom->replace(map), codom->replace(map));
+    return arena.fn_type(dom->replace(map), codom->replace(map));
 }
 
 const Type* TypeVar::replace(const std::unordered_map<const TypeVar*, const Type*>& map) const {
@@ -220,7 +223,7 @@ const Type* TypeApp::replace(const std::unordered_map<const TypeVar*, const Type
     SmallArray<const Type*> new_type_args(type_args.size());
     for (size_t i = 0, n = type_args.size(); i < n; ++i)
         new_type_args[i] = type_args[i]->replace(map);
-    return type_table.type_app(applied, std::move(new_type_args));
+    return arena.type_app(applied, std::move(new_type_args));
 }
 
 // Order ---------------------------------------------------------------------------
@@ -290,7 +293,7 @@ void FnType::variance(std::unordered_map<const TypeVar*, TypeVariance>& vars, bo
     codom->variance(vars, dir);
 }
 
-void ImplicitParamType::variance(TypeVarMap<artic::TypeVariance>& vars, bool dir) const {
+void ImplicitParamType::variance(TypeVarMap<TypeVariance>& vars, bool dir) const {
     return underlying->variance(vars, dir);
 }
 
@@ -329,7 +332,7 @@ void AddrType::bounds(std::unordered_map<const TypeVar*, TypeBounds>& bounds, co
         pointee->bounds(bounds, addr_type->pointee, dir);
 }
 
-void ImplicitParamType::bounds(TypeVarMap<artic::TypeBounds>& bounds, const artic::Type* type, bool dir) const {
+void ImplicitParamType::bounds(TypeVarMap<TypeBounds>& bounds, const Type* type, bool dir) const {
     underlying->bounds(bounds, type, dir);
 }
 
@@ -343,9 +346,9 @@ void FnType::bounds(std::unordered_map<const TypeVar*, TypeBounds>& bounds, cons
 void TypeVar::bounds(std::unordered_map<const TypeVar*, TypeBounds>& bounds, const Type* type, bool dir) const {
     TypeBounds type_bounds;
     if (dir)
-        type_bounds = TypeBounds { type, type_table.top_type() };
+        type_bounds = TypeBounds { type, arena.top_type() };
     else
-        type_bounds = TypeBounds { type_table.bottom_type(), type };
+        type_bounds = TypeBounds { arena.bottom_type(), type };
 
     if (auto it = bounds.find(this); it != bounds.end())
         it->second.meet(type_bounds);
@@ -478,7 +481,7 @@ const ModType::Members& ModType::members() const {
 
 const Type* TypeApp::member_type(size_t i) const {
     if (auto enum_t = applied->isa<EnumType>(); enum_t && enum_t->decl.options[i]->struct_type)
-        return type_table.type_app(enum_t->decl.options[i]->struct_type->as<StructType>(), type_args);
+        return arena.type_app(enum_t->decl.options[i]->struct_type->as<StructType>(), type_args);
     return applied->as<ComplexType>()->member_type(i)->replace(replace_map());
 }
 
@@ -526,7 +529,7 @@ bool Type::subtype(const Type* other) const {
                     return false;
             }
             return true;
-        }
+            }
     } else if (auto fn_type = isa<FnType>()) {
         if (auto other_fn_type = other->isa<FnType>()) {
             // fn (V) -> W <: fn (T) -> U if T <: V and W <: U
@@ -543,7 +546,7 @@ const Type* Type::join(const Type* other) const {
         return other;
     if (other->subtype(this))
         return this;
-    return type_table.top_type();
+    return arena.top_type();
 }
 
 bool AddrType::is_compatible_with(const AddrType* other) const {
@@ -635,117 +638,6 @@ bool is_unit_type(const Type* type) {
     return type->isa<TupleType>() && type->as<TupleType>()->args.empty();
 }
 
-// Type table ----------------------------------------------------------------------
-
-TypeTable::~TypeTable() {
-    for (auto t : types_)
-        delete t;
-}
-
-const PrimType* TypeTable::prim_type(ast::PrimType::Tag tag) {
-    return insert<PrimType>(tag);
-}
-
-const PrimType* TypeTable::bool_type() {
-    return prim_type(ast::PrimType::Bool);
-}
-
-const TupleType* TypeTable::unit_type() {
-    return unit_type_ ? unit_type_ : unit_type_ = tuple_type({});
-}
-
-const TupleType* TypeTable::tuple_type(const ArrayRef<const Type*>& elems) {
-    return insert<TupleType>(std::move(elems));
-}
-
-const SizedArrayType* TypeTable::sized_array_type(const Type* elem, size_t size, bool is_simd) {
-    return insert<SizedArrayType>(elem, size, is_simd);
-}
- 
-const UnsizedArrayType* TypeTable::unsized_array_type(const Type* elem) {
-    return insert<UnsizedArrayType>(elem);
-}
-
-const PtrType* TypeTable::ptr_type(const Type* pointee, bool is_mut, size_t addr_space) {
-    return insert<PtrType>(pointee, is_mut, addr_space);
-}
-
-const RefType* TypeTable::ref_type(const Type* pointee, bool is_mut, size_t addr_space) {
-    return insert<RefType>(pointee, is_mut, addr_space);
-}
-
-const ImplicitParamType* TypeTable::implicit_param_type(const Type* underlying) {
-    return insert<ImplicitParamType>(underlying);
-}
-
-const FnType* TypeTable::fn_type(const Type* dom, const Type* codom) {
-    return insert<FnType>(dom, codom);
-}
-
-const FnType* TypeTable::cn_type(const Type* dom) {
-    return fn_type(dom, no_ret_type());
-}
-
-const BottomType* TypeTable::bottom_type() {
-    return bottom_type_ ? bottom_type_ : bottom_type_ = insert<BottomType>();
-}
-
-const TopType* TypeTable::top_type() {
-    return top_type_ ? top_type_ : top_type_ = insert<TopType>();
-}
-
-const NoRetType* TypeTable::no_ret_type() {
-    return no_ret_type_ ? no_ret_type_ : no_ret_type_ = insert<NoRetType>();
-}
-
-const TypeError* TypeTable::type_error() {
-    return type_error_ ? type_error_ : type_error_ = insert<TypeError>();
-}
-
-const TypeVar* TypeTable::type_var(const ast::TypeParam& param) {
-    return insert<TypeVar>(param);
-}
-
-const ForallType* TypeTable::forall_type(const ast::FnDecl& decl) {
-    return insert<ForallType>(decl, *decl.type_params);
-}
-
-const ForallType* TypeTable::forall_type(const ast::ImplicitDecl& decl) {
-    return insert<ForallType>(decl, *decl.type_params);
-}
-
-const StructType* TypeTable::struct_type(const ast::RecordDecl& decl) {
-    return insert<StructType>(decl);
-}
-
-const EnumType* TypeTable::enum_type(const ast::EnumDecl& decl) {
-    return insert<EnumType>(decl);
-}
-
-const ModType* TypeTable::mod_type(const ast::ModDecl& decl) {
-    return insert<ModType>(decl);
-}
-
-const TypeAlias* TypeTable::type_alias(const ast::TypeDecl& decl) {
-    return insert<TypeAlias>(decl);
-}
-
-const Type* TypeTable::type_app(const UserType* applied, const ArrayRef<const Type*>& type_args) {
-    if (auto type_alias = applied->isa<TypeAlias>()) {
-        assert(type_alias->type_params() && type_alias->decl.aliased_type->type);
-        auto map = TypeApp::replace_map(*type_alias->type_params(), type_args);
-        return type_alias->decl.aliased_type->type->replace(map);
-    }
-    return insert<TypeApp>(applied, std::move(type_args));
-}
-
-template <typename T, typename... Args>
-const T* TypeTable::insert(Args&&... args) {
-    T t(*this, std::forward<Args>(args)...);
-    if (auto it = types_.find(&t); it != types_.end())
-        return (*it)->template as<T>();
-    auto [it, _] = types_.emplace(new T(std::move(t)));
-    return (*it)->template as<T>();
-}
+} // namespace tir
 
 } // namespace artic

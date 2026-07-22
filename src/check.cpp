@@ -1,10 +1,13 @@
 #include <algorithm>
 
 #include "artic/check.h"
+#include "artic/tir/arena.h"
 
 #include <thorin/util/utility.h>
 
 namespace artic {
+
+using namespace tir;
 
 bool TypeChecker::run(ast::ModDecl& module) {
     ScopeHelper sg(*this);

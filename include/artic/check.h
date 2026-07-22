@@ -5,20 +5,22 @@
 #include <optional>
 
 #include "artic/ast.h"
-#include "artic/types.h"
+#include "artic/tir/types.h"
 #include "artic/log.h"
 #include "artic/array.h"
 
 namespace artic {
 
+using namespace tir;
+
 /// Utility class to perform bidirectional type checking.
 class TypeChecker : public Logger {
 public:
-    TypeChecker(Log& log, TypeTable& type_table, Arena& arena)
+    TypeChecker(Log& log, Arena& type_table, Arena& arena)
         : Logger(log), type_table(type_table), _arena(arena)
     {}
 
-    TypeTable& type_table;
+    Arena& type_table;
 
     /// Performs type checking on a whole program.
     /// Returns true on success, otherwise false.
@@ -99,7 +101,7 @@ public:
 
 private:
     std::unordered_set<const ast::Decl*> decls_;
-    Arena& _arena;
+    ::Arena& _arena;
 
     void push_scope();
     void pop_scope();
