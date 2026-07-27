@@ -83,6 +83,8 @@ struct Module : public NominalNode<Node> {
     void print(Printer&) const override;
     Node* rewrite(Rewriter&) const override;
 
+    void emit(Emitter&) const;
+
     Module(Arena& arena, ast::Identifier id, std::vector<Decl>&& decls) : NominalNode(arena), id(id), decls(std::move(decls)) {}
 };
 
@@ -93,7 +95,7 @@ struct Value : public Node {
 
     NodeKind kind() const override { return NodeKind::Value; }
 
-    //virtual thorin::Def* emit() = 0;
+    virtual const thorin::Def* emit(Emitter&) const = 0;
 };
 
 struct Param : public NominalNode<Value> {
@@ -103,6 +105,8 @@ struct Param : public NominalNode<Value> {
 
     void print(Printer&) const override;
     Node* rewrite(Rewriter&) const override;
+
+    const thorin::Def* emit(Emitter&) const override;
 };
 
 struct Fn : public NominalNode<Value> {
@@ -112,6 +116,8 @@ struct Fn : public NominalNode<Value> {
 
     void print(Printer&) const override;
     Node* rewrite(Rewriter&) const override;
+
+    const thorin::Def* emit(Emitter&) const override;
 
     Fn(Arena&, const Param*, const Type* codom);
 };
@@ -126,6 +132,8 @@ struct App : public Value {
     void print(Printer&) const override;
     Node* rewrite(Rewriter&) const override;
 
+    const thorin::Def* emit(Emitter&) const override;
+
     App(Arena&, const Value* callee, const Value* arg);
 };
 
@@ -136,6 +144,8 @@ struct GlobalVariable : public NominalNode<Value> {
 
     void print(Printer&) const override;
     Node* rewrite(Rewriter&) const override;
+
+    const thorin::Def* emit(Emitter&) const override;
 
     GlobalVariable(Arena& arena, const Type*, bool is_mut, const Value* init = nullptr);
 };
@@ -150,6 +160,8 @@ struct ImplicitCast : public Value {
     void print(Printer&) const override;
     Node* rewrite(Rewriter&) const override;
 
+    const thorin::Def* emit(Emitter&) const override;
+
     ImplicitCast(Arena&, const Value*, const Type*);
 };
 
@@ -162,6 +174,8 @@ struct TypedLiteral : public Value {
     void print(Printer&) const override;
     Node* rewrite(Rewriter&) const override;
 
+    const thorin::Def* emit(Emitter&) const override;
+
     TypedLiteral(Arena&, Literal, const Type*);
 };
 
@@ -173,6 +187,8 @@ struct Tuple : public Value {
 
     void print(Printer&) const override;
     Node* rewrite(Rewriter&) const override;
+
+    const thorin::Def* emit(Emitter&) const override;
 
     Tuple(Arena&, const ArrayRef<const Value*>& args);
 };
@@ -187,6 +203,8 @@ struct Extract : public Value {
     void print(Printer&) const override;
     Node* rewrite(Rewriter&) const override;
 
+    const thorin::Def* emit(Emitter&) const override;
+
     Extract(Arena&, const Value*, const Value*);
 };
 
@@ -200,6 +218,8 @@ struct Bind : public Value {
 
     void print(Printer&) const override;
     Node* rewrite(Rewriter&) const override;
+
+    const thorin::Def* emit(Emitter&) const override;
 
     Bind(Arena&, const Param*, const Value*, const Value*);
 };

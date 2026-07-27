@@ -8,16 +8,18 @@
 #include <thorin/world.h>
 
 #include "artic/ast.h"
-#include "tir/types.h"
 #include "artic/log.h"
 #include "artic/hash.h"
+
+#include "tir/tir.h"
+#include "tir/types.h"
 
 namespace artic {
 
 //struct StructType;
 
 /// Helper class for Thorin IR generation.
-/*class Emitter : public Logger {
+class Emitter : public Logger {
 public:
     Emitter(Log& log, thorin::World& world, Arena& arena)
         : Logger(log), world(world), arena(arena)
@@ -45,6 +47,7 @@ public:
 
     State state;
 
+    /*
     // Enumeration variant constructor, containing an enumeration type
     // (or a type application of a polymorphic enumeration type),
     // and the variant index.
@@ -95,9 +98,10 @@ public:
     /// Map from types to their generated comparison function, if any.
     std::unordered_map<const Type*, const thorin::Def*> comparators;
     /// Vector containing definitions that are generated during monomorphization.
-    std::vector<std::vector<const thorin::Def**>> poly_defs;
+    std::vector<std::vector<const thorin::Def**>> poly_defs;*/
+    std::unordered_map<const tir::Node*, const thorin::Def*> emitted;
 
-    bool run(const ast::ModDecl&);
+    bool run(const tir::Module&);
 
     SavedState save_state() { return SavedState(*this); }
 
@@ -108,8 +112,8 @@ public:
     thorin::Continuation* basic_block_with_mem(thorin::Debug = {});
     thorin::Continuation* basic_block_with_mem(const thorin::Type*, thorin::Debug = {});
 
-    const thorin::Def* ctor_index(const ast::Ptrn& ptrn);
-    const thorin::Def* ctor_index(size_t, thorin::Debug = {});
+    // const thorin::Def* ctor_index(const ast::Ptrn& ptrn);
+    // const thorin::Def* ctor_index(size_t, thorin::Debug = {});
 
     const thorin::FnType* continuation_type_with_mem(const thorin::Type*);
     const thorin::FnType* function_type_with_mem(const thorin::Type*, const thorin::Type*);
@@ -129,24 +133,27 @@ public:
     const thorin::Def* addr_of(const thorin::Def*, thorin::Debug = {});
 
     const thorin::Def* no_ret();
-    const thorin::Def* down_cast(const thorin::Def*, const Type*, const Type*, thorin::Debug = {});
+    const thorin::Def* down_cast(const thorin::Def*, const tir::Type*, const tir::Type*, thorin::Debug = {});
 
-    const thorin::Def* emit(const ast::Node&);
-    void emit(const ast::Ptrn&, const thorin::Def*);
-    void bind(const ast::IdPtrn&, const thorin::Def*);
-    const thorin::Def* emit(const ast::Node&, const Literal&);
+    const thorin::Def* emit(const tir::Value*);
+    const thorin::Def* emit(const tir::Type*);
 
-    const thorin::Def* emit_poly_decl(ast::Decl*, ast::TypeParamList*, const std::vector<const artic::Type*>*);
+    // void emit(const ast::Ptrn&, const thorin::Def*);
+    // void bind(const ast::IdPtrn&, const thorin::Def*);
+    const thorin::Def* emit(const tir::Value*, const Literal&);
 
-    const thorin::Def* builtin(const ast::FnDecl&, thorin::Continuation*);
-    const thorin::Def* comparator(const Loc&, const Type*);
+    // const thorin::Def* emit_poly_decl(ast::Decl*, ast::TypeParamList*, const std::vector<const artic::Type*>*);
+
+    // const thorin::Def* builtin(const ast::FnDecl&, thorin::Continuation*);
+    // const thorin::Def* comparator(const Loc&, const Type*);
 
     thorin::Debug debug_info(const ast::NamedDecl&);
     thorin::Debug debug_info(const ast::Node&, const std::string_view& = "");
+    thorin::Debug debug_info(const tir::Node*, const std::string_view& = "") { return {}; };
 
 private:
     const thorin::Def* cast_pointers(const thorin::Def*, const tir::AddrType*, const tir::AddrType*, thorin::Debug);
-};*/
+};
 
 /// Helper function to compile a set of files and generate an AST and a thorin module.
 /// Errors are reported in the log, and this function returns true on success.

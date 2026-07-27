@@ -322,7 +322,10 @@ const Value* TypeChecker::coerce(ast::Expr* expr, const Type* expected) {
         expr = _arena.make_ptr<ast::TupleExpr>(loc, std::move(args));*/
     }
 
-    const Value* tir = expr->tir ? expr->tir->as<Value>() : check_value(*expr, expected);
+    if (!expr->tir)
+        check_value(*expr, expected);
+
+    const Value*& tir = *(const Value**) &expr->tir;
     if (tir->type != expected) {
         if (tir->type->subtype(expected)) {
             tir = type_table.implicit_cast(tir, expected);

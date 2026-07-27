@@ -67,10 +67,10 @@ struct Type : public Node {
     virtual const Type* replace(const ReplaceMap&) const { return this; }
 
     /// Converts this type to a Thorin type
-    virtual const thorin::Type* convert(Emitter&) const { assert(false); }
+    virtual const thorin::Type* convert(Emitter&) const;
     /// Converts this type into a string that can be
     /// used as C union/structure/typedef name.
-    virtual std::string stringify(Emitter&) const { assert(false); }
+    virtual std::string stringify(Emitter&) const;
 
     virtual size_t order(std::unordered_set<const Type*>&) const;
     virtual void variance(TypeVarMap<TypeVariance>&, bool) const;
@@ -125,8 +125,8 @@ struct PrimType : public Type {
     size_t hash() const override;
     PrimType* rewrite(Rewriter&) const override;
 
-    // const thorin::Type* convert(Emitter&) const override;
-    // std::string stringify(Emitter&) const override;
+    const thorin::Type* convert(Emitter&) const override;
+    std::string stringify(Emitter&) const override;
 
 private:
     PrimType(Arena& arena, ast::PrimType::Tag tag)
@@ -146,8 +146,8 @@ struct TupleType : public Type {
     TupleType* rewrite(Rewriter&) const override;
     const Type* replace(const ReplaceMap&) const override;
 
-    // const thorin::Type* convert(Emitter&) const override;
-    // std::string stringify(Emitter&) const override;
+    const thorin::Type* convert(Emitter&) const override;
+    std::string stringify(Emitter&) const override;
 
     size_t order(std::unordered_set<const Type*>&) const override;
     void variance(TypeVarMap<TypeVariance>&, bool) const override;
@@ -190,8 +190,8 @@ struct SizedArrayType : public ArrayType {
 
     const Type* replace(const ReplaceMap&) const override;
 
-    // const thorin::Type* convert(Emitter&) const override;
-    // std::string stringify(Emitter&) const override;
+    const thorin::Type* convert(Emitter&) const override;
+    std::string stringify(Emitter&) const override;
 
 private:
     SizedArrayType(Arena& arena, const Type* elem, size_t size, bool is_simd)
@@ -210,8 +210,8 @@ struct UnsizedArrayType : public ArrayType {
 
     const Type* replace(const ReplaceMap&) const override;
 
-    // const thorin::Type* convert(Emitter&) const override;
-    // std::string stringify(Emitter&) const override;
+    const thorin::Type* convert(Emitter&) const override;
+    std::string stringify(Emitter&) const override;
 
 private:
     UnsizedArrayType(Arena& arena, const Type* elem)
@@ -250,8 +250,8 @@ struct PtrType : public AddrType {
     PtrType* rewrite(Rewriter&) const override;
     const Type* replace(const ReplaceMap&) const override;
 
-    // const thorin::Type* convert(Emitter&) const override;
-    // std::string stringify(Emitter&) const override;
+    const thorin::Type* convert(Emitter&) const override;
+    std::string stringify(Emitter&) const override;
 
 private:
     PtrType(Arena& arena, const Type* pointee, bool is_mut, size_t addr_space)
@@ -286,8 +286,8 @@ struct ImplicitParamType : public Type {
 
     const Type* replace(const ReplaceMap&) const override;
 
-    // const thorin::Type* convert(Emitter&) const override;
-    // std::string stringify(Emitter&) const override;
+    const thorin::Type* convert(Emitter&) const override;
+    std::string stringify(Emitter&) const override;
 
     size_t order(std::unordered_set<const Type*>&) const override;
     void variance(TypeVarMap<TypeVariance>&, bool) const override;
@@ -315,8 +315,8 @@ struct FnType : public Type {
 
     const Type* replace(const ReplaceMap&) const override;
 
-    // const thorin::Type* convert(Emitter&) const override;
-    // std::string stringify(Emitter&) const override;
+    const thorin::Type* convert(Emitter&) const override;
+    std::string stringify(Emitter&) const override;
 
     size_t order(std::unordered_set<const Type*>&) const override;
     void variance(TypeVarMap<TypeVariance>&, bool) const override;
@@ -365,8 +365,8 @@ protected:
 struct NoRetType : public BottomType {
     void print(Printer&) const override;
 
-    // const thorin::Type* convert(Emitter&) const override;
-    // std::string stringify(Emitter&) const override;
+    const thorin::Type* convert(Emitter&) const override;
+    std::string stringify(Emitter&) const override;
     NoRetType* rewrite(Rewriter&) const override;
 
 private:
@@ -416,8 +416,8 @@ struct TypeVar : public NodeFromDecl<Type, ast::TypeParam> {
     TypeVar* rewrite(Rewriter&) const override;
     const Type* replace(const ReplaceMap&) const override;
 
-    // const thorin::Type* convert(Emitter&) const override;
-    // std::string stringify(Emitter&) const override;
+    const thorin::Type* convert(Emitter&) const override;
+    std::string stringify(Emitter&) const override;
 
     void variance(TypeVarMap<TypeVariance>&, bool) const override;
     void bounds(TypeVarMap<TypeBounds>&, const Type*, bool) const override;
@@ -481,11 +481,11 @@ struct UserType : public PolyType {
         : PolyType(arena)
     {}
 
-    //virtual const thorin::Type* convert(Emitter&, const Type*) const;
+    virtual const thorin::Type* convert(Emitter&, const Type*) const;
 
-    //const thorin::Type* convert(Emitter& emitter) const override {
-    //    return convert(emitter, this);
-    //}
+    const thorin::Type* convert(Emitter& emitter) const override {
+        return convert(emitter, this);
+    }
 };
 
 /// Base class for complex, user-declared types.
@@ -511,8 +511,8 @@ struct StructType : public NodeFromDecl<ComplexType, ast::RecordDecl> {
     void print(Printer&) const override;
 
     using UserType::convert;
-    // const thorin::Type* convert(Emitter&, const Type*) const override;
-    // std::string stringify(Emitter&) const override;
+    const thorin::Type* convert(Emitter&, const Type*) const override;
+    std::string stringify(Emitter&) const override;
     StructType* rewrite(Rewriter&) const override;
 
     std::string_view member_name(size_t) const override;
@@ -533,8 +533,8 @@ struct EnumType : public PolyTypeFromDecl<ComplexType, ast::EnumDecl> {
     void print(Printer&) const override;
 
     using UserType::convert;
-    // const thorin::Type* convert(Emitter&, const Type*) const override;
-    // std::string stringify(Emitter&) const override;
+    const thorin::Type* convert(Emitter&, const Type*) const override;
+    std::string stringify(Emitter&) const override;
     EnumType* rewrite(Rewriter&) const override;
 
     std::string_view member_name(size_t) const override;
@@ -619,8 +619,8 @@ struct TypeApp : public Type {
 
     const Type* replace(const ReplaceMap&) const override;
 
-    // const thorin::Type* convert(Emitter&) const override;
-    // std::string stringify(Emitter&) const override;
+    const thorin::Type* convert(Emitter&) const override;
+    std::string stringify(Emitter&) const override;
 
     size_t order(std::unordered_set<const Type*>&) const override;
     void variance(TypeVarMap<TypeVariance>&, bool) const override;
