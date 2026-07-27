@@ -54,7 +54,7 @@ public:
     const Value* deref(Ptr<ast::Expr>&);
     const Value* coerce(ast::Expr*, const Type*);
     const Value* try_coerce(Ptr<ast::Expr>&, const Type*);
-    const Value* join(Ptr<ast::Expr>&, Ptr<ast::Expr>&);
+    const Type* join(Ptr<ast::Expr>&, Ptr<ast::Expr>&);
 
     const tir::Node* check(ast::Node&, const Type*);
     const tir::Node* infer(ast::Node&);

@@ -172,6 +172,14 @@ const Value* Arena::binop(ast::BinaryExpr::Tag tag, const Value* lhs, const Valu
     return insert<BinOp>(tag, lhs, rhs);
 }
 
+const Value* Arena::branch(const Value* cond, const Fn* true_branch, const Fn* else_branch) {
+    return insert<Branch>(cond, true_branch, else_branch);
+}
+
+const Value* Arena::control(const Fn* fn) {
+    return insert<Control>(fn);
+}
+
 template <typename T, typename... Args>
 const T* Arena::insert(Args&&... args) {
     T t(*this, std::forward<Args>(args)...);

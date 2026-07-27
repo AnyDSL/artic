@@ -133,6 +133,14 @@ Node* BinOp::rewrite(Rewriter&) const {
 
 }
 
+Node* Branch::rewrite(Rewriter&) const {
+
+}
+
+Node* Control::rewrite(Rewriter&) const {
+
+}
+
 }
 
 }

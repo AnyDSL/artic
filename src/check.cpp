@@ -353,16 +353,15 @@ const Value* TypeChecker::try_coerce(Ptr<ast::Expr>& expr, const Type* expected)
     return expected->variance().empty() ? coerce(expr, expected) : deref(expr);*/
 }
 
-const Value* TypeChecker::join(Ptr<ast::Expr>& left, Ptr<ast::Expr>& right) {
-    assert(false && "TODO");/*
-    auto left_type  = deref(left);
-    auto right_type = deref(right);
+const Type* TypeChecker::join(Ptr<ast::Expr>& left, Ptr<ast::Expr>& right) {
+    auto left_type  = deref(left)->type;
+    auto right_type = deref(right)->type;
     auto type = left_type->join(right_type);
     if (type->isa<TopType>())
         return incompatible_types(right->loc, right_type, left_type);
-    coerce(left, type);
-    coerce(right, type);
-    return type;*/
+    coerce(&*left, type);
+    coerce(&*right, type);
+    return type;
 }
 
 static std::string kind2str(NodeKind kind) {
@@ -1008,7 +1007,7 @@ const tir::Node* Filter::check(TypeChecker& checker, const artic::Type* expected
 // Attributes ----------------------------------------------------------------------
 
 void NamedAttr::check(TypeChecker& checker, const ast::Node* node) {
-    assert(false && "TODO");
+    //assert(false && "TODO");
     /*if (name == "export" || name == "import") {
         if (auto fn_decl = node->isa<FnDecl>()) {
             if (name == "export") {
@@ -1214,23 +1213,22 @@ const tir::Node* RecordExpr::infer(TypeChecker& checker) {
 }
 
 const tir::Node* TupleExpr::infer(TypeChecker& checker) {
-    assert(false && "TODO");
-    /*SmallArray<const artic::Type*> arg_types(args.size());
+    SmallArray<const artic::Value*> tir_args(args.size());
     for (size_t i = 0, n = args.size(); i < n; ++i)
-        arg_types[i] = checker.deref(args[i]);
-    return checker.type_table.tuple_type(arg_types);*/
+        tir_args[i] = checker.deref(args[i]);
+    return checker.type_table.tuple(tir_args);
 }
 
 const tir::Node* TupleExpr::check(TypeChecker& checker, const artic::Type* expected) {
-    assert(false && "TODO");
-    /*if (auto tuple_type = expected->isa<artic::TupleType>()) {
+    if (auto tuple_type = expected->isa<artic::TupleType>()) {
         if (args.size() != tuple_type->args.size())
             return checker.bad_arguments(loc, "tuple expression", args.size(), tuple_type->args.size());
+        SmallArray<const artic::Value*> tir_args(args.size());
         for (size_t i = 0, n = args.size(); i < n; ++i)
-            checker.coerce(args[i], tuple_type->args[i]);
-        return expected;
+            tir_args[i] = checker.coerce(&*args[i], tuple_type->args[i]);
+        return checker.type_table.tuple(tir_args);
     }
-    return checker.incompatible_type(loc, "tuple expression", expected);*/
+    return checker.incompatible_type(loc, "tuple expression", expected);
 }
 
 const tir::Node* ArrayExpr::infer(TypeChecker& checker) {
@@ -1327,7 +1325,7 @@ const tir::Node* FnExpr::check(TypeChecker& checker, const artic::Type* expected
 const tir::Node* BlockExpr::infer(TypeChecker& checker) {
     TypeChecker::ScopeHelper sg(checker);
     if (stmts.empty())
-        return checker.type_table.unit_type();
+        return checker.type_table.tuple({});
     Array<const Value*> tir_stmts(stmts.size());
     for (int i = 0; i < stmts.size(); i++)
         tir_stmts[i] = checker.infer_value(*stmts[i]);
@@ -1472,14 +1470,31 @@ inline const LiteralExpr* is_untyped_int_or_float_literal(const Expr* expr) {
     return nullptr;
 }
 
+const tir::Node* IfExpr::build_tir(TypeChecker& checker, const tir::Type* yield_type) const {
+    auto yield_fn_type = checker.type_table.fn_type(yield_type, checker.type_table.no_ret_type());
+    auto yield_param = checker.type_table.param(std::nullopt, yield_fn_type);
+    auto control_fn = checker.type_table.function(yield_param, checker.type_table.no_ret_type());
+
+    const Fn* true_fn = checker.type_table.function(checker.type_table.param(std::nullopt, checker.type_table.unit_type()), checker.type_table.no_ret_type());
+    true_fn->body = checker.type_table.app(yield_param, if_true->tir->as<Value>());
+    const Fn* else_fn = checker.type_table.function(checker.type_table.param(std::nullopt, checker.type_table.unit_type()), checker.type_table.no_ret_type());
+    if (if_false)
+        else_fn->body = checker.type_table.app(yield_param, if_false->tir->as<Value>());
+    else
+        else_fn->body = checker.type_table.app(yield_param, checker.type_table.tuple({}));
+
+    control_fn->body = checker.type_table.branch(cond->tir->as<Value>(), true_fn, else_fn);
+    return checker.type_table.control(control_fn);
+}
+
 const tir::Node* IfExpr::infer(TypeChecker& checker) {
-    assert(false && "TODO");
-    /*if (cond)
-        checker.coerce(cond, checker.type_table.bool_type());
+    if (cond)
+        checker.coerce(&*cond, checker.type_table.bool_type());
     else {
         checker.infer(*ptrn, expr);
         checker.check_refutability(*ptrn, false);
     }
+    const tir::Type* yield_type;
     if (if_false) {
         // In general, we need to find the join of the type of the two branches.
         // However, since that requires to infer both branches, we would default
@@ -1498,37 +1513,40 @@ const tir::Node* IfExpr::infer(TypeChecker& checker) {
         auto lit_false = is_untyped_int_or_float_literal(if_false.get());
         if (lit_true && lit_false) {
             if (lit_true->lit.is_double())
-                checker.coerce(if_false, checker.deref(if_true));
+                checker.coerce(&*if_false, checker.deref(if_true)->type);
             else
-                checker.coerce(if_true, checker.deref(if_false));
+                checker.coerce(&*if_true, checker.deref(if_false)->type);
         } else if (lit_true) {
-            auto if_false_type = checker.deref(if_false);
+            auto if_false_type = checker.deref(if_false)->type;
             if (is_int_or_float_type(if_false_type))
-                checker.coerce(if_true, if_false_type);
+                checker.coerce(&*if_true, if_false_type);
         } else if (lit_false) {
-            auto if_true_type = checker.deref(if_true);
+            auto if_true_type = checker.deref(if_true)->type;
             if (is_int_or_float_type(if_true_type))
-                checker.coerce(if_false, if_true_type);
+                checker.coerce(&*if_false, if_true_type);
         }
-        return checker.join(if_false, if_true);
-    }
-    return checker.coerce(if_true, checker.type_table.unit_type());*/
+        yield_type = checker.join(if_false, if_true);
+    } else
+        yield_type = checker.coerce(&*if_true, checker.type_table.unit_type())->type;
+
+    return build_tir(checker, yield_type);
 }
 
 const tir::Node* IfExpr::check(TypeChecker& checker, const artic::Type* expected) {
-    assert(false && "TODO");
-    /*if (cond)
-        checker.coerce(cond, checker.type_table.bool_type());
+    if (cond)
+        checker.coerce(&*cond, checker.type_table.bool_type());
     else {
         checker.infer(*ptrn, expr);
         checker.check_refutability(*ptrn, false);
     }
     if (if_false) {
-        checker.coerce(if_true, expected);
-        return checker.coerce(if_false, expected);
+        checker.coerce(&*if_true, expected);
+        return checker.coerce(&*if_false, expected);
     }
-    checker.coerce(if_true, checker.type_table.unit_type());
-    return checker.coerce(if_true, expected);*/
+    checker.coerce(&*if_true, checker.type_table.unit_type());
+    checker.coerce(&*if_true, expected);
+
+    return build_tir(checker, expected);
 }
 
 const tir::Node* MatchExpr::infer(TypeChecker& checker) {

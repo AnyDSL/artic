@@ -810,6 +810,8 @@ struct IfExpr : public Expr {
     bool is_jumping() const override;
     bool has_side_effect() const override;
 
+    const tir::Node* build_tir(TypeChecker& checker, const tir::Type* yield_type) const;
+
     const tir::Node* infer(TypeChecker&) override;
     const tir::Node* check(TypeChecker&, const tir::Type*) override;
     void bind(NameBinder&) override;

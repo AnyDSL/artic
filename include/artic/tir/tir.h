@@ -274,6 +274,36 @@ struct BinOp : public Value {
     BinOp(Arena&, const ast::BinaryExpr::Tag, const Value*, const Value*);
 };
 
+struct Branch : public Value {
+    const Value* cond;
+    const Fn* true_branch;
+    const Fn* else_branch;
+
+    bool equals(const Node*) const override;
+    size_t hash() const override;
+
+    void print(Printer&) const override;
+    Node* rewrite(Rewriter&) const override;
+
+    const thorin::Def* emit(Emitter&) const override;
+
+    Branch(Arena&, const Value* cond, const Fn* true_branch, const Fn* false_branch);
+};
+
+struct Control : public Value {
+    const Fn* body;
+
+    bool equals(const Node*) const override;
+    size_t hash() const override;
+
+    void print(Printer&) const override;
+    Node* rewrite(Rewriter&) const override;
+
+    const thorin::Def* emit(Emitter&) const override;
+
+    Control(Arena&, const Fn*);
+};
+
 }
 
 }

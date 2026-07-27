@@ -1132,12 +1132,14 @@ const thorin::Def* Fn::emit(Emitter& emitter) const {
     // Set the IR node before entering the body
     emitter.emitted[this] = cont;
     emitter.enter(cont);
-    emitter.emitted[param] = emitter.tuple_from_params(cont, true);
+    auto fn_type = type->as<FnType>();
+    emitter.emitted[param] = emitter.tuple_from_params(cont, !fn_type->codom->isa<artic::NoRetType>());
     //emitter.emit(*param, emitter.tuple_from_params(cont, true));
     if (filter)
         cont->set_filter(emitter.world.filter(thorin::Array<const thorin::Def*>(cont->num_params(), emitter.emit(filter))));
     auto value = emitter.emit(body);
-    emitter.jump(cont->params().back(), value);
+    if (!fn_type->codom->isa<artic::NoRetType>())
+        emitter.jump(cont->params().back(), value);
     return cont;
 }
 
@@ -1341,6 +1343,25 @@ const thorin::Def* BinOp::emit(Emitter& emitter) const {
         return emitter.world.tuple({});
     }
     return res;
+}
+
+const thorin::Def* Branch::emit(Emitter& emitter) const {
+    emitter.branch(emitter.emit(cond), emitter.emit(true_branch), emitter.emit(else_branch));
+    return emitter.world.tuple({});
+}
+
+const thorin::Def* Control::emit(Emitter& emitter) const {
+    auto join = !type->isa<artic::NoRetType>()
+        ? emitter.basic_block_with_mem(
+            type->convert(emitter),
+            emitter.debug_info(this, "if_join"))
+        : nullptr;
+
+    emitter.emitted[body->param] = join;
+    emitter.emit(body->body);
+
+    emitter.enter(join);
+    return emitter.tuple_from_params(join);
 }
 
 namespace ast {

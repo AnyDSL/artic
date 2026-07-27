@@ -61,6 +61,9 @@ public:
     const Value* unop(ast::UnaryExpr::Tag, const Value*);
     const Value* binop(ast::BinaryExpr::Tag, const Value*, const Value*);
 
+    const Value* branch(const Value*, const Fn*, const Fn*);
+    const Value* control(const Fn*);
+
 private:
     template <typename T, typename... Args>
     const T* insert(Args&&...);

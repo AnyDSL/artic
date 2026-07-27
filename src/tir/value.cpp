@@ -230,6 +230,53 @@ bool BinOp::equals(const Node* other) const {
     return false;
 }
 
+Branch::Branch(Arena& arena, const Value* cond, const Fn* true_branch, const Fn* else_branch) : Value(arena, [&]() -> const Type* {
+    if (cond->type != arena.bool_type())
+        return arena.type_error();
+    // both branches must have no param
+    if (true_branch->param->type != arena.tuple_type({}))
+        return arena.type_error();
+    if (else_branch->param->type != arena.tuple_type({}))
+        return arena.type_error();
+    // both branches must yield the same thing (if we do direct-style which we don't ATP!)
+    if (true_branch->type->as<FnType>()->codom != else_branch->type->as<FnType>()->codom)
+        return arena.type_error();
+    return true_branch->type->as<FnType>()->codom;
+}()), cond(cond), true_branch(true_branch), else_branch(else_branch) {}
+
+size_t Branch::hash() const {
+    return fnv::Hash().combine(cond).combine(true_branch).combine(else_branch);
+}
+
+bool Branch::equals(const Node* other) const {
+    if (auto other_branch = other->isa<Branch>()) {
+        if (other_branch->cond == cond && other_branch->true_branch == true_branch && other_branch->else_branch == else_branch)
+            return true;
+    }
+    return false;
+}
+
+Control::Control(Arena& arena, const Fn* fn) : Value(arena, [&]() -> const Type* {
+    if (auto yield_fn_type = fn->param->type->isa<FnType>()) {
+        if (yield_fn_type->codom != arena.no_ret_type())
+            return arena.type_error();
+        return yield_fn_type->dom;
+    }
+    return arena.type_error();
+}()), body(fn) {}
+
+size_t Control::hash() const {
+    return fnv::Hash().combine(body);
+}
+
+bool Control::equals(const Node* other) const {
+    if (auto other_control = other->isa<Control>()) {
+        if (other_control->body == body)
+            return true;
+    }
+    return false;
+}
+
 }
 
 }

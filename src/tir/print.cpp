@@ -274,6 +274,7 @@ void Seq::print(Printer& p) const {
         p.print(*a);
         p << ';' << p.endl();
     });
+    p.unindent();
 }
 
 void UnOp::print(Printer& p) const {
@@ -285,6 +286,20 @@ void BinOp::print(Printer& p) const {
     p.print(*lhs);
     p << log::keyword_style(ast::BinaryExpr::tag_to_string(tag));
     p.print(*rhs);
+}
+
+void Branch::print(Printer& p) const {
+    p << log::keyword_style("branch") << ' ';
+    p.print(*cond);
+    p << " ? ";
+    p.print(*true_branch);
+    p << " : ";
+    p.print(*else_branch);
+}
+
+void Control::print(Printer& p) const {
+    p << log::keyword_style("control") << ' ';
+    p.print(*body);
 }
 
 log::Output& operator << (log::Output& out, const Node& node) {
