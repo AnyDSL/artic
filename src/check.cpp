@@ -7,12 +7,12 @@
 
 namespace artic {
 
-using namespace tir;
-
-bool TypeChecker::run(ast::ModDecl& module) {
+const tir::Module* TypeChecker::run(ast::ModDecl& module) {
     ScopeHelper sg(*this);
-    infer(module);
-    return errors == 0;
+    auto mod = infer(module);
+    if (errors > 0)
+        return nullptr;
+    return mod->as<tir::Module>();
 }
 
 bool TypeChecker::enter_decl(const ast::Decl* decl) {
@@ -40,7 +40,8 @@ void TypeChecker::pop_scope() {
 // Implicits summoning -------------------------------------------------------------
 
 std::optional<std::tuple<Ptr<ast::Expr>, int>> TypeChecker::ImplicitSrc::provide(TypeChecker& checker, const artic::Type* type, const artic::Loc& at) {
-    if (expr) {
+    assert(false && "TODO");
+    /*if (expr) {
         if (expr->type == type) {
             return {{ expr.duplicate(), 0 }};
         }
@@ -95,10 +96,10 @@ std::optional<std::tuple<Ptr<ast::Expr>, int>> TypeChecker::ImplicitSrc::provide
         return {{ std::move(instance), cost }};
     }
 
-    THORIN_UNREACHABLE;
+    THORIN_UNREACHABLE;*/
 }
 
-Ptr<ast::Expr> TypeChecker::summon(const artic::Type* t, const artic::Loc& at) {
+/*Ptr<ast::Expr> TypeChecker::summon(const artic::Type* t, const artic::Loc& at) {
     for (auto& scope : scopes) {
         // TODO: refactor this to allow for implicit casts when it's part of type inference
         int best_score = INT_MAX;
@@ -124,6 +125,10 @@ Ptr<ast::Expr> TypeChecker::summon(const artic::Type* t, const artic::Loc& at) {
     }
     error("Could not summon an implicit value of type {} at {}", *t, at);
     return nullptr;
+}*/
+
+Value* TypeChecker::summon_value(const artic::Type*, const artic::Loc& at) {
+    assert(false && "TODO");
 }
 
 // Error messages ------------------------------------------------------------------
@@ -251,14 +256,24 @@ inline std::pair<const Type*, const Type*> remove_ptr(const Type* type) {
     return std::make_pair(nullptr, type);
 }
 
-const Type* TypeChecker::deref(Ptr<ast::Expr>& expr) {
-    auto [ref_type, type] = remove_ref(infer(*expr));
+// const Type* TypeChecker::deref(Ptr<ast::Expr>& expr) {
+//     assert(false && "TODO");
+//     auto [ref_type, type] = remove_ref(infer(*expr));
+//     if (ref_type)
+//         expr = _arena.make_ptr<ast::ImplicitCastExpr>(expr->loc, std::move(expr), type);
+//     return type;
+// }
+
+const Value* TypeChecker::deref(Ptr<ast::Expr>& expr) {
+    auto val = infer_value(*expr);
+    auto [ref_type, type] = remove_ref(val->type);
     if (ref_type)
-        expr = _arena.make_ptr<ast::ImplicitCastExpr>(expr->loc, std::move(expr), type);
-    return type;
+        val = type_table.implicit_cast(val, type);
+        //expr = _arena.make_ptr<ast::ImplicitCastExpr>(expr->loc, std::move(expr), type);
+    return val;
 }
 
-static bool is_unit(Ptr<ast::Expr>& expr) {
+static bool is_unit(const ast::Expr* expr) {
     auto tuple_expr = expr->isa<ast::TupleExpr>();
     return tuple_expr && tuple_expr->args.empty();
 }
@@ -269,19 +284,17 @@ static bool is_tuple_type_with_implicits(const artic::Type* type) {
     return false;
 }
 
-const Type* TypeChecker::coerce(Ptr<ast::Expr>& expr, const Type* expected) {
+const Value* TypeChecker::coerce(ast::Expr* expr, const Type* expected) {
     if (auto implicit = expected->isa<ImplicitParamType>()) {
         // Only the empty tuple () can be coerced into a Summon[T]
-        if (is_unit(expr)) {
-            auto summoned = summon(implicit->underlying, expr->loc);
-            expr.swap(summoned);
-            return implicit->underlying;
-        }
+        if (is_unit(expr))
+            return summon_value(implicit->underlying, expr->loc);
     } else if (is_tuple_type_with_implicits(expected)) {
-        auto loc = expr->loc;
+        assert(false && "TODO");
+        /*auto loc = expr->loc;
         auto deconstructed = expr->isa<ast::TupleExpr>();
         auto tuple_t = expected->as<TupleType>();
-        PtrVector<ast::Expr> args;
+        PtrVector<const Value*> args;
         for (size_t i = 0; i < tuple_t->args.size(); i++) {
             if (!deconstructed) {
                 if (i == 0 && !is_unit(expr)) {
@@ -296,28 +309,30 @@ const Type* TypeChecker::coerce(Ptr<ast::Expr>& expr, const Type* expected) {
             }
 
             if (auto implicit = tuple_t->args[i]->isa<ImplicitParamType>()) {
-                auto summoned = summon(implicit->underlying, loc);
+                auto summoned = summon_value(implicit->underlying, loc);
                 args.push_back(std::move(summoned));
                 continue;
             }
 
             bad_arguments(loc, "non-implicit arguments", i, tuple_t->args.size());
         }
-        expr = _arena.make_ptr<ast::TupleExpr>(loc, std::move(args));
+        expr = _arena.make_ptr<ast::TupleExpr>(loc, std::move(args));*/
     }
 
-    auto type = expr->type ? expr->type : check(*expr, expected);
-    if (type != expected) {
-        if (type->subtype(expected)) {
-            expr = _arena.make_ptr<ast::ImplicitCastExpr>(expr->loc, std::move(expr), expected);
-            return expected;
-        } else
-            return incompatible_types(expr->loc, type, expected);
+    const Value* tir = expr->tir ? expr->tir->as<Value>() : check_value(*expr, expected);
+    if (tir->type != expected) {
+        if (tir->type->subtype(expected)) {
+            tir = type_table.implicit_cast(tir, expected);
+        } else {
+            assert(false && "TODO");
+            //return incompatible_types(expr->loc, tir->type, expected);
+        }
     }
-    return type;
+    return tir;
 }
 
-const Type* TypeChecker::try_coerce(Ptr<ast::Expr>& expr, const Type* expected) {
+const Value* TypeChecker::try_coerce(Ptr<ast::Expr>& expr, const Type* expected) {
+    assert(false && "TODO");/*
     // The goal here is to make type argument inference a bit more clever for literals.
     // Consider:
     //
@@ -341,10 +356,11 @@ const Type* TypeChecker::try_coerce(Ptr<ast::Expr>& expr, const Type* expected) 
     }
     // If the expected type does not contain any type variable,
     // it is safe to coerce the expression to it.
-    return expected->variance().empty() ? coerce(expr, expected) : deref(expr);
+    return expected->variance().empty() ? coerce(expr, expected) : deref(expr);*/
 }
 
-const Type* TypeChecker::join(Ptr<ast::Expr>& left, Ptr<ast::Expr>& right) {
+const Value* TypeChecker::join(Ptr<ast::Expr>& left, Ptr<ast::Expr>& right) {
+    assert(false && "TODO");/*
     auto left_type  = deref(left);
     auto right_type = deref(right);
     auto type = left_type->join(right_type);
@@ -352,27 +368,61 @@ const Type* TypeChecker::join(Ptr<ast::Expr>& left, Ptr<ast::Expr>& right) {
         return incompatible_types(right->loc, right_type, left_type);
     coerce(left, type);
     coerce(right, type);
-    return type;
+    return type;*/
 }
 
-const Type* TypeChecker::check(ast::Node& node, const Type* expected) {
-    assert(!node.type); // Nodes can only be visited once
-    node.type = node.check(*this, expected);
+static std::string kind2str(NodeKind kind) {
+    switch (kind) {
+        case NodeKind::Value: return "value";
+        case NodeKind::Type: return "type";
+        case NodeKind::Module: return "module";
+    }
+}
+
+const tir::Node* TypeChecker::check(ast::Node& node, const Type* expected) {
+    assert(!node.tir); // Nodes can only be visited once
+    node.tir = node.check(*this, expected);
     if (node.attrs)
         node.attrs->check(*this, &node);
-    return node.type;
+    return node.tir;
 }
 
-const Type* TypeChecker::infer(ast::Node& node) {
-    if (node.type)
-        return node.type;
-    node.type = node.infer(*this);
+const tir::Node* TypeChecker::infer(ast::Node& node) {
+    if (node.tir)
+        return node.tir;
+    node.tir = node.infer(*this);
     if (node.attrs)
         node.attrs->check(*this, &node);
-    return node.type;
+    return node.tir;
 }
 
-const Type* TypeChecker::infer(ast::Ptrn& ptrn, Ptr<ast::Expr>& expr) {
+static inline void check_kind(TypeChecker& checker, ast::Node& src, const tir::Node*& node, NodeKind expected_kind) {
+    if (node->kind() != expected_kind) {
+        // TODO: we might want modules to implicity "subkind" as types/values later ?
+        checker.error(src.loc, "expected a {} but got a {}", kind2str(expected_kind), kind2str(node->kind()));
+    }
+}
+
+const Value* TypeChecker::check_value(ast::Node& ast, const Type* expected) {
+    auto tir = check(ast, expected);
+    check_kind(*this, ast, tir, NodeKind::Value);
+    return tir->as<Value>();
+}
+
+const Value* TypeChecker::infer_value(ast::Node& ast) {
+    auto tir = infer(ast);
+    check_kind(*this, ast, tir, NodeKind::Value);
+    return tir->as<Value>();
+}
+
+const Type* TypeChecker::infer_type(ast::Node& ast) {
+    auto tir = infer(ast);
+    check_kind(*this, ast, tir, NodeKind::Type);
+    return tir->as<Type>();
+}
+
+const tir::Node* TypeChecker::infer(ast::Ptrn& ptrn, Ptr<ast::Expr>& expr) {
+    assert(false && "TODO");/*
     // This improves type inference for code such as `let (x, y: i64) = (1, 2);`,
     // by treating tuple elements as individual declarations.
     if (auto tuple_ptrn = ptrn.isa<ast::TuplePtrn>()) {
@@ -385,32 +435,33 @@ const Type* TypeChecker::infer(ast::Ptrn& ptrn, Ptr<ast::Expr>& expr) {
         }
     } else if (auto typed_ptrn = ptrn.isa<ast::TypedPtrn>())
         return coerce(expr, infer(*typed_ptrn));
-    return check(ptrn, deref(expr));
+    return check(ptrn, deref(expr));*/
 }
 
-const Type* TypeChecker::infer(const Loc&, const Literal& lit) {
+const tir::Node* TypeChecker::infer(const Loc&, const Literal& lit) {
     // These are defaults for when there is no type annotation on the literal.
     if (lit.is_integer())
-        return type_table.prim_type(ast::PrimType::I32);
+        return type_table.typed_literal(lit, type_table.prim_type(ast::PrimType::I32));
     else if (lit.is_double())
-        return type_table.prim_type(ast::PrimType::F64);
+        return type_table.typed_literal(lit, type_table.prim_type(ast::PrimType::F64));
     else if (lit.is_bool())
-        return type_table.bool_type();
+        return type_table.typed_literal(lit, type_table.bool_type());
     else if (lit.is_char())
-        return type_table.prim_type(ast::PrimType::U8);
+        return type_table.typed_literal(lit, type_table.prim_type(ast::PrimType::U8));
     else if (lit.is_string()) {
-        return type_table.sized_array_type(
+        return type_table.typed_literal(lit, type_table.sized_array_type(
             type_table.prim_type(ast::PrimType::U8),
             lit.as_string().size() + 1,
-            false);
+            false));
     } else {
         assert(false);
-        return type_table.type_error();
+        return type_table.typed_literal(lit, type_table.type_error());
     }
 }
 
-const Type* TypeChecker::check(const Loc& loc, const Literal& lit, const Type* expected) {
-    if (expected->isa<NoRetType>())
+const tir::Node* TypeChecker::check(const Loc& loc, const Literal& lit, const Type* expected) {
+    assert(false && "TODO");
+    /*if (expected->isa<NoRetType>())
         return infer(loc, lit);
     if (lit.is_integer()) {
         if (!is_int_or_float_type(expected))
@@ -436,7 +487,7 @@ const Type* TypeChecker::check(const Loc& loc, const Literal& lit, const Type* e
     } else {
         assert(false);
         return type_table.type_error();
-    }
+    }*/
 }
 
 static inline const artic::Type* member_type(
@@ -492,7 +543,8 @@ void TypeChecker::check_block(const Loc& loc, const PtrVector<ast::Stmt>& stmts,
 }
 
 bool TypeChecker::check_filter(const ast::Expr& expr) {
-    bool is_logic_and = false;
+    assert(false && "TODO");
+    /*bool is_logic_and = false;
     bool is_logic_or  = false;
     bool is_mutable   = false;
 
@@ -539,7 +591,7 @@ bool TypeChecker::check_filter(const ast::Expr& expr) {
         note("use '&' instead of '&&'");
     else if (is_mutable)
         note("cannot use mutable variables in filters");
-    return false;
+    return false;*/
 }
 
 void TypeChecker::check_refutability(const ast::Ptrn& ptrn, bool must_be_trivial) {
@@ -631,7 +683,8 @@ bool TypeChecker::try_infer_type_args(
     std::vector<const Type*>& type_args,
     bool diagnose_failure_as_error)
 {
-    for (auto& bound : bounds) {
+    assert(false && "TODO");
+    /*for (auto& bound : bounds) {
         size_t index = std::find_if(
             forall_type->type_params()->params.begin(),
             forall_type->type_params()->params.end(),
@@ -689,7 +742,7 @@ bool TypeChecker::try_infer_type_args(
             return false;
         }
     }
-    return true;
+    return true;*/
 }
 
 bool TypeChecker::infer_fn_type_args(
@@ -718,8 +771,9 @@ bool TypeChecker::try_infer_implicit_type_args(
 }
 
 const Type* TypeChecker::infer_record_type(const TypeApp* type_app, const StructType* struct_type, size_t& index) {
+    assert(false && "TODO");
     // If the structure type comes from an option, return the corresponding enumeration type
-    if (auto option_decl = struct_type->decl.isa<ast::OptionDecl>()) {
+    /*if (auto option_decl = struct_type->decl.isa<ast::OptionDecl>()) {
         auto enum_type = infer(*option_decl->parent)->as<artic::EnumType>();
         index = std::find_if(
             option_decl->parent->options.begin(),
@@ -731,7 +785,7 @@ const Type* TypeChecker::infer_record_type(const TypeApp* type_app, const Struct
             return type_table.type_app(enum_type, type_app->type_args);
         return enum_type;
     }
-    return type_app ? type_app->as<Type>() : struct_type;
+    return type_app ? type_app->as<Type>() : struct_type;*/
 }
 
 size_t TypeChecker::path_to_size(ast::Path& path, const std::string_view& element) {
@@ -754,47 +808,55 @@ size_t TypeChecker::path_to_size(ast::Path& path, const std::string_view& elemen
 
 namespace ast {
 
-const artic::Type* Node::check(TypeChecker& checker, const artic::Type* expected) {
+const tir::Node* Node::check(TypeChecker& checker, const artic::Type* expected) {
+    assert(false && "TODO");/*
     // By default, try to infer, and then check that types match
     auto type = checker.infer(*this);
     if (type != expected)
         return checker.incompatible_types(loc, type, expected);
-    return type;
+    return type;*/
 }
 
-const artic::Type* Node::infer(TypeChecker& checker) {
+const tir::Node* Node::infer(TypeChecker& checker) {
     return checker.cannot_infer(loc, "expression");
 }
 
-const artic::Type* Ptrn::check(TypeChecker& checker, const artic::Type* expected) {
+const tir::Node* Ptrn::check(TypeChecker& checker, const artic::Type* expected) {
+    assert(false && "TODO");/*
     // Patterns use the inverted subtype relation: In this case, the expected type
     // is assumed to be the type of the expression bound by the pattern, and thus
     // must be a subtype of the pattern type.
     auto type = checker.infer(*this);
     if (!expected->subtype(type))
         return checker.incompatible_types(loc, type, expected);
-    return type;
+    return type;*/
 }
 
 // Path ----------------------------------------------------------------------------
 
-const artic::Type* Path::Elem::infer(TypeChecker& checker, const artic::Type* prev_elem_type, Path& path) {
-    if (!prev_elem_type) {
+const tir::Node* Path::Elem::infer(TypeChecker& checker, const tir::Node* prev_elem, Path& path) {
+    if (!prev_elem) {
         if (is_super()) {
-            return type = checker.type_table.mod_type(*decl->as<ModDecl>());
+            assert(false && "TODO");
+            // return tir = checker.type_table.mod_type(*decl->as<ModDecl>());
         } else {
-            return type = checker.infer(*decl);
+            return tir = checker.infer(*decl);
         }
-    } else if (is_super()) {
-        assert(prev_elem_type);
-        auto mod_type = prev_elem_type->isa<ModType>();
+    }
+    if (is_super()) {
+        assert(prev_elem);
+        auto mod_type = prev_elem->isa<ModType>();
         if (!mod_type) {
             checker.error(loc, "'super' can only be used on modules");
-            return type = checker.type_table.type_error();
+            return tir = checker.type_table.type_error();
         }
-        return type = checker.type_table.mod_type(*mod_type->decl.super);
-    } else if (auto mod_type = prev_elem_type->isa<ModType>()) {
-        auto index = mod_type->find_member(id.name);
+
+        assert(false && "TODO");
+        //return type = checker.type_table.mod_type(*mod_type->decl.super);
+    }
+    if (auto mod_type = prev_elem->isa<ModType>()) {
+        assert(false && "TODO");
+        /*auto index = mod_type->find_member(id.name);
         if (!index)
             return type = checker.unknown_member(loc, mod_type, id.name);
         this->index = *index;
@@ -803,32 +865,37 @@ const artic::Type* Path::Elem::infer(TypeChecker& checker, const artic::Type* pr
         // create a type for it and lazily infer member types as required.
         return type = member.isa<ModDecl>()
             ? checker.type_table.mod_type(*member.as<ModDecl>())
-            : checker.infer(mod_type->member(*index));
-    } else if (auto [type_app, enum_type] = match_app<EnumType>(prev_elem_type); enum_type) {
-        auto index = enum_type->find_member(id.name);
-        if (!index)
-            return type = checker.unknown_member(loc, enum_type, id.name);
-        this->index = *index;
-        if (enum_type->decl.options[*index]->struct_type) {
-            // If the enumeration option uses the record syntax, we use the corresponding structure type
-            type = enum_type->decl.options[*index]->struct_type;
-            if (type_app)
-                type = checker.type_table.type_app(type->as<StructType>(), type_app->type_args);
-            return type;
-        } else {
-            auto member = member_type(type_app, enum_type, *index);
-            path.is_ctor = true;
-            if (is_unit_type(member)) {
-                return type = prev_elem_type;
+            : checker.infer(mod_type->member(*index));*/
+    }
+    if (auto prev_elem_type = prev_elem->isa<tir::Type>()) {
+        if (auto [type_app, enum_type] = match_app<EnumType>(prev_elem_type); enum_type) {
+            assert(false && "TODO");
+            /*auto index = enum_type->find_member(id.name);
+            if (!index)
+                return tir = checker.unknown_member(loc, enum_type, id.name);
+            this->index = *index;
+            if (enum_type->decl.options[*index]->struct_type) {
+                // If the enumeration option uses the record syntax, we use the corresponding structure type
+                type = enum_type->decl.options[*index]->struct_type;
+                if (type_app)
+                    type = checker.type_table.type_app(type->as<StructType>(), type_app->type_args);
+                return type;
             } else {
-                return type = checker.type_table.fn_type(member, prev_elem_type);
-            }
+                auto member = member_type(type_app, enum_type, *index);
+                path.is_ctor = true;
+                if (is_unit_type(member)) {
+                    return type = prev_elem_type;
+                } else {
+                    return type = checker.type_table.fn_type(member, prev_elem_type);
+                }
+            }*/
         }
-    } else
-        return checker.type_expected(loc, type, "module or enum");
+    }
+    assert(false && "TODO");
+    //return checker.type_expected(loc, type, "module or enum");
 }
 
-const artic::Type* Path::infer(TypeChecker& checker, Ptr<Expr>* arg, const artic::Type* ret_type) {
+const tir::Node* Path::infer(TypeChecker& checker, Ptr<Expr>* arg, const artic::Type* ret_type) {
     if (elems.back().is_wildcard())
         return nullptr;
     if (!decl)
@@ -838,11 +905,11 @@ const artic::Type* Path::infer(TypeChecker& checker, Ptr<Expr>* arg, const artic
     for (size_t i = 0, n = elems.size(); i < n; ++i) {
         auto& elem = elems[i];
 
-        elem.infer(checker, i == 0 ? nullptr : elems[i - 1].type, *this);
+        elem.infer(checker, i == 0 ? nullptr : elems[i - 1].tir, *this);
 
         // Apply type arguments (if any)
-        auto user_type   = elem.type->isa<artic::UserType>();
-        auto forall_type = elem.type->isa<artic::ForallType>();
+        auto user_type   = elem.tir->isa<artic::UserType>();
+        auto forall_type = elem.tir->isa<artic::ForallType>();
         if ((user_type && user_type->type_params()) || forall_type) {
             const size_t type_param_count = user_type
                 ? user_type->type_params()->params.size()
@@ -851,15 +918,15 @@ const artic::Type* Path::infer(TypeChecker& checker, Ptr<Expr>* arg, const artic
                 (forall_type && arg && type_param_count > elem.args.size())) {
                 std::vector<const artic::Type*> type_args(type_param_count);
                 for (size_t i = 0, n = elem.args.size(); i < n; ++i)
-                    type_args[i] = checker.infer(*elem.args[i]);
+                    type_args[i] = checker.infer_type(*elem.args[i]);
                 // Infer type arguments when not all type arguments are given
                 if (type_param_count != elem.args.size() && i == n - 1) {
-                    auto arg_type = checker.try_coerce(*arg, forall_type->body->as<artic::FnType>()->dom);
+                    auto arg_type = checker.try_coerce(*arg, forall_type->body->as<artic::FnType>()->dom)->type;
                     if (!checker.infer_fn_type_args(loc, forall_type, arg_type, ret_type, type_args))
                         return checker.type_table.type_error();
                 }
                 elem.inferred_args = type_args;
-                elem.type = user_type
+                elem.tir = user_type
                     ? checker.type_table.type_app(user_type, type_args)
                     : forall_type->instantiate(type_args);
             } else if (!elem.args.empty() || /* we allow leaving out type params when importing definitions */ !is_use_path_) {
@@ -872,11 +939,11 @@ const artic::Type* Path::infer(TypeChecker& checker, Ptr<Expr>* arg, const artic
         }
     }
 
-    return type = elems.back().type;
+    return tir = elems.back().tir;
 }
 
-const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, Ptr<ast::Expr>* arg, const artic::Type* ret_type) {
-    type = infer(checker, arg, ret_type);
+const tir::Node* Path::infer(TypeChecker& checker, bool value_expected, Ptr<ast::Expr>* arg, const artic::Type* ret_type) {
+    tir = infer(checker, arg, ret_type);
 
     auto last_decl = resolve_use_decl(decl);
 
@@ -884,19 +951,22 @@ const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, Ptr<as
     is_value |= is_ctor;
 
     // Treat tuple-like structure constructors as functions
-    if (auto [type_app, struct_type] = match_app<StructType>(type);
-            last_decl->isa<ast::StructDecl>() && value_expected && struct_type && struct_type->is_tuple_like()) {
-        if (struct_type->member_count() > 0) {
-            SmallArray<const artic::Type*> tuple_args(struct_type->member_count());
-            for (size_t i = 0, n = struct_type->member_count(); i < n; ++i)
-                tuple_args[i] = member_type(type_app, struct_type, i);
-            auto dom = struct_type->member_count() == 1
-                       ? tuple_args.front()
-                       : checker.type_table.tuple_type(tuple_args);
-            type = checker.type_table.fn_type(dom, type);
+    if (auto tir_is_type = tir->isa<tir::Type>()) {
+        if (auto [type_app, struct_type] = match_app<StructType>(tir_is_type);
+                last_decl->isa<ast::StructDecl>() && value_expected && struct_type && struct_type->is_tuple_like()) {
+            // TODO: actually generate a single constuctor and re-use it later
+            // if (struct_type->member_count() > 0) {
+            //     SmallArray<const artic::Type*> tuple_args(struct_type->member_count());
+            //     for (size_t i = 0, n = struct_type->member_count(); i < n; ++i)
+            //         tuple_args[i] = member_type(type_app, struct_type, i);
+            //     auto dom = struct_type->member_count() == 1
+            //                ? tuple_args.front()
+            //                : checker.type_table.tuple_type(tuple_args);
+            //     type = checker.type_table.fn_type(dom, type);
+            // }
+            // is_value = true;
+            // is_ctor = true;
         }
-        is_value = true;
-        is_ctor = true;
     }
 
     if (is_value != value_expected) {
@@ -904,23 +974,25 @@ const artic::Type* Path::infer(TypeChecker& checker, bool value_expected, Ptr<as
         return checker.type_table.type_error();
     }
 
-    return type;
+    return tir;
 }
 
 // Filter --------------------------------------------------------------------------
 
-const artic::Type* Filter::check(TypeChecker& checker, const artic::Type* expected) {
-    if (expr) {
+const tir::Node* Filter::check(TypeChecker& checker, const artic::Type* expected) {
+    assert(false && "TODO");
+    /*if (expr) {
         checker.check(*expr, expected);
         checker.check_filter(*expr);
     }
-    return expected;
+    return expected;*/
 }
 
 // Attributes ----------------------------------------------------------------------
 
 void NamedAttr::check(TypeChecker& checker, const ast::Node* node) {
-    if (name == "export" || name == "import") {
+    assert(false && "TODO");
+    /*if (name == "export" || name == "import") {
         if (auto fn_decl = node->isa<FnDecl>()) {
             if (name == "export") {
                 auto fn_type = fn_decl->type->isa<artic::FnType>();
@@ -981,7 +1053,7 @@ void NamedAttr::check(TypeChecker& checker, const ast::Node* node) {
     } else if (name == "intern") {
         checker.check_attrs(*this, std::array<AttrType, 1> { AttrType { "name", AttrType::String } });
     } else
-        checker.invalid_attr(loc, name);
+        checker.invalid_attr(loc, name);*/
 }
 
 void PathAttr::check(TypeChecker& checker, const ast::Node*) {
@@ -999,164 +1071,179 @@ void AttrList::check(TypeChecker& checker, const ast::Node* parent) {
 
 // Types ---------------------------------------------------------------------------
 
-const artic::Type* PrimType::infer(TypeChecker& checker) {
+const tir::Node* PrimType::infer(TypeChecker& checker) {
     return checker.type_table.prim_type(tag);
 }
 
-const artic::Type* TupleType::infer(TypeChecker& checker) {
+const tir::Node* TupleType::infer(TypeChecker& checker) {
     SmallArray<const artic::Type*> arg_types(args.size());
     for (size_t i = 0, n = args.size(); i < n; ++i)
-        arg_types[i] = checker.infer(*args[i]);
+        arg_types[i] = checker.infer_type(*args[i]);
     return checker.type_table.tuple_type(arg_types);
 }
 
-const artic::Type* SizedArrayType::infer(TypeChecker& checker) {
-    auto elem_type = checker.infer(*elem);
+const tir::Node* SizedArrayType::infer(TypeChecker& checker) {
+    auto elem_type = checker.infer_type(*elem);
     if (is_simd && !(elem_type->template isa<artic::PrimType>() || elem_type->template isa<artic::PtrType>()))
         return checker.invalid_simd(loc, elem_type);
 
     if (std::holds_alternative<ast::Path>(size)) {
         auto &path = std::get<ast::Path>(size);
-        checker.infer(path);
+        checker.infer_value(path);
         size = checker.path_to_size(path, "sized array size");
     }
 
     return checker.type_table.sized_array_type(elem_type, std::get<size_t>(size), is_simd);
 }
 
-const artic::Type* UnsizedArrayType::infer(TypeChecker& checker) {
-    auto type = checker.type_table.unsized_array_type(checker.infer(*elem));
+const tir::Node* UnsizedArrayType::infer(TypeChecker& checker) {
+    auto type = checker.type_table.unsized_array_type(checker.infer_type(*elem));
     checker.error(loc, "unsized array types cannot be used directly");
     checker.note("use '{}' instead", *checker.type_table.ptr_type(type, false, 0));
     return checker.type_table.type_error();
 }
 
-const artic::Type* FnType::infer(TypeChecker& checker) {
+const tir::Node* FnType::infer(TypeChecker& checker) {
     if (to->isa<ast::NoCodomType>())
-        return checker.type_table.cn_type(checker.infer(*from));
-    return checker.type_table.fn_type(checker.infer(*from), checker.infer(*to));
+        return checker.type_table.cn_type(checker.infer_type(*from));
+    return checker.type_table.fn_type(checker.infer_type(*from), checker.infer_type(*to));
 }
 
-const artic::Type* PtrType::infer(TypeChecker& checker) {
-    const artic::Type* pointee_type = nullptr;
+const tir::Node* PtrType::infer(TypeChecker& checker) {
+    const tir::Type* pointee_type = nullptr;
     if (auto unsized_array_type = pointee->isa<UnsizedArrayType>())
-        pointee_type = checker.type_table.unsized_array_type(checker.infer(*unsized_array_type->elem));
+        pointee_type = checker.type_table.unsized_array_type(checker.infer_type(*unsized_array_type->elem));
     else
-        pointee_type = checker.infer(*pointee);
+        pointee_type = checker.infer_type(*pointee);
     return checker.type_table.ptr_type(pointee_type, is_mut, addr_space);
 }
 
-const artic::Type* TypeApp::infer(TypeChecker& checker) {
-    return path.type = path.infer(checker, false);
+const tir::Node* TypeApp::infer(TypeChecker& checker) {
+    return path.tir = path.infer(checker, false);
 }
 
-const artic::Type* NoCodomType::infer(TypeChecker& checker) {
+const tir::Node* NoCodomType::infer(TypeChecker& checker) {
     return checker.type_table.no_ret_type();
 }
 
 // Statements ----------------------------------------------------------------------
 
-const artic::Type* DeclStmt::infer(TypeChecker& checker) {
-    checker.infer(*decl);
-    return checker.type_table.unit_type();
+const tir::Node* DeclStmt::infer(TypeChecker& checker) {
+    assert(false && "TODO");
+    /*checker.infer(*decl);
+    return checker.type_table.unit_type();*/
 }
 
-const artic::Type* DeclStmt::check(TypeChecker& checker, const artic::Type* expected) {
-    checker.infer(*decl);
-    return checker.expect(loc, checker.type_table.unit_type(), expected);
+const tir::Node* DeclStmt::check(TypeChecker& checker, const artic::Type* expected) {
+    assert(false && "TODO");
+    /*checker.infer(*decl);
+    return checker.expect(loc, checker.type_table.unit_type(), expected);*/
 }
 
-const artic::Type* ExprStmt::infer(TypeChecker& checker) {
-    return checker.deref(expr);
+const tir::Node* ExprStmt::infer(TypeChecker& checker) {
+    assert(false && "TODO");
+    //return checker.deref(expr);
 }
 
-const artic::Type* ExprStmt::check(TypeChecker& checker, const artic::Type* expected) {
-    return checker.coerce(expr, expected);
+const tir::Node* ExprStmt::check(TypeChecker& checker, const artic::Type* expected) {
+    assert(false && "TODO");
+    //return checker.coerce(expr, expected);
 }
 
 // Expressions ---------------------------------------------------------------------
 
-const artic::Type* Expr::check(TypeChecker& checker, const artic::Type* expected) {
-    return checker.expect(loc, checker.infer(*this), expected);
+const tir::Node* Expr::check(TypeChecker& checker, const artic::Type* expected) {
+    auto inferred = checker.infer_value(*this);
+    checker.expect(loc, inferred->type, expected);
+    return inferred;
 }
 
-const artic::Type* TypedExpr::infer(TypeChecker& checker) {
-    return checker.coerce(expr, checker.infer(*type));
+const tir::Node* TypedExpr::infer(TypeChecker& checker) {
+    assert(false && "TODO");
+    //return checker.coerce(expr, checker.infer(*type));
 }
 
-const artic::Type* PathExpr::infer(TypeChecker& checker) {
+const tir::Node* PathExpr::infer(TypeChecker& checker) {
     return path.infer(checker, true);
 }
 
-const artic::Type* LiteralExpr::infer(TypeChecker& checker) {
+const tir::Node* LiteralExpr::infer(TypeChecker& checker) {
     return checker.infer(loc, lit);
 }
 
-const artic::Type* LiteralExpr::check(TypeChecker& checker, const artic::Type* expected) {
+const tir::Node* LiteralExpr::check(TypeChecker& checker, const artic::Type* expected) {
     return checker.check(loc, lit, expected);
 }
 
-const artic::Type* SummonExpr::infer(artic::TypeChecker& checker) {
-    if (type_expr) {
+const tir::Node* SummonExpr::infer(artic::TypeChecker& checker) {
+    assert(false && "TODO");
+    /*if (type_expr) {
         resolved = &*checker.summon(type = checker.infer(*type_expr), loc);
         return type;
     }
     checker.error(loc, "summoning a value without a type");
-    return checker.type_table.type_error();
+    return checker.type_table.type_error();*/
 }
 
-const artic::Type* FieldExpr::check(TypeChecker& checker, const artic::Type* expected) {
-    return checker.coerce(expr, expected);
+const tir::Node* FieldExpr::check(TypeChecker& checker, const artic::Type* expected) {
+    assert(false && "TODO");
+    //return checker.coerce(expr, expected);
 }
 
-const artic::Type* RecordExpr::infer(TypeChecker& checker) {
-    auto type = expr ? checker.deref(expr) : checker.infer(*this->type);
+const tir::Node* RecordExpr::infer(TypeChecker& checker) {
+    assert(false && "TODO");
+    /*auto type = expr ? checker.deref(expr) : checker.infer(*this->type);
     auto [type_app, struct_type] = match_app<artic::StructType>(type);
     if (!struct_type ||
         (struct_type->decl.isa<StructDecl>() &&
          struct_type->decl.as<StructDecl>()->is_tuple_like))
         return checker.type_expected(expr ? expr->loc : this->loc, type, "record-like structure");
     checker.check_fields(loc, struct_type, type_app, fields, "expression", static_cast<bool>(expr), true);
-    return checker.infer_record_type(type_app, struct_type, variant_index);
+    return checker.infer_record_type(type_app, struct_type, variant_index);*/
 }
 
-const artic::Type* TupleExpr::infer(TypeChecker& checker) {
-    SmallArray<const artic::Type*> arg_types(args.size());
+const tir::Node* TupleExpr::infer(TypeChecker& checker) {
+    assert(false && "TODO");
+    /*SmallArray<const artic::Type*> arg_types(args.size());
     for (size_t i = 0, n = args.size(); i < n; ++i)
         arg_types[i] = checker.deref(args[i]);
-    return checker.type_table.tuple_type(arg_types);
+    return checker.type_table.tuple_type(arg_types);*/
 }
 
-const artic::Type* TupleExpr::check(TypeChecker& checker, const artic::Type* expected) {
-    if (auto tuple_type = expected->isa<artic::TupleType>()) {
+const tir::Node* TupleExpr::check(TypeChecker& checker, const artic::Type* expected) {
+    assert(false && "TODO");
+    /*if (auto tuple_type = expected->isa<artic::TupleType>()) {
         if (args.size() != tuple_type->args.size())
             return checker.bad_arguments(loc, "tuple expression", args.size(), tuple_type->args.size());
         for (size_t i = 0, n = args.size(); i < n; ++i)
             checker.coerce(args[i], tuple_type->args[i]);
         return expected;
     }
-    return checker.incompatible_type(loc, "tuple expression", expected);
+    return checker.incompatible_type(loc, "tuple expression", expected);*/
 }
 
-const artic::Type* ArrayExpr::infer(TypeChecker& checker) {
-    return checker.infer_array(loc, "array expression", elems.size(), is_simd, [&] {
+const tir::Node* ArrayExpr::infer(TypeChecker& checker) {
+    assert(false && "TODO");
+    /*return checker.infer_array(loc, "array expression", elems.size(), is_simd, [&] {
         auto elem_type = checker.deref(elems.front());
         for (size_t i = 1, n = elems.size(); i < n; ++i)
             checker.coerce(elems[i], elem_type);
         return elem_type;
-    });
+    });*/
 }
 
-const artic::Type* ArrayExpr::check(TypeChecker& checker, const artic::Type* expected) {
-    return checker.check_array(loc, "array expression",
+const tir::Node* ArrayExpr::check(TypeChecker& checker, const artic::Type* expected) {
+    assert(false && "TODO");
+    /*return checker.check_array(loc, "array expression",
         expected, elems.size(), is_simd, [&] (auto elem_type) {
         for (auto& elem : elems)
             checker.coerce(elem, elem_type);
-    });
+    });*/
 }
 
-const artic::Type* RepeatArrayExpr::infer(TypeChecker& checker) {
-    auto elem_type = checker.deref(elem);
+const tir::Node* RepeatArrayExpr::infer(TypeChecker& checker) {
+    assert(false && "TODO");
+    /*auto elem_type = checker.deref(elem);
     if (is_simd && !(elem_type->template isa<artic::PrimType>() || elem_type->template isa<artic::PtrType>()))
         return checker.invalid_simd(loc, elem_type);
 
@@ -1166,11 +1253,12 @@ const artic::Type* RepeatArrayExpr::infer(TypeChecker& checker) {
         size = checker.path_to_size(path, "repeat array expression size");
     }
 
-    return checker.type_table.sized_array_type(elem_type, std::get<size_t>(size), is_simd);
+    return checker.type_table.sized_array_type(elem_type, std::get<size_t>(size), is_simd);*/
 }
 
-const artic::Type* RepeatArrayExpr::check(TypeChecker& checker, const artic::Type* expected) {
-    if (std::holds_alternative<ast::Path>(size)) {
+const tir::Node* RepeatArrayExpr::check(TypeChecker& checker, const artic::Type* expected) {
+    assert(false && "TODO");
+    /*if (std::holds_alternative<ast::Path>(size)) {
         auto &path = std::get<ast::Path>(size);
         checker.infer(path);
         size = checker.path_to_size(path, "repeat array expression size");
@@ -1179,29 +1267,36 @@ const artic::Type* RepeatArrayExpr::check(TypeChecker& checker, const artic::Typ
     return checker.check_array(loc, "array expression",
         expected, std::get<size_t>(size), is_simd, [&] (auto elem_type) {
         checker.coerce(elem, elem_type);
-    });
+    });*/
 }
 
-const artic::Type* FnExpr::infer(TypeChecker& checker) {
+const tir::Node* FnExpr::infer(TypeChecker& checker) {
     TypeChecker::ScopeHelper sg(checker);
-    auto param_type = checker.infer(*param);
+    auto tir_param = checker.infer(*param)->as<Param>();
+    const tir::Value* tir_body = nullptr;
     if (filter)
         checker.check(*filter, checker.type_table.bool_type());
-    auto body_type = ret_type ? checker.infer(*ret_type) : nullptr;
+    auto body_type = ret_type ? checker.infer_type(*ret_type) : nullptr;
     if (body) {
         if (body_type)
-            checker.coerce(body, body_type);
-        else
-            body_type = checker.deref(body);
+            checker.coerce(&*body, body_type);
+        else {
+            tir_body = checker.deref(body);
+            body_type = tir_body->type;
+        }
     }
     checker.check_refutability(*param, true);
-    return body_type
-        ? checker.type_table.fn_type(param_type, body_type)
-        : checker.cannot_infer(loc, "function");
+    if (!body_type) {
+        return checker.cannot_infer(loc, "function");
+    }
+    auto fn = checker.type_table.function(tir_param, body_type);
+    fn->body = tir_body;
+    return fn;
 }
 
-const artic::Type* FnExpr::check(TypeChecker& checker, const artic::Type* expected) {
-    if (!expected->isa<artic::FnType>())
+const tir::Node* FnExpr::check(TypeChecker& checker, const artic::Type* expected) {
+    assert(false && "TODO");
+    /*if (!expected->isa<artic::FnType>())
         return checker.incompatible_type(loc, "function", expected);
 
     auto codom = expected->as<artic::FnType>()->codom;
@@ -1214,21 +1309,23 @@ const artic::Type* FnExpr::check(TypeChecker& checker, const artic::Type* expect
     body_type = checker.coerce(body, body_type);
     if (filter)
         checker.check(*filter, checker.type_table.bool_type());
-    return type;
+    return type;*/
 }
 
-const artic::Type* BlockExpr::infer(TypeChecker& checker) {
-    TypeChecker::ScopeHelper sg(checker);
+const tir::Node* BlockExpr::infer(TypeChecker& checker) {
+    assert(false && "TODO");
+    /*TypeChecker::ScopeHelper sg(checker);
     if (stmts.empty())
         return checker.type_table.unit_type();
     for (auto& stmt : stmts)
         checker.infer(*stmt);
     checker.check_block(loc, stmts, last_semi);
-    return last_semi ? checker.type_table.unit_type() : stmts.back()->type;
+    return last_semi ? checker.type_table.unit_type() : stmts.back()->type;*/
 }
 
-const artic::Type* BlockExpr::check(TypeChecker& checker, const artic::Type* expected) {
-    TypeChecker::ScopeHelper sg(checker);
+const tir::Node* BlockExpr::check(TypeChecker& checker, const artic::Type* expected) {
+    assert(false && "TODO");
+    /*TypeChecker::ScopeHelper sg(checker);
     if (stmts.empty()) {
         if (!is_unit_type(expected))
             return checker.incompatible_type(loc, "empty block expression", expected);
@@ -1243,7 +1340,7 @@ const artic::Type* BlockExpr::check(TypeChecker& checker, const artic::Type* exp
         checker.note("removing the last semicolon may solve this issue");
         return checker.type_table.type_error();
     }
-    return last_semi ? expected : last_type;
+    return last_semi ? expected : last_type;*/
 }
 
 static inline PathExpr* callee_path(Expr* expr) {
@@ -1252,15 +1349,14 @@ static inline PathExpr* callee_path(Expr* expr) {
     return expr->isa<PathExpr>();
 }
 
-const artic::Type* CallExpr::check(TypeChecker& checker, const artic::Type* expected) {
+const tir::Node* CallExpr::check(TypeChecker& checker, const artic::Type* expected) {
     // Perform type argument inference when possible
     if (auto path_expr = callee_path(callee.get()))
-        path_expr->type = path_expr->path.infer(checker, true, &arg, expected);
+        path_expr->tir = path_expr->path.infer(checker, true, &arg, expected);
 
-    auto [ref_type, callee_type] = remove_ref(checker.infer(*callee));
+    auto [ref_type, callee_type] = remove_ref(checker.infer_value(*callee)->type);
     if (auto fn_type = callee_type->isa<artic::FnType>()) {
-        checker.coerce(callee, fn_type);
-        checker.coerce(arg, fn_type->dom);
+        return checker.type_table.app(checker.coerce(&*callee, fn_type), checker.coerce(&*arg, fn_type->dom));
         return fn_type->codom;
     } else {
         // Accept pointers to arrays
@@ -1269,11 +1365,11 @@ const artic::Type* CallExpr::check(TypeChecker& checker, const artic::Type* expe
             // Create an implicit cast from the reference type to
             // a pointer type, so as to de-reference the reference.
             if (ref_type)
-                checker.coerce(callee, callee_type);
+                checker.coerce(&*callee, callee_type);
             callee_type = ptr_type->pointee;
         }
         if (auto array_type = callee_type->isa<artic::ArrayType>()) {
-            auto index_type = checker.deref(arg);
+            auto index_type = checker.deref(arg)->type;
             if (!is_int_type(index_type))
                 return checker.type_expected(arg->loc, index_type, "integer type");
             return ref_type || ptr_type
@@ -1288,12 +1384,13 @@ const artic::Type* CallExpr::check(TypeChecker& checker, const artic::Type* expe
     }
 }
 
-const artic::Type* CallExpr::infer(TypeChecker& checker) {
+const tir::Node* CallExpr::infer(TypeChecker& checker) {
     return check(checker, nullptr);
 }
 
-const artic::Type* ProjExpr::infer(TypeChecker& checker) {
-    auto [ref_type, expr_type] = remove_ref(checker.infer(*expr));
+const tir::Node* ProjExpr::infer(TypeChecker& checker) {
+    assert(false && "TODO");
+    /*auto [ref_type, expr_type] = remove_ref(checker.infer(*expr));
     auto ptr_type = expr_type->isa<artic::PtrType>();
     if (ptr_type) {
         // Must dereference references to pointers, such that the pointer offset is computed on the
@@ -1335,7 +1432,7 @@ const artic::Type* ProjExpr::infer(TypeChecker& checker) {
             result_type,
             ptr_type ? ptr_type->is_mut : ref_type->is_mut,
             ptr_type ? ptr_type->addr_space : ref_type->addr_space)
-        : result_type;
+        : result_type;*/
 }
 
 inline const LiteralExpr* is_untyped_int_or_float_literal(const Expr* expr) {
@@ -1361,8 +1458,9 @@ inline const LiteralExpr* is_untyped_int_or_float_literal(const Expr* expr) {
     return nullptr;
 }
 
-const artic::Type* IfExpr::infer(TypeChecker& checker) {
-    if (cond)
+const tir::Node* IfExpr::infer(TypeChecker& checker) {
+    assert(false && "TODO");
+    /*if (cond)
         checker.coerce(cond, checker.type_table.bool_type());
     else {
         checker.infer(*ptrn, expr);
@@ -1400,11 +1498,12 @@ const artic::Type* IfExpr::infer(TypeChecker& checker) {
         }
         return checker.join(if_false, if_true);
     }
-    return checker.coerce(if_true, checker.type_table.unit_type());
+    return checker.coerce(if_true, checker.type_table.unit_type());*/
 }
 
-const artic::Type* IfExpr::check(TypeChecker& checker, const artic::Type* expected) {
-    if (cond)
+const tir::Node* IfExpr::check(TypeChecker& checker, const artic::Type* expected) {
+    assert(false && "TODO");
+    /*if (cond)
         checker.coerce(cond, checker.type_table.bool_type());
     else {
         checker.infer(*ptrn, expr);
@@ -1415,40 +1514,45 @@ const artic::Type* IfExpr::check(TypeChecker& checker, const artic::Type* expect
         return checker.coerce(if_false, expected);
     }
     checker.coerce(if_true, checker.type_table.unit_type());
-    return checker.coerce(if_true, expected);
+    return checker.coerce(if_true, expected);*/
 }
 
-const artic::Type* MatchExpr::infer(TypeChecker& checker) {
+const tir::Node* MatchExpr::infer(TypeChecker& checker) {
+    assert(false && "TODO");
     return check(checker, nullptr);
 }
 
-const artic::Type* MatchExpr::check(TypeChecker& checker, const artic::Type* expected) {
-    auto arg_type = checker.deref(arg);
+const tir::Node* MatchExpr::check(TypeChecker& checker, const artic::Type* expected) {
+    assert(false && "TODO");
+    /*auto arg_type = checker.deref(arg);
     const artic::Type* type = expected;
     for (auto& case_ : cases) {
         checker.check(*case_->ptrn, arg_type);
         type = type ? checker.coerce(case_->expr, type) : checker.deref(case_->expr);
     }
-    return type ? type : checker.cannot_infer(loc, "match expression");
+    return type ? type : checker.cannot_infer(loc, "match expression");*/
 }
 
-const artic::Type* WhileExpr::infer(TypeChecker& checker) {
-    if (cond)
+const tir::Node* WhileExpr::infer(TypeChecker& checker) {
+    assert(false && "TODO");
+    /*if (cond)
         checker.coerce(cond, checker.type_table.bool_type());
     else {
         checker.infer(*ptrn, expr);
         checker.check_refutability(*ptrn, false);
     }
     // Using infer mode here would cause the type system to allow code such as: while true { break }
-    return checker.coerce(body, checker.type_table.unit_type());
+    return checker.coerce(body, checker.type_table.unit_type());*/
 }
 
-const artic::Type* ForExpr::infer(TypeChecker& checker) {
-    return checker.infer(*call);
+const tir::Node* ForExpr::infer(TypeChecker& checker) {
+    assert(false && "TODO");
+    return checker.infer_value(*call);
 }
 
-const artic::Type* BreakExpr::infer(TypeChecker& checker) {
-    const artic::Type* domain = nullptr;
+const tir::Node* BreakExpr::infer(TypeChecker& checker) {
+    assert(false && "TODO");
+    /*const artic::Type* domain = nullptr;
     if (loop->isa<WhileExpr>())
         domain = checker.type_table.unit_type();
     else if (auto for_ = loop->isa<ForExpr>()) {
@@ -1464,11 +1568,12 @@ const artic::Type* BreakExpr::infer(TypeChecker& checker) {
             return checker.cannot_infer(loc, "break expression");
     } else
         assert(false);
-    return checker.type_table.cn_type(domain);
+    return checker.type_table.cn_type(domain);*/
 }
 
-const artic::Type* ContinueExpr::infer(TypeChecker& checker) {
-    const artic::Type* domain = nullptr;
+const tir::Node* ContinueExpr::infer(TypeChecker& checker) {
+    assert(false && "TODO");
+    /*const artic::Type* domain = nullptr;
     if (loop->isa<WhileExpr>())
         domain = checker.type_table.unit_type();
     else if (auto for_ = loop->isa<ForExpr>()) {
@@ -1484,11 +1589,12 @@ const artic::Type* ContinueExpr::infer(TypeChecker& checker) {
             return checker.cannot_infer(loc, "continue expression");
     } else
         assert(false);
-    return checker.type_table.cn_type(domain);
+    return checker.type_table.cn_type(domain);*/
 }
 
-const artic::Type* ReturnExpr::infer(TypeChecker& checker) {
-    if (fn) {
+const tir::Node* ReturnExpr::infer(TypeChecker& checker) {
+    assert(false && "TODO");
+    /*if (fn) {
         const artic::Type* arg_type = nullptr;
         if (fn->type && fn->type->isa<artic::FnType>())
             arg_type = fn->type->as<artic::FnType>()->codom;
@@ -1504,11 +1610,12 @@ const artic::Type* ReturnExpr::infer(TypeChecker& checker) {
     checker.error(loc, "cannot infer the type of '{}'", log::keyword_style("return"));
     if (fn)
         checker.note(fn->loc, "try annotating the return type of this function");
-    return checker.type_table.type_error();
+    return checker.type_table.type_error();*/
 }
 
-const artic::Type* UnaryExpr::infer(TypeChecker& checker) {
-    auto [ref_type, arg_type] = remove_ref(checker.infer(*arg));
+const tir::Node* UnaryExpr::infer(TypeChecker& checker) {
+    assert(false && "TODO");
+    /*auto [ref_type, arg_type] = remove_ref(checker.infer(*arg));
     if ((!ref_type || !ref_type->is_mut) && (tag == AddrOfMut || is_inc() || is_dec()))
         return checker.mutable_expected(arg->loc);
     if (tag == Plus || tag == Minus || tag == Not || tag == Known || tag == Deref) {
@@ -1561,11 +1668,12 @@ const artic::Type* UnaryExpr::infer(TypeChecker& checker) {
             assert(false);
             break;
     }
-    return arg_type;
+    return arg_type;*/
 }
 
-const artic::Type* UnaryExpr::check(TypeChecker& checker, const artic::Type* expected) {
-    switch (tag) {
+const tir::Node* UnaryExpr::check(TypeChecker& checker, const artic::Type* expected) {
+    assert(false && "TODO");
+    /*switch (tag) {
         case Plus:
         case Minus:
             if (is_int_or_float_type(expected))
@@ -1578,7 +1686,7 @@ const artic::Type* UnaryExpr::check(TypeChecker& checker, const artic::Type* exp
         default:
             break;
     }
-    return checker.expect(loc, infer(checker), expected);
+    return checker.expect(loc, infer(checker), expected);*/
 }
 
 inline bool is_untyped(const Expr& expr) {
@@ -1590,8 +1698,9 @@ inline bool is_untyped(const Expr& expr) {
     return is_untyped_int_or_float_literal(&expr);
 }
 
-const artic::Type* BinaryExpr::infer(TypeChecker& checker) {
-    const artic::RefType* left_ref = nullptr;
+const tir::Node* BinaryExpr::infer(TypeChecker& checker) {
+    assert(false && "TODO");
+    /*const artic::RefType* left_ref = nullptr;
     const artic::Type* left_type   = nullptr;
     const artic::Type* right_type  = nullptr;
     if (is_logic()) {
@@ -1657,11 +1766,12 @@ const artic::Type* BinaryExpr::infer(TypeChecker& checker) {
     checker.coerce(left, left_type);
     if (has_cmp())
         return checker.type_table.bool_type();
-    return right_type;
+    return right_type;*/
 }
 
-const artic::Type* BinaryExpr::check(TypeChecker& checker, const artic::Type* expected) {
-    auto coerce = [&] (const artic::Type* type) {
+const tir::Node* BinaryExpr::check(TypeChecker& checker, const artic::Type* expected) {
+    assert(false && "TODO");
+    /*auto coerce = [&] (const artic::Type* type) {
         checker.coerce(left, type);
         checker.coerce(right, type);
     };
@@ -1688,16 +1798,18 @@ const artic::Type* BinaryExpr::check(TypeChecker& checker, const artic::Type* ex
         default:
             break;
     }
-    return checker.expect(loc, infer(checker), expected);
+    return checker.expect(loc, infer(checker), expected);*/
 }
 
-const artic::Type* FilterExpr::infer(TypeChecker& checker) {
-    checker.check(*filter, checker.type_table.bool_type());
-    return checker.infer(*expr);
+const tir::Node* FilterExpr::infer(TypeChecker& checker) {
+    assert(false && "TODO");
+    /*checker.check(*filter, checker.type_table.bool_type());
+    return checker.infer(*expr);*/
 }
 
-const artic::Type* CastExpr::infer(TypeChecker& checker) {
-    auto expected = checker.infer(*type);
+const tir::Node* CastExpr::infer(TypeChecker& checker) {
+    assert(false && "TODO");
+    /*auto expected = checker.infer(*type);
     auto type = checker.deref(expr);
     if (type == expected) {
         checker.warn(loc, "cast source and destination types are identical");
@@ -1724,15 +1836,16 @@ const artic::Type* CastExpr::infer(TypeChecker& checker) {
         return expected;
     if (allow_float && is_float_type(type))
         return expected;
-    return checker.invalid_cast(loc, type, expected);
+    return checker.invalid_cast(loc, type, expected);*/
 }
 
 inline bool is_acceptable_asm_in_or_out(const artic::Type* type) {
     return type->isa<artic::PrimType>() || type->isa<artic::PtrType>() || is_simd_type(type);
 }
 
-const artic::Type* AsmExpr::infer(TypeChecker& checker) {
-    for (auto& out : outs) {
+const tir::Node* AsmExpr::infer(TypeChecker& checker) {
+    assert(false && "TODO");
+    /*for (auto& out : outs) {
         auto [ref_type, type] = remove_ref(checker.infer(*out.expr));
         if (!ref_type || !ref_type->is_mut)
             return checker.mutable_expected(out.expr->loc);
@@ -1751,30 +1864,32 @@ const artic::Type* AsmExpr::infer(TypeChecker& checker) {
             return checker.type_table.type_error();
         }
     }
-    return checker.type_table.unit_type();
+    return checker.type_table.unit_type();*/
 }
 
 // Declarations --------------------------------------------------------------------
 
-const artic::Type* TypeParam::infer(TypeChecker& checker) {
+const tir::Node* TypeParam::infer(TypeChecker& checker) {
     return checker.type_table.type_var(*this);
 }
 
-const artic::Type* PtrnDecl::check(TypeChecker&, const artic::Type* expected) {
-    return expected;
+const tir::Node* PtrnDecl::check(TypeChecker& checker, const artic::Type* expected) {
+    return checker.type_table.param(id, expected);
 }
 
-const artic::Type* LetDecl::infer(TypeChecker& checker) {
-    if (init)
+const tir::Node* LetDecl::infer(TypeChecker& checker) {
+    assert(false && "TODO");
+    /*if (init)
         checker.infer(*ptrn, init);
     else
         checker.infer(*ptrn);
     checker.check_refutability(*ptrn, true);
-    return checker.type_table.unit_type();
+    return checker.type_table.unit_type();*/
 }
 
-const artic::Type* ImplicitDecl::infer(TypeChecker& checker) {
-    const artic::ForallType* forall = nullptr;
+const tir::Node* ImplicitDecl::infer(TypeChecker& checker) {
+    assert(false && "TODO");
+    /*const artic::ForallType* forall = nullptr;
     if (type_params) {
         forall = checker.type_table.forall_type(*this);
         for (auto& param : type_params->params)
@@ -1804,90 +1919,100 @@ const artic::Type* ImplicitDecl::infer(TypeChecker& checker) {
     if (forall)
         forall->body = t;
     checker.exit_decl(this);
-    return type;
+    return type;*/
 }
 
-const artic::Type* ImplicitInstantiationExpr::infer(TypeChecker& checker) {
+const tir::Node* ImplicitInstantiationExpr::infer(TypeChecker& checker) {
     if (!type_args.empty()) {
         return checker.infer(*impl)->as<ForallType>()->instantiate(type_args);
     }
     return checker.infer(*impl);
 }
 
-const artic::Type* StaticDecl::infer(TypeChecker& checker) {
+const tir::Node* StaticDecl::infer(TypeChecker& checker) {
     if (!checker.enter_decl(this))
         return checker.type_table.type_error();
     const artic::Type* value_type = nullptr;
+    const artic::Value* value = nullptr;
     if (type) {
-        value_type = checker.infer(*type);
+        value_type = checker.infer_type(*type);
         if (init)
-            checker.coerce(init, value_type);
+            value = checker.coerce(&*init, value_type);
     } else if (init) {
-        value_type = checker.deref(init);
+        value = checker.deref(init);
+        value_type = value->type;
     } else
         return checker.cannot_infer(loc, "static variable");
     if (init && !init->is_constant())
         checker.error(init->loc, "only constants are allowed as static variable initializers");
     for (auto child : this->others) {
         if(child->type) {
-            auto other_type = checker.infer(*child->type);
+            auto other_type = checker.infer_type(*child->type);
             checker.expect(child->type->loc, other_type, value_type);
         }
     }
     checker.exit_decl(this);
-    return checker.type_table.ref_type(value_type, is_mut, 0);
+    return checker.type_table.global_variable(value_type, is_mut, value);
 }
 
-const artic::Type* FnDecl::infer(TypeChecker& checker) {
-    const artic::ForallType* forall = nullptr;
+const tir::Node* FnDecl::infer(TypeChecker& checker) {
+    const tir::Node* forall = nullptr;
+    //const artic::ForallType* forall = nullptr;
     if (type_params) {
-        forall = checker.type_table.forall_type(*this);
-        for (auto& param : type_params->params)
-            checker.infer(*param);
+        assert(false && "TODO");
+        // forall = checker.type_table.forall_type(*this);
+        // for (auto& param : type_params->params)
+        //     checker.infer(*param);
     }
     if (!checker.enter_decl(this))
         return checker.type_table.type_error();
 
-    const artic::Type* fn_type = nullptr;
+    const tir::Fn* tir_fn = nullptr;
+    const artic::FnType* fn_type = nullptr;
     if (fn->ret_type) {
-        fn_type = checker.type_table.fn_type(checker.infer(*fn->param), checker.infer(*fn->ret_type));
+        auto param = checker.infer_value(*fn->param)->as<Param>();
+        fn_type = checker.type_table.fn_type(param->type, checker.infer_type(*fn->ret_type));
         if (fn->filter)
             checker.check(*fn->filter, checker.type_table.bool_type());
         checker.check_refutability(*fn->param, true);
-    } else
-        fn_type = checker.infer(*fn);
+        tir_fn = checker.type_table.function(param, fn_type->codom);
+    } else {
+        tir_fn = checker.infer_value(*fn)->as<tir::Fn>();
+        fn_type = tir_fn->type->as<tir::FnType>();
+    }
 
     // Set the type of this function right now, in case
     // the `return` keyword is encountered in the body.
-    type = forall ? forall : fn_type;
-    fn->type = fn_type;
-    if (forall)
-        forall->body = fn_type;
+    tir = forall ? forall : tir_fn;
+    // if (forall)
+    //     forall->body = fn_type;
     if (fn->ret_type && fn->body)
-        checker.coerce(fn->body, fn_type->as<artic::FnType>()->codom);
+        checker.coerce(&*fn->body, fn_type->codom);
     checker.exit_decl(this);
-    return type;
+    return tir;
 }
 
-const artic::Type* FnDecl::check(TypeChecker& checker, [[maybe_unused]] const artic::Type* expected) {
+const tir::Node* FnDecl::check(TypeChecker& checker, [[maybe_unused]] const artic::Type* expected) {
     // Inside a block expression, statements are expected to type as (),
     // so we ignore the expected type here.
     assert(expected == checker.type_table.unit_type());
     return infer(checker);
 }
 
-const artic::Type* FieldDecl::infer(TypeChecker& checker) {
-    auto field_type = checker.infer(*type);
+const tir::Node* FieldDecl::infer(TypeChecker& checker) {
+    assert(false && "TODO");
+    /*auto field_type = checker.infer(*type);
     if (init) {
         checker.coerce(init, field_type);
         if (!init->is_constant())
             checker.error(init->loc, "only constants are allowed as default field values");
     }
-    return field_type;
+    return field_type;*/
 }
 
-const artic::Type* StructDecl::infer(TypeChecker& checker) {
-    auto struct_type = checker.type_table.struct_type(*this);
+const tir::Node* StructDecl::infer(TypeChecker& checker) {
+    assert(false && "TODO");
+    /*auto struct_type = checker.type_table.struct_type(*this);
     if (type_params) {
         for (auto& param : type_params->params)
             checker.infer(*param);
@@ -1896,11 +2021,12 @@ const artic::Type* StructDecl::infer(TypeChecker& checker) {
     type = struct_type;
     for (auto& field : fields)
         checker.infer(*field);
-    return struct_type;
+    return struct_type;*/
 }
 
-const artic::Type* OptionDecl::infer(TypeChecker& checker) {
-    if (param)
+const tir::Node* OptionDecl::infer(TypeChecker& checker) {
+    assert(false && "TODO");
+    /*if (param)
         return checker.infer(*param);
     else if (has_fields) {
         for (auto& field : fields)
@@ -1908,11 +2034,12 @@ const artic::Type* OptionDecl::infer(TypeChecker& checker) {
         return struct_type = checker.type_table.struct_type(*this);;
     } else {
         return checker.type_table.unit_type();
-    }
+    }*/
 }
 
-const artic::Type* EnumDecl::infer(TypeChecker& checker) {
-    auto enum_type = checker.type_table.enum_type(*this);
+const tir::Node* EnumDecl::infer(TypeChecker& checker) {
+    assert(false && "TODO");
+    /*auto enum_type = checker.type_table.enum_type(*this);
     if (type_params) {
         for (auto& param : type_params->params)
             checker.infer(*param);
@@ -1921,11 +2048,12 @@ const artic::Type* EnumDecl::infer(TypeChecker& checker) {
     type = enum_type;
     for (auto& option : options)
         checker.infer(*option);
-    return enum_type;
+    return enum_type;*/
 }
 
-const artic::Type* TypeDecl::infer(TypeChecker& checker) {
-    if (!checker.enter_decl(this))
+const tir::Node* TypeDecl::infer(TypeChecker& checker) {
+    assert(false && "TODO");
+    /*if (!checker.enter_decl(this))
         return checker.type_table.type_error();
     const artic::Type* type = nullptr;
     if (type_params) {
@@ -1938,99 +2066,112 @@ const artic::Type* TypeDecl::infer(TypeChecker& checker) {
         type = checker.infer(*aliased_type);
     }
     checker.exit_decl(this);
-    return type;
+    return type;*/
 }
 
-const artic::Type* ModDecl::infer(TypeChecker& checker) {
+const tir::Node* ModDecl::infer(TypeChecker& checker) {
     TypeChecker::ScopeHelper sg(checker);
     for (auto& decl: decls)
         if (auto impl_decl = decl->isa<ImplicitDecl>())
             checker.scopes.front().push_back(TypeChecker::ImplicitSrc {
                 .decl = impl_decl,
             });
-    for (auto& decl : decls)
-        checker.infer(*decl);
+    std::vector<Module::Decl> tir_decls;
     for (auto& decl : decls) {
-        if (decl->isa<StructDecl>() || decl->isa<EnumDecl>()) {
-            if (!decl->type->is_sized())
-                checker.unsized_type(decl->loc, decl->type);
-        }
+        if (auto named = decl->isa<NamedDecl>())
+            tir_decls.emplace_back(named->id, checker.infer(*decl));
     }
-    return checker.type_table.mod_type(*this);
+    return checker.type_table.module(id, std::move(tir_decls));
+    // for (auto& decl : decls) {
+    //     if (decl->isa<StructDecl>() || decl->isa<EnumDecl>()) {
+    //         if (!decl->type->is_sized())
+    //             checker.unsized_type(decl->loc, decl->type);
+    //     }
+    // }
+    // return checker.type_table.mod_type(*this);
 }
 
-const artic::Type* UseDecl::infer(TypeChecker& checker) {
-    if (!checker.enter_decl(this))
+const tir::Node* UseDecl::infer(TypeChecker& checker) {
+    assert(false && "TODO");
+    /*if (!checker.enter_decl(this))
         return checker.type_table.type_error();
     auto path_type = checker.infer(path);
     checker.exit_decl(this);
-    return path_type;
+    return path_type;*/
 }
 
 // Patterns ------------------------------------------------------------------------
 
-const artic::Type* TypedPtrn::infer(TypeChecker& checker) {
-    auto ptrn_type = checker.infer(*type);
+const tir::Node* TypedPtrn::infer(TypeChecker& checker) {
+    auto ptrn_type = checker.infer_type(*type);
     return ptrn ? checker.check(*ptrn, ptrn_type) : ptrn_type;
 }
 
-const artic::Type* LiteralPtrn::infer(TypeChecker& checker) {
-    auto type = checker.infer(loc, lit);
+const tir::Node* LiteralPtrn::infer(TypeChecker& checker) {
+    assert(false && "TODO");
+    /*auto type = checker.infer(loc, lit);
     if (is_float_type(type))
         return checker.type_expected(loc, type, "integer, boolean, or string");
-    return type;
+    return type;*/
 }
 
-const artic::Type* LiteralPtrn::check(TypeChecker& checker, const artic::Type* expected) {
-    auto type = checker.check(loc, lit, expected);
+const tir::Node* LiteralPtrn::check(TypeChecker& checker, const artic::Type* expected) {
+    assert(false && "TODO");
+    /*auto type = checker.check(loc, lit, expected);
     if (is_float_type(type))
         return checker.type_expected(loc, type, "integer, boolean, or string");
-    return type;
+    return type;*/
 }
 
-const artic::Type* IdPtrn::infer(TypeChecker& checker) {
-    return sub_ptrn
+const tir::Node* IdPtrn::infer(TypeChecker& checker) {
+    assert(false && "TODO");
+    /*return sub_ptrn
         ? checker.check(*decl, checker.infer(*sub_ptrn))
-        : checker.infer(*decl);
+        : checker.infer(*decl);*/
 }
 
-const artic::Type* IdPtrn::check(TypeChecker& checker, const artic::Type* expected) {
+const tir::Node* IdPtrn::check(TypeChecker& checker, const artic::Type* expected) {
     checker.check(*decl, decl->is_mut ? checker.type_table.ref_type(expected, true, 0) : expected);
     if (sub_ptrn)
         checker.check(*sub_ptrn, expected);
-    return expected;
+    return decl->tir;
 }
 
-const artic::Type* ImplicitParamPtrn::infer(artic::TypeChecker& checker) {
-    checker.infer(*underlying);
-    return checker.type_table.implicit_param_type(underlying->type);
+const tir::Node* ImplicitParamPtrn::infer(artic::TypeChecker& checker) {
+    assert(false && "TODO");
+    /*checker.infer(*underlying);
+    return checker.type_table.implicit_param_type(underlying->type);*/
 }
 
-const artic::Type * ImplicitParamPtrn::check(artic::TypeChecker& checker, const artic::Type* expected) {
-    checker.check(*underlying, expected);
+const tir::Node* ImplicitParamPtrn::check(artic::TypeChecker& checker, const artic::Type* expected) {
+    assert(false && "TODO");
+    /*checker.check(*underlying, expected);
     checker.scopes.front().push_back(TypeChecker::ImplicitSrc {
         .expr = arena_ptr((Expr*) this->to_expr(checker._arena)),
     });
-    return checker.type_table.implicit_param_type(underlying->type);
+    return checker.type_table.implicit_param_type(underlying->type);*/
 }
 
-const artic::Type* FieldPtrn::check(TypeChecker& checker, const artic::Type* expected) {
-    return checker.check(*ptrn, expected);
+const tir::Node* FieldPtrn::check(TypeChecker& checker, const artic::Type* expected) {
+    assert(false && "TODO");
+    //return checker.check(*ptrn, expected);
 }
 
-const artic::Type* RecordPtrn::infer(TypeChecker& checker) {
-    path.type = path.infer(checker, false);
+const tir::Node* RecordPtrn::infer(TypeChecker& checker) {
+    assert(false && "TODO");
+    /*path.type = path.infer(checker, false);
     auto [type_app, struct_type] = match_app<artic::StructType>(path.type);
     if (!struct_type ||
         (struct_type->decl.isa<StructDecl>() &&
          struct_type->decl.as<StructDecl>()->is_tuple_like))
         return checker.type_expected(path.loc, path.type, "structure");
     checker.check_fields(loc, struct_type, type_app, fields, "pattern");
-    return checker.infer_record_type(type_app, struct_type, variant_index);
+    return checker.infer_record_type(type_app, struct_type, variant_index);*/
 }
 
-const artic::Type* CtorPtrn::infer(TypeChecker& checker) {
-    auto path_type = path.infer(checker, true);
+const tir::Node* CtorPtrn::infer(TypeChecker& checker) {
+    assert(false && "TODO");
+    /*auto path_type = path.infer(checker, true);
     if (!path.decl->isa<CtorDecl>()) {
         checker.error(path.loc, "structure or enumeration constructor expected");
         return checker.type_table.type_error();
@@ -2054,42 +2195,46 @@ const artic::Type* CtorPtrn::infer(TypeChecker& checker) {
             variant_index = path.elems.back().index;
         return fn_type->codom;
     } else
-        return checker.type_expected(path.loc, path_type, "enumeration or structure");
+        return checker.type_expected(path.loc, path_type, "enumeration or structure");*/
 }
 
-const artic::Type* TuplePtrn::infer(TypeChecker& checker) {
-    SmallArray<const artic::Type*> arg_types(args.size());
+const tir::Node* TuplePtrn::infer(TypeChecker& checker) {
+    assert(false && "TODO");
+    /*SmallArray<const artic::Type*> arg_types(args.size());
     for (size_t i = 0, n = args.size(); i < n; ++i)
         arg_types[i] = checker.infer(*args[i]);
-    return checker.type_table.tuple_type(arg_types);
+    return checker.type_table.tuple_type(arg_types);*/
 }
 
-const artic::Type* TuplePtrn::check(TypeChecker& checker, const artic::Type* expected) {
-    if (auto tuple_type = expected->isa<artic::TupleType>()) {
+const tir::Node* TuplePtrn::check(TypeChecker& checker, const artic::Type* expected) {
+    assert(false && "TODO");
+    /*if (auto tuple_type = expected->isa<artic::TupleType>()) {
         if (args.size() != tuple_type->args.size())
             return checker.bad_arguments(loc, "tuple pattern", args.size(), tuple_type->args.size());
         for (size_t i = 0, n = args.size(); i < n; ++i)
             checker.check(*args[i], tuple_type->args[i]);
         return expected;
     }
-    return checker.incompatible_type(loc, "tuple pattern", expected);
+    return checker.incompatible_type(loc, "tuple pattern", expected);*/
 }
 
-const artic::Type* ArrayPtrn::infer(TypeChecker& checker) {
-    return checker.infer_array(loc, "array pattern", elems.size(), is_simd, [&] {
-        auto elem_type = checker.infer(*elems.front());
-        for (size_t i = 1, n = elems.size(); i < n; ++i)
-            elem_type = checker.check(*elems[i], elem_type);
-        return elem_type;
-    });
+const tir::Node* ArrayPtrn::infer(TypeChecker& checker) {
+    assert(false && "TODO");
+    // return checker.infer_array(loc, "array pattern", elems.size(), is_simd, [&] {
+    //     auto elem_type = checker.infer(*elems.front());
+    //     for (size_t i = 1, n = elems.size(); i < n; ++i)
+    //         elem_type = checker.check(*elems[i], elem_type);
+    //     return elem_type;
+    // });
 }
 
-const artic::Type* ArrayPtrn::check(TypeChecker& checker, const artic::Type* expected) {
-    return checker.check_array(loc, "array pattern",
-        expected, elems.size(), is_simd, [&] (auto elem_type) {
-        for (auto& elem : elems)
-            checker.check(*elem, elem_type);
-    });
+const tir::Node* ArrayPtrn::check(TypeChecker& checker, const artic::Type* expected) {
+    assert(false && "TODO");
+    // return checker.check_array(loc, "array pattern",
+    //     expected, elems.size(), is_simd, [&] (auto elem_type) {
+    //     for (auto& elem : elems)
+    //         checker.check(*elem, elem_type);
+    // });
 }
 
 } // namespace ast

@@ -3,7 +3,7 @@
 #include "artic/print.h"
 #include "artic/log.h"
 #include "artic/ast.h"
-#include "artic/types.h"
+#include "artic/tir/types.h"
 
 namespace artic {
 
@@ -115,8 +115,8 @@ void SummonExpr::print(Printer& p) const {
         return;
     }
     p << log::keyword_style("summon") << "[";
-    if (type) type->print(p);
-    else if (type_expr) type_expr->print(p);
+    //if (type) type->print(p);
+    if (type_expr) type_expr->print(p);
     p << "]";
 }
 
@@ -354,11 +354,11 @@ void CastExpr::print(Printer& p) const {
 }
 
 void ImplicitCastExpr::print(Printer& p) const {
-    if (p.show_implicit_casts)
-        p << "/* implicit cast to '" << *type << "' ( */";
-    expr->print(p);
-    if (p.show_implicit_casts)
-        p << "/* ) */";
+    // if (p.show_implicit_casts)
+    //     p << "/* implicit cast to '" << *type << "' ( */";
+    // expr->print(p);
+    // if (p.show_implicit_casts)
+    //     p << "/* ) */";
 }
 
 void AsmExpr::print(Printer& p) const {
@@ -492,10 +492,10 @@ void LetDecl::print(Printer& p) const {
 
 void ImplicitDecl::print(Printer& p) const {
     p << log::keyword_style("implicit");
-    if (type) {
-        p << ' ';
-        type->print(p);
-    }
+    // if (type) {
+    //     p << ' ';
+    //     type->print(p);
+    // }
     if (dependencies) {
         print_parens(p, dependencies);
     }
@@ -507,7 +507,7 @@ void ImplicitDecl::print(Printer& p) const {
 void ImplicitInstantiationExpr::print(Printer& p) const {
     p << log::keyword_style("implicit_instantiation");
     p << "[";
-    impl->type->print(p);
+    //impl->type->print(p);
     if (!type_args.empty()) {
         p << " with [";
         print_list(p, ", ", type_args, [&] (auto& type_arg) {
@@ -736,131 +736,10 @@ void Node::dump() const {
 
 } // namespace ast
 
-// Types ---------------------------------------------------------------------------
-
-void PrimType::print(Printer& p) const {
-    p << log::keyword_style(ast::PrimType::tag_to_string(tag));
-}
-
-void TupleType::print(Printer& p) const {
-    p << '(';
-    print_list(p, ", ", args, [&] (auto& a) {
-        a->print(p);
-    });
-    p << ')';
-}
-
-void SizedArrayType::print(Printer& p) const {
-    if (is_simd)
-        p << log::keyword_style("simd");
-    p << '[';
-    elem->print(p);
-    p << " * " << size << ']';
-}
-
-void UnsizedArrayType::print(Printer& p) const {
-    p << '[';
-    elem->print(p);
-    p << ']';
-}
-
-void PtrType::print(Printer& p) const {
-    p << '&';
-    if (is_mut)
-        p << log::keyword_style("mut") << ' ';
-    if (addr_space != 0)
-        p << log::keyword_style("addrspace") << '(' << addr_space << ')';
-    if (pointee->isa<PtrType>())
-        p << '(';
-    pointee->print(p);
-    if (pointee->isa<PtrType>())
-        p << ')';
-}
-
-void RefType::print(Printer& p) const {
-    if (is_mut)
-        p << "mutable ";
-    p << "reference to ";
-    pointee->print(p);
-}
-
-void ImplicitParamType::print(artic::Printer& p) const {
-    p << "implicit ";
-    underlying->print(p);
-}
-
-void FnType::print(Printer& p) const {
-    p << log::keyword_style("fn") << ' ';
-    if (!dom->isa<TupleType>()) p << '(';
-    dom->print(p);
-    if (!dom->isa<TupleType>()) p << ')';
-    p << " -> ";
-    codom->print(p);
-}
-
-void BottomType::print(Printer& p) const {
-    p << log::keyword_style("bottom");
-}
-
-void TopType::print(Printer& p) const {
-    p << log::keyword_style("top");
-}
-
-void NoRetType::print(Printer& p) const {
-    p << '!';
-}
-
-void TypeError::print(Printer& p) const {
-    p << log::error_style("<invalid type>");
-}
-
-void TypeVar::print(Printer& p) const {
-    p << decl.id.name;
-}
-
-void ForallType::print(Printer& p) const {
-    assert(type_params());
-    p << log::keyword_style("forall");
-    type_params()->print(p);
-    p << ' ';
-    body->print(p);
-}
-
-void StructType::print(Printer& p) const {
-    p << decl.id.name;
-}
-
-void EnumType::print(Printer& p) const {
-    p << decl.id.name;
-}
-
-void ModType::print(Printer& p) const {
-    p << decl.id.name;
-}
-
-void TypeAlias::print(Printer& p) const {
-    p << decl.id.name;
-}
-
-void TypeApp::print(Printer& p) const {
-    applied->print(p);
-    p << '[';
-    print_list(p, ", ", type_args, [&] (auto& a) {
-        a->print(p);
-    });
-    p << ']';
-}
-
-log::Output& operator << (log::Output& out, const Type& type) {
-    Printer p(out);
-    type.print(p);
-    return out;
-}
-
-void Type::dump() const {
+/*void Type::dump() const {
     Printer p(log::out);
     print(p);
     p << '\n';
-}
+}*/
 
 } // namespace artic

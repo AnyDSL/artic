@@ -433,7 +433,8 @@ std::string_view StructType::member_name(size_t i) const {
 }
 
 const Type* StructType::member_type(size_t i) const {
-    return decl.fields[i]->ast::Node::type;
+    assert(false && "TODO");
+    // return decl.fields[i]->ast::Node::type;
 }
 
 size_t StructType::member_count() const {
@@ -445,7 +446,8 @@ std::string_view EnumType::member_name(size_t i) const {
 }
 
 const Type* EnumType::member_type(size_t i) const {
-    return decl.options[i]->type;
+    assert(false && "TODO");
+    // return decl.options[i]->type;
 }
 
 size_t EnumType::member_count() const {
@@ -457,7 +459,8 @@ std::string_view ModType::member_name(size_t i) const {
 }
 
 const Type* ModType::member_type(size_t i) const {
-    return members()[i].decl.type;
+    assert(false && "TODO");
+    // return members()[i].decl.type;
 }
 
 size_t ModType::member_count() const {
@@ -554,13 +557,14 @@ bool AddrType::is_compatible_with(const AddrType* other) const {
 }
 
 const Type* ForallType::instantiate(const ArrayRef<const Type*>& args) const {
-    std::unordered_map<const TypeVar*, const Type*> map;
-    assert(type_params() && type_params()->params.size() == args.size());
-    for (size_t i = 0, n = args.size(); i < n; ++i) {
-        assert(type_params()->params[i]->type);
-        map.emplace(type_params()->params[i]->type->as<TypeVar>(), args[i]);
-    }
-    return body->replace(map);
+    assert(false && "TODO");
+    // std::unordered_map<const TypeVar*, const Type*> map;
+    // assert(type_params() && type_params()->params.size() == args.size());
+    // for (size_t i = 0, n = args.size(); i < n; ++i) {
+    //     assert(type_params()->params[i]->type);
+    //     map.emplace(type_params()->params[i]->type->as<TypeVar>(), args[i]);
+    // }
+    // return body->replace(map);
 }
 
 bool StructType::is_tuple_like() const {
@@ -568,23 +572,25 @@ bool StructType::is_tuple_like() const {
 }
 
 bool EnumType::is_trivial() const {
-    return std::all_of(
-        decl.options.begin(),
-        decl.options.end(),
-        [] (auto& o) { return is_unit_type(o->type); });
+    assert(false && "TODO");
+    // return std::all_of(
+    //     decl.options.begin(),
+    //     decl.options.end(),
+    //     [] (auto& o) { return is_unit_type(o->type); });
 }
 
 std::unordered_map<const TypeVar*, const Type*> TypeApp::replace_map(
     const ast::TypeParamList& type_params,
     const ArrayRef<const Type*>& type_args)
 {
-    std::unordered_map<const TypeVar*, const Type*> map;
-    assert(type_params.params.size() == type_args.size());
-    for (size_t i = 0, n = type_args.size(); i < n; ++i) {
-        assert(type_params.params[i]->type);
-        map.emplace(type_params.params[i]->type->as<TypeVar>(), type_args[i]);
-    }
-    return map;
+    assert(false && "TODO");
+    // std::unordered_map<const TypeVar*, const Type*> map;
+    // assert(type_params.params.size() == type_args.size());
+    // for (size_t i = 0, n = type_args.size(); i < n; ++i) {
+    //     assert(type_params.params[i]->type);
+    //     map.emplace(type_params.params[i]->type->as<TypeVar>(), type_args[i]);
+    // }
+    // return map;
 }
 
 // Helpers -------------------------------------------------------------------------

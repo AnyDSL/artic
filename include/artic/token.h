@@ -34,6 +34,7 @@ namespace artic {
     f(Implicit, "implicit") \
     f(Summon, "summon") \
     f(Mod, "mod") \
+    f(Sig, "sig") \
     f(Use, "use") \
     f(Super, "super") \
     f(Asm, "asm") \

@@ -1,5 +1,6 @@
 #include "artic/emit.h"
-#include "artic/types.h"
+#include "artic/tir/types.h"
+#include "artic/tir/arena.h"
 #include "artic/ast.h"
 #include "artic/print.h"
 #include "artic/locator.h"
@@ -12,6 +13,8 @@
 #include <thorin/world.h>
 
 namespace artic {
+
+#if 0
 
 /// Pattern matching compiler inspired from
 /// "Compiling Pattern Matching to Good Decision Trees",
@@ -2090,6 +2093,8 @@ const thorin::Type* TypeApp::convert(Emitter& emitter) const {
     return result;
 }
 
+#endif
+
 // A read-only buffer from memory, not performing any copy.
 struct MemBuf : public std::streambuf {
     MemBuf(const std::string& str) {
@@ -2120,13 +2125,13 @@ struct MemBuf : public std::streambuf {
     }
 };
 
-std::tuple<Ptr<ast::ModDecl>, bool> compile(
+std::tuple<Ptr<ast::ModDecl>, const tir::Module*, bool> compile(
     const std::vector<std::string>& file_names,
     const std::vector<std::string>& file_data,
     bool warns_as_errors,
     bool enable_all_warns,
-    Arena& arena,
-    TypeTable& type_table,
+    ::Arena& arena,
+    tir::Arena& type_table,
     thorin::World& world,
     Log& log)
 {
@@ -2143,7 +2148,7 @@ std::tuple<Ptr<ast::ModDecl>, bool> compile(
         parser.warns_as_errors = warns_as_errors;
         auto module = parser.parse();
         if (log.errors > 0)
-            return std::make_tuple(std::move(program), false);
+            return std::make_tuple(std::move(program), nullptr, false);
 
         program->decls.insert(
             program->decls.end(),
@@ -2162,14 +2167,18 @@ std::tuple<Ptr<ast::ModDecl>, bool> compile(
     TypeChecker type_checker(log, type_table, arena);
     type_checker.warns_as_errors = warns_as_errors;
 
-    if (!name_binder.run(*program) || !type_checker.run(*program))
-        return std::make_tuple(std::move(program), false);
+    if (!name_binder.run(*program))
+        return std::make_tuple(std::move(program), nullptr, false);
 
-    Emitter emitter(log, world, arena);
-    emitter.warns_as_errors = warns_as_errors;
-    if (!emitter.run(*program))
-        return std::make_tuple(std::move(program), false);
-    return std::make_tuple(std::move(program), true);
+    auto tir = type_checker.run(*program);
+    if (!tir)
+        return std::make_tuple(std::move(program), nullptr, false);
+
+    // Emitter emitter(log, world, arena);
+    // emitter.warns_as_errors = warns_as_errors;
+    // if (!emitter.run(*program))
+    //     return std::make_tuple(std::move(program), false);
+    return std::make_tuple(std::move(program), tir, true);
 }
 
 } // namespace artic
@@ -2185,7 +2194,7 @@ bool compile(
     Locator locator;
     log::Output out(error_stream, false);
     Log log(out, &locator);
-    Arena arena;
-    TypeTable type_table;
+    ::Arena arena;
+    tir::Arena type_table;
     return get<1>(artic::compile(file_names, file_data, false, false, arena, type_table, world, log));
 }

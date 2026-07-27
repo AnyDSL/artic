@@ -98,12 +98,42 @@ const TypeAlias* Arena::type_alias(const ast::TypeDecl& decl) {
 }
 
 const Type* Arena::type_app(const UserType* applied, const ArrayRef<const Type*>& type_args) {
-    if (auto type_alias = applied->isa<TypeAlias>()) {
-        assert(type_alias->type_params() && type_alias->decl.aliased_type->type);
-        auto map = TypeApp::replace_map(*type_alias->type_params(), type_args);
-        return type_alias->decl.aliased_type->type->replace(map);
-    }
-    return insert<TypeApp>(applied, std::move(type_args));
+    assert(false);
+    // if (auto type_alias = applied->isa<TypeAlias>()) {
+    //     assert(type_alias->type_params() && type_alias->decl.aliased_type->type);
+    //     auto map = TypeApp::replace_map(*type_alias->type_params(), type_args);
+    //     return type_alias->decl.aliased_type->type->replace(map);
+    // }
+    // return insert<TypeApp>(applied, std::move(type_args));
+}
+
+const Module* Arena::module(ast::Identifier id, std::vector<Module::Decl>&& decls) {
+    return insert<Module>(id, std::move(decls));
+}
+
+const GlobalVariable* Arena::global_variable(const Type* value_type, bool is_mut, const Value* init) {
+    return insert<GlobalVariable>(value_type, is_mut, init);
+}
+
+const Value* Arena::implicit_cast(const Value* src, const Type* dst) {
+    return insert<ImplicitCast>(src, dst);
+}
+
+const Value* Arena::typed_literal(Literal literal, const Type* type) {
+    // TODO: normalize literal representation based on type
+    return insert<TypedLiteral>(literal, type);
+}
+
+const Fn* Arena::function(const Param* param, const Type* codom) {
+    return insert<Fn>(param, codom);
+}
+
+const Param* Arena::param(ast::Identifier id, const Type* type) {
+    return insert<Param>(id, type);
+}
+
+const Value* Arena::app(const Value* callee, const Value* arg) {
+    return insert<App>(callee, arg);
 }
 
 template <typename T, typename... Args>

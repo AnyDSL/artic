@@ -14,10 +14,10 @@
 
 namespace artic {
 
-struct StructType;
+//struct StructType;
 
 /// Helper class for Thorin IR generation.
-class Emitter : public Logger {
+/*class Emitter : public Logger {
 public:
     Emitter(Log& log, thorin::World& world, Arena& arena)
         : Logger(log), world(world), arena(arena)
@@ -85,7 +85,7 @@ public:
     /// Map of all types to avoid converting the same type several times.
     std::unordered_map<const Type*, const thorin::Type*> types;
     /// Map from the currently bound type variables to monomorphic types.
-    std::unordered_map<const TypeVar*, const Type*> type_vars;
+    std::unordered_map<const tir::TypeVar*, const Type*> type_vars;
     /// Map from monomorphic declaration to emitted thorin IR.
     std::unordered_map<MonoDecl, const thorin::Def*, Hash, Compare> mono_decls;
     /// Map from enum type and variant index to variant constructor.
@@ -145,18 +145,18 @@ public:
     thorin::Debug debug_info(const ast::Node&, const std::string_view& = "");
 
 private:
-    const thorin::Def* cast_pointers(const thorin::Def*, const AddrType*, const AddrType*, thorin::Debug);
-};
+    const thorin::Def* cast_pointers(const thorin::Def*, const tir::AddrType*, const tir::AddrType*, thorin::Debug);
+};*/
 
 /// Helper function to compile a set of files and generate an AST and a thorin module.
 /// Errors are reported in the log, and this function returns true on success.
-std::tuple<Ptr<ast::ModDecl>, bool> compile(
+std::tuple<Ptr<ast::ModDecl>, const tir::Module*, bool> compile(
     const std::vector<std::string>& file_names,
     const std::vector<std::string>& file_data,
     bool warns_as_errors,
     bool enable_all_warns,
-    Arena& arena,
-    TypeTable& table,
+    ::Arena& arena,
+    tir::Arena& table,
     thorin::World& world,
     Log& log);
 

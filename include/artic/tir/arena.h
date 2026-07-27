@@ -42,21 +42,31 @@ public:
     /// or returns the type alias expanded with the given type arguments.
     const Type* type_app(const UserType*, const ArrayRef<const Type*>&);
 
+    const Module* module(ast::Identifier, std::vector<Module::Decl>&&);
+
+    const GlobalVariable* global_variable(const Type*, bool is_mut, const Value*);
+    const Value* implicit_cast(const Value*, const Type*);
+    const Value* typed_literal(Literal, const Type*);
+
+    const Fn* function(const Param*, const Type* codom);
+    const Param* param(ast::Identifier, const Type*);
+    const Value* app(const Value* callee, const Value* arg);
+
 private:
     template <typename T, typename... Args>
     const T* insert(Args&&...);
 
-    struct HashType {
-        size_t operator () (const Type* type) const {
+    struct HashNode {
+        size_t operator () (const Node* type) const {
             return type->hash();
         }
     };
-    struct CompareTypes {
-        bool operator () (const Type* left, const Type* right) const {
+    struct CompareNodes {
+        bool operator () (const Node* left, const Node* right) const {
             return left->equals(right);
         }
     };
-    std::unordered_set<const Type*, HashType, CompareTypes> types_;
+    std::unordered_set<const Node*, HashNode, CompareNodes> types_;
 
     const TupleType*  unit_type_   = nullptr;
     const BottomType* bottom_type_ = nullptr;

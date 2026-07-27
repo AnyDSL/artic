@@ -16,15 +16,15 @@ using namespace tir;
 /// Utility class to perform bidirectional type checking.
 class TypeChecker : public Logger {
 public:
-    TypeChecker(Log& log, Arena& type_table, Arena& arena)
+    TypeChecker(Log& log, Arena& type_table, ::Arena& arena)
         : Logger(log), type_table(type_table), _arena(arena)
     {}
 
     Arena& type_table;
 
     /// Performs type checking on a whole program.
-    /// Returns true on success, otherwise false.
-    bool run(ast::ModDecl&);
+    /// Returns a TIR module on success, otherwise null.
+    const tir::Module* run(ast::ModDecl&);
 
     // Should be called to avoid infinite recursion
     // when inferring the type of recursive declarations
@@ -51,17 +51,21 @@ public:
 
     const Type* expect(const Loc&, const Type*, const Type*);
 
-    const Type* deref(Ptr<ast::Expr>&);
-    const Type* coerce(Ptr<ast::Expr>&, const Type*);
-    const Type* try_coerce(Ptr<ast::Expr>&, const Type*);
-    const Type* join(Ptr<ast::Expr>&, Ptr<ast::Expr>&);
+    const Value* deref(Ptr<ast::Expr>&);
+    const Value* coerce(ast::Expr*, const Type*);
+    const Value* try_coerce(Ptr<ast::Expr>&, const Type*);
+    const Value* join(Ptr<ast::Expr>&, Ptr<ast::Expr>&);
 
-    const Type* check(ast::Node&, const Type*);
-    const Type* infer(ast::Node&);
-    const Type* infer(ast::Ptrn&, Ptr<ast::Expr>&);
+    const tir::Node* check(ast::Node&, const Type*);
+    const tir::Node* infer(ast::Node&);
+    const tir::Node* infer(ast::Ptrn&, Ptr<ast::Expr>&);
 
-    const Type* infer(const Loc&, const Literal&);
-    const Type* check(const Loc&, const Literal&, const Type*);
+    const tir::Value* check_value(ast::Node&, const Type*);
+    const tir::Value* infer_value(ast::Node& ast);
+    const tir::Type* infer_type(ast::Node& ast);
+
+    const tir::Node* infer(const Loc&, const Literal&);
+    const tir::Node* check(const Loc&, const Literal&, const Type*);
 
     template <typename Fields>
     void check_fields(
@@ -113,7 +117,7 @@ private:
         std::optional<std::tuple<Ptr<ast::Expr>, int>> provide(TypeChecker&, const artic::Type*, const artic::Loc& at);
     };
 
-    Ptr<ast::Expr> summon(const artic::Type*, const artic::Loc& at);
+    Value* summon_value(const artic::Type*, const artic::Loc& at);
 
     //bool error = false;
     std::vector<std::vector<ImplicitSrc>> scopes;

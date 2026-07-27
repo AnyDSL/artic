@@ -8,6 +8,7 @@
 #include "artic/print.h"
 #include "artic/emit.h"
 #include "artic/locator.h"
+#include "artic/tir/arena.h"
 
 #include <thorin/world.h>
 #include <thorin/be/codegen.h>
@@ -43,8 +44,9 @@ static void usage() {
                 " -Wall   --enable-all-warnings  Enables all warnings\n"
                 " -Werror --warnings-as-errors   Treat warnings as errors\n"
                 "         --max-errors <n>       Sets the maximum number of error messages (unlimited by default)\n"
-                "         --print-ast            Prints the AST after parsing and type-checking\n"
+                "         --print-ast            Prints the AST after parsing and name-binding\n"
                 "         --show-implicit-casts  Shows implicit casts as comments when printing the AST\n"
+                "         --print-tir            Prints the TIR after type checking and conversion\n"
                 "         --emit-thorin          Prints the Thorin IR after code generation\n"
                 "         --emit-c-interface     Emits C interface for exported functions and imported types\n"
                 "         --log-level <lvl>      Changes the log level in Thorin (lvl = debug, verbose, info, warn, or error, defaults to error)\n"
@@ -96,6 +98,7 @@ struct ProgramOptions {
     bool debug = false;
     bool print_ast = false;
     bool emit_thorin = false;
+    bool print_tir = false;
     bool emit_c_int = false;
     bool emit_host_code = false;
     bool emit_c = false;
@@ -164,6 +167,8 @@ struct ProgramOptions {
                     print_ast = true;
                 } else if (matches(argv[i], "--show-implicit-casts")) {
                     show_implicit_casts = true;
+                } else if (matches(argv[i], "--print-tir")) {
+                    print_tir = true;
                 } else if (matches(argv[i], "--emit-thorin")) {
                     emit_thorin = true;
                 } else if (matches(argv[i], "--emit-json")) {
@@ -322,8 +327,8 @@ int main(int argc, char** argv) {
     thorin.world().set(std::make_shared<thorin::Stream>(std::cerr));
 
     Arena arena;
-    TypeTable type_table;
-    auto [program, success] = compile(
+    tir::Arena type_table;
+    auto [ast, module, success] = compile(
         opts.files, file_data,
         opts.warns_as_errors,
         opts.enable_all_warns,
@@ -337,7 +342,18 @@ int main(int argc, char** argv) {
         Printer p(log::out);
         p.show_implicit_casts = opts.show_implicit_casts;
         p.tab = std::string(opts.tab_width, ' ');
-        program->print(p);
+        ast->print(p);
+        log::out << '\n';
+        log::out.stream.flush();
+    }
+
+    if (opts.print_tir && module) {
+        if (log.errors > 0 || log.warns > 0)
+            log::out << '\n';
+        Printer p(log::out);
+        p.show_implicit_casts = opts.show_implicit_casts;
+        p.tab = std::string(opts.tab_width, ' ');
+        module->print(p);
         log::out << '\n';
         log::out.stream.flush();
     }
