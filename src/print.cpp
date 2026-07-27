@@ -3,7 +3,6 @@
 #include "artic/print.h"
 #include "artic/log.h"
 #include "artic/ast.h"
-#include "artic/tir/types.h"
 
 namespace artic {
 
@@ -351,14 +350,6 @@ void CastExpr::print(Printer& p) const {
         expr->print(p);
     p << ' ' << log::keyword_style("as") << ' ';
     type->print(p);
-}
-
-void ImplicitCastExpr::print(Printer& p) const {
-    // if (p.show_implicit_casts)
-    //     p << "/* implicit cast to '" << *type << "' ( */";
-    // expr->print(p);
-    // if (p.show_implicit_casts)
-    //     p << "/* ) */";
 }
 
 void AsmExpr::print(Printer& p) const {

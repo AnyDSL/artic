@@ -73,6 +73,13 @@ private:
     const TopType*    top_type_    = nullptr;
     const NoRetType*  no_ret_type_ = nullptr;
     const TypeError*  type_error_  = nullptr;
+
+    size_t next_gid = 0;
+    size_t alloc_gid() {
+        return next_gid++;
+    }
+
+    friend Node;
 };
 
 }

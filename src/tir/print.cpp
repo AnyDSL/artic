@@ -1,15 +1,45 @@
 #include "artic/tir/tir.h"
 #include "artic/tir/types.h"
+#include "artic/tir/print.h"
 
-#include "artic/print.h"
 #include "artic/log.h"
 
 namespace artic {
 
 namespace tir {
 
+void Printer::print(const Node& node) {
+    auto found = named.find(&node);
+    if (found != named.end()) {
+        top() << found->second;
+        return;
+    }
+    std::string node_name = "%" + std::to_string(node.gid);
+    named[&node] = node_name;
+    //named.emplace(&node, node_name);
+    push();
+    node.print(*this);
+    base << node_name << " = ";
+    pop();
+    base << endl();
+    top() << node_name;
+}
+
+void Printer::push() {
+    stack.push(std::make_unique<Scope>(*this));
+}
+
+void Printer::pop() {
+    base << stack.top()->os.str();
+    stack.pop();
+}
+
+artic::Printer& Printer::top() {
+    return stack.empty() ? base : stack.top()->p;
+}
+
 template <typename L, typename S, typename F>
-void print_list(Printer& p, const S& sep, const L& list, F f) {
+void print_list(artic::Printer& p, const S& sep, const L& list, F f) {
     for (auto it = list.begin(); it != list.end(); ++it) {
         f(*it);
         if (std::next(it) != list.end()) p << sep;
@@ -17,13 +47,11 @@ void print_list(Printer& p, const S& sep, const L& list, F f) {
 }
 
 template <typename E>
-void print_parens(Printer& p, const E& e) {
+void print_parens(artic::Printer& p, const E& e) {
     if (e->is_tuple()) {
-        e->print(p);
+        p << e;
     } else {
-        p << '(';
-        e->print(p);
-        p << ')';
+        p << '(' << *e << ')';
     }
 }
 
@@ -33,8 +61,8 @@ void PrimType::print(Printer& p) const {
 
 void TupleType::print(Printer& p) const {
     p << '(';
-    print_list(p, ", ", args, [&] (auto& a) {
-        a->print(p);
+    print_list(p.top(), ", ", args, [&] (auto& a) {
+        p.print(*a);
     });
     p << ')';
 }
@@ -43,13 +71,13 @@ void SizedArrayType::print(Printer& p) const {
     if (is_simd)
         p << log::keyword_style("simd");
     p << '[';
-    elem->print(p);
+    p.print(*elem);
     p << " * " << size << ']';
 }
 
 void UnsizedArrayType::print(Printer& p) const {
     p << '[';
-    elem->print(p);
+    p.print(*elem);
     p << ']';
 }
 
@@ -61,7 +89,7 @@ void PtrType::print(Printer& p) const {
         p << log::keyword_style("addrspace") << '(' << addr_space << ')';
     if (pointee->isa<PtrType>())
         p << '(';
-    pointee->print(p);
+    p.print(*pointee);
     if (pointee->isa<PtrType>())
         p << ')';
 }
@@ -70,21 +98,21 @@ void RefType::print(Printer& p) const {
     if (is_mut)
         p << "mutable ";
     p << "reference to ";
-    pointee->print(p);
+    p.print(*pointee);
 }
 
 void ImplicitParamType::print(Printer& p) const {
     p << "implicit ";
-    underlying->print(p);
+    p.print(*underlying);
 }
 
 void FnType::print(Printer& p) const {
     p << log::keyword_style("fn") << ' ';
     if (!dom->isa<TupleType>()) p << '(';
-    dom->print(p);
+    p.print(*dom);
     if (!dom->isa<TupleType>()) p << ')';
     p << " -> ";
-    codom->print(p);
+    p.print(*codom);
 }
 
 void BottomType::print(Printer& p) const {
@@ -110,9 +138,9 @@ void TypeVar::print(Printer& p) const {
 void ForallType::print(Printer& p) const {
     assert(type_params());
     p << log::keyword_style("forall");
-    type_params()->print(p);
+    type_params()->print(p.top());
     p << ' ';
-    body->print(p);
+    p.print(*body);
 }
 
 void StructType::print(Printer& p) const {
@@ -134,8 +162,8 @@ void TypeAlias::print(Printer& p) const {
 void TypeApp::print(Printer& p) const {
     applied->print(p);
     p << '[';
-    print_list(p, ", ", type_args, [&] (auto& a) {
-        a->print(p);
+    print_list(p.top(), ", ", type_args, [&] (auto& a) {
+        p.print(*a);
     });
     p << ']';
 }
@@ -145,15 +173,15 @@ void TypeApp::print(Printer& p) const {
 // }
 
 void Module::print(Printer& p) const {
-    bool anon = id.name == "";
-    if (!anon)
-        p << log::keyword_style("mod") << ' ' << id.name << " {" << p.indent() << p.endl();
-    print_list(p, p.endl(), decls, [&] (auto& decl) {
-        p << log::keyword_style("decl") << ' ' << decl.id.name << " = ";
-        decl.ir->print(p);
+    //bool anon = id.name == "";
+    //if (!anon)
+    p << log::keyword_style("module") << " {" << p.indent() << p.endl();
+    print_list(p.top(), p.endl(), decls, [&] (auto& decl) {
+        p << log::literal_style(decl.id.name) << " = ";
+        p.print(*decl.ir);
     });
-    if (!anon)
-        p << p.unindent() << p.endl() << "}";
+    // if (!anon)
+    p << p.unindent() << p.endl() << "}";
 }
 
 void GlobalVariable::print(Printer& p) const {
@@ -161,68 +189,69 @@ void GlobalVariable::print(Printer& p) const {
     if (is_mut)
         p << ' ' << log::keyword_style("mut");
     p << '[';
-    value_type->print(p);
+    p.print(*value_type);
     p << ']';
     p << '(';
     if (init)
-        init->print(p);
+        p.print(*init);
     p << ')';
 }
 
 void Fn::print(Printer& p) const {
     p << log::keyword_style("fn") << "(";
-    p << param->id.name << ": ";
-    param->type->print(p);
+    p.print(*param);
     p << ")" << " -> ";
-    type->as<FnType>()->codom->print(p);
+    p.print(*type->as<FnType>()->codom);
     if (body) {
         p << " {" << p.indent() << p.endl();
-        body->print(p);
+        p.print(*body);
         p << p.unindent() << p.endl() << "}";
     }
 }
 
 void Param::print(Printer& p) const {
-    p << id.name << ": ";
-    type->print(p);
+    p << log::keyword_style("param") << ' ' << id.name << ": ";
+    p.print(*type);
 }
 
 void App::print(Printer& p) const {
-    callee->print(p);
+    p.print(*callee);
     p << '(';
-    arg->print(p);
+    p.print(*arg);
     p << ')';
 }
 
 void ImplicitCast::print(Printer& p) const {
     p << ' ' << log::keyword_style("implicit_cast");
     p << '[';
-    dst->print(p);
+    p.print(*dst);
     p << ']';
     p << '(';
-    src->print(p);
+    p.print(*src);
     p << ')';
 }
 
 void TypedLiteral::print(Printer& p) const {
     p << log::keyword_style("typed_literal");
     p << '[';
-    type->print(p);
+    p.print(*type);
     p << ']';
     p << '(';
     p << std::showpoint << log::literal_style(value);
     p << ')';
 }
 
-log::Output& operator << (log::Output& out, const Type& type) {
-    Printer p(out);
-    type.print(p);
+log::Output& operator << (log::Output& out, const Node& node) {
+    artic::Printer p(out);
+    Printer tp(p);
+    tp.print(node);
     return out;
 }
 
 void Node::dump() const {
     artic::Printer p(log::out);
-    print(p);
+    Printer tp(p);
+    tp.print(*this);
     p << '\n';
 }
 

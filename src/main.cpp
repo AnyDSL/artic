@@ -8,7 +8,9 @@
 #include "artic/print.h"
 #include "artic/emit.h"
 #include "artic/locator.h"
+
 #include "artic/tir/arena.h"
+#include "artic/tir/print.h"
 
 #include <thorin/world.h>
 #include <thorin/be/codegen.h>
@@ -353,7 +355,8 @@ int main(int argc, char** argv) {
         Printer p(log::out);
         p.show_implicit_casts = opts.show_implicit_casts;
         p.tab = std::string(opts.tab_width, ' ');
-        module->print(p);
+        tir::Printer tp(p);
+        tp.print(*module);
         log::out << '\n';
         log::out.stream.flush();
     }

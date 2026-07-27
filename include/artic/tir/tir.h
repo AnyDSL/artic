@@ -6,7 +6,6 @@
 #include "artic/ast.h"
 #include "artic/cast.h"
 #include "artic/hash.h"
-#include "artic/print.h"
 
 #include "thorin/debug.h"
 
@@ -16,6 +15,9 @@ namespace tir {
 
 struct Arena;
 struct Rewriter;
+struct Printer;
+
+log::Output& operator << (log::Output&, const Node&);
 
 enum class NodeKind {
     Value,
@@ -29,10 +31,9 @@ enum class NodeKind {
 /// the same `Arena` object.
 struct Node : public Cast<Node> {
     Arena& arena;
+    size_t gid;
 
-    Node(Arena& arena)
-        : arena(arena)
-    {}
+    Node(Arena& arena);
 
     virtual ~Node() {}
 

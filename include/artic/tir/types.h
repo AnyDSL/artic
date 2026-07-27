@@ -116,8 +116,6 @@ struct AttrType {
     enum { Integer, String, Path, Other } type;
 };
 
-log::Output& operator << (log::Output&, const Type&);
-
 /// Integer and floating-point types.
 struct PrimType : public Type {
     ast::PrimType::Tag tag;

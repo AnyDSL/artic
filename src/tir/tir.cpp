@@ -9,6 +9,8 @@ Arena::~Arena() {
         delete t;
 }
 
+Node::Node(Arena& arena) : arena(arena), gid(arena.alloc_gid()) {}
+
 const PrimType* Arena::prim_type(ast::PrimType::Tag tag) {
     return insert<PrimType>(tag);
 }
