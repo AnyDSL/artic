@@ -1120,29 +1120,6 @@ struct CastExpr : public Expr {
     void print(Printer&) const override;
 };
 
-/// Implicit cast expression, inserted during type-checking.
-struct ImplicitCastExpr : public Expr {
-    Ptr<Expr> expr;
-
-    ImplicitCastExpr(
-        const Loc& loc,
-        Ptr<Expr>&& expr,
-        const tir::Type* type)
-        : Expr(loc), expr(std::move(expr))
-    {
-        assert(false && "TODO");
-        //this->type = type;
-    }
-
-    bool is_jumping() const override;
-    bool has_side_effect() const override;
-    bool is_constant() const override;
-
-    //const thorin::Def* emit(Emitter&) const override;
-    void bind(NameBinder&) override;
-    void print(Printer&) const override;
-};
-
 /// Inline assembly expression.
 struct AsmExpr : public Expr {
     struct Constr {
@@ -1298,7 +1275,7 @@ struct ImplicitDecl : public Decl {
     void print(Printer&) const override;
 };
 
-struct ImplicitInstantiationExpr : public Expr {
+/*struct ImplicitInstantiationExpr : public Expr {
     ImplicitDecl* impl;
     std::vector<const tir::Type*> type_args;
     Ptr<Expr> arg;
@@ -1311,7 +1288,7 @@ struct ImplicitInstantiationExpr : public Expr {
         assert(false);
     };
     void print(Printer&) const override;
-};
+};*/
 
 /// Static (top-level) declaration.
 struct StaticDecl : public ValueDecl {

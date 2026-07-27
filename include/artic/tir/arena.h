@@ -49,8 +49,13 @@ public:
     const Value* typed_literal(Literal, const Type*);
 
     const Fn* function(const Param*, const Type* codom);
-    const Param* param(ast::Identifier, const Type*);
+    const Param* param(std::optional<ast::Identifier>, const Type*);
     const Value* app(const Value* callee, const Value* arg);
+
+    const Value* tuple(const ArrayRef<const Value*>&);
+    const Value* extract(const Value*, const Value*);
+
+    const Value* bind(const Param*, const Value*, const Value*);
 
 private:
     template <typename T, typename... Args>

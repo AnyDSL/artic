@@ -108,6 +108,19 @@ Node* ImplicitCast::rewrite(Rewriter&) const {
 Node* TypedLiteral::rewrite(Rewriter&) const {
 
 }
+
+Node* Tuple::rewrite(Rewriter&) const {
+
+}
+
+Node* Extract::rewrite(Rewriter&) const {
+
+}
+
+Node* Bind::rewrite(Rewriter&) const {
+
+}
+
 }
 
 }

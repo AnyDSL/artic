@@ -375,8 +375,6 @@ void CastExpr::bind(NameBinder& binder) {
     binder.bind(*type);
 }
 
-void ImplicitCastExpr::bind(NameBinder&) {}
-
 void AsmExpr::bind(NameBinder& binder) {
     for (auto& in : ins)
         binder.bind(*in.expr);

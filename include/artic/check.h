@@ -58,7 +58,7 @@ public:
 
     const tir::Node* check(ast::Node&, const Type*);
     const tir::Node* infer(ast::Node&);
-    const tir::Node* infer(ast::Ptrn&, Ptr<ast::Expr>&);
+    const tir::Value* infer(ast::Ptrn&, Ptr<ast::Expr>&);
 
     const tir::Value* check_value(ast::Node&, const Type*);
     const tir::Value* infer_value(ast::Node& ast);
@@ -66,6 +66,9 @@ public:
 
     const tir::Node* infer(const Loc&, const Literal&);
     const tir::Node* check(const Loc&, const Literal&, const Type*);
+
+    /// Explores a pattern recursively and makes sure the body is wrapped in Bind nodes that extract the value of each sub-pattern
+    void bind_ptrn_params(ast::Ptrn&, const Value*, const Value*& body);
 
     template <typename Fields>
     void check_fields(

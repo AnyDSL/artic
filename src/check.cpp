@@ -1,6 +1,9 @@
 #include <algorithm>
 
 #include "artic/check.h"
+
+#include <thorin/enums.h>
+
 #include "artic/tir/arena.h"
 
 #include <thorin/util/utility.h>
@@ -421,21 +424,20 @@ const Type* TypeChecker::infer_type(ast::Node& ast) {
     return tir->as<Type>();
 }
 
-const tir::Node* TypeChecker::infer(ast::Ptrn& ptrn, Ptr<ast::Expr>& expr) {
-    assert(false && "TODO");/*
+const tir::Value* TypeChecker::infer(ast::Ptrn& ptrn, Ptr<ast::Expr>& expr) {
     // This improves type inference for code such as `let (x, y: i64) = (1, 2);`,
     // by treating tuple elements as individual declarations.
     if (auto tuple_ptrn = ptrn.isa<ast::TuplePtrn>()) {
         if (auto tuple_expr = expr->isa<ast::TupleExpr>();
             tuple_expr && tuple_ptrn->args.size() == tuple_expr->args.size()) {
-            SmallArray<const Type*> arg_types(tuple_expr->args.size());
+            SmallArray<const Value*> args(tuple_expr->args.size());
             for (size_t i = 0, n = tuple_expr->args.size(); i < n; ++i)
-                arg_types[i] = infer(*tuple_ptrn->args[i], tuple_expr->args[i]);
-            return type_table.tuple_type(arg_types);
+                args[i] = infer(*tuple_ptrn->args[i], tuple_expr->args[i]);
+            return type_table.tuple(args);
         }
     } else if (auto typed_ptrn = ptrn.isa<ast::TypedPtrn>())
-        return coerce(expr, infer(*typed_ptrn));
-    return check(ptrn, deref(expr));*/
+        return coerce(&*expr, infer_value(*typed_ptrn)->type);
+    return check_value(ptrn, deref(expr)->type);
 }
 
 const tir::Node* TypeChecker::infer(const Loc&, const Literal& lit) {
@@ -597,6 +599,25 @@ bool TypeChecker::check_filter(const ast::Expr& expr) {
 void TypeChecker::check_refutability(const ast::Ptrn& ptrn, bool must_be_trivial) {
     if (must_be_trivial != ptrn.is_trivial())
         invalid_ptrn(ptrn.loc, must_be_trivial);
+}
+
+void TypeChecker::bind_ptrn_params(ast::Ptrn& ptrn, const Value* value, const Value*& body) {
+    if (auto tuple_ptrn = ptrn.isa<ast::TuplePtrn>()) {
+        for (int i = 0; i < tuple_ptrn->args.size(); ++i) {
+            auto idx = type_table.typed_literal(Literal(uint64_t(i)), type_table.prim_type(ast::PrimType::U64));
+            bind_ptrn_params(*tuple_ptrn->args[i], type_table.extract(value, idx), body);
+        }
+    } else if (auto id_ptrn = ptrn.isa<ast::IdPtrn>()) {
+        if (ptrn.tir != value) {
+            body = type_table.bind(ptrn.tir->as<Param>(), value, body);
+        }
+        if (id_ptrn->sub_ptrn)
+            bind_ptrn_params(*id_ptrn->sub_ptrn, value, body);
+    } else if (auto typed_ptrn = ptrn.isa<ast::TypedPtrn>()) {
+        bind_ptrn_params(*typed_ptrn->ptrn, value, body);
+    } else {
+        assert(false && "TODO");
+    }
 }
 
 bool TypeChecker::check_attrs(const ast::NamedAttr& named_attr, const ArrayRef<AttrType>& attr_types) {
@@ -1279,7 +1300,7 @@ const tir::Node* FnExpr::infer(TypeChecker& checker) {
     auto body_type = ret_type ? checker.infer_type(*ret_type) : nullptr;
     if (body) {
         if (body_type)
-            checker.coerce(&*body, body_type);
+            tir_body = checker.coerce(&*body, body_type);
         else {
             tir_body = checker.deref(body);
             body_type = tir_body->type;
@@ -1289,6 +1310,7 @@ const tir::Node* FnExpr::infer(TypeChecker& checker) {
     if (!body_type) {
         return checker.cannot_infer(loc, "function");
     }
+    checker.bind_ptrn_params(*param, tir_param, tir_body);
     auto fn = checker.type_table.function(tir_param, body_type);
     fn->body = tir_body;
     return fn;
@@ -1922,12 +1944,12 @@ const tir::Node* ImplicitDecl::infer(TypeChecker& checker) {
     return type;*/
 }
 
-const tir::Node* ImplicitInstantiationExpr::infer(TypeChecker& checker) {
+/*const tir::Node* ImplicitInstantiationExpr::infer(TypeChecker& checker) {
     if (!type_args.empty()) {
         return checker.infer(*impl)->as<ForallType>()->instantiate(type_args);
     }
     return checker.infer(*impl);
-}
+}*/
 
 const tir::Node* StaticDecl::infer(TypeChecker& checker) {
     if (!checker.enter_decl(this))
@@ -1986,8 +2008,11 @@ const tir::Node* FnDecl::infer(TypeChecker& checker) {
     tir = forall ? forall : tir_fn;
     // if (forall)
     //     forall->body = fn_type;
-    if (fn->ret_type && fn->body)
+    if (fn->ret_type && fn->body) {
         checker.coerce(&*fn->body, fn_type->codom);
+        tir_fn->body = fn->body->tir->as<Value>();
+    }
+    checker.bind_ptrn_params(*fn->param, tir_fn->param, tir_fn->body);
     checker.exit_decl(this);
     return tir;
 }
@@ -2124,10 +2149,9 @@ const tir::Node* LiteralPtrn::check(TypeChecker& checker, const artic::Type* exp
 }
 
 const tir::Node* IdPtrn::infer(TypeChecker& checker) {
-    assert(false && "TODO");
-    /*return sub_ptrn
-        ? checker.check(*decl, checker.infer(*sub_ptrn))
-        : checker.infer(*decl);*/
+    return sub_ptrn
+        ? checker.check(*decl, checker.infer_value(*sub_ptrn)->type)
+        : checker.infer(*decl);
 }
 
 const tir::Node* IdPtrn::check(TypeChecker& checker, const artic::Type* expected) {
@@ -2199,11 +2223,10 @@ const tir::Node* CtorPtrn::infer(TypeChecker& checker) {
 }
 
 const tir::Node* TuplePtrn::infer(TypeChecker& checker) {
-    assert(false && "TODO");
-    /*SmallArray<const artic::Type*> arg_types(args.size());
+    SmallArray<const artic::Type*> arg_types(args.size());
     for (size_t i = 0, n = args.size(); i < n; ++i)
-        arg_types[i] = checker.infer(*args[i]);
-    return checker.type_table.tuple_type(arg_types);*/
+        arg_types[i] = checker.infer_value(*args[i])->type;
+    return checker.type_table.param(std::nullopt, checker.type_table.tuple_type(arg_types));
 }
 
 const tir::Node* TuplePtrn::check(TypeChecker& checker, const artic::Type* expected) {

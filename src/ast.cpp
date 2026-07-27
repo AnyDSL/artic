@@ -584,7 +584,7 @@ bool CastExpr::is_constant() const {
     return expr->is_constant();
 }
 
-bool ImplicitCastExpr::is_jumping() const {
+/*bool ImplicitCastExpr::is_jumping() const {
     return expr->is_jumping();
 }
 
@@ -604,7 +604,7 @@ bool ImplicitCastExpr::is_constant() const {
     //     }
     // }
     // return expr->is_constant();
-}
+}*/
 
 bool AsmExpr::has_side_effect() const {
     return !outs.empty() || std::find(opts.begin(), opts.end(), "volatile") != opts.end();

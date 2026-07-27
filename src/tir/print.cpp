@@ -210,7 +210,10 @@ void Fn::print(Printer& p) const {
 }
 
 void Param::print(Printer& p) const {
-    p << log::keyword_style("param") << ' ' << id.name << ": ";
+    p << log::keyword_style("param");
+    if (auto id = this->id)
+        p << ' ' << id->name;
+    p << ": ";
     p.print(*type);
 }
 
@@ -239,6 +242,33 @@ void TypedLiteral::print(Printer& p) const {
     p << '(';
     p << std::showpoint << log::literal_style(value);
     p << ')';
+}
+
+void Tuple::print(Printer& p) const {
+    p << '(';
+    print_list(p.top(), ", ", args, [&] (auto& a) {
+        p.print(*a);
+    });
+    p << ')';
+}
+
+void Extract::print(Printer& p) const {
+    p << log::keyword_style("extract");
+    p << '(';
+    p.print(*src);
+    p << ", ";
+    p.print(*idx);
+    p << ')';
+}
+
+void Bind::print(Printer& p) const {
+    p << log::keyword_style("let") << ' ';
+    p.print(*param);
+    p << " = ";
+    p.print(*value);
+    p << ' ' << log::keyword_style("in") << ' ' << p.indent() << p.endl();
+    p.print(*body);
+    p << p.unindent() << p.endl();
 }
 
 log::Output& operator << (log::Output& out, const Node& node) {

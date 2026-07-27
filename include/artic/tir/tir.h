@@ -6,6 +6,7 @@
 #include "artic/ast.h"
 #include "artic/cast.h"
 #include "artic/hash.h"
+#include "artic/array.h"
 
 #include "thorin/debug.h"
 
@@ -96,9 +97,9 @@ struct Value : public Node {
 };
 
 struct Param : public NominalNode<Value> {
-    ast::Identifier id;
+    std::optional<ast::Identifier> id;
 
-    Param(Arena&, ast::Identifier, const Type*);
+    Param(Arena&, std::optional<ast::Identifier>, const Type*);
 
     void print(Printer&) const override;
     Node* rewrite(Rewriter&) const override;
@@ -162,6 +163,45 @@ struct TypedLiteral : public Value {
     Node* rewrite(Rewriter&) const override;
 
     TypedLiteral(Arena&, Literal, const Type*);
+};
+
+struct Tuple : public Value {
+    Array<const Value*> args;
+
+    bool equals(const Node*) const override;
+    size_t hash() const override;
+
+    void print(Printer&) const override;
+    Node* rewrite(Rewriter&) const override;
+
+    Tuple(Arena&, const ArrayRef<const Value*>& args);
+};
+
+struct Extract : public Value {
+    const Value* src;
+    const Value* idx;
+
+    bool equals(const Node*) const override;
+    size_t hash() const override;
+
+    void print(Printer&) const override;
+    Node* rewrite(Rewriter&) const override;
+
+    Extract(Arena&, const Value*, const Value*);
+};
+
+struct Bind : public Value {
+    const Param* param;
+    const Value* value;
+    const Value* body;
+
+    bool equals(const Node*) const override;
+    size_t hash() const override;
+
+    void print(Printer&) const override;
+    Node* rewrite(Rewriter&) const override;
+
+    Bind(Arena&, const Param*, const Value*, const Value*);
 };
 
 }
