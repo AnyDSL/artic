@@ -1201,6 +1201,148 @@ const thorin::Def* Seq::emit(Emitter& emitter) const {
     return emitter.emit(values.back());
 }
 
+const thorin::Def* UnOp::emit(Emitter& emitter) const {
+    using namespace ast;
+    const thorin::Def* op = nullptr;
+    const thorin::Def* ptr = nullptr;
+    if (tag == UnaryExpr::AddrOf || tag == UnaryExpr::AddrOfMut) {
+        auto def = emitter.emit(arg);
+        if (arg->type->isa<RefType>())
+            return def;
+        return emitter.addr_of(def, emitter.debug_info(this));
+    }
+    if (UnaryExpr::is_inc(tag) || UnaryExpr::is_dec(tag)) {
+        ptr = emitter.emit(arg);
+        op  = emitter.load(ptr, emitter.debug_info(this));
+    } else {
+        op = emitter.emit(arg);
+    }
+    const thorin::Def* res = nullptr;
+    switch (tag) {
+        case UnaryExpr::Plus:
+            [[fallthrough]];
+        case UnaryExpr::Deref:
+            // The operand must be a pointer, so we return it as a reference
+            res = op;
+            break;
+        case UnaryExpr::Not:    res = emitter.world.arithop_not(op, emitter.debug_info(this));   break;
+        case UnaryExpr::Minus:  res = emitter.world.arithop_minus(op, emitter.debug_info(this)); break;
+        case UnaryExpr::Known:  res = emitter.world.known(op, emitter.debug_info(this));         break;
+        case UnaryExpr::Forget: res = emitter.world.hlt(op, emitter.debug_info(this));           break;
+        case UnaryExpr::PreInc:
+        case UnaryExpr::PostInc: {
+            auto one = emitter.world.one(op->type());
+            res = emitter.world.arithop_add(op, one, emitter.debug_info(this));
+            break;
+        }
+        case UnaryExpr::PreDec:
+        case UnaryExpr::PostDec: {
+            auto one = emitter.world.one(op->type());
+            res = emitter.world.arithop_sub(op, one, emitter.debug_info(this));
+            break;
+        }
+        default:
+            assert(false);
+            return nullptr;
+    }
+    if (ptr) {
+        emitter.store(ptr, res, emitter.debug_info(this));
+        return UnaryExpr::is_postfix(tag) ? op : res;
+    }
+    return res;
+}
+
+void Value::emit_branch(
+    Emitter& emitter,
+    thorin::Continuation* join_true,
+    thorin::Continuation* join_false) const
+{
+    emitter.branch(emitter.emit(this), join_true, join_false);
+}
+
+void BinOp::emit_branch(
+    Emitter& emitter,
+    thorin::Continuation* join_true,
+    thorin::Continuation* join_false) const
+{
+    using namespace ast;
+    if (!BinaryExpr::is_logic(tag))
+        Value::emit_branch(emitter, join_true, join_false);
+    else {
+        auto cond = emitter.emit(lhs);
+        thorin::Continuation* next = nullptr;
+        // Note: We cannot really just use join_true and join_false in the branch,
+        // because the branch intrinsic requires both continuations to be of type `fn ()`.
+        if (tag == BinaryExpr::LogicAnd) {
+            auto branch_false = emitter.basic_block_with_mem(emitter.debug_info(this, "branch_false"));
+            next = emitter.basic_block_with_mem(emitter.debug_info(lhs, "and_true"));
+            branch_false->jump(join_false, { branch_false->param(0) });
+            emitter.branch(cond, next, branch_false, emitter.debug_info(this));
+        } else {
+            auto branch_true = emitter.basic_block_with_mem(emitter.debug_info(this, "branch_true"));
+            next = emitter.basic_block_with_mem(emitter.debug_info(rhs, "or_false"));
+            branch_true->jump(join_true, {  branch_true->param(0) });
+            emitter.branch(cond, branch_true, next, emitter.debug_info(this));
+        }
+        emitter.enter(next);
+        rhs->emit_branch(emitter, join_true, join_false);
+    }
+}
+
+const thorin::Def* BinOp::emit(Emitter& emitter) const {
+    using namespace ast;
+    if (BinaryExpr::is_logic(tag)) {
+        auto join = emitter.basic_block_with_mem(emitter.world.type_bool(), emitter.debug_info(this, "join"));
+        auto join_true  = emitter.basic_block_with_mem(emitter.debug_info(this, "join_true"));
+        auto join_false = emitter.basic_block_with_mem(emitter.debug_info(this, "join_false"));
+        emit_branch(emitter, join_true, join_false);
+        emitter.enter(join_true);
+        emitter.jump(join, emitter.world.literal_bool(true, {}));
+        emitter.enter(join_false);
+        emitter.jump(join, emitter.world.literal_bool(false, {}));
+        emitter.enter(join);
+        return emitter.tuple_from_params(join);
+    }
+    const thorin::Def* lhs = nullptr;
+    const thorin::Def* ptr = nullptr;
+    if (this->lhs->type->isa<RefType>()) {
+        ptr = emitter.emit(this->lhs);
+        if (tag != BinaryExpr::Eq)
+            lhs = emitter.load(ptr, emitter.debug_info(this));
+    } else {
+        lhs = emitter.emit(this->lhs);
+    }
+    auto rhs = emitter.emit(this->rhs);
+    const thorin::Def* res = nullptr;
+    switch (BinaryExpr::remove_eq(tag)) {
+        case BinaryExpr::Add:   res = emitter.world.arithop_add(lhs, rhs, emitter.debug_info(this)); break;
+        case BinaryExpr::Sub:   res = emitter.world.arithop_sub(lhs, rhs, emitter.debug_info(this)); break;
+        case BinaryExpr::Mul:   res = emitter.world.arithop_mul(lhs, rhs, emitter.debug_info(this)); break;
+        case BinaryExpr::Div:   res = emitter.world.arithop_div(lhs, rhs, emitter.debug_info(this)); break;
+        case BinaryExpr::Rem:   res = emitter.world.arithop_rem(lhs, rhs, emitter.debug_info(this)); break;
+        case BinaryExpr::And:   res = emitter.world.arithop_and(lhs, rhs, emitter.debug_info(this)); break;
+        case BinaryExpr::Or:    res = emitter.world.arithop_or (lhs, rhs, emitter.debug_info(this)); break;
+        case BinaryExpr::Xor:   res = emitter.world.arithop_xor(lhs, rhs, emitter.debug_info(this)); break;
+        case BinaryExpr::LShft: res = emitter.world.arithop_shl(lhs, rhs, emitter.debug_info(this)); break;
+        case BinaryExpr::RShft: res = emitter.world.arithop_shr(lhs, rhs, emitter.debug_info(this)); break;
+        case BinaryExpr::CmpEq: res = emitter.world.cmp_eq(lhs, rhs, emitter.debug_info(this)); break;
+        case BinaryExpr::CmpNE: res = emitter.world.cmp_ne(lhs, rhs, emitter.debug_info(this)); break;
+        case BinaryExpr::CmpGT: res = emitter.world.cmp_gt(lhs, rhs, emitter.debug_info(this)); break;
+        case BinaryExpr::CmpLT: res = emitter.world.cmp_lt(lhs, rhs, emitter.debug_info(this)); break;
+        case BinaryExpr::CmpGE: res = emitter.world.cmp_ge(lhs, rhs, emitter.debug_info(this)); break;
+        case BinaryExpr::CmpLE: res = emitter.world.cmp_le(lhs, rhs, emitter.debug_info(this)); break;
+        case BinaryExpr::Eq:    res = rhs; break;
+        default:
+            assert(false);
+            return nullptr;
+    }
+    if (BinaryExpr::has_eq(tag)) {
+        emitter.store(ptr, res, emitter.debug_info(this));
+        return emitter.world.tuple({});
+    }
+    return res;
+}
+
 namespace ast {
 
 // const thorin::Def* Node::emit(Emitter&) const {

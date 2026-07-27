@@ -261,6 +261,12 @@ private:
     friend class Arena;
 };
 
+inline std::pair<const Type*, const Type*> remove_ptr(const Type* type) {
+    if (auto ptr_type = type->isa<PtrType>())
+        return std::make_pair(ptr_type, ptr_type->pointee);
+    return std::make_pair(nullptr, type);
+}
+
 /// The type of mutable identifiers or expressions.
 struct RefType : public AddrType {
     void print(Printer&) const override;
@@ -274,6 +280,12 @@ private:
 
     friend class Arena;
 };
+
+inline std::pair<const RefType*, const Type*> remove_ref(const Type* type) {
+    if (auto ref_type = type->isa<RefType>())
+        return std::make_pair(ref_type, ref_type->pointee);
+    return std::make_pair(nullptr, type);
+}
 
 struct ImplicitParamType : public Type {
     const Type* underlying;

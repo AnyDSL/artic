@@ -276,6 +276,17 @@ void Seq::print(Printer& p) const {
     });
 }
 
+void UnOp::print(Printer& p) const {
+    p << log::keyword_style(ast::UnaryExpr::tag_to_string(tag));
+    p.print(*arg);
+}
+
+void BinOp::print(Printer& p) const {
+    p.print(*lhs);
+    p << log::keyword_style(ast::BinaryExpr::tag_to_string(tag));
+    p.print(*rhs);
+}
+
 log::Output& operator << (log::Output& out, const Node& node) {
     artic::Printer p(out);
     Printer tp(p);

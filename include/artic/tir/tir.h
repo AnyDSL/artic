@@ -12,6 +12,8 @@
 
 namespace artic {
 
+struct Emitter;
+
 namespace tir {
 
 struct Arena;
@@ -94,6 +96,9 @@ struct Value : public Node {
     Value(Arena& arena, const Type* type) : Node(arena), type(type) {}
 
     NodeKind kind() const override { return NodeKind::Value; }
+
+    /// Emits a branch for boolean expressions.
+    virtual void emit_branch(Emitter&, thorin::Continuation*, thorin::Continuation*) const;
 
     virtual const thorin::Def* emit(Emitter&) const = 0;
 };
@@ -235,6 +240,38 @@ struct Seq : public Value {
     const thorin::Def* emit(Emitter&) const override;
 
     Seq(Arena&, const ArrayRef<const Value*>&);
+};
+
+struct UnOp : public Value {
+    ast::UnaryExpr::Tag tag;
+    const Value* arg;
+
+    bool equals(const Node*) const override;
+    size_t hash() const override;
+
+    void print(Printer&) const override;
+    Node* rewrite(Rewriter&) const override;
+
+    const thorin::Def* emit(Emitter&) const override;
+
+    UnOp(Arena&, const ast::UnaryExpr::Tag, const Value*);
+};
+
+struct BinOp : public Value {
+    ast::BinaryExpr::Tag tag;
+    const Value* lhs;
+    const Value* rhs;
+
+    bool equals(const Node*) const override;
+    size_t hash() const override;
+
+    void print(Printer&) const override;
+    Node* rewrite(Rewriter&) const override;
+
+    const thorin::Def* emit(Emitter&) const override;
+    void emit_branch(Emitter&, thorin::Continuation*, thorin::Continuation*) const override;
+
+    BinOp(Arena&, const ast::BinaryExpr::Tag, const Value*, const Value*);
 };
 
 }

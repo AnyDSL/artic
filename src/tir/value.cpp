@@ -176,6 +176,60 @@ bool Seq::equals(const Node* other) const {
     return false;
 }
 
+using namespace artic::ast;
+
+UnOp::UnOp(Arena& arena, const UnaryExpr::Tag tag, const Value* arg) : Value(arena, [&]() -> const Type* {
+    auto [ref_type, arg_type] = remove_ref(arg->type);
+    if (tag == UnaryExpr::Known)
+        return arena.bool_type();
+    if (tag == UnaryExpr::Forget)
+        return arg->type;
+    if (tag == UnaryExpr::AddrOf)
+        return arena.ptr_type(arg_type, false, ref_type ? ref_type->addr_space : 0);
+    if (tag == UnaryExpr::AddrOfMut)
+        return arena.ptr_type(arg_type, true, ref_type->addr_space);
+    if (tag == UnaryExpr::Deref) {
+        if (auto ptr_type = arg_type->isa<PtrType>())
+            return arena.ref_type(ptr_type->pointee, ptr_type->is_mut, ptr_type->addr_space);
+        return arena.type_error();
+    }
+    return arg_type;
+}()), tag(tag), arg(arg) {}
+
+size_t UnOp::hash() const {
+    return fnv::Hash().combine(tag).combine(arg);
+}
+
+bool UnOp::equals(const Node* other) const {
+    if (auto other_unop = other->isa<UnOp>()) {
+        if (other_unop->arg == arg && other_unop->tag == tag)
+            return true;
+    }
+    return false;
+}
+
+BinOp::BinOp(Arena& arena, const BinaryExpr::Tag tag, const Value* lhs, const Value* rhs) : Value(arena, [&]() -> const Type* {
+    if (BinaryExpr::has_eq(tag))
+        return arena.unit_type();
+    if (BinaryExpr::has_cmp(tag))
+        return arena.bool_type();
+    if (lhs->type != rhs->type)
+        return arena.type_error();
+    return lhs->type;
+}()), tag(tag), lhs(lhs), rhs(rhs) {}
+
+size_t BinOp::hash() const {
+    return fnv::Hash().combine(tag).combine(lhs).combine(rhs);
+}
+
+bool BinOp::equals(const Node* other) const {
+    if (auto other_binop = other->isa<BinOp>()) {
+        if (other_binop->tag == tag && other_binop->lhs == lhs && other_binop->rhs == rhs)
+            return true;
+    }
+    return false;
+}
+
 }
 
 }

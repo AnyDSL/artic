@@ -247,18 +247,6 @@ const Type* TypeChecker::expect(const Loc& loc, const Type* type, const Type* ex
     return type;
 }
 
-inline std::pair<const RefType*, const Type*> remove_ref(const Type* type) {
-    if (auto ref_type = type->isa<RefType>())
-        return std::make_pair(ref_type, ref_type->pointee);
-    return std::make_pair(nullptr, type);
-}
-
-inline std::pair<const Type*, const Type*> remove_ptr(const Type* type) {
-    if (auto ptr_type = type->isa<PtrType>())
-        return std::make_pair(ptr_type, ptr_type->pointee);
-    return std::make_pair(nullptr, type);
-}
-
 // const Type* TypeChecker::deref(Ptr<ast::Expr>& expr) {
 //     assert(false && "TODO");
 //     auto [ref_type, type] = remove_ref(infer(*expr));
@@ -1640,29 +1628,27 @@ const tir::Node* ReturnExpr::infer(TypeChecker& checker) {
 }
 
 const tir::Node* UnaryExpr::infer(TypeChecker& checker) {
-    assert(false && "TODO");
-    /*auto [ref_type, arg_type] = remove_ref(checker.infer(*arg));
+    auto [ref_type, arg_type] = remove_ref(checker.infer_value(*arg)->type);
     if ((!ref_type || !ref_type->is_mut) && (tag == AddrOfMut || is_inc() || is_dec()))
         return checker.mutable_expected(arg->loc);
     if (tag == Plus || tag == Minus || tag == Not || tag == Known || tag == Deref) {
         // Dereference the argument
-        checker.coerce(arg, arg_type);
+        checker.coerce(&*arg, arg_type);
     }
     if (tag == Known)
-        return checker.type_table.bool_type();
+        return checker.type_table.unop(tag, arg->tir->as<Value>());
     if (tag == Forget) {
-        // Return the original type, unchanged
-        return arg->type;
+        return checker.type_table.unop(tag, arg->tir->as<Value>());
     }
     if (tag == AddrOf)
-        return checker.type_table.ptr_type(arg_type, false, ref_type ? ref_type->addr_space : 0);
+        return checker.type_table.unop(tag, arg->tir->as<Value>());
     if (tag == AddrOfMut) {
         arg->write_to();
-        return checker.type_table.ptr_type(arg_type, true, ref_type->addr_space);
+        return checker.type_table.unop(tag, arg->tir->as<Value>());
     }
     if (tag == Deref) {
         if (auto ptr_type = arg_type->isa<artic::PtrType>())
-            return checker.type_table.ref_type(ptr_type->pointee, ptr_type->is_mut, ptr_type->addr_space);
+            return checker.type_table.unop(tag, arg->tir->as<Value>());
         if (checker.should_report_error(arg_type))
             checker.error(loc, "cannot dereference non-pointer type '{}'", *arg_type);
         return checker.type_table.type_error();
@@ -1694,25 +1680,25 @@ const tir::Node* UnaryExpr::infer(TypeChecker& checker) {
             assert(false);
             break;
     }
-    return arg_type;*/
+    return checker.type_table.unop(tag, arg->tir->as<Value>());
 }
 
 const tir::Node* UnaryExpr::check(TypeChecker& checker, const artic::Type* expected) {
-    assert(false && "TODO");
-    /*switch (tag) {
+    switch (tag) {
         case Plus:
         case Minus:
             if (is_int_or_float_type(expected))
-                checker.coerce(arg, expected);
+                checker.coerce(&*arg, expected);
             break;
         case Not:
             if (is_int_type(expected) || is_bool_type(expected))
-                checker.coerce(arg, expected);
+                checker.coerce(&*arg, expected);
             break;
         default:
             break;
     }
-    return checker.expect(loc, infer(checker), expected);*/
+    checker.expect(loc, checker.infer_value(*this)->type, expected);
+    return checker.type_table.unop(tag, arg->tir->as<Value>());
 }
 
 inline bool is_untyped(const Expr& expr) {
@@ -1725,20 +1711,19 @@ inline bool is_untyped(const Expr& expr) {
 }
 
 const tir::Node* BinaryExpr::infer(TypeChecker& checker) {
-    assert(false && "TODO");
-    /*const artic::RefType* left_ref = nullptr;
-    const artic::Type* left_type   = nullptr;
-    const artic::Type* right_type  = nullptr;
+    const tir::RefType* left_ref = nullptr;
+    const tir::Type* left_type   = nullptr;
+    const tir::Type* right_type  = nullptr;
     if (is_logic()) {
-        left_type  = checker.coerce(left, checker.type_table.bool_type());
-        right_type = checker.coerce(right, checker.type_table.bool_type());
+        left_type  = checker.coerce(&*left, checker.type_table.bool_type())->type;
+        right_type = checker.coerce(&*right, checker.type_table.bool_type())->type;
     } else if (!has_eq() && is_untyped(*left)) {
         // Expressions like `1 + x` should be handled by inferring the right-hand side first
-        right_type = checker.deref(right);
-        left_type  = checker.coerce(left, right_type);
+        right_type = checker.deref(right)->type;
+        left_type  = checker.coerce(&*left, right_type)->type;
     } else {
-        std::tie(left_ref, left_type) = remove_ref(checker.infer(*left));
-        right_type = checker.coerce(right, left_type);
+        std::tie(left_ref, left_type) = remove_ref(checker.infer_value(*left)->type);
+        right_type = checker.coerce(&*right, left_type)->type;
     }
 
     if (tag != Eq) {
@@ -1787,19 +1772,15 @@ const tir::Node* BinaryExpr::infer(TypeChecker& checker) {
         left->write_to();
         if (!left_ref || !left_ref->is_mut)
             return checker.mutable_expected(left->loc);
-        return checker.type_table.unit_type();
     }
-    checker.coerce(left, left_type);
-    if (has_cmp())
-        return checker.type_table.bool_type();
-    return right_type;*/
+    checker.coerce(&*left, left_type);
+    return checker.type_table.binop(tag, left->tir->as<Value>(), right->tir->as<Value>());
 }
 
 const tir::Node* BinaryExpr::check(TypeChecker& checker, const artic::Type* expected) {
-    assert(false && "TODO");
-    /*auto coerce = [&] (const artic::Type* type) {
-        checker.coerce(left, type);
-        checker.coerce(right, type);
+    auto coerce = [&] (const artic::Type* type) {
+        checker.coerce(&*left, type);
+        checker.coerce(&*right, type);
     };
     switch (tag) {
         case Add:
@@ -1824,7 +1805,8 @@ const tir::Node* BinaryExpr::check(TypeChecker& checker, const artic::Type* expe
         default:
             break;
     }
-    return checker.expect(loc, infer(checker), expected);*/
+    checker.expect(loc, checker.infer_value(*this)->type, expected);
+    return tir;
 }
 
 const tir::Node* FilterExpr::infer(TypeChecker& checker) {

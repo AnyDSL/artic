@@ -164,6 +164,14 @@ const Value* Arena::seq(const ArrayRef<const Value*>& values) {
     return insert<Seq>(filtered_values);
 }
 
+const Value* Arena::unop(ast::UnaryExpr::Tag tag, const Value* arg) {
+    return insert<UnOp>(tag, arg);
+}
+
+const Value* Arena::binop(ast::BinaryExpr::Tag tag, const Value* lhs, const Value* rhs) {
+    return insert<BinOp>(tag, lhs, rhs);
+}
+
 template <typename T, typename... Args>
 const T* Arena::insert(Args&&... args) {
     T t(*this, std::forward<Args>(args)...);

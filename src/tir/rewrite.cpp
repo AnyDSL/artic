@@ -125,6 +125,14 @@ Node* Seq::rewrite(Rewriter&) const {
 
 }
 
+Node* UnOp::rewrite(Rewriter&) const {
+
+}
+
+Node* BinOp::rewrite(Rewriter&) const {
+
+}
+
 }
 
 }
