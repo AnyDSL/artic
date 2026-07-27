@@ -443,7 +443,7 @@ const tir::Value* TypeChecker::infer(ast::Ptrn& ptrn, Ptr<ast::Expr>& expr) {
     return check_value(ptrn, deref(expr)->type);
 }
 
-const tir::Node* TypeChecker::infer(const Loc&, const Literal& lit) {
+const tir::Value* TypeChecker::infer(const Loc&, const Literal& lit) {
     // These are defaults for when there is no type annotation on the literal.
     if (lit.is_integer())
         return type_table.typed_literal(lit, type_table.prim_type(ast::PrimType::I32));
@@ -465,34 +465,33 @@ const tir::Node* TypeChecker::infer(const Loc&, const Literal& lit) {
 }
 
 const tir::Node* TypeChecker::check(const Loc& loc, const Literal& lit, const Type* expected) {
-    assert(false && "TODO");
-    /*if (expected->isa<NoRetType>())
+    if (expected->isa<NoRetType>())
         return infer(loc, lit);
     if (lit.is_integer()) {
         if (!is_int_or_float_type(expected))
             return incompatible_type(loc, "integer literal", expected);
-        return expected;
+        return type_table.typed_literal(lit, expected);
     } else if (lit.is_double()) {
         if (!is_float_type(expected))
             return incompatible_type(loc, "floating point literal", expected);
-        return expected;
+        return type_table.typed_literal(lit, expected);
     } else if (lit.is_bool()) {
         if (!is_bool_type(expected))
             return incompatible_type(loc, "boolean literal", expected);
-        return expected;
+        return type_table.typed_literal(lit, expected);
     } else if (lit.is_char()) {
         if (!is_prim_type(expected, ast::PrimType::U8))
             return incompatible_type(loc, "character literal", expected);
-        return expected;
+        return type_table.typed_literal(lit, expected);
     } else if (lit.is_string()) {
-        auto type = infer(loc, lit);
-        if (!type->subtype(expected))
+        auto typed_lit = infer(loc, lit);
+        if (!typed_lit->type->subtype(expected))
             return incompatible_type(loc, "string literal", expected);
-        return type;
+        return typed_lit;
     } else {
         assert(false);
         return type_table.type_error();
-    }*/
+    }
 }
 
 static inline const artic::Type* member_type(
@@ -604,20 +603,26 @@ void TypeChecker::check_refutability(const ast::Ptrn& ptrn, bool must_be_trivial
         invalid_ptrn(ptrn.loc, must_be_trivial);
 }
 
-void TypeChecker::bind_ptrn_params(ast::Ptrn& ptrn, const Value* value, const Value*& body) {
+const Value* TypeChecker::bind_ptrn_params(ast::Ptrn& ptrn, const Value* value) {
+    std::vector<const Value*> lets;
+    bind_ptrn_params(ptrn, value, lets);
+    return type_table.seq(lets);
+}
+
+void TypeChecker::bind_ptrn_params(ast::Ptrn& ptrn, const Value* value, std::vector<const Value*>& binds) {
     if (auto tuple_ptrn = ptrn.isa<ast::TuplePtrn>()) {
         for (int i = 0; i < tuple_ptrn->args.size(); ++i) {
             auto idx = type_table.typed_literal(Literal(uint64_t(i)), type_table.prim_type(ast::PrimType::U64));
-            bind_ptrn_params(*tuple_ptrn->args[i], type_table.extract(value, idx), body);
+            bind_ptrn_params(*tuple_ptrn->args[i], type_table.extract(value, idx), binds);
         }
     } else if (auto id_ptrn = ptrn.isa<ast::IdPtrn>()) {
         if (ptrn.tir != value) {
-            body = type_table.bind(ptrn.tir->as<Param>(), value, body);
+            binds.push_back(type_table.bind(ptrn.tir->as<Param>(), value));
         }
         if (id_ptrn->sub_ptrn)
-            bind_ptrn_params(*id_ptrn->sub_ptrn, value, body);
+            bind_ptrn_params(*id_ptrn->sub_ptrn, value, binds);
     } else if (auto typed_ptrn = ptrn.isa<ast::TypedPtrn>()) {
-        bind_ptrn_params(*typed_ptrn->ptrn, value, body);
+        bind_ptrn_params(*typed_ptrn->ptrn, value, binds);
     } else {
         assert(false && "TODO");
     }
@@ -1153,25 +1158,20 @@ const tir::Node* NoCodomType::infer(TypeChecker& checker) {
 // Statements ----------------------------------------------------------------------
 
 const tir::Node* DeclStmt::infer(TypeChecker& checker) {
-    assert(false && "TODO");
-    /*checker.infer(*decl);
-    return checker.type_table.unit_type();*/
+    return checker.infer(*decl);
 }
 
 const tir::Node* DeclStmt::check(TypeChecker& checker, const artic::Type* expected) {
-    assert(false && "TODO");
-    /*checker.infer(*decl);
-    return checker.expect(loc, checker.type_table.unit_type(), expected);*/
+    checker.expect(loc, checker.type_table.unit_type(), expected);
+    return checker.infer(*decl);
 }
 
 const tir::Node* ExprStmt::infer(TypeChecker& checker) {
-    assert(false && "TODO");
-    //return checker.deref(expr);
+    return checker.deref(expr);
 }
 
 const tir::Node* ExprStmt::check(TypeChecker& checker, const artic::Type* expected) {
-    assert(false && "TODO");
-    //return checker.coerce(expr, expected);
+    return checker.coerce(&*expr, expected);
 }
 
 // Expressions ---------------------------------------------------------------------
@@ -1183,8 +1183,7 @@ const tir::Node* Expr::check(TypeChecker& checker, const artic::Type* expected) 
 }
 
 const tir::Node* TypedExpr::infer(TypeChecker& checker) {
-    assert(false && "TODO");
-    //return checker.coerce(expr, checker.infer(*type));
+    return checker.coerce(&*expr, checker.infer_type(*type));
 }
 
 const tir::Node* PathExpr::infer(TypeChecker& checker) {
@@ -1313,7 +1312,7 @@ const tir::Node* FnExpr::infer(TypeChecker& checker) {
     if (!body_type) {
         return checker.cannot_infer(loc, "function");
     }
-    checker.bind_ptrn_params(*param, tir_param, tir_body);
+    tir_body = checker.type_table.seq(Array {checker.bind_ptrn_params(*param, tir_param), tir_body});
     auto fn = checker.type_table.function(tir_param, body_type);
     fn->body = tir_body;
     return fn;
@@ -1338,34 +1337,36 @@ const tir::Node* FnExpr::check(TypeChecker& checker, const artic::Type* expected
 }
 
 const tir::Node* BlockExpr::infer(TypeChecker& checker) {
-    assert(false && "TODO");
-    /*TypeChecker::ScopeHelper sg(checker);
+    TypeChecker::ScopeHelper sg(checker);
     if (stmts.empty())
         return checker.type_table.unit_type();
-    for (auto& stmt : stmts)
-        checker.infer(*stmt);
+    Array<const Value*> tir_stmts(stmts.size());
+    for (int i = 0; i < stmts.size(); i++)
+        tir_stmts[i] = checker.infer_value(*stmts[i]);
     checker.check_block(loc, stmts, last_semi);
-    return last_semi ? checker.type_table.unit_type() : stmts.back()->type;*/
+    return checker.type_table.seq(tir_stmts);
 }
 
 const tir::Node* BlockExpr::check(TypeChecker& checker, const artic::Type* expected) {
-    assert(false && "TODO");
-    /*TypeChecker::ScopeHelper sg(checker);
+    TypeChecker::ScopeHelper sg(checker);
     if (stmts.empty()) {
         if (!is_unit_type(expected))
             return checker.incompatible_type(loc, "empty block expression", expected);
         return expected;
     }
+    Array<const Value*> tir_stmts(stmts.size() + (last_semi ? 1 : 0));
     for (size_t i = 0; i < stmts.size() - 1; ++i)
-        checker.infer(*stmts[i]);
-    auto last_type = last_semi ? checker.infer(*stmts.back()) : checker.check(*stmts.back(), expected);
+        tir_stmts[i] = checker.infer_value(*stmts[i]);
+    tir_stmts[stmts.size() - 1] = last_semi ? checker.infer_value(*stmts.back()) : checker.check_value(*stmts.back(), expected);
     checker.check_block(loc, stmts, last_semi);
     if (last_semi && !is_unit_type(expected)) {
         checker.incompatible_type(loc, "block expression terminated by semicolon", expected);
         checker.note("removing the last semicolon may solve this issue");
         return checker.type_table.type_error();
     }
-    return last_semi ? expected : last_type;*/
+    if (last_semi)
+        tir_stmts.back() = checker.type_table.tuple({});
+    return checker.type_table.seq(tir_stmts);
 }
 
 static inline PathExpr* callee_path(Expr* expr) {
@@ -1903,13 +1904,15 @@ const tir::Node* PtrnDecl::check(TypeChecker& checker, const artic::Type* expect
 }
 
 const tir::Node* LetDecl::infer(TypeChecker& checker) {
-    assert(false && "TODO");
-    /*if (init)
-        checker.infer(*ptrn, init);
-    else
+    if (init) {
+        auto lhs = checker.infer(*ptrn, init);
+        return checker.bind_ptrn_params(*ptrn, init->tir->as<Value>());
+    } else {
         checker.infer(*ptrn);
+        assert(false && "TODO");
+    }
     checker.check_refutability(*ptrn, true);
-    return checker.type_table.unit_type();*/
+    //return checker.type_table.unit_type();
 }
 
 const tir::Node* ImplicitDecl::infer(TypeChecker& checker) {
@@ -2015,7 +2018,8 @@ const tir::Node* FnDecl::infer(TypeChecker& checker) {
         checker.coerce(&*fn->body, fn_type->codom);
         tir_fn->body = fn->body->tir->as<Value>();
     }
-    checker.bind_ptrn_params(*fn->param, tir_fn->param, tir_fn->body);
+    if (fn->body)
+        tir_fn->body = checker.type_table.seq(Array {checker.bind_ptrn_params(*fn->param, tir_fn->param), tir_fn->body});
     checker.exit_decl(this);
     return tir;
 }

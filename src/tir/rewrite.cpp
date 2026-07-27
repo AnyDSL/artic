@@ -121,6 +121,10 @@ Node* Bind::rewrite(Rewriter&) const {
 
 }
 
+Node* Seq::rewrite(Rewriter&) const {
+
+}
+
 }
 
 }

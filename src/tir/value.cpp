@@ -131,21 +131,47 @@ bool Extract::equals(const Node* other) const {
     return false;
 }
 
-Bind::Bind(Arena& arena, const Param* param, const Value* value, const Value* body) : Value(arena, [&]() -> const Type* {
+Bind::Bind(Arena& arena, const Param* param, const Value* value) : Value(arena, [&]() -> const Type* {
     if (value->type != param->type) {
         return arena.type_error();
     }
-    return body->type;
-}()), param(param), value(value), body(body) {}
+    return arena.tuple_type({});
+}()), param(param), value(value) {}
 
 size_t Bind::hash() const {
-    return fnv::Hash().combine(param).combine(value).combine(body);
+    return fnv::Hash().combine(param).combine(value);
 }
 
 bool Bind::equals(const Node* other) const {
     if (auto other_bind = other->isa<Bind>()) {
-        if (other_bind->param == param && other_bind->value == value && other_bind->body == body)
+        if (other_bind->param == param && other_bind->value == value)
             return true;
+    }
+    return false;
+}
+
+Seq::Seq(Arena& arena, const ArrayRef<const Value*>& values) : Value(arena, [&]() -> const Type* {
+    if (!values.empty())
+        return values.back()->type;
+    return arena.tuple_type({});
+}()), values(values) {}
+
+size_t Seq::hash() const {
+    auto h = fnv::Hash();
+    for (auto e : values)
+        h = h.combine(e);
+    return h;
+}
+
+bool Seq::equals(const Node* other) const {
+    if (auto other_seq = other->isa<Seq>()) {
+        if (other_seq->values.size() != values.size())
+            return false;
+        for (size_t i = 0; i < values.size(); i++) {
+            if (other_seq->values[i] != values[i])
+                return false;
+        }
+        return true;
     }
     return false;
 }

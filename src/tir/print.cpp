@@ -266,9 +266,14 @@ void Bind::print(Printer& p) const {
     p.print(*param);
     p << " = ";
     p.print(*value);
-    p << ' ' << log::keyword_style("in") << ' ' << p.indent() << p.endl();
-    p.print(*body);
-    p << p.unindent() << p.endl();
+}
+
+void Seq::print(Printer& p) const {
+    p << log::keyword_style("seq") << p.indent() << p.endl();
+    print_list(p.top(), "", values, [&] (auto& a) {
+        p.print(*a);
+        p << ';' << p.endl();
+    });
 }
 
 log::Output& operator << (log::Output& out, const Node& node) {

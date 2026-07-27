@@ -1191,7 +1191,14 @@ const thorin::Def* Extract::emit(Emitter& emitter) const {
 
 const thorin::Def* Bind::emit(Emitter& emitter) const {
     emitter.emitted[param] = emitter.emit(value);
-    return emitter.emit(body);
+    return emitter.world.tuple({});
+}
+
+const thorin::Def* Seq::emit(Emitter& emitter) const {
+    for (auto value : values)
+        emitter.emit(value);
+    assert(values.size() > 0);
+    return emitter.emit(values.back());
 }
 
 namespace ast {

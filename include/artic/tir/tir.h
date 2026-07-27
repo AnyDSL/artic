@@ -190,7 +190,7 @@ struct Tuple : public Value {
 
     const thorin::Def* emit(Emitter&) const override;
 
-    Tuple(Arena&, const ArrayRef<const Value*>& args);
+    Tuple(Arena&, const ArrayRef<const Value*>&);
 };
 
 struct Extract : public Value {
@@ -211,7 +211,6 @@ struct Extract : public Value {
 struct Bind : public Value {
     const Param* param;
     const Value* value;
-    const Value* body;
 
     bool equals(const Node*) const override;
     size_t hash() const override;
@@ -221,7 +220,21 @@ struct Bind : public Value {
 
     const thorin::Def* emit(Emitter&) const override;
 
-    Bind(Arena&, const Param*, const Value*, const Value*);
+    Bind(Arena&, const Param*, const Value*);
+};
+
+struct Seq : public Value {
+    Array<const Value*> values;
+
+    bool equals(const Node*) const override;
+    size_t hash() const override;
+
+    void print(Printer&) const override;
+    Node* rewrite(Rewriter&) const override;
+
+    const thorin::Def* emit(Emitter&) const override;
+
+    Seq(Arena&, const ArrayRef<const Value*>&);
 };
 
 }

@@ -55,7 +55,8 @@ public:
     const Value* tuple(const ArrayRef<const Value*>&);
     const Value* extract(const Value*, const Value*);
 
-    const Value* bind(const Param*, const Value*, const Value*);
+    const Value* bind(const Param*, const Value*);
+    const Value* seq(const ArrayRef<const Value*>&);
 
 private:
     template <typename T, typename... Args>

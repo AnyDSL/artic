@@ -146,8 +146,22 @@ const Value* Arena::extract(const Value* src, const Value* idx) {
     return insert<Extract>(src, idx);
 }
 
-const Value* Arena::bind(const Param* param, const Value* value, const Value* body) {
-    return insert<Bind>(param, value, body);
+const Value* Arena::bind(const Param* param, const Value* value) {
+    return insert<Bind>(param, value);
+}
+
+const Value* Arena::seq(const ArrayRef<const Value*>& values) {
+    std::vector<const Value*> filtered_values;
+    for (const Value* value : values) {
+        if (value == tuple({}))
+            continue;
+        filtered_values.push_back(value);
+    }
+    if (filtered_values.empty())
+        return tuple({});
+    if (filtered_values.size() == 1)
+        return filtered_values.front();
+    return insert<Seq>(filtered_values);
 }
 
 template <typename T, typename... Args>
