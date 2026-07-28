@@ -123,7 +123,7 @@ struct PrimType : public Type {
     void print(Printer&) const override;
     bool equals(const Node*) const override;
     size_t hash() const override;
-    PrimType* rewrite(Rewriter&) const override;
+    const PrimType* rewrite(Rewriter&) const override;
 
     const thorin::Type* convert(Emitter&) const override;
     std::string stringify(Emitter&) const override;
@@ -143,7 +143,7 @@ struct TupleType : public Type {
     bool equals(const Node*) const override;
     size_t hash() const override;
     bool contains(const Type*) const override;
-    TupleType* rewrite(Rewriter&) const override;
+    const TupleType* rewrite(Rewriter&) const override;
     const Type* replace(const ReplaceMap&) const override;
 
     const thorin::Type* convert(Emitter&) const override;
@@ -186,7 +186,7 @@ struct SizedArrayType : public ArrayType {
     void print(Printer&) const override;
     bool equals(const Node*) const override;
     size_t hash() const override;
-    SizedArrayType* rewrite(Rewriter&) const override;
+    const SizedArrayType* rewrite(Rewriter&) const override;
 
     const Type* replace(const ReplaceMap&) const override;
 
@@ -206,7 +206,7 @@ struct UnsizedArrayType : public ArrayType {
     void print(Printer&) const override;
     bool equals(const Node*) const override;
     size_t hash() const override;
-    UnsizedArrayType* rewrite(Rewriter&) const override;
+    const UnsizedArrayType* rewrite(Rewriter&) const override;
 
     const Type* replace(const ReplaceMap&) const override;
 
@@ -247,7 +247,7 @@ struct AddrType : public Type {
 struct PtrType : public AddrType {
     void print(Printer&) const override;
 
-    PtrType* rewrite(Rewriter&) const override;
+    const PtrType* rewrite(Rewriter&) const override;
     const Type* replace(const ReplaceMap&) const override;
 
     const thorin::Type* convert(Emitter&) const override;
@@ -270,7 +270,7 @@ inline std::pair<const Type*, const Type*> remove_ptr(const Type* type) {
 /// The type of mutable identifiers or expressions.
 struct RefType : public AddrType {
     void print(Printer&) const override;
-    PtrType* rewrite(Rewriter&) const override;
+    const RefType* rewrite(Rewriter&) const override;
     const Type* replace(const ReplaceMap&) const override;
 
 private:
@@ -294,7 +294,7 @@ struct ImplicitParamType : public Type {
     bool equals(const Node*) const override;
     size_t hash() const override;
     bool contains(const Type*) const override;
-    ImplicitParamType* rewrite(Rewriter&) const override;
+    const ImplicitParamType* rewrite(Rewriter&) const override;
 
     const Type* replace(const ReplaceMap&) const override;
 
@@ -323,7 +323,7 @@ struct FnType : public Type {
     bool equals(const Node*) const override;
     size_t hash() const override;
     bool contains(const Type*) const override;
-    FnType* rewrite(Rewriter&) const override;
+    const FnType* rewrite(Rewriter&) const override;
 
     const Type* replace(const ReplaceMap&) const override;
 
@@ -348,7 +348,7 @@ struct BottomType : public Type {
     void print(Printer&) const override;
     bool equals(const Node*) const override;
     size_t hash() const override;
-    BottomType* rewrite(Rewriter&) const override;
+    const BottomType* rewrite(Rewriter&) const override;
 
 protected:
     BottomType(Arena& arena)
@@ -363,7 +363,7 @@ struct TopType : public Type {
     void print(Printer&) const override;
     bool equals(const Node*) const override;
     size_t hash() const override;
-    TopType* rewrite(Rewriter&) const override;
+    const TopType* rewrite(Rewriter&) const override;
 
 protected:
     TopType(Arena& arena)
@@ -379,7 +379,7 @@ struct NoRetType : public BottomType {
 
     const thorin::Type* convert(Emitter&) const override;
     std::string stringify(Emitter&) const override;
-    NoRetType* rewrite(Rewriter&) const override;
+    const NoRetType* rewrite(Rewriter&) const override;
 
 private:
     NoRetType(Arena& arena)
@@ -392,7 +392,7 @@ private:
 /// The type of an error (syntax or type errors will produce that type).
 struct TypeError : public TopType {
     void print(Printer&) const override;
-    TypeError* rewrite(Rewriter&) const override;
+    const TypeError* rewrite(Rewriter&) const override;
 
 private:
     TypeError(Arena& arena)
@@ -425,7 +425,7 @@ protected:
 struct TypeVar : public NodeFromDecl<Type, ast::TypeParam> {
     void print(Printer&) const override;
 
-    TypeVar* rewrite(Rewriter&) const override;
+    const TypeVar* rewrite(Rewriter&) const override;
     const Type* replace(const ReplaceMap&) const override;
 
     const thorin::Type* convert(Emitter&) const override;
@@ -475,7 +475,7 @@ struct ForallType : public PolyTypeFromDecl<PolyType, ast::Decl> {
     /// Returns the type of the body with type variables
     /// substituted with the given arguments.
     const Type* instantiate(const ArrayRef<const Type*>&) const;
-    ForallType* rewrite(Rewriter&) const override;
+    const ForallType* rewrite(Rewriter&) const override;
 
     void print(Printer&) const override;
 
@@ -525,7 +525,7 @@ struct StructType : public NodeFromDecl<ComplexType, ast::RecordDecl> {
     using UserType::convert;
     const thorin::Type* convert(Emitter&, const Type*) const override;
     std::string stringify(Emitter&) const override;
-    StructType* rewrite(Rewriter&) const override;
+    const StructType* rewrite(Rewriter&) const override;
 
     std::string_view member_name(size_t) const override;
     const Type* member_type(size_t) const override;
@@ -547,7 +547,7 @@ struct EnumType : public PolyTypeFromDecl<ComplexType, ast::EnumDecl> {
     using UserType::convert;
     const thorin::Type* convert(Emitter&, const Type*) const override;
     std::string stringify(Emitter&) const override;
-    EnumType* rewrite(Rewriter&) const override;
+    const EnumType* rewrite(Rewriter&) const override;
 
     std::string_view member_name(size_t) const override;
     const Type* member_type(size_t) const override;
@@ -567,7 +567,7 @@ private:
 
 struct ModType : public NodeFromDecl<ComplexType, ast::ModDecl> {
     void print(Printer&) const override;
-    ModType* rewrite(Rewriter&) const override;
+    const ModType* rewrite(Rewriter&) const override;
 
     std::string_view member_name(size_t) const override;
     const Type* member_type(size_t) const override;
@@ -599,7 +599,7 @@ private:
 /// A type alias, introduced by the keyword `type`.
 struct TypeAlias : public PolyTypeFromDecl<UserType, ast::TypeDecl> {
     void print(Printer&) const override;
-    TypeAlias* rewrite(Rewriter&) const override;
+    const TypeAlias* rewrite(Rewriter&) const override;
 
 private:
     TypeAlias(Arena& arena, const ast::TypeDecl& decl)
@@ -627,7 +627,7 @@ struct TypeApp : public Type {
     bool equals(const Node*) const override;
     size_t hash() const override;
     bool contains(const Type*) const override;
-    TypeApp* rewrite(Rewriter&) const override;
+    const TypeApp* rewrite(Rewriter&) const override;
 
     const Type* replace(const ReplaceMap&) const override;
 

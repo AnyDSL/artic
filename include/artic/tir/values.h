@@ -27,7 +27,7 @@ struct Param : public NominalNode<Value> {
     Param(Arena&, std::optional<ast::Identifier>, const Type*);
 
     void print(Printer&) const override;
-    Node* rewrite(Rewriter&) const override;
+    const Node* rewrite(Rewriter&) const override;
 
     const thorin::Def* emit(Emitter&) const override;
 };
@@ -40,7 +40,7 @@ struct Fn : public NominalNode<Value> {
     const FnType* type() const override { return type_->as<FnType>(); }
 
     void print(Printer&) const override;
-    Node* rewrite(Rewriter&) const override;
+    const Node* rewrite(Rewriter&) const override;
 
     const thorin::Def* emit(Emitter&) const override;
 
@@ -70,7 +70,7 @@ struct GlobalVariable : public NominalNode<Value> {
     const RefType* type() const override { return type_->as<RefType>(); }
 
     void print(Printer&) const override;
-    Node* rewrite(Rewriter&) const override;
+    const Node* rewrite(Rewriter&) const override;
 
     const thorin::Def* emit(Emitter&) const override;
 
@@ -85,7 +85,7 @@ struct ImplicitCast : public Value {
     size_t hash() const override;
 
     void print(Printer&) const override;
-    Node* rewrite(Rewriter&) const override;
+    const Node* rewrite(Rewriter&) const override;
 
     const thorin::Def* emit(Emitter&) const override;
 
@@ -99,7 +99,7 @@ struct TypedLiteral : public Value {
     size_t hash() const override;
 
     void print(Printer&) const override;
-    Node* rewrite(Rewriter&) const override;
+    const Node* rewrite(Rewriter&) const override;
 
     const thorin::Def* emit(Emitter&) const override;
 
@@ -113,7 +113,7 @@ struct Tuple : public Value {
     size_t hash() const override;
 
     void print(Printer&) const override;
-    Node* rewrite(Rewriter&) const override;
+    const Node* rewrite(Rewriter&) const override;
 
     const thorin::Def* emit(Emitter&) const override;
 
@@ -128,7 +128,7 @@ struct Extract : public Value {
     size_t hash() const override;
 
     void print(Printer&) const override;
-    Node* rewrite(Rewriter&) const override;
+    const Node* rewrite(Rewriter&) const override;
 
     const thorin::Def* emit(Emitter&) const override;
 
@@ -143,7 +143,7 @@ struct Bind : public Value {
     size_t hash() const override;
 
     void print(Printer&) const override;
-    Node* rewrite(Rewriter&) const override;
+    const Node* rewrite(Rewriter&) const override;
 
     const thorin::Def* emit(Emitter&) const override;
 
@@ -154,7 +154,7 @@ struct Tie : public NominalNode<Value> {
     const Value* value;
 
     void print(Printer&) const override;
-    Node* rewrite(Rewriter&) const override;
+    const Node* rewrite(Rewriter&) const override;
 
     const thorin::Def* emit(Emitter&) const override;
 
@@ -168,7 +168,7 @@ struct Seq : public Value {
     size_t hash() const override;
 
     void print(Printer&) const override;
-    Node* rewrite(Rewriter&) const override;
+    const Node* rewrite(Rewriter&) const override;
 
     const thorin::Def* emit(Emitter&) const override;
 
@@ -183,7 +183,7 @@ struct UnOp : public Value {
     size_t hash() const override;
 
     void print(Printer&) const override;
-    Node* rewrite(Rewriter&) const override;
+    const Node* rewrite(Rewriter&) const override;
 
     const thorin::Def* emit(Emitter&) const override;
 
@@ -199,7 +199,7 @@ struct BinOp : public Value {
     size_t hash() const override;
 
     void print(Printer&) const override;
-    Node* rewrite(Rewriter&) const override;
+    const Node* rewrite(Rewriter&) const override;
 
     const thorin::Def* emit(Emitter&) const override;
     void emit_branch(Emitter&, thorin::Continuation*, thorin::Continuation*) const override;
@@ -216,7 +216,7 @@ struct Branch : public Value {
     size_t hash() const override;
 
     void print(Printer&) const override;
-    Node* rewrite(Rewriter&) const override;
+    const Node* rewrite(Rewriter&) const override;
 
     const thorin::Def* emit(Emitter&) const override;
 
@@ -230,7 +230,7 @@ struct Control : public Value {
     size_t hash() const override;
 
     void print(Printer&) const override;
-    Node* rewrite(Rewriter&) const override;
+    const Node* rewrite(Rewriter&) const override;
 
     const thorin::Def* emit(Emitter&) const override;
 

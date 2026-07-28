@@ -16,6 +16,7 @@ add_library(libartic
     ../include/artic/tir/arena.h
     ../include/artic/tir/types.h
     ../include/artic/tir/values.h
+    ../include/artic/tir/rewrite.h
     arena.cpp
     ast.cpp
     bind.cpp

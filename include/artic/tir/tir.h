@@ -46,7 +46,7 @@ struct Node : public Cast<Node> {
     virtual bool equals(const Node*) const = 0;
     virtual size_t hash() const = 0;
 
-    virtual Node* rewrite(Rewriter&) const = 0;
+    virtual const Node* rewrite(Rewriter&) const = 0;
 
     /// Prints the type on the console, for debugging.
     void dump() const;
