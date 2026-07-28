@@ -622,12 +622,16 @@ void TypeChecker::check_refutability(const ast::Ptrn& ptrn, bool must_be_trivial
         invalid_ptrn(ptrn.loc, must_be_trivial);
 }
 
+const Value* TypeChecker::let_bind(const Value* value, std::vector<const Value*>& binds) {
+    auto param = type_table.param(std::nullopt, value->type());
+    binds.push_back(type_table.bind(param, value));
+    return param;
+}
+
 const Value* TypeChecker::let_bind(const Value* value) {
     Scope& scope = current_scope();
     assert(scope.type == Scope::Block);
-    auto param = type_table.param(std::nullopt, value->type());
-    scope.values_in_block->push_back(type_table.bind(param, value));
-    return param;
+    return let_bind(value, *scope.values_in_block);
 }
 
 void TypeChecker::bind_ptrn_params(ast::Ptrn& ptrn, const Value* value) {
@@ -643,9 +647,15 @@ void TypeChecker::bind_ptrn_params(ast::Ptrn& ptrn, const Value* value, std::vec
             bind_ptrn_params(*tuple_ptrn->args[i], type_table.extract(value, idx), binds);
         }
     } else if (auto id_ptrn = ptrn.isa<ast::IdPtrn>()) {
+        if (id_ptrn->decl->is_mut) {
+            auto alloc = let_bind(type_table.local_variable(value->type()), binds);
+            binds.push_back(type_table.binop(ast::BinaryExpr::Tag::Eq, alloc, value));
+            value = alloc;
+        }
         if (ptrn.tir != value) {
             binds.push_back(type_table.bind(ptrn.tir->as<Param>(), value));
         }
+        binds.push_back(type_table.bind(id_ptrn->decl->tir->as<Param>(), value));
         if (id_ptrn->sub_ptrn)
             bind_ptrn_params(*id_ptrn->sub_ptrn, value, binds);
     } else if (auto typed_ptrn = ptrn.isa<ast::TypedPtrn>()) {
@@ -1961,12 +1971,13 @@ const tir::Node* PtrnDecl::check(TypeChecker& checker, const artic::Type* expect
 
 const tir::Node* LetDecl::infer(TypeChecker& checker) {
     if (init) {
-        auto lhs = checker.infer(*ptrn, init);
+        checker.infer(*ptrn, init);
         checker.bind_ptrn_params(*ptrn, init->tir->as<Value>());
         return checker.type_table.tuple({});
     } else {
-        checker.infer(*ptrn);
-        assert(false && "TODO");
+        auto ptrn_type = checker.infer_value(*ptrn)->type();
+        checker.bind_ptrn_params(*ptrn, checker.type_table.undef(ptrn_type));
+        return checker.type_table.tuple({});
     }
     checker.check_refutability(*ptrn, true);
     //return checker.type_table.unit_type();
@@ -2238,7 +2249,7 @@ const tir::Node* IdPtrn::check(TypeChecker& checker, const artic::Type* expected
     checker.check(*decl, decl->is_mut ? checker.type_table.ref_type(expected, true, 0) : expected);
     if (sub_ptrn)
         checker.check(*sub_ptrn, expected);
-    return decl->tir;
+    return checker.type_table.param(std::nullopt, expected);
 }
 
 const tir::Node* ImplicitParamPtrn::infer(artic::TypeChecker& checker) {

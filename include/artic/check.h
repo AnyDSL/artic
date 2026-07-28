@@ -69,6 +69,7 @@ public:
     const tir::Value* infer(const Loc&, const Literal&);
     const tir::Node* check(const Loc&, const Literal&, const Type*);
 
+    const Value* let_bind(const Value*, std::vector<const Value*>&);
     const Value* let_bind(const Value*);
 
     /// Explores a pattern recursively and makes sure the body is wrapped in Bind nodes that extract the value of each sub-pattern

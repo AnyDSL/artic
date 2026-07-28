@@ -117,6 +117,10 @@ const GlobalVariable* Arena::global_variable(const Type* value_type, bool is_mut
     return insert<GlobalVariable>(value_type, is_mut, init);
 }
 
+const LocalVariable* Arena::local_variable(const Type* value_type) {
+    return insert<LocalVariable>(value_type);
+}
+
 const Value* Arena::implicit_cast(const Value* src, const Type* dst) {
     return insert<ImplicitCast>(src, dst);
 }
@@ -128,6 +132,10 @@ const Value* Arena::cast(const Value* src, const Type* dst) {
 const Value* Arena::typed_literal(Literal literal, const Type* type) {
     // TODO: normalize literal representation based on type
     return insert<TypedLiteral>(literal, type);
+}
+
+const Value* Arena::undef(const Type* type) {
+    return insert<Undef>(type);
 }
 
 const Fn* Arena::function(const Param* param, const Type* codom) {

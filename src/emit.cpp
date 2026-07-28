@@ -1172,8 +1172,16 @@ const thorin::Def* GlobalVariable::emit(Emitter& emitter) const {
     return global;
 }
 
+const thorin::Def* LocalVariable::emit(Emitter& emitter) const {
+    return emitter.alloc(emitter.emit(allocated_type)->as<thorin::Type>(), {});
+}
+
 const thorin::Def* TypedLiteral::emit(Emitter& emitter) const {
     return emitter.emit(this, value);
+}
+
+const thorin::Def* Undef::emit(Emitter& emitter) const {
+    return emitter.world.bottom(emitter.emit(type())->as<thorin::Type>(), {});
 }
 
 const thorin::Def* ImplicitCast::emit(Emitter& emitter) const {

@@ -10,6 +10,9 @@ namespace tir {
 GlobalVariable::GlobalVariable(Arena& arena, const Type* value_type, bool is_mut, const Value* init)
     : NominalNode(arena, arena.ref_type(value_type, is_mut, 0)), value_type(value_type), is_mut(is_mut), init(init) {}
 
+LocalVariable::LocalVariable(Arena& arena, const Type* allocated_type)
+    : NominalNode(arena, arena.ref_type(allocated_type, true, 0)), allocated_type(allocated_type) {}
+
 Fn::Fn(Arena& arena, const Param* param, const Type* codom) : NominalNode(arena, arena.fn_type(param->type(), codom)), param(param) {}
 
 Param::Param(Arena& arena, std::optional<ast::Identifier> id, const Type* type) : NominalNode(arena, type), id(id) {}
@@ -92,6 +95,20 @@ bool TypedLiteral::equals(const Node* other) const {
                 case Literal::Bool: return other_typed_literal->value.bool_ == value.bool_;
             }
         }
+    }
+    return false;
+}
+
+Undef::Undef(Arena& arena, const Type* type) : Value(arena, type) {}
+
+size_t Undef::hash() const {
+    return fnv::Hash().combine(type());
+}
+
+bool Undef::equals(const Node* other) const {
+    if (auto other_undef = other->isa<Undef>()) {
+        if (other_undef->type() == type())
+            return true;
     }
     return false;
 }

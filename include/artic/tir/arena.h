@@ -46,9 +46,11 @@ public:
     const Module* module(ast::Identifier, const Module*);
 
     const GlobalVariable* global_variable(const Type*, bool is_mut, const Value*);
+    const LocalVariable* local_variable(const Type*);
     const Value* implicit_cast(const Value*, const Type*);
     const Value* cast(const Value*, const Type*);
     const Value* typed_literal(Literal, const Type*);
+    const Value* undef(const Type*);
 
     const Fn* function(const Param*, const Type* codom);
     const Param* param(std::optional<ast::Identifier>, const Type*);

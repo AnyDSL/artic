@@ -97,6 +97,10 @@ const Node* GlobalVariable::rewrite(Rewriter&) const {
 
 }
 
+const Node* LocalVariable::rewrite(Rewriter&) const {
+
+}
+
 const Node* Fn::rewrite(Rewriter&) const {
 
 }
@@ -118,6 +122,10 @@ const Node* Cast::rewrite(Rewriter&) const {
 }
 
 const Node* TypedLiteral::rewrite(Rewriter&) const {
+
+}
+
+const Node* Undef::rewrite(Rewriter&) const {
 
 }
 

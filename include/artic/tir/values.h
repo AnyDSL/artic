@@ -82,6 +82,18 @@ struct GlobalVariable : public NominalNode<Value> {
     GlobalVariable(Arena& arena, const Type*, bool is_mut, const Value* init = nullptr);
 };
 
+struct LocalVariable : public NominalNode<Value> {
+    const Type* allocated_type;
+
+    void print(Printer&) const override;
+    const Node* rewrite(Rewriter&) const override;
+
+    const RefType* type() const override { return type_->as<RefType>(); }
+    const thorin::Def* emit(Emitter&) const override;
+
+    LocalVariable(Arena&, const Type*);
+};
+
 struct ImplicitCast : public Value {
     const Value* src;
     const Type* dst;
@@ -125,6 +137,19 @@ struct TypedLiteral : public Value {
     bool is_computation() const override { return false; }
 
     TypedLiteral(Arena&, Literal, const Type*);
+};
+
+struct Undef : public Value {
+    bool equals(const Node*) const override;
+    size_t hash() const override;
+
+    void print(Printer&) const override;
+    const Node* rewrite(Rewriter&) const override;
+
+    const thorin::Def* emit(Emitter&) const override;
+    bool is_computation() const override { return false; }
+
+    Undef(Arena&, const Type*);
 };
 
 struct Tuple : public Value {

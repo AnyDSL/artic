@@ -207,7 +207,16 @@ void GlobalVariable::print(Printer& p) const {
     p << ']';
     p << '(';
     if (init)
-        p.print(*init);
+        p.print(*init, true);
+    p << ')';
+}
+
+void LocalVariable::print(Printer& p) const {
+    p << log::keyword_style("local_variable");
+    p << '[';
+    p.print(*allocated_type);
+    p << ']';
+    p << '(';
     p << ')';
 }
 
@@ -265,6 +274,15 @@ void TypedLiteral::print(Printer& p) const {
     p << ']';
     p << '(';
     p << std::showpoint << log::literal_style(value);
+    p << ')';
+}
+
+void Undef::print(Printer& p) const {
+    p << log::keyword_style("undef");
+    p << '[';
+    p.print(*type(), true);
+    p << ']';
+    p << '(';
     p << ')';
 }
 
