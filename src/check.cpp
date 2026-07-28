@@ -893,25 +893,33 @@ const tir::Node* Ptrn::check(TypeChecker& checker, const artic::Type* expected) 
 const tir::Node* Path::Elem::infer(TypeChecker& checker, const tir::Node* prev_elem, Path& path) {
     if (!prev_elem) {
         if (is_super()) {
-            assert(false && "TODO");
-            // return tir = checker.type_table.mod_type(*decl->as<ModDecl>());
+            auto mod_decl = decl->isa<ModDecl>();
+            if (!mod_decl) {
+                checker.error(loc, "'super' can only be used on modules");
+                return nullptr;
+            }
+            return tir = checker.infer(*mod_decl)->as<Module>();
         } else {
             return tir = checker.infer(*decl);
         }
     }
     if (is_super()) {
         assert(prev_elem);
-        auto mod_type = prev_elem->isa<ModType>();
-        if (!mod_type) {
+        auto module = prev_elem->isa<Module>();
+        if (!module) {
             checker.error(loc, "'super' can only be used on modules");
             return tir = checker.type_table.type_error();
         }
 
-        assert(false && "TODO");
-        //return type = checker.type_table.mod_type(*mod_type->decl.super);
+        return tir = module->super;
     }
-    if (auto mod_type = prev_elem->isa<ModType>()) {
-        assert(false && "TODO");
+    if (auto module = prev_elem->isa<Module>()) {
+        for (auto& decl : module->decls) {
+            if (decl.id.name == id.name) {
+                return tir = decl.ir;
+            }
+        }
+        //return tir = checker.unknown_module_member(loc, mod_type, id.name);
         /*auto index = mod_type->find_member(id.name);
         if (!index)
             return type = checker.unknown_member(loc, mod_type, id.name);
@@ -2165,8 +2173,10 @@ const tir::Node* ModDecl::infer(TypeChecker& checker) {
     //         checker.scopes.front().push_back(TypeChecker::ImplicitSrc {
     //             .decl = impl_decl,
     //         });
-    std::vector<Module::Decl> tir_decls;
-    Scope mod_scope(checker, super ? super->scope : nullptr, tir_decls);
+    auto tir_module = checker.type_table.module(id, super ? checker.infer(*super)->as<Module>() : nullptr);
+    tir = tir_module;
+
+    Scope mod_scope(checker, super ? super->scope : nullptr, tir_module->decls);
     TypeChecker::ScopeHelper guard(checker, mod_scope);
     scope = &mod_scope;
     for (auto& decl : decls) {
@@ -2174,7 +2184,6 @@ const tir::Node* ModDecl::infer(TypeChecker& checker) {
         //     tir_decls.emplace_back(named->id, checker.infer(*decl));
         checker.infer(*decl);
     }
-    tir = checker.type_table.module(id, std::move(tir_decls));
     if (super)
         super->scope->add_decl(*this);
     // for (auto& decl : decls) {

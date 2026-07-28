@@ -109,8 +109,8 @@ const Type* Arena::type_app(const UserType* applied, const ArrayRef<const Type*>
     // return insert<TypeApp>(applied, std::move(type_args));
 }
 
-const Module* Arena::module(ast::Identifier id, std::vector<Module::Decl>&& decls) {
-    return insert<Module>(id, std::move(decls));
+const Module* Arena::module(ast::Identifier id, const Module* super) {
+    return insert<Module>(id, super);
 }
 
 const GlobalVariable* Arena::global_variable(const Type* value_type, bool is_mut, const Value* init) {

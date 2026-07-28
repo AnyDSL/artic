@@ -43,7 +43,7 @@ public:
     /// or returns the type alias expanded with the given type arguments.
     const Type* type_app(const UserType*, const ArrayRef<const Type*>&);
 
-    const Module* module(ast::Identifier, std::vector<Module::Decl>&&);
+    const Module* module(ast::Identifier, const Module*);
 
     const GlobalVariable* global_variable(const Type*, bool is_mut, const Value*);
     const Value* implicit_cast(const Value*, const Type*);

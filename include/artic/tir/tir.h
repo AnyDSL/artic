@@ -73,12 +73,13 @@ struct NominalNode : public Super {
 struct Module : public NominalNode<Node> {
     //const ModType* type;
     ast::Identifier id;
+    const Module* super;
 
     struct Decl {
         ast::Identifier id;
         const Node* ir;
     };
-    std::vector<Decl> decls;
+    mutable std::vector<Decl> decls;
 
     NodeKind kind() const override { return NodeKind::Module; }
 
@@ -87,7 +88,7 @@ struct Module : public NominalNode<Node> {
 
     void emit(Emitter&) const;
 
-    Module(Arena& arena, ast::Identifier id, std::vector<Decl>&& decls) : NominalNode(arena), id(id), decls(std::move(decls)) {}
+    Module(Arena& arena, ast::Identifier id, const Module* super) : NominalNode(arena), id(id), super(super) {}
 };
 
 }
