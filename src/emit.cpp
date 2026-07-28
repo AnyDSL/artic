@@ -797,7 +797,7 @@ void Emitter::bind(const ast::IdPtrn& id_ptrn, const thorin::Def* value) {
 }*/
 
 const thorin::Def* Emitter::emit(const Value* node, const Literal& lit) {
-    if (auto prim_type = node->type->isa<artic::PrimType>()) {
+    if (auto prim_type = node->type()->isa<artic::PrimType>()) {
         switch (prim_type->tag) {
             case ast::PrimType::Bool: return world.literal_bool(lit.as_bool(),    debug_info(node));
             case ast::PrimType::U8:   return world.literal_pu8 (lit.is_integer() ? lit.as_integer() : lit.as_char(), debug_info(node));
@@ -1126,19 +1126,18 @@ const thorin::Def* Fn::emit(Emitter& emitter) const {
     //assert(false && "TODO");
     auto _ = emitter.save_state();
     auto cont = emitter.world.continuation(
-        type->convert(emitter)->as<thorin::FnType>(),
+        type()->convert(emitter)->as<thorin::FnType>(),
         emitter.debug_info(this));
     cont->params().back()->set_name("ret");
     // Set the IR node before entering the body
     emitter.emitted[this] = cont;
     emitter.enter(cont);
-    auto fn_type = type->as<FnType>();
-    emitter.emitted[param] = emitter.tuple_from_params(cont, !fn_type->codom->isa<artic::NoRetType>());
+    emitter.emitted[param] = emitter.tuple_from_params(cont, !type()->codom->isa<artic::NoRetType>());
     //emitter.emit(*param, emitter.tuple_from_params(cont, true));
     if (filter)
         cont->set_filter(emitter.world.filter(thorin::Array<const thorin::Def*>(cont->num_params(), emitter.emit(filter))));
     auto value = emitter.emit(body);
-    if (!fn_type->codom->isa<artic::NoRetType>())
+    if (!type()->codom->isa<artic::NoRetType>())
         emitter.jump(cont->params().back(), value);
     return cont;
 }
@@ -1146,7 +1145,7 @@ const thorin::Def* Fn::emit(Emitter& emitter) const {
 const thorin::Def* App::emit(Emitter& emitter) const {
     auto fn = emitter.emit(callee);
     auto value = emitter.emit(arg);
-    if (type->isa<artic::NoRetType>()) {
+    if (type()->isa<artic::NoRetType>()) {
         emitter.jump(fn, value, emitter.debug_info(this));
         return emitter.no_ret();
     }
@@ -1156,7 +1155,7 @@ const thorin::Def* App::emit(Emitter& emitter) const {
 const thorin::Def* GlobalVariable::emit(Emitter& emitter) const {
     auto value = init
         ? emitter.emit(init)
-        : emitter.world.bottom(type->as<artic::RefType>()->pointee->convert(emitter));
+        : emitter.world.bottom(type()->pointee->convert(emitter));
     auto global = emitter.world.global(value, is_mut, emitter.debug_info(this));
 
     // TODO
@@ -1176,7 +1175,7 @@ const thorin::Def* TypedLiteral::emit(Emitter& emitter) const {
 }
 
 const thorin::Def* ImplicitCast::emit(Emitter& emitter) const {
-    return emitter.down_cast(emitter.emit(src), src->type, dst);
+    return emitter.down_cast(emitter.emit(src), src->type(), dst);
 }
 
 const thorin::Def* Tuple::emit(Emitter& emitter) const {
@@ -1209,7 +1208,7 @@ const thorin::Def* UnOp::emit(Emitter& emitter) const {
     const thorin::Def* ptr = nullptr;
     if (tag == UnaryExpr::AddrOf || tag == UnaryExpr::AddrOfMut) {
         auto def = emitter.emit(arg);
-        if (arg->type->isa<RefType>())
+        if (arg->type()->isa<RefType>())
             return def;
         return emitter.addr_of(def, emitter.debug_info(this));
     }
@@ -1307,7 +1306,7 @@ const thorin::Def* BinOp::emit(Emitter& emitter) const {
     }
     const thorin::Def* lhs = nullptr;
     const thorin::Def* ptr = nullptr;
-    if (this->lhs->type->isa<RefType>()) {
+    if (this->lhs->type()->isa<RefType>()) {
         ptr = emitter.emit(this->lhs);
         if (tag != BinaryExpr::Eq)
             lhs = emitter.load(ptr, emitter.debug_info(this));
@@ -1351,9 +1350,9 @@ const thorin::Def* Branch::emit(Emitter& emitter) const {
 }
 
 const thorin::Def* Control::emit(Emitter& emitter) const {
-    auto join = !type->isa<artic::NoRetType>()
+    auto join = !type()->isa<NoRetType>()
         ? emitter.basic_block_with_mem(
-            type->convert(emitter),
+            type()->convert(emitter),
             emitter.debug_info(this, "if_join"))
         : nullptr;
 

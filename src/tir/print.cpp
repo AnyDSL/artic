@@ -201,7 +201,7 @@ void Fn::print(Printer& p) const {
     p << log::keyword_style("fn") << "(";
     p.print(*param);
     p << ")" << " -> ";
-    p.print(*type->as<FnType>()->codom);
+    p.print(*type()->codom);
     if (body) {
         p << " {" << p.indent() << p.endl();
         p.print(*body);
@@ -214,7 +214,7 @@ void Param::print(Printer& p) const {
     if (auto id = this->id)
         p << ' ' << id->name;
     p << ": ";
-    p.print(*type);
+    p.print(*type());
 }
 
 void App::print(Printer& p) const {
@@ -237,7 +237,7 @@ void ImplicitCast::print(Printer& p) const {
 void TypedLiteral::print(Printer& p) const {
     p << log::keyword_style("typed_literal");
     p << '[';
-    p.print(*type);
+    p.print(*type());
     p << ']';
     p << '(';
     p << std::showpoint << log::literal_style(value);

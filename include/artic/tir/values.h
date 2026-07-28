@@ -8,15 +8,17 @@ namespace artic {
 namespace tir {
 
 struct Value : public Node {
-    const Type* type;
-
-    Value(Arena& arena, const Type* type) : Node(arena), type(type) {}
+    Value(Arena& arena, const Type* type) : Node(arena), type_(type) {}
 
     NodeKind kind() const override { return NodeKind::Value; }
+    virtual const Type* type() const { return type_; }
 
     /// Emits a branch for boolean expressions.
     virtual void emit_branch(Emitter&, thorin::Continuation*, thorin::Continuation*) const;
     virtual const thorin::Def* emit(Emitter&) const = 0;
+
+protected:
+    const Type* type_;
 };
 
 struct Param : public NominalNode<Value> {
@@ -34,6 +36,8 @@ struct Fn : public NominalNode<Value> {
     const Param* param;
     mutable const Value* filter = nullptr;
     mutable const Value* body = nullptr;
+
+    const FnType* type() const override { return type_->as<FnType>(); }
 
     void print(Printer&) const override;
     Node* rewrite(Rewriter&) const override;
@@ -62,6 +66,8 @@ struct GlobalVariable : public NominalNode<Value> {
     const Type* value_type;
     bool is_mut;
     const Value* init;
+
+    const RefType* type() const override { return type_->as<RefType>(); }
 
     void print(Printer&) const override;
     Node* rewrite(Rewriter&) const override;

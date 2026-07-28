@@ -10,11 +10,11 @@ namespace tir {
 GlobalVariable::GlobalVariable(Arena& arena, const Type* value_type, bool is_mut, const Value* init)
     : NominalNode(arena, arena.ref_type(value_type, is_mut, 0)), value_type(value_type), is_mut(is_mut), init(init) {}
 
-Fn::Fn(Arena& arena, const Param* param, const Type* codom) : NominalNode(arena, arena.fn_type(param->type, codom)), param(param) {}
+Fn::Fn(Arena& arena, const Param* param, const Type* codom) : NominalNode(arena, arena.fn_type(param->type(), codom)), param(param) {}
 
 Param::Param(Arena& arena, std::optional<ast::Identifier> id, const Type* type) : NominalNode(arena, type), id(id) {}
 
-App::App(Arena& arena, const Value* callee, const Value* arg) : Value(arena, callee->type->as<FnType>()->codom), callee(callee), arg(arg) {}
+App::App(Arena& arena, const Value* callee, const Value* arg) : Value(arena, callee->type()->as<FnType>()->codom), callee(callee), arg(arg) {}
 
 size_t App::hash() const {
     return fnv::Hash().combine(callee).combine(arg);
@@ -41,7 +41,7 @@ bool ImplicitCast::equals(const Node* other) const {
 TypedLiteral::TypedLiteral(Arena& arena, Literal lit, const Type* type) : Value(arena, type), value(lit) {}
 
 size_t TypedLiteral::hash() const {
-    auto h = fnv::Hash().combine(type);
+    auto h = fnv::Hash().combine(type());
     switch (value.tag) {
         case Literal::Char:
             h = h.combine(value.char_);
@@ -64,7 +64,7 @@ size_t TypedLiteral::hash() const {
 
 bool TypedLiteral::equals(const Node* other) const {
     if (auto other_typed_literal = other->isa<TypedLiteral>()) {
-        if (other_typed_literal->type == type && other_typed_literal->value.tag == value.tag) {
+        if (other_typed_literal->type() == type() && other_typed_literal->value.tag == value.tag) {
             switch (other_typed_literal->value.tag) {
                 case Literal::Char: return other_typed_literal->value.char_ == value.char_;
                 case Literal::String: return other_typed_literal->value.string == value.string;
@@ -80,7 +80,7 @@ bool TypedLiteral::equals(const Node* other) const {
 Tuple::Tuple(Arena& arena, const ArrayRef<const Value*>& args) : Value(arena, arena.tuple_type([&]() {
     Array<const Type*> types(args.size());
     for (size_t i = 0; i < args.size(); i++) {
-        types[i] = args[i]->type;
+        types[i] = args[i]->type();
     }
     return types;
 }())), args(args) {}
@@ -106,7 +106,7 @@ bool Tuple::equals(const Node* other) const {
 }
 
 Extract::Extract(Arena& arena, const Value* src, const Value* idx) : Value(arena, [&]() -> const Type* {
-    if (auto tuple_t = src->type->isa<TupleType>()) {
+    if (auto tuple_t = src->type()->isa<TupleType>()) {
         if (auto lit_idx = idx->isa<TypedLiteral>(); lit_idx) {
             size_t idx_value = lit_idx->value.as_integer();
             if (idx_value >= tuple_t->args.size())
@@ -132,7 +132,7 @@ bool Extract::equals(const Node* other) const {
 }
 
 Bind::Bind(Arena& arena, const Param* param, const Value* value) : Value(arena, [&]() -> const Type* {
-    if (value->type != param->type) {
+    if (value->type() != param->type()) {
         return arena.type_error();
     }
     return arena.tuple_type({});
@@ -152,7 +152,7 @@ bool Bind::equals(const Node* other) const {
 
 Seq::Seq(Arena& arena, const ArrayRef<const Value*>& values) : Value(arena, [&]() -> const Type* {
     if (!values.empty())
-        return values.back()->type;
+        return values.back()->type();
     return arena.tuple_type({});
 }()), values(values) {}
 
@@ -179,11 +179,11 @@ bool Seq::equals(const Node* other) const {
 using namespace artic::ast;
 
 UnOp::UnOp(Arena& arena, const UnaryExpr::Tag tag, const Value* arg) : Value(arena, [&]() -> const Type* {
-    auto [ref_type, arg_type] = remove_ref(arg->type);
+    auto [ref_type, arg_type] = remove_ref(arg->type());
     if (tag == UnaryExpr::Known)
         return arena.bool_type();
     if (tag == UnaryExpr::Forget)
-        return arg->type;
+        return arg->type();
     if (tag == UnaryExpr::AddrOf)
         return arena.ptr_type(arg_type, false, ref_type ? ref_type->addr_space : 0);
     if (tag == UnaryExpr::AddrOfMut)
@@ -213,9 +213,9 @@ BinOp::BinOp(Arena& arena, const BinaryExpr::Tag tag, const Value* lhs, const Va
         return arena.unit_type();
     if (BinaryExpr::has_cmp(tag))
         return arena.bool_type();
-    if (lhs->type != rhs->type)
+    if (lhs->type() != rhs->type())
         return arena.type_error();
-    return lhs->type;
+    return lhs->type();
 }()), tag(tag), lhs(lhs), rhs(rhs) {}
 
 size_t BinOp::hash() const {
@@ -231,17 +231,17 @@ bool BinOp::equals(const Node* other) const {
 }
 
 Branch::Branch(Arena& arena, const Value* cond, const Fn* true_branch, const Fn* else_branch) : Value(arena, [&]() -> const Type* {
-    if (cond->type != arena.bool_type())
+    if (cond->type() != arena.bool_type())
         return arena.type_error();
     // both branches must have no param
-    if (true_branch->param->type != arena.tuple_type({}))
+    if (true_branch->param->type() != arena.tuple_type({}))
         return arena.type_error();
-    if (else_branch->param->type != arena.tuple_type({}))
+    if (else_branch->param->type() != arena.tuple_type({}))
         return arena.type_error();
     // both branches must yield the same thing (if we do direct-style which we don't ATP!)
-    if (true_branch->type->as<FnType>()->codom != else_branch->type->as<FnType>()->codom)
+    if (true_branch->type()->codom != else_branch->type()->codom)
         return arena.type_error();
-    return true_branch->type->as<FnType>()->codom;
+    return true_branch->type()->codom;
 }()), cond(cond), true_branch(true_branch), else_branch(else_branch) {}
 
 size_t Branch::hash() const {
@@ -257,7 +257,7 @@ bool Branch::equals(const Node* other) const {
 }
 
 Control::Control(Arena& arena, const Fn* fn) : Value(arena, [&]() -> const Type* {
-    if (auto yield_fn_type = fn->param->type->isa<FnType>()) {
+    if (auto yield_fn_type = fn->param->type()->isa<FnType>()) {
         if (yield_fn_type->codom != arena.no_ret_type())
             return arena.type_error();
         return yield_fn_type->dom;
