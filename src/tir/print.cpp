@@ -286,7 +286,7 @@ void Bind::print(Printer& p) const {
 void Seq::print(Printer& p) const {
     p << log::keyword_style("seq") << " {" << p.indent() << p.endl();
     for (size_t i = 0; i < values.size(); i++) {
-        p.print(*values[i], true);
+        p.print(*values[i], values[i]->is_computation());
         if (i != values.size() - 1)
             p << ';' << p.endl();
     }

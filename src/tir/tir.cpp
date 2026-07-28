@@ -154,8 +154,8 @@ const Value* Arena::seq(const ArrayRef<const Value*>& values) {
     std::vector<const Value*> filtered_values;
     for (size_t i = 0; i < values.size(); i++) {
         auto value = values[i];
-        // get rid of tuples, _except_ in the final position (because it affects the type of the Seq then)
-        if (value == tuple({}) && i < values.size() - 1)
+        // get rid of non-computations, _except_ in the final position (because it affects the type of the Seq then)
+        if (!value->is_computation() && i < values.size() - 1)
             continue;
         filtered_values.push_back(value);
     }

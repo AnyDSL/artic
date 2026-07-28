@@ -14,7 +14,10 @@ Fn::Fn(Arena& arena, const Param* param, const Type* codom) : NominalNode(arena,
 
 Param::Param(Arena& arena, std::optional<ast::Identifier> id, const Type* type) : NominalNode(arena, type), id(id) {}
 
-App::App(Arena& arena, const Value* callee, const Value* arg) : Value(arena, callee->type()->as<FnType>()->codom), callee(callee), arg(arg) {}
+App::App(Arena& arena, const Value* callee, const Value* arg) : Value(arena, callee->type()->as<FnType>()->codom), callee(callee), arg(arg) {
+    assert(!callee->is_computation());
+    assert(!arg->is_computation());
+}
 
 size_t App::hash() const {
     return fnv::Hash().combine(callee).combine(arg);
@@ -26,7 +29,9 @@ bool App::equals(const Node* other) const {
     return false;
 }
 
-ImplicitCast::ImplicitCast(Arena& arena, const Value* src, const Type* dst) : Value(arena, dst), src(src), dst(dst) {}
+ImplicitCast::ImplicitCast(Arena& arena, const Value* src, const Type* dst) : Value(arena, dst), src(src), dst(dst) {
+    assert(!src->is_computation());
+}
 
 size_t ImplicitCast::hash() const {
     return fnv::Hash().combine(src).combine(dst);
@@ -83,7 +88,11 @@ Tuple::Tuple(Arena& arena, const ArrayRef<const Value*>& args) : Value(arena, ar
         types[i] = args[i]->type();
     }
     return types;
-}())), args(args) {}
+}())), args(args) {
+    for (auto arg : args) {
+        assert(!arg->is_computation());
+    }
+}
 
 size_t Tuple::hash() const {
     auto h = fnv::Hash();
@@ -117,7 +126,10 @@ Extract::Extract(Arena& arena, const Value* src, const Value* idx) : Value(arena
         assert(false);
     }
     return arena.type_error();
-}()), src(src), idx(idx) {}
+}()), src(src), idx(idx) {
+    assert(!src->is_computation());
+    assert(!idx->is_computation());
+}
 
 size_t Extract::hash() const {
     return fnv::Hash().combine(src).combine(idx);
@@ -176,7 +188,9 @@ bool Seq::equals(const Node* other) const {
     return false;
 }
 
-Tie::Tie(Arena& arena, const Value* value) : NominalNode(arena, arena.tuple_type({})), value(value) {}
+Tie::Tie(Arena& arena, const Value* value) : NominalNode(arena, arena.tuple_type({})), value(value) {
+    assert(!value->is_computation());
+}
 
 using namespace artic::ast;
 
@@ -196,7 +210,9 @@ UnOp::UnOp(Arena& arena, const UnaryExpr::Tag tag, const Value* arg) : Value(are
         return arena.type_error();
     }
     return arg_type;
-}()), tag(tag), arg(arg) {}
+}()), tag(tag), arg(arg) {
+    assert(!arg->is_computation());
+}
 
 size_t UnOp::hash() const {
     return fnv::Hash().combine(tag).combine(arg);
@@ -218,7 +234,10 @@ BinOp::BinOp(Arena& arena, const BinaryExpr::Tag tag, const Value* lhs, const Va
     if (lhs->type() != rhs->type())
         return arena.type_error();
     return lhs->type();
-}()), tag(tag), lhs(lhs), rhs(rhs) {}
+}()), tag(tag), lhs(lhs), rhs(rhs) {
+    assert(!lhs->is_computation());
+    assert(!rhs->is_computation());
+}
 
 size_t BinOp::hash() const {
     return fnv::Hash().combine(tag).combine(lhs).combine(rhs);
@@ -244,7 +263,9 @@ Branch::Branch(Arena& arena, const Value* cond, const Fn* true_branch, const Fn*
     if (true_branch->type()->codom != else_branch->type()->codom)
         return arena.type_error();
     return true_branch->type()->codom;
-}()), cond(cond), true_branch(true_branch), else_branch(else_branch) {}
+}()), cond(cond), true_branch(true_branch), else_branch(else_branch) {
+    assert(!cond->is_computation());
+}
 
 size_t Branch::hash() const {
     return fnv::Hash().combine(cond).combine(true_branch).combine(else_branch);

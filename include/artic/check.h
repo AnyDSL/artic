@@ -69,9 +69,13 @@ public:
     const tir::Value* infer(const Loc&, const Literal&);
     const tir::Node* check(const Loc&, const Literal&, const Type*);
 
+    const Value* let_bind(const Value*);
+
     /// Explores a pattern recursively and makes sure the body is wrapped in Bind nodes that extract the value of each sub-pattern
     void bind_ptrn_params(ast::Ptrn&, const Value*, std::vector<const Value*>&);
-    const Value* bind_ptrn_params(ast::Ptrn&, const Value*);
+    void bind_ptrn_params(ast::Ptrn&, const Value*);
+
+    const Value* expr_scope(std::function<const Value*(void)>);
 
     template <typename Fields>
     void check_fields(

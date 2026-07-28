@@ -12,6 +12,7 @@ struct Value : public Node {
 
     NodeKind kind() const override { return NodeKind::Value; }
     virtual const Type* type() const { return type_; }
+    virtual bool is_computation() const { return true; }
 
     /// Emits a branch for boolean expressions.
     virtual void emit_branch(Emitter&, thorin::Continuation*, thorin::Continuation*) const;
@@ -29,6 +30,8 @@ struct Param : public NominalNode<Value> {
     void print(Printer&) const override;
     const Node* rewrite(Rewriter&) const override;
 
+    bool is_computation() const override { return false; }
+
     const thorin::Def* emit(Emitter&) const override;
 };
 
@@ -37,10 +40,11 @@ struct Fn : public NominalNode<Value> {
     mutable const Value* filter = nullptr;
     mutable const Value* body = nullptr;
 
-    const FnType* type() const override { return type_->as<FnType>(); }
-
     void print(Printer&) const override;
     const Node* rewrite(Rewriter&) const override;
+
+    const FnType* type() const override { return type_->as<FnType>(); }
+    bool is_computation() const override { return false; }
 
     const thorin::Def* emit(Emitter&) const override;
 
@@ -67,10 +71,11 @@ struct GlobalVariable : public NominalNode<Value> {
     bool is_mut;
     const Value* init;
 
-    const RefType* type() const override { return type_->as<RefType>(); }
-
     void print(Printer&) const override;
     const Node* rewrite(Rewriter&) const override;
+
+    const RefType* type() const override { return type_->as<RefType>(); }
+    bool is_computation() const override { return false; }
 
     const thorin::Def* emit(Emitter&) const override;
 
@@ -102,6 +107,7 @@ struct TypedLiteral : public Value {
     const Node* rewrite(Rewriter&) const override;
 
     const thorin::Def* emit(Emitter&) const override;
+    bool is_computation() const override { return false; }
 
     TypedLiteral(Arena&, Literal, const Type*);
 };
@@ -115,6 +121,7 @@ struct Tuple : public Value {
     void print(Printer&) const override;
     const Node* rewrite(Rewriter&) const override;
 
+    bool is_computation() const override { return false; }
     const thorin::Def* emit(Emitter&) const override;
 
     Tuple(Arena&, const ArrayRef<const Value*>&);
