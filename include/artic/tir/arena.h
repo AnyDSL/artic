@@ -3,6 +3,7 @@
 
 #include "artic/tir/tir.h"
 #include "artic/tir/types.h"
+#include "artic/tir/values.h"
 
 namespace artic {
 

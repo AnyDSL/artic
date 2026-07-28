@@ -1,4 +1,4 @@
-#include "artic/tir/tir.h"
+#include "artic/tir/values.h"
 #include "artic/tir/arena.h"
 
 #include "artic/hash.h"
