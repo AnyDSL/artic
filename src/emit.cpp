@@ -1180,6 +1180,10 @@ const thorin::Def* ImplicitCast::emit(Emitter& emitter) const {
     return emitter.down_cast(emitter.emit(src), src->type(), dst);
 }
 
+const thorin::Def* tir::Cast::emit(Emitter& emitter) const {
+    return emitter.world.cast(emitter.emit(dst)->as<thorin::Type>(), emitter.emit(src));
+}
+
 const thorin::Def* Tuple::emit(Emitter& emitter) const {
     thorin::Array<const thorin::Def*> elems(args.size());
     for (size_t i = 0; i < args.size(); ++i) {

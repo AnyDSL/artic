@@ -113,6 +113,10 @@ const Node* ImplicitCast::rewrite(Rewriter&) const {
 
 }
 
+const Node* Cast::rewrite(Rewriter&) const {
+
+}
+
 const Node* TypedLiteral::rewrite(Rewriter&) const {
 
 }

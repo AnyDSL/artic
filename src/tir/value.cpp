@@ -43,6 +43,20 @@ bool ImplicitCast::equals(const Node* other) const {
     return false;
 }
 
+Cast::Cast(Arena& arena, const Value* src, const Type* dst) : Value(arena, dst), src(src), dst(dst) {
+    assert(!src->is_computation());
+}
+
+size_t Cast::hash() const {
+    return fnv::Hash().combine(src).combine(dst);
+}
+
+bool Cast::equals(const Node* other) const {
+    if (auto other_cast = other->isa<Cast>())
+        return other_cast->src == src && other_cast->dst == dst;
+    return false;
+}
+
 TypedLiteral::TypedLiteral(Arena& arena, Literal lit, const Type* type) : Value(arena, type), value(lit) {}
 
 size_t TypedLiteral::hash() const {

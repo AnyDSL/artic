@@ -239,7 +239,17 @@ void App::print(Printer& p) const {
 }
 
 void ImplicitCast::print(Printer& p) const {
-    p << ' ' << log::keyword_style("implicit_cast");
+    p << log::keyword_style("implicit_cast");
+    p << '[';
+    p.print(*dst);
+    p << ']';
+    p << '(';
+    p.print(*src);
+    p << ')';
+}
+
+void Cast::print(Printer& p) const {
+    p << log::keyword_style("cast");
     p << '[';
     p.print(*dst);
     p << ']';

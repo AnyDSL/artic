@@ -121,6 +121,10 @@ const Value* Arena::implicit_cast(const Value* src, const Type* dst) {
     return insert<ImplicitCast>(src, dst);
 }
 
+const Value* Arena::cast(const Value* src, const Type* dst) {
+    return insert<Cast>(src, dst);
+}
+
 const Value* Arena::typed_literal(Literal literal, const Type* type) {
     // TODO: normalize literal representation based on type
     return insert<TypedLiteral>(literal, type);

@@ -97,6 +97,21 @@ struct ImplicitCast : public Value {
     ImplicitCast(Arena&, const Value*, const Type*);
 };
 
+struct Cast : public Value {
+    const Value* src;
+    const Type* dst;
+
+    bool equals(const Node*) const override;
+    size_t hash() const override;
+
+    void print(Printer&) const override;
+    const Node* rewrite(Rewriter&) const override;
+
+    const thorin::Def* emit(Emitter&) const override;
+
+    Cast(Arena&, const Value*, const Type*);
+};
+
 struct TypedLiteral : public Value {
     Literal value;
 

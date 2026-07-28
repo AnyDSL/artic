@@ -1882,12 +1882,12 @@ const tir::Node* FilterExpr::infer(TypeChecker& checker) {
 }
 
 const tir::Node* CastExpr::infer(TypeChecker& checker) {
-    assert(false && "TODO");
-    /*auto expected = checker.infer(*type);
-    auto type = checker.deref(expr);
+    auto expected = checker.infer_type(*type);
+    auto value = checker.deref(expr);
+    auto type = value->type();
     if (type == expected) {
         checker.warn(loc, "cast source and destination types are identical");
-        return expected;
+        return value;
     }
 
     bool allow_ptr = false;
@@ -1905,12 +1905,12 @@ const tir::Node* CastExpr::infer(TypeChecker& checker) {
         allow_float = true;
     }
     if (allow_ptr && type->isa<artic::PtrType>())
-        return expected;
+        return checker.let_bind(checker.type_table.cast(value, expected));
     if (allow_int && is_int_type(type))
-        return expected;
+        return checker.let_bind(checker.type_table.cast(value, expected));
     if (allow_float && is_float_type(type))
-        return expected;
-    return checker.invalid_cast(loc, type, expected);*/
+        return checker.let_bind(checker.type_table.cast(value, expected));
+    return checker.invalid_cast(loc, type, expected);
 }
 
 inline bool is_acceptable_asm_in_or_out(const artic::Type* type) {
