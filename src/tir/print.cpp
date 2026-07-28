@@ -286,16 +286,30 @@ void Undef::print(Printer& p) const {
     p << ')';
 }
 
-void Tuple::print(Printer& p) const {
+void Agg::print(Printer& p) const {
+    if (!type()->isa<TupleType>()) {
+        p << log::keyword_style("agg") << '[';
+        p.print(*type(), true);
+        p << "]";
+    }
     p << '(';
     print_list(p.top(), ", ", args, [&] (auto& a) {
-        p.print(*a);
+        p.print(*a, true);
     });
     p << ')';
 }
 
 void Extract::print(Printer& p) const {
     p << log::keyword_style("extract");
+    p << '(';
+    p.print(*src);
+    p << ", ";
+    p.print(*idx);
+    p << ')';
+}
+
+void Proj::print(Printer& p) const {
+    p << log::keyword_style("proj");
     p << '(';
     p.print(*src);
     p << ", ";

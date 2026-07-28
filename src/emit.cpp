@@ -1192,16 +1192,27 @@ const thorin::Def* tir::Cast::emit(Emitter& emitter) const {
     return emitter.world.cast(emitter.emit(dst)->as<thorin::Type>(), emitter.emit(src));
 }
 
-const thorin::Def* Tuple::emit(Emitter& emitter) const {
+const thorin::Def* Agg::emit(Emitter& emitter) const {
     thorin::Array<const thorin::Def*> elems(args.size());
     for (size_t i = 0; i < args.size(); ++i) {
         elems[i] = emitter.emit(args[i]);
     }
-    return emitter.world.tuple(elems);
+    if (type()->isa<TupleType>())
+        return emitter.world.tuple(elems);
+    else if (auto array_t = type()->isa<SizedArrayType>()) {
+        return array_t->is_simd ? emitter.world.vector(elems, emitter.debug_info(this))
+           : emitter.world.definite_array(elems, emitter.debug_info(this));
+    } else {
+        assert(false);
+    }
 }
 
 const thorin::Def* Extract::emit(Emitter& emitter) const {
     return emitter.world.extract(emitter.emit(src), emitter.emit(idx));
+}
+
+const thorin::Def* Proj::emit(Emitter& emitter) const {
+    return emitter.world.lea(emitter.emit(src), emitter.emit(idx), {});
 }
 
 const thorin::Def* Bind::emit(Emitter& emitter) const {

@@ -152,7 +152,8 @@ struct Undef : public Value {
     Undef(Arena&, const Type*);
 };
 
-struct Tuple : public Value {
+/// Aggregate constructor, used to build tuples, arrays etc
+struct Agg : public Value {
     Array<const Value*> args;
 
     bool equals(const Node*) const override;
@@ -164,7 +165,7 @@ struct Tuple : public Value {
     bool is_computation() const override { return false; }
     const thorin::Def* emit(Emitter&) const override;
 
-    Tuple(Arena&, const ArrayRef<const Value*>&);
+    Agg(Arena&, const Type*, const ArrayRef<const Value*>&);
 };
 
 struct Extract : public Value {
@@ -180,6 +181,21 @@ struct Extract : public Value {
     const thorin::Def* emit(Emitter&) const override;
 
     Extract(Arena&, const Value*, const Value*);
+};
+
+struct Proj : public Value {
+    const Value* src;
+    const Value* idx;
+
+    bool equals(const Node*) const override;
+    size_t hash() const override;
+
+    void print(Printer&) const override;
+    const Node* rewrite(Rewriter&) const override;
+
+    const thorin::Def* emit(Emitter&) const override;
+
+    Proj(Arena&, const Value*, const Value*);
 };
 
 struct Bind : public Value {

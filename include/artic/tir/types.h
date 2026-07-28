@@ -261,7 +261,7 @@ private:
     friend class Arena;
 };
 
-inline std::pair<const Type*, const Type*> remove_ptr(const Type* type) {
+inline std::pair<const PtrType*, const Type*> remove_ptr(const Type* type) {
     if (auto ptr_type = type->isa<PtrType>())
         return std::make_pair(ptr_type, ptr_type->pointee);
     return std::make_pair(nullptr, type);

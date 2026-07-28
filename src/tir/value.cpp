@@ -113,28 +113,35 @@ bool Undef::equals(const Node* other) const {
     return false;
 }
 
-Tuple::Tuple(Arena& arena, const ArrayRef<const Value*>& args) : Value(arena, arena.tuple_type([&]() {
-    Array<const Type*> types(args.size());
-    for (size_t i = 0; i < args.size(); i++) {
-        types[i] = args[i]->type();
-    }
-    return types;
-}())), args(args) {
+Agg::Agg(Arena& arena, const Type* agg_type, const ArrayRef<const Value*>& args) : Value(arena, agg_type), args(args) {
     for (auto arg : args) {
         assert(!arg->is_computation());
     }
+    if (auto tuple_t = agg_type->isa<TupleType>()) {
+        assert(tuple_t->args.size() == args.size());
+        for (size_t i = 0; i < tuple_t->args.size(); i++) {
+            assert(args[i]->type() == tuple_t->args[i]);
+        }
+    } else if (auto array_t = agg_type->isa<SizedArrayType>()) {
+        assert(array_t->size == args.size());
+        for (size_t i = 0; i < args.size(); i++) {
+            assert(args[i]->type() == array_t->elem);
+        }
+    } else {
+        assert(false);
+    }
 }
 
-size_t Tuple::hash() const {
-    auto h = fnv::Hash();
+size_t Agg::hash() const {
+    auto h = fnv::Hash().combine(type());
     for (auto e : args)
         h = h.combine(e);
     return h;
 }
 
-bool Tuple::equals(const Node* other) const {
-    if (auto other_tuple = other->isa<Tuple>()) {
-        if (other_tuple->args.size() != args.size())
+bool Agg::equals(const Node* other) const {
+    if (auto other_tuple = other->isa<Agg>()) {
+        if (other_tuple->args.size() != args.size() || other_tuple->type() != type())
             return false;
         for (size_t i = 0; i < args.size(); i++) {
             if (other_tuple->args[i] != args[i])
@@ -153,6 +160,9 @@ Extract::Extract(Arena& arena, const Value* src, const Value* idx) : Value(arena
                 return arena.type_error();
             return tuple_t->args[idx_value];
         }
+    } else if (auto array_t = src->type()->isa<SizedArrayType>()) {
+        assert(idx->isa<TypedLiteral>());
+        return array_t->elem;
     } else {
         assert(false);
     }
@@ -169,6 +179,59 @@ size_t Extract::hash() const {
 bool Extract::equals(const Node* other) const {
     if (auto other_extract = other->isa<Extract>()) {
         if (other_extract->src == src && other_extract->idx == idx)
+            return true;
+    }
+    return false;
+}
+
+Proj::Proj(Arena& arena, const Value* src, const Value* idx) : Value(arena, [&]() -> const Type* {
+    const Type* pointee_t = nullptr;
+    bool mut;
+    size_t as;
+    auto [ref_t, ref_pointee] = remove_ref(src->type());
+    if (ref_t) {
+        pointee_t = ref_pointee;
+        mut = ref_t->is_mut;
+        as = ref_t->addr_space;
+    } else {
+        auto [ptr_t, ptr_pointee] = remove_ptr(src->type());
+        assert(ptr_t && "Proj works on Ref or Ptr types.");
+        pointee_t = ptr_pointee;
+        mut = ptr_t->is_mut;
+        as = ptr_t->addr_space;
+    }
+
+    auto wrap_pointee = [&](const Type* new_pointee) -> const Type* {
+        if (ref_t)
+            return arena.ref_type(new_pointee, mut, as);
+        return arena.ptr_type(new_pointee, mut, as);
+    };
+
+    if (auto tuple_t = pointee_t->isa<TupleType>()) {
+        if (auto lit_idx = idx->isa<TypedLiteral>(); lit_idx) {
+            size_t idx_value = lit_idx->value.as_integer();
+            if (idx_value >= tuple_t->args.size())
+                return arena.type_error();
+            return wrap_pointee(tuple_t->args[idx_value]);
+        }
+    } else if (auto array_t = pointee_t->isa<ArrayType>()) {
+        return wrap_pointee(array_t->elem);
+    } else {
+        assert(false);
+    }
+    return arena.type_error();
+}()), src(src), idx(idx) {
+    assert(!src->is_computation());
+    assert(!idx->is_computation());
+}
+
+size_t Proj::hash() const {
+    return fnv::Hash().combine(src).combine(idx);
+}
+
+bool Proj::equals(const Node* other) const {
+    if (auto other_proj = other->isa<Proj>()) {
+        if (other_proj->src == src && other_proj->idx == idx)
             return true;
     }
     return false;

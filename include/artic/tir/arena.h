@@ -56,8 +56,10 @@ public:
     const Param* param(std::optional<ast::Identifier>, const Type*);
     const Value* app(const Value* callee, const Value* arg);
 
+    const Value* agg(const Type*, const ArrayRef<const Value*>&);
     const Value* tuple(const ArrayRef<const Value*>&);
     const Value* extract(const Value*, const Value*);
+    const Value* proj(const Value*, const Value*);
 
     const Value* bind(const Param*, const Value*);
     const Value* seq(const ArrayRef<const Value*>&);

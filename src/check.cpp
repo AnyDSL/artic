@@ -708,7 +708,7 @@ const Type* TypeChecker::infer_array(
 {
     if (elem_count == 0)
         return cannot_infer(loc, msg);
-    auto elem_type = infer_elems();
+    const Type* elem_type = infer_elems();
     if (is_simd && !(elem_type->template isa<PrimType>() || elem_type->template isa<PtrType>()))
         return invalid_simd(loc, elem_type);
     return type_table.sized_array_type(elem_type, elem_count, is_simd);
@@ -1289,22 +1289,28 @@ const tir::Node* TupleExpr::check(TypeChecker& checker, const artic::Type* expec
 }
 
 const tir::Node* ArrayExpr::infer(TypeChecker& checker) {
-    assert(false && "TODO");
-    /*return checker.infer_array(loc, "array expression", elems.size(), is_simd, [&] {
-        auto elem_type = checker.deref(elems.front());
+    auto agg_t = checker.infer_array(loc, "array expression", elems.size(), is_simd, [&] {
+        auto elem_type = checker.deref(elems.front())->type();
         for (size_t i = 1, n = elems.size(); i < n; ++i)
-            checker.coerce(elems[i], elem_type);
+            checker.coerce(&*elems[i], elem_type);
         return elem_type;
-    });*/
+    });
+    Array<const Value*> ops(elems.size());
+    for (size_t i = 0, n = elems.size(); i < n; ++i)
+        ops[i] = elems[i]->tir->as<Value>();
+    return checker.type_table.agg(agg_t, ops);
 }
 
 const tir::Node* ArrayExpr::check(TypeChecker& checker, const artic::Type* expected) {
-    assert(false && "TODO");
-    /*return checker.check_array(loc, "array expression",
+    auto agg_t = checker.check_array(loc, "array expression",
         expected, elems.size(), is_simd, [&] (auto elem_type) {
         for (auto& elem : elems)
-            checker.coerce(elem, elem_type);
-    });*/
+            checker.coerce(&*elem, elem_type);
+    });
+    Array<const Value*> ops(elems.size());
+    for (size_t i = 0, n = elems.size(); i < n; ++i)
+        ops[i] = elems[i]->tir->as<Value>();
+    return checker.type_table.agg(agg_t, ops);
 }
 
 const tir::Node* RepeatArrayExpr::infer(TypeChecker& checker) {
@@ -1447,15 +1453,17 @@ const tir::Node* CallExpr::check(TypeChecker& checker, const artic::Type* expect
             callee_type = ptr_type->pointee;
         }
         if (auto array_type = callee_type->isa<artic::ArrayType>()) {
-            auto index_type = checker.deref(arg)->type();
+            auto idx = checker.deref(arg);
+            auto index_type = idx->type();
             if (!is_int_type(index_type))
                 return checker.type_expected(arg->loc, index_type, "integer type");
             return ref_type || ptr_type
-                ? checker.type_table.ref_type(
-                    array_type->elem,
-                    ptr_type ? ptr_type->is_mut : ref_type->is_mut,
-                    ptr_type ? ptr_type->addr_space : ref_type->addr_space)
-                : array_type->elem;
+                ? checker.let_bind(checker.type_table.proj(callee->tir->as<Value>(), idx))
+                //? checker.type_table.ref_type(
+                //    array_type->elem,
+                //    ptr_type ? ptr_type->is_mut : ref_type->is_mut,
+                //    ptr_type ? ptr_type->addr_space : ref_type->addr_space)
+                : checker.let_bind(checker.type_table.extract(callee->tir->as<Value>(), idx));
         } else {
             return checker.type_expected(callee->loc, callee_type, "function, array or constructor");
         }
@@ -2321,15 +2329,14 @@ const tir::Node* TuplePtrn::infer(TypeChecker& checker) {
 }
 
 const tir::Node* TuplePtrn::check(TypeChecker& checker, const artic::Type* expected) {
-    assert(false && "TODO");
-    /*if (auto tuple_type = expected->isa<artic::TupleType>()) {
+    if (auto tuple_type = expected->isa<artic::TupleType>()) {
         if (args.size() != tuple_type->args.size())
             return checker.bad_arguments(loc, "tuple pattern", args.size(), tuple_type->args.size());
         for (size_t i = 0, n = args.size(); i < n; ++i)
             checker.check(*args[i], tuple_type->args[i]);
-        return expected;
+        return checker.type_table.param(std::nullopt, expected);
     }
-    return checker.incompatible_type(loc, "tuple pattern", expected);*/
+    return checker.incompatible_type(loc, "tuple pattern", expected);
 }
 
 const tir::Node* ArrayPtrn::infer(TypeChecker& checker) {

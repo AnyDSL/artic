@@ -150,12 +150,28 @@ const Value* Arena::app(const Value* callee, const Value* arg) {
     return insert<App>(callee, arg);
 }
 
+const Value* Arena::agg(const Type* type, const ArrayRef<const Value*>& args) {
+    return insert<Agg>(type, args);
+}
+
+inline static const TupleType* tuple_type_from_elems(Arena& arena, const ArrayRef<const Value*>& args) {
+    Array<const Type*> types(args.size());
+    for (size_t i = 0; i < args.size(); i++) {
+        types[i] = args[i]->type();
+    }
+    return arena.tuple_type(types);
+}
+
 const Value* Arena::tuple(const ArrayRef<const Value*>& args) {
-    return insert<Tuple>(args);
+    return agg(tuple_type_from_elems(*this, args), args);
 }
 
 const Value* Arena::extract(const Value* src, const Value* idx) {
     return insert<Extract>(src, idx);
+}
+
+const Value* Arena::proj(const Value* src, const Value* idx) {
+    return insert<Proj>(src, idx);
 }
 
 const Value* Arena::bind(const Param* param, const Value* value) {

@@ -129,11 +129,15 @@ const Node* Undef::rewrite(Rewriter&) const {
 
 }
 
-const Node* Tuple::rewrite(Rewriter&) const {
+const Node* Agg::rewrite(Rewriter&) const {
 
 }
 
 const Node* Extract::rewrite(Rewriter&) const {
+
+}
+
+const Node* Proj::rewrite(Rewriter&) const {
 
 }
 
