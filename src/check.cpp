@@ -11,7 +11,6 @@
 namespace artic {
 
 const tir::Module* TypeChecker::run(ast::ModDecl& module) {
-    ScopeHelper sg(*this);
     auto mod = infer(module);
     if (errors > 0)
         return nullptr;
@@ -31,18 +30,34 @@ void TypeChecker::exit_decl(const ast::Decl* decl) {
     decls_.erase(decl);
 }
 
-void TypeChecker::push_scope() {
-    scopes.emplace(scopes.begin());
-}
+TypeChecker::ScopeHelper::ScopeHelper(TypeChecker& checker, ast::Decl& decl) : ScopeHelper(checker, [&]() -> Scope& {
+    Scope* s = nullptr;
+    if (decl.is_top_level) {
+        assert(decl.module && "top-level decls must have an associated module");
+        s = decl.module->scope;
+    } else {
+        assert(decl.stmt && "decls that declare something in scope must either top-module or tied to a StmtDecl");
+        s = decl.stmt->scope;
+    }
+    assert(s);
+    return *s;
+}()) {}
 
-void TypeChecker::pop_scope() {
-    assert(!scopes.empty());
-    scopes.erase(scopes.begin());
+void Scope::add_decl(ast::NamedDecl& decl) {
+    switch (type) {
+        case Module:
+            module_contents->push_back({decl.id, decl.tir});
+            break;
+        case Block: {
+            values_in_block->push_back(checker.type_table.tie(decl.tir->as<Value>()));
+            break;
+        }
+    }
 }
 
 // Implicits summoning -------------------------------------------------------------
 
-std::optional<std::tuple<Ptr<ast::Expr>, int>> TypeChecker::ImplicitSrc::provide(TypeChecker& checker, const artic::Type* type, const artic::Loc& at) {
+std::optional<std::tuple<Ptr<ast::Expr>, int>> ImplicitSrc::provide(TypeChecker& checker, const artic::Type* type, const artic::Loc& at) {
     assert(false && "TODO");
     /*if (expr) {
         if (expr->type == type) {
@@ -517,6 +532,13 @@ void TypeChecker::check_fields(
             if (!seen[i] && (!accept_defaults || !struct_type->decl.fields[i]->init))
                 error(loc, "missing field '{}' in structure {}", struct_type->decl.fields[i]->id.name, msg);
         }
+    }
+}
+
+void TypeChecker::assign_scope_to_block_decls(const PtrVector<ast::Stmt>& stmts, Scope& scope) {
+    for (auto& stmt : stmts) {
+        if (auto decl_stmt = stmt->isa<ast::DeclStmt>())
+            decl_stmt->scope = &scope;
     }
 }
 
@@ -1007,14 +1029,13 @@ const tir::Node* Filter::check(TypeChecker& checker, const artic::Type* expected
 // Attributes ----------------------------------------------------------------------
 
 void NamedAttr::check(TypeChecker& checker, const ast::Node* node) {
-    //assert(false && "TODO");
-    /*if (name == "export" || name == "import") {
+    if (name == "export" || name == "import") {
         if (auto fn_decl = node->isa<FnDecl>()) {
             if (name == "export") {
-                auto fn_type = fn_decl->type->isa<artic::FnType>();
+                auto fn_type = fn_decl->tir->as<Value>()->type()->isa<artic::FnType>();
                 if (!fn_type)
                     checker.error(fn_decl->loc, "polymorphic functions cannot be exported");
-                else if (fn_decl->type->order() > 1)
+                else if (fn_type->Type::order() > 1)
                     checker.error(fn_decl->loc, "higher-order functions cannot be exported");
                 else if (!fn_decl->fn->body)
                     checker.error(fn_decl->loc, "exported functions must have a body");
@@ -1069,7 +1090,7 @@ void NamedAttr::check(TypeChecker& checker, const ast::Node* node) {
     } else if (name == "intern") {
         checker.check_attrs(*this, std::array<AttrType, 1> { AttrType { "name", AttrType::String } });
     } else
-        checker.invalid_attr(loc, name);*/
+        checker.invalid_attr(loc, name);
 }
 
 void PathAttr::check(TypeChecker& checker, const ast::Node*) {
@@ -1280,7 +1301,8 @@ const tir::Node* RepeatArrayExpr::check(TypeChecker& checker, const artic::Type*
 }
 
 const tir::Node* FnExpr::infer(TypeChecker& checker) {
-    TypeChecker::ScopeHelper sg(checker);
+    std::vector<const Value*> scope_instrs;
+    // TypeChecker::ScopeHelper scope(checker, scope_instrs);
     auto tir_param = checker.infer(*param)->as<Param>();
     const tir::Value* tir_body = nullptr;
     if (filter)
@@ -1298,9 +1320,10 @@ const tir::Node* FnExpr::infer(TypeChecker& checker) {
     if (!body_type) {
         return checker.cannot_infer(loc, "function");
     }
-    tir_body = checker.type_table.seq(Array {checker.bind_ptrn_params(*param, tir_param), tir_body});
+    checker.bind_ptrn_params(*param, tir_param, scope_instrs);
+    scope_instrs.push_back(tir_body);
     auto fn = checker.type_table.function(tir_param, body_type);
-    fn->body = tir_body;
+    fn->body = checker.type_table.seq(scope_instrs);
     return fn;
 }
 
@@ -1323,36 +1346,43 @@ const tir::Node* FnExpr::check(TypeChecker& checker, const artic::Type* expected
 }
 
 const tir::Node* BlockExpr::infer(TypeChecker& checker) {
-    TypeChecker::ScopeHelper sg(checker);
     if (stmts.empty())
         return checker.type_table.tuple({});
-    Array<const Value*> tir_stmts(stmts.size());
+
+    std::vector<const Value*> scope_instrs;
+    Scope scope(checker, &checker.current_scope(), scope_instrs);
+    TypeChecker::ScopeHelper guard(checker, scope);
+    checker.assign_scope_to_block_decls(stmts, checker.current_scope());
     for (int i = 0; i < stmts.size(); i++)
-        tir_stmts[i] = checker.infer_value(*stmts[i]);
+        scope_instrs.push_back(checker.infer_value(*stmts[i]));
     checker.check_block(loc, stmts, last_semi);
-    return checker.type_table.seq(tir_stmts);
+    return checker.type_table.seq(scope_instrs);
 }
 
 const tir::Node* BlockExpr::check(TypeChecker& checker, const artic::Type* expected) {
-    TypeChecker::ScopeHelper sg(checker);
+    std::vector<const Value*> scope_instrs;
+    Scope scope(checker, &checker.current_scope(), scope_instrs);
+    TypeChecker::ScopeHelper guard(checker, scope);
+    checker.assign_scope_to_block_decls(stmts, checker.current_scope());
+
     if (stmts.empty()) {
         if (!is_unit_type(expected))
             return checker.incompatible_type(loc, "empty block expression", expected);
         return expected;
     }
-    Array<const Value*> tir_stmts(stmts.size() + (last_semi ? 1 : 0));
     for (size_t i = 0; i < stmts.size() - 1; ++i)
-        tir_stmts[i] = checker.infer_value(*stmts[i]);
-    tir_stmts[stmts.size() - 1] = last_semi ? checker.infer_value(*stmts.back()) : checker.check_value(*stmts.back(), expected);
+        scope_instrs.push_back(checker.infer_value(*stmts[i]));
+    scope_instrs.push_back(last_semi ? checker.infer_value(*stmts.back()) : checker.check_value(*stmts.back(), expected));
     checker.check_block(loc, stmts, last_semi);
     if (last_semi && !is_unit_type(expected)) {
         checker.incompatible_type(loc, "block expression terminated by semicolon", expected);
         checker.note("removing the last semicolon may solve this issue");
         return checker.type_table.type_error();
     }
+    // if the block ends with `;`, make sure we add an extra tuple to make the whole thing type as ()
     if (last_semi)
-        tir_stmts.back() = checker.type_table.tuple({});
-    return checker.type_table.seq(tir_stmts);
+        scope_instrs.push_back(checker.type_table.tuple({}));
+    return checker.type_table.seq(scope_instrs);
 }
 
 static inline PathExpr* callee_path(Expr* expr) {
@@ -1984,6 +2014,8 @@ const tir::Node* StaticDecl::infer(TypeChecker& checker) {
 }
 
 const tir::Node* FnDecl::infer(TypeChecker& checker) {
+    TypeChecker::ScopeHelper guard(checker, *this);
+
     const tir::Node* forall = nullptr;
     //const artic::ForallType* forall = nullptr;
     if (type_params) {
@@ -2017,10 +2049,10 @@ const tir::Node* FnDecl::infer(TypeChecker& checker) {
     if (fn->ret_type && fn->body) {
         checker.coerce(&*fn->body, fn_type->codom);
         tir_fn->body = fn->body->tir->as<Value>();
-    }
-    if (fn->body)
         tir_fn->body = checker.type_table.seq(Array {checker.bind_ptrn_params(*fn->param, tir_fn->param), tir_fn->body});
+    }
     checker.exit_decl(this);
+    checker.current_scope().add_decl(*this);
     return tir;
 }
 
@@ -2102,16 +2134,19 @@ const tir::Node* TypeDecl::infer(TypeChecker& checker) {
 }
 
 const tir::Node* ModDecl::infer(TypeChecker& checker) {
-    TypeChecker::ScopeHelper sg(checker);
-    for (auto& decl: decls)
-        if (auto impl_decl = decl->isa<ImplicitDecl>())
-            checker.scopes.front().push_back(TypeChecker::ImplicitSrc {
-                .decl = impl_decl,
-            });
+    // for (auto& decl: decls)
+    //     if (auto impl_decl = decl->isa<ImplicitDecl>())
+    //         checker.scopes.front().push_back(TypeChecker::ImplicitSrc {
+    //             .decl = impl_decl,
+    //         });
     std::vector<Module::Decl> tir_decls;
+    Scope mod_scope(checker, super ? super->module->scope : nullptr, tir_decls);
+    TypeChecker::ScopeHelper guard(checker, mod_scope);
+    scope = &mod_scope;
     for (auto& decl : decls) {
-        if (auto named = decl->isa<NamedDecl>())
-            tir_decls.emplace_back(named->id, checker.infer(*decl));
+        // if (auto named = decl->isa<NamedDecl>())
+        //     tir_decls.emplace_back(named->id, checker.infer(*decl));
+        checker.infer(*decl);
     }
     return checker.type_table.module(id, std::move(tir_decls));
     // for (auto& decl : decls) {

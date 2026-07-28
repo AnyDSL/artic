@@ -3,6 +3,7 @@
 
 #include "artic/ast.h"
 #include "artic/tir/types.h"
+#include "artic/tir/values.h"
 
 namespace artic::ast {
 
@@ -338,9 +339,8 @@ bool TypedExpr::is_constant() const {
 }
 
 bool PathExpr::is_constant() const {
-    assert(false && "TODO");
-    // assert(type);
-    // return !type->isa<tir::RefType>();
+    assert(tir && tir->isa<tir::Value>());
+    return !tir->as<tir::Value>()->type()->isa<tir::RefType>();
 }
 
 void PathExpr::write_to() const {
@@ -449,9 +449,8 @@ bool BlockExpr::has_side_effect() const {
 }
 
 bool CallExpr::is_jumping() const {
-    assert(false && "TODO");
-    // assert(type);
-    // return type->isa<tir::NoRetType>();
+    assert(tir && tir->isa<tir::Value>());
+    return tir->as<tir::Value>()->type()->isa<tir::NoRetType>();
 }
 
 bool CallExpr::has_side_effect() const {

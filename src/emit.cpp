@@ -1131,14 +1131,16 @@ const thorin::Def* Fn::emit(Emitter& emitter) const {
     cont->params().back()->set_name("ret");
     // Set the IR node before entering the body
     emitter.emitted[this] = cont;
-    emitter.enter(cont);
     emitter.emitted[param] = emitter.tuple_from_params(cont, !type()->codom->isa<artic::NoRetType>());
     //emitter.emit(*param, emitter.tuple_from_params(cont, true));
     if (filter)
         cont->set_filter(emitter.world.filter(thorin::Array<const thorin::Def*>(cont->num_params(), emitter.emit(filter))));
-    auto value = emitter.emit(body);
-    if (!type()->codom->isa<artic::NoRetType>())
-        emitter.jump(cont->params().back(), value);
+    if (body) {
+        emitter.enter(cont);
+        auto value = emitter.emit(body);
+        if (!type()->codom->isa<artic::NoRetType>())
+            emitter.jump(cont->params().back(), value);
+    }
     return cont;
 }
 
@@ -1200,6 +1202,10 @@ const thorin::Def* Seq::emit(Emitter& emitter) const {
         emitter.emit(value);
     assert(values.size() > 0);
     return emitter.emit(values.back());
+}
+
+const thorin::Def* Tie::emit(Emitter& emitter) const {
+    return emitter.world.tuple({});
 }
 
 const thorin::Def* UnOp::emit(Emitter& emitter) const {

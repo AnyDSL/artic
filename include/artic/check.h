@@ -13,6 +13,8 @@ namespace artic {
 
 using namespace tir;
 
+struct Scope;
+
 /// Utility class to perform bidirectional type checking.
 class TypeChecker : public Logger {
 public:
@@ -77,6 +79,7 @@ public:
         const Fields&, const std::string_view&,
         bool = false, bool = false);
 
+    void assign_scope_to_block_decls(const PtrVector<ast::Stmt>&, Scope&);
     void check_block(const Loc&, const PtrVector<ast::Stmt>&, bool);
     bool check_attrs(const ast::NamedAttr&, const ArrayRef<AttrType>&);
     bool check_filter(const ast::Expr&);
@@ -94,16 +97,24 @@ public:
 
     size_t path_to_size(ast::Path& path, const std::string_view&);
 
+    Scope& current_scope() {
+        assert(current_scope_);
+        return *current_scope_;
+    }
+
     struct ScopeHelper {
         TypeChecker& checker;
+        Scope* other_scope;
 
-        ScopeHelper(TypeChecker& checker) : checker(checker) {
-            checker.push_scope();
+        ScopeHelper(TypeChecker& checker, Scope& scope) : checker(checker) {
+            other_scope = &scope;
+            std::swap(checker.current_scope_, other_scope);
         }
+        ScopeHelper(TypeChecker& checker, ast::Decl& scope);
         ScopeHelper(const ScopeHelper&) = delete;
 
         ~ScopeHelper() {
-            checker.pop_scope();
+            std::swap(checker.current_scope_, other_scope);
         }
     };
 
@@ -111,20 +122,9 @@ private:
     std::unordered_set<const ast::Decl*> decls_;
     ::Arena& _arena;
 
-    void push_scope();
-    void pop_scope();
-
-    struct ImplicitSrc {
-        ast::ImplicitDecl* decl;
-        Ptr<ast::Expr> expr;
-
-        std::optional<std::tuple<Ptr<ast::Expr>, int>> provide(TypeChecker&, const artic::Type*, const artic::Loc& at);
-    };
-
     Value* summon_value(const artic::Type*, const artic::Loc& at);
 
-    //bool error = false;
-    std::vector<std::vector<ImplicitSrc>> scopes;
+    Scope* current_scope_ = nullptr;
 
     friend ast::SummonExpr;
     friend ast::ImplicitDecl;
@@ -132,6 +132,35 @@ private:
     friend ast::BlockExpr;
     friend ast::FnExpr;
     friend ast::ImplicitParamPtrn;
+};
+
+struct ImplicitSrc {
+    ast::ImplicitDecl* decl;
+    Ptr<ast::Expr> expr;
+
+    std::optional<std::tuple<Ptr<ast::Expr>, int>> provide(TypeChecker&, const artic::Type*, const artic::Loc& at);
+};
+
+struct Scope {
+    TypeChecker& checker;
+    Scope* parent;
+
+    enum ScopeType {
+        Module,
+        Block
+    } type;
+
+    union {
+        std::vector<Module::Decl>* module_contents;
+        std::vector<const Value*>* values_in_block;
+    };
+
+    Scope(TypeChecker& checker, Scope* parent, std::vector<Module::Decl>& module_contents) : checker(checker), parent(parent), type(Module), module_contents(&module_contents) {}
+    Scope(TypeChecker& checker, Scope* parent, std::vector<const Value*>& values_in_block) : checker(checker), parent(parent), type(Block), values_in_block(&values_in_block) {}
+
+    void add_decl(ast::NamedDecl& decl);
+
+    std::vector<ImplicitSrc> implicits;
 };
 
 } // namespace artic

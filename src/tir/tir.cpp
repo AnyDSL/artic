@@ -152,8 +152,10 @@ const Value* Arena::bind(const Param* param, const Value* value) {
 
 const Value* Arena::seq(const ArrayRef<const Value*>& values) {
     std::vector<const Value*> filtered_values;
-    for (const Value* value : values) {
-        if (value == tuple({}))
+    for (size_t i = 0; i < values.size(); i++) {
+        auto value = values[i];
+        // get rid of tuples, _except_ in the final position (because it affects the type of the Seq then)
+        if (value == tuple({}) && i < values.size() - 1)
             continue;
         filtered_values.push_back(value);
     }
@@ -178,6 +180,10 @@ const Value* Arena::branch(const Value* cond, const Fn* true_branch, const Fn* e
 
 const Value* Arena::control(const Fn* fn) {
     return insert<Control>(fn);
+}
+
+const Value* Arena::tie(const Value* value) {
+    return insert<Tie>(value);
 }
 
 template <typename T, typename... Args>

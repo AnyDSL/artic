@@ -9,6 +9,8 @@ namespace artic {
 namespace tir {
 
 std::string Printer::unique_name(const Node& node) {
+    if (auto param = node.isa<Param>(); param && param->id)
+        return param->id->name;
     return "%" + std::to_string(node.gid);
 }
 
@@ -289,6 +291,11 @@ void Seq::print(Printer& p) const {
             p << ';' << p.endl();
     }
     p << p.unindent() << p.endl() << '}';
+}
+
+void Tie::print(Printer& p) const {
+    p << log::keyword_style("tie") << ' ';
+    p.print(*value);
 }
 
 void UnOp::print(Printer& p) const {

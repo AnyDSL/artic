@@ -29,6 +29,7 @@ namespace tir {
 struct Printer;
 class NameBinder;
 class TypeChecker;
+struct Scope;
 
 template <typename T> using Ptr = arena_ptr<T>;
 template <typename T> using PtrVector = std::vector<Ptr<T>>;
@@ -86,12 +87,18 @@ log::Output& operator << (log::Output&, const Node&);
 
 // Base AST nodes ------------------------------------------------------------------
 
+struct ModDecl;
+struct DeclStmt;
+
 /// Base class for all declarations.
 struct Decl : public Node {
     Decl(const Loc& loc) : Node(loc) {}
 
     /// Set to true if this declaration is at the top level of a module.
     bool is_top_level = false;
+
+    ModDecl* module = nullptr;
+    DeclStmt* stmt = nullptr;
 
     /// Binds the declaration to its AST node, without entering sub-AST nodes.
     virtual void bind_head(NameBinder&) {}
@@ -208,7 +215,6 @@ struct Path : public Node {
     const tir::Node* infer(TypeChecker& checker) override {
         return infer(checker, nullptr, nullptr);
     }
-
     
     void bind(NameBinder&) override;
     void print(Printer&) const override;
@@ -449,6 +455,9 @@ struct ErrorType : public Type {
 struct DeclStmt : public Stmt {
     Ptr<Decl> decl;
 
+    // set during type-checking
+    Scope* scope = nullptr;
+
     DeclStmt(const Loc& loc, Ptr<Decl>&& decl)
         : Stmt(loc), decl(std::move(decl))
     {}
@@ -673,12 +682,17 @@ struct RepeatArrayExpr : public Expr {
     void print(Printer&) const override;
 };
 
+struct FnDecl;
+
 /// Anonymous function expression.
 struct FnExpr : public Expr {
     Ptr<Filter> filter;
     Ptr<Ptrn>   param;
     Ptr<Type>   ret_type;
     Ptr<Expr>   body;
+
+    // set during name-binding, if this is actually part of a FnDecl.
+    mutable FnDecl* decl = nullptr;
 
     FnExpr(
         const Loc& loc,
@@ -1436,6 +1450,9 @@ struct TypeDecl : public NamedDecl {
 struct ModDecl : public NamedDecl {
     PtrVector<Decl> decls;
     ModDecl* super = nullptr;
+
+    // set during type-checking
+    Scope* scope = nullptr;
 
     /// Constructor for the implicitly defined global module.
     /// When using this constructor, the user is responsible for calling

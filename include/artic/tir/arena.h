@@ -58,6 +58,7 @@ public:
 
     const Value* bind(const Param*, const Value*);
     const Value* seq(const ArrayRef<const Value*>&);
+    const Value* tie(const Value*);
 
     const Value* unop(ast::UnaryExpr::Tag, const Value*);
     const Value* binop(ast::BinaryExpr::Tag, const Value*, const Value*);

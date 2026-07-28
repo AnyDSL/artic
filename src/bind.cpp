@@ -193,6 +193,7 @@ void ErrorType::bind(NameBinder&) {}
 
 void DeclStmt::bind(NameBinder& binder) {
     binder.bind(*decl);
+    decl->stmt = this;
 }
 
 void ExprStmt::bind(NameBinder& binder) {
@@ -492,6 +493,7 @@ void StaticDecl::bind(NameBinder& binder) {
 }
 
 void FnDecl::bind_head(NameBinder& binder) {
+    fn->decl = this;
     if (this->attrs && this->attrs->find("intern")) {
         auto shadow = binder.find_symbol(this->id.name);
         if (shadow) {
@@ -584,7 +586,7 @@ void ModDecl::bind(NameBinder& binder) {
     binder.cur_mod = this;
     binder.push_scope();
     for (auto& decl : decls) binder.bind_head(*decl);
-    for (auto& decl : decls) binder.bind(*decl);
+    for (auto& decl : decls) { binder.bind(*decl); decl->module = this; }
     std::swap(binder.scopes_, old_scopes);
     binder.cur_mod = old_mod;
 }

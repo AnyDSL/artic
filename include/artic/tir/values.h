@@ -150,6 +150,17 @@ struct Bind : public Value {
     Bind(Arena&, const Param*, const Value*);
 };
 
+struct Tie : public NominalNode<Value> {
+    const Value* value;
+
+    void print(Printer&) const override;
+    Node* rewrite(Rewriter&) const override;
+
+    const thorin::Def* emit(Emitter&) const override;
+
+    Tie(Arena&, const Value*);
+};
+
 struct Seq : public Value {
     Array<const Value*> values;
 

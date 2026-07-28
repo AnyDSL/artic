@@ -126,6 +126,10 @@ Node* Seq::rewrite(Rewriter&) const {
 
 }
 
+Node* Tie::rewrite(Rewriter&) const {
+
+}
+
 Node* UnOp::rewrite(Rewriter&) const {
 
 }

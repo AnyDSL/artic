@@ -176,6 +176,8 @@ bool Seq::equals(const Node* other) const {
     return false;
 }
 
+Tie::Tie(Arena& arena, const Value* value) : NominalNode(arena, arena.tuple_type({})), value(value) {}
+
 using namespace artic::ast;
 
 UnOp::UnOp(Arena& arena, const UnaryExpr::Tag tag, const Value* arg) : Value(arena, [&]() -> const Type* {
