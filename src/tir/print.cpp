@@ -8,15 +8,26 @@ namespace artic {
 
 namespace tir {
 
-void Printer::print(const Node& node) {
+std::string Printer::unique_name(const Node& node) {
+    return "%" + std::to_string(node.gid);
+}
+
+void Printer::insert(const Node& node, std::string str) {
+    named[&node] = str;
+}
+
+void Printer::print(const Node& node, bool print_inline) {
+    if (print_inline) {
+        node.print(*this);
+        return;
+    }
     auto found = named.find(&node);
     if (found != named.end()) {
         top() << found->second;
         return;
     }
-    std::string node_name = "%" + std::to_string(node.gid);
-    named[&node] = node_name;
-    //named.emplace(&node, node_name);
+    std::string node_name = unique_name(node);
+    insert(node, node_name);
     push();
     node.print(*this);
     base << node_name << " = ";
@@ -62,7 +73,7 @@ void PrimType::print(Printer& p) const {
 void TupleType::print(Printer& p) const {
     p << '(';
     print_list(p.top(), ", ", args, [&] (auto& a) {
-        p.print(*a);
+        p.print(*a, true);
     });
     p << ')';
 }
@@ -71,13 +82,13 @@ void SizedArrayType::print(Printer& p) const {
     if (is_simd)
         p << log::keyword_style("simd");
     p << '[';
-    p.print(*elem);
+    p.print(*elem, true);
     p << " * " << size << ']';
 }
 
 void UnsizedArrayType::print(Printer& p) const {
     p << '[';
-    p.print(*elem);
+    p.print(*elem, true);
     p << ']';
 }
 
@@ -89,7 +100,7 @@ void PtrType::print(Printer& p) const {
         p << log::keyword_style("addrspace") << '(' << addr_space << ')';
     if (pointee->isa<PtrType>())
         p << '(';
-    p.print(*pointee);
+    p.print(*pointee, true);
     if (pointee->isa<PtrType>())
         p << ')';
 }
@@ -98,21 +109,21 @@ void RefType::print(Printer& p) const {
     if (is_mut)
         p << "mutable ";
     p << "reference to ";
-    p.print(*pointee);
+    p.print(*pointee, true);
 }
 
 void ImplicitParamType::print(Printer& p) const {
     p << "implicit ";
-    p.print(*underlying);
+    p.print(*underlying, true);
 }
 
 void FnType::print(Printer& p) const {
     p << log::keyword_style("fn") << ' ';
     if (!dom->isa<TupleType>()) p << '(';
-    p.print(*dom);
+    p.print(*dom, true);
     if (!dom->isa<TupleType>()) p << ')';
     p << " -> ";
-    p.print(*codom);
+    p.print(*codom, true);
 }
 
 void BottomType::print(Printer& p) const {
@@ -178,7 +189,8 @@ void Module::print(Printer& p) const {
     p << log::keyword_style("module") << " {" << p.indent() << p.endl();
     print_list(p.top(), p.endl(), decls, [&] (auto& decl) {
         p << log::literal_style(decl.id.name) << " = ";
-        p.print(*decl.ir);
+        p.insert(*decl.ir, decl.id.name);
+        p.print(*decl.ir, true);
     });
     // if (!anon)
     p << p.unindent() << p.endl() << "}";
@@ -199,22 +211,22 @@ void GlobalVariable::print(Printer& p) const {
 
 void Fn::print(Printer& p) const {
     p << log::keyword_style("fn") << "(";
-    p.print(*param);
+    p.print(*param, true);
+    p.insert(*param, p.unique_name(*param));
     p << ")" << " -> ";
-    p.print(*type()->codom);
+    p.print(*type()->codom, true);
     if (body) {
         p << " {" << p.indent() << p.endl();
-        p.print(*body);
+        p.print(*body, true);
         p << p.unindent() << p.endl() << "}";
     }
 }
 
 void Param::print(Printer& p) const {
-    p << log::keyword_style("param");
-    if (auto id = this->id)
-        p << ' ' << id->name;
+    // p << log::keyword_style("param") << ' ';
+    p << p.unique_name(*this);
     p << ": ";
-    p.print(*type());
+    p.print(*type(), true);
 }
 
 void App::print(Printer& p) const {
@@ -237,7 +249,7 @@ void ImplicitCast::print(Printer& p) const {
 void TypedLiteral::print(Printer& p) const {
     p << log::keyword_style("typed_literal");
     p << '[';
-    p.print(*type());
+    p.print(*type(), true);
     p << ']';
     p << '(';
     p << std::showpoint << log::literal_style(value);
@@ -263,18 +275,20 @@ void Extract::print(Printer& p) const {
 
 void Bind::print(Printer& p) const {
     p << log::keyword_style("let") << ' ';
-    p.print(*param);
+    p.print(*param, true);
+    p.insert(*param, p.unique_name(*param));
     p << " = ";
-    p.print(*value);
+    p.print(*value, true);
 }
 
 void Seq::print(Printer& p) const {
-    p << log::keyword_style("seq") << p.indent() << p.endl();
-    print_list(p.top(), "", values, [&] (auto& a) {
-        p.print(*a);
-        p << ';' << p.endl();
-    });
-    p.unindent();
+    p << log::keyword_style("seq") << " {" << p.indent() << p.endl();
+    for (size_t i = 0; i < values.size(); i++) {
+        p.print(*values[i], true);
+        if (i != values.size() - 1)
+            p << ';' << p.endl();
+    }
+    p << p.unindent() << p.endl() << '}';
 }
 
 void UnOp::print(Printer& p) const {
@@ -289,17 +303,17 @@ void BinOp::print(Printer& p) const {
 }
 
 void Branch::print(Printer& p) const {
-    p << log::keyword_style("branch") << ' ';
+    p << log::keyword_style("if") << " (";
     p.print(*cond);
-    p << " ? ";
-    p.print(*true_branch);
-    p << " : ";
-    p.print(*else_branch);
+    p << ") ";
+    p.print(*true_branch, true);
+    p << " " << log::keyword_style("else") << " ";
+    p.print(*else_branch, true);
 }
 
 void Control::print(Printer& p) const {
     p << log::keyword_style("control") << ' ';
-    p.print(*body);
+    p.print(*body, true);
 }
 
 log::Output& operator << (log::Output& out, const Node& node) {

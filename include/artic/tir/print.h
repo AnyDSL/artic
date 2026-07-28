@@ -12,7 +12,10 @@ struct Printer {
     Printer(artic::Printer& base) : base(base) { }
     Printer(const Printer&) = delete;
 
-    void print(const Node&);
+    void print(const Node& node, bool print_inline = false);
+
+    std::string unique_name(const Node&);
+    void insert(const Node&, std::string);
 
     static constexpr artic::Printer::Endl endl() { return artic::Printer::Endl(); }
     static constexpr artic::Printer::Indent indent() { return artic::Printer::Indent(); }
