@@ -127,6 +127,11 @@ Agg::Agg(Arena& arena, const Type* agg_type, const ArrayRef<const Value*>& args)
         for (size_t i = 0; i < args.size(); i++) {
             assert(args[i]->type() == array_t->elem);
         }
+    } else if (auto [_, struct_t] = match_app<StructType>(agg_type); struct_t) {
+        assert(struct_t->decl.fields.size() == args.size());
+        for (size_t i = 0; i < args.size(); i++) {
+            assert(args[i]->type() == member_type(agg_type, i));
+        }
     } else {
         assert(false);
     }
@@ -163,6 +168,11 @@ Extract::Extract(Arena& arena, const Value* src, const Value* idx) : Value(arena
     } else if (auto array_t = src->type()->isa<SizedArrayType>()) {
         assert(idx->isa<TypedLiteral>());
         return array_t->elem;
+    } else if (auto [_, struct_t] = match_app<StructType>(src->type()); struct_t) {
+        if (auto lit_idx = idx->isa<TypedLiteral>(); lit_idx) {
+            size_t idx_value = lit_idx->value.as_integer();
+            return member_type(src->type(), idx_value);
+        }
     } else {
         assert(false);
     }
@@ -216,6 +226,11 @@ Proj::Proj(Arena& arena, const Value* src, const Value* idx) : Value(arena, [&](
         }
     } else if (auto array_t = pointee_t->isa<ArrayType>()) {
         return wrap_pointee(array_t->elem);
+    } else if (auto [_, struct_t] = match_app<StructType>(pointee_t); struct_t) {
+        if (auto lit_idx = idx->isa<TypedLiteral>(); lit_idx) {
+            size_t idx_value = lit_idx->value.as_integer();
+            return wrap_pointee(member_type(pointee_t, idx_value));
+        }
     } else {
         assert(false);
     }
@@ -239,7 +254,7 @@ bool Proj::equals(const Node* other) const {
 
 Bind::Bind(Arena& arena, const Param* param, const Value* value) : Value(arena, [&]() -> const Type* {
     if (value->type() != param->type()) {
-        return arena.type_error();
+        assert(false);
     }
     return arena.tuple_type({});
 }()), param(param), value(value) {}
@@ -321,9 +336,10 @@ bool UnOp::equals(const Node* other) const {
 }
 
 BinOp::BinOp(Arena& arena, const BinaryExpr::Tag tag, const Value* lhs, const Value* rhs) : Value(arena, [&]() -> const Type* {
-    if (BinaryExpr::has_eq(tag))
+    if (BinaryExpr::has_eq(tag)) {
+        assert(lhs->type()->isa<RefType>());
         return arena.unit_type();
-    if (BinaryExpr::has_cmp(tag))
+    } if (BinaryExpr::has_cmp(tag))
         return arena.bool_type();
     if (lhs->type() != rhs->type())
         return arena.type_error();

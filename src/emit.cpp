@@ -1202,6 +1202,8 @@ const thorin::Def* Agg::emit(Emitter& emitter) const {
     else if (auto array_t = type()->isa<SizedArrayType>()) {
         return array_t->is_simd ? emitter.world.vector(elems, emitter.debug_info(this))
            : emitter.world.definite_array(elems, emitter.debug_info(this));
+    } else if (type()->isa<StructType>()) {
+        return emitter.world.struct_agg(emitter.emit(type())->as<thorin::StructType>(), elems, emitter.debug_info(this));
     } else {
         assert(false);
     }
@@ -2351,16 +2353,15 @@ std::string StructType::stringify(Emitter& emitter) const {
 }
 
 const thorin::Type* StructType::convert(Emitter& emitter, const Type* parent) const {
-    assert(false && "TODO");
-    /*if (auto it = emitter.types.find(this); !type_params() && it != emitter.types.end())
-        return it->second;
+    //if (auto it = emitter.types.find(this); !type_params() && it != emitter.types.end())
+    //    return it->second;
     auto type = emitter.world.struct_type(stringify(emitter), decl.fields.size());
-    emitter.types[parent] = type;
+    emitter.emitted[parent] = type;
     for (size_t i = 0, n = decl.fields.size(); i < n; ++i) {
-        type->set_op(i, decl.fields[i]->ast::Node::type->convert(emitter));
+        type->set_op(i, emitter.emit(decl.fields[i]->tir->as<Type>()));
         type->set_op_name(i, decl.fields[i]->id.name.empty() ? "_" + std::to_string(i) : decl.fields[i]->id.name);
     }
-    return type;*/
+    return type;
 }
 
 std::string EnumType::stringify(Emitter& emitter) const {

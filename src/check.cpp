@@ -652,9 +652,9 @@ void TypeChecker::bind_ptrn_params(ast::Ptrn& ptrn, const Value* value, std::vec
             binds.push_back(type_table.binop(ast::BinaryExpr::Tag::Eq, alloc, value));
             value = alloc;
         }
-        if (ptrn.tir != value) {
-            binds.push_back(type_table.bind(ptrn.tir->as<Param>(), value));
-        }
+        // if (ptrn.tir != value) {
+        //     binds.push_back(type_table.bind(ptrn.tir->as<Param>(), value));
+        // }
         binds.push_back(type_table.bind(id_ptrn->decl->tir->as<Param>(), value));
         if (id_ptrn->sub_ptrn)
             bind_ptrn_params(*id_ptrn->sub_ptrn, value, binds);
@@ -837,21 +837,20 @@ bool TypeChecker::try_infer_implicit_type_args(
 }
 
 const Type* TypeChecker::infer_record_type(const TypeApp* type_app, const StructType* struct_type, size_t& index) {
-    assert(false && "TODO");
     // If the structure type comes from an option, return the corresponding enumeration type
-    /*if (auto option_decl = struct_type->decl.isa<ast::OptionDecl>()) {
+    if (auto option_decl = struct_type->decl.isa<ast::OptionDecl>()) {
         auto enum_type = infer(*option_decl->parent)->as<artic::EnumType>();
         index = std::find_if(
             option_decl->parent->options.begin(),
             option_decl->parent->options.end(),
-            [struct_type] (auto& option) { return option->type == struct_type; })
+            [struct_type] (auto& option) { return option->tir == struct_type; })
             - option_decl->parent->options.begin();
         assert(index < option_decl->parent->options.size());
         if (type_app)
             return type_table.type_app(enum_type, type_app->type_args);
         return enum_type;
     }
-    return type_app ? type_app->as<Type>() : struct_type;*/
+    return type_app ? type_app->as<Type>() : struct_type;
 }
 
 size_t TypeChecker::path_to_size(ast::Path& path, const std::string_view& element) {
@@ -875,12 +874,11 @@ size_t TypeChecker::path_to_size(ast::Path& path, const std::string_view& elemen
 namespace ast {
 
 const tir::Node* Node::check(TypeChecker& checker, const artic::Type* expected) {
-    assert(false && "TODO");/*
     // By default, try to infer, and then check that types match
-    auto type = checker.infer(*this);
-    if (type != expected)
-        return checker.incompatible_types(loc, type, expected);
-    return type;*/
+    auto val = checker.infer_value(*this);
+    if (val->type() != expected)
+        return checker.incompatible_types(loc, val->type(), expected);
+    return val;
 }
 
 const tir::Node* Node::infer(TypeChecker& checker) {
@@ -1253,20 +1251,33 @@ const tir::Node* SummonExpr::infer(artic::TypeChecker& checker) {
 }
 
 const tir::Node* FieldExpr::check(TypeChecker& checker, const artic::Type* expected) {
-    assert(false && "TODO");
-    //return checker.coerce(expr, expected);
+    return checker.coerce(&*expr, expected);
 }
 
 const tir::Node* RecordExpr::infer(TypeChecker& checker) {
-    assert(false && "TODO");
-    /*auto type = expr ? checker.deref(expr) : checker.infer(*this->type);
-    auto [type_app, struct_type] = match_app<artic::StructType>(type);
+    auto record_type = expr ? checker.deref(expr)->type() : checker.infer_type(*this->type);
+    auto [type_app, struct_type] = match_app<artic::StructType>(record_type);
     if (!struct_type ||
         (struct_type->decl.isa<StructDecl>() &&
          struct_type->decl.as<StructDecl>()->is_tuple_like))
-        return checker.type_expected(expr ? expr->loc : this->loc, type, "record-like structure");
+        return checker.type_expected(expr ? expr->loc : this->loc, record_type, "record-like structure");
     checker.check_fields(loc, struct_type, type_app, fields, "expression", static_cast<bool>(expr), true);
-    return checker.infer_record_type(type_app, struct_type, variant_index);*/
+    auto type = checker.infer_record_type(type_app, struct_type, variant_index);
+    assert(!expr && "TODO: insert");
+    Array<const Value*> ops(struct_type->decl.fields.size());
+    for (auto& field : fields) {
+        assert(field->tir);
+        ops[field->index] = field->tir->as<Value>();
+    }
+    for (size_t i = 0, n = ops.size(); i < n; ++i) {
+        if (!ops[i])
+            ops[i] = struct_type->decl.fields[i]->init->tir->as<Value>();
+    }
+    auto agg = checker.type_table.agg(record_type, ops);
+    if (type != record_type) {
+        assert(false && "TODO: emit enum options here");
+    }
+    return agg;
 }
 
 const tir::Node* TupleExpr::infer(TypeChecker& checker) {
@@ -1440,8 +1451,7 @@ const tir::Node* CallExpr::check(TypeChecker& checker, const artic::Type* expect
 
     auto [ref_type, callee_type] = remove_ref(checker.infer_value(*callee)->type());
     if (auto fn_type = callee_type->isa<artic::FnType>()) {
-        return checker.type_table.app(checker.coerce(&*callee, fn_type), checker.coerce(&*arg, fn_type->dom));
-        return fn_type->codom;
+        return checker.let_bind(checker.type_table.app(checker.coerce(&*callee, fn_type), checker.coerce(&*arg, fn_type->dom)));
     } else {
         // Accept pointers to arrays
         auto ptr_type = callee_type->isa<artic::PtrType>();
@@ -1475,8 +1485,7 @@ const tir::Node* CallExpr::infer(TypeChecker& checker) {
 }
 
 const tir::Node* ProjExpr::infer(TypeChecker& checker) {
-    assert(false && "TODO");
-    /*auto [ref_type, expr_type] = remove_ref(checker.infer(*expr));
+    auto [ref_type, expr_type] = remove_ref(checker.infer_value(*expr)->type());
     auto ptr_type = expr_type->isa<artic::PtrType>();
     if (ptr_type) {
         // Must dereference references to pointers, such that the pointer offset is computed on the
@@ -1513,12 +1522,15 @@ const tir::Node* ProjExpr::infer(TypeChecker& checker) {
         result_type = tuple_type ? tuple_type->args[index] : member_type(type_app, struct_type, index);
     }
 
-    return ref_type || ptr_type
-        ? checker.type_table.ref_type(
-            result_type,
-            ptr_type ? ptr_type->is_mut : ref_type->is_mut,
-            ptr_type ? ptr_type->addr_space : ref_type->addr_space)
-        : result_type;*/
+    auto idx = checker.type_table.typed_literal(artic::Literal(index), checker.type_table.prim_type(ast::PrimType::U64));
+
+    return checker.let_bind(ref_type || ptr_type
+        ? checker.type_table.proj(expr->tir->as<Value>(), idx)
+        // ? checker.type_table.ref_type(
+        //     result_type,
+        //     ptr_type ? ptr_type->is_mut : ref_type->is_mut,
+        //     ptr_type ? ptr_type->addr_space : ref_type->addr_space)
+        : checker.type_table.extract(expr->tir->as<Value>(), idx));
 }
 
 inline const LiteralExpr* is_untyped_int_or_float_literal(const Expr* expr) {
@@ -1864,6 +1876,7 @@ const tir::Node* BinaryExpr::infer(TypeChecker& checker) {
         left->write_to();
         if (!left_ref || !left_ref->is_mut)
             return checker.mutable_expected(left->loc);
+        return checker.let_bind(checker.type_table.binop(tag, left->tir->as<Value>(), right->tir->as<Value>()));
     }
     checker.coerce(&*left, left_type);
     return checker.let_bind(checker.type_table.binop(tag, left->tir->as<Value>(), right->tir->as<Value>()));
@@ -2117,33 +2130,30 @@ const tir::Node* FnDecl::check(TypeChecker& checker, [[maybe_unused]] const arti
 }
 
 const tir::Node* FieldDecl::infer(TypeChecker& checker) {
-    assert(false && "TODO");
-    /*auto field_type = checker.infer(*type);
+    auto field_type = checker.infer_type(*type);
     if (init) {
-        checker.coerce(init, field_type);
+        checker.coerce(&*init, field_type);
         if (!init->is_constant())
             checker.error(init->loc, "only constants are allowed as default field values");
     }
-    return field_type;*/
+    return field_type;
 }
 
 const tir::Node* StructDecl::infer(TypeChecker& checker) {
-    assert(false && "TODO");
-    /*auto struct_type = checker.type_table.struct_type(*this);
+    auto struct_type = checker.type_table.struct_type(*this);
     if (type_params) {
         for (auto& param : type_params->params)
             checker.infer(*param);
     }
     // Set the type before entering the fields
-    type = struct_type;
+    tir = struct_type;
     for (auto& field : fields)
         checker.infer(*field);
-    return struct_type;*/
+    return struct_type;
 }
 
 const tir::Node* OptionDecl::infer(TypeChecker& checker) {
-    assert(false && "TODO");
-    /*if (param)
+    if (param)
         return checker.infer(*param);
     else if (has_fields) {
         for (auto& field : fields)
@@ -2151,7 +2161,7 @@ const tir::Node* OptionDecl::infer(TypeChecker& checker) {
         return struct_type = checker.type_table.struct_type(*this);;
     } else {
         return checker.type_table.unit_type();
-    }*/
+    }
 }
 
 const tir::Node* EnumDecl::infer(TypeChecker& checker) {

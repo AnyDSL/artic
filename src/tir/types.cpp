@@ -433,8 +433,7 @@ std::string_view StructType::member_name(size_t i) const {
 }
 
 const Type* StructType::member_type(size_t i) const {
-    assert(false && "TODO");
-    // return decl.fields[i]->ast::Node::type;
+    return decl.fields[i]->tir->as<Type>();
 }
 
 size_t StructType::member_count() const {
