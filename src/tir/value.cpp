@@ -113,6 +113,8 @@ bool Undef::equals(const Node* other) const {
     return false;
 }
 
+ModVarAsValue::ModVarAsValue(Arena& arena, Scope& scope, const ModVar* var) : NominalNode(arena, scope.resolve_mod_var(var)->as<Value>()->type()), var(var) {}
+
 Agg::Agg(Arena& arena, const Type* agg_type, const ArrayRef<const Value*>& args) : Value(arena, agg_type), args(args) {
     for (auto arg : args) {
         assert(!arg->is_computation());
@@ -295,10 +297,6 @@ bool Seq::equals(const Node* other) const {
         return true;
     }
     return false;
-}
-
-Tie::Tie(Arena& arena, const Value* value) : NominalNode(arena, arena.tuple_type({})), value(value) {
-    assert(!value->is_computation());
 }
 
 using namespace artic::ast;

@@ -459,6 +459,21 @@ void PtrnCompiler::dump() const {
 
 #endif
 
+
+struct ScopeGuard {
+    Emitter& emitter;
+    Scope* old;
+
+    ScopeGuard(Emitter& emitter, Scope& scope) : emitter(emitter) {
+        old = &scope;
+        std::swap(emitter.scope, old);
+    }
+    ScopeGuard(const ScopeGuard&) = delete;
+    ~ScopeGuard() {
+        std::swap(emitter.scope, old);
+    }
+};
+
 bool Emitter::run(const tir::Module& mod) {
     mod.emit(*this);
     return errors == 0;
@@ -775,6 +790,13 @@ const thorin::Type* Emitter::emit(const Type* node) {
     auto def = node->convert(*this);
     emitted[node] = def;
     return def;
+}
+
+void Emitter::emit(const Module* node) {
+    auto found = emitted.find(node);
+    if (found != emitted.end())
+        return;
+    node->emit(*this);
 }
 
 /*void Emitter::emit(const ast::Ptrn& ptrn, const thorin::Def* value) {
@@ -1107,14 +1129,30 @@ thorin::Debug Emitter::debug_info(const ast::Node& node, const std::string_view&
 }*/
 
 void Module::emit(Emitter& emitter) const {
-    for (auto [id, decl] : decls) {
-        if (auto value = decl->isa<Value>()) {
-            emitter.emit(value);
-        }
-        if (auto mod = decl->isa<Module>()) {
-            mod->emit(emitter);
-            //emitter.emit(mod);
-        }
+    // don't emit modules twice
+    emitter.emitted[this] = nullptr;
+
+    Scope scope(emitter.scope);
+    ScopeGuard sg(emitter, scope);
+    for (auto [var, value] : decls) {
+        scope.insert(var, value);
+    }
+    for (auto [var, _] : decls) {
+        emitter.emit(var);
+    }
+}
+
+const thorin::Def* Emitter::emit(const tir::ModVar* var) {
+    auto node = scope->resolve_mod_var(var);
+    if (auto value = node->isa<Value>()) {
+        return emit(value);
+    } else if (auto mod = node->isa<Module>()) {
+        emit(mod);
+        return nullptr;
+    } else if (auto typ = node->isa<Type>()) {
+        return typ->convert(*this);
+    } else {
+        assert(false);
     }
 }
 
@@ -1222,15 +1260,17 @@ const thorin::Def* Bind::emit(Emitter& emitter) const {
     return emitter.world.tuple({});
 }
 
+const thorin::Def* ModVarAsValue::emit(Emitter& emitter) const {
+    auto def = emitter.emit(var);
+    assert(def);
+    return def;
+}
+
 const thorin::Def* Seq::emit(Emitter& emitter) const {
     for (auto value : values)
         emitter.emit(value);
     assert(values.size() > 0);
     return emitter.emit(values.back());
-}
-
-const thorin::Def* Tie::emit(Emitter& emitter) const {
-    return emitter.world.tuple({});
 }
 
 const thorin::Def* UnOp::emit(Emitter& emitter) const {

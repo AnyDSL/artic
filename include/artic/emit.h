@@ -137,6 +137,8 @@ public:
 
     const thorin::Def* emit(const tir::Value*);
     const thorin::Type* emit(const tir::Type*);
+    void emit(const tir::Module*);
+    const thorin::Def* emit(const tir::ModVar*);
 
     // void emit(const ast::Ptrn&, const thorin::Def*);
     // void bind(const ast::IdPtrn&, const thorin::Def*);
@@ -150,6 +152,8 @@ public:
     thorin::Debug debug_info(const ast::NamedDecl&);
     thorin::Debug debug_info(const ast::Node&, const std::string_view& = "");
     thorin::Debug debug_info(const tir::Node*, const std::string_view& = "") { return {}; };
+
+    tir::Scope* scope = nullptr;
 
 private:
     const thorin::Def* cast_pointers(const thorin::Def*, const tir::AddrType*, const tir::AddrType*, thorin::Debug);

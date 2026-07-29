@@ -26,6 +26,7 @@ enum class NodeKind {
     Value,
     Type,
     Module,
+    Key,
 };
 
 /// Base class for all nodes. Types should be created by a `Arena`,
@@ -45,7 +46,6 @@ struct Node : public Cast<Node> {
     virtual void print(Printer&) const = 0;
     virtual bool equals(const Node*) const = 0;
     virtual size_t hash() const = 0;
-
     virtual const Node* rewrite(Rewriter&) const = 0;
 
     /// Prints the type on the console, for debugging.
@@ -54,6 +54,43 @@ struct Node : public Cast<Node> {
 
 struct Type;
 struct Value;
+struct ModVar;
+struct ModValue;
+struct Signature;
+struct Param;
+struct TypeVar;
+
+struct Scope {
+    const Scope* parent;
+
+    Scope(const Scope* parent) : parent(parent) {}
+    Scope(const Scope&) = delete;
+
+    const Node* resolve_mod_var(const ModVar* var) const {
+        auto found = mod_vars.find(var);
+        if (found != mod_vars.end())
+            return found->second;
+        if (parent)
+            return parent->resolve_mod_var(var);
+        return nullptr;
+    }
+    // const Type* resolve_type_var(const TypeVar*);
+    const Value* resolve_param(const Param* var) const;
+
+    void insert(const ModVar* var, const Node* value) {
+        assert(!mod_vars.contains(var));
+        mod_vars[var] = value;
+    }
+
+    void insert(const Param* var, const Value* value) {
+        assert(!params.contains(var));
+        params[var] = value;
+    }
+
+private:
+    std::unordered_map<const ModVar*, const Node*> mod_vars;
+    std::unordered_map<const Param*, const Value*> params;
+};
 
 template<typename Super>
 struct NominalNode : public Super {
@@ -69,25 +106,91 @@ struct NominalNode : public Super {
     }
 };
 
-struct Module : public NominalNode<Node> {
-    //const ModType* type;
+struct DeclKey : public NominalNode<Node> {
+    std::optional<ast::Identifier> id;
+
+    void print(Printer&) const override;
+    Node* rewrite(Rewriter&) const override;
+
+    NodeKind kind() const override { return NodeKind::Key; }
+
+    DeclKey(Arena& arena, std::optional<ast::Identifier> id) : NominalNode(arena), id(id) {}
+};
+
+/*struct SignatureDecl : public Node {
+    const DeclKey* key;
+    NodeKind kind_;
+
+    const Type* type;
+    const Signature* mod_signature;
+
+    NodeKind kind() const override { return kind_; }
+
+    size_t hash() const override;
+    bool equals(const Node*) const override;
+    void print(Printer&) const override;
+    Node* rewrite(Rewriter&) const override;
+
+    SignatureDecl(Arena& arena, NodeKind, const Type*, const Signature*);
+};
+
+struct Signature : public Node {
+    Array<const SignatureDecl*> decls;
+
+    size_t hash() const override;
+    bool equals(const Node*) const override;
+    void print(Printer&) const override;
+    Node* rewrite(Rewriter&) const override;
+
+    Signature(Arena& arena, ArrayRef<const SignatureDecl*>);
+};*/
+
+struct ModValue : public Node {
+    NodeKind kind_;
+    NodeKind kind() const override { return kind_; }
+
+    ModValue(Arena& arena, NodeKind kind) : Node(arena), kind_(kind) {}
+};
+
+struct ModVar : public NominalNode<ModValue> {
+    const DeclKey* key;
+
+    void print(Printer&) const override;
+    const Node* rewrite(Rewriter&) const override;
+
+    ModVar(Arena& arena, const DeclKey* key, NodeKind kind) : NominalNode(arena, kind), key(key) {}
+};
+
+struct Module : public NominalNode<ModValue> {
     ast::Identifier id;
     const Module* super;
 
     struct Decl {
-        ast::Identifier id;
-        const Node* ir;
+        const ModVar* var;
+        const Node* value;
     };
     mutable std::vector<Decl> decls;
 
-    NodeKind kind() const override { return NodeKind::Module; }
+    mutable const Signature* signature = nullptr;
 
     void print(Printer&) const override;
     Node* rewrite(Rewriter&) const override;
 
     void emit(Emitter&) const;
 
-    Module(Arena& arena, ast::Identifier id, const Module* super) : NominalNode(arena), id(id), super(super) {}
+    Module(Arena& arena, ast::Identifier id, const Module* super) : NominalNode(arena, NodeKind::Module), id(id), super(super) {}
+};
+
+struct ModAccess : public ModValue {
+    const ModValue* mod;
+    const DeclKey* key;
+
+    size_t hash() const override;
+    bool equals(const Node*) const override;
+    void print(Printer&) const override;
+    Node* rewrite(Rewriter&) const override;
+
+    ModAccess(Arena& arena, const ModValue*, const DeclKey*);
 };
 
 }

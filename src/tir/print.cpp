@@ -202,16 +202,36 @@ void TypeApp::print(Printer& p) const {
 //     p << id.name;
 // }
 
+std::string key2string(const DeclKey& key) {
+    if (key.id)
+        return key.id->name;
+    return "$" + std::to_string(key.gid);
+}
+
+void DeclKey::print(Printer& p) const {
+    p << key2string(*this);
+}
+
+void ModVar::print(Printer& p) const {
+    p << log::keyword_style("mod_var") << ' ';
+    p.print(*key, true);
+}
+
 void Module::print(Printer& p) const {
     p << log::keyword_style("module") << " {" << p.indent() << p.endl();
     for (auto& decl : decls) {
-        p.insert(*decl.ir, decl.id.name);
+        p.insert(*decl.var, key2string(*decl.var->key));
     }
     print_list(p.top(), p.endl(), decls, [&] (auto& decl) {
-        p << log::literal_style(decl.id.name) << " = ";
-        p.print(*decl.ir, true);
+        p.print(*decl.var, true);
+        p << " = ";
+        p.print(*decl.value, true);
     });
     p << p.unindent() << p.endl() << "}";
+}
+
+void ModVarAsValue::print(Printer& p) const {
+    p.print(*var);
 }
 
 void GlobalVariable::print(Printer& p) const {
@@ -349,11 +369,6 @@ void Seq::print(Printer& p) const {
             p << ';' << p.endl();
     }
     p << p.unindent() << p.endl() << '}';
-}
-
-void Tie::print(Printer& p) const {
-    p << log::keyword_style("tie") << ' ';
-    p.print(*value);
 }
 
 void UnOp::print(Printer& p) const {

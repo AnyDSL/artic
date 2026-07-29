@@ -624,6 +624,17 @@ private:
     friend class Arena;
 };
 
+struct ModVarAsType : public NominalNode<Type> {
+    const ModVar* var;
+
+    void print(Printer&) const override;
+    const Node* rewrite(Rewriter&) const override;
+
+    const thorin::Type* convert(Emitter&) const override;
+
+    ModVarAsType(Arena&, Scope&, const ModVar*);
+};
+
 bool is_int_type(const Type*);
 bool is_float_type(const Type*);
 bool is_int_or_float_type(const Type*);

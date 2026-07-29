@@ -213,15 +213,28 @@ struct Bind : public Value {
     Bind(Arena&, const Param*, const Value*);
 };
 
-struct Tie : public NominalNode<Value> {
-    const Value* value;
+struct WithMod : public NominalNode<Value> {
+    const ModVar* var;
+    const ModValue* value;
 
     void print(Printer&) const override;
     const Node* rewrite(Rewriter&) const override;
 
     const thorin::Def* emit(Emitter&) const override;
 
-    Tie(Arena&, const Value*);
+    WithMod(Arena&, const ModVar*, const ModValue*);
+};
+
+struct ModVarAsValue : public NominalNode<Value> {
+    const ModVar* var;
+
+    void print(Printer&) const override;
+    const Node* rewrite(Rewriter&) const override;
+
+    const thorin::Def* emit(Emitter&) const override;
+    bool is_computation() const override { return false; }
+
+    ModVarAsValue(Arena&, Scope&, const ModVar*);
 };
 
 struct Seq : public Value {

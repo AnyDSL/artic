@@ -85,9 +85,21 @@ const TypeError* TypeError::rewrite(Rewriter& r) const {
     return r.dst.type_error();
 }
 
+Node* DeclKey::rewrite(Rewriter&) const {
+
+}
+
+const Node* ModVar::rewrite(Rewriter&) const {
+
+}
+
 Node* Module::rewrite(Rewriter& r) const {
     const Module* m = r.dst.module(id, r.instantiate(super, false)->isa<Module>());
-    
+
+}
+
+const Node* ModVarAsValue::rewrite(Rewriter&) const {
+
 }
 
 const Node* GlobalVariable::rewrite(Rewriter&) const {
@@ -144,10 +156,6 @@ const Node* Bind::rewrite(Rewriter&) const {
 
 const Node* Seq::rewrite(Rewriter&) const {
 
-}
-
-const Node* Tie::rewrite(Rewriter& r) const {
-    return r.instantiate(value, true);
 }
 
 const Node* UnOp::rewrite(Rewriter&) const {

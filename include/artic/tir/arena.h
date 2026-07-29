@@ -42,7 +42,10 @@ public:
     /// or returns the type alias expanded with the given type arguments.
     const Type* type_app(const UserType*, const ArrayRef<const Type*>&);
 
+    const DeclKey* decl_key(std::optional<ast::Identifier>);
     const Module* module(ast::Identifier, const Module*);
+    const ModVar* mod_var(const DeclKey*, NodeKind);
+    const ModAccess* mod_access(const ModVar*, const DeclKey*);
 
     const GlobalVariable* global_variable(const Type*, bool is_mut, const Value*);
     const LocalVariable* local_variable(const Type*);
@@ -50,6 +53,7 @@ public:
     const Value* cast(const Value*, const Type*);
     const Value* typed_literal(Literal, const Type*);
     const Value* undef(const Type*);
+    const Value* as_value(Scope&, const ModVar*);
 
     const Fn* function(const Param*, const Type* codom);
     const Param* param(std::optional<ast::Identifier>, const Type*);
@@ -62,7 +66,7 @@ public:
 
     const Value* bind(const Param*, const Value*);
     const Value* seq(const ArrayRef<const Value*>&);
-    const Value* tie(const Value*);
+    //const Value* tie(const Value*);
 
     const Value* unop(ast::UnaryExpr::Tag, const Value*);
     const Value* binop(ast::BinaryExpr::Tag, const Value*, const Value*);

@@ -30,7 +30,7 @@ namespace tir {
 struct Printer;
 class NameBinder;
 class TypeChecker;
-struct Scope;
+struct ScopeBuilder;
 
 template <typename T> using Ptr = arena_ptr<T>;
 template <typename T> using PtrVector = std::vector<Ptr<T>>;
@@ -457,7 +457,7 @@ struct DeclStmt : public Stmt {
     Ptr<Decl> decl;
 
     // set during type-checking
-    Scope* scope = nullptr;
+    ScopeBuilder* scope = nullptr;
 
     DeclStmt(const Loc& loc, Ptr<Decl>&& decl)
         : Stmt(loc), decl(std::move(decl))
@@ -1453,7 +1453,7 @@ struct ModDecl : public NamedDecl {
     ModDecl* super = nullptr;
 
     // set during type-checking
-    Scope* scope = nullptr;
+    ScopeBuilder* scope = nullptr;
 
     /// Constructor for the implicitly defined global module.
     /// When using this constructor, the user is responsible for calling

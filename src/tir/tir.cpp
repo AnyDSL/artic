@@ -105,8 +105,24 @@ const Type* Arena::type_app(const UserType* applied, const ArrayRef<const Type*>
     return insert<TypeApp>(applied, std::move(type_args));
 }
 
+const DeclKey* Arena::decl_key(std::optional<ast::Identifier> id) {
+    return insert<DeclKey>(id);
+}
+
+const ModVar* Arena::mod_var(const DeclKey* key, NodeKind kind) {
+    return insert<ModVar>(key, kind);
+}
+
 const Module* Arena::module(ast::Identifier id, const Module* super) {
     return insert<Module>(id, super);
+}
+
+const ModAccess* Arena::mod_access(const ModVar*, const DeclKey*) {
+    assert(false);
+}
+
+const Value* Arena::as_value(Scope& scope, const ModVar* var) {
+    return insert<ModVarAsValue>(scope, var);
 }
 
 const GlobalVariable* Arena::global_variable(const Type* value_type, bool is_mut, const Value* init) {
@@ -204,10 +220,6 @@ const Value* Arena::branch(const Value* cond, const Fn* true_branch, const Fn* e
 
 const Value* Arena::control(const Fn* fn) {
     return insert<Control>(fn);
-}
-
-const Value* Arena::tie(const Value* value) {
-    return insert<Tie>(value);
 }
 
 template <typename T, typename... Args>
