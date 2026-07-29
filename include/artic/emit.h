@@ -136,7 +136,7 @@ public:
     const thorin::Def* down_cast(const thorin::Def*, const tir::Type*, const tir::Type*, thorin::Debug = {});
 
     const thorin::Def* emit(const tir::Value*);
-    const thorin::Def* emit(const tir::Type*);
+    const thorin::Type* emit(const tir::Type*);
 
     // void emit(const ast::Ptrn&, const thorin::Def*);
     // void bind(const ast::IdPtrn&, const thorin::Def*);

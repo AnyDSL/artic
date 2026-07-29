@@ -768,10 +768,10 @@ const thorin::Def* Emitter::emit(const Value* node) {
     return def;
 }
 
-const thorin::Def* Emitter::emit(const Type* node) {
+const thorin::Type* Emitter::emit(const Type* node) {
     auto found = emitted.find(node);
     if (found != emitted.end())
-        return found->second;
+        return found->second->as<thorin::Type>();
     auto def = node->convert(*this);
     emitted[node] = def;
     return def;
@@ -1126,7 +1126,7 @@ const thorin::Def* Fn::emit(Emitter& emitter) const {
     //assert(false && "TODO");
     auto _ = emitter.save_state();
     auto cont = emitter.world.continuation(
-        type()->convert(emitter)->as<thorin::FnType>(),
+        emitter.emit(type())->as<thorin::FnType>(),
         emitter.debug_info(this));
     cont->params().back()->set_name("ret");
     // Set the IR node before entering the body
@@ -1157,7 +1157,7 @@ const thorin::Def* App::emit(Emitter& emitter) const {
 const thorin::Def* GlobalVariable::emit(Emitter& emitter) const {
     auto value = init
         ? emitter.emit(init)
-        : emitter.world.bottom(type()->pointee->convert(emitter));
+        : emitter.world.bottom(emitter.emit(type()->pointee));
     auto global = emitter.world.global(value, is_mut, emitter.debug_info(this));
 
     // TODO
@@ -1381,7 +1381,7 @@ const thorin::Def* Branch::emit(Emitter& emitter) const {
 const thorin::Def* Control::emit(Emitter& emitter) const {
     auto join = !type()->isa<NoRetType>()
         ? emitter.basic_block_with_mem(
-            type()->convert(emitter),
+            emitter.emit(type()),
             emitter.debug_info(this, "if_join"))
         : nullptr;
 
@@ -2247,7 +2247,7 @@ std::string TupleType::stringify(Emitter& emitter) const {
 const thorin::Type* TupleType::convert(Emitter& emitter) const {
     thorin::Array<const thorin::Type*> ops(args.size());
     for (size_t i = 0, n = args.size(); i < n; ++i)
-        ops[i] = args[i]->convert(emitter);
+        ops[i] = emitter.emit(args[i]);
     return emitter.world.tuple_type(ops);
 }
 
@@ -2257,7 +2257,7 @@ std::string SizedArrayType::stringify(Emitter& emitter) const {
 
 const thorin::Type* SizedArrayType::convert(Emitter& emitter) const {
     if (is_simd) {
-        auto elem_type = elem->convert(emitter);
+        auto elem_type = emitter.emit(elem);
         if (auto prim_type = elem_type->isa<thorin::PrimType>())
             return emitter.world.prim_type(prim_type->primtype_tag(), size);
         else if (auto ptr_type = elem_type->isa<thorin::PtrType>())
@@ -2267,7 +2267,7 @@ const thorin::Type* SizedArrayType::convert(Emitter& emitter) const {
         assert(false);
         return nullptr;
     }
-    return emitter.world.definite_array_type(elem->convert(emitter), size);
+    return emitter.world.definite_array_type(emitter.emit(elem), size);
 }
 
 std::string UnsizedArrayType::stringify(Emitter& emitter) const {
@@ -2275,7 +2275,7 @@ std::string UnsizedArrayType::stringify(Emitter& emitter) const {
 }
 
 const thorin::Type* UnsizedArrayType::convert(Emitter& emitter) const {
-    return emitter.world.indefinite_array_type(elem->convert(emitter));
+    return emitter.world.indefinite_array_type(emitter.emit(elem));
 }
 
 std::string PtrType::stringify(Emitter& emitter) const {
@@ -2283,7 +2283,7 @@ std::string PtrType::stringify(Emitter& emitter) const {
 }
 
 const thorin::Type* PtrType::convert(Emitter& emitter) const {
-    return emitter.world.ptr_type(pointee->convert(emitter), 1, thorin::AddrSpace(addr_space));
+    return emitter.world.ptr_type(emitter.emit(pointee), 1, thorin::AddrSpace(addr_space));
 }
 
 std::string ImplicitParamType::stringify(Emitter& emitter) const {
@@ -2295,13 +2295,13 @@ std::string FnType::stringify(Emitter& emitter) const {
 }
 
 const thorin::Type* ImplicitParamType::convert(artic::Emitter& emitter) const {
-    return underlying->convert(emitter);
+    return emitter.emit(underlying);
 }
 
 const thorin::Type* FnType::convert(Emitter& emitter) const {
     if (codom->isa<BottomType>())
-        return emitter.continuation_type_with_mem(dom->convert(emitter));
-    return emitter.function_type_with_mem(dom->convert(emitter), codom->convert(emitter));
+        return emitter.continuation_type_with_mem(emitter.emit(dom));
+    return emitter.function_type_with_mem(emitter.emit(dom), emitter.emit(codom));
 }
 
 std::string NoRetType::stringify(Emitter&) const {
