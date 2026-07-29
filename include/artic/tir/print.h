@@ -8,11 +8,14 @@ namespace artic {
 
 namespace tir {
 
+struct TypeVar;
+
 struct Printer {
     Printer(artic::Printer& base) : base(base) { }
     Printer(const Printer&) = delete;
 
     void print(const Node& node, bool print_inline = false);
+    void print_type_params(ArrayRef<const TypeVar*>);
 
     std::string unique_name(const Node&);
     void insert(const Node&, std::string);

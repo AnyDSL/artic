@@ -7,10 +7,6 @@ namespace artic {
 
 namespace tir {
 
-const ModType* ModType::rewrite(Rewriter&) const {
-
-}
-
 const PrimType* PrimType::rewrite(Rewriter& r) const {
     return r.dst.prim_type(tag);
 }
@@ -41,12 +37,12 @@ const TupleType* TupleType::rewrite(Rewriter& r) const {
     return r.dst.tuple_type(elems);
 }
 
-const StructType* StructType::rewrite(Rewriter&) const {
+const StructType* StructType::rewrite(Rewriter& r) const {
 
 }
 
 const EnumType* EnumType::rewrite(Rewriter&) const {
-
+    assert(false);
 }
 
 const SizedArrayType* SizedArrayType::rewrite(Rewriter& r) const {
@@ -77,20 +73,21 @@ const ForallType* ForallType::rewrite(Rewriter&) const {
 
 }
 
-const TypeVar* TypeVar::rewrite(Rewriter&) const {
-
+const TypeVar* TypeVar::rewrite(Rewriter& r) const {
+    return r.dst.type_var(decl);
 }
 
-const TypeApp* TypeApp::rewrite(Rewriter&) const {
-
+const Type* TypeApp::rewrite(Rewriter& r) const {
+    return r.dst.type_app(r.instantiate(applied, false)->as<UserType>(), r.instantiate<Type, Type>(type_args, false));
 }
 
 const TypeError* TypeError::rewrite(Rewriter& r) const {
     return r.dst.type_error();
 }
 
-Node* Module::rewrite(Rewriter&) const {
-
+Node* Module::rewrite(Rewriter& r) const {
+    const Module* m = r.dst.module(id, r.instantiate(super, false)->isa<Module>());
+    
 }
 
 const Node* GlobalVariable::rewrite(Rewriter&) const {

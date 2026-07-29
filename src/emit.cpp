@@ -2325,41 +2325,34 @@ const thorin::Type* TypeVar::convert(Emitter& emitter) const {
     // return emitter.type_vars[this]->convert(emitter);
 }
 
-const thorin::Type* UserType::convert(Emitter&, const Type*) const {
-    // Should never be called
-    assert(false);
-    return nullptr;
-}
-
-inline std::string stringify_params(
+inline std::string stringify_types(
     Emitter& emitter,
     const std::string& prefix,
-    const PtrVector<ast::TypeParam>& params)
+    ArrayRef<const tir::TypeVar*> params)
 {
-    assert(false);
-    /*auto str = prefix;
+    auto str = prefix;
     for (size_t i = 0, n = params.size(); i < n; ++i) {
-        str += params[i]->type->stringify(emitter);
+        str += params[i]->stringify(emitter);
         if (i != n - 1)
             str += "_";
     }
-    return str;*/
+    return str;
 }
 
 std::string StructType::stringify(Emitter& emitter) const {
-    if (!type_params())
-        return decl.id.name;
-    return stringify_params(emitter, decl.id.name + "_", type_params()->params);
+    if (decl) {
+        return stringify_types(emitter, decl->id.name + "_", type_params());
+    }
+    // TODO: stringify members if anon
+    return "anonymous_struct";
 }
 
-const thorin::Type* StructType::convert(Emitter& emitter, const Type* parent) const {
-    //if (auto it = emitter.types.find(this); !type_params() && it != emitter.types.end())
-    //    return it->second;
-    auto type = emitter.world.struct_type(stringify(emitter), decl.fields.size());
-    emitter.emitted[parent] = type;
-    for (size_t i = 0, n = decl.fields.size(); i < n; ++i) {
-        type->set_op(i, emitter.emit(decl.fields[i]->tir->as<Type>()));
-        type->set_op_name(i, decl.fields[i]->id.name.empty() ? "_" + std::to_string(i) : decl.fields[i]->id.name);
+const thorin::Type* StructType::convert(Emitter& emitter) const {
+    auto type = emitter.world.struct_type(stringify(emitter), member_count());
+    emitter.emitted[this] = type;
+    for (size_t i = 0, n = member_count(); i < n; ++i) {
+        type->set_op(i, emitter.emit(member_type(i)));
+        type->set_op_name(i, std::string(member_name(i)));
     }
     return type;
 }
@@ -2367,10 +2360,10 @@ const thorin::Type* StructType::convert(Emitter& emitter, const Type* parent) co
 std::string EnumType::stringify(Emitter& emitter) const {
     if (!decl.type_params)
         return decl.id.name;
-    return stringify_params(emitter, decl.id.name + "_", decl.type_params->params);
+    return stringify_types(emitter, decl.id.name + "_", type_params());
 }
 
-const thorin::Type* EnumType::convert(Emitter& emitter, const Type* parent) const {
+const thorin::Type* EnumType::convert(Emitter& emitter) const {
     assert(false && "TODO");
     /*if (auto it = emitter.types.find(this); !decl.type_params && it != emitter.types.end())
         return it->second;

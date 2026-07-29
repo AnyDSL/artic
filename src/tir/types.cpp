@@ -422,22 +422,30 @@ std::optional<size_t> ComplexType::find_member(const std::string_view& name) con
     return std::nullopt;
 }
 
-const ast::TypeParamList* StructType::type_params() const {
-    return decl.isa<ast::StructDecl>()
-        ? decl.as<ast::StructDecl>()->type_params.get()
-        : decl.as<ast::OptionDecl>()->parent->type_params.get();
-}
+/*const ast::TypeParamList* StructType::type_params() const {
+    if (!decl)
+        return nullptr;
+    return decl->isa<ast::StructDecl>()
+        ? decl->as<ast::StructDecl>()->type_params.get()
+        : decl->as<ast::OptionDecl>()->parent->type_params.get();
+}*/
 
 std::string_view StructType::member_name(size_t i) const {
-    return decl.fields[i]->id.name;
+    if (decl && !decl->fields[i]->id.name.empty())
+        return decl->fields[i]->id.name;
+    if (names.size() < i + 1)
+        names.resize(i + 1);
+    if (names[i].empty())
+        names[i] = "_" + std::to_string(i);
+    return names[i];
 }
 
 const Type* StructType::member_type(size_t i) const {
-    return decl.fields[i]->tir->as<Type>();
+    return members[i];
 }
 
 size_t StructType::member_count() const {
-    return decl.fields.size();
+    return members.size();
 }
 
 std::string_view EnumType::member_name(size_t i) const {
@@ -451,34 +459,6 @@ const Type* EnumType::member_type(size_t i) const {
 
 size_t EnumType::member_count() const {
     return decl.options.size();
-}
-
-std::string_view ModType::member_name(size_t i) const {
-    return members()[i].name;
-}
-
-const Type* ModType::member_type(size_t i) const {
-    assert(false && "TODO");
-    // return members()[i].decl.type;
-}
-
-size_t ModType::member_count() const {
-    return members().size();
-}
-
-ast::NamedDecl& ModType::member(size_t i) const {
-    return members()[i].decl;
-}
-
-const ModType::Members& ModType::members() const {
-    if (!members_) {
-        members_ = std::make_unique<ModType::Members>();
-        for (auto& decl : decl.decls) {
-            if (auto named_decl = decl->isa<ast::NamedDecl>())
-                members_->emplace_back(named_decl->id.name, *named_decl);
-        }
-    }
-    return *members_;
 }
 
 const Type* TypeApp::member_type(size_t i) const {
@@ -567,7 +547,7 @@ const Type* ForallType::instantiate(const ArrayRef<const Type*>& args) const {
 }
 
 bool StructType::is_tuple_like() const {
-    return decl.isa<ast::StructDecl>() && decl.as<ast::StructDecl>()->is_tuple_like;
+    //return decl.isa<ast::StructDecl>() && decl.as<ast::StructDecl>()->is_tuple_like;
 }
 
 bool EnumType::is_trivial() const {
@@ -579,17 +559,15 @@ bool EnumType::is_trivial() const {
 }
 
 std::unordered_map<const TypeVar*, const Type*> TypeApp::replace_map(
-    const ast::TypeParamList& type_params,
+    ArrayRef<const TypeVar*> type_params,
     const ArrayRef<const Type*>& type_args)
 {
-    assert(false && "TODO");
-    // std::unordered_map<const TypeVar*, const Type*> map;
-    // assert(type_params.params.size() == type_args.size());
-    // for (size_t i = 0, n = type_args.size(); i < n; ++i) {
-    //     assert(type_params.params[i]->type);
-    //     map.emplace(type_params.params[i]->type->as<TypeVar>(), type_args[i]);
-    // }
-    // return map;
+    std::unordered_map<const TypeVar*, const Type*> map;
+    assert(type_params.size() == type_args.size());
+    for (size_t i = 0, n = type_args.size(); i < n; ++i) {
+        map.emplace(type_params[i], type_args[i]);
+    }
+    return map;
 }
 
 // Helpers -------------------------------------------------------------------------

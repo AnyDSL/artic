@@ -31,13 +31,12 @@ public:
     const TopType*           top_type();
     const NoRetType*         no_ret_type();
     const TypeError*         type_error();
-    const TypeVar*           type_var(const ast::TypeParam&);
-    const ForallType*        forall_type(const ast::FnDecl&);
-    const ForallType*        forall_type(const ast::ImplicitDecl&);
-    const StructType*        struct_type(const ast::RecordDecl&);
-    const EnumType*          enum_type(const ast::EnumDecl&);
-    const ModType*           mod_type(const ast::ModDecl&);
-    const TypeAlias*         type_alias(const ast::TypeDecl&);
+    const TypeVar*           type_var(const ast::TypeParam*);
+    const ForallType*        forall_type(ArrayRef<const TypeVar*>, const ast::FnDecl&);
+    const ForallType*        forall_type(ArrayRef<const TypeVar*>, const ast::ImplicitDecl&);
+    const StructType*        struct_type(ArrayRef<const TypeVar*>, const ast::RecordDecl*);
+    const EnumType*          enum_type(ArrayRef<const TypeVar*>, const ast::EnumDecl&);
+    const TypeAlias*         type_alias(ArrayRef<const TypeVar*>, const ast::TypeDecl&);
 
     /// Creates a type application for structures/enumeration types,
     /// or returns the type alias expanded with the given type arguments.

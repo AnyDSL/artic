@@ -23,6 +23,15 @@ struct Rewriter {
         return rewritten;
     }
 
+    template<typename T, typename S = tir::Node>
+    const Array<const S*> instantiate(ArrayRef<const T*> old, bool owned) {
+        Array<const S*> result(old.size());
+        for (size_t i = 0; i < old.size(); i++) {
+            result[i] = instantiate(old[i], owned)->template as<S>();
+        }
+        return result;
+    }
+
     void insert(const Node* old, const Node* new_) {
         map.emplace(old, new_);
     }

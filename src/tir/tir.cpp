@@ -71,42 +71,38 @@ const TypeError* Arena::type_error() {
     return type_error_ ? type_error_ : type_error_ = insert<TypeError>();
 }
 
-const TypeVar* Arena::type_var(const ast::TypeParam& param) {
+const TypeVar* Arena::type_var(const ast::TypeParam* param) {
     return insert<TypeVar>(param);
 }
 
-const ForallType* Arena::forall_type(const ast::FnDecl& decl) {
-    return insert<ForallType>(decl, *decl.type_params);
+const ForallType* Arena::forall_type(ArrayRef<const TypeVar*> type_params, const ast::FnDecl& decl) {
+    return insert<ForallType>(type_params, decl);
 }
 
-const ForallType* Arena::forall_type(const ast::ImplicitDecl& decl) {
-    return insert<ForallType>(decl, *decl.type_params);
+const ForallType* Arena::forall_type(ArrayRef<const TypeVar*> type_params, const ast::ImplicitDecl& decl) {
+    return insert<ForallType>(type_params, decl);
 }
 
-const StructType* Arena::struct_type(const ast::RecordDecl& decl) {
-    return insert<StructType>(decl);
+const StructType* Arena::struct_type(ArrayRef<const TypeVar*> type_params, const ast::RecordDecl* decl) {
+    return insert<StructType>(type_params, decl);
 }
 
-const EnumType* Arena::enum_type(const ast::EnumDecl& decl) {
-    return insert<EnumType>(decl);
+const EnumType* Arena::enum_type(ArrayRef<const TypeVar*> type_params, const ast::EnumDecl& decl) {
+    return insert<EnumType>(type_params, decl);
 }
 
-const ModType* Arena::mod_type(const ast::ModDecl& decl) {
-    return insert<ModType>(decl);
-}
-
-const TypeAlias* Arena::type_alias(const ast::TypeDecl& decl) {
-    return insert<TypeAlias>(decl);
+const TypeAlias* Arena::type_alias(ArrayRef<const TypeVar*> type_params, const ast::TypeDecl& decl) {
+    return insert<TypeAlias>(type_params, decl);
 }
 
 const Type* Arena::type_app(const UserType* applied, const ArrayRef<const Type*>& type_args) {
-    assert(false);
+    // assert(false);
     // if (auto type_alias = applied->isa<TypeAlias>()) {
     //     assert(type_alias->type_params() && type_alias->decl.aliased_type->type);
     //     auto map = TypeApp::replace_map(*type_alias->type_params(), type_args);
     //     return type_alias->decl.aliased_type->type->replace(map);
     // }
-    // return insert<TypeApp>(applied, std::move(type_args));
+    return insert<TypeApp>(applied, std::move(type_args));
 }
 
 const Module* Arena::module(ast::Identifier id, const Module* super) {

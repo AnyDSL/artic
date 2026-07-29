@@ -422,7 +422,7 @@ protected:
 };
 
 /// Type variable, introduced by a polymorphic structure/enum/function declaration.
-struct TypeVar : public NodeFromDecl<Type, ast::TypeParam> {
+struct TypeVar : public NominalNode<Type> {
     void print(Printer&) const override;
 
     const TypeVar* rewrite(Rewriter&) const override;
@@ -434,9 +434,10 @@ struct TypeVar : public NodeFromDecl<Type, ast::TypeParam> {
     void variance(TypeVarMap<TypeVariance>&, bool) const override;
     void bounds(TypeVarMap<TypeBounds>&, const Type*, bool) const override;
 
+    const ast::TypeParam* decl;
 private:
-    TypeVar(Arena& arena, const ast::TypeParam& param)
-        : NodeFromDecl(arena, param)
+    TypeVar(Arena& arena, const ast::TypeParam* param)
+        : NominalNode(arena), decl(param)
     {}
 
     friend class Arena;
@@ -448,7 +449,7 @@ struct PolyType : public Type {
         : Type(arena)
     {}
 
-    virtual const ast::TypeParamList* type_params() const { return nullptr; }
+    virtual ArrayRef<const TypeVar*> type_params() const = 0;
 
     /// Returns a map from the type parameters of this polymorphic type to the provided arguments.
     ReplaceMap replace_map(const ArrayRef<const Type*>&) const;
@@ -457,15 +458,15 @@ struct PolyType : public Type {
 /// Helper mixin to extract the type parameter list from a particular `Decl`.
 template <typename Super, typename Decl>
 struct PolyTypeFromDecl : public NodeFromDecl<Super, Decl> {
-    const ast::TypeParamList* type_params() const override { return &type_params_; }
+    ArrayRef<const TypeVar*> type_params() const override { return type_params_; }
 
 protected:
-    PolyTypeFromDecl(Arena& arena, const Decl& decl, const ast::TypeParamList& type_params)
+    PolyTypeFromDecl(Arena& arena, const Decl& decl, const ArrayRef<const TypeVar*>& type_params)
         : NodeFromDecl<Super, Decl>(arena, decl), type_params_(type_params)
     {}
 
 private:
-    const ast::TypeParamList& type_params_;
+    Array<const TypeVar*> type_params_;
 };
 
 /// Type of a polymorphic function or value.
@@ -480,7 +481,7 @@ struct ForallType : public PolyTypeFromDecl<PolyType, ast::Decl> {
     void print(Printer&) const override;
 
 private:
-    ForallType(Arena& arena, const ast::Decl& decl, const ast::TypeParamList& type_params)
+    ForallType(Arena& arena, ArrayRef<const TypeVar*> type_params, const ast::Decl& decl)
         : PolyTypeFromDecl(arena, decl, type_params)
     {}
 
@@ -492,12 +493,6 @@ struct UserType : public PolyType {
     UserType(Arena& arena)
         : PolyType(arena)
     {}
-
-    virtual const thorin::Type* convert(Emitter&, const Type*) const;
-
-    const thorin::Type* convert(Emitter& emitter) const override {
-        return convert(emitter, this);
-    }
 };
 
 /// Base class for complex, user-declared types.
@@ -517,13 +512,13 @@ struct ComplexType : public UserType {
     bool is_sized(std::unordered_set<const Type*>&) const override;
 };
 
-struct StructType : public NodeFromDecl<ComplexType, ast::RecordDecl> {
-    const ast::TypeParamList* type_params() const override;
+struct StructType : public NominalNode<ComplexType> {
+    ArrayRef<const TypeVar*> type_params() const override { return type_params_; }
 
     void print(Printer&) const override;
 
     using UserType::convert;
-    const thorin::Type* convert(Emitter&, const Type*) const override;
+    const thorin::Type* convert(Emitter&) const override;
     std::string stringify(Emitter&) const override;
     const StructType* rewrite(Rewriter&) const override;
 
@@ -533,10 +528,15 @@ struct StructType : public NodeFromDecl<ComplexType, ast::RecordDecl> {
 
     bool is_tuple_like() const;
 
+    const ast::RecordDecl* decl;
+    mutable std::vector<const Type*> members;
 private:
-    StructType(Arena& arena, const ast::RecordDecl& decl)
-        : NodeFromDecl(arena, decl)
+    StructType(Arena& arena, ArrayRef<const TypeVar*> type_params, const ast::RecordDecl* decl)
+        : NominalNode(arena), decl(decl), type_params_(type_params)
     {}
+
+    mutable std::vector<std::string> names;
+    Array<const TypeVar*> type_params_;
 
     friend class Arena;
 };
@@ -545,7 +545,7 @@ struct EnumType : public PolyTypeFromDecl<ComplexType, ast::EnumDecl> {
     void print(Printer&) const override;
 
     using UserType::convert;
-    const thorin::Type* convert(Emitter&, const Type*) const override;
+    const thorin::Type* convert(Emitter&) const override;
     std::string stringify(Emitter&) const override;
     const EnumType* rewrite(Rewriter&) const override;
 
@@ -558,40 +558,9 @@ struct EnumType : public PolyTypeFromDecl<ComplexType, ast::EnumDecl> {
     bool is_trivial() const;
 
 private:
-    EnumType(Arena& arena, const ast::EnumDecl& decl)
-        : PolyTypeFromDecl(arena, decl, *decl.type_params)
+    EnumType(Arena& arena, ArrayRef<const TypeVar*> type_params, const ast::EnumDecl& decl)
+        : PolyTypeFromDecl(arena, decl, type_params)
     {}
-
-    friend class Arena;
-};
-
-struct ModType : public NodeFromDecl<ComplexType, ast::ModDecl> {
-    void print(Printer&) const override;
-    const ModType* rewrite(Rewriter&) const override;
-
-    std::string_view member_name(size_t) const override;
-    const Type* member_type(size_t) const override;
-    size_t member_count() const override;
-
-    ast::NamedDecl& member(size_t) const;
-
-private:
-    struct Member {
-        std::string name;
-        ast::NamedDecl& decl;
-
-        Member(const std::string& name, ast::NamedDecl& decl)
-            : name(name), decl(decl)
-        {}
-    };
-    using Members = std::vector<Member>;
-    mutable std::unique_ptr<Members> members_;
-
-    ModType(Arena& arena, const ast::ModDecl& decl)
-        : NodeFromDecl(arena, decl)
-    {}
-
-    const Members& members() const;
 
     friend class Arena;
 };
@@ -602,8 +571,8 @@ struct TypeAlias : public PolyTypeFromDecl<UserType, ast::TypeDecl> {
     const TypeAlias* rewrite(Rewriter&) const override;
 
 private:
-    TypeAlias(Arena& arena, const ast::TypeDecl& decl)
-        : PolyTypeFromDecl(arena, decl, *decl.type_params)
+    TypeAlias(Arena& arena, const ArrayRef<const TypeVar*>& type_params, const ast::TypeDecl& decl)
+        : PolyTypeFromDecl(arena, decl, type_params)
     {}
 
     friend class Arena;
@@ -616,8 +585,7 @@ struct TypeApp : public Type {
 
     /// Gets the replacement map required to expand this type application.
     ReplaceMap replace_map() const {
-        assert(applied->type_params());
-        return replace_map(*applied->type_params(), type_args);
+        return replace_map(applied->type_params(), type_args);
     }
 
     /// Returns the type of the given member of the applied type, if it is a complex type.
@@ -627,7 +595,7 @@ struct TypeApp : public Type {
     bool equals(const Node*) const override;
     size_t hash() const override;
     bool contains(const Type*) const override;
-    const TypeApp* rewrite(Rewriter&) const override;
+    const Type* rewrite(Rewriter&) const override;
 
     const Type* replace(const ReplaceMap&) const override;
 
@@ -640,7 +608,7 @@ struct TypeApp : public Type {
     bool is_sized(std::unordered_set<const Type*>&) const override;
 
     static ReplaceMap replace_map(
-        const ast::TypeParamList& type_params,
+        ArrayRef<const TypeVar*> type_params,
         const ArrayRef<const Type*>& type_args);
 
 private:

@@ -69,6 +69,8 @@ public:
     const tir::Value* infer(const Loc&, const Literal&);
     const tir::Node* check(const Loc&, const Literal&, const Type*);
 
+    Array<const TypeVar*> infer(ast::TypeParamList*);
+
     const Value* let_bind(const Value*, std::vector<const Value*>&);
     const Value* let_bind(const Value*);
 

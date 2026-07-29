@@ -128,7 +128,7 @@ Agg::Agg(Arena& arena, const Type* agg_type, const ArrayRef<const Value*>& args)
             assert(args[i]->type() == array_t->elem);
         }
     } else if (auto [_, struct_t] = match_app<StructType>(agg_type); struct_t) {
-        assert(struct_t->decl.fields.size() == args.size());
+        assert(struct_t->member_count() == args.size());
         for (size_t i = 0; i < args.size(); i++) {
             assert(args[i]->type() == member_type(agg_type, i));
         }

@@ -184,9 +184,9 @@ const Type* TypeChecker::type_expected(const Loc& loc, const artic::Type* type, 
 }
 
 const Type* TypeChecker::unknown_member(const Loc& loc, const UserType* user_type, const std::string_view& member) {
-    if (auto mod_type = user_type->isa<ModType>(); mod_type && mod_type->decl.id.name == "")
-        error(loc, "no member '{}' in top-level module", member);
-    else
+    //if (auto mod_type = user_type->isa<ModType>(); mod_type && mod_type->decl.id.name == "")
+    //    error(loc, "no member '{}' in top-level module", member);
+    //else
         error(loc, "no member '{}' in '{}'", member, *user_type);
     return type_table.type_error();
 }
@@ -506,6 +506,16 @@ const tir::Node* TypeChecker::check(const Loc& loc, const Literal& lit, const Ty
     }
 }
 
+Array<const TypeVar*> TypeChecker::infer(ast::TypeParamList* list) {
+    if (!list)
+        return {};
+    Array<const TypeVar*> vars(list->params.size());
+    for (size_t i = 0; i < list->params.size(); ++i) {
+        vars[i] = infer(*list->params[i])->as<TypeVar>();
+    }
+    return vars;
+}
+
 static inline const artic::Type* member_type(
     const artic::TypeApp* type_app,
     const artic::ComplexType* complex_type,
@@ -520,7 +530,7 @@ void TypeChecker::check_fields(
     const Fields& fields, const std::string_view& msg,
     bool has_etc, bool accept_defaults)
 {
-    std::vector<bool> seen(struct_type->decl.fields.size(), false);
+    std::vector<bool> seen(struct_type->member_count(), false);
     for (size_t i = 0, n = fields.size(); i < n; ++i) {
         // Skip the field if it is '...'
         if (fields[i]->is_etc()) {
@@ -539,8 +549,8 @@ void TypeChecker::check_fields(
     // Check that all fields have been specified, unless '...' was used
     if (!has_etc && !std::all_of(seen.begin(), seen.end(), [] (bool b) { return b; })) {
         for (size_t i = 0, n = seen.size(); i < n; ++i) {
-            if (!seen[i] && (!accept_defaults || !struct_type->decl.fields[i]->init))
-                error(loc, "missing field '{}' in structure {}", struct_type->decl.fields[i]->id.name, msg);
+            if (!seen[i] && (!accept_defaults || !struct_type->decl || !struct_type->decl->fields[i]->init))
+                error(loc, "missing field '{}' in structure {}", struct_type->decl->fields[i]->id.name, msg);
         }
     }
 }
@@ -838,7 +848,7 @@ bool TypeChecker::try_infer_implicit_type_args(
 
 const Type* TypeChecker::infer_record_type(const TypeApp* type_app, const StructType* struct_type, size_t& index) {
     // If the structure type comes from an option, return the corresponding enumeration type
-    if (auto option_decl = struct_type->decl.isa<ast::OptionDecl>()) {
+    if (struct_type->decl) if (auto option_decl = struct_type->decl->isa<ast::OptionDecl>()) {
         auto enum_type = infer(*option_decl->parent)->as<artic::EnumType>();
         index = std::find_if(
             option_decl->parent->options.begin(),
@@ -982,10 +992,10 @@ const tir::Node* Path::infer(TypeChecker& checker, Ptr<Expr>* arg, const artic::
         // Apply type arguments (if any)
         auto user_type   = elem.tir->isa<artic::UserType>();
         auto forall_type = elem.tir->isa<artic::ForallType>();
-        if ((user_type && user_type->type_params()) || forall_type) {
+        if ((user_type && !user_type->type_params().empty()) || forall_type) {
             const size_t type_param_count = user_type
-                ? user_type->type_params()->params.size()
-                : forall_type->type_params()->params.size();
+                ? user_type->type_params().size()
+                : forall_type->type_params().size();
             if (type_param_count == elem.args.size() ||
                 (forall_type && arg && type_param_count > elem.args.size())) {
                 std::vector<const artic::Type*> type_args(type_param_count);
@@ -1258,20 +1268,19 @@ const tir::Node* RecordExpr::infer(TypeChecker& checker) {
     auto record_type = expr ? checker.deref(expr)->type() : checker.infer_type(*this->type);
     auto [type_app, struct_type] = match_app<artic::StructType>(record_type);
     if (!struct_type ||
-        (struct_type->decl.isa<StructDecl>() &&
-         struct_type->decl.as<StructDecl>()->is_tuple_like))
+        struct_type->is_tuple_like())
         return checker.type_expected(expr ? expr->loc : this->loc, record_type, "record-like structure");
     checker.check_fields(loc, struct_type, type_app, fields, "expression", static_cast<bool>(expr), true);
     auto type = checker.infer_record_type(type_app, struct_type, variant_index);
     assert(!expr && "TODO: insert");
-    Array<const Value*> ops(struct_type->decl.fields.size());
+    Array<const Value*> ops(struct_type->member_count());
     for (auto& field : fields) {
         assert(field->tir);
         ops[field->index] = field->tir->as<Value>();
     }
     for (size_t i = 0, n = ops.size(); i < n; ++i) {
-        if (!ops[i])
-            ops[i] = struct_type->decl.fields[i]->init->tir->as<Value>();
+        if (!ops[i]) // check_fields already validated this is safe.
+            ops[i] = struct_type->decl->fields[i]->init->tir->as<Value>();
     }
     auto agg = checker.type_table.agg(record_type, ops);
     if (type != record_type) {
@@ -1983,7 +1992,7 @@ const tir::Node* AsmExpr::infer(TypeChecker& checker) {
 // Declarations --------------------------------------------------------------------
 
 const tir::Node* TypeParam::infer(TypeChecker& checker) {
-    return checker.type_table.type_var(*this);
+    return checker.type_table.type_var(this);
 }
 
 const tir::Node* PtrnDecl::check(TypeChecker& checker, const artic::Type* expected) {
@@ -2140,15 +2149,12 @@ const tir::Node* FieldDecl::infer(TypeChecker& checker) {
 }
 
 const tir::Node* StructDecl::infer(TypeChecker& checker) {
-    auto struct_type = checker.type_table.struct_type(*this);
-    if (type_params) {
-        for (auto& param : type_params->params)
-            checker.infer(*param);
-    }
+    auto struct_type = checker.type_table.struct_type(checker.infer(type_params ? &*type_params : nullptr), this);
     // Set the type before entering the fields
     tir = struct_type;
+    checker.current_scope().add_decl(*this);
     for (auto& field : fields)
-        checker.infer(*field);
+        struct_type->members.push_back(checker.infer_type(*field));
     return struct_type;
 }
 
@@ -2158,7 +2164,10 @@ const tir::Node* OptionDecl::infer(TypeChecker& checker) {
     else if (has_fields) {
         for (auto& field : fields)
             checker.infer(*field);
-        return struct_type = checker.type_table.struct_type(*this);;
+        struct_type = checker.type_table.struct_type({}, this);
+        for (auto& field : fields)
+            struct_type->members.push_back(checker.infer_type(*field));
+        return struct_type;
     } else {
         return checker.type_table.unit_type();
     }

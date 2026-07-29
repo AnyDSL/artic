@@ -53,7 +53,6 @@ struct Node : public Cast<Node> {
 };
 
 struct Type;
-struct ModType;
 struct Value;
 
 template<typename Super>

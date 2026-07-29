@@ -75,7 +75,7 @@ void PrimType::print(Printer& p) const {
 void TupleType::print(Printer& p) const {
     p << '(';
     print_list(p.top(), ", ", args, [&] (auto& a) {
-        p.print(*a, true);
+        p.print(*a);
     });
     p << ')';
 }
@@ -84,13 +84,13 @@ void SizedArrayType::print(Printer& p) const {
     if (is_simd)
         p << log::keyword_style("simd");
     p << '[';
-    p.print(*elem, true);
+    p.print(*elem);
     p << " * " << size << ']';
 }
 
 void UnsizedArrayType::print(Printer& p) const {
     p << '[';
-    p.print(*elem, true);
+    p.print(*elem);
     p << ']';
 }
 
@@ -102,7 +102,7 @@ void PtrType::print(Printer& p) const {
         p << log::keyword_style("addrspace") << '(' << addr_space << ')';
     if (pointee->isa<PtrType>())
         p << '(';
-    p.print(*pointee, true);
+    p.print(*pointee);
     if (pointee->isa<PtrType>())
         p << ')';
 }
@@ -111,21 +111,21 @@ void RefType::print(Printer& p) const {
     if (is_mut)
         p << "mutable ";
     p << "reference to ";
-    p.print(*pointee, true);
+    p.print(*pointee);
 }
 
 void ImplicitParamType::print(Printer& p) const {
     p << "implicit ";
-    p.print(*underlying, true);
+    p.print(*underlying);
 }
 
 void FnType::print(Printer& p) const {
     p << log::keyword_style("fn") << ' ';
     if (!dom->isa<TupleType>()) p << '(';
-    p.print(*dom, true);
+    p.print(*dom);
     if (!dom->isa<TupleType>()) p << ')';
     p << " -> ";
-    p.print(*codom, true);
+    p.print(*codom);
 }
 
 void BottomType::print(Printer& p) const {
@@ -145,26 +145,43 @@ void TypeError::print(Printer& p) const {
 }
 
 void TypeVar::print(Printer& p) const {
-    p << decl.id.name;
+    if (decl)
+        p << decl->id.name;
+}
+
+void Printer::print_type_params(ArrayRef<const TypeVar*> vars) {
+    if (vars.empty())
+        return;
+    *this << '[';
+    print_list(top(), ", ", vars, [&] (auto& a) {
+        *this << a->decl->id.name;
+        insert(*a, a->decl->id.name);
+    });
+    *this << ']';
 }
 
 void ForallType::print(Printer& p) const {
-    assert(type_params());
+    assert(!type_params().empty());
     p << log::keyword_style("forall");
-    type_params()->print(p.top());
+    p.print_type_params(type_params());
     p << ' ';
     p.print(*body);
 }
 
 void StructType::print(Printer& p) const {
-    p << decl.id.name;
+    p << log::keyword_style("struct");
+    p.print_type_params(type_params());
+    p << " {" << p.indent() << p.endl();
+    for (size_t i = 0; i < member_count(); i++) {
+        p << member_name(i) << ": ";
+        p.print(*member_type(i));
+        if (i + 1 < member_count())
+            p << p.endl();
+    }
+    p << p.unindent() << p.endl() << "}";
 }
 
 void EnumType::print(Printer& p) const {
-    p << decl.id.name;
-}
-
-void ModType::print(Printer& p) const {
     p << decl.id.name;
 }
 
@@ -173,7 +190,7 @@ void TypeAlias::print(Printer& p) const {
 }
 
 void TypeApp::print(Printer& p) const {
-    applied->print(p);
+    p.print(*applied);
     p << '[';
     print_list(p.top(), ", ", type_args, [&] (auto& a) {
         p.print(*a);
@@ -186,15 +203,14 @@ void TypeApp::print(Printer& p) const {
 // }
 
 void Module::print(Printer& p) const {
-    //bool anon = id.name == "";
-    //if (!anon)
     p << log::keyword_style("module") << " {" << p.indent() << p.endl();
+    for (auto& decl : decls) {
+        p.insert(*decl.ir, decl.id.name);
+    }
     print_list(p.top(), p.endl(), decls, [&] (auto& decl) {
         p << log::literal_style(decl.id.name) << " = ";
-        p.insert(*decl.ir, decl.id.name);
         p.print(*decl.ir, true);
     });
-    // if (!anon)
     p << p.unindent() << p.endl() << "}";
 }
 

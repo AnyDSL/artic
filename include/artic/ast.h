@@ -23,6 +23,7 @@ namespace artic {
 namespace tir {
     struct Node;
     struct Type;
+    struct StructType;
 }
 
 //struct Type;
@@ -1381,7 +1382,7 @@ struct OptionDecl : public RecordDecl {
 
     // Set during type-checking for options that have braces
     // Note: can be a type application of a structure type
-    const tir::Type* struct_type = nullptr;
+    const tir::StructType* struct_type = nullptr;
 
     // Set at name-binding time, points to the parent enumeration
     EnumDecl* parent = nullptr;
