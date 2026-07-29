@@ -103,7 +103,7 @@ public:
     bool try_infer_type_args(const Loc&, const ForallType*, TypeVarMap<TypeBounds>& bounds, TypeVarMap<TypeVariance>& variance, std::vector<const Type*>&, bool);
     bool infer_fn_type_args(const Loc&, const ForallType*, const Type*, const Type*, std::vector<const Type*>&);
     bool try_infer_implicit_type_args(const Loc&, const ForallType*, const Type*, std::vector<const Type*>&);
-    const Type* infer_record_type(const TypeApp*, const StructType*, size_t&);
+    const Type* infer_record_type(const TypeApp*, const StructType*, std::optional<size_t>&);
 
     size_t path_to_size(ast::Path& path, const std::string_view&);
 

@@ -37,6 +37,7 @@ public:
     const StructType*        struct_type(ArrayRef<const TypeVar*>, const ast::RecordDecl*);
     const EnumType*          enum_type(ArrayRef<const TypeVar*>, const ast::EnumDecl&);
     const TypeAlias*         type_alias(ArrayRef<const TypeVar*>, const ast::TypeDecl&);
+    const Type*              as_type(const ModVar*);
 
     /// Creates a type application for structures/enumeration types,
     /// or returns the type alias expanded with the given type arguments.
@@ -59,13 +60,13 @@ public:
     const Param* param(std::optional<ast::Identifier>, const Type*);
     const Value* app(const Value* callee, const Value* arg);
 
-    const Value* agg(const Type*, const ArrayRef<const Value*>&);
-    const Value* tuple(const ArrayRef<const Value*>&);
+    const Value* agg(Scope&, const Type*, const ArrayRef<const Value*>&);
+    const Value* tuple(Scope&, const ArrayRef<const Value*>&);
     const Value* extract(const Value*, const Value*);
     const Value* proj(const Value*, const Value*);
 
     const Value* bind(const Param*, const Value*);
-    const Value* seq(const ArrayRef<const Value*>&);
+    const Value* seq(Scope&, const ArrayRef<const Value*>&);
     //const Value* tie(const Value*);
 
     const Value* unop(ast::UnaryExpr::Tag, const Value*);

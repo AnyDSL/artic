@@ -214,7 +214,8 @@ struct Path : public Node {
     const tir::Node* infer(TypeChecker&, Ptr<Expr>*, const tir::Type*);
     const tir::Node* infer(TypeChecker&, bool, Ptr<Expr>* = nullptr, const tir::Type* = nullptr);
     const tir::Node* infer(TypeChecker& checker) override {
-        return infer(checker, nullptr, nullptr);
+        assert(false);
+        //return infer(checker, nullptr, nullptr);
     }
     
     void bind(NameBinder&) override;
@@ -595,7 +596,7 @@ struct RecordExpr : public Expr {
     PtrVector<FieldExpr> fields;
 
     // Set during type-checking if the record is an enumeration variant
-    size_t variant_index = 0;
+    std::optional<size_t> variant_index = std::nullopt;
 
     /// Constructor for the record constructor form: `S { x = 1, y = 2 }`.
     RecordExpr(

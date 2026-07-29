@@ -31,6 +31,7 @@ struct Param : public NominalNode<Value> {
     const Node* rewrite(Rewriter&) const override;
 
     bool is_computation() const override { return false; }
+    bool is_simple() const override { return true; }
 
     const thorin::Def* emit(Emitter&) const override;
 };
@@ -135,6 +136,7 @@ struct TypedLiteral : public Value {
 
     const thorin::Def* emit(Emitter&) const override;
     bool is_computation() const override { return false; }
+    bool is_simple() const override { return true; };
 
     TypedLiteral(Arena&, Literal, const Type*);
 };
@@ -148,6 +150,7 @@ struct Undef : public Value {
 
     const thorin::Def* emit(Emitter&) const override;
     bool is_computation() const override { return false; }
+    bool is_simple() const override { return true; };
 
     Undef(Arena&, const Type*);
 };
@@ -165,7 +168,7 @@ struct Agg : public Value {
     bool is_computation() const override { return false; }
     const thorin::Def* emit(Emitter&) const override;
 
-    Agg(Arena&, const Type*, const ArrayRef<const Value*>&);
+    Agg(Arena&, Scope&, const Type*, const ArrayRef<const Value*>&);
 };
 
 struct Extract : public Value {
@@ -233,6 +236,7 @@ struct ModVarAsValue : public NominalNode<Value> {
 
     const thorin::Def* emit(Emitter&) const override;
     bool is_computation() const override { return false; }
+    bool is_simple() const override { return true; }
 
     ModVarAsValue(Arena&, Scope&, const ModVar*);
 };

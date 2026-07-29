@@ -547,6 +547,7 @@ const Type* ForallType::instantiate(const ArrayRef<const Type*>& args) const {
 }
 
 bool StructType::is_tuple_like() const {
+    return false; // TODO
     //return decl.isa<ast::StructDecl>() && decl.as<ast::StructDecl>()->is_tuple_like;
 }
 
@@ -619,6 +620,15 @@ bool is_simd_type(const Type* type) {
 
 bool is_unit_type(const Type* type) {
     return type->isa<TupleType>() && type->as<TupleType>()->args.empty();
+}
+
+const Type* Scope::peek_type_definition(const Type* type) {
+    if (auto var_as_type = type->isa<ModVarAsType>()) {
+        auto resolved = resolve_mod_var(var_as_type->var);
+        if (resolved)
+            return peek_type_definition(resolved->as<Type>());
+    }
+    return type;
 }
 
 } // namespace tir

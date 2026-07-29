@@ -19,7 +19,7 @@ void Printer::insert(const Node& node, std::string str) {
 }
 
 void Printer::print(const Node& node, bool print_inline) {
-    if (print_inline) {
+    if (print_inline || node.is_simple()) {
         node.print(*this);
         return;
     }
@@ -187,6 +187,10 @@ void EnumType::print(Printer& p) const {
 
 void TypeAlias::print(Printer& p) const {
     p << decl.id.name;
+}
+
+void ModVarAsType::print(Printer& p) const {
+    p.print(*var);
 }
 
 void TypeApp::print(Printer& p) const {
@@ -364,7 +368,7 @@ void Bind::print(Printer& p) const {
 void Seq::print(Printer& p) const {
     p << log::keyword_style("seq") << " {" << p.indent() << p.endl();
     for (size_t i = 0; i < values.size(); i++) {
-        p.print(*values[i], values[i]->is_computation());
+        p.print(*values[i], !values[i]->is_simple());
         if (i != values.size() - 1)
             p << ';' << p.endl();
     }

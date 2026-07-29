@@ -18,8 +18,8 @@ Fn::Fn(Arena& arena, const Param* param, const Type* codom) : NominalNode(arena,
 Param::Param(Arena& arena, std::optional<ast::Identifier> id, const Type* type) : NominalNode(arena, type), id(id) {}
 
 App::App(Arena& arena, const Value* callee, const Value* arg) : Value(arena, callee->type()->as<FnType>()->codom), callee(callee), arg(arg) {
-    assert(!callee->is_computation());
-    assert(!arg->is_computation());
+    assert(callee->is_simple());
+    assert(arg->is_simple());
 }
 
 size_t App::hash() const {
@@ -33,7 +33,7 @@ bool App::equals(const Node* other) const {
 }
 
 ImplicitCast::ImplicitCast(Arena& arena, const Value* src, const Type* dst) : Value(arena, dst), src(src), dst(dst) {
-    assert(!src->is_computation());
+    assert(src->is_simple());
 }
 
 size_t ImplicitCast::hash() const {
@@ -47,7 +47,7 @@ bool ImplicitCast::equals(const Node* other) const {
 }
 
 Cast::Cast(Arena& arena, const Value* src, const Type* dst) : Value(arena, dst), src(src), dst(dst) {
-    assert(!src->is_computation());
+    assert(src->is_simple());
 }
 
 size_t Cast::hash() const {
@@ -115,10 +115,11 @@ bool Undef::equals(const Node* other) const {
 
 ModVarAsValue::ModVarAsValue(Arena& arena, Scope& scope, const ModVar* var) : NominalNode(arena, scope.resolve_mod_var(var)->as<Value>()->type()), var(var) {}
 
-Agg::Agg(Arena& arena, const Type* agg_type, const ArrayRef<const Value*>& args) : Value(arena, agg_type), args(args) {
+Agg::Agg(Arena& arena, Scope& s, const Type* agg_type, const ArrayRef<const Value*>& args) : Value(arena, agg_type), args(args) {
     for (auto arg : args) {
-        assert(!arg->is_computation());
+        assert(arg->is_simple());
     }
+    auto peeked_agg_type = s.peek_type_definition(agg_type);
     if (auto tuple_t = agg_type->isa<TupleType>()) {
         assert(tuple_t->args.size() == args.size());
         for (size_t i = 0; i < tuple_t->args.size(); i++) {
@@ -129,10 +130,10 @@ Agg::Agg(Arena& arena, const Type* agg_type, const ArrayRef<const Value*>& args)
         for (size_t i = 0; i < args.size(); i++) {
             assert(args[i]->type() == array_t->elem);
         }
-    } else if (auto [_, struct_t] = match_app<StructType>(agg_type); struct_t) {
+    } else if (auto [_, struct_t] = match_app<StructType>(peeked_agg_type); struct_t) {
         assert(struct_t->member_count() == args.size());
         for (size_t i = 0; i < args.size(); i++) {
-            assert(args[i]->type() == member_type(agg_type, i));
+            assert(args[i]->type() == member_type(peeked_agg_type, i));
         }
     } else {
         assert(false);
@@ -180,8 +181,8 @@ Extract::Extract(Arena& arena, const Value* src, const Value* idx) : Value(arena
     }
     return arena.type_error();
 }()), src(src), idx(idx) {
-    assert(!src->is_computation());
-    assert(!idx->is_computation());
+    assert(src->is_simple());
+    assert(idx->is_simple());
 }
 
 size_t Extract::hash() const {
@@ -238,8 +239,8 @@ Proj::Proj(Arena& arena, const Value* src, const Value* idx) : Value(arena, [&](
     }
     return arena.type_error();
 }()), src(src), idx(idx) {
-    assert(!src->is_computation());
-    assert(!idx->is_computation());
+    assert(src->is_simple());
+    assert(idx->is_simple());
 }
 
 size_t Proj::hash() const {
@@ -318,7 +319,7 @@ UnOp::UnOp(Arena& arena, const UnaryExpr::Tag tag, const Value* arg) : Value(are
     }
     return arg_type;
 }()), tag(tag), arg(arg) {
-    assert(!arg->is_computation());
+    assert(arg->is_simple());
 }
 
 size_t UnOp::hash() const {
@@ -343,8 +344,8 @@ BinOp::BinOp(Arena& arena, const BinaryExpr::Tag tag, const Value* lhs, const Va
         return arena.type_error();
     return lhs->type();
 }()), tag(tag), lhs(lhs), rhs(rhs) {
-    assert(!lhs->is_computation());
-    assert(!rhs->is_computation());
+    assert(lhs->is_simple());
+    assert(rhs->is_simple());
 }
 
 size_t BinOp::hash() const {
@@ -372,7 +373,7 @@ Branch::Branch(Arena& arena, const Value* cond, const Fn* true_branch, const Fn*
         return arena.type_error();
     return true_branch->type()->codom;
 }()), cond(cond), true_branch(true_branch), else_branch(else_branch) {
-    assert(!cond->is_computation());
+    assert(cond->is_simple());
 }
 
 size_t Branch::hash() const {

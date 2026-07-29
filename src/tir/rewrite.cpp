@@ -77,6 +77,10 @@ const TypeVar* TypeVar::rewrite(Rewriter& r) const {
     return r.dst.type_var(decl);
 }
 
+const Node* ModVarAsType::rewrite(Rewriter&) const {
+
+}
+
 const Type* TypeApp::rewrite(Rewriter& r) const {
     return r.dst.type_app(r.instantiate(applied, false)->as<UserType>(), r.instantiate<Type, Type>(type_args, false));
 }

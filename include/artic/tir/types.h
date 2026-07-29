@@ -125,6 +125,8 @@ struct PrimType : public Type {
     size_t hash() const override;
     const PrimType* rewrite(Rewriter&) const override;
 
+    bool is_simple() const override { return true; }
+
     const thorin::Type* convert(Emitter&) const override;
     std::string stringify(Emitter&) const override;
 
@@ -632,7 +634,7 @@ struct ModVarAsType : public NominalNode<Type> {
 
     const thorin::Type* convert(Emitter&) const override;
 
-    ModVarAsType(Arena&, Scope&, const ModVar*);
+    ModVarAsType(Arena& arena, const ModVar* var) : NominalNode(arena), var(var) {}
 };
 
 bool is_int_type(const Type*);

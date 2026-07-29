@@ -95,6 +95,10 @@ const TypeAlias* Arena::type_alias(ArrayRef<const TypeVar*> type_params, const a
     return insert<TypeAlias>(type_params, decl);
 }
 
+const Type* Arena::as_type(const ModVar* var) {
+    return insert<ModVarAsType>(var);
+}
+
 const Type* Arena::type_app(const UserType* applied, const ArrayRef<const Type*>& type_args) {
     // assert(false);
     // if (auto type_alias = applied->isa<TypeAlias>()) {
@@ -162,8 +166,8 @@ const Value* Arena::app(const Value* callee, const Value* arg) {
     return insert<App>(callee, arg);
 }
 
-const Value* Arena::agg(const Type* type, const ArrayRef<const Value*>& args) {
-    return insert<Agg>(type, args);
+const Value* Arena::agg(Scope& scope, const Type* type, const ArrayRef<const Value*>& args) {
+    return insert<Agg>(scope, type, args);
 }
 
 inline static const TupleType* tuple_type_from_elems(Arena& arena, const ArrayRef<const Value*>& args) {
@@ -174,8 +178,8 @@ inline static const TupleType* tuple_type_from_elems(Arena& arena, const ArrayRe
     return arena.tuple_type(types);
 }
 
-const Value* Arena::tuple(const ArrayRef<const Value*>& args) {
-    return agg(tuple_type_from_elems(*this, args), args);
+const Value* Arena::tuple(Scope& scope, const ArrayRef<const Value*>& args) {
+    return agg(scope, tuple_type_from_elems(*this, args), args);
 }
 
 const Value* Arena::extract(const Value* src, const Value* idx) {
@@ -190,7 +194,7 @@ const Value* Arena::bind(const Param* param, const Value* value) {
     return insert<Bind>(param, value);
 }
 
-const Value* Arena::seq(const ArrayRef<const Value*>& values) {
+const Value* Arena::seq(Scope& scope, const ArrayRef<const Value*>& values) {
     std::vector<const Value*> filtered_values;
     for (size_t i = 0; i < values.size(); i++) {
         auto value = values[i];
@@ -200,7 +204,7 @@ const Value* Arena::seq(const ArrayRef<const Value*>& values) {
         filtered_values.push_back(value);
     }
     if (filtered_values.empty())
-        return tuple({});
+        return tuple(scope, {});
     if (filtered_values.size() == 1)
         return filtered_values.front();
     return insert<Seq>(filtered_values);

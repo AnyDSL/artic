@@ -48,6 +48,8 @@ struct Node : public Cast<Node> {
     virtual size_t hash() const = 0;
     virtual const Node* rewrite(Rewriter&) const = 0;
 
+    virtual bool is_simple() const { return false; }
+
     /// Prints the type on the console, for debugging.
     void dump() const;
 };
@@ -87,6 +89,7 @@ struct Scope {
         params[var] = value;
     }
 
+    const Type* peek_type_definition(const Type* type);
 private:
     std::unordered_map<const ModVar*, const Node*> mod_vars;
     std::unordered_map<const Param*, const Value*> params;
@@ -113,6 +116,7 @@ struct DeclKey : public NominalNode<Node> {
     Node* rewrite(Rewriter&) const override;
 
     NodeKind kind() const override { return NodeKind::Key; }
+    bool is_simple() const override { return true; }
 
     DeclKey(Arena& arena, std::optional<ast::Identifier> id) : NominalNode(arena), id(id) {}
 };
@@ -157,6 +161,8 @@ struct ModVar : public NominalNode<ModValue> {
 
     void print(Printer&) const override;
     const Node* rewrite(Rewriter&) const override;
+
+    bool is_simple() const override { return true; }
 
     ModVar(Arena& arena, const DeclKey* key, NodeKind kind) : NominalNode(arena, kind), key(key) {}
 };

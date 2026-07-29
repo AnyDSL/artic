@@ -1235,13 +1235,14 @@ const thorin::Def* Agg::emit(Emitter& emitter) const {
     for (size_t i = 0; i < args.size(); ++i) {
         elems[i] = emitter.emit(args[i]);
     }
-    if (type()->isa<TupleType>())
+    auto agg_type = emitter.scope->peek_type_definition(type());
+    if (agg_type->isa<TupleType>())
         return emitter.world.tuple(elems);
-    else if (auto array_t = type()->isa<SizedArrayType>()) {
+    else if (auto array_t = agg_type->isa<SizedArrayType>()) {
         return array_t->is_simd ? emitter.world.vector(elems, emitter.debug_info(this))
            : emitter.world.definite_array(elems, emitter.debug_info(this));
-    } else if (type()->isa<StructType>()) {
-        return emitter.world.struct_agg(emitter.emit(type())->as<thorin::StructType>(), elems, emitter.debug_info(this));
+    } else if (agg_type->isa<StructType>()) {
+        return emitter.world.struct_agg(emitter.emit(agg_type)->as<thorin::StructType>(), elems, emitter.debug_info(this));
     } else {
         assert(false);
     }
@@ -2423,6 +2424,10 @@ std::string TypeApp::stringify(Emitter& emitter) const {
     std::swap(emitter.type_vars, map);
     return str;*/
     assert(false);
+}
+
+const thorin::Type* ModVarAsType::convert(Emitter& emitter) const {
+    return emitter.emit(var)->as<thorin::Type>();
 }
 
 const thorin::Type* TypeApp::convert(Emitter& emitter) const {
