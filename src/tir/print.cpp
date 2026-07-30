@@ -191,6 +191,7 @@ void TypeAlias::print(Printer& p) const {
 
 void ModVarAsType::print(Printer& p) const {
     p.print(*var);
+    p << ' ' << log::keyword_style("as_type");
 }
 
 void TypeApp::print(Printer& p) const {
@@ -236,6 +237,7 @@ void Module::print(Printer& p) const {
 
 void ModVarAsValue::print(Printer& p) const {
     p.print(*var);
+    p << ' ' << log::keyword_style("as_value");
 }
 
 void GlobalVariable::print(Printer& p) const {

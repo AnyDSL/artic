@@ -8,6 +8,106 @@ namespace artic {
 
 namespace tir {
 
+// Constructors and validation -----------------------------------------------------
+
+PrimType::PrimType(Arena& arena, ast::PrimType::Tag tag)
+    : Type(arena), tag(tag)
+{}
+
+TupleType::TupleType(Arena& arena, const ArrayRef<const Type*>& args)
+    : Type(arena), args(args)
+{
+    for (auto& elem : args)
+        assert(elem->is_simple());
+}
+
+SizedArrayType::SizedArrayType(Arena& arena, const Type* elem, size_t size, bool is_simd)
+    : ArrayType(arena, elem), size(size), is_simd(is_simd)
+{
+    assert(elem->is_simple());
+}
+
+UnsizedArrayType::UnsizedArrayType(Arena& arena, const Type* elem)
+    : ArrayType(arena, elem)
+{
+    assert(elem->is_simple());
+}
+
+PtrType::PtrType(Arena& arena, const Type* pointee, bool is_mut, size_t addr_space)
+    : AddrType(arena, pointee, is_mut, addr_space)
+{
+    assert(pointee->is_simple());
+}
+
+RefType::RefType(Arena& arena, const Type* pointee, bool is_mut, size_t addr_space)
+    : AddrType(arena, pointee, is_mut, addr_space)
+{
+    assert(pointee->is_simple());
+}
+
+ImplicitParamType::ImplicitParamType(Arena& arena, const Type* underlying)
+    : Type(arena)
+    , underlying(underlying)
+{
+    assert(underlying->is_simple());
+}
+
+FnType::FnType(Arena& arena, const Type* dom, const Type* codom)
+    : Type(arena), dom(dom), codom(codom)
+{
+    assert(dom->is_simple());
+    assert(codom->is_simple());
+}
+
+BottomType::BottomType(Arena& arena)
+    : Type(arena)
+{}
+
+TopType::TopType(Arena& arena)
+    : Type(arena)
+{}
+
+NoRetType::NoRetType(Arena& arena)
+    : BottomType(arena)
+{}
+
+TypeVar::TypeVar(Arena& arena, const ast::TypeParam* param)
+    : NominalNode(arena), decl(param)
+{}
+
+StructType::StructType(Arena& arena, ArrayRef<const TypeVar*> type_params, const ast::RecordDecl* decl)
+    : NominalNode(arena), decl(decl), type_params_(type_params)
+{}
+
+void StructType::validate() const {
+    for (auto& t : members)
+        assert(t->is_simple());
+}
+
+EnumType::EnumType(Arena& arena, ArrayRef<const TypeVar*> type_params, const ast::EnumDecl& decl)
+    : PolyTypeFromDecl(arena, decl, type_params)
+{}
+
+void EnumType::validate() const {
+    assert(false && "TODO");
+}
+
+TypeAlias::TypeAlias(Arena& arena, const ArrayRef<const TypeVar*>& type_params, const ast::TypeDecl& decl)
+    : PolyTypeFromDecl(arena, decl, type_params)
+{}
+
+TypeApp::TypeApp(Arena& arena, const UserType* applied, const ArrayRef<const Type*>& type_args)
+    : Type(arena), applied(applied), type_args(std::move(type_args))
+{
+    assert(applied->is_simple());
+    for (auto& arg : type_args)
+        assert(arg->is_simple());
+}
+
+ModVarAsType::ModVarAsType(Arena& arena, const ModVar* var)
+    : Type(arena), var(var)
+{}
+
 // Type Bounds ---------------------------------------------------------------------
 
 TypeBounds& TypeBounds::meet(const Scope& scope, const TypeBounds& bounds) {

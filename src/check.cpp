@@ -2181,6 +2181,7 @@ const tir::Node* StructDecl::infer(TypeChecker& checker) {
     tir = checker.current_scope_builder().add_decl(struct_type, id);
     for (auto& field : fields)
         struct_type->members.push_back(checker.infer_type(*field));
+    struct_type->validate();
     return tir;
 }
 
@@ -2193,6 +2194,7 @@ const tir::Node* OptionDecl::infer(TypeChecker& checker) {
         struct_type = checker.builder().struct_type({}, this);
         for (auto& field : fields)
             struct_type->members.push_back(checker.infer_type(*field));
+        struct_type->validate();
         return struct_type;
     } else {
         return checker.builder().unit_type();

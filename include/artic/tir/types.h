@@ -130,15 +130,15 @@ struct PrimType : public Type {
     std::string stringify(Emitter&) const override;
 
 private:
-    PrimType(Arena& arena, ast::PrimType::Tag tag)
-        : Type(arena), tag(tag)
-    {}
+    PrimType(Arena&, ast::PrimType::Tag);
 
     friend class Arena;
 };
 
 struct TupleType : public Type {
     Array<const Type*> args;
+
+    bool is_simple() const override { return true; }
 
     void print(Printer&) const override;
     bool equals(const Node*) const override;
@@ -156,9 +156,7 @@ struct TupleType : public Type {
     bool is_sized(const Scope&, std::unordered_set<const Type*>&) const override;
 
 private:
-    TupleType(Arena& arena, const ArrayRef<const Type*>& args)
-        : Type(arena), args(args)
-    {}
+    TupleType(Arena&, const ArrayRef<const Type*>&);
 
     friend class Arena;
 };
@@ -193,9 +191,7 @@ struct SizedArrayType : public ArrayType {
     std::string stringify(Emitter&) const override;
 
 private:
-    SizedArrayType(Arena& arena, const Type* elem, size_t size, bool is_simd)
-        : ArrayType(arena, elem), size(size), is_simd(is_simd)
-    {}
+    SizedArrayType(Arena&, const Type*, size_t, bool);
 
     friend class Arena;
 };
@@ -211,9 +207,7 @@ struct UnsizedArrayType : public ArrayType {
     std::string stringify(Emitter&) const override;
 
 private:
-    UnsizedArrayType(Arena& arena, const Type* elem)
-        : ArrayType(arena, elem)
-    {}
+    UnsizedArrayType(Arena&, const Type*);
 
     friend class Arena;
 };
@@ -250,9 +244,7 @@ struct PtrType : public AddrType {
     std::string stringify(Emitter&) const override;
 
 private:
-    PtrType(Arena& arena, const Type* pointee, bool is_mut, size_t addr_space)
-        : AddrType(arena, pointee, is_mut, addr_space)
-    {}
+    PtrType(Arena&, const Type*, bool, size_t);
 
     friend class Arena;
 };
@@ -269,9 +261,7 @@ struct RefType : public AddrType {
     const RefType* rewrite(Rewriter&) const override;
 
 private:
-    RefType(Arena& arena, const Type* pointee, bool is_mut, size_t addr_space)
-        : AddrType(arena, pointee, is_mut, addr_space)
-    {}
+    RefType(Arena&, const Type*, bool, size_t);
 
     friend class Arena;
 };
@@ -299,10 +289,7 @@ struct ImplicitParamType : public Type {
     void bounds(const Scope&, TypeVarMap<TypeBounds>&, const Type*, bool) const override;
     bool is_sized(const Scope&, std::unordered_set<const Type*>&) const override;
 private:
-    ImplicitParamType(Arena& arena, const Type* underlying)
-        : Type(arena)
-        , underlying(underlying)
-    {}
+    ImplicitParamType(Arena&, const Type*);
 
     friend class Arena;
 };
@@ -327,9 +314,7 @@ struct FnType : public Type {
     bool is_sized(const Scope&, std::unordered_set<const Type*>&) const override;
 
 private:
-    FnType(Arena& arena, const Type* dom, const Type* codom)
-        : Type(arena), dom(dom), codom(codom)
-    {}
+    FnType(Arena&, const Type*, const Type*);
 
     friend class Arena;
 };
@@ -342,9 +327,7 @@ struct BottomType : public Type {
     const BottomType* rewrite(Rewriter&) const override;
 
 protected:
-    BottomType(Arena& arena)
-        : Type(arena)
-    {}
+    BottomType(Arena&);
 
     friend class Arena;
 };
@@ -357,9 +340,7 @@ struct TopType : public Type {
     const TopType* rewrite(Rewriter&) const override;
 
 protected:
-    TopType(Arena& arena)
-        : Type(arena)
-    {}
+    TopType(Arena&);
 
     friend class Arena;
 };
@@ -373,9 +354,7 @@ struct NoRetType : public BottomType {
     const NoRetType* rewrite(Rewriter&) const override;
 
 private:
-    NoRetType(Arena& arena)
-        : BottomType(arena)
-    {}
+    NoRetType(Arena&);
 
     friend class Arena;
 };
@@ -426,9 +405,7 @@ struct TypeVar : public NominalNode<Type> {
 
     const ast::TypeParam* decl;
 private:
-    TypeVar(Arena& arena, const ast::TypeParam* param)
-        : NominalNode(arena), decl(param)
-    {}
+    TypeVar(Arena&, const ast::TypeParam*);
 
     friend class Arena;
 };
@@ -520,10 +497,10 @@ struct StructType : public NominalNode<ComplexType> {
 
     const ast::RecordDecl* decl;
     mutable std::vector<const Type*> members;
+
+    void validate() const;
 private:
-    StructType(Arena& arena, ArrayRef<const TypeVar*> type_params, const ast::RecordDecl* decl)
-        : NominalNode(arena), decl(decl), type_params_(type_params)
-    {}
+    StructType(Arena&, ArrayRef<const TypeVar*>, const ast::RecordDecl*);
 
     mutable std::vector<std::string> names;
     Array<const TypeVar*> type_params_;
@@ -547,10 +524,9 @@ struct EnumType : public PolyTypeFromDecl<ComplexType, ast::EnumDecl> {
     // of constructors without arguments.
     bool is_trivial() const;
 
+    void validate() const;
 private:
-    EnumType(Arena& arena, ArrayRef<const TypeVar*> type_params, const ast::EnumDecl& decl)
-        : PolyTypeFromDecl(arena, decl, type_params)
-    {}
+    EnumType(Arena&, ArrayRef<const TypeVar*>, const ast::EnumDecl&);
 
     friend class Arena;
 };
@@ -561,9 +537,7 @@ struct TypeAlias : public PolyTypeFromDecl<UserType, ast::TypeDecl> {
     const TypeAlias* rewrite(Rewriter&) const override;
 
 private:
-    TypeAlias(Arena& arena, const ArrayRef<const TypeVar*>& type_params, const ast::TypeDecl& decl)
-        : PolyTypeFromDecl(arena, decl, type_params)
-    {}
+    TypeAlias(Arena&, const ArrayRef<const TypeVar*>&, const ast::TypeDecl&);
 
     friend class Arena;
 };
@@ -597,20 +571,15 @@ struct TypeApp : public Type {
         const ArrayRef<const Type*>& type_args);
 
 private:
-    TypeApp(
-        Arena& arena,
-        const UserType* applied,
-        const ArrayRef<const Type*>& type_args)
-        : Type(arena)
-        , applied(applied)
-        , type_args(std::move(type_args))
-    {}
+    TypeApp(Arena&, const UserType*, const ArrayRef<const Type*>&);
 
     friend class Arena;
 };
 
 struct ModVarAsType : public Type {
     const ModVar* var;
+
+    bool is_simple() const override { return true; }
 
     bool equals(const Node*) const override;
     size_t hash() const override;
@@ -624,7 +593,7 @@ struct ModVarAsType : public Type {
 
     const thorin::Type* convert(Emitter&) const override;
 
-    ModVarAsType(Arena& arena, const ModVar* var) : Type(arena), var(var) {}
+    ModVarAsType(Arena&, const ModVar*);
 };
 
 bool is_int_type(const Type*);

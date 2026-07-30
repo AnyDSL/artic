@@ -60,7 +60,9 @@ bool Cast::equals(const Node* other) const {
     return false;
 }
 
-TypedLiteral::TypedLiteral(Arena& arena, Literal lit, const Type* type) : Value(arena, type), value(lit) {}
+TypedLiteral::TypedLiteral(Arena& arena, Literal lit, const Type* type) : Value(arena, type), value(lit) {
+    assert(type->isa<PrimType>()); // TODO: allow for arrays
+}
 
 size_t TypedLiteral::hash() const {
     auto h = fnv::Hash().combine(type());
@@ -99,7 +101,9 @@ bool TypedLiteral::equals(const Node* other) const {
     return false;
 }
 
-Undef::Undef(Arena& arena, const Type* type) : Value(arena, type) {}
+Undef::Undef(Arena& arena, const Type* type) : Value(arena, type) {
+    assert(type->is_simple());
+}
 
 size_t Undef::hash() const {
     return fnv::Hash().combine(type());
