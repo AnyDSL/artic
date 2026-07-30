@@ -102,6 +102,10 @@ Node* Module::rewrite(Rewriter& r) const {
 
 }
 
+Node *ModAccess::rewrite(Rewriter &) const {
+
+}
+
 const Node* ModVarAsValue::rewrite(Rewriter&) const {
 
 }

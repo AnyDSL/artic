@@ -21,6 +21,7 @@ const ModValue* Scope::peek_mod_value(const ModValue* maybe_module) const {
 }
 
 void Scope::dump() const {
+    printf("scope ");
     for (auto& [var, _] : mod_vars) {
         var->dump();
     }

@@ -105,7 +105,8 @@ struct Builder {
     const DeclKey* decl_key(std::optional<ast::Identifier>);
     const Module* module(const ast::ModDecl* = nullptr);
     const ModVar* mod_var(const DeclKey*, NodeKind);
-    const ModValue* mod_access(const ModValue*, const DeclKey*);
+    const ModValue* mod_access(const ModValue*, const DeclKey*, NodeKind);
+    // const ModValue* mod_access(const ModValue*, const DeclKey*);
 
     const GlobalVariable* global_variable(const Type*, bool is_mut, const Value*);
     const LocalVariable* local_variable(const Type*);
@@ -133,9 +134,9 @@ struct Builder {
     const Value* branch(const Value*, const Fn*, const Fn*);
     const Value* control(const Fn*);
 
-    Scope& root_scope();
     const Type* schedule_and_bind_type(const Type*, std::optional<ast::Identifier> = std::nullopt);
-    std::unordered_map<const Type*, const ModVar*> already_bound_here;
+    const ModVar* schedule_and_bind_module_op(const ModAccess*, std::optional<ast::Identifier> = std::nullopt);
+    std::unordered_map<const Node*, const ModVar*> already_bound_here;
 
     const ModVar* add_in_module(const Node*, std::optional<ast::Identifier> = std::nullopt);
 };

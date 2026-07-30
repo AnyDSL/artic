@@ -128,12 +128,20 @@ struct DeclKey : public NominalNode<Node> {
 };
 
 struct Signature : public Node {
-    struct Decl {
-        const DeclKey* key;
+    struct Elem {
         NodeKind kind;
         const Type* value_type = nullptr;
         const Type* type = nullptr;
         const Signature* mod_signature = nullptr;
+
+        void print(Printer& p) const;
+    };
+
+    static Elem from_node(Builder&, const Node*);
+
+    struct Decl {
+        const DeclKey* key;
+        Elem sig;
     };
     Array<Decl> decls;
 
@@ -158,6 +166,8 @@ struct ModValue : public Node {
     NodeKind kind_;
     NodeKind kind() const override { return kind_; }
 
+    virtual Signature::Elem infer_signature(Builder&) const = 0;
+
     ModValue(Arena& arena, NodeKind kind) : Node(arena), kind_(kind) {}
 };
 
@@ -168,6 +178,8 @@ struct ModVar : public NominalNode<ModValue> {
     const Node* rewrite(Rewriter&) const override;
 
     bool is_simple() const override { return true; }
+
+    Signature::Elem infer_signature(Builder&) const override;
 
     ModVar(Arena& arena, const DeclKey* key, NodeKind kind) : NominalNode(arena, kind), key(key) {}
 };
@@ -181,8 +193,11 @@ struct Module : public NominalNode<ModValue> {
     };
     mutable std::vector<Decl> decls;
 
-    mutable const Signature* signature = nullptr;
-    const Signature* seal(Builder&) const;
+    const void seal() const { sealed = true; }
+
+    mutable bool sealed = false;
+    mutable const Signature* signature_ = nullptr;
+    Signature::Elem infer_signature(Builder&) const override;
 
     void print(Printer&) const override;
     Node* rewrite(Rewriter&) const override;
@@ -201,7 +216,9 @@ struct ModAccess : public ModValue {
     void print(Printer&) const override;
     Node* rewrite(Rewriter&) const override;
 
-    ModAccess(Arena& arena, const ModValue*, const DeclKey*);
+    Signature::Elem infer_signature(Builder&) const override;
+
+    ModAccess(Arena& arena, const ModValue*, const DeclKey*, NodeKind);
 };
 
 }

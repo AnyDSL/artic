@@ -231,40 +231,49 @@ void Module::print(Printer& p) const {
     p << p.unindent() << p.endl() << "}";
 }
 
+void Signature::Elem::print(Printer &p) const {
+    switch (kind) {
+        case NodeKind::Value: {
+            p << log::keyword_style("val") << " ";
+            p << " : ";
+            p.print(*value_type);
+            break;
+        }
+        case NodeKind::Type: {
+            p << log::keyword_style("type") << " ";
+            if (type) {
+                p << " : ";
+                p.print(*type);
+            }
+            break;
+        }
+        case NodeKind::Module: {
+            p << log::keyword_style("mod") << " ";
+            p << " : ";
+            p.print(*mod_signature, true);
+            break;
+        }
+        default: assert(false);
+    }
+}
+
 void Signature::print(Printer& p) const {
     p << log::keyword_style("sig") << " {" << p.indent() << p.endl();
     // for (auto& decl : decls) {
     //     p.insert(*decl.key, key2string(*decl.key));
     // }
     print_list(p.top(), p.endl(), decls, [&] (auto& decl) {
-        switch (decl.kind) {
-            case NodeKind::Value: {
-                p << log::keyword_style("val") << " ";
-                p.print(*decl.key);
-                p << " : ";
-                p.print(*decl.value_type);
-                break;
-            }
-            case NodeKind::Type: {
-                p << log::keyword_style("type") << " ";
-                p.print(*decl.key);
-                if (decl.type) {
-                    p << " : ";
-                    p.print(*decl.type);
-                }
-                break;
-            }
-            case NodeKind::Module: {
-                p << log::keyword_style("mod") << " ";
-                p.print(*decl.key);
-                p << " : ";
-                p.print(*decl.mod_signature, true);
-                break;
-            }
-            default: assert(false);
-        }
+        p.print(*decl.key);
+        p << " = ";
+        decl.sig.print(p);
     });
     p << p.unindent() << p.endl() << "}";
+}
+
+void ModAccess::print(Printer& p) const {
+    p.print(*mod);
+    p << " :: ";
+    p.print(*key, true);
 }
 
 void ModVarAsValue::print(Printer& p) const {

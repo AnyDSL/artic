@@ -241,7 +241,7 @@ struct ModVarAsValue : public NominalNode<Value> {
     bool is_computation() const override { return false; }
     bool is_simple() const override { return true; }
 
-    ModVarAsValue(Arena&, Scope&, const ModVar*);
+    ModVarAsValue(Builder&, Scope&, const ModVar*);
 };
 
 struct Seq : public Value {

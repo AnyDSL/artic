@@ -156,21 +156,25 @@ const Module* Builder::module(const ast::ModDecl* decl) {
     return arena.insert<Module>(arena, decl);
 }
 
-const ModValue* Builder::mod_access(const ModValue* src, const DeclKey* key) {
+const ModValue* Builder::mod_access(const ModValue* src, const DeclKey* key, NodeKind kind) {
+    assert(src->is_simple());
     if (auto var = src->isa<ModVar>()) {
         auto mod = scope.peek_mod_value(var)->isa<Module>();
         if (mod) {
             for (auto& decl: mod->decls) {
-                if (decl.var->key == key)
-                    return decl.var;
+                if (decl.var->key == key) {
+                    // if the module decl is in scope, don't bother with the access at all
+                    if (scope.resolve_mod_var(decl.var))
+                        return decl.var;
+                }
             }
         }
     }
-    assert(false);
+    return schedule_and_bind_module_op(arena.insert<ModAccess>(arena, src, key, kind));
 }
 
 const Value* Builder::as_value(const ModVar* var) {
-    return arena.insert<ModVarAsValue>(arena, scope, var);
+    return arena.insert<ModVarAsValue>(*this, scope, var);
 }
 
 const GlobalVariable* Builder::global_variable(const Type* value_type, bool is_mut, const Value* init) {
@@ -303,6 +307,28 @@ const Type* Builder::schedule_and_bind_type(const Type* type, std::optional<ast:
     auto var = best->add_in_module(type, maybe_id);
     best->already_bound_here[type] = var;
     return as_type(var);
+}
+
+const ModVar* Builder::schedule_and_bind_module_op(const ModAccess* access, std::optional<ast::Identifier> maybe_id) {
+    assert(!access->is_simple());
+    // find the outermost scope we can drop this type in!
+    Builder* best = nullptr;
+    for (Builder* s = this; s; s = s->parent) {
+        if (s->cur_module) {
+            auto found = s->already_bound_here.find(access);
+            if (found != s->already_bound_here.end()) {
+                return found->second;
+            }
+
+            if (s->scope.resolve_mod_var(access->mod->as<ModVar>()))
+                best = s;
+        }
+    }
+
+    assert(best && "no suitable scope to schedule this node at");
+    auto var = best->add_in_module(access, maybe_id);
+    best->already_bound_here[access] = var;
+    return var;
 }
 
 const ModVar* Builder::add_in_module(const Node* node, std::optional<ast::Identifier> maybe_id) {

@@ -24,6 +24,7 @@ namespace tir {
     struct Node;
     struct Type;
     struct StructType;
+    struct Module;
 }
 
 //struct Type;
@@ -179,6 +180,7 @@ struct Path : public Node {
 
         // These members are set during type-checking
         const tir::Node* tir = nullptr;
+        const tir::Node* value = nullptr;
         size_t index = 0;
         std::vector<const tir::Type*> inferred_args;
 
@@ -189,7 +191,7 @@ struct Path : public Node {
             : loc(loc), id(std::move(id)), args(std::move(args))
         {}
 
-        const tir::Node* infer(TypeChecker& checker, const tir::Node* prev_elem, Path& path);
+        const tir::Node* infer(TypeChecker& checker, Elem* prev_elem, Path& path);
     };
 
     std::vector<Elem> elems;

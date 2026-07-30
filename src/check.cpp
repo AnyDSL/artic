@@ -928,12 +928,17 @@ const tir::Node* Ptrn::check(TypeChecker& checker, const artic::Type* expected) 
 
 // Path ----------------------------------------------------------------------------
 
-const tir::Node* Path::Elem::infer(TypeChecker& checker, const tir::Node* prev_elem, Path& path) {
-    if (!prev_elem)
-        return tir = checker.infer(*decl);
+const tir::Node* Path::Elem::infer(TypeChecker& checker, Path::Elem* prev, Path& path) {
+    if (!prev) {
+        tir = checker.infer(*decl);
+        if (auto mod_var = tir->isa<ModVar>())
+            value = checker.scope().resolve_mod_var(mod_var);
+        return tir;
+    }
 
-    if (prev_elem->kind() == NodeKind::Module) {
-        auto module = checker.scope().peek_mod_value(prev_elem->as<ModValue>())->isa<Module>();
+    if (prev->tir->kind() == NodeKind::Module) {
+        // auto module = checker.scope().peek_mod_value(prev_elem->as<ModValue>())->isa<Module>();
+        auto module = prev->value->isa<Module>();
         if (is_super()) {
             assert(module);
             assert(module->decl && "anonymous modules shouldn't be reachable like this");
@@ -947,21 +952,27 @@ const tir::Node* Path::Elem::infer(TypeChecker& checker, const tir::Node* prev_e
         if (module) {
             for (auto& decl: module->decls) {
                 if (decl.var->key->id && decl.var->key->id->name == id.name) {
-                    return tir = checker.builder().mod_access(prev_elem->as<ModValue>(), decl.var->key);
+                    value = decl.value;
+                    if (auto mod = decl.value->isa<ModVar>()) {
+                        value = checker.scope().resolve_mod_var(mod);
+                    }
+                    return tir = checker.builder().mod_access(prev->tir->as<ModValue>(), decl.var->key, decl.var->kind());
+                    //return tir = decl.var;
                 }
             }
         } else {
-
+            assert(false && "TODO: implement abstract module accesses");
+            // return tir = checker.builder().mod_access(module, decl.var->key, decl.var->kind());
         }
         assert(false && "TODO diagnostics");
         //return tir = checker.unknown_module_member(loc, mod_type, id.name);
     }
     if (is_super()) {
-        assert(prev_elem);
+        assert(prev);
         checker.error(loc, "'super' can only be used on modules");
         return tir = checker.builder().type_error();
     }
-    if (auto prev_elem_type = prev_elem->isa<tir::Type>()) {
+    if (auto prev_elem_type = prev->tir->isa<tir::Type>()) {
         if (auto [type_app, enum_type] = match_app<EnumType>(prev_elem_type); enum_type) {
             assert(false && "TODO");
             /*auto index = enum_type->find_member(id.name);
@@ -999,7 +1010,7 @@ const tir::Node* Path::infer(TypeChecker& checker, Ptr<Expr>* arg, const artic::
     for (size_t i = 0, n = elems.size(); i < n; ++i) {
         auto& elem = elems[i];
 
-        elem.infer(checker, i == 0 ? nullptr : elems[i - 1].tir, *this);
+        elem.infer(checker, i == 0 ? nullptr : &elems[i - 1], *this);
 
         // Apply type arguments (if any)
         auto user_type   = elem.tir->isa<artic::UserType>();
@@ -1067,6 +1078,9 @@ const tir::Node* Path::infer(TypeChecker& checker, bool value_expected, Ptr<ast:
         checker.error(loc, "{} expected, but got '{}'", value_expected ? "value" : "type", *this);
         return checker.builder().type_error();
     }
+
+    if (auto mod_var = tir->isa<ModVar>(); mod_var && value_expected)
+        tir = checker.builder().as_value(mod_var);
 
     return tir;
 }
@@ -2228,6 +2242,7 @@ const tir::Node* ModDecl::infer(TypeChecker& checker) {
         //     tir_decls.emplace_back(named->id, checker.infer(*decl));
         checker.infer(*decl);
     }
+    tir_module->seal();
     // for (auto& decl : decls) {
     //     if (decl->isa<StructDecl>() || decl->isa<EnumDecl>()) {
     //         if (!decl->type->is_sized())
