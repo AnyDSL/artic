@@ -334,7 +334,7 @@ void TypeChecker::unsized_type(const Loc& loc, const Type* type) {
 // Helpers -------------------------------------------------------------------------
 
 const Type* TypeChecker::expect(const Loc& loc, const Type* type, const Type* expected) {
-    if (!type->subtype(expected))
+    if (!type->subtype(scope(), expected))
         return incompatible_types(loc, type, expected);
     return type;
 }
@@ -406,7 +406,7 @@ const Value* TypeChecker::coerce(ast::Expr* expr, const Type* expected) {
 
     const Value*& tir = *(const Value**) &expr->tir;
     if (tir->type() != expected) {
-        if (tir->type()->subtype(expected)) {
+        if (tir->type()->subtype(scope(), expected)) {
             tir = bind_value(builder().implicit_cast(tir, expected));
         } else {
             assert(false && "TODO");
@@ -447,7 +447,7 @@ const Value* TypeChecker::try_coerce(Ptr<ast::Expr>& expr, const Type* expected)
 const Type* TypeChecker::join(Ptr<ast::Expr>& left, Ptr<ast::Expr>& right) {
     auto left_type  = deref(left)->type();
     auto right_type = deref(right)->type();
-    auto type = left_type->join(right_type);
+    auto type = left_type->join(scope(), right_type);
     if (type->isa<TopType>())
         return incompatible_types(right->loc, right_type, left_type);
     coerce(&*left, type);
@@ -568,7 +568,7 @@ const tir::Node* TypeChecker::check(const Loc& loc, const Literal& lit, const Ty
         return builder().typed_literal(lit, expected);
     } else if (lit.is_string()) {
         auto typed_lit = infer(loc, lit);
-        if (!typed_lit->type()->subtype(expected))
+        if (!typed_lit->type()->subtype(scope(), expected))
             return incompatible_type(loc, "string literal", expected);
         return typed_lit;
     } else {
@@ -856,10 +856,10 @@ bool TypeChecker::infer_fn_type_args(
     const Type* ret_type,
     std::vector<const Type*>& type_args) {
     auto body = forall_type->body->as<FnType>();
-    auto bounds = body->dom->bounds(arg_type);
+    auto bounds = body->dom->bounds(scope(), arg_type);
     if (ret_type)
-        body->codom->bounds(bounds, ret_type, false);
-    auto variance = body->Type::variance(false);
+        body->codom->bounds(scope(), bounds, ret_type, false);
+    auto variance = body->Type::variance(scope(), false);
     return try_infer_type_args(loc, forall_type, bounds, variance, type_args, true);
 }
 
@@ -869,8 +869,8 @@ bool TypeChecker::try_infer_implicit_type_args(
     const Type* expected_type,
     std::vector<const Type*>& type_args) {
     auto body = forall_type->body;
-    auto bounds = body->bounds(expected_type);
-    auto variance = body->variance(true);
+    auto bounds = body->bounds(scope(), expected_type);
+    auto variance = body->variance(scope(), true);
     return try_infer_type_args(loc, forall_type, bounds, variance, type_args, false);
 }
 
@@ -1110,7 +1110,7 @@ void NamedAttr::check(TypeChecker& checker, const ast::Node* node) {
                 auto fn_type = fn_decl->tir->as<Value>()->type()->isa<artic::FnType>();
                 if (!fn_type)
                     checker.error(fn_decl->loc, "polymorphic functions cannot be exported");
-                else if (fn_type->Type::order() > 1)
+                else if (fn_type->Type::order(checker.scope()) > 1)
                     checker.error(fn_decl->loc, "higher-order functions cannot be exported");
                 else if (!fn_decl->fn->body)
                     checker.error(fn_decl->loc, "exported functions must have a body");

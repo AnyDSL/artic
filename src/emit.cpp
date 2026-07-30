@@ -689,7 +689,7 @@ const thorin::Def* Emitter::cast_pointers(
     const thorin::Def* addr = def;
     if (!is_compatible(from_addr_type, to_addr_type)) {
         // We have to downcast the value pointed at
-        assert(from_addr_type->pointee->subtype(to_addr_type->pointee));
+        assert(from_addr_type->pointee->subtype(scope, to_addr_type->pointee));
         auto casted_val = down_cast(load(def, debug), from_addr_type->pointee, to_addr_type->pointee, debug);
         addr = addr_of(casted_val, debug);
     }
@@ -698,7 +698,7 @@ const thorin::Def* Emitter::cast_pointers(
 
 const thorin::Def* Emitter::down_cast(const thorin::Def* def, const Type* from, const Type* to, thorin::Debug debug) {
     // This function mirrors the subtyping relation and thus should be kept in sync
-    assert(from->subtype(to));
+    assert(from->subtype(scope, to));
     if (to == from || to->isa<TopType>())
         return def;
 
@@ -713,11 +713,11 @@ const thorin::Def* Emitter::down_cast(const thorin::Def* def, const Type* from, 
     if (to_ptr_type &&
         !to_ptr_type->is_mut &&
         to_ptr_type->addr_space == 0 &&
-        from->subtype(to_ptr_type->pointee))
+        from->subtype(scope, to_ptr_type->pointee))
         return world.bitcast(to->convert(*this), addr_of(down_cast(def, from, to_ptr_type->pointee, debug)), debug);
 
     if (auto from_ref_type = from->isa<RefType>()) {
-        if (to_ptr_type && from_ref_type->is_compatible_with(to_ptr_type) && from_ref_type->pointee->subtype(to_ptr_type->pointee))
+        if (to_ptr_type && from_ref_type->is_compatible_with(to_ptr_type) && from_ref_type->pointee->subtype(scope, to_ptr_type->pointee))
             return cast_pointers(def, from_ref_type, to_ptr_type, debug);
         return down_cast(load(def, debug), from_ref_type->pointee, to, debug);
     } else if (auto from_ptr_type = from->isa<PtrType>(); from_ptr_type && to_ptr_type) {

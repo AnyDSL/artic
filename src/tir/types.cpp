@@ -10,14 +10,14 @@ namespace tir {
 
 // Type Bounds ---------------------------------------------------------------------
 
-TypeBounds& TypeBounds::meet(const TypeBounds& bounds) {
-    if (lower->subtype(bounds.lower))
+TypeBounds& TypeBounds::meet(const Scope& scope, const TypeBounds& bounds) {
+    if (lower->subtype(scope, bounds.lower))
         lower = bounds.lower;
-    else if (!bounds.lower->subtype(lower))
+    else if (!bounds.lower->subtype(scope, lower))
         lower = lower->arena.top_type();
-    if (bounds.upper->subtype(upper))
+    if (bounds.upper->subtype(scope, upper))
         upper = bounds.upper;
-    else if (!upper->subtype(bounds.upper))
+    else if (!upper->subtype(scope, bounds.upper))
         upper = upper->arena.bottom_type();
     return *this;
 }
@@ -83,6 +83,12 @@ bool TypeApp::equals(const Node* other) const {
         other->as<TypeApp>()->type_args == type_args;
 }
 
+bool ModVarAsType::equals(const artic::tir::Node* other) const {
+    if (auto other_as_type = other->isa<ModVarAsType>())
+        return other_as_type->var == var;
+    return false;
+}
+
 // Hash ----------------------------------------------------------------------------
 
 size_t PrimType::hash() const {
@@ -145,6 +151,10 @@ size_t TypeApp::hash() const {
     return h;
 }
 
+size_t ModVarAsType::hash() const {
+    return var->hash();
+}
+
 // Contains ------------------------------------------------------------------------
 
 bool TupleType::contains(const Type* type) const {
@@ -182,43 +192,43 @@ bool TypeApp::contains(const Type* type) const {
 
 // Order ---------------------------------------------------------------------------
 
-size_t Type::order(std::unordered_set<const Type*>&) const {
+size_t Type::order(const Scope& scope, std::unordered_set<const Type*>&) const {
     return 0;
 }
 
-size_t ImplicitParamType::order(std::unordered_set<const Type*>& seen) const {
-    return underlying->order(seen);
+size_t ImplicitParamType::order(const Scope& scope, std::unordered_set<const Type*>& seen) const {
+    return underlying->order(scope, seen);
 }
 
-size_t FnType::order(std::unordered_set<const Type*>& seen) const {
-    return 1 + std::max(dom->order(seen), codom->order(seen));
+size_t FnType::order(const Scope& scope, std::unordered_set<const Type*>& seen) const {
+    return 1 + std::max(dom->order(scope, seen), codom->order(scope, seen));
 }
 
-size_t TupleType::order(std::unordered_set<const Type*>& seen) const {
+size_t TupleType::order(const Scope& scope, std::unordered_set<const Type*>& seen) const {
     size_t max_order = 0;
     for (auto arg : args)
-        max_order = std::max(max_order, arg->order(seen));
+        max_order = std::max(max_order, arg->order(scope, seen));
     return max_order;
 }
 
-size_t ArrayType::order(std::unordered_set<const Type*>& seen) const {
-    return elem->order(seen);
+size_t ArrayType::order(const Scope& scope, std::unordered_set<const Type*>& seen) const {
+    return elem->order(scope, seen);
 }
 
-size_t AddrType::order(std::unordered_set<const Type*>& seen) const {
-    return pointee->order(seen);
+size_t AddrType::order(const Scope& scope, std::unordered_set<const Type*>& seen) const {
+    return pointee->order(scope, seen);
 }
 
-size_t ComplexType::order(std::unordered_set<const Type*>& seen) const {
+size_t ComplexType::order(const Scope& scope, std::unordered_set<const Type*>& seen) const {
     if (!seen.insert(this).second)
         return 0;
     size_t max_order = 0;
     for (size_t i = 0, n = member_count(); i < n; ++i)
-        max_order = std::max(max_order, member_type(i)->order(seen));
+        max_order = std::max(max_order, member_type(i)->order(scope, seen));
     return max_order;
 }
 
-size_t TypeApp::order(std::unordered_set<const Type*>& seen) const {
+size_t TypeApp::order(const Scope& scope, std::unordered_set<const Type*>& seen) const {
     assert(false);
     // size_t max_order = 0;
     // for (size_t i = 0, n = applied->as<ComplexType>()->member_count(); i < n; ++i)
@@ -226,33 +236,39 @@ size_t TypeApp::order(std::unordered_set<const Type*>& seen) const {
     // return max_order;
 }
 
+size_t ModVarAsType::order(const Scope& scope, std::unordered_set<const Type*>& seen) const {
+    auto resolved = scope.peek_type_definition(this);
+    assert(resolved != this);
+    return resolved->order(scope, seen);
+}
+
 // Variance ------------------------------------------------------------------------
 
-void Type::variance(std::unordered_map<const TypeVar*, TypeVariance>&, bool) const {}
+void Type::variance(const Scope& scope, std::unordered_map<const TypeVar*, TypeVariance>&, bool) const {}
 
-void TupleType::variance(std::unordered_map<const TypeVar*, TypeVariance>& vars, bool dir) const {
+void TupleType::variance(const Scope& scope, std::unordered_map<const TypeVar*, TypeVariance>& vars, bool dir) const {
     for (auto arg : args)
-        arg->variance(vars, dir);
+        arg->variance(scope, vars, dir);
 }
 
-void ArrayType::variance(std::unordered_map<const TypeVar*, TypeVariance>& vars, bool dir) const {
-    elem->variance(vars, dir);
+void ArrayType::variance(const Scope& scope, std::unordered_map<const TypeVar*, TypeVariance>& vars, bool dir) const {
+    elem->variance(scope, vars, dir);
 }
 
-void AddrType::variance(std::unordered_map<const TypeVar*, TypeVariance>& vars, bool dir) const {
-    pointee->variance(vars, dir);
+void AddrType::variance(const Scope& scope, std::unordered_map<const TypeVar*, TypeVariance>& vars, bool dir) const {
+    pointee->variance(scope, vars, dir);
 }
 
-void FnType::variance(std::unordered_map<const TypeVar*, TypeVariance>& vars, bool dir) const {
-    dom->variance(vars, !dir);
-    codom->variance(vars, dir);
+void FnType::variance(const Scope& scope, std::unordered_map<const TypeVar*, TypeVariance>& vars, bool dir) const {
+    dom->variance(scope, vars, !dir);
+    codom->variance(scope, vars, dir);
 }
 
-void ImplicitParamType::variance(TypeVarMap<TypeVariance>& vars, bool dir) const {
-    return underlying->variance(vars, dir);
+void ImplicitParamType::variance(const Scope& scope, TypeVarMap<TypeVariance>& vars, bool dir) const {
+    return underlying->variance(scope, vars, dir);
 }
 
-void TypeVar::variance(std::unordered_map<const TypeVar*, TypeVariance>& vars, bool dir) const {
+void TypeVar::variance(const Scope& scope, std::unordered_map<const TypeVar*, TypeVariance>& vars, bool dir) const {
     if (auto it = vars.find(this); it != vars.end()) {
         bool var_dir = it->second == TypeVariance::Covariant ? true : false;
         if (var_dir != dir)
@@ -261,44 +277,50 @@ void TypeVar::variance(std::unordered_map<const TypeVar*, TypeVariance>& vars, b
         vars.emplace(this, dir ? TypeVariance::Covariant : TypeVariance::Contravariant);
 }
 
-void TypeApp::variance(std::unordered_map<const TypeVar*, TypeVariance>& vars, bool dir) const {
+void TypeApp::variance(const Scope& scope, std::unordered_map<const TypeVar*, TypeVariance>& vars, bool dir) const {
     for (auto type_arg : type_args)
-        type_arg->variance(vars, dir);
+        type_arg->variance(scope, vars, dir);
+}
+
+void ModVarAsType::variance(const Scope& scope, TypeVarMap<TypeVariance>& seen, bool dir) const {
+    auto resolved = scope.peek_type_definition(this);
+    assert(resolved != this);
+    return resolved->variance(scope, seen, dir);
 }
 
 // Bounds --------------------------------------------------------------------------
 
-void Type::bounds(std::unordered_map<const TypeVar*, TypeBounds>&, const Type*, bool) const {}
+void Type::bounds(const Scope& scope, std::unordered_map<const TypeVar*, TypeBounds>&, const Type*, bool) const {}
 
-void TupleType::bounds(std::unordered_map<const TypeVar*, TypeBounds>& bounds, const Type* type, bool dir) const {
+void TupleType::bounds(const Scope& scope, std::unordered_map<const TypeVar*, TypeBounds>& bounds, const Type* type, bool dir) const {
     if (auto tuple_type = type->isa<TupleType>()) {
         for (size_t i = 0, n = std::min(args.size(), tuple_type->args.size()); i < n; ++i)
-            args[i]->bounds(bounds, tuple_type->args[i], dir);
+            args[i]->bounds(scope, bounds, tuple_type->args[i], dir);
     }
 }
 
-void ArrayType::bounds(std::unordered_map<const TypeVar*, TypeBounds>& bounds, const Type* type, bool dir) const {
+void ArrayType::bounds(const Scope& scope, std::unordered_map<const TypeVar*, TypeBounds>& bounds, const Type* type, bool dir) const {
     if (auto array_type = type->isa<ArrayType>())
-        elem->bounds(bounds, array_type->elem, dir);
+        elem->bounds(scope, bounds, array_type->elem, dir);
 }
 
-void AddrType::bounds(std::unordered_map<const TypeVar*, TypeBounds>& bounds, const Type* type, bool dir) const {
+void AddrType::bounds(const Scope& scope, std::unordered_map<const TypeVar*, TypeBounds>& bounds, const Type* type, bool dir) const {
     if (auto addr_type = type->isa<AddrType>())
-        pointee->bounds(bounds, addr_type->pointee, dir);
+        pointee->bounds(scope, bounds, addr_type->pointee, dir);
 }
 
-void ImplicitParamType::bounds(TypeVarMap<TypeBounds>& bounds, const Type* type, bool dir) const {
-    underlying->bounds(bounds, type, dir);
+void ImplicitParamType::bounds(const Scope& scope, TypeVarMap<TypeBounds>& bounds, const Type* type, bool dir) const {
+    underlying->bounds(scope, bounds, type, dir);
 }
 
-void FnType::bounds(std::unordered_map<const TypeVar*, TypeBounds>& bounds, const Type* type, bool dir) const {
+void FnType::bounds(const Scope& scope, std::unordered_map<const TypeVar*, TypeBounds>& bounds, const Type* type, bool dir) const {
     if (auto fn_type = type->isa<FnType>()) {
-        dom->bounds(bounds, fn_type->dom, !dir);
-        codom->bounds(bounds, fn_type->codom, dir);
+        dom->bounds(scope, bounds, fn_type->dom, !dir);
+        codom->bounds(scope, bounds, fn_type->codom, dir);
     }
 }
 
-void TypeVar::bounds(std::unordered_map<const TypeVar*, TypeBounds>& bounds, const Type* type, bool dir) const {
+void TypeVar::bounds(const Scope& scope, std::unordered_map<const TypeVar*, TypeBounds>& bounds, const Type* type, bool dir) const {
     TypeBounds type_bounds;
     if (dir)
         type_bounds = TypeBounds { type, arena.top_type() };
@@ -306,65 +328,79 @@ void TypeVar::bounds(std::unordered_map<const TypeVar*, TypeBounds>& bounds, con
         type_bounds = TypeBounds { arena.bottom_type(), type };
 
     if (auto it = bounds.find(this); it != bounds.end())
-        it->second.meet(type_bounds);
+        it->second.meet(scope, type_bounds);
     else
         bounds[this] = type_bounds;
 }
 
-void TypeApp::bounds(std::unordered_map<const TypeVar*, TypeBounds>& bounds, const Type* type, bool dir) const {
+void TypeApp::bounds(const Scope& scope, std::unordered_map<const TypeVar*, TypeBounds>& bounds, const Type* type, bool dir) const {
     if (auto type_app = type->isa<TypeApp>()) {
         for (size_t i = 0, n = std::min(type_args.size(), type_app->type_args.size()); i < n; ++i)
-            type_args[i]->bounds(bounds, type_app->type_args[i], dir);
+            type_args[i]->bounds(scope, bounds, type_app->type_args[i], dir);
     }
+}
+
+void ModVarAsType::bounds(const Scope& scope, std::unordered_map<const TypeVar*, TypeBounds>& bounds, const Type* type, bool dir) const {
+    auto resolved = scope.peek_type_definition(this);
+    assert(resolved != this && "cannot compute bounds on unbound module variable");
+    return resolved->bounds(scope, bounds, type, dir);
 }
 
 // Size ----------------------------------------------------------------------------
 
-bool Type::is_sized(std::unordered_set<const Type*>&) const {
+bool Type::is_sized(const Scope& scope, std::unordered_set<const Type*>&) const {
     return true;
 }
 
-bool ImplicitParamType::is_sized(std::unordered_set<const Type*>& seen) const {
-    return underlying->is_sized(seen);
+bool ImplicitParamType::is_sized(const Scope& scope, std::unordered_set<const Type*>& seen) const {
+    return underlying->is_sized(scope, seen);
 }
 
-bool FnType::is_sized(std::unordered_set<const Type*>& seen) const {
-    return dom->is_sized(seen) && codom->is_sized(seen);
+bool FnType::is_sized(const Scope& scope, std::unordered_set<const Type*>& seen) const {
+    return dom->is_sized(scope, seen) && codom->is_sized(scope, seen);
 }
 
-bool TupleType::is_sized(std::unordered_set<const Type*>& seen) const {
+bool TupleType::is_sized(const Scope& scope, std::unordered_set<const Type*>& seen) const {
     for (auto arg : args) {
-        if (!arg->is_sized(seen))
+        if (!arg->is_sized(scope, seen))
             return false;
     }
     return true;
 }
 
-bool ArrayType::is_sized(std::unordered_set<const Type*>& seen) const {
-    return elem->is_sized(seen);
+bool ArrayType::is_sized(const Scope& scope, std::unordered_set<const Type*>& seen) const {
+    return elem->is_sized(scope, seen);
 }
 
-bool AddrType::is_sized(std::unordered_set<const Type*>&) const {
+bool AddrType::is_sized(const Scope& scope, std::unordered_set<const Type*>&) const {
     return true;
 }
 
-bool ComplexType::is_sized(std::unordered_set<const Type*>& seen) const {
+bool ComplexType::is_sized(const Scope& scope, std::unordered_set<const Type*>& seen) const {
     if (!seen.insert(this).second)
         return false;
     for (size_t i = 0, n = member_count(); i < n; ++i) {
-        if (!member_type(i)->is_sized(seen))
+        if (!member_type(i)->is_sized(scope, seen))
             return false;
     }
     seen.erase(this);
     return true;
 }
 
-bool TypeApp::is_sized(std::unordered_set<const Type*>& seen) const {
+bool TypeApp::is_sized(const Scope& scope, std::unordered_set<const Type*>& seen) const {
     return
-        applied->is_sized(seen) &&
-        std::all_of(type_args.begin(), type_args.end(), [&seen] (auto t) {
-            return t->is_sized(seen);
+        applied->is_sized(scope, seen) &&
+        std::all_of(type_args.begin(), type_args.end(), [&seen, &scope] (auto t) {
+            return t->is_sized(scope, seen);
         });
+}
+
+bool ModVarAsType::is_sized(const Scope& scope, std::unordered_set<const Type*>& seen) const {
+    auto resolved = scope.peek_type_definition(this);
+    // unknown types are assumed to be unsized
+    if (resolved == this)
+        return false;
+    return resolved->is_sized(scope, seen);
 }
 
 // Complex Types -------------------------------------------------------------------
@@ -424,12 +460,22 @@ size_t EnumType::member_count() const {
 
 // Misc. ---------------------------------------------------------------------------
 
-bool Type::subtype(const Type* other) const {
+bool Type::subtype(const Scope& scope, const Type* other) const {
+    other = scope.peek_type_definition(other);
+
     if (this == other || isa<BottomType>() || other->isa<TopType>())
         return true;
 
+    if (auto as_type = this->isa<ModVarAsType>()) {
+        auto resolved = scope.peek_type_definition(this);
+        // unbound variables are not subtypes of anything other than Top and themselves!
+        if (resolved == this)
+            return false;
+        return resolved->subtype(scope, other);
+    }
+
     if (auto implicit = other->isa<ImplicitParamType>())
-        return this->subtype(implicit->underlying) || is_unit_type(this);
+        return this->subtype(scope, implicit->underlying) || is_unit_type(this);
 
     auto other_ptr_type = other->isa<PtrType>(); 
 
@@ -438,31 +484,31 @@ bool Type::subtype(const Type* other) const {
     if (other_ptr_type &&
         !other_ptr_type->is_mut &&
         other_ptr_type->addr_space == 0 &&
-        subtype(other_ptr_type->pointee))
+        subtype(scope, other_ptr_type->pointee))
         return true;
 
     if (auto ref_type = isa<RefType>()) {
         // ref U <: &T if U <: T
         if (other_ptr_type &&
             ref_type->is_compatible_with(other_ptr_type) &&
-            ref_type->pointee->subtype(other_ptr_type->pointee))
+            ref_type->pointee->subtype(scope, other_ptr_type->pointee))
             return true;
         // ref U <: T if U <: T
-        return ref_type->pointee->subtype(other);
+        return ref_type->pointee->subtype(scope, other);
     } else if (auto ptr_type = isa<AddrType>(); ptr_type && other_ptr_type && ptr_type->is_compatible_with(other_ptr_type)) {
         // &U <: &T if U <: T
         // &mut U <: &T if U <: T
-        return ptr_type->pointee->subtype(other_ptr_type->pointee);
+        return ptr_type->pointee->subtype(scope, other_ptr_type->pointee);
     } else if (auto sized_array_type = isa<SizedArrayType>(); sized_array_type && !sized_array_type->is_simd) {
         // [U * N] <: [T] if U <: T
         if (auto other_array_type = other->isa<UnsizedArrayType>())
-            return sized_array_type->elem->subtype(other_array_type->elem);
+            return sized_array_type->elem->subtype(scope, other_array_type->elem);
     } else if (auto tuple_type = isa<TupleType>()) {
         if (auto other_tuple_type = other->isa<TupleType>();
             other_tuple_type && other_tuple_type->args.size() == tuple_type->args.size()) {
             // (U1, ..., Un) <: (T1, ..., Tn) if U1 <: T1 and ... and Un <: Tn
             for (size_t i = 0, n = tuple_type->args.size(); i < n; ++i) {
-                if (!tuple_type->args[i]->subtype(other_tuple_type->args[i]))
+                if (!tuple_type->args[i]->subtype(scope, other_tuple_type->args[i]))
                     return false;
             }
             return true;
@@ -471,17 +517,17 @@ bool Type::subtype(const Type* other) const {
         if (auto other_fn_type = other->isa<FnType>()) {
             // fn (V) -> W <: fn (T) -> U if T <: V and W <: U
             return
-                other_fn_type->dom->subtype(fn_type->dom) &&
-                fn_type->codom->subtype(other_fn_type->codom);
+                other_fn_type->dom->subtype(scope, fn_type->dom) &&
+                fn_type->codom->subtype(scope, other_fn_type->codom);
         }
     }
     return false;
 }
 
-const Type* Type::join(const Type* other) const {
-    if (subtype(other))
+const Type* Type::join(const Scope& scope, const Type* other) const {
+    if (subtype(scope, other))
         return other;
-    if (other->subtype(this))
+    if (other->subtype(scope, this))
         return this;
     return arena.top_type();
 }
@@ -577,7 +623,7 @@ bool is_unit_type(const Type* type) {
     return type->isa<TupleType>() && type->as<TupleType>()->args.empty();
 }
 
-const Type* Scope::peek_type_definition(const Type* type) {
+const Type* Scope::peek_type_definition(const Type* type) const {
     if (auto var_as_type = type->isa<ModVarAsType>()) {
         auto resolved = resolve_mod_var(var_as_type->var);
         if (resolved)

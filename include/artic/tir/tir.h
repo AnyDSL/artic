@@ -90,7 +90,7 @@ struct Scope {
         params[var] = value;
     }
 
-    const Type* peek_type_definition(const Type* type);
+    const Type* peek_type_definition(const Type* type) const;
 private:
     std::unordered_map<const ModVar*, const Node*> mod_vars;
     std::unordered_map<const Param*, const Value*> params;
