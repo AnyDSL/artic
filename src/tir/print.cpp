@@ -264,10 +264,11 @@ void LocalVariable::print(Printer& p) const {
 
 void Fn::print(Printer& p) const {
     p << log::keyword_style("fn") << "(";
-    p.print(*param, true);
-    p.insert(*param, p.unique_name(*param));
-    p << ")" << " -> ";
-    p.print(*type()->codom, true);
+    p.print(*param);
+    p << ": ";
+    p.print(*param->type());
+    p << ")" << ": ";
+    p.print(*type());
     if (body) {
         p << " {" << p.indent() << p.endl();
         p.print(*body, true);
@@ -276,10 +277,8 @@ void Fn::print(Printer& p) const {
 }
 
 void Param::print(Printer& p) const {
-    // p << log::keyword_style("param") << ' ';
+    p << log::keyword_style("param") << ' ';
     p << p.unique_name(*this);
-    p << ": ";
-    p.print(*type(), true);
 }
 
 void App::print(Printer& p) const {
@@ -312,7 +311,7 @@ void Cast::print(Printer& p) const {
 void TypedLiteral::print(Printer& p) const {
     p << log::keyword_style("typed_literal");
     p << '[';
-    p.print(*type(), true);
+    p.print(*type());
     p << ']';
     p << '(';
     p << std::showpoint << log::literal_style(value);
@@ -322,7 +321,7 @@ void TypedLiteral::print(Printer& p) const {
 void Undef::print(Printer& p) const {
     p << log::keyword_style("undef");
     p << '[';
-    p.print(*type(), true);
+    p.print(*type());
     p << ']';
     p << '(';
     p << ')';
@@ -362,6 +361,8 @@ void Proj::print(Printer& p) const {
 void Bind::print(Printer& p) const {
     p << log::keyword_style("let") << ' ';
     p.print(*param, true);
+    p << ": ";
+    p.print(*param->type());
     p.insert(*param, p.unique_name(*param));
     p << " = ";
     p.print(*value, true);

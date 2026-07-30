@@ -699,6 +699,8 @@ const thorin::Def* Emitter::cast_pointers(
 const thorin::Def* Emitter::down_cast(const thorin::Def* def, const Type* from, const Type* to, thorin::Debug debug) {
     // This function mirrors the subtyping relation and thus should be kept in sync
     assert(from->subtype(scope, to));
+    from = scope->peek_type_definition(from);
+    to = scope->peek_type_definition(to);
     if (to == from || to->isa<TopType>())
         return def;
 
@@ -1169,14 +1171,14 @@ const thorin::Def* Fn::emit(Emitter& emitter) const {
     cont->params().back()->set_name("ret");
     // Set the IR node before entering the body
     emitter.emitted[this] = cont;
-    emitter.emitted[param] = emitter.tuple_from_params(cont, !type()->codom->isa<artic::NoRetType>());
+    emitter.emitted[param] = emitter.tuple_from_params(cont, !resolve_type(*emitter.scope)->codom->isa<artic::NoRetType>());
     //emitter.emit(*param, emitter.tuple_from_params(cont, true));
     if (filter)
         cont->set_filter(emitter.world.filter(thorin::Array<const thorin::Def*>(cont->num_params(), emitter.emit(filter))));
     if (body) {
         emitter.enter(cont);
         auto value = emitter.emit(body);
-        if (!type()->codom->isa<artic::NoRetType>())
+        if (!resolve_type(*emitter.scope)->codom->isa<artic::NoRetType>())
             emitter.jump(cont->params().back(), value);
     }
     return cont;
@@ -1195,7 +1197,7 @@ const thorin::Def* App::emit(Emitter& emitter) const {
 const thorin::Def* GlobalVariable::emit(Emitter& emitter) const {
     auto value = init
         ? emitter.emit(init)
-        : emitter.world.bottom(emitter.emit(type()->pointee));
+        : emitter.world.bottom(emitter.emit(resolve_type(*emitter.scope)->pointee));
     auto global = emitter.world.global(value, is_mut, emitter.debug_info(this));
 
     // TODO
@@ -2325,7 +2327,7 @@ std::string PtrType::stringify(Emitter& emitter) const {
     return "ptr_" + pointee->stringify(emitter);
 }
 
-const thorin::Type* PtrType::convert(Emitter& emitter) const {
+const thorin::Type* AddrType::convert(Emitter& emitter) const {
     return emitter.world.ptr_type(emitter.emit(pointee), 1, thorin::AddrSpace(addr_space));
 }
 

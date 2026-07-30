@@ -503,6 +503,55 @@ bool ModVarAsType::is_sized(const Scope& scope, std::unordered_set<const Type*>&
     return resolved->is_sized(scope, seen);
 }
 
+// Free variables ------------------------------------------------------------------
+
+void Type::free_variables(const Scope& scope, std::unordered_set<const ModVar*>& vars, std::unordered_set<const Type*>& seen) const {
+
+}
+
+void TupleType::free_variables(const Scope& scope, std::unordered_set<const ModVar*>& vars, std::unordered_set<const Type*>& seen) const {
+    for (auto& elem : args)
+        elem->free_variables(scope, vars, seen);
+}
+
+void ArrayType::free_variables(const Scope& scope, std::unordered_set<const ModVar*>& vars, std::unordered_set<const Type*>& seen) const {
+    elem->free_variables(scope, vars, seen);
+}
+
+void AddrType::free_variables(const Scope& scope, std::unordered_set<const ModVar*>& vars, std::unordered_set<const Type*>& seen) const {
+    pointee->free_variables(scope, vars, seen);
+}
+
+void ImplicitParamType::free_variables(const Scope& scope, std::unordered_set<const ModVar*>& vars, std::unordered_set<const Type*>& seen) const {
+    underlying->free_variables(scope, vars, seen);
+}
+
+void FnType::free_variables(const Scope& scope, std::unordered_set<const ModVar*>& vars, std::unordered_set<const Type*>& seen) const {
+    dom->free_variables(scope, vars, seen);
+    codom->free_variables(scope, vars, seen);
+}
+
+void ComplexType::free_variables(const Scope& scope, std::unordered_set<const ModVar*>& vars, std::unordered_set<const Type*>& seen) const {
+    if (!seen.insert(this).second)
+        return;
+    for (size_t i = 0, n = member_count(); i < n; ++i) {
+        member_type(i)->free_variables(scope, vars, seen);
+    }
+    seen.erase(this);
+}
+
+void TypeApp::free_variables(const Scope& scope, std::unordered_set<const ModVar*>& vars, std::unordered_set<const Type*>& seen) const {
+    applied->free_variables(scope, vars, seen);
+    for (auto& arg : type_args)
+       arg->free_variables(scope, vars, seen);
+}
+
+void ModVarAsType::free_variables(const Scope& scope, std::unordered_set<const ModVar*>& vars, std::unordered_set<const Type*>& seen) const {
+    auto resolved = scope.resolve_mod_var(var);
+    if (!resolved)
+        vars.insert(var);
+}
+
 // Complex Types -------------------------------------------------------------------
 
 std::optional<size_t> ComplexType::find_member(const std::string_view& name) const {

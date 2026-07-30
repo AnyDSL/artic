@@ -20,7 +20,7 @@ struct ScopeBuilder;
 class TypeChecker : public Logger {
 public:
     TypeChecker(Log& log, Arena& arena)
-        : Logger(log), arena(arena), root_scope(nullptr), base_builder(arena, root_scope)
+        : Logger(log), arena(arena), root_scope(nullptr), base_builder(arena, root_scope, nullptr, nullptr)
     {}
 
     Arena& arena;
@@ -79,10 +79,6 @@ public:
 
     /// Explores a pattern recursively and makes sure the body is wrapped in Bind nodes that extract the value of each sub-pattern
     void bind_ptrn_params(ast::Ptrn&, const Value*);
-
-    const ModVar* bind_mod_value(const Node*, std::optional<ast::Identifier> = std::nullopt);
-    // const ModVar* bind_mod_decl(const ModValue*);
-    // void bind_module_decl(ast::NamedDecl& decl);
 
     const Value* expr_scope(std::function<const Value*(void)>);
 
@@ -171,8 +167,10 @@ struct ScopeBuilder {
         std::vector<const Value*>* seq;
     };
 
-    ScopeBuilder(TypeChecker& checker, ScopeBuilder* parent, const Module& module) : checker(checker), scope(parent ? &parent->scope : nullptr), module(&module), type(ScopeType::Module), builder(checker.arena, scope) {}
-    ScopeBuilder(TypeChecker& checker, ScopeBuilder* parent, std::vector<const Value*>& seq) : checker(checker), scope(parent ? &parent->scope : nullptr), seq(&seq), type(ScopeType::Block), builder(checker.arena, scope) {}
+    ScopeBuilder(TypeChecker& checker, ScopeBuilder* parent, const Module& module)
+        : checker(checker), scope(parent ? &parent->scope : nullptr), module(&module), type(ScopeType::Module), builder(checker.arena, scope, &module, parent ? &parent->builder : nullptr) {}
+    ScopeBuilder(TypeChecker& checker, ScopeBuilder* parent, std::vector<const Value*>& seq)
+        : checker(checker), scope(parent ? &parent->scope : nullptr), seq(&seq), type(ScopeType::Block), builder(checker.arena, scope, nullptr, parent ? &parent->builder : nullptr) {}
 
     const ModVar* add_decl(const Node*, ast::Identifier);
 

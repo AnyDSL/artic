@@ -64,8 +64,12 @@ struct Type;
 struct Builder {
     Arena& arena;
     Scope& scope;
+    const Module* cur_module;
+    Builder* parent;
 
-    Builder(Arena& arena, Scope& scope) : arena(arena), scope(scope) {}
+    Builder(Arena& arena, Scope& scope, const Module* module, Builder* parent)
+        : arena(arena), scope(scope), cur_module(module), parent(parent)
+    {}
     Builder(const Builder&) = delete;
 
     const PrimType*          prim_type(ast::PrimType::Tag);
@@ -126,6 +130,12 @@ struct Builder {
 
     const Value* branch(const Value*, const Fn*, const Fn*);
     const Value* control(const Fn*);
+
+    Scope& root_scope();
+    const Type* schedule_and_bind_type(const Type*, std::optional<ast::Identifier> = std::nullopt);
+    std::unordered_map<const Type*, const ModVar*> already_bound_here;
+
+    const ModVar* add_in_module(const Node*, std::optional<ast::Identifier> = std::nullopt);
 };
 
 }

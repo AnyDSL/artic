@@ -8,10 +8,13 @@ namespace artic {
 namespace tir {
 
 struct Value : public Node {
-    Value(Arena& arena, const Type* type) : Node(arena), type_(type) {}
+    Value(Arena& arena, const Type* type) : Node(arena), type_(type) {
+        assert(type->is_simple());
+    }
 
     NodeKind kind() const override { return NodeKind::Value; }
-    virtual const Type* type() const { return type_; }
+    const Type* type() const { return type_; }
+    virtual const Type* resolve_type(Scope& s) const { return s.peek_type_definition(type()); }
     virtual bool is_computation() const { return true; }
 
     /// Emits a branch for boolean expressions.
@@ -44,7 +47,7 @@ struct Fn : public NominalNode<Value> {
     void print(Printer&) const override;
     const Node* rewrite(Rewriter&) const override;
 
-    const FnType* type() const override { return type_->as<FnType>(); }
+    const FnType* resolve_type(Scope& s) const override { return Value::resolve_type(s)->as<FnType>(); }
     bool is_computation() const override { return false; }
 
     const thorin::Def* emit(Emitter&) const override;
@@ -75,7 +78,7 @@ struct GlobalVariable : public NominalNode<Value> {
     void print(Printer&) const override;
     const Node* rewrite(Rewriter&) const override;
 
-    const RefType* type() const override { return type_->as<RefType>(); }
+    const RefType* resolve_type(Scope& s) const override { return Value::resolve_type(s)->as<RefType>(); }
     bool is_computation() const override { return false; }
 
     const thorin::Def* emit(Emitter&) const override;
@@ -89,7 +92,7 @@ struct LocalVariable : public NominalNode<Value> {
     void print(Printer&) const override;
     const Node* rewrite(Rewriter&) const override;
 
-    const RefType* type() const override { return type_->as<RefType>(); }
+    const RefType* resolve_type(Scope& s) const override { return Value::resolve_type(s)->as<RefType>(); }
     const thorin::Def* emit(Emitter&) const override;
 
     LocalVariable(Builder&, const Type*);

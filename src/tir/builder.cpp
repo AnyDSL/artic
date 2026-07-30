@@ -261,4 +261,33 @@ const Value* Builder::control(const Fn* fn) {
     return arena.insert<Control>(*this, fn);
 }
 
+const Type* Builder::schedule_and_bind_type(const Type* type, std::optional<ast::Identifier> maybe_id) {
+    assert(!type->is_simple());
+    // find the outermost scope we can drop this type in!
+    Builder* best = nullptr;
+    for (Builder* s = this; s; s = s->parent) {
+        if (s->cur_module) {
+            auto found = s->already_bound_here.find(type);
+            if (found != s->already_bound_here.end()) {
+                return as_type(found->second);
+            }
+
+            if (type->free_variables(s->scope).empty())
+                best = s;
+        }
+    }
+
+    assert(best && "no suitable scope to schedule this node at");
+    auto var = best->add_in_module(type, maybe_id);
+    best->already_bound_here[type] = var;
+    return as_type(var);
+}
+
+const ModVar* Builder::add_in_module(const Node* node, std::optional<ast::Identifier> maybe_id) {
+    auto var = mod_var(decl_key(maybe_id), node->kind());
+    cur_module->decls.push_back({ var, node });
+    scope.insert(var, node);
+    return var;
+}
+
 }

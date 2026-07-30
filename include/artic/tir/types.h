@@ -75,6 +75,7 @@ struct Type : public Node {
     virtual void variance(const Scope&, TypeVarMap<TypeVariance>&, bool) const;
     virtual void bounds(const Scope&, TypeVarMap<TypeBounds>&, const Type*, bool) const;
     virtual bool is_sized(const Scope&, std::unordered_set<const Type*>&) const;
+    virtual void free_variables(const Scope&, std::unordered_set<const ModVar*>&, std::unordered_set<const Type*>&) const;
 
     /// Returns the number of times a function type constructor is present in the type.
     size_t order(const Scope& scope) const {
@@ -100,6 +101,13 @@ struct Type : public Node {
     bool is_sized(const Scope& scope) const {
         std::unordered_set<const Type*> seen;
         return is_sized(scope, seen);
+    }
+
+    virtual std::unordered_set<const ModVar*> free_variables(const Scope& scope) const {
+        std::unordered_set<const ModVar*> vars;
+        std::unordered_set<const Type*> seen;
+        free_variables(scope, vars, seen);
+        return vars;
     }
 
     /// Returns true if this type is a sub-type of another.
@@ -145,7 +153,6 @@ struct TupleType : public Type {
     size_t hash() const override;
     bool contains(const Type*) const override;
     const TupleType* rewrite(Rewriter&) const override;
-    // const Type* replace(const ReplaceMap&) const override;
 
     const thorin::Type* convert(Emitter&) const override;
     std::string stringify(Emitter&) const override;
@@ -154,6 +161,7 @@ struct TupleType : public Type {
     void variance(const Scope&, TypeVarMap<TypeVariance>&, bool) const override;
     void bounds(const Scope&, TypeVarMap<TypeBounds>&, const Type*, bool) const override;
     bool is_sized(const Scope&, std::unordered_set<const Type*>&) const override;
+    void free_variables(const Scope&, std::unordered_set<const ModVar*>&, std::unordered_set<const Type*>&) const override;
 
 private:
     TupleType(Arena&, const ArrayRef<const Type*>&);
@@ -175,6 +183,7 @@ struct ArrayType : public Type {
     void variance(const Scope&, TypeVarMap<TypeVariance>&, bool) const override;
     void bounds(const Scope&, TypeVarMap<TypeBounds>&, const Type*, bool) const override;
     bool is_sized(const Scope&, std::unordered_set<const Type*>&) const override;
+    void free_variables(const Scope&, std::unordered_set<const ModVar*>&, std::unordered_set<const Type*>&) const override;
 };
 
 /// An array whose size is known at compile-time.
@@ -228,10 +237,13 @@ struct AddrType : public Type {
 
     bool is_compatible_with(const AddrType* other) const;
 
+    const thorin::Type* convert(Emitter&) const override;
+
     size_t order(const Scope&, std::unordered_set<const Type*>&) const override;
     void variance(const Scope&, TypeVarMap<TypeVariance>&, bool) const override;
     void bounds(const Scope&, TypeVarMap<TypeBounds>&, const Type*, bool) const override;
     bool is_sized(const Scope&, std::unordered_set<const Type*>&) const override;
+    void free_variables(const Scope&, std::unordered_set<const ModVar*>&, std::unordered_set<const Type*>&) const override;
 };
 
 /// A pointer type, as the result of taking the address of an object.
@@ -240,7 +252,6 @@ struct PtrType : public AddrType {
 
     const PtrType* rewrite(Rewriter&) const override;
 
-    const thorin::Type* convert(Emitter&) const override;
     std::string stringify(Emitter&) const override;
 
 private:
@@ -288,6 +299,7 @@ struct ImplicitParamType : public Type {
     void variance(const Scope&, TypeVarMap<TypeVariance>&, bool) const override;
     void bounds(const Scope&, TypeVarMap<TypeBounds>&, const Type*, bool) const override;
     bool is_sized(const Scope&, std::unordered_set<const Type*>&) const override;
+    void free_variables(const Scope&, std::unordered_set<const ModVar*>&, std::unordered_set<const Type*>&) const override;
 private:
     ImplicitParamType(Arena&, const Type*);
 
@@ -312,6 +324,7 @@ struct FnType : public Type {
     void variance(const Scope&, TypeVarMap<TypeVariance>&, bool) const override;
     void bounds(const Scope&, TypeVarMap<TypeBounds>&, const Type*, bool) const override;
     bool is_sized(const Scope&, std::unordered_set<const Type*>&) const override;
+    void free_variables(const Scope&, std::unordered_set<const ModVar*>&, std::unordered_set<const Type*>&) const override;
 
 private:
     FnType(Arena&, const Type*, const Type*);
@@ -477,6 +490,7 @@ struct ComplexType : public UserType {
     using Type::is_sized;
     size_t order(const Scope&, std::unordered_set<const Type*>&) const override;
     bool is_sized(const Scope&, std::unordered_set<const Type*>&) const override;
+    void free_variables(const Scope&, std::unordered_set<const ModVar*>&, std::unordered_set<const Type*>&) const override;
 };
 
 struct StructType : public NominalNode<ComplexType> {
@@ -565,6 +579,7 @@ struct TypeApp : public Type {
     void variance(const Scope&, TypeVarMap<TypeVariance>&, bool) const override;
     void bounds(const Scope&, TypeVarMap<TypeBounds>&, const Type*, bool) const override;
     bool is_sized(const Scope&, std::unordered_set<const Type*>&) const override;
+    void free_variables(const Scope&, std::unordered_set<const ModVar*>&, std::unordered_set<const Type*>&) const override;
 
     static ReplaceMap replace_map(
         ArrayRef<const TypeVar*> type_params,
@@ -590,6 +605,7 @@ struct ModVarAsType : public Type {
     void variance(const Scope&, TypeVarMap<TypeVariance>&, bool) const override;
     void bounds(const Scope&, TypeVarMap<TypeBounds>&, const Type*, bool) const override;
     bool is_sized(const Scope&, std::unordered_set<const Type*>&) const override;
+    void free_variables(const Scope&, std::unordered_set<const ModVar*>&, std::unordered_set<const Type*>&) const override;
 
     const thorin::Type* convert(Emitter&) const override;
 

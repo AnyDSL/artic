@@ -8,12 +8,20 @@ namespace artic {
 namespace tir {
 
 GlobalVariable::GlobalVariable(Builder& builder, const Type* value_type, bool is_mut, const Value* init)
-    : NominalNode(builder.arena, builder.ref_type(value_type, is_mut, 0)), value_type(value_type), is_mut(is_mut), init(init) {}
+    : NominalNode(builder.arena, builder.schedule_and_bind_type(builder.ref_type(value_type, is_mut, 0))), value_type(value_type), is_mut(is_mut), init(init) {
+    assert(value_type->is_simple());
+    if (init)
+        assert(init->type() == value_type);
+}
 
 LocalVariable::LocalVariable(Builder& builder, const Type* allocated_type)
-    : NominalNode(builder.arena, builder.ref_type(allocated_type, true, 0)), allocated_type(allocated_type) {}
+    : NominalNode(builder.arena, builder.schedule_and_bind_type(builder.ref_type(allocated_type, true, 0))), allocated_type(allocated_type) {
+    assert(allocated_type->is_simple());
+}
 
-Fn::Fn(Builder& builder, const Param* param, const Type* codom) : NominalNode(builder.arena, builder.fn_type(param->type(), codom)), param(param) {}
+Fn::Fn(Builder& builder, const Param* param, const Type* codom)
+    : NominalNode(builder.arena, builder.schedule_and_bind_type(builder.fn_type(param->type(), codom))), param(param)
+{}
 
 Param::Param(Arena& arena, std::optional<ast::Identifier> id, const Type* type) : NominalNode(arena, type), id(id) {}
 
@@ -340,7 +348,7 @@ bool UnOp::equals(const Node* other) const {
 
 BinOp::BinOp(Builder& builder, const BinaryExpr::Tag tag, const Value* lhs, const Value* rhs) : Value(builder.arena, [&]() -> const Type* {
     if (BinaryExpr::has_eq(tag)) {
-        assert(lhs->type()->isa<RefType>());
+        assert(builder.scope.peek_type_definition(lhs->type())->isa<RefType>());
         return builder.unit_type();
     } if (BinaryExpr::has_cmp(tag))
         return builder.bool_type();
@@ -373,9 +381,9 @@ Branch::Branch(Builder& builder, const Value* cond, const Fn* true_branch, const
     if (else_branch->param->type() != builder.tuple_type({}))
         return builder.type_error();
     // both branches must yield the same thing (if we do direct-style which we don't ATP!)
-    if (true_branch->type()->codom != else_branch->type()->codom)
+    if (true_branch->resolve_type(builder.scope)->codom != else_branch->resolve_type(builder.scope)->codom)
         return builder.type_error();
-    return true_branch->type()->codom;
+    return true_branch->resolve_type(builder.scope)->codom;
 }()), cond(cond), true_branch(true_branch), else_branch(else_branch) {
     assert(cond->is_simple());
 }

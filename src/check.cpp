@@ -79,15 +79,6 @@ void TypeChecker::bind_ptrn_params(ast::Ptrn& ptrn, const Value* value) {
     }
 }
 
-const ModVar* TypeChecker::bind_mod_value(const Node* node, std::optional<ast::Identifier> maybe_id) {
-    ScopeBuilder& scope = current_scope_builder();
-    assert(scope.type == ScopeBuilder::ScopeType::Module);
-    auto var = builder().mod_var(builder().decl_key(maybe_id), node->kind());
-    scope.module->decls.push_back({ var, node });
-    scope.scope.insert(var, node);
-    return var;
-}
-
 const ModVar* ScopeBuilder::add_decl(const Node* node, ast::Identifier id) {
     assert(type == ScopeBuilder::ScopeType::Module);
     auto var = checker.builder().mod_var(checker.builder().decl_key(id), node->kind());
@@ -964,7 +955,7 @@ const tir::Node* Path::Elem::infer(TypeChecker& checker, const tir::Node* prev_e
         assert(module);
         for (auto& decl : module->decls) {
             if (decl.var->key->id && decl.var->key->id->name == id.name) {
-                return tir = checker.bind_mod_value(checker.builder().mod_access(mod_var, decl.var->key));
+                return tir = checker.builder().add_in_module(checker.builder().mod_access(mod_var, decl.var->key));
             }
         }
         assert(false && "TODO diagnostics");
@@ -2101,8 +2092,6 @@ const tir::Node* StaticDecl::infer(TypeChecker& checker) {
         }
     }
     checker.exit_decl(this);
-    // tir = checker.builder().global_variable(value_type, is_mut, value);
-    // checker.current_scope().add_decl(tir, id);
     tir = checker.current_scope_builder().add_decl(checker.builder().global_variable(value_type, is_mut, value), id);
     return tir;
 }
@@ -2132,13 +2121,11 @@ const tir::Node* FnDecl::infer(TypeChecker& checker) {
         tir_fn = checker.builder().function(param, fn_type->codom);
     } else {
         tir_fn = checker.infer_value(*fn)->as<tir::Fn>();
-        fn_type = tir_fn->type();
+        fn_type = tir_fn->resolve_type(checker.scope());
     }
 
     // Set the type of this function right now, in case
     // the `return` keyword is encountered in the body.
-    // tir = forall ? forall : tir_fn;
-    // checker.current_scope().add_decl(tir, id);
     tir = checker.current_scope_builder().add_decl(forall ? forall : tir_fn, id);
     // if (forall)
     //     forall->body = fn_type;
@@ -2176,8 +2163,6 @@ const tir::Node* FieldDecl::infer(TypeChecker& checker) {
 const tir::Node* StructDecl::infer(TypeChecker& checker) {
     auto struct_type = checker.builder().struct_type(checker.infer(type_params ? &*type_params : nullptr), this);
     // Set the type before entering the fields
-    // tir = struct_type;
-    // checker.current_scope().add_decl(tir, id);
     tir = checker.current_scope_builder().add_decl(struct_type, id);
     for (auto& field : fields)
         struct_type->members.push_back(checker.infer_type(*field));
@@ -2302,7 +2287,7 @@ const tir::Node* IdPtrn::infer(TypeChecker& checker) {
 }
 
 const tir::Node* IdPtrn::check(TypeChecker& checker, const artic::Type* expected) {
-    checker.check(*decl, decl->is_mut ? checker.builder().ref_type(expected, true, 0) : expected);
+    checker.check(*decl, decl->is_mut ? checker.builder().schedule_and_bind_type(checker.builder().ref_type(expected, true, 0)) : expected);
     if (sub_ptrn)
         checker.check(*sub_ptrn, expected);
     return checker.builder().param(std::nullopt, expected);
