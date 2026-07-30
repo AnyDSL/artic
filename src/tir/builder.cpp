@@ -158,10 +158,12 @@ const Module* Builder::module(const ast::ModDecl* decl) {
 
 const ModValue* Builder::mod_access(const ModValue* src, const DeclKey* key) {
     if (auto var = src->isa<ModVar>()) {
-        auto mod = scope.resolve_module(var);
-        for (auto& decl : mod->decls) {
-            if (decl.var->key == key)
-                return decl.var;
+        auto mod = scope.peek_mod_value(var)->isa<Module>();
+        if (mod) {
+            for (auto& decl: mod->decls) {
+                if (decl.var->key == key)
+                    return decl.var;
+            }
         }
     }
     assert(false);
@@ -266,6 +268,19 @@ const Value* Builder::branch(const Value* cond, const Fn* true_branch, const Fn*
 
 const Value* Builder::control(const Fn* fn) {
     return arena.insert<Control>(*this, fn);
+}
+
+const Signature* Builder::signature(ArrayRef<Signature::Decl> decls) {
+    std::unordered_set<Signature::Decl, Signature::Hash, Signature::Compare> decls_set;
+    for (auto& decl : decls) {
+        decls_set.insert(decl);
+    }
+    Array<Signature::Decl> sorted_decls(decls_set.size());
+    size_t i = 0;
+    for (auto& decl : decls_set) {
+        sorted_decls[i++] = decl;
+    }
+    return arena.insert<Signature>(arena, sorted_decls);
 }
 
 const Type* Builder::schedule_and_bind_type(const Type* type, std::optional<ast::Identifier> maybe_id) {

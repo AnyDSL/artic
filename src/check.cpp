@@ -452,6 +452,7 @@ static std::string kind2str(NodeKind kind) {
         case NodeKind::Type: return "type";
         case NodeKind::Module: return "module";
         case NodeKind::Key: return "key";
+        case NodeKind::Signature: return "sig";
     }
 }
 
@@ -932,9 +933,9 @@ const tir::Node* Path::Elem::infer(TypeChecker& checker, const tir::Node* prev_e
         return tir = checker.infer(*decl);
 
     if (prev_elem->kind() == NodeKind::Module) {
-        auto module = checker.scope().resolve_module(prev_elem->as<ModValue>());
-        assert(module);
+        auto module = checker.scope().peek_mod_value(prev_elem->as<ModValue>())->isa<Module>();
         if (is_super()) {
+            assert(module);
             assert(module->decl && "anonymous modules shouldn't be reachable like this");
             if (!module->decl->super) {
                 checker.error(loc, "'super' cannot be used on the root module");
@@ -943,10 +944,14 @@ const tir::Node* Path::Elem::infer(TypeChecker& checker, const tir::Node* prev_e
             return tir = module->decl->super->tir;
         }
 
-        for (auto& decl : module->decls) {
-            if (decl.var->key->id && decl.var->key->id->name == id.name) {
-                return tir = checker.builder().mod_access(prev_elem->as<ModValue>(), decl.var->key);
+        if (module) {
+            for (auto& decl: module->decls) {
+                if (decl.var->key->id && decl.var->key->id->name == id.name) {
+                    return tir = checker.builder().mod_access(prev_elem->as<ModValue>(), decl.var->key);
+                }
             }
+        } else {
+
         }
         assert(false && "TODO diagnostics");
         //return tir = checker.unknown_module_member(loc, mod_type, id.name);

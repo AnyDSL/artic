@@ -72,6 +72,8 @@ struct Builder {
     {}
     Builder(const Builder&) = delete;
 
+    const Signature* signature(ArrayRef<Signature::Decl> decls);
+
     const PrimType*          prim_type(ast::PrimType::Tag);
     const PrimType*          bool_type();
     const TupleType*         unit_type();

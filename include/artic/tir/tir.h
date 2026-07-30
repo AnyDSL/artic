@@ -28,6 +28,7 @@ enum class NodeKind {
     Type,
     Module,
     Key,
+    Signature,
 };
 
 /// Base class for all nodes. Types should be created by a `Arena`,
@@ -92,7 +93,7 @@ struct Scope {
     }
 
     const Type* peek_type_definition(const Type* type) const;
-    const Module* resolve_module(const ModValue*) const;
+    const ModValue* peek_mod_value(const ModValue*) const;
 private:
     std::unordered_map<const ModVar*, const Node*> mod_vars;
     std::unordered_map<const Param*, const Value*> params;
@@ -126,33 +127,32 @@ struct DeclKey : public NominalNode<Node> {
     DeclKey(Arena& arena, std::optional<ast::Identifier> id) : NominalNode(arena), id(id) {}
 };
 
-/*struct SignatureDecl : public Node {
-    const DeclKey* key;
-    NodeKind kind_;
-
-    const Type* type;
-    const Signature* mod_signature;
-
-    NodeKind kind() const override { return kind_; }
-
-    size_t hash() const override;
-    bool equals(const Node*) const override;
-    void print(Printer&) const override;
-    Node* rewrite(Rewriter&) const override;
-
-    SignatureDecl(Arena& arena, NodeKind, const Type*, const Signature*);
-};
-
 struct Signature : public Node {
-    Array<const SignatureDecl*> decls;
+    struct Decl {
+        const DeclKey* key;
+        NodeKind kind;
+        const Type* value_type = nullptr;
+        const Type* type = nullptr;
+        const Signature* mod_signature = nullptr;
+    };
+    Array<Decl> decls;
 
     size_t hash() const override;
     bool equals(const Node*) const override;
     void print(Printer&) const override;
     Node* rewrite(Rewriter&) const override;
 
-    Signature(Arena& arena, ArrayRef<const SignatureDecl*>);
-};*/
+    struct Hash {
+        size_t operator()(const Decl&) const;
+    };
+    struct Compare {
+        bool operator()(const Decl&, const Decl&) const;
+    };
+
+    NodeKind kind() const override { return NodeKind::Signature; }
+
+    Signature(Arena& arena, ArrayRef<Decl>&&);
+};
 
 struct ModValue : public Node {
     NodeKind kind_;
@@ -182,6 +182,7 @@ struct Module : public NominalNode<ModValue> {
     mutable std::vector<Decl> decls;
 
     mutable const Signature* signature = nullptr;
+    const Signature* seal(Builder&) const;
 
     void print(Printer&) const override;
     Node* rewrite(Rewriter&) const override;

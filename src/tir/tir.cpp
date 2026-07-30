@@ -11,14 +11,13 @@ Arena::~Arena() {
 
 Node::Node(Arena& arena) : arena(arena), gid(arena.alloc_gid()) {}
 
-const Module* Scope::resolve_module(const ModValue* maybe_module) const {
+const ModValue* Scope::peek_mod_value(const ModValue* maybe_module) const {
     if (auto mod_var = maybe_module->isa<ModVar>()) {
         auto bound_to = resolve_mod_var(mod_var);
-        assert(bound_to && "unexpected unbound module variable");
-        maybe_module = bound_to->isa<ModValue>();
-        assert(maybe_module && "module variable bound to not a ModValue");
+        if (bound_to)
+            return bound_to->as<ModValue>();
     }
-    return maybe_module->isa<Module>();
+    return maybe_module;
 }
 
 void Scope::dump() const {

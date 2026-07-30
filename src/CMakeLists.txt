@@ -31,6 +31,7 @@ add_library(libartic
     tir/rewrite.cpp
     tir/value.cpp
     tir/types.cpp
+    tir/module.cpp
     tir/builder.cpp)
 
 set_target_properties(libartic PROPERTIES PREFIX "" CXX_STANDARD 20)
