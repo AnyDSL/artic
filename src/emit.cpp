@@ -1,6 +1,6 @@
 #include "artic/emit.h"
 #include "artic/tir/types.h"
-#include "artic/tir/arena.h"
+#include "artic/tir/builder.h"
 #include "artic/ast.h"
 #include "artic/print.h"
 #include "artic/locator.h"
@@ -2518,7 +2518,7 @@ std::tuple<Ptr<ast::ModDecl>, const tir::Module*, bool> compile(
     if (enable_all_warns)
         name_binder.warn_on_shadowing = true;
 
-    TypeChecker type_checker(log, type_table, arena);
+    TypeChecker type_checker(log, type_table);
     type_checker.warns_as_errors = warns_as_errors;
 
     if (!name_binder.run(*program))

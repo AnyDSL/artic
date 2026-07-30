@@ -1,5 +1,5 @@
 #include "artic/tir/values.h"
-#include "artic/tir/arena.h"
+#include "artic/tir/builder.h"
 
 #include "artic/hash.h"
 
@@ -7,13 +7,13 @@ namespace artic {
 
 namespace tir {
 
-GlobalVariable::GlobalVariable(Arena& arena, const Type* value_type, bool is_mut, const Value* init)
-    : NominalNode(arena, arena.ref_type(value_type, is_mut, 0)), value_type(value_type), is_mut(is_mut), init(init) {}
+GlobalVariable::GlobalVariable(Builder& builder, const Type* value_type, bool is_mut, const Value* init)
+    : NominalNode(builder.arena, builder.ref_type(value_type, is_mut, 0)), value_type(value_type), is_mut(is_mut), init(init) {}
 
-LocalVariable::LocalVariable(Arena& arena, const Type* allocated_type)
-    : NominalNode(arena, arena.ref_type(allocated_type, true, 0)), allocated_type(allocated_type) {}
+LocalVariable::LocalVariable(Builder& builder, const Type* allocated_type)
+    : NominalNode(builder.arena, builder.ref_type(allocated_type, true, 0)), allocated_type(allocated_type) {}
 
-Fn::Fn(Arena& arena, const Param* param, const Type* codom) : NominalNode(arena, arena.fn_type(param->type(), codom)), param(param) {}
+Fn::Fn(Builder& builder, const Param* param, const Type* codom) : NominalNode(builder.arena, builder.fn_type(param->type(), codom)), param(param) {}
 
 Param::Param(Arena& arena, std::optional<ast::Identifier> id, const Type* type) : NominalNode(arena, type), id(id) {}
 
@@ -115,11 +115,11 @@ bool Undef::equals(const Node* other) const {
 
 ModVarAsValue::ModVarAsValue(Arena& arena, Scope& scope, const ModVar* var) : NominalNode(arena, scope.resolve_mod_var(var)->as<Value>()->type()), var(var) {}
 
-Agg::Agg(Arena& arena, Scope& s, const Type* agg_type, const ArrayRef<const Value*>& args) : Value(arena, agg_type), args(args) {
+Agg::Agg(Builder& builder, const Type* agg_type, const ArrayRef<const Value*>& args) : Value(builder.arena, agg_type), args(args) {
     for (auto arg : args) {
         assert(arg->is_simple());
     }
-    auto peeked_agg_type = s.peek_type_definition(agg_type);
+    auto peeked_agg_type = builder.scope.peek_type_definition(agg_type);
     if (auto tuple_t = agg_type->isa<TupleType>()) {
         assert(tuple_t->args.size() == args.size());
         for (size_t i = 0; i < tuple_t->args.size(); i++) {
@@ -133,7 +133,7 @@ Agg::Agg(Arena& arena, Scope& s, const Type* agg_type, const ArrayRef<const Valu
     } else if (auto [_, struct_t] = match_app<StructType>(peeked_agg_type); struct_t) {
         assert(struct_t->member_count() == args.size());
         for (size_t i = 0; i < args.size(); i++) {
-            assert(args[i]->type() == member_type(peeked_agg_type, i));
+            assert(args[i]->type() == builder.member_type(peeked_agg_type, i));
         }
     } else {
         assert(false);
@@ -160,12 +160,12 @@ bool Agg::equals(const Node* other) const {
     return false;
 }
 
-Extract::Extract(Arena& arena, const Value* src, const Value* idx) : Value(arena, [&]() -> const Type* {
+Extract::Extract(Builder& builder, const Value* src, const Value* idx) : Value(builder.arena, [&]() -> const Type* {
     if (auto tuple_t = src->type()->isa<TupleType>()) {
         if (auto lit_idx = idx->isa<TypedLiteral>(); lit_idx) {
             size_t idx_value = lit_idx->value.as_integer();
             if (idx_value >= tuple_t->args.size())
-                return arena.type_error();
+                return builder.type_error();
             return tuple_t->args[idx_value];
         }
     } else if (auto array_t = src->type()->isa<SizedArrayType>()) {
@@ -174,12 +174,12 @@ Extract::Extract(Arena& arena, const Value* src, const Value* idx) : Value(arena
     } else if (auto [_, struct_t] = match_app<StructType>(src->type()); struct_t) {
         if (auto lit_idx = idx->isa<TypedLiteral>(); lit_idx) {
             size_t idx_value = lit_idx->value.as_integer();
-            return member_type(src->type(), idx_value);
+            return builder.member_type(src->type(), idx_value);
         }
     } else {
         assert(false);
     }
-    return arena.type_error();
+    return builder.type_error();
 }()), src(src), idx(idx) {
     assert(src->is_simple());
     assert(idx->is_simple());
@@ -197,7 +197,7 @@ bool Extract::equals(const Node* other) const {
     return false;
 }
 
-Proj::Proj(Arena& arena, const Value* src, const Value* idx) : Value(arena, [&]() -> const Type* {
+Proj::Proj(Builder& builder, const Value* src, const Value* idx) : Value(builder.arena, [&]() -> const Type* {
     const Type* pointee_t = nullptr;
     bool mut;
     size_t as;
@@ -216,15 +216,15 @@ Proj::Proj(Arena& arena, const Value* src, const Value* idx) : Value(arena, [&](
 
     auto wrap_pointee = [&](const Type* new_pointee) -> const Type* {
         if (ref_t)
-            return arena.ref_type(new_pointee, mut, as);
-        return arena.ptr_type(new_pointee, mut, as);
+            return builder.ref_type(new_pointee, mut, as);
+        return builder.ptr_type(new_pointee, mut, as);
     };
 
     if (auto tuple_t = pointee_t->isa<TupleType>()) {
         if (auto lit_idx = idx->isa<TypedLiteral>(); lit_idx) {
             size_t idx_value = lit_idx->value.as_integer();
             if (idx_value >= tuple_t->args.size())
-                return arena.type_error();
+                return builder.type_error();
             return wrap_pointee(tuple_t->args[idx_value]);
         }
     } else if (auto array_t = pointee_t->isa<ArrayType>()) {
@@ -232,12 +232,12 @@ Proj::Proj(Arena& arena, const Value* src, const Value* idx) : Value(arena, [&](
     } else if (auto [_, struct_t] = match_app<StructType>(pointee_t); struct_t) {
         if (auto lit_idx = idx->isa<TypedLiteral>(); lit_idx) {
             size_t idx_value = lit_idx->value.as_integer();
-            return wrap_pointee(member_type(pointee_t, idx_value));
+            return wrap_pointee(builder.member_type(pointee_t, idx_value));
         }
     } else {
         assert(false);
     }
-    return arena.type_error();
+    return builder.type_error();
 }()), src(src), idx(idx) {
     assert(src->is_simple());
     assert(idx->is_simple());
@@ -255,11 +255,11 @@ bool Proj::equals(const Node* other) const {
     return false;
 }
 
-Bind::Bind(Arena& arena, const Param* param, const Value* value) : Value(arena, [&]() -> const Type* {
+Bind::Bind(Builder& builder, const Param* param, const Value* value) : Value(builder.arena, [&]() -> const Type* {
     if (value->type() != param->type()) {
         assert(false);
     }
-    return arena.tuple_type({});
+    return builder.tuple_type({});
 }()), param(param), value(value) {}
 
 size_t Bind::hash() const {
@@ -274,10 +274,10 @@ bool Bind::equals(const Node* other) const {
     return false;
 }
 
-Seq::Seq(Arena& arena, const ArrayRef<const Value*>& values) : Value(arena, [&]() -> const Type* {
+Seq::Seq(Builder& builder, const ArrayRef<const Value*>& values) : Value(builder.arena, [&]() -> const Type* {
     if (!values.empty())
         return values.back()->type();
-    return arena.tuple_type({});
+    return builder.tuple_type({});
 }()), values(values) {}
 
 size_t Seq::hash() const {
@@ -302,20 +302,20 @@ bool Seq::equals(const Node* other) const {
 
 using namespace artic::ast;
 
-UnOp::UnOp(Arena& arena, const UnaryExpr::Tag tag, const Value* arg) : Value(arena, [&]() -> const Type* {
+UnOp::UnOp(Builder& builder, const UnaryExpr::Tag tag, const Value* arg) : Value(builder.arena, [&]() -> const Type* {
     auto [ref_type, arg_type] = remove_ref(arg->type());
     if (tag == UnaryExpr::Known)
-        return arena.bool_type();
+        return builder.bool_type();
     if (tag == UnaryExpr::Forget)
         return arg->type();
     if (tag == UnaryExpr::AddrOf)
-        return arena.ptr_type(arg_type, false, ref_type ? ref_type->addr_space : 0);
+        return builder.ptr_type(arg_type, false, ref_type ? ref_type->addr_space : 0);
     if (tag == UnaryExpr::AddrOfMut)
-        return arena.ptr_type(arg_type, true, ref_type->addr_space);
+        return builder.ptr_type(arg_type, true, ref_type->addr_space);
     if (tag == UnaryExpr::Deref) {
         if (auto ptr_type = arg_type->isa<PtrType>())
-            return arena.ref_type(ptr_type->pointee, ptr_type->is_mut, ptr_type->addr_space);
-        return arena.type_error();
+            return builder.ref_type(ptr_type->pointee, ptr_type->is_mut, ptr_type->addr_space);
+        return builder.type_error();
     }
     return arg_type;
 }()), tag(tag), arg(arg) {
@@ -334,14 +334,14 @@ bool UnOp::equals(const Node* other) const {
     return false;
 }
 
-BinOp::BinOp(Arena& arena, const BinaryExpr::Tag tag, const Value* lhs, const Value* rhs) : Value(arena, [&]() -> const Type* {
+BinOp::BinOp(Builder& builder, const BinaryExpr::Tag tag, const Value* lhs, const Value* rhs) : Value(builder.arena, [&]() -> const Type* {
     if (BinaryExpr::has_eq(tag)) {
         assert(lhs->type()->isa<RefType>());
-        return arena.unit_type();
+        return builder.unit_type();
     } if (BinaryExpr::has_cmp(tag))
-        return arena.bool_type();
+        return builder.bool_type();
     if (lhs->type() != rhs->type())
-        return arena.type_error();
+        return builder.type_error();
     return lhs->type();
 }()), tag(tag), lhs(lhs), rhs(rhs) {
     assert(lhs->is_simple());
@@ -360,17 +360,17 @@ bool BinOp::equals(const Node* other) const {
     return false;
 }
 
-Branch::Branch(Arena& arena, const Value* cond, const Fn* true_branch, const Fn* else_branch) : Value(arena, [&]() -> const Type* {
-    if (cond->type() != arena.bool_type())
-        return arena.type_error();
+Branch::Branch(Builder& builder, const Value* cond, const Fn* true_branch, const Fn* else_branch) : Value(builder.arena, [&]() -> const Type* {
+    if (cond->type() != builder.bool_type())
+        return builder.type_error();
     // both branches must have no param
-    if (true_branch->param->type() != arena.tuple_type({}))
-        return arena.type_error();
-    if (else_branch->param->type() != arena.tuple_type({}))
-        return arena.type_error();
+    if (true_branch->param->type() != builder.tuple_type({}))
+        return builder.type_error();
+    if (else_branch->param->type() != builder.tuple_type({}))
+        return builder.type_error();
     // both branches must yield the same thing (if we do direct-style which we don't ATP!)
     if (true_branch->type()->codom != else_branch->type()->codom)
-        return arena.type_error();
+        return builder.type_error();
     return true_branch->type()->codom;
 }()), cond(cond), true_branch(true_branch), else_branch(else_branch) {
     assert(cond->is_simple());
@@ -388,13 +388,13 @@ bool Branch::equals(const Node* other) const {
     return false;
 }
 
-Control::Control(Arena& arena, const Fn* fn) : Value(arena, [&]() -> const Type* {
+Control::Control(Builder& builder, const Fn* fn) : Value(builder.arena, [&]() -> const Type* {
     if (auto yield_fn_type = fn->param->type()->isa<FnType>()) {
-        if (yield_fn_type->codom != arena.no_ret_type())
-            return arena.type_error();
+        if (yield_fn_type->codom != builder.no_ret_type())
+            return builder.type_error();
         return yield_fn_type->dom;
     }
-    return arena.type_error();
+    return builder.type_error();
 }()), body(fn) {}
 
 size_t Control::hash() const {

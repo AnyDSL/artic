@@ -13,7 +13,7 @@ add_library(libartic
     ../include/artic/symbol.h
     ../include/artic/token.h
     ../include/artic/tir/tir.h
-    ../include/artic/tir/arena.h
+    ../include/artic/tir/builder.h
     ../include/artic/tir/types.h
     ../include/artic/tir/values.h
     ../include/artic/tir/rewrite.h
@@ -30,7 +30,8 @@ add_library(libartic
     tir/print.cpp
     tir/rewrite.cpp
     tir/value.cpp
-    tir/types.cpp)
+    tir/types.cpp
+    tir/builder.cpp)
 
 set_target_properties(libartic PROPERTIES PREFIX "" CXX_STANDARD 20)
 

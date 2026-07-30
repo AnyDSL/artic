@@ -2,7 +2,7 @@
 #define ARTIC_TIR_REWRITE_H
 
 #include "artic/tir/tir.h"
-#include "artic/tir/arena.h"
+#include "artic/tir/builder.h"
 
 #include <unordered_map>
 
@@ -43,6 +43,8 @@ struct Rewriter {
         }
         return nullptr;
     }
+
+    Builder& builder() { }
 
 protected:
     std::unordered_map<const Node*, const Node*> map;

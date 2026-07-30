@@ -64,7 +64,6 @@ struct Type : public Node {
     NodeKind kind() const override { return NodeKind::Type; }
 
     virtual bool contains(const Type* type) const { return this == type; }
-    virtual const Type* replace(const ReplaceMap&) const { return this; }
 
     /// Converts this type to a Thorin type
     virtual const thorin::Type* convert(Emitter&) const;
@@ -146,7 +145,7 @@ struct TupleType : public Type {
     size_t hash() const override;
     bool contains(const Type*) const override;
     const TupleType* rewrite(Rewriter&) const override;
-    const Type* replace(const ReplaceMap&) const override;
+    // const Type* replace(const ReplaceMap&) const override;
 
     const thorin::Type* convert(Emitter&) const override;
     std::string stringify(Emitter&) const override;
@@ -190,8 +189,6 @@ struct SizedArrayType : public ArrayType {
     size_t hash() const override;
     const SizedArrayType* rewrite(Rewriter&) const override;
 
-    const Type* replace(const ReplaceMap&) const override;
-
     const thorin::Type* convert(Emitter&) const override;
     std::string stringify(Emitter&) const override;
 
@@ -209,8 +206,6 @@ struct UnsizedArrayType : public ArrayType {
     bool equals(const Node*) const override;
     size_t hash() const override;
     const UnsizedArrayType* rewrite(Rewriter&) const override;
-
-    const Type* replace(const ReplaceMap&) const override;
 
     const thorin::Type* convert(Emitter&) const override;
     std::string stringify(Emitter&) const override;
@@ -250,7 +245,6 @@ struct PtrType : public AddrType {
     void print(Printer&) const override;
 
     const PtrType* rewrite(Rewriter&) const override;
-    const Type* replace(const ReplaceMap&) const override;
 
     const thorin::Type* convert(Emitter&) const override;
     std::string stringify(Emitter&) const override;
@@ -273,7 +267,6 @@ inline std::pair<const PtrType*, const Type*> remove_ptr(const Type* type) {
 struct RefType : public AddrType {
     void print(Printer&) const override;
     const RefType* rewrite(Rewriter&) const override;
-    const Type* replace(const ReplaceMap&) const override;
 
 private:
     RefType(Arena& arena, const Type* pointee, bool is_mut, size_t addr_space)
@@ -297,8 +290,6 @@ struct ImplicitParamType : public Type {
     size_t hash() const override;
     bool contains(const Type*) const override;
     const ImplicitParamType* rewrite(Rewriter&) const override;
-
-    const Type* replace(const ReplaceMap&) const override;
 
     const thorin::Type* convert(Emitter&) const override;
     std::string stringify(Emitter&) const override;
@@ -326,8 +317,6 @@ struct FnType : public Type {
     size_t hash() const override;
     bool contains(const Type*) const override;
     const FnType* rewrite(Rewriter&) const override;
-
-    const Type* replace(const ReplaceMap&) const override;
 
     const thorin::Type* convert(Emitter&) const override;
     std::string stringify(Emitter&) const override;
@@ -428,7 +417,6 @@ struct TypeVar : public NominalNode<Type> {
     void print(Printer&) const override;
 
     const TypeVar* rewrite(Rewriter&) const override;
-    const Type* replace(const ReplaceMap&) const override;
 
     const thorin::Type* convert(Emitter&) const override;
     std::string stringify(Emitter&) const override;
@@ -525,7 +513,7 @@ struct StructType : public NominalNode<ComplexType> {
     const StructType* rewrite(Rewriter&) const override;
 
     std::string_view member_name(size_t) const override;
-    const Type* member_type(size_t) const override;
+    const Type* member_type(size_t) const;
     size_t member_count() const override;
 
     bool is_tuple_like() const;
@@ -552,7 +540,7 @@ struct EnumType : public PolyTypeFromDecl<ComplexType, ast::EnumDecl> {
     const EnumType* rewrite(Rewriter&) const override;
 
     std::string_view member_name(size_t) const override;
-    const Type* member_type(size_t) const override;
+    const Type* member_type(size_t) const;
     size_t member_count() const override;
 
     // Returns true if the enumeration is only made
@@ -590,16 +578,11 @@ struct TypeApp : public Type {
         return replace_map(applied->type_params(), type_args);
     }
 
-    /// Returns the type of the given member of the applied type, if it is a complex type.
-    const Type* member_type(size_t i) const;
-
     void print(Printer&) const override;
     bool equals(const Node*) const override;
     size_t hash() const override;
     bool contains(const Type*) const override;
     const Type* rewrite(Rewriter&) const override;
-
-    const Type* replace(const ReplaceMap&) const override;
 
     const thorin::Type* convert(Emitter&) const override;
     std::string stringify(Emitter&) const override;
@@ -644,21 +627,6 @@ bool is_prim_type(const Type*, ast::PrimType::Tag);
 bool is_simd_type(const Type*);
 bool is_unit_type(const Type*);
 inline bool is_bool_type(const Type* type) { return is_prim_type(type, ast::PrimType::Bool); }
-
-inline const Type* member_type(const Type* type, size_t i) {
-    if (auto type_app = type->isa<TypeApp>())
-        return type_app->member_type(i);
-    else if (auto complex_type = type->isa<ComplexType>())
-        return complex_type->member_type(i);
-    else if (auto tuple_type = type->isa<TupleType>())
-        return tuple_type->args[i];
-    else if (auto array_type = type->isa<ArrayType>())
-        return array_type->elem;
-    else {
-        assert(false);
-        return nullptr;
-    }
-}
 
 template <typename T>
 std::pair<const TypeApp*, const T*> match_app(const Type* type) {

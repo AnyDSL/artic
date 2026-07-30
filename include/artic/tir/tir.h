@@ -17,6 +17,7 @@ struct Emitter;
 namespace tir {
 
 struct Arena;
+struct Builder;
 struct Rewriter;
 struct Printer;
 

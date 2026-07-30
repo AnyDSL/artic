@@ -26,7 +26,7 @@ const BottomType* BottomType::rewrite(Rewriter& r) const {
 const FnType* FnType::rewrite(Rewriter& r) const {
     const Type* ndom = r.instantiate(dom, true)->as<Type>();
     const Type* ncodom = r.instantiate(codom, true)->as<Type>();
-    return r.dst.fn_type(ndom, ncodom);
+    return r.builder().fn_type(ndom, ncodom);
 }
 
 const TupleType* TupleType::rewrite(Rewriter& r) const {
@@ -34,7 +34,7 @@ const TupleType* TupleType::rewrite(Rewriter& r) const {
     for (size_t i = 0; i < elems.size(); ++i) {
         elems[i] = r.instantiate(elems[i], true)->as<Type>();
     }
-    return r.dst.tuple_type(elems);
+    return r.builder().tuple_type(elems);
 }
 
 const StructType* StructType::rewrite(Rewriter& r) const {
@@ -46,23 +46,23 @@ const EnumType* EnumType::rewrite(Rewriter&) const {
 }
 
 const SizedArrayType* SizedArrayType::rewrite(Rewriter& r) const {
-    return r.dst.sized_array_type(r.instantiate(elem, true)->as<Type>(), size, is_simd);
+    return r.builder().sized_array_type(r.instantiate(elem, true)->as<Type>(), size, is_simd);
 }
 
 const UnsizedArrayType* UnsizedArrayType::rewrite(Rewriter& r) const {
-    return r.dst.unsized_array_type(r.instantiate(elem, true)->as<Type>());
+    return r.builder().unsized_array_type(r.instantiate(elem, true)->as<Type>());
 }
 
 const ImplicitParamType* ImplicitParamType::rewrite(Rewriter& r) const {
-    return r.dst.implicit_param_type(r.instantiate(underlying, true)->as<Type>());
+    return r.builder().implicit_param_type(r.instantiate(underlying, true)->as<Type>());
 }
 
 const PtrType* PtrType::rewrite(Rewriter& r) const {
-    return r.dst.ptr_type(r.instantiate(pointee, true)->as<Type>(), is_mut, addr_space);
+    return r.builder().ptr_type(r.instantiate(pointee, true)->as<Type>(), is_mut, addr_space);
 }
 
 const RefType* RefType::rewrite(Rewriter& r) const {
-    return r.dst.ref_type(r.instantiate(pointee, true)->as<Type>(), is_mut, addr_space);
+    return r.builder().ref_type(r.instantiate(pointee, true)->as<Type>(), is_mut, addr_space);
 }
 
 const TypeAlias* TypeAlias::rewrite(Rewriter& r) const {
@@ -74,7 +74,7 @@ const ForallType* ForallType::rewrite(Rewriter&) const {
 }
 
 const TypeVar* TypeVar::rewrite(Rewriter& r) const {
-    return r.dst.type_var(decl);
+    return r.builder().type_var(decl);
 }
 
 const Node* ModVarAsType::rewrite(Rewriter&) const {
@@ -82,7 +82,7 @@ const Node* ModVarAsType::rewrite(Rewriter&) const {
 }
 
 const Type* TypeApp::rewrite(Rewriter& r) const {
-    return r.dst.type_app(r.instantiate(applied, false)->as<UserType>(), r.instantiate<Type, Type>(type_args, false));
+    return r.builder().type_app(r.instantiate(applied, false)->as<UserType>(), r.instantiate<Type, Type>(type_args, false));
 }
 
 const TypeError* TypeError::rewrite(Rewriter& r) const {
@@ -98,7 +98,7 @@ const Node* ModVar::rewrite(Rewriter&) const {
 }
 
 Node* Module::rewrite(Rewriter& r) const {
-    const Module* m = r.dst.module(id, r.instantiate(super, false)->isa<Module>());
+    const Module* m = r.builder().module(id, r.instantiate(super, false)->isa<Module>());
 
 }
 

@@ -49,7 +49,7 @@ struct Fn : public NominalNode<Value> {
 
     const thorin::Def* emit(Emitter&) const override;
 
-    Fn(Arena&, const Param*, const Type* codom);
+    Fn(Builder&, const Param*, const Type* codom);
 };
 
 struct App : public Value {
@@ -80,7 +80,7 @@ struct GlobalVariable : public NominalNode<Value> {
 
     const thorin::Def* emit(Emitter&) const override;
 
-    GlobalVariable(Arena& arena, const Type*, bool is_mut, const Value* init = nullptr);
+    GlobalVariable(Builder& arena, const Type*, bool is_mut, const Value* init = nullptr);
 };
 
 struct LocalVariable : public NominalNode<Value> {
@@ -92,7 +92,7 @@ struct LocalVariable : public NominalNode<Value> {
     const RefType* type() const override { return type_->as<RefType>(); }
     const thorin::Def* emit(Emitter&) const override;
 
-    LocalVariable(Arena&, const Type*);
+    LocalVariable(Builder&, const Type*);
 };
 
 struct ImplicitCast : public Value {
@@ -168,7 +168,7 @@ struct Agg : public Value {
     bool is_computation() const override { return false; }
     const thorin::Def* emit(Emitter&) const override;
 
-    Agg(Arena&, Scope&, const Type*, const ArrayRef<const Value*>&);
+    Agg(Builder&, const Type*, const ArrayRef<const Value*>&);
 };
 
 struct Extract : public Value {
@@ -183,7 +183,7 @@ struct Extract : public Value {
 
     const thorin::Def* emit(Emitter&) const override;
 
-    Extract(Arena&, const Value*, const Value*);
+    Extract(Builder&, const Value*, const Value*);
 };
 
 struct Proj : public Value {
@@ -198,7 +198,7 @@ struct Proj : public Value {
 
     const thorin::Def* emit(Emitter&) const override;
 
-    Proj(Arena&, const Value*, const Value*);
+    Proj(Builder&, const Value*, const Value*);
 };
 
 struct Bind : public Value {
@@ -213,7 +213,7 @@ struct Bind : public Value {
 
     const thorin::Def* emit(Emitter&) const override;
 
-    Bind(Arena&, const Param*, const Value*);
+    Bind(Builder&, const Param*, const Value*);
 };
 
 struct WithMod : public NominalNode<Value> {
@@ -252,7 +252,7 @@ struct Seq : public Value {
 
     const thorin::Def* emit(Emitter&) const override;
 
-    Seq(Arena&, const ArrayRef<const Value*>&);
+    Seq(Builder&, const ArrayRef<const Value*>&);
 };
 
 struct UnOp : public Value {
@@ -267,7 +267,7 @@ struct UnOp : public Value {
 
     const thorin::Def* emit(Emitter&) const override;
 
-    UnOp(Arena&, const ast::UnaryExpr::Tag, const Value*);
+    UnOp(Builder&, const ast::UnaryExpr::Tag, const Value*);
 };
 
 struct BinOp : public Value {
@@ -284,7 +284,7 @@ struct BinOp : public Value {
     const thorin::Def* emit(Emitter&) const override;
     void emit_branch(Emitter&, thorin::Continuation*, thorin::Continuation*) const override;
 
-    BinOp(Arena&, const ast::BinaryExpr::Tag, const Value*, const Value*);
+    BinOp(Builder&, const ast::BinaryExpr::Tag, const Value*, const Value*);
 };
 
 struct Branch : public Value {
@@ -300,7 +300,7 @@ struct Branch : public Value {
 
     const thorin::Def* emit(Emitter&) const override;
 
-    Branch(Arena&, const Value* cond, const Fn* true_branch, const Fn* false_branch);
+    Branch(Builder&, const Value* cond, const Fn* true_branch, const Fn* false_branch);
 };
 
 struct Control : public Value {
@@ -314,7 +314,7 @@ struct Control : public Value {
 
     const thorin::Def* emit(Emitter&) const override;
 
-    Control(Arena&, const Fn*);
+    Control(Builder&, const Fn*);
 };
 
 }

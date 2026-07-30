@@ -2,7 +2,7 @@
 #include <algorithm>
 
 #include "artic/tir/types.h"
-#include "artic/tir/arena.h"
+#include "artic/tir/builder.h"
 
 namespace artic {
 
@@ -180,52 +180,6 @@ bool TypeApp::contains(const Type* type) const {
         });
 }
 
-// Replace -------------------------------------------------------------------------
-
-const Type* TupleType::replace(const std::unordered_map<const TypeVar*, const Type*>& map) const {
-    SmallArray<const Type*> new_args(args.size());
-    for (size_t i = 0, n = args.size(); i < n; ++i)
-        new_args[i] = args[i]->replace(map);
-    return arena.tuple_type(std::move(new_args));
-}
-
-const Type* SizedArrayType::replace(const std::unordered_map<const TypeVar*, const Type*>& map) const {
-    return arena.sized_array_type(elem->replace(map), size, is_simd);
-}
-
-const Type* UnsizedArrayType::replace(const std::unordered_map<const TypeVar*, const Type*>& map) const {
-    return arena.unsized_array_type(elem->replace(map));
-}
-
-const Type* PtrType::replace(const std::unordered_map<const TypeVar*, const Type*>& map) const {
-    return arena.ptr_type(pointee->replace(map), is_mut, addr_space);
-}
-
-const Type* RefType::replace(const std::unordered_map<const TypeVar*, const Type*>& map) const {
-    return arena.ref_type(pointee->replace(map), is_mut, addr_space);
-}
-
-const Type* ImplicitParamType::replace(const ReplaceMap& map) const {
-    return arena.implicit_param_type(underlying->replace(map));
-}
-
-const Type* FnType::replace(const std::unordered_map<const TypeVar*, const Type*>& map) const {
-    return arena.fn_type(dom->replace(map), codom->replace(map));
-}
-
-const Type* TypeVar::replace(const std::unordered_map<const TypeVar*, const Type*>& map) const {
-    if (auto it = map.find(this); it != map.end())
-        return it->second;
-    return this;
-}
-
-const Type* TypeApp::replace(const std::unordered_map<const TypeVar*, const Type*>& map) const {
-    SmallArray<const Type*> new_type_args(type_args.size());
-    for (size_t i = 0, n = type_args.size(); i < n; ++i)
-        new_type_args[i] = type_args[i]->replace(map);
-    return arena.type_app(applied, std::move(new_type_args));
-}
-
 // Order ---------------------------------------------------------------------------
 
 size_t Type::order(std::unordered_set<const Type*>&) const {
@@ -265,10 +219,11 @@ size_t ComplexType::order(std::unordered_set<const Type*>& seen) const {
 }
 
 size_t TypeApp::order(std::unordered_set<const Type*>& seen) const {
-    size_t max_order = 0;
-    for (size_t i = 0, n = applied->as<ComplexType>()->member_count(); i < n; ++i)
-        max_order = std::max(max_order, member_type(i)->order(seen));
-    return max_order;
+    assert(false);
+    // size_t max_order = 0;
+    // for (size_t i = 0, n = applied->as<ComplexType>()->member_count(); i < n; ++i)
+    //     max_order = std::max(max_order, n->member_type(i)->order(seen));
+    // return max_order;
 }
 
 // Variance ------------------------------------------------------------------------
@@ -461,11 +416,11 @@ size_t EnumType::member_count() const {
     return decl.options.size();
 }
 
-const Type* TypeApp::member_type(size_t i) const {
+/*const Type* TypeApp::member_type(size_t i) const {
     if (auto enum_t = applied->isa<EnumType>(); enum_t && enum_t->decl.options[i]->struct_type)
         return arena.type_app(enum_t->decl.options[i]->struct_type->as<StructType>(), type_args);
     return applied->as<ComplexType>()->member_type(i)->replace(replace_map());
-}
+}*/
 
 // Misc. ---------------------------------------------------------------------------
 

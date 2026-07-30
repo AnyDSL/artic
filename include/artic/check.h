@@ -6,6 +6,7 @@
 
 #include "artic/ast.h"
 #include "artic/tir/types.h"
+#include "artic/tir/builder.h"
 #include "artic/log.h"
 #include "artic/array.h"
 
@@ -18,11 +19,13 @@ struct ScopeBuilder;
 /// Utility class to perform bidirectional type checking.
 class TypeChecker : public Logger {
 public:
-    TypeChecker(Log& log, Arena& type_table, ::Arena& arena)
-        : Logger(log), type_table(type_table), _arena(arena)
+    TypeChecker(Log& log, Arena& arena)
+        : Logger(log), arena(arena), root_scope(nullptr), base_builder(arena, root_scope)
     {}
 
-    Arena& type_table;
+    Arena& arena;
+    Scope root_scope;
+    Builder base_builder;
 
     /// Performs type checking on a whole program.
     /// Returns a TIR module on success, otherwise null.
@@ -107,10 +110,13 @@ public:
 
     size_t path_to_size(ast::Path& path, const std::string_view&);
 
-    ScopeBuilder& current_scope() {
-        assert(current_scope_);
-        return *current_scope_;
+    ScopeBuilder& current_scope_builder() {
+        assert(current_scope_builder_);
+        return *current_scope_builder_;
     }
+
+    Scope& scope();
+    Builder& builder();
 
     struct ScopeHelper {
         TypeChecker& checker;
@@ -118,23 +124,22 @@ public:
 
         ScopeHelper(TypeChecker& checker, ScopeBuilder& scope) : checker(checker) {
             other_scope = &scope;
-            std::swap(checker.current_scope_, other_scope);
+            std::swap(checker.current_scope_builder_, other_scope);
         }
         ScopeHelper(TypeChecker& checker, ast::Decl& scope);
         ScopeHelper(const ScopeHelper&) = delete;
 
         ~ScopeHelper() {
-            std::swap(checker.current_scope_, other_scope);
+            std::swap(checker.current_scope_builder_, other_scope);
         }
     };
 
 private:
     std::unordered_set<const ast::Decl*> decls_;
-    ::Arena& _arena;
 
     Value* summon_value(const artic::Type*, const artic::Loc& at);
 
-    ScopeBuilder* current_scope_ = nullptr;
+    ScopeBuilder* current_scope_builder_ = nullptr;
 
     friend ast::SummonExpr;
     friend ast::ImplicitDecl;
@@ -153,8 +158,8 @@ struct ImplicitSrc {
 
 struct ScopeBuilder {
     TypeChecker& checker;
-    // ScopeBuilder* parent;
     Scope scope;
+    Builder builder;
 
     enum class ScopeType {
         Module,
@@ -166,8 +171,8 @@ struct ScopeBuilder {
         std::vector<const Value*>* seq;
     };
 
-    ScopeBuilder(TypeChecker& checker, ScopeBuilder* parent, const Module& module) : checker(checker), scope(parent ? &parent->scope : nullptr), module(&module), type(ScopeType::Module) {}
-    ScopeBuilder(TypeChecker& checker, ScopeBuilder* parent, std::vector<const Value*>& seq) : checker(checker), scope(parent ? &parent->scope : nullptr), seq(&seq), type(ScopeType::Block) {}
+    ScopeBuilder(TypeChecker& checker, ScopeBuilder* parent, const Module& module) : checker(checker), scope(parent ? &parent->scope : nullptr), module(&module), type(ScopeType::Module), builder(checker.arena, scope) {}
+    ScopeBuilder(TypeChecker& checker, ScopeBuilder* parent, std::vector<const Value*>& seq) : checker(checker), scope(parent ? &parent->scope : nullptr), seq(&seq), type(ScopeType::Block), builder(checker.arena, scope) {}
 
     const ModVar* add_decl(const Node*, ast::Identifier);
 

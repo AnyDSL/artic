@@ -9,7 +9,7 @@
 #include "artic/emit.h"
 #include "artic/locator.h"
 
-#include "artic/tir/arena.h"
+#include "artic/tir/builder.h"
 #include "artic/tir/print.h"
 
 #include <thorin/world.h>
