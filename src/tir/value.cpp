@@ -218,13 +218,13 @@ Proj::Proj(Builder& builder, const Value* src, const Value* idx) : Value(builder
     const Type* pointee_t = nullptr;
     bool mut;
     size_t as;
-    auto [ref_t, ref_pointee] = remove_ref(src->type());
+    auto [ref_t, ref_pointee] = remove_ref(builder, src->type());
     if (ref_t) {
         pointee_t = ref_pointee;
         mut = ref_t->is_mut;
         as = ref_t->addr_space;
     } else {
-        auto [ptr_t, ptr_pointee] = remove_ptr(src->type());
+        auto [ptr_t, ptr_pointee] = remove_ptr(builder.scope, src->type());
         assert(ptr_t && "Proj works on Ref or Ptr types.");
         pointee_t = ptr_pointee;
         mut = ptr_t->is_mut;
@@ -320,7 +320,7 @@ bool Seq::equals(const Node* other) const {
 using namespace artic::ast;
 
 UnOp::UnOp(Builder& builder, const UnaryExpr::Tag tag, const Value* arg) : Value(builder.arena, [&]() -> const Type* {
-    auto [ref_type, arg_type] = remove_ref(arg->type());
+    auto [ref_type, arg_type] = remove_ref(builder, arg->type());
     if (tag == UnaryExpr::Known)
         return builder.bool_type();
     if (tag == UnaryExpr::Forget)

@@ -5,6 +5,46 @@
 
 namespace artic::tir {
 
+const Node* Scope::resolve_mod_var(const ModVar* var) const {
+    auto found = mod_vars.find(var);
+    if (found != mod_vars.end())
+        return found->second;
+    if (parent)
+        return parent->resolve_mod_var(var);
+    return nullptr;
+}
+
+const Node* Scope::resolve_bindings(const ModValue* value) const {
+    while (auto mod_var = value->isa<ModVar>()) {
+        auto resolved = resolve_mod_var(mod_var);
+        if (auto keep_going = resolved->isa<ModValue>())
+            value = keep_going;
+        else
+            return resolved;
+    }
+    return value;
+}
+
+const Node* Scope::resolve_deep(const ModValue* value, std::vector<std::tuple<const ModValue*, const DeclKey*>>& trail) const {
+    auto resolved = resolve_bindings(value);
+    if (auto mod_access = resolved->isa<ModAccess>()) {
+        auto module = resolve_deep(mod_access->mod, trail)->isa<Module>();
+        if (module) {
+            for (auto& decl : module->decls) {
+                if (decl.var->key == mod_access->key) {
+                    trail.emplace_back(mod_access->mod, decl.var->key);
+                    if (auto keep_going = decl.value->isa<ModValue>()) {
+                        return resolve_deep(keep_going, trail);
+                    }
+                    return decl.value;
+                }
+            }
+            assert(false);
+        }
+    }
+    return resolved;
+}
+
 Signature::Signature(Arena& arena, ArrayRef<Decl>&& decls) : Node(arena), decls(std::move(decls)) {
     for (auto& decl : this->decls) {
         switch (decl.sig.kind) {
@@ -66,6 +106,7 @@ bool Signature::Compare::operator()(const Decl& lhs, const Decl& rhs) const {
         }
         default: assert(false);
     }
+    return true;
 }
 
 size_t Signature::hash() const {
@@ -142,8 +183,15 @@ static inline void import_signature(Builder& builder, const ModValue* outside_mo
         decl.type = import_node_var(builder, outside_mod, decl.type)->as<Type>();
     if (decl.value_type)
         decl.value_type = import_node_var(builder, outside_mod, decl.value_type)->as<Type>();
-    // if (decl.mod_signature)
-    //     decl.mod_signature = import_node_var(builder, outside_mod, decl.type)->as<Type>();
+    if (decl.mod_signature) {
+        std::vector<Signature::Decl> fixed_decls;
+        for (Signature::Decl sig_decl : decl.mod_signature->decls) {
+            import_signature(builder, outside_mod, sig_decl.sig);
+            fixed_decls.push_back(sig_decl);
+        }
+        decl.mod_signature = builder.signature(fixed_decls);
+        // decl.mod_signature = import_node_var(builder, outside_mod, decl.type)->as<Type>();
+    }
 }
 
 // static inline const Signature* import_signature(Builder& builder, const Sign)
@@ -186,7 +234,7 @@ Signature::Elem ModVar::infer_signature(Builder& builder) const {
     auto resolved = builder.scope.resolve_mod_var(this);
     if (resolved) {
         auto sig = Signature::from_node(builder, resolved);
-        import_signature(builder, this, sig);
+        //import_signature(builder, this, sig);
         return sig;
     }
     assert(false && "scoping issue");
@@ -194,6 +242,7 @@ Signature::Elem ModVar::infer_signature(Builder& builder) const {
 
 Signature::Elem ModAccess::infer_signature(Builder& builder) const {
     auto sig = mod->infer_signature(builder);
+    import_signature(builder, mod, sig);
     assert(sig.kind == NodeKind::Module);
     assert(sig.mod_signature);
     for (auto& decl : sig.mod_signature->decls) {
@@ -205,7 +254,8 @@ Signature::Elem ModAccess::infer_signature(Builder& builder) const {
 
 ModAccess::ModAccess(Arena& arena, const ModValue* mod, const DeclKey* key, NodeKind kind)
     : ModValue(arena, kind), mod(mod), key(key) {
-    assert(mod->is_simple());
+    assert(mod->is_simple() && mod->kind() == NodeKind::Module);
+    assert(key->isa<DeclKey>());
 }
 
 }

@@ -1145,7 +1145,7 @@ void Module::emit(Emitter& emitter) const {
 }
 
 const thorin::Def* Emitter::emit(const tir::ModVar* var) {
-    auto node = scope->resolve_mod_var(var);
+    auto node = scope->resolve_deep(var);
     if (auto value = node->isa<Value>()) {
         return emit(value);
     } else if (auto mod = node->isa<Module>()) {
@@ -1153,7 +1153,10 @@ const thorin::Def* Emitter::emit(const tir::ModVar* var) {
         return nullptr;
     } else if (auto typ = node->isa<Type>()) {
         return typ->convert(*this);
-    } else {
+    } /*else if (auto mod_access = node->isa<ModAccess>()) {
+        emit(mod_access->mod->as<ModVar>());
+
+    } */else {
         assert(false);
     }
 }

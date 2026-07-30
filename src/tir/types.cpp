@@ -773,12 +773,59 @@ bool is_unit_type(const Type* type) {
 }
 
 const Type* Scope::peek_type_definition(const Type* type) const {
+    std::vector<std::tuple<const ModValue*, const DeclKey*>> trail;
     if (auto var_as_type = type->isa<ModVarAsType>()) {
-        auto resolved = resolve_mod_var(var_as_type->var);
+        auto resolved = resolve_deep(var_as_type->var, trail);
         if (resolved)
             return peek_type_definition(resolved->as<Type>());
     }
     return type;
+}
+
+std::pair<const RefType*, const Type*> remove_ref(Builder& builder, const Type* type) {
+    const Type* og_type = type;
+    std::vector<std::tuple<const ModValue*, const DeclKey*>> trail;
+    if (auto var_as_type = type->isa<ModVarAsType>()) {
+        type = builder.scope.resolve_deep(var_as_type->var, trail)->as<Type>();
+    }
+
+    auto import = [&](const Type* target) {
+        assert(target->is_simple());
+
+        // if the target is in scope already, just use it
+        auto fvs = target->free_variables(&builder.scope);
+        if (fvs.empty()) {
+            return target;
+        }
+
+        auto target_as_type = target->isa<ModVarAsType>();
+        auto target_modvar = target_as_type->var;
+
+        const ModValue* search = nullptr;
+        // re-enter modules to find the damn thing
+        for (auto& [mod, idx] : trail) {
+            if (!search)
+                search = mod;
+
+            auto sig = search->infer_signature(builder);
+            assert(sig.kind == NodeKind::Module);
+            sig.mod_signature->dump();
+
+            for (auto& decl : sig.mod_signature->decls) {
+                if (decl.key == target_modvar->key) {
+                    auto found_var = builder.mod_access(mod, decl.key, NodeKind::Type)->as<ModVar>();
+                    return builder.as_type(found_var);
+                }
+            }
+
+            search = builder.mod_access(mod, idx, NodeKind::Module);
+        }
+        assert(false);
+    };
+
+    if (auto ref_type = type->isa<RefType>())
+        return std::make_pair(ref_type, import(ref_type->pointee));
+    return std::make_pair(nullptr, og_type);
 }
 
 } // namespace tir

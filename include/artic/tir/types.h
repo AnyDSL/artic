@@ -260,8 +260,8 @@ private:
     friend class Arena;
 };
 
-inline std::pair<const PtrType*, const Type*> remove_ptr(const Type* type) {
-    if (auto ptr_type = type->isa<PtrType>())
+inline std::pair<const PtrType*, const Type*> remove_ptr(const Scope& scope, const Type* type) {
+    if (auto ptr_type = scope.peek_type_definition(type)->isa<PtrType>())
         return std::make_pair(ptr_type, ptr_type->pointee);
     return std::make_pair(nullptr, type);
 }
@@ -277,11 +277,12 @@ private:
     friend class Arena;
 };
 
-inline std::pair<const RefType*, const Type*> remove_ref(const Type* type) {
-    if (auto ref_type = type->isa<RefType>())
+std::pair<const RefType*, const Type*> remove_ref(Builder& scope, const Type* type);
+/*inline std::pair<const RefType*, const Type*> remove_ref(const Scope& scope, const Type* type) {
+    if (auto ref_type = scope.peek_type_definition(type)->isa<RefType>())
         return std::make_pair(ref_type, ref_type->pointee);
     return std::make_pair(nullptr, type);
-}
+}*/
 
 struct ImplicitParamType : public Type {
     const Type* underlying;

@@ -340,7 +340,7 @@ const Type* TypeChecker::expect(const Loc& loc, const Type* type, const Type* ex
 
 const Value* TypeChecker::deref(Ptr<ast::Expr>& expr) {
     auto val = infer_value(*expr);
-    auto [ref_type, type] = remove_ref(val->type());
+    auto [ref_type, type] = remove_ref(builder(), val->type());
     if (ref_type)
         val = bind_value(builder().implicit_cast(val, type));
     return val;
@@ -753,7 +753,7 @@ const Type* TypeChecker::check_array(
     bool is_simd,
     const CheckElems& check_elems)
 {
-    auto array_type = remove_ptr(expected).second->isa<ArrayType>();
+    auto array_type = remove_ptr(scope(), expected).second->isa<ArrayType>();
     if (!array_type)
         return incompatible_type(loc, msg, expected);
     if (is_simd_type(array_type) != is_simd)
@@ -1484,7 +1484,7 @@ const tir::Node* CallExpr::check(TypeChecker& checker, const artic::Type* expect
     if (auto path_expr = callee_path(callee.get()))
         path_expr->tir = path_expr->path.infer(checker, true, &arg, expected);
 
-    auto [ref_type, callee_type] = remove_ref(checker.infer_value(*callee)->type());
+    auto [ref_type, callee_type] = remove_ref(checker.builder(), checker.infer_value(*callee)->type());
     if (auto fn_type = callee_type->isa<artic::FnType>()) {
         return checker.bind_value(checker.builder().app(checker.coerce(&*callee, fn_type), checker.coerce(&*arg, fn_type->dom)));
     } else {
@@ -1516,7 +1516,7 @@ const tir::Node* CallExpr::infer(TypeChecker& checker) {
 }
 
 const tir::Node* ProjExpr::infer(TypeChecker& checker) {
-    auto [ref_type, expr_type] = remove_ref(checker.infer_value(*expr)->type());
+    auto [ref_type, expr_type] = remove_ref(checker.builder(), checker.infer_value(*expr)->type());
     auto ptr_type = expr_type->isa<artic::PtrType>();
     if (ptr_type) {
         // Must dereference references to pointers, such that the pointer offset is computed on the
@@ -1759,7 +1759,7 @@ const tir::Node* ReturnExpr::infer(TypeChecker& checker) {
 }
 
 const tir::Node* UnaryExpr::infer(TypeChecker& checker) {
-    auto [ref_type, arg_type] = remove_ref(checker.infer_value(*arg)->type());
+    auto [ref_type, arg_type] = remove_ref(checker.builder(), checker.infer_value(*arg)->type());
     if ((!ref_type || !ref_type->is_mut) && (tag == AddrOfMut || is_inc() || is_dec()))
         return checker.mutable_expected(arg->loc);
     if (tag == Plus || tag == Minus || tag == Not || tag == Known || tag == Deref) {
@@ -1853,7 +1853,7 @@ const tir::Node* BinaryExpr::infer(TypeChecker& checker) {
         right_type = checker.deref(right)->type();
         left_type  = checker.coerce(&*left, right_type)->type();
     } else {
-        std::tie(left_ref, left_type) = remove_ref(checker.infer_value(*left)->type());
+        std::tie(left_ref, left_type) = remove_ref(checker.builder(), checker.infer_value(*left)->type());
         right_type = checker.coerce(&*right, left_type)->type();
     }
 

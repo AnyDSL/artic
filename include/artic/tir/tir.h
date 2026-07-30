@@ -64,6 +64,7 @@ struct Signature;
 struct Param;
 struct TypeVar;
 struct Module;
+struct DeclKey;
 
 struct Scope {
     const Scope* parent;
@@ -71,14 +72,17 @@ struct Scope {
     Scope(const Scope* parent) : parent(parent) {}
     Scope(const Scope&) = delete;
 
-    const Node* resolve_mod_var(const ModVar* var) const {
-        auto found = mod_vars.find(var);
-        if (found != mod_vars.end())
-            return found->second;
-        if (parent)
-            return parent->resolve_mod_var(var);
-        return nullptr;
-    }
+    /// resolves one step of let-binding
+    const Node* resolve_mod_var(const ModVar* var) const;
+
+    const Node* resolve_bindings(const ModValue* var) const;
+    /// resolves all the possible let-binding steps, and enters ModAccesses
+    const Node* resolve_deep(const ModValue* var, std::vector<std::tuple<const ModValue*, const DeclKey*>>&) const;
+    const Node* resolve_deep(const ModValue* var) const {
+        std::vector<std::tuple<const ModValue*, const DeclKey*>> _;
+        return resolve_deep(var, _);
+    };
+
     // const Type* resolve_type_var(const TypeVar*);
     const Value* resolve_param(const Param* var) const;
 
