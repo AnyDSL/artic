@@ -928,48 +928,33 @@ const tir::Node* Ptrn::check(TypeChecker& checker, const artic::Type* expected) 
 // Path ----------------------------------------------------------------------------
 
 const tir::Node* Path::Elem::infer(TypeChecker& checker, const tir::Node* prev_elem, Path& path) {
-    if (!prev_elem) {
+    if (!prev_elem)
+        return tir = checker.infer(*decl);
+
+    if (prev_elem->kind() == NodeKind::Module) {
+        auto module = checker.scope().resolve_module(prev_elem->as<ModValue>());
+        assert(module);
         if (is_super()) {
-            auto mod_decl = decl->isa<ModDecl>();
-            if (!mod_decl) {
-                checker.error(loc, "'super' can only be used on modules");
-                return nullptr;
+            assert(module->decl && "anonymous modules shouldn't be reachable like this");
+            if (!module->decl->super) {
+                checker.error(loc, "'super' cannot be used on the root module");
+                return tir = checker.builder().type_error();
             }
-            return tir = checker.infer(*mod_decl)->as<Module>();
-        } else {
-            return tir = checker.infer(*decl);
-        }
-    }
-    if (is_super()) {
-        assert(prev_elem);
-        auto module = prev_elem->isa<Module>();
-        if (!module) {
-            checker.error(loc, "'super' can only be used on modules");
-            return tir = checker.builder().type_error();
+            return tir = module->decl->super->tir;
         }
 
-        return tir = module->super;
-    }
-    if (auto mod_var = prev_elem->isa<ModVar>(); mod_var && mod_var->kind() == NodeKind::Module) {
-        auto module = checker.scope().resolve_mod_var(mod_var)->isa<Module>();
-        assert(module);
         for (auto& decl : module->decls) {
             if (decl.var->key->id && decl.var->key->id->name == id.name) {
-                return tir = checker.builder().add_in_module(checker.builder().mod_access(mod_var, decl.var->key));
+                return tir = checker.builder().mod_access(prev_elem->as<ModValue>(), decl.var->key);
             }
         }
         assert(false && "TODO diagnostics");
         //return tir = checker.unknown_module_member(loc, mod_type, id.name);
-        /*auto index = mod_type->find_member(id.name);
-        if (!index)
-            return type = checker.unknown_member(loc, mod_type, id.name);
-        this->index = *index;
-        auto& member = mod_type->member(*index);
-        // We do not want infer the declaration if it is a module, since we can immediately
-        // create a type for it and lazily infer member types as required.
-        return type = member.isa<ModDecl>()
-            ? checker.builder().mod_type(*member.as<ModDecl>())
-            : checker.infer(mod_type->member(*index));*/
+    }
+    if (is_super()) {
+        assert(prev_elem);
+        checker.error(loc, "'super' can only be used on modules");
+        return tir = checker.builder().type_error();
     }
     if (auto prev_elem_type = prev_elem->isa<tir::Type>()) {
         if (auto [type_app, enum_type] = match_app<EnumType>(prev_elem_type); enum_type) {
@@ -2224,10 +2209,10 @@ const tir::Node* ModDecl::infer(TypeChecker& checker) {
     //         checker.scopes.front().push_back(TypeChecker::ImplicitSrc {
     //             .decl = impl_decl,
     //         });
-    auto tir_module = checker.builder().module(id, super ? checker.infer(*super)->as<Module>() : nullptr);
+    auto tir_module = checker.builder().module(this);
     tir = tir_module;
     if (super) {
-        super->scope->add_decl(tir_module, id);
+        tir = super->scope->add_decl(tir_module, id);
     }
 
     ScopeBuilder mod_scope(checker, super ? super->scope : nullptr, *tir_module);

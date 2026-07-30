@@ -62,6 +62,7 @@ struct ModValue;
 struct Signature;
 struct Param;
 struct TypeVar;
+struct Module;
 
 struct Scope {
     const Scope* parent;
@@ -91,9 +92,12 @@ struct Scope {
     }
 
     const Type* peek_type_definition(const Type* type) const;
+    const Module* resolve_module(const ModValue*) const;
 private:
     std::unordered_map<const ModVar*, const Node*> mod_vars;
     std::unordered_map<const Param*, const Value*> params;
+
+    void dump() const;
 };
 
 template<typename Super>
@@ -169,8 +173,7 @@ struct ModVar : public NominalNode<ModValue> {
 };
 
 struct Module : public NominalNode<ModValue> {
-    ast::Identifier id;
-    const Module* super;
+    const ast::ModDecl* decl;
 
     struct Decl {
         const ModVar* var;
@@ -185,7 +188,7 @@ struct Module : public NominalNode<ModValue> {
 
     void emit(Emitter&) const;
 
-    Module(Arena& arena, ast::Identifier id, const Module* super) : NominalNode(arena, NodeKind::Module), id(id), super(super) {}
+    Module(Arena& arena, const ast::ModDecl* decl) : NominalNode(arena, NodeKind::Module), decl(decl) {}
 };
 
 struct ModAccess : public ModValue {

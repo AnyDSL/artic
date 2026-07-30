@@ -101,9 +101,9 @@ struct Builder {
     const Type* type_app(const UserType*, const ArrayRef<const Type*>&);
 
     const DeclKey* decl_key(std::optional<ast::Identifier>);
-    const Module* module(ast::Identifier, const Module*);
+    const Module* module(const ast::ModDecl* = nullptr);
     const ModVar* mod_var(const DeclKey*, NodeKind);
-    const ModAccess* mod_access(const ModVar*, const DeclKey*);
+    const ModValue* mod_access(const ModValue*, const DeclKey*);
 
     const GlobalVariable* global_variable(const Type*, bool is_mut, const Value*);
     const LocalVariable* local_variable(const Type*);

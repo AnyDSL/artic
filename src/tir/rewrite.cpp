@@ -98,7 +98,7 @@ const Node* ModVar::rewrite(Rewriter&) const {
 }
 
 Node* Module::rewrite(Rewriter& r) const {
-    const Module* m = r.builder().module(id, r.instantiate(super, false)->isa<Module>());
+    const Module* m = r.builder().module(decl);
 
 }
 

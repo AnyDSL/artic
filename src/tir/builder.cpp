@@ -152,11 +152,18 @@ const ModVar* Builder::mod_var(const DeclKey* key, NodeKind kind) {
     return arena.insert<ModVar>(arena, key, kind);
 }
 
-const Module* Builder::module(ast::Identifier id, const Module* super) {
-    return arena.insert<Module>(arena, id, super);
+const Module* Builder::module(const ast::ModDecl* decl) {
+    return arena.insert<Module>(arena, decl);
 }
 
-const ModAccess* Builder::mod_access(const ModVar*, const DeclKey*) {
+const ModValue* Builder::mod_access(const ModValue* src, const DeclKey* key) {
+    if (auto var = src->isa<ModVar>()) {
+        auto mod = scope.resolve_module(var);
+        for (auto& decl : mod->decls) {
+            if (decl.var->key == key)
+                return decl.var;
+        }
+    }
     assert(false);
 }
 
