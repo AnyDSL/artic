@@ -86,14 +86,17 @@ struct ModVar : public NominalNode<ModValue> {
 
 struct Module : public NominalNode<ModValue> {
     const ast::ModDecl* decl;
+    Scope& scope;
 
     struct Decl {
         const ModVar* var;
         const Node* value;
     };
-    mutable std::vector<Decl> decls;
 
+    ArrayRef<Decl> decls() const { return decls_; }
+    void add_decl(const ModVar* var, const Node* value) const;
     const void seal() const { sealed = true; }
+
 
     mutable bool sealed = false;
     mutable const Signature* signature_ = nullptr;
@@ -104,7 +107,10 @@ struct Module : public NominalNode<ModValue> {
 
     void emit(Emitter&) const;
 
-    Module(Arena& arena, const ast::ModDecl* decl) : NominalNode(arena, NodeKind::Module), decl(decl) {}
+    Module(Builder&, const ast::ModDecl*);
+
+private:
+    mutable std::vector<Decl> decls_;
 };
 
 struct ModAccess : public ModValue {

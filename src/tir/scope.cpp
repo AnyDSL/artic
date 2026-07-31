@@ -27,7 +27,7 @@ const Node* Scope::resolve_deep(const ModValue* value, std::vector<std::tuple<co
     if (auto mod_access = resolved->isa<ModAccess>()) {
         auto module = resolve_deep(mod_access->mod, trail)->isa<Module>();
         if (module) {
-            for (auto& decl : module->decls) {
+            for (auto& decl : module->decls()) {
                 if (decl.var->key == mod_access->key) {
                     trail.emplace_back(mod_access->mod, decl.var->key);
                     if (auto keep_going = decl.value->isa<ModValue>()) {
@@ -49,6 +49,11 @@ const ModValue* Scope::peek_mod_value(const ModValue* maybe_module) const {
             return bound_to->as<ModValue>();
     }
     return maybe_module;
+}
+
+Scope& Scope::new_child() {
+    auto& ref = child_scopes.emplace_back(std::make_unique<Scope>(this));
+    return *ref;
 }
 
 void Scope::dump() const {

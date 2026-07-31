@@ -3,6 +3,16 @@
 
 namespace artic::tir {
 
+Arena::Arena()
+    : root_scope_(new Scope(nullptr))
+{}
+
+Arena::~Arena() {
+    for (auto t : types_)
+        delete t;
+    delete root_scope_;
+}
+
 const PrimType* Arena::prim_type(ast::PrimType::Tag tag) {
     return insert<PrimType>(*this, tag);
 }
@@ -154,7 +164,7 @@ const ModVar* Builder::mod_var(const DeclKey* key, NodeKind kind) {
 }
 
 const Module* Builder::module(const ast::ModDecl* decl) {
-    return arena.insert<Module>(arena, decl);
+    return arena.insert<Module>(*this, decl);
 }
 
 const ModValue* Builder::mod_access(const ModValue* src, const DeclKey* key, NodeKind kind) {
@@ -162,7 +172,7 @@ const ModValue* Builder::mod_access(const ModValue* src, const DeclKey* key, Nod
     if (auto var = src->isa<ModVar>()) {
         auto mod = scope.peek_mod_value(var)->isa<Module>();
         if (mod) {
-            for (auto& decl: mod->decls) {
+            for (auto& decl: mod->decls()) {
                 if (decl.var->key == key) {
                     // if the module decl is in scope, don't bother with the access at all
                     if (scope.resolve_mod_var(decl.var))
@@ -334,8 +344,7 @@ const ModVar* Builder::schedule_and_bind_module_op(const ModAccess* access, std:
 
 const ModVar* Builder::add_in_module(const Node* node, std::optional<ast::Identifier> maybe_id) {
     auto var = mod_var(decl_key(maybe_id), node->kind());
-    cur_module->decls.push_back({ var, node });
-    scope.insert(var, node);
+    cur_module->add_decl(var, node);
     return var;
 }
 

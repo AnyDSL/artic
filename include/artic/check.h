@@ -75,6 +75,7 @@ public:
 
     Array<const TypeVar*> infer(ast::TypeParamList*);
 
+    void add_instruction(const Value*);
     void bind_variable(const Param*, const Value*);
     const Value* bind_value(const Value*);
 
@@ -155,7 +156,8 @@ struct ImplicitSrc {
 
 struct ScopeBuilder {
     TypeChecker& checker;
-    Scope scope;
+    ScopeBuilder* parent;
+    Scope& scope;
     Builder builder;
 
     enum class ScopeType {
@@ -168,10 +170,10 @@ struct ScopeBuilder {
         std::vector<const Value*>* seq;
     };
 
-    ScopeBuilder(TypeChecker& checker, ScopeBuilder* parent, const Module& module)
-        : checker(checker), scope(parent ? &parent->scope : nullptr), module(&module), type(ScopeType::Module), builder(checker.arena, scope, &module, parent ? &parent->builder : nullptr) {}
-    ScopeBuilder(TypeChecker& checker, ScopeBuilder* parent, std::vector<const Value*>& seq)
-        : checker(checker), scope(parent ? &parent->scope : nullptr), seq(&seq), type(ScopeType::Block), builder(checker.arena, scope, nullptr, parent ? &parent->builder : nullptr) {}
+    ScopeBuilder(TypeChecker& checker, ScopeBuilder* parent, Scope& scope, const Module& module)
+        : checker(checker), parent(parent), scope(scope), builder(checker.arena, scope, &module, parent ? &parent->builder : nullptr), module(&module), type(ScopeType::Module) {}
+    ScopeBuilder(TypeChecker& checker, ScopeBuilder* parent, Scope& scope, std::vector<const Value*>& seq)
+        : checker(checker), parent(parent), scope(scope), builder(checker.arena, scope, nullptr, parent ? &parent->builder : nullptr), seq(&seq), type(ScopeType::Block) {}
 
     const ModVar* add_decl(const Node*, ast::Identifier);
 

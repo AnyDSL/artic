@@ -24,25 +24,31 @@ struct Scope {
     };
 
     // const Type* resolve_type_var(const TypeVar*);
-    const Value* resolve_param(const Param* var) const;
+    // const Value* resolve_param(const Param* var) const;
 
+    const Type* peek_type_definition(const Type* type) const;
+    const ModValue* peek_mod_value(const ModValue*) const;
+private:
     void insert(const ModVar* var, const Node* value) {
         assert(!mod_vars.contains(var));
         mod_vars[var] = value;
     }
 
-    void insert(const Param* var, const Value* value) {
-        assert(!params.contains(var));
-        params[var] = value;
-    }
+    //void insert(const Param* var, const Value* value) {
+    //    assert(!params.contains(var));
+    //    params[var] = value;
+    //}
 
-    const Type* peek_type_definition(const Type* type) const;
-    const ModValue* peek_mod_value(const ModValue*) const;
-private:
+    Scope& new_child();
+
+    std::vector<std::unique_ptr<Scope>> child_scopes;
     std::unordered_map<const ModVar*, const Node*> mod_vars;
-    std::unordered_map<const Param*, const Value*> params;
+    //std::unordered_map<const Param*, const Value*> params;
 
     void dump() const;
+
+    friend Module;
+    friend TypeChecker;
 };
 
 }

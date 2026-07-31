@@ -4,6 +4,15 @@
 
 namespace artic::tir {
 
+Module::Module(Builder& builder, const ast::ModDecl* decl)
+    : NominalNode(builder.arena, NodeKind::Module), decl(decl), scope(builder.scope.new_child())
+{}
+
+void Module::add_decl(const ModVar* var, const Node* node) const {
+    decls_.push_back({ var, node });
+    scope.insert(var, node);
+}
+
 Signature::Signature(Arena& arena, ArrayRef<Decl>&& decls) : Node(arena), decls(std::move(decls)) {
     for (auto& decl : this->decls) {
         switch (decl.sig.kind) {
@@ -159,7 +168,7 @@ Signature::Elem Module::infer_signature(Builder& builder) const {
     assert(sealed);
     if (!signature_) {
         std::vector<Signature::Decl> decls;
-        for (auto& mod_decl : this->decls) {
+        for (auto& mod_decl : this->decls()) {
             // TODO: have a more serious way to expose stuff in modules
             if (true || mod_decl.var->key->id) {
                 auto sig_decl = Signature::Decl {

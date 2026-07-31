@@ -1134,12 +1134,11 @@ void Module::emit(Emitter& emitter) const {
     // don't emit modules twice
     emitter.emitted[this] = nullptr;
 
-    Scope scope(emitter.scope);
     ScopeGuard sg(emitter, scope);
-    for (auto [var, value] : decls) {
-        scope.insert(var, value);
+    for (auto [var, value] : decls()) {
+        // scope.insert(var, value);
     }
-    for (auto [var, _] : decls) {
+    for (auto [var, _] : decls()) {
         emitter.emit(var);
     }
 }

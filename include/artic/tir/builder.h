@@ -15,6 +15,8 @@ struct Builder;
 /// Hash table containing all types.
 class Arena {
 public:
+    Arena();
+    Arena(const Arena&) = delete;
     ~Arena();// = default;
 
     const PrimType* prim_type(ast::PrimType::Tag);
@@ -23,6 +25,8 @@ public:
     const TopType* top_type();
     const NoRetType* no_ret_type();
     const TypeError* type_error();
+
+    Scope& root_scope();
 
 private:
     template <typename T, typename... Args>
@@ -50,6 +54,8 @@ private:
     const TopType*    top_type_    = nullptr;
     const NoRetType*  no_ret_type_ = nullptr;
     const TypeError*  type_error_  = nullptr;
+
+    Scope* root_scope_;
 
     size_t next_gid = 0;
     size_t alloc_gid() {

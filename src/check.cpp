@@ -38,11 +38,14 @@ Builder& TypeChecker::builder() {
     return current_scope_builder_ ? current_scope_builder_->builder : base_builder;
 }
 
-void TypeChecker::bind_variable(const Param* param, const Value* value) {
+void TypeChecker::add_instruction(const Value* instruction) {
     ScopeBuilder& scope = current_scope_builder();
     assert(scope.type == ScopeBuilder::ScopeType::Block);
-    scope.seq->push_back(scope.builder.bind(param, value));
-    scope.scope.insert(param, value);
+    scope.seq->push_back(instruction);
+}
+
+void TypeChecker::bind_variable(const Param* param, const Value* value) {
+    add_instruction(builder().bind(param, value));
 }
 
 const Value* TypeChecker::bind_value(const Value* value) {
@@ -60,10 +63,7 @@ void TypeChecker::bind_ptrn_params(ast::Ptrn& ptrn, const Value* value) {
     } else if (auto id_ptrn = ptrn.isa<ast::IdPtrn>()) {
         if (id_ptrn->decl->is_mut) {
             auto alloc = bind_value(builder().local_variable(value->type()));
-
-            ScopeBuilder& scope = current_scope_builder();
-            assert(scope.type == ScopeBuilder::ScopeType::Block);
-            scope.seq->push_back(scope.builder.binop(ast::BinaryExpr::Tag::Eq, alloc, value));
+            add_instruction(builder().binop(ast::BinaryExpr::Tag::Eq, alloc, value));
             value = alloc;
         }
         // if (ptrn.tir != value) {
@@ -82,8 +82,7 @@ void TypeChecker::bind_ptrn_params(ast::Ptrn& ptrn, const Value* value) {
 const ModVar* ScopeBuilder::add_decl(const Node* node, ast::Identifier id) {
     assert(type == ScopeBuilder::ScopeType::Module);
     auto var = checker.builder().mod_var(checker.builder().decl_key(id), node->kind());
-    module->decls.push_back({ var, node });
-    scope.insert(var, node);
+    module->add_decl(var, node);
     return var;
 }
 
@@ -102,11 +101,10 @@ const ModVar* ScopeBuilder::add_decl(const Node* node, ast::Identifier id) {
 
 const Value* TypeChecker::expr_scope(std::function<const Value*()> f) {
     std::vector<const Value*> scope_instrs;
-    ScopeBuilder scope(*this, &current_scope_builder(), scope_instrs);
-    TypeChecker::ScopeHelper guard(*this, scope);
-
+    Scope& scope = this->scope().new_child();
+    ScopeBuilder scope_builder(*this, &current_scope_builder(), scope, scope_instrs);
+    ScopeHelper guard(*this, scope_builder);
     scope_instrs.push_back(f());
-
     return builder().seq(scope_instrs);
 }
 
@@ -950,7 +948,7 @@ const tir::Node* Path::Elem::infer(TypeChecker& checker, Path::Elem* prev, Path&
         }
 
         if (module) {
-            for (auto& decl: module->decls) {
+            for (auto& decl: module->decls()) {
                 if (decl.var->key->id && decl.var->key->id->name == id.name) {
                     value = decl.value;
                     if (auto mod = decl.value->isa<ModVar>()) {
@@ -1437,40 +1435,40 @@ const tir::Node* BlockExpr::infer(TypeChecker& checker) {
     if (stmts.empty())
         return checker.builder().tuple({});
 
-    std::vector<const Value*> scope_instrs;
-    ScopeBuilder scope(checker, &checker.current_scope_builder(), scope_instrs);
-    TypeChecker::ScopeHelper guard(checker, scope);
-    checker.assign_scope_to_block_decls(stmts, checker.current_scope_builder());
-    for (int i = 0; i < stmts.size(); i++)
-        scope_instrs.push_back(checker.infer_value(*stmts[i]));
-    checker.check_block(loc, stmts, last_semi);
-    return checker.builder().seq(scope_instrs);
+    return checker.expr_scope([&]() -> const Value* {
+        checker.assign_scope_to_block_decls(stmts, checker.current_scope_builder());
+        for (int i = 0; i < stmts.size(); i++)
+            checker.add_instruction(checker.infer_value(*stmts[i]));
+        checker.check_block(loc, stmts, last_semi);
+        return checker.infer_value(*stmts.back());
+    });
 }
 
 const tir::Node* BlockExpr::check(TypeChecker& checker, const artic::Type* expected) {
-    std::vector<const Value*> scope_instrs;
-    ScopeBuilder scope(checker, &checker.current_scope_builder(), scope_instrs);
-    TypeChecker::ScopeHelper guard(checker, scope);
-    checker.assign_scope_to_block_decls(stmts, checker.current_scope_builder());
-
     if (stmts.empty()) {
         if (!is_unit_type(expected))
             return checker.incompatible_type(loc, "empty block expression", expected);
         return expected;
     }
-    for (size_t i = 0; i < stmts.size() - 1; ++i)
-        scope_instrs.push_back(checker.infer_value(*stmts[i]));
-    scope_instrs.push_back(last_semi ? checker.infer_value(*stmts.back()) : checker.check_value(*stmts.back(), expected));
-    checker.check_block(loc, stmts, last_semi);
-    if (last_semi && !is_unit_type(expected)) {
-        checker.incompatible_type(loc, "block expression terminated by semicolon", expected);
-        checker.note("removing the last semicolon may solve this issue");
-        return checker.builder().type_error();
-    }
-    // if the block ends with `;`, make sure we add an extra tuple to make the whole thing type as ()
-    if (last_semi)
-        scope_instrs.push_back(checker.builder().tuple({}));
-    return checker.builder().seq(scope_instrs);
+
+    return checker.expr_scope([&]() -> const Value* {
+        checker.assign_scope_to_block_decls(stmts, checker.current_scope_builder());
+        for (size_t i = 0; i < stmts.size() - 1; ++i)
+            checker.add_instruction(checker.infer_value(*stmts[i]));
+        checker.add_instruction(last_semi ? checker.infer_value(*stmts.back()) : checker.check_value(*stmts.back(), expected));
+        checker.check_block(loc, stmts, last_semi);
+        if (last_semi && !is_unit_type(expected)) {
+            checker.incompatible_type(loc, "block expression terminated by semicolon", expected);
+            checker.note("removing the last semicolon may solve this issue");
+            assert(false);
+            //return checker.builder().type_error();
+        }
+
+        // if the block ends with `;`, make sure we add an extra tuple to make the whole thing type as ()
+        if (last_semi)
+            return checker.builder().tuple({});
+        return checker.infer_value(*stmts.back());
+    });
 }
 
 static inline PathExpr* callee_path(Expr* expr) {
@@ -2234,7 +2232,7 @@ const tir::Node* ModDecl::infer(TypeChecker& checker) {
         tir = super->scope->add_decl(tir_module, id);
     }
 
-    ScopeBuilder mod_scope(checker, super ? super->scope : nullptr, *tir_module);
+    ScopeBuilder mod_scope(checker, super ? super->scope : nullptr, tir_module->scope, *tir_module);
     TypeChecker::ScopeHelper guard(checker, mod_scope);
     scope = &mod_scope;
     for (auto& decl : decls) {

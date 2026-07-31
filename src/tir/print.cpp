@@ -221,10 +221,10 @@ void ModVar::print(Printer& p) const {
 
 void Module::print(Printer& p) const {
     p << log::keyword_style("module") << " {" << p.indent() << p.endl();
-    for (auto& decl : decls) {
+    for (auto& decl : decls()) {
         p.insert(*decl.var, key2string(*decl.var->key));
     }
-    print_list(p.top(), p.endl(), decls, [&] (auto& decl) {
+    print_list(p.top(), p.endl(), decls(), [&] (auto& decl) {
         p.print(*decl.var, true);
         p << " = ";
         p.print(*decl.value, true);
