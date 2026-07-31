@@ -3,6 +3,8 @@
 
 #include "artic/tir/types.h"
 #include "artic/tir/builder.h"
+#include "artic/tir/scope.h"
+#include "artic/tir/module.h"
 
 namespace artic {
 
@@ -780,6 +782,12 @@ const Type* Scope::peek_type_definition(const Type* type) const {
             return peek_type_definition(resolved->as<Type>());
     }
     return type;
+}
+
+std::pair<const PtrType*, const Type*> remove_ptr(const Scope& scope, const Type* type) {
+    if (auto ptr_type = scope.peek_type_definition(type)->isa<PtrType>())
+        return std::make_pair(ptr_type, ptr_type->pointee);
+    return std::make_pair(nullptr, type);
 }
 
 std::pair<const RefType*, const Type*> remove_ref(Builder& builder, const Type* type) {

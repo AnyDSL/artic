@@ -1,49 +1,8 @@
+#include "artic/tir/module.h"
 #include "artic/tir/builder.h"
-#include "artic/tir/tir.h"
-#include "artic/tir/types.h"
-#include "artic/tir/values.h"
+#include "artic/tir/scope.h"
 
 namespace artic::tir {
-
-const Node* Scope::resolve_mod_var(const ModVar* var) const {
-    auto found = mod_vars.find(var);
-    if (found != mod_vars.end())
-        return found->second;
-    if (parent)
-        return parent->resolve_mod_var(var);
-    return nullptr;
-}
-
-const Node* Scope::resolve_bindings(const ModValue* value) const {
-    while (auto mod_var = value->isa<ModVar>()) {
-        auto resolved = resolve_mod_var(mod_var);
-        if (auto keep_going = resolved->isa<ModValue>())
-            value = keep_going;
-        else
-            return resolved;
-    }
-    return value;
-}
-
-const Node* Scope::resolve_deep(const ModValue* value, std::vector<std::tuple<const ModValue*, const DeclKey*>>& trail) const {
-    auto resolved = resolve_bindings(value);
-    if (auto mod_access = resolved->isa<ModAccess>()) {
-        auto module = resolve_deep(mod_access->mod, trail)->isa<Module>();
-        if (module) {
-            for (auto& decl : module->decls) {
-                if (decl.var->key == mod_access->key) {
-                    trail.emplace_back(mod_access->mod, decl.var->key);
-                    if (auto keep_going = decl.value->isa<ModValue>()) {
-                        return resolve_deep(keep_going, trail);
-                    }
-                    return decl.value;
-                }
-            }
-            assert(false);
-        }
-    }
-    return resolved;
-}
 
 Signature::Signature(Arena& arena, ArrayRef<Decl>&& decls) : Node(arena), decls(std::move(decls)) {
     for (auto& decl : this->decls) {

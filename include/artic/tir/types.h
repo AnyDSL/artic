@@ -29,6 +29,7 @@ namespace tir {
 
 // class Emitter;
 struct TypeVar;
+struct ModVar;
 
 template <typename T> using TypeMap = std::unordered_map<const Type*, T>;
 template <typename T> using TypeVarMap = std::unordered_map<const TypeVar*, T>;
@@ -260,11 +261,7 @@ private:
     friend class Arena;
 };
 
-inline std::pair<const PtrType*, const Type*> remove_ptr(const Scope& scope, const Type* type) {
-    if (auto ptr_type = scope.peek_type_definition(type)->isa<PtrType>())
-        return std::make_pair(ptr_type, ptr_type->pointee);
-    return std::make_pair(nullptr, type);
-}
+std::pair<const PtrType*, const Type*> remove_ptr(const Scope& scope, const Type* type);
 
 /// The type of mutable identifiers or expressions.
 struct RefType : public AddrType {

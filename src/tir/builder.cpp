@@ -1,4 +1,5 @@
 #include "artic/tir/builder.h"
+#include "artic/tir/scope.h"
 
 namespace artic::tir {
 
@@ -186,7 +187,7 @@ const LocalVariable* Builder::local_variable(const Type* value_type) {
 }
 
 const Value* Builder::implicit_cast(const Value* src, const Type* dst) {
-    return arena.insert<ImplicitCast>(arena, src, dst);
+    return arena.insert<ImplicitCast>(*this, src, dst);
 }
 
 const Value* Builder::cast(const Value* src, const Type* dst) {

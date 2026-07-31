@@ -7,6 +7,7 @@
 #include "artic/ast.h"
 #include "artic/tir/types.h"
 #include "artic/tir/builder.h"
+#include "artic/tir/scope.h"
 #include "artic/log.h"
 #include "artic/array.h"
 

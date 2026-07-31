@@ -1,6 +1,7 @@
 #include "artic/tir/print.h"
 #include "artic/tir/types.h"
 #include "artic/tir/values.h"
+#include "artic/tir/module.h"
 
 #include "artic/log.h"
 

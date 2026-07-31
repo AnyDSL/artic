@@ -1,11 +1,11 @@
 #include <algorithm>
 
 #include "artic/check.h"
+#include "artic/tir/builder.h"
+#include "artic/tir/scope.h"
+#include "artic/tir/module.h"
 
 #include <thorin/enums.h>
-
-#include "artic/tir/builder.h"
-
 #include <thorin/util/utility.h>
 
 namespace artic {

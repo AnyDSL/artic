@@ -14,7 +14,7 @@ struct Value : public Node {
 
     NodeKind kind() const override { return NodeKind::Value; }
     const Type* type() const { return type_; }
-    virtual const Type* resolve_type(Scope& s) const { return s.peek_type_definition(type()); }
+    virtual const Type* resolve_type(Scope& s) const;
     virtual bool is_computation() const { return true; }
 
     /// Emits a branch for boolean expressions.
@@ -110,7 +110,7 @@ struct ImplicitCast : public Value {
 
     const thorin::Def* emit(Emitter&) const override;
 
-    ImplicitCast(Arena&, const Value*, const Type*);
+    ImplicitCast(Builder&, const Value*, const Type*);
 };
 
 struct Cast : public Value {
@@ -219,7 +219,7 @@ struct Bind : public Value {
     Bind(Builder&, const Param*, const Value*);
 };
 
-struct WithMod : public NominalNode<Value> {
+/*struct WithMod : public NominalNode<Value> {
     const ModVar* var;
     const ModValue* value;
 
@@ -229,7 +229,7 @@ struct WithMod : public NominalNode<Value> {
     const thorin::Def* emit(Emitter&) const override;
 
     WithMod(Arena&, const ModVar*, const ModValue*);
-};
+};*/
 
 struct ModVarAsValue : public NominalNode<Value> {
     const ModVar* var;

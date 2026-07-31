@@ -1,11 +1,17 @@
 #include "artic/tir/values.h"
 #include "artic/tir/builder.h"
+#include "artic/tir/scope.h"
+#include "artic/tir/module.h"
 
 #include "artic/hash.h"
 
 namespace artic {
 
 namespace tir {
+
+const Type* Value::resolve_type(Scope& s) const {
+    return s.peek_type_definition(type());
+}
 
 GlobalVariable::GlobalVariable(Builder& builder, const Type* value_type, bool is_mut, const Value* init)
     : NominalNode(builder.arena, builder.schedule_and_bind_type(builder.ref_type(value_type, is_mut, 0))), value_type(value_type), is_mut(is_mut), init(init) {
@@ -40,8 +46,9 @@ bool App::equals(const Node* other) const {
     return false;
 }
 
-ImplicitCast::ImplicitCast(Arena& arena, const Value* src, const Type* dst) : Value(arena, dst), src(src), dst(dst) {
+ImplicitCast::ImplicitCast(Builder& builder, const Value* src, const Type* dst) : Value(builder.arena, dst), src(src), dst(dst) {
     assert(src->is_simple());
+    assert(dst->subtype(builder.scope, src->type()));
 }
 
 size_t ImplicitCast::hash() const {

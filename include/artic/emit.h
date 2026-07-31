@@ -13,6 +13,7 @@
 
 #include "tir/tir.h"
 #include "tir/types.h"
+#include "tir/values.h"
 
 namespace artic {
 
