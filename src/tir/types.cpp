@@ -611,22 +611,32 @@ size_t EnumType::member_count() const {
 
 // Misc. ---------------------------------------------------------------------------
 
-bool Type::subtype(const Scope& scope, const Type* other) const {
-    other = scope.peek_type_definition(other);
+static inline bool is_subtype(const Scope& start_scope, const Type* t, const Type* other) {
+    const Scope* lhs_scope = &start_scope;
+    const Scope* rhs_scope = &start_scope;
+    while (auto var_as_type = t->isa<ModVarAsType>()) {
+        auto [resolved, resolved_scope] = lhs_scope->resolve_deep(var_as_type->var);
+        t = resolved->as<Type>();
+        lhs_scope = &resolved_scope;
+    }
+    while (auto var_as_type = other->isa<ModVarAsType>()) {
+        auto [resolved, resolved_scope] = rhs_scope->resolve_deep(var_as_type->var);
+        other = resolved->as<Type>();
+        rhs_scope = &resolved_scope;
+    }
+    // after this point we never want to see unresolved ModVars
+    assert(!t->isa<ModVarAsType>() && !other->isa<ModVarAsType>());
 
-    if (this == other || isa<BottomType>() || other->isa<TopType>())
+    const Scope* joint_scope = unify_scopes(lhs_scope, rhs_scope);
+    // if the resolved scopes aren't unifiable, the two types cannot be compatible
+    if (!joint_scope)
+        return false;
+
+    if (t == other || t->isa<BottomType>() || other->isa<TopType>())
         return true;
 
-    if (auto as_type = this->isa<ModVarAsType>()) {
-        auto resolved = scope.peek_type_definition(this);
-        // unbound variables are not subtypes of anything other than Top and themselves!
-        if (resolved == this)
-            return false;
-        return resolved->subtype(scope, other);
-    }
-
     if (auto implicit = other->isa<ImplicitParamType>())
-        return this->subtype(scope, implicit->underlying) || is_unit_type(this);
+        return is_subtype(joint_scope, t, implicit->underlying) || is_unit_type(t);
 
     auto other_ptr_type = other->isa<PtrType>(); 
 
@@ -635,44 +645,48 @@ bool Type::subtype(const Scope& scope, const Type* other) const {
     if (other_ptr_type &&
         !other_ptr_type->is_mut &&
         other_ptr_type->addr_space == 0 &&
-        subtype(scope, other_ptr_type->pointee))
+        is_subtype(joint_scope, t, other_ptr_type->pointee))
         return true;
 
-    if (auto ref_type = isa<RefType>()) {
+    if (auto ref_type = t->isa<RefType>()) {
         // ref U <: &T if U <: T
         if (other_ptr_type &&
             ref_type->is_compatible_with(other_ptr_type) &&
-            ref_type->pointee->subtype(scope, other_ptr_type->pointee))
+            is_subtype(joint_scope, ref_type->pointee, other_ptr_type->pointee))
             return true;
         // ref U <: T if U <: T
-        return ref_type->pointee->subtype(scope, other);
-    } else if (auto ptr_type = isa<AddrType>(); ptr_type && other_ptr_type && ptr_type->is_compatible_with(other_ptr_type)) {
+        return is_subtype(joint_scope, ref_type->pointee, other);
+    } else if (auto ptr_type = t->isa<AddrType>(); ptr_type && other_ptr_type && ptr_type->is_compatible_with(other_ptr_type)) {
         // &U <: &T if U <: T
         // &mut U <: &T if U <: T
-        return ptr_type->pointee->subtype(scope, other_ptr_type->pointee);
-    } else if (auto sized_array_type = isa<SizedArrayType>(); sized_array_type && !sized_array_type->is_simd) {
+        return is_subtype(joint_scope, ptr_type->pointee, other_ptr_type->pointee);
+    } else if (auto sized_array_type = t->isa<SizedArrayType>(); sized_array_type && !sized_array_type->is_simd) {
         // [U * N] <: [T] if U <: T
         if (auto other_array_type = other->isa<UnsizedArrayType>())
-            return sized_array_type->elem->subtype(scope, other_array_type->elem);
-    } else if (auto tuple_type = isa<TupleType>()) {
+            return is_subtype(joint_scope, sized_array_type->elem, other_array_type->elem);
+    } else if (auto tuple_type = t->isa<TupleType>()) {
         if (auto other_tuple_type = other->isa<TupleType>();
             other_tuple_type && other_tuple_type->args.size() == tuple_type->args.size()) {
             // (U1, ..., Un) <: (T1, ..., Tn) if U1 <: T1 and ... and Un <: Tn
             for (size_t i = 0, n = tuple_type->args.size(); i < n; ++i) {
-                if (!tuple_type->args[i]->subtype(scope, other_tuple_type->args[i]))
+                if (!is_subtype(joint_scope, tuple_type->args[i], other_tuple_type->args[i]))
                     return false;
             }
             return true;
             }
-    } else if (auto fn_type = isa<FnType>()) {
+    } else if (auto fn_type = t->isa<FnType>()) {
         if (auto other_fn_type = other->isa<FnType>()) {
             // fn (V) -> W <: fn (T) -> U if T <: V and W <: U
             return
-                other_fn_type->dom->subtype(scope, fn_type->dom) &&
-                fn_type->codom->subtype(scope, other_fn_type->codom);
+                is_subtype(joint_scope, other_fn_type->dom, fn_type->dom) &&
+                is_subtype(joint_scope, fn_type->codom, other_fn_type->codom);
         }
     }
     return false;
+}
+
+bool Type::subtype(const Scope& scope, const Type* other) const {
+    return is_subtype(scope, this, other);
 }
 
 const Type* Type::join(const Scope& scope, const Type* other) const {
@@ -775,11 +789,12 @@ bool is_unit_type(const Type* type) {
 }
 
 const Type* Scope::peek_type_definition(const Type* type) const {
-    std::vector<std::tuple<const ModValue*, const DeclKey*>> trail;
-    if (auto var_as_type = type->isa<ModVarAsType>()) {
-        auto resolved = resolve_deep(var_as_type->var, trail);
-        if (resolved)
-            return peek_type_definition(resolved->as<Type>());
+    // repeatedly resolve quoted module variables until we reach the actual type definition
+    const Scope* s = this;
+    while (auto var_as_type = type->isa<ModVarAsType>()) {
+        auto [resolved, scope] = resolve_deep(var_as_type->var);
+        type = resolved->as<Type>();
+        s = &scope;
     }
     return type;
 }
@@ -794,7 +809,8 @@ std::pair<const RefType*, const Type*> remove_ref(Builder& builder, const Type* 
     const Type* og_type = type;
     std::vector<std::tuple<const ModValue*, const DeclKey*>> trail;
     if (auto var_as_type = type->isa<ModVarAsType>()) {
-        type = builder.scope.resolve_deep(var_as_type->var, trail)->as<Type>();
+        auto [resolved, resolved_scope] = builder.scope.resolve_deep(var_as_type->var, trail);
+        type = resolved->as<Type>();
     }
 
     auto import = [&](const Type* target) {

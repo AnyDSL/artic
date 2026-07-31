@@ -1144,7 +1144,7 @@ void Module::emit(Emitter& emitter) const {
 }
 
 const thorin::Def* Emitter::emit(const tir::ModVar* var) {
-    auto node = scope->resolve_deep(var);
+    auto [node, _] = scope->resolve_deep(var);
     if (auto value = node->isa<Value>()) {
         return emit(value);
     } else if (auto mod = node->isa<Module>()) {

@@ -17,8 +17,8 @@ struct Scope {
 
     const Node* resolve_bindings(const ModValue* var) const;
     /// resolves all the possible let-binding steps, and enters ModAccesses
-    const Node* resolve_deep(const ModValue* var, std::vector<std::tuple<const ModValue*, const DeclKey*>>&) const;
-    const Node* resolve_deep(const ModValue* var) const {
+    std::tuple<const Node*, const Scope&> resolve_deep(const ModValue* var, std::vector<std::tuple<const ModValue*, const DeclKey*>>&) const;
+    std::tuple<const Node*, const Scope&> resolve_deep(const ModValue* var) const {
         std::vector<std::tuple<const ModValue*, const DeclKey*>> _;
         return resolve_deep(var, _);
     };
@@ -50,6 +50,8 @@ private:
     friend Module;
     friend TypeChecker;
 };
+
+const Scope* unify_scopes(const Scope*, const Scope*);
 
 }
 

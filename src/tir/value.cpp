@@ -48,7 +48,7 @@ bool App::equals(const Node* other) const {
 
 ImplicitCast::ImplicitCast(Builder& builder, const Value* src, const Type* dst) : Value(builder.arena, dst), src(src), dst(dst) {
     assert(src->is_simple());
-    assert(dst->subtype(builder.scope, src->type()));
+    assert(src->type()->subtype(builder.scope, dst));
 }
 
 size_t ImplicitCast::hash() const {

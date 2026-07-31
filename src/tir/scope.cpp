@@ -17,29 +17,31 @@ const Node* Scope::resolve_bindings(const ModValue* value) const {
         if (auto keep_going = resolved->isa<ModValue>())
             value = keep_going;
         else
-            return resolved;
+            return resolved ? resolved : value;
     }
     return value;
 }
 
-const Node* Scope::resolve_deep(const ModValue* value, std::vector<std::tuple<const ModValue*, const DeclKey*>>& trail) const {
-    auto resolved = resolve_bindings(value);
+std::tuple<const Node*, const Scope&> Scope::resolve_deep(const ModValue* var, std::vector<std::tuple<const ModValue*, const DeclKey*>>& trail) const {
+    // TODO: this shouldn't be necessary if trivial mod_var bindings are disallowed
+    const Node* resolved = resolve_bindings(var);
     if (auto mod_access = resolved->isa<ModAccess>()) {
-        auto module = resolve_deep(mod_access->mod, trail)->isa<Module>();
-        if (module) {
-            for (auto& decl : module->decls()) {
+        // [ mod ] :: S
+        auto [lhs, lhs_scope]  = resolve_deep(mod_access->mod, trail); //->isa<Module>();
+        if (auto lhs_mod = lhs->isa<Module>()) {
+            for (auto& decl : lhs_mod->decls()) {
                 if (decl.var->key == mod_access->key) {
                     trail.emplace_back(mod_access->mod, decl.var->key);
+                    // [ ( mod :: idx ) ]
                     if (auto keep_going = decl.value->isa<ModValue>()) {
-                        return resolve_deep(keep_going, trail);
+                        return lhs_scope.resolve_deep(keep_going, trail);
                     }
-                    return decl.value;
+                    return { decl.value, lhs_mod->scope };
                 }
             }
-            assert(false);
         }
     }
-    return resolved;
+    return { resolved, *this };
 }
 
 const ModValue* Scope::peek_mod_value(const ModValue* maybe_module) const {
@@ -49,6 +51,26 @@ const ModValue* Scope::peek_mod_value(const ModValue* maybe_module) const {
             return bound_to->as<ModValue>();
     }
     return maybe_module;
+}
+
+const Scope* unify_scopes(const Scope* l, const Scope* r) {
+    if (l == r)
+        return l;
+    std::vector<const Scope*> lpath;
+    for (; l; l = l->parent) {
+        lpath.emplace(lpath.begin(), l);
+    }
+    std::vector<const Scope*> rpath;
+    for (; r; r = r->parent) {
+        rpath.emplace(rpath.begin(), r);
+    }
+    const Scope* best = nullptr;
+    for (size_t i = 0; i < lpath.size() && i < rpath.size(); i++) {
+        if (lpath[i] != rpath[i])
+            break;
+        best = lpath[i];
+    }
+    return best;
 }
 
 Scope& Scope::new_child() {
