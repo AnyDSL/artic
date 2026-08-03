@@ -1381,7 +1381,7 @@ const thorin::Def* UnOp::emit(Emitter& emitter) const {
     const thorin::Def* ptr = nullptr;
     if (tag == UnaryExpr::AddrOf || tag == UnaryExpr::AddrOfMut) {
         auto def = emitter.emit(arg);
-        if (arg->type()->isa<RefType>())
+        if (arg->resolve_type(emitter.scope())->isa<RefType>())
             return def;
         return emitter.addr_of(def, emitter.debug_info(this));
     }

@@ -56,11 +56,12 @@ struct Fn : public NominalNode<Value> {
 
     void print(Printer&) const override;
     const Node* rewrite(Rewriter&) const override;
-
     const FnType* resolve_type(const Scope& s) const override { return Value::resolve_type(s)->as<FnType>(); }
     bool is_computation() const override { return false; }
 
     const thorin::Def* emit(Emitter&, SetHeadFn) const override;
+
+    void validate(const Scope&) const;
 
     Fn(Builder&, const Param*, const Type* codom);
 };

@@ -29,6 +29,11 @@ Fn::Fn(Builder& builder, const Param* param, const Type* codom)
     : NominalNode(builder.arena, builder.schedule_and_bind_type(builder.fn_type(param->type(), codom))), param(param)
 {}
 
+void Fn::validate(const Scope& scope) const {
+    auto fn_t = resolve_type(scope);
+    assert(body->type() == fn_t->codom);
+}
+
 Param::Param(Arena& arena, std::optional<ast::Identifier> id, const Type* type) : NominalNode(arena, type), id(id) {}
 
 App::App(Arena& arena, const Value* callee, const Value* arg) : Value(arena, callee->type()->as<FnType>()->codom), callee(callee), arg(arg) {
@@ -333,12 +338,12 @@ UnOp::UnOp(Builder& builder, const UnaryExpr::Tag tag, const Value* arg) : Value
     if (tag == UnaryExpr::Forget)
         return arg->type();
     if (tag == UnaryExpr::AddrOf)
-        return builder.ptr_type(arg_type, false, ref_type ? ref_type->addr_space : 0);
+        return builder.schedule_and_bind_type(builder.ptr_type(arg_type, false, ref_type ? ref_type->addr_space : 0));
     if (tag == UnaryExpr::AddrOfMut)
-        return builder.ptr_type(arg_type, true, ref_type->addr_space);
+        return builder.schedule_and_bind_type(builder.ptr_type(arg_type, true, ref_type->addr_space));
     if (tag == UnaryExpr::Deref) {
         if (auto ptr_type = arg_type->isa<PtrType>())
-            return builder.ref_type(ptr_type->pointee, ptr_type->is_mut, ptr_type->addr_space);
+            return builder.schedule_and_bind_type(builder.ref_type(ptr_type->pointee, ptr_type->is_mut, ptr_type->addr_space));
         return builder.type_error();
     }
     return arg_type;

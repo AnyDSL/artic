@@ -1410,6 +1410,7 @@ const tir::Node* FnExpr::infer(TypeChecker& checker) {
     }
     auto fn = checker.builder().function(tir_param, body_type);
     fn->body = tir_body;
+    fn->validate(checker.scope());
     return fn;
 }
 
@@ -2140,6 +2141,7 @@ const tir::Node* FnDecl::infer(TypeChecker& checker) {
             tir_fn->body = fn->body->tir->as<Value>();
             return tir_fn->body;
         });
+        tir_fn->validate(checker.scope());
     }
     checker.exit_decl(this);
     return tir;
