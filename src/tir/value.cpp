@@ -14,19 +14,19 @@ const Type* Value::resolve_type(const Scope& s) const {
 }
 
 GlobalVariable::GlobalVariable(Builder& builder, const Type* value_type, bool is_mut, const Value* init)
-    : NominalNode(builder.arena, builder.schedule_and_bind_type(builder.ref_type(value_type, is_mut, 0))), value_type(value_type), is_mut(is_mut), init(init) {
+    : NominalNode(builder.arena, builder.ref_type(value_type, is_mut, 0)), value_type(value_type), is_mut(is_mut), init(init) {
     assert(value_type->is_simple());
     if (init)
         assert(init->type() == value_type);
 }
 
 LocalVariable::LocalVariable(Builder& builder, const Type* allocated_type)
-    : NominalNode(builder.arena, builder.schedule_and_bind_type(builder.ref_type(allocated_type, true, 0))), allocated_type(allocated_type) {
+    : NominalNode(builder.arena, builder.ref_type(allocated_type, true, 0)), allocated_type(allocated_type) {
     assert(allocated_type->is_simple());
 }
 
 Fn::Fn(Builder& builder, const Param* param, const Type* codom)
-    : NominalNode(builder.arena, builder.schedule_and_bind_type(builder.fn_type(param->type(), codom))), param(param)
+    : NominalNode(builder.arena, builder.fn_type(param->type(), codom)), param(param)
 {}
 
 void Fn::validate(const Scope& scope) const {
@@ -338,12 +338,12 @@ UnOp::UnOp(Builder& builder, const UnaryExpr::Tag tag, const Value* arg) : Value
     if (tag == UnaryExpr::Forget)
         return arg->type();
     if (tag == UnaryExpr::AddrOf)
-        return builder.schedule_and_bind_type(builder.ptr_type(arg_type, false, ref_type ? ref_type->addr_space : 0));
+        return builder.ptr_type(arg_type, false, ref_type ? ref_type->addr_space : 0);
     if (tag == UnaryExpr::AddrOfMut)
-        return builder.schedule_and_bind_type(builder.ptr_type(arg_type, true, ref_type->addr_space));
+        return builder.ptr_type(arg_type, true, ref_type->addr_space);
     if (tag == UnaryExpr::Deref) {
         if (auto ptr_type = arg_type->isa<PtrType>())
-            return builder.schedule_and_bind_type(builder.ref_type(ptr_type->pointee, ptr_type->is_mut, ptr_type->addr_space));
+            return builder.ref_type(ptr_type->pointee, ptr_type->is_mut, ptr_type->addr_space);
         return builder.type_error();
     }
     return arg_type;

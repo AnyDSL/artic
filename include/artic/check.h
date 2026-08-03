@@ -21,11 +21,10 @@ struct ScopeBuilder;
 class TypeChecker : public Logger {
 public:
     TypeChecker(Log& log, Arena& arena)
-        : Logger(log), arena(arena), root_scope(nullptr), base_builder(arena, root_scope, nullptr, nullptr)
+        : Logger(log), arena(arena), base_builder(arena, arena.root_scope(), nullptr, nullptr)
     {}
 
     Arena& arena;
-    Scope root_scope;
     Builder base_builder;
 
     /// Performs type checking on a whole program.

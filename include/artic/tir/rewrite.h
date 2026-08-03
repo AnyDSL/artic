@@ -12,9 +12,13 @@ struct Rewriter {
     Arena& src;
     Arena& dst;
 
+    Rewriter(Arena& src, Arena& dst) : src(src), dst(dst) {}
+
     virtual const Node* rewrite(const Node*, bool) = 0;
 
-    const Node* instantiate(const Node* old, bool owned) {
+    const Node* instantiate(const Node* old, bool immediate) {
+        if (immediate)
+            return rewrite(old, true);
         auto found = lookup(old);
         if (found)
             return found;
@@ -24,10 +28,10 @@ struct Rewriter {
     }
 
     template<typename T, typename S = tir::Node>
-    const Array<const S*> instantiate(ArrayRef<const T*> old, bool owned) {
+    const Array<const S*> instantiate(ArrayRef<const T*> old, bool immediate) {
         Array<const S*> result(old.size());
         for (size_t i = 0; i < old.size(); i++) {
-            result[i] = instantiate(old[i], owned)->template as<S>();
+            result[i] = instantiate(old[i], immediate)->template as<S>();
         }
         return result;
     }
@@ -38,7 +42,7 @@ struct Rewriter {
 
     const Node* lookup(const Node* old) {
         auto found = map.find(old);
-        if (found == map.end()) {
+        if (found != map.end()) {
             return found->second;
         }
         return nullptr;

@@ -636,7 +636,7 @@ static inline bool is_subtype(const Scope& start_scope, const Type* t, const Typ
         return true;
 
     if (auto implicit = other->isa<ImplicitParamType>())
-        return is_subtype(joint_scope, t, implicit->underlying) || is_unit_type(t);
+        return is_subtype(*joint_scope, t, implicit->underlying) || is_unit_type(t);
 
     auto other_ptr_type = other->isa<PtrType>(); 
 
@@ -645,31 +645,31 @@ static inline bool is_subtype(const Scope& start_scope, const Type* t, const Typ
     if (other_ptr_type &&
         !other_ptr_type->is_mut &&
         other_ptr_type->addr_space == 0 &&
-        is_subtype(joint_scope, t, other_ptr_type->pointee))
+        is_subtype(*joint_scope, t, other_ptr_type->pointee))
         return true;
 
     if (auto ref_type = t->isa<RefType>()) {
         // ref U <: &T if U <: T
         if (other_ptr_type &&
             ref_type->is_compatible_with(other_ptr_type) &&
-            is_subtype(joint_scope, ref_type->pointee, other_ptr_type->pointee))
+            is_subtype(*joint_scope, ref_type->pointee, other_ptr_type->pointee))
             return true;
         // ref U <: T if U <: T
-        return is_subtype(joint_scope, ref_type->pointee, other);
+        return is_subtype(*joint_scope, ref_type->pointee, other);
     } else if (auto ptr_type = t->isa<AddrType>(); ptr_type && other_ptr_type && ptr_type->is_compatible_with(other_ptr_type)) {
         // &U <: &T if U <: T
         // &mut U <: &T if U <: T
-        return is_subtype(joint_scope, ptr_type->pointee, other_ptr_type->pointee);
+        return is_subtype(*joint_scope, ptr_type->pointee, other_ptr_type->pointee);
     } else if (auto sized_array_type = t->isa<SizedArrayType>(); sized_array_type && !sized_array_type->is_simd) {
         // [U * N] <: [T] if U <: T
         if (auto other_array_type = other->isa<UnsizedArrayType>())
-            return is_subtype(joint_scope, sized_array_type->elem, other_array_type->elem);
+            return is_subtype(*joint_scope, sized_array_type->elem, other_array_type->elem);
     } else if (auto tuple_type = t->isa<TupleType>()) {
         if (auto other_tuple_type = other->isa<TupleType>();
             other_tuple_type && other_tuple_type->args.size() == tuple_type->args.size()) {
             // (U1, ..., Un) <: (T1, ..., Tn) if U1 <: T1 and ... and Un <: Tn
             for (size_t i = 0, n = tuple_type->args.size(); i < n; ++i) {
-                if (!is_subtype(joint_scope, tuple_type->args[i], other_tuple_type->args[i]))
+                if (!is_subtype(*joint_scope, tuple_type->args[i], other_tuple_type->args[i]))
                     return false;
             }
             return true;
@@ -678,8 +678,8 @@ static inline bool is_subtype(const Scope& start_scope, const Type* t, const Typ
         if (auto other_fn_type = other->isa<FnType>()) {
             // fn (V) -> W <: fn (T) -> U if T <: V and W <: U
             return
-                is_subtype(joint_scope, other_fn_type->dom, fn_type->dom) &&
-                is_subtype(joint_scope, fn_type->codom, other_fn_type->codom);
+                is_subtype(*joint_scope, other_fn_type->dom, fn_type->dom) &&
+                is_subtype(*joint_scope, fn_type->codom, other_fn_type->codom);
         }
     }
     return false;
@@ -808,16 +808,22 @@ std::pair<const PtrType*, const Type*> remove_ptr(const Scope& scope, const Type
 std::pair<const RefType*, const Type*> remove_ref(Builder& builder, const Type* type) {
     const Type* og_type = type;
     std::vector<std::tuple<const ModValue*, const DeclKey*>> trail;
+    const Scope* scope = &builder.scope;
     if (auto var_as_type = type->isa<ModVarAsType>()) {
         auto [resolved, resolved_scope] = builder.scope.resolve_deep(var_as_type->var, trail);
         type = resolved->as<Type>();
+        scope = &resolved_scope;
+    }
+    
+    for (auto fv : type->free_variables(*scope)) {
+        scope = unify_scopes(scope, &fv->scope);
     }
 
     auto import = [&](const Type* target) {
         assert(target->is_simple());
 
         // if the target is in scope already, just use it
-        auto fvs = target->free_variables(&builder.scope);
+        auto fvs = target->free_variables(builder.scope);
         if (fvs.empty()) {
             return target;
         }
@@ -848,7 +854,7 @@ std::pair<const RefType*, const Type*> remove_ref(Builder& builder, const Type* 
     };
 
     if (auto ref_type = type->isa<RefType>())
-        return std::make_pair(ref_type, import(ref_type->pointee));
+        return std::make_pair(ref_type, builder.import_type(*scope, ref_type->pointee));
     return std::make_pair(nullptr, og_type);
 }
 

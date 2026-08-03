@@ -70,7 +70,9 @@ const Scope* unify_scopes(const Scope* l, const Scope* r) {
             break;
         best = lpath[i];
     }
-    return best;
+    if (lpath.size() > rpath.size())
+        return lpath.back();
+    return rpath.back();
 }
 
 Scope& Scope::new_child() {

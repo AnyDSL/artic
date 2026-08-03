@@ -9,6 +9,10 @@ Module::Module(Builder& builder, const ast::ModDecl* decl)
 {}
 
 void Module::add_decl(const ModVar* var, const Node* node) const {
+    if (auto mod = node->isa<Module>()) {
+        mod->scope.mod_var = var;
+        mod->scope.mod_def = mod;
+    }
     decls_.push_back({ var, node });
     scope.insert(var, node);
 }
@@ -197,6 +201,10 @@ bool ModAccess::equals(const Node* other) const {
     }
     return false;
 }
+
+ModVar::ModVar(Builder& builder, const DeclKey* key, NodeKind kind)
+    : NominalNode(builder.arena, kind), key(key), scope(builder.scope)
+{}
 
 Signature::Elem ModVar::infer_signature(Builder& builder) const {
     auto resolved = builder.scope.resolve_mod_var(this);

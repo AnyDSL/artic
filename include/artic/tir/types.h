@@ -183,6 +183,7 @@ struct ArrayType : public Type {
     {}
 
     bool contains(const Type*) const override;
+    bool is_simple() const override { return true; }
 
     size_t order(const Scope&, std::unordered_set<const Type*>&) const override;
     void variance(const Scope&, TypeVarMap<TypeVariance>&, bool) const override;
@@ -241,6 +242,7 @@ struct AddrType : public Type {
     bool contains(const Type*) const override;
 
     bool is_compatible_with(const AddrType* other) const;
+    bool is_simple() const override { return true; }
 
     const thorin::Type* convert(Emitter&) const override;
 
@@ -293,6 +295,7 @@ struct ImplicitParamType : public Type {
     size_t hash() const override;
     bool contains(const Type*) const override;
     const ImplicitParamType* rewrite(Rewriter&) const override;
+    bool is_simple() const override { return true; }
 
     const thorin::Type* convert(Emitter&) const override;
     std::string stringify(Emitter&) const override;
@@ -318,6 +321,7 @@ struct FnType : public Type {
     size_t hash() const override;
     bool contains(const Type*) const override;
     const FnType* rewrite(Rewriter&) const override;
+    bool is_simple() const override { return true; }
 
     const thorin::Type* convert(Emitter&) const override;
     std::string stringify(Emitter&) const override;

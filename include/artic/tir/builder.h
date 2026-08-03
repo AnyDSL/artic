@@ -141,6 +141,12 @@ struct Builder {
     const Value* branch(const Value*, const Fn*, const Fn*);
     const Value* control(const Fn*);
 
+    //const Type* import_type(const Scope::Trail&, const Type*);
+    const Type* import_type(const Scope&, const Type*);
+private:
+    //const Node* import(const Scope::Trail&, const Node*);
+    const Node* import(const Scope&, const Node*);
+
     const Type* schedule_and_bind_type(const Type*, std::optional<ast::Identifier> = std::nullopt);
     const ModVar* schedule_and_bind_module_op(const ModAccess*, std::optional<ast::Identifier> = std::nullopt);
     std::unordered_map<const Node*, const ModVar*> already_bound_here;

@@ -72,6 +72,7 @@ struct ModValue : public Node {
 };
 
 struct ModVar : public NominalNode<ModValue> {
+    const Scope& scope;
     const DeclKey* key;
 
     void print(Printer&) const override;
@@ -81,7 +82,7 @@ struct ModVar : public NominalNode<ModValue> {
 
     Signature::Elem infer_signature(Builder&) const override;
 
-    ModVar(Arena& arena, const DeclKey* key, NodeKind kind) : NominalNode(arena, kind), key(key) {}
+    ModVar(Builder&, const DeclKey*, NodeKind);
 };
 
 struct Module : public NominalNode<ModValue> {

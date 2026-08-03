@@ -7,9 +7,11 @@
 namespace artic::tir {
 
 struct Scope {
-    const Scope* parent;
+    Scope* parent;
+    const ModVar* mod_var = nullptr;
+    const Module* mod_def = nullptr;
 
-    Scope(const Scope* parent) : parent(parent) {}
+    Scope(Scope* parent) : parent(parent) {}
     Scope(const Scope&) = delete;
 
     /// resolves one step of let-binding
@@ -17,9 +19,10 @@ struct Scope {
 
     const Node* resolve_bindings(const ModValue* var) const;
     /// resolves all the possible let-binding steps, and enters ModAccesses
-    std::tuple<const Node*, const Scope&> resolve_deep(const ModValue* var, std::vector<std::tuple<const ModValue*, const DeclKey*>>&) const;
+    using Trail = std::vector<std::tuple<const ModValue*, const DeclKey*>>;
+    std::tuple<const Node*, const Scope&> resolve_deep(const ModValue* var, Trail&) const;
     std::tuple<const Node*, const Scope&> resolve_deep(const ModValue* var) const {
-        std::vector<std::tuple<const ModValue*, const DeclKey*>> _;
+        Trail _;
         return resolve_deep(var, _);
     };
 

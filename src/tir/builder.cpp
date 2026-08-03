@@ -1,4 +1,6 @@
 #include "artic/tir/builder.h"
+
+#include "artic/tir/rewrite.h"
 #include "artic/tir/scope.h"
 
 namespace artic::tir {
@@ -160,7 +162,7 @@ const DeclKey* Builder::decl_key(std::optional<ast::Identifier> id) {
 }
 
 const ModVar* Builder::mod_var(const DeclKey* key, NodeKind kind) {
-    return arena.insert<ModVar>(arena, key, kind);
+    return arena.insert<ModVar>(*this, key, kind);
 }
 
 const Module* Builder::module(const ast::ModDecl* decl) {
@@ -296,6 +298,93 @@ const Signature* Builder::signature(ArrayRef<Signature::Decl> decls) {
         sorted_decls[i++] = decl;
     }
     return arena.insert<Signature>(arena, sorted_decls);
+}
+
+static inline std::vector<const Scope*> get_suffix(const Scope* base, const Scope* inner) {
+    std::vector<const Scope*> lpath;
+    for (const Scope* l = base; l; l = l->parent) {
+        lpath.emplace(lpath.begin(), l);
+    }
+    std::vector<const Scope*> rpath;
+    for (const Scope* r = inner; r; r = r->parent) {
+        rpath.emplace(rpath.begin(), r);
+    }
+    assert(rpath.size() >= lpath.size());
+    size_t i = 0;
+    for (; i < lpath.size() && i < rpath.size(); i++) {
+        if (lpath[i] != rpath[i])
+            break;
+    }
+    std::vector<const Scope*> suffix;
+    for (; i < rpath.size(); i++) {
+        suffix.emplace_back(rpath[i]);
+    }
+    return suffix;
+}
+
+struct Importer : public Rewriter {
+    Builder& builder;
+    std::vector<const Scope*> suffix;
+
+    Importer(Builder& builder, const Scope& inner)
+        : Rewriter(builder.arena, builder.arena), builder(builder) {
+        suffix = get_suffix(&builder.scope, &inner);
+    }
+
+    const Node* rewrite(const Node* old, bool immediate) override {
+        if (immediate) {
+            return old->rewrite(*this);
+        }
+        assert(old->is_simple());
+        if (auto t = old->isa<Type>()) {
+            // stuff available at the dst is left alone
+            if (t->free_variables(builder.scope).empty()) {
+                return t;
+            }
+            // mod variables are rewritten as imported paths
+            if (auto as_type = t->isa<ModVarAsType>()) {
+                const ModValue* mod = nullptr;
+
+                // re-enter modules to find the damn thing
+                for (size_t i = 0; i < suffix.size(); i++) {
+                    if (!mod) {
+                        mod = suffix[i]->mod_var;
+                    }
+
+                    auto sig = mod->infer_signature(builder);
+                    assert(sig.kind == NodeKind::Module);
+                    sig.mod_signature->dump();
+
+                    for (auto& decl : sig.mod_signature->decls) {
+                        if (decl.key == as_type->var->key) {
+                            auto found_var = builder.mod_access(mod, decl.key, NodeKind::Type)->as<ModVar>();
+                            return builder.as_type(found_var);
+                        }
+                    }
+
+                    if (i + 1 < suffix.size()) {
+                        mod = builder.mod_access(mod, suffix[i + 1]->mod_var->key, NodeKind::Module);
+                    }
+                }
+                assert(false);
+            }
+            return old->rewrite(*this);
+        }
+        return old;
+    }
+};
+
+const Node* Builder::import(const Scope& scope, const Node* node) {
+    assert(node->is_simple());
+    Importer importer(*this, scope);
+    return importer.instantiate(node, false);
+}
+
+const Type* Builder::import_type(const Scope& scope,const Type* t) {
+    if (t->free_variables(this->scope).empty()) {
+        return t;
+    }
+    return import(scope, t)->as<Type>();
 }
 
 const Type* Builder::schedule_and_bind_type(const Type* type, std::optional<ast::Identifier> maybe_id) {

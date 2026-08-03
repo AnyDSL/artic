@@ -31,7 +31,7 @@ void TypeChecker::exit_decl(const ast::Decl* decl) {
 }
 
 Scope& TypeChecker::scope() {
-    return current_scope_builder_ ? current_scope_builder_->scope : root_scope;
+    return current_scope_builder_ ? current_scope_builder_->scope : arena.root_scope();
 }
 
 Builder& TypeChecker::builder() {
@@ -2292,7 +2292,7 @@ const tir::Node* IdPtrn::infer(TypeChecker& checker) {
 }
 
 const tir::Node* IdPtrn::check(TypeChecker& checker, const artic::Type* expected) {
-    checker.check(*decl, decl->is_mut ? checker.builder().schedule_and_bind_type(checker.builder().ref_type(expected, true, 0)) : expected);
+    checker.check(*decl, decl->is_mut ? checker.builder().ref_type(expected, true, 0) : expected);
     if (sub_ptrn)
         checker.check(*sub_ptrn, expected);
     return checker.builder().param(std::nullopt, expected);
