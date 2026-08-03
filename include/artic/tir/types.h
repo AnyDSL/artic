@@ -67,6 +67,10 @@ struct Type : public Node {
     virtual bool contains(const Type* type) const { return this == type; }
 
     /// Converts this type to a Thorin type
+    using SetHeadFn = const std::function<void(thorin::Def*)>&;
+    virtual const thorin::Type* convert(Emitter& emitter, SetHeadFn) const {
+        return convert(emitter);
+    }
     virtual const thorin::Type* convert(Emitter&) const;
     /// Converts this type into a string that can be
     /// used as C union/structure/typedef name.
@@ -497,7 +501,7 @@ struct StructType : public NominalNode<ComplexType> {
     void print(Printer&) const override;
 
     using UserType::convert;
-    const thorin::Type* convert(Emitter&) const override;
+    const thorin::Type* convert(Emitter&, SetHeadFn) const override;
     std::string stringify(Emitter&) const override;
     const StructType* rewrite(Rewriter&) const override;
 
@@ -524,7 +528,7 @@ struct EnumType : public PolyTypeFromDecl<ComplexType, ast::EnumDecl> {
     void print(Printer&) const override;
 
     using UserType::convert;
-    const thorin::Type* convert(Emitter&) const override;
+    const thorin::Type* convert(Emitter&, SetHeadFn) const override;
     std::string stringify(Emitter&) const override;
     const EnumType* rewrite(Rewriter&) const override;
 

@@ -14,12 +14,22 @@ struct Value : public Node {
 
     NodeKind kind() const override { return NodeKind::Value; }
     const Type* type() const { return type_; }
-    virtual const Type* resolve_type(Scope& s) const;
+    virtual const Type* resolve_type(const Scope& s) const;
     virtual bool is_computation() const { return true; }
 
     /// Emits a branch for boolean expressions.
     virtual void emit_branch(Emitter&, thorin::Continuation*, thorin::Continuation*) const;
-    virtual const thorin::Def* emit(Emitter&) const = 0;
+
+    /// emission path for recursive nodes
+    using SetHeadFn = const std::function<void(thorin::Def*)>&;
+    virtual const thorin::Def* emit(Emitter& emitter, SetHeadFn set_head) const {
+        return emit(emitter);
+    };
+
+    /// emission for non-recursive nodes
+    virtual const thorin::Def* emit(Emitter&) const {
+        assert(false && "this node cannot be emitted");
+    };
 
 protected:
     const Type* type_;
@@ -47,10 +57,10 @@ struct Fn : public NominalNode<Value> {
     void print(Printer&) const override;
     const Node* rewrite(Rewriter&) const override;
 
-    const FnType* resolve_type(Scope& s) const override { return Value::resolve_type(s)->as<FnType>(); }
+    const FnType* resolve_type(const Scope& s) const override { return Value::resolve_type(s)->as<FnType>(); }
     bool is_computation() const override { return false; }
 
-    const thorin::Def* emit(Emitter&) const override;
+    const thorin::Def* emit(Emitter&, SetHeadFn) const override;
 
     Fn(Builder&, const Param*, const Type* codom);
 };
@@ -78,10 +88,10 @@ struct GlobalVariable : public NominalNode<Value> {
     void print(Printer&) const override;
     const Node* rewrite(Rewriter&) const override;
 
-    const RefType* resolve_type(Scope& s) const override { return Value::resolve_type(s)->as<RefType>(); }
+    const RefType* resolve_type(const Scope& s) const override { return Value::resolve_type(s)->as<RefType>(); }
     bool is_computation() const override { return false; }
 
-    const thorin::Def* emit(Emitter&) const override;
+    const thorin::Def* emit(Emitter&, SetHeadFn) const override;
 
     GlobalVariable(Builder& arena, const Type*, bool is_mut, const Value* init = nullptr);
 };
@@ -92,7 +102,7 @@ struct LocalVariable : public NominalNode<Value> {
     void print(Printer&) const override;
     const Node* rewrite(Rewriter&) const override;
 
-    const RefType* resolve_type(Scope& s) const override { return Value::resolve_type(s)->as<RefType>(); }
+    const RefType* resolve_type(const Scope& s) const override { return Value::resolve_type(s)->as<RefType>(); }
     const thorin::Def* emit(Emitter&) const override;
 
     LocalVariable(Builder&, const Type*);

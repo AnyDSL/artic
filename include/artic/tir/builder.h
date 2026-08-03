@@ -26,7 +26,7 @@ public:
     const NoRetType* no_ret_type();
     const TypeError* type_error();
 
-    Scope& root_scope();
+    Scope& root_scope() { return *root_scope_; }
 
 private:
     template <typename T, typename... Args>

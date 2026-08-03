@@ -9,7 +9,7 @@ namespace artic {
 
 namespace tir {
 
-const Type* Value::resolve_type(Scope& s) const {
+const Type* Value::resolve_type(const Scope& s) const {
     return s.peek_type_definition(type());
 }
 

@@ -105,7 +105,7 @@ struct Module : public NominalNode<ModValue> {
     void print(Printer&) const override;
     Node* rewrite(Rewriter&) const override;
 
-    void emit(Emitter&) const;
+    // void emit(Emitter&) const;
 
     Module(Builder&, const ast::ModDecl*);
 

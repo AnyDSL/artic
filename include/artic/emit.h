@@ -14,10 +14,9 @@
 #include "tir/tir.h"
 #include "tir/types.h"
 #include "tir/values.h"
+#include "tir/module.h"
 
 namespace artic {
-
-//struct StructType;
 
 /// Helper class for Thorin IR generation.
 class Emitter : public Logger {
@@ -101,6 +100,29 @@ public:
     /// Vector containing definitions that are generated during monomorphization.
     std::vector<std::vector<const thorin::Def**>> poly_defs;*/
     std::unordered_map<const tir::Node*, const thorin::Def*> emitted;
+    struct ModuleDecls;
+    struct ModuleDecl {
+        const tir::Node* definition;
+        bool emitting = false;
+        bool done = false;
+        const thorin::Def* as_value = nullptr;
+        const thorin::Def* as_type = nullptr;
+        const ModuleDecls* as_mod = nullptr;
+
+        ModuleDecl(const tir::Node* definition) : definition(definition) {}
+        ModuleDecl(const ModuleDecl&) = delete;
+    };
+    struct ModuleDecls {
+        const tir::Scope& scope;
+        const ModuleDecls* super = nullptr;
+        std::unordered_map<const tir::ModVar*, std::unique_ptr<ModuleDecl>> decls;
+
+        ModuleDecls(const tir::Scope& scope, const ModuleDecls* super) : scope(scope), super(super) {}
+        ModuleDecls(const ModuleDecl&) = delete;
+    };
+    using AnyResult = std::variant<const thorin::Def*, const ModuleDecls*>;
+
+    std::unordered_map<const tir::Module*, std::unique_ptr<ModuleDecls>> emitted_modules;
 
     bool run(const tir::Module&);
 
@@ -134,12 +156,19 @@ public:
     const thorin::Def* addr_of(const thorin::Def*, thorin::Debug = {});
 
     const thorin::Def* no_ret();
-    const thorin::Def* down_cast(const thorin::Def*, const tir::Type*, const tir::Type*, thorin::Debug = {});
+    const thorin::Def* down_cast(const thorin::Def*, const tir::Scope&, const tir::Type*, const tir::Type*, thorin::Debug = {});
 
-    const thorin::Def* emit(const tir::Value*);
-    const thorin::Type* emit(const tir::Type*);
-    void emit(const tir::Module*);
-    const thorin::Def* emit(const tir::ModVar*);
+    const ModuleDecls& emit(const tir::Module*, const ModuleDecls* super);
+
+    const thorin::Def* emit(const tir::Value*, ModuleDecl* decl = nullptr);
+    const thorin::Type* emit(const tir::Type*, ModuleDecl* decl = nullptr);
+
+    void emit(const tir::ModAccess*, ModuleDecl& decl);
+    /// Emit a module variable, which could be any kind of node!
+    AnyResult emit(const tir::ModVar*);
+
+    /// Emit a mod value, assuming it is of kind Module
+    const ModuleDecls& emit_module(const tir::ModValue*);
 
     // void emit(const ast::Ptrn&, const thorin::Def*);
     // void bind(const ast::IdPtrn&, const thorin::Def*);
@@ -154,7 +183,13 @@ public:
     thorin::Debug debug_info(const ast::Node&, const std::string_view& = "");
     thorin::Debug debug_info(const tir::Node*, const std::string_view& = "") { return {}; };
 
-    tir::Scope* scope = nullptr;
+    // tir::Scope* scope = nullptr;
+    // tir::Module* module = nullptr;
+    const ModuleDecls* cur_module = nullptr;
+    const tir::Scope& scope() {
+        assert(cur_module);
+        return cur_module->scope;
+    }
 
 private:
     const thorin::Def* cast_pointers(const thorin::Def*, const tir::AddrType*, const tir::AddrType*, thorin::Debug);

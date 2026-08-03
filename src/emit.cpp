@@ -1,4 +1,5 @@
 #include "artic/emit.h"
+#include "artic/emit.h"
 #include "artic/tir/types.h"
 #include "artic/tir/builder.h"
 #include "artic/ast.h"
@@ -462,20 +463,20 @@ void PtrnCompiler::dump() const {
 
 struct ScopeGuard {
     Emitter& emitter;
-    Scope* old;
+    const Emitter::ModuleDecls* old;
 
-    ScopeGuard(Emitter& emitter, Scope& scope) : emitter(emitter) {
+    ScopeGuard(Emitter& emitter, const Emitter::ModuleDecls& scope) : emitter(emitter) {
         old = &scope;
-        std::swap(emitter.scope, old);
+        std::swap(emitter.cur_module, old);
     }
     ScopeGuard(const ScopeGuard&) = delete;
     ~ScopeGuard() {
-        std::swap(emitter.scope, old);
+        std::swap(emitter.cur_module, old);
     }
 };
 
 bool Emitter::run(const tir::Module& mod) {
-    mod.emit(*this);
+    emit(&mod, nullptr);
     return errors == 0;
 }
 
@@ -689,18 +690,32 @@ const thorin::Def* Emitter::cast_pointers(
     const thorin::Def* addr = def;
     if (!is_compatible(from_addr_type, to_addr_type)) {
         // We have to downcast the value pointed at
-        assert(from_addr_type->pointee->subtype(scope, to_addr_type->pointee));
-        auto casted_val = down_cast(load(def, debug), from_addr_type->pointee, to_addr_type->pointee, debug);
+        assert(from_addr_type->pointee->subtype(scope(), to_addr_type->pointee));
+        auto casted_val = down_cast(load(def, debug), scope(), from_addr_type->pointee, to_addr_type->pointee, debug);
         addr = addr_of(casted_val, debug);
     }
     return world.bitcast(to_addr_type->convert(*this), addr, debug);
 }
 
-const thorin::Def* Emitter::down_cast(const thorin::Def* def, const Type* from, const Type* to, thorin::Debug debug) {
+const thorin::Def* Emitter::down_cast(const thorin::Def* def, const Scope& start_scope, const Type* from, const Type* to, thorin::Debug debug) {
     // This function mirrors the subtyping relation and thus should be kept in sync
-    assert(from->subtype(scope, to));
-    from = scope->peek_type_definition(from);
-    to = scope->peek_type_definition(to);
+    assert(from->subtype(start_scope, to));
+
+    const Scope* lhs_scope = &start_scope;
+    const Scope* rhs_scope = &start_scope;
+    while (auto var_as_type = from->isa<ModVarAsType>()) {
+        auto [resolved, resolved_scope] = lhs_scope->resolve_deep(var_as_type->var);
+        from = resolved->as<Type>();
+        lhs_scope = &resolved_scope;
+    }
+    while (auto var_as_type = to->isa<ModVarAsType>()) {
+        auto [resolved, resolved_scope] = rhs_scope->resolve_deep(var_as_type->var);
+        to = resolved->as<Type>();
+        rhs_scope = &resolved_scope;
+    }
+
+    const Scope& scope = *unify_scopes(lhs_scope, rhs_scope);
+
     if (to == from || to->isa<TopType>())
         return def;
 
@@ -716,12 +731,12 @@ const thorin::Def* Emitter::down_cast(const thorin::Def* def, const Type* from, 
         !to_ptr_type->is_mut &&
         to_ptr_type->addr_space == 0 &&
         from->subtype(scope, to_ptr_type->pointee))
-        return world.bitcast(to->convert(*this), addr_of(down_cast(def, from, to_ptr_type->pointee, debug)), debug);
+        return world.bitcast(to->convert(*this), addr_of(down_cast(def, scope, from, to_ptr_type->pointee, debug)), debug);
 
     if (auto from_ref_type = from->isa<RefType>()) {
         if (to_ptr_type && from_ref_type->is_compatible_with(to_ptr_type) && from_ref_type->pointee->subtype(scope, to_ptr_type->pointee))
             return cast_pointers(def, from_ref_type, to_ptr_type, debug);
-        return down_cast(load(def, debug), from_ref_type->pointee, to, debug);
+        return down_cast(load(def, debug), scope, from_ref_type->pointee, to, debug);
     } else if (auto from_ptr_type = from->isa<PtrType>(); from_ptr_type && to_ptr_type) {
         assert(from_ptr_type->is_compatible_with(to_ptr_type));
         return cast_pointers(def, from_ptr_type, to_ptr_type, debug);
@@ -733,23 +748,23 @@ const thorin::Def* Emitter::down_cast(const thorin::Def* def, const Type* from, 
         auto to_elem = to->as<ArrayType>()->elem;
         thorin::Array<const thorin::Def*> elems(from_sized_array_type->size);
         for (size_t i = 0, n = from_sized_array_type->size; i < n; ++i)
-            elems[i] = down_cast(world.extract(def, i), from_sized_array_type->elem, to_elem, debug);
+            elems[i] = down_cast(world.extract(def, i), scope, from_sized_array_type->elem, to_elem, debug);
         return world.definite_array(to_elem->convert(*this), elems, debug);
     } else if (auto from_tuple_type = from->isa<TupleType>()) {
         thorin::Array<const thorin::Def*> ops(from_tuple_type->args.size());
         for (size_t i = 0, n = ops.size(); i < n; ++i)
-            ops[i] = down_cast(world.extract(def, i, debug), from_tuple_type->args[i], to->as<TupleType>()->args[i], debug);
+            ops[i] = down_cast(world.extract(def, i, debug), scope, from_tuple_type->args[i], to->as<TupleType>()->args[i], debug);
         return world.tuple(ops, debug);
     } else if (auto from_fn_type = from->isa<FnType>()) {
         auto _ = save_state();
         auto cont = world.continuation(to->convert(*this)->as<thorin::FnType>(), debug);
         enter(cont);
-        auto param = down_cast(tuple_from_params(cont, true), to->as<FnType>()->dom, from_fn_type->dom, debug);
+        auto param = down_cast(tuple_from_params(cont, true), scope, to->as<FnType>()->dom, from_fn_type->dom, debug);
         // No-ret functions downcast to returning ones, but call() can't work with those (see also CallExpr, IfExpr)
         if (from->as<FnType>()->codom->isa<artic::NoRetType>()) {
             jump(def, param, debug);
         } else {
-            auto value = down_cast(call(def, param, debug), from_fn_type->codom, to->as<FnType>()->codom, debug);
+            auto value = down_cast(call(def, param, debug), scope, from_fn_type->codom, to->as<FnType>()->codom, debug);
             jump(cont->params().back(), value, debug);
         }
         return cont;
@@ -776,29 +791,32 @@ const thorin::Def* Emitter::down_cast(const thorin::Def* def, const Type* from, 
     return node.def = node.emit(*this);
 }*/
 
-const thorin::Def* Emitter::emit(const Value* node) {
+const thorin::Def* Emitter::emit(const Value* node, ModuleDecl* decl) {
     auto found = emitted.find(node);
     if (found != emitted.end())
         return found->second;
-    auto def = node->emit(*this);
+    auto set_fn = [&](const thorin::Def* def) {
+        //emitted[node] = def;
+        if (decl)
+            decl->as_value = def;
+    };
+    auto def = node->emit(*this, set_fn);
     emitted[node] = def;
     return def;
 }
 
-const thorin::Type* Emitter::emit(const Type* node) {
+const thorin::Type* Emitter::emit(const Type* node, ModuleDecl* decl) {
     auto found = emitted.find(node);
     if (found != emitted.end())
         return found->second->as<thorin::Type>();
-    auto def = node->convert(*this);
+    auto set_fn = [&](const thorin::Def* def) {
+        emitted[node] = def;
+        if (decl)
+            decl->as_type = def;
+    };
+    auto def = node->convert(*this, set_fn);
     emitted[node] = def;
     return def;
-}
-
-void Emitter::emit(const Module* node) {
-    auto found = emitted.find(node);
-    if (found != emitted.end())
-        return;
-    node->emit(*this);
 }
 
 /*void Emitter::emit(const ast::Ptrn& ptrn, const thorin::Def* value) {
@@ -1130,32 +1148,109 @@ thorin::Debug Emitter::debug_info(const ast::Node& node, const std::string_view&
     return def;
 }*/
 
-void Module::emit(Emitter& emitter) const {
+const Emitter::ModuleDecls& Emitter::emit(const Module* mod, const ModuleDecls* super) {
     // don't emit modules twice
-    emitter.emitted[this] = nullptr;
+    auto found = emitted_modules.find(mod);
+    if (found != emitted_modules.end())
+        return *found->second;
 
-    ScopeGuard sg(emitter, scope);
-    for (auto [var, value] : decls()) {
-        // scope.insert(var, value);
+    const Scope* s = super ? &super->scope : &mod->arena.root_scope();
+    auto x = std::make_unique<ModuleDecls>(mod->scope, super);
+    // ModuleDecls& decls = *x;
+    // emitted_modules[mod] = std::move(x);
+    ModuleDecls& decls = *emitted_modules.emplace(mod, std::move(x)).first->second;
+    ScopeGuard sg(*this, decls);
+    for (auto [var, value] : mod->decls()) {
+        decls.decls.emplace(var, std::make_unique<ModuleDecl>(value));
     }
-    for (auto [var, _] : decls()) {
-        emitter.emit(var);
+    for (auto [var, _] : mod->decls()) {
+        emit(var);
     }
+    return decls;
 }
 
-const thorin::Def* Emitter::emit(const tir::ModVar* var) {
-    auto [node, _] = scope->resolve_deep(var);
-    if (auto value = node->isa<Value>()) {
-        return emit(value);
-    } else if (auto mod = node->isa<Module>()) {
-        emit(mod);
-        return nullptr;
-    } else if (auto typ = node->isa<Type>()) {
-        return typ->convert(*this);
-    } /*else if (auto mod_access = node->isa<ModAccess>()) {
-        emit(mod_access->mod->as<ModVar>());
+static inline std::tuple<const Emitter::ModuleDecls&, Emitter::ModuleDecl&> lookup_mod_decl(Emitter& emitter, const ModVar* var) {
+    const Emitter::ModuleDecls* mod = emitter.cur_module;
+    while (mod) {
+        auto found = mod->decls.find(var);
+        if (found != mod->decls.end()) {
+            return { *mod, *found->second };
+        }
+        mod = mod->super;
+    }
+    assert(false);
+};
 
-    } */else {
+static inline Emitter::AnyResult wrap_polykinded_result(const Emitter::ModuleDecl& decl) {
+    if (decl.as_value)
+        return { decl.as_value };
+    if (decl.as_type)
+        return { decl.as_type };;
+    if (decl.as_mod)
+        return { decl.as_mod };
+    assert(false);
+}
+
+void Emitter::emit(const tir::ModAccess* mod_access, ModuleDecl& decl) {
+    auto& module = emit_module(mod_access->mod);
+    ScopeGuard sg2(*this, module);
+    for (auto& [var, def] : module.decls) {
+        if (var->key == mod_access->key) {
+            auto r = emit(var);
+            switch (var->kind()) {
+                case NodeKind::Module:
+                    decl.as_mod = def->as_mod;
+                    assert(decl.as_mod);
+                    break;
+                case NodeKind::Value:
+                    decl.as_value = def->as_value;
+                    assert(decl.as_value);
+                    break;
+                case NodeKind::Type:
+                    decl.as_type = def->as_type;
+                    assert(decl.as_type);
+                    break;
+                default: assert(false);
+            }
+            return;
+        }
+    }
+    assert(false);
+}
+
+Emitter::AnyResult Emitter::emit(const ModVar* var) {
+    auto [enclosing, decl] = lookup_mod_decl(*this, var);
+    if (decl.done)
+        return wrap_polykinded_result(decl);
+
+    ScopeGuard sg(*this, enclosing);
+
+    assert(!decl.emitting && "recursive module def");
+    if (auto value = decl.definition->isa<Value>()) {
+        decl.as_value = emit(value, &decl);
+        assert(decl.as_value);
+    } else if (auto mod = decl.definition->isa<Module>()) {
+        // Modules are actually always lazily emitted
+        decl.as_mod = &emit(mod, &enclosing);
+        assert(decl.as_mod);
+    } else if (auto typ = decl.definition->isa<Type>()) {
+        decl.as_type = emit(typ, &decl);
+        assert(decl.as_type);
+    } else if (auto mod_access = decl.definition->isa<ModAccess>()) {
+        emit(mod_access, decl);
+    } else {
+        assert(false);
+    }
+    decl.emitting = false;
+    decl.done = true;
+    return wrap_polykinded_result(decl);
+}
+
+const Emitter::ModuleDecls& Emitter::emit_module(const tir::ModValue* value) {
+    assert(value->is_simple());
+    if (auto var = value->isa<ModVar>()) {
+        return *std::get<const ModuleDecls*>(emit(var));
+    } else {
         assert(false);
     }
 }
@@ -1164,7 +1259,7 @@ const thorin::Def* Param::emit(Emitter&) const {
     assert(false);
 }
 
-const thorin::Def* Fn::emit(Emitter& emitter) const {
+const thorin::Def* Fn::emit(Emitter& emitter, SetHeadFn set_head) const {
     //assert(false && "TODO");
     auto _ = emitter.save_state();
     auto cont = emitter.world.continuation(
@@ -1172,15 +1267,15 @@ const thorin::Def* Fn::emit(Emitter& emitter) const {
         emitter.debug_info(this));
     cont->params().back()->set_name("ret");
     // Set the IR node before entering the body
-    emitter.emitted[this] = cont;
-    emitter.emitted[param] = emitter.tuple_from_params(cont, !resolve_type(*emitter.scope)->codom->isa<artic::NoRetType>());
+    set_head(cont);
+    emitter.emitted[param] = emitter.tuple_from_params(cont, !resolve_type(emitter.scope())->codom->isa<artic::NoRetType>());
     //emitter.emit(*param, emitter.tuple_from_params(cont, true));
     if (filter)
         cont->set_filter(emitter.world.filter(thorin::Array<const thorin::Def*>(cont->num_params(), emitter.emit(filter))));
     if (body) {
         emitter.enter(cont);
         auto value = emitter.emit(body);
-        if (!resolve_type(*emitter.scope)->codom->isa<artic::NoRetType>())
+        if (!resolve_type(emitter.scope())->codom->isa<artic::NoRetType>())
             emitter.jump(cont->params().back(), value);
     }
     return cont;
@@ -1196,10 +1291,11 @@ const thorin::Def* App::emit(Emitter& emitter) const {
     return emitter.call(fn, value, emitter.debug_info(this));
 }
 
-const thorin::Def* GlobalVariable::emit(Emitter& emitter) const {
+const thorin::Def* GlobalVariable::emit(Emitter& emitter, SetHeadFn) const {
     auto value = init
         ? emitter.emit(init)
-        : emitter.world.bottom(emitter.emit(resolve_type(*emitter.scope)->pointee));
+        : emitter.world.bottom(emitter.emit(resolve_type(emitter.scope())->pointee));
+    // TODO: one day globals should probably be able to be mutually recursive
     auto global = emitter.world.global(value, is_mut, emitter.debug_info(this));
 
     // TODO
@@ -1227,7 +1323,7 @@ const thorin::Def* Undef::emit(Emitter& emitter) const {
 }
 
 const thorin::Def* ImplicitCast::emit(Emitter& emitter) const {
-    return emitter.down_cast(emitter.emit(src), src->type(), dst);
+    return emitter.down_cast(emitter.emit(src), emitter.scope(), src->type(), dst);
 }
 
 const thorin::Def* tir::Cast::emit(Emitter& emitter) const {
@@ -1239,7 +1335,7 @@ const thorin::Def* Agg::emit(Emitter& emitter) const {
     for (size_t i = 0; i < args.size(); ++i) {
         elems[i] = emitter.emit(args[i]);
     }
-    auto agg_type = emitter.scope->peek_type_definition(type());
+    auto agg_type = emitter.scope().peek_type_definition(type());
     if (agg_type->isa<TupleType>())
         return emitter.world.tuple(elems);
     else if (auto array_t = agg_type->isa<SizedArrayType>()) {
@@ -1266,7 +1362,8 @@ const thorin::Def* Bind::emit(Emitter& emitter) const {
 }
 
 const thorin::Def* ModVarAsValue::emit(Emitter& emitter) const {
-    auto def = emitter.emit(var);
+    auto r = emitter.emit(var);
+    auto def = std::get<const thorin::Def*>(r);
     assert(def);
     return def;
 }
@@ -2392,9 +2489,9 @@ std::string StructType::stringify(Emitter& emitter) const {
     return "anonymous_struct";
 }
 
-const thorin::Type* StructType::convert(Emitter& emitter) const {
+const thorin::Type* StructType::convert(Emitter& emitter, SetHeadFn set_head) const {
     auto type = emitter.world.struct_type(stringify(emitter), member_count());
-    emitter.emitted[this] = type;
+    set_head(type);
     for (size_t i = 0, n = member_count(); i < n; ++i) {
         type->set_op(i, emitter.emit(member_type(i)));
         type->set_op_name(i, std::string(member_name(i)));
@@ -2408,7 +2505,7 @@ std::string EnumType::stringify(Emitter& emitter) const {
     return stringify_types(emitter, decl.id.name + "_", type_params());
 }
 
-const thorin::Type* EnumType::convert(Emitter& emitter) const {
+const thorin::Type* EnumType::convert(Emitter& emitter, SetHeadFn set_head) const {
     assert(false && "TODO");
     /*if (auto it = emitter.types.find(this); !decl.type_params && it != emitter.types.end())
         return it->second;
@@ -2431,7 +2528,7 @@ std::string TypeApp::stringify(Emitter& emitter) const {
 }
 
 const thorin::Type* ModVarAsType::convert(Emitter& emitter) const {
-    return emitter.emit(var)->as<thorin::Type>();
+    return std::get<const thorin::Def*>(emitter.emit(var))->as<thorin::Type>();
 }
 
 const thorin::Type* TypeApp::convert(Emitter& emitter) const {
