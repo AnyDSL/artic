@@ -1461,30 +1461,49 @@ const tir::Node* RepeatArrayExpr::check(TypeChecker& checker, const artic::Type*
     });*/
 }
 
+static inline void build_fn_body(TypeChecker& checker, FnExpr& fn, const Param* param, const tir::Type* codom) {
+    auto build_body = [&]() -> const Value* {
+        checker.bind_ptrn_params(*fn.param, param);
+        if (codom)
+            return checker.coerce(&*fn.body, codom);
+        else
+            return checker.deref(fn.body);
+    };
+
+    if (codom) {
+        assert(codom->is_simple());
+        auto yield_fn_type = checker.builder().fn_type(codom, checker.builder().no_ret_type());
+        auto yield_param = checker.builder().param({ ast::Identifier { fn.loc, "ret" } }, yield_fn_type);
+        fn.return_ = yield_param;
+        auto control_fn = checker.builder().function(yield_param, checker.builder().no_ret_type());
+        control_fn->body = checker.yield_expr_scope([&] {
+            auto ret_value = build_body();
+            return checker.expr_builder().app(yield_param, ret_value);
+        });
+        fn.tir_body = checker.yield_expr_scope([&] {
+            return checker.expr_builder().control(control_fn);
+        });
+    } else
+        fn.tir_body = checker.yield_expr_scope([&] {
+            return build_body();
+        });
+}
+
 const tir::Node* FnExpr::infer(TypeChecker& checker) {
     auto tir_param = checker.builder().param(std::nullopt, checker.infer_ptrn(*param));
     if (filter)
         checker.check_value(*filter, checker.builder().bool_type());
-    auto body_type = ret_type ? checker.infer_type(*ret_type) : nullptr;
-    const tir::Value* tir_body = nullptr;
+    auto codom = ret_type ? checker.infer_type(*ret_type) : nullptr;
     if (body) {
-        tir_body = checker.yield_expr_scope([&]{
-            checker.bind_ptrn_params(*param, tir_param);
-            if (body_type)
-                tir_body = checker.coerce(&*body, body_type);
-            else {
-                tir_body = checker.deref(body);
-                body_type = tir_body->type();
-            }
-            return tir_body;
-        });
+        build_fn_body(checker, *this, tir_param, codom);
+        codom = tir_body->type();
     }
     checker.check_refutability(*param, true);
-    if (!body_type) {
+    if (!codom) {
         checker.cannot_infer(loc, "function");
         return checker.builder().error_value(checker.builder().type_error());
     }
-    auto fn = checker.builder().function(tir_param, body_type);
+    auto fn = checker.builder().function(tir_param, codom);
     fn->body = tir_body;
     fn->validate(checker.scope());
     return fn;
@@ -1843,24 +1862,28 @@ const tir::Node* ContinueExpr::infer(TypeChecker& checker) {
 }
 
 const tir::Node* ReturnExpr::infer(TypeChecker& checker) {
-    assert(false && "TODO");
-    /*if (fn) {
+    if (fn && fn->return_) {
         const artic::Type* arg_type = nullptr;
-        if (fn->type && fn->type->isa<artic::FnType>())
-            arg_type = fn->type->as<artic::FnType>()->codom;
+        if (fn->value) {
+            auto fn_type = fn->value->resolve_type(checker.scope())->isa<tir::FnType>();
+            assert(fn_type);
+            arg_type = checker.builder().enclosing_module().import_type(fn_type->codom);
+        }
         else if (fn->ret_type && fn->ret_type->type) {
             // Note that this case is necessary, if the function linked to
             // the `return` is currently being inferred. This gets the type
             // directly from the return type annotation.
             arg_type = fn->ret_type->type;
         }
-        if (arg_type)
-           return checker.builder().cn_type(arg_type);
+        if (arg_type) {
+            // return checker.builder().cn_type(arg_type);
+            return fn->return_;
+        }
     }
     checker.error(loc, "cannot infer the type of '{}'", log::keyword_style("return"));
     if (fn)
         checker.note(fn->loc, "try annotating the return type of this function");
-    return checker.builder().type_error();*/
+    return checker.builder().error_value(checker.builder().type_error());
 }
 
 const tir::Node* UnaryExpr::infer(TypeChecker& checker) {
@@ -2154,7 +2177,7 @@ const tir::Node* LetDecl::infer(TypeChecker& checker) {
         return checker.builder().unit();
     }
     checker.check_refutability(*ptrn, true);
-    //return checker.builder().unit_type();
+    return checker.builder().unit();
 }
 
 const tir::Node* ImplicitDecl::infer(TypeChecker& checker) {
@@ -2244,17 +2267,18 @@ const tir::Node* FnDecl::infer(TypeChecker& checker) {
         return checker.builder().type_error();
 
     const tir::Fn* tir_fn = nullptr;
-    const artic::FnType* fn_type = nullptr;
+    //const artic::FnType* fn_type = nullptr;
+    const tir::Type* codom = nullptr;
     if (fn->ret_type) {
-        auto param = checker.infer_ptrn(*fn->param)->as<Param>();
-        fn_type = checker.builder().fn_type(param->type(), checker.infer_type(*fn->ret_type));
+        auto param_type = checker.infer_ptrn(*fn->param);
+        codom = checker.infer_type(*fn->ret_type);
         if (fn->filter)
             checker.check_value(*fn->filter, checker.builder().bool_type());
         checker.check_refutability(*fn->param, true);
-        tir_fn = checker.builder().function(param, fn_type->codom);
+        tir_fn = checker.builder().function(checker.builder().param(std::nullopt, param_type), codom);
     } else {
         tir_fn = checker.infer_value(*fn)->as<tir::Fn>();
-        fn_type = tir_fn->resolve_type(checker.scope());
+        //fn_type = tir_fn->resolve_type(checker.scope());
     }
 
     // Set the type of this function right now, in case
@@ -2263,16 +2287,8 @@ const tir::Node* FnDecl::infer(TypeChecker& checker) {
     // if (forall)
     //     forall->body = fn_type;
     if (fn->ret_type && fn->body) {
-        tir_fn->body = checker.yield_expr_scope([&]() -> const Value* {
-            // prepend the body with code that deconstructs the pattern
-            checker.bind_ptrn_params(*fn->param, tir_fn->param);
-
-            // fn->body = checker.expr_builder().bind_value(fn->body);
-
-            checker.coerce(&*fn->body, fn_type->codom);
-            tir_fn->body = fn->body->value;
-            return tir_fn->body;
-        });
+        build_fn_body(checker, *fn, tir_fn->param, codom);
+        tir_fn->body = fn->tir_body;
         tir_fn->validate(checker.scope());
     }
     checker.exit_decl(this);

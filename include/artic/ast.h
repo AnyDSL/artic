@@ -716,6 +716,10 @@ struct FnExpr : public Expr {
     // set during name-binding, if this is actually part of a FnDecl.
     mutable FnDecl* decl = nullptr;
 
+    // set during type-checking
+    mutable const tir::Value* tir_body = nullptr;
+    mutable const tir::Value* return_ = nullptr;
+
     FnExpr(
         const Loc& loc,
         Ptr<Filter>&& filter,

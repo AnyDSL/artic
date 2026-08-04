@@ -139,7 +139,7 @@ struct ModuleBuilder : public Builder {
 
     const ModVar* add_in_module(const Node*, std::optional<ast::Identifier> = std::nullopt);
 
-    const Type* import_type(const Scope&, const Type*);
+    const Type* import_type(const Type*);
 private:
     const Module* module;
 

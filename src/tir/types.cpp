@@ -814,13 +814,9 @@ std::pair<const RefType*, const Type*> remove_ref(Builder& builder, const Type* 
         type = resolved->as<Type>();
         scope = &resolved_scope;
     }
-    
-    for (auto fv : type->free_variables(*scope)) {
-        scope = unify_scopes(scope, &fv->scope);
-    }
 
     if (auto ref_type = type->isa<RefType>())
-        return std::make_pair(ref_type, builder.enclosing_module().import_type(*scope, ref_type->pointee));
+        return std::make_pair(ref_type, builder.enclosing_module().import_type(ref_type->pointee));
     return std::make_pair(nullptr, og_type);
 }
 

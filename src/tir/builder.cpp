@@ -418,11 +418,15 @@ const Node* ModuleBuilder::import(const Scope& scope, const Node* node) {
     return importer.instantiate(node, false);
 }
 
-const Type* ModuleBuilder::import_type(const Scope& scope,const Type* t) {
+const Type* ModuleBuilder::import_type(const Type* t) {
     if (t->free_variables(this->scope).empty()) {
         return t;
     }
-    return import(scope, t)->as<Type>();
+    const Scope* scope = &this->scope;
+    for (auto fv : t->free_variables(*scope)) {
+        scope = unify_scopes(scope, &fv->scope);
+    }
+    return import(*scope, t)->as<Type>();
 }
 
 const Type* ModuleBuilder::schedule_and_bind_type(const Type* type, std::optional<ast::Identifier> maybe_id) {
