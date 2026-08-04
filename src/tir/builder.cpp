@@ -196,7 +196,7 @@ const GlobalVariable* Builder::global_variable(const Type* value_type, bool is_m
 
 const Value* Builder::typed_literal(Literal literal, const Type* type) {
     // TODO: normalize literal representation based on type
-    return arena.insert<TypedLiteral>(arena, literal, type);
+    return arena.insert<TypedLiteral>(*this, literal, type);
 }
 
 const Value* Builder::undef(const Type* type) {

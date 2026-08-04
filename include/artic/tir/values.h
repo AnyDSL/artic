@@ -166,7 +166,7 @@ struct TypedLiteral : public Value {
     bool is_computation() const override { return false; }
     bool is_simple() const override { return true; };
 
-    TypedLiteral(Arena&, Literal, const Type*);
+    TypedLiteral(Builder&, Literal, const Type*);
 };
 
 struct Undef : public Value {

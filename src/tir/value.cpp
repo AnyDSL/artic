@@ -90,8 +90,12 @@ bool Cast::equals(const Node* other) const {
     return false;
 }
 
-TypedLiteral::TypedLiteral(Arena& arena, Literal lit, const Type* type) : Value(arena, type), value(lit) {
-    assert(type->isa<PrimType>()); // TODO: allow for arrays
+TypedLiteral::TypedLiteral(Builder& builder, Literal lit, const Type* type) : Value(builder.arena, type), value(lit) {
+    assert(type->is_simple());
+    type = builder.scope.peek_type_definition(type);
+    if (auto sized_array_type = type->isa<SizedArrayType>())
+        type = builder.scope.peek_type_definition(sized_array_type->elem);
+    assert(type->isa<PrimType>());
 }
 
 size_t TypedLiteral::hash() const {
