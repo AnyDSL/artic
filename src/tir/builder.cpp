@@ -316,8 +316,8 @@ const Value* ExprBuilder::finish_unit() {
     return finish(unit());
 }
 
-const Signature* Builder::mod_signature(ArrayRef<Signature::Decl> decls) {
-    std::unordered_set<Signature::Decl, Signature::Hash, Signature::Compare> decls_set;
+const Signature* Builder::mod_signature(/*ArrayRef<Signature::Decl> decls*/) {
+    /*std::unordered_set<Signature::Decl, Signature::Hash, Signature::Compare> decls_set;
     for (auto& decl : decls) {
         decls_set.insert(decl);
     }
@@ -325,18 +325,16 @@ const Signature* Builder::mod_signature(ArrayRef<Signature::Decl> decls) {
     size_t i = 0;
     for (auto& decl : decls_set) {
         sorted_decls[i++] = decl;
-    }
-    return arena.insert<Signature>(*this, NodeKind::Module, nullptr, nullptr, sorted_decls);
+    }*/
+    return arena.insert<Signature>(*this, NodeKind::Module, nullptr, nullptr/*, sorted_decls*/);
 }
 
 const Signature* Builder::value_signature(const Type* inner) {
-    Array<Signature::Decl> empty;
-    return arena.insert<Signature>(*this, NodeKind::Value, inner, nullptr, empty);
+    return arena.insert<Signature>(*this, NodeKind::Value, inner, nullptr);
 }
 
 const Signature* Builder::type_signature(const Type* inner) {
-    Array<Signature::Decl> empty;
-    return arena.insert<Signature>(*this, NodeKind::Type, nullptr, inner, empty);
+    return arena.insert<Signature>(*this, NodeKind::Type, nullptr, inner);
 }
 
 ModuleBuilder& Builder::enclosing_module() {
@@ -403,12 +401,12 @@ struct Importer : public Rewriter {
                     assert(sig->elem_kind == NodeKind::Module);
                     sig->dump();
 
-                    for (auto& decl : sig->mod_signature) {
-                        if (decl.key == as_type->var->key) {
-                            auto found_var = builder.mod_access(mod, decl.key, NodeKind::Type)->as<ModVar>();
-                            return builder.as_type(found_var);
-                        }
-                    }
+                    // for (auto& decl : sig->mod_signature) {
+                    //     if (decl.key == as_type->var->key) {
+                    //         auto found_var = builder.mod_access(mod, decl.key, NodeKind::Type)->as<ModVar>();
+                    //         return builder.as_type(found_var);
+                    //     }
+                    // }
 
                     if (i + 1 < suffix.size()) {
                         mod = builder.mod_access(mod, suffix[i + 1]->mod_var->key, NodeKind::Module);
@@ -456,8 +454,13 @@ const Type* ModuleBuilder::schedule_and_bind_type(const Type* type, std::optiona
     }
 
     assert(best && "no suitable scope to schedule this node at");
-    auto var = best->add_in_module(type, maybe_id);
-    best->already_bound_here[type] = var;
+    //auto var = best->add_in_module(type, maybe_id);
+    //best->already_bound_here[type] = var;
+    //return as_type(var);
+
+    auto var = mod_var(decl_key(maybe_id), type_signature(nullptr));
+    auto decl = module_->add_decl(var);
+    module_->set_decl(decl, type);
     return as_type(var);
 }
 
@@ -478,13 +481,13 @@ const ModVar* ModuleBuilder::schedule_and_bind_module_op(const ModAccess* access
     }
 
     assert(best && "no suitable scope to schedule this node at");
-    auto var = best->add_in_module(access, maybe_id);
+    auto var = best->add_in_module(access, decl_key(maybe_id));
     best->already_bound_here[access] = var;
     return var;
 }
 
-const ModVar* ModuleBuilder::add_in_module(const Node* node, std::optional<ast::Identifier> maybe_id) {
-    auto var = mod_var(decl_key(maybe_id), Signature::from_node(*this, node));
+const ModVar* ModuleBuilder::add_in_module(const Node* node, const DeclKey* key) {
+    auto var = mod_var(key, Signature::from_node(*this, node));
     auto decl = module_->add_decl(var);
     module_->set_decl(decl, node);
     return var;

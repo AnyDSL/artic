@@ -23,8 +23,8 @@ void Module::set_decl(Decl* decl, const Node* value) const {
     scope.insert(decl->var, value);
 }
 
-Signature::Signature(Builder& builder, NodeKind elem_kind, const Type* value_type, const Type* type, ArrayRef<Decl>&& mod_signature)
-: Node(builder.arena), elem_kind(elem_kind), value_type(value_type), type(type), mod_signature(std::move(mod_signature)) {
+Signature::Signature(Builder& builder, NodeKind elem_kind, const Type* value_type, const Type* type)
+: Node(builder.arena), elem_kind(elem_kind), value_type(value_type), type(type) {
     switch (elem_kind) {
         case NodeKind::Value: {
             assert(value_type && value_type->is_simple());
@@ -36,9 +36,9 @@ Signature::Signature(Builder& builder, NodeKind elem_kind, const Type* value_typ
             break;
         }
         case NodeKind::Module: {
-            for (auto [var, sig] : mod_signature) {
-                // nothing to check actually
-            }
+            // for (auto [var, sig] : mod_signature) {
+            //     // nothing to check actually
+            // }
             break;
         }
         default: assert(false);
@@ -56,10 +56,12 @@ size_t Signature::hash() const {
                 h = h.combine(type);
             break;
         case NodeKind::Module:
-            for (auto [key, sig] : mod_signature) {
-                h = h.combine(key);
-                h = h.combine(sig);
-            }
+            if (!sealed)
+                return h.combine(this);
+            // for (auto [key, sig] : mod_signature) {
+            //     h = h.combine(key);
+            //     h = h.combine(sig);
+            // }
             break;
         default: assert(false);
     }
@@ -67,6 +69,8 @@ size_t Signature::hash() const {
 }
 
 bool Signature::equals(const Node* other) const {
+    if (this == other)
+        return true;
     if (auto other_signature = other->isa<Signature>()) {
         if (other_signature->elem_kind != elem_kind)
             return false;
@@ -82,13 +86,16 @@ bool Signature::equals(const Node* other) const {
                 break;
             }
             case NodeKind::Module: {
-                if (other_signature->mod_signature.size() != mod_signature.size())
+                // unsealed modules are nominal
+                if (!other_signature->sealed || !sealed)
                     return false;
-                for (size_t i = 0; i < mod_signature.size(); i++) {
-                    if (!Compare()(mod_signature[i], other_signature->mod_signature[i]))
-                        return false;
-                }
-                return true;
+                // if (other_signature->mod_signature.size() != mod_signature.size())
+                //     return false;
+                // for (size_t i = 0; i < mod_signature.size(); i++) {
+                //     if (!Compare()(mod_signature[i], other_signature->mod_signature[i]))
+                //         return false;
+                // }
+                // return true;
             }
             default: assert(false);
         }
@@ -97,7 +104,7 @@ bool Signature::equals(const Node* other) const {
     return false;
 }
 
-size_t Signature::Hash::operator()(const Decl& decl) const {
+/*size_t Signature::Hash::operator()(const Decl& decl) const {
     return fnv::Hash().combine(decl.key).combine(decl.sig->hash());
 }
 
@@ -107,7 +114,7 @@ bool Signature::Compare::operator()(const Decl& lhs, const Decl& rhs) const {
     if (!lhs.sig->equals(rhs.sig))
         return false;
     return true;
-}
+}*/
 
 const Signature* Signature::from_node(Builder& builder, const Node* node) {
     if (auto mod_val = node->isa<ModValue>()) {
@@ -156,12 +163,15 @@ static inline const Node* import_node_var(ModuleBuilder& builder, const ModValue
 static const Signature* import_signature(ModuleBuilder& builder, const ModValue* outside_mod, const Signature* sig) {
     switch (sig->elem_kind) {
         case NodeKind::Module: {
-            std::vector<Signature::Decl> fixed_decls;
-            for (Signature::Decl sig_decl : sig->mod_signature) {
-                import_signature(builder, outside_mod, sig_decl.sig);
-                fixed_decls.push_back(sig_decl);
+            // std::unordered_map<const DeclKey*, const Signature*> fixed_decls;
+            auto modsig =  builder.mod_signature();
+            for (auto& [sig_key, decl_sig] : sig->mod_signature) {
+                assert(decl_sig && "cannot import incomplete decls");
+                auto imported_sig = import_signature(builder, outside_mod, decl_sig);
+                //fixed_decls.emplace(sig_key, imported_sig);
+                modsig->mod_signature.emplace(sig_key, imported_sig);
             }
-            return builder.mod_signature(fixed_decls);
+            return modsig;
         }
         case NodeKind::Value: {
             return builder.value_signature(import_node_var(builder, outside_mod, sig->value_type)->as<Type>());
@@ -179,18 +189,20 @@ const Signature* Module::infer_signature(ModuleBuilder& builder) const {
     // assert(sealed);
     const Signature* signature = nullptr;
     if (!signature_) {
-        std::vector<Signature::Decl> decls;
+        //std::vector<Signature::Decl> decls;
+        //std::unordered_map<const DeclKey*, const Signature*> decls;
+        signature = builder.mod_signature();
         for (auto& mod_decl : this->decls()) {
             // TODO: have a more serious way to expose stuff in modules
             if (true || mod_decl->var->key->id) {
-                auto sig_decl = Signature::Decl {
-                    .key = mod_decl->var->key,
-                    .sig = Signature::from_node(builder, mod_decl->value)
-                };
-                decls.push_back(sig_decl);
+                signature->mod_signature.emplace(mod_decl->var->key, Signature::from_node(builder, mod_decl->value));
+                // auto sig_decl = Signature::Decl {
+                //     .key = mod_decl->var->key,
+                //     .sig = Signature::from_node(builder, mod_decl->value)
+                // };
+                // decls.push_back(sig_decl);
             }
         }
-        signature = builder.mod_signature(decls);
         if (sealed)
             signature_ = signature;
     } else {
@@ -232,10 +244,11 @@ const Signature* ModAccess::infer_signature(ModuleBuilder& builder) const {
     import_signature(builder, mod, sig);
     assert(sig->elem_kind == NodeKind::Module);
     //assert(sig->mod_signature);
-    for (auto& decl : sig->mod_signature) {
-        if (decl.key == key)
-            return decl.sig;
-    }
+    return sig->mod_signature.find(key)->second;
+    // for (auto& decl : sig->mod_signature) {
+    //     if (decl.key == key)
+    //         return decl.sig;
+    // }
     assert(false && "key not found");
 }
 

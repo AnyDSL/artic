@@ -85,7 +85,7 @@ struct Builder : public artic::Cast<Builder> {
 
     ModuleBuilder& enclosing_module();
 
-    const Signature* mod_signature(ArrayRef<Signature::Decl> decls);
+    const Signature* mod_signature();
     const Signature* value_signature(const Type*);
     const Signature* type_signature(const Type*);
 
@@ -139,17 +139,18 @@ struct ModuleBuilder : public Builder {
 
     const ModValue* mod_access(const ModValue*, const DeclKey*, NodeKind);
 
-    const ModVar* add_in_module(const Node*, std::optional<ast::Identifier> = std::nullopt);
-    const ModVar* add_in_module(std::optional<ast::Identifier> = std::nullopt);
+    const ModVar* add_in_module(const Node*, const DeclKey*);
+    // const ModVar* add_in_module(std::optional<ast::Identifier> = std::nullopt);
 
     const Type* import_type(const Type*);
     const Module& module() { return *module_; }
+
+    const Type* schedule_and_bind_type(const Type*, std::optional<ast::Identifier> = std::nullopt);
 private:
     const Module* module_;
 
     const Node* import(const Scope&, const Node*);
 
-    const Type* schedule_and_bind_type(const Type*, std::optional<ast::Identifier> = std::nullopt);
     const ModVar* schedule_and_bind_module_op(const ModAccess*, std::optional<ast::Identifier> = std::nullopt);
     std::unordered_map<const Node*, const ModVar*> already_bound_here;
 };

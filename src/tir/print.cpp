@@ -262,11 +262,22 @@ void Signature::print(Printer &p) const {
             // for (auto& decl : decls) {
             //     p.insert(*decl.key, key2string(*decl.key));
             // }
-            print_list(p.top(), p.endl(), mod_signature, [&] (auto& decl) {
-                p.print(*decl.key);
+            size_t i = 0;
+            for (auto [key, sub_signature] : mod_signature) {
+                p.print(*key);
                 p << " = ";
-                p.print(*decl.sig);
-            });
+                if (sub_signature)
+                    p.print(*sub_signature);
+                else
+                    p << "<unfinished>";
+                if (i++ < mod_signature.size())
+                    p << p.endl();
+            }
+            // print_list(p.top(), p.endl(), mod_signature, [&] (auto& decl) {
+            //     p.print(*decl.key);
+            //     p << " = ";
+            //     p.print(*decl.sig);
+            // });
             p << p.unindent() << p.endl() << "}";
             break;
         }

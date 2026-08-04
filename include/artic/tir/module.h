@@ -30,15 +30,18 @@ struct DeclKey : public NominalNode<Node> {
 };
 
 struct Signature : public Node {
-    struct Decl {
-        const DeclKey* key;
-        const Signature* sig;
-    };
+    // struct Decl {
+    //     const DeclKey* key;
+    //     const Signature* sig;
+    // };
 
     NodeKind elem_kind;
     const Type* value_type = nullptr;
     const Type* type = nullptr;
-    Array<Decl> mod_signature;
+    // Array<Decl> mod_signature;
+    // we must lazily build module signatures, which means they are treated like nominal nodes until sealed
+    mutable std::unordered_map<const DeclKey*, const Signature*> mod_signature;
+    mutable bool sealed = false;
 
     size_t hash() const override;
     bool equals(const Node*) const override;
@@ -50,14 +53,14 @@ struct Signature : public Node {
     NodeKind kind() const override { return NodeKind::Signature; }
     bool is_simple() const override { return true; }
 
-    struct Hash {
+    /*struct Hash {
         size_t operator()(const Decl&) const;
     };
     struct Compare {
         bool operator()(const Decl&, const Decl&) const;
-    };
+    };*/
 
-    Signature(Builder&, NodeKind elem_kind, const Type*, const Type*, ArrayRef<Decl>&&);
+    Signature(Builder&, NodeKind elem_kind, const Type*, const Type*);
 };
 
 struct ModValue : public Node {
