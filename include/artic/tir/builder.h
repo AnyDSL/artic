@@ -124,6 +124,7 @@ struct Builder : public artic::Cast<Builder> {
     const Value* typed_literal(Literal, const Type*);
     const Value* undef(const Type*);
     const Value* as_value(const ModVar*);
+    const Value* error_value(const Type*);
 
     const Fn* function(const Param*, const Type* codom);
     const Param* param(std::optional<ast::Identifier>, const Type*);

@@ -796,7 +796,8 @@ const thorin::Def* Emitter::emit(const Value* node, ModuleDecl* decl) {
     if (found != emitted.end())
         return found->second;
     auto set_fn = [&](const thorin::Def* def) {
-        //emitted[node] = def;
+        //emitted[decl->var] = def;
+        emitted[node] = def;
         if (decl)
             decl->as_value = def;
     };
@@ -810,6 +811,7 @@ const thorin::Type* Emitter::emit(const Type* node, ModuleDecl* decl) {
     if (found != emitted.end())
         return found->second->as<thorin::Type>();
     auto set_fn = [&](const thorin::Def* def) {
+        //emitted[decl->var] = def;
         emitted[node] = def;
         if (decl)
             decl->as_type = def;
@@ -1161,7 +1163,7 @@ const Emitter::ModuleDecls& Emitter::emit(const Module* mod, const ModuleDecls* 
     ModuleDecls& decls = *emitted_modules.emplace(mod, std::move(x)).first->second;
     ScopeGuard sg(*this, decls);
     for (auto [var, value] : mod->decls()) {
-        decls.decls.emplace(var, std::make_unique<ModuleDecl>(value));
+        decls.decls.emplace(var, std::make_unique<ModuleDecl>(var, value));
     }
     for (auto [var, _] : mod->decls()) {
         emit(var);

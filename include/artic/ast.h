@@ -23,8 +23,12 @@ namespace artic {
 namespace tir {
     struct Node;
     struct Type;
+    struct Value;
     struct StructType;
     struct Module;
+    struct ModVar;
+    struct Param;
+    enum class NodeKind;
 }
 
 //struct Type;
@@ -54,9 +58,7 @@ struct Node : public Cast<Node> {
     Loc loc;
 
     mutable bool bound = false;
-    /// TIR equivalent node. Only used internally to cache results in the type checker
-    /// these definitions are not updated afterwards.
-    mutable const tir::Node* tir = nullptr;
+
     /// IR definition assigned after IR emission.
     mutable const thorin::Def* def = nullptr;
 
@@ -101,6 +103,9 @@ struct Decl : public Node {
     ModDecl* module = nullptr;
     DeclStmt* stmt = nullptr;
 
+    /// The module variable the decl was bound to
+    mutable const tir::ModVar* var = nullptr;
+
     /// Binds the declaration to its AST node, without entering sub-AST nodes.
     virtual void bind_head(NameBinder&) {}
 };
@@ -109,12 +114,18 @@ struct Decl : public Node {
 struct Type : public Node {
     Type(const Loc& loc) : Node(loc) {}
 
+    /// The simple type correspond to this type
+    mutable const tir::Type* type = nullptr;
+
     bool is_tuple() const;
 };
 
 /// Base class for statements.
 struct Stmt : public Node {
     Stmt(const Loc& loc) : Node(loc) {}
+
+    /// Simple value correspond to this statement
+    mutable const tir::Value* value = nullptr;
 
     /// Returns true if the statement is changes the control-flow.
     virtual bool is_jumping() const = 0;
@@ -127,6 +138,9 @@ struct Stmt : public Node {
 /// Base class for expressions.
 struct Expr : public Node {
     Expr(const Loc& loc) : Node(loc) {}
+
+    /// Simple value correspond to this expression
+    mutable const tir::Value* value = nullptr;
 
     bool is_tuple() const;
 
@@ -150,6 +164,9 @@ struct Ptrn : public Node {
     Ptrn(const Loc& loc) : Node(loc) {}
 
     Ptr<Expr> as_expr;
+
+    /// Contains the type this pattern matches to
+    mutable const tir::Type* type = nullptr;
 
     bool is_tuple() const;
 
@@ -212,8 +229,8 @@ struct Path : public Node {
         : Node(loc), is_use_path_(is_use_path), elems(std::move(elems))
     {}
 
-    const tir::Node* infer(TypeChecker&, Ptr<Expr>*, const tir::Type*);
-    const tir::Node* infer(TypeChecker&, bool, Ptr<Expr>* = nullptr, const tir::Type* = nullptr);
+    const tir::Node* infer(TypeChecker&, tir::NodeKind, Ptr<Expr>* = nullptr, const tir::Type* = nullptr);
+    //const tir::Node* infer(TypeChecker&, bool, Ptr<Expr>* = nullptr, const tir::Type* = nullptr);
     const tir::Node* infer(TypeChecker& checker) override {
         assert(false);
         //return infer(checker, nullptr, nullptr);
@@ -228,6 +245,8 @@ struct Path : public Node {
 /// A partial evaluation filter
 struct Filter : public Node {
     Ptr<Expr> expr;
+
+    mutable const tir::Value* value = nullptr;
 
     Filter(const Loc& loc, Ptr<Expr>&& expr)
         : Node(loc), expr(std::move(expr))
@@ -1182,6 +1201,9 @@ struct TypeParam : public NamedDecl {
         : NamedDecl(loc, std::move(id))
     {}
 
+    // Set during type-checking. Contains the type variable
+    mutable const tir::Type* type = nullptr;
+
     const tir::Node* infer(TypeChecker&) override;
     void bind(NameBinder&) override;
     void print(Printer&) const override;
@@ -1205,6 +1227,9 @@ struct PtrnDecl : public ValueDecl {
 
     // Set during type-checking.
     mutable bool written_to = false;
+
+    // Set during type-checking.
+    mutable const tir::Param* param = nullptr;
 
     PtrnDecl(const Loc& loc, Identifier&& id, bool is_mut = false)
         : ValueDecl(loc, std::move(id)), is_mut(is_mut)
@@ -1332,6 +1357,9 @@ struct FieldDecl : public NamedDecl {
         , init(std::move(init))
     {}
 
+    // Set during type-checking. Contains the type this field declares
+    mutable const tir::Type* field_type = nullptr;
+
     const tir::Node* infer(TypeChecker&) override;
     void bind(NameBinder&) override;
     void print(Printer&) const override;
@@ -1379,6 +1407,9 @@ struct EnumDecl;
 struct OptionDecl : public RecordDecl {
     Ptr<Type> param;
     bool has_fields;
+
+    // Set during type-checking. Contains the type the option constructs
+    mutable const tir::Type* type = nullptr;
 
     // Set during type-checking for options that have braces
     // Note: can be a type application of a structure type

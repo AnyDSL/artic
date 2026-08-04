@@ -190,6 +190,10 @@ const Value* Builder::as_value(const ModVar* var) {
     return arena.insert<ModVarAsValue>(*this, scope, var);
 }
 
+const Value* Builder::error_value(const Type*) {
+    assert(false);
+}
+
 const GlobalVariable* Builder::global_variable(const Type* value_type, bool is_mut, const Value* init) {
     return arena.insert<GlobalVariable>(*this, value_type, is_mut, init);
 }

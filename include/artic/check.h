@@ -37,16 +37,17 @@ public:
 
     bool should_report_error(const Type*);
 
-    const Type* incompatible_types(const Loc&, const Type*, const Type*);
-    const Type* incompatible_type(const Loc&, const std::string_view&, const Type*);
-    const Type* type_expected(const Loc&, const Type*, const std::string_view&);
-    const Type* unknown_member(const Loc&, const UserType*, const std::string_view&);
-    const Type* cannot_infer(const Loc&, const std::string_view&);
-    const Type* unreachable_code(const Loc&, const Loc&, const Loc&);
-    const Type* mutable_expected(const Loc&);
-    const Type* bad_arguments(const Loc&, const std::string_view&, size_t, size_t);
-    const Type* invalid_cast(const Loc&, const Type*, const Type*);
-    const Type* invalid_simd(const Loc&, const Type*);
+    void incompatible_types(const Loc&, const Type*, const Type*);
+    void incompatible_type(const Loc&, const std::string_view&, const Type*);
+    void type_expected(const Loc&, const Type*, const std::string_view&);
+    void unknown_member(const Loc&, const UserType*, const std::string_view&);
+    void unknown_module_member(const Loc&, const Module*, const std::string_view&);
+    void cannot_infer(const Loc&, const std::string_view&);
+    void unreachable_code(const Loc&, const Loc&, const Loc&);
+    void mutable_expected(const Loc&);
+    void bad_arguments(const Loc&, const std::string_view&, size_t, size_t);
+    void invalid_cast(const Loc&, const Type*, const Type*);
+    void invalid_simd(const Loc&, const Type*);
     void invalid_ptrn(const Loc&, bool);
     void invalid_constraint(const Loc&, const TypeVar*, const Type*, const Type*, const Type*);
     void invalid_attr(const Loc&, const std::string_view&);
@@ -59,16 +60,29 @@ public:
     const Value* try_coerce(Ptr<ast::Expr>&, const Type*);
     const Type* join(Ptr<ast::Expr>&, Ptr<ast::Expr>&, ExprBuilder&, ExprBuilder&);
 
-    const tir::Node* check(ast::Node&, const Type*);
-    const tir::Node* infer(ast::Node&);
-    const tir::Value* infer(ast::Ptrn&, Ptr<ast::Expr>&);
+    const tir::ModVar* infer_mod_decl(ast::Decl&);
 
-    const tir::Value* check_value(ast::Node&, const Type*);
-    const tir::Value* infer_value(ast::Node& ast);
-    const tir::Type* infer_type(ast::Node& ast);
+    void infer_decl_stmt(ast::Decl&);
+
+    const tir::Value* infer_value(ast::Expr& ast);
+    const tir::Value* infer_value(ast::Stmt& ast);
+    const tir::Value* check_value(ast::Expr&, const Type*);
+    const tir::Value* check_value(ast::Filter&, const Type*);
+    const tir::Value* check_value(ast::Stmt&, const Type*);
+
+    const tir::Type* infer_type(ast::Type& ast);
+    const tir::Type* infer_type(ast::FieldDecl&);
+    const tir::Type* infer_type(ast::TypeParam&);
+
+    const tir::Type* infer_ptrn(ast::Ptrn&, Ptr<ast::Expr>&);
+    const tir::Type* check_ptrn(ast::Ptrn&, const Type*);
+    const tir::Type* infer_ptrn(ast::Ptrn& ast);
+
+    const tir::Param* infer_ptrn_decl(ast::PtrnDecl& ast);
+    const tir::Param* check_ptrn_decl(ast::PtrnDecl& ast, const Type*);
 
     const tir::Value* infer(const Loc&, const Literal&);
-    const tir::Node* check(const Loc&, const Literal&, const Type*);
+    const tir::Value* check(const Loc&, const Literal&, const Type*);
 
     Array<const TypeVar*> infer(ast::TypeParamList*);
 

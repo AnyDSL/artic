@@ -102,6 +102,7 @@ public:
     std::unordered_map<const tir::Node*, const thorin::Def*> emitted;
     struct ModuleDecls;
     struct ModuleDecl {
+        const tir::ModVar* var;
         const tir::Node* definition;
         bool emitting = false;
         bool done = false;
@@ -109,7 +110,7 @@ public:
         const thorin::Def* as_type = nullptr;
         const ModuleDecls* as_mod = nullptr;
 
-        ModuleDecl(const tir::Node* definition) : definition(definition) {}
+        ModuleDecl(const tir::ModVar* var, const tir::Node* definition) : var(var), definition(definition) {}
         ModuleDecl(const ModuleDecl&) = delete;
     };
     struct ModuleDecls {
