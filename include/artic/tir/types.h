@@ -344,6 +344,7 @@ struct BottomType : public Type {
     bool equals(const Node*) const override;
     size_t hash() const override;
     const BottomType* rewrite(Rewriter&) const override;
+    bool is_simple() const override { return true; }
 
 protected:
     BottomType(Arena&);
@@ -357,6 +358,7 @@ struct TopType : public Type {
     bool equals(const Node*) const override;
     size_t hash() const override;
     const TopType* rewrite(Rewriter&) const override;
+    bool is_simple() const override { return true; }
 
 protected:
     TopType(Arena&);
@@ -382,6 +384,7 @@ private:
 struct TypeError : public TopType {
     void print(Printer&) const override;
     const TypeError* rewrite(Rewriter&) const override;
+    bool is_simple() const override { return true; }
 
 private:
     TypeError(Arena& arena)

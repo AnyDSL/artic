@@ -293,7 +293,7 @@ void ExprBuilder::bind(const Param* param, const Value* value) {
 }
 
 const Value* ExprBuilder::finish(const Value* last) {
-    assert(last->is_simple());
+    assert(last->is_simple() || last->type() == no_ret_type());
     std::vector<const Value*> filtered_values;
     for (size_t i = 0; i < seq.size(); i++) {
         auto value = seq[i];

@@ -1062,7 +1062,7 @@ void NamedAttr::check(TypeChecker& checker, const ast::Node* node) {
     if (name == "export" || name == "import") {
         if (auto fn_decl = node->isa<FnDecl>()) {
             if (name == "export") {
-                auto fn_type = fn_decl->tir->as<Value>()->type()->isa<artic::FnType>();
+                auto fn_type = std::get<0>(checker.scope().resolve_deep(fn_decl->tir->as<ModVar>()))->as<Value>()->type()->isa<artic::FnType>();
                 if (!fn_type)
                     checker.error(fn_decl->loc, "polymorphic functions cannot be exported");
                 else if (fn_type->Type::order(checker.scope()) > 1)
@@ -1597,7 +1597,7 @@ const tir::Node* IfExpr::infer(TypeChecker& checker) {
         auto lit_false = is_untyped_int_or_float_literal(if_false.get());
         if (lit_true && lit_false) {
             if (lit_true->lit.is_double())
-                checker.coerce(&*if_false, checker.deref(if_true)->type());
+                checker.with_expr_builder(else_builder, [&] { return checker.coerce(&*if_false, checker.deref(if_true)->type()); });
             else
                 checker.with_expr_builder(true_builder, [&] { return checker.coerce(&*if_true, checker.deref(if_false)->type()); });
         } else if (lit_true) {
@@ -1609,7 +1609,7 @@ const tir::Node* IfExpr::infer(TypeChecker& checker) {
             if (is_int_or_float_type(if_true_type))
                 checker.with_expr_builder(else_builder, [&] { return checker.coerce(&*if_false, if_true_type); });
         }
-        yield_type = checker.join(if_false, if_true, true_builder, else_builder);
+        yield_type = checker.join(if_true, if_false, true_builder, else_builder);
     } else
         yield_type = checker.with_expr_builder(true_builder, [&] { return checker.coerce(&*if_true, checker.builder().unit_type()); })->type();
 
@@ -1631,7 +1631,7 @@ const tir::Node* IfExpr::check(TypeChecker& checker, const artic::Type* expected
             checker.coerce(&*if_true, expected);
         }
         TypeChecker::BuilderGuard guard(checker, else_builder);
-        return checker.coerce(&*if_false, expected);
+        checker.coerce(&*if_false, expected);
     }
     {
         TypeChecker::BuilderGuard guard(checker, true_builder);
