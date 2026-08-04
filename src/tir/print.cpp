@@ -241,8 +241,8 @@ void Module::print(Printer& p) const {
     p << p.unindent() << p.endl() << "}";
 }
 
-void Signature::Elem::print(Printer &p) const {
-    switch (kind) {
+void Signature::print(Printer &p) const {
+    switch (elem_kind) {
         case NodeKind::Value: {
             p << log::keyword_style("val") << " ";
             p << " : ";
@@ -258,26 +258,20 @@ void Signature::Elem::print(Printer &p) const {
             break;
         }
         case NodeKind::Module: {
-            p << log::keyword_style("mod") << " ";
-            p << " : ";
-            p.print(*mod_signature, true);
+            p << log::keyword_style("sig") << " {" << p.indent() << p.endl();
+            // for (auto& decl : decls) {
+            //     p.insert(*decl.key, key2string(*decl.key));
+            // }
+            print_list(p.top(), p.endl(), mod_signature, [&] (auto& decl) {
+                p.print(*decl.key);
+                p << " = ";
+                p.print(*decl.sig);
+            });
+            p << p.unindent() << p.endl() << "}";
             break;
         }
         default: assert(false);
     }
-}
-
-void Signature::print(Printer& p) const {
-    p << log::keyword_style("sig") << " {" << p.indent() << p.endl();
-    // for (auto& decl : decls) {
-    //     p.insert(*decl.key, key2string(*decl.key));
-    // }
-    print_list(p.top(), p.endl(), decls, [&] (auto& decl) {
-        p.print(*decl.key);
-        p << " = ";
-        decl.sig.print(p);
-    });
-    p << p.unindent() << p.endl() << "}";
 }
 
 void ModAccess::print(Printer& p) const {

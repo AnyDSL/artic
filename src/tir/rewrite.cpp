@@ -186,7 +186,7 @@ const Node* Control::rewrite(Rewriter&) const {
 
 }
 
-Node *Signature::rewrite(Rewriter &) const {
+Node* Signature::rewrite(Rewriter &) const {
 
 }
 }

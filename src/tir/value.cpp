@@ -154,8 +154,8 @@ bool Undef::equals(const Node* other) const {
 ModVarAsValue::ModVarAsValue(Builder& builder, Scope& scope, const ModVar* var) : NominalNode(builder.arena, [&]() -> const Type* {
     // scope.resolve_mod_var(var)->as<Value>()->type()
     auto elem = var->infer_signature(builder.enclosing_module());
-    assert(elem.kind == NodeKind::Value);
-    return elem.value_type;
+    assert(elem->elem_kind == NodeKind::Value);
+    return elem->value_type;
 }()), var(var) {}
 
 Agg::Agg(Builder& builder, const Type* agg_type, const ArrayRef<const Value*>& args) : Value(builder.arena, agg_type), args(args) {

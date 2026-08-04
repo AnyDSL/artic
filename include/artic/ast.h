@@ -28,6 +28,7 @@ namespace tir {
     struct Module;
     struct ModVar;
     struct Param;
+    struct Signature;
     struct ModuleBuilder;
     enum class NodeKind;
 }

@@ -85,7 +85,9 @@ struct Builder : public artic::Cast<Builder> {
 
     ModuleBuilder& enclosing_module();
 
-    const Signature* signature(ArrayRef<Signature::Decl> decls);
+    const Signature* mod_signature(ArrayRef<Signature::Decl> decls);
+    const Signature* value_signature(const Type*);
+    const Signature* type_signature(const Type*);
 
     const PrimType*          prim_type(ast::PrimType::Tag);
     const PrimType*          bool_type();
@@ -117,7 +119,7 @@ struct Builder : public artic::Cast<Builder> {
 
     const DeclKey* decl_key(std::optional<ast::Identifier>);
     const Module* module(const ast::ModDecl* = nullptr);
-    const ModVar* mod_var(const DeclKey*, NodeKind);
+    const ModVar* mod_var(const DeclKey*, const Signature*);
     // const ModValue* mod_access(const ModValue*, const DeclKey*);
 
     const GlobalVariable* global_variable(const Type*, bool is_mut, const Value*);
@@ -133,7 +135,7 @@ struct Builder : public artic::Cast<Builder> {
 };
 
 struct ModuleBuilder : public Builder {
-    ModuleBuilder(Arena& arena, Builder* parent, const Module* mod) : Builder(arena, mod->scope, parent), module(mod) {}
+    ModuleBuilder(Arena& arena, Builder* parent, const Module* mod) : Builder(arena, mod->scope, parent), module_(mod) {}
 
     const ModValue* mod_access(const ModValue*, const DeclKey*, NodeKind);
 
@@ -141,8 +143,9 @@ struct ModuleBuilder : public Builder {
     const ModVar* add_in_module(std::optional<ast::Identifier> = std::nullopt);
 
     const Type* import_type(const Type*);
+    const Module& module() { return *module_; }
 private:
-    const Module* module;
+    const Module* module_;
 
     const Node* import(const Scope&, const Node*);
 
