@@ -1,11 +1,9 @@
 mod foo {
-    use super::bar::super::bar;
-    use bar::baz as baz;
-    fn f() -> () { baz::g() }
+    use super::bar;
+    use super::bar as X;
+    fn f() -> () { X::g(); bar::g(); }
 }
 mod bar {
-    mod baz {
-        use super::super::foo;
-        fn g() { foo::f() }
-    }
+    use super::foo;
+    fn g() { 9; }
 }
