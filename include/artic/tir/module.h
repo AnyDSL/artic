@@ -15,6 +15,8 @@ struct TypeVar;
 struct Module;
 struct DeclKey;
 
+struct ModuleBuilder;
+
 struct DeclKey : public NominalNode<Node> {
     std::optional<ast::Identifier> id;
 
@@ -66,7 +68,7 @@ struct ModValue : public Node {
     NodeKind kind_;
     NodeKind kind() const override { return kind_; }
 
-    virtual Signature::Elem infer_signature(Builder&) const = 0;
+    virtual Signature::Elem infer_signature(ModuleBuilder&) const = 0;
 
     ModValue(Arena& arena, NodeKind kind) : Node(arena), kind_(kind) {}
 };
@@ -80,7 +82,7 @@ struct ModVar : public NominalNode<ModValue> {
 
     bool is_simple() const override { return true; }
 
-    Signature::Elem infer_signature(Builder&) const override;
+    Signature::Elem infer_signature(ModuleBuilder&) const override;
 
     ModVar(Builder&, const DeclKey*, NodeKind);
 };
@@ -95,13 +97,11 @@ struct Module : public NominalNode<ModValue> {
     };
 
     ArrayRef<Decl> decls() const { return decls_; }
-    void add_decl(const ModVar* var, const Node* value) const;
     const void seal() const { sealed = true; }
-
 
     mutable bool sealed = false;
     mutable const Signature* signature_ = nullptr;
-    Signature::Elem infer_signature(Builder&) const override;
+    Signature::Elem infer_signature(ModuleBuilder&) const override;
 
     void print(Printer&) const override;
     Node* rewrite(Rewriter&) const override;
@@ -111,7 +111,10 @@ struct Module : public NominalNode<ModValue> {
     Module(Builder&, const ast::ModDecl*);
 
 private:
+    void add_decl(const ModVar* var, const Node* value) const;
     mutable std::vector<Decl> decls_;
+
+    friend ModuleBuilder;
 };
 
 struct ModAccess : public ModValue {
@@ -123,7 +126,7 @@ struct ModAccess : public ModValue {
     void print(Printer&) const override;
     Node* rewrite(Rewriter&) const override;
 
-    Signature::Elem infer_signature(Builder&) const override;
+    Signature::Elem infer_signature(ModuleBuilder&) const override;
 
     ModAccess(Arena& arena, const ModValue*, const DeclKey*, NodeKind);
 };

@@ -318,6 +318,10 @@ void Fn::print(Printer& p) const {
     }
 }
 
+void Unit::print(Printer& p) const {
+    p << log::keyword_style("unit");
+}
+
 void Param::print(Printer& p) const {
     p << log::keyword_style("param") << ' ';
     p << p.unique_name(*this);

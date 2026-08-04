@@ -35,6 +35,20 @@ protected:
     const Type* type_;
 };
 
+struct Unit : public Value {
+    Unit(Arena& arena, const Type* unit_type) : Value(arena, unit_type) {}
+
+    bool equals(const Node*) const override;
+    size_t hash() const override;
+    void print(Printer&) const override;
+    const Node* rewrite(Rewriter&) const override;
+
+    const thorin::Def* emit(Emitter&) const override;
+
+    bool is_computation() const override { return false; }
+    bool is_simple() const override { return true; }
+};
+
 struct Param : public NominalNode<Value> {
     std::optional<ast::Identifier> id;
 

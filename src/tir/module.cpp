@@ -114,7 +114,7 @@ Signature::Elem Signature::from_node(Builder& builder, const Node* node) {
             }
             if (auto as_value = node->isa<ModVarAsValue>())
                 node = as_value->var;
-            return node->as<ModValue>()->infer_signature(builder);
+            return node->as<ModValue>()->infer_signature(builder.enclosing_module());
         }
         case NodeKind::Type: {
             return Signature::Elem {
@@ -123,13 +123,13 @@ Signature::Elem Signature::from_node(Builder& builder, const Node* node) {
             };
         }
         case NodeKind::Module: {
-            return node->as<ModValue>()->infer_signature(builder);
+            return node->as<ModValue>()->infer_signature(builder.enclosing_module());
         }
         default: assert(false);
     }
 }
 
-static inline const Node* import_node_var(Builder& builder, const ModValue* outside_mod, const Node* node) {
+static inline const Node* import_node_var(ModuleBuilder& builder, const ModValue* outside_mod, const Node* node) {
     assert(node->is_simple());
     if (auto as_type = node->isa<ModVarAsType>()) {
         auto imported = import_node_var(builder, outside_mod, as_type->var);
@@ -150,7 +150,7 @@ static inline const Node* import_node_var(Builder& builder, const ModValue* outs
 }
 
 // fixes up a signature by rewriting unknown
-static inline void import_signature(Builder& builder, const ModValue* outside_mod, Signature::Elem& decl) {
+static inline void import_signature(ModuleBuilder& builder, const ModValue* outside_mod, Signature::Elem& decl) {
     if (decl.type)
         decl.type = import_node_var(builder, outside_mod, decl.type)->as<Type>();
     if (decl.value_type)
@@ -168,7 +168,7 @@ static inline void import_signature(Builder& builder, const ModValue* outside_mo
 
 // static inline const Signature* import_signature(Builder& builder, const Sign)
 
-Signature::Elem Module::infer_signature(Builder& builder) const {
+Signature::Elem Module::infer_signature(ModuleBuilder& builder) const {
     assert(sealed);
     if (!signature_) {
         std::vector<Signature::Decl> decls;
@@ -206,7 +206,7 @@ ModVar::ModVar(Builder& builder, const DeclKey* key, NodeKind kind)
     : NominalNode(builder.arena, kind), key(key), scope(builder.scope)
 {}
 
-Signature::Elem ModVar::infer_signature(Builder& builder) const {
+Signature::Elem ModVar::infer_signature(ModuleBuilder& builder) const {
     auto resolved = builder.scope.resolve_mod_var(this);
     if (resolved) {
         auto sig = Signature::from_node(builder, resolved);
@@ -216,7 +216,7 @@ Signature::Elem ModVar::infer_signature(Builder& builder) const {
     assert(false && "scoping issue");
 }
 
-Signature::Elem ModAccess::infer_signature(Builder& builder) const {
+Signature::Elem ModAccess::infer_signature(ModuleBuilder& builder) const {
     auto sig = mod->infer_signature(builder);
     import_signature(builder, mod, sig);
     assert(sig.kind == NodeKind::Module);

@@ -819,42 +819,8 @@ std::pair<const RefType*, const Type*> remove_ref(Builder& builder, const Type* 
         scope = unify_scopes(scope, &fv->scope);
     }
 
-    auto import = [&](const Type* target) {
-        assert(target->is_simple());
-
-        // if the target is in scope already, just use it
-        auto fvs = target->free_variables(builder.scope);
-        if (fvs.empty()) {
-            return target;
-        }
-
-        auto target_as_type = target->isa<ModVarAsType>();
-        auto target_modvar = target_as_type->var;
-
-        const ModValue* search = nullptr;
-        // re-enter modules to find the damn thing
-        for (auto& [mod, idx] : trail) {
-            if (!search)
-                search = mod;
-
-            auto sig = search->infer_signature(builder);
-            assert(sig.kind == NodeKind::Module);
-            sig.mod_signature->dump();
-
-            for (auto& decl : sig.mod_signature->decls) {
-                if (decl.key == target_modvar->key) {
-                    auto found_var = builder.mod_access(mod, decl.key, NodeKind::Type)->as<ModVar>();
-                    return builder.as_type(found_var);
-                }
-            }
-
-            search = builder.mod_access(mod, idx, NodeKind::Module);
-        }
-        assert(false);
-    };
-
     if (auto ref_type = type->isa<RefType>())
-        return std::make_pair(ref_type, builder.import_type(*scope, ref_type->pointee));
+        return std::make_pair(ref_type, builder.enclosing_module().import_type(*scope, ref_type->pointee));
     return std::make_pair(nullptr, og_type);
 }
 

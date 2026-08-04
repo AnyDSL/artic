@@ -15,13 +15,11 @@ namespace artic {
 
 using namespace tir;
 
-struct ScopeBuilder;
-
 /// Utility class to perform bidirectional type checking.
 class TypeChecker : public Logger {
 public:
     TypeChecker(Log& log, Arena& arena)
-        : Logger(log), arena(arena), base_builder(arena, arena.root_scope(), nullptr, nullptr)
+        : Logger(log), arena(arena), base_builder(arena, arena.root_scope(), nullptr)
     {}
 
     Arena& arena;
@@ -59,7 +57,7 @@ public:
     const Value* deref(Ptr<ast::Expr>&);
     const Value* coerce(ast::Expr*, const Type*);
     const Value* try_coerce(Ptr<ast::Expr>&, const Type*);
-    const Type* join(Ptr<ast::Expr>&, Ptr<ast::Expr>&);
+    const Type* join(Ptr<ast::Expr>&, Ptr<ast::Expr>&, ExprBuilder&, ExprBuilder&);
 
     const tir::Node* check(ast::Node&, const Type*);
     const tir::Node* infer(ast::Node&);
@@ -74,14 +72,26 @@ public:
 
     Array<const TypeVar*> infer(ast::TypeParamList*);
 
-    void add_instruction(const Value*);
-    void bind_variable(const Param*, const Value*);
-    const Value* bind_value(const Value*);
-
     /// Explores a pattern recursively and makes sure the body is wrapped in Bind nodes that extract the value of each sub-pattern
     void bind_ptrn_params(ast::Ptrn&, const Value*);
 
-    const Value* expr_scope(std::function<const Value*(void)>);
+    template<typename T, typename Fn>
+    T with_expr_scope(Fn f) {
+        T r;
+        run_expr_scope([&] {
+            r = f();
+        });
+        return r;
+    }
+
+    const Value* yield_expr_scope(const std::function<const Value*()>& f);
+    void run_expr_scope(const std::function<void()>& f);
+
+    template<typename Fn>
+    const Value* with_expr_builder(ExprBuilder& builder, Fn f) {
+        BuilderGuard guard(*this, builder);
+        return f();
+    };
 
     template <typename Fields>
     void check_fields(
@@ -89,7 +99,7 @@ public:
         const Fields&, const std::string_view&,
         bool = false, bool = false);
 
-    void assign_scope_to_block_decls(const PtrVector<ast::Stmt>&, ScopeBuilder&);
+    // void assign_scope_to_block_decls(const PtrVector<ast::Stmt>&, ScopeBuilder&);
     void check_block(const Loc&, const PtrVector<ast::Stmt>&, bool);
     bool check_attrs(const ast::NamedAttr&, const ArrayRef<AttrType>&);
     bool check_filter(const ast::Expr&);
@@ -107,27 +117,23 @@ public:
 
     size_t path_to_size(ast::Path& path, const std::string_view&);
 
-    ScopeBuilder& current_scope_builder() {
-        assert(current_scope_builder_);
-        return *current_scope_builder_;
-    }
-
     Scope& scope();
     Builder& builder();
+    ExprBuilder& expr_builder();
+    ModuleBuilder& mod_builder();
 
-    struct ScopeHelper {
+    struct BuilderGuard {
         TypeChecker& checker;
-        ScopeBuilder* other_scope;
+        Builder* other;
 
-        ScopeHelper(TypeChecker& checker, ScopeBuilder& scope) : checker(checker) {
-            other_scope = &scope;
-            std::swap(checker.current_scope_builder_, other_scope);
+        BuilderGuard(TypeChecker& checker, Builder& scope) : checker(checker) {
+            other = &scope;
+            std::swap(checker.current_builder_, other);
         }
-        ScopeHelper(TypeChecker& checker, ast::Decl& scope);
-        ScopeHelper(const ScopeHelper&) = delete;
+        BuilderGuard(const BuilderGuard&) = delete;
 
-        ~ScopeHelper() {
-            std::swap(checker.current_scope_builder_, other_scope);
+        ~BuilderGuard() {
+            std::swap(checker.current_builder_, other);
         }
     };
 
@@ -136,7 +142,7 @@ private:
 
     Value* summon_value(const artic::Type*, const artic::Loc& at);
 
-    ScopeBuilder* current_scope_builder_ = nullptr;
+    Builder* current_builder_ = nullptr;
 
     friend ast::SummonExpr;
     friend ast::ImplicitDecl;
@@ -151,32 +157,6 @@ struct ImplicitSrc {
     Ptr<ast::Expr> expr;
 
     std::optional<std::tuple<Ptr<ast::Expr>, int>> provide(TypeChecker&, const artic::Type*, const artic::Loc& at);
-};
-
-struct ScopeBuilder {
-    TypeChecker& checker;
-    ScopeBuilder* parent;
-    Scope& scope;
-    Builder builder;
-
-    enum class ScopeType {
-        Module,
-        Block
-    } type;
-
-    union {
-        const Module* module;
-        std::vector<const Value*>* seq;
-    };
-
-    ScopeBuilder(TypeChecker& checker, ScopeBuilder* parent, Scope& scope, const Module& module)
-        : checker(checker), parent(parent), scope(scope), builder(checker.arena, scope, &module, parent ? &parent->builder : nullptr), module(&module), type(ScopeType::Module) {}
-    ScopeBuilder(TypeChecker& checker, ScopeBuilder* parent, Scope& scope, std::vector<const Value*>& seq)
-        : checker(checker), parent(parent), scope(scope), builder(checker.arena, scope, nullptr, parent ? &parent->builder : nullptr), seq(&seq), type(ScopeType::Block) {}
-
-    const ModVar* add_decl(const Node*, ast::Identifier);
-
-    std::vector<ImplicitSrc> implicits;
 };
 
 } // namespace artic

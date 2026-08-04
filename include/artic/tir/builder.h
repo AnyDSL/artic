@@ -11,6 +11,8 @@ namespace artic {
 namespace tir {
 
 struct Builder;
+struct ModuleBuilder;
+struct ExprBuilder;
 
 /// Hash table containing all types.
 class Arena {
@@ -64,20 +66,24 @@ private:
 
     friend Node;
     friend Builder;
+    friend ModuleBuilder;
+    friend ExprBuilder;
 };
 
 struct Type;
 
-struct Builder {
+struct Builder : public artic::Cast<Builder> {
     Arena& arena;
     Scope& scope;
-    const Module* cur_module;
     Builder* parent;
 
-    Builder(Arena& arena, Scope& scope, const Module* module, Builder* parent)
-        : arena(arena), scope(scope), cur_module(module), parent(parent)
+    Builder(Arena& arena, Scope& scope, Builder* parent)
+        : arena(arena), scope(scope), parent(parent)
     {}
     Builder(const Builder&) = delete;
+    virtual ~Builder() {}
+
+    ModuleBuilder& enclosing_module();
 
     const Signature* signature(ArrayRef<Signature::Decl> decls);
 
@@ -112,46 +118,69 @@ struct Builder {
     const DeclKey* decl_key(std::optional<ast::Identifier>);
     const Module* module(const ast::ModDecl* = nullptr);
     const ModVar* mod_var(const DeclKey*, NodeKind);
-    const ModValue* mod_access(const ModValue*, const DeclKey*, NodeKind);
     // const ModValue* mod_access(const ModValue*, const DeclKey*);
 
     const GlobalVariable* global_variable(const Type*, bool is_mut, const Value*);
-    const LocalVariable* local_variable(const Type*);
-    const Value* implicit_cast(const Value*, const Type*);
-    const Value* cast(const Value*, const Type*);
     const Value* typed_literal(Literal, const Type*);
     const Value* undef(const Type*);
     const Value* as_value(const ModVar*);
 
     const Fn* function(const Param*, const Type* codom);
     const Param* param(std::optional<ast::Identifier>, const Type*);
-    const Value* app(const Value* callee, const Value* arg);
+    // const Value* seq(const ArrayRef<const Value*>&);
+    const Value* unit();
+};
 
-    const Value* agg(const Type*, const ArrayRef<const Value*>&);
-    const Value* tuple(const ArrayRef<const Value*>&);
-    const Value* extract(const Value*, const Value*);
-    const Value* proj(const Value*, const Value*);
+struct ModuleBuilder : public Builder {
+    ModuleBuilder(Arena& arena, Builder* parent, const Module* mod) : Builder(arena, mod->scope, parent), module(mod) {}
 
-    const Value* bind(const Param*, const Value*);
-    const Value* seq(const ArrayRef<const Value*>&);
+    const ModValue* mod_access(const ModValue*, const DeclKey*, NodeKind);
 
-    const Value* unop(ast::UnaryExpr::Tag, const Value*);
-    const Value* binop(ast::BinaryExpr::Tag, const Value*, const Value*);
+    const ModVar* add_in_module(const Node*, std::optional<ast::Identifier> = std::nullopt);
 
-    const Value* branch(const Value*, const Fn*, const Fn*);
-    const Value* control(const Fn*);
-
-    //const Type* import_type(const Scope::Trail&, const Type*);
     const Type* import_type(const Scope&, const Type*);
 private:
-    //const Node* import(const Scope::Trail&, const Node*);
+    const Module* module;
+
     const Node* import(const Scope&, const Node*);
 
     const Type* schedule_and_bind_type(const Type*, std::optional<ast::Identifier> = std::nullopt);
     const ModVar* schedule_and_bind_module_op(const ModAccess*, std::optional<ast::Identifier> = std::nullopt);
     std::unordered_map<const Node*, const ModVar*> already_bound_here;
+};
 
-    const ModVar* add_in_module(const Node*, std::optional<ast::Identifier> = std::nullopt);
+struct ExprBuilder : public Builder {
+    ExprBuilder(Arena&, Builder*);
+
+    void bind(const Param*, const Value*);
+    const Value* bind_value(const Value*);
+
+    const Value* local_variable(const Type*);
+
+    const Value* app(const Value* callee, const Value* arg);
+    const Value* agg(const Type*, const ArrayRef<const Value*>&);
+    const Value* tuple(const ArrayRef<const Value*>&);
+    const Value* extract(const Value*, const Value*);
+    const Value* proj(const Value*, const Value*);
+
+    const Value* implicit_cast(const Value*, const Type*);
+    const Value* cast(const Value*, const Type*);
+
+    const Value* unop(ast::UnaryExpr::Tag, const Value*);
+    const Value* binop(ast::BinaryExpr::Tag, const Value*, const Value*);
+
+    const Value* control(const Fn*);
+
+    /// Finish the expression and make it yield this value
+    const Value* finish(const Value*);
+    /// Finish the expression and make it yield unit
+    const Value* finish_unit();
+    /// Finish the expression and make it do a branch last, yielding NoRet
+    const Value* finish_branch(const Value*, const Fn*, const Fn*);
+private:
+    void add_instruction(const Value* instruction);
+
+    std::vector<const Value*> seq;
 };
 
 }

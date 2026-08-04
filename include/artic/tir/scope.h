@@ -6,6 +6,8 @@
 
 namespace artic::tir {
 
+struct ExprBuilder;
+
 struct Scope {
     Scope* parent;
     const ModVar* mod_var = nullptr;
@@ -52,6 +54,7 @@ private:
 
     friend Module;
     friend TypeChecker;
+    friend ExprBuilder;
 };
 
 const Scope* unify_scopes(const Scope*, const Scope*);

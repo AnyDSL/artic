@@ -31,7 +31,6 @@ namespace tir {
 struct Printer;
 class NameBinder;
 class TypeChecker;
-struct ScopeBuilder;
 
 template <typename T> using Ptr = arena_ptr<T>;
 template <typename T> using PtrVector = std::vector<Ptr<T>>;
@@ -460,7 +459,7 @@ struct DeclStmt : public Stmt {
     Ptr<Decl> decl;
 
     // set during type-checking
-    ScopeBuilder* scope = nullptr;
+    // ScopeBuilder* scope = nullptr;
 
     DeclStmt(const Loc& loc, Ptr<Decl>&& decl)
         : Stmt(loc), decl(std::move(decl))
@@ -827,8 +826,6 @@ struct IfExpr : public Expr {
 
     bool is_jumping() const override;
     bool has_side_effect() const override;
-
-    const tir::Node* build_tir(TypeChecker& checker, const tir::Type* yield_type) const;
 
     const tir::Node* infer(TypeChecker&) override;
     const tir::Node* check(TypeChecker&, const tir::Type*) override;
@@ -1454,9 +1451,6 @@ struct TypeDecl : public NamedDecl {
 struct ModDecl : public NamedDecl {
     PtrVector<Decl> decls;
     ModDecl* super = nullptr;
-
-    // set during type-checking
-    ScopeBuilder* scope = nullptr;
 
     /// Constructor for the implicitly defined global module.
     /// When using this constructor, the user is responsible for calling

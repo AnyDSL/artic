@@ -169,7 +169,7 @@ const Module* Builder::module(const ast::ModDecl* decl) {
     return arena.insert<Module>(*this, decl);
 }
 
-const ModValue* Builder::mod_access(const ModValue* src, const DeclKey* key, NodeKind kind) {
+const ModValue* ModuleBuilder::mod_access(const ModValue* src, const DeclKey* key, NodeKind kind) {
     assert(src->is_simple());
     if (auto var = src->isa<ModVar>()) {
         auto mod = scope.peek_mod_value(var)->isa<Module>();
@@ -194,18 +194,6 @@ const GlobalVariable* Builder::global_variable(const Type* value_type, bool is_m
     return arena.insert<GlobalVariable>(*this, value_type, is_mut, init);
 }
 
-const LocalVariable* Builder::local_variable(const Type* value_type) {
-    return arena.insert<LocalVariable>(*this, value_type);
-}
-
-const Value* Builder::implicit_cast(const Value* src, const Type* dst) {
-    return arena.insert<ImplicitCast>(*this, src, dst);
-}
-
-const Value* Builder::cast(const Value* src, const Type* dst) {
-    return arena.insert<Cast>(arena, src, dst);
-}
-
 const Value* Builder::typed_literal(Literal literal, const Type* type) {
     // TODO: normalize literal representation based on type
     return arena.insert<TypedLiteral>(arena, literal, type);
@@ -219,16 +207,32 @@ const Fn* Builder::function(const Param* param, const Type* codom) {
     return arena.insert<Fn>(*this, param, codom);
 }
 
+const Value* Builder::unit() {
+    return arena.insert<Unit>(arena, unit_type());
+}
+
 const Param* Builder::param(std::optional<ast::Identifier> id, const Type* type) {
     return arena.insert<Param>(arena, id, type);
 }
 
-const Value* Builder::app(const Value* callee, const Value* arg) {
-    return arena.insert<App>(arena, callee, arg);
+const Value* ExprBuilder::local_variable(const Type* value_type) {
+    return bind_value(arena.insert<LocalVariable>(*this, value_type));
 }
 
-const Value* Builder::agg(const Type* type, const ArrayRef<const Value*>& args) {
-    return arena.insert<Agg>(*this, type, args);
+const Value* ExprBuilder::implicit_cast(const Value* src, const Type* dst) {
+    return bind_value(arena.insert<ImplicitCast>(*this, src, dst));
+}
+
+const Value* ExprBuilder::cast(const Value* src, const Type* dst) {
+    return bind_value(arena.insert<tir::Cast>(arena, src, dst));
+}
+
+const Value* ExprBuilder::app(const Value* callee, const Value* arg) {
+    return bind_value(arena.insert<App>(arena, callee, arg));
+}
+
+const Value* ExprBuilder::agg(const Type* type, const ArrayRef<const Value*>& args) {
+    return bind_value(arena.insert<Agg>(*this, type, args));
 }
 
 inline static const TupleType* tuple_type_from_elems(Builder& builder, const ArrayRef<const Value*>& args) {
@@ -239,52 +243,73 @@ inline static const TupleType* tuple_type_from_elems(Builder& builder, const Arr
     return builder.tuple_type(types);
 }
 
-const Value* Builder::tuple(const ArrayRef<const Value*>& args) {
+const Value* ExprBuilder::tuple(const ArrayRef<const Value*>& args) {
     return agg(tuple_type_from_elems(*this, args), args);
 }
 
-const Value* Builder::extract(const Value* src, const Value* idx) {
-    return arena.insert<Extract>(*this, src, idx);
+const Value* ExprBuilder::extract(const Value* src, const Value* idx) {
+    return bind_value(arena.insert<Extract>(*this, src, idx));
 }
 
-const Value* Builder::proj(const Value* src, const Value* idx) {
-    return arena.insert<Proj>(*this, src, idx);
+const Value* ExprBuilder::proj(const Value* src, const Value* idx) {
+    return bind_value(arena.insert<Proj>(*this, src, idx));
 }
 
-const Value* Builder::bind(const Param* param, const Value* value) {
-    return arena.insert<Bind>(*this, param, value);
+const Value* ExprBuilder::unop(ast::UnaryExpr::Tag tag, const Value* arg) {
+    return bind_value(arena.insert<UnOp>(*this, tag, arg));
 }
 
-const Value* Builder::seq(const ArrayRef<const Value*>& values) {
+const Value* ExprBuilder::binop(ast::BinaryExpr::Tag tag, const Value* lhs, const Value* rhs) {
+    return bind_value(arena.insert<BinOp>(*this, tag, lhs, rhs));
+}
+
+const Value* ExprBuilder::finish_branch(const Value* cond, const Fn* true_branch, const Fn* else_branch) {
+    return finish(arena.insert<Branch>(*this, cond, true_branch, else_branch));
+}
+
+const Value* ExprBuilder::control(const Fn* fn) {
+    return bind_value(arena.insert<Control>(*this, fn));
+}
+
+void ExprBuilder::add_instruction(const Value* instruction) {
+    assert(!instruction->is_simple());
+    seq.push_back(instruction);
+}
+
+const Value* ExprBuilder::bind_value(const Value* value) {
+    if (value->is_simple())
+        return value;
+    auto param = this->param(std::nullopt, value->type());
+    bind(param, value);
+    return param;
+}
+
+ExprBuilder::ExprBuilder(Arena& arena, Builder* parent)
+    : Builder(arena, parent->scope.new_child(), parent)
+{}
+
+void ExprBuilder::bind(const Param* param, const Value* value) {
+    add_instruction(arena.insert<Bind>(*this, param, value));
+}
+
+const Value* ExprBuilder::finish(const Value* last) {
+    assert(last->is_simple());
     std::vector<const Value*> filtered_values;
-    for (size_t i = 0; i < values.size(); i++) {
-        auto value = values[i];
-        // get rid of non-computations, _except_ in the final position (because it affects the type of the Seq then)
-        if (!value->is_computation() && i < values.size() - 1)
+    for (size_t i = 0; i < seq.size(); i++) {
+        auto value = seq[i];
+        // get rid of non-computations
+        if (!value->is_computation())
             continue;
         filtered_values.push_back(value);
     }
     if (filtered_values.empty())
-        return tuple({});
-    if (filtered_values.size() == 1)
-        return filtered_values.front();
+        return last;
+    filtered_values.push_back(last);
     return arena.insert<Seq>(*this, filtered_values);
 }
 
-const Value* Builder::unop(ast::UnaryExpr::Tag tag, const Value* arg) {
-    return arena.insert<UnOp>(*this, tag, arg);
-}
-
-const Value* Builder::binop(ast::BinaryExpr::Tag tag, const Value* lhs, const Value* rhs) {
-    return arena.insert<BinOp>(*this, tag, lhs, rhs);
-}
-
-const Value* Builder::branch(const Value* cond, const Fn* true_branch, const Fn* else_branch) {
-    return arena.insert<Branch>(*this, cond, true_branch, else_branch);
-}
-
-const Value* Builder::control(const Fn* fn) {
-    return arena.insert<Control>(*this, fn);
+const Value* ExprBuilder::finish_unit() {
+    return finish(unit());
 }
 
 const Signature* Builder::signature(ArrayRef<Signature::Decl> decls) {
@@ -298,6 +323,15 @@ const Signature* Builder::signature(ArrayRef<Signature::Decl> decls) {
         sorted_decls[i++] = decl;
     }
     return arena.insert<Signature>(arena, sorted_decls);
+}
+
+ModuleBuilder& Builder::enclosing_module() {
+    for (Builder* b = this; b; b = b->parent) {
+        if (auto mb = b->isa<ModuleBuilder>()) {
+            return *mb;
+        }
+    }
+    assert(false);
 }
 
 static inline std::vector<const Scope*> get_suffix(const Scope* base, const Scope* inner) {
@@ -323,10 +357,10 @@ static inline std::vector<const Scope*> get_suffix(const Scope* base, const Scop
 }
 
 struct Importer : public Rewriter {
-    Builder& builder;
+    ModuleBuilder& builder;
     std::vector<const Scope*> suffix;
 
-    Importer(Builder& builder, const Scope& inner)
+    Importer(ModuleBuilder& builder, const Scope& inner)
         : Rewriter(builder.arena, builder.arena), builder(builder) {
         suffix = get_suffix(&builder.scope, &inner);
     }
@@ -374,32 +408,32 @@ struct Importer : public Rewriter {
     }
 };
 
-const Node* Builder::import(const Scope& scope, const Node* node) {
+const Node* ModuleBuilder::import(const Scope& scope, const Node* node) {
     assert(node->is_simple());
     Importer importer(*this, scope);
     return importer.instantiate(node, false);
 }
 
-const Type* Builder::import_type(const Scope& scope,const Type* t) {
+const Type* ModuleBuilder::import_type(const Scope& scope,const Type* t) {
     if (t->free_variables(this->scope).empty()) {
         return t;
     }
     return import(scope, t)->as<Type>();
 }
 
-const Type* Builder::schedule_and_bind_type(const Type* type, std::optional<ast::Identifier> maybe_id) {
+const Type* ModuleBuilder::schedule_and_bind_type(const Type* type, std::optional<ast::Identifier> maybe_id) {
     assert(!type->is_simple());
     // find the outermost scope we can drop this type in!
-    Builder* best = nullptr;
-    for (Builder* s = this; s; s = s->parent) {
-        if (s->cur_module) {
-            auto found = s->already_bound_here.find(type);
-            if (found != s->already_bound_here.end()) {
+    ModuleBuilder* best = nullptr;
+    for (Builder* b = this; b; b = b->parent) {
+        if (auto mb = b->isa<ModuleBuilder>()) {
+            auto found = mb->already_bound_here.find(type);
+            if (found != mb->already_bound_here.end()) {
                 return as_type(found->second);
             }
 
-            if (type->free_variables(s->scope).empty())
-                best = s;
+            if (type->free_variables(mb->scope).empty())
+                best = mb;
         }
     }
 
@@ -409,19 +443,19 @@ const Type* Builder::schedule_and_bind_type(const Type* type, std::optional<ast:
     return as_type(var);
 }
 
-const ModVar* Builder::schedule_and_bind_module_op(const ModAccess* access, std::optional<ast::Identifier> maybe_id) {
+const ModVar* ModuleBuilder::schedule_and_bind_module_op(const ModAccess* access, std::optional<ast::Identifier> maybe_id) {
     assert(!access->is_simple());
     // find the outermost scope we can drop this type in!
-    Builder* best = nullptr;
-    for (Builder* s = this; s; s = s->parent) {
-        if (s->cur_module) {
-            auto found = s->already_bound_here.find(access);
-            if (found != s->already_bound_here.end()) {
+    ModuleBuilder* best = nullptr;
+    for (Builder* b = this; b; b = b->parent) {
+        if (auto mb = b->isa<ModuleBuilder>()) {
+            auto found = mb->already_bound_here.find(access);
+            if (found != mb->already_bound_here.end()) {
                 return found->second;
             }
 
-            if (s->scope.resolve_mod_var(access->mod->as<ModVar>()))
-                best = s;
+            if (mb->scope.resolve_mod_var(access->mod->as<ModVar>()))
+                best = mb;
         }
     }
 
@@ -431,9 +465,9 @@ const ModVar* Builder::schedule_and_bind_module_op(const ModAccess* access, std:
     return var;
 }
 
-const ModVar* Builder::add_in_module(const Node* node, std::optional<ast::Identifier> maybe_id) {
+const ModVar* ModuleBuilder::add_in_module(const Node* node, std::optional<ast::Identifier> maybe_id) {
     auto var = mod_var(decl_key(maybe_id), node->kind());
-    cur_module->add_decl(var, node);
+    module->add_decl(var, node);
     return var;
 }
 

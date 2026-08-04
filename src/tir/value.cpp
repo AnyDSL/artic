@@ -34,6 +34,16 @@ void Fn::validate(const Scope& scope) const {
     assert(body->type() == fn_t->codom);
 }
 
+size_t Unit::hash() const {
+    return fnv::Hash().combine(67);
+}
+
+bool Unit::equals(const Node* n) const {
+    if (n->isa<Unit>())
+        return true;
+    return false;
+}
+
 Param::Param(Arena& arena, std::optional<ast::Identifier> id, const Type* type) : NominalNode(arena, type), id(id) {}
 
 App::App(Arena& arena, const Value* callee, const Value* arg) : Value(arena, callee->type()->as<FnType>()->codom), callee(callee), arg(arg) {
@@ -139,7 +149,7 @@ bool Undef::equals(const Node* other) const {
 
 ModVarAsValue::ModVarAsValue(Builder& builder, Scope& scope, const ModVar* var) : NominalNode(builder.arena, [&]() -> const Type* {
     // scope.resolve_mod_var(var)->as<Value>()->type()
-    auto elem = var->infer_signature(builder);
+    auto elem = var->infer_signature(builder.enclosing_module());
     assert(elem.kind == NodeKind::Value);
     return elem.value_type;
 }()), var(var) {}

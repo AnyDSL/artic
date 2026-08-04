@@ -1330,6 +1330,10 @@ const thorin::Def* tir::Cast::emit(Emitter& emitter) const {
     return emitter.world.cast(emitter.emit(dst)->as<thorin::Type>(), emitter.emit(src));
 }
 
+const thorin::Def* Unit::emit(Emitter& emitter) const {
+    return emitter.world.tuple({});
+}
+
 const thorin::Def* Agg::emit(Emitter& emitter) const {
     thorin::Array<const thorin::Def*> elems(args.size());
     for (size_t i = 0; i < args.size(); ++i) {

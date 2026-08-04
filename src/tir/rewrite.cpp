@@ -122,6 +122,10 @@ const Node* Fn::rewrite(Rewriter&) const {
 
 }
 
+const Node* Unit::rewrite(Rewriter& r) const {
+    return r.builder().unit();
+}
+
 const Node* Param::rewrite(Rewriter&) const {
     assert(false);
 }
