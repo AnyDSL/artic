@@ -175,10 +175,10 @@ const ModValue* ModuleBuilder::mod_access(const ModValue* src, const DeclKey* ke
         auto mod = scope.peek_mod_value(var)->isa<Module>();
         if (mod) {
             for (auto& decl: mod->decls()) {
-                if (decl.var->key == key) {
+                if (decl->var->key == key) {
                     // if the module decl is in scope, don't bother with the access at all
-                    if (scope.resolve_mod_var(decl.var))
-                        return decl.var;
+                    if (scope.resolve_mod_var(decl->var))
+                        return decl->var;
                 }
             }
         }
@@ -475,7 +475,8 @@ const ModVar* ModuleBuilder::schedule_and_bind_module_op(const ModAccess* access
 
 const ModVar* ModuleBuilder::add_in_module(const Node* node, std::optional<ast::Identifier> maybe_id) {
     auto var = mod_var(decl_key(maybe_id), node->kind());
-    module->add_decl(var, node);
+    auto decl = module->add_decl(var);
+    module->set_decl(decl, node);
     return var;
 }
 

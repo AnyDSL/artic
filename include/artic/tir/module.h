@@ -96,7 +96,13 @@ struct Module : public NominalNode<ModValue> {
         const Node* value;
     };
 
-    ArrayRef<Decl> decls() const { return decls_; }
+    Array<const Decl*> decls() const {
+        Array<const Decl*> arr(decls_.size());
+        for (size_t i = 0; i < decls_.size(); ++i) {
+            arr[i] = &*decls_[i];
+        }
+        return arr;
+    }
     const void seal() const { sealed = true; }
 
     mutable bool sealed = false;
@@ -111,8 +117,9 @@ struct Module : public NominalNode<ModValue> {
     Module(Builder&, const ast::ModDecl*);
 
 private:
-    void add_decl(const ModVar* var, const Node* value) const;
-    mutable std::vector<Decl> decls_;
+    Decl* add_decl(const ModVar* var) const;
+    void set_decl(Decl*, const Node* value) const;
+    mutable std::vector<std::unique_ptr<Decl>> decls_;
 
     friend ModuleBuilder;
 };

@@ -18,15 +18,11 @@ struct Scope {
 
     /// resolves one step of let-binding
     const Node* resolve_mod_var(const ModVar* var) const;
+    bool is_in_scope(const ModVar* var) const;
 
     const Node* resolve_bindings(const ModValue* var) const;
     /// resolves all the possible let-binding steps, and enters ModAccesses
-    using Trail = std::vector<std::tuple<const ModValue*, const DeclKey*>>;
-    std::tuple<const Node*, const Scope&> resolve_deep(const ModValue* var, Trail&) const;
-    std::tuple<const Node*, const Scope&> resolve_deep(const ModValue* var) const {
-        Trail _;
-        return resolve_deep(var, _);
-    };
+    std::tuple<const Node*, const Scope&> resolve_deep(const ModValue* var) const;
 
     // const Type* resolve_type_var(const TypeVar*);
     // const Value* resolve_param(const Param* var) const;
@@ -35,7 +31,7 @@ struct Scope {
     const ModValue* peek_mod_value(const ModValue*) const;
 private:
     void insert(const ModVar* var, const Node* value) {
-        assert(!mod_vars.contains(var));
+        assert(!mod_vars.contains(var) || (mod_vars[var] == nullptr));
         mod_vars[var] = value;
     }
 

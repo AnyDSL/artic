@@ -60,6 +60,7 @@ public:
     const Value* try_coerce(Ptr<ast::Expr>&, const Type*);
     const Type* join(Ptr<ast::Expr>&, Ptr<ast::Expr>&, ExprBuilder&, ExprBuilder&);
 
+    const tir::Module* infer_top_module(ast::ModDecl&);
     const tir::ModVar* infer_mod_decl(ast::Decl&);
 
     void infer_decl_stmt(ast::Decl&);

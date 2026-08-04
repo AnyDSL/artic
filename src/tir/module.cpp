@@ -8,13 +8,19 @@ Module::Module(Builder& builder, const ast::ModDecl* decl)
     : NominalNode(builder.arena, NodeKind::Module), decl(decl), scope(builder.scope.new_child())
 {}
 
-void Module::add_decl(const ModVar* var, const Node* node) const {
-    if (auto mod = node->isa<Module>()) {
-        mod->scope.mod_var = var;
+Module::Decl* Module::add_decl(const ModVar* var) const {
+    decls_.push_back(std::make_unique<Decl>(var, nullptr));
+    scope.insert(var, nullptr);
+    return &*decls_.back();
+}
+
+void Module::set_decl(Decl* decl, const Node* value) const {
+    decl->value = value;
+    if (auto mod = value->isa<Module>()) {
+        mod->scope.mod_var = decl->var;
         mod->scope.mod_def = mod;
     }
-    decls_.push_back({ var, node });
-    scope.insert(var, node);
+    scope.insert(decl->var, value);
 }
 
 Signature::Signature(Arena& arena, ArrayRef<Decl>&& decls) : Node(arena), decls(std::move(decls)) {
@@ -169,24 +175,29 @@ static inline void import_signature(ModuleBuilder& builder, const ModValue* outs
 // static inline const Signature* import_signature(Builder& builder, const Sign)
 
 Signature::Elem Module::infer_signature(ModuleBuilder& builder) const {
-    assert(sealed);
+    // assert(sealed);
+    const Signature* signature = nullptr;
     if (!signature_) {
         std::vector<Signature::Decl> decls;
         for (auto& mod_decl : this->decls()) {
             // TODO: have a more serious way to expose stuff in modules
-            if (true || mod_decl.var->key->id) {
+            if (true || mod_decl->var->key->id) {
                 auto sig_decl = Signature::Decl {
-                    .key = mod_decl.var->key,
-                    .sig = Signature::from_node(builder, mod_decl.value)
+                    .key = mod_decl->var->key,
+                    .sig = Signature::from_node(builder, mod_decl->value)
                 };
                 decls.push_back(sig_decl);
             }
         }
-        signature_ = builder.signature(decls);
+        signature = builder.signature(decls);
+        if (sealed)
+            signature_ = signature;
+    } else {
+        signature = signature_;
     }
     return Signature::Elem {
         .kind = NodeKind::Module,
-        .mod_signature = signature_,
+        .mod_signature = signature,
     };
 }
 
@@ -208,6 +219,7 @@ ModVar::ModVar(Builder& builder, const DeclKey* key, NodeKind kind)
 
 Signature::Elem ModVar::infer_signature(ModuleBuilder& builder) const {
     auto resolved = builder.scope.resolve_mod_var(this);
+    assert(resolved != this);
     if (resolved) {
         auto sig = Signature::from_node(builder, resolved);
         //import_signature(builder, this, sig);

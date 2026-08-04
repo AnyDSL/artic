@@ -11,7 +11,7 @@
 namespace artic {
 
 const tir::Module* TypeChecker::run(ast::ModDecl& module) {
-    auto mod = module.infer(*this);
+    auto mod = infer_top_module(module);
     if (errors > 0)
         return nullptr;
     return mod->as<tir::Module>();
@@ -356,8 +356,8 @@ const Value* TypeChecker::coerce(ast::Expr* expr, const Type* expected) {
         if (tir->type()->subtype(scope(), expected)) {
             tir = expr_builder().implicit_cast(tir, expected);
         } else {
-            assert(false && "TODO");
-            //return incompatible_types(expr->loc, tir->type, expected);
+            incompatible_types(expr->loc, tir->type(), expected);
+            return builder().error_value(expected);
         }
     }
     return tir;
@@ -421,9 +421,27 @@ static inline void check_kind(TypeChecker& checker, ast::Node& src, const tir::N
     }
 }
 
+const tir::Module* TypeChecker::infer_top_module(ast::ModDecl& mod) {
+    assert(!mod.super);
+    if (mod.self)
+        return mod.self;
+    auto top = mod.infer(*this)->as<Module>();
+    if (mod.attrs)
+        mod.attrs->check(*this, &mod);
+    return top;
+}
+
 const tir::ModVar* TypeChecker::infer_mod_decl(ast::Decl& node) {
     if (node.var)
         return node.var->as<ModVar>();
+    if (auto mod = node.isa<ast::ModDecl>()) {
+        assert(mod->super && "cannot directly infer the top module, it doesn't get bound to a ModVar");
+    }
+
+    assert(node.enclosing_module);
+    // this ensures lazily inferred decls are parented to the right module
+    BuilderGuard guard(*this, *node.enclosing_module->builder);
+
     node.var = node.infer(*this)->as<ModVar>();
     if (node.attrs)
         node.attrs->check(*this, &node);
@@ -1002,38 +1020,72 @@ const tir::Node* Path::Elem::infer(TypeChecker& checker, Path::Elem* prev, Path&
         if (auto ptrn_decl = decl->isa<PtrnDecl>()) {
             // assert(ptrn_decl->tir && "PtrnDecls encountered here should be already emitted.");
             tir = checker.infer_ptrn_decl(*ptrn_decl);
+        } else if (auto mod = decl->isa<ModDecl>(); mod && !mod->super) {
+            tir = checker.infer_top_module(*mod);
         } else
             tir = checker.infer_mod_decl(*decl);
 
-        if (auto mod_var = tir->isa<ModVar>())
-            value = checker.scope().resolve_mod_var(mod_var);
+        // if (auto mod_var = tir->isa<ModVar>())
+        //     value = checker.scope().resolve_mod_var(mod_var);
+        assert(tir);
         return tir;
     }
 
     if (prev->tir->kind() == NodeKind::Module) {
         // auto module = checker.scope().peek_mod_value(prev_elem->as<ModValue>())->isa<Module>();
-        auto module = prev->value->isa<Module>();
+        const Module* module = prev->tir->isa<Module>();
+        if (!module) {
+            assert(prev->tir && prev->tir->is_simple());
+            if (auto mod_var = prev->tir->isa<ModVar>())
+                module = std::get<0>(checker.scope().resolve_deep(mod_var))->isa<Module>();
+        }
+
         if (is_super()) {
             assert(module);
             assert(module->decl && "anonymous modules shouldn't be reachable like this");
-            if (!module->decl->super) {
+            if (module->decl->super) {
+                //value = checker.scope().resolve_mod_var(module->decl->super->var);
+
+                if (module->decl->super->var)
+                    return tir = module->decl->super->var;
+                else
+                    return tir = module->decl->super->self;
+            } else {
                 checker.error(loc, "'super' cannot be used on the root module");
                 return tir = checker.builder().type_error();
             }
-            return tir = module->decl->super->var;
         }
 
         if (module) {
-            for (auto& decl: module->decls()) {
-                if (decl.var->key->id && decl.var->key->id->name == id.name) {
-                    value = decl.value;
-                    if (auto mod = decl.value->isa<ModVar>()) {
-                        value = checker.scope().resolve_mod_var(mod);
-                    }
-                    return tir = checker.builder().enclosing_module().mod_access(prev->tir->as<ModValue>(), decl.var->key, decl.var->kind());
-                    //return tir = decl.var;
+            for (auto decl: module->decls()) {
+                if (decl->var->key->id && decl->var->key->id->name == id.name) {
+                    tir = decl->var;
+                    break;
                 }
             }
+
+            if (module->decl && !tir) {
+                for (auto& decl : module->decl->decls) {
+                    if (auto named_decl = decl->isa<NamedDecl>()) {
+                        if (named_decl->id.name == id.name) {
+                            tir = checker.infer_mod_decl(*decl);
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if (tir) {
+                assert(tir->isa<ModVar>());
+                if (auto mod_var = tir->isa<ModVar>()) {
+                    //value = checker.scope().resolve_mod_var(mod_var);
+                    if (!checker.scope().is_in_scope(mod_var))
+                        tir = checker.builder().enclosing_module().mod_access(prev->tir->as<ModValue>(), mod_var->key, mod_var->kind());
+                }
+                assert(tir);
+                return tir;
+            }
+
             checker.unknown_module_member(loc, module, id.name);
             return nullptr;
         } else {
@@ -1076,7 +1128,7 @@ const tir::Node* Path::Elem::infer(TypeChecker& checker, Path::Elem* prev, Path&
     //return checker.type_expected(loc, type, "module or enum");
 }
 
-const tir::Node* Path::infer(TypeChecker& checker, NodeKind expected_kind, Ptr<Expr>* arg, const artic::Type* ret_type) {
+const tir::Node* Path::infer(TypeChecker& checker, std::optional<NodeKind> expected_kind, Ptr<Expr>* arg, const artic::Type* ret_type) {
     if (elems.back().is_wildcard())
         return nullptr;
     if (!decl)
@@ -1121,6 +1173,7 @@ const tir::Node* Path::infer(TypeChecker& checker, NodeKind expected_kind, Ptr<E
     }
 
     auto tir = elems.back().tir;
+    assert(tir->is_simple());
 
     auto last_decl = resolve_use_decl(decl);
 
@@ -1152,7 +1205,8 @@ const tir::Node* Path::infer(TypeChecker& checker, NodeKind expected_kind, Ptr<E
     if (auto mod_var = tir->isa<ModVar>(); mod_var && expected_kind == NodeKind::Type)
         tir = checker.builder().as_type(mod_var);
 
-    check_kind(checker, *this, tir, expected_kind);
+    if (expected_kind)
+        check_kind(checker, *this, tir, *expected_kind);
 
     return tir;
 }
@@ -2402,12 +2456,18 @@ const tir::Node* ModDecl::infer(TypeChecker& checker) {
     //         checker.scopes.front().push_back(TypeChecker::ImplicitSrc {
     //             .decl = impl_decl,
     //         });
+
     auto tir_module = checker.builder().module(this);
     if (checker.builder().isa<ModuleBuilder>()) {
         var = checker.mod_builder().add_in_module(tir_module, id);
+    } else {
+        self = tir_module;
     }
 
+    checker.enter_decl(this);
+
     ModuleBuilder builder(checker.arena, &checker.builder(), tir_module);
+    this->builder = &builder;
     TypeChecker::BuilderGuard guard(checker, builder);
     for (auto& decl : decls) {
         checker.infer_mod_decl(*decl);
@@ -2424,6 +2484,8 @@ const tir::Node* ModDecl::infer(TypeChecker& checker) {
         }
     }
 
+    checker.exit_decl(this);
+
     // return a non-simple, non-bound module at the top level
     if (!var)
         return tir_module;
@@ -2431,12 +2493,13 @@ const tir::Node* ModDecl::infer(TypeChecker& checker) {
 }
 
 const tir::Node* UseDecl::infer(TypeChecker& checker) {
-    assert(false && "TODO");
-    /*if (!checker.enter_decl(this))
+    if (!checker.enter_decl(this))
         return checker.builder().type_error();
-    auto path_type = checker.infer(path);
+    auto resolved_path = path.infer(checker, std::nullopt);
+    assert(resolved_path->isa<ModVar>());
     checker.exit_decl(this);
-    return path_type;*/
+    return resolved_path;
+    //return checker.mod_builder().add_in_module(resolved_path, id);
 }
 
 // Patterns ------------------------------------------------------------------------

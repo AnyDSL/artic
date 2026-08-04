@@ -11,6 +11,15 @@ const Node* Scope::resolve_mod_var(const ModVar* var) const {
     return nullptr;
 }
 
+bool Scope::is_in_scope(const ModVar* var) const {
+    auto found = mod_vars.find(var);
+    if (found != mod_vars.end())
+        return true;
+    if (parent)
+        return parent->is_in_scope(var);
+    return false;
+}
+
 const Node* Scope::resolve_bindings(const ModValue* value) const {
     while (auto mod_var = value->isa<ModVar>()) {
         auto resolved = resolve_mod_var(mod_var);
@@ -22,21 +31,20 @@ const Node* Scope::resolve_bindings(const ModValue* value) const {
     return value;
 }
 
-std::tuple<const Node*, const Scope&> Scope::resolve_deep(const ModValue* var, std::vector<std::tuple<const ModValue*, const DeclKey*>>& trail) const {
+std::tuple<const Node*, const Scope&> Scope::resolve_deep(const ModValue* var) const {
     // TODO: this shouldn't be necessary if trivial mod_var bindings are disallowed
     const Node* resolved = resolve_bindings(var);
     if (auto mod_access = resolved->isa<ModAccess>()) {
         // [ mod ] :: S
-        auto [lhs, lhs_scope]  = resolve_deep(mod_access->mod, trail); //->isa<Module>();
+        auto [lhs, lhs_scope]  = resolve_deep(mod_access->mod); //->isa<Module>();
         if (auto lhs_mod = lhs->isa<Module>()) {
             for (auto& decl : lhs_mod->decls()) {
-                if (decl.var->key == mod_access->key) {
-                    trail.emplace_back(mod_access->mod, decl.var->key);
+                if (decl->var->key == mod_access->key) {
                     // [ ( mod :: idx ) ]
-                    if (auto keep_going = decl.value->isa<ModValue>()) {
-                        return lhs_scope.resolve_deep(keep_going, trail);
+                    if (auto keep_going = decl->value->isa<ModValue>()) {
+                        return lhs_scope.resolve_deep(keep_going);
                     }
-                    return { decl.value, lhs_mod->scope };
+                    return { decl->value, lhs_mod->scope };
                 }
             }
         }

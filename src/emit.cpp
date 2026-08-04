@@ -1162,10 +1162,12 @@ const Emitter::ModuleDecls& Emitter::emit(const Module* mod, const ModuleDecls* 
     // emitted_modules[mod] = std::move(x);
     ModuleDecls& decls = *emitted_modules.emplace(mod, std::move(x)).first->second;
     ScopeGuard sg(*this, decls);
-    for (auto [var, value] : mod->decls()) {
+    for (auto decl : mod->decls()) {
+        auto [var, value] = *decl;
         decls.decls.emplace(var, std::make_unique<ModuleDecl>(var, value));
     }
-    for (auto [var, _] : mod->decls()) {
+    for (auto decl : mod->decls()) {
+        auto [var, value] = *decl;
         emit(var);
     }
     return decls;

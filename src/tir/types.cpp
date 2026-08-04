@@ -809,10 +809,9 @@ std::pair<const PtrType*, const Type*> remove_ptr(const Scope& scope, const Type
 
 std::pair<const RefType*, const Type*> remove_ref(Builder& builder, const Type* type) {
     const Type* og_type = type;
-    std::vector<std::tuple<const ModValue*, const DeclKey*>> trail;
     const Scope* scope = &builder.scope;
     if (auto var_as_type = type->isa<ModVarAsType>()) {
-        auto [resolved, resolved_scope] = builder.scope.resolve_deep(var_as_type->var, trail);
+        auto [resolved, resolved_scope] = builder.scope.resolve_deep(var_as_type->var);
         type = resolved->as<Type>();
         scope = &resolved_scope;
     }

@@ -28,6 +28,7 @@ namespace tir {
     struct Module;
     struct ModVar;
     struct Param;
+    struct ModuleBuilder;
     enum class NodeKind;
 }
 
@@ -100,7 +101,7 @@ struct Decl : public Node {
     /// Set to true if this declaration is at the top level of a module.
     bool is_top_level = false;
 
-    ModDecl* module = nullptr;
+    ModDecl* enclosing_module = nullptr;
     DeclStmt* stmt = nullptr;
 
     /// The module variable the decl was bound to
@@ -196,7 +197,6 @@ struct Path : public Node {
 
         // These members are set during type-checking
         const tir::Node* tir = nullptr;
-        const tir::Node* value = nullptr;
         size_t index = 0;
         std::vector<const tir::Type*> inferred_args;
 
@@ -229,12 +229,7 @@ struct Path : public Node {
         : Node(loc), is_use_path_(is_use_path), elems(std::move(elems))
     {}
 
-    const tir::Node* infer(TypeChecker&, tir::NodeKind, Ptr<Expr>* = nullptr, const tir::Type* = nullptr);
-    //const tir::Node* infer(TypeChecker&, bool, Ptr<Expr>* = nullptr, const tir::Type* = nullptr);
-    const tir::Node* infer(TypeChecker& checker) override {
-        assert(false);
-        //return infer(checker, nullptr, nullptr);
-    }
+    const tir::Node* infer(TypeChecker&, std::optional<tir::NodeKind>, Ptr<Expr>* = nullptr, const tir::Type* = nullptr);
     
     void bind(NameBinder&) override;
     void print(Printer&) const override;
@@ -1486,6 +1481,10 @@ struct TypeDecl : public NamedDecl {
 struct ModDecl : public NamedDecl {
     PtrVector<Decl> decls;
     ModDecl* super = nullptr;
+
+    // Set during type-checking, only for the top-level module
+    mutable const tir::Module* self = nullptr;
+    mutable tir::ModuleBuilder* builder = nullptr;
 
     /// Constructor for the implicitly defined global module.
     /// When using this constructor, the user is responsible for calling

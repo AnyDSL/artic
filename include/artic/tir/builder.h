@@ -138,6 +138,7 @@ struct ModuleBuilder : public Builder {
     const ModValue* mod_access(const ModValue*, const DeclKey*, NodeKind);
 
     const ModVar* add_in_module(const Node*, std::optional<ast::Identifier> = std::nullopt);
+    const ModVar* add_in_module(std::optional<ast::Identifier> = std::nullopt);
 
     const Type* import_type(const Type*);
 private:
