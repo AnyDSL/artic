@@ -37,7 +37,7 @@ public:
 
     bool should_report_error(const Type*);
 
-    void incompatible_types(const Loc&, const Type*, const Type*);
+    void incompatible_types(const Loc&, const Type*, const Type*, const std::string_view& = "type");
     void incompatible_type(const Loc&, const std::string_view&, const Type*);
     void type_expected(const Loc&, const Type*, const std::string_view&);
     void unknown_member(const Loc&, const UserType*, const std::string_view&);

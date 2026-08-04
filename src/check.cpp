@@ -183,9 +183,9 @@ bool TypeChecker::should_report_error(const Type* type) {
     return !type->contains(builder().type_error());
 }
 
-void TypeChecker::incompatible_types(const Loc& loc, const Type* type, const Type* expected) {
+void TypeChecker::incompatible_types(const Loc& loc, const Type* type, const Type* expected, const std::string_view& what) {
     if (should_report_error(expected) && should_report_error(type))
-        error(loc, "expected type '{}', but got type '{}'", *expected, *type);
+        error(loc, "expected {} '{}', but got {} '{}'", what, *expected, what, *type);
 }
 
 void TypeChecker::incompatible_type(const Loc& loc, const std::string_view& msg, const Type* expected) {
@@ -1491,6 +1491,7 @@ static inline void build_fn_body(TypeChecker& checker, FnExpr& fn, const Param* 
 
 const tir::Node* FnExpr::infer(TypeChecker& checker) {
     auto tir_param = checker.builder().param(std::nullopt, checker.infer_ptrn(*param));
+    checker.check_refutability(*param, true);
     if (filter)
         checker.check_value(*filter, checker.builder().bool_type());
     auto codom = ret_type ? checker.infer_type(*ret_type) : nullptr;
@@ -1498,7 +1499,6 @@ const tir::Node* FnExpr::infer(TypeChecker& checker) {
         build_fn_body(checker, *this, tir_param, codom);
         codom = tir_body->type();
     }
-    checker.check_refutability(*param, true);
     if (!codom) {
         checker.cannot_infer(loc, "function");
         return checker.builder().error_value(checker.builder().type_error());
@@ -1506,25 +1506,46 @@ const tir::Node* FnExpr::infer(TypeChecker& checker) {
     auto fn = checker.builder().function(tir_param, codom);
     fn->body = tir_body;
     fn->validate(checker.scope());
-    return fn;
+    if (decl)
+        return fn;
+    else
+        return checker.expr_builder().bind_value(fn);
 }
 
 const tir::Node* FnExpr::check(TypeChecker& checker, const artic::Type* expected) {
-    assert(false && "TODO");
-    /*if (!expected->isa<artic::FnType>())
-        return checker.incompatible_type(loc, "function", expected);
+    auto fn_t = checker.scope().peek_type_definition(expected)->isa<tir::FnType>();
+    if (!fn_t) {
+        checker.incompatible_type(loc, "function", expected);
+        return checker.builder().error_value(checker.builder().type_error());
+    }
+    auto dom = checker.builder().enclosing_module().import_type(fn_t->dom);
+    auto codom = checker.builder().enclosing_module().import_type(fn_t->codom);
 
-    auto codom = expected->as<artic::FnType>()->codom;
-    auto param_type = checker.check(*param, expected->as<artic::FnType>()->dom);
-    auto body_type = ret_type ? checker.check(*ret_type, codom) : codom;
+    auto param_type = checker.check_ptrn(*param, dom);
+    auto tir_param = checker.builder().param(std::nullopt, param_type);
     checker.check_refutability(*param, true);
-    // Set the type of the expression before entering the body,
-    // in case `return` appears in it.
-    type = checker.builder().fn_type(param_type, body_type);
-    body_type = checker.coerce(body, body_type);
     if (filter)
-        checker.check(*filter, checker.builder().bool_type());
-    return type;*/
+        checker.check_value(*filter, checker.builder().bool_type());
+
+    auto body_type = ret_type ? checker.infer_type(*ret_type) : codom;
+    if (body_type != codom) {
+        assert(ret_type);
+        checker.incompatible_types(ret_type->loc, body_type, codom, "return type");
+        return checker.builder().error_value(expected);
+    }
+
+    if (body) {
+        build_fn_body(checker, *this, tir_param, codom);
+        codom = tir_body->type();
+    }
+
+    auto fn = checker.builder().function(tir_param, codom);
+    fn->body = tir_body;
+    fn->validate(checker.scope());
+    if (decl)
+        return fn;
+    else
+        return checker.expr_builder().bind_value(fn);
 }
 
 const tir::Node* BlockExpr::infer(TypeChecker& checker) {
