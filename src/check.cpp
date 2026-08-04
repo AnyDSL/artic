@@ -1566,6 +1566,8 @@ const tir::Node* BlockExpr::infer(TypeChecker& checker) {
         for (int i = 0; i < stmts.size(); i++)
             checker.infer_value(*stmts[i]);
         checker.check_block(loc, stmts, last_semi);
+        if (last_semi)
+            return checker.builder().unit();
         return checker.infer_value(*stmts.back());
     }));
 }
@@ -1576,7 +1578,7 @@ const tir::Node* BlockExpr::check(TypeChecker& checker, const artic::Type* expec
             checker.incompatible_type(loc, "empty block expression", expected);
             return checker.builder().error_value(checker.builder().type_error());
         }
-        return expected;
+        return checker.builder().unit();
     }
 
     return checker.expr_builder().bind_value(checker.yield_expr_scope([&]() -> const Value* {
