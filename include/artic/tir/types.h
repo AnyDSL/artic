@@ -531,7 +531,8 @@ private:
     friend class Arena;
 };
 
-struct EnumType : public PolyTypeFromDecl<ComplexType, ast::EnumDecl> {
+struct EnumType : public NominalNode<ComplexType> {
+    ArrayRef<const TypeVar*> type_params() const override { return type_params_; }
     void print(Printer&) const override;
 
     using UserType::convert;
@@ -543,13 +544,17 @@ struct EnumType : public PolyTypeFromDecl<ComplexType, ast::EnumDecl> {
     const Type* member_type(size_t) const;
     size_t member_count() const override;
 
+    const ast::EnumDecl* decl;
+    mutable std::vector<const Type*> members;
+
     // Returns true if the enumeration is only made
     // of constructors without arguments.
     bool is_trivial() const;
 
     void validate() const;
 private:
-    EnumType(Arena&, ArrayRef<const TypeVar*>, const ast::EnumDecl&);
+    EnumType(Arena&, ArrayRef<const TypeVar*>, const ast::EnumDecl*);
+    Array<const TypeVar*> type_params_;
 
     friend class Arena;
 };

@@ -86,12 +86,13 @@ void StructType::validate() const {
         assert(t->is_simple());
 }
 
-EnumType::EnumType(Arena& arena, ArrayRef<const TypeVar*> type_params, const ast::EnumDecl& decl)
-    : PolyTypeFromDecl(arena, decl, type_params)
+EnumType::EnumType(Arena& arena, ArrayRef<const TypeVar*> type_params, const ast::EnumDecl* decl)
+    : NominalNode(arena), decl(decl), type_params_(type_params)
 {}
 
 void EnumType::validate() const {
-    assert(false && "TODO");
+    for (auto& t : members)
+        assert(t->is_simple());
 }
 
 TypeAlias::TypeAlias(Arena& arena, const ArrayRef<const TypeVar*>& type_params, const ast::TypeDecl& decl)
@@ -591,16 +592,17 @@ size_t StructType::member_count() const {
 }
 
 std::string_view EnumType::member_name(size_t i) const {
-    return decl.options[i]->id.name;
+    if (decl && !decl->options[i]->id.name.empty())
+        return decl->options[i]->id.name;
+    return "_" + std::to_string(i);
 }
 
 const Type* EnumType::member_type(size_t i) const {
-    assert(false && "TODO");
-    // return decl.options[i]->type;
+    return members[i];
 }
 
 size_t EnumType::member_count() const {
-    return decl.options.size();
+    return members.size();
 }
 
 /*const Type* TypeApp::member_type(size_t i) const {

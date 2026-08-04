@@ -2506,22 +2506,21 @@ const thorin::Type* StructType::convert(Emitter& emitter, SetHeadFn set_head) co
 }
 
 std::string EnumType::stringify(Emitter& emitter) const {
-    if (!decl.type_params)
-        return decl.id.name;
-    return stringify_types(emitter, decl.id.name + "_", type_params());
+    if (decl) {
+        return stringify_types(emitter, decl->id.name + "_", type_params());
+    }
+    // TODO: stringify members if anon
+    return "anonymous_enum";
 }
 
 const thorin::Type* EnumType::convert(Emitter& emitter, SetHeadFn set_head) const {
-    assert(false && "TODO");
-    /*if (auto it = emitter.types.find(this); !decl.type_params && it != emitter.types.end())
-        return it->second;
-    auto type = emitter.world.variant_type(stringify(emitter), decl.options.size());
-    emitter.types[parent] = type;
-    for (size_t i = 0, n = decl.options.size(); i < n; ++i) {
-        type->set_op(i, decl.options[i]->type->convert(emitter));
-        type->set_op_name(i, decl.options[i]->id.name);
+    auto type = emitter.world.variant_type(stringify(emitter), member_count());
+    set_head(type);
+    for (size_t i = 0, n = member_count(); i < n; ++i) {
+        type->set_op(i, emitter.emit(member_type(i)));
+        type->set_op_name(i, std::string(member_name(i)));
     }
-    return type;*/
+    return type;
 }
 
 std::string TypeApp::stringify(Emitter& emitter) const {

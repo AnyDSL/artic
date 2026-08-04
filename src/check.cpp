@@ -497,6 +497,24 @@ const Type* TypeChecker::infer_type(ast::TypeParam& node) {
     return node.type->as<Type>();
 }
 
+const Type* TypeChecker::infer_type(ast::FieldDecl& node) {
+    if (node.field_type)
+        return node.field_type->as<Type>();
+    node.field_type = node.infer(*this)->as<Type>();
+    if (node.attrs)
+        node.attrs->check(*this, &node);
+    return node.field_type->as<Type>();
+}
+
+const Type* TypeChecker::infer_type(ast::OptionDecl& node) {
+    if (node.type)
+        return node.type->as<Type>();
+    node.type = node.infer(*this)->as<Type>();
+    if (node.attrs)
+        node.attrs->check(*this, &node);
+    return node.type->as<Type>();
+}
+
 const Type* TypeChecker::check_ptrn(ast::Ptrn& node, const Type* expected) {
     assert(!node.type); // Nodes can only be visited once
     node.type = node.check(*this, expected)->as<Type>();
@@ -529,15 +547,6 @@ const Param* TypeChecker::infer_ptrn_decl(ast::PtrnDecl& node) {
     if (node.attrs)
         node.attrs->check(*this, &node);
     return node.param;
-}
-
-const Type* TypeChecker::infer_type(ast::FieldDecl& node) {
-    if (node.field_type)
-        return node.field_type->as<Type>();
-    node.field_type = node.infer(*this)->as<Type>();
-    if (node.attrs)
-        node.attrs->check(*this, &node);
-    return node.field_type->as<Type>();
 }
 
 const tir::Type* TypeChecker::infer_ptrn(ast::Ptrn& ptrn, Ptr<ast::Expr>& expr) {
@@ -2358,17 +2367,13 @@ const tir::Node* OptionDecl::infer(TypeChecker& checker) {
 }
 
 const tir::Node* EnumDecl::infer(TypeChecker& checker) {
-    assert(false && "TODO");
-    /*auto enum_type = checker.builder().enum_type(*this);
-    if (type_params) {
-        for (auto& param : type_params->params)
-            checker.infer(*param);
-    }
+    auto enum_type = checker.builder().enum_type(checker.infer(type_params ? &*type_params : nullptr), this);
     // Set the type before entering the options
-    type = enum_type;
+    var = checker.mod_builder().add_in_module(enum_type, id);
     for (auto& option : options)
-        checker.infer(*option);
-    return enum_type;*/
+        enum_type->members.push_back(checker.infer_type(*option));
+    enum_type->validate();
+    return var;
 }
 
 const tir::Node* TypeDecl::infer(TypeChecker& checker) {

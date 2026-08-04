@@ -72,6 +72,7 @@ public:
 
     const tir::Type* infer_type(ast::Type& ast);
     const tir::Type* infer_type(ast::FieldDecl&);
+    const tir::Type* infer_type(ast::OptionDecl&);
     const tir::Type* infer_type(ast::TypeParam&);
 
     const tir::Type* infer_ptrn(ast::Ptrn&, Ptr<ast::Expr>&);

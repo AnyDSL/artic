@@ -106,7 +106,7 @@ struct Builder : public artic::Cast<Builder> {
     const ForallType*        forall_type(ArrayRef<const TypeVar*>, const ast::FnDecl&);
     const ForallType*        forall_type(ArrayRef<const TypeVar*>, const ast::ImplicitDecl&);
     const StructType*        struct_type(ArrayRef<const TypeVar*>, const ast::RecordDecl*);
-    const EnumType*          enum_type(ArrayRef<const TypeVar*>, const ast::EnumDecl&);
+    const EnumType*          enum_type(ArrayRef<const TypeVar*>, const ast::EnumDecl*);
     const TypeAlias*         type_alias(ArrayRef<const TypeVar*>, const ast::TypeDecl&);
     const Type*              as_type(const ModVar*);
     const Type*              member_type(const Type*, size_t);

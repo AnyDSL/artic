@@ -117,7 +117,7 @@ const StructType* Builder::struct_type(ArrayRef<const TypeVar*> type_params, con
     return arena.insert<StructType>(arena, type_params, decl);
 }
 
-const EnumType* Builder::enum_type(ArrayRef<const TypeVar*> type_params, const ast::EnumDecl& decl) {
+const EnumType* Builder::enum_type(ArrayRef<const TypeVar*> type_params, const ast::EnumDecl* decl) {
     return arena.insert<EnumType>(arena, type_params, decl);
 }
 

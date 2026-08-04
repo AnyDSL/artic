@@ -183,7 +183,16 @@ void StructType::print(Printer& p) const {
 }
 
 void EnumType::print(Printer& p) const {
-    p << decl.id.name;
+    p << log::keyword_style("enum");
+    p.print_type_params(type_params());
+    p << " {" << p.indent() << p.endl();
+    for (size_t i = 0; i < member_count(); i++) {
+        p << member_name(i) << ": ";
+        p.print(*member_type(i));
+        if (i + 1 < member_count())
+            p << p.endl();
+    }
+    p << p.unindent() << p.endl() << "}";
 }
 
 void TypeAlias::print(Printer& p) const {
