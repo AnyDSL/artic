@@ -1156,7 +1156,6 @@ const Emitter::ModuleDecls& Emitter::emit(const Module* mod, const ModuleDecls* 
     if (found != emitted_modules.end())
         return *found->second;
 
-    const Scope* s = super ? &super->scope : &mod->arena.root_scope();
     auto x = std::make_unique<ModuleDecls>(mod->scope, super);
     // ModuleDecls& decls = *x;
     // emitted_modules[mod] = std::move(x);

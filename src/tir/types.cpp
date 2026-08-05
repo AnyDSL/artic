@@ -811,11 +811,9 @@ bool is_unit_type(const Type* type) {
 
 const Type* Scope::peek_type_definition(const Type* type) const {
     // repeatedly resolve quoted module variables until we reach the actual type definition
-    const Scope* s = this;
     while (auto var_as_type = type->isa<ModVarAsType>()) {
-        auto [resolved, scope] = resolve_deep(var_as_type->var);
+        auto [resolved, _] = resolve_deep(var_as_type->var);
         type = resolved->as<Type>();
-        s = &scope;
     }
     return type;
 }
@@ -828,11 +826,9 @@ std::pair<const PtrType*, const Type*> remove_ptr(const Scope& scope, const Type
 
 std::pair<const RefType*, const Type*> remove_ref(Builder& builder, const Type* type) {
     const Type* og_type = type;
-    const Scope* scope = &builder.scope;
     if (auto var_as_type = type->isa<ModVarAsType>()) {
-        auto [resolved, resolved_scope] = builder.scope.resolve_deep(var_as_type->var);
+        auto [resolved, _] = builder.scope.resolve_deep(var_as_type->var);
         type = resolved->as<Type>();
-        scope = &resolved_scope;
     }
 
     if (auto ref_type = type->isa<RefType>())

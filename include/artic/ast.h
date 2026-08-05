@@ -1496,6 +1496,7 @@ struct ModDecl : public NamedDecl {
 
     // Set during type-checking, only for the top-level module
     mutable const tir::Module* self = nullptr;
+    // used by decl inference so they can be scheduled at the right place
     mutable tir::ModuleBuilder* builder = nullptr;
 
     /// Constructor for the implicitly defined global module.

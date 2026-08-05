@@ -28,9 +28,6 @@ public:
     const NoRetType* no_ret_type();
     const TypeError* type_error();
 
-    Scope& root_scope() { return *root_scope_; }
-    const Scope* vars_scope(const Node::FVSet& fvs);
-
 private:
     template <typename T, typename... Args>
     const T* insert(Args&&... args) {
@@ -58,8 +55,6 @@ private:
     const NoRetType*  no_ret_type_ = nullptr;
     const TypeError*  type_error_  = nullptr;
 
-    Scope* root_scope_;
-
     size_t next_gid = 0;
     size_t alloc_gid() {
         return next_gid++;
@@ -83,6 +78,8 @@ struct Builder : public artic::Cast<Builder> {
     {}
     Builder(const Builder&) = delete;
     virtual ~Builder() {}
+
+    const Scope* vars_scope(const Node::FVSet& fvs);
 
     ModuleBuilder& enclosing_module();
 
@@ -136,7 +133,10 @@ struct Builder : public artic::Cast<Builder> {
 };
 
 struct ModuleBuilder : public Builder {
-    ModuleBuilder(Arena& arena, Builder* parent, const Module* mod) : Builder(arena, mod->scope, parent), module_(mod) {}
+    // Root builder ctor
+    ModuleBuilder(Arena& arena, const ast::ModDecl*);
+    ModuleBuilder(Arena& arena, Builder* parent, const Module* mod);
+    ~ModuleBuilder();
 
     const ModValue* mod_access(const ModValue*, const DeclKey*, const Signature*);
     // const ModValue* mod_access(const ModValue*, const DeclKey*);
@@ -158,6 +158,8 @@ private:
     const ModVar* schedule(const Node*, std::optional<ast::Identifier> = std::nullopt);
 
     std::unordered_map<const Node*, const ModVar*> already_bound_here;
+
+    Scope* root_scope_;
 };
 
 struct ExprBuilder : public Builder {

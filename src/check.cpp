@@ -31,11 +31,15 @@ void TypeChecker::exit_decl(const ast::Decl* decl) {
 }
 
 Scope& TypeChecker::scope() {
-    return current_builder_ ? current_builder_->scope : arena.root_scope();
+    if (current_builder_)
+        return current_builder_->scope;
+    assert(false);
 }
 
 Builder& TypeChecker::builder() {
-    return current_builder_ ? *current_builder_ : base_builder;
+    if (current_builder_)
+        return *current_builder_;
+    assert(false);
 }
 
 ExprBuilder& TypeChecker::expr_builder() {
@@ -2514,10 +2518,24 @@ const tir::Node* ModDecl::infer(TypeChecker& checker) {
     //             .decl = impl_decl,
     //         });
 
-    if (super)
-        checker.infer_signature(*this);
+    Builder* parent_builder = checker.current_builder_;
+    bool is_top_level_module = !parent_builder;
 
-    auto tir_module = checker.builder().module(this);
+    std::unique_ptr<ModuleBuilder> builder;
+    const Module* tir_module = nullptr;
+    if (is_top_level_module) {
+        builder = std::make_unique<ModuleBuilder>(checker.arena, this);
+        this->builder = &*builder;
+        checker.current_builder_ = &*builder;
+        tir_module = &builder->module();
+    }
+
+    // the signature should _not_ live in the module itself
+    checker.infer_signature(*this);
+
+    if (!is_top_level_module)
+        tir_module = checker.builder().module(this);
+
     if (super) {
         auto mod_var = checker.mod_builder().mod_var(checker.infer_key(*this), signature);
         var = mod_var;
@@ -2527,12 +2545,11 @@ const tir::Node* ModDecl::infer(TypeChecker& checker) {
         self = tir_module;
     }
 
-    ModuleBuilder builder(checker.arena, &checker.builder(), tir_module);
-    this->builder = &builder;
-    TypeChecker::BuilderGuard guard(checker, builder);
-
-    if (!super)
-        checker.infer_signature(*this);
+    if (!is_top_level_module) {
+        builder = std::make_unique<ModuleBuilder>(checker.arena, parent_builder, tir_module);
+        this->builder = &*builder;
+    }
+    TypeChecker::BuilderGuard guard(checker, *builder);
 
     checker.enter_decl(this);
     for (auto& decl : decls) {
@@ -2541,12 +2558,12 @@ const tir::Node* ModDecl::infer(TypeChecker& checker) {
     tir_module->seal();
     for (auto& decl : decls) {
         if (auto struct_decl = decl->isa<StructDecl>()) {
-            if (!builder.as_type(struct_decl->var)->is_sized(checker.scope()))
-                checker.unsized_type(decl->loc, builder.as_type(struct_decl->var));
+            if (!builder->as_type(struct_decl->var)->is_sized(checker.scope()))
+                checker.unsized_type(decl->loc, builder->as_type(struct_decl->var));
         }
         if (auto enum_decl = decl->isa<EnumDecl>()) {
-            if (!builder.as_type(enum_decl->var)->is_sized(checker.scope()))
-                checker.unsized_type(decl->loc, builder.as_type(enum_decl->var));
+            if (!builder->as_type(enum_decl->var)->is_sized(checker.scope()))
+                checker.unsized_type(decl->loc, builder->as_type(enum_decl->var));
         }
     }
 

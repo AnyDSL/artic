@@ -19,11 +19,10 @@ using namespace tir;
 class TypeChecker : public Logger {
 public:
     TypeChecker(Log& log, Arena& arena)
-        : Logger(log), arena(arena), base_builder(arena, arena.root_scope(), nullptr)
+        : Logger(log), arena(arena)
     {}
 
     Arena& arena;
-    Builder base_builder;
 
     /// Performs type checking on a whole program.
     /// Returns a TIR module on success, otherwise null.

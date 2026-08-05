@@ -5,14 +5,11 @@
 
 namespace artic::tir {
 
-Arena::Arena()
-    : root_scope_(new Scope(nullptr))
-{}
+Arena::Arena() {}
 
 Arena::~Arena() {
     for (auto t : types_)
         delete t;
-    delete root_scope_;
 }
 
 const PrimType* Arena::prim_type(ast::PrimType::Tag tag) {
@@ -346,6 +343,17 @@ ModuleBuilder& Builder::enclosing_module() {
     assert(false);
 }
 
+ModuleBuilder::ModuleBuilder(Arena& arena, const ast::ModDecl* decl) : Builder(arena, [&]() -> Scope& { return *(root_scope_ = new Scope(nullptr)); }(), nullptr), module_(nullptr) {
+    module_ = arena.insert<Module>(*this, decl, *root_scope_);
+}
+
+ModuleBuilder::ModuleBuilder(Arena& arena, Builder* parent, const Module* mod) : Builder(arena, mod->scope, parent), module_(mod), root_scope_(nullptr) {}
+
+ModuleBuilder::~ModuleBuilder() {
+    if (root_scope_)
+        delete root_scope_;
+}
+
 static inline std::vector<const Scope*> get_suffix(const Scope* base, const Scope* inner) {
     std::vector<const Scope*> lpath;
     for (const Scope* l = base; l; l = l->parent) {
@@ -385,7 +393,7 @@ struct Importer : public Rewriter {
 
         // stuff available at the dst is left alone
         auto fvs = old->free_variables();
-        auto old_scope = builder.arena.vars_scope(fvs);
+        auto old_scope = builder.vars_scope(fvs);
         if (builder.scope.contains(old_scope)) {
             return old;
         }
@@ -424,7 +432,7 @@ struct Importer : public Rewriter {
 
 const Node* ModuleBuilder::import(const Node* node) {
     auto fvs = node->free_variables();
-    const Scope* node_scope = arena.vars_scope(fvs);
+    const Scope* node_scope = vars_scope(fvs);
     // the node is in scope already, all good
     if (scope.contains(node_scope)) {
         return node;
@@ -439,8 +447,8 @@ const Type* ModuleBuilder::import_type(const Type* t) {
     return import(t)->as<Type>();
 }
 
-const Scope* Arena::vars_scope(const Node::FVSet& fvs) {
-    const Scope* s = &root_scope();
+const Scope* Builder::vars_scope(const Node::FVSet& fvs) {
+    const Scope* s = &scope.root();
     for (auto fv : fvs) {
         s = unify_scopes(s, &fv->scope);
     }
@@ -449,9 +457,8 @@ const Scope* Arena::vars_scope(const Node::FVSet& fvs) {
 
 const ModVar* ModuleBuilder::schedule(const Node* node, std::optional<ast::Identifier> maybe_id) {
     auto fvs = node->free_variables();
-    const Scope* node_scope = arena.vars_scope(fvs);
+    const Scope* node_scope = vars_scope(fvs);
     assert(scope.contains(node_scope) && "this node cannot be scheduled here or in any parent module, it has free variables that would not be bound");
-    assert(node_scope->mod_def);
 
     // find the corresponding module builder
     ModuleBuilder* dst = nullptr;
@@ -464,7 +471,7 @@ const ModVar* ModuleBuilder::schedule(const Node* node, std::optional<ast::Ident
         }
     }
     assert(dst && "failed to find the matching builder for the dst scope");
-    auto var = mod_var(decl_key(maybe_id), Signature::from_node(*this, node));
+    auto var = mod_var(decl_key(maybe_id), Signature::from_node(*this, node, false));
     auto decl = module_->add_decl(var);
     module_->set_decl(decl, node);
     return var;

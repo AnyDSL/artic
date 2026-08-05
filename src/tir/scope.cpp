@@ -30,6 +30,14 @@ bool Scope::contains(const Scope* other_scope) const {
     return false;
 }
 
+const Scope& Scope::root() const {
+    const Scope* s = this;
+    while (s->parent) {
+        s = s->parent;
+    }
+    return *s;
+}
+
 const Node* Scope::resolve_bindings(const ModValue* value) const {
     while (auto mod_var = value->isa<ModVar>()) {
         auto resolved = resolve_mod_var(mod_var);

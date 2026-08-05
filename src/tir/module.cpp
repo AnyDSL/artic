@@ -8,6 +8,10 @@ Module::Module(Builder& builder, const ast::ModDecl* decl)
     : NominalNode(builder.arena, NodeKind::Module), decl(decl), scope(builder.scope.new_child())
 {}
 
+Module::Module(Builder& builder, const ast::ModDecl* decl, Scope& scope)
+    : NominalNode(builder.arena, NodeKind::Module), decl(decl), scope(scope)
+{}
+
 Module::Decl* Module::add_decl(const ModVar* var) const {
     decls_.push_back(std::make_unique<Decl>(var, nullptr));
     scope.insert(var, nullptr);
@@ -104,7 +108,7 @@ bool Signature::equals(const Node* other) const {
     return false;
 }
 
-const Signature* Signature::from_node(Builder& builder, const Node* node) {
+const Signature* Signature::from_node(Builder& builder, const Node* node, bool public_interface) {
     if (auto mod_val = node->isa<ModValue>()) {
         return mod_val->infer_signature(builder.enclosing_module());
     }
@@ -117,7 +121,7 @@ const Signature* Signature::from_node(Builder& builder, const Node* node) {
             return builder.value_signature(value->type());
         }
         case NodeKind::Type: {
-            return builder.type_signature(node->as<Type>());
+            return builder.type_signature(public_interface ? node->as<Type>() : nullptr);
         }
         case NodeKind::Module: {
             return node->as<ModValue>()->infer_signature(builder.enclosing_module());
@@ -165,8 +169,9 @@ bool ModAccess::equals(const Node* other) const {
 }
 
 ModVar::ModVar(Builder& builder, const DeclKey* key, const Signature* sig)
-    : NominalNode(builder.arena, sig->elem_kind), key(key), scope(builder.scope), signature(sig)
-{}
+    : NominalNode(builder.arena, sig->elem_kind), key(key), scope(builder.scope), signature(sig) {
+    assert(sig);
+}
 
 const Signature* ModVar::infer_signature(ModuleBuilder&) const {
     return signature;
@@ -196,9 +201,10 @@ const Signature* ModAccess::infer_signature(ModuleBuilder& builder) const {
 }
 
 ModAccess::ModAccess(Arena& arena, const ModValue* mod, const DeclKey* key, const Signature* sig)
-    : ModValue(arena, sig->elem_kind), mod(mod), key(key) {
+    : ModValue(arena, sig->elem_kind), mod(mod), key(key), signature(sig) {
     assert(mod->is_simple() && mod->kind() == NodeKind::Module);
     assert(key->isa<DeclKey>());
+    assert(sig);
 }
 
 /*ModAccess::ModAccess(Arena& arena, const ModValue* mod, const DeclKey* key) : ModAccess {

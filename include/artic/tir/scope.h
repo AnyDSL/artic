@@ -17,6 +17,7 @@ struct Scope {
     Scope(const Scope&) = delete;
 
     bool contains(const Scope*) const;
+    const Scope& root() const;
 
     /// resolves one step of let-binding
     const Node* resolve_mod_var(const ModVar* var) const;

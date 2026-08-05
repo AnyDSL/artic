@@ -50,7 +50,7 @@ struct Signature : public Node {
     Node* rewrite(Rewriter&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
-    static const Signature* from_node(Builder&, const Node*);
+    static const Signature* from_node(Builder&, const Node*, bool public_interface = true);
 
     NodeKind kind() const override { return NodeKind::Signature; }
     bool is_simple() const override { return true; }
@@ -119,6 +119,8 @@ struct Module : public NominalNode<ModValue> {
     // void emit(Emitter&) const;
 
     Module(Builder&, const ast::ModDecl*);
+    /// Top-level module ctor
+    Module(Builder&, const ast::ModDecl*, Scope&);
 
     Decl* add_decl(const ModVar* var) const;
     void set_decl(Decl*, const Node* value) const;
