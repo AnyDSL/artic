@@ -34,6 +34,8 @@ public:
     bool enter_decl(const ast::Decl*);
     void exit_decl(const ast::Decl*);
 
+    void add_decl_to_parent(const ast::NamedDecl*);
+
     bool should_report_error(const Type*);
 
     void incompatible_types(const Loc&, const Type*, const Type*, const std::string_view& = "type");

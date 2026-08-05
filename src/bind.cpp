@@ -585,8 +585,8 @@ void ModDecl::bind(NameBinder& binder) {
     auto old_mod = binder.cur_mod;
     binder.cur_mod = this;
     binder.push_scope();
-    for (auto& decl : decls) binder.bind_head(*decl);
-    for (auto& decl : decls) { binder.bind(*decl); decl->enclosing_module = this; }
+    for (auto& decl : decls) { decl->enclosing_module = this; binder.bind_head(*decl); }
+    for (auto& decl : decls) binder.bind(*decl);
     std::swap(binder.scopes_, old_scopes);
     binder.cur_mod = old_mod;
 }
@@ -635,6 +635,7 @@ void UseDecl::bind_wildcard(artic::NameBinder& binder) {
         Path member_path(path.loc, true, std::move(member_path_elements));
         Identifier nid = member->id;
         wildcard_imports.push_back(binder.arena_.make_ptr<UseDecl>(loc, std::move(member_path), std::move(nid)));
+        wildcard_imports.back()->enclosing_module = enclosing_module;
         wildcard_imports.back()->bind_head(binder);
     }
 }
