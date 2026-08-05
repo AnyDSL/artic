@@ -34,7 +34,9 @@ void NameBinder::pop_scope() {
 
 void NameBinder::insert_symbol(ast::NamedDecl& decl, const std::string& name) {
     assert(!scopes_.empty());
-    assert(!name.empty());
+
+    // A declaration the parser could not finish has no identifier to bind.
+    if (name.empty()) return;
 
     // Do not bind anonymous variables
     if (name[0] == '_') return;
