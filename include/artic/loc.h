@@ -25,7 +25,7 @@ struct Loc {
     }
     bool operator != (const Loc& loc) const { return !(*this == loc); }
 
-    Loc() = default;
+    Loc() : Loc(nullptr, 0, 0) {}
     Loc(std::shared_ptr<std::string> file, int row, int col)
         : Loc(file, { row, col })
     {}

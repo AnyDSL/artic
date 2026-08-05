@@ -185,7 +185,7 @@ struct Path : public Node {
     // Set during name-binding, corresponds to the declaration that
     // is associated with the _first_ element of the path.
     // The rest of the path is resolved during type-checking.
-    ast::NamedDecl* start_decl;
+    ast::NamedDecl* start_decl = nullptr;
 
     // Set during type-checking
     bool is_value = false;
