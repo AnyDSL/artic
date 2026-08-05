@@ -508,51 +508,70 @@ bool ModVarAsType::is_sized(const Scope& scope, std::unordered_set<const Type*>&
 
 // Free variables ------------------------------------------------------------------
 
-void Type::free_variables(const Scope& scope, std::unordered_set<const ModVar*>& vars, std::unordered_set<const Type*>& seen) const {
+void BottomType::free_variables(FVSet&, Seen&) const {}
 
-}
+void TopType::free_variables(FVSet&, Seen&) const {}
 
-void TupleType::free_variables(const Scope& scope, std::unordered_set<const ModVar*>& vars, std::unordered_set<const Type*>& seen) const {
+void PrimType::free_variables(FVSet&, Seen&) const {}
+
+void TupleType::free_variables(FVSet& vars, Seen& seen) const {
     for (auto& elem : args)
-        elem->free_variables(scope, vars, seen);
+        elem->free_variables(vars, seen);
 }
 
-void ArrayType::free_variables(const Scope& scope, std::unordered_set<const ModVar*>& vars, std::unordered_set<const Type*>& seen) const {
-    elem->free_variables(scope, vars, seen);
+void ArrayType::free_variables(FVSet& vars, Seen& seen) const {
+    elem->free_variables(vars, seen);
 }
 
-void AddrType::free_variables(const Scope& scope, std::unordered_set<const ModVar*>& vars, std::unordered_set<const Type*>& seen) const {
-    pointee->free_variables(scope, vars, seen);
+void AddrType::free_variables(FVSet& vars, Seen& seen) const {
+    pointee->free_variables(vars, seen);
 }
 
-void ImplicitParamType::free_variables(const Scope& scope, std::unordered_set<const ModVar*>& vars, std::unordered_set<const Type*>& seen) const {
-    underlying->free_variables(scope, vars, seen);
+void ImplicitParamType::free_variables(FVSet& vars, Seen& seen) const {
+    underlying->free_variables(vars, seen);
 }
 
-void FnType::free_variables(const Scope& scope, std::unordered_set<const ModVar*>& vars, std::unordered_set<const Type*>& seen) const {
-    dom->free_variables(scope, vars, seen);
-    codom->free_variables(scope, vars, seen);
+void FnType::free_variables(FVSet& vars, Seen& seen) const {
+    dom->free_variables(vars, seen);
+    codom->free_variables(vars, seen);
 }
 
-void ComplexType::free_variables(const Scope& scope, std::unordered_set<const ModVar*>& vars, std::unordered_set<const Type*>& seen) const {
+void ComplexType::free_variables(FVSet& vars, Seen& seen) const {
     if (!seen.insert(this).second)
         return;
     for (size_t i = 0, n = member_count(); i < n; ++i) {
-        member_type(i)->free_variables(scope, vars, seen);
+        member_type(i)->free_variables(vars, seen);
     }
     seen.erase(this);
 }
 
-void TypeApp::free_variables(const Scope& scope, std::unordered_set<const ModVar*>& vars, std::unordered_set<const Type*>& seen) const {
-    applied->free_variables(scope, vars, seen);
+void TypeApp::free_variables(FVSet& vars, Seen& seen) const {
+    applied->free_variables(vars, seen);
     for (auto& arg : type_args)
-       arg->free_variables(scope, vars, seen);
+       arg->free_variables(vars, seen);
 }
 
-void ModVarAsType::free_variables(const Scope& scope, std::unordered_set<const ModVar*>& vars, std::unordered_set<const Type*>& seen) const {
-    auto resolved = scope.resolve_mod_var(var);
-    if (!resolved)
-        vars.insert(var);
+void ForallType::free_variables(FVSet&, Seen&) const {
+    assert(false);
+}
+
+void TypeVar::free_variables(FVSet&, Seen&) const {
+    assert(false);
+}
+
+void TypeAlias::free_variables(FVSet&, Seen&) const {
+    assert(false);
+}
+
+void TypeError::free_variables(FVSet&, Seen&) const {
+
+}
+
+void ModVarAsType::free_variables(FVSet& vars, Seen& seen) const {
+    return var->free_variables(vars, seen);
+    // auto resolved = scope.resolve_mod_var(var);
+    // if (!resolved)
+    //     vars.insert(var);
 }
 
 // Complex Types -------------------------------------------------------------------

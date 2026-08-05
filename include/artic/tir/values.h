@@ -42,6 +42,7 @@ struct Unit : public Value {
     size_t hash() const override;
     void print(Printer&) const override;
     const Node* rewrite(Rewriter&) const override;
+    void free_variables(FVSet&, Seen&) const override;
 
     const thorin::Def* emit(Emitter&) const override;
 
@@ -56,6 +57,7 @@ struct Param : public NominalNode<Value> {
 
     void print(Printer&) const override;
     const Node* rewrite(Rewriter&) const override;
+    void free_variables(FVSet&, Seen&) const override;
 
     bool is_computation() const override { return false; }
     bool is_simple() const override { return true; }
@@ -70,6 +72,8 @@ struct Fn : public NominalNode<Value> {
 
     void print(Printer&) const override;
     const Node* rewrite(Rewriter&) const override;
+    void free_variables(FVSet&, Seen&) const override;
+
     const FnType* resolve_type(const Scope& s) const override { return Value::resolve_type(s)->as<FnType>(); }
     bool is_computation() const override { return false; }
 
@@ -89,6 +93,7 @@ struct App : public Value {
 
     void print(Printer&) const override;
     Node* rewrite(Rewriter&) const override;
+    void free_variables(FVSet&, Seen&) const override;
 
     const thorin::Def* emit(Emitter&) const override;
 
@@ -102,6 +107,7 @@ struct GlobalVariable : public NominalNode<Value> {
 
     void print(Printer&) const override;
     const Node* rewrite(Rewriter&) const override;
+    void free_variables(FVSet&, Seen&) const override;
 
     const RefType* resolve_type(const Scope& s) const override { return Value::resolve_type(s)->as<RefType>(); }
     bool is_computation() const override { return false; }
@@ -116,6 +122,7 @@ struct LocalVariable : public NominalNode<Value> {
 
     void print(Printer&) const override;
     const Node* rewrite(Rewriter&) const override;
+    void free_variables(FVSet&, Seen&) const override;
 
     const RefType* resolve_type(const Scope& s) const override { return Value::resolve_type(s)->as<RefType>(); }
     const thorin::Def* emit(Emitter&) const override;
@@ -132,6 +139,7 @@ struct ImplicitCast : public Value {
 
     void print(Printer&) const override;
     const Node* rewrite(Rewriter&) const override;
+    void free_variables(FVSet&, Seen&) const override;
 
     const thorin::Def* emit(Emitter&) const override;
 
@@ -147,6 +155,7 @@ struct Cast : public Value {
 
     void print(Printer&) const override;
     const Node* rewrite(Rewriter&) const override;
+    void free_variables(FVSet&, Seen&) const override;
 
     const thorin::Def* emit(Emitter&) const override;
 
@@ -161,6 +170,7 @@ struct TypedLiteral : public Value {
 
     void print(Printer&) const override;
     const Node* rewrite(Rewriter&) const override;
+    void free_variables(FVSet&, Seen&) const override;
 
     const thorin::Def* emit(Emitter&) const override;
     bool is_computation() const override { return false; }
@@ -175,6 +185,7 @@ struct Undef : public Value {
 
     void print(Printer&) const override;
     const Node* rewrite(Rewriter&) const override;
+    void free_variables(FVSet&, Seen&) const override;
 
     const thorin::Def* emit(Emitter&) const override;
     bool is_computation() const override { return false; }
@@ -192,6 +203,7 @@ struct Agg : public Value {
 
     void print(Printer&) const override;
     const Node* rewrite(Rewriter&) const override;
+    void free_variables(FVSet&, Seen&) const override;
 
     bool is_computation() const override { return false; }
     const thorin::Def* emit(Emitter&) const override;
@@ -208,6 +220,7 @@ struct Extract : public Value {
 
     void print(Printer&) const override;
     const Node* rewrite(Rewriter&) const override;
+    void free_variables(FVSet&, Seen&) const override;
 
     const thorin::Def* emit(Emitter&) const override;
 
@@ -223,6 +236,7 @@ struct Proj : public Value {
 
     void print(Printer&) const override;
     const Node* rewrite(Rewriter&) const override;
+    void free_variables(FVSet&, Seen&) const override;
 
     const thorin::Def* emit(Emitter&) const override;
 
@@ -238,6 +252,7 @@ struct Bind : public Value {
 
     void print(Printer&) const override;
     const Node* rewrite(Rewriter&) const override;
+    void free_variables(FVSet&, Seen&) const override;
 
     const thorin::Def* emit(Emitter&) const override;
 
@@ -261,10 +276,12 @@ struct ModVarAsValue : public NominalNode<Value> {
 
     void print(Printer&) const override;
     const Node* rewrite(Rewriter&) const override;
+    void free_variables(FVSet&, Seen&) const override;
 
     const thorin::Def* emit(Emitter&) const override;
     bool is_computation() const override { return false; }
     bool is_simple() const override { return true; }
+
 
     ModVarAsValue(Builder&, Scope&, const ModVar*);
 };
@@ -277,6 +294,7 @@ struct Seq : public Value {
 
     void print(Printer&) const override;
     const Node* rewrite(Rewriter&) const override;
+    void free_variables(FVSet&, Seen&) const override;
 
     const thorin::Def* emit(Emitter&) const override;
 
@@ -292,6 +310,7 @@ struct UnOp : public Value {
 
     void print(Printer&) const override;
     const Node* rewrite(Rewriter&) const override;
+    void free_variables(FVSet&, Seen&) const override;
 
     const thorin::Def* emit(Emitter&) const override;
 
@@ -305,6 +324,7 @@ struct BinOp : public Value {
 
     bool equals(const Node*) const override;
     size_t hash() const override;
+    void free_variables(FVSet&, Seen&) const override;
 
     void print(Printer&) const override;
     const Node* rewrite(Rewriter&) const override;
@@ -322,6 +342,7 @@ struct Branch : public Value {
 
     bool equals(const Node*) const override;
     size_t hash() const override;
+    void free_variables(FVSet&, Seen&) const override;
 
     void print(Printer&) const override;
     const Node* rewrite(Rewriter&) const override;
@@ -336,6 +357,7 @@ struct Control : public Value {
 
     bool equals(const Node*) const override;
     size_t hash() const override;
+    void free_variables(FVSet&, Seen&) const override;
 
     void print(Printer&) const override;
     const Node* rewrite(Rewriter&) const override;

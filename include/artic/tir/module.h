@@ -22,6 +22,7 @@ struct DeclKey : public NominalNode<Node> {
 
     void print(Printer&) const override;
     Node* rewrite(Rewriter&) const override;
+    void free_variables(FVSet&, Seen&) const override {};
 
     NodeKind kind() const override { return NodeKind::Key; }
     bool is_simple() const override { return true; }
@@ -47,6 +48,7 @@ struct Signature : public Node {
     bool equals(const Node*) const override;
     void print(Printer& p) const override;
     Node* rewrite(Rewriter&) const override;
+    void free_variables(FVSet&, Seen&) const override;
 
     static const Signature* from_node(Builder&, const Node*);
 
@@ -79,6 +81,7 @@ struct ModVar : public NominalNode<ModValue> {
 
     void print(Printer&) const override;
     const Node* rewrite(Rewriter&) const override;
+    void free_variables(FVSet&, Seen&) const override;
 
     bool is_simple() const override { return true; }
 
@@ -111,6 +114,7 @@ struct Module : public NominalNode<ModValue> {
 
     void print(Printer&) const override;
     Node* rewrite(Rewriter&) const override;
+    void free_variables(FVSet&, Seen&) const override;
 
     // void emit(Emitter&) const;
 
@@ -127,15 +131,18 @@ private:
 struct ModAccess : public ModValue {
     const ModValue* mod;
     const DeclKey* key;
+    const Signature* signature;
 
     size_t hash() const override;
     bool equals(const Node*) const override;
     void print(Printer&) const override;
     Node* rewrite(Rewriter&) const override;
+    void free_variables(FVSet&, Seen&) const override;
 
     const Signature* infer_signature(ModuleBuilder&) const override;
 
-    ModAccess(Arena& arena, const ModValue*, const DeclKey*, NodeKind);
+    ModAccess(Arena& arena, const ModValue*, const DeclKey*, const Signature*);
+    ModAccess(Arena& arena, const ModValue*, const DeclKey*);
 };
 
 }

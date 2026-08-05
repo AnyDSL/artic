@@ -104,18 +104,6 @@ bool Signature::equals(const Node* other) const {
     return false;
 }
 
-/*size_t Signature::Hash::operator()(const Decl& decl) const {
-    return fnv::Hash().combine(decl.key).combine(decl.sig->hash());
-}
-
-bool Signature::Compare::operator()(const Decl& lhs, const Decl& rhs) const {
-    if (lhs.key != rhs.key)
-        return false;
-    if (!lhs.sig->equals(rhs.sig))
-        return false;
-    return true;
-}*/
-
 const Signature* Signature::from_node(Builder& builder, const Node* node) {
     if (auto mod_val = node->isa<ModValue>()) {
         return mod_val->infer_signature(builder.enclosing_module());
@@ -137,53 +125,6 @@ const Signature* Signature::from_node(Builder& builder, const Node* node) {
         default: assert(false);
     }
 }
-
-static inline const Node* import_node_var(ModuleBuilder& builder, const ModValue* outside_mod, const Node* node) {
-    assert(node->is_simple());
-    if (auto as_type = node->isa<ModVarAsType>()) {
-        auto imported = import_node_var(builder, outside_mod, as_type->var);
-        assert(imported->is_simple());
-        return builder.as_type(imported->as<ModVar>());
-    }
-    if (auto as_value = node->isa<ModVarAsValue>()) {
-        auto imported = import_node_var(builder, outside_mod, as_value->var);
-        assert(imported->is_simple());
-        return builder.as_value(imported->as<ModVar>());
-    }
-    if (auto mod_var = node->isa<ModVar>()) {
-        if (!builder.scope.resolve_mod_var(mod_var)) {
-            return builder.mod_access(outside_mod, mod_var->key, mod_var->kind());
-        }
-    }
-    return node;
-}
-
-// fixes up a signature by rewriting unknown
-// TODO fold this into the Rewriter infra
-static const Signature* import_signature(ModuleBuilder& builder, const ModValue* outside_mod, const Signature* sig) {
-    switch (sig->elem_kind) {
-        case NodeKind::Module: {
-            // std::unordered_map<const DeclKey*, const Signature*> fixed_decls;
-            auto modsig =  builder.mod_signature();
-            for (auto& [sig_key, decl_sig] : sig->mod_signature) {
-                assert(decl_sig && "cannot import incomplete decls");
-                auto imported_sig = import_signature(builder, outside_mod, decl_sig);
-                //fixed_decls.emplace(sig_key, imported_sig);
-                modsig->mod_signature.emplace(sig_key, imported_sig);
-            }
-            return modsig;
-        }
-        case NodeKind::Value: {
-            return builder.value_signature(import_node_var(builder, outside_mod, sig->value_type)->as<Type>());
-        }
-        case NodeKind::Type: {
-            return builder.value_signature(sig->type ? import_node_var(builder, outside_mod, sig->type)->as<Type>() : nullptr);
-        }
-        default: assert(false);
-    }
-}
-
-// static inline const Signature* import_signature(Builder& builder, const Sign)
 
 const Signature* Module::infer_signature(ModuleBuilder& builder) const {
     // assert(sealed);
@@ -240,7 +181,9 @@ const Signature* ModVar::infer_signature(ModuleBuilder&) const {
 }
 
 const Signature* ModAccess::infer_signature(ModuleBuilder& builder) const {
-    auto sig = mod->infer_signature(builder);
+    return signature;
+
+    /*auto sig = mod->infer_signature(builder);
     import_signature(builder, mod, sig);
     assert(sig->elem_kind == NodeKind::Module);
     //assert(sig->mod_signature);
@@ -249,13 +192,68 @@ const Signature* ModAccess::infer_signature(ModuleBuilder& builder) const {
     //     if (decl.key == key)
     //         return decl.sig;
     // }
-    assert(false && "key not found");
+    assert(false && "key not found");*/
 }
 
-ModAccess::ModAccess(Arena& arena, const ModValue* mod, const DeclKey* key, NodeKind kind)
-    : ModValue(arena, kind), mod(mod), key(key) {
+ModAccess::ModAccess(Arena& arena, const ModValue* mod, const DeclKey* key, const Signature* sig)
+    : ModValue(arena, sig->elem_kind), mod(mod), key(key) {
     assert(mod->is_simple() && mod->kind() == NodeKind::Module);
     assert(key->isa<DeclKey>());
+}
+
+/*ModAccess::ModAccess(Arena& arena, const ModValue* mod, const DeclKey* key) : ModAccess {
+    assert(false && "TODO");
+}*/
+
+// Free variables ------------------------------------------------------------------
+
+void Signature::free_variables(FVSet& vars, Seen& seen) const {
+    switch (elem_kind) {
+        case NodeKind::Value:
+            value_type->free_variables(vars, seen);
+            break;
+        case NodeKind::Type:
+            if (type)
+                type->free_variables(vars, seen);
+            break;
+        case NodeKind::Module:
+            for (auto& [key, sig] : mod_signature) {
+                assert(sig && "cannot determine free variables of an incomplete signature");
+                sig->free_variables(vars, seen);
+            }
+            break;
+        default: assert(false);
+    }
+}
+
+void ModVar::free_variables(FVSet& vars, Seen& seen) const {
+    vars.emplace(this);
+    signature->free_variables(vars, seen);
+}
+
+void ModAccess::free_variables(FVSet& vars, Seen& seen) const {
+   return signature->free_variables(vars, seen);
+}
+
+void Module::free_variables(FVSet& vars, Seen& seen) const {
+    FVSet inner_vars;
+    // we don't want to visit stuff we've seen before, but we do want to visit that stuff if we reach it from outside the module
+    Seen inner_seen = seen;
+    for (auto decl : decls()) {
+        auto [var, def] = *decl;
+        // free variables of the variable themselves matter
+        var->free_variables(vars, seen);
+        def->free_variables(inner_vars, inner_seen);
+    }
+    // remove the module variables from the inner FVs
+    for (auto decl : decls()) {
+        auto [var, _] = *decl;
+        inner_vars.erase(var);
+    }
+    // copy the remaining ones to the FV set
+    for (auto fv : inner_vars) {
+        vars.emplace(fv);
+    }
 }
 
 }

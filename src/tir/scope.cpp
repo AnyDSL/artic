@@ -20,6 +20,16 @@ bool Scope::is_in_scope(const ModVar* var) const {
     return false;
 }
 
+bool Scope::contains(const Scope* other_scope) const {
+    const Scope* s = this;
+    while (s) {
+        if (s == other_scope)
+            return true;
+        s = s->parent;
+    }
+    return false;
+}
+
 const Node* Scope::resolve_bindings(const ModValue* value) const {
     while (auto mod_var = value->isa<ModVar>()) {
         auto resolved = resolve_mod_var(mod_var);

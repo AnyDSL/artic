@@ -2,6 +2,7 @@
 #define ARTIC_TIR_H
 
 #include <cstddef>
+#include <unordered_set>
 
 #include "artic/ast.h"
 #include "artic/cast.h"
@@ -52,6 +53,18 @@ struct Node : public Cast<Node> {
     virtual const Node* rewrite(Rewriter&) const = 0;
 
     virtual bool is_simple() const { return false; }
+
+    using Seen = std::unordered_set<const Node*>;
+    using FVSet = std::unordered_set<const ModVar*>;
+
+    virtual void free_variables(FVSet&, Seen&) const = 0;
+
+    std::unordered_set<const ModVar*> free_variables() const {
+        std::unordered_set<const ModVar*> vars;
+        std::unordered_set<const Node*> seen;
+        free_variables(vars, seen);
+        return vars;
+    }
 
     /// Prints the type on the console, for debugging.
     void dump() const;

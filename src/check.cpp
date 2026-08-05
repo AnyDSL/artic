@@ -1097,7 +1097,7 @@ const tir::Node* Path::Elem::infer(TypeChecker& checker, Path::Elem* prev, Path&
                 if (auto mod_var = tir->isa<ModVar>()) {
                     //value = checker.scope().resolve_mod_var(mod_var);
                     if (!checker.scope().is_in_scope(mod_var))
-                        tir = checker.builder().enclosing_module().mod_access(prev->tir->as<ModValue>(), mod_var->key, mod_var->kind());
+                        tir = checker.builder().enclosing_module().mod_access(prev->tir->as<ModValue>(), mod_var->key, module->infer_signature(checker.mod_builder()));
                 }
                 assert(tir);
                 return tir;
@@ -2430,7 +2430,7 @@ const tir::Node* FieldDecl::infer(TypeChecker& checker) {
 const tir::Signature* StructDecl::infer_signature(TypeChecker& checker) {
     auto struct_type = checker.builder().struct_type(checker.infer(type_params ? &*type_params : nullptr), this);
     // Set the type before entering the fields
-    unnamed_type = checker.mod_builder().schedule_and_bind_type(struct_type);
+    unnamed_type = checker.mod_builder().schedule_type(struct_type);
     for (auto& field : fields)
         struct_type->members.push_back(checker.infer_type(*field));
     struct_type->validate();

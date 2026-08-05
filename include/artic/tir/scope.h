@@ -16,6 +16,8 @@ struct Scope {
     Scope(Scope* parent) : parent(parent) {}
     Scope(const Scope&) = delete;
 
+    bool contains(const Scope*) const;
+
     /// resolves one step of let-binding
     const Node* resolve_mod_var(const ModVar* var) const;
     bool is_in_scope(const ModVar* var) const;

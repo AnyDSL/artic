@@ -452,6 +452,89 @@ bool Control::equals(const Node* other) const {
     return false;
 }
 
+// Free variables ------------------------------------------------------------------
+
+void Unit::free_variables(FVSet&, Seen&) const {}
+
+void Undef::free_variables(FVSet& vars, Seen& seen) const {
+    return type()->free_variables(vars, seen);
+}
+
+void TypedLiteral::free_variables(FVSet& vars, Seen& seen) const {
+    type()->free_variables(vars, seen);
+}
+
+void Param::free_variables(FVSet&, Seen&) const {
+    // TODO: one day params will be tracked too
+    assert(false && "TODO");
+}
+
+void Fn::free_variables(FVSet&, Seen&) const {
+    assert(false && "TODO");
+}
+
+void App::free_variables(FVSet&, Seen&) const {
+    assert(false && "TODO");
+}
+
+void GlobalVariable::free_variables(FVSet&, Seen&) const {
+    assert(false && "TODO");
+}
+
+void LocalVariable::free_variables(FVSet&, Seen&) const {
+    assert(false && "TODO");
+}
+
+void Agg::free_variables(FVSet&, Seen&) const {
+    assert(false && "TODO");
+}
+
+void Extract::free_variables(FVSet&, Seen&) const {
+    assert(false && "TODO");
+}
+
+void Proj::free_variables(FVSet&, Seen&) const {
+    assert(false && "TODO");
+}
+
+void Bind::free_variables(FVSet&, Seen&) const {
+    assert(false && "TODO");
+}
+
+void Seq::free_variables(FVSet&, Seen&) const {
+    assert(false && "TODO");
+}
+
+void Cast::free_variables(FVSet&, Seen&) const {
+    assert(false && "TODO");
+}
+
+void ImplicitCast::free_variables(FVSet&, Seen&) const {
+    assert(false && "TODO");
+}
+
+void UnOp::free_variables(FVSet&, Seen&) const {
+    assert(false && "TODO");
+}
+
+void BinOp::free_variables(FVSet&, Seen&) const {
+    assert(false && "TODO");
+}
+
+void Branch::free_variables(FVSet&, Seen&) const {
+    assert(false && "TODO");
+}
+
+void Control::free_variables(FVSet&, Seen&) const {
+    assert(false && "TODO");
+}
+
+void ModVarAsValue::free_variables(FVSet& vars, Seen& seen) const {
+    var->free_variables(vars, seen);
+}
+
+
+
 }
 
 }

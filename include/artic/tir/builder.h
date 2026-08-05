@@ -29,6 +29,7 @@ public:
     const TypeError* type_error();
 
     Scope& root_scope() { return *root_scope_; }
+    const Scope* vars_scope(const Node::FVSet& fvs);
 
 private:
     template <typename T, typename... Args>
@@ -137,7 +138,8 @@ struct Builder : public artic::Cast<Builder> {
 struct ModuleBuilder : public Builder {
     ModuleBuilder(Arena& arena, Builder* parent, const Module* mod) : Builder(arena, mod->scope, parent), module_(mod) {}
 
-    const ModValue* mod_access(const ModValue*, const DeclKey*, NodeKind);
+    const ModValue* mod_access(const ModValue*, const DeclKey*, const Signature*);
+    // const ModValue* mod_access(const ModValue*, const DeclKey*);
 
     const ModVar* add_in_module(const Node*, const DeclKey*);
     // const ModVar* add_in_module(std::optional<ast::Identifier> = std::nullopt);
@@ -145,13 +147,16 @@ struct ModuleBuilder : public Builder {
     const Type* import_type(const Type*);
     const Module& module() { return *module_; }
 
-    const Type* schedule_and_bind_type(const Type*, std::optional<ast::Identifier> = std::nullopt);
+    const Type* schedule_type(const Type*, std::optional<ast::Identifier> = std::nullopt);
+    const Value* schedule_value(const Value*, std::optional<ast::Identifier> = std::nullopt);
+    const ModVar* schedule_mod_value(const ModValue*, std::optional<ast::Identifier> = std::nullopt);
+    //const Type* schedule_and_bind_type(const Type*, std::optional<ast::Identifier> = std::nullopt);
 private:
     const Module* module_;
 
-    const Node* import(const Scope&, const Node*);
+    const Node* import(const Node*);
+    const ModVar* schedule(const Node*, std::optional<ast::Identifier> = std::nullopt);
 
-    const ModVar* schedule_and_bind_module_op(const ModAccess*, std::optional<ast::Identifier> = std::nullopt);
     std::unordered_map<const Node*, const ModVar*> already_bound_here;
 };
 

@@ -169,7 +169,7 @@ const Module* Builder::module(const ast::ModDecl* decl) {
     return arena.insert<Module>(*this, decl);
 }
 
-const ModValue* ModuleBuilder::mod_access(const ModValue* src, const DeclKey* key, NodeKind kind) {
+const ModValue* ModuleBuilder::mod_access(const ModValue* src, const DeclKey* key, const Signature* sig) {
     assert(src->is_simple());
     if (auto var = src->isa<ModVar>()) {
         auto mod = scope.peek_mod_value(var)->isa<Module>();
@@ -183,7 +183,7 @@ const ModValue* ModuleBuilder::mod_access(const ModValue* src, const DeclKey* ke
             }
         }
     }
-    return schedule_and_bind_module_op(arena.insert<ModAccess>(arena, src, key, kind));
+    return schedule(arena.insert<ModAccess>(arena, src, key, sig));
 }
 
 const Value* Builder::as_value(const ModVar* var) {
@@ -382,108 +382,104 @@ struct Importer : public Rewriter {
             return old->rewrite(*this);
         }
         assert(old->is_simple());
-        if (auto t = old->isa<Type>()) {
-            // stuff available at the dst is left alone
-            if (t->free_variables(builder.scope).empty()) {
-                return t;
-            }
-            // mod variables are rewritten as imported paths
-            if (auto as_type = t->isa<ModVarAsType>()) {
-                const ModValue* mod = nullptr;
 
-                // re-enter modules to find the damn thing
-                for (size_t i = 0; i < suffix.size(); i++) {
-                    if (!mod) {
-                        mod = suffix[i]->mod_var;
-                    }
-
-                    auto sig = mod->infer_signature(builder);
-                    assert(sig->elem_kind == NodeKind::Module);
-                    sig->dump();
-
-                    // for (auto& decl : sig->mod_signature) {
-                    //     if (decl.key == as_type->var->key) {
-                    //         auto found_var = builder.mod_access(mod, decl.key, NodeKind::Type)->as<ModVar>();
-                    //         return builder.as_type(found_var);
-                    //     }
-                    // }
-
-                    if (i + 1 < suffix.size()) {
-                        mod = builder.mod_access(mod, suffix[i + 1]->mod_var->key, NodeKind::Module);
-                    }
-                }
-                assert(false);
-            }
-            return old->rewrite(*this);
+        // stuff available at the dst is left alone
+        auto fvs = old->free_variables();
+        auto old_scope = builder.arena.vars_scope(fvs);
+        if (builder.scope.contains(old_scope)) {
+            return old;
         }
-        return old;
+
+        // mod variables are rewritten as imported paths
+        if (auto as_type = old->isa<ModVarAsType>()) {
+            const ModValue* mod = nullptr;
+
+            // re-enter modules to find the damn thing
+            for (size_t i = 0; i < suffix.size(); i++) {
+                if (!mod) {
+                    mod = suffix[i]->mod_var;
+                }
+
+                auto sig = mod->infer_signature(builder);
+                assert(sig->elem_kind == NodeKind::Module);
+                sig->dump();
+
+                // for (auto& decl : sig->mod_signature) {
+                //     if (decl.key == as_type->var->key) {
+                //         auto found_var = builder.mod_access(mod, decl.key, NodeKind::Type)->as<ModVar>();
+                //         return builder.as_type(found_var);
+                //     }
+                // }
+
+                if (i + 1 < suffix.size()) {
+                    auto key = suffix[i + 1]->mod_var->key;
+                    mod = builder.mod_access(mod, key, sig->mod_signature[key]);
+                }
+            }
+            assert(false);
+        }
+        return old->rewrite(*this);
     }
 };
 
-const Node* ModuleBuilder::import(const Scope& scope, const Node* node) {
+const Node* ModuleBuilder::import(const Node* node) {
+    auto fvs = node->free_variables();
+    const Scope* node_scope = arena.vars_scope(fvs);
+    // the node is in scope already, all good
+    if (scope.contains(node_scope)) {
+        return node;
+    }
+
     assert(node->is_simple());
     Importer importer(*this, scope);
     return importer.instantiate(node, false);
 }
 
 const Type* ModuleBuilder::import_type(const Type* t) {
-    if (t->free_variables(this->scope).empty()) {
-        return t;
-    }
-    const Scope* scope = &this->scope;
-    for (auto fv : t->free_variables(*scope)) {
-        scope = unify_scopes(scope, &fv->scope);
-    }
-    return import(*scope, t)->as<Type>();
+    return import(t)->as<Type>();
 }
 
-const Type* ModuleBuilder::schedule_and_bind_type(const Type* type, std::optional<ast::Identifier> maybe_id) {
-    assert(!type->is_simple());
-    // find the outermost scope we can drop this type in!
-    ModuleBuilder* best = nullptr;
+const Scope* Arena::vars_scope(const Node::FVSet& fvs) {
+    const Scope* s = &root_scope();
+    for (auto fv : fvs) {
+        s = unify_scopes(s, &fv->scope);
+    }
+    return s;
+}
+
+const ModVar* ModuleBuilder::schedule(const Node* node, std::optional<ast::Identifier> maybe_id) {
+    auto fvs = node->free_variables();
+    const Scope* node_scope = arena.vars_scope(fvs);
+    assert(scope.contains(node_scope) && "this node cannot be scheduled here or in any parent module, it has free variables that would not be bound");
+    assert(node_scope->mod_def);
+
+    // find the corresponding module builder
+    ModuleBuilder* dst = nullptr;
     for (Builder* b = this; b; b = b->parent) {
         if (auto mb = b->isa<ModuleBuilder>()) {
-            auto found = mb->already_bound_here.find(type);
-            if (found != mb->already_bound_here.end()) {
-                return as_type(found->second);
+            if (&mb->scope == node_scope) {
+                dst = mb;
+                break;
             }
-
-            if (type->free_variables(mb->scope).empty())
-                best = mb;
         }
     }
-
-    assert(best && "no suitable scope to schedule this node at");
-    //auto var = best->add_in_module(type, maybe_id);
-    //best->already_bound_here[type] = var;
-    //return as_type(var);
-
-    auto var = mod_var(decl_key(maybe_id), type_signature(nullptr));
+    assert(dst && "failed to find the matching builder for the dst scope");
+    auto var = mod_var(decl_key(maybe_id), Signature::from_node(*this, node));
     auto decl = module_->add_decl(var);
-    module_->set_decl(decl, type);
-    return as_type(var);
+    module_->set_decl(decl, node);
+    return var;
 }
 
-const ModVar* ModuleBuilder::schedule_and_bind_module_op(const ModAccess* access, std::optional<ast::Identifier> maybe_id) {
-    assert(!access->is_simple());
-    // find the outermost scope we can drop this type in!
-    ModuleBuilder* best = nullptr;
-    for (Builder* b = this; b; b = b->parent) {
-        if (auto mb = b->isa<ModuleBuilder>()) {
-            auto found = mb->already_bound_here.find(access);
-            if (found != mb->already_bound_here.end()) {
-                return found->second;
-            }
+const Type* ModuleBuilder::schedule_type(const Type* type, std::optional<ast::Identifier> id) {
+    return as_type(schedule(type, id));
+}
 
-            if (mb->scope.resolve_mod_var(access->mod->as<ModVar>()))
-                best = mb;
-        }
-    }
+const Value* ModuleBuilder::schedule_value(const Value* value, std::optional<ast::Identifier> id) {
+    return as_value(schedule(value, id));
+}
 
-    assert(best && "no suitable scope to schedule this node at");
-    auto var = best->add_in_module(access, decl_key(maybe_id));
-    best->already_bound_here[access] = var;
-    return var;
+const ModVar* ModuleBuilder::schedule_mod_value(const ModValue* node, std::optional<ast::Identifier> id) {
+    return schedule(node, id);
 }
 
 const ModVar* ModuleBuilder::add_in_module(const Node* node, const DeclKey* key) {
