@@ -618,6 +618,14 @@ const artic::Type* Node::infer(TypeChecker& checker) {
     return checker.cannot_infer(loc, "expression");
 }
 
+// A node the parser gave up on. It carries the error type rather than no type at all, so
+// `should_report_error()` silences everything downstream that touches it: the parse error
+// has already been reported, and "cannot infer type for expression" adds nothing to it.
+const artic::Type* ErrorType::infer(TypeChecker& checker) { return checker.type_table.type_error(); }
+const artic::Type* ErrorExpr::infer(TypeChecker& checker) { return checker.type_table.type_error(); }
+const artic::Type* ErrorDecl::infer(TypeChecker& checker) { return checker.type_table.type_error(); }
+const artic::Type* ErrorPtrn::infer(TypeChecker& checker) { return checker.type_table.type_error(); }
+
 const artic::Type* Ptrn::check(TypeChecker& checker, const artic::Type* expected) {
     // Patterns use the inverted subtype relation: In this case, the expected type
     // is assumed to be the type of the expression bound by the pattern, and thus

@@ -434,6 +434,7 @@ struct ErrorType : public Type {
     {}
 
     void bind(NameBinder&) override;
+    const artic::Type* infer(TypeChecker&) override;
     void print(Printer&) const override;
 };
 
@@ -1203,6 +1204,7 @@ struct ErrorExpr : public Expr {
     {}
 
     void bind(NameBinder&) override;
+    const artic::Type* infer(TypeChecker&) override;
     void resolve_summons(Summoner&) override {};
     void print(Printer&) const override;
 };
@@ -1555,6 +1557,7 @@ struct ErrorDecl : public Decl {
     ErrorDecl(const Loc& loc) : Decl(loc) {}
 
     void bind(NameBinder&) override;
+    const artic::Type* infer(TypeChecker&) override;
     void resolve_summons(Summoner&) override {};
     void print(Printer&) const override;
 };
@@ -1752,6 +1755,7 @@ struct ErrorPtrn : public Ptrn {
     bool is_trivial() const override;
 
     void bind(NameBinder&) override;
+    const artic::Type* infer(TypeChecker&) override;
     void resolve_summons(Summoner&) override {};
     void print(Printer&) const override;
 };
