@@ -171,7 +171,7 @@ template <typename... Args>
 void error(const char* fmt, Args&&... args) {
     log::format(err, "{}: ", error_style("error"));
     log::format(err, fmt, std::forward<Args>(args)...);
-    out.stream << std::endl;
+    err.stream << std::endl;
 }
 
 } // namespace log
