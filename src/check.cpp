@@ -1723,6 +1723,7 @@ const tir::Node* CallExpr::infer(TypeChecker& checker) {
 
 const tir::Node* ProjExpr::infer(TypeChecker& checker) {
     auto [ref_type, expr_type] = remove_ref(checker.builder(), checker.infer_value(*expr)->type());
+    expr_type = checker.scope().peek_type_definition(expr_type);
     auto ptr_type = expr_type->isa<artic::PtrType>();
     if (ptr_type) {
         // Must dereference references to pointers, such that the pointer offset is computed on the

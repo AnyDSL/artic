@@ -204,20 +204,21 @@ bool Agg::equals(const Node* other) const {
 }
 
 Extract::Extract(Builder& builder, const Value* src, const Value* idx) : Value(builder.arena, [&]() -> const Type* {
-    if (auto tuple_t = src->type()->isa<TupleType>()) {
+    auto peeked_agg_type = builder.scope.peek_type_definition(src->type());
+    if (auto tuple_t = peeked_agg_type->isa<TupleType>()) {
         if (auto lit_idx = idx->isa<TypedLiteral>(); lit_idx) {
             size_t idx_value = lit_idx->value.as_integer();
             if (idx_value >= tuple_t->args.size())
                 return builder.type_error();
-            return tuple_t->args[idx_value];
+            return builder.enclosing_module().import_type(tuple_t->args[idx_value]);
         }
-    } else if (auto array_t = src->type()->isa<SizedArrayType>()) {
+    } else if (auto array_t = peeked_agg_type->isa<SizedArrayType>()) {
         assert(idx->isa<TypedLiteral>());
-        return array_t->elem;
-    } else if (auto [_, struct_t] = match_app<StructType>(src->type()); struct_t) {
+        return builder.enclosing_module().import_type(array_t->elem);
+    } else if (auto [_, struct_t] = match_app<StructType>(peeked_agg_type); struct_t) {
         if (auto lit_idx = idx->isa<TypedLiteral>(); lit_idx) {
             size_t idx_value = lit_idx->value.as_integer();
-            return builder.member_type(src->type(), idx_value);
+            return builder.enclosing_module().import_type(builder.member_type(src->type(), idx_value));
         }
     } else {
         assert(false);
@@ -244,35 +245,38 @@ Proj::Proj(Builder& builder, const Value* src, const Value* idx) : Value(builder
     const Type* pointee_t = nullptr;
     bool mut;
     size_t as;
-    auto [ref_t, ref_pointee] = remove_ref(builder, src->type());
+
+    auto peeked_addr_type = builder.scope.peek_type_definition(src->type());
+    auto [ref_t, ref_pointee] = remove_ref(builder, peeked_addr_type);
     if (ref_t) {
-        pointee_t = ref_pointee;
         mut = ref_t->is_mut;
         as = ref_t->addr_space;
     } else {
-        auto [ptr_t, ptr_pointee] = remove_ptr(builder.scope, src->type());
+        auto [ptr_t, ptr_pointee] = remove_ptr(builder.scope, peeked_addr_type);
         assert(ptr_t && "Proj works on Ref or Ptr types.");
-        pointee_t = ptr_pointee;
         mut = ptr_t->is_mut;
         as = ptr_t->addr_space;
     }
 
+    auto peeked_pointee_t = builder.scope.peek_type_definition(pointee_t);
+
     auto wrap_pointee = [&](const Type* new_pointee) -> const Type* {
+        assert(new_pointee->is_simple());
         if (ref_t)
             return builder.ref_type(new_pointee, mut, as);
         return builder.ptr_type(new_pointee, mut, as);
     };
 
-    if (auto tuple_t = pointee_t->isa<TupleType>()) {
+    if (auto tuple_t = peeked_pointee_t->isa<TupleType>()) {
         if (auto lit_idx = idx->isa<TypedLiteral>(); lit_idx) {
             size_t idx_value = lit_idx->value.as_integer();
             if (idx_value >= tuple_t->args.size())
                 return builder.type_error();
-            return wrap_pointee(tuple_t->args[idx_value]);
+            return wrap_pointee(builder.enclosing_module().import_type(tuple_t->args[idx_value]));
         }
-    } else if (auto array_t = pointee_t->isa<ArrayType>()) {
-        return wrap_pointee(array_t->elem);
-    } else if (auto [_, struct_t] = match_app<StructType>(pointee_t); struct_t) {
+    } else if (auto array_t = peeked_pointee_t->isa<ArrayType>()) {
+        return wrap_pointee(builder.enclosing_module().import_type(array_t->elem));
+    } else if (auto [_, struct_t] = match_app<StructType>(peeked_pointee_t); struct_t) {
         if (auto lit_idx = idx->isa<TypedLiteral>(); lit_idx) {
             size_t idx_value = lit_idx->value.as_integer();
             return wrap_pointee(builder.member_type(pointee_t, idx_value));
