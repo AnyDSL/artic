@@ -59,13 +59,12 @@ struct Loc {
 };
 
 inline std::ostream& operator << (std::ostream& os, const Loc& loc) {
-    os << *loc.file << "(";
-    os << loc.begin.row << ", " << loc.begin.col;
+    os << *loc.file << ":";
+    os << loc.begin.row << ":" << loc.begin.col;
     if (loc.begin.row != loc.end.row ||
         loc.begin.col != loc.end.col) {
-        os << " - " << loc.end.row << ", " << loc.end.col;
+        os << "-" << loc.end.row << ":" << loc.end.col;
     }
-    os << ")";
     return os;
 }
 
