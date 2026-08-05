@@ -34,7 +34,7 @@ public:
     bool enter_decl(const ast::Decl*);
     void exit_decl(const ast::Decl*);
 
-    void add_decl_to_parent(const ast::NamedDecl*);
+    void add_decl_to_parent_mod_sig(const ast::NamedDecl*);
 
     bool should_report_error(const Type*);
 
@@ -42,7 +42,7 @@ public:
     void incompatible_type(const Loc&, const std::string_view&, const Type*);
     void type_expected(const Loc&, const Type*, const std::string_view&);
     void unknown_member(const Loc&, const UserType*, const std::string_view&);
-    void unknown_module_member(const Loc&, const Module*, const std::string_view&);
+    void unknown_module_member(const Loc&, const Module*, const ModVar*, const std::string_view&);
     void cannot_infer(const Loc&, const std::string_view&);
     void unreachable_code(const Loc&, const Loc&, const Loc&);
     void mutable_expected(const Loc&);
@@ -163,6 +163,7 @@ private:
     Value* summon_value(const artic::Type*, const artic::Loc& at);
 
     Builder* current_builder_ = nullptr;
+    std::unique_ptr<ModuleBuilder> root_builder;
 
     friend ast::SummonExpr;
     friend ast::ImplicitDecl;

@@ -131,6 +131,8 @@ struct Builder : public artic::Cast<Builder> {
     const Param* param(std::optional<ast::Identifier>, const Type*);
     // const Value* seq(const ArrayRef<const Value*>&);
     const Value* unit();
+
+    std::vector<std::unique_ptr<Builder>> children;
 };
 
 struct ModuleBuilder : public Builder {

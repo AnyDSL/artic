@@ -1495,11 +1495,12 @@ struct ModDecl : public NamedDecl {
     PtrVector<Decl> decls;
     ModDecl* super = nullptr;
 
-    // Set during type-checking, only for the top-level module
+    // Set during type-checking
     mutable const tir::Module* self = nullptr;
     // used by decl inference so they can be scheduled at the right place
     mutable tir::ModuleBuilder* builder = nullptr;
     mutable tir::ModuleBuilder* sig_builder = nullptr;
+    mutable tir::ModuleBuilder* parent_builder = nullptr;
 
     /// Constructor for the implicitly defined global module.
     /// When using this constructor, the user is responsible for calling
@@ -1518,6 +1519,7 @@ struct ModDecl : public NamedDecl {
     void set_super();
     std::optional<NamedDecl*> find_member(const std::string_view& name) const;
 
+    const tir::Signature* infer_signature(TypeChecker& checker) override;
     const tir::Node* infer(TypeChecker&) override;
     void bind_head(NameBinder&) override;
     void bind(NameBinder&) override;

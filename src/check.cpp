@@ -206,11 +206,13 @@ void TypeChecker::unknown_member(const Loc& loc, const UserType* user_type, cons
     error(loc, "no member '{}' in '{}'", member, *user_type);
 }
 
-void TypeChecker::unknown_module_member(const Loc& loc, const Module* module, const std::string_view& member) {
-    if (module->decl->id.name == "")
+void TypeChecker::unknown_module_member(const Loc& loc, const Module* module, const ModVar* var, const std::string_view& member) {
+    if (module && module->decl->id.name == "")
         error(loc, "no member '{}' in top-level module", member);
-    else
+    else if (module)
         error(loc, "no member '{}' in '{}'", member, *module);
+    else
+        error(loc, "no member '{}' in '{}'", member, *var);
 }
 
 void TypeChecker::cannot_infer(const Loc& loc, const std::string_view& msg) {
@@ -436,7 +438,7 @@ const tir::Signature* TypeChecker::infer_signature(ast::NamedDecl& decl) {
     if (decl.signature)
         return decl.signature;
 
-    decl.infer(*this);
+    decl.infer_signature(*this);
     assert(decl.signature);
     return decl.signature;
 }
@@ -468,7 +470,7 @@ const tir::ModVar* TypeChecker::infer_mod_decl(ast::Decl& node) {
     return node.var->as<ModVar>();
 }
 
-void TypeChecker::add_decl_to_parent(const ast::NamedDecl* decl) {
+void TypeChecker::add_decl_to_parent_mod_sig(const ast::NamedDecl* decl) {
     assert(decl->var && "decl must be emitted by now");
     decl->enclosing_module->signature->mod_signature[decl->var->key] = decl->enclosing_module->sig_builder->import_signature(decl->var->signature());
 }
@@ -1025,6 +1027,13 @@ const tir::Node* Node::check(TypeChecker& checker, const artic::Type* expected) 
 const tir::Node* Node::infer(TypeChecker& checker) {
     checker.cannot_infer(loc, "expression");
     return checker.builder().error_value(checker.builder().type_error());
+}
+
+const tir::Signature* NamedDecl::infer_signature(TypeChecker& checker) {
+    // default to inferring the full thing to get a signature
+    checker.infer_mod_decl(*this);
+    assert(signature);
+    return signature;
 }
 
 const tir::Node* Ptrn::check(TypeChecker& checker, const artic::Type* expected) {
@@ -2387,7 +2396,7 @@ const tir::Node* StaticDecl::infer(TypeChecker& checker) {
     }
     checker.exit_decl(this);
     var = checker.mod_builder().add_in_module(checker.builder().global_variable(value_type, is_mut, value), checker.infer_key(*this));
-    checker.add_decl_to_parent(this);
+    checker.add_decl_to_parent_mod_sig(this);
     return var;
 }
 
@@ -2411,6 +2420,7 @@ const tir::Node* FnDecl::infer(TypeChecker& checker) {
     if (fn->ret_type) {
         auto param_type = checker.infer_ptrn(*fn->param);
         codom = checker.infer_type(*fn->ret_type);
+
         if (fn->filter)
             checker.check_value(*fn->filter, checker.builder().bool_type());
         checker.check_refutability(*fn->param, true);
@@ -2420,10 +2430,9 @@ const tir::Node* FnDecl::infer(TypeChecker& checker) {
         //fn_type = tir_fn->resolve_type(checker.scope());
     }
 
-    // Set the type of this function right now, in case
-    // the `return` keyword is encountered in the body.
+    signature = checker.builder().value_signature(tir_fn->type());
     var = checker.mod_builder().add_in_module(forall ? forall : tir_fn, checker.infer_key(*this));
-    checker.add_decl_to_parent(this);
+    checker.add_decl_to_parent_mod_sig(this);
     // if (forall)
     //     forall->body = fn_type;
     if (fn->ret_type && fn->body) {
@@ -2458,7 +2467,7 @@ const tir::Node* StructDecl::infer(TypeChecker& checker) {
     unnamed_type = checker.mod_builder().schedule_type(struct_type);
     signature = checker.builder().type_signature(unnamed_type);
     var = checker.mod_builder().add_in_module(unnamed_type, checker.infer_key(*this));
-    checker.add_decl_to_parent(this);
+    checker.add_decl_to_parent_mod_sig(this);
 
     for (auto& field : fields)
         struct_type->members.push_back(checker.infer_type(*field));
@@ -2486,7 +2495,7 @@ const tir::Node* EnumDecl::infer(TypeChecker& checker) {
     // Set the type before entering the options
     var = checker.mod_builder().add_in_module(enum_type, checker.infer_key(*this));
     signature = checker.builder().type_signature(enum_type);
-    checker.add_decl_to_parent(this);
+    checker.add_decl_to_parent_mod_sig(this);
     for (auto& option : options)
         enum_type->members.push_back(checker.infer_type(*option));
     enum_type->validate();
@@ -2500,7 +2509,7 @@ const tir::Node* TypeDecl::infer(TypeChecker& checker) {
     auto rhs_type = checker.infer_type(*aliased_type);
     signature = checker.builder().type_signature(rhs_type);
     var = checker.mod_builder().add_in_module(rhs_type, checker.infer_key(*this));
-    checker.add_decl_to_parent(this);
+    checker.add_decl_to_parent_mod_sig(this);
 
     /*const artic::Type* type = nullptr;
     if (type_params) {
@@ -2516,6 +2525,42 @@ const tir::Node* TypeDecl::infer(TypeChecker& checker) {
     return var;
 }
 
+const tir::Signature* ModDecl::infer_signature(TypeChecker& checker) {
+    assert(!signature && !self);
+
+    bool is_root_module = !checker.root_builder;
+    if (is_root_module) {
+        checker.root_builder = std::make_unique<ModuleBuilder>(checker.arena, this);
+        this->builder = &*checker.root_builder;
+        this->self = &builder->module();
+        this->sig_builder = &*checker.root_builder;
+    } else {
+        this->parent_builder = super->sig_builder;
+        this->self = parent_builder->Builder::module(this);
+        auto mb = std::make_unique<ModuleBuilder>(checker.arena, parent_builder, self);
+        this->builder = &*mb;
+        parent_builder->children.emplace_back(std::move(mb));
+        this->sig_builder = parent_builder;
+        assert(super);
+
+        checker.infer_signature(*super);
+    }
+
+    signature = self->signature_;
+
+    TypeChecker::BuilderGuard guard(checker, *sig_builder);
+    // pre-populate the signature with dummy decls
+    for (auto& decl : decls) {
+        if (auto named = decl->isa<NamedDecl>()) {
+            if (auto use = decl->isa<UseDecl>(); use && use->id.name.empty())
+                continue;
+            signature->mod_signature.emplace(checker.infer_key(*named), nullptr);
+        }
+    }
+
+    return signature;
+}
+
 const tir::Node* ModDecl::infer(TypeChecker& checker) {
     // for (auto& decl: decls)
     //     if (auto impl_decl = decl->isa<ImplicitDecl>())
@@ -2525,46 +2570,29 @@ const tir::Node* ModDecl::infer(TypeChecker& checker) {
 
     checker.enter_decl(this);
 
-    Builder* parent_builder = checker.current_builder_;
-    bool is_top_level_module = !parent_builder;
+    // Builder* parent_builder = checker.current_builder_;
+    // bool is_top_level_module = !parent_builder;
 
-    std::unique_ptr<ModuleBuilder> builder;
-    const Module* tir_module = nullptr;
-    if (is_top_level_module) {
-        builder = std::make_unique<ModuleBuilder>(checker.arena, this);
-        this->builder = &*builder;
-        this->sig_builder = &*builder;
-        checker.current_builder_ = &*builder;
+    if (!signature)
+        infer_signature(checker);
+    assert(self && signature && builder);
 
-        tir_module = &builder->module();
-        signature = tir_module->signature_;
-    }
-
-    if (!is_top_level_module) {
-        tir_module = checker.builder().module(this);
-        signature = tir_module->signature_;
-        auto mod_var = checker.mod_builder().mod_var(checker.infer_key(*this), signature);
+    if (parent_builder) {
+        auto mod_var = parent_builder->mod_var(checker.infer_key(*this), signature);
         var = mod_var;
-        auto decl = checker.mod_builder().module().add_decl(var);
-        checker.mod_builder().module().set_decl(decl, tir_module);
-
-        this->sig_builder = &checker.builder().enclosing_module();
-        builder = std::make_unique<ModuleBuilder>(checker.arena, parent_builder, tir_module);
-        this->builder = &*builder;
-    } else {
-        self = tir_module;
+        auto decl = parent_builder->module().add_decl(var);
+        parent_builder->module().set_decl(decl, self);
     }
 
     TypeChecker::BuilderGuard guard(checker, *builder);
-
     for (auto& decl : decls) {
         checker.infer_mod_decl(*decl);
     }
-    tir_module->seal();
+    self->seal();
 
     // add the module to its enclosing decl
-    if (!is_top_level_module)
-        checker.add_decl_to_parent(this);
+    if (parent_builder)
+        checker.add_decl_to_parent_mod_sig(this);
 
     for (auto& decl : decls) {
         if (auto struct_decl = decl->isa<StructDecl>()) {
@@ -2581,7 +2609,7 @@ const tir::Node* ModDecl::infer(TypeChecker& checker) {
 
     // return a non-simple, non-bound module at the top level
     if (!var)
-        return tir_module;
+        return self;
     return var;
 }
 
@@ -2605,7 +2633,7 @@ const tir::Node* UseDecl::infer(TypeChecker& checker) {
         Module::Decl* decl = checker.mod_builder().module().add_decl(modvar);
         checker.mod_builder().module().set_decl(decl, path.infer(checker, dst_sig->elem_kind));
         if (!id.name.empty())
-            checker.add_decl_to_parent(this);
+            checker.add_decl_to_parent_mod_sig(this);
     } else {
         checker.error(loc, "use decls cannot refer to variable declarations");
     }
