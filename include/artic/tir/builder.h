@@ -139,14 +139,16 @@ struct ModuleBuilder : public Builder {
     ModuleBuilder(Arena& arena, Builder* parent, const Module* mod);
     ~ModuleBuilder();
 
-    const ModValue* mod_access(const ModValue*, const DeclKey*, const Signature*);
+    const ModVar* mod_access(const ModValue*, const DeclKey*, const Signature*);
     // const ModValue* mod_access(const ModValue*, const DeclKey*);
 
     const ModVar* add_in_module(const Node*, const DeclKey*);
     // const ModVar* add_in_module(std::optional<ast::Identifier> = std::nullopt);
 
-    const Type* import_type(const Type*);
     const Module& module() { return *module_; }
+
+    const Type* import_type(const Type*);
+    const Signature* import_signature(const Signature*);
 
     const Type* schedule_type(const Type*, std::optional<ast::Identifier> = std::nullopt);
     const Value* schedule_value(const Value*, std::optional<ast::Identifier> = std::nullopt);

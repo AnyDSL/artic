@@ -186,9 +186,27 @@ const Node* Control::rewrite(Rewriter&) const {
 
 }
 
-Node* Signature::rewrite(Rewriter &) const {
-
+const Node* Signature::rewrite(Rewriter& rewriter) const {
+    switch (elem_kind) {
+        case NodeKind::Value: {
+            return rewriter.builder().value_signature(rewriter.instantiate(value_type, true)->as<Type>());
+        }
+        case NodeKind::Type: {
+            if (type)
+                return rewriter.builder().type_signature(rewriter.instantiate(type, true)->as<Type>());
+            return rewriter.builder().type_signature(nullptr);
+        }
+        case NodeKind::Module: {
+            auto new_sig = rewriter.builder().mod_signature();
+            for (auto [key, sig] : mod_signature) {
+                new_sig->mod_signature.emplace(key, rewriter.instantiate(sig, true)->as<Signature>());
+            }
+            return new_sig;
+        }
+        default: assert(false);
+    }
 }
+
 }
 
 }

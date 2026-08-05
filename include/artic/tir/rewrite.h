@@ -48,10 +48,13 @@ struct Rewriter {
         return nullptr;
     }
 
-    Builder& builder() { }
+    Builder& builder() {
+        return *builder_;
+    }
 
 protected:
     std::unordered_map<const Node*, const Node*> map;
+    Builder* builder_ = nullptr;
 };
 
 }

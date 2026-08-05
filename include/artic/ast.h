@@ -1493,6 +1493,7 @@ struct ModDecl : public NamedDecl {
     mutable const tir::Module* self = nullptr;
     // used by decl inference so they can be scheduled at the right place
     mutable tir::ModuleBuilder* builder = nullptr;
+    mutable tir::ModuleBuilder* sig_builder = nullptr;
 
     /// Constructor for the implicitly defined global module.
     /// When using this constructor, the user is responsible for calling

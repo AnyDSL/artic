@@ -166,7 +166,7 @@ const Module* Builder::module(const ast::ModDecl* decl) {
     return arena.insert<Module>(*this, decl);
 }
 
-const ModValue* ModuleBuilder::mod_access(const ModValue* src, const DeclKey* key, const Signature* sig) {
+const ModVar* ModuleBuilder::mod_access(const ModValue* src, const DeclKey* key, const Signature* sig) {
     assert(src->is_simple());
     if (auto var = src->isa<ModVar>()) {
         auto mod = scope.peek_mod_value(var)->isa<Module>();
@@ -380,12 +380,39 @@ struct Importer : public Rewriter {
     Importer(ModuleBuilder& builder, const Scope& inner)
         : Rewriter(builder.arena, builder.arena), builder(builder) {
         suffix = get_suffix(&builder.scope, &inner);
+        builder_ = &builder;
+    }
+
+    const ModVar* import_mod_var(const ModVar* old) {
+        auto search_key = old->key;
+        const ModValue* mod = nullptr;
+
+        // re-enter modules to find the damn thing
+        for (size_t i = 0; i < suffix.size(); i++) {
+            if (!mod) {
+                mod = suffix[i]->mod_var;
+            }
+
+            auto sig = mod->signature();
+            assert(sig->elem_kind == NodeKind::Module);
+
+            if (sig->mod_signature.contains(search_key)) {
+                return builder.mod_access(mod, search_key, sig->mod_signature[search_key]);
+            }
+
+            if (i + 1 < suffix.size()) {
+                auto next_key = suffix[i + 1]->mod_var->key;
+                mod = builder.mod_access(mod, next_key, sig->mod_signature[next_key]);
+            }
+        }
+
+        assert(false);
     }
 
     const Node* rewrite(const Node* old, bool immediate) override {
-        if (immediate) {
-            return old->rewrite(*this);
-        }
+        // if (immediate) {
+        //     return old->rewrite(*this);
+        // }
         assert(old->is_simple());
 
         // stuff available at the dst is left alone
@@ -397,24 +424,7 @@ struct Importer : public Rewriter {
 
         // mod variables are rewritten as imported paths
         if (auto as_type = old->isa<ModVarAsType>()) {
-            const ModValue* mod = nullptr;
-
-            // re-enter modules to find the damn thing
-            for (size_t i = 0; i < suffix.size(); i++) {
-                if (!mod) {
-                    mod = suffix[i]->mod_var;
-                }
-
-                auto sig = mod->signature();
-                assert(sig->elem_kind == NodeKind::Module);
-                sig->dump();
-
-                if (i + 1 < suffix.size()) {
-                    auto key = suffix[i + 1]->mod_var->key;
-                    mod = builder.mod_access(mod, key, sig->mod_signature[key]);
-                }
-            }
-            assert(false);
+            return builder.as_type(import_mod_var(as_type->var));
         }
         return old->rewrite(*this);
     }
@@ -429,12 +439,16 @@ const Node* ModuleBuilder::import(const Node* node) {
     }
 
     assert(node->is_simple());
-    Importer importer(*this, scope);
+    Importer importer(*this, *node_scope);
     return importer.instantiate(node, false);
 }
 
 const Type* ModuleBuilder::import_type(const Type* t) {
     return import(t)->as<Type>();
+}
+
+const Signature* ModuleBuilder::import_signature(const Signature* t) {
+    return import(t)->as<Signature>();
 }
 
 const Scope* Builder::vars_scope(const Node::FVSet& fvs) {

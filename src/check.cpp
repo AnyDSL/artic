@@ -463,7 +463,7 @@ const tir::ModVar* TypeChecker::infer_mod_decl(ast::Decl& node) {
     BuilderGuard guard(*this, *node.enclosing_module->builder);
 
     node.var = node.infer(*this)->as<ModVar>();
-    node.enclosing_module->signature->mod_signature[node.var->key] = node.var->signature();
+    node.enclosing_module->signature->mod_signature[node.var->key] = node.enclosing_module->sig_builder->import_signature(node.var->signature());
     if (node.attrs)
         node.attrs->check(*this, &node);
     return node.var->as<ModVar>();
@@ -1480,14 +1480,15 @@ const tir::Node* TupleExpr::infer(TypeChecker& checker) {
 }
 
 const tir::Node* TupleExpr::check(TypeChecker& checker, const artic::Type* expected) {
-    if (auto tuple_type = expected->isa<artic::TupleType>()) {
+    auto peek_expected = checker.scope().peek_type_definition(expected);
+    if (auto tuple_type = peek_expected->isa<artic::TupleType>()) {
         if (args.size() != tuple_type->args.size()) {
             checker.bad_arguments(loc, "tuple expression", args.size(), tuple_type->args.size());
             return checker.builder().error_value(expected);
         }
         SmallArray<const artic::Value*> tir_args(args.size());
         for (size_t i = 0, n = args.size(); i < n; ++i)
-            tir_args[i] = checker.coerce(&*args[i], tuple_type->args[i]);
+            tir_args[i] = checker.coerce(&*args[i], checker.builder().enclosing_module().import_type(tuple_type->args[i]));
         return checker.expr_builder().tuple(tir_args);
     }
     checker.incompatible_type(loc, "tuple expression", expected);
@@ -2462,10 +2463,14 @@ const tir::Node* EnumDecl::infer(TypeChecker& checker) {
 }
 
 const tir::Node* TypeDecl::infer(TypeChecker& checker) {
-    assert(false && "TODO");
-    /*if (!checker.enter_decl(this))
+    if (!checker.enter_decl(this))
         return checker.builder().type_error();
-    const artic::Type* type = nullptr;
+
+    auto rhs_type = checker.infer_type(*aliased_type);
+    signature = checker.builder().type_signature(rhs_type);
+    var = checker.mod_builder().add_in_module(rhs_type, checker.infer_key(*this));
+
+    /*const artic::Type* type = nullptr;
     if (type_params) {
         type = checker.builder().type_alias(*this);
         for (auto& param : type_params->params)
@@ -2474,9 +2479,9 @@ const tir::Node* TypeDecl::infer(TypeChecker& checker) {
     } else {
         // Directly expand non-polymorphic type aliases
         type = checker.infer(*aliased_type);
-    }
+    }*/
     checker.exit_decl(this);
-    return type;*/
+    return var;
 }
 
 const tir::Node* ModDecl::infer(TypeChecker& checker) {
@@ -2496,6 +2501,7 @@ const tir::Node* ModDecl::infer(TypeChecker& checker) {
     if (is_top_level_module) {
         builder = std::make_unique<ModuleBuilder>(checker.arena, this);
         this->builder = &*builder;
+        this->sig_builder = &*builder;
         checker.current_builder_ = &*builder;
 
         tir_module = &builder->module();
@@ -2509,14 +2515,14 @@ const tir::Node* ModDecl::infer(TypeChecker& checker) {
         var = mod_var;
         auto decl = checker.mod_builder().module().add_decl(var);
         checker.mod_builder().module().set_decl(decl, tir_module);
+
+        this->sig_builder = &checker.builder().enclosing_module();
+        builder = std::make_unique<ModuleBuilder>(checker.arena, parent_builder, tir_module);
+        this->builder = &*builder;
     } else {
         self = tir_module;
     }
 
-    if (!is_top_level_module) {
-        builder = std::make_unique<ModuleBuilder>(checker.arena, parent_builder, tir_module);
-        this->builder = &*builder;
-    }
     TypeChecker::BuilderGuard guard(checker, *builder);
 
     for (auto& decl : decls) {

@@ -47,7 +47,7 @@ struct Signature : public Node {
     size_t hash() const override;
     bool equals(const Node*) const override;
     void print(Printer& p) const override;
-    Node* rewrite(Rewriter&) const override;
+    const Node* rewrite(Rewriter&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
     static const Signature* from_node(Builder&, const Node*, bool public_interface = true);
