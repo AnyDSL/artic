@@ -69,15 +69,16 @@ struct ModValue : public Node {
     NodeKind kind_;
     NodeKind kind() const override { return kind_; }
 
-    virtual const Signature* infer_signature(ModuleBuilder&) const = 0;
+    virtual const Signature* signature() const = 0;
 
     ModValue(Arena& arena, NodeKind kind) : Node(arena), kind_(kind) {}
 };
 
 struct ModVar : public NominalNode<ModValue> {
-    const Scope& scope;
     const DeclKey* key;
-    const Signature* signature;
+    const Signature* signature_;
+
+    mutable const Scope* binder = nullptr;
 
     void print(Printer&) const override;
     const Node* rewrite(Rewriter&) const override;
@@ -85,7 +86,7 @@ struct ModVar : public NominalNode<ModValue> {
 
     bool is_simple() const override { return true; }
 
-    const Signature* infer_signature(ModuleBuilder&) const override;
+    const Signature* signature() const override;
 
     ModVar(Builder&, const DeclKey*, const Signature*);
 };
@@ -93,6 +94,7 @@ struct ModVar : public NominalNode<ModValue> {
 struct Module : public NominalNode<ModValue> {
     const ast::ModDecl* decl;
     Scope& scope;
+    const Signature* signature_ = nullptr;
 
     struct Decl {
         const ModVar* var;
@@ -109,8 +111,7 @@ struct Module : public NominalNode<ModValue> {
     const void seal() const { sealed = true; }
 
     mutable bool sealed = false;
-    mutable const Signature* signature_ = nullptr;
-    const Signature* infer_signature(ModuleBuilder&) const override;
+    const Signature* signature() const override;
 
     void print(Printer&) const override;
     Node* rewrite(Rewriter&) const override;
@@ -133,7 +134,7 @@ private:
 struct ModAccess : public ModValue {
     const ModValue* mod;
     const DeclKey* key;
-    const Signature* signature;
+    const Signature* signature_;
 
     size_t hash() const override;
     bool equals(const Node*) const override;
@@ -141,7 +142,7 @@ struct ModAccess : public ModValue {
     Node* rewrite(Rewriter&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
-    const Signature* infer_signature(ModuleBuilder&) const override;
+    const Signature* signature() const override;
 
     ModAccess(Arena& arena, const ModValue*, const DeclKey*, const Signature*);
     ModAccess(Arena& arena, const ModValue*, const DeclKey*);

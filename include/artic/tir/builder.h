@@ -49,6 +49,7 @@ private:
         }
     };
     std::unordered_set<const Node*, HashNode, CompareNodes> types_;
+    std::vector<std::unique_ptr<Scope>> roots_;
 
     const BottomType* bottom_type_ = nullptr;
     const TopType*    top_type_    = nullptr;

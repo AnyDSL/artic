@@ -343,16 +343,13 @@ ModuleBuilder& Builder::enclosing_module() {
     assert(false);
 }
 
-ModuleBuilder::ModuleBuilder(Arena& arena, const ast::ModDecl* decl) : Builder(arena, [&]() -> Scope& { return *(root_scope_ = new Scope(nullptr)); }(), nullptr), module_(nullptr) {
+ModuleBuilder::ModuleBuilder(Arena& arena, const ast::ModDecl* decl) : Builder(arena, [&]() -> Scope& { return *(root_scope_ = &*arena.roots_.emplace_back(std::make_unique<Scope>(nullptr))); }(), nullptr), module_(nullptr) {
     module_ = arena.insert<Module>(*this, decl, *root_scope_);
 }
 
 ModuleBuilder::ModuleBuilder(Arena& arena, Builder* parent, const Module* mod) : Builder(arena, mod->scope, parent), module_(mod), root_scope_(nullptr) {}
 
-ModuleBuilder::~ModuleBuilder() {
-    if (root_scope_)
-        delete root_scope_;
-}
+ModuleBuilder::~ModuleBuilder() {}
 
 static inline std::vector<const Scope*> get_suffix(const Scope* base, const Scope* inner) {
     std::vector<const Scope*> lpath;
@@ -408,16 +405,9 @@ struct Importer : public Rewriter {
                     mod = suffix[i]->mod_var;
                 }
 
-                auto sig = mod->infer_signature(builder);
+                auto sig = mod->signature();
                 assert(sig->elem_kind == NodeKind::Module);
                 sig->dump();
-
-                // for (auto& decl : sig->mod_signature) {
-                //     if (decl.key == as_type->var->key) {
-                //         auto found_var = builder.mod_access(mod, decl.key, NodeKind::Type)->as<ModVar>();
-                //         return builder.as_type(found_var);
-                //     }
-                // }
 
                 if (i + 1 < suffix.size()) {
                     auto key = suffix[i + 1]->mod_var->key;
@@ -450,7 +440,8 @@ const Type* ModuleBuilder::import_type(const Type* t) {
 const Scope* Builder::vars_scope(const Node::FVSet& fvs) {
     const Scope* s = &scope.root();
     for (auto fv : fvs) {
-        s = unify_scopes(s, &fv->scope);
+        assert(fv->binder && "fv is not scoped");
+        s = unify_scopes(s, fv->binder);
     }
     return s;
 }
@@ -472,8 +463,8 @@ const ModVar* ModuleBuilder::schedule(const Node* node, std::optional<ast::Ident
     }
     assert(dst && "failed to find the matching builder for the dst scope");
     auto var = mod_var(decl_key(maybe_id), Signature::from_node(*this, node, false));
-    auto decl = module_->add_decl(var);
-    module_->set_decl(decl, node);
+    auto decl = dst->module().add_decl(var);
+    dst->module().set_decl(decl, node);
     return var;
 }
 

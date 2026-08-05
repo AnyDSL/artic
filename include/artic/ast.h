@@ -1179,9 +1179,6 @@ struct NamedDecl : public Decl {
 
     mutable const tir::DeclKey* key = nullptr;
     mutable const tir::Signature* signature = nullptr;
-    virtual const tir::Signature* infer_signature(TypeChecker& checker) {
-        assert(false);
-    }
 
     NamedDecl(const Loc& loc, Identifier&& id)
         : Decl(loc), id(std::move(id))
@@ -1343,7 +1340,6 @@ struct FnDecl : public ValueDecl {
     {}
 
     const tir::Node* infer(TypeChecker&) override;
-    const tir::Signature* infer_signature(TypeChecker& checker) override;
     const tir::Node* check(TypeChecker&, const tir::Type*) override;
     void bind_head(NameBinder&) override;
     void bind(NameBinder&) override;
@@ -1406,7 +1402,6 @@ struct StructDecl : public RecordDecl {
     const tir::Type* unnamed_type;
 
     const tir::Node* infer(TypeChecker&) override;
-    const tir::Signature* infer_signature(TypeChecker& checker) override;
     void bind_head(NameBinder&) override;
     void bind(NameBinder&) override;
     void print(Printer&) const override;
@@ -1517,7 +1512,6 @@ struct ModDecl : public NamedDecl {
     std::optional<NamedDecl*> find_member(const std::string_view& name) const;
 
     const tir::Node* infer(TypeChecker&) override;
-    const tir::Signature* infer_signature(TypeChecker& checker) override;
     void bind_head(NameBinder&) override;
     void bind(NameBinder&) override;
     void print(Printer&) const override;
@@ -1535,7 +1529,6 @@ struct UseDecl : public NamedDecl {
     {}
 
     const tir::Node* infer(TypeChecker&) override;
-    const tir::Signature* infer_signature(TypeChecker& checker) override;
     void bind_head(NameBinder&) override;
     void bind(NameBinder&) override;
     void print(Printer&) const override;

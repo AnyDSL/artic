@@ -2,6 +2,13 @@
 
 namespace artic::tir {
 
+void Scope::insert(const ModVar* var, const Node* value) {
+    assert(!var->binder || var->binder == this);
+    assert(!mod_vars.contains(var) || (mod_vars[var] == nullptr));
+    mod_vars[var] = value;
+    var->binder = this;
+}
+
 const Node* Scope::resolve_mod_var(const ModVar* var) const {
     auto found = mod_vars.find(var);
     if (found != mod_vars.end())

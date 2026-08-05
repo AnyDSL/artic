@@ -33,10 +33,7 @@ struct Scope {
     const Type* peek_type_definition(const Type* type) const;
     const ModValue* peek_mod_value(const ModValue*) const;
 private:
-    void insert(const ModVar* var, const Node* value) {
-        assert(!mod_vars.contains(var) || (mod_vars[var] == nullptr));
-        mod_vars[var] = value;
-    }
+    void insert(const ModVar*, const Node*);
 
     //void insert(const Param* var, const Value* value) {
     //    assert(!params.contains(var));

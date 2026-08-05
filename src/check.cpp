@@ -436,7 +436,7 @@ const tir::Signature* TypeChecker::infer_signature(ast::NamedDecl& decl) {
     if (decl.signature)
         return decl.signature;
 
-    decl.signature = decl.infer_signature(*this);
+    decl.infer(*this);
     assert(decl.signature);
     return decl.signature;
 }
@@ -463,7 +463,7 @@ const tir::ModVar* TypeChecker::infer_mod_decl(ast::Decl& node) {
     BuilderGuard guard(*this, *node.enclosing_module->builder);
 
     node.var = node.infer(*this)->as<ModVar>();
-    node.enclosing_module->signature->mod_signature[node.var->key] = node.var->signature;
+    node.enclosing_module->signature->mod_signature[node.var->key] = node.var->signature();
     if (node.attrs)
         node.attrs->check(*this, &node);
     return node.var->as<ModVar>();
@@ -1100,8 +1100,11 @@ const tir::Node* Path::Elem::infer(TypeChecker& checker, Path::Elem* prev, Path&
                 assert(tir->isa<ModVar>());
                 if (auto mod_var = tir->isa<ModVar>()) {
                     //value = checker.scope().resolve_mod_var(mod_var);
-                    if (!checker.scope().is_in_scope(mod_var))
-                        tir = checker.builder().enclosing_module().mod_access(prev->tir->as<ModValue>(), mod_var->key, module->infer_signature(checker.mod_builder()));
+                    auto key = mod_var->key;
+                    if (!checker.scope().is_in_scope(mod_var)) {
+                        const Signature* mod_sig = module->signature();
+                        tir = checker.builder().enclosing_module().mod_access(prev->tir->as<ModValue>(), key, mod_sig->mod_signature[key]);
+                    }
                 }
                 assert(tir);
                 return tir;
@@ -2360,18 +2363,6 @@ const tir::Node* StaticDecl::infer(TypeChecker& checker) {
     return var;
 }
 
-const tir::Signature* FnDecl::infer_signature(TypeChecker& checker) {
-    // if (fn->ret_type) {
-    //     checker.enter_decl(this);
-    //
-    //     checker.exit_decl(this);
-    // } else
-
-    // the dumb version is to just infer the value to produce the signature
-    signature = Signature::from_node(checker.builder(), infer(checker));
-    return signature;
-}
-
 const tir::Node* FnDecl::infer(TypeChecker& checker) {
     //TypeChecker::BuilderGuard guard(checker, *this);
 
@@ -2432,19 +2423,17 @@ const tir::Node* FieldDecl::infer(TypeChecker& checker) {
     return field_type;
 }
 
-const tir::Signature* StructDecl::infer_signature(TypeChecker& checker) {
+const tir::Node* StructDecl::infer(TypeChecker& checker) {
     auto struct_type = checker.builder().struct_type(checker.infer(type_params ? &*type_params : nullptr), this);
-    // Set the type before entering the fields
+    // Create the type, the signature of the type and add the type to the interface of the module before proceeding
     unnamed_type = checker.mod_builder().schedule_type(struct_type);
+    signature = checker.builder().type_signature(unnamed_type);
+    var = checker.mod_builder().add_in_module(unnamed_type, checker.infer_key(*this));
+
     for (auto& field : fields)
         struct_type->members.push_back(checker.infer_type(*field));
     struct_type->validate();
-    return checker.builder().type_signature(unnamed_type);
-}
 
-const tir::Node* StructDecl::infer(TypeChecker& checker) {
-    checker.infer_signature(*this);
-    var = checker.mod_builder().add_in_module(unnamed_type, checker.infer_key(*this));
     return var;
 }
 
@@ -2490,34 +2479,14 @@ const tir::Node* TypeDecl::infer(TypeChecker& checker) {
     return type;*/
 }
 
-const tir::Signature* ModDecl::infer_signature(TypeChecker& checker) {
-    checker.enter_decl(this);
-    signature = checker.mod_builder().mod_signature();
-    // start by inserting the unfinished signature
-    for (auto& decl : decls) {
-        if (auto named = decl->isa<NamedDecl>()) {
-            signature->mod_signature.emplace(checker.infer_key(*named), nullptr);
-        }
-    }
-    for (auto& decl : decls) {
-        // checker.infer_mod_decl(*decl);
-        const Signature* sig = nullptr;
-        if (auto named = decl->isa<NamedDecl>()) {
-            sig = checker.infer_signature(*named);
-            assert(sig);
-            signature->mod_signature.emplace(checker.infer_key(*named), sig);
-        }
-    }
-    checker.exit_decl(this);
-    return signature;
-}
-
 const tir::Node* ModDecl::infer(TypeChecker& checker) {
     // for (auto& decl: decls)
     //     if (auto impl_decl = decl->isa<ImplicitDecl>())
     //         checker.scopes.front().push_back(TypeChecker::ImplicitSrc {
     //             .decl = impl_decl,
     //         });
+
+    checker.enter_decl(this);
 
     Builder* parent_builder = checker.current_builder_;
     bool is_top_level_module = !parent_builder;
@@ -2528,16 +2497,14 @@ const tir::Node* ModDecl::infer(TypeChecker& checker) {
         builder = std::make_unique<ModuleBuilder>(checker.arena, this);
         this->builder = &*builder;
         checker.current_builder_ = &*builder;
+
         tir_module = &builder->module();
+        signature = tir_module->signature_;
     }
 
-    // the signature should _not_ live in the module itself
-    checker.infer_signature(*this);
-
-    if (!is_top_level_module)
+    if (!is_top_level_module) {
         tir_module = checker.builder().module(this);
-
-    if (super) {
+        signature = tir_module->signature_;
         auto mod_var = checker.mod_builder().mod_var(checker.infer_key(*this), signature);
         var = mod_var;
         auto decl = checker.mod_builder().module().add_decl(var);
@@ -2552,7 +2519,6 @@ const tir::Node* ModDecl::infer(TypeChecker& checker) {
     }
     TypeChecker::BuilderGuard guard(checker, *builder);
 
-    checker.enter_decl(this);
     for (auto& decl : decls) {
         checker.infer_mod_decl(*decl);
     }
@@ -2574,13 +2540,6 @@ const tir::Node* ModDecl::infer(TypeChecker& checker) {
     if (!var)
         return tir_module;
     return var;
-}
-
-const tir::Signature* UseDecl::infer_signature(TypeChecker& checker) {
-    // checker.enter_decl(this);
-    auto resolved_path = path.infer(checker, std::nullopt);
-    assert(resolved_path->isa<ModVar>());
-    return resolved_path->as<ModVar>()->signature;
 }
 
 const tir::Node* UseDecl::infer(TypeChecker& checker) {

@@ -235,22 +235,25 @@ void Module::print(Printer& p) const {
     }
     print_list(p.top(), p.endl(), decls(), [&] (auto& decl) {
         p.print(*decl->var, true);
+        p << ": ";
+        p.print(*decl->var->signature());
         p << " = ";
         p.print(*decl->value, true);
     });
     p << p.unindent() << p.endl() << "}";
 }
 
-void Signature::print(Printer &p) const {
+void Signature::print(Printer& p) const {
+    p << log::keyword_style("sig") << " ";
     switch (elem_kind) {
         case NodeKind::Value: {
-            p << log::keyword_style("val") << " ";
+            p << log::keyword_style("val");
             p << " : ";
             p.print(*value_type);
             break;
         }
         case NodeKind::Type: {
-            p << log::keyword_style("type") << " ";
+            p << log::keyword_style("type");
             if (type) {
                 p << " : ";
                 p.print(*type);
@@ -258,7 +261,7 @@ void Signature::print(Printer &p) const {
             break;
         }
         case NodeKind::Module: {
-            p << log::keyword_style("sig") << " {" << p.indent() << p.endl();
+            p << log::keyword_style("mod") << " {" << p.indent() << p.endl();
             // for (auto& decl : decls) {
             //     p.insert(*decl.key, key2string(*decl.key));
             // }
@@ -270,7 +273,8 @@ void Signature::print(Printer &p) const {
                     p.print(*sub_signature);
                 else
                     p << "<unfinished>";
-                if (i++ < mod_signature.size())
+                p << ";";
+                if (i++ + 1 < mod_signature.size())
                     p << p.endl();
             }
             // print_list(p.top(), p.endl(), mod_signature, [&] (auto& decl) {
