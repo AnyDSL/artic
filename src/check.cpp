@@ -87,6 +87,12 @@ const Type* TypeChecker::invalid_simd(const Loc& loc, const Type* elem_type) {
     return type_table.type_error();
 }
 
+const Type* TypeChecker::invalid_array_size(const Loc& loc) {
+    error(loc, "expected an immutable {} declaration with an initializer as array size",
+        log::keyword_style("static"));
+    return type_table.type_error();
+}
+
 void TypeChecker::invalid_ptrn(const Loc& loc, bool must_be_trivial) {
     if (must_be_trivial) {
         error(loc, "irrefutable (always matching) pattern expected");
@@ -618,6 +624,14 @@ const artic::Type* Node::infer(TypeChecker& checker) {
     return checker.cannot_infer(loc, "expression");
 }
 
+// A node the parser gave up on. It carries the error type rather than no type at all, so
+// `should_report_error()` silences everything downstream that touches it: the parse error
+// has already been reported, and "cannot infer type for expression" adds nothing to it.
+const artic::Type* ErrorType::infer(TypeChecker& checker) { return checker.type_table.type_error(); }
+const artic::Type* ErrorExpr::infer(TypeChecker& checker) { return checker.type_table.type_error(); }
+const artic::Type* ErrorDecl::infer(TypeChecker& checker) { return checker.type_table.type_error(); }
+const artic::Type* ErrorPtrn::infer(TypeChecker& checker) { return checker.type_table.type_error(); }
+
 const artic::Type* Ptrn::check(TypeChecker& checker, const artic::Type* expected) {
     // Patterns use the inverted subtype relation: In this case, the expected type
     // is assumed to be the type of the expression bound by the pattern, and thus
@@ -861,18 +875,19 @@ const artic::Type* SizedArrayType::infer(TypeChecker& checker) {
                 decl = &mod_type->member(path.elems[i + 1].index);
             } else if (!path.is_ctor) {
                 assert(path.elems[i].inferred_args.empty());
-                assert(decl->isa<StaticDecl>() && "The only supported type right now.");
+                if (!decl->isa<StaticDecl>())
+                    return checker.invalid_array_size(path.loc);
                 break;
             } else if (match_app<StructType>(path.elems[i].type).second) {
-                assert(false && "This is not supported as a size for repeated arrays.");
+                return checker.invalid_array_size(path.loc);
             } else if (auto [type_app, enum_type] = match_app<artic::EnumType>(path.elems[i].type); enum_type) {
-                assert(false && "This is not supported as a size for repeated arrays.");
+                return checker.invalid_array_size(path.loc);
             }
         }
 
-        auto static_decl = decl->as<StaticDecl>();
-        assert(!static_decl->is_mut);
-        assert(static_decl->init);
+        auto static_decl = decl->isa<StaticDecl>();
+        if (!static_decl || static_decl->is_mut || !static_decl->init)
+            return checker.invalid_array_size(path.loc);
         auto& value = static_decl->init;
         auto lit_value = value->as<LiteralExpr>()->lit;
 
@@ -1036,18 +1051,19 @@ const artic::Type* RepeatArrayExpr::infer(TypeChecker& checker) {
                 decl = &mod_type->member(path.elems[i + 1].index);
             } else if (!path.is_ctor) {
                 assert(path.elems[i].inferred_args.empty());
-                assert(decl->isa<StaticDecl>() && "The only supported type right now.");
+                if (!decl->isa<StaticDecl>())
+                    return checker.invalid_array_size(path.loc);
                 break;
             } else if (match_app<StructType>(path.elems[i].type).second) {
-                assert(false && "This is not supported as a size for repeated arrays.");
+                return checker.invalid_array_size(path.loc);
             } else if (auto [type_app, enum_type] = match_app<artic::EnumType>(path.elems[i].type); enum_type) {
-                assert(false && "This is not supported as a size for repeated arrays.");
+                return checker.invalid_array_size(path.loc);
             }
         }
 
-        auto static_decl = decl->as<StaticDecl>();
-        assert(!static_decl->is_mut);
-        assert(static_decl->init);
+        auto static_decl = decl->isa<StaticDecl>();
+        if (!static_decl || static_decl->is_mut || !static_decl->init)
+            return checker.invalid_array_size(path.loc);
         auto& value = static_decl->init;
         auto lit_value = value->as<LiteralExpr>()->lit;
 
@@ -1069,18 +1085,19 @@ const artic::Type* RepeatArrayExpr::check(TypeChecker& checker, const artic::Typ
                 decl = &mod_type->member(path.elems[i + 1].index);
             } else if (!path.is_ctor) {
                 assert(path.elems[i].inferred_args.empty());
-                assert(decl->isa<StaticDecl>() && "The only supported type right now.");
+                if (!decl->isa<StaticDecl>())
+                    return checker.invalid_array_size(path.loc);
                 break;
             } else if (match_app<StructType>(path.elems[i].type).second) {
-                assert(false && "This is not supported as a size for repeated arrays.");
+                return checker.invalid_array_size(path.loc);
             } else if (auto [type_app, enum_type] = match_app<artic::EnumType>(path.elems[i].type); enum_type) {
-                assert(false && "This is not supported as a size for repeated arrays.");
+                return checker.invalid_array_size(path.loc);
             }
         }
 
-        auto static_decl = decl->as<StaticDecl>();
-        assert(!static_decl->is_mut);
-        assert(static_decl->init);
+        auto static_decl = decl->isa<StaticDecl>();
+        if (!static_decl || static_decl->is_mut || !static_decl->init)
+            return checker.invalid_array_size(path.loc);
         auto& value = static_decl->init;
         auto lit_value = value->as<LiteralExpr>()->lit;
 
@@ -1367,7 +1384,7 @@ const artic::Type* BreakExpr::infer(TypeChecker& checker) {
         if (!domain)
             return checker.cannot_infer(loc, "break expression");
     } else
-        assert(false);
+        return checker.cannot_infer(loc, "break expression");
     return checker.type_table.cn_type(domain);
 }
 
@@ -1387,7 +1404,7 @@ const artic::Type* ContinueExpr::infer(TypeChecker& checker) {
         if (!domain)
             return checker.cannot_infer(loc, "continue expression");
     } else
-        assert(false);
+        return checker.cannot_infer(loc, "continue expression");
     return checker.type_table.cn_type(domain);
 }
 

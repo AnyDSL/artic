@@ -193,7 +193,7 @@ void FnExpr::print(Printer& p) const {
         ret_type->print(p);
         p << ' ';
     }
-    body->print(p);
+    if (body) body->print(p);
 }
 
 void BlockExpr::print(Printer& p) const {
@@ -526,7 +526,7 @@ void FnDecl::print(Printer& p) const {
     p << id.name;
 
     if (type_params) type_params->print(p);
-    print_parens(p, fn->param);
+    if (fn->param) print_parens(p, fn->param);
 
     if (fn->ret_type) {
         p << " -> ";

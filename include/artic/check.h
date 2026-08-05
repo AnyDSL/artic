@@ -42,6 +42,7 @@ public:
     const Type* bad_arguments(const Loc&, const std::string_view&, size_t, size_t);
     const Type* invalid_cast(const Loc&, const Type*, const Type*);
     const Type* invalid_simd(const Loc&, const Type*);
+    const Type* invalid_array_size(const Loc&);
     void invalid_ptrn(const Loc&, bool);
     void invalid_constraint(const Loc&, const TypeVar*, const Type*, const Type*, const Type*);
     void invalid_attr(const Loc&, const std::string_view&);

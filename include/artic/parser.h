@@ -40,6 +40,13 @@ private:
     Ptr<ast::UseDecl>       parse_use_decl();
     Ptr<ast::ErrorDecl>     parse_error_decl();
 
+    /// Whether `tag` can begin a declaration, and is therefore a safe place to resume
+    /// parsing after one has gone wrong.
+    static bool begins_decl(Token::Tag);
+    /// Skips tokens until the next declaration can be parsed. Braces are counted so a
+    /// declaration nested in the body being skipped does not end the skip early.
+    void skip_to_decl();
+
     Ptr<ast::Ptrn>          parse_ptrn(bool = false, bool = false);
     Ptr<ast::Ptrn>          parse_typed_ptrn(Ptr<ast::Ptrn>&&);
     Ptr<ast::IdPtrn>        parse_id_ptrn(ast::Identifier&&, bool);
@@ -148,6 +155,16 @@ private:
         parse_list(std::array<Token::Tag, 1>{end}, std::array<Token::Tag, 1>{sep}, f);
     }
 
+    /// Whether a parse error has already been reported about the token at `loc`. The
+    /// recovery path re-reports whatever `expect()` has just complained about, and two
+    /// messages on the same token say nothing the first one did not.
+    bool reported_at(const Loc& loc) {
+        if (last_error_.row == loc.begin.row && last_error_.col == loc.begin.col)
+            return true;
+        last_error_ = loc.begin;
+        return false;
+    }
+
     template <size_t N>
     size_t expect(std::array<Token::Tag, N> tags) {
         if (N == 1) {
@@ -160,22 +177,28 @@ private:
                     tag_list += '\'' + Token::tag_to_string(tags[i]) + '\'';
                     if (i != N - 1) tag_list += " or ";
                 }
-                error(ahead().loc(), "expected {}, got '{}'", tag_list, ahead().string());
-            }
-            next();
+                if (!reported_at(ahead().loc()))
+                    error(ahead().loc(), "expected {}, got '{}'", tag_list, ahead().string());
+            } else
+                next();
             return std::distance(it, tags.begin());
         }
     }
 
+    /// Consumes `tag`, or reports it missing. A token that is *not* what was expected is
+    /// left in place: it is usually the one that resynchronises the parse -- typically the
+    /// `fn` opening the next declaration -- and eating it turns one mistake into an error
+    /// per token until the end of the file.
     bool expect(Token::Tag tag) {
-        bool res = ahead().tag() == tag;
-        if (!res) {
+        if (ahead().tag() == tag) {
+            next();
+            return true;
+        }
+        if (!reported_at(ahead().loc()))
             error(ahead().loc(), "expected '{}', got '{}'",
                 Token::tag_to_string(tag),
                 ahead().string());
-        }
-        next();
-        return res;
+        return false;
     }
 
     void eat(Token::Tag tag) {
@@ -208,6 +231,7 @@ private:
     Token ahead_[max_ahead];
     Lexer& lexer_;
     Loc prev_;
+    Loc::Pos last_error_ = { -1, -1 };
     Arena& _arena;
 };
 

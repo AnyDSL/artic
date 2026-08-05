@@ -81,8 +81,10 @@ Ptr<ast::FnDecl> Parser::parse_fn_decl() {
     Ptr<ast::Ptrn> param;
     if (ahead().tag() == Token::LParen)
         param = parse_tuple_ptrn(true, true);
-    else
+    else {
         error(ahead().loc(), "parameter list expected in function definition");
+        param = parse_error_ptrn();
+    }
 
     Ptr<ast::Type> ret_type;
     if (accept(Token::Arrow)) {
@@ -276,10 +278,50 @@ Ptr<ast::UseDecl> Parser::parse_use_decl() {
     return _arena.make_ptr<ast::UseDecl>(tracker(), std::move(path), std::move(id));
 }
 
+bool Parser::begins_decl(Token::Tag tag) {
+    switch (tag) {
+        case Token::Fn:
+        case Token::Struct:
+        case Token::Enum:
+        case Token::Type:
+        case Token::Mod:
+        case Token::Static:
+        case Token::Implicit:
+        case Token::Use:
+        case Token::Let:
+        case Token::Hash:
+            return true;
+        default:
+            return false;
+    }
+}
+
+void Parser::skip_to_decl() {
+    size_t depth = 0;
+    while (ahead().tag() != Token::End) {
+        auto tag = ahead().tag();
+        if (tag == Token::LBrace)
+            depth++;
+        else if (tag == Token::RBrace) {
+            // Not ours: it closes a block an enclosing parser is still inside.
+            if (depth == 0) return;
+            depth--;
+        } else if (depth == 0 && begins_decl(tag))
+            return;
+        next();
+    }
+}
+
 Ptr<ast::ErrorDecl> Parser::parse_error_decl() {
     Tracker tracker(this);
-    error(ahead().loc(), "expected declaration, got '{}'", ahead().string());
+    if (!reported_at(ahead().loc()))
+        error(ahead().loc(), "expected declaration, got '{}'", ahead().string());
+    // Panic-mode recovery. Skipping a single token re-reports on every token of whatever
+    // follows, so one broken declaration used to cost an error per token to the end of the
+    // file and every declaration after it was lost. Consume at least one so the caller's
+    // loop always makes progress.
     next();
+    skip_to_decl();
     return _arena.make_ptr<ast::ErrorDecl>(tracker());
 }
 
@@ -441,7 +483,8 @@ Ptr<ast::ArrayPtrn> Parser::parse_array_ptrn() {
 
 Ptr<ast::ErrorPtrn> Parser::parse_error_ptrn() {
     Tracker tracker(this);
-    error(ahead().loc(), "expected pattern, got '{}'", ahead().string());
+    if (!reported_at(ahead().loc()))
+        error(ahead().loc(), "expected pattern, got '{}'", ahead().string());
     next();
     return _arena.make_ptr<ast::ErrorPtrn>(tracker());
 }
@@ -1012,7 +1055,8 @@ done:
 
 Ptr<ast::ErrorExpr> Parser::parse_error_expr() {
     Tracker tracker(this);
-    error(ahead().loc(), "expected expression, got '{}'", ahead().string());
+    if (!reported_at(ahead().loc()))
+        error(ahead().loc(), "expected expression, got '{}'", ahead().string());
     next();
     return _arena.make_ptr<ast::ErrorExpr>(tracker());
 }
@@ -1124,7 +1168,8 @@ Ptr<ast::TypeApp> Parser::parse_type_app() {
 
 Ptr<ast::ErrorType> Parser::parse_error_type() {
     Tracker tracker(this);
-    error(ahead().loc(), "expected type, got '{}'", ahead().string());
+    if (!reported_at(ahead().loc()))
+        error(ahead().loc(), "expected type, got '{}'", ahead().string());
     next();
     return _arena.make_ptr<ast::ErrorType>(tracker());
 }

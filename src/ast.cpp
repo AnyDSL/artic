@@ -448,7 +448,8 @@ bool BlockExpr::has_side_effect() const {
 }
 
 bool CallExpr::is_jumping() const {
-    assert(type);
+    // A call can reach this without a type when an earlier stage failed, e.g. `let a = return(;`.
+    if (!type) return false;
     return type->isa<artic::NoRetType>();
 }
 

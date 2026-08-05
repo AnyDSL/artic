@@ -40,7 +40,7 @@ public:
     void bind(ast::Node&);
 
     void push_scope(bool top_level = false) { scopes_.emplace_back(top_level); }
-    void pop_scope();
+    void pop_scope(bool report_unused = true);
     void insert_symbol(ast::NamedDecl&, const std::string&);
     void insert_symbol(ast::NamedDecl& decl) {
         insert_symbol(decl, decl.id.name);

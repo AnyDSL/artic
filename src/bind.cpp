@@ -18,15 +18,17 @@ void NameBinder::bind(ast::Node& node) {
     node.bind(*this);
 }
 
-void NameBinder::pop_scope() {
-    for (auto& pair : scopes_.back().symbols) {
-        auto decl = pair.second.decl;
-        if (pair.second.use_count == 0 &&
-            !scopes_.back().top_level &&
-            !decl->isa<ast::FieldDecl>() &&
-            !decl->isa<ast::OptionDecl>()) {
-            warn(decl->loc, "unused identifier '{}'", pair.first);
-            note("prefix unused identifiers with '_'");
+void NameBinder::pop_scope(bool report_unused) {
+    if (report_unused) {
+        for (auto& pair : scopes_.back().symbols) {
+            auto decl = pair.second.decl;
+            if (pair.second.use_count == 0 &&
+                !scopes_.back().top_level &&
+                !decl->isa<ast::FieldDecl>() &&
+                !decl->isa<ast::OptionDecl>()) {
+                warn(decl->loc, "unused identifier '{}'", pair.first);
+                note("prefix unused identifiers with '_'");
+            }
         }
     }
     scopes_.pop_back();
@@ -34,7 +36,9 @@ void NameBinder::pop_scope() {
 
 void NameBinder::insert_symbol(ast::NamedDecl& decl, const std::string& name) {
     assert(!scopes_.empty());
-    assert(!name.empty());
+
+    // A declaration the parser could not finish has no identifier to bind.
+    if (name.empty()) return;
 
     // Do not bind anonymous variables
     if (name[0] == '_') return;
@@ -462,7 +466,8 @@ void FnDecl::bind(NameBinder& binder) {
         if (fn->ret_type)
             binder.bind(*fn->ret_type);
     }
-    binder.pop_scope();
+    // A prototype binds its parameters without ever having a body to use them in.
+    binder.pop_scope(fn->body.get() != nullptr);
 }
 
 void FieldDecl::bind(NameBinder& binder) {
