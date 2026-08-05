@@ -1198,6 +1198,7 @@ const tir::Node* Path::infer(TypeChecker& checker, std::optional<NodeKind> expec
 
     auto tir = elems.back().tir;
     assert(tir->is_simple());
+    assert(tir->isa<ModVar>() || tir->isa<Param>());
 
     auto last_decl = resolve_use_decl(decl);
 
@@ -2551,12 +2552,17 @@ const tir::Node* ModDecl::infer(TypeChecker& checker) {
 const tir::Node* UseDecl::infer(TypeChecker& checker) {
     if (!checker.enter_decl(this))
         return checker.builder().type_error();
-    auto modvar = checker.mod_builder().mod_var(checker.infer_key(*this), checker.infer_signature(*this));
-    var = modvar;
-    Module::Decl* decl = checker.mod_builder().module().add_decl(modvar);
 
     auto resolved_path = path.infer(checker, std::nullopt);
-    checker.mod_builder().module().set_decl(decl, resolved_path);
+    if (auto using_var = resolved_path->isa<ModVar>()) {
+        auto modvar = checker.mod_builder().mod_var(checker.infer_key(*this), using_var->signature());
+        var = modvar;
+        Module::Decl* decl = checker.mod_builder().module().add_decl(modvar);
+        checker.mod_builder().module().set_decl(decl, using_var);
+    } else {
+        checker.error(loc, "use decls cannot refer to variable declarations");
+    }
+
     checker.exit_decl(this);
     return var;
     //return checker.mod_builder().add_in_module(resolved_path, id);

@@ -1232,15 +1232,23 @@ Emitter::AnyResult Emitter::emit(const ModVar* var) {
     if (auto value = decl.definition->isa<Value>()) {
         decl.as_value = emit(value, &decl);
         assert(decl.as_value);
+    } else if (auto typ = decl.definition->isa<Type>()) {
+        decl.as_type = emit(typ, &decl);
+        assert(decl.as_type);
     } else if (auto mod = decl.definition->isa<Module>()) {
         // Modules are actually always lazily emitted
         decl.as_mod = &emit(mod, &enclosing);
         assert(decl.as_mod);
-    } else if (auto typ = decl.definition->isa<Type>()) {
-        decl.as_type = emit(typ, &decl);
-        assert(decl.as_type);
     } else if (auto mod_access = decl.definition->isa<ModAccess>()) {
         emit(mod_access, decl);
+    } else if (auto mod_var = decl.definition->isa<ModVar>()) {
+        auto r = emit(mod_var);
+        switch (mod_var->kind()) {
+            case NodeKind::Module: decl.as_mod = std::get<const ModuleDecls*>(r); break;
+            case NodeKind::Value: decl.as_value = std::get<const thorin::Def*>(r); break;
+            case NodeKind::Type: decl.as_type = std::get<const thorin::Def*>(r); break;
+            default: assert(false);
+        }
     } else {
         assert(false);
     }
