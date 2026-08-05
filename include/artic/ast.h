@@ -198,7 +198,11 @@ struct Path : public Node {
         NamedDecl* decl = nullptr;
 
         // These members are set during type-checking
-        const tir::Node* tir = nullptr;
+        const tir::Param* param = nullptr;
+        const tir::Module* module = nullptr;
+        const tir::ModVar* var = nullptr;
+        const tir::Signature* sig = nullptr;
+
         size_t index = 0;
         std::vector<const tir::Type*> inferred_args;
 
@@ -209,7 +213,7 @@ struct Path : public Node {
             : loc(loc), id(std::move(id)), args(std::move(args))
         {}
 
-        const tir::Node* infer(TypeChecker& checker, Elem* prev_elem, Path& path);
+        void infer(TypeChecker& checker, Elem* prev_elem, Path& path, std::optional<tir::NodeKind>);
     };
 
     std::vector<Elem> elems;
@@ -1179,6 +1183,8 @@ struct NamedDecl : public Decl {
 
     mutable const tir::DeclKey* key = nullptr;
     mutable const tir::Signature* signature = nullptr;
+
+    virtual const tir::Signature* infer_signature(TypeChecker& checker);
 
     NamedDecl(const Loc& loc, Identifier&& id)
         : Decl(loc), id(std::move(id))
