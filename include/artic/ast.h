@@ -1405,6 +1405,7 @@ struct StructDecl : public RecordDecl {
     {}
 
     const tir::Type* unnamed_type;
+    mutable const tir::Value* ctor_or_default_value = nullptr;
 
     const tir::Node* infer(TypeChecker&) override;
     void bind_head(NameBinder&) override;

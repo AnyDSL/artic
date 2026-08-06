@@ -134,6 +134,18 @@ struct Builder : public artic::Cast<Builder> {
     // const Value* seq(const ArrayRef<const Value*>&);
     const Value* unit();
 
+    template<typename T, typename Fn>
+    T with_expr_scope(Fn f) {
+        T r;
+        run_expr_scope([&](auto& expr) {
+            r = f(expr);
+        });
+        return r;
+    }
+
+    const Value* yield_expr_scope(const std::function<const Value*(ExprBuilder&)>& f);
+    void run_expr_scope(const std::function<void(ExprBuilder&)>& f);
+
     std::vector<std::unique_ptr<Builder>> children;
 };
 

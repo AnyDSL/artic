@@ -500,13 +500,16 @@ void TypedLiteral::free_variables(FVSet& vars, Seen& seen) const {
     type()->free_variables(vars, seen);
 }
 
-void Param::free_variables(FVSet&, Seen&) const {
+void Param::free_variables(FVSet& vars, Seen& seen) const {
     // TODO: one day params will be tracked too
-    assert(false && "TODO");
+    type()->free_variables(vars, seen);
 }
 
-void Fn::free_variables(FVSet&, Seen&) const {
-    assert(false && "TODO");
+void Fn::free_variables(FVSet& vars, Seen& seen) const {
+    // TODO: track params
+    type()->free_variables(vars, seen);
+    param->free_variables(vars, seen);
+    body->free_variables(vars, seen);
 }
 
 void App::free_variables(FVSet&, Seen&) const {
@@ -521,28 +524,36 @@ void LocalVariable::free_variables(FVSet&, Seen&) const {
     assert(false && "TODO");
 }
 
-void Agg::free_variables(FVSet&, Seen&) const {
-    assert(false && "TODO");
+void Agg::free_variables(FVSet& vars, Seen& seen) const {
+    type()->free_variables(vars, seen);
+    for (auto arg : args)
+        arg->free_variables(vars, seen);
 }
 
 void Repeat::free_variables(FVSet&, Seen&) const {
     assert(false && "TODO");
 }
 
-void Extract::free_variables(FVSet&, Seen&) const {
-    assert(false && "TODO");
+void Extract::free_variables(FVSet& vars, Seen& seen) const {
+    type()->free_variables(vars, seen);
+    src->free_variables(vars, seen);
+    idx->free_variables(vars, seen);
 }
 
 void Proj::free_variables(FVSet&, Seen&) const {
     assert(false && "TODO");
 }
 
-void Bind::free_variables(FVSet&, Seen&) const {
-    assert(false && "TODO");
+void Bind::free_variables(FVSet& vars, Seen& seen) const {
+    type()->free_variables(vars, seen);
+    param->free_variables(vars, seen);
+    value->free_variables(vars, seen);
 }
 
-void Seq::free_variables(FVSet&, Seen&) const {
-    assert(false && "TODO");
+void Seq::free_variables(FVSet& vars, Seen& seen) const {
+    type()->free_variables(vars, seen);
+    for (auto instr : values)
+        instr->free_variables(vars, seen);
 }
 
 void Cast::free_variables(FVSet&, Seen&) const {

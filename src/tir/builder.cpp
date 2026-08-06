@@ -154,6 +154,17 @@ const Type* Builder::type_app(const UserType* applied, const ArrayRef<const Type
     return arena.insert<TypeApp>(arena, applied, std::move(type_args));
 }
 
+void Builder::run_expr_scope(const std::function<void(ExprBuilder&)>& f) {
+    ExprBuilder builder(arena, this);
+    f(builder);
+}
+
+const Value* Builder::yield_expr_scope(const std::function<const Value*(ExprBuilder&)>& f) {
+    return with_expr_scope<const Value*>([&](ExprBuilder& expr_builder) -> const Value* {
+        return expr_builder.finish(f(expr_builder));
+    });
+}
+
 const DeclKey* Builder::decl_key(std::optional<ast::Identifier> id) {
     return arena.insert<DeclKey>(arena, id);
 }

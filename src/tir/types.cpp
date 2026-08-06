@@ -734,8 +734,7 @@ const Type* ForallType::instantiate(const ArrayRef<const Type*>& args) const {
 }
 
 bool StructType::is_tuple_like() const {
-    return false; // TODO
-    //return decl.isa<ast::StructDecl>() && decl.as<ast::StructDecl>()->is_tuple_like;
+    return decl && decl->isa<ast::StructDecl>() && decl->as<ast::StructDecl>()->is_tuple_like;
 }
 
 bool EnumType::is_trivial() const {

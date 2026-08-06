@@ -1334,26 +1334,44 @@ const tir::Node* Path::infer(TypeChecker& checker, std::optional<NodeKind> expec
     assert(var);
     var = checker.builder().enclosing_module().import_mod_var(var);
 
-    // is_value |= static_cast<bool>(last_decl->isa<ValueDecl>());
-    // is_value |= is_ctor;
-
     // Treat tuple-like structure constructors as functions
     if (var->kind() == NodeKind::Type && expected_kind == NodeKind::Value) {
         auto type = checker.builder().as_type(var);
         if (auto [type_app, struct_type] = match_app<StructType>(checker.scope().peek_type_definition(type));
                  struct_type && struct_type->is_tuple_like()) {
-            // TODO: actually generate a single constuctor and re-use it later
-            // if (struct_type->member_count() > 0) {
-            //     SmallArray<const artic::Type*> tuple_args(struct_type->member_count());
-            //     for (size_t i = 0, n = struct_type->member_count(); i < n; ++i)
-            //         tuple_args[i] = member_type(type_app, struct_type, i);
-            //     auto dom = struct_type->member_count() == 1
-            //                ? tuple_args.front()
-            //                : checker.builder().tuple_type(tuple_args);
-            //     type = checker.builder().fn_type(dom, type);
-            // }
-            // is_value = true;
-            // is_ctor = true;
+            auto decl = struct_type->decl->as<StructDecl>();
+            if (!decl->ctor_or_default_value) {
+                if (struct_type->member_count() > 0) {
+                    SmallArray<const artic::Type*> tuple_args(struct_type->member_count());
+                    for (size_t i = 0, n = struct_type->member_count(); i < n; ++i) {
+                        tuple_args[i] = checker.builder().member_type(type, i);
+                    }
+                    auto dom = struct_type->member_count() == 1
+                               ? tuple_args.front()
+                               : checker.builder().tuple_type(tuple_args);
+                    auto param = checker.builder().param(std::nullopt, dom);
+                    auto fn = checker.builder().function(param, type);
+                    fn->body = checker.builder().yield_expr_scope([&](ExprBuilder& expr_builder) -> const Value* {
+                        if (struct_type->member_count() == 1) {
+                            Array<const Value*> args = { param };
+                            return expr_builder.agg(type, args);
+                        }
+                        Array<const Value*> args(struct_type->member_count());
+                        for (size_t i = 0, n = struct_type->member_count(); i < n; ++i) {
+                            auto idx = expr_builder.typed_literal(Literal(uint64_t(i)), expr_builder.prim_type(ast::PrimType::U64));
+                            args[i] = expr_builder.extract(param, idx);
+                        }
+                        return expr_builder.agg(type, args);
+                    });
+                    decl->ctor_or_default_value = checker.builder().enclosing_module().schedule_value(fn);
+                } else {
+                    auto default_value = checker.builder().yield_expr_scope([&](ExprBuilder& expr_builder) -> const Value* {
+                        return expr_builder.agg(type, {});
+                    });
+                    decl->ctor_or_default_value = checker.builder().enclosing_module().schedule_value(default_value);
+                }
+            }
+            return decl->ctor_or_default_value;
         }
     }
 
