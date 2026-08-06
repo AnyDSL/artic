@@ -423,6 +423,7 @@ static std::string kind2str(NodeKind kind) {
         case NodeKind::Key: return "key";
         case NodeKind::Signature: return "sig";
     }
+    return "";
 }
 
 static inline void check_kind(TypeChecker& checker, ast::Node& src, const tir::Node* node, NodeKind expected_kind) {
@@ -469,15 +470,18 @@ const tir::ModVar* TypeChecker::infer_mod_decl(ast::Decl& node) {
     // this ensures lazily inferred decls are parented to the right module
     BuilderGuard guard(*this, *node.enclosing_module->builder);
 
-    if (auto mod_var = node.infer(*this)->isa<ModVar>()) {
+    auto inferred = node.infer(*this);
+    if (auto mod_var = inferred->isa<ModVar>()) {
         node.var = mod_var;
     } else {
+        if (!inferred)
+            inferred = builder().mod_error();
         if (auto named = node.isa<ast::NamedDecl>()) {
-            node.var = node.enclosing_module->builder->add_in_module(builder().mod_error(), infer_key(*named));
+            node.var = node.enclosing_module->builder->add_in_module(inferred, infer_key(*named));
             named->signature = Signature::from_node(builder(), node.var);
             add_decl_to_parent_mod_sig(named);
         } else
-            node.var = node.enclosing_module->builder->add_in_module(builder().mod_error(), builder().decl_key(std::nullopt));
+            node.var = node.enclosing_module->builder->add_in_module(inferred, builder().decl_key(std::nullopt));
     }
     if (node.attrs)
         node.attrs->check(*this, &node);
@@ -1353,11 +1357,19 @@ const tir::Node* Path::infer(TypeChecker& checker, std::optional<NodeKind> expec
         }
     }
 
-    if (expected_kind == NodeKind::Value)
-        return checker.builder().as_value(var);
+    if (expected_kind == NodeKind::Value) {
+        if (var->kind() == expected_kind)
+            return checker.builder().as_value(var);
+        checker.error(loc, "expected a value but got a {}", kind2str(var->kind()));
+        return checker.builder().error_value();
+    }
 
-    if (expected_kind == NodeKind::Type)
-        return checker.builder().as_type(var);
+    if (expected_kind == NodeKind::Type) {
+        if (var->kind() == expected_kind)
+            return checker.builder().as_type(var);
+        checker.error(loc, "expected a type but got a {}", kind2str(var->kind()));
+        return checker.builder().type_error();
+    }
 
     if (expected_kind)
         check_kind(checker, *this, var, *expected_kind);
@@ -2474,7 +2486,7 @@ const tir::Node* ImplicitDecl::infer(TypeChecker& checker) {
 
 const tir::Node* StaticDecl::infer(TypeChecker& checker) {
     if (!checker.enter_decl(this))
-        return checker.builder().type_error();
+        return checker.builder().error_value();
     const artic::Type* value_type = nullptr;
     const artic::Value* value = nullptr;
     if (type) {
@@ -2597,8 +2609,9 @@ const tir::Node* OptionDecl::infer(TypeChecker& checker) {
 const tir::Node* EnumDecl::infer(TypeChecker& checker) {
     auto enum_type = checker.builder().enum_type(checker.infer(type_params ? &*type_params : nullptr), this);
     // Set the type before entering the options
-    var = checker.mod_builder().add_in_module(enum_type, checker.infer_key(*this));
-    signature = checker.builder().type_signature(enum_type);
+    unnamed_type = checker.mod_builder().schedule_type(enum_type);
+    var = checker.mod_builder().add_in_module(unnamed_type, checker.infer_key(*this));
+    signature = checker.builder().type_signature(unnamed_type);
     checker.add_decl_to_parent_mod_sig(this);
     for (auto& option : options)
         enum_type->members.push_back(checker.infer_type(*option));

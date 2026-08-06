@@ -1462,6 +1462,8 @@ struct EnumDecl : public CtorDecl {
 
     std::optional<OptionDecl*> find_member(const std::string_view&) const;
 
+    const tir::Type* unnamed_type;
+
     const tir::Node* infer(TypeChecker&) override;
     void bind_head(NameBinder&) override;
     void bind(NameBinder&) override;
