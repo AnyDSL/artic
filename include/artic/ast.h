@@ -1404,8 +1404,10 @@ struct StructDecl : public RecordDecl {
         , is_tuple_like(is_tuple_like)
     {}
 
+    const tir::StructType* self;
     const tir::Type* unnamed_type;
-    mutable const tir::Value* ctor_or_default_value = nullptr;
+    mutable const tir::Value* ctor_or_default_value_ = nullptr;
+    const tir::Value* ctor_or_default_value() const;
 
     const tir::Node* infer(TypeChecker&) override;
     void bind_head(NameBinder&) override;
@@ -1653,7 +1655,7 @@ struct RecordPtrn : public Ptrn {
     PtrVector<FieldPtrn> fields;
 
     // Set during type-checking if the record is an enumeration variant
-    size_t variant_index = 0;
+    std::optional<size_t> variant_index = 0;
 
     RecordPtrn(const Loc& loc, Path&& path, PtrVector<FieldPtrn>&& fields)
         : Ptrn(loc), path(std::move(path)), fields(std::move(fields))

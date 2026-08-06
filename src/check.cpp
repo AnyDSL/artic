@@ -61,6 +61,11 @@ void TypeChecker::bind_ptrn_params(ast::Ptrn& ptrn, const Value* value) {
             auto idx = builder().typed_literal(Literal(uint64_t(i)), builder().prim_type(ast::PrimType::U64));
             bind_ptrn_params(*array_ptrn->elems[i], expr_builder().extract(value, idx));
         }
+    } else if (auto ctor_ptrn = ptrn.isa<ast::CtorPtrn>()) {
+        bind_ptrn_params(*ctor_ptrn->arg, value);
+    } else if (auto field_ptrn = ptrn.isa<ast::FieldPtrn>()) {
+        auto idx = builder().typed_literal(Literal(uint64_t(field_ptrn->index)), builder().prim_type(ast::PrimType::U64));
+        bind_ptrn_params(*field_ptrn->ptrn, expr_builder().extract(value, idx));
     } else if (auto id_ptrn = ptrn.isa<ast::IdPtrn>()) {
         if (id_ptrn->decl->is_mut) {
             auto alloc = expr_builder().local_variable(value->type());
@@ -707,10 +712,10 @@ Array<const TypeVar*> TypeChecker::infer(ast::TypeParamList* list) {
     return type_app ? type_app->member_type(index) : complex_type->member_type(index);
 }*/
 
-template <typename Fields>
+template <typename CheckFn, typename Fields>
 void TypeChecker::check_fields(
     const Loc& loc, const StructType* struct_type, const TypeApp* type_app,
-    const Fields& fields, const std::string_view& msg,
+    const Fields& fields, CheckFn& check_fn, const std::string_view& msg,
     bool has_etc, bool accept_defaults)
 {
     std::vector<bool> seen(struct_type->member_count(), false);
@@ -727,7 +732,7 @@ void TypeChecker::check_fields(
             return (void)error(loc, "field '{}' specified more than once", fields[i]->id.name);
         seen[*index] = true;
         fields[i]->index = *index;
-        check_value(*fields[i], builder().member_type(type_app ? type_app->as<Type>() : struct_type, *index));
+        check_fn(*fields[i], builder().member_type(type_app ? type_app->as<Type>() : struct_type, *index));
     }
     // Check that all fields have been specified, unless '...' was used
     if (!has_etc && !std::all_of(seen.begin(), seen.end(), [] (bool b) { return b; })) {
@@ -1071,14 +1076,15 @@ const tir::Signature* NamedDecl::infer_signature(TypeChecker& checker) {
 }
 
 const tir::Node* Ptrn::check(TypeChecker& checker, const artic::Type* expected) {
-    assert(false && "TODO");/*
     // Patterns use the inverted subtype relation: In this case, the expected type
     // is assumed to be the type of the expression bound by the pattern, and thus
     // must be a subtype of the pattern type.
-    auto type = checker.infer(*this);
-    if (!expected->subtype(type))
-        return checker.incompatible_types(loc, type, expected);
-    return type;*/
+    auto type = checker.infer_ptrn(*this);
+    if (!expected->subtype(checker.scope(), type)) {
+        checker.incompatible_types(loc, type, expected);
+        return checker.builder().type_error();
+    }
+    return type;
 }
 
 // Path ----------------------------------------------------------------------------
@@ -1340,38 +1346,7 @@ const tir::Node* Path::infer(TypeChecker& checker, std::optional<NodeKind> expec
         if (auto [type_app, struct_type] = match_app<StructType>(checker.scope().peek_type_definition(type));
                  struct_type && struct_type->is_tuple_like()) {
             auto decl = struct_type->decl->as<StructDecl>();
-            if (!decl->ctor_or_default_value) {
-                if (struct_type->member_count() > 0) {
-                    SmallArray<const artic::Type*> tuple_args(struct_type->member_count());
-                    for (size_t i = 0, n = struct_type->member_count(); i < n; ++i) {
-                        tuple_args[i] = checker.builder().member_type(type, i);
-                    }
-                    auto dom = struct_type->member_count() == 1
-                               ? tuple_args.front()
-                               : checker.builder().tuple_type(tuple_args);
-                    auto param = checker.builder().param(std::nullopt, dom);
-                    auto fn = checker.builder().function(param, type);
-                    fn->body = checker.builder().yield_expr_scope([&](ExprBuilder& expr_builder) -> const Value* {
-                        if (struct_type->member_count() == 1) {
-                            Array<const Value*> args = { param };
-                            return expr_builder.agg(type, args);
-                        }
-                        Array<const Value*> args(struct_type->member_count());
-                        for (size_t i = 0, n = struct_type->member_count(); i < n; ++i) {
-                            auto idx = expr_builder.typed_literal(Literal(uint64_t(i)), expr_builder.prim_type(ast::PrimType::U64));
-                            args[i] = expr_builder.extract(param, idx);
-                        }
-                        return expr_builder.agg(type, args);
-                    });
-                    decl->ctor_or_default_value = checker.builder().enclosing_module().schedule_value(fn);
-                } else {
-                    auto default_value = checker.builder().yield_expr_scope([&](ExprBuilder& expr_builder) -> const Value* {
-                        return expr_builder.agg(type, {});
-                    });
-                    decl->ctor_or_default_value = checker.builder().enclosing_module().schedule_value(default_value);
-                }
-            }
-            return decl->ctor_or_default_value;
+            return decl->ctor_or_default_value();
         }
     }
 
@@ -1612,7 +1587,8 @@ const tir::Node* RecordExpr::infer(TypeChecker& checker) {
         checker.type_expected(expr ? expr->loc : this->loc, record_type, "record-like structure");
         return checker.builder().error_value();
     }
-    checker.check_fields(loc, struct_type, type_app, fields, "expression", static_cast<bool>(expr), true);
+    auto check_fn = [&](ast::Expr& expr, const tir::Type* type) { return checker.check_value(expr, type); };
+    checker.check_fields(loc, struct_type, type_app, fields, check_fn, "expression", static_cast<bool>(expr), true);
     auto type = checker.infer_record_type(type_app, struct_type, variant_index);
     assert(!expr && "TODO: insert");
     Array<const Value*> ops(struct_type->member_count());
@@ -2598,6 +2574,7 @@ const tir::Node* FieldDecl::infer(TypeChecker& checker) {
 const tir::Node* StructDecl::infer(TypeChecker& checker) {
     auto struct_type = checker.builder().struct_type(checker.infer(type_params ? &*type_params : nullptr), this);
     // Create the type, the signature of the type and add the type to the interface of the module before proceeding
+    self = struct_type;
     unnamed_type = checker.mod_builder().schedule_type(struct_type);
     signature = checker.builder().type_signature(unnamed_type);
     var = checker.mod_builder().add_in_module(unnamed_type, checker.infer_key(*this));
@@ -2608,6 +2585,43 @@ const tir::Node* StructDecl::infer(TypeChecker& checker) {
     struct_type->validate();
 
     return var;
+}
+
+const tir::Value* StructDecl::ctor_or_default_value() const {
+    if (ctor_or_default_value_)
+        return ctor_or_default_value_;
+    assert(enclosing_module);
+    auto& builder = *enclosing_module->builder;
+    if (self->member_count() > 0) {
+        SmallArray<const artic::Type*> tuple_args(self->member_count());
+        for (size_t i = 0, n = self->member_count(); i < n; ++i) {
+            tuple_args[i] = builder.member_type(unnamed_type, i);
+        }
+        auto dom = self->member_count() == 1
+                   ? tuple_args.front()
+                   : builder.tuple_type(tuple_args);
+        auto param = builder.param(std::nullopt, dom);
+        auto fn = builder.function(param, unnamed_type);
+        fn->body = builder.yield_expr_scope([&](ExprBuilder& expr_builder) -> const Value* {
+            if (self->member_count() == 1) {
+                Array<const Value*> args = { param };
+                return expr_builder.agg(unnamed_type, args);
+            }
+            Array<const Value*> args(self->member_count());
+            for (size_t i = 0, n = self->member_count(); i < n; ++i) {
+                auto idx = expr_builder.typed_literal(Literal(uint64_t(i)), expr_builder.prim_type(ast::PrimType::U64));
+                args[i] = expr_builder.extract(param, idx);
+            }
+            return expr_builder.agg(unnamed_type, args);
+        });
+        ctor_or_default_value_ = builder.enclosing_module().schedule_value(fn);
+    } else {
+        auto default_value = builder.yield_expr_scope([&](ExprBuilder& expr_builder) -> const Value* {
+            return expr_builder.agg(unnamed_type, {});
+        });
+        ctor_or_default_value_ = builder.enclosing_module().schedule_value(default_value);
+    }
+    return ctor_or_default_value_;
 }
 
 const tir::Node* OptionDecl::infer(TypeChecker& checker) {
@@ -2795,19 +2809,21 @@ const tir::Node* TypedPtrn::infer(TypeChecker& checker) {
 }
 
 const tir::Node* LiteralPtrn::infer(TypeChecker& checker) {
-    assert(false && "TODO");
-    /*auto type = checker.infer(loc, lit);
-    if (is_float_type(type))
-        return checker.type_expected(loc, type, "integer, boolean, or string");
-    return type;*/
+    auto type = checker.infer(loc, lit)->type();
+    if (is_float_type(checker.scope().peek_type_definition(type))) {
+        checker.type_expected(loc, type, "integer, boolean, or string");
+        return checker.builder().type_error();
+    }
+    return type;
 }
 
 const tir::Node* LiteralPtrn::check(TypeChecker& checker, const artic::Type* expected) {
-    assert(false && "TODO");
-    /*auto type = checker.check(loc, lit, expected);
-    if (is_float_type(type))
-        return checker.type_expected(loc, type, "integer, boolean, or string");
-    return type;*/
+    auto type = checker.check(loc, lit, expected)->type();
+    if (is_float_type(checker.scope().peek_type_definition(type))) {
+        checker.type_expected(loc, type, "integer, boolean, or string");
+        return checker.builder().type_error();
+    }
+    return type;
 }
 
 const tir::Node* IdPtrn::infer(TypeChecker& checker) {
@@ -2824,41 +2840,69 @@ const tir::Node* IdPtrn::check(TypeChecker& checker, const artic::Type* expected
 }
 
 const tir::Node* ImplicitParamPtrn::infer(artic::TypeChecker& checker) {
-    assert(false && "TODO");
-    /*checker.infer(*underlying);
-    return checker.builder().implicit_param_type(underlying->type);*/
+    return checker.builder().implicit_param_type(checker.infer_ptrn(*underlying));
 }
 
 const tir::Node* ImplicitParamPtrn::check(artic::TypeChecker& checker, const artic::Type* expected) {
-    assert(false && "TODO");
-    /*checker.check(*underlying, expected);
-    checker.scopes.front().push_back(TypeChecker::ImplicitSrc {
-        .expr = arena_ptr((Expr*) this->to_expr(checker._arena)),
-    });
-    return checker.builder().implicit_param_type(underlying->type);*/
+    checker.check_ptrn(*underlying, expected);
+    // checker.scopes.front().push_back(TypeChecker::ImplicitSrc {
+    //     .expr = arena_ptr((Expr*) this->to_expr(checker._arena)),
+    // });
+    return checker.builder().implicit_param_type(underlying->type);
 }
 
 const tir::Node* FieldPtrn::check(TypeChecker& checker, const artic::Type* expected) {
-    assert(false && "TODO");
-    //return checker.check(*ptrn, expected);
+    return checker.check_ptrn(*ptrn, expected);
 }
 
 const tir::Node* RecordPtrn::infer(TypeChecker& checker) {
-    assert(false && "TODO");
-    /*path.type = path.infer(checker, false);
-    auto [type_app, struct_type] = match_app<artic::StructType>(path.type);
+    auto path_type = path.infer(checker, NodeKind::Type)->as<tir::Type>();
+    //if (path_type->isa<TypeError>())
+    auto [type_app, struct_type] = match_app<artic::StructType>(checker.scope().peek_type_definition(path_type));
     if (!struct_type ||
-        (struct_type->decl.isa<StructDecl>() &&
-         struct_type->decl.as<StructDecl>()->is_tuple_like))
-        return checker.type_expected(path.loc, path.type, "structure");
-    checker.check_fields(loc, struct_type, type_app, fields, "pattern");
-    return checker.infer_record_type(type_app, struct_type, variant_index);*/
+        (struct_type->decl->isa<StructDecl>() &&
+         struct_type->decl->as<StructDecl>()->is_tuple_like)) {
+        checker.type_expected(path.loc, path_type, "structure");
+        return checker.builder().type_error();
+    }
+
+    auto check_fn = [&](ast::Ptrn& ptrn, const tir::Type* type) { return checker.check_ptrn(ptrn, type); };
+    checker.check_fields(loc, struct_type, type_app, fields, check_fn, "pattern");
+    return checker.infer_record_type(type_app, struct_type, variant_index);
 }
 
 const tir::Node* CtorPtrn::infer(TypeChecker& checker) {
-    assert(false && "TODO");
-    /*auto path_type = path.infer(checker, true);
-    if (!path.decl->isa<CtorDecl>()) {
+    auto path_type = path.infer(checker, NodeKind::Type)->as<tir::Type>();
+    auto peeked_type = checker.scope().peek_type_definition(path_type);
+
+    if (auto [_, struct_type] = match_app<StructType>(peeked_type); struct_type) {
+        if (struct_type->is_tuple_like()) {
+            auto decl = struct_type->decl->as<ast::StructDecl>();
+            if (struct_type->member_count() == 0 && arg) {
+                checker.error(loc, "constructor takes no argument");
+                return checker.builder().type_error();
+            }
+            if (struct_type->member_count() > 0 && !arg) {
+                checker.error(loc, "missing arguments to enumeration or structure constructor");
+                return checker.builder().type_error();
+            }
+            if (arg) {
+                auto ctor = decl->ctor_or_default_value();
+                auto peeked_ctor_t = checker.scope().peek_type_definition(ctor->type());
+                auto fn_t = peeked_ctor_t->as<tir::FnType>();
+                auto dom = checker.builder().enclosing_module().import_type(fn_t->dom);
+                checker.check_ptrn(*arg, dom);
+            }
+            return path_type;
+        }
+    }
+    if (auto [_, enum_type] = match_app<EnumType>(peeked_type); enum_type) {
+        assert(false && "TODO");
+    }
+    checker.type_expected(path.loc, path_type, "enumeration or structure");
+    return checker.builder().type_error();
+
+    /*if (!path.decl->isa<CtorDecl>()) {
         checker.error(path.loc, "structure or enumeration constructor expected");
         return checker.builder().type_error();
     }

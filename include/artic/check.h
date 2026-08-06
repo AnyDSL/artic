@@ -113,10 +113,10 @@ public:
         return f();
     };
 
-    template <typename Fields>
+    template <typename CheckFn, typename Fields>
     void check_fields(
         const Loc&, const StructType*, const TypeApp*,
-        const Fields&, const std::string_view&,
+        const Fields&, CheckFn&, const std::string_view&,
         bool = false, bool = false);
 
     // void assign_scope_to_block_decls(const PtrVector<ast::Stmt>&, ScopeBuilder&);
