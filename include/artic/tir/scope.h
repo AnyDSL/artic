@@ -21,6 +21,7 @@ struct Scope {
 
     /// resolves one step of let-binding
     const Node* resolve_mod_var(const ModVar* var) const;
+    const Scope* find_scope(const ModVar* var) const;
     bool is_in_scope(const ModVar* var) const;
 
     const Node* resolve_bindings(const ModValue* var) const;

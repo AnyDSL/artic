@@ -467,9 +467,19 @@ const Scope* Builder::vars_scope(const Node::FVSet& fvs) {
     return s;
 }
 
-const ModVar* ModuleBuilder::schedule(const Node* node, std::optional<ast::Identifier> maybe_id) {
+// Helper method to allow finding the intended scope of even some partially incomplete nodes
+static const Scope* get_node_scope_helper(ModuleBuilder& builder, const Node* node) {
+    if (auto mod_var = node->isa<ModVar>())
+        return builder.scope.find_scope(mod_var);
+    if (auto mod_access = node->isa<ModAccess>()) {
+        return unify_scopes(get_node_scope_helper(builder, mod_access->mod), get_node_scope_helper(builder, mod_access->key));
+    }
     auto fvs = node->free_variables();
-    const Scope* node_scope = vars_scope(fvs);
+    return builder.vars_scope(fvs);
+}
+
+const ModVar* ModuleBuilder::schedule(const Node* node, std::optional<ast::Identifier> maybe_id) {
+    const Scope* node_scope = get_node_scope_helper(*this, node);
     assert(scope.contains(node_scope) && "this node cannot be scheduled here or in any parent module, it has free variables that would not be bound");
 
     // find the corresponding module builder

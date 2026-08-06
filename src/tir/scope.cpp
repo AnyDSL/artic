@@ -18,13 +18,17 @@ const Node* Scope::resolve_mod_var(const ModVar* var) const {
     return nullptr;
 }
 
-bool Scope::is_in_scope(const ModVar* var) const {
+const Scope* Scope::find_scope(const ModVar* var) const {
     auto found = mod_vars.find(var);
     if (found != mod_vars.end())
-        return true;
+        return this;
     if (parent)
-        return parent->is_in_scope(var);
-    return false;
+        return parent->find_scope(var);
+    return nullptr;
+}
+
+bool Scope::is_in_scope(const ModVar* var) const {
+    return find_scope(var) != nullptr;
 }
 
 bool Scope::contains(const Scope* other_scope) const {

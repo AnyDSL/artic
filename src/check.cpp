@@ -2439,6 +2439,7 @@ const tir::Node* StaticDecl::infer(TypeChecker& checker) {
     }
     checker.exit_decl(this);
     var = checker.mod_builder().add_in_module(checker.builder().global_variable(value_type, is_mut, value), checker.infer_key(*this));
+    signature = var->signature();
     checker.add_decl_to_parent_mod_sig(this);
     return var;
 }
@@ -2595,7 +2596,7 @@ const tir::Signature* ModDecl::infer_signature(TypeChecker& checker) {
     // pre-populate the signature with dummy decls
     for (auto& decl : decls) {
         if (auto named = decl->isa<NamedDecl>()) {
-            if (auto use = decl->isa<UseDecl>(); use && use->id.name.empty())
+            if (auto use = decl->isa<UseDecl>(); use && use->is_alias())
                 continue;
             signature->mod_signature.emplace(checker.infer_key(*named), nullptr);
         }
@@ -2684,8 +2685,7 @@ const tir::Node* UseDecl::infer(TypeChecker& checker) {
         signature = var->signature();
         Module::Decl* decl = checker.mod_builder().module().add_decl(modvar);
         checker.mod_builder().module().set_decl(decl, path.infer(checker, dst_sig->elem_kind));
-        if (!id.name.empty())
-            checker.add_decl_to_parent_mod_sig(this);
+        checker.add_decl_to_parent_mod_sig(this);
     } else {
         checker.error(loc, "use decls cannot refer to variable declarations");
     }
