@@ -56,6 +56,11 @@ void TypeChecker::bind_ptrn_params(ast::Ptrn& ptrn, const Value* value) {
             auto idx = builder().typed_literal(Literal(uint64_t(i)), builder().prim_type(ast::PrimType::U64));
             bind_ptrn_params(*tuple_ptrn->args[i], expr_builder().extract(value, idx));
         }
+    } else if (auto array_ptrn = ptrn.isa<ast::ArrayPtrn>()) {
+        for (size_t i = 0; i < array_ptrn->elems.size(); ++i) {
+            auto idx = builder().typed_literal(Literal(uint64_t(i)), builder().prim_type(ast::PrimType::U64));
+            bind_ptrn_params(*array_ptrn->elems[i], expr_builder().extract(value, idx));
+        }
     } else if (auto id_ptrn = ptrn.isa<ast::IdPtrn>()) {
         if (id_ptrn->decl->is_mut) {
             auto alloc = expr_builder().local_variable(value->type());
@@ -2814,22 +2819,21 @@ const tir::Node* TuplePtrn::check(TypeChecker& checker, const artic::Type* expec
 }
 
 const tir::Node* ArrayPtrn::infer(TypeChecker& checker) {
-    assert(false && "TODO");
-    // return checker.infer_array(loc, "array pattern", elems.size(), is_simd, [&] {
-    //     auto elem_type = checker.infer(*elems.front());
-    //     for (size_t i = 1, n = elems.size(); i < n; ++i)
-    //         elem_type = checker.check(*elems[i], elem_type);
-    //     return elem_type;
-    // });
+    return checker.infer_array(loc, "array pattern", elems.size(), is_simd, [&] {
+        auto elem_type = checker.infer_ptrn(*elems.front());
+        for (size_t i = 1, n = elems.size(); i < n; ++i) {
+            checker.check_ptrn(*elems[i], elem_type);
+        }
+        return elem_type;
+    });
 }
 
 const tir::Node* ArrayPtrn::check(TypeChecker& checker, const artic::Type* expected) {
-    assert(false && "TODO");
-    // return checker.check_array(loc, "array pattern",
-    //     expected, elems.size(), is_simd, [&] (auto elem_type) {
-    //     for (auto& elem : elems)
-    //         checker.check(*elem, elem_type);
-    // });
+    return checker.check_array(loc, "array pattern",
+        expected, elems.size(), is_simd, [&] (auto elem_type) {
+        for (auto& elem : elems)
+            checker.check_ptrn(*elem, elem_type);
+    });
 }
 
 } // namespace ast

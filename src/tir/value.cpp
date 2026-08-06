@@ -248,11 +248,13 @@ Proj::Proj(Builder& builder, const Value* src, const Value* idx) : Value(builder
     auto peeked_addr_type = builder.scope.peek_type_definition(src->type());
     auto [ref_t, ref_pointee] = remove_ref(builder, peeked_addr_type);
     if (ref_t) {
+        pointee_t = ref_pointee;
         mut = ref_t->is_mut;
         as = ref_t->addr_space;
     } else {
         auto [ptr_t, ptr_pointee] = remove_ptr(builder.scope, peeked_addr_type);
         assert(ptr_t && "Proj works on Ref or Ptr types.");
+        pointee_t = ptr_pointee;
         mut = ptr_t->is_mut;
         as = ptr_t->addr_space;
     }
