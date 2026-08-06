@@ -294,6 +294,8 @@ ExprBuilder::ExprBuilder(Arena& arena, Builder* parent)
 {}
 
 void ExprBuilder::bind(const Param* param, const Value* value) {
+    if (value->type()->isa<TypeError>())
+        value = error_value(param->type());
     add_instruction(arena.insert<Bind>(*this, param, value));
 }
 

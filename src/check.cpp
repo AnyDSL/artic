@@ -1617,6 +1617,8 @@ const tir::Node* ArrayExpr::infer(TypeChecker& checker) {
             checker.coerce(&*elems[i], elem_type);
         return elem_type;
     });
+    if (agg_t->isa<TypeError>())
+        return checker.builder().error_value(agg_t);
     Array<const Value*> ops(elems.size());
     for (size_t i = 0, n = elems.size(); i < n; ++i)
         ops[i] = elems[i]->value;
@@ -1629,6 +1631,8 @@ const tir::Node* ArrayExpr::check(TypeChecker& checker, const artic::Type* expec
         for (auto& elem : elems)
             checker.coerce(&*elem, elem_type);
     });
+    if (agg_t->isa<TypeError>())
+        return checker.builder().error_value(expected);
     Array<const Value*> ops(elems.size());
     for (size_t i = 0, n = elems.size(); i < n; ++i)
         ops[i] = elems[i]->value;
