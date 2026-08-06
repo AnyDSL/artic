@@ -1119,6 +1119,9 @@ Path::Elem::Inferred Path::Elem::infer(TypeChecker& checker, size_t i, Path& pat
             for (auto& decl : prev_module->decl->decls) {
                 if (auto named_decl = decl->isa<NamedDecl>()) {
                     if (named_decl->id.name == id.name) {
+                        if (auto use = decl->isa<UseDecl>(); use && use->is_alias()) {
+                            return use->path.infer_path(checker, expected_kind);
+                        }
                         Inferred inferred = {};
                         inferred.sig = checker.infer_signature(*named_decl);
                         if (auto mod_decl = decl->isa<ModDecl>()) {
@@ -2635,6 +2638,8 @@ const tir::Node* ModDecl::infer(TypeChecker& checker) {
 
     TypeChecker::BuilderGuard guard(checker, *builder);
     for (auto& decl : decls) {
+        if (auto use = decl->isa<UseDecl>(); use && use->is_alias())
+            continue;
         checker.infer_mod_decl(*decl);
     }
     self->seal();
@@ -2672,12 +2677,7 @@ const tir::Node* UseDecl::infer(TypeChecker& checker) {
     }
 
     if (is_alias()) {
-        signature = checker.builder().value_signature(checker.builder().unit_type());
-        var = checker.builder().mod_var(checker.builder().decl_key(std::nullopt), signature);
-
-        Module::Decl* decl = checker.mod_builder().module().add_decl(var);
-        checker.mod_builder().module().set_decl(decl, checker.builder().unit());
-        return var;
+        assert(false);
     }
 
     if (!checker.enter_decl(this))
