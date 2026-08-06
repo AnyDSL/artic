@@ -195,8 +195,12 @@ const Value* Builder::error_value(const Type* t) {
     return arena.insert<ErrorValue>(arena, t);
 }
 
-const GlobalVariable* Builder::global_variable(const Type* value_type, bool is_mut, const Value* init) {
-    return arena.insert<GlobalVariable>(*this, value_type, is_mut, init);
+const Value* Builder::error_value() {
+    return error_value(type_error());
+}
+
+const GlobalVariable* Builder::global_variable(const Type* value_type, bool is_mut, const Value* init, const ast::StaticDecl* decl) {
+    return arena.insert<GlobalVariable>(*this, value_type, is_mut, init, decl);
 }
 
 const Value* Builder::typed_literal(Literal literal, const Type* type) {
@@ -238,6 +242,10 @@ const Value* ExprBuilder::app(const Value* callee, const Value* arg) {
 
 const Value* ExprBuilder::agg(const Type* type, const ArrayRef<const Value*>& args) {
     return bind_value(arena.insert<Agg>(*this, type, args));
+}
+
+const Value* ExprBuilder::repeat(const Type* type, const Value* elem) {
+    return bind_value(arena.insert<Repeat>(*this, type, elem));
 }
 
 inline static const TupleType* tuple_type_from_elems(Builder& builder, const ArrayRef<const Value*>& args) {

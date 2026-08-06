@@ -135,7 +135,7 @@ public:
     bool try_infer_implicit_type_args(const Loc&, const ForallType*, const Type*, std::vector<const Type*>&);
     const Type* infer_record_type(const TypeApp*, const StructType*, std::optional<size_t>&);
 
-    size_t path_to_size(ast::Path& path, const std::string_view&);
+    size_t resolve_integer_constant(const Loc&, const Value*, const ast::Node*, const std::string_view&);
 
     Scope& scope();
     Builder& builder();

@@ -122,11 +122,12 @@ struct Builder : public artic::Cast<Builder> {
     const ModError* mod_error();
     // const ModValue* mod_access(const ModValue*, const DeclKey*);
 
-    const GlobalVariable* global_variable(const Type*, bool is_mut, const Value*);
+    const GlobalVariable* global_variable(const Type*, bool is_mut, const Value*, const ast::StaticDecl*);
     const Value* typed_literal(Literal, const Type*);
     const Value* undef(const Type*);
     const Value* as_value(const ModVar*);
     const Value* error_value(const Type*);
+    const Value* error_value();
 
     const Fn* function(const Param*, const Type* codom);
     const Param* param(std::optional<ast::Identifier>, const Type*);
@@ -179,6 +180,7 @@ struct ExprBuilder : public Builder {
 
     const Value* app(const Value* callee, const Value* arg);
     const Value* agg(const Type*, const ArrayRef<const Value*>&);
+    const Value* repeat(const Type*, const Value*);
     const Value* tuple(const ArrayRef<const Value*>&);
     const Value* extract(const Value*, const Value*);
     const Value* proj(const Value*, const Value*);

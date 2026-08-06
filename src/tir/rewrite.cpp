@@ -162,6 +162,10 @@ const Node* Agg::rewrite(Rewriter&) const {
 
 }
 
+const Node* Repeat::rewrite(Rewriter&) const {
+
+}
+
 const Node* Extract::rewrite(Rewriter&) const {
 
 }

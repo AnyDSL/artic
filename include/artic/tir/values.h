@@ -119,6 +119,7 @@ struct GlobalVariable : public NominalNode<Value> {
     const Type* value_type;
     bool is_mut;
     const Value* init;
+    const ast::StaticDecl* decl;
 
     void print(Printer&) const override;
     const Node* rewrite(Rewriter&) const override;
@@ -129,7 +130,7 @@ struct GlobalVariable : public NominalNode<Value> {
 
     const thorin::Def* emit(Emitter&, SetHeadFn) const override;
 
-    GlobalVariable(Builder& arena, const Type*, bool is_mut, const Value* init = nullptr);
+    GlobalVariable(Builder& arena, const Type*, bool is_mut, const Value* init, const ast::StaticDecl* decl);
 };
 
 struct LocalVariable : public NominalNode<Value> {
@@ -240,6 +241,22 @@ struct Extract : public Value {
     const thorin::Def* emit(Emitter&) const override;
 
     Extract(Builder&, const Value*, const Value*);
+};
+
+struct Repeat : public Value {
+    const Value* elem;
+
+    bool equals(const Node*) const override;
+    size_t hash() const override;
+
+    void print(Printer&) const override;
+    const Node* rewrite(Rewriter&) const override;
+    void free_variables(FVSet&, Seen&) const override;
+
+    bool is_computation() const override { return false; }
+    const thorin::Def* emit(Emitter&) const override;
+
+    Repeat(Builder&, const Type*, const Value*);
 };
 
 struct Proj : public Value {

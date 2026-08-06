@@ -33,6 +33,7 @@ struct Scope {
 
     const Type* peek_type_definition(const Type* type) const;
     const ModValue* peek_mod_value(const ModValue*) const;
+    const Value* peek_value(const Value*) const;
 private:
     void insert(const ModVar*, const Node*);
 

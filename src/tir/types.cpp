@@ -810,12 +810,18 @@ bool is_unit_type(const Type* type) {
 }
 
 const Type* Scope::peek_type_definition(const Type* type) const {
-    // repeatedly resolve quoted module variables until we reach the actual type definition
     while (auto var_as_type = type->isa<ModVarAsType>()) {
         auto [resolved, _] = resolve_deep(var_as_type->var);
         type = resolved->as<Type>();
     }
     return type;
+}
+const Value* Scope::peek_value(const Value* value) const {
+    while (auto as_value = value->isa<ModVarAsValue>()) {
+        auto [resolved, _] = resolve_deep(as_value->var);
+        value = resolved->as<Value>();
+    }
+    return value;
 }
 
 std::pair<const PtrType*, const Type*> remove_ptr(const Scope& scope, const Type* type) {

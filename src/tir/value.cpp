@@ -13,8 +13,8 @@ const Type* Value::resolve_type(const Scope& s) const {
     return s.peek_type_definition(type());
 }
 
-GlobalVariable::GlobalVariable(Builder& builder, const Type* value_type, bool is_mut, const Value* init)
-    : NominalNode(builder.arena, builder.ref_type(value_type, is_mut, 0)), value_type(value_type), is_mut(is_mut), init(init) {
+GlobalVariable::GlobalVariable(Builder& builder, const Type* value_type, bool is_mut, const Value* init, const ast::StaticDecl* decl)
+    : NominalNode(builder.arena, builder.ref_type(value_type, is_mut, 0)), value_type(value_type), is_mut(is_mut), init(init), decl(decl) {
     assert(value_type->is_simple());
     if (init)
         assert(init->type() == value_type);
@@ -245,6 +245,23 @@ size_t Extract::hash() const {
 bool Extract::equals(const Node* other) const {
     if (auto other_extract = other->isa<Extract>()) {
         if (other_extract->src == src && other_extract->idx == idx)
+            return true;
+    }
+    return false;
+}
+
+Repeat::Repeat(Builder& builder, const Type* type, const Value* elem) : Value(builder.arena, type), elem(elem) {
+    auto peeked_arr_type = builder.scope.peek_type_definition(type);
+    assert(peeked_arr_type->isa<ArrayType>());
+}
+
+size_t Repeat::hash() const {
+    return fnv::Hash().combine(type()).combine(elem);
+}
+
+bool Repeat::equals(const Node* other) const {
+    if (auto other_rep = other->isa<Repeat>()) {
+        if (other_rep->type() == type() && other_rep->elem == elem)
             return true;
     }
     return false;
@@ -505,6 +522,10 @@ void LocalVariable::free_variables(FVSet&, Seen&) const {
 }
 
 void Agg::free_variables(FVSet&, Seen&) const {
+    assert(false && "TODO");
+}
+
+void Repeat::free_variables(FVSet&, Seen&) const {
     assert(false && "TODO");
 }
 

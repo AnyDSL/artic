@@ -415,6 +415,15 @@ void Agg::print(Printer& p) const {
     p << ')';
 }
 
+void Repeat::print(Printer& p) const {
+    p << log::keyword_style("repeat") << '[';
+    p.print(*type(), true);
+    p << "]";
+    p << '(';
+    p.print(*elem, true);
+    p << ')';
+}
+
 void Extract::print(Printer& p) const {
     p << log::keyword_style("extract");
     p << '(';

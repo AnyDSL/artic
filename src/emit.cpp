@@ -1367,6 +1367,14 @@ const thorin::Def* Agg::emit(Emitter& emitter) const {
     }
 }
 
+const thorin::Def* Repeat::emit(Emitter& emitter) const {
+    auto arr_type = emitter.scope().peek_type_definition(type())->as<SizedArrayType>();
+    thorin::Array<const thorin::Def*> ops(arr_type->size, emitter.emit(elem));
+    return arr_type->is_simd
+        ? emitter.world.vector(ops, emitter.debug_info(this))
+        : emitter.world.definite_array(ops, emitter.debug_info(this));
+}
+
 const thorin::Def* Extract::emit(Emitter& emitter) const {
     return emitter.world.extract(emitter.emit(src), emitter.emit(idx));
 }
