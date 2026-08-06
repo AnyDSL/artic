@@ -152,6 +152,7 @@ add_failure_test(NAME failure_use1           COMMAND artic ${CMAKE_CURRENT_SOURC
 add_failure_test(NAME failure_use2           COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/use2.art)
 add_failure_test(NAME failure_use3           COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/use3.art)
 add_failure_test(NAME failure_use4           COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/use4.art)
+add_failure_test(NAME failure_use5           COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/use5.art)
 add_failure_test(NAME failure_static         COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/static.art)
 add_failure_test(NAME failure_cc             COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/cc.art)
 add_failure_test(NAME failure_escape         COMMAND artic ${CMAKE_CURRENT_SOURCE_DIR}/failure/escape.art)

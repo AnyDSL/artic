@@ -1540,7 +1540,7 @@ struct UseDecl : public NamedDecl {
 
     /// If true, don't consider this an actual declaration in the module
     bool is_alias() const {
-        return true || id.name.empty();
+        return id.name.empty();
     }
 };
 

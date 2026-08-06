@@ -1,0 +1,7 @@
+mod M {
+    use super::N::I as I;
+}
+
+mod N {
+    use super::M::I as I;
+}

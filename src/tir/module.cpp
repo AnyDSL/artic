@@ -141,7 +141,7 @@ bool Signature::is_complete() const {
                 if (!sub_sig || !sub_sig->is_complete())
                     return false;
             }
-            break;
+            return true;
         default: assert(false);
     }
 }
