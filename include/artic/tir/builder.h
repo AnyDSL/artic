@@ -151,6 +151,7 @@ struct ModuleBuilder : public Builder {
 
     const Type* import_type(const Type*);
     const Signature* import_signature(const Signature*);
+    const ModVar* import_mod_var(const ModVar*);
 
     const Type* schedule_type(const Type*, std::optional<ast::Identifier> = std::nullopt);
     const Value* schedule_value(const Value*, std::optional<ast::Identifier> = std::nullopt);

@@ -238,7 +238,10 @@ void Module::print(Printer& p) const {
         p << ": ";
         p.print(*decl->var->signature());
         p << " = ";
-        p.print(*decl->value, true);
+        if (decl->value)
+            p.print(*decl->value, true);
+        else
+            p << "<undefined>";
     });
     p << p.unindent() << p.endl() << "}";
 }

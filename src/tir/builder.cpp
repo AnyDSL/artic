@@ -426,6 +426,9 @@ struct Importer : public Rewriter {
         if (auto as_type = old->isa<ModVarAsType>()) {
             return builder.as_type(import_mod_var(as_type->var));
         }
+        if (auto mod_var = old->isa<ModVar>()) {
+            return import_mod_var(mod_var);
+        }
         return old->rewrite(*this);
     }
 };
@@ -449,6 +452,10 @@ const Type* ModuleBuilder::import_type(const Type* t) {
 
 const Signature* ModuleBuilder::import_signature(const Signature* t) {
     return import(t)->as<Signature>();
+}
+
+const ModVar* ModuleBuilder::import_mod_var(const ModVar* mod_var) {
+    return import(mod_var)->as<ModVar>();
 }
 
 const Scope* Builder::vars_scope(const Node::FVSet& fvs) {

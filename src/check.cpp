@@ -206,13 +206,13 @@ void TypeChecker::unknown_member(const Loc& loc, const UserType* user_type, cons
     error(loc, "no member '{}' in '{}'", member, *user_type);
 }
 
-void TypeChecker::unknown_module_member(const Loc& loc, const Module* module, const ModVar* var, const std::string_view& member) {
-    if (module && module->decl->id.name == "")
+void TypeChecker::unknown_module_member(const Loc& loc, const ast::Path::Elem::Inferred& prev, const std::string_view& member) {
+    if (prev.module && prev.module->decl && prev.module->decl->id.name.empty())
         error(loc, "no member '{}' in top-level module", member);
-    else if (module)
-        error(loc, "no member '{}' in '{}'", member, *module);
+    else if (prev.module)
+        error(loc, "no member '{}' in '{}'", member, *prev.module);
     else
-        error(loc, "no member '{}' in '{}'", member, *var);
+        error(loc, "no member '{}' in '{}'", member, *prev.var);
 }
 
 void TypeChecker::cannot_infer(const Loc& loc, const std::string_view& msg) {
@@ -996,7 +996,8 @@ const Type* TypeChecker::infer_record_type(const TypeApp* type_app, const Struct
 }
 
 size_t TypeChecker::path_to_size(ast::Path& path, const std::string_view& element) {
-    auto decl = resolve_use_decl(path.elems.back().decl);
+    assert(false && "TODO: consume TIR");
+    /*auto decl = resolve_use_decl(path.elems.back().decl);
     auto static_decl = decl->isa<ast::StaticDecl>();
     ast::LiteralExpr* lit_value = nullptr;
     if (static_decl && !static_decl->is_mut && static_decl->init)
@@ -1009,7 +1010,7 @@ size_t TypeChecker::path_to_size(ast::Path& path, const std::string_view& elemen
     if (!static_decl->init)
         note(static_decl->loc, "{} lacks an initializer", path);
     if (!lit_value || !lit_value->lit.is_integer())
-        note(static_decl->loc, "{} is not of an integer type", path);
+        note(static_decl->loc, "{} is not of an integer type", path);*/
     return 0;
 }
 
@@ -1049,25 +1050,30 @@ const tir::Node* Ptrn::check(TypeChecker& checker, const artic::Type* expected) 
 
 // Path ----------------------------------------------------------------------------
 
-void Path::Elem::infer(TypeChecker& checker, Path::Elem* prev, Path& path, std::optional<tir::NodeKind> expected_kind) {
+Path::Elem::Inferred Path::Elem::infer(TypeChecker& checker, size_t i, Path& path, Path::Elem::Inferred* prev, std::optional<tir::NodeKind> expected_kind) {
     if (!prev) {
-        if (auto ptrn_decl = decl->isa<PtrnDecl>()) {
+        if (auto use = path.start_decl->isa<UseDecl>(); use && use->is_alias()) {
+            return use->path.infer_path(checker, expected_kind);
+        } else if (auto ptrn_decl = path.start_decl->isa<PtrnDecl>()) {
             // assert(ptrn_decl->tir && "PtrnDecls encountered here should be already emitted.");
-            param = checker.infer_ptrn_decl(*ptrn_decl);
-        } else if (auto mod = decl->isa<ModDecl>(); mod && !mod->super) {
-            module = checker.infer_top_module(*mod);
-            sig = module->signature();
+            return { .param = checker.infer_ptrn_decl(*ptrn_decl) };
+        } else if (auto mod = path.start_decl->isa<ModDecl>(); mod && !mod->super) {
+            auto module = checker.infer_top_module(*mod);
+            return {
+                .module = module,
+                .sig = module->signature(),
+            };
         } else if (expected_kind == NodeKind::Signature) {
             // in signature mode, do not infer the mod decls but instead just their signature
-            sig = checker.infer_signature(*decl);
+            return { .sig = checker.infer_signature(*path.start_decl) };
         } else {
-            var = checker.infer_mod_decl(*decl);
-            sig = var->signature();
-            // set this opportunistically
-            module = std::get<0>(checker.scope().resolve_deep(var))->isa<Module>();
+            auto var = checker.infer_mod_decl(*path.start_decl);
+            return {
+                .module = checker.scope().resolve_bindings(var)->isa<Module>(),
+                .var = var,
+                .sig = var->signature(),
+            };
         }
-        assert(param || sig);
-        return;
     }
 
     if (prev->sig && prev->sig->elem_kind == NodeKind::Module) {
@@ -1076,81 +1082,108 @@ void Path::Elem::infer(TypeChecker& checker, Path::Elem* prev, Path& path, std::
         if (is_super()) {
             if (prev->param) {
                 checker.error(loc, "'super' can only be used on modules");
-                return;
+                return {};
             }
             if (!prev_module) {
                 checker.error(loc, "'super' can only be used on known modules");
-                return;
-                // assert(prev->var);
-                // prev_module = std::get<0>(checker.scope().resolve_deep(prev->var))->isa<Module>();
+                return {};
             }
             assert(prev_module->decl && "anonymous modules shouldn't be reachable like this");
             if (prev_module->decl->super) {
                 if (prev_module->decl->super->var) {
-                    var = prev_module->decl->super->var;
-                    sig = var->signature();
+                    auto var = prev_module->decl->super->var;
+                    return {
+                        .var = var,
+                        .sig = var->signature(),
+                    };
                 } else {
-                    this->module = prev_module->decl->super->self;
-                    sig = module->signature();
+                    auto module = prev_module->decl->super->self;
+                    return {
+                        .module = module,
+                        .sig = module->signature(),
+                    };
                 }
             } else {
                 checker.error(loc, "'super' cannot be used on the root module");
             }
-            return;
+            return {};
         }
 
-        // if (prev->module) {
-        //     // find the mod var inside the known module matching the key
-        //     for (auto mod_decl : prev->module->decls()) {
-        //         if (mod_decl->var->key->id && mod_decl->var->key->id->name == id.name && checker.scope().is_in_scope(mod_decl->var)) {
-        //             // if there is a match and it'd be in scope, we can just use it directly
-        //             var = mod_decl->var;
-        //             return;
-        //         }
-        //     }
-        // }
+        // Allow lazily entering and inferring module contents
+        if (prev_module && prev_module->decl) {
+            for (auto& decl : prev_module->decl->decls) {
+                if (auto named_decl = decl->isa<NamedDecl>()) {
+                    if (named_decl->id.name == id.name) {
+                        Inferred inferred = {};
+                        inferred.sig = checker.infer_signature(*named_decl);
+                        if (auto mod_decl = decl->isa<ModDecl>()) {
+                            assert(mod_decl->self && "should be set by infer_signature");
+                            inferred.module = mod_decl->self;
+                        }
+                        // if this is the last part of the path, make sure we fully infer whatever we have
+                        if (expected_kind == NodeKind::Signature) {
+                            if (i == path.elems.size() - 1 && !inferred.sig->is_complete())
+                                checker.infer_mod_decl(*named_decl);
+                            return inferred;
+                        }
+                        inferred.var = checker.infer_mod_decl(*named_decl);
+                        return inferred;
+                    }
+                }
+            }
+        }
 
         bool must_infer = false;
         for (auto [key, sub_sig] : prev->sig->mod_signature) {
             if (key->id->name == id.name) {
+                Inferred inferred = {};
                 // if the signature isn't known, we have to infer the relevant decl
                 if (!sub_sig) {
                     must_infer = true;
                     break;
                 }
-                sig = sub_sig;
+                inferred.sig = sub_sig;
                 // In signature mode, just provide the next step
                 if (expected_kind == NodeKind::Signature) {
-                    assert(sig);
-                    return;
+                    assert(inferred.sig);
+                    return inferred;
                 }
                 if (prev->var) {
-                    var = checker.builder().enclosing_module().mod_access(prev->var, key, sig);
-                    return;
+                    inferred.var = checker.builder().enclosing_module().mod_access(prev->var, key, inferred.sig);
+                    return inferred;
                 } else {
+                    assert(prev->module);
                     checker.error("no var available to extract {} from", *key);
+                    for (auto mod_decl : prev->module->decls()) {
+                        if (mod_decl->var->key->id && mod_decl->var->key->id->name == id.name && checker.scope().is_in_scope(mod_decl->var)) {
+                            // if there is a match and it'd be in scope, we can just use it directly
+                            inferred.var = mod_decl->var;
+                            return inferred;
+                        }
+                    }
                 }
             }
         }
 
         if (must_infer) {
-            if (expected_kind == NodeKind::Signature) {
-                sig = checker.infer_signature(*decl);
-                return;
-            }
-            var = checker.infer_mod_decl(*decl);
-            sig = checker.infer_signature(*decl);
-            return;
+
+            // if (expected_kind == NodeKind::Signature) {
+            //     sig = checker.infer_signature(*decl);
+            //     return;
+            // }
+            // var = checker.infer_mod_decl(*decl);
+            // sig = checker.infer_signature(*decl);
+            // return;
         }
 
         // if something is missing, maybe we just haven't had the chance to infer it yet
-        checker.unknown_module_member(loc, prev_module, var, id.name);
-        return;
+        checker.unknown_module_member(loc, *prev, id.name);
+        return {};
     }
     if (is_super()) {
         assert(prev);
         checker.error(loc, "'super' can only be used on modules");
-        return;
+        return {};
     }
     assert(false && "TODO");
     /*if (auto prev_elem_type = prev->tir->isa<tir::Type>()) {
@@ -1179,17 +1212,24 @@ void Path::Elem::infer(TypeChecker& checker, Path::Elem* prev, Path& path, std::
     //return checker.type_expected(loc, type, "module or enum");
 }
 
+Path::Elem::Inferred Path::infer_path(TypeChecker& checker, std::optional<tir::NodeKind> expected_kind) {
+    std::optional<Path::Elem::Inferred> prev;
+    for (size_t i = 0, n = elems.size(); i < n; ++i) {
+        auto& elem = elems[i];
+        prev = elem.infer(checker, i, *this, prev ? &*prev : nullptr, expected_kind);
+    }
+    return *prev;
+}
+
 const tir::Node* Path::infer(TypeChecker& checker, std::optional<NodeKind> expected_kind, Ptr<Expr>* arg, const artic::Type* ret_type) {
-    if (elems.back().is_wildcard())
-        return nullptr;
-    if (!decl)
-        return checker.builder().type_error();
+    // if (elems.back().is_wildcard())
+    //     return nullptr;
 
     // Inspect every element of the path
     for (size_t i = 0, n = elems.size(); i < n; ++i) {
         auto& elem = elems[i];
 
-        elem.infer(checker, i == 0 ? nullptr : &elems[i - 1], *this, expected_kind);
+        // elem.infer(checker, i, i == 0 ? nullptr : &elems[i - 1], *this, expected_kind);
 
         // Apply type arguments (if any)
         // auto user_type   = elem.tir->isa<artic::UserType>();
@@ -1223,17 +1263,20 @@ const tir::Node* Path::infer(TypeChecker& checker, std::optional<NodeKind> expec
         // }
     }
 
+    auto inferred = infer_path(checker, expected_kind);
+
     if (expected_kind == NodeKind::Signature) {
-        return elems.back().sig;
+        return checker.builder().enclosing_module().import_signature(inferred.sig);
     }
 
-    if (elems.back().param) {
+    if (inferred.param) {
         // assert(expected_kind == NodeKind::Value && "you got a param, surely you wanted a value ?");
-        return elems.back().param;
+        return inferred.param;
     }
 
-    auto var = elems.back().var;
+    auto var = inferred.var;
     assert(var);
+    var = checker.builder().enclosing_module().import_mod_var(var);
 
     // is_value |= static_cast<bool>(last_decl->isa<ValueDecl>());
     // is_value |= is_ctor;
@@ -2619,6 +2662,15 @@ const tir::Node* UseDecl::infer(TypeChecker& checker) {
     if (path.elems.back().is_wildcard()) {
         var = checker.mod_builder().add_in_module(checker.builder().unit_type(), checker.builder().decl_key(std::nullopt));
         signature = var->signature();
+        return var;
+    }
+
+    if (is_alias()) {
+        signature = checker.builder().value_signature(checker.builder().unit_type());
+        var = checker.builder().mod_var(checker.builder().decl_key(std::nullopt), signature);
+
+        Module::Decl* decl = checker.mod_builder().module().add_decl(var);
+        checker.mod_builder().module().set_decl(decl, checker.builder().unit());
         return var;
     }
 

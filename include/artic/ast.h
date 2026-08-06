@@ -194,14 +194,13 @@ struct Path : public Node {
         Identifier id;
         PtrVector<Type> args;
 
-        // Set during name-binding
-        NamedDecl* decl = nullptr;
-
         // These members are set during type-checking
-        const tir::Param* param = nullptr;
-        const tir::Module* module = nullptr;
-        const tir::ModVar* var = nullptr;
-        const tir::Signature* sig = nullptr;
+        struct Inferred {
+            const tir::Param* param = nullptr;
+            const tir::Module* module = nullptr;
+            const tir::ModVar* var = nullptr;
+            const tir::Signature* sig = nullptr;
+        };
 
         size_t index = 0;
         std::vector<const tir::Type*> inferred_args;
@@ -213,7 +212,7 @@ struct Path : public Node {
             : loc(loc), id(std::move(id)), args(std::move(args))
         {}
 
-        void infer(TypeChecker& checker, Elem* prev_elem, Path& path, std::optional<tir::NodeKind>);
+        Inferred infer(TypeChecker& checker, size_t, Path& path, Inferred*, std::optional<tir::NodeKind>);
     };
 
     std::vector<Elem> elems;
@@ -224,7 +223,6 @@ struct Path : public Node {
     // is associated with the _first_ element of the path.
     // The rest of the path is resolved during type-checking.
     ast::NamedDecl* start_decl = nullptr;
-    ast::NamedDecl* decl = nullptr;
 
     // Set during type-checking
     bool is_value = false;
@@ -235,8 +233,9 @@ struct Path : public Node {
         : Node(loc), is_use_path_(is_use_path), elems(std::move(elems))
     {}
 
+    Elem::Inferred infer_path(TypeChecker&, std::optional<tir::NodeKind>);
     const tir::Node* infer(TypeChecker&, std::optional<tir::NodeKind>, Ptr<Expr>* = nullptr, const tir::Type* = nullptr);
-    
+
     void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
@@ -1530,9 +1529,6 @@ struct ModDecl : public NamedDecl {
 struct UseDecl : public NamedDecl {
     Path path;
 
-    NamedDecl* bound_to;
-    PtrVector<UseDecl> wildcard_imports;
-
     UseDecl(const Loc& loc, Path&& path, Identifier&& id)
         : NamedDecl(loc, std::move(id)), path(std::move(path))
     {}
@@ -1542,16 +1538,11 @@ struct UseDecl : public NamedDecl {
     void bind(NameBinder&) override;
     void print(Printer&) const override;
 
-    void bind_wildcard(NameBinder&);
-};
-
-static inline NamedDecl* resolve_use_decl(NamedDecl* decl) {
-    while (auto use_decl = decl->isa<UseDecl>()) {
-        assert(use_decl->bound_to && "run binding first");
-        decl = use_decl->bound_to;
+    /// If true, don't consider this an actual declaration in the module
+    bool is_alias() const {
+        return id.name.empty();
     }
-    return decl;
-}
+};
 
 /// Incorrect declaration, coming from parsing.
 struct ErrorDecl : public Decl {

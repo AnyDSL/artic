@@ -130,6 +130,22 @@ const Signature* Signature::from_node(Builder& builder, const Node* node, bool p
     }
 }
 
+bool Signature::is_complete() const {
+    switch (elem_kind) {
+        case NodeKind::Value:
+            return true;
+        case NodeKind::Type:
+            return true;
+        case NodeKind::Module:
+            for (auto [key, sub_sig] : mod_signature) {
+                if (!sub_sig || !sub_sig->is_complete())
+                    return false;
+            }
+            break;
+        default: assert(false);
+    }
+}
+
 const Signature* Module::signature() const {
     return signature_;
 }

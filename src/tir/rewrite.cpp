@@ -77,8 +77,8 @@ const TypeVar* TypeVar::rewrite(Rewriter& r) const {
     return r.builder().type_var(decl);
 }
 
-const Node* ModVarAsType::rewrite(Rewriter&) const {
-
+const Node* ModVarAsType::rewrite(Rewriter& r) const {
+    return r.builder().as_type(r.instantiate(var, false)->as<ModVar>());
 }
 
 const Type* TypeApp::rewrite(Rewriter& r) const {

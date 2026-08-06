@@ -55,6 +55,8 @@ struct Signature : public Node {
     NodeKind kind() const override { return NodeKind::Signature; }
     bool is_simple() const override { return true; }
 
+    bool is_complete() const;
+
     /*struct Hash {
         size_t operator()(const Decl&) const;
     };

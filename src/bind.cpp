@@ -54,78 +54,44 @@ void NameBinder::insert_symbol(ast::NamedDecl& decl, const std::string& name) {
     }
 }
 
-void NameBinder::unknown_member(const Loc& loc, const ast::NamedDecl* user_type, const std::string_view& member) {
-    if (auto mod_type = user_type->isa<ast::ModDecl>(); mod_type && mod_type->id.name == "")
-        error(loc, "no member '{}' in top-level module", member);
-    else
-        error(loc, "no member '{}' in '{}'", member, *user_type);
-}
-
 namespace ast {
 
 // Path ----------------------------------------------------------------------------
 
 void Path::bind(NameBinder& binder) {
+    if (elems.front().is_super()) {
+        auto mod = binder.cur_mod;
+        if (!mod->super)
+            binder.error(elems.front().id.loc, "top-level module has no super-module");
+        else
+            start_decl = mod->super;
+    } else if (elems.front().is_wildcard()) {
+        binder.error(elems.front().loc, "wildcards cannot appear at the start of a path!");
+    } else {
+        auto symbol = binder.find_symbol(elems.front().id.name);
+        if (!symbol) {
+            binder.error(elems.front().id.loc, "unknown identifier '{}'", elems.front().id.name);
+            if (auto similar = binder.find_similar_symbol(elems.front().id.name))
+                binder.note("did you mean '{}'?", similar->decl->id.name);
+        } else
+            start_decl = symbol->decl;
+    }
+
     NamedDecl* decl = binder.cur_mod;
     size_t i = 0;
     for (auto& elem : elems) {
         assert(decl);
 
-        // We need to look inside UseDecls to bind paths properly.
-        NamedDecl* actual_decl = resolve_use_decl(decl);
-
         if (elem.id.name[0] == '_')
             binder.error(elem.id.loc, "identifiers beginning with '_' cannot be referenced");
-        else if (elem.is_super()) {
-            if (auto mod = decl->isa<ModDecl>()) {
-                if (!mod->super)
-                    binder.error(elem.id.loc, "top-level module has no super-module");
-                else
-                    decl = mod->super;
-            } else
-                binder.error(elem.id.loc, "''super' can only be used on modules");
-        } else if (elem.is_wildcard()) {
+        else if (elems.front().is_wildcard()) {
             if (i == 0) {
                 binder.error(elem.loc, "wildcards cannot appear at the start of a path!");
                 return;
             }
-            decl = nullptr;
-        } else if (i == 0) {
-            assert(decl == binder.cur_mod);
-            auto symbol = binder.find_symbol(elem.id.name);
-            if (!symbol) {
-                binder.error(elem.id.loc, "unknown identifier '{}'", elem.id.name);
-                if (auto similar = binder.find_similar_symbol(elem.id.name))
-                    binder.note("did you mean '{}'?", similar->decl->id.name);
-            } else
-                decl = symbol->decl;
-        } else if (auto mod = actual_decl->isa<ModDecl>()) {
-            auto member = mod->find_member(elem.id.name);
-            if (!member) {
-                binder.unknown_member(elem.loc, mod, elem.id.name);
-                return;
-            }
-            decl = *member;
-        } else if (auto enu = actual_decl->isa<EnumDecl>()) {
-            auto found = enu->find_member(elem.id.name);
-            if (!found) {
-                binder.unknown_member(elem.loc, mod, elem.id.name);
-                return;
-            }
-            decl = *found;
-        } else {
-            // ...
-            assert(false);
         }
 
-        if (i == 0) {
-            start_decl = decl;
-        }
-
-        if (i++ == elems.size() - 1)
-            this->decl = decl;
-
-        elem.decl = decl;
+        i++;
 
         // Bind the type arguments of each element
         for (auto& arg : elem.args)
@@ -608,55 +574,15 @@ std::optional<OptionDecl*> EnumDecl::find_member(const std::string_view& name) c
     return std::nullopt;
 }
 
-void UseDecl::bind_wildcard(artic::NameBinder& binder) {
-    if (path.elems.back().id.name != "*")
-        return;
-
-    binder.bind(path);
-    assert(path.elems.size() >= 2);
-    auto& penultimate = path.elems[path.elems.size() - 2];
-    NamedDecl* importee = penultimate.decl;
-    auto imported_mod = importee->isa<ModDecl>();
-    if (!imported_mod) {
-        binder.error(penultimate.id.loc, "'{}' is not a module", importee->id.name);
-    }
-
-    for (auto& decl : imported_mod->decls) {
-        auto member = decl->isa<NamedDecl>();
-        if (!member)
-            continue;
-        std::vector<Path::Elem> member_path_elements;
-        for (auto& elem : path.elems) {
-            assert(elem.args.empty());
-            auto nelem = Path::Elem(elem.loc, std::move(Identifier(elem.id)), std::move(PtrVector<Type>()));
-            member_path_elements.emplace_back(std::move(nelem));
-        }
-        member_path_elements.back().id.name = member->id.name;
-        Path member_path(path.loc, true, std::move(member_path_elements));
-        Identifier nid = member->id;
-        wildcard_imports.push_back(binder.arena_.make_ptr<UseDecl>(loc, std::move(member_path), std::move(nid)));
-        wildcard_imports.back()->enclosing_module = enclosing_module;
-        wildcard_imports.back()->bind_head(binder);
-    }
-}
-
 void UseDecl::bind_head(NameBinder& binder) {
     if (id.name != "")
         binder.insert_symbol(*this);
     else if (path.elems.back().id.name != "*")
         binder.insert_symbol(*this, path.elems.back().id.name);
-    bind_wildcard(binder);
 }
 
 void UseDecl::bind(NameBinder& binder) {
     binder.bind(path);
-
-    if (path.decl)
-        bound_to = path.decl;
-
-    for (auto& m : wildcard_imports) {
-        m->bind(binder);
-    }
 }
 
 void ErrorDecl::bind(NameBinder&) {}
