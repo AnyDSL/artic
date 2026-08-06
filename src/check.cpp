@@ -469,7 +469,16 @@ const tir::ModVar* TypeChecker::infer_mod_decl(ast::Decl& node) {
     // this ensures lazily inferred decls are parented to the right module
     BuilderGuard guard(*this, *node.enclosing_module->builder);
 
-    node.var = node.infer(*this)->as<ModVar>();
+    if (auto mod_var = node.infer(*this)->isa<ModVar>()) {
+        node.var = mod_var;
+    } else {
+        if (auto named = node.isa<ast::NamedDecl>()) {
+            node.var = node.enclosing_module->builder->add_in_module(builder().mod_error(), infer_key(*named));
+            named->signature = Signature::from_node(builder(), node.var);
+            add_decl_to_parent_mod_sig(named);
+        } else
+            node.var = node.enclosing_module->builder->add_in_module(builder().mod_error(), builder().decl_key(std::nullopt));
+    }
     if (node.attrs)
         node.attrs->check(*this, &node);
     return node.var->as<ModVar>();
@@ -1055,25 +1064,25 @@ const tir::Node* Ptrn::check(TypeChecker& checker, const artic::Type* expected) 
 
 // Path ----------------------------------------------------------------------------
 
-Path::Elem::Inferred Path::Elem::infer(TypeChecker& checker, size_t i, Path& path, Path::Elem::Inferred* prev, std::optional<tir::NodeKind> expected_kind) {
+std::optional<Path::Elem::Inferred> Path::Elem::infer(TypeChecker& checker, size_t i, Path& path, Path::Elem::Inferred* prev, std::optional<tir::NodeKind> expected_kind) {
     if (!prev) {
         if (auto use = path.start_decl->isa<UseDecl>(); use && use->is_alias()) {
             return use->path.infer_path(checker, expected_kind);
         } else if (auto ptrn_decl = path.start_decl->isa<PtrnDecl>()) {
             // assert(ptrn_decl->tir && "PtrnDecls encountered here should be already emitted.");
-            return { .param = checker.infer_ptrn_decl(*ptrn_decl) };
+            return Inferred { .param = checker.infer_ptrn_decl(*ptrn_decl) };
         } else if (auto mod = path.start_decl->isa<ModDecl>(); mod && !mod->super) {
             auto module = checker.infer_top_module(*mod);
-            return {
+            return Inferred {
                 .module = module,
                 .sig = module->signature(),
             };
         } else if (expected_kind == NodeKind::Signature) {
             // in signature mode, do not infer the mod decls but instead just their signature
-            return { .sig = checker.infer_signature(*path.start_decl) };
+            return Inferred { .sig = checker.infer_signature(*path.start_decl) };
         } else {
             auto var = checker.infer_mod_decl(*path.start_decl);
-            return {
+            return Inferred {
                 .module = checker.scope().resolve_bindings(var)->isa<Module>(),
                 .var = var,
                 .sig = var->signature(),
@@ -1087,23 +1096,23 @@ Path::Elem::Inferred Path::Elem::infer(TypeChecker& checker, size_t i, Path& pat
         if (is_super()) {
             if (prev->param) {
                 checker.error(loc, "'super' can only be used on modules");
-                return {};
+                return std::nullopt;
             }
             if (!prev_module) {
                 checker.error(loc, "'super' can only be used on known modules");
-                return {};
+                return std::nullopt;
             }
             assert(prev_module->decl && "anonymous modules shouldn't be reachable like this");
             if (prev_module->decl->super) {
                 if (prev_module->decl->super->var) {
                     auto var = prev_module->decl->super->var;
-                    return {
+                    return Inferred {
                         .var = var,
                         .sig = var->signature(),
                     };
                 } else {
                     auto module = prev_module->decl->super->self;
-                    return {
+                    return Inferred {
                         .module = module,
                         .sig = module->signature(),
                     };
@@ -1111,7 +1120,7 @@ Path::Elem::Inferred Path::Elem::infer(TypeChecker& checker, size_t i, Path& pat
             } else {
                 checker.error(loc, "'super' cannot be used on the root module");
             }
-            return {};
+            return std::nullopt;
         }
 
         // Allow lazily entering and inferring module contents
@@ -1186,12 +1195,12 @@ Path::Elem::Inferred Path::Elem::infer(TypeChecker& checker, size_t i, Path& pat
 
         // if something is missing, maybe we just haven't had the chance to infer it yet
         checker.unknown_module_member(loc, *prev, id.name);
-        return {};
+        return std::nullopt;
     }
     if (is_super()) {
         assert(prev);
         checker.error(loc, "'super' can only be used on modules");
-        return {};
+        return std::nullopt;
     }
     assert(false && "TODO");
     /*if (auto prev_elem_type = prev->tir->isa<tir::Type>()) {
@@ -1220,11 +1229,14 @@ Path::Elem::Inferred Path::Elem::infer(TypeChecker& checker, size_t i, Path& pat
     //return checker.type_expected(loc, type, "module or enum");
 }
 
-Path::Elem::Inferred Path::infer_path(TypeChecker& checker, std::optional<tir::NodeKind> expected_kind) {
+std::optional<Path::Elem::Inferred> Path::infer_path(TypeChecker& checker, std::optional<tir::NodeKind> expected_kind) {
     std::optional<Path::Elem::Inferred> prev;
     for (size_t i = 0, n = elems.size(); i < n; ++i) {
         auto& elem = elems[i];
         prev = elem.infer(checker, i, *this, prev ? &*prev : nullptr, expected_kind);
+        // give up when an element fails to infer
+        if (!prev)
+            return std::nullopt;
     }
     return *prev;
 }
@@ -1272,17 +1284,34 @@ const tir::Node* Path::infer(TypeChecker& checker, std::optional<NodeKind> expec
     }
 
     auto inferred = infer_path(checker, expected_kind);
+    if (!inferred) {
+        if (expected_kind == NodeKind::Value) {
+            return checker.builder().error_value(checker.builder().type_error());
+        }
+        if (expected_kind == NodeKind::Type) {
+            return checker.builder().type_error();
+        }
+        if (expected_kind == NodeKind::Module) {
+            return checker.builder().mod_error();
+        }
+        return nullptr;
+    }
 
     if (expected_kind == NodeKind::Signature) {
-        return checker.builder().enclosing_module().import_signature(inferred.sig);
+        if (inferred->sig) {
+            if (inferred->sig->is_complete())
+                return checker.builder().enclosing_module().import_signature(inferred->sig);
+            checker.error(loc, "cannot infer the signature of imported declaration");
+        }
+        return nullptr;
     }
 
-    if (inferred.param) {
+    if (inferred->param) {
         // assert(expected_kind == NodeKind::Value && "you got a param, surely you wanted a value ?");
-        return inferred.param;
+        return inferred->param;
     }
 
-    auto var = inferred.var;
+    auto var = inferred->var;
     assert(var);
     var = checker.builder().enclosing_module().import_mod_var(var);
 
@@ -2681,10 +2710,11 @@ const tir::Node* UseDecl::infer(TypeChecker& checker) {
     }
 
     if (!checker.enter_decl(this))
-        return checker.builder().type_error();
+        return nullptr;
 
     auto dst = path.infer(checker, NodeKind::Signature);
-    if (auto dst_sig = dst->isa<Signature>()) {
+    if (dst) {
+        auto dst_sig = dst->as<Signature>();
         auto modvar = checker.mod_builder().mod_var(checker.infer_key(*this), dst_sig);
         var = modvar;
         signature = var->signature();
@@ -2692,7 +2722,10 @@ const tir::Node* UseDecl::infer(TypeChecker& checker) {
         checker.mod_builder().module().set_decl(decl, path.infer(checker, dst_sig->elem_kind));
         checker.add_decl_to_parent_mod_sig(this);
     } else {
-        checker.error(loc, "use decls cannot refer to variable declarations");
+        // checker.error(loc, "use decls cannot refer to variable declarations");
+        var = enclosing_module->builder->add_in_module(checker.builder().mod_error(), checker.infer_key(*this));
+        signature = Signature::from_node(checker.builder(), var);
+        checker.add_decl_to_parent_mod_sig(this);
     }
 
     checker.exit_decl(this);

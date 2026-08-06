@@ -44,6 +44,16 @@ bool Unit::equals(const Node* n) const {
     return false;
 }
 
+size_t ErrorValue::hash() const {
+    return type()->hash();
+}
+
+bool ErrorValue::equals(const Node* n) const {
+    if (auto other_error = n->isa<ErrorValue>())
+        return other_error->type() == type();
+    return false;
+}
+
 Param::Param(Arena& arena, std::optional<ast::Identifier> id, const Type* type) : NominalNode(arena, type), id(id) {}
 
 App::App(Arena& arena, const Value* callee, const Value* arg) : Value(arena, callee->type()->as<FnType>()->codom), callee(callee), arg(arg) {
@@ -460,6 +470,10 @@ bool Control::equals(const Node* other) const {
 // Free variables ------------------------------------------------------------------
 
 void Unit::free_variables(FVSet&, Seen&) const {}
+
+void ErrorValue::free_variables(FVSet& vars, Seen& seen) const {
+    type()->free_variables(vars, seen);
+}
 
 void Undef::free_variables(FVSet& vars, Seen& seen) const {
     return type()->free_variables(vars, seen);

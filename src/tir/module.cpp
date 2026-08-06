@@ -130,6 +130,21 @@ const Signature* Signature::from_node(Builder& builder, const Node* node, bool p
     }
 }
 
+const Node* Signature::to_error(Builder& builder) const {
+    switch (elem_kind) {
+        case NodeKind::Value: {
+            return builder.error_value(value_type);
+        }
+        case NodeKind::Type: {
+            return builder.type_error();
+        }
+        case NodeKind::Module: {
+            return builder.mod_error();
+        }
+        default: assert(false);
+    }
+}
+
 bool Signature::is_complete() const {
     switch (elem_kind) {
         case NodeKind::Value:
@@ -186,6 +201,22 @@ ModAccess::ModAccess(Arena& arena, const ModValue* mod, const DeclKey* key, cons
     assert(false && "TODO");
 }*/
 
+ModError::ModError(Builder& builder) : ModValue(builder.arena, NodeKind::Module), signature_(builder.mod_signature()) {}
+
+size_t ModError::hash() const {
+    return fnv::Hash().combine(1337);
+}
+
+bool ModError::equals(const Node* other) const {
+    if (other->isa<ModError>())
+        return true;
+    return false;
+}
+
+const Signature* ModError::signature() const {
+    return signature_;
+}
+
 // Free variables ------------------------------------------------------------------
 
 void Signature::free_variables(FVSet& vars, Seen& seen) const {
@@ -238,4 +269,7 @@ void Module::free_variables(FVSet& vars, Seen& seen) const {
     }
 }
 
+void ModError::free_variables(FVSet&, Seen&) const {
+
+}
 }

@@ -51,6 +51,7 @@ struct Signature : public Node {
     void free_variables(FVSet&, Seen&) const override;
 
     static const Signature* from_node(Builder&, const Node*, bool public_interface = true);
+    const Node* to_error(Builder&) const;
 
     NodeKind kind() const override { return NodeKind::Signature; }
     bool is_simple() const override { return true; }
@@ -148,6 +149,20 @@ struct ModAccess : public ModValue {
 
     ModAccess(Arena& arena, const ModValue*, const DeclKey*, const Signature*);
     ModAccess(Arena& arena, const ModValue*, const DeclKey*);
+};
+
+struct ModError : public ModValue {
+    const Signature* signature_;
+
+    size_t hash() const override;
+    bool equals(const Node*) const override;
+    void print(Printer&) const override;
+    const Node* rewrite(Rewriter&) const override;
+    void free_variables(FVSet&, Seen&) const override;
+
+    const Signature* signature() const override;
+
+    ModError(Builder&);
 };
 
 }

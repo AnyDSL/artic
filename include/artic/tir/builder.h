@@ -119,6 +119,7 @@ struct Builder : public artic::Cast<Builder> {
     const DeclKey* decl_key(std::optional<ast::Identifier>);
     const Module* module(const ast::ModDecl* = nullptr);
     const ModVar* mod_var(const DeclKey*, const Signature*);
+    const ModError* mod_error();
     // const ModValue* mod_access(const ModValue*, const DeclKey*);
 
     const GlobalVariable* global_variable(const Type*, bool is_mut, const Value*);

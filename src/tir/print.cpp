@@ -298,6 +298,10 @@ void ModAccess::print(Printer& p) const {
     p.print(*key, true);
 }
 
+void ModError::print(Printer& p) const {
+    p << log::error_style("<invalid module>");
+}
+
 void ModVarAsValue::print(Printer& p) const {
     p.print(*var);
     p << ' ' << log::keyword_style("as_value");
@@ -341,6 +345,10 @@ void Fn::print(Printer& p) const {
 
 void Unit::print(Printer& p) const {
     p << log::keyword_style("unit");
+}
+
+void ErrorValue::print(Printer& p) const {
+    p << log::keyword_style("<error value>");
 }
 
 void Param::print(Printer& p) const {

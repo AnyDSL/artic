@@ -1345,6 +1345,10 @@ const thorin::Def* Unit::emit(Emitter& emitter) const {
     return emitter.world.tuple({});
 }
 
+const thorin::Def* ErrorValue::emit(Emitter& emitter) const {
+    assert(false);
+}
+
 const thorin::Def* Agg::emit(Emitter& emitter) const {
     thorin::Array<const thorin::Def*> elems(args.size());
     for (size_t i = 0; i < args.size(); ++i) {

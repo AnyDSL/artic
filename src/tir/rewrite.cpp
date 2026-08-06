@@ -106,6 +106,10 @@ Node *ModAccess::rewrite(Rewriter &) const {
 
 }
 
+const Node* ModError::rewrite(Rewriter&) const {
+
+}
+
 const Node* ModVarAsValue::rewrite(Rewriter&) const {
 
 }
@@ -124,6 +128,10 @@ const Node* Fn::rewrite(Rewriter&) const {
 
 const Node* Unit::rewrite(Rewriter& r) const {
     return r.builder().unit();
+}
+
+const Node* ErrorValue::rewrite(Rewriter& r) const {
+    return r.builder().error_value(r.instantiate(type(), false)->as<Type>());
 }
 
 const Node* Param::rewrite(Rewriter&) const {

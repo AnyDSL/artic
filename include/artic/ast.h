@@ -212,7 +212,7 @@ struct Path : public Node {
             : loc(loc), id(std::move(id)), args(std::move(args))
         {}
 
-        Inferred infer(TypeChecker& checker, size_t, Path& path, Inferred*, std::optional<tir::NodeKind>);
+        std::optional<Inferred> infer(TypeChecker& checker, size_t, Path& path, Inferred*, std::optional<tir::NodeKind>);
     };
 
     std::vector<Elem> elems;
@@ -233,7 +233,7 @@ struct Path : public Node {
         : Node(loc), is_use_path_(is_use_path), elems(std::move(elems))
     {}
 
-    Elem::Inferred infer_path(TypeChecker&, std::optional<tir::NodeKind>);
+    std::optional<Elem::Inferred> infer_path(TypeChecker&, std::optional<tir::NodeKind>);
     const tir::Node* infer(TypeChecker&, std::optional<tir::NodeKind>, Ptr<Expr>* = nullptr, const tir::Type* = nullptr);
 
     void bind(NameBinder&) override;

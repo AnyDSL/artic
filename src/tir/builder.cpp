@@ -162,6 +162,10 @@ const ModVar* Builder::mod_var(const DeclKey* key, const Signature* sig) {
     return arena.insert<ModVar>(*this, key, sig);
 }
 
+const ModError* Builder::mod_error() {
+    return arena.insert<ModError>(*this);
+}
+
 const Module* Builder::module(const ast::ModDecl* decl) {
     return arena.insert<Module>(*this, decl);
 }
@@ -187,8 +191,8 @@ const Value* Builder::as_value(const ModVar* var) {
     return arena.insert<ModVarAsValue>(*this, scope, var);
 }
 
-const Value* Builder::error_value(const Type*) {
-    assert(false);
+const Value* Builder::error_value(const Type* t) {
+    return arena.insert<ErrorValue>(arena, t);
 }
 
 const GlobalVariable* Builder::global_variable(const Type* value_type, bool is_mut, const Value* init) {
