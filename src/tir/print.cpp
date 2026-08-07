@@ -265,9 +265,6 @@ void Signature::print(Printer& p) const {
         }
         case NodeKind::Module: {
             p << log::keyword_style("mod") << " {" << p.indent() << p.endl();
-            // for (auto& decl : decls) {
-            //     p.insert(*decl.key, key2string(*decl.key));
-            // }
             size_t i = 0;
             for (auto [key, sub_signature] : mod_signature) {
                 p.print(*key);
@@ -280,11 +277,6 @@ void Signature::print(Printer& p) const {
                 if (i++ + 1 < mod_signature.size())
                     p << p.endl();
             }
-            // print_list(p.top(), p.endl(), mod_signature, [&] (auto& decl) {
-            //     p.print(*decl.key);
-            //     p << " = ";
-            //     p.print(*decl.sig);
-            // });
             p << p.unindent() << p.endl() << "}";
             break;
         }

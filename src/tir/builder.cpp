@@ -338,17 +338,8 @@ const Value* ExprBuilder::finish_unit() {
     return finish(unit());
 }
 
-const Signature* Builder::mod_signature(/*ArrayRef<Signature::Decl> decls*/) {
-    /*std::unordered_set<Signature::Decl, Signature::Hash, Signature::Compare> decls_set;
-    for (auto& decl : decls) {
-        decls_set.insert(decl);
-    }
-    Array<Signature::Decl> sorted_decls(decls_set.size());
-    size_t i = 0;
-    for (auto& decl : decls_set) {
-        sorted_decls[i++] = decl;
-    }*/
-    return arena.insert<Signature>(*this, NodeKind::Module, nullptr, nullptr/*, sorted_decls*/);
+const Signature* Builder::mod_signature() {
+    return arena.insert<Signature>(*this, NodeKind::Module, nullptr, nullptr);
 }
 
 const Signature* Builder::value_signature(const Type* inner) {
