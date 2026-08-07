@@ -725,7 +725,7 @@ Array<const ModVar*> TypeChecker::infer(ast::TypeParamList* list) {
 
 template <typename CheckFn, typename Fields>
 void TypeChecker::check_fields(
-    const Loc& loc, const StructType* struct_type, const TypeApp* type_app,
+    const Loc& loc, const StructType* struct_type, const ModApp* mod_app,
     const Fields& fields, CheckFn& check_fn, const std::string_view& msg,
     bool has_etc, bool accept_defaults)
 {
@@ -743,7 +743,7 @@ void TypeChecker::check_fields(
             return (void)error(loc, "field '{}' specified more than once", fields[i]->id.name);
         seen[*index] = true;
         fields[i]->index = *index;
-        check_fn(*fields[i], builder().member_type(type_app ? type_app->as<Type>() : struct_type, *index));
+        check_fn(*fields[i], builder().member_type(mod_app ? builder().as_type(mod_app->instantiate(builder())) : struct_type, *index));
     }
     // Check that all fields have been specified, unless '...' was used
     if (!has_etc && !std::all_of(seen.begin(), seen.end(), [] (bool b) { return b; })) {
@@ -1012,21 +1012,22 @@ bool TypeChecker::try_infer_implicit_type_args(
     return try_infer_type_args(loc, forall_type, bounds, variance, type_args, false);
 }
 
-const Type* TypeChecker::infer_record_type(const TypeApp* type_app, const StructType* struct_type, std::optional<size_t>& index) {
+const Type* TypeChecker::infer_record_type(const Type* type, const ModApp* type_app, const StructType* struct_type, std::optional<size_t>& index) {
     // If the structure type comes from an option, return the corresponding enumeration type
     if (struct_type->decl) if (auto option_decl = struct_type->decl->isa<ast::OptionDecl>()) {
-        auto enum_type = infer_mod_decl(*option_decl->parent)->as<artic::EnumType>();
         index = std::find_if(
             option_decl->parent->options.begin(),
             option_decl->parent->options.end(),
             [struct_type] (auto& option) { return option->type == struct_type; })
             - option_decl->parent->options.begin();
         assert(index < option_decl->parent->options.size());
+        auto enum_type = infer_mod_decl(*option_decl->parent);
         if (type_app)
-            return builder().type_app(enum_type, type_app->type_args);
-        return enum_type;
+            return builder().as_type(builder().enclosing_module().mod_app(enum_type, type_app->args));
+        return builder().as_type(enum_type);
     }
-    return type_app ? type_app->as<Type>() : struct_type;
+    //return type_app ? builder().as_type(type_app->instantiate(builder().enclosing_module())) : type;
+    return type;
 }
 
 size_t TypeChecker::resolve_integer_constant(const Loc& loc, const Value* value, const ast::Node* node, const std::string_view& element) {
@@ -1295,7 +1296,7 @@ std::optional<Path::Elem::Inferred> Path::infer_path(TypeChecker& checker, std::
                 // }
                 elem.inferred_args = type_args;
                 prev = Elem::Inferred {
-                    .var = prev->var ? checker.builder().enclosing_module().mod_app(prev->var, elem.inferred_args[0]) : nullptr,
+                    .var = prev->var ? checker.builder().enclosing_module().mod_app(prev->var, elem.inferred_args) : nullptr,
                     .sig = prev->sig->codom
                 };
             } else if (!elem.args.empty() || /* we allow leaving out type params when importing definitions */ !is_use_path_) {
@@ -1625,7 +1626,7 @@ const tir::Node* FieldExpr::check(TypeChecker& checker, const artic::Type* expec
 
 const tir::Node* RecordExpr::infer(TypeChecker& checker) {
     auto record_type = expr ? checker.deref(expr)->type() : checker.infer_type(*this->type);
-    auto [type_app, struct_type] = match_app<artic::StructType>(checker.scope().peek_type(record_type));
+    auto [type_app, struct_type] = peek_app_type<artic::StructType>(checker.builder(), record_type);
     if (!struct_type ||
         struct_type->is_tuple_like()) {
         checker.type_expected(expr ? expr->loc : this->loc, record_type, "record-like structure");
@@ -1633,7 +1634,7 @@ const tir::Node* RecordExpr::infer(TypeChecker& checker) {
     }
     auto check_fn = [&](ast::Expr& expr, const tir::Type* type) { return checker.check_value(expr, type); };
     checker.check_fields(loc, struct_type, type_app, fields, check_fn, "expression", static_cast<bool>(expr), true);
-    auto type = checker.infer_record_type(type_app, struct_type, variant_index);
+    auto type = checker.infer_record_type(record_type, type_app, struct_type, variant_index);
     assert(!expr && "TODO: insert");
     Array<const Value*> ops(struct_type->member_count());
     for (auto& field : fields) {
@@ -1644,7 +1645,7 @@ const tir::Node* RecordExpr::infer(TypeChecker& checker) {
         if (!ops[i]) // check_fields already validated this is safe.
             ops[i] = struct_type->decl->fields[i]->init->value;
     }
-    auto agg = checker.expr_builder().agg(record_type, ops);
+    auto agg = checker.expr_builder().agg(type, ops);
     if (variant_index) {
         assert(false && "TODO: emit enum options here");
     }
@@ -2643,10 +2644,6 @@ const tir::Node* StructDecl::infer(TypeChecker& checker) {
         const Module* mod = ctor_builder->module(nullptr /* TODO: think about it */);
         inner_module_builder = std::make_unique<ModuleBuilder>(mb->arena, &*ctor_builder, mod);
 
-        if (var) {
-            assert(false);
-            mb->add_in_module(unnamed_type, key);
-        }
         // var = generic_var = ctor_var;
         mb = &*inner_module_builder;
     }
@@ -2957,7 +2954,7 @@ const tir::Node* FieldPtrn::check(TypeChecker& checker, const artic::Type* expec
 const tir::Node* RecordPtrn::infer(TypeChecker& checker) {
     auto path_type = path.infer(checker, NodeKind::Type)->as<tir::Type>();
     //if (path_type->isa<TypeError>())
-    auto [type_app, struct_type] = match_app<artic::StructType>(checker.scope().peek_type(path_type));
+    auto [mod_app, struct_type] = peek_app_type<artic::StructType>(checker.builder(), path_type);
     if (!struct_type ||
         (struct_type->decl->isa<StructDecl>() &&
          struct_type->decl->as<StructDecl>()->is_tuple_like)) {
@@ -2966,8 +2963,8 @@ const tir::Node* RecordPtrn::infer(TypeChecker& checker) {
     }
 
     auto check_fn = [&](ast::Ptrn& ptrn, const tir::Type* type) { return checker.check_ptrn(ptrn, type); };
-    checker.check_fields(loc, struct_type, type_app, fields, check_fn, "pattern");
-    return checker.infer_record_type(type_app, struct_type, variant_index);
+    checker.check_fields(loc, struct_type, mod_app, fields, check_fn, "pattern");
+    return checker.infer_record_type(path_type, mod_app, struct_type, variant_index);
 }
 
 const tir::Node* CtorPtrn::infer(TypeChecker& checker) {

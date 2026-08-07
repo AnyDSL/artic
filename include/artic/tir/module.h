@@ -21,7 +21,7 @@ struct DeclKey : public NominalNode<Node> {
     std::optional<ast::Identifier> id;
 
     void print(Printer&) const override;
-    Node* rewrite(Rewriter&) const override;
+    const Node* rewrite(Rewriter&) const override;
     void free_variables(FVSet&, Seen&) const override {};
 
     NodeKind kind() const override { return NodeKind::Key; }
@@ -105,13 +105,14 @@ struct Module : public NominalNode<ModValue> {
         }
         return arr;
     }
+    const Decl* lookup(const DeclKey*) const;
     const void seal() const { sealed = true; }
 
     mutable bool sealed = false;
     const Signature* signature() const override;
 
     void print(Printer&) const override;
-    Node* rewrite(Rewriter&) const override;
+    const Node* rewrite(Rewriter&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
     // void emit(Emitter&) const;
@@ -148,7 +149,7 @@ struct ModAccess : public ModValue {
 struct ModCtor : public NominalNode<ModValue> {
     Scope& scope;
     Array<const ModVar*> params;
-    mutable const Node* body = nullptr;
+    mutable const Module* body = nullptr;
     mutable const DeclKey* extra_key = nullptr;
 
     void print(Printer&) const override;
@@ -166,7 +167,7 @@ private:
 
 struct ModApp : public ModValue {
     const ModVar* applicand;
-    const Node* arg;
+    Array<const Node*> args;
 
     size_t hash() const override;
     bool equals(const Node*) const override;
@@ -175,10 +176,12 @@ struct ModApp : public ModValue {
     void free_variables(FVSet&, Seen&) const override;
 
     const Signature* signature() const override;
+    const ModVar* instantiate(Builder&) const;
 
-    ModApp(Builder&, const ModVar*, const Node*);
+    ModApp(Builder&, const ModVar*, const ArrayRef<const Node*>& args);
 private:
     const Signature* signature_;
+    mutable const ModVar* instantiated_ = nullptr;
 };
 
 struct ModError : public ModValue {

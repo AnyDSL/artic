@@ -626,10 +626,32 @@ bool is_simd_type(const Type*);
 bool is_unit_type(const Type*);
 inline bool is_bool_type(const Type* type) { return is_prim_type(type, ast::PrimType::Bool); }
 
-template <typename T>
+/*template <typename T>
 std::pair<const TypeApp*, const T*> match_app(const Type* type) {
     if (auto type_app = type->isa<TypeApp>())
         return std::make_pair(type_app, type_app->applied->isa<T>());
+    return std::make_pair(nullptr, type->isa<T>());
+}*/
+
+struct ModApp;
+
+//std::pair<const ModApp*, const Node*> match_app(Builder& builder, const ModVar* var);
+std::pair<const ModApp*, const Type*> match_app_type_(Builder& builder, const Type* type);
+std::pair<const ModApp*, const Type*> peek_app_type(Builder& builder, const Type* type);
+
+template <typename T>
+std::pair<const ModApp*, const T*> peek_app_type(Builder& builder, const Type* type) {
+    auto [app, t] = peek_app_type(builder, type);
+    return { app, t->isa<T>() };
+    //if (auto type_app = type->isa<TypeApp>())
+    //    return std::make_pair(type_app, type_app->applied->isa<T>());
+    //return std::make_pair(nullptr, type->isa<T>());
+}
+
+template <typename T>
+std::pair<const TypeApp*, const T*> match_app(const Type* type) {
+    // if (auto type_app = type->isa<TypeApp>())
+    //     return std::make_pair(type_app, type_app->applied->isa<T>());
     return std::make_pair(nullptr, type->isa<T>());
 }
 

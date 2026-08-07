@@ -118,7 +118,7 @@ public:
 
     template <typename CheckFn, typename Fields>
     void check_fields(
-        const Loc&, const StructType*, const TypeApp*,
+        const Loc&, const StructType*, const ModApp*,
         const Fields&, CheckFn&, const std::string_view&,
         bool = false, bool = false);
 
@@ -136,7 +136,7 @@ public:
     bool try_infer_type_args(const Loc&, const ForallType*, TypeVarMap<TypeBounds>& bounds, TypeVarMap<TypeVariance>& variance, std::vector<const Type*>&, bool);
     bool infer_fn_type_args(const Loc&, const ForallType*, const Type*, const Type*, std::vector<const Type*>&);
     bool try_infer_implicit_type_args(const Loc&, const ForallType*, const Type*, std::vector<const Type*>&);
-    const Type* infer_record_type(const TypeApp*, const StructType*, std::optional<size_t>&);
+    const Type* infer_record_type(const Type*, const ModApp*, const StructType*, std::optional<size_t>&);
 
     size_t resolve_integer_constant(const Loc&, const Value*, const ast::Node*, const std::string_view&);
 

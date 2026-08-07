@@ -159,7 +159,7 @@ struct ModuleBuilder : public Builder {
 
     //std::tuple<const ModVar*, const ModCtor*> mod_ctor(const ModVar*);
     const ModCtor* mod_ctor(const ArrayRef<const ModVar*>&, const Signature*);
-    const ModVar* mod_app(const ModVar*, const Node*);
+    const ModVar* mod_app(const ModVar*, const ArrayRef<const Node*>&);
     const ModVar* mod_access(const ModValue*, const DeclKey*, const Signature*);
     // const ModValue* mod_access(const ModValue*, const DeclKey*);
 

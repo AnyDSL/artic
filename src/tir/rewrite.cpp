@@ -38,7 +38,12 @@ const TupleType* TupleType::rewrite(Rewriter& r) const {
 }
 
 const StructType* StructType::rewrite(Rewriter& r) const {
-
+    auto ns = r.builder().struct_type({}, decl);
+    r.insert(this, ns);
+    for (auto elem : members) {
+        ns->members.push_back(r.instantiate(elem, false)->as<Type>());
+    }
+    return ns;
 }
 
 const EnumType* EnumType::rewrite(Rewriter&) const {
@@ -78,7 +83,11 @@ const TypeVar* TypeVar::rewrite(Rewriter& r) const {
 }
 
 const Node* ModVarAsType::rewrite(Rewriter& r) const {
-    return r.builder().as_type(r.instantiate(var, false)->as<ModVar>());
+    auto maybe_var = r.instantiate(var, false);
+    // allow promoting ModVars to types directly
+    if (maybe_var->isa<Type>())
+        return maybe_var;
+    return r.builder().as_type(maybe_var->as<ModVar>());
 }
 
 const Type* TypeApp::rewrite(Rewriter& r) const {
@@ -89,17 +98,31 @@ const TypeError* TypeError::rewrite(Rewriter& r) const {
     return r.dst.type_error();
 }
 
-Node* DeclKey::rewrite(Rewriter&) const {
-
+const Node* DeclKey::rewrite(Rewriter& r) const {
+    return r.builder().decl_key(id);
 }
 
-const Node* ModVar::rewrite(Rewriter&) const {
-
+const Node* ModVar::rewrite(Rewriter& r) const {
+    if (signature_)
+        return r.builder().mod_var(r.instantiate(key, false)->as<DeclKey>(), r.instantiate(signature_, true)->as<Signature>());
+    return r.builder().mod_var(r.instantiate(key, false)->as<DeclKey>());
 }
 
-Node* Module::rewrite(Rewriter& r) const {
+const Node* Module::rewrite(Rewriter& r) const {
     const Module* m = r.builder().module(decl);
-
+    ModuleBuilder mb = ModuleBuilder(r.dst, &r.builder(), m);
+    Rewriter::BuilderGuard guard(r, mb);
+    std::vector<Module::Decl*> ndecls;
+    for (auto decl : decls()) {
+        auto nvar = r.instantiate(decl->var, true)->as<ModVar>();
+        r.insert(decl->var, nvar);
+        ndecls.push_back(m->add_decl(nvar));
+    }
+    size_t i = 0;
+    for (auto decl : decls()) {
+        m->set_decl(ndecls[i++], r.instantiate(decl->value, true));
+    }
+    return m;
 }
 
 const Node* ModCtor::rewrite(Rewriter&) const {

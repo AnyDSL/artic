@@ -273,7 +273,7 @@ void ModApp::print(Printer& p) const {
     p << log::keyword_style("mod") << " " << log::keyword_style("app") << " ";
     p.print(*applicand);
     p << "[";
-    p.print(*arg);
+    print_list(p.top(), ", ", args, [&] (auto& s) { p.print(*s); });
     p << "]";
 }
 

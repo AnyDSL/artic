@@ -171,7 +171,7 @@ Agg::Agg(Builder& builder, const Type* agg_type, const ArrayRef<const Value*>& a
     for (auto arg : args) {
         assert(arg->is_simple());
     }
-    auto peeked_agg_type = builder.scope.peek_type(agg_type);
+    auto [mod_app, peeked_agg_type] = peek_app_type(builder, agg_type);
     if (auto tuple_t = agg_type->isa<TupleType>()) {
         assert(tuple_t->args.size() == args.size());
         for (size_t i = 0; i < tuple_t->args.size(); i++) {
@@ -213,7 +213,7 @@ bool Agg::equals(const Node* other) const {
 }
 
 Extract::Extract(Builder& builder, const Value* src, const Value* idx) : Value(builder.arena, [&]() -> const Type* {
-    auto peeked_agg_type = builder.scope.peek_type(src->type());
+    auto [mod_app, peeked_agg_type] = peek_app_type(builder, src->type());
     if (auto tuple_t = peeked_agg_type->isa<TupleType>()) {
         if (auto lit_idx = idx->isa<TypedLiteral>(); lit_idx) {
             size_t idx_value = lit_idx->value.as_integer();

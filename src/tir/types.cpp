@@ -828,6 +828,31 @@ std::pair<const RefType*, const Type*> remove_ref(Builder& builder, const Type* 
     return std::make_pair(nullptr, type);
 }
 
+std::pair<const ModApp*, const ModVar*> match_app(Builder& builder, const ModVar* var) {
+    auto resolved = builder.scope.resolve_mod_var_deep(var);
+    if (resolved) {
+        if (auto app = resolved->isa<ModApp>()) {
+            return { app, app->instantiate(builder) };
+        }
+    }
+    return { nullptr, nullptr };
+}
+
+std::pair<const ModApp*, const Type*> match_app_type_(Builder& builder, const Type* type) {
+    if (auto as_type = type->isa<ModVarAsType>()) {
+        auto [app, instantiated] = match_app(builder, as_type->var);
+        if (app) {
+            return { app, builder.as_type(instantiated) };
+        }
+    }
+    return { nullptr, type };
+}
+
+std::pair<const ModApp*, const Type*> peek_app_type(Builder& builder, const Type* type) {
+    auto [app, resolved_type] = match_app_type_(builder, type);
+    return { app, builder.scope.peek_type(resolved_type) };
+}
+
 } // namespace tir
 
 } // namespace artic

@@ -52,6 +52,18 @@ struct Rewriter {
         return *builder_;
     }
 
+    class BuilderGuard {
+        Rewriter& r;
+        Builder* old;
+    public:
+        BuilderGuard(Rewriter& r, Builder& b) : r(r), old(&b) {
+            std::swap(r.builder_, old);
+        }
+        ~BuilderGuard() {
+            std::swap(r.builder_, old);
+        }
+    };
+
 protected:
     std::unordered_map<const Node*, const Node*> map;
     Builder* builder_ = nullptr;

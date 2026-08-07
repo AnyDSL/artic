@@ -128,11 +128,12 @@ const Type* Builder::as_type(const ModVar* var) {
 
 const Type* Builder::member_type(const Type* type, size_t idx) {
     type = scope.peek_type(type);
-    if (auto type_app = type->isa<TypeApp>()) {
-        assert(false && "TODO: implement MemberType op");
-        // return type_app->member_type(i);
+
+    if (auto [app, _] = match_app_type_(*this, type); app) {
+        member_type(as_type(app->instantiate(*this)), idx);
     }
-    else if (auto complex_type = type->isa<ComplexType>())
+
+    if (auto complex_type = type->isa<ComplexType>())
         return complex_type->member_type(idx);
     else if (auto tuple_type = type->isa<TupleType>())
         return tuple_type->args[idx];
@@ -145,7 +146,7 @@ const Type* Builder::member_type(const Type* type, size_t idx) {
 }
 
 const Type* Builder::type_app(const UserType* applied, const ArrayRef<const Type*>& type_args) {
-    // assert(false);
+    assert(false);
     // if (auto type_alias = applied->isa<TypeAlias>()) {
     //     assert(type_alias->type_params() && type_alias->decl.aliased_type->type);
     //     auto map = TypeApp::replace_map(*type_alias->type_params(), type_args);
@@ -210,8 +211,8 @@ const ModCtor* ModuleBuilder::mod_ctor(const ArrayRef<const ModVar*>& params, co
     return arena.insert<ModCtor>(*this, params, sig);
 }
 
-const ModVar* ModuleBuilder::mod_app(const ModVar* applicand, const Node* arg) {
-    return schedule(arena.insert<ModApp>(*this, applicand, arg));
+const ModVar* ModuleBuilder::mod_app(const ModVar* applicand, const ArrayRef<const Node*>& args) {
+    return schedule(arena.insert<ModApp>(*this, applicand, args));
 }
 
 const Value* Builder::as_value(const ModVar* var) {
@@ -529,6 +530,11 @@ const ModVar* ModuleBuilder::schedule(const Node* node, bool skip_signature, std
         }
     }
     assert(dst && "failed to find the matching builder for the dst scope");
+    auto found = dst->already_bound_here.find(node);
+    if (found != dst->already_bound_here.end()) {
+        return found->second;
+    }
+
     const ModVar* var;
     if (!skip_signature)
         var = mod_var(decl_key(maybe_id), Signature::from_node(*this, node, false));
@@ -536,6 +542,7 @@ const ModVar* ModuleBuilder::schedule(const Node* node, bool skip_signature, std
         var = mod_var(decl_key(maybe_id));
     auto decl = dst->module().add_decl(var);
     dst->module().set_decl(decl, node);
+    dst->already_bound_here[node] = var;
     return var;
 }
 

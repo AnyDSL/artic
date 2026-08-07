@@ -1,6 +1,8 @@
 #include "artic/tir/module.h"
+
 #include "artic/tir/builder.h"
 #include "artic/tir/scope.h"
+#include "artic/tir/rewrite.h"
 
 namespace artic::tir {
 
@@ -25,6 +27,14 @@ void Module::set_decl(Decl* decl, const Node* value) const {
         mod->scope.mod_def = mod;
     }
     scope.insert(decl->var, value);
+}
+
+const Module::Decl* Module::lookup(const DeclKey* key) const {
+    for (size_t i = 0; i < decls_.size(); ++i) {
+        if (decls_[i]->var->key == key)
+            return &*decls_[i];
+    }
+    return nullptr;
 }
 
 Signature::Signature(Builder& builder, NodeKind elem_kind, const Type* value_type, const Type* type)
@@ -290,27 +300,85 @@ const Signature* ModCtor::signature() const {
     return signature_;
 }
 
-ModApp::ModApp(Builder& builder, const ModVar* applicand, const Node* arg) : ModValue(builder.arena, [&]() -> NodeKind {
+ModApp::ModApp(Builder& builder, const ModVar* applicand, const ArrayRef<const Node*>& args) : ModValue(builder.arena, [&]() -> NodeKind {
     auto ctor_sig = applicand->signature();
     assert(ctor_sig->elem_kind == NodeKind::Ctor);
-    assert(ctor_sig->dom.size() == 1);
-    assert(Signature::from_node(builder, arg)->is_sub(builder.scope, ctor_sig->dom[0]));
+    assert(ctor_sig->dom.size() == args.size());
+    for (size_t i = 0; i < ctor_sig->dom.size(); i++) {
+        assert(Signature::from_node(builder, args[i])->is_sub(builder.scope, ctor_sig->dom[i]));
+    }
     signature_ = ctor_sig->codom;
     return signature_->elem_kind;
-}()), applicand(applicand), arg(arg) {
+}()), applicand(applicand), args(args) {
     assert(applicand->is_simple());
-    assert(arg->is_simple());
+    for (auto arg : args)
+        assert(arg->is_simple());
 }
 
 size_t ModApp::hash() const {
-    return fnv::Hash().combine(applicand).combine(arg);
+    auto h = fnv::Hash().combine(applicand);
+    for (auto arg : args)
+        h = h.combine(arg);
+    return h;
 }
 
 bool ModApp::equals(const Node* other) const {
     if (auto other_app = other->isa<ModApp>()) {
-        return applicand == other_app->applicand && arg == other_app->arg;
+        if (args.size() != other_app->args.size())
+            return false;
+        for (size_t i = 0; i < args.size(); i++) {
+            if (args[i] != other_app->args[i])
+                return false;
+        }
+        return applicand == other_app->applicand;
     }
     return false;
+}
+
+struct Specializer : public Rewriter {
+    Builder& b;
+    Scope& s;
+
+    Specializer(Builder& b, Scope& s) : Rewriter(b.arena, b.arena), b(b), s(s) {
+        builder_ = &b;
+    }
+
+    const Node* rewrite(const Node* old, bool immediate) override {
+        // leave keys alone
+        if (old->isa<DeclKey>())
+            return old;
+        if (immediate)
+            return old->rewrite(*this);
+
+        auto fvs = old->free_variables();
+        auto old_scope = b.vars_scope(fvs);
+        if (!s.contains(old_scope)) {
+            return old;
+        }
+
+        return old->rewrite(*this);
+    }
+};
+
+const ModVar* ModApp::instantiate(Builder& builder) const {
+    if (instantiated_)
+        return instantiated_;
+    auto peeked = builder.scope.peek_mod_value(applicand);
+    if (auto ctor = peeked->isa<ModCtor>()) {
+        Specializer s(builder, ctor->body->scope);
+        for (size_t i = 0; i < ctor->params.size(); i++) {
+            s.insert(ctor->params[i], args[i]);
+        }
+        auto spec_module = s.instantiate(ctor->body, true)->as<Module>();
+        instantiated_ = builder.enclosing_module().schedule_mod_value(spec_module);
+        if (ctor->extra_key) {
+            auto sig = spec_module->lookup(ctor->extra_key)->var->signature();
+            instantiated_ = builder.enclosing_module().mod_access(instantiated_, ctor->extra_key, sig);
+        }
+        return instantiated_;
+    } else {
+        assert(false);
+    }
 }
 
 const Signature* ModApp::signature() const {
@@ -378,7 +446,7 @@ void Module::free_variables(FVSet& vars, Seen& seen) const {
     for (auto decl : decls()) {
         auto [var, def] = *decl;
         // free variables of the variable themselves matter
-        var->free_variables(vars, seen);
+        var->free_variables(inner_vars, seen);
         def->free_variables(inner_vars, inner_seen);
     }
     // remove the module variables from the inner FVs
@@ -411,7 +479,8 @@ void ModCtor::free_variables(FVSet& vars, Seen& seen) const {
 
 void ModApp::free_variables(FVSet& vars, Seen& seen) const {
     applicand->free_variables(vars, seen);
-    arg->free_variables(vars, seen);
+    for (auto arg : args)
+        arg->free_variables(vars, seen);
 }
 
 void ModError::free_variables(FVSet&, Seen&) const {
