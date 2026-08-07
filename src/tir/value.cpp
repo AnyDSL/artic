@@ -10,7 +10,7 @@ namespace artic {
 namespace tir {
 
 const Type* Value::resolve_type(const Scope& s) const {
-    return s.peek_type_definition(type());
+    return s.peek_type(type());
 }
 
 GlobalVariable::GlobalVariable(Builder& builder, const Type* value_type, bool is_mut, const Value* init, const ast::StaticDecl* decl)
@@ -102,9 +102,9 @@ bool Cast::equals(const Node* other) const {
 
 TypedLiteral::TypedLiteral(Builder& builder, Literal lit, const Type* type) : Value(builder.arena, type), value(lit) {
     assert(type->is_simple());
-    type = builder.scope.peek_type_definition(type);
+    type = builder.scope.peek_type(type);
     if (auto sized_array_type = type->isa<SizedArrayType>())
-        type = builder.scope.peek_type_definition(sized_array_type->elem);
+        type = builder.scope.peek_type(sized_array_type->elem);
     assert(type->isa<PrimType>());
 }
 
@@ -171,7 +171,7 @@ Agg::Agg(Builder& builder, const Type* agg_type, const ArrayRef<const Value*>& a
     for (auto arg : args) {
         assert(arg->is_simple());
     }
-    auto peeked_agg_type = builder.scope.peek_type_definition(agg_type);
+    auto peeked_agg_type = builder.scope.peek_type(agg_type);
     if (auto tuple_t = agg_type->isa<TupleType>()) {
         assert(tuple_t->args.size() == args.size());
         for (size_t i = 0; i < tuple_t->args.size(); i++) {
@@ -213,7 +213,7 @@ bool Agg::equals(const Node* other) const {
 }
 
 Extract::Extract(Builder& builder, const Value* src, const Value* idx) : Value(builder.arena, [&]() -> const Type* {
-    auto peeked_agg_type = builder.scope.peek_type_definition(src->type());
+    auto peeked_agg_type = builder.scope.peek_type(src->type());
     if (auto tuple_t = peeked_agg_type->isa<TupleType>()) {
         if (auto lit_idx = idx->isa<TypedLiteral>(); lit_idx) {
             size_t idx_value = lit_idx->value.as_integer();
@@ -251,7 +251,7 @@ bool Extract::equals(const Node* other) const {
 }
 
 Repeat::Repeat(Builder& builder, const Type* type, const Value* elem) : Value(builder.arena, type), elem(elem) {
-    auto peeked_arr_type = builder.scope.peek_type_definition(type);
+    auto peeked_arr_type = builder.scope.peek_type(type);
     assert(peeked_arr_type->isa<ArrayType>());
 }
 
@@ -272,7 +272,7 @@ Proj::Proj(Builder& builder, const Value* src, const Value* idx) : Value(builder
     bool mut;
     size_t as;
 
-    auto peeked_addr_type = builder.scope.peek_type_definition(src->type());
+    auto peeked_addr_type = builder.scope.peek_type(src->type());
     auto [ref_t, ref_pointee] = remove_ref(builder, peeked_addr_type);
     if (ref_t) {
         pointee_t = ref_t->pointee;
@@ -286,7 +286,7 @@ Proj::Proj(Builder& builder, const Value* src, const Value* idx) : Value(builder
         as = ptr_t->addr_space;
     }
 
-    auto peeked_pointee_t = builder.scope.peek_type_definition(pointee_t);
+    auto peeked_pointee_t = builder.scope.peek_type(pointee_t);
 
     auto wrap_pointee = [&](const Type* new_pointee) -> const Type* {
         assert(new_pointee->is_simple());
@@ -409,7 +409,7 @@ bool UnOp::equals(const Node* other) const {
 
 BinOp::BinOp(Builder& builder, const BinaryExpr::Tag tag, const Value* lhs, const Value* rhs) : Value(builder.arena, [&]() -> const Type* {
     if (BinaryExpr::has_eq(tag)) {
-        assert(builder.scope.peek_type_definition(lhs->type())->isa<RefType>());
+        assert(builder.scope.peek_type(lhs->type())->isa<RefType>());
         return builder.unit_type();
     } if (BinaryExpr::has_cmp(tag))
         return builder.bool_type();

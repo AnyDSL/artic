@@ -704,12 +704,12 @@ const thorin::Def* Emitter::down_cast(const thorin::Def* def, const Scope& start
     const Scope* lhs_scope = &start_scope;
     const Scope* rhs_scope = &start_scope;
     while (auto var_as_type = from->isa<ModVarAsType>()) {
-        auto [resolved, resolved_scope] = lhs_scope->resolve_deep(var_as_type->var);
+        auto [resolved, resolved_scope] = lhs_scope->resolve_mod_var_deep_return_scope(var_as_type->var);
         from = resolved->as<Type>();
         lhs_scope = &resolved_scope;
     }
     while (auto var_as_type = to->isa<ModVarAsType>()) {
-        auto [resolved, resolved_scope] = rhs_scope->resolve_deep(var_as_type->var);
+        auto [resolved, resolved_scope] = rhs_scope->resolve_mod_var_deep_return_scope(var_as_type->var);
         to = resolved->as<Type>();
         rhs_scope = &resolved_scope;
     }
@@ -1354,7 +1354,7 @@ const thorin::Def* Agg::emit(Emitter& emitter) const {
     for (size_t i = 0; i < args.size(); ++i) {
         elems[i] = emitter.emit(args[i]);
     }
-    auto agg_type = emitter.scope().peek_type_definition(type());
+    auto agg_type = emitter.scope().peek_type(type());
     if (agg_type->isa<TupleType>())
         return emitter.world.tuple(elems);
     else if (auto array_t = agg_type->isa<SizedArrayType>()) {
@@ -1368,7 +1368,7 @@ const thorin::Def* Agg::emit(Emitter& emitter) const {
 }
 
 const thorin::Def* Repeat::emit(Emitter& emitter) const {
-    auto arr_type = emitter.scope().peek_type_definition(type())->as<SizedArrayType>();
+    auto arr_type = emitter.scope().peek_type(type())->as<SizedArrayType>();
     thorin::Array<const thorin::Def*> ops(arr_type->size, emitter.emit(elem));
     return arr_type->is_simd
         ? emitter.world.vector(ops, emitter.debug_info(this))

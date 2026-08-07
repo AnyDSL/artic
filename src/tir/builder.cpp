@@ -127,7 +127,7 @@ const Type* Builder::as_type(const ModVar* var) {
 }
 
 const Type* Builder::member_type(const Type* type, size_t idx) {
-    type = scope.peek_type_definition(type);
+    type = scope.peek_type(type);
     if (auto type_app = type->isa<TypeApp>()) {
         assert(false && "TODO: implement MemberType op");
         // return type_app->member_type(i);
@@ -193,7 +193,7 @@ const ModVar* ModuleBuilder::mod_access(const ModValue* src, const DeclKey* key,
             for (auto& decl: mod->decls()) {
                 if (decl->var->key == key) {
                     // if the module decl is in scope, don't bother with the access at all
-                    if (scope.resolve_mod_var(decl->var))
+                    if (scope.is_in_scope(decl->var))
                         return decl->var;
                 }
             }

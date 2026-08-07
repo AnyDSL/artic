@@ -1122,7 +1122,7 @@ std::optional<Path::Elem::Inferred> Path::Elem::infer(TypeChecker& checker, size
         } else {
             auto var = checker.infer_mod_decl(*path.start_decl);
             return Inferred {
-                .module = checker.scope().resolve_bindings(var)->isa<Module>(),
+                .module = checker.scope().peek_mod_value(var)->isa<Module>(),
                 .var = var,
                 .sig = var->signature(),
             };
@@ -1387,7 +1387,7 @@ const tir::Node* Path::infer(TypeChecker& checker, std::optional<NodeKind> expec
     // Treat tuple-like structure constructors as functions
     if (var->kind() == NodeKind::Type && expected_kind == NodeKind::Value) {
         auto type = checker.builder().as_type(var);
-        if (auto [type_app, struct_type] = match_app<StructType>(checker.scope().peek_type_definition(type));
+        if (auto [type_app, struct_type] = match_app<StructType>(checker.scope().peek_type(type));
                  struct_type && struct_type->is_tuple_like()) {
             auto decl = struct_type->decl->as<StructDecl>();
             return decl->ctor_or_default_value();
@@ -1431,7 +1431,7 @@ void NamedAttr::check(TypeChecker& checker, const ast::Node* node) {
     if (name == "export" || name == "import") {
         if (auto fn_decl = node->isa<FnDecl>()) {
             if (name == "export") {
-                auto fn_type = std::get<0>(checker.scope().resolve_deep(fn_decl->var))->as<Value>()->type()->isa<artic::FnType>();
+                auto fn_type = checker.scope().resolve_mod_var_deep(fn_decl->var)->as<Value>()->type()->isa<artic::FnType>();
                 if (!fn_type)
                     checker.error(fn_decl->loc, "polymorphic functions cannot be exported");
                 else if (fn_type->Type::order(checker.scope()) > 1)
@@ -1625,7 +1625,7 @@ const tir::Node* FieldExpr::check(TypeChecker& checker, const artic::Type* expec
 
 const tir::Node* RecordExpr::infer(TypeChecker& checker) {
     auto record_type = expr ? checker.deref(expr)->type() : checker.infer_type(*this->type);
-    auto [type_app, struct_type] = match_app<artic::StructType>(checker.scope().peek_type_definition(record_type));
+    auto [type_app, struct_type] = match_app<artic::StructType>(checker.scope().peek_type(record_type));
     if (!struct_type ||
         struct_type->is_tuple_like()) {
         checker.type_expected(expr ? expr->loc : this->loc, record_type, "record-like structure");
@@ -1659,7 +1659,7 @@ const tir::Node* TupleExpr::infer(TypeChecker& checker) {
 }
 
 const tir::Node* TupleExpr::check(TypeChecker& checker, const artic::Type* expected) {
-    auto peek_expected = checker.scope().peek_type_definition(expected);
+    auto peek_expected = checker.scope().peek_type(expected);
     if (auto tuple_type = peek_expected->isa<artic::TupleType>()) {
         if (args.size() != tuple_type->args.size()) {
             checker.bad_arguments(loc, "tuple expression", args.size(), tuple_type->args.size());
@@ -1705,7 +1705,7 @@ const tir::Node* ArrayExpr::check(TypeChecker& checker, const artic::Type* expec
 
 const tir::Node* RepeatArrayExpr::infer(TypeChecker& checker) {
     auto elem = checker.deref(this->elem);
-    auto peeked_elem_t = checker.scope().peek_type_definition(elem->type());
+    auto peeked_elem_t = checker.scope().peek_type(elem->type());
     if (is_simd && !(peeked_elem_t->template isa<artic::PrimType>() || peeked_elem_t->template isa<artic::PtrType>())) {
         checker.invalid_simd(loc, peeked_elem_t);
         return checker.builder().error_value();
@@ -1789,7 +1789,7 @@ const tir::Node* FnExpr::infer(TypeChecker& checker) {
 }
 
 const tir::Node* FnExpr::check(TypeChecker& checker, const artic::Type* expected) {
-    auto fn_t = checker.scope().peek_type_definition(expected)->isa<tir::FnType>();
+    auto fn_t = checker.scope().peek_type(expected)->isa<tir::FnType>();
     if (!fn_t) {
         checker.incompatible_type(loc, "function", expected);
         return checker.builder().error_value();
@@ -1915,7 +1915,7 @@ const tir::Node* CallExpr::infer(TypeChecker& checker) {
 
 const tir::Node* ProjExpr::infer(TypeChecker& checker) {
     auto [ref_type, expr_type] = remove_ref(checker.builder(), checker.infer_value(*expr)->type());
-    expr_type = checker.scope().peek_type_definition(expr_type);
+    expr_type = checker.scope().peek_type(expr_type);
     auto ptr_type = expr_type->isa<artic::PtrType>();
     if (ptr_type) {
         // Must dereference references to pointers, such that the pointer offset is computed on the
@@ -1923,7 +1923,7 @@ const tir::Node* ProjExpr::infer(TypeChecker& checker) {
         // pointers).
         if (ref_type)
             checker.deref(expr);
-        expr_type = checker.scope().peek_type_definition(ptr_type->pointee);
+        expr_type = checker.scope().peek_type(ptr_type->pointee);
     }
 
     const artic::Type* result_type = nullptr;
@@ -2676,6 +2676,8 @@ const tir::Node* StructDecl::infer(TypeChecker& checker) {
     if (!type_params.empty()) {
         var = checker.mod_builder().add_in_module(ctor, key);
         signature = ctor_sig;
+    } else {
+        var = checker.mod_builder().add_in_module(unnamed_type, key);
     }
     unnamed_type = checker.builder().as_type(var);
 
@@ -2907,7 +2909,7 @@ const tir::Node* TypedPtrn::infer(TypeChecker& checker) {
 
 const tir::Node* LiteralPtrn::infer(TypeChecker& checker) {
     auto type = checker.infer(loc, lit)->type();
-    if (is_float_type(checker.scope().peek_type_definition(type))) {
+    if (is_float_type(checker.scope().peek_type(type))) {
         checker.type_expected(loc, type, "integer, boolean, or string");
         return checker.builder().type_error();
     }
@@ -2916,7 +2918,7 @@ const tir::Node* LiteralPtrn::infer(TypeChecker& checker) {
 
 const tir::Node* LiteralPtrn::check(TypeChecker& checker, const artic::Type* expected) {
     auto type = checker.check(loc, lit, expected)->type();
-    if (is_float_type(checker.scope().peek_type_definition(type))) {
+    if (is_float_type(checker.scope().peek_type(type))) {
         checker.type_expected(loc, type, "integer, boolean, or string");
         return checker.builder().type_error();
     }
@@ -2955,7 +2957,7 @@ const tir::Node* FieldPtrn::check(TypeChecker& checker, const artic::Type* expec
 const tir::Node* RecordPtrn::infer(TypeChecker& checker) {
     auto path_type = path.infer(checker, NodeKind::Type)->as<tir::Type>();
     //if (path_type->isa<TypeError>())
-    auto [type_app, struct_type] = match_app<artic::StructType>(checker.scope().peek_type_definition(path_type));
+    auto [type_app, struct_type] = match_app<artic::StructType>(checker.scope().peek_type(path_type));
     if (!struct_type ||
         (struct_type->decl->isa<StructDecl>() &&
          struct_type->decl->as<StructDecl>()->is_tuple_like)) {
@@ -2970,7 +2972,7 @@ const tir::Node* RecordPtrn::infer(TypeChecker& checker) {
 
 const tir::Node* CtorPtrn::infer(TypeChecker& checker) {
     auto path_type = path.infer(checker, NodeKind::Type)->as<tir::Type>();
-    auto peeked_type = checker.scope().peek_type_definition(path_type);
+    auto peeked_type = checker.scope().peek_type(path_type);
 
     if (auto [_, struct_type] = match_app<StructType>(peeked_type); struct_type) {
         if (struct_type->is_tuple_like()) {
@@ -2985,7 +2987,7 @@ const tir::Node* CtorPtrn::infer(TypeChecker& checker) {
             }
             if (arg) {
                 auto ctor = decl->ctor_or_default_value();
-                auto peeked_ctor_t = checker.scope().peek_type_definition(ctor->type());
+                auto peeked_ctor_t = checker.scope().peek_type(ctor->type());
                 auto fn_t = peeked_ctor_t->as<tir::FnType>();
                 auto dom = checker.builder().enclosing_module().import_type(fn_t->dom);
                 checker.check_ptrn(*arg, dom);

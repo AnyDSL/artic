@@ -340,8 +340,8 @@ size_t TypeApp::order(const Scope& scope, std::unordered_set<const Type*>& seen)
 }
 
 size_t ModVarAsType::order(const Scope& scope, std::unordered_set<const Type*>& seen) const {
-    auto resolved = scope.peek_type_definition(this);
-    assert(resolved != this);
+    auto resolved = scope.peek_type(this);
+    assert(resolved != this && "unknown order, there's a type var in the way");
     return resolved->order(scope, seen);
 }
 
@@ -386,7 +386,7 @@ void TypeApp::variance(const Scope& scope, std::unordered_map<const TypeVar*, Ty
 }
 
 void ModVarAsType::variance(const Scope& scope, TypeVarMap<TypeVariance>& seen, bool dir) const {
-    auto resolved = scope.peek_type_definition(this);
+    auto resolved = scope.peek_type(this);
     assert(resolved != this);
     return resolved->variance(scope, seen, dir);
 }
@@ -444,7 +444,7 @@ void TypeApp::bounds(const Scope& scope, std::unordered_map<const TypeVar*, Type
 }
 
 void ModVarAsType::bounds(const Scope& scope, std::unordered_map<const TypeVar*, TypeBounds>& bounds, const Type* type, bool dir) const {
-    auto resolved = scope.peek_type_definition(this);
+    auto resolved = scope.peek_type(this);
     assert(resolved != this && "cannot compute bounds on unbound module variable");
     return resolved->bounds(scope, bounds, type, dir);
 }
@@ -499,7 +499,7 @@ bool TypeApp::is_sized(const Scope& scope, std::unordered_set<const Type*>& seen
 }
 
 bool ModVarAsType::is_sized(const Scope& scope, std::unordered_set<const Type*>& seen) const {
-    auto resolved = scope.peek_type_definition(this);
+    auto resolved = scope.peek_type(this);
     // unknown types are assumed to be unsized
     if (resolved == this)
         return false;
@@ -636,17 +636,25 @@ static inline bool is_subtype(const Scope& start_scope, const Type* t, const Typ
     const Scope* lhs_scope = &start_scope;
     const Scope* rhs_scope = &start_scope;
     while (auto var_as_type = t->isa<ModVarAsType>()) {
-        auto [resolved, resolved_scope] = lhs_scope->resolve_deep(var_as_type->var);
+        auto [resolved, resolved_scope] = lhs_scope->resolve_mod_var_deep_return_scope(var_as_type->var);
+        if (!resolved || !resolved->isa<Type>()) {
+            break;
+        }
         t = resolved->as<Type>();
         lhs_scope = &resolved_scope;
     }
     while (auto var_as_type = other->isa<ModVarAsType>()) {
-        auto [resolved, resolved_scope] = rhs_scope->resolve_deep(var_as_type->var);
+        auto [resolved, resolved_scope] = rhs_scope->resolve_mod_var_deep_return_scope(var_as_type->var);
+        if (!resolved || !resolved->isa<Type>()) {
+            break;
+        }
         other = resolved->as<Type>();
         rhs_scope = &resolved_scope;
     }
+
     // after this point we never want to see unresolved ModVars
-    assert(!t->isa<ModVarAsType>() && !other->isa<ModVarAsType>());
+    // if(t->isa<ModVarAsType>() || other->isa<ModVarAsType>())
+    //     return false;
 
     const Scope* joint_scope = unify_scopes(lhs_scope, rhs_scope);
     // if the resolved scopes aren't unifiable, the two types cannot be compatible
@@ -808,43 +816,16 @@ bool is_unit_type(const Type* type) {
     return type->isa<TupleType>() && type->as<TupleType>()->args.empty();
 }
 
-const Type* Scope::peek_type_definition(const Type* type) const {
-    while (auto var_as_type = type->isa<ModVarAsType>()) {
-        auto [resolved, _] = resolve_deep(var_as_type->var);
-        type = resolved->as<Type>();
-    }
-    return type;
-}
-const Value* Scope::peek_value(const Value* value) const {
-    while (auto as_value = value->isa<ModVarAsValue>()) {
-        auto [resolved, _] = resolve_deep(as_value->var);
-        value = resolved->as<Value>();
-    }
-    return value;
-}
-
 std::pair<const PtrType*, const Type*> remove_ptr(Builder& builder, const Type* type) {
-    const Type* og_type = type;
-    if (auto var_as_type = type->isa<ModVarAsType>()) {
-        auto [resolved, _] = builder.scope.resolve_deep(var_as_type->var);
-        type = resolved->as<Type>();
-    }
-
-    if (auto ref_type = type->isa<PtrType>())
+    if (auto ref_type = builder.scope.peek_type(type)->isa<PtrType>())
         return std::make_pair(ref_type, builder.enclosing_module().import_type(ref_type->pointee));
-    return std::make_pair(nullptr, og_type);
+    return std::make_pair(nullptr, type);
 }
 
 std::pair<const RefType*, const Type*> remove_ref(Builder& builder, const Type* type) {
-    const Type* og_type = type;
-    if (auto var_as_type = type->isa<ModVarAsType>()) {
-        auto [resolved, _] = builder.scope.resolve_deep(var_as_type->var);
-        type = resolved->as<Type>();
-    }
-
-    if (auto ref_type = type->isa<RefType>())
+    if (auto ref_type = builder.scope.peek_type(type)->isa<RefType>())
         return std::make_pair(ref_type, builder.enclosing_module().import_type(ref_type->pointee));
-    return std::make_pair(nullptr, og_type);
+    return std::make_pair(nullptr, type);
 }
 
 } // namespace tir

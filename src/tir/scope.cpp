@@ -1,5 +1,9 @@
 #include "artic/tir/scope.h"
 
+#include "artic/tir/values.h"
+#include "artic/tir/types.h"
+#include "artic/tir/module.h"
+
 namespace artic::tir {
 
 void Scope::insert(const ModVar* var, const Node* value) {
@@ -49,42 +53,76 @@ const Scope& Scope::root() const {
     return *s;
 }
 
-const Node* Scope::resolve_bindings(const ModValue* value) const {
-    while (auto mod_var = value->isa<ModVar>()) {
-        auto resolved = resolve_mod_var(mod_var);
-        if (auto keep_going = resolved->isa<ModValue>())
-            value = keep_going;
+std::tuple<const ModVar*, const Node*> Scope::resolve_mod_var_rec(const ModVar* var) const {
+    while (true) {
+        auto resolved = resolve_mod_var(var);
+        if (!resolved)
+            return { var, nullptr };
+        if (auto another_var = resolved->isa<ModVar>())
+            var = another_var;
         else
-            return resolved ? resolved : value;
+            return { var, resolved };
     }
-    return value;
 }
 
-std::tuple<const Node*, const Scope&> Scope::resolve_deep(const ModValue* var) const {
+std::tuple<const Node*, const Scope&> Scope::resolve_mod_var_deep_return_scope(const ModVar* var) const {
     // TODO: this shouldn't be necessary if trivial mod_var bindings are disallowed
-    const Node* resolved = resolve_bindings(var);
+    // resolve the variable normally
+    auto [_, resolved] = resolve_mod_var_rec(var);
+    if (!resolved)
+        return { nullptr, *this };
     if (auto mod_access = resolved->isa<ModAccess>()) {
+        if (!mod_access->mod->isa<ModVar>()) {
+            // this can happen if it is ModError instead
+            // just bail
+            return { resolved, *this };
+        }
         // [ mod ] :: S
-        auto [lhs, lhs_scope]  = resolve_deep(mod_access->mod); //->isa<Module>();
+        auto [lhs, lhs_scope] = resolve_mod_var_deep_return_scope(mod_access->mod->as<ModVar>());
+        // give up here if the module being accessed cannot be resolved
+        if (!lhs)
+            return { mod_access, *this };
         if (auto lhs_mod = lhs->isa<Module>()) {
             for (auto& decl : lhs_mod->decls()) {
                 if (decl->var->key == mod_access->key) {
                     // [ ( mod :: idx ) ]
-                    if (auto keep_going = decl->value->isa<ModValue>()) {
-                        return lhs_scope.resolve_deep(keep_going);
+                    if (auto keep_going = decl->value->isa<ModVar>()) {
+                        return lhs_scope.resolve_mod_var_deep_return_scope(keep_going);
                     }
                     return { decl->value, lhs_mod->scope };
                 }
             }
+            assert(false && "bad module access");
         }
     }
     return { resolved, *this };
 }
 
+const Type* Scope::peek_type(const Type* type) const {
+    while (auto var_as_type = type->isa<ModVarAsType>()) {
+        auto resolved = resolve_mod_var_deep(var_as_type->var);
+        if (resolved && resolved->isa<Type>())
+            type = resolved->as<Type>();
+        else
+            break;
+    }
+    return type;
+}
+const Value* Scope::peek_value(const Value* value) const {
+    while (auto as_value = value->isa<ModVarAsValue>()) {
+        auto resolved = resolve_mod_var_deep(as_value->var);
+        if (resolved && resolved->isa<Value>())
+            value = resolved->as<Value>();
+        else
+            break;
+    }
+    return value;
+}
+
 const ModValue* Scope::peek_mod_value(const ModValue* maybe_module) const {
     if (auto mod_var = maybe_module->isa<ModVar>()) {
-        auto bound_to = resolve_mod_var(mod_var);
-        if (bound_to)
+        auto bound_to = resolve_mod_var_deep(mod_var);
+        if (bound_to && bound_to->isa<ModValue>())
             return bound_to->as<ModValue>();
     }
     return maybe_module;
