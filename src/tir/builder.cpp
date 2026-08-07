@@ -98,7 +98,7 @@ const FnType* Builder::cn_type(const Type* dom) {
     return fn_type(dom, no_ret_type());
 }
 
-const TypeVar* Builder::type_var(const ast::TypeParam* param) {
+/*const TypeVar* Builder::type_var(const ast::TypeParam* param) {
     return arena.insert<TypeVar>(arena, param);
 }
 
@@ -108,7 +108,7 @@ const ForallType* Builder::forall_type(ArrayRef<const TypeVar*> type_params, con
 
 const ForallType* Builder::forall_type(ArrayRef<const TypeVar*> type_params, const ast::ImplicitDecl& decl) {
     return arena.insert<ForallType>(arena, type_params, decl);
-}
+}*/
 
 const StructType* Builder::struct_type(ArrayRef<const TypeVar*> type_params, const ast::RecordDecl* decl) {
     return arena.insert<StructType>(arena, type_params, decl);
@@ -173,6 +173,10 @@ const ModVar* Builder::mod_var(const DeclKey* key, const Signature* sig) {
     return arena.insert<ModVar>(*this, key, sig);
 }
 
+const ModVar* Builder::mod_var(const DeclKey* key) {
+    return arena.insert<ModVar>(*this, key);
+}
+
 const ModError* Builder::mod_error() {
     return arena.insert<ModError>(*this);
 }
@@ -196,6 +200,18 @@ const ModVar* ModuleBuilder::mod_access(const ModValue* src, const DeclKey* key,
         }
     }
     return schedule(arena.insert<ModAccess>(arena, src, key, sig));
+}
+
+//std::tuple<const ModVar*, const ModCtor*> ModuleBuilder::mod_ctor(const ModVar* param) {
+//    auto ctor = arena.insert<ModCtor>(*this, param);
+//    return { schedule(ctor, true), ctor };
+//}
+const ModCtor* ModuleBuilder::mod_ctor(const ArrayRef<const ModVar*>& params, const Signature* sig) {
+    return arena.insert<ModCtor>(*this, params, sig);
+}
+
+const ModVar* ModuleBuilder::mod_app(const ModVar* applicand, const Node* arg) {
+    return schedule(arena.insert<ModApp>(*this, applicand, arg));
 }
 
 const Value* Builder::as_value(const ModVar* var) {
@@ -350,6 +366,10 @@ const Signature* Builder::type_signature(const Type* inner) {
     return arena.insert<Signature>(*this, NodeKind::Type, nullptr, inner);
 }
 
+const Signature* Builder::ctor_signature(const ArrayRef<const Signature*>& dom, const Signature* codom) {
+    return arena.insert<Signature>(*this, dom, codom);
+}
+
 ModuleBuilder& Builder::enclosing_module() {
     for (Builder* b = this; b; b = b->parent) {
         if (auto mb = b->isa<ModuleBuilder>()) {
@@ -494,7 +514,7 @@ static const Scope* get_node_scope_helper(ModuleBuilder& builder, const Node* no
     return builder.vars_scope(fvs);
 }
 
-const ModVar* ModuleBuilder::schedule(const Node* node, std::optional<ast::Identifier> maybe_id) {
+const ModVar* ModuleBuilder::schedule(const Node* node, bool skip_signature, std::optional<ast::Identifier> maybe_id) {
     const Scope* node_scope = get_node_scope_helper(*this, node);
     assert(scope.contains(node_scope) && "this node cannot be scheduled here or in any parent module, it has free variables that would not be bound");
 
@@ -509,26 +529,30 @@ const ModVar* ModuleBuilder::schedule(const Node* node, std::optional<ast::Ident
         }
     }
     assert(dst && "failed to find the matching builder for the dst scope");
-    auto var = mod_var(decl_key(maybe_id), Signature::from_node(*this, node, false));
+    const ModVar* var;
+    if (!skip_signature)
+        var = mod_var(decl_key(maybe_id), Signature::from_node(*this, node, false));
+    else
+        var = mod_var(decl_key(maybe_id));
     auto decl = dst->module().add_decl(var);
     dst->module().set_decl(decl, node);
     return var;
 }
 
 const Type* ModuleBuilder::schedule_type(const Type* type, std::optional<ast::Identifier> id) {
-    return as_type(schedule(type, id));
+    return as_type(schedule(type, false, id));
 }
 
 const Value* ModuleBuilder::schedule_value(const Value* value, std::optional<ast::Identifier> id) {
-    return as_value(schedule(value, id));
+    return as_value(schedule(value, false, id));
 }
 
 const ModVar* ModuleBuilder::schedule_mod_value(const ModValue* node, std::optional<ast::Identifier> id) {
-    return schedule(node, id);
+    return schedule(node, false, id);
 }
 
-const ModVar* ModuleBuilder::add_in_module(const Node* node, const DeclKey* key) {
-    auto var = mod_var(key, Signature::from_node(*this, node));
+const ModVar* ModuleBuilder::add_in_module(const Node* node, const DeclKey* key, bool public_interface) {
+    auto var = mod_var(key, Signature::from_node(*this, node, public_interface));
     auto decl = module_->add_decl(var);
     module_->set_decl(decl, node);
     return var;

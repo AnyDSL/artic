@@ -121,9 +121,11 @@ void Scope::dump() const {
     printf("scope ");
     for (auto& [var, value] : mod_vars) {
         var->dump();
-        printf(" = ");
-        value->dump();
-        printf(", ");
+        if (value) {
+            printf(" = ");
+            value->dump();
+            printf(", ");
+        }
     }
     printf("\n");
     if (parent)

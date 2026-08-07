@@ -30,7 +30,9 @@ enum class NodeKind {
     Type,
     Module,
     Key,
+    Alias,
     Signature,
+    Ctor,
 };
 
 /// Base class for all nodes. Types should be created by a `Arena`,

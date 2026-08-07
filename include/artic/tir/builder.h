@@ -87,6 +87,7 @@ struct Builder : public artic::Cast<Builder> {
     const Signature* mod_signature();
     const Signature* value_signature(const Type*);
     const Signature* type_signature(const Type*);
+    const Signature* ctor_signature(const ArrayRef<const Signature*>&, const Signature*);
 
     const PrimType*          prim_type(ast::PrimType::Tag);
     const PrimType*          bool_type();
@@ -103,9 +104,9 @@ struct Builder : public artic::Cast<Builder> {
     const TopType*           top_type();
     const NoRetType*         no_ret_type();
     const TypeError*         type_error();
-    const TypeVar*           type_var(const ast::TypeParam*);
-    const ForallType*        forall_type(ArrayRef<const TypeVar*>, const ast::FnDecl&);
-    const ForallType*        forall_type(ArrayRef<const TypeVar*>, const ast::ImplicitDecl&);
+    // const TypeVar*           type_var(const ast::TypeParam*);
+    // const ForallType*        forall_type(ArrayRef<const TypeVar*>, const ast::FnDecl&);
+    // const ForallType*        forall_type(ArrayRef<const TypeVar*>, const ast::ImplicitDecl&);
     const StructType*        struct_type(ArrayRef<const TypeVar*>, const ast::RecordDecl*);
     const EnumType*          enum_type(ArrayRef<const TypeVar*>, const ast::EnumDecl*);
     const TypeAlias*         type_alias(ArrayRef<const TypeVar*>, const ast::TypeDecl&);
@@ -119,6 +120,7 @@ struct Builder : public artic::Cast<Builder> {
     const DeclKey* decl_key(std::optional<ast::Identifier>);
     const Module* module(const ast::ModDecl* = nullptr);
     const ModVar* mod_var(const DeclKey*, const Signature*);
+    const ModVar* mod_var(const DeclKey*);
     const ModError* mod_error();
     // const ModValue* mod_access(const ModValue*, const DeclKey*);
 
@@ -155,10 +157,13 @@ struct ModuleBuilder : public Builder {
     ModuleBuilder(Arena& arena, Builder* parent, const Module* mod);
     ~ModuleBuilder();
 
+    //std::tuple<const ModVar*, const ModCtor*> mod_ctor(const ModVar*);
+    const ModCtor* mod_ctor(const ArrayRef<const ModVar*>&, const Signature*);
+    const ModVar* mod_app(const ModVar*, const Node*);
     const ModVar* mod_access(const ModValue*, const DeclKey*, const Signature*);
     // const ModValue* mod_access(const ModValue*, const DeclKey*);
 
-    const ModVar* add_in_module(const Node*, const DeclKey*);
+    const ModVar* add_in_module(const Node*, const DeclKey*, bool public_interface = true);
     // const ModVar* add_in_module(std::optional<ast::Identifier> = std::nullopt);
 
     const Module& module() { return *module_; }
@@ -175,11 +180,12 @@ private:
     const Module* module_;
 
     const Node* import(const Node*);
-    const ModVar* schedule(const Node*, std::optional<ast::Identifier> = std::nullopt);
+    const ModVar* schedule(const Node*, bool skip_signature = false, std::optional<ast::Identifier> = std::nullopt);
 
     std::unordered_map<const Node*, const ModVar*> already_bound_here;
 
     Scope* root_scope_;
+    friend ast::StructDecl;
 };
 
 struct ExprBuilder : public Builder {

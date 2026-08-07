@@ -53,6 +53,7 @@ private:
     friend Module;
     friend TypeChecker;
     friend ExprBuilder;
+    friend ModCtor;
 };
 
 const Scope* unify_scopes(const Scope*, const Scope*);

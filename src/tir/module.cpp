@@ -48,6 +48,8 @@ Signature::Signature(Builder& builder, NodeKind elem_kind, const Type* value_typ
         default: assert(false);
     }
 }
+Signature::Signature(Builder& builder, const ArrayRef<const Signature*>& dom, const Signature* codom)
+: Node(builder.arena), elem_kind(NodeKind::Ctor), dom(dom), codom(codom) {}
 
 size_t Signature::hash() const {
     auto h = fnv::Hash().combine(elem_kind);
@@ -66,6 +68,11 @@ size_t Signature::hash() const {
             //     h = h.combine(key);
             //     h = h.combine(sig);
             // }
+            break;
+        case NodeKind::Ctor:
+            for (auto d : dom)
+                h = h.combine(d->hash());
+            h = h.combine(codom->hash());
             break;
         default: assert(false);
     }
@@ -101,6 +108,15 @@ bool Signature::equals(const Node* other) const {
                 // }
                 // return true;
             }
+            case NodeKind::Ctor: {
+                if (other_signature->dom.size() != dom.size())
+                    return false;
+                for (size_t i = 0; i < dom.size(); i++) {
+                    if (!dom[i]->equals(other_signature->dom[i]))
+                        return false;
+                }
+                return codom->equals(other_signature->codom);
+            }
             default: assert(false);
         }
         return true;
@@ -126,6 +142,9 @@ const Signature* Signature::from_node(Builder& builder, const Node* node, bool p
         case NodeKind::Module: {
             return node->as<ModValue>()->signature();
         }
+        // Module constructors have no signature
+        // case NodeKind::Ctor:
+        //     return nullptr;
         default: assert(false);
     }
 }
@@ -157,6 +176,38 @@ bool Signature::is_complete() const {
                     return false;
             }
             return true;
+        case NodeKind::Ctor:
+            // only Type -> Type ctors are supported for now.
+            for (auto d : dom) {
+                assert(d->kind() == NodeKind::Type);
+                if (!d->is_complete())
+                    return false;
+            }
+            assert(codom->kind() == NodeKind::Type);
+            return codom->is_complete();
+        default: assert(false);
+    }
+}
+
+bool Signature::is_sub(const Scope& scope, const Signature* other) const {
+    if (this == other)
+        return true;
+    if (elem_kind != other->elem_kind)
+        return false;
+
+    switch (elem_kind) {
+        case NodeKind::Value:
+            return value_type->subtype(scope, other->value_type);
+        case NodeKind::Type:
+            if (!other->type)
+                return true;
+            if (!type)
+                return false;
+            return type->subtype(scope, other->type);
+        case NodeKind::Module:
+            assert(false && "TODO");
+        case NodeKind::Ctor:
+            assert(false && "TODO");
         default: assert(false);
     }
 }
@@ -182,7 +233,12 @@ ModVar::ModVar(Builder& builder, const DeclKey* key, const Signature* sig)
     assert(sig);
 }
 
+ModVar::ModVar(Builder& builder, const DeclKey* key)
+    : NominalNode(builder.arena, NodeKind::Alias), key(key), signature_(nullptr) {
+}
+
 const Signature* ModVar::signature() const {
+    assert(signature_);
     return signature_;
 }
 
@@ -200,6 +256,66 @@ ModAccess::ModAccess(Arena& arena, const ModValue* mod, const DeclKey* key, cons
 /*ModAccess::ModAccess(Arena& arena, const ModValue* mod, const DeclKey* key) : ModAccess {
     assert(false && "TODO");
 }*/
+
+ModCtor::ModCtor(Builder& builder, const ArrayRef<const ModVar*> params, const Signature* signature)
+    : NominalNode(builder.arena, NodeKind::Ctor), scope(builder.scope.new_child()), params(params), signature_(signature) {
+    assert(signature_->elem_kind == NodeKind::Ctor);
+    assert(signature->dom.size() == params.size());
+    for (size_t i = 0; i < params.size(); i++) {
+        scope.insert(params[i], nullptr);
+        assert(signature->dom[i]->is_sub(builder.scope, params[i]->signature()));
+    }
+}
+
+void ModCtor::set_body(Builder& builder, const Module* body, const DeclKey* key) const {
+    assert(!this->body);
+    this->body = body;
+    this->extra_key = key;
+    // signatures that produce values and types are implemented through anonymous modules, to allow self-references and other nodes depending on ctor params
+    if (key) {
+        for (auto& decl : body->decls()) {
+            if (decl->var->key == key) {
+                assert(decl->var->signature()->is_sub(builder.scope, signature_->codom));
+                return;
+            }
+        }
+        assert(false && "mod ctor key not found");
+    }
+    // otherwise check the body directly
+    assert(body->signature()->is_sub(builder.scope, signature_->codom));
+}
+
+const Signature* ModCtor::signature() const {
+    assert(body && "ctor has no body yet - cannot obtain signature");
+    return signature_;
+}
+
+ModApp::ModApp(Builder& builder, const ModVar* applicand, const Node* arg) : ModValue(builder.arena, [&]() -> NodeKind {
+    auto ctor_sig = applicand->signature();
+    assert(ctor_sig->elem_kind == NodeKind::Ctor);
+    assert(ctor_sig->dom.size() == 1);
+    assert(Signature::from_node(builder, arg)->is_sub(builder.scope, ctor_sig->dom[0]));
+    signature_ = ctor_sig->codom;
+    return signature_->elem_kind;
+}()), applicand(applicand), arg(arg) {
+    assert(applicand->is_simple());
+    assert(arg->is_simple());
+}
+
+size_t ModApp::hash() const {
+    return fnv::Hash().combine(applicand).combine(arg);
+}
+
+bool ModApp::equals(const Node* other) const {
+    if (auto other_app = other->isa<ModApp>()) {
+        return applicand == other_app->applicand && arg == other_app->arg;
+    }
+    return false;
+}
+
+const Signature* ModApp::signature() const {
+    return signature_;
+}
 
 ModError::ModError(Builder& builder) : ModValue(builder.arena, NodeKind::Module), signature_(builder.mod_signature()) {}
 
@@ -234,13 +350,20 @@ void Signature::free_variables(FVSet& vars, Seen& seen) const {
                 sig->free_variables(vars, seen);
             }
             break;
+        case NodeKind::Ctor: {
+            for (auto d : dom)
+                d->free_variables(vars, seen);
+            codom->free_variables(vars, seen);
+            break;
+        }
         default: assert(false);
     }
 }
 
 void ModVar::free_variables(FVSet& vars, Seen& seen) const {
     vars.emplace(this);
-    signature_->free_variables(vars, seen);
+    if (signature_)
+        signature_->free_variables(vars, seen);
 }
 
 void ModAccess::free_variables(FVSet& vars, Seen& seen) const {
@@ -267,6 +390,28 @@ void Module::free_variables(FVSet& vars, Seen& seen) const {
     for (auto fv : inner_vars) {
         vars.emplace(fv);
     }
+}
+
+void ModCtor::free_variables(FVSet& vars, Seen& seen) const {
+    FVSet inner_vars;
+    // we don't want to visit stuff we've seen before, but we do want to visit that stuff if we reach it from outside the module
+    Seen inner_seen = seen;
+    for (auto param : params)
+        param->free_variables(inner_vars, seen);
+    if (body)
+        body->free_variables(inner_vars, inner_seen);
+    // remove the variable from the inner FVs
+    for (auto param : params)
+        inner_vars.erase(param);
+    // copy the remaining ones to the FV set
+    for (auto fv : inner_vars) {
+        vars.emplace(fv);
+    }
+}
+
+void ModApp::free_variables(FVSet& vars, Seen& seen) const {
+    applicand->free_variables(vars, seen);
+    arg->free_variables(vars, seen);
 }
 
 void ModError::free_variables(FVSet&, Seen&) const {

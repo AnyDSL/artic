@@ -37,6 +37,8 @@ struct Signature : public Node {
     // we must lazily build module signatures, which means they are treated like nominal nodes until sealed
     mutable std::unordered_map<const DeclKey*, const Signature*> mod_signature;
     mutable bool sealed = false;
+    Array<const Signature*> dom;
+    const Signature* codom;
 
     size_t hash() const override;
     bool equals(const Node*) const override;
@@ -51,8 +53,12 @@ struct Signature : public Node {
     bool is_simple() const override { return true; }
 
     bool is_complete() const;
+    /// subtyping, but for signatures
+    bool is_sub(const Scope&, const Signature*) const;
 
     Signature(Builder&, NodeKind elem_kind, const Type*, const Type*);
+    // ctor signature constructor
+    Signature(Builder&, const ArrayRef<const Signature*>&, const Signature*);
 };
 
 struct ModValue : public Node {
@@ -79,6 +85,7 @@ struct ModVar : public NominalNode<ModValue> {
     const Signature* signature() const override;
 
     ModVar(Builder&, const DeclKey*, const Signature*);
+    ModVar(Builder&, const DeclKey*);
 };
 
 struct Module : public NominalNode<ModValue> {
@@ -136,6 +143,42 @@ struct ModAccess : public ModValue {
 
     ModAccess(Arena& arena, const ModValue*, const DeclKey*, const Signature*);
     ModAccess(Arena& arena, const ModValue*, const DeclKey*);
+};
+
+struct ModCtor : public NominalNode<ModValue> {
+    Scope& scope;
+    Array<const ModVar*> params;
+    mutable const Node* body = nullptr;
+    mutable const DeclKey* extra_key = nullptr;
+
+    void print(Printer&) const override;
+    const Node* rewrite(Rewriter&) const override;
+    void free_variables(FVSet&, Seen&) const override;
+
+    const Signature* signature() const override;
+
+    void set_body(Builder&, const Module*, const DeclKey* = nullptr) const;
+
+    ModCtor(Builder&, const ArrayRef<const ModVar*>, const Signature*);
+private:
+    const Signature* signature_ = nullptr;
+};
+
+struct ModApp : public ModValue {
+    const ModVar* applicand;
+    const Node* arg;
+
+    size_t hash() const override;
+    bool equals(const Node*) const override;
+    void print(Printer&) const override;
+    const Node* rewrite(Rewriter&) const override;
+    void free_variables(FVSet&, Seen&) const override;
+
+    const Signature* signature() const override;
+
+    ModApp(Builder&, const ModVar*, const Node*);
+private:
+    const Signature* signature_;
 };
 
 struct ModError : public ModValue {

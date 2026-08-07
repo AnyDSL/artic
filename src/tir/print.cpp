@@ -224,19 +224,23 @@ void DeclKey::print(Printer& p) const {
 }
 
 void ModVar::print(Printer& p) const {
-    p << log::keyword_style("mod_var") << ' ';
+    p << log::keyword_style("mod") << ' ' << log::keyword_style("var") << " ";
     p.print(*key, true);
 }
 
 void Module::print(Printer& p) const {
-    p << log::keyword_style("module") << " {" << p.indent() << p.endl();
+    p << log::keyword_style("mod") << " {" << p.indent() << p.endl();
     for (auto decl : decls()) {
         p.insert(*decl->var, key2string(*decl->var->key));
     }
     print_list(p.top(), p.endl(), decls(), [&] (auto& decl) {
         p.print(*decl->var, true);
-        p << ": ";
-        p.print(*decl->var->signature());
+        if (decl->var->kind() == NodeKind::Alias) {
+            p << ": " << log::keyword_style("alias");
+        } else {
+            p << ": ";
+            p.print(*decl->var->signature());
+        }
         p << " = ";
         if (decl->value)
             p.print(*decl->value, true);
@@ -244,6 +248,33 @@ void Module::print(Printer& p) const {
             p << "<undefined>";
     });
     p << p.unindent() << p.endl() << "}";
+}
+
+void ModCtor::print(Printer& p) const {
+    p << log::keyword_style("mod") << " " << log::keyword_style("ctor") << "(";
+    print_list(p.top(), ", ", params, [&] (auto& s) {
+        p.print(*s);
+        p << ": ";
+        p.print(*s->signature());
+    });
+    p << ") = ";
+    if (body) {
+        p.print(*body, true);
+        if (extra_key) {
+            p << " :: ";
+            p.print(*extra_key, true);
+        }
+    }
+    else
+        p << "<unfinished>";
+}
+
+void ModApp::print(Printer& p) const {
+    p << log::keyword_style("mod") << " " << log::keyword_style("app") << " ";
+    p.print(*applicand);
+    p << "[";
+    p.print(*arg);
+    p << "]";
 }
 
 void Signature::print(Printer& p) const {
@@ -278,6 +309,15 @@ void Signature::print(Printer& p) const {
                     p << p.endl();
             }
             p << p.unindent() << p.endl() << "}";
+            break;
+        }
+        case NodeKind::Ctor: {
+            p << log::keyword_style("ctor") << "(";
+            print_list(p.top(), ", ", dom, [&] (auto& s) {
+                p.print(*s);
+            });
+            p << ") -> ";
+            p.print(*codom);
             break;
         }
         default: assert(false);

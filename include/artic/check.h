@@ -87,10 +87,13 @@ public:
     const tir::Param* infer_ptrn_decl(ast::PtrnDecl& ast);
     const tir::Param* check_ptrn_decl(ast::PtrnDecl& ast, const Type*);
 
+    const tir::ModVar* infer_type_param(ast::TypeParam& ast);
+    // const tir::ModVar* check_type_param(ast::TypeParam& ast, const Type*);
+
     const tir::Value* infer(const Loc&, const Literal&);
     const tir::Value* check(const Loc&, const Literal&, const Type*);
 
-    Array<const TypeVar*> infer(ast::TypeParamList*);
+    Array<const ModVar*> infer(ast::TypeParamList*);
 
     /// Explores a pattern recursively and makes sure the body is wrapped in Bind nodes that extract the value of each sub-pattern
     void bind_ptrn_params(ast::Ptrn&, const Value*);

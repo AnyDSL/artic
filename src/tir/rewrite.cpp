@@ -74,7 +74,7 @@ const ForallType* ForallType::rewrite(Rewriter&) const {
 }
 
 const TypeVar* TypeVar::rewrite(Rewriter& r) const {
-    return r.builder().type_var(decl);
+    // return r.builder().type_var(decl);
 }
 
 const Node* ModVarAsType::rewrite(Rewriter& r) const {
@@ -99,6 +99,14 @@ const Node* ModVar::rewrite(Rewriter&) const {
 
 Node* Module::rewrite(Rewriter& r) const {
     const Module* m = r.builder().module(decl);
+
+}
+
+const Node* ModCtor::rewrite(Rewriter&) const {
+
+}
+
+const Node* ModApp::rewrite(Rewriter&) const {
 
 }
 
@@ -214,6 +222,14 @@ const Node* Signature::rewrite(Rewriter& rewriter) const {
                 new_sig->mod_signature.emplace(key, rewriter.instantiate(sig, true)->as<Signature>());
             }
             return new_sig;
+        }
+        case NodeKind::Ctor: {
+            Array<const Signature*> new_dom(dom.size());
+            for (size_t i = 0; i < dom.size(); ++i) {
+                new_dom[i] = rewriter.instantiate(dom[i], true)->as<Signature>();
+            }
+            auto new_codom = rewriter.instantiate(codom, true)->as<Signature>();
+            return rewriter.builder().ctor_signature(new_dom, new_codom);
         }
         default: assert(false);
     }

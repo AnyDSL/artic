@@ -203,7 +203,7 @@ struct Path : public Node {
         };
 
         size_t index = 0;
-        std::vector<const tir::Type*> inferred_args;
+        std::vector<const tir::Node*> inferred_args;
 
         bool is_super() const { return id.name == "super"; }
         bool is_wildcard() const { return id.name == "*"; }

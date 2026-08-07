@@ -426,7 +426,9 @@ static std::string kind2str(NodeKind kind) {
         case NodeKind::Type: return "type";
         case NodeKind::Module: return "module";
         case NodeKind::Key: return "key";
-        case NodeKind::Signature: return "sig";
+        case NodeKind::Alias: return "alias";
+        case NodeKind::Signature: return "signature";
+        case NodeKind::Ctor: return "constructor";
     }
     return "";
 }
@@ -491,6 +493,15 @@ const tir::ModVar* TypeChecker::infer_mod_decl(ast::Decl& node) {
     if (node.attrs)
         node.attrs->check(*this, &node);
     return node.var->as<ModVar>();
+}
+
+const tir::ModVar* TypeChecker::infer_type_param(ast::TypeParam& ast) {
+    if (ast.var)
+        return ast.var;
+    auto var = ast.infer(*this)->as<ModVar>();
+    if (ast.attrs)
+        ast.attrs->check(*this, &ast);
+    return var;
 }
 
 void TypeChecker::add_decl_to_parent_mod_sig(const ast::NamedDecl* decl) {
@@ -694,12 +705,12 @@ const tir::Value* TypeChecker::check(const Loc& loc, const Literal& lit, const T
     }
 }
 
-Array<const TypeVar*> TypeChecker::infer(ast::TypeParamList* list) {
+Array<const ModVar*> TypeChecker::infer(ast::TypeParamList* list) {
     if (!list)
         return {};
-    Array<const TypeVar*> vars(list->params.size());
+    Array<const ModVar*> vars(list->params.size());
     for (size_t i = 0; i < list->params.size(); ++i) {
-        vars[i] = infer_type(*list->params[i])->as<TypeVar>();
+        vars[i] = infer_type_param(*list->params[i]);
     }
     return vars;
 }
@@ -1096,6 +1107,9 @@ std::optional<Path::Elem::Inferred> Path::Elem::infer(TypeChecker& checker, size
         } else if (auto ptrn_decl = path.start_decl->isa<PtrnDecl>()) {
             // assert(ptrn_decl->tir && "PtrnDecls encountered here should be already emitted.");
             return Inferred { .param = checker.infer_ptrn_decl(*ptrn_decl) };
+        } else if (auto type_param = path.start_decl->isa<ast::TypeParam>()) {
+            const ModVar* mod_var = checker.infer_type_param(*type_param);
+            return Inferred { .var = mod_var, .sig = mod_var->signature() };
         } else if (auto mod = path.start_decl->isa<ModDecl>(); mod && !mod->super) {
             auto module = checker.infer_top_module(*mod);
             return Inferred {
@@ -1262,6 +1276,36 @@ std::optional<Path::Elem::Inferred> Path::infer_path(TypeChecker& checker, std::
         // give up when an element fails to infer
         if (!prev)
             return std::nullopt;
+
+        if (prev->sig && prev->sig->elem_kind == NodeKind::Ctor) {
+            // const size_t type_param_count = user_type
+            //     ? user_type->type_params().size()
+            //     : forall_type->type_params().size();
+            const size_t type_param_count = 1;
+            if (type_param_count == elem.args.size() /*||
+                (forall_type && arg && type_param_count > elem.args.size())*/) {
+                std::vector<const artic::Node*> type_args(type_param_count);
+                for (size_t i = 0, n = elem.args.size(); i < n; ++i)
+                    type_args[i] = checker.infer_type(*elem.args[i]);
+                // Infer type arguments when not all type arguments are given
+                // if (type_param_count != elem.args.size() && i == n - 1) {
+                //     auto arg_type = checker.try_coerce(*arg, forall_type->body->as<artic::FnType>()->dom)->type();
+                //     if (!checker.infer_fn_type_args(loc, forall_type, arg_type, ret_type, type_args))
+                //         return std::nullopt;
+                // }
+                elem.inferred_args = type_args;
+                prev = Elem::Inferred {
+                    .var = prev->var ? checker.builder().enclosing_module().mod_app(prev->var, elem.inferred_args[0]) : nullptr,
+                    .sig = prev->sig->codom
+                };
+            } else if (!elem.args.empty() || /* we allow leaving out type params when importing definitions */ !is_use_path_) {
+                checker.error(elem.loc, "expected {} type argument(s), but got {}", type_param_count, elem.args.size());
+                return std::nullopt;
+            }
+        } else if (!elem.args.empty()) {
+            checker.error(elem.loc, "type arguments are not allowed here");
+            return std::nullopt;
+        }
     }
     return *prev;
 }
@@ -2415,7 +2459,7 @@ const tir::Node* AsmExpr::infer(TypeChecker& checker) {
 // Declarations --------------------------------------------------------------------
 
 const tir::Node* TypeParam::infer(TypeChecker& checker) {
-    return checker.builder().type_var(this);
+    return var = checker.builder().mod_var(checker.infer_key(*this), checker.builder().type_signature(nullptr));
 }
 
 const tir::Node* PtrnDecl::check(TypeChecker& checker, const artic::Type* expected) {
@@ -2572,17 +2616,70 @@ const tir::Node* FieldDecl::infer(TypeChecker& checker) {
 }
 
 const tir::Node* StructDecl::infer(TypeChecker& checker) {
-    auto struct_type = checker.builder().struct_type(checker.infer(type_params ? &*type_params : nullptr), this);
-    // Create the type, the signature of the type and add the type to the interface of the module before proceeding
-    self = struct_type;
-    unnamed_type = checker.mod_builder().schedule_type(struct_type);
-    signature = checker.builder().type_signature(unnamed_type);
-    var = checker.mod_builder().add_in_module(unnamed_type, checker.infer_key(*this));
-    checker.add_decl_to_parent_mod_sig(this);
+    auto type_params = checker.infer(this->type_params ? &*this->type_params : nullptr);
 
-    for (auto& field : fields)
-        struct_type->members.push_back(checker.infer_type(*field));
-    struct_type->validate();
+    auto key = checker.infer_key(*this);
+
+    ModuleBuilder& mod_builder = checker.mod_builder();
+    ModuleBuilder* mb = &mod_builder;
+
+    std::unique_ptr<Builder> ctor_builder;
+    std::unique_ptr<ModuleBuilder> inner_module_builder;
+    const Signature* ctor_sig = nullptr;
+    const ModCtor* ctor = nullptr;
+    const DeclKey* internal_key = nullptr;
+
+    if (!type_params.empty()) {
+        Array<const Signature*> dom(type_params.size());
+        for (size_t i = 0; i < type_params.size(); i++) {
+            dom[i] = type_params[i]->signature();
+        }
+        ctor_sig = checker.builder().ctor_signature(dom, checker.builder().type_signature(nullptr));
+
+        internal_key = checker.builder().decl_key(std::nullopt);
+
+        ctor = mb->mod_ctor(type_params, ctor_sig);
+        ctor_builder = std::make_unique<Builder>(mb->arena, ctor->scope, mb);
+        const Module* mod = ctor_builder->module(nullptr /* TODO: think about it */);
+        inner_module_builder = std::make_unique<ModuleBuilder>(mb->arena, &*ctor_builder, mod);
+
+        if (var) {
+            assert(false);
+            mb->add_in_module(unnamed_type, key);
+        }
+        // var = generic_var = ctor_var;
+        mb = &*inner_module_builder;
+    }
+
+    {
+        TypeChecker::BuilderGuard guard(checker, *mb);
+        auto struct_type = mb->struct_type({}, this);
+        // Create the type, the signature of the type and add the type to the interface of the module before proceeding
+        self = struct_type;
+
+        // inner stuff, only valid inside!
+        if (type_params.empty()) {
+            var = mb->schedule(struct_type);
+        } else {
+            var = mb->add_in_module(struct_type, internal_key, false);
+            ctor->set_body(*ctor_builder, &
+                inner_module_builder->module(), internal_key);
+        }
+        unnamed_type = checker.builder().as_type(var);
+        signature = checker.builder().type_signature(unnamed_type);
+
+        for (auto& field : fields)
+            struct_type->members.push_back(checker.infer_type(*field));
+        struct_type->validate();
+    }
+
+    if (!type_params.empty()) {
+        var = checker.mod_builder().add_in_module(ctor, key);
+        signature = ctor_sig;
+    }
+    unnamed_type = checker.builder().as_type(var);
+
+    checker.add_decl_to_parent_mod_sig(this);
 
     return var;
 }
@@ -2639,7 +2736,7 @@ const tir::Node* OptionDecl::infer(TypeChecker& checker) {
 }
 
 const tir::Node* EnumDecl::infer(TypeChecker& checker) {
-    auto enum_type = checker.builder().enum_type(checker.infer(type_params ? &*type_params : nullptr), this);
+    auto enum_type = checker.builder().enum_type({} /*checker.infer(type_params ? &*type_params : nullptr)*/, this);
     // Set the type before entering the options
     unnamed_type = checker.mod_builder().schedule_type(enum_type);
     var = checker.mod_builder().add_in_module(unnamed_type, checker.infer_key(*this));
