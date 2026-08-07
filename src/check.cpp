@@ -314,8 +314,8 @@ const Value* TypeChecker::deref(Ptr<ast::Expr>& expr) {
     auto val = infer_value(*expr);
     auto [ref_type, type] = remove_ref(builder(), val->type());
     if (ref_type)
-        val = expr_builder().implicit_cast(val, type);
-    return val;
+        expr->value = expr_builder().implicit_cast(val, type);
+    return expr->value;
 }
 
 static bool is_unit(const ast::Expr* expr) {
@@ -882,7 +882,7 @@ const Type* TypeChecker::check_array(
     bool is_simd,
     const CheckElems& check_elems)
 {
-    auto array_type = remove_ptr(scope(), expected).second->isa<ArrayType>();
+    auto array_type = remove_ptr(builder(), expected).second->isa<ArrayType>();
     if (!array_type) {
         incompatible_type(loc, msg, expected);
         return builder().type_error();
@@ -1879,7 +1879,7 @@ const tir::Node* ProjExpr::infer(TypeChecker& checker) {
         // pointers).
         if (ref_type)
             checker.deref(expr);
-        expr_type = ptr_type->pointee;
+        expr_type = checker.scope().peek_type_definition(ptr_type->pointee);
     }
 
     const artic::Type* result_type = nullptr;

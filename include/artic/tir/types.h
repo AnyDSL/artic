@@ -259,7 +259,7 @@ private:
     friend class Arena;
 };
 
-std::pair<const PtrType*, const Type*> remove_ptr(const Scope& scope, const Type* type);
+std::pair<const PtrType*, const Type*> remove_ptr(Builder& scope, const Type* type);
 
 /// The type of mutable identifiers or expressions.
 struct RefType : public AddrType {
@@ -271,13 +271,7 @@ private:
 
     friend class Arena;
 };
-
 std::pair<const RefType*, const Type*> remove_ref(Builder& scope, const Type* type);
-/*inline std::pair<const RefType*, const Type*> remove_ref(const Scope& scope, const Type* type) {
-    if (auto ref_type = scope.peek_type_definition(type)->isa<RefType>())
-        return std::make_pair(ref_type, ref_type->pointee);
-    return std::make_pair(nullptr, type);
-}*/
 
 struct ImplicitParamType : public Type {
     const Type* underlying;

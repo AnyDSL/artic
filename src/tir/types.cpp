@@ -823,10 +823,16 @@ const Value* Scope::peek_value(const Value* value) const {
     return value;
 }
 
-std::pair<const PtrType*, const Type*> remove_ptr(const Scope& scope, const Type* type) {
-    if (auto ptr_type = scope.peek_type_definition(type)->isa<PtrType>())
-        return std::make_pair(ptr_type, ptr_type->pointee);
-    return std::make_pair(nullptr, type);
+std::pair<const PtrType*, const Type*> remove_ptr(Builder& builder, const Type* type) {
+    const Type* og_type = type;
+    if (auto var_as_type = type->isa<ModVarAsType>()) {
+        auto [resolved, _] = builder.scope.resolve_deep(var_as_type->var);
+        type = resolved->as<Type>();
+    }
+
+    if (auto ref_type = type->isa<PtrType>())
+        return std::make_pair(ref_type, builder.enclosing_module().import_type(ref_type->pointee));
+    return std::make_pair(nullptr, og_type);
 }
 
 std::pair<const RefType*, const Type*> remove_ref(Builder& builder, const Type* type) {
