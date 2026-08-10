@@ -130,7 +130,7 @@ const Type* Builder::member_type(const Type* type, size_t idx) {
     type = scope.peek_type(type);
 
     if (auto [app, _] = match_app_type_(*this, type); app) {
-        member_type(as_type(app->instantiate(*this)), idx);
+        return member_type(as_type(app->instantiate(*this)), idx);
     }
 
     if (auto complex_type = type->isa<ComplexType>())

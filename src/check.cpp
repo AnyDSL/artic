@@ -1393,7 +1393,7 @@ const tir::Node* Path::infer(TypeChecker& checker, std::optional<NodeKind> expec
     // Treat tuple-like structure constructors as functions
     if (var->kind() == NodeKind::Type && expected_kind == NodeKind::Value) {
         auto type = checker.builder().as_type(var);
-        if (auto [type_app, struct_type] = match_app<StructType>(checker.scope().peek_type(type));
+        if (auto [type_app, struct_type] = peek_app_type<StructType>(checker.builder(), type);
                  struct_type && struct_type->is_tuple_like()) {
             auto decl = struct_type->decl->as<StructDecl>();
             return decl->ctor_or_default_value();
@@ -1931,7 +1931,7 @@ const tir::Node* ProjExpr::infer(TypeChecker& checker) {
     }
 
     const artic::Type* result_type = nullptr;
-    auto [type_app, struct_type] = match_app<StructType>(expr_type);
+    auto [type_app, struct_type] = peek_app_type<StructType>(checker.builder(), expr_type);
     if (std::holds_alternative<Identifier>(field)) {
         // Regular field expressions using identifiers
         if (!struct_type) {
