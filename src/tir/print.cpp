@@ -368,9 +368,9 @@ void Fn::print(Printer& p) const {
     p.print(*param->type());
     p << ")" << ": ";
     p.print(*type());
-    if (body) {
+    if (body_) {
         p << " {" << p.indent() << p.endl();
-        p.print(*body, true);
+        p.print(*body_, true);
         p << p.unindent() << p.endl() << "}";
     }
 }
@@ -533,6 +533,23 @@ void Node::dump() const {
     tp.print(*this);
     p << '\n';
 }
+
+void Node::dump_fvs() const {
+    artic::Printer p(log::out);
+    Printer tp(p);
+    for (auto fv : free_variables())
+        tp.print(*fv);
+    p << '\n';
+}
+
+void dump_fvs(Node::FVSet& set) {
+    artic::Printer p(log::out);
+    Printer tp(p);
+    for (auto fv : set)
+        tp.print(*fv);
+    p << '\n';
+}
+
 
 }
 

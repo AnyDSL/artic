@@ -244,8 +244,18 @@ const Value* Builder::undef(const Type* type) {
     return arena.insert<Undef>(arena, type);
 }
 
-const Fn* Builder::function(const Param* param, const Type* codom) {
-    return arena.insert<Fn>(*this, param, codom);
+// const Fn* Builder::function(const Param* param, const Type* codom) {
+//     return arena.insert<Fn>(*this, param, codom);
+// }
+
+FnBuilder::FnBuilder(Builder& parent, const Param* param) : Builder(parent.arena, parent.scope.new_child(nullptr), &parent), param_(param) {
+    scope.insert(param, nullptr);
+}
+
+const Fn* FnBuilder::build_function(const Type* codom) {
+    assert(!fn_);
+    fn_ = arena.insert<Fn>(*this, param_, codom);
+    return fn_;
 }
 
 const Value* Builder::unit() {
@@ -366,6 +376,9 @@ const Value* ExprBuilder::control(const Fn* fn) {
 
 void ExprBuilder::add_instruction(const Value* instruction) {
     assert(!instruction->is_simple());
+    if (auto bind = instruction->isa<Bind>()) {
+        scope.insert(bind->param, bind->value);
+    }
     seq.push_back(instruction);
 }
 

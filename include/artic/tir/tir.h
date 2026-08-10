@@ -22,6 +22,7 @@ struct Builder;
 struct Rewriter;
 struct Printer;
 struct Scope;
+struct Var;
 
 log::Output& operator << (log::Output&, const Node&);
 
@@ -62,19 +63,20 @@ struct Node : public DynCast<Node> {
     virtual bool is_simple() const { return false; }
 
     using Seen = std::unordered_set<const Node*>;
-    using FVSet = std::unordered_set<const ModVar*>;
+    using FVSet = std::unordered_set<const Var*>;
 
     virtual void free_variables(FVSet&, Seen&) const = 0;
 
-    std::unordered_set<const ModVar*> free_variables() const {
-        std::unordered_set<const ModVar*> vars;
-        std::unordered_set<const Node*> seen;
+    FVSet free_variables() const {
+        FVSet vars;
+        Seen seen;
         free_variables(vars, seen);
         return vars;
     }
 
     /// Prints the type on the console, for debugging.
     void dump() const;
+    void dump_fvs() const;
 };
 
 struct Key : virtual public Node {
@@ -88,6 +90,12 @@ struct Key : virtual public Node {
     bool is_simple() const override { return true; }
 
     Key(Arena& arena, std::optional<ast::Identifier> id) : Node(arena), id(id) {}
+};
+
+struct Var : virtual public Node {
+    mutable const Scope* binder = nullptr;
+
+    void free_variables(FVSet&, Seen&) const override;
 };
 
 }

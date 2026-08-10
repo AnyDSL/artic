@@ -57,11 +57,9 @@ struct ModValue : virtual public Node {
     ModValue(NodeKind kind) : kind_(kind) {}
 };
 
-struct ModVar : public ModValue {
+struct ModVar : public ModValue, public Var {
     const Key* key;
     const Signature* signature_;
-
-    mutable const Scope* binder = nullptr;
 
     void print(Printer&) const override;
     const Node* rewrite(Rewriter&) const override;

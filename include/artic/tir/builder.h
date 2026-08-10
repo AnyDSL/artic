@@ -13,6 +13,7 @@ namespace tir {
 struct Builder;
 struct ModuleBuilder;
 struct ExprBuilder;
+struct FnBuilder;
 
 /// Hash table containing all types.
 class Arena {
@@ -69,6 +70,7 @@ private:
     friend Builder;
     friend ModuleBuilder;
     friend ExprBuilder;
+    friend FnBuilder;
 };
 
 struct Type;
@@ -137,7 +139,7 @@ struct Builder : public artic::Cast<Builder> {
     const Value* error_value(const Type*);
     const Value* error_value();
 
-    const Fn* function(const Param*, const Type* codom);
+    //const Fn* function(const Param*, const Type* codom);
     const Param* param(std::optional<ast::Identifier>, const Type*);
     // const Value* seq(const ArrayRef<const Value*>&);
     const Value* unit();
@@ -186,6 +188,16 @@ struct Builder : public artic::Cast<Builder> {
     } unsafe_;
 
     Unsafe& unsafe() { return unsafe_; }
+};
+
+struct FnBuilder : public Builder {
+    FnBuilder(Builder& parent, const Param*);
+    const Param* param() const { return param_; };
+
+    const Fn* build_function(const Type* codom);
+private:
+    const Param* param_ = nullptr;
+    const Fn* fn_ = nullptr;
 };
 
 struct ModuleBuilder : public Builder {

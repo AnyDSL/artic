@@ -1301,9 +1301,9 @@ const thorin::Def* Fn::emit(Emitter& emitter, SetHeadFn set_head) const {
     //emitter.emit(*param, emitter.tuple_from_params(cont, true));
     if (filter)
         cont->set_filter(emitter.world.filter(thorin::Array<const thorin::Def*>(cont->num_params(), emitter.emit(filter))));
-    if (body) {
+    if (body()) {
         emitter.enter(cont);
-        auto value = emitter.emit(body);
+        auto value = emitter.emit(body());
         if (!resolve_type(emitter.scope())->codom->isa<artic::NoRetType>())
             emitter.jump(cont->params().back(), value);
     }
@@ -1575,7 +1575,7 @@ const thorin::Def* Control::emit(Emitter& emitter) const {
         : nullptr;
 
     emitter.emitted[body->param] = join;
-    emitter.emit(body->body);
+    emitter.emit(body->body());
 
     emitter.enter(join);
     return emitter.tuple_from_params(join);

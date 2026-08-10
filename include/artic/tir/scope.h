@@ -8,6 +8,8 @@ namespace artic::tir {
 struct ModValue;
 struct ModCtor;
 struct ExprBuilder;
+struct FnBuilder;
+struct Fn;
 
 struct Scope {
     Scope* parent;
@@ -19,8 +21,8 @@ struct Scope {
     bool contains(const Scope*) const;
     const Scope& root() const;
 
-    const Scope* find_scope(const ModVar* var) const;
-    bool is_in_scope(const ModVar* var) const;
+    const Scope* find_scope(const Var* var) const;
+    bool is_in_scope(const Var* var) const;
 
     /// resolves one step of let-binding
     const Node* resolve_mod_var(const ModVar* var) const;
@@ -44,25 +46,27 @@ struct Scope {
     const Type* peek_type(const Type* type) const;
     const ModValue* peek_mod_value(const ModValue*) const;
     const Value* peek_value(const Value*) const;
+
+    Scope& new_child(const Node*);
 private:
-    void insert(const ModVar*, const Node*);
+    void insert(const Var*, const Node*);
 
     //void insert(const Param* var, const Value* value) {
     //    assert(!params.contains(var));
     //    params[var] = value;
     //}
 
-    Scope& new_child(const Node*);
-
     std::vector<std::unique_ptr<Scope>> child_scopes;
-    std::unordered_map<const ModVar*, const Node*> mod_vars;
+    std::unordered_map<const Var*, const Node*> mod_vars;
     //std::unordered_map<const Param*, const Value*> params;
 
     void dump() const;
 
     friend Module;
+    friend Fn;
     friend TypeChecker;
     friend ExprBuilder;
+    friend FnBuilder;
     friend ModCtor;
 };
 

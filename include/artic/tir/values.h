@@ -65,7 +65,7 @@ struct ErrorValue : public Value {
     bool is_simple() const override { return true; }
 };
 
-struct Param : public Value {
+struct Param : public Value, public Var {
     std::optional<ast::Identifier> id;
 
     Param(Arena&, std::optional<ast::Identifier>, const Type*);
@@ -84,7 +84,6 @@ struct Fn : public Value {
     const Param* param;
     const Type* codom;
     mutable const Value* filter = nullptr;
-    mutable const Value* body = nullptr;
 
     void print(Printer&) const override;
     const Node* rewrite(Rewriter&) const override;
@@ -96,8 +95,11 @@ struct Fn : public Value {
     const thorin::Def* emit(Emitter&, SetHeadFn) const override;
 
     void set_body(Builder&, const Value* body) const;
+    const Value* body() const { return body_; }
 
     Fn(Builder&, const Param*, const Type* codom);
+private:
+    mutable const Value* body_ = nullptr;
 };
 
 struct App : public Value {

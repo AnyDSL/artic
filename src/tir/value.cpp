@@ -26,14 +26,15 @@ LocalVariable::LocalVariable(Builder& builder, const Type* allocated_type)
 }
 
 Fn::Fn(Builder& builder, const Param* param, const Type* codom)
-    : Value(builder.fn_type(param->type(), codom)), Node(builder.arena), param(param), codom(codom)
-{}
+    : Value(builder.fn_type(param->type(), codom)), Node(builder.arena), param(param), codom(codom) {
+    assert(builder.scope.is_in_scope(param));
+}
 
 void Fn::set_body(Builder& builder, const Value* body) const {
-    assert(!this->body && "can't set the body twice!");
+    assert(!this->body_ && "can't set the body twice!");
     auto fn_t = resolve_type(builder.scope);
     assert(body->type() == fn_t->codom);
-    this->body = body;
+    this->body_ = body;
 }
 
 size_t Unit::hash() const {
@@ -56,7 +57,7 @@ bool ErrorValue::equals(const Node* n) const {
     return false;
 }
 
-Param::Param(Arena& arena, std::optional<ast::Identifier> id, const Type* type) : Value(type), Node(arena), id(id) {}
+Param::Param(Arena& arena, std::optional<ast::Identifier> id, const Type* type) : Value(type), Var(), Node(arena), id(id) {}
 
 App::App(Arena& arena, const Value* callee, const Value* arg) : Value(callee->type()->as<FnType>()->codom), Node(arena), callee(callee), arg(arg) {
     assert(callee->is_simple());
@@ -504,15 +505,19 @@ void TypedLiteral::free_variables(FVSet& vars, Seen& seen) const {
 }
 
 void Param::free_variables(FVSet& vars, Seen& seen) const {
-    // TODO: one day params will be tracked too
+    Var::free_variables(vars, seen);
     type()->free_variables(vars, seen);
 }
 
 void Fn::free_variables(FVSet& vars, Seen& seen) const {
     // TODO: track params
     type()->free_variables(vars, seen);
-    param->free_variables(vars, seen);
-    body->free_variables(vars, seen);
+    FVSet rhs;
+    if (body_)
+        body_->free_variables(rhs, seen);
+    rhs.erase(param);
+    vars.merge(rhs);
+    param->type()->free_variables(vars, seen);
 }
 
 void App::free_variables(FVSet&, Seen&) const {
@@ -548,6 +553,7 @@ void Proj::free_variables(FVSet&, Seen&) const {
 }
 
 void Bind::free_variables(FVSet& vars, Seen& seen) const {
+    assert(false);
     type()->free_variables(vars, seen);
     param->free_variables(vars, seen);
     value->free_variables(vars, seen);
@@ -555,9 +561,20 @@ void Bind::free_variables(FVSet& vars, Seen& seen) const {
 
 void Seq::free_variables(FVSet& vars, Seen& seen) const {
     type()->free_variables(vars, seen);
-    for (auto instr : evaluate)
-        instr->free_variables(vars, seen);
-    yield->free_variables(vars, seen);
+    FVSet rhs;
+    yield->free_variables(rhs, seen);
+    for (size_t i = evaluate.size() - 1; i < evaluate.size(); i--) {
+        auto instr = evaluate[i];
+        if (auto bind = instr->isa<Bind>()) {
+            bind->value->free_variables(rhs, seen);
+            rhs.erase(bind->param);
+            bind->type()->free_variables(rhs, seen);
+            bind->param->type()->free_variables(rhs, seen);
+        } else {
+            instr->free_variables(rhs, seen);
+        }
+    }
+    vars.merge(rhs);
 }
 
 void Cast::free_variables(FVSet&, Seen&) const {

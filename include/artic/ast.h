@@ -717,7 +717,7 @@ struct FnExpr : public Expr {
     mutable FnDecl* decl = nullptr;
 
     // set during type-checking
-    mutable const tir::Value* tir_body = nullptr;
+    // mutable const tir::Value* tir_body = nullptr;
     mutable const tir::Value* return_ = nullptr;
 
     FnExpr(

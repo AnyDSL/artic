@@ -427,7 +427,7 @@ void Signature::free_variables(FVSet& vars, Seen& seen) const {
 }
 
 void ModVar::free_variables(FVSet& vars, Seen& seen) const {
-    vars.emplace(this);
+    Var::free_variables(vars, seen);
     if (signature_)
         signature_->free_variables(vars, seen);
 }

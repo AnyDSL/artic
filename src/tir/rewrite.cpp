@@ -1,5 +1,6 @@
 #include "artic/tir/rewrite.h"
 
+#include "artic/tir/scope.h"
 #include "artic/tir/types.h"
 #include "artic/tir/values.h"
 
@@ -180,13 +181,14 @@ const Node* LocalVariable::rewrite(Rewriter& r) const {
 const Node* Fn::rewrite(Rewriter& r) const {
     auto nparam = r.instantiate(param, true);
     auto ncodom = r.instantiate(codom);
-    auto nfn = r.builder().function(nparam, ncodom);
+    FnBuilder fn_builder(r.builder(), nparam);
+    auto nfn = fn_builder.build_function(ncodom);
     r.insert(this, nfn);
     r.insert(param, nparam);
-    ExprBuilder builder(arena, &r.builder());
-    Rewriter::BuilderGuard guard(r, builder);
-    if (body)
-        nfn->set_body(r.builder(), r.instantiate(body, false));
+    ExprBuilder expr_builder(arena, &fn_builder);
+    Rewriter::BuilderGuard guard(r, expr_builder);
+    if (body_)
+        nfn->set_body(r.builder(), r.instantiate(body_, false));
     return nfn;
 }
 
