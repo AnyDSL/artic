@@ -344,7 +344,7 @@ void GlobalVariable::print(Printer& p) const {
     if (is_mut)
         p << ' ' << log::keyword_style("mut");
     p << '[';
-    p.print(*value_type);
+    p.print(*allocated_type);
     p << ']';
     p << '(';
     if (init)

@@ -14,7 +14,7 @@ const Type* Value::resolve_type(const Scope& s) const {
 }
 
 GlobalVariable::GlobalVariable(Builder& builder, const Type* value_type, bool is_mut, const Value* init, const ast::StaticDecl* decl)
-    : NominalNode(builder.arena, builder.ref_type(value_type, is_mut, 0)), value_type(value_type), is_mut(is_mut), init(init), decl(decl) {
+    : NominalNode(builder.arena, builder.ref_type(value_type, is_mut, 0)), allocated_type(value_type), is_mut(is_mut), init(init), decl(decl) {
     assert(value_type->is_simple());
     if (init)
         assert(init->type() == value_type);

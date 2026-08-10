@@ -142,7 +142,7 @@ struct ModAccess : public ModValue {
     size_t hash() const override;
     bool equals(const Node*) const override;
     void print(Printer&) const override;
-    Node* rewrite(Rewriter&) const override;
+    const Node* rewrite(Rewriter&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
     const Signature* signature() const override;

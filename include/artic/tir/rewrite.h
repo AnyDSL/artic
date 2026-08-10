@@ -16,19 +16,20 @@ struct Rewriter {
 
     virtual const Node* rewrite(const Node*, bool) = 0;
 
-    const Node* instantiate(const Node* old, bool immediate) {
+    template<typename T = tir::Node, typename S = T>
+    const S* instantiate(const T* old, bool immediate = false) {
         if (immediate)
-            return rewrite(old, true);
+            return rewrite(old, true)->template as<S>();
         auto found = lookup(old);
         if (found)
-            return found;
-        auto rewritten = rewrite(old, false);
+            return found->template as<S>();
+        auto rewritten = rewrite(old, false)->template as<S>();
         insert(old, rewritten);
         return rewritten;
     }
 
-    template<typename T, typename S = tir::Node>
-    const Array<const S*> instantiate(ArrayRef<const T*> old, bool immediate) {
+    template<typename T = tir::Node, typename S = T>
+    const Array<const S*> instantiate_array(const Array<const T*>& old, bool immediate = false) {
         Array<const S*> result(old.size());
         for (size_t i = 0; i < old.size(); i++) {
             result[i] = instantiate(old[i], immediate)->template as<S>();

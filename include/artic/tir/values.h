@@ -108,7 +108,7 @@ struct App : public Value {
     size_t hash() const override;
 
     void print(Printer&) const override;
-    Node* rewrite(Rewriter&) const override;
+    const Node* rewrite(Rewriter&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
     const thorin::Def* emit(Emitter&) const override;
