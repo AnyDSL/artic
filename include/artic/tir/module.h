@@ -13,29 +13,16 @@ struct Signature;
 struct Param;
 struct TypeVar;
 struct Module;
-struct DeclKey;
+struct Key;
 
 struct ModuleBuilder;
-
-struct DeclKey : virtual public Node {
-    std::optional<ast::Identifier> id;
-
-    void print(Printer&) const override;
-    const Node* rewrite(Rewriter&) const override;
-    void free_variables(FVSet&, Seen&) const override {};
-
-    NodeKind kind() const override { return NodeKind::Key; }
-    bool is_simple() const override { return true; }
-
-    DeclKey(Arena& arena, std::optional<ast::Identifier> id) : Node(arena), id(id) {}
-};
 
 struct Signature : virtual public Node {
     NodeKind elem_kind;
     const Type* value_type = nullptr;
     const Type* type = nullptr;
     // we must lazily build module signatures, which means they are treated like nominal nodes until sealed
-    mutable std::unordered_map<const DeclKey*, const Signature*> mod_signature;
+    mutable std::unordered_map<const Key*, const Signature*> mod_signature;
     mutable bool sealed = false;
     Array<const Signature*> dom;
     const Signature* codom;
@@ -71,7 +58,7 @@ struct ModValue : virtual public Node {
 };
 
 struct ModVar : public ModValue {
-    const DeclKey* key;
+    const Key* key;
     const Signature* signature_;
 
     mutable const Scope* binder = nullptr;
@@ -84,8 +71,8 @@ struct ModVar : public ModValue {
 
     const Signature* signature() const override;
 
-    ModVar(Builder&, const DeclKey*, const Signature*);
-    ModVar(Builder&, const DeclKey*);
+    ModVar(Builder&, const Key*, const Signature*);
+    ModVar(Builder&, const Key*);
 };
 
 struct Module : public ModValue {
@@ -110,7 +97,7 @@ struct Module : public ModValue {
         }
         return arr;
     }
-    const Decl* lookup(const DeclKey*) const;
+    const Decl* lookup(const Key*) const;
     const void seal() const { sealed = true; }
 
     mutable bool sealed = false;
@@ -136,7 +123,7 @@ private:
 
 struct ModAccess : public ModValue {
     const ModValue* mod;
-    const DeclKey* key;
+    const Key* key;
     const Signature* signature_;
 
     size_t hash() const override;
@@ -147,15 +134,15 @@ struct ModAccess : public ModValue {
 
     const Signature* signature() const override;
 
-    ModAccess(Arena& arena, const ModValue*, const DeclKey*, const Signature*);
-    ModAccess(Arena& arena, const ModValue*, const DeclKey*);
+    ModAccess(Arena& arena, const ModValue*, const Key*, const Signature*);
+    ModAccess(Arena& arena, const ModValue*, const Key*);
 };
 
 struct ModCtor : public ModValue {
     Scope& scope;
     Array<const ModVar*> params;
     mutable const Module* body = nullptr;
-    mutable const DeclKey* extra_key = nullptr;
+    mutable const Key* extra_key = nullptr;
 
     void print(Printer&) const override;
     const Node* rewrite(Rewriter&) const override;
@@ -163,7 +150,7 @@ struct ModCtor : public ModValue {
 
     const Signature* signature() const override;
 
-    void set_body(Builder&, const Module*, const DeclKey* = nullptr) const;
+    void set_body(Builder&, const Module*, const Key* = nullptr) const;
 
     ModCtor(Builder&, const ArrayRef<const ModVar*>, const Signature*);
 private:

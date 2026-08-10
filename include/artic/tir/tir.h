@@ -77,6 +77,19 @@ struct Node : public DynCast<Node> {
     void dump() const;
 };
 
+struct Key : virtual public Node {
+    std::optional<ast::Identifier> id;
+
+    void print(Printer&) const override;
+    const Node* rewrite(Rewriter&) const override;
+    void free_variables(FVSet&, Seen&) const override {};
+
+    NodeKind kind() const override { return NodeKind::Key; }
+    bool is_simple() const override { return true; }
+
+    Key(Arena& arena, std::optional<ast::Identifier> id) : Node(arena), id(id) {}
+};
+
 }
 
 }

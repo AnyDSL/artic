@@ -166,15 +166,15 @@ const Value* Builder::yield_expr_scope(const std::function<const Value*(ExprBuil
     });
 }
 
-const DeclKey* Builder::decl_key(std::optional<ast::Identifier> id) {
-    return arena.insert<DeclKey>(arena, id);
+const Key* Builder::decl_key(std::optional<ast::Identifier> id) {
+    return arena.insert<Key>(arena, id);
 }
 
-const ModVar* Builder::mod_var(const DeclKey* key, const Signature* sig) {
+const ModVar* Builder::mod_var(const Key* key, const Signature* sig) {
     return arena.insert<ModVar>(*this, key, sig);
 }
 
-const ModVar* Builder::mod_var(const DeclKey* key) {
+const ModVar* Builder::mod_var(const Key* key) {
     return arena.insert<ModVar>(*this, key);
 }
 
@@ -186,7 +186,7 @@ const Module* Builder::module(const ast::ModDecl* decl) {
     return arena.insert<Module>(*this, decl);
 }
 
-const ModValue* Builder::Unsafe::mod_access(const ModValue* src, const DeclKey* key, const Signature* sig) {
+const ModValue* Builder::Unsafe::mod_access(const ModValue* src, const Key* key, const Signature* sig) {
     assert(src->is_simple());
     if (auto var = src->isa<ModVar>()) {
         auto mod = builder.scope.peek_mod_value(var)->isa<Module>();
@@ -203,7 +203,7 @@ const ModValue* Builder::Unsafe::mod_access(const ModValue* src, const DeclKey* 
     return builder.arena.insert<ModAccess>(builder.arena, src, key, sig);
 }
 
-const ModVar* ModuleBuilder::mod_access(const ModValue* src, const DeclKey* key, const Signature* sig) {
+const ModVar* ModuleBuilder::mod_access(const ModValue* src, const Key* key, const Signature* sig) {
     return schedule(unsafe().mod_access(src, key, sig));
 }
 
@@ -630,7 +630,7 @@ const ModVar* ModuleBuilder::schedule_mod_value(const ModValue* node, std::optio
     return schedule(node, false, id);
 }
 
-const ModVar* ModuleBuilder::add_in_module(const Node* node, const DeclKey* key, bool public_interface) {
+const ModVar* ModuleBuilder::add_in_module(const Node* node, const Key* key, bool public_interface) {
     auto var = mod_var(key, Signature::from_node(*this, node, public_interface));
     auto decl = module_->add_decl(var);
     module_->set_decl(decl, node);

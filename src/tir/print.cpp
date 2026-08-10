@@ -213,13 +213,13 @@ void TypeApp::print(Printer& p) const {
     p << ']';
 }
 
-std::string key2string(const DeclKey& key) {
+std::string key2string(const Key& key) {
     if (key.id)
         return key.id->name;
     return "$" + std::to_string(key.gid);
 }
 
-void DeclKey::print(Printer& p) const {
+void Key::print(Printer& p) const {
     p << key2string(*this);
 }
 

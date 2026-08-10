@@ -98,14 +98,14 @@ const TypeError* TypeError::rewrite(Rewriter& r) const {
     return r.dst.type_error();
 }
 
-const Node* DeclKey::rewrite(Rewriter& r) const {
+const Node* Key::rewrite(Rewriter& r) const {
     return r.builder().decl_key(id);
 }
 
 const Node* ModVar::rewrite(Rewriter& r) const {
     if (signature_)
-        return r.builder().mod_var(r.instantiate(key, false)->as<DeclKey>(), r.instantiate(signature_, false)->as<Signature>());
-    return r.builder().mod_var(r.instantiate(key, false)->as<DeclKey>());
+        return r.builder().mod_var(r.instantiate(key, false)->as<Key>(), r.instantiate(signature_, false)->as<Signature>());
+    return r.builder().mod_var(r.instantiate(key, false)->as<Key>());
 }
 
 const Node* Module::rewrite(Rewriter& r) const {
@@ -142,7 +142,7 @@ const Node* ModCtor::rewrite(Rewriter& r) const {
     r.insert(this, nctor);
     auto ctor_builder = Builder(arena, nctor->scope, &r.builder());
     Rewriter::BuilderGuard guard(r, ctor_builder);
-    const DeclKey* extra_key = this->extra_key ? r.instantiate(this->extra_key) : nullptr;
+    const Key* extra_key = this->extra_key ? r.instantiate(this->extra_key) : nullptr;
     nctor->set_body(r.builder(), r.instantiate(body, false), extra_key);
     return nctor;
 }

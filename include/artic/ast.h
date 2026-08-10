@@ -26,7 +26,7 @@ namespace tir {
     struct Value;
     struct StructType;
     struct Module;
-    struct DeclKey;
+    struct Key;
     struct ModVar;
     struct Param;
     struct Signature;
@@ -1180,7 +1180,7 @@ struct ErrorExpr : public Expr {
 struct NamedDecl : public Decl {
     Identifier id;
 
-    mutable const tir::DeclKey* key = nullptr;
+    mutable const tir::Key* key = nullptr;
     mutable const tir::Signature* signature = nullptr;
 
     virtual const tir::Signature* infer_signature(TypeChecker& checker);

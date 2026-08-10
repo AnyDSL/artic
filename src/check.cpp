@@ -440,7 +440,7 @@ static inline void check_kind(TypeChecker& checker, ast::Node& src, const tir::N
     }
 }
 
-const tir::DeclKey* TypeChecker::infer_key(ast::NamedDecl& decl) {
+const tir::Key* TypeChecker::infer_key(ast::NamedDecl& decl) {
     if (decl.key)
         return decl.key;
     decl.key = builder().decl_key(decl.id.name.size() > 0 ? std::make_optional(decl.id) : std::nullopt);
@@ -2630,7 +2630,7 @@ const tir::Node* StructDecl::infer(TypeChecker& checker) {
     std::unique_ptr<ModuleBuilder> inner_module_builder;
     const Signature* ctor_sig = nullptr;
     const ModCtor* ctor = nullptr;
-    const DeclKey* internal_key = nullptr;
+    const Key* internal_key = nullptr;
 
     if (!type_params.empty()) {
         Array<const Signature*> dom(type_params.size());

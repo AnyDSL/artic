@@ -64,7 +64,7 @@ public:
     const tir::Module* infer_top_module(ast::ModDecl&);
     const tir::ModVar* infer_mod_decl(ast::Decl&);
 
-    const tir::DeclKey* infer_key(ast::NamedDecl&);
+    const tir::Key* infer_key(ast::NamedDecl&);
     const tir::Signature* infer_signature(ast::NamedDecl&);
 
     void infer_decl_stmt(ast::Decl&);

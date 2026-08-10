@@ -25,7 +25,7 @@ void Module::set_decl(Decl* decl, const Node* value) const {
     scope.insert(decl->var, value);
 }
 
-const Module::Decl* Module::lookup(const DeclKey* key) const {
+const Module::Decl* Module::lookup(const Key* key) const {
     for (size_t i = 0; i < decls_.size(); ++i) {
         if (decls_[i]->var->key == key)
             return &*decls_[i];
@@ -234,12 +234,12 @@ bool ModAccess::equals(const Node* other) const {
     return false;
 }
 
-ModVar::ModVar(Builder& builder, const DeclKey* key, const Signature* sig)
+ModVar::ModVar(Builder& builder, const Key* key, const Signature* sig)
     : ModValue(sig->elem_kind), Node(builder.arena), key(key), signature_(sig) {
     assert(sig);
 }
 
-ModVar::ModVar(Builder& builder, const DeclKey* key)
+ModVar::ModVar(Builder& builder, const Key* key)
     : ModValue(NodeKind::Alias), Node(builder.arena), key(key), signature_(nullptr) {
 }
 
@@ -252,14 +252,14 @@ const Signature* ModAccess::signature() const {
     return signature_;
 }
 
-ModAccess::ModAccess(Arena& arena, const ModValue* mod, const DeclKey* key, const Signature* sig)
+ModAccess::ModAccess(Arena& arena, const ModValue* mod, const Key* key, const Signature* sig)
     : ModValue(sig->elem_kind), Node(arena), mod(mod), key(key), signature_(sig) {
     assert(mod->is_simple() && mod->kind() == NodeKind::Module);
-    assert(key->isa<DeclKey>());
+    assert(key->isa<Key>());
     assert(sig);
 }
 
-/*ModAccess::ModAccess(Arena& arena, const ModValue* mod, const DeclKey* key) : ModAccess {
+/*ModAccess::ModAccess(Arena& arena, const ModValue* mod, const Key* key) : ModAccess {
     assert(false && "TODO");
 }*/
 
@@ -273,7 +273,7 @@ ModCtor::ModCtor(Builder& builder, const ArrayRef<const ModVar*> params, const S
     }
 }
 
-void ModCtor::set_body(Builder& builder, const Module* body, const DeclKey* key) const {
+void ModCtor::set_body(Builder& builder, const Module* body, const Key* key) const {
     assert(!this->body);
     this->body = body;
     this->extra_key = key;
@@ -342,7 +342,7 @@ struct Specializer : public Rewriter {
 
     const Node* rewrite(const Node* old, bool immediate) override {
         // leave keys alone
-        if (old->isa<DeclKey>())
+        if (old->isa<Key>())
             return old;
         if (immediate)
             return old->rewrite(*this);

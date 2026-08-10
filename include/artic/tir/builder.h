@@ -122,13 +122,13 @@ struct Builder : public artic::Cast<Builder> {
     /// or returns the type alias expanded with the given type arguments.
     const Type* type_app(const UserType*, const ArrayRef<const Type*>&);
 
-    const DeclKey* decl_key(std::optional<ast::Identifier>);
+    const Key* decl_key(std::optional<ast::Identifier>);
     const Module* module(const ast::ModDecl* = nullptr);
-    const ModVar* mod_var(const DeclKey*, const Signature*);
-    const ModVar* mod_var(const DeclKey*);
+    const ModVar* mod_var(const Key*, const Signature*);
+    const ModVar* mod_var(const Key*);
     const ModCtor* mod_ctor(const ArrayRef<const ModVar*>&, const Signature*);
     const ModError* mod_error();
-    // const ModValue* mod_access(const ModValue*, const DeclKey*);
+    // const ModValue* mod_access(const ModValue*, const Key*);
 
     const GlobalVariable* global_variable(const Type*, bool is_mut, const Value*, const ast::StaticDecl*);
     const Value* typed_literal(Literal, const Type*);
@@ -159,7 +159,7 @@ struct Builder : public artic::Cast<Builder> {
     // un-scheduled node ctors where you should probably used the scheduled version instead!
     struct Unsafe {
         const ModValue* mod_app(const ModVar*, const ArrayRef<const Node*>&);
-        const ModValue* mod_access(const ModValue*, const DeclKey*, const Signature*);
+        const ModValue* mod_access(const ModValue*, const Key*, const Signature*);
 
         const LocalVariable* local_variable(const Type*);
 
@@ -196,10 +196,10 @@ struct ModuleBuilder : public Builder {
 
     //std::tuple<const ModVar*, const ModCtor*> mod_ctor(const ModVar*);
     const ModVar* mod_app(const ModVar*, const ArrayRef<const Node*>&);
-    const ModVar* mod_access(const ModValue*, const DeclKey*, const Signature*);
-    // const ModValue* mod_access(const ModValue*, const DeclKey*);
+    const ModVar* mod_access(const ModValue*, const Key*, const Signature*);
+    // const ModValue* mod_access(const ModValue*, const Key*);
 
-    const ModVar* add_in_module(const Node*, const DeclKey*, bool public_interface = true);
+    const ModVar* add_in_module(const Node*, const Key*, bool public_interface = true);
     // const ModVar* add_in_module(std::optional<ast::Identifier> = std::nullopt);
 
     const Module& module() { return *module_; }
