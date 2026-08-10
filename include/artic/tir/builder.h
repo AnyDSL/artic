@@ -28,13 +28,17 @@ public:
     const NoRetType* no_ret_type();
     const TypeError* type_error();
 
+    const Signature* root_mod_signature();
+
 private:
     template <typename T, typename... Args>
     const T* insert(Args&&... args) {
-        T t(std::forward<Args>(args)...);
-        if (auto it = types_.find(&t); it != types_.end())
+        T* t = new T(std::forward<Args>(args)...);
+        if (auto it = types_.find(t); it != types_.end()) {
+            delete t;
             return (*it)->template as<T>();
-        auto [it, _] = types_.emplace(new T(std::move(t)));
+        }
+        auto [it, _] = types_.emplace(t);
         return (*it)->template as<T>();
     }
 
@@ -184,7 +188,7 @@ private:
 
     std::unordered_map<const Node*, const ModVar*> already_bound_here;
 
-    Scope* root_scope_;
+    // Scope* root_scope_;
     friend ast::StructDecl;
 };
 

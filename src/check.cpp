@@ -2825,8 +2825,7 @@ const tir::Node* ModDecl::infer(TypeChecker& checker) {
     if (parent_builder) {
         auto mod_var = parent_builder->mod_var(checker.infer_key(*this), signature);
         var = mod_var;
-        auto decl = parent_builder->module().add_decl(var);
-        parent_builder->module().set_decl(decl, self);
+        self->var = var;
     }
 
     TypeChecker::BuilderGuard guard(checker, *builder);
@@ -2838,8 +2837,11 @@ const tir::Node* ModDecl::infer(TypeChecker& checker) {
     self->seal();
 
     // add the module to its enclosing decl
-    if (parent_builder)
+    if (parent_builder) {
+        auto decl = parent_builder->module().add_decl(var);
+        parent_builder->module().set_decl(decl, self);
         checker.add_decl_to_parent_mod_sig(this);
+    }
 
     for (auto& decl : decls) {
         if (auto struct_decl = decl->isa<StructDecl>()) {

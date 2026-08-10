@@ -56,7 +56,7 @@ struct Signature : public Node {
     /// subtyping, but for signatures
     bool is_sub(const Scope&, const Signature*) const;
 
-    Signature(Builder&, NodeKind elem_kind, const Type*, const Type*);
+    Signature(Arena&, NodeKind elem_kind, const Type*, const Type*);
     // ctor signature constructor
     Signature(Builder&, const ArrayRef<const Signature*>&, const Signature*);
 };
@@ -90,8 +90,13 @@ struct ModVar : public NominalNode<ModValue> {
 
 struct Module : public NominalNode<ModValue> {
     const ast::ModDecl* decl;
+    std::unique_ptr<Scope> root_scope;
     Scope& scope;
     const Signature* signature_ = nullptr;
+
+    //const ModValue* super = nullptr;
+    // outer variable through which this module is accessible
+    mutable const ModVar* var = nullptr;
 
     struct Decl {
         const ModVar* var;
@@ -118,8 +123,8 @@ struct Module : public NominalNode<ModValue> {
     // void emit(Emitter&) const;
 
     Module(Builder&, const ast::ModDecl*);
-    /// Top-level module ctor
-    Module(Builder&, const ast::ModDecl*, Scope&);
+    Module(Arena&, const ast::ModDecl*);
+    Module(const Module&) = delete;
 
     Decl* add_decl(const ModVar* var) const;
     void set_decl(Decl*, const Node* value) const;

@@ -150,8 +150,8 @@ const Scope* unify_scopes(const Scope* l, const Scope* r) {
     return rpath.back();
 }
 
-Scope& Scope::new_child() {
-    auto& ref = child_scopes.emplace_back(std::make_unique<Scope>(this));
+Scope& Scope::new_child(const Node* n) {
+    auto& ref = child_scopes.emplace_back(std::make_unique<Scope>(this, n));
     return *ref;
 }
 
@@ -162,8 +162,8 @@ void Scope::dump() const {
         if (value) {
             printf(" = ");
             value->dump();
-            printf(", ");
         }
+        printf(", ");
     }
     printf("\n");
     if (parent)

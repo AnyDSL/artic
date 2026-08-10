@@ -11,10 +11,9 @@ struct ExprBuilder;
 
 struct Scope {
     Scope* parent;
-    const ModVar* mod_var = nullptr;
-    const Module* mod_def = nullptr;
+    const Node* owner;
 
-    Scope(Scope* parent) : parent(parent) {}
+    Scope(Scope* parent, const Node* owner) : parent(parent), owner(owner) {}
     Scope(const Scope&) = delete;
 
     bool contains(const Scope*) const;
@@ -53,7 +52,7 @@ private:
     //    params[var] = value;
     //}
 
-    Scope& new_child();
+    Scope& new_child(const Node*);
 
     std::vector<std::unique_ptr<Scope>> child_scopes;
     std::unordered_map<const ModVar*, const Node*> mod_vars;

@@ -7,11 +7,11 @@
 namespace artic::tir {
 
 Module::Module(Builder& builder, const ast::ModDecl* decl)
-    : NominalNode(builder.arena, NodeKind::Module), decl(decl), scope(builder.scope.new_child()), signature_(builder.mod_signature())
+    : NominalNode(builder.arena, NodeKind::Module), decl(decl), root_scope(nullptr), scope(builder.scope.new_child(this)), signature_(builder.mod_signature())
 {}
 
-Module::Module(Builder& builder, const ast::ModDecl* decl, Scope& scope)
-    : NominalNode(builder.arena, NodeKind::Module), decl(decl), scope(scope), signature_(builder.mod_signature())
+Module::Module(Arena& arena, const ast::ModDecl* decl)
+    : NominalNode(arena, NodeKind::Module), decl(decl), root_scope(std::make_unique<Scope>(nullptr, this)), scope(*root_scope ), signature_(arena.root_mod_signature())
 {}
 
 Module::Decl* Module::add_decl(const ModVar* var) const {
@@ -22,10 +22,6 @@ Module::Decl* Module::add_decl(const ModVar* var) const {
 
 void Module::set_decl(Decl* decl, const Node* value) const {
     decl->value = value;
-    if (auto mod = value->isa<Module>()) {
-        mod->scope.mod_var = decl->var;
-        mod->scope.mod_def = mod;
-    }
     scope.insert(decl->var, value);
 }
 
@@ -37,8 +33,8 @@ const Module::Decl* Module::lookup(const DeclKey* key) const {
     return nullptr;
 }
 
-Signature::Signature(Builder& builder, NodeKind elem_kind, const Type* value_type, const Type* type)
-: Node(builder.arena), elem_kind(elem_kind), value_type(value_type), type(type) {
+Signature::Signature(Arena& arena, NodeKind elem_kind, const Type* value_type, const Type* type)
+: Node(arena), elem_kind(elem_kind), value_type(value_type), type(type) {
     switch (elem_kind) {
         case NodeKind::Value: {
             assert(value_type && value_type->is_simple());
@@ -268,7 +264,7 @@ ModAccess::ModAccess(Arena& arena, const ModValue* mod, const DeclKey* key, cons
 }*/
 
 ModCtor::ModCtor(Builder& builder, const ArrayRef<const ModVar*> params, const Signature* signature)
-    : NominalNode(builder.arena, NodeKind::Ctor), scope(builder.scope.new_child()), params(params), signature_(signature) {
+    : NominalNode(builder.arena, NodeKind::Ctor), scope(builder.scope.new_child(this)), params(params), signature_(signature) {
     assert(signature_->elem_kind == NodeKind::Ctor);
     assert(signature->dom.size() == params.size());
     for (size_t i = 0; i < params.size(); i++) {

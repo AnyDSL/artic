@@ -355,16 +355,20 @@ const Value* ExprBuilder::finish_unit() {
     return finish(unit());
 }
 
+const Signature* Arena::root_mod_signature() {
+    return insert<Signature>(*this, NodeKind::Module, nullptr, nullptr);
+}
+
 const Signature* Builder::mod_signature() {
-    return arena.insert<Signature>(*this, NodeKind::Module, nullptr, nullptr);
+    return arena.insert<Signature>(arena, NodeKind::Module, nullptr, nullptr);
 }
 
 const Signature* Builder::value_signature(const Type* inner) {
-    return arena.insert<Signature>(*this, NodeKind::Value, inner, nullptr);
+    return arena.insert<Signature>(arena, NodeKind::Value, inner, nullptr);
 }
 
 const Signature* Builder::type_signature(const Type* inner) {
-    return arena.insert<Signature>(*this, NodeKind::Type, nullptr, inner);
+    return arena.insert<Signature>(arena, NodeKind::Type, nullptr, inner);
 }
 
 const Signature* Builder::ctor_signature(const ArrayRef<const Signature*>& dom, const Signature* codom) {
@@ -380,11 +384,18 @@ ModuleBuilder& Builder::enclosing_module() {
     assert(false);
 }
 
-ModuleBuilder::ModuleBuilder(Arena& arena, const ast::ModDecl* decl) : Builder(arena, [&]() -> Scope& { return *(root_scope_ = &*arena.roots_.emplace_back(std::make_unique<Scope>(nullptr))); }(), nullptr), module_(nullptr) {
-    module_ = arena.insert<Module>(*this, decl, *root_scope_);
+ExprBuilder& Builder::enclosing_expr() {
+    for (Builder* b = this; b; b = b->parent) {
+        if (auto mb = b->isa<ExprBuilder>()) {
+            return *mb;
+        }
+    }
+    assert(false);
 }
 
-ModuleBuilder::ModuleBuilder(Arena& arena, Builder* parent, const Module* mod) : Builder(arena, mod->scope, parent), module_(mod), root_scope_(nullptr) {}
+ModuleBuilder::ModuleBuilder(Arena& arena, const ast::ModDecl* decl) : ModuleBuilder(arena, nullptr, arena.insert<Module>(arena, decl)) {}
+
+ModuleBuilder::ModuleBuilder(Arena& arena, Builder* parent, const Module* mod) : Builder(arena, mod->scope, parent), module_(mod) {}
 
 ModuleBuilder::~ModuleBuilder() {}
 
@@ -422,24 +433,30 @@ struct Importer : public Rewriter {
 
     const ModVar* import_mod_var(const ModVar* old) {
         auto search_key = old->key;
-        const ModValue* mod = nullptr;
+        const ModValue* import_from = nullptr;
 
         // re-enter modules to find the damn thing
         for (size_t i = 0; i < suffix.size(); i++) {
-            if (!mod) {
-                mod = suffix[i]->mod_var;
+            if (!suffix[i]->owner || !suffix[i]->owner->isa<Module>()) {
+                assert(false && "we're importing something that is not reachable through modules");
+                break;
+            }
+            auto mod = suffix[i]->owner->as<Module>();
+            assert(mod->var);
+            if (!import_from) {
+                import_from = mod->var;
+            } else {
+                auto next_key = mod->var->key;
+                import_from = builder.mod_access(import_from, next_key, import_from->signature()->mod_signature[next_key]);
             }
 
-            auto sig = mod->signature();
+            assert(import_from->is_simple());
+
+            auto sig = import_from->signature();
             assert(sig->elem_kind == NodeKind::Module);
 
             if (sig->mod_signature.contains(search_key)) {
-                return builder.mod_access(mod, search_key, sig->mod_signature[search_key]);
-            }
-
-            if (i + 1 < suffix.size()) {
-                auto next_key = suffix[i + 1]->mod_var->key;
-                mod = builder.mod_access(mod, next_key, sig->mod_signature[next_key]);
+                return builder.mod_access(import_from, search_key, sig->mod_signature[search_key]);
             }
         }
 
