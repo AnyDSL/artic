@@ -65,7 +65,7 @@ struct ErrorValue : public Value {
     bool is_simple() const override { return true; }
 };
 
-struct Param : public NominalNode<Value> {
+struct Param : public Value {
     std::optional<ast::Identifier> id;
 
     Param(Arena&, std::optional<ast::Identifier>, const Type*);
@@ -80,7 +80,7 @@ struct Param : public NominalNode<Value> {
     const thorin::Def* emit(Emitter&) const override;
 };
 
-struct Fn : public NominalNode<Value> {
+struct Fn : public Value {
     const Param* param;
     const Type* codom;
     mutable const Value* filter = nullptr;
@@ -116,7 +116,7 @@ struct App : public Value {
     App(Arena&, const Value* callee, const Value* arg);
 };
 
-struct GlobalVariable : public NominalNode<Value> {
+struct GlobalVariable : public Value {
     const Type* allocated_type;
     bool is_mut;
     const Value* init;
@@ -134,7 +134,7 @@ struct GlobalVariable : public NominalNode<Value> {
     GlobalVariable(Builder& arena, const Type*, bool is_mut, const Value* init, const ast::StaticDecl* decl);
 };
 
-struct LocalVariable : public NominalNode<Value> {
+struct LocalVariable : public Value {
     const Type* allocated_type;
 
     void print(Printer&) const override;
@@ -304,7 +304,7 @@ struct Bind : public Value {
     WithMod(Arena&, const ModVar*, const ModValue*);
 };*/
 
-struct ModVarAsValue : public NominalNode<Value> {
+struct ModVarAsValue : public Value {
     const ModVar* var;
 
     void print(Printer&) const override;

@@ -74,11 +74,11 @@ NoRetType::NoRetType(Arena& arena)
 {}
 
 TypeVar::TypeVar(Arena& arena, const ast::TypeParam* param)
-    : NominalNode(arena), decl(param)
+    : Type(arena), decl(param)
 {}
 
 StructType::StructType(Arena& arena, ArrayRef<const TypeVar*> type_params, const ast::RecordDecl* decl)
-    : NominalNode(arena), decl(decl), type_params_(type_params)
+    : ComplexType(arena), decl(decl), type_params_(type_params)
 {}
 
 void StructType::validate() const {
@@ -87,7 +87,7 @@ void StructType::validate() const {
 }
 
 EnumType::EnumType(Arena& arena, ArrayRef<const TypeVar*> type_params, const ast::EnumDecl* decl)
-    : NominalNode(arena), decl(decl), type_params_(type_params)
+    : ComplexType(arena), decl(decl), type_params_(type_params)
 {}
 
 void EnumType::validate() const {

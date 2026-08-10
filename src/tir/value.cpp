@@ -14,19 +14,19 @@ const Type* Value::resolve_type(const Scope& s) const {
 }
 
 GlobalVariable::GlobalVariable(Builder& builder, const Type* value_type, bool is_mut, const Value* init, const ast::StaticDecl* decl)
-    : NominalNode(builder.arena, builder.ref_type(value_type, is_mut, 0)), allocated_type(value_type), is_mut(is_mut), init(init), decl(decl) {
+    : Value(builder.arena, builder.ref_type(value_type, is_mut, 0)), allocated_type(value_type), is_mut(is_mut), init(init), decl(decl) {
     assert(value_type->is_simple());
     if (init)
         assert(init->type() == value_type);
 }
 
 LocalVariable::LocalVariable(Builder& builder, const Type* allocated_type)
-    : NominalNode(builder.arena, builder.ref_type(allocated_type, true, 0)), allocated_type(allocated_type) {
+    : Value(builder.arena, builder.ref_type(allocated_type, true, 0)), allocated_type(allocated_type) {
     assert(allocated_type->is_simple());
 }
 
 Fn::Fn(Builder& builder, const Param* param, const Type* codom)
-    : NominalNode(builder.arena, builder.fn_type(param->type(), codom)), param(param), codom(codom)
+    : Value(builder.arena, builder.fn_type(param->type(), codom)), param(param), codom(codom)
 {}
 
 void Fn::set_body(Builder& builder, const Value* body) const {
@@ -56,7 +56,7 @@ bool ErrorValue::equals(const Node* n) const {
     return false;
 }
 
-Param::Param(Arena& arena, std::optional<ast::Identifier> id, const Type* type) : NominalNode(arena, type), id(id) {}
+Param::Param(Arena& arena, std::optional<ast::Identifier> id, const Type* type) : Value(arena, type), id(id) {}
 
 App::App(Arena& arena, const Value* callee, const Value* arg) : Value(arena, callee->type()->as<FnType>()->codom), callee(callee), arg(arg) {
     assert(callee->is_simple());
@@ -163,7 +163,7 @@ bool Undef::equals(const Node* other) const {
     return false;
 }
 
-ModVarAsValue::ModVarAsValue(Builder& builder, Scope& scope, const ModVar* var) : NominalNode(builder.arena, [&]() -> const Type* {
+ModVarAsValue::ModVarAsValue(Builder& builder, Scope& scope, const ModVar* var) : Value(builder.arena, [&]() -> const Type* {
     auto elem = var->signature();
     assert(elem->elem_kind == NodeKind::Value);
     return elem->value_type;

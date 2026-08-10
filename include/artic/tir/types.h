@@ -403,7 +403,7 @@ protected:
 };
 
 /// Type variable, introduced by a polymorphic structure/enum/function declaration.
-struct TypeVar : public NominalNode<Type> {
+struct TypeVar : public Type {
     void print(Printer&) const override;
 
     const TypeVar* rewrite(Rewriter&) const override;
@@ -493,7 +493,7 @@ struct ComplexType : public UserType {
     void free_variables(FVSet&, Seen&) const override;
 };
 
-struct StructType : public NominalNode<ComplexType> {
+struct StructType : public ComplexType {
     ArrayRef<const TypeVar*> type_params() const override { return type_params_; }
 
     void print(Printer&) const override;
@@ -522,7 +522,7 @@ private:
     friend class Arena;
 };
 
-struct EnumType : public NominalNode<ComplexType> {
+struct EnumType : public ComplexType {
     ArrayRef<const TypeVar*> type_params() const override { return type_params_; }
     void print(Printer&) const override;
 

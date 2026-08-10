@@ -7,11 +7,11 @@
 namespace artic::tir {
 
 Module::Module(Builder& builder, const ast::ModDecl* decl)
-    : NominalNode(builder.arena, NodeKind::Module), decl(decl), root_scope(nullptr), scope(builder.scope.new_child(this)), signature_(builder.mod_signature())
+    : ModValue(builder.arena, NodeKind::Module), decl(decl), root_scope(nullptr), scope(builder.scope.new_child(this)), signature_(builder.mod_signature())
 {}
 
 Module::Module(Arena& arena, const ast::ModDecl* decl)
-    : NominalNode(arena, NodeKind::Module), decl(decl), root_scope(std::make_unique<Scope>(nullptr, this)), scope(*root_scope ), signature_(arena.root_mod_signature())
+    : ModValue(arena, NodeKind::Module), decl(decl), root_scope(std::make_unique<Scope>(nullptr, this)), scope(*root_scope ), signature_(arena.root_mod_signature())
 {}
 
 Module::Decl* Module::add_decl(const ModVar* var) const {
@@ -235,12 +235,12 @@ bool ModAccess::equals(const Node* other) const {
 }
 
 ModVar::ModVar(Builder& builder, const DeclKey* key, const Signature* sig)
-    : NominalNode(builder.arena, sig->elem_kind), key(key), signature_(sig) {
+    : ModValue(builder.arena, sig->elem_kind), key(key), signature_(sig) {
     assert(sig);
 }
 
 ModVar::ModVar(Builder& builder, const DeclKey* key)
-    : NominalNode(builder.arena, NodeKind::Alias), key(key), signature_(nullptr) {
+    : ModValue(builder.arena, NodeKind::Alias), key(key), signature_(nullptr) {
 }
 
 const Signature* ModVar::signature() const {
@@ -264,7 +264,7 @@ ModAccess::ModAccess(Arena& arena, const ModValue* mod, const DeclKey* key, cons
 }*/
 
 ModCtor::ModCtor(Builder& builder, const ArrayRef<const ModVar*> params, const Signature* signature)
-    : NominalNode(builder.arena, NodeKind::Ctor), scope(builder.scope.new_child(this)), params(params), signature_(signature) {
+    : ModValue(builder.arena, NodeKind::Ctor), scope(builder.scope.new_child(this)), params(params), signature_(signature) {
     assert(signature_->elem_kind == NodeKind::Ctor);
     assert(signature->dom.size() == params.size());
     for (size_t i = 0; i < params.size(); i++) {

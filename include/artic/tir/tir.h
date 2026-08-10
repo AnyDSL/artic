@@ -50,8 +50,13 @@ struct Node : public Cast<Node> {
     virtual NodeKind kind() const = 0;
 
     virtual void print(Printer&) const = 0;
-    virtual bool equals(const Node*) const = 0;
-    virtual size_t hash() const = 0;
+    virtual bool equals(const Node* other) const {
+        return this == other;
+    }
+
+    virtual size_t hash() const {
+        return fnv::Hash().combine(this);
+    }
     virtual const Node* rewrite(Rewriter&) const = 0;
 
     virtual bool is_simple() const { return false; }
@@ -70,20 +75,6 @@ struct Node : public Cast<Node> {
 
     /// Prints the type on the console, for debugging.
     void dump() const;
-};
-
-template<typename Super>
-struct NominalNode : public Super {
-    template<typename... Args>
-    NominalNode(Args&&... args) : Super(std::forward<Args>(args)...) {}
-
-    bool equals(const Node* other) const override {
-        return this == other;
-    }
-
-    size_t hash() const override {
-        return fnv::Hash().combine(this);
-    }
 };
 
 }

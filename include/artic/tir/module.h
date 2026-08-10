@@ -17,7 +17,7 @@ struct DeclKey;
 
 struct ModuleBuilder;
 
-struct DeclKey : public NominalNode<Node> {
+struct DeclKey : public Node {
     std::optional<ast::Identifier> id;
 
     void print(Printer&) const override;
@@ -27,7 +27,7 @@ struct DeclKey : public NominalNode<Node> {
     NodeKind kind() const override { return NodeKind::Key; }
     bool is_simple() const override { return true; }
 
-    DeclKey(Arena& arena, std::optional<ast::Identifier> id) : NominalNode(arena), id(id) {}
+    DeclKey(Arena& arena, std::optional<ast::Identifier> id) : Node(arena), id(id) {}
 };
 
 struct Signature : public Node {
@@ -70,7 +70,7 @@ struct ModValue : public Node {
     ModValue(Arena& arena, NodeKind kind) : Node(arena), kind_(kind) {}
 };
 
-struct ModVar : public NominalNode<ModValue> {
+struct ModVar : public ModValue {
     const DeclKey* key;
     const Signature* signature_;
 
@@ -88,7 +88,7 @@ struct ModVar : public NominalNode<ModValue> {
     ModVar(Builder&, const DeclKey*);
 };
 
-struct Module : public NominalNode<ModValue> {
+struct Module : public ModValue {
     const ast::ModDecl* decl;
     std::unique_ptr<Scope> root_scope;
     Scope& scope;
@@ -151,7 +151,7 @@ struct ModAccess : public ModValue {
     ModAccess(Arena& arena, const ModValue*, const DeclKey*);
 };
 
-struct ModCtor : public NominalNode<ModValue> {
+struct ModCtor : public ModValue {
     Scope& scope;
     Array<const ModVar*> params;
     mutable const Module* body = nullptr;
