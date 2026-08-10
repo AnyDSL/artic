@@ -49,8 +49,12 @@ struct Rewriter {
         return nullptr;
     }
 
-    Builder& builder() {
+    Builder& builder() const {
         return *builder_;
+    }
+
+    bool is_root() const {
+        return builder_ == nullptr;
     }
 
     class BuilderGuard {

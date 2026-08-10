@@ -87,6 +87,7 @@ struct Builder : public artic::Cast<Builder> {
     const Scope* vars_scope(const Node::FVSet& fvs);
 
     ModuleBuilder& enclosing_module();
+    ExprBuilder& enclosing_expr();
 
     const Signature* mod_signature();
     const Signature* value_signature(const Type*);
