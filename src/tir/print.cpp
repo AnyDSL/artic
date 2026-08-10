@@ -486,11 +486,12 @@ void Bind::print(Printer& p) const {
 
 void Seq::print(Printer& p) const {
     p << log::keyword_style("seq") << " {" << p.indent() << p.endl();
-    for (size_t i = 0; i < values.size(); i++) {
-        p.print(*values[i], !values[i]->is_simple());
-        if (i != values.size() - 1)
-            p << ';' << p.endl();
+    for (size_t i = 0; i < evaluate.size(); i++) {
+        p.print(*evaluate[i], true);
+        p << ';' << p.endl();
     }
+    p.print(*yield, !yield->is_simple());
+    p << p.endl();
     p << p.unindent() << p.endl() << '}';
 }
 

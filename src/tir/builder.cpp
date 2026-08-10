@@ -347,8 +347,7 @@ const Value* ExprBuilder::finish(const Value* last) {
     }
     if (filtered_values.empty())
         return last;
-    filtered_values.push_back(last);
-    return arena.insert<Seq>(*this, filtered_values);
+    return arena.insert<Seq>(*this, filtered_values, last);
 }
 
 const Value* ExprBuilder::finish_unit() {

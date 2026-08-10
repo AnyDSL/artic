@@ -82,6 +82,7 @@ struct Param : public NominalNode<Value> {
 
 struct Fn : public NominalNode<Value> {
     const Param* param;
+    const Type* codom;
     mutable const Value* filter = nullptr;
     mutable const Value* body = nullptr;
 
@@ -94,7 +95,7 @@ struct Fn : public NominalNode<Value> {
 
     const thorin::Def* emit(Emitter&, SetHeadFn) const override;
 
-    void validate(const Scope&) const;
+    void set_body(Builder&, const Value* body) const;
 
     Fn(Builder&, const Param*, const Type* codom);
 };
@@ -116,7 +117,7 @@ struct App : public Value {
 };
 
 struct GlobalVariable : public NominalNode<Value> {
-    const Type* value_type;
+    const Type* allocated_type;
     bool is_mut;
     const Value* init;
     const ast::StaticDecl* decl;
@@ -319,7 +320,8 @@ struct ModVarAsValue : public NominalNode<Value> {
 };
 
 struct Seq : public Value {
-    Array<const Value*> values;
+    Array<const Value*> evaluate;
+    const Value* yield;
 
     bool equals(const Node*) const override;
     size_t hash() const override;
@@ -330,7 +332,7 @@ struct Seq : public Value {
 
     const thorin::Def* emit(Emitter&) const override;
 
-    Seq(Builder&, const ArrayRef<const Value*>&);
+    Seq(Builder&, const ArrayRef<const Value*>&, const Value*);
 };
 
 struct UnOp : public Value {

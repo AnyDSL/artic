@@ -1781,8 +1781,7 @@ const tir::Node* FnExpr::infer(TypeChecker& checker) {
         return checker.builder().error_value();
     }
     auto fn = checker.builder().function(tir_param, codom);
-    fn->body = tir_body;
-    fn->validate(checker.scope());
+    fn->set_body(checker.builder(), tir_body);
     if (decl)
         return fn;
     else
@@ -1817,8 +1816,7 @@ const tir::Node* FnExpr::check(TypeChecker& checker, const artic::Type* expected
     }
 
     auto fn = checker.builder().function(tir_param, codom);
-    fn->body = tir_body;
-    fn->validate(checker.scope());
+    fn->set_body(checker.builder(), tir_body);
     if (decl)
         return fn;
     else
@@ -2592,8 +2590,7 @@ const tir::Node* FnDecl::infer(TypeChecker& checker) {
     //     forall->body = fn_type;
     if (fn->ret_type && fn->body) {
         build_fn_body(checker, *fn, tir_fn->param, codom);
-        tir_fn->body = fn->tir_body;
-        tir_fn->validate(checker.scope());
+        tir_fn->set_body(checker.builder(), fn->tir_body);
     }
     checker.exit_decl(this);
     return var;

@@ -225,6 +225,7 @@ private:
     void add_instruction(const Value* instruction);
 
     std::vector<const Value*> seq;
+    friend Seq;
 };
 
 }

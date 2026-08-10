@@ -26,12 +26,14 @@ LocalVariable::LocalVariable(Builder& builder, const Type* allocated_type)
 }
 
 Fn::Fn(Builder& builder, const Param* param, const Type* codom)
-    : NominalNode(builder.arena, builder.fn_type(param->type(), codom)), param(param)
+    : NominalNode(builder.arena, builder.fn_type(param->type(), codom)), param(param), codom(codom)
 {}
 
-void Fn::validate(const Scope& scope) const {
-    auto fn_t = resolve_type(scope);
+void Fn::set_body(Builder& builder, const Value* body) const {
+    assert(!this->body && "can't set the body twice!");
+    auto fn_t = resolve_type(builder.scope);
     assert(body->type() == fn_t->codom);
+    this->body = body;
 }
 
 size_t Unit::hash() const {
@@ -347,25 +349,28 @@ bool Bind::equals(const Node* other) const {
     return false;
 }
 
-Seq::Seq(Builder& builder, const ArrayRef<const Value*>& values) : Value(builder.arena, [&]() -> const Type* {
-    if (!values.empty())
-        return values.back()->type();
-    return builder.tuple_type({});
-}()), values(values) {}
+Seq::Seq(Builder& builder, const ArrayRef<const Value*>& evaluate, const Value* yield) : Value(builder.arena, yield->type()), evaluate(evaluate), yield(yield) {
+    assert(!evaluate.empty());
+    for (auto e : evaluate) {
+        assert(!e->is_simple());
+    }
+}
 
 size_t Seq::hash() const {
-    auto h = fnv::Hash();
-    for (auto e : values)
+    auto h = fnv::Hash().combine(yield);
+    for (auto e : evaluate)
         h = h.combine(e);
     return h;
 }
 
 bool Seq::equals(const Node* other) const {
     if (auto other_seq = other->isa<Seq>()) {
-        if (other_seq->values.size() != values.size())
+        if (other_seq->yield != yield)
             return false;
-        for (size_t i = 0; i < values.size(); i++) {
-            if (other_seq->values[i] != values[i])
+        if (other_seq->evaluate.size() != evaluate.size())
+            return false;
+        for (size_t i = 0; i < evaluate.size(); i++) {
+            if (other_seq->evaluate[i] != evaluate[i])
                 return false;
         }
         return true;
@@ -550,8 +555,9 @@ void Bind::free_variables(FVSet& vars, Seen& seen) const {
 
 void Seq::free_variables(FVSet& vars, Seen& seen) const {
     type()->free_variables(vars, seen);
-    for (auto instr : values)
+    for (auto instr : evaluate)
         instr->free_variables(vars, seen);
+    yield->free_variables(vars, seen);
 }
 
 void Cast::free_variables(FVSet&, Seen&) const {

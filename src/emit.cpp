@@ -1396,10 +1396,10 @@ const thorin::Def* ModVarAsValue::emit(Emitter& emitter) const {
 }
 
 const thorin::Def* Seq::emit(Emitter& emitter) const {
-    for (auto value : values)
+    assert(!evaluate.empty());
+    for (auto value : evaluate)
         emitter.emit(value);
-    assert(values.size() > 0);
-    return emitter.emit(values.back());
+    return emitter.emit(yield);
 }
 
 const thorin::Def* UnOp::emit(Emitter& emitter) const {
