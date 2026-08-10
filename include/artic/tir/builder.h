@@ -79,7 +79,7 @@ struct Builder : public artic::Cast<Builder> {
     Builder* parent;
 
     Builder(Arena& arena, Scope& scope, Builder* parent)
-        : arena(arena), scope(scope), parent(parent)
+        : arena(arena), scope(scope), parent(parent), unsafe_(*this)
     {}
     Builder(const Builder&) = delete;
     virtual ~Builder() {}
@@ -125,6 +125,7 @@ struct Builder : public artic::Cast<Builder> {
     const Module* module(const ast::ModDecl* = nullptr);
     const ModVar* mod_var(const DeclKey*, const Signature*);
     const ModVar* mod_var(const DeclKey*);
+    const ModCtor* mod_ctor(const ArrayRef<const ModVar*>&, const Signature*);
     const ModError* mod_error();
     // const ModValue* mod_access(const ModValue*, const DeclKey*);
 
@@ -153,6 +154,37 @@ struct Builder : public artic::Cast<Builder> {
     void run_expr_scope(const std::function<void(ExprBuilder&)>& f);
 
     std::vector<std::unique_ptr<Builder>> children;
+
+    // un-scheduled node ctors where you should probably used the scheduled version instead!
+    struct Unsafe {
+        const ModValue* mod_app(const ModVar*, const ArrayRef<const Node*>&);
+        const ModValue* mod_access(const ModValue*, const DeclKey*, const Signature*);
+
+        const LocalVariable* local_variable(const Type*);
+
+        const Bind* bind(const Param*, const Value*);
+        const Value* app(const Value* callee, const Value* arg);
+        const Value* agg(const Type*, const ArrayRef<const Value*>&);
+        const Value* repeat(const Type*, const Value*);
+        const Value* extract(const Value*, const Value*);
+        const Value* proj(const Value*, const Value*);
+
+        const Value* implicit_cast(const Value*, const Type*);
+        const Value* cast(const Value*, const Type*);
+
+        const Value* unop(ast::UnaryExpr::Tag, const Value*);
+        const Value* binop(ast::BinaryExpr::Tag, const Value*, const Value*);
+
+        const Control* control(const Fn*);
+        const Branch* branch(const Value*, const Fn*, const Fn*);
+
+    private:
+        Builder& builder;
+        Unsafe(Builder& builder) : builder(builder) {}
+        friend Builder;
+    } unsafe_;
+
+    Unsafe& unsafe() { return unsafe_; }
 };
 
 struct ModuleBuilder : public Builder {
@@ -162,7 +194,6 @@ struct ModuleBuilder : public Builder {
     ~ModuleBuilder();
 
     //std::tuple<const ModVar*, const ModCtor*> mod_ctor(const ModVar*);
-    const ModCtor* mod_ctor(const ArrayRef<const ModVar*>&, const Signature*);
     const ModVar* mod_app(const ModVar*, const ArrayRef<const Node*>&);
     const ModVar* mod_access(const ModValue*, const DeclKey*, const Signature*);
     // const ModValue* mod_access(const ModValue*, const DeclKey*);
