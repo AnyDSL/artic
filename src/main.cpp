@@ -111,7 +111,6 @@ struct ProgramOptions {
     std::string host_cpu;
     std::string host_attr;
     std::string hls_flags;
-    bool show_implicit_casts = false;
     unsigned opt_level = 0;
     size_t max_errors = 0;
     size_t tab_width = 2;
@@ -168,7 +167,7 @@ struct ProgramOptions {
                 } else if (matches(argv[i], "--print-ast")) {
                     print_ast = true;
                 } else if (matches(argv[i], "--show-implicit-casts")) {
-                    show_implicit_casts = true;
+                    log::error("--show-implicit-casts has been removed.");
                 } else if (matches(argv[i], "--print-tir")) {
                     print_tir = true;
                 } else if (matches(argv[i], "--emit-thorin")) {
@@ -342,7 +341,6 @@ int main(int argc, char** argv) {
         if (log.errors > 0 || log.warns > 0)
             log::out << '\n';
         Printer p(log::out);
-        p.show_implicit_casts = opts.show_implicit_casts;
         p.tab = std::string(opts.tab_width, ' ');
         ast->print(p);
         log::out << '\n';
@@ -353,7 +351,6 @@ int main(int argc, char** argv) {
         if (log.errors > 0 || log.warns > 0)
             log::out << '\n';
         Printer p(log::out);
-        p.show_implicit_casts = opts.show_implicit_casts;
         p.tab = std::string(opts.tab_width, ' ');
         tir::Printer tp(p);
         tp.print(*module);
