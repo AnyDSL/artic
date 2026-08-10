@@ -18,6 +18,17 @@ inline B as(A a) {
 }
 
 template <typename B, typename A>
+inline B as_dyn(A a) {
+    static_assert(
+        std::is_base_of<
+            typename std::remove_pointer<A>::type,
+            typename std::remove_pointer<B>::type>::value,
+        "B is not a derived class of A");
+    assert(dynamic_cast<B>(a) != nullptr && "Invalid conversion at runtime");
+    return dynamic_cast<B>(a);
+}
+
+template <typename B, typename A>
 inline B isa(A a) {
     static_assert(
         std::is_base_of<
@@ -34,6 +45,15 @@ public:
     template <typename U> const U* as()  const { return artic::as <const U*>(static_cast<const T*>(this)); }
     template <typename U> U* isa() { return artic::isa<U*>(static_cast<T*>(this)); }
     template <typename U> U* as()  { return artic::as <U*>(static_cast<T*>(this)); }
+};
+
+template <typename T>
+class DynCast {
+public:
+    template <typename U> const U* isa() const { return artic::isa   <const U*>(static_cast<const T*>(this)); }
+    template <typename U> const U* as()  const { return artic::as_dyn<const U*>(static_cast<const T*>(this)); }
+    template <typename U> U* isa() { return artic::isa   <U*>(static_cast<T*>(this)); }
+    template <typename U> U* as()  { return artic::as_dyn<U*>(static_cast<T*>(this)); }
 };
 
 } // namespace artic

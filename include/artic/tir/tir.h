@@ -39,7 +39,7 @@ enum class NodeKind {
 /// which will hash them and place them into a set. This makes nodes
 /// comparable via pointer equality, as long as they were created with
 /// the same `Arena` object.
-struct Node : public Cast<Node> {
+struct Node : public DynCast<Node> {
     Arena& arena;
     size_t gid;
 

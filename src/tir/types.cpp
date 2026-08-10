@@ -13,72 +13,72 @@ namespace tir {
 // Constructors and validation -----------------------------------------------------
 
 PrimType::PrimType(Arena& arena, ast::PrimType::Tag tag)
-    : Type(arena), tag(tag)
+    : Type(arena), Node(arena), tag(tag)
 {}
 
 TupleType::TupleType(Arena& arena, const ArrayRef<const Type*>& args)
-    : Type(arena), args(args)
+    : Type(arena), Node(arena), args(args)
 {
     for (auto& elem : args)
         assert(elem->is_simple());
 }
 
 SizedArrayType::SizedArrayType(Arena& arena, const Type* elem, size_t size, bool is_simd)
-    : ArrayType(arena, elem), size(size), is_simd(is_simd)
+    : ArrayType(arena, elem), Node(arena), size(size), is_simd(is_simd)
 {
     assert(elem->is_simple());
 }
 
 UnsizedArrayType::UnsizedArrayType(Arena& arena, const Type* elem)
-    : ArrayType(arena, elem)
+    : ArrayType(arena, elem), Node(arena)
 {
     assert(elem->is_simple());
 }
 
 PtrType::PtrType(Arena& arena, const Type* pointee, bool is_mut, size_t addr_space)
-    : AddrType(arena, pointee, is_mut, addr_space)
+    : AddrType(arena, pointee, is_mut, addr_space), Node(arena)
 {
     assert(pointee->is_simple());
 }
 
 RefType::RefType(Arena& arena, const Type* pointee, bool is_mut, size_t addr_space)
-    : AddrType(arena, pointee, is_mut, addr_space)
+    : AddrType(arena, pointee, is_mut, addr_space), Node(arena)
 {
     assert(pointee->is_simple());
 }
 
 ImplicitParamType::ImplicitParamType(Arena& arena, const Type* underlying)
-    : Type(arena)
+    : Type(arena), Node(arena)
     , underlying(underlying)
 {
     assert(underlying->is_simple());
 }
 
 FnType::FnType(Arena& arena, const Type* dom, const Type* codom)
-    : Type(arena), dom(dom), codom(codom)
+    : Type(arena), dom(dom), codom(codom), Node(arena)
 {
     assert(dom->is_simple());
     assert(codom->is_simple());
 }
 
 BottomType::BottomType(Arena& arena)
-    : Type(arena)
+    : Type(arena), Node(arena)
 {}
 
 TopType::TopType(Arena& arena)
-    : Type(arena)
+    : Type(arena), Node(arena)
 {}
 
 NoRetType::NoRetType(Arena& arena)
-    : BottomType(arena)
+    : BottomType(arena), Node(arena)
 {}
 
 TypeVar::TypeVar(Arena& arena, const ast::TypeParam* param)
-    : Type(arena), decl(param)
+    : Type(arena), Node(arena), decl(param)
 {}
 
 StructType::StructType(Arena& arena, ArrayRef<const TypeVar*> type_params, const ast::RecordDecl* decl)
-    : ComplexType(arena), decl(decl), type_params_(type_params)
+    : ComplexType(arena), Node(arena), decl(decl), type_params_(type_params)
 {}
 
 void StructType::validate() const {
@@ -87,7 +87,7 @@ void StructType::validate() const {
 }
 
 EnumType::EnumType(Arena& arena, ArrayRef<const TypeVar*> type_params, const ast::EnumDecl* decl)
-    : ComplexType(arena), decl(decl), type_params_(type_params)
+    : ComplexType(arena), Node(arena), decl(decl), type_params_(type_params)
 {}
 
 void EnumType::validate() const {
@@ -96,11 +96,11 @@ void EnumType::validate() const {
 }
 
 TypeAlias::TypeAlias(Arena& arena, const ArrayRef<const TypeVar*>& type_params, const ast::TypeDecl& decl)
-    : PolyTypeFromDecl(arena, decl, type_params)
+    : PolyTypeFromDecl(arena, decl, type_params), Node(arena)
 {}
 
 TypeApp::TypeApp(Arena& arena, const UserType* applied, const ArrayRef<const Type*>& type_args)
-    : Type(arena), applied(applied), type_args(std::move(type_args))
+    : Type(arena), Node(arena), applied(applied), type_args(std::move(type_args))
 {
     assert(applied->is_simple());
     for (auto& arg : type_args)
@@ -108,7 +108,7 @@ TypeApp::TypeApp(Arena& arena, const UserType* applied, const ArrayRef<const Typ
 }
 
 ModVarAsType::ModVarAsType(Arena& arena, const ModVar* var)
-    : Type(arena), var(var)
+    : Type(arena), Node(arena), var(var)
 {}
 
 // Type Bounds ---------------------------------------------------------------------

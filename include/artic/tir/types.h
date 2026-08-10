@@ -56,7 +56,7 @@ struct TypeBounds {
 /// which will hash them and place them into a set. This makes types
 /// comparable via pointer equality, as long as they were created with
 /// the same `Arena` object.
-struct Type : public Node {
+struct Type : virtual public Node {
     Type(Arena& arena)
         : Node(arena)
     {}
@@ -377,7 +377,7 @@ struct TypeError : public TopType {
 
 private:
     TypeError(Arena& arena)
-        : TopType(arena)
+        : TopType(arena), Node(arena)
     {}
 
     friend class Arena;
@@ -449,7 +449,7 @@ private:
 };
 
 /// Type of a polymorphic function or value.
-struct ForallType : public PolyTypeFromDecl<PolyType, ast::Decl> {
+struct ForallType : public PolyTypeFromDecl<PolyType, ast::Decl>  {
     mutable const Type* body = nullptr;
 
     /// Returns the type of the body with type variables
@@ -462,7 +462,7 @@ struct ForallType : public PolyTypeFromDecl<PolyType, ast::Decl> {
 
 private:
     ForallType(Arena& arena, ArrayRef<const TypeVar*> type_params, const ast::Decl& decl)
-        : PolyTypeFromDecl(arena, decl, type_params)
+        : PolyTypeFromDecl(arena, decl, type_params), Node(arena)
     {}
 
     friend class Arena;

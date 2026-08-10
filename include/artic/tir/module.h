@@ -17,7 +17,7 @@ struct DeclKey;
 
 struct ModuleBuilder;
 
-struct DeclKey : public Node {
+struct DeclKey : virtual public Node {
     std::optional<ast::Identifier> id;
 
     void print(Printer&) const override;
@@ -30,7 +30,7 @@ struct DeclKey : public Node {
     DeclKey(Arena& arena, std::optional<ast::Identifier> id) : Node(arena), id(id) {}
 };
 
-struct Signature : public Node {
+struct Signature : virtual public Node {
     NodeKind elem_kind;
     const Type* value_type = nullptr;
     const Type* type = nullptr;
@@ -61,7 +61,7 @@ struct Signature : public Node {
     Signature(Builder&, const ArrayRef<const Signature*>&, const Signature*);
 };
 
-struct ModValue : public Node {
+struct ModValue : virtual public Node {
     NodeKind kind_;
     NodeKind kind() const override { return kind_; }
 

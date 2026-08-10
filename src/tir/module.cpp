@@ -7,11 +7,11 @@
 namespace artic::tir {
 
 Module::Module(Builder& builder, const ast::ModDecl* decl)
-    : ModValue(builder.arena, NodeKind::Module), decl(decl), root_scope(nullptr), scope(builder.scope.new_child(this)), signature_(builder.mod_signature())
+    : ModValue(builder.arena, NodeKind::Module), decl(decl), root_scope(nullptr), scope(builder.scope.new_child(this)), signature_(builder.mod_signature()), Node(builder.arena)
 {}
 
 Module::Module(Arena& arena, const ast::ModDecl* decl)
-    : ModValue(arena, NodeKind::Module), decl(decl), root_scope(std::make_unique<Scope>(nullptr, this)), scope(*root_scope ), signature_(arena.root_mod_signature())
+    : ModValue(arena, NodeKind::Module), decl(decl), root_scope(std::make_unique<Scope>(nullptr, this)), scope(*root_scope ), signature_(arena.root_mod_signature()), Node(arena)
 {}
 
 Module::Decl* Module::add_decl(const ModVar* var) const {
@@ -235,12 +235,12 @@ bool ModAccess::equals(const Node* other) const {
 }
 
 ModVar::ModVar(Builder& builder, const DeclKey* key, const Signature* sig)
-    : ModValue(builder.arena, sig->elem_kind), key(key), signature_(sig) {
+    : ModValue(builder.arena, sig->elem_kind), Node(builder.arena), key(key), signature_(sig) {
     assert(sig);
 }
 
 ModVar::ModVar(Builder& builder, const DeclKey* key)
-    : ModValue(builder.arena, NodeKind::Alias), key(key), signature_(nullptr) {
+    : ModValue(builder.arena, NodeKind::Alias), Node(builder.arena), key(key), signature_(nullptr) {
 }
 
 const Signature* ModVar::signature() const {
@@ -253,7 +253,7 @@ const Signature* ModAccess::signature() const {
 }
 
 ModAccess::ModAccess(Arena& arena, const ModValue* mod, const DeclKey* key, const Signature* sig)
-    : ModValue(arena, sig->elem_kind), mod(mod), key(key), signature_(sig) {
+    : ModValue(arena, sig->elem_kind), Node(arena), mod(mod), key(key), signature_(sig) {
     assert(mod->is_simple() && mod->kind() == NodeKind::Module);
     assert(key->isa<DeclKey>());
     assert(sig);
@@ -264,7 +264,7 @@ ModAccess::ModAccess(Arena& arena, const ModValue* mod, const DeclKey* key, cons
 }*/
 
 ModCtor::ModCtor(Builder& builder, const ArrayRef<const ModVar*> params, const Signature* signature)
-    : ModValue(builder.arena, NodeKind::Ctor), scope(builder.scope.new_child(this)), params(params), signature_(signature) {
+    : ModValue(builder.arena, NodeKind::Ctor), Node(builder.arena), scope(builder.scope.new_child(this)), params(params), signature_(signature) {
     assert(signature_->elem_kind == NodeKind::Ctor);
     assert(signature->dom.size() == params.size());
     for (size_t i = 0; i < params.size(); i++) {
@@ -296,7 +296,8 @@ const Signature* ModCtor::signature() const {
     return signature_;
 }
 
-ModApp::ModApp(Builder& builder, const ModVar* applicand, const ArrayRef<const Node*>& args) : ModValue(builder.arena, [&]() -> NodeKind {
+ModApp::ModApp(Builder& builder, const ModVar* applicand, const ArrayRef<const Node*>& args)
+    : ModValue(builder.arena, [&]() -> NodeKind {
     auto ctor_sig = applicand->signature();
     assert(ctor_sig->elem_kind == NodeKind::Ctor);
     assert(ctor_sig->dom.size() == args.size());
@@ -305,7 +306,7 @@ ModApp::ModApp(Builder& builder, const ModVar* applicand, const ArrayRef<const N
     }
     signature_ = ctor_sig->codom;
     return signature_->elem_kind;
-}()), applicand(applicand), args(args) {
+}()), Node(builder.arena), applicand(applicand), args(args) {
     assert(applicand->is_simple());
     for (auto arg : args)
         assert(arg->is_simple());
@@ -381,7 +382,8 @@ const Signature* ModApp::signature() const {
     return signature_;
 }
 
-ModError::ModError(Builder& builder) : ModValue(builder.arena, NodeKind::Module), signature_(builder.mod_signature()) {}
+ModError::ModError(Builder& builder)
+    : ModValue(builder.arena, NodeKind::Module), Node(builder.arena), signature_(builder.mod_signature()) {}
 
 size_t ModError::hash() const {
     return fnv::Hash().combine(1337);
