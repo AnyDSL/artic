@@ -187,6 +187,7 @@ struct ModApp : public ModValue {
 private:
     const Signature* signature_;
     mutable const ModVar* instantiated_ = nullptr;
+    friend Emitter;
 };
 
 struct ModError : public ModValue {

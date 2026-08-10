@@ -1163,10 +1163,14 @@ const Emitter::ModuleDecls& Emitter::emit(const Module* mod, const ModuleDecls* 
     ScopeGuard sg(*this, decls);
     for (auto decl : mod->decls()) {
         auto [var, value] = *decl;
+        if (var->kind() == NodeKind::Ctor)
+            continue;
         decls.decls.emplace(var, std::make_unique<ModuleDecl>(var, value));
     }
     for (auto decl : mod->decls()) {
         auto [var, value] = *decl;
+        if (var->kind() == NodeKind::Ctor)
+            continue;
         emit(var);
     }
     return decls;
@@ -1247,8 +1251,22 @@ Emitter::AnyResult Emitter::emit(const ModVar* var) {
             case NodeKind::Module: decl.as_mod = std::get<const ModuleDecls*>(r); break;
             case NodeKind::Value: decl.as_value = std::get<const thorin::Def*>(r); break;
             case NodeKind::Type: decl.as_type = std::get<const thorin::Def*>(r); break;
+            case NodeKind::Ctor: return {};
             default: assert(false);
         }
+    } else if (auto mod_app = decl.definition->isa<ModApp>()) {
+        // lol what no this is super hacky ?!
+        // instantiate() needs a builder so we just steal the instantiated thing assuming it was built
+        // TODO: rewrite pass should nuke these things
+        auto r = emit(mod_app->instantiated_);
+        switch (mod_app->kind()) {
+            case NodeKind::Module: decl.as_mod = std::get<const ModuleDecls*>(r); break;
+            case NodeKind::Value: decl.as_value = std::get<const thorin::Def*>(r); break;
+            case NodeKind::Type: decl.as_type = std::get<const thorin::Def*>(r); break;
+            default: assert(false);
+        }
+    } else if (decl.definition->isa<ModCtor>()) {
+        return {};
     } else {
         assert(false);
     }
