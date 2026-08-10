@@ -8,7 +8,7 @@ namespace artic {
 namespace tir {
 
 struct Value : virtual public Node {
-    Value(Arena& arena, const Type* type) : Node(arena), type_(type) {
+    Value(const Type* type) : type_(type) {
         assert(type->is_simple());
     }
 
@@ -36,7 +36,7 @@ protected:
 };
 
 struct Unit : public Value {
-    Unit(Arena& arena, const Type* unit_type) : Value(arena, unit_type), Node(arena) {}
+    Unit(Arena& arena, const Type* unit_type) : Value(unit_type), Node(arena) {}
 
     bool equals(const Node*) const override;
     size_t hash() const override;
@@ -51,7 +51,7 @@ struct Unit : public Value {
 };
 
 struct ErrorValue : public Value {
-    ErrorValue(Arena& arena, const Type* type) : Value(arena, type), Node(arena) {}
+    ErrorValue(Arena& arena, const Type* type) : Value(type), Node(arena) {}
 
     bool equals(const Node*) const override;
     size_t hash() const override;

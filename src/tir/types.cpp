@@ -13,11 +13,11 @@ namespace tir {
 // Constructors and validation -----------------------------------------------------
 
 PrimType::PrimType(Arena& arena, ast::PrimType::Tag tag)
-    : Type(arena), Node(arena), tag(tag)
+    : Type(), Node(arena), tag(tag)
 {}
 
 TupleType::TupleType(Arena& arena, const ArrayRef<const Type*>& args)
-    : Type(arena), Node(arena), args(args)
+    : Type(), Node(arena), args(args)
 {
     for (auto& elem : args)
         assert(elem->is_simple());
@@ -48,25 +48,25 @@ RefType::RefType(Arena& arena, const Type* pointee, bool is_mut, size_t addr_spa
 }
 
 ImplicitParamType::ImplicitParamType(Arena& arena, const Type* underlying)
-    : Type(arena), Node(arena)
+    : Type(), Node(arena)
     , underlying(underlying)
 {
     assert(underlying->is_simple());
 }
 
 FnType::FnType(Arena& arena, const Type* dom, const Type* codom)
-    : Type(arena), dom(dom), codom(codom), Node(arena)
+    : Type(), dom(dom), codom(codom), Node(arena)
 {
     assert(dom->is_simple());
     assert(codom->is_simple());
 }
 
 BottomType::BottomType(Arena& arena)
-    : Type(arena), Node(arena)
+    : Type(), Node(arena)
 {}
 
 TopType::TopType(Arena& arena)
-    : Type(arena), Node(arena)
+    : Type(), Node(arena)
 {}
 
 NoRetType::NoRetType(Arena& arena)
@@ -74,7 +74,7 @@ NoRetType::NoRetType(Arena& arena)
 {}
 
 TypeVar::TypeVar(Arena& arena, const ast::TypeParam* param)
-    : Type(arena), Node(arena), decl(param)
+    : Type(), Node(arena), decl(param)
 {}
 
 StructType::StructType(Arena& arena, ArrayRef<const TypeVar*> type_params, const ast::RecordDecl* decl)
@@ -100,7 +100,7 @@ TypeAlias::TypeAlias(Arena& arena, const ArrayRef<const TypeVar*>& type_params, 
 {}
 
 TypeApp::TypeApp(Arena& arena, const UserType* applied, const ArrayRef<const Type*>& type_args)
-    : Type(arena), Node(arena), applied(applied), type_args(std::move(type_args))
+    : Type(), Node(arena), applied(applied), type_args(std::move(type_args))
 {
     assert(applied->is_simple());
     for (auto& arg : type_args)
@@ -108,7 +108,7 @@ TypeApp::TypeApp(Arena& arena, const UserType* applied, const ArrayRef<const Typ
 }
 
 ModVarAsType::ModVarAsType(Arena& arena, const ModVar* var)
-    : Type(arena), Node(arena), var(var)
+    : Type(), Node(arena), var(var)
 {}
 
 // Type Bounds ---------------------------------------------------------------------

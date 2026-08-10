@@ -57,9 +57,7 @@ struct TypeBounds {
 /// comparable via pointer equality, as long as they were created with
 /// the same `Arena` object.
 struct Type : virtual public Node {
-    Type(Arena& arena)
-        : Node(arena)
-    {}
+    Type() {}
 
     NodeKind kind() const override { return NodeKind::Type; }
 
@@ -171,7 +169,7 @@ struct ArrayType : public Type {
     const Type* elem;
 
     ArrayType(Arena& arena, const Type* elem)
-        : Type(arena), elem(elem)
+        : Type(), elem(elem)
     {}
 
     bool contains(const Type*) const override;
@@ -226,7 +224,7 @@ struct AddrType : public Type {
     size_t addr_space;
 
     AddrType(Arena& arena, const Type* pointee, bool is_mut, size_t addr_space)
-        : Type(arena), pointee(pointee), is_mut(is_mut), addr_space(addr_space)
+        : Type(), pointee(pointee), is_mut(is_mut), addr_space(addr_space)
     {}
 
     bool equals(const Node*) const override;
@@ -425,7 +423,7 @@ private:
 /// Base class for types that _may_ be polymorphic.
 struct PolyType : public Type {
     PolyType(Arena& arena)
-        : Type(arena)
+        : Type()
     {}
 
     virtual ArrayRef<const TypeVar*> type_params() const = 0;

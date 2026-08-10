@@ -67,7 +67,7 @@ struct ModValue : virtual public Node {
 
     virtual const Signature* signature() const = 0;
 
-    ModValue(Arena& arena, NodeKind kind) : Node(arena), kind_(kind) {}
+    ModValue(NodeKind kind) : kind_(kind) {}
 };
 
 struct ModVar : public ModValue {

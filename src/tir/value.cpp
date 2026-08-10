@@ -14,19 +14,19 @@ const Type* Value::resolve_type(const Scope& s) const {
 }
 
 GlobalVariable::GlobalVariable(Builder& builder, const Type* value_type, bool is_mut, const Value* init, const ast::StaticDecl* decl)
-    : Value(builder.arena, builder.ref_type(value_type, is_mut, 0)), Node(builder.arena), allocated_type(value_type), is_mut(is_mut), init(init), decl(decl) {
+    : Value(builder.ref_type(value_type, is_mut, 0)), Node(builder.arena), allocated_type(value_type), is_mut(is_mut), init(init), decl(decl) {
     assert(value_type->is_simple());
     if (init)
         assert(init->type() == value_type);
 }
 
 LocalVariable::LocalVariable(Builder& builder, const Type* allocated_type)
-    : Value(builder.arena, builder.ref_type(allocated_type, true, 0)), Node(builder.arena), allocated_type(allocated_type) {
+    : Value(builder.ref_type(allocated_type, true, 0)), Node(builder.arena), allocated_type(allocated_type) {
     assert(allocated_type->is_simple());
 }
 
 Fn::Fn(Builder& builder, const Param* param, const Type* codom)
-    : Value(builder.arena, builder.fn_type(param->type(), codom)), Node(builder.arena), param(param), codom(codom)
+    : Value(builder.fn_type(param->type(), codom)), Node(builder.arena), param(param), codom(codom)
 {}
 
 void Fn::set_body(Builder& builder, const Value* body) const {
@@ -56,9 +56,9 @@ bool ErrorValue::equals(const Node* n) const {
     return false;
 }
 
-Param::Param(Arena& arena, std::optional<ast::Identifier> id, const Type* type) : Value(arena, type), Node(arena), id(id) {}
+Param::Param(Arena& arena, std::optional<ast::Identifier> id, const Type* type) : Value(type), Node(arena), id(id) {}
 
-App::App(Arena& arena, const Value* callee, const Value* arg) : Value(arena, callee->type()->as<FnType>()->codom), Node(arena), callee(callee), arg(arg) {
+App::App(Arena& arena, const Value* callee, const Value* arg) : Value(callee->type()->as<FnType>()->codom), Node(arena), callee(callee), arg(arg) {
     assert(callee->is_simple());
     assert(arg->is_simple());
 }
@@ -73,7 +73,7 @@ bool App::equals(const Node* other) const {
     return false;
 }
 
-ImplicitCast::ImplicitCast(Builder& builder, const Value* src, const Type* dst) : Value(builder.arena, dst), Node(builder.arena), src(src), dst(dst) {
+ImplicitCast::ImplicitCast(Builder& builder, const Value* src, const Type* dst) : Value(dst), Node(builder.arena), src(src), dst(dst) {
     assert(src->is_simple());
     assert(src->type()->subtype(builder.scope, dst));
 }
@@ -88,7 +88,7 @@ bool ImplicitCast::equals(const Node* other) const {
     return false;
 }
 
-Cast::Cast(Arena& arena, const Value* src, const Type* dst) : Value(arena, dst), Node(arena), src(src), dst(dst) {
+Cast::Cast(Arena& arena, const Value* src, const Type* dst) : Value(dst), Node(arena), src(src), dst(dst) {
     assert(src->is_simple());
 }
 
@@ -102,7 +102,7 @@ bool Cast::equals(const Node* other) const {
     return false;
 }
 
-TypedLiteral::TypedLiteral(Builder& builder, Literal lit, const Type* type) : Value(builder.arena, type), Node(builder.arena), value(lit) {
+TypedLiteral::TypedLiteral(Builder& builder, Literal lit, const Type* type) : Value(type), Node(builder.arena), value(lit) {
     assert(type->is_simple());
     type = builder.scope.peek_type(type);
     if (auto sized_array_type = type->isa<SizedArrayType>())
@@ -147,7 +147,7 @@ bool TypedLiteral::equals(const Node* other) const {
     return false;
 }
 
-Undef::Undef(Arena& arena, const Type* type) : Value(arena, type), Node(arena) {
+Undef::Undef(Arena& arena, const Type* type) : Value(type), Node(arena) {
     assert(type->is_simple());
 }
 
@@ -163,13 +163,13 @@ bool Undef::equals(const Node* other) const {
     return false;
 }
 
-ModVarAsValue::ModVarAsValue(Builder& builder, Scope& scope, const ModVar* var) : Value(builder.arena, [&]() -> const Type* {
+ModVarAsValue::ModVarAsValue(Builder& builder, Scope& scope, const ModVar* var) : Value([&]() -> const Type* {
     auto elem = var->signature();
     assert(elem->elem_kind == NodeKind::Value);
     return elem->value_type;
 }()), Node(builder.arena), var(var) {}
 
-Agg::Agg(Builder& builder, const Type* agg_type, const ArrayRef<const Value*>& args) : Value(builder.arena, agg_type), Node(builder.arena), args(args) {
+Agg::Agg(Builder& builder, const Type* agg_type, const ArrayRef<const Value*>& args) : Value(agg_type), Node(builder.arena), args(args) {
     for (auto arg : args) {
         assert(arg->is_simple());
     }
@@ -214,7 +214,7 @@ bool Agg::equals(const Node* other) const {
     return false;
 }
 
-Extract::Extract(Builder& builder, const Value* src, const Value* idx) : Value(builder.arena, [&]() -> const Type* {
+Extract::Extract(Builder& builder, const Value* src, const Value* idx) : Value([&]() -> const Type* {
     auto [_, peeked_agg_type] = peek_app_type(builder, src->type());
     if (auto tuple_t = peeked_agg_type->isa<TupleType>()) {
         if (auto lit_idx = idx->isa<TypedLiteral>(); lit_idx) {
@@ -252,7 +252,7 @@ bool Extract::equals(const Node* other) const {
     return false;
 }
 
-Repeat::Repeat(Builder& builder, const Type* type, const Value* elem) : Value(builder.arena, type), Node(builder.arena), elem(elem) {
+Repeat::Repeat(Builder& builder, const Type* type, const Value* elem) : Value(type), Node(builder.arena), elem(elem) {
     auto peeked_arr_type = builder.scope.peek_type(type);
     assert(peeked_arr_type->isa<ArrayType>());
 }
@@ -269,7 +269,7 @@ bool Repeat::equals(const Node* other) const {
     return false;
 }
 
-Proj::Proj(Builder& builder, const Value* src, const Value* idx) : Value(builder.arena, [&]() -> const Type* {
+Proj::Proj(Builder& builder, const Value* src, const Value* idx) : Value([&]() -> const Type* {
     const Type* pointee_t = nullptr;
     bool mut;
     size_t as;
@@ -330,7 +330,7 @@ bool Proj::equals(const Node* other) const {
     return false;
 }
 
-Bind::Bind(Builder& builder, const Param* param, const Value* value) : Value(builder.arena, [&]() -> const Type* {
+Bind::Bind(Builder& builder, const Param* param, const Value* value) : Value([&]() -> const Type* {
     if (value->type() != param->type()) {
         assert(false);
     }
@@ -349,7 +349,7 @@ bool Bind::equals(const Node* other) const {
     return false;
 }
 
-Seq::Seq(Builder& builder, const ArrayRef<const Value*>& evaluate, const Value* yield) : Value(builder.arena, yield->type()), Node(builder.arena), evaluate(evaluate), yield(yield) {
+Seq::Seq(Builder& builder, const ArrayRef<const Value*>& evaluate, const Value* yield) : Value(yield->type()), Node(builder.arena), evaluate(evaluate), yield(yield) {
     assert(!evaluate.empty());
     for (auto e : evaluate) {
         assert(!e->is_simple());
@@ -380,7 +380,7 @@ bool Seq::equals(const Node* other) const {
 
 using namespace artic::ast;
 
-UnOp::UnOp(Builder& builder, const UnaryExpr::Tag tag, const Value* arg) : Value(builder.arena, [&]() -> const Type* {
+UnOp::UnOp(Builder& builder, const UnaryExpr::Tag tag, const Value* arg) : Value([&]() -> const Type* {
     auto [ref_type, arg_type] = remove_ref(builder, arg->type());
     if (tag == UnaryExpr::Known)
         return builder.bool_type();
@@ -412,7 +412,7 @@ bool UnOp::equals(const Node* other) const {
     return false;
 }
 
-BinOp::BinOp(Builder& builder, const BinaryExpr::Tag tag, const Value* lhs, const Value* rhs) : Value(builder.arena, [&]() -> const Type* {
+BinOp::BinOp(Builder& builder, const BinaryExpr::Tag tag, const Value* lhs, const Value* rhs) : Value([&]() -> const Type* {
     if (BinaryExpr::has_eq(tag)) {
         assert(builder.scope.peek_type(lhs->type())->isa<RefType>());
         return builder.unit_type();
@@ -438,7 +438,7 @@ bool BinOp::equals(const Node* other) const {
     return false;
 }
 
-Branch::Branch(Builder& builder, const Value* cond, const Fn* true_branch, const Fn* else_branch) : Value(builder.arena, [&]() -> const Type* {
+Branch::Branch(Builder& builder, const Value* cond, const Fn* true_branch, const Fn* else_branch) : Value([&]() -> const Type* {
     if (cond->type() != builder.bool_type())
         return builder.type_error();
     // both branches must have no param
@@ -466,7 +466,7 @@ bool Branch::equals(const Node* other) const {
     return false;
 }
 
-Control::Control(Builder& builder, const Fn* fn) : Value(builder.arena, [&]() -> const Type* {
+Control::Control(Builder& builder, const Fn* fn) : Value([&]() -> const Type* {
     if (auto yield_fn_type = fn->param->type()->isa<FnType>()) {
         if (yield_fn_type->codom != builder.no_ret_type())
             return builder.type_error();
