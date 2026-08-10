@@ -1,7 +1,7 @@
 #include "artic/emit.h"
-#include "artic/emit.h"
 #include "artic/tir/types.h"
 #include "artic/tir/builder.h"
+#include "artic/tir/passes.h"
 #include "artic/ast.h"
 #include "artic/print.h"
 #include "artic/locator.h"
@@ -2651,15 +2651,18 @@ std::tuple<Ptr<ast::ModDecl>, const tir::Module*, bool> compile(
     if (!name_binder.run(*program))
         return std::make_tuple(std::move(program), nullptr, false);
 
-    auto tir = type_checker.run(*program);
-    if (!tir)
+    const Module* root_module = type_checker.run(*program);
+    if (!root_module)
+        return std::make_tuple(std::move(program), nullptr, false);
+
+    if (!lower_mod_app(root_module))
         return std::make_tuple(std::move(program), nullptr, false);
 
     Emitter emitter(log, world, arena);
     emitter.warns_as_errors = warns_as_errors;
-    if (!emitter.run(*tir))
-        return std::make_tuple(std::move(program), tir, false);
-    return std::make_tuple(std::move(program), tir, true);
+    if (!emitter.run(*root_module))
+        return std::make_tuple(std::move(program), root_module, false);
+    return std::make_tuple(std::move(program), root_module, true);
 }
 
 } // namespace artic

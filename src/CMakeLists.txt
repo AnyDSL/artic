@@ -19,6 +19,7 @@ add_library(libartic
     ../include/artic/tir/module.h
     ../include/artic/tir/scope.h
     ../include/artic/tir/rewrite.h
+    ../include/artic/tir/passes.h
     arena.cpp
     ast.cpp
     bind.cpp
@@ -35,7 +36,8 @@ add_library(libartic
     tir/types.cpp
     tir/module.cpp
     tir/scope.cpp
-    tir/builder.cpp)
+    tir/builder.cpp
+    passes/resolve_mod_app.cpp)
 
 set_target_properties(libartic PROPERTIES PREFIX "" CXX_STANDARD 20)
 
