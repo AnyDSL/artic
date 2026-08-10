@@ -1959,7 +1959,7 @@ const tir::Node* ProjExpr::infer(TypeChecker& checker) {
         result_type = tuple_type ? tuple_type->args[index] : checker.builder().member_type(expr_type, index);
     }
 
-    auto idx = checker.builder().typed_literal(artic::Literal(index), checker.builder().prim_type(ast::PrimType::U64));
+    auto idx = checker.builder().typed_literal(artic::Literal(uint64_t(index)), checker.builder().prim_type(ast::PrimType::U64));
 
     return ref_type || ptr_type
         ? checker.expr_builder().proj(expr->value, idx)
