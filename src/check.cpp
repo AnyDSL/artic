@@ -1282,7 +1282,7 @@ std::optional<Path::Elem::Inferred> Path::infer_path(TypeChecker& checker, std::
             // const size_t type_param_count = user_type
             //     ? user_type->type_params().size()
             //     : forall_type->type_params().size();
-            const size_t type_param_count = 1;
+            const size_t type_param_count = prev->sig->dom.size();
             if (type_param_count == elem.args.size() /*||
                 (forall_type && arg && type_param_count > elem.args.size())*/) {
                 std::vector<const artic::Node*> type_args(type_param_count);
@@ -1295,6 +1295,11 @@ std::optional<Path::Elem::Inferred> Path::infer_path(TypeChecker& checker, std::
                 //         return std::nullopt;
                 // }
                 elem.inferred_args = type_args;
+
+                // make sure to import the definition of any module we're instantiating
+                if (prev->var)
+                    prev->var = checker.builder().enclosing_module().import_mod_var(prev->var);
+
                 prev = Elem::Inferred {
                     .var = prev->var ? checker.builder().enclosing_module().mod_app(prev->var, elem.inferred_args) : nullptr,
                     .sig = prev->sig->codom
