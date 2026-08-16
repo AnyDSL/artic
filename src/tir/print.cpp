@@ -10,8 +10,8 @@ namespace artic {
 namespace tir {
 
 std::string Printer::unique_name(const Node& node) {
-    if (auto param = node.isa<Param>(); param && param->id)
-        return param->id->name;
+    if (auto param = node.isa<Var>(); param && param->key->id)
+        return param->key->id->name;
     return "%" + std::to_string(node.gid);
 }
 
@@ -37,6 +37,10 @@ void Printer::print(const Node& node, bool print_inline) {
     pop();
     base << endl();
     top() << node_name;
+}
+
+void Printer::print(const Root& root) {
+    print(*root.root_module, true);
 }
 
 void Printer::push() {
@@ -146,32 +150,16 @@ void TypeError::print(Printer& p) const {
 }
 
 void TypeVar::print(Printer& p) const {
-    if (decl)
-        p << decl->id.name;
+    p.print(*key, true);
 }
 
-void Printer::print_type_params(ArrayRef<const TypeVar*> vars) {
-    if (vars.empty())
-        return;
-    *this << '[';
-    print_list(top(), ", ", vars, [&] (auto& a) {
-        *this << a->decl->id.name;
-        insert(*a, a->decl->id.name);
-    });
-    *this << ']';
-}
-
-void ForallType::print(Printer& p) const {
-    assert(!type_params().empty());
-    p << log::keyword_style("forall");
-    p.print_type_params(type_params());
-    p << ' ';
-    p.print(*body);
+void TypeVar::print_head(Printer& p) const {
+    p << log::keyword_style("type") << ' ' << log::keyword_style("var") << " ";
+    p.print(*key, true);
 }
 
 void StructType::print(Printer& p) const {
     p << log::keyword_style("struct");
-    p.print_type_params(type_params());
     p << " {" << p.indent() << p.endl();
     for (size_t i = 0; i < member_count(); i++) {
         p << member_name(i) << ": ";
@@ -184,7 +172,6 @@ void StructType::print(Printer& p) const {
 
 void EnumType::print(Printer& p) const {
     p << log::keyword_style("enum");
-    p.print_type_params(type_params());
     p << " {" << p.indent() << p.endl();
     for (size_t i = 0; i < member_count(); i++) {
         p << member_name(i) << ": ";
@@ -195,22 +182,12 @@ void EnumType::print(Printer& p) const {
     p << p.unindent() << p.endl() << "}";
 }
 
-void TypeAlias::print(Printer& p) const {
-    p << decl.id.name;
-}
-
-void ModVarAsType::print(Printer& p) const {
-    p.print(*var);
-    p << ' ' << log::keyword_style("as_type");
-}
-
-void TypeApp::print(Printer& p) const {
-    p.print(*applied);
-    p << '[';
-    print_list(p.top(), ", ", type_args, [&] (auto& a) {
-        p.print(*a);
-    });
-    p << ']';
+void App::print(Printer& p) const {
+    p << log::keyword_style("app") << " ";
+    p.print(*applicand_);
+    p << "[";
+    print_list(p.top(), ", ", args, [&] (auto& s) { p.print(*s); });
+    p << "]";
 }
 
 std::string key2string(const Key& key) {
@@ -224,57 +201,73 @@ void Key::print(Printer& p) const {
 }
 
 void ModVar::print(Printer& p) const {
+    p.print(*key, true);
+}
+
+void ModVar::print_head(Printer& p) const {
     p << log::keyword_style("mod") << ' ' << log::keyword_style("var") << " ";
     p.print(*key, true);
 }
 
-void Module::print(Printer& p) const {
-    p << log::keyword_style("mod") << " {" << p.indent() << p.endl();
-    for (auto decl : decls()) {
-        p.insert(*decl->var, key2string(*decl->var->key));
+void LetRec::print(Printer& p) const {
+    p << log::keyword_style("let") << " {" << p.indent() << p.endl();
+    for (auto [var, val] : vars) {
+        p.insert(*var, key2string(*var->key));
     }
-    print_list(p.top(), p.endl(), decls(), [&] (auto& decl) {
-        p.print(*decl->var, true);
-        if (decl->var->kind() == NodeKind::Alias) {
-            p << ": " << log::keyword_style("alias");
-        } else {
-            p << ": ";
-            p.print(*decl->var->signature());
-        }
+    size_t i = 0;
+    for (auto [var, val] : vars) {
+        var->print_head(p);
         p << " = ";
-        if (decl->value)
-            p.print(*decl->value, true);
+        if (val)
+            p.print(*val, true);
         else
             p << "<undefined>";
-    });
+        if (++i < vars.size())
+            p << p.endl();
+    }
+    p << p.unindent() << p.endl() << "} " << log::keyword_style("in") << " ";
+    p.print(*body());
+}
+
+void Module::print(Printer& p) const {
+    p << log::keyword_style("mod") << " {" << p.indent() << p.endl();
+    size_t i = 0;
+    for (auto [key, val] : decls) {
+        p.print(*key, true);
+        p << " = ";
+        p.print(*val, true);
+        if (++i < decls.size())
+            p << p.endl();
+    }
     p << p.unindent() << p.endl() << "}";
 }
 
-void ModCtor::print(Printer& p) const {
-    p << log::keyword_style("mod") << " " << log::keyword_style("ctor") << "(";
+void Ctor::print(Printer& p) const {
+    p << log::keyword_style("ctor") << "(";
     print_list(p.top(), ", ", params, [&] (auto& s) {
-        p.print(*s);
-        p << ": ";
-        p.print(*s->signature());
+        s->print_head(p);
     });
     p << ") = ";
-    if (body) {
-        p.print(*body, true);
-        if (extra_key) {
-            p << " :: ";
-            p.print(*extra_key, true);
-        }
+    if (body_) {
+        p.print(*body_, true);
     }
     else
         p << "<unfinished>";
 }
 
+void ModCtor::print(Printer& p) const {
+    p << log::keyword_style("mod") << " ";
+    Ctor::print(p);
+}
+
 void ModApp::print(Printer& p) const {
-    p << log::keyword_style("mod") << " " << log::keyword_style("app") << " ";
-    p.print(*applicand);
-    p << "[";
-    print_list(p.top(), ", ", args, [&] (auto& s) { p.print(*s); });
-    p << "]";
+    p << log::keyword_style("mod") << " ";
+    App::print(p);
+}
+
+void TypeApp::print(Printer& p) const {
+    p << log::keyword_style("type") << " ";
+    App::print(p);
 }
 
 void Signature::print(Printer& p) const {
@@ -334,11 +327,6 @@ void ModError::print(Printer& p) const {
     p << log::error_style("<invalid module>");
 }
 
-void ModVarAsValue::print(Printer& p) const {
-    p.print(*var);
-    p << ' ' << log::keyword_style("as_value");
-}
-
 void GlobalVariable::print(Printer& p) const {
     p << log::keyword_style("global_variable");
     if (is_mut)
@@ -384,11 +372,21 @@ void ErrorValue::print(Printer& p) const {
 }
 
 void Param::print(Printer& p) const {
-    p << log::keyword_style("param") << ' ';
     p << p.unique_name(*this);
 }
 
-void App::print(Printer& p) const {
+void Var::print(Printer& p) const {
+    p << p.unique_name(*this);
+}
+
+void Param::print_head(Printer& p) const {
+    p << log::keyword_style("param") << ' ';
+    p << p.unique_name(*this);
+    p << " : ";
+    p.print(*type());
+}
+
+void Call::print(Printer& p) const {
     p.print(*callee);
     p << '(';
     p.print(*arg);

@@ -8,23 +8,23 @@ namespace artic::tir {
 
 void Scope::insert(const Var* var, const Node* value) {
     assert(!var->binder || var->binder == this);
-    assert(!mod_vars.contains(var) || (mod_vars[var] == nullptr));
-    mod_vars[var] = value;
+    assert(!vars.contains(var) || (vars[var] == nullptr));
+    vars[var] = value;
     var->binder = this;
 }
 
-const Node* Scope::resolve_mod_var(const ModVar* var) const {
-    auto found = mod_vars.find(var);
-    if (found != mod_vars.end())
+const Node* Scope::resolve_var(const Var* var) const {
+    auto found = vars.find(var);
+    if (found != vars.end())
         return found->second;
     if (parent)
-        return parent->resolve_mod_var(var);
+        return parent->resolve_var(var);
     return nullptr;
 }
 
 const Scope* Scope::find_scope(const Var* var) const {
-    auto found = mod_vars.find(var);
-    if (found != mod_vars.end())
+    auto found = vars.find(var);
+    if (found != vars.end())
         return this;
     if (parent)
         return parent->find_scope(var);
@@ -53,22 +53,22 @@ const Scope& Scope::root() const {
     return *s;
 }
 
-std::tuple<const ModVar*, const Node*> Scope::resolve_mod_var_rec(const ModVar* var) const {
+std::tuple<const Var*, const Node*> Scope::resolve_var_rec(const Var* var) const {
     while (true) {
-        auto resolved = resolve_mod_var(var);
+        auto resolved = resolve_var(var);
         if (!resolved)
             return { var, nullptr };
-        if (auto another_var = resolved->isa<ModVar>())
+        if (auto another_var = resolved->isa<Var>())
             var = another_var;
         else
             return { var, resolved };
     }
 }
 
-std::tuple<const Node*, const Scope&> Scope::resolve_mod_var_deep_return_scope(const ModVar* var) const {
+std::tuple<const Node*, const Scope&> Scope::resolve_var_deep_return_scope(const Var* var) const {
     // TODO: this shouldn't be necessary if trivial mod_var bindings are disallowed
     // resolve the variable normally
-    auto [_, resolved] = resolve_mod_var_rec(var);
+    auto [_, resolved] = resolve_var_rec(var);
     if (!resolved)
         return { nullptr, *this };
     if (auto mod_access = resolved->isa<ModAccess>()) {
@@ -78,20 +78,18 @@ std::tuple<const Node*, const Scope&> Scope::resolve_mod_var_deep_return_scope(c
             return { resolved, *this };
         }
         // [ mod ] :: S
-        auto [lhs, lhs_scope] = resolve_mod_var_deep_return_scope(mod_access->mod->as<ModVar>());
+        auto [lhs, lhs_scope] = resolve_var_deep_return_scope(mod_access->mod->as<ModVar>());
         // give up here if the module being accessed cannot be resolved
         if (!lhs)
             return { mod_access, *this };
         if (auto lhs_mod = lhs->isa<Module>()) {
-            for (auto& decl : lhs_mod->decls()) {
-                if (decl->var->key == mod_access->key) {
-                    // [ ( mod :: idx ) ]
-                    if (auto keep_going = decl->value->isa<ModVar>()) {
-                        return lhs_scope.resolve_mod_var_deep_return_scope(keep_going);
-                    }
-                    return { decl->value, lhs_mod->scope };
-                }
+            auto decl = lhs_mod->lookup(mod_access->key);
+            // [ ( mod :: idx ) ]
+            if (auto keep_going = decl->isa<ModVar>()) {
+                return lhs_scope.resolve_var_deep_return_scope(keep_going);
             }
+            //return { decl, lhs_mod->scope };
+            return { decl, *this };
             assert(false && "bad module access");
         }
     }
@@ -99,9 +97,9 @@ std::tuple<const Node*, const Scope&> Scope::resolve_mod_var_deep_return_scope(c
 }
 
 const Type* Scope::peek_type(const Type* type) const {
-    while (auto var_as_type = type->isa<ModVarAsType>()) {
-        auto resolved = resolve_mod_var_deep(var_as_type->var);
-        if (resolved && resolved->isa<Type>())
+    while (auto var = type->isa<TypeVar>()) {
+        auto resolved = resolve_var_deep(var);
+        if (resolved)
             type = resolved->as<Type>();
         else
             break;
@@ -109,8 +107,8 @@ const Type* Scope::peek_type(const Type* type) const {
     return type;
 }
 const Value* Scope::peek_value(const Value* value) const {
-    while (auto as_value = value->isa<ModVarAsValue>()) {
-        auto resolved = resolve_mod_var_deep(as_value->var);
+    while (auto var = value->isa<Param>()) {
+        auto resolved = resolve_var_deep(var);
         if (resolved && resolved->isa<Value>())
             value = resolved->as<Value>();
         else
@@ -121,11 +119,15 @@ const Value* Scope::peek_value(const Value* value) const {
 
 const ModValue* Scope::peek_mod_value(const ModValue* maybe_module) const {
     if (auto mod_var = maybe_module->isa<ModVar>()) {
-        auto bound_to = resolve_mod_var_deep(mod_var);
+        auto bound_to = resolve_var_deep(mod_var);
         if (bound_to && bound_to->isa<ModValue>())
             return bound_to->as<ModValue>();
     }
     return maybe_module;
+}
+
+const Ctor* Scope::resolve_ctor(const CtorVar* var) const {
+    return resolve_var_deep(var)->as<Ctor>();
 }
 
 const Scope* unify_scopes(const Scope* l, const Scope* r) {
@@ -150,14 +152,14 @@ const Scope* unify_scopes(const Scope* l, const Scope* r) {
     return rpath.back();
 }
 
-Scope& Scope::new_child(const Node* n) {
-    auto& ref = child_scopes.emplace_back(std::make_unique<Scope>(this, n));
+Scope& Scope::new_child() {
+    auto& ref = child_scopes.emplace_back(std::make_unique<Scope>(this));
     return *ref;
 }
 
 void Scope::dump() const {
     printf("scope ");
-    for (auto& [var, value] : mod_vars) {
+    for (auto& [var, value] : vars) {
         var->dump();
         if (value) {
             printf(" = ");

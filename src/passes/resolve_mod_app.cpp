@@ -10,16 +10,22 @@ struct LowerModApp : public Rewriter {
         if (auto old_mod_app = old->isa<ModApp>()) {
             auto rewritten = old_mod_app->rewrite(*this);
             if (auto new_mod_app = rewritten->isa<ModApp>())
-                return new_mod_app->instantiate(builder());
+                return new_mod_app->instantiated(builder().enclosing_let_rec());
+            return rewritten;
+        }
+        if (auto old_type_app = old->isa<TypeApp>()) {
+            auto rewritten = old_type_app->rewrite(*this);
+            if (auto new_mod_app = rewritten->isa<TypeApp>())
+                return new_mod_app->instantiated(builder().enclosing_let_rec());
             return rewritten;
         }
         return old->rewrite(*this);
     }
 };
 
-bool lower_mod_app(const Module*& module) {
-    LowerModApp r(module->arena, module->arena);
-    module = r.instantiate(module, true)->as<Module>();
+bool lower_mod_app(std::unique_ptr<Root>& root) {
+    LowerModApp r(root->arena, root->arena);
+    root = r.instantiate(*root);
     return true;
 }
 

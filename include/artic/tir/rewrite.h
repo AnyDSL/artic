@@ -3,6 +3,7 @@
 
 #include "artic/tir/tir.h"
 #include "artic/tir/builder.h"
+#include "artic/tir/passes.h"
 
 #include <unordered_map>
 
@@ -35,6 +36,14 @@ struct Rewriter {
             result[i] = instantiate(old[i], immediate)->template as<S>();
         }
         return result;
+    }
+
+    std::unique_ptr<Root> instantiate(const Root& old) {
+        std::unique_ptr<Root> root = std::make_unique<Root>(dst);
+        Builder builder(dst, root->scope, nullptr);
+        BuilderGuard guard(*this, builder);
+        root->root_module = instantiate(old.root_module, true);
+        return root;
     }
 
     void insert(const Node* old, const Node* new_) {

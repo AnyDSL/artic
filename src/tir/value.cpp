@@ -57,19 +57,19 @@ bool ErrorValue::equals(const Node* n) const {
     return false;
 }
 
-Param::Param(Arena& arena, std::optional<ast::Identifier> id, const Type* type) : Value(type), Var(), Node(arena), id(id) {}
+Param::Param(Arena& arena, const Key* key, const Type* type) : Value(type), Var(key), Node(arena) {}
 
-App::App(Arena& arena, const Value* callee, const Value* arg) : Value(callee->type()->as<FnType>()->codom), Node(arena), callee(callee), arg(arg) {
+Call::Call(Arena& arena, const Value* callee, const Value* arg) : Value(callee->type()->as<FnType>()->codom), Node(arena), callee(callee), arg(arg) {
     assert(callee->is_simple());
     assert(arg->is_simple());
 }
 
-size_t App::hash() const {
+size_t Call::hash() const {
     return fnv::Hash().combine(callee).combine(arg);
 }
 
-bool App::equals(const Node* other) const {
-    if (auto other_app = other->isa<App>())
+bool Call::equals(const Node* other) const {
+    if (auto other_app = other->isa<Call>())
         return other_app->callee == callee && other_app->arg == arg;
     return false;
 }
@@ -164,12 +164,6 @@ bool Undef::equals(const Node* other) const {
     return false;
 }
 
-ModVarAsValue::ModVarAsValue(Builder& builder, Scope& scope, const ModVar* var) : Value([&]() -> const Type* {
-    auto elem = var->signature();
-    assert(elem->elem_kind == NodeKind::Value);
-    return elem->value_type;
-}()), Node(builder.arena), var(var) {}
-
 Agg::Agg(Builder& builder, const Type* agg_type, const ArrayRef<const Value*>& args) : Value(agg_type), Node(builder.arena), args(args) {
     for (auto arg : args) {
         assert(arg->is_simple());
@@ -185,7 +179,7 @@ Agg::Agg(Builder& builder, const Type* agg_type, const ArrayRef<const Value*>& a
         for (size_t i = 0; i < args.size(); i++) {
             assert(args[i]->type() == array_t->elem);
         }
-    } else if (auto [_, struct_t] = match_app<StructType>(peeked_agg_type); struct_t) {
+    } else if (auto struct_t = agg_type->isa<StructType>()) {
         assert(struct_t->member_count() == args.size());
         for (size_t i = 0; i < args.size(); i++) {
             assert(args[i]->type() == builder.member_type(peeked_agg_type, i));
@@ -222,15 +216,15 @@ Extract::Extract(Builder& builder, const Value* src, const Value* idx) : Value([
             size_t idx_value = lit_idx->value.as_integer();
             if (idx_value >= tuple_t->args.size())
                 return builder.type_error();
-            return builder.enclosing_module().import_type(tuple_t->args[idx_value]);
+            return tuple_t->args[idx_value];
         }
     } else if (auto array_t = peeked_agg_type->isa<SizedArrayType>()) {
         assert(idx->isa<TypedLiteral>());
-        return builder.enclosing_module().import_type(array_t->elem);
-    } else if (auto [_, struct_t] = match_app<StructType>(peeked_agg_type); struct_t) {
+        return array_t->elem;
+    } else if (auto struct_t = peeked_agg_type->isa<StructType>()) {
         if (auto lit_idx = idx->isa<TypedLiteral>(); lit_idx) {
             size_t idx_value = lit_idx->value.as_integer();
-            return builder.enclosing_module().import_type(builder.member_type(src->type(), idx_value));
+            return builder.member_type(src->type(), idx_value);
         }
     } else {
         assert(false);
@@ -301,11 +295,11 @@ Proj::Proj(Builder& builder, const Value* src, const Value* idx) : Value([&]() -
             size_t idx_value = lit_idx->value.as_integer();
             if (idx_value >= tuple_t->args.size())
                 return builder.type_error();
-            return wrap_pointee(builder.enclosing_module().import_type(tuple_t->args[idx_value]));
+            return wrap_pointee(tuple_t->args[idx_value]);
         }
     } else if (auto array_t = peeked_pointee_t->isa<ArrayType>()) {
-        return wrap_pointee(builder.enclosing_module().import_type(array_t->elem));
-    } else if (auto [_, struct_t] = match_app<StructType>(peeked_pointee_t); struct_t) {
+        return wrap_pointee(array_t->elem);
+    } else if (auto struct_t = peeked_pointee_t->isa<StructType>()) {
         if (auto lit_idx = idx->isa<TypedLiteral>(); lit_idx) {
             size_t idx_value = lit_idx->value.as_integer();
             return wrap_pointee(builder.member_type(pointee_t, idx_value));
@@ -520,16 +514,20 @@ void Fn::free_variables(FVSet& vars, Seen& seen) const {
     param->type()->free_variables(vars, seen);
 }
 
-void App::free_variables(FVSet&, Seen&) const {
-    assert(false && "TODO");
+void Call::free_variables(FVSet& vars, Seen& seen) const {
+    type()->free_variables(vars, seen);
+    callee->free_variables(vars, seen);
+    arg->free_variables(vars, seen);
 }
 
-void GlobalVariable::free_variables(FVSet&, Seen&) const {
-    assert(false && "TODO");
+void GlobalVariable::free_variables(FVSet& vars, Seen& seen) const {
+    type()->free_variables(vars, seen);
+    if (init)
+        init->free_variables(vars, seen);
 }
 
-void LocalVariable::free_variables(FVSet&, Seen&) const {
-    assert(false && "TODO");
+void LocalVariable::free_variables(FVSet& vars, Seen& seen) const {
+    type()->free_variables(vars, seen);
 }
 
 void Agg::free_variables(FVSet& vars, Seen& seen) const {
@@ -538,8 +536,9 @@ void Agg::free_variables(FVSet& vars, Seen& seen) const {
         arg->free_variables(vars, seen);
 }
 
-void Repeat::free_variables(FVSet&, Seen&) const {
-    assert(false && "TODO");
+void Repeat::free_variables(FVSet& vars, Seen& seen) const {
+    type()->free_variables(vars, seen);
+    elem->free_variables(vars, seen);
 }
 
 void Extract::free_variables(FVSet& vars, Seen& seen) const {
@@ -548,8 +547,10 @@ void Extract::free_variables(FVSet& vars, Seen& seen) const {
     idx->free_variables(vars, seen);
 }
 
-void Proj::free_variables(FVSet&, Seen&) const {
-    assert(false && "TODO");
+void Proj::free_variables(FVSet& vars, Seen& seen) const {
+    type()->free_variables(vars, seen);
+    src->free_variables(vars, seen);
+    idx->free_variables(vars, seen);
 }
 
 void Bind::free_variables(FVSet& vars, Seen& seen) const {
@@ -577,35 +578,38 @@ void Seq::free_variables(FVSet& vars, Seen& seen) const {
     vars.merge(rhs);
 }
 
-void Cast::free_variables(FVSet&, Seen&) const {
-    assert(false && "TODO");
+void Cast::free_variables(FVSet& vars, Seen& seen) const {
+    dst->free_variables(vars, seen);
+    src->free_variables(vars, seen);
 }
 
-void ImplicitCast::free_variables(FVSet&, Seen&) const {
-    assert(false && "TODO");
+void ImplicitCast::free_variables(FVSet& vars, Seen& seen) const {
+    dst->free_variables(vars, seen);
+    src->free_variables(vars, seen);
 }
 
-void UnOp::free_variables(FVSet&, Seen&) const {
-    assert(false && "TODO");
+void UnOp::free_variables(FVSet& vars, Seen& seen) const {
+    type()->free_variables(vars, seen);
+    arg->free_variables(vars, seen);
 }
 
-void BinOp::free_variables(FVSet&, Seen&) const {
-    assert(false && "TODO");
+void BinOp::free_variables(FVSet& vars, Seen& seen) const {
+    type()->free_variables(vars, seen);
+    lhs->free_variables(vars, seen);
+    rhs->free_variables(vars, seen);
 }
 
-void Branch::free_variables(FVSet&, Seen&) const {
-    assert(false && "TODO");
+void Branch::free_variables(FVSet& vars, Seen& seen) const {
+    type()->free_variables(vars, seen);
+    cond->free_variables(vars, seen);
+    true_branch->free_variables(vars, seen);
+    else_branch->free_variables(vars, seen);
 }
 
-void Control::free_variables(FVSet&, Seen&) const {
-    assert(false && "TODO");
+void Control::free_variables(FVSet& vars, Seen& seen) const {
+    type()->free_variables(vars, seen);
+    body->free_variables(vars, seen);
 }
-
-void ModVarAsValue::free_variables(FVSet& vars, Seen& seen) const {
-    var->free_variables(vars, seen);
-}
-
-
 
 }
 

@@ -66,11 +66,10 @@ struct ErrorValue : public Value {
 };
 
 struct Param : public Value, public Var {
-    std::optional<ast::Identifier> id;
-
-    Param(Arena&, std::optional<ast::Identifier>, const Type*);
+    Param(Arena&, const Key*, const Type*);
 
     void print(Printer&) const override;
+    void print_head(Printer&) const override;
     const Node* rewrite(Rewriter&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
@@ -102,7 +101,7 @@ private:
     mutable const Value* body_ = nullptr;
 };
 
-struct App : public Value {
+struct Call : public Value {
     const Value* callee;
     const Value* arg;
 
@@ -115,7 +114,7 @@ struct App : public Value {
 
     const thorin::Def* emit(Emitter&) const override;
 
-    App(Arena&, const Value* callee, const Value* arg);
+    Call(Arena&, const Value* callee, const Value* arg);
 };
 
 struct GlobalVariable : public Value {
@@ -305,21 +304,6 @@ struct Bind : public Value {
 
     WithMod(Arena&, const ModVar*, const ModValue*);
 };*/
-
-struct ModVarAsValue : public Value {
-    const ModVar* var;
-
-    void print(Printer&) const override;
-    const Node* rewrite(Rewriter&) const override;
-    void free_variables(FVSet&, Seen&) const override;
-
-    const thorin::Def* emit(Emitter&) const override;
-    bool is_computation() const override { return false; }
-    bool is_simple() const override { return true; }
-
-
-    ModVarAsValue(Builder&, Scope&, const ModVar*);
-};
 
 struct Seq : public Value {
     Array<const Value*> evaluate;

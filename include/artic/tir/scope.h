@@ -8,14 +8,14 @@ namespace artic::tir {
 struct ModValue;
 struct ModCtor;
 struct ExprBuilder;
+struct LetRecBuilder;
 struct FnBuilder;
 struct Fn;
 
 struct Scope {
     Scope* parent;
-    const Node* owner;
 
-    Scope(Scope* parent, const Node* owner) : parent(parent), owner(owner) {}
+    Scope(Scope* parent) : parent(parent) {}
     Scope(const Scope&) = delete;
 
     bool contains(const Scope*) const;
@@ -25,15 +25,15 @@ struct Scope {
     bool is_in_scope(const Var* var) const;
 
     /// resolves one step of let-binding
-    const Node* resolve_mod_var(const ModVar* var) const;
+    const Node* resolve_var(const Var* var) const;
     /// Resolves N steps of let bindings, returns the last one entered (if any) and its corresponding value
-    std::tuple<const ModVar*, const Node*> resolve_mod_var_rec(const ModVar* var) const;
+    std::tuple<const Var*, const Node*> resolve_var_rec(const Var* var) const;
     /// resolves N steps of let bindings, and enters ModAccesses too
     /// Careful! the resulting node might not be in this scope!
-    std::tuple<const Node*, const Scope&> resolve_mod_var_deep_return_scope(const ModVar*) const;
+    std::tuple<const Node*, const Scope&> resolve_var_deep_return_scope(const Var*) const;
     /// Helper method for resolve_mod_var_deep_return_scope
-    const Node* resolve_mod_var_deep(const ModVar* var) const {
-        auto [r, _] = resolve_mod_var_deep_return_scope(var);
+    const Node* resolve_var_deep(const Var* var) const {
+        auto [r, _] = resolve_var_deep_return_scope(var);
         return r;
     }
 
@@ -47,18 +47,14 @@ struct Scope {
     const ModValue* peek_mod_value(const ModValue*) const;
     const Value* peek_value(const Value*) const;
 
-    Scope& new_child(const Node*);
+    const Ctor* resolve_ctor(const CtorVar*) const;
+
+    Scope& new_child();
 private:
     void insert(const Var*, const Node*);
 
-    //void insert(const Param* var, const Value* value) {
-    //    assert(!params.contains(var));
-    //    params[var] = value;
-    //}
-
     std::vector<std::unique_ptr<Scope>> child_scopes;
-    std::unordered_map<const Var*, const Node*> mod_vars;
-    //std::unordered_map<const Param*, const Value*> params;
+    std::unordered_map<const Var*, const Node*> vars;
 
     void dump() const;
 
@@ -66,6 +62,7 @@ private:
     friend Fn;
     friend TypeChecker;
     friend ExprBuilder;
+    friend LetRecBuilder;
     friend FnBuilder;
     friend ModCtor;
 };

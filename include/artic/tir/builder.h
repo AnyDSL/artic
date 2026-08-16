@@ -11,7 +11,7 @@ namespace artic {
 namespace tir {
 
 struct Builder;
-struct ModuleBuilder;
+struct LetRecBuilder;
 struct ExprBuilder;
 struct FnBuilder;
 
@@ -68,7 +68,7 @@ private:
 
     friend Node;
     friend Builder;
-    friend ModuleBuilder;
+    friend LetRecBuilder;
     friend ExprBuilder;
     friend FnBuilder;
 };
@@ -88,7 +88,7 @@ struct Builder : public artic::Cast<Builder> {
 
     const Scope* vars_scope(const Node::FVSet& fvs);
 
-    ModuleBuilder& enclosing_module();
+    LetRecBuilder& enclosing_let_rec();
     ExprBuilder& enclosing_expr();
 
     const Signature* mod_signature();
@@ -111,36 +111,23 @@ struct Builder : public artic::Cast<Builder> {
     const TopType*           top_type();
     const NoRetType*         no_ret_type();
     const TypeError*         type_error();
-    // const TypeVar*           type_var(const ast::TypeParam*);
-    // const ForallType*        forall_type(ArrayRef<const TypeVar*>, const ast::FnDecl&);
-    // const ForallType*        forall_type(ArrayRef<const TypeVar*>, const ast::ImplicitDecl&);
-    const StructType*        struct_type(ArrayRef<const TypeVar*>, const ast::RecordDecl*);
-    const EnumType*          enum_type(ArrayRef<const TypeVar*>, const ast::EnumDecl*);
-    const TypeAlias*         type_alias(ArrayRef<const TypeVar*>, const ast::TypeDecl&);
-    const Type*              as_type(const ModVar*);
+    const StructType*        struct_type(const ast::RecordDecl*);
+    const EnumType*          enum_type(const ast::EnumDecl*);
     const Type*              member_type(const Type*, size_t);
 
-    /// Creates a type application for structures/enumeration types,
-    /// or returns the type alias expanded with the given type arguments.
-    const Type* type_app(const UserType*, const ArrayRef<const Type*>&);
-
     const Key* decl_key(std::optional<ast::Identifier>);
-    const Module* module(const ast::ModDecl* = nullptr);
     const ModVar* mod_var(const Key*, const Signature*);
-    const ModVar* mod_var(const Key*);
-    const ModCtor* mod_ctor(const ArrayRef<const ModVar*>&, const Signature*);
     const ModError* mod_error();
     // const ModValue* mod_access(const ModValue*, const Key*);
 
     const GlobalVariable* global_variable(const Type*, bool is_mut, const Value*, const ast::StaticDecl*);
     const Value* typed_literal(Literal, const Type*);
     const Value* undef(const Type*);
-    const Value* as_value(const ModVar*);
     const Value* error_value(const Type*);
     const Value* error_value();
 
     //const Fn* function(const Param*, const Type* codom);
-    const Param* param(std::optional<ast::Identifier>, const Type*);
+    const Param* param(const Key*, const Type*);
     // const Value* seq(const ArrayRef<const Value*>&);
     const Value* unit();
 
@@ -160,13 +147,19 @@ struct Builder : public artic::Cast<Builder> {
 
     // un-scheduled node ctors where you should probably used the scheduled version instead!
     struct Unsafe {
-        const ModValue* mod_app(const ModVar*, const ArrayRef<const Node*>&);
-        const ModValue* mod_access(const ModValue*, const Key*, const Signature*);
+        const Module* module(std::unordered_map<const Key*, const Node*>&&, const ast::ModDecl* = nullptr);
+        const ModCtor* mod_ctor(Scope&, const ArrayRef<const Var*>&, const ModValue*);
+        const ModValue* mod_app(const CtorVar*, const ArrayRef<const Node*>&);
+        const Node* mod_access(const ModValue*, const Key*, const Signature*);
+        const ModValue* mod_let_rec(std::unordered_map<const Var*, const Node*>&&, const ModValue*);
+
+        const TypeCtor* type_ctor(const ArrayRef<const Var*>&, const Type*);
+        const Type* type_app(const CtorVar*, const ArrayRef<const Node*>&);
 
         const LocalVariable* local_variable(const Type*);
 
         const Bind* bind(const Param*, const Value*);
-        const Value* app(const Value* callee, const Value* arg);
+        const Value* call(const Value* callee, const Value* arg);
         const Value* agg(const Type*, const ArrayRef<const Value*>&);
         const Value* repeat(const Type*, const Value*);
         const Value* extract(const Value*, const Value*);
@@ -200,37 +193,43 @@ private:
     const Fn* fn_ = nullptr;
 };
 
-struct ModuleBuilder : public Builder {
-    // Root builder ctor
-    ModuleBuilder(Arena& arena, const ast::ModDecl*);
-    ModuleBuilder(Arena& arena, Builder* parent, const Module* mod);
-    ~ModuleBuilder();
+struct LetRecBuilder : public Builder {
+    LetRecBuilder(Arena& arena, Scope&, Builder* parent);
+    ~LetRecBuilder();
 
     //std::tuple<const ModVar*, const ModCtor*> mod_ctor(const ModVar*);
-    const ModVar* mod_app(const ModVar*, const ArrayRef<const Node*>&);
-    const ModVar* mod_access(const ModValue*, const Key*, const Signature*);
+    const ModVar* module(std::unordered_map<const Key*, const Node*>&&, const ast::ModDecl* = nullptr);
+    const ModVar* mod_app(const Var*, const ArrayRef<const Node*>&);
+    const Var* mod_access(const ModValue*, const Key*, const Signature*);
+
+    const TypeVar* type_app(const Var*, const ArrayRef<const Node*>&);
+
     // const ModValue* mod_access(const ModValue*, const Key*);
 
-    const ModVar* add_in_module(const Node*, const Key*, bool public_interface = true);
+    // const ModVar* add_in_module(const Node*, const Key*, bool public_interface = true);
     // const ModVar* add_in_module(std::optional<ast::Identifier> = std::nullopt);
+    void bind(const Var*, const Node*);
 
-    const Module& module() { return *module_; }
+    // const Module& module() { return *module_; }
 
-    const Type* import_type(const Type*);
-    const Signature* import_signature(const Signature*);
-    const ModVar* import_mod_var(const ModVar*);
+    // const Type* import_type(const Type*);
+    // const Signature* import_signature(const Signature*);
+    // const ModVar* import_mod_var(const ModVar*);
 
-    const Type* schedule_type(const Type*, std::optional<ast::Identifier> = std::nullopt);
-    const Value* schedule_value(const Value*, std::optional<ast::Identifier> = std::nullopt);
+    const TypeVar* schedule_type(const Type*, std::optional<ast::Identifier> = std::nullopt);
+    const Param* schedule_value(const Value*, std::optional<ast::Identifier> = std::nullopt);
     const ModVar* schedule_mod_value(const ModValue*, std::optional<ast::Identifier> = std::nullopt);
     //const Type* schedule_and_bind_type(const Type*, std::optional<ast::Identifier> = std::nullopt);
+    // const LetRec* finish(const Node*);
+    const ModValue* finish_module(const ModValue*);
 private:
-    const Module* module_;
+    //const Module* module_;
 
-    const Node* import(const Node*);
-    const ModVar* schedule(const Node*, bool skip_signature = false, std::optional<ast::Identifier> = std::nullopt);
+    // const Node* import(const Node*);
+    const Var* schedule(const Node*, std::optional<ast::Identifier> = std::nullopt);
 
-    std::unordered_map<const Node*, const ModVar*> already_bound_here;
+    std::unordered_map<const Var*, const Node*> contents;
+    std::unordered_map<const Node*, const Var*> already_bound_here;
 
     // Scope* root_scope_;
     friend ast::StructDecl;
@@ -244,7 +243,7 @@ struct ExprBuilder : public Builder {
 
     const Value* local_variable(const Type*);
 
-    const Value* app(const Value* callee, const Value* arg);
+    const Value* call(const Value* callee, const Value* arg);
     const Value* agg(const Type*, const ArrayRef<const Value*>&);
     const Value* repeat(const Type*, const Value*);
     const Value* tuple(const ArrayRef<const Value*>&);

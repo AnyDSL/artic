@@ -2,6 +2,7 @@
 #define ARTIC_TIR_PRINT_H
 
 #include "artic/tir/tir.h"
+#include "artic/tir/passes.h"
 #include "artic/print.h"
 
 namespace artic {
@@ -14,8 +15,8 @@ struct Printer {
     Printer(artic::Printer& base) : base(base) { }
     Printer(const Printer&) = delete;
 
+    void print(const Root&);
     void print(const Node& node, bool print_inline = false);
-    void print_type_params(ArrayRef<const TypeVar*>);
 
     std::string unique_name(const Node&);
     void insert(const Node&, std::string);

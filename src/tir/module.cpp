@@ -6,29 +6,14 @@
 
 namespace artic::tir {
 
-Module::Module(Builder& builder, const ast::ModDecl* decl)
-    : ModValue(NodeKind::Module), Node(builder.arena), decl(decl), root_scope(nullptr), scope(builder.scope.new_child(this)), signature_(builder.mod_signature())
+Module::Module(Builder& builder, std::unordered_map<const Key*, const Node*>&& decls, const ast::ModDecl* decl)
+    : ModValue(), Node(builder.arena), decls(std::move(decls)), decl(decl), signature_(builder.mod_signature())
 {}
 
-Module::Module(Arena& arena, const ast::ModDecl* decl)
-    : ModValue(NodeKind::Module), Node(arena), decl(decl), root_scope(std::make_unique<Scope>(nullptr, this)), scope(*root_scope ), signature_(arena.root_mod_signature())
-{}
-
-Module::Decl* Module::add_decl(const ModVar* var) const {
-    decls_.push_back(std::make_unique<Decl>(var, nullptr));
-    scope.insert(var, nullptr);
-    return &*decls_.back();
-}
-
-void Module::set_decl(Decl* decl, const Node* value) const {
-    decl->value = value;
-    scope.insert(decl->var, value);
-}
-
-const Module::Decl* Module::lookup(const Key* key) const {
-    for (size_t i = 0; i < decls_.size(); ++i) {
-        if (decls_[i]->var->key == key)
-            return &*decls_[i];
+const Node* Module::lookup(const Key* key) const {
+    for (auto [decl_key, val] : decls) {
+        if (decl_key == key)
+            return val;
     }
     return nullptr;
 }
@@ -137,9 +122,6 @@ const Signature* Signature::from_node(Builder& builder, const Node* node, bool p
     switch (node->kind()) {
         case NodeKind::Value: {
             auto value = node->as<Value>();
-            if (auto as_value = node->isa<ModVarAsValue>())
-                return as_value->var->signature();
-
             return builder.value_signature(value->type());
         }
         case NodeKind::Type: {
@@ -234,14 +216,8 @@ bool ModAccess::equals(const Node* other) const {
     return false;
 }
 
-ModVar::ModVar(Builder& builder, const Key* key, const Signature* sig)
-    : ModValue(sig->elem_kind), Node(builder.arena), key(key), signature_(sig) {
-    assert(sig);
-}
-
-ModVar::ModVar(Builder& builder, const Key* key)
-    : ModValue(NodeKind::Alias), Node(builder.arena), key(key), signature_(nullptr) {
-}
+ModVar::ModVar(Builder& builder, const Key* key, const Signature* signature)
+    : Node(builder.arena), Var(key), signature_(signature) {}
 
 const Signature* ModVar::signature() const {
     assert(signature_);
@@ -253,7 +229,7 @@ const Signature* ModAccess::signature() const {
 }
 
 ModAccess::ModAccess(Arena& arena, const ModValue* mod, const Key* key, const Signature* sig)
-    : ModValue(sig->elem_kind), Node(arena), mod(mod), key(key), signature_(sig) {
+    : ModValue(), Node(arena), mod(mod), key(key), signature_(sig) {
     assert(mod->is_simple() && mod->kind() == NodeKind::Module);
     assert(key->isa<Key>());
     assert(sig);
@@ -263,41 +239,19 @@ ModAccess::ModAccess(Arena& arena, const ModValue* mod, const Key* key, const Si
     assert(false && "TODO");
 }*/
 
-ModCtor::ModCtor(Builder& builder, const ArrayRef<const ModVar*> params, const Signature* signature)
-    : ModValue(NodeKind::Ctor), Node(builder.arena), scope(builder.scope.new_child(this)), params(params), signature_(signature) {
-    assert(signature_->elem_kind == NodeKind::Ctor);
-    assert(signature->dom.size() == params.size());
+ModCtor::ModCtor(Builder& builder, Scope& scope, const ArrayRef<const Var*>& params, const ModValue* body)
+    : Node(builder.arena), Ctor(scope, params, body) {
+    // assert(signature_->elem_kind == NodeKind::Ctor);
+    // assert(signature->dom.size() == params.size());
     for (size_t i = 0; i < params.size(); i++) {
         scope.insert(params[i], nullptr);
-        assert(signature->dom[i]->is_sub(builder.scope, params[i]->signature()));
+        // assert(signature->dom[i]->is_sub(builder.scope, params[i]->signature()));
     }
 }
 
-void ModCtor::set_body(Builder& builder, const Module* body, const Key* key) const {
-    assert(!this->body);
-    this->body = body;
-    this->extra_key = key;
-    // signatures that produce values and types are implemented through anonymous modules, to allow self-references and other nodes depending on ctor params
-    if (key) {
-        for (auto& decl : body->decls()) {
-            if (decl->var->key == key) {
-                assert(decl->var->signature()->is_sub(builder.scope, signature_->codom));
-                return;
-            }
-        }
-        assert(false && "mod ctor key not found");
-    }
-    // otherwise check the body directly
-    assert(body->signature()->is_sub(builder.scope, signature_->codom));
-}
-
-const Signature* ModCtor::signature() const {
-    assert(body && "ctor has no body yet - cannot obtain signature");
-    return signature_;
-}
-
-ModApp::ModApp(Builder& builder, const ModVar* applicand, const ArrayRef<const Node*>& args)
-    : ModValue([&]() -> NodeKind {
+ModApp::ModApp(Builder& builder, const CtorVar* applicand, const ArrayRef<const Node*>& args)
+    : ModValue()
+    /*: ModValue([&]() -> NodeKind {
     auto ctor_sig = applicand->signature();
     assert(ctor_sig->elem_kind == NodeKind::Ctor);
     assert(ctor_sig->dom.size() == args.size());
@@ -306,14 +260,14 @@ ModApp::ModApp(Builder& builder, const ModVar* applicand, const ArrayRef<const N
     }
     signature_ = ctor_sig->codom;
     return signature_->elem_kind;
-}()), Node(builder.arena), applicand(applicand), args(args) {
+}())*/, Node(builder.arena), App(applicand,args) {
     assert(applicand->is_simple());
     for (auto arg : args)
         assert(arg->is_simple());
 }
 
 size_t ModApp::hash() const {
-    auto h = fnv::Hash().combine(applicand);
+    auto h = fnv::Hash().combine(applicand_);
     for (auto arg : args)
         h = h.combine(arg);
     return h;
@@ -327,55 +281,17 @@ bool ModApp::equals(const Node* other) const {
             if (args[i] != other_app->args[i])
                 return false;
         }
-        return applicand == other_app->applicand;
+        return applicand_ == other_app->applicand_;
     }
     return false;
 }
 
-struct Specializer : public Rewriter {
-    Builder& b;
-    Scope& s;
-
-    Specializer(Builder& b, Scope& s) : Rewriter(b.arena, b.arena), b(b), s(s) {
-        builder_ = &b;
-    }
-
-    const Node* rewrite(const Node* old, bool immediate) override {
-        // leave keys alone
-        if (old->isa<Key>())
-            return old;
-        if (immediate)
-            return old->rewrite(*this);
-
-        auto fvs = old->free_variables();
-        auto old_scope = b.vars_scope(fvs);
-        if (!s.contains(old_scope)) {
-            return old;
-        }
-
-        return old->rewrite(*this);
-    }
-};
-
-const ModVar* ModApp::instantiate(Builder& builder) const {
+const ModVar* ModApp::instantiated(LetRecBuilder& b) const {
     if (instantiated_)
         return instantiated_;
-    auto peeked = builder.scope.peek_mod_value(applicand);
-    if (auto ctor = peeked->isa<ModCtor>()) {
-        Specializer s(builder, ctor->body->scope);
-        for (size_t i = 0; i < ctor->params.size(); i++) {
-            s.insert(ctor->params[i], args[i]);
-        }
-        auto spec_module = s.instantiate(ctor->body, true)->as<Module>();
-        instantiated_ = builder.enclosing_module().schedule_mod_value(spec_module);
-        if (ctor->extra_key) {
-            auto sig = spec_module->lookup(ctor->extra_key)->var->signature();
-            instantiated_ = builder.enclosing_module().mod_access(instantiated_, ctor->extra_key, sig);
-        }
-        return instantiated_;
-    } else {
-        assert(false);
-    }
+    auto spec_module = instantiate(b)->as<ModValue>();
+    instantiated_ = b.schedule_mod_value(spec_module);
+    return instantiated_;
 }
 
 const Signature* ModApp::signature() const {
@@ -383,7 +299,7 @@ const Signature* ModApp::signature() const {
 }
 
 ModError::ModError(Builder& builder)
-    : ModValue(NodeKind::Module), Node(builder.arena), signature_(builder.mod_signature()) {}
+    : ModValue(), Node(builder.arena), signature_(builder.mod_signature()) {}
 
 size_t ModError::hash() const {
     return fnv::Hash().combine(1337);
@@ -397,6 +313,17 @@ bool ModError::equals(const Node* other) const {
 
 const Signature* ModError::signature() const {
     return signature_;
+}
+
+LetRecMod::LetRecMod(Builder& builder, Scope& scope, std::unordered_map<const Var*, const Node*>&& vars, const Node* in)
+    : Node(builder.arena), ModValue(), LetRec(scope, std::move(vars), in)
+{}
+
+bool LetRecMod::equals(const Node* other) const {
+    if (auto other_lrm = other->isa<LetRecMod>()) {
+        return LetRec::equals(other_lrm);
+    }
+    return false;
 }
 
 // Free variables ------------------------------------------------------------------
@@ -438,45 +365,20 @@ void ModAccess::free_variables(FVSet& vars, Seen& seen) const {
 }
 
 void Module::free_variables(FVSet& vars, Seen& seen) const {
-    FVSet inner_vars;
-    // we don't want to visit stuff we've seen before, but we do want to visit that stuff if we reach it from outside the module
-    Seen inner_seen = seen;
-    for (auto decl : decls()) {
-        auto [var, def] = *decl;
+    for (auto  [var, def] : decls) {
         // free variables of the variable themselves matter
-        var->free_variables(inner_vars, seen);
-        def->free_variables(inner_vars, inner_seen);
+        var->free_variables(vars, seen);
+        def->free_variables(vars, seen);
     }
-    // remove the module variables from the inner FVs
-    for (auto decl : decls()) {
-        auto [var, _] = *decl;
-        inner_vars.erase(var);
-    }
-    // copy the remaining ones to the FV set
-    for (auto fv : inner_vars) {
-        vars.emplace(fv);
-    }
+    signature()->free_variables(vars, seen);
 }
 
 void ModCtor::free_variables(FVSet& vars, Seen& seen) const {
-    FVSet inner_vars;
-    // we don't want to visit stuff we've seen before, but we do want to visit that stuff if we reach it from outside the module
-    Seen inner_seen = seen;
-    for (auto param : params)
-        param->free_variables(inner_vars, seen);
-    if (body)
-        body->free_variables(inner_vars, inner_seen);
-    // remove the variable from the inner FVs
-    for (auto param : params)
-        inner_vars.erase(param);
-    // copy the remaining ones to the FV set
-    for (auto fv : inner_vars) {
-        vars.emplace(fv);
-    }
+    return Ctor::free_variables(vars, seen);
 }
 
 void ModApp::free_variables(FVSet& vars, Seen& seen) const {
-    applicand->free_variables(vars, seen);
+    applicand()->free_variables(vars, seen);
     for (auto arg : args)
         arg->free_variables(vars, seen);
 }

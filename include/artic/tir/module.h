@@ -15,8 +15,6 @@ struct TypeVar;
 struct Module;
 struct Key;
 
-struct ModuleBuilder;
-
 struct Signature : virtual public Node {
     NodeKind elem_kind;
     const Type* value_type = nullptr;
@@ -49,19 +47,18 @@ struct Signature : virtual public Node {
 };
 
 struct ModValue : virtual public Node {
-    NodeKind kind_;
-    NodeKind kind() const override { return kind_; }
+    NodeKind kind() const override { return NodeKind::Module; }
 
     virtual const Signature* signature() const = 0;
 
-    ModValue(NodeKind kind) : kind_(kind) {}
+    ModValue() {}
 };
 
 struct ModVar : public ModValue, public Var {
-    const Key* key;
     const Signature* signature_;
 
     void print(Printer&) const override;
+    void print_head(Printer&) const override;
     const Node* rewrite(Rewriter&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
@@ -70,35 +67,15 @@ struct ModVar : public ModValue, public Var {
     const Signature* signature() const override;
 
     ModVar(Builder&, const Key*, const Signature*);
-    ModVar(Builder&, const Key*);
 };
 
 struct Module : public ModValue {
     const ast::ModDecl* decl;
-    std::unique_ptr<Scope> root_scope;
-    Scope& scope;
     const Signature* signature_ = nullptr;
+    std::unordered_map<const Key*, const Node*> decls;
 
-    //const ModValue* super = nullptr;
-    // outer variable through which this module is accessible
-    mutable const ModVar* var = nullptr;
+    const Node* lookup(const Key*) const;
 
-    struct Decl {
-        const ModVar* var;
-        const Node* value;
-    };
-
-    Array<const Decl*> decls() const {
-        Array<const Decl*> arr(decls_.size());
-        for (size_t i = 0; i < decls_.size(); ++i) {
-            arr[i] = &*decls_[i];
-        }
-        return arr;
-    }
-    const Decl* lookup(const Key*) const;
-    const void seal() const { sealed = true; }
-
-    mutable bool sealed = false;
     const Signature* signature() const override;
 
     void print(Printer&) const override;
@@ -107,16 +84,8 @@ struct Module : public ModValue {
 
     // void emit(Emitter&) const;
 
-    Module(Builder&, const ast::ModDecl*);
-    Module(Arena&, const ast::ModDecl*);
+    Module(Builder&, std::unordered_map<const Key*, const Node*>&&, const ast::ModDecl*);
     Module(const Module&) = delete;
-
-    Decl* add_decl(const ModVar* var) const;
-    void set_decl(Decl*, const Node* value) const;
-private:
-    mutable std::vector<std::unique_ptr<Decl>> decls_;
-
-    friend ModuleBuilder;
 };
 
 struct ModAccess : public ModValue {
@@ -136,29 +105,19 @@ struct ModAccess : public ModValue {
     ModAccess(Arena& arena, const ModValue*, const Key*);
 };
 
-struct ModCtor : public ModValue {
-    Scope& scope;
-    Array<const ModVar*> params;
-    mutable const Module* body = nullptr;
-    mutable const Key* extra_key = nullptr;
-
+struct ModCtor : public Ctor {
     void print(Printer&) const override;
     const Node* rewrite(Rewriter&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
-    const Signature* signature() const override;
+    const ModValue* body() const override {
+        return Ctor::body()->as<ModValue>();
+    }
 
-    void set_body(Builder&, const Module*, const Key* = nullptr) const;
-
-    ModCtor(Builder&, const ArrayRef<const ModVar*>, const Signature*);
-private:
-    const Signature* signature_ = nullptr;
+    ModCtor(Builder&, Scope&, const ArrayRef<const Var*>&, const ModValue*);
 };
 
-struct ModApp : public ModValue {
-    const ModVar* applicand;
-    Array<const Node*> args;
-
+struct ModApp : public ModValue, public App {
     size_t hash() const override;
     bool equals(const Node*) const override;
     void print(Printer&) const override;
@@ -166,13 +125,30 @@ struct ModApp : public ModValue {
     void free_variables(FVSet&, Seen&) const override;
 
     const Signature* signature() const override;
-    const ModVar* instantiate(Builder&) const;
 
-    ModApp(Builder&, const ModVar*, const ArrayRef<const Node*>& args);
+    const ModVar* instantiated(LetRecBuilder& b) const override;
+
+    ModApp(Builder&, const CtorVar*, const ArrayRef<const Node*>& args);
 private:
     const Signature* signature_;
     mutable const ModVar* instantiated_ = nullptr;
     friend Emitter;
+};
+
+struct LetRecMod : public ModValue, public LetRec {
+    const ModValue* body() const override {
+        return LetRec::body()->as<ModValue>();
+    }
+
+    const Signature* signature() const override {
+        assert(false && "TODO");
+        return nullptr;
+    }
+
+    bool equals(const Node* other) const override;
+    const Node* rewrite(Rewriter&) const override;
+
+    LetRecMod(Builder&, Scope&, std::unordered_map<const Var*, const Node*>&&, const Node*);
 };
 
 struct ModError : public ModValue {

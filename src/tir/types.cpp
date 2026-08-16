@@ -73,12 +73,12 @@ NoRetType::NoRetType(Arena& arena)
     : BottomType(arena), Node(arena)
 {}
 
-TypeVar::TypeVar(Arena& arena, const ast::TypeParam* param)
-    : Type(), Node(arena), decl(param)
+TypeVar::TypeVar(Arena& arena, const Key* key)
+    : Type(), Node(arena), Var(key)
 {}
 
-StructType::StructType(Arena& arena, ArrayRef<const TypeVar*> type_params, const ast::RecordDecl* decl)
-    : ComplexType(arena), Node(arena), decl(decl), type_params_(type_params)
+StructType::StructType(Arena& arena, const ast::RecordDecl* decl)
+    : ComplexType(), Node(arena), decl(decl)
 {}
 
 void StructType::validate() const {
@@ -86,8 +86,8 @@ void StructType::validate() const {
         assert(t->is_simple());
 }
 
-EnumType::EnumType(Arena& arena, ArrayRef<const TypeVar*> type_params, const ast::EnumDecl* decl)
-    : ComplexType(arena), Node(arena), decl(decl), type_params_(type_params)
+EnumType::EnumType(Arena& arena, const ast::EnumDecl* decl)
+    : ComplexType(), Node(arena), decl(decl)
 {}
 
 void EnumType::validate() const {
@@ -95,21 +95,21 @@ void EnumType::validate() const {
         assert(t->is_simple());
 }
 
-TypeAlias::TypeAlias(Arena& arena, const ArrayRef<const TypeVar*>& type_params, const ast::TypeDecl& decl)
-    : PolyTypeFromDecl(arena, decl, type_params), Node(arena)
-{}
-
-TypeApp::TypeApp(Arena& arena, const UserType* applied, const ArrayRef<const Type*>& type_args)
-    : Type(), Node(arena), applied(applied), type_args(std::move(type_args))
+TypeApp::TypeApp(Builder& builder, const Var* applicand, const ArrayRef<const Node*>& args)
+    : Type(), Node(builder.arena), App(applicand, args)
 {
-    assert(applied->is_simple());
-    for (auto& arg : type_args)
+    assert(applicand_->is_simple());
+    for (auto& arg : args)
         assert(arg->is_simple());
 }
 
-ModVarAsType::ModVarAsType(Arena& arena, const ModVar* var)
-    : Type(), Node(arena), var(var)
-{}
+const TypeVar* TypeApp::instantiated(LetRecBuilder& b) const {
+    if (instantiated_)
+        return instantiated_;
+    auto spec_module = instantiate(b)->as<Type>();
+    instantiated_ = b.schedule_type(spec_module);
+    return instantiated_;
+}
 
 // Type Bounds ---------------------------------------------------------------------
 
@@ -180,15 +180,8 @@ bool TopType::equals(const Node* other) const {
 }
 
 bool TypeApp::equals(const Node* other) const {
-    return
-        other->isa<TypeApp>() &&
-        other->as<TypeApp>()->applied == applied &&
-        other->as<TypeApp>()->type_args == type_args;
-}
-
-bool ModVarAsType::equals(const artic::tir::Node* other) const {
-    if (auto other_as_type = other->isa<ModVarAsType>())
-        return other_as_type->var == var;
+    if (auto other_type_app = other->isa<TypeApp>())
+        return App::equals(other_type_app);
     return false;
 }
 
@@ -247,16 +240,12 @@ size_t TopType::hash() const {
     return fnv::Hash().combine(typeid(*this).hash_code());
 }
 
-size_t TypeApp::hash() const {
-    auto h = fnv::Hash().combine(typeid(*this).hash_code()).combine(applied);
-    for (auto a : type_args)
-        h.combine(a);
-    return h;
-}
-
-size_t ModVarAsType::hash() const {
-    return var->hash();
-}
+// size_t TypeApp::hash() const {
+//     auto h = fnv::Hash().combine(typeid(*this).hash_code()).combine(applied);
+//     for (auto a : type_args)
+//         h.combine(a);
+//     return h;
+// }
 
 // Contains ------------------------------------------------------------------------
 
@@ -285,12 +274,15 @@ bool FnType::contains(const Type* type) const {
 }
 
 bool TypeApp::contains(const Type* type) const {
-    return
+    assert(false);
+    /*return
         type == this ||
-        applied->contains(type) ||
-        std::any_of(type_args.begin(), type_args.end(), [type] (auto a) {
-            return a->contains(type);
-        });
+        applicand()->contains(type) ||
+        std::any_of(args.begin(), args.end(), [type] (auto a) {
+            if (auto at = a->template isa<Type>())
+                return at->contains(type);
+            return false;
+        });*/
 }
 
 // Order ---------------------------------------------------------------------------
@@ -339,7 +331,7 @@ size_t TypeApp::order(const Scope& scope, std::unordered_set<const Type*>& seen)
     // return max_order;
 }
 
-size_t ModVarAsType::order(const Scope& scope, std::unordered_set<const Type*>& seen) const {
+size_t TypeVar::order(const Scope& scope, std::unordered_set<const Type*>& seen) const {
     auto resolved = scope.peek_type(this);
     assert(resolved != this && "unknown order, there's a type var in the way");
     return resolved->order(scope, seen);
@@ -381,14 +373,9 @@ void TypeVar::variance(const Scope& scope, std::unordered_map<const TypeVar*, Ty
 }
 
 void TypeApp::variance(const Scope& scope, std::unordered_map<const TypeVar*, TypeVariance>& vars, bool dir) const {
-    for (auto type_arg : type_args)
-        type_arg->variance(scope, vars, dir);
-}
-
-void ModVarAsType::variance(const Scope& scope, TypeVarMap<TypeVariance>& seen, bool dir) const {
-    auto resolved = scope.peek_type(this);
-    assert(resolved != this);
-    return resolved->variance(scope, seen, dir);
+    for (auto arg : args)
+        if (auto type_arg = arg->isa<Type>())
+            type_arg->variance(scope, vars, dir);
 }
 
 // Bounds --------------------------------------------------------------------------
@@ -438,15 +425,10 @@ void TypeVar::bounds(const Scope& scope, std::unordered_map<const TypeVar*, Type
 
 void TypeApp::bounds(const Scope& scope, std::unordered_map<const TypeVar*, TypeBounds>& bounds, const Type* type, bool dir) const {
     if (auto type_app = type->isa<TypeApp>()) {
-        for (size_t i = 0, n = std::min(type_args.size(), type_app->type_args.size()); i < n; ++i)
-            type_args[i]->bounds(scope, bounds, type_app->type_args[i], dir);
+        for (size_t i = 0, n = std::min(args.size(), type_app->args.size()); i < n; ++i)
+            if (auto t = args[i]->isa<Type>())
+                t->bounds(scope, bounds, t, dir);
     }
-}
-
-void ModVarAsType::bounds(const Scope& scope, std::unordered_map<const TypeVar*, TypeBounds>& bounds, const Type* type, bool dir) const {
-    auto resolved = scope.peek_type(this);
-    assert(resolved != this && "cannot compute bounds on unbound module variable");
-    return resolved->bounds(scope, bounds, type, dir);
 }
 
 // Size ----------------------------------------------------------------------------
@@ -491,14 +473,17 @@ bool ComplexType::is_sized(const Scope& scope, std::unordered_set<const Type*>& 
 }
 
 bool TypeApp::is_sized(const Scope& scope, std::unordered_set<const Type*>& seen) const {
-    return
-        applied->is_sized(scope, seen) &&
-        std::all_of(type_args.begin(), type_args.end(), [&seen, &scope] (auto t) {
-            return t->is_sized(scope, seen);
-        });
+    assert(false);
+    /*return
+        applicand()->is_sized(scope, seen) &&
+        std::all_of(args.begin(), args.end(), [&seen, &scope] (auto a) {
+            if (auto t = a->template isa<Type>())
+                return t->is_sized(scope, seen);
+            return true;
+        });*/
 }
 
-bool ModVarAsType::is_sized(const Scope& scope, std::unordered_set<const Type*>& seen) const {
+bool TypeVar::is_sized(const Scope& scope, std::unordered_set<const Type*>& seen) const {
     auto resolved = scope.peek_type(this);
     // unknown types are assumed to be unsized
     if (resolved == this)
@@ -546,32 +531,17 @@ void ComplexType::free_variables(FVSet& vars, Seen& seen) const {
 }
 
 void TypeApp::free_variables(FVSet& vars, Seen& seen) const {
-    applied->free_variables(vars, seen);
-    for (auto& arg : type_args)
+    applicand()->free_variables(vars, seen);
+    for (auto& arg : args)
        arg->free_variables(vars, seen);
-}
-
-void ForallType::free_variables(FVSet&, Seen&) const {
-    assert(false);
 }
 
 void TypeVar::free_variables(FVSet&, Seen&) const {
     assert(false);
 }
 
-void TypeAlias::free_variables(FVSet&, Seen&) const {
-    assert(false);
-}
-
 void TypeError::free_variables(FVSet&, Seen&) const {
 
-}
-
-void ModVarAsType::free_variables(FVSet& vars, Seen& seen) const {
-    return var->free_variables(vars, seen);
-    // auto resolved = scope.resolve_mod_var(var);
-    // if (!resolved)
-    //     vars.insert(var);
 }
 
 // Complex Types -------------------------------------------------------------------
@@ -635,16 +605,16 @@ size_t EnumType::member_count() const {
 static inline bool is_subtype(const Scope& start_scope, const Type* t, const Type* other) {
     const Scope* lhs_scope = &start_scope;
     const Scope* rhs_scope = &start_scope;
-    while (auto var_as_type = t->isa<ModVarAsType>()) {
-        auto [resolved, resolved_scope] = lhs_scope->resolve_mod_var_deep_return_scope(var_as_type->var);
+    while (auto var = t->isa<TypeVar>()) {
+        auto [resolved, resolved_scope] = lhs_scope->resolve_var_deep_return_scope(var);
         if (!resolved || !resolved->isa<Type>()) {
             break;
         }
         t = resolved->as<Type>();
         lhs_scope = &resolved_scope;
     }
-    while (auto var_as_type = other->isa<ModVarAsType>()) {
-        auto [resolved, resolved_scope] = rhs_scope->resolve_mod_var_deep_return_scope(var_as_type->var);
+    while (auto var = other->isa<TypeVar>()) {
+        auto [resolved, resolved_scope] = rhs_scope->resolve_var_deep_return_scope(var);
         if (!resolved || !resolved->isa<Type>()) {
             break;
         }
@@ -730,17 +700,6 @@ bool AddrType::is_compatible_with(const AddrType* other) const {
     return other->addr_space == addr_space && (is_mut || !other->is_mut);
 }
 
-const Type* ForallType::instantiate(const ArrayRef<const Type*>& args) const {
-    assert(false && "TODO");
-    // std::unordered_map<const TypeVar*, const Type*> map;
-    // assert(type_params() && type_params()->params.size() == args.size());
-    // for (size_t i = 0, n = args.size(); i < n; ++i) {
-    //     assert(type_params()->params[i]->type);
-    //     map.emplace(type_params()->params[i]->type->as<TypeVar>(), args[i]);
-    // }
-    // return body->replace(map);
-}
-
 bool StructType::is_tuple_like() const {
     return decl && decl->isa<ast::StructDecl>() && decl->as<ast::StructDecl>()->is_tuple_like;
 }
@@ -751,18 +710,6 @@ bool EnumType::is_trivial() const {
     //     decl.options.begin(),
     //     decl.options.end(),
     //     [] (auto& o) { return is_unit_type(o->type); });
-}
-
-std::unordered_map<const TypeVar*, const Type*> TypeApp::replace_map(
-    ArrayRef<const TypeVar*> type_params,
-    const ArrayRef<const Type*>& type_args)
-{
-    std::unordered_map<const TypeVar*, const Type*> map;
-    assert(type_params.size() == type_args.size());
-    for (size_t i = 0, n = type_args.size(); i < n; ++i) {
-        map.emplace(type_params[i], type_args[i]);
-    }
-    return map;
 }
 
 // Helpers -------------------------------------------------------------------------
@@ -818,37 +765,37 @@ bool is_unit_type(const Type* type) {
 
 std::pair<const PtrType*, const Type*> remove_ptr(Builder& builder, const Type* type) {
     if (auto ref_type = builder.scope.peek_type(type)->isa<PtrType>())
-        return std::make_pair(ref_type, builder.enclosing_module().import_type(ref_type->pointee));
+        return std::make_pair(ref_type, ref_type->pointee);
     return std::make_pair(nullptr, type);
 }
 
 std::pair<const RefType*, const Type*> remove_ref(Builder& builder, const Type* type) {
     if (auto ref_type = builder.scope.peek_type(type)->isa<RefType>())
-        return std::make_pair(ref_type, builder.enclosing_module().import_type(ref_type->pointee));
+        return std::make_pair(ref_type, ref_type->pointee);
     return std::make_pair(nullptr, type);
 }
 
-std::pair<const ModApp*, const ModVar*> match_app(Builder& builder, const ModVar* var) {
-    auto resolved = builder.scope.resolve_mod_var_deep(var);
+std::pair<const App*, const Var*> match_app(Builder& builder, const Var* var) {
+    auto resolved = builder.scope.resolve_var_deep(var);
     if (resolved) {
-        if (auto app = resolved->isa<ModApp>()) {
-            return { app, app->instantiate(builder) };
+        if (auto app = resolved->isa<App>()) {
+            return { app, app->instantiated(builder.enclosing_let_rec()) };
         }
     }
     return { nullptr, nullptr };
 }
 
-std::pair<const ModApp*, const Type*> match_app_type_(Builder& builder, const Type* type) {
-    if (auto as_type = type->isa<ModVarAsType>()) {
-        auto [app, instantiated] = match_app(builder, as_type->var);
+std::pair<const TypeApp*, const Type*> match_app_type_(Builder& builder, const Type* type) {
+    if (auto var = type->isa<TypeVar>()) {
+        auto [app, instantiated] = match_app(builder, var);
         if (app) {
-            return { app, builder.as_type(instantiated) };
+            return { app->as<TypeApp>(), instantiated->as<Type>() };
         }
     }
     return { nullptr, type };
 }
 
-std::pair<const ModApp*, const Type*> peek_app_type(Builder& builder, const Type* type) {
+std::pair<const TypeApp*, const Type*> peek_app_type(Builder& builder, const Type* type) {
     auto [app, resolved_type] = match_app_type_(builder, type);
     return { app, builder.scope.peek_type(resolved_type) };
 }

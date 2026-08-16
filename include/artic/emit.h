@@ -15,6 +15,7 @@
 #include "tir/types.h"
 #include "tir/values.h"
 #include "tir/module.h"
+#include "tir/passes.h"
 
 namespace artic {
 
@@ -102,30 +103,32 @@ public:
     std::unordered_map<const tir::Node*, const thorin::Def*> emitted;
     struct ModuleDecls;
     struct ModuleDecl {
-        const tir::ModVar* var;
+        const tir::Var* var;
         const tir::Node* definition;
         bool emitting = false;
         bool done = false;
         const thorin::Def* as_value = nullptr;
-        const thorin::Def* as_type = nullptr;
-        const ModuleDecls* as_mod = nullptr;
+        const thorin::Type* as_type = nullptr;
+        //const ModuleDecls* as_mod = nullptr;
 
-        ModuleDecl(const tir::ModVar* var, const tir::Node* definition) : var(var), definition(definition) {}
+        ModuleDecl(const tir::Var* var, const tir::Node* definition) : var(var), definition(definition) {}
         ModuleDecl(const ModuleDecl&) = delete;
     };
     struct ModuleDecls {
         const tir::Scope& scope;
         const ModuleDecls* super = nullptr;
-        std::unordered_map<const tir::ModVar*, std::unique_ptr<ModuleDecl>> decls;
+        std::unordered_map<const tir::Var*, std::unique_ptr<ModuleDecl>> decls;
 
         ModuleDecls(const tir::Scope& scope, const ModuleDecls* super) : scope(scope), super(super) {}
         ModuleDecls(const ModuleDecl&) = delete;
     };
-    using AnyResult = std::variant<const thorin::Def*, const ModuleDecls*>;
 
-    std::unordered_map<const tir::Module*, std::unique_ptr<ModuleDecls>> emitted_modules;
+    template<typename T, typename R>
+    const R* emit_letrec(const T*);
 
-    bool run(const tir::Module&);
+    // std::unordered_map<const tir::Module*, std::unique_ptr<ModuleDecls>> emitted_modules;
+
+    bool run(const tir::Root&);
 
     SavedState save_state() { return SavedState(*this); }
 
@@ -159,17 +162,16 @@ public:
     const thorin::Def* no_ret();
     const thorin::Def* down_cast(const thorin::Def*, const tir::Scope&, const tir::Type*, const tir::Type*, thorin::Debug = {});
 
-    const ModuleDecls& emit(const tir::Module*, const ModuleDecls* super);
-
     const thorin::Def* emit(const tir::Value*, ModuleDecl* decl = nullptr);
     const thorin::Type* emit(const tir::Type*, ModuleDecl* decl = nullptr);
+    std::nullptr_t emit(const tir::ModValue*, ModuleDecl* decl = nullptr);
 
     void emit(const tir::ModAccess*, ModuleDecl& decl);
-    /// Emit a module variable, which could be any kind of node!
-    AnyResult emit(const tir::ModVar*);
+
+    ModuleDecl& emit_bound_var(const tir::Var*);
 
     /// Emit a mod value, assuming it is of kind Module
-    const ModuleDecls& emit_module(const tir::ModValue*);
+    // const ModuleDecls& emit_module(const tir::ModValue*);
 
     // void emit(const ast::Ptrn&, const thorin::Def*);
     // void bind(const ast::IdPtrn&, const thorin::Def*);
@@ -198,7 +200,7 @@ private:
 
 /// Helper function to compile a set of files and generate an AST and a thorin module.
 /// Errors are reported in the log, and this function returns true on success.
-std::tuple<Ptr<ast::ModDecl>, const tir::Module*, bool> compile(
+std::tuple<Ptr<ast::ModDecl>, std::unique_ptr<tir::Root>, bool> compile(
     const std::vector<std::string>& file_names,
     const std::vector<std::string>& file_data,
     bool warns_as_errors,

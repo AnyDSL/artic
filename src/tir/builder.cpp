@@ -110,27 +110,19 @@ const ForallType* Builder::forall_type(ArrayRef<const TypeVar*> type_params, con
     return arena.insert<ForallType>(arena, type_params, decl);
 }*/
 
-const StructType* Builder::struct_type(ArrayRef<const TypeVar*> type_params, const ast::RecordDecl* decl) {
-    return arena.insert<StructType>(arena, type_params, decl);
+const StructType* Builder::struct_type(const ast::RecordDecl* decl) {
+    return arena.insert<StructType>(arena, decl);
 }
 
-const EnumType* Builder::enum_type(ArrayRef<const TypeVar*> type_params, const ast::EnumDecl* decl) {
-    return arena.insert<EnumType>(arena, type_params, decl);
-}
-
-const TypeAlias* Builder::type_alias(ArrayRef<const TypeVar*> type_params, const ast::TypeDecl& decl) {
-    return arena.insert<TypeAlias>(arena, type_params, decl);
-}
-
-const Type* Builder::as_type(const ModVar* var) {
-    return arena.insert<ModVarAsType>(arena, var);
+const EnumType* Builder::enum_type(const ast::EnumDecl* decl) {
+    return arena.insert<EnumType>(arena, decl);
 }
 
 const Type* Builder::member_type(const Type* type, size_t idx) {
     type = scope.peek_type(type);
 
     if (auto [app, _] = match_app_type_(*this, type); app) {
-        return member_type(as_type(app->instantiate(*this)), idx);
+        return member_type(app->instantiated(enclosing_let_rec()), idx);
     }
 
     if (auto complex_type = type->isa<ComplexType>())
@@ -145,14 +137,12 @@ const Type* Builder::member_type(const Type* type, size_t idx) {
     }
 }
 
-const Type* Builder::type_app(const UserType* applied, const ArrayRef<const Type*>& type_args) {
-    assert(false);
-    // if (auto type_alias = applied->isa<TypeAlias>()) {
-    //     assert(type_alias->type_params() && type_alias->decl.aliased_type->type);
-    //     auto map = TypeApp::replace_map(*type_alias->type_params(), type_args);
-    //     return type_alias->decl.aliased_type->type->replace(map);
-    // }
-    return arena.insert<TypeApp>(arena, applied, std::move(type_args));
+const Type* Builder::Unsafe::type_app(const Var* applied, const ArrayRef<const Node*>& type_args) {
+    return builder.arena.insert<TypeApp>(builder, applied, std::move(type_args));
+}
+
+const TypeVar* LetRecBuilder::type_app(const Var* applied, const ArrayRef<const Node*>& type_args) {
+    return schedule_type(unsafe().type_app(applied, type_args));
 }
 
 void Builder::run_expr_scope(const std::function<void(ExprBuilder&)>& f) {
@@ -174,53 +164,40 @@ const ModVar* Builder::mod_var(const Key* key, const Signature* sig) {
     return arena.insert<ModVar>(*this, key, sig);
 }
 
-const ModVar* Builder::mod_var(const Key* key) {
-    return arena.insert<ModVar>(*this, key);
-}
-
 const ModError* Builder::mod_error() {
     return arena.insert<ModError>(*this);
 }
 
-const Module* Builder::module(const ast::ModDecl* decl) {
-    return arena.insert<Module>(*this, decl);
+const Module* Builder::Unsafe::module(std::unordered_map<const Key*, const Node*>&& decls, const ast::ModDecl* decl) {
+    return builder.arena.insert<Module>(builder, std::move(decls), decl);
 }
 
-const ModValue* Builder::Unsafe::mod_access(const ModValue* src, const Key* key, const Signature* sig) {
+const Node* Builder::Unsafe::mod_access(const ModValue* src, const Key* key, const Signature* sig) {
     assert(src->is_simple());
     if (auto var = src->isa<ModVar>()) {
         auto mod = builder.scope.peek_mod_value(var)->isa<Module>();
         if (mod) {
-            for (auto& decl: mod->decls()) {
-                if (decl->var->key == key) {
-                    // if the module decl is in scope, don't bother with the access at all
-                    if (builder.scope.is_in_scope(decl->var))
-                        return decl->var;
-                }
-            }
+            if (auto found = mod->lookup(key))
+                return found;
         }
     }
     return builder.arena.insert<ModAccess>(builder.arena, src, key, sig);
 }
 
-const ModVar* ModuleBuilder::mod_access(const ModValue* src, const Key* key, const Signature* sig) {
-    return schedule(unsafe().mod_access(src, key, sig));
+const Var* LetRecBuilder::mod_access(const ModValue* src, const Key* key, const Signature* sig) {
+    return schedule(unsafe().mod_access(src, key, sig))->as<ModVar>();
 }
 
-const ModCtor* Builder::mod_ctor(const ArrayRef<const ModVar*>& params, const Signature* sig) {
-    return arena.insert<ModCtor>(*this, params, sig);
+const ModCtor* Builder::Unsafe::mod_ctor(Scope& scope, const ArrayRef<const Var*>& params, const ModValue* contents) {
+    return builder.arena.insert<ModCtor>(builder, scope, params, contents);
 }
 
-const ModValue* Builder::Unsafe::mod_app(const ModVar* applicand, const ArrayRef<const Node*>& args) {
+const ModValue* Builder::Unsafe::mod_app(const CtorVar* applicand, const ArrayRef<const Node*>& args) {
     return builder.arena.insert<ModApp>(builder, applicand, args);
 }
 
-const ModVar* ModuleBuilder::mod_app(const ModVar* applicand, const ArrayRef<const Node*>& args) {
-    return schedule(unsafe().mod_app(applicand, args));
-}
-
-const Value* Builder::as_value(const ModVar* var) {
-    return arena.insert<ModVarAsValue>(*this, scope, var);
+const ModVar* LetRecBuilder::mod_app(const Var* applicand, const ArrayRef<const Node*>& args) {
+    return schedule(unsafe().mod_app(applicand, args))->as<ModVar>();
 }
 
 const Value* Builder::error_value(const Type* t) {
@@ -248,7 +225,7 @@ const Value* Builder::undef(const Type* type) {
 //     return arena.insert<Fn>(*this, param, codom);
 // }
 
-FnBuilder::FnBuilder(Builder& parent, const Param* param) : Builder(parent.arena, parent.scope.new_child(nullptr), &parent), param_(param) {
+FnBuilder::FnBuilder(Builder& parent, const Param* param) : Builder(parent.arena, parent.scope.new_child(), &parent), param_(param) {
     scope.insert(param, nullptr);
 }
 
@@ -262,8 +239,8 @@ const Value* Builder::unit() {
     return arena.insert<Unit>(arena, unit_type());
 }
 
-const Param* Builder::param(std::optional<ast::Identifier> id, const Type* type) {
-    return arena.insert<Param>(arena, id, type);
+const Param* Builder::param(const Key* key, const Type* type) {
+    return arena.insert<Param>(arena, key, type);
 }
 
 const LocalVariable* Builder::Unsafe::local_variable(const Type* value_type) {
@@ -290,12 +267,12 @@ const Value* ExprBuilder::cast(const Value* src, const Type* dst) {
     return bind_value(unsafe().cast(src, dst));
 }
 
-const Value* Builder::Unsafe::app(const Value* callee, const Value* arg) {
-    return builder.arena.insert<App>(builder.arena, callee, arg);
+const Value* Builder::Unsafe::call(const Value* callee, const Value* arg) {
+    return builder.arena.insert<Call>(builder.arena, callee, arg);
 }
 
-const Value* ExprBuilder::app(const Value* callee, const Value* arg) {
-    return bind_value(unsafe().app(callee, arg));
+const Value* ExprBuilder::call(const Value* callee, const Value* arg) {
+    return bind_value(unsafe().call(callee, arg));
 }
 
 const Value* Builder::Unsafe::agg(const Type* type, const ArrayRef<const Value*>& args) {
@@ -385,13 +362,13 @@ void ExprBuilder::add_instruction(const Value* instruction) {
 const Value* ExprBuilder::bind_value(const Value* value) {
     if (value->is_simple())
         return value;
-    auto param = this->param(std::nullopt, value->type());
+    auto param = this->param(decl_key(std::nullopt), value->type());
     bind(param, value);
     return param;
 }
 
 ExprBuilder::ExprBuilder(Arena& arena, Builder* parent)
-    : Builder(arena, parent->scope.new_child(nullptr), parent)
+    : Builder(arena, parent->scope.new_child(), parent)
 {}
 
 const Bind* Builder::Unsafe::bind(const Param* param, const Value* value) {
@@ -443,9 +420,9 @@ const Signature* Builder::ctor_signature(const ArrayRef<const Signature*>& dom, 
     return arena.insert<Signature>(*this, dom, codom);
 }
 
-ModuleBuilder& Builder::enclosing_module() {
+LetRecBuilder& Builder::enclosing_let_rec() {
     for (Builder* b = this; b; b = b->parent) {
-        if (auto mb = b->isa<ModuleBuilder>()) {
+        if (auto mb = b->isa<LetRecBuilder>()) {
             return *mb;
         }
     }
@@ -461,11 +438,9 @@ ExprBuilder& Builder::enclosing_expr() {
     assert(false);
 }
 
-ModuleBuilder::ModuleBuilder(Arena& arena, const ast::ModDecl* decl) : ModuleBuilder(arena, nullptr, arena.insert<Module>(arena, decl)) {}
+LetRecBuilder::LetRecBuilder(Arena& arena, Scope& scope, Builder* parent) : Builder(arena, scope, parent) {}
 
-ModuleBuilder::ModuleBuilder(Arena& arena, Builder* parent, const Module* mod) : Builder(arena, mod->scope, parent), module_(mod) {}
-
-ModuleBuilder::~ModuleBuilder() {}
+LetRecBuilder::~LetRecBuilder() {}
 
 static inline std::vector<const Scope*> get_suffix(const Scope* base, const Scope* inner) {
     std::vector<const Scope*> lpath;
@@ -489,7 +464,7 @@ static inline std::vector<const Scope*> get_suffix(const Scope* base, const Scop
     return suffix;
 }
 
-struct Importer : public Rewriter {
+/*struct Importer : public Rewriter {
     ModuleBuilder& builder;
     std::vector<const Scope*> suffix;
 
@@ -578,7 +553,7 @@ const Signature* ModuleBuilder::import_signature(const Signature* t) {
 
 const ModVar* ModuleBuilder::import_mod_var(const ModVar* mod_var) {
     return import(mod_var)->as<ModVar>();
-}
+}*/
 
 const Scope* Builder::vars_scope(const Node::FVSet& fvs) {
     const Scope* s = &scope.root();
@@ -590,7 +565,7 @@ const Scope* Builder::vars_scope(const Node::FVSet& fvs) {
 }
 
 // Helper method to allow finding the intended scope of even some partially incomplete nodes
-static const Scope* get_node_scope_helper(ModuleBuilder& builder, const Node* node) {
+static const Scope* get_node_scope_helper(Builder& builder, const Node* node) {
     if (auto mod_var = node->isa<ModVar>())
         return builder.scope.find_scope(mod_var);
     if (auto mod_access = node->isa<ModAccess>()) {
@@ -600,14 +575,20 @@ static const Scope* get_node_scope_helper(ModuleBuilder& builder, const Node* no
     return builder.vars_scope(fvs);
 }
 
-const ModVar* ModuleBuilder::schedule(const Node* node, bool skip_signature, std::optional<ast::Identifier> maybe_id) {
+void LetRecBuilder::bind(const Var* var, const Node* value) {
+    assert(!contents.contains(var));
+    contents.emplace(var, value);
+    scope.insert(var, value);
+}
+
+const Var* LetRecBuilder::schedule(const Node* node, std::optional<ast::Identifier> maybe_id) {
     const Scope* node_scope = get_node_scope_helper(*this, node);
     assert(scope.contains(node_scope) && "this node cannot be scheduled here or in any parent module, it has free variables that would not be bound");
 
     // find the corresponding module builder
-    ModuleBuilder* dst = nullptr;
+    LetRecBuilder* dst = nullptr;
     for (Builder* b = this; b; b = b->parent) {
-        if (auto mb = b->isa<ModuleBuilder>()) {
+        if (auto mb = b->isa<LetRecBuilder>()) {
             if (&mb->scope == node_scope) {
                 dst = mb;
                 break;
@@ -620,34 +601,51 @@ const ModVar* ModuleBuilder::schedule(const Node* node, bool skip_signature, std
         return found->second;
     }
 
-    const ModVar* var;
-    if (!skip_signature)
-        var = mod_var(decl_key(maybe_id), Signature::from_node(*this, node, false));
-    else
-        var = mod_var(decl_key(maybe_id));
-    auto decl = dst->module().add_decl(var);
-    dst->module().set_decl(decl, node);
+    const Var* var;
+    if (auto mod_value = node->isa<ModValue>()) {
+        var = mod_var(decl_key(maybe_id), mod_value->signature());
+    } else if (auto type = node->isa<Type>()) {
+        assert(false);
+        //var = type_var();
+    } else if (auto value = node->isa<Value>()) {
+        var = param(decl_key(std::nullopt), value->type());
+    } else {
+        assert(false);
+    }
+
+    bind(var, node);
+
     dst->already_bound_here[node] = var;
     return var;
 }
 
-const Type* ModuleBuilder::schedule_type(const Type* type, std::optional<ast::Identifier> id) {
-    return as_type(schedule(type, false, id));
+const TypeVar* LetRecBuilder::schedule_type(const Type* type, std::optional<ast::Identifier> id) {
+    return schedule(type, id)->as<TypeVar>();
 }
 
-const Value* ModuleBuilder::schedule_value(const Value* value, std::optional<ast::Identifier> id) {
-    return as_value(schedule(value, false, id));
+const Param* LetRecBuilder::schedule_value(const Value* value, std::optional<ast::Identifier> id) {
+    return schedule(value, id)->as<Param>();
 }
 
-const ModVar* ModuleBuilder::schedule_mod_value(const ModValue* node, std::optional<ast::Identifier> id) {
-    return schedule(node, false, id);
+const ModVar* LetRecBuilder::schedule_mod_value(const ModValue* node, std::optional<ast::Identifier> id) {
+    return schedule(node, id)->as<ModVar>();
 }
 
-const ModVar* ModuleBuilder::add_in_module(const Node* node, const Key* key, bool public_interface) {
+const ModValue* Builder::Unsafe::mod_let_rec(std::unordered_map<const Var*, const Node*>&& contents, const ModValue* in) {
+    if (contents.empty())
+        return in;
+    return builder.arena.insert<LetRecMod>(builder, builder.scope, std::move(contents), in);
+}
+
+const ModValue* LetRecBuilder::finish_module(const ModValue* in) {
+    return unsafe().mod_let_rec(std::move(contents), in);
+}
+
+/*const ModVar* ModuleBuilder::add_in_module(const Node* node, const Key* key, bool public_interface) {
     auto var = mod_var(key, Signature::from_node(*this, node, public_interface));
     auto decl = module_->add_decl(var);
     module_->set_decl(decl, node);
     return var;
-}
+}*/
 
 }

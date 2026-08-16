@@ -27,10 +27,11 @@ namespace tir {
     struct StructType;
     struct Module;
     struct Key;
-    struct ModVar;
+    struct Var;
     struct Param;
     struct Signature;
-    struct ModuleBuilder;
+    struct Builder;
+    struct LetRecBuilder;
     enum class NodeKind;
 }
 
@@ -106,8 +107,8 @@ struct Decl : public Node {
     ModDecl* enclosing_module = nullptr;
     DeclStmt* stmt = nullptr;
 
-    /// The module variable the decl was bound to
-    mutable const tir::ModVar* var = nullptr;
+    /// The variable the decl was bound to
+    mutable const tir::Var* var = nullptr;
 
     /// Binds the declaration to its AST node, without entering sub-AST nodes.
     virtual void bind_head(NameBinder&) {}
@@ -196,10 +197,9 @@ struct Path : public Node {
 
         // These members are set during type-checking
         struct Inferred {
-            const tir::Param* param = nullptr;
-            const tir::Module* module = nullptr;
-            const tir::ModVar* var = nullptr;
-            const tir::Signature* sig = nullptr;
+            const tir::Var* var = nullptr;
+            const ModDecl* mod_decl = nullptr;
+            //const tir::Module* module = nullptr;
         };
 
         size_t index = 0;
@@ -1181,9 +1181,6 @@ struct NamedDecl : public Decl {
     Identifier id;
 
     mutable const tir::Key* key = nullptr;
-    mutable const tir::Signature* signature = nullptr;
-
-    virtual const tir::Signature* infer_signature(TypeChecker& checker);
 
     NamedDecl(const Loc& loc, Identifier&& id)
         : Decl(loc), id(std::move(id))
@@ -1236,9 +1233,6 @@ struct PtrnDecl : public ValueDecl {
 
     // Set during type-checking.
     mutable bool written_to = false;
-
-    // Set during type-checking.
-    mutable const tir::Param* param = nullptr;
 
     PtrnDecl(const Loc& loc, Identifier&& id, bool is_mut = false)
         : ValueDecl(loc, std::move(id)), is_mut(is_mut)
@@ -1465,7 +1459,7 @@ struct EnumDecl : public CtorDecl {
 
     std::optional<OptionDecl*> find_member(const std::string_view&) const;
 
-    const tir::Type* unnamed_type;
+    // const tir::Type* unnamed_type;
 
     const tir::Node* infer(TypeChecker&) override;
     void bind_head(NameBinder&) override;
@@ -1500,11 +1494,11 @@ struct ModDecl : public NamedDecl {
     ModDecl* super = nullptr;
 
     // Set during type-checking
-    mutable const tir::Module* self = nullptr;
+    //mutable const tir::Module* self = nullptr;
     // used by decl inference so they can be scheduled at the right place
-    mutable tir::ModuleBuilder* builder = nullptr;
-    mutable tir::ModuleBuilder* sig_builder = nullptr;
-    mutable tir::ModuleBuilder* parent_builder = nullptr;
+    mutable tir::LetRecBuilder* builder = nullptr;
+    // mutable tir::Builder* sig_builder = nullptr;
+    // mutable tir::Builder* parent_builder = nullptr;
 
     /// Constructor for the implicitly defined global module.
     /// When using this constructor, the user is responsible for calling
@@ -1523,7 +1517,6 @@ struct ModDecl : public NamedDecl {
     void set_super();
     std::optional<NamedDecl*> find_member(const std::string_view& name) const;
 
-    const tir::Signature* infer_signature(TypeChecker& checker) override;
     const tir::Node* infer(TypeChecker&) override;
     void bind_head(NameBinder&) override;
     void bind(NameBinder&) override;

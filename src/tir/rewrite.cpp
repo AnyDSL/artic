@@ -39,7 +39,7 @@ const TupleType* TupleType::rewrite(Rewriter& r) const {
 }
 
 const StructType* StructType::rewrite(Rewriter& r) const {
-    auto ns = r.builder().struct_type({}, decl);
+    auto ns = r.builder().struct_type(decl);
     r.insert(this, ns);
     for (auto elem : members) {
         ns->members.push_back(r.instantiate(elem));
@@ -71,28 +71,12 @@ const RefType* RefType::rewrite(Rewriter& r) const {
     return r.builder().ref_type(r.instantiate(pointee), is_mut, addr_space);
 }
 
-const TypeAlias* TypeAlias::rewrite(Rewriter& r) const {
-
-}
-
-const ForallType* ForallType::rewrite(Rewriter&) const {
-
-}
-
 const TypeVar* TypeVar::rewrite(Rewriter& r) const {
     // return r.builder().type_var(decl);
 }
 
-const Node* ModVarAsType::rewrite(Rewriter& r) const {
-    const Node* maybe_var = r.instantiate<Node>(var);
-    // allow promoting ModVars to types directly
-    if (maybe_var->isa<Type>())
-        return maybe_var;
-    return r.builder().as_type(maybe_var->as<ModVar>());
-}
-
 const Type* TypeApp::rewrite(Rewriter& r) const {
-    return r.builder().type_app(r.instantiate(applied), r.instantiate_array(type_args));
+    return r.builder().enclosing_let_rec().type_app(r.instantiate(applicand()), r.instantiate_array(args));
 }
 
 const TypeError* TypeError::rewrite(Rewriter& r) const {
@@ -104,53 +88,55 @@ const Node* Key::rewrite(Rewriter& r) const {
 }
 
 const Node* ModVar::rewrite(Rewriter& r) const {
-    if (signature_)
-        return r.builder().mod_var(r.instantiate(key, false)->as<Key>(), r.instantiate(signature_, false)->as<Signature>());
-    return r.builder().mod_var(r.instantiate(key, false)->as<Key>());
+    return r.builder().mod_var(r.instantiate(key, false)->as<Key>(), r.instantiate(signature_, false)->as<Signature>());
 }
 
 const Node* Module::rewrite(Rewriter& r) const {
-    const Module* m = nullptr;
-    std::optional<ModuleBuilder> mod_builder;
-    if (r.is_root()) {
-        mod_builder.emplace(r.dst, decl);
-        m = &mod_builder->module();
-    } else {
-        m = r.builder().module(decl);
-        mod_builder.emplace(r.dst, &r.builder(), m);
+    std::unordered_map<const Key*, const Node*> decls;
+    for (auto [okey, oval] : this->decls) {
+        auto nkey = r.instantiate(okey);
+        auto nval = r.instantiate(oval);
+        decls.emplace(nkey, nval);
     }
-    assert(mod_builder);
-    Rewriter::BuilderGuard guard(r, *mod_builder);
-    std::vector<Module::Decl*> ndecls;
-    for (auto decl : decls()) {
-        auto nvar = r.instantiate(decl->var, true);
-        r.insert(decl->var, nvar);
-        ndecls.push_back(m->add_decl(nvar));
-    }
-    size_t i = 0;
-    for (auto decl : decls()) {
-        m->set_decl(ndecls[i++], r.instantiate(decl->value, false));
-    }
-    return m;
+    return r.builder().unsafe().module(std::move(decls), decl);
+    // const Module* m = nullptr;
+    // std::optional<LetRecBuilder> mod_builder;
+    // if (r.is_root()) {
+    //     mod_builder.emplace(r.dst, decl);
+    //     m = &mod_builder->module();
+    // } else {
+    //     m = r.builder().module(decl);
+    //     mod_builder.emplace(r.dst, &r.builder(), m);
+    // }
+    // assert(mod_builder);
+    // Rewriter::BuilderGuard guard(r, *mod_builder);
+    // std::vector<Module::Decl*> ndecls;
+    // for (auto decl : decls()) {
+    //     auto nvar = r.instantiate(decl->var, true);
+    //     r.insert(decl->var, nvar);
+    //     ndecls.push_back(m->add_decl(nvar));
+    // }
+    // size_t i = 0;
+    // for (auto decl : decls()) {
+    //     m->set_decl(ndecls[i++], r.instantiate(decl->value, false));
+    // }
+    // return m;
 }
 
 const Node* ModCtor::rewrite(Rewriter& r) const {
-    Array<const ModVar*> params(this->params.size());
+    Scope& scope = r.builder().scope.new_child();
+    Array<const Var*> params(this->params.size());
     for (size_t i = 0; i < params.size(); i++) {
         r.insert(this->params[i], params[i] = r.instantiate(this->params[i], true));
     }
-    auto nctor = r.builder().mod_ctor(params, r.instantiate(signature_));
-    r.insert(this, nctor);
-    auto ctor_builder = Builder(arena, nctor->scope, &r.builder());
+    auto ctor_builder = Builder(arena, scope, &r.builder());
     Rewriter::BuilderGuard guard(r, ctor_builder);
-    const Key* extra_key = this->extra_key ? r.instantiate(this->extra_key) : nullptr;
-    nctor->set_body(r.builder(), r.instantiate(body, false), extra_key);
-    return nctor;
+    return r.builder().unsafe().mod_ctor(scope, params, r.instantiate(body(), true));
 }
 
 const Node* ModApp::rewrite(Rewriter& r) const {
     auto nargs = r.instantiate_array(args);
-    return r.builder().unsafe().mod_app(r.instantiate(applicand), nargs);
+    return r.builder().unsafe().mod_app(r.instantiate(applicand()), nargs);
 }
 
 const Node* ModAccess::rewrite(Rewriter& r) const {
@@ -161,12 +147,17 @@ const Node* ModError::rewrite(Rewriter& r) const {
     return r.builder().mod_error();
 }
 
-const Node* ModVarAsValue::rewrite(Rewriter& r) const {
-    const Node* maybe_var = r.instantiate<Node>(var);
-    // allow promoting ModVars to values directly
-    if (maybe_var->isa<Value>())
-        return maybe_var;
-    return r.builder().as_value(maybe_var->as<ModVar>());
+const Node* LetRecMod::rewrite(Rewriter& r) const {
+    Scope& scope = r.builder().scope.new_child();
+    LetRecBuilder builder(r.dst, scope, r.is_root() ? nullptr : &r.builder());
+    Rewriter::BuilderGuard guard(r, builder);
+    for (auto [ovar, _] : vars) {
+        r.insert(ovar, r.instantiate(ovar, true));
+    }
+    for (auto [ovar, oval] : vars) {
+        builder.bind(r.lookup(ovar)->as<Var>(), r.instantiate(oval, true));
+    }
+    return builder.finish_module(r.instantiate(body(), false));
 }
 
 const Node* GlobalVariable::rewrite(Rewriter& r) const {
@@ -201,11 +192,11 @@ const Node* ErrorValue::rewrite(Rewriter& r) const {
 }
 
 const Node* Param::rewrite(Rewriter& r) const {
-    return r.builder().param(id, r.instantiate(type_));
+    return r.builder().param(r.instantiate(key), r.instantiate(type_));
 }
 
-const Node* App::rewrite(Rewriter& r) const {
-    return r.builder().unsafe().app(r.instantiate(callee), r.instantiate(arg));
+const Node* Call::rewrite(Rewriter& r) const {
+    return r.builder().unsafe().call(r.instantiate(callee), r.instantiate(arg));
 }
 
 const Node* ImplicitCast::rewrite(Rewriter& r) const {

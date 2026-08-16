@@ -475,8 +475,8 @@ struct ScopeGuard {
     }
 };
 
-bool Emitter::run(const tir::Module& mod) {
-    emit(&mod, nullptr);
+bool Emitter::run(const Root& root) {
+    emit(root.root_module);
     return errors == 0;
 }
 
@@ -703,13 +703,13 @@ const thorin::Def* Emitter::down_cast(const thorin::Def* def, const Scope& start
 
     const Scope* lhs_scope = &start_scope;
     const Scope* rhs_scope = &start_scope;
-    while (auto var_as_type = from->isa<ModVarAsType>()) {
-        auto [resolved, resolved_scope] = lhs_scope->resolve_mod_var_deep_return_scope(var_as_type->var);
+    while (auto var = from->isa<TypeVar>()) {
+        auto [resolved, resolved_scope] = lhs_scope->resolve_var_deep_return_scope(var);
         from = resolved->as<Type>();
         lhs_scope = &resolved_scope;
     }
-    while (auto var_as_type = to->isa<ModVarAsType>()) {
-        auto [resolved, resolved_scope] = rhs_scope->resolve_mod_var_deep_return_scope(var_as_type->var);
+    while (auto var = to->isa<TypeVar>()) {
+        auto [resolved, resolved_scope] = rhs_scope->resolve_var_deep_return_scope(var);
         to = resolved->as<Type>();
         rhs_scope = &resolved_scope;
     }
@@ -814,7 +814,7 @@ const thorin::Type* Emitter::emit(const Type* node, ModuleDecl* decl) {
         //emitted[decl->var] = def;
         emitted[node] = def;
         if (decl)
-            decl->as_type = def;
+            decl->as_type = def->as<thorin::Type>();
     };
     auto def = node->convert(*this, set_fn);
     emitted[node] = def;
@@ -1150,33 +1150,25 @@ thorin::Debug Emitter::debug_info(const ast::Node& node, const std::string_view&
     return def;
 }*/
 
-const Emitter::ModuleDecls& Emitter::emit(const Module* mod, const ModuleDecls* super) {
-    // don't emit modules twice
-    auto found = emitted_modules.find(mod);
-    if (found != emitted_modules.end())
-        return *found->second;
-
-    auto x = std::make_unique<ModuleDecls>(mod->scope, super);
-    // ModuleDecls& decls = *x;
-    // emitted_modules[mod] = std::move(x);
-    ModuleDecls& decls = *emitted_modules.emplace(mod, std::move(x)).first->second;
+template<typename T, typename R>
+const R* Emitter::emit_letrec(const T* letrec) {
+    ModuleDecls decls(letrec->scope, cur_module);
     ScopeGuard sg(*this, decls);
-    for (auto decl : mod->decls()) {
-        auto [var, value] = *decl;
+    for (auto [var, value] : letrec->vars) {
         if (var->kind() == NodeKind::Ctor)
             continue;
         decls.decls.emplace(var, std::make_unique<ModuleDecl>(var, value));
     }
-    for (auto decl : mod->decls()) {
-        auto [var, value] = *decl;
+    for (auto& decl : decls.decls) {
+        auto& [var, value] = decl;
         if (var->kind() == NodeKind::Ctor)
             continue;
-        emit(var);
+        emit_bound_var(var);
     }
-    return decls;
+    return emit(letrec->body());
 }
 
-static inline std::tuple<const Emitter::ModuleDecls&, Emitter::ModuleDecl&> lookup_mod_decl(Emitter& emitter, const ModVar* var) {
+static inline std::tuple<const Emitter::ModuleDecls&, Emitter::ModuleDecl&> lookup_mod_decl(Emitter& emitter, const Var* var) {
     const Emitter::ModuleDecls* mod = emitter.cur_module;
     while (mod) {
         auto found = mod->decls.find(var);
@@ -1188,18 +1180,8 @@ static inline std::tuple<const Emitter::ModuleDecls&, Emitter::ModuleDecl&> look
     assert(false);
 };
 
-static inline Emitter::AnyResult wrap_polykinded_result(const Emitter::ModuleDecl& decl) {
-    if (decl.as_value)
-        return { decl.as_value };
-    if (decl.as_type)
-        return { decl.as_type };;
-    if (decl.as_mod)
-        return { decl.as_mod };
-    assert(false);
-}
-
 void Emitter::emit(const tir::ModAccess* mod_access, ModuleDecl& decl) {
-    auto& module = emit_module(mod_access->mod);
+    /*auto& module = emit(mod_access->mod);
     ScopeGuard sg2(*this, module);
     for (auto& [var, def] : module.decls) {
         if (var->key == mod_access->key) {
@@ -1221,14 +1203,51 @@ void Emitter::emit(const tir::ModAccess* mod_access, ModuleDecl& decl) {
             }
             return;
         }
-    }
+    }*/
     assert(false);
 }
 
-Emitter::AnyResult Emitter::emit(const ModVar* var) {
+std::nullptr_t Emitter::emit(const ModValue* mod, ModuleDecl* decl) {
+    if (auto module = mod->isa<Module>()) {
+        for (auto [var, value] : module->decls) {
+            //emit(value);
+        }
+    } else if (auto letrec_mod = mod->isa<LetRecMod>()) {
+        emit_letrec<LetRecMod, ModValue>(letrec_mod);
+    } else if (auto mod_var = mod->isa<ModVar>()) {
+        emit_bound_var(mod_var);
+    }/*else if (auto mod_access = decl.definition->isa<ModAccess>()) {
+        emit(mod_access, decl);
+    } else if (auto mod_var = decl.definition->isa<ModVar>()) {
+        auto r = emit(mod_var);
+        switch (mod_var->kind()) {
+        case NodeKind::Module: decl.as_mod = std::get<const ModuleDecls*>(r); break;
+        case NodeKind::Value: decl.as_value = std::get<const thorin::Def*>(r); break;
+        case NodeKind::Type: decl.as_type = std::get<const thorin::Def*>(r); break;
+        case NodeKind::Ctor: return {};
+        default: assert(false);
+        }
+    } else if (auto mod_app = decl.definition->isa<ModApp>()) {
+        // lol what no this is super hacky ?!
+        // instantiate() needs a builder so we just steal the instantiated thing assuming it was built
+        // TODO: rewrite pass should nuke these things
+        auto r = emit(mod_app->instantiated_);
+        switch (mod_app->kind()) {
+        case NodeKind::Module: decl.as_mod = std::get<const ModuleDecls*>(r); break;
+        case NodeKind::Value: decl.as_value = std::get<const thorin::Def*>(r); break;
+        case NodeKind::Type: decl.as_type = std::get<const thorin::Def*>(r); break;
+        default: assert(false);
+        }
+    } */else {
+        assert(false);
+    }
+    return nullptr;
+}
+
+Emitter::ModuleDecl& Emitter::emit_bound_var(const Var* var) {
     auto [enclosing, decl] = lookup_mod_decl(*this, var);
     if (decl.done)
-        return wrap_polykinded_result(decl);
+        return decl;
 
     ScopeGuard sg(*this, enclosing);
 
@@ -1239,53 +1258,18 @@ Emitter::AnyResult Emitter::emit(const ModVar* var) {
     } else if (auto typ = decl.definition->isa<Type>()) {
         decl.as_type = emit(typ, &decl);
         assert(decl.as_type);
-    } else if (auto mod = decl.definition->isa<Module>()) {
-        // Modules are actually always lazily emitted
-        decl.as_mod = &emit(mod, &enclosing);
-        assert(decl.as_mod);
-    } else if (auto mod_access = decl.definition->isa<ModAccess>()) {
-        emit(mod_access, decl);
-    } else if (auto mod_var = decl.definition->isa<ModVar>()) {
-        auto r = emit(mod_var);
-        switch (mod_var->kind()) {
-            case NodeKind::Module: decl.as_mod = std::get<const ModuleDecls*>(r); break;
-            case NodeKind::Value: decl.as_value = std::get<const thorin::Def*>(r); break;
-            case NodeKind::Type: decl.as_type = std::get<const thorin::Def*>(r); break;
-            case NodeKind::Ctor: return {};
-            default: assert(false);
-        }
-    } else if (auto mod_app = decl.definition->isa<ModApp>()) {
-        // lol what no this is super hacky ?!
-        // instantiate() needs a builder so we just steal the instantiated thing assuming it was built
-        // TODO: rewrite pass should nuke these things
-        auto r = emit(mod_app->instantiated_);
-        switch (mod_app->kind()) {
-            case NodeKind::Module: decl.as_mod = std::get<const ModuleDecls*>(r); break;
-            case NodeKind::Value: decl.as_value = std::get<const thorin::Def*>(r); break;
-            case NodeKind::Type: decl.as_type = std::get<const thorin::Def*>(r); break;
-            default: assert(false);
-        }
-    } else if (decl.definition->isa<ModCtor>()) {
-        return {};
+    } else if (auto mod = decl.definition->isa<ModValue>()) {
+        emit(mod);
     } else {
         assert(false);
     }
     decl.emitting = false;
     decl.done = true;
-    return wrap_polykinded_result(decl);
+    return decl;
 }
 
-const Emitter::ModuleDecls& Emitter::emit_module(const tir::ModValue* value) {
-    assert(value->is_simple());
-    if (auto var = value->isa<ModVar>()) {
-        return *std::get<const ModuleDecls*>(emit(var));
-    } else {
-        assert(false);
-    }
-}
-
-const thorin::Def* Param::emit(Emitter&) const {
-    assert(false);
+const thorin::Def* Param::emit(Emitter& emitter) const {
+    return emitter.emit_bound_var(this).as_value;
 }
 
 const thorin::Def* Fn::emit(Emitter& emitter, SetHeadFn set_head) const {
@@ -1310,7 +1294,7 @@ const thorin::Def* Fn::emit(Emitter& emitter, SetHeadFn set_head) const {
     return cont;
 }
 
-const thorin::Def* App::emit(Emitter& emitter) const {
+const thorin::Def* Call::emit(Emitter& emitter) const {
     auto fn = emitter.emit(callee);
     auto value = emitter.emit(arg);
     if (type()->isa<artic::NoRetType>()) {
@@ -1404,13 +1388,6 @@ const thorin::Def* Proj::emit(Emitter& emitter) const {
 const thorin::Def* Bind::emit(Emitter& emitter) const {
     emitter.emitted[param] = emitter.emit(value);
     return emitter.world.tuple({});
-}
-
-const thorin::Def* ModVarAsValue::emit(Emitter& emitter) const {
-    auto r = emitter.emit(var);
-    auto def = std::get<const thorin::Def*>(r);
-    assert(def);
-    return def;
 }
 
 const thorin::Def* Seq::emit(Emitter& emitter) const {
@@ -2527,9 +2504,9 @@ inline std::string stringify_types(
 }
 
 std::string StructType::stringify(Emitter& emitter) const {
-    if (decl) {
-        return stringify_types(emitter, decl->id.name + "_", type_params());
-    }
+    // if (decl) {
+    //     return stringify_types(emitter, decl->id.name + "_", type_params());
+    // }
     // TODO: stringify members if anon
     return "anonymous_struct";
 }
@@ -2545,9 +2522,9 @@ const thorin::Type* StructType::convert(Emitter& emitter, SetHeadFn set_head) co
 }
 
 std::string EnumType::stringify(Emitter& emitter) const {
-    if (decl) {
-        return stringify_types(emitter, decl->id.name + "_", type_params());
-    }
+    // if (decl) {
+    //     return stringify_types(emitter, decl->id.name + "_", type_params());
+    // }
     // TODO: stringify members if anon
     return "anonymous_enum";
 }
@@ -2569,10 +2546,6 @@ std::string TypeApp::stringify(Emitter& emitter) const {
     std::swap(emitter.type_vars, map);
     return str;*/
     assert(false);
-}
-
-const thorin::Type* ModVarAsType::convert(Emitter& emitter) const {
-    return std::get<const thorin::Def*>(emitter.emit(var))->as<thorin::Type>();
 }
 
 const thorin::Type* TypeApp::convert(Emitter& emitter) const {
@@ -2624,7 +2597,7 @@ struct MemBuf : public std::streambuf {
     }
 };
 
-std::tuple<Ptr<ast::ModDecl>, const tir::Module*, bool> compile(
+std::tuple<Ptr<ast::ModDecl>, std::unique_ptr<Root>, bool> compile(
     const std::vector<std::string>& file_names,
     const std::vector<std::string>& file_data,
     bool warns_as_errors,
@@ -2669,7 +2642,7 @@ std::tuple<Ptr<ast::ModDecl>, const tir::Module*, bool> compile(
     if (!name_binder.run(*program))
         return std::make_tuple(std::move(program), nullptr, false);
 
-    const Module* root_module = type_checker.run(*program);
+    std::unique_ptr<Root> root_module = type_checker.run(*program);
     if (!root_module)
         return std::make_tuple(std::move(program), nullptr, false);
 
@@ -2679,8 +2652,8 @@ std::tuple<Ptr<ast::ModDecl>, const tir::Module*, bool> compile(
     Emitter emitter(log, world, arena);
     emitter.warns_as_errors = warns_as_errors;
     if (!emitter.run(*root_module))
-        return std::make_tuple(std::move(program), root_module, false);
-    return std::make_tuple(std::move(program), root_module, true);
+        return std::make_tuple(std::move(program), std::move(root_module), false);
+    return std::make_tuple(std::move(program), std::move(root_module), true);
 }
 
 } // namespace artic
@@ -2698,5 +2671,5 @@ bool compile(
     Log log(out, &locator);
     ::Arena arena;
     tir::Arena type_table;
-    return get<1>(artic::compile(file_names, file_data, false, false, arena, type_table, world, log));
+    return get<1>(artic::compile(file_names, file_data, false, false, arena, type_table, world, log)) != nullptr;
 }

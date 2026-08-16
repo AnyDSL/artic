@@ -7,7 +7,7 @@
 #include "artic/ast.h"
 #include "artic/tir/types.h"
 #include "artic/tir/builder.h"
-#include "artic/tir/scope.h"
+#include "artic/tir/passes.h"
 #include "artic/log.h"
 #include "artic/array.h"
 
@@ -26,7 +26,7 @@ public:
 
     /// Performs type checking on a whole program.
     /// Returns a TIR module on success, otherwise null.
-    const tir::Module* run(ast::ModDecl&);
+    std::unique_ptr<Root> run(ast::ModDecl&);
 
     // Should be called to avoid infinite recursion
     // when inferring the type of recursive declarations
@@ -34,7 +34,7 @@ public:
     bool enter_decl(const ast::Decl*);
     void exit_decl(const ast::Decl*);
 
-    void add_decl_to_parent_mod_sig(const ast::NamedDecl*);
+    // void add_decl_to_parent_mod_sig(const ast::NamedDecl*);
 
     bool should_report_error(const Type*);
 
@@ -61,11 +61,9 @@ public:
     const Value* try_coerce(Ptr<ast::Expr>&, const Type*);
     const Type* join(Ptr<ast::Expr>&, Ptr<ast::Expr>&, ExprBuilder&, ExprBuilder&);
 
-    const tir::Module* infer_top_module(ast::ModDecl&);
-    const tir::ModVar* infer_mod_decl(ast::Decl&);
+    const tir::Var* infer_mod_decl(ast::Decl&);
 
     const tir::Key* infer_key(ast::NamedDecl&);
-    const tir::Signature* infer_signature(ast::NamedDecl&);
 
     void infer_decl_stmt(ast::Decl&);
 
@@ -87,13 +85,13 @@ public:
     const tir::Param* infer_ptrn_decl(ast::PtrnDecl& ast);
     const tir::Param* check_ptrn_decl(ast::PtrnDecl& ast, const Type*);
 
-    const tir::ModVar* infer_type_param(ast::TypeParam& ast);
+    const tir::TypeVar* infer_type_param(ast::TypeParam& ast);
     // const tir::ModVar* check_type_param(ast::TypeParam& ast, const Type*);
 
     const tir::Value* infer(const Loc&, const Literal&);
     const tir::Value* check(const Loc&, const Literal&, const Type*);
 
-    Array<const ModVar*> infer(ast::TypeParamList*);
+    Array<const TypeVar*> infer(ast::TypeParamList*);
 
     /// Explores a pattern recursively and makes sure the body is wrapped in Bind nodes that extract the value of each sub-pattern
     void bind_ptrn_params(ast::Ptrn&, const Value*);
@@ -118,7 +116,7 @@ public:
 
     template <typename CheckFn, typename Fields>
     void check_fields(
-        const Loc&, const StructType*, const ModApp*,
+        const Loc&, const StructType*, const TypeApp*,
         const Fields&, CheckFn&, const std::string_view&,
         bool = false, bool = false);
 
@@ -133,17 +131,17 @@ public:
     template <typename CheckElems>
     const Type* check_array(const Loc&, const std::string_view&, const Type*, size_t, bool, const CheckElems&);
 
-    bool try_infer_type_args(const Loc&, const ForallType*, TypeVarMap<TypeBounds>& bounds, TypeVarMap<TypeVariance>& variance, std::vector<const Type*>&, bool);
-    bool infer_fn_type_args(const Loc&, const ForallType*, const Type*, const Type*, std::vector<const Type*>&);
-    bool try_infer_implicit_type_args(const Loc&, const ForallType*, const Type*, std::vector<const Type*>&);
-    const Type* infer_record_type(const Type*, const ModApp*, const StructType*, std::optional<size_t>&);
+    bool try_infer_type_args(const Loc&, const TypeCtor*, TypeVarMap<TypeBounds>& bounds, TypeVarMap<TypeVariance>& variance, std::vector<const Type*>&, bool);
+    bool infer_fn_type_args(const Loc&, const TypeCtor*, const Type*, const Type*, std::vector<const Type*>&);
+    bool try_infer_implicit_type_args(const Loc&, const TypeCtor*, const Type*, std::vector<const Type*>&);
+    const Type* infer_record_type(const Type*, const TypeApp*, const StructType*, std::optional<size_t>&);
 
     size_t resolve_integer_constant(const Loc&, const Value*, const ast::Node*, const std::string_view&);
 
     Scope& scope();
     Builder& builder();
     ExprBuilder& expr_builder();
-    ModuleBuilder& mod_builder();
+    LetRecBuilder& let_rec_builder();
 
     struct BuilderGuard {
         TypeChecker& checker;
@@ -166,7 +164,7 @@ private:
     Value* summon_value(const artic::Type*, const artic::Loc& at);
 
     Builder* current_builder_ = nullptr;
-    std::unique_ptr<ModuleBuilder> root_builder;
+    std::unique_ptr<LetRecBuilder> root_builder;
 
     friend ast::SummonExpr;
     friend ast::ImplicitDecl;

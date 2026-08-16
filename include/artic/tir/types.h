@@ -400,9 +400,9 @@ protected:
     {}
 };
 
-/// Type variable, introduced by a polymorphic structure/enum/function declaration.
-struct TypeVar : public Type {
+struct TypeVar : public Type, public Var {
     void print(Printer&) const override;
+    virtual void print_head(Printer&) const;
 
     const TypeVar* rewrite(Rewriter&) const override;
     void free_variables(FVSet&, Seen&) const override;
@@ -412,71 +412,22 @@ struct TypeVar : public Type {
 
     void variance(const Scope&, TypeVarMap<TypeVariance>&, bool) const override;
     void bounds(const Scope&, TypeVarMap<TypeBounds>&, const Type*, bool) const override;
-
-    const ast::TypeParam* decl;
+    size_t order(const Scope&, std::unordered_set<const Type*>&) const override;
+    bool is_sized(const Scope&, std::unordered_set<const Type*>&) const override;
 private:
-    TypeVar(Arena&, const ast::TypeParam*);
-
-    friend class Arena;
-};
-
-/// Base class for types that _may_ be polymorphic.
-struct PolyType : public Type {
-    PolyType(Arena& arena)
-        : Type()
-    {}
-
-    virtual ArrayRef<const TypeVar*> type_params() const = 0;
-
-    /// Returns a map from the type parameters of this polymorphic type to the provided arguments.
-    ReplaceMap replace_map(const ArrayRef<const Type*>&) const;
-};
-
-/// Helper mixin to extract the type parameter list from a particular `Decl`.
-template <typename Super, typename Decl>
-struct PolyTypeFromDecl : public NodeFromDecl<Super, Decl> {
-    ArrayRef<const TypeVar*> type_params() const override { return type_params_; }
-
-protected:
-    PolyTypeFromDecl(Arena& arena, const Decl& decl, const ArrayRef<const TypeVar*>& type_params)
-        : NodeFromDecl<Super, Decl>(arena, decl), type_params_(type_params)
-    {}
-
-private:
-    Array<const TypeVar*> type_params_;
-};
-
-/// Type of a polymorphic function or value.
-struct ForallType : public PolyTypeFromDecl<PolyType, ast::Decl>  {
-    mutable const Type* body = nullptr;
-
-    /// Returns the type of the body with type variables
-    /// substituted with the given arguments.
-    const Type* instantiate(const ArrayRef<const Type*>&) const;
-    const ForallType* rewrite(Rewriter&) const override;
-    void free_variables(FVSet&, Seen&) const override;
-
-    void print(Printer&) const override;
-
-private:
-    ForallType(Arena& arena, ArrayRef<const TypeVar*> type_params, const ast::Decl& decl)
-        : PolyTypeFromDecl(arena, decl, type_params), Node(arena)
-    {}
+    TypeVar(Arena&, const Key*);
 
     friend class Arena;
 };
 
 /// Base class for user-declared types.
-struct UserType : public PolyType {
-    UserType(Arena& arena)
-        : PolyType(arena)
-    {}
+struct UserType : public Type {
 };
 
 /// Base class for complex, user-declared types.
 struct ComplexType : public UserType {
-    ComplexType(Arena& arena)
-        : UserType(arena)
+    ComplexType()
+        : UserType()
     {}
 
     std::optional<size_t> find_member(const std::string_view&) const;
@@ -492,8 +443,6 @@ struct ComplexType : public UserType {
 };
 
 struct StructType : public ComplexType {
-    ArrayRef<const TypeVar*> type_params() const override { return type_params_; }
-
     void print(Printer&) const override;
 
     using UserType::convert;
@@ -512,16 +461,14 @@ struct StructType : public ComplexType {
 
     void validate() const;
 private:
-    StructType(Arena&, ArrayRef<const TypeVar*>, const ast::RecordDecl*);
+    StructType(Arena&, const ast::RecordDecl*);
 
     mutable std::vector<std::string> names;
-    Array<const TypeVar*> type_params_;
 
     friend class Arena;
 };
 
 struct EnumType : public ComplexType {
-    ArrayRef<const TypeVar*> type_params() const override { return type_params_; }
     void print(Printer&) const override;
 
     using UserType::convert;
@@ -542,37 +489,19 @@ struct EnumType : public ComplexType {
 
     void validate() const;
 private:
-    EnumType(Arena&, ArrayRef<const TypeVar*>, const ast::EnumDecl*);
-    Array<const TypeVar*> type_params_;
-
-    friend class Arena;
-};
-
-/// A type alias, introduced by the keyword `type`.
-struct TypeAlias : public PolyTypeFromDecl<UserType, ast::TypeDecl> {
-    void print(Printer&) const override;
-    const TypeAlias* rewrite(Rewriter&) const override;
-    void free_variables(FVSet&, Seen&) const override;
-
-private:
-    TypeAlias(Arena&, const ArrayRef<const TypeVar*>&, const ast::TypeDecl&);
+    EnumType(Arena&, const ast::EnumDecl*);
 
     friend class Arena;
 };
 
 /// An application of a complex type with polymorphic parameters.
-struct TypeApp : public Type {
-    const UserType* applied;
-    Array<const Type*> type_args;
-
-    /// Gets the replacement map required to expand this type application.
-    ReplaceMap replace_map() const {
-        return replace_map(applied->type_params(), type_args);
-    }
+struct TypeApp : public Type, public App {
+    // const UserType* applied;
+    // Array<const Type*> type_args;
 
     void print(Printer&) const override;
     bool equals(const Node*) const override;
-    size_t hash() const override;
+    //size_t hash() const override;
     bool contains(const Type*) const override;
     const Type* rewrite(Rewriter&) const override;
     void free_variables(FVSet&, Seen&) const override;
@@ -585,35 +514,18 @@ struct TypeApp : public Type {
     void bounds(const Scope&, TypeVarMap<TypeBounds>&, const Type*, bool) const override;
     bool is_sized(const Scope&, std::unordered_set<const Type*>&) const override;
 
-    static ReplaceMap replace_map(
-        ArrayRef<const TypeVar*> type_params,
-        const ArrayRef<const Type*>& type_args);
+    const TypeVar* instantiated(LetRecBuilder&) const override;
 
 private:
-    TypeApp(Arena&, const UserType*, const ArrayRef<const Type*>&);
+    TypeApp(Builder&, const CtorVar*, const ArrayRef<const Node*>&);
+    mutable const TypeVar* instantiated_ = nullptr;
 
     friend class Arena;
 };
 
-struct ModVarAsType : public Type {
-    const ModVar* var;
-
-    bool is_simple() const override { return true; }
-
-    bool equals(const Node*) const override;
-    size_t hash() const override;
-    void print(Printer&) const override;
-    const Node* rewrite(Rewriter&) const override;
-
-    size_t order(const Scope&, std::unordered_set<const Type*>&) const override;
-    void variance(const Scope&, TypeVarMap<TypeVariance>&, bool) const override;
-    void bounds(const Scope&, TypeVarMap<TypeBounds>&, const Type*, bool) const override;
-    bool is_sized(const Scope&, std::unordered_set<const Type*>&) const override;
-    void free_variables(FVSet&, Seen&) const override;
-
-    const thorin::Type* convert(Emitter&) const override;
-
-    ModVarAsType(Arena&, const ModVar*);
+// those aren't really types, are they
+struct TypeCtor : public Ctor {
+    const Type* body() const override;
 };
 
 bool is_int_type(const Type*);
@@ -634,23 +546,13 @@ std::pair<const TypeApp*, const T*> match_app(const Type* type) {
 struct ModApp;
 
 //std::pair<const ModApp*, const Node*> match_app(Builder& builder, const ModVar* var);
-std::pair<const ModApp*, const Type*> match_app_type_(Builder& builder, const Type* type);
-std::pair<const ModApp*, const Type*> peek_app_type(Builder& builder, const Type* type);
+std::pair<const TypeApp*, const Type*> match_app_type_(Builder& builder, const Type* type);
+std::pair<const TypeApp*, const Type*> peek_app_type(Builder& builder, const Type* type);
 
 template <typename T>
-std::pair<const ModApp*, const T*> peek_app_type(Builder& builder, const Type* type) {
+std::pair<const TypeApp*, const T*> peek_app_type(Builder& builder, const Type* type) {
     auto [app, t] = peek_app_type(builder, type);
     return { app, t->isa<T>() };
-    //if (auto type_app = type->isa<TypeApp>())
-    //    return std::make_pair(type_app, type_app->applied->isa<T>());
-    //return std::make_pair(nullptr, type->isa<T>());
-}
-
-template <typename T>
-std::pair<const TypeApp*, const T*> match_app(const Type* type) {
-    // if (auto type_app = type->isa<TypeApp>())
-    //     return std::make_pair(type_app, type_app->applied->isa<T>());
-    return std::make_pair(nullptr, type->isa<T>());
 }
 
 } // namespace tir
