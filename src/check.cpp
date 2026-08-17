@@ -1703,7 +1703,7 @@ static inline const Value* build_fn_body(TypeChecker& checker, FnBuilder& fn_bui
         assert(codom->is_simple());
         return checker.yield_expr_scope([&]() -> const Value* {
             auto yield_fn_type = checker.builder().fn_type(codom, checker.builder().no_ret_type());
-            auto yield_param = checker.builder().param(checker.builder().decl_key(Identifier { fn.loc, "ret" }), yield_fn_type);
+            auto yield_param = checker.builder().param(Identifier { fn.loc, "ret" }, yield_fn_type);
             fn.return_ = yield_param;
             FnBuilder control_fn_builder(checker.builder(), yield_param);
             auto control_fn = control_fn_builder.build_function(checker.builder().no_ret_type());
@@ -1724,7 +1724,7 @@ const tir::Node* FnExpr::infer(TypeChecker& checker) {
     if (filter)
         checker.check_value(*filter, checker.builder().bool_type());
     auto codom = ret_type ? checker.infer_type(*ret_type) : nullptr;
-    FnBuilder builder(checker.builder(), checker.builder().param(checker.builder().decl_key(Identifier { param->loc, "param" }), checker.infer_ptrn(*param)));
+    FnBuilder builder(checker.builder(), checker.builder().param(Identifier { param->loc, "param" }, checker.infer_ptrn(*param)));
     const Value* body = nullptr;
     if (this->body) {
         body = build_fn_body(checker, builder, *this, codom);
@@ -1753,7 +1753,7 @@ const tir::Node* FnExpr::check(TypeChecker& checker, const artic::Type* expected
     auto codom = fn_t->codom;
 
     auto param_type = checker.check_ptrn(*param, dom);
-    FnBuilder builder(checker.builder(), checker.builder().param(checker.builder().decl_key(Identifier { param->loc, "param" }), param_type));
+    FnBuilder builder(checker.builder(), checker.builder().param(Identifier { param->loc, "param" }, param_type));
     checker.check_refutability(*param, true);
     if (filter)
         checker.check_value(*filter, checker.builder().bool_type());
@@ -1942,20 +1942,20 @@ inline const LiteralExpr* is_untyped_int_or_float_literal(const Expr* expr) {
 
 static const tir::Node* build_if(TypeChecker& checker, const IfExpr& expr, const tir::Type* yield_type, ExprBuilder& true_builder, ExprBuilder& else_builder) {
     auto yield_fn_type = checker.builder().fn_type(yield_type, checker.builder().no_ret_type());
-    auto yield_param = checker.builder().param(checker.builder().decl_key(Identifier { expr.loc, "yield" }), yield_fn_type);
+    auto yield_param = checker.builder().param(Identifier { expr.loc, "yield" }, yield_fn_type);
     FnBuilder control_fn_builder(checker.builder(), yield_param);
     auto control_fn = control_fn_builder.build_function(checker.builder().no_ret_type());
     //auto control_fn = checker.builder().function(yield_param, checker.builder().no_ret_type());
     {
         TypeChecker::BuilderGuard outer_guard(checker, control_fn_builder);
         control_fn->set_body(checker.builder(), checker.with_expr_scope<const Value*>([&] {
-            FnBuilder true_fn_builder(checker.builder(), checker.builder().param(checker.builder().decl_key(std::nullopt), checker.builder().unit_type()));
+            FnBuilder true_fn_builder(checker.builder(), checker.builder().param(std::nullopt, checker.builder().unit_type()));
             const Fn* true_fn = true_fn_builder.build_function(checker.builder().no_ret_type());
             {
                 TypeChecker::BuilderGuard guard(checker, true_builder);
                 true_fn->set_body(checker.builder(), checker.expr_builder().finish(checker.expr_builder().call(yield_param, expr.if_true->value)));
             }
-            FnBuilder else_fn_builder(checker.builder(), checker.builder().param(checker.builder().decl_key(std::nullopt), checker.builder().unit_type()));
+            FnBuilder else_fn_builder(checker.builder(), checker.builder().param(std::nullopt, checker.builder().unit_type()));
             const Fn* else_fn = else_fn_builder.build_function(checker.builder().no_ret_type());
             {
                 TypeChecker::BuilderGuard guard(checker, else_builder);
@@ -2418,11 +2418,11 @@ const tir::Node* AsmExpr::infer(TypeChecker& checker) {
 // Declarations --------------------------------------------------------------------
 
 const tir::Node* TypeParam::infer(TypeChecker& checker) {
-    return var = checker.builder().type_var(checker.infer_key(*this));
+    return var = checker.builder().type_var(id);
 }
 
 const tir::Node* PtrnDecl::check(TypeChecker& checker, const artic::Type* expected) {
-    return checker.builder().param(checker.builder().decl_key(id), expected);
+    return checker.builder().param(id, expected);
 }
 
 const tir::Node* LetDecl::infer(TypeChecker& checker) {
@@ -2535,7 +2535,7 @@ const tir::Node* FnDecl::infer(TypeChecker& checker) {
         if (fn->filter)
             checker.check_value(*fn->filter, checker.builder().bool_type());
         checker.check_refutability(*fn->param, true);
-        builder.emplace(checker.builder(), checker.builder().param(checker.builder().decl_key(Identifier { fn->param->loc, "param" }), param_type));
+        builder.emplace(checker.builder(), checker.builder().param(Identifier { fn->param->loc, "param" }, param_type));
         tir_fn = builder->build_function(codom);
     } else {
         tir_fn = checker.infer_value(*fn)->as<tir::Fn>();
@@ -2632,7 +2632,7 @@ const tir::Value* StructDecl::ctor_or_default_value() const {
         auto dom = self->member_count() == 1
                    ? tuple_args.front()
                    : builder.tuple_type(tuple_args);
-        auto param = builder.param(builder.decl_key(Identifier { loc, "param" }), dom);
+        auto param = builder.param(Identifier { loc, "param" }, dom);
         FnBuilder fn_builder(builder, param);
         auto fn = fn_builder.build_function(unnamed_type);
         //auto fn = builder.function(param, unnamed_type);
@@ -2686,11 +2686,9 @@ const tir::Node* TypeDecl::infer(TypeChecker& checker) {
     if (!checker.enter_decl(this))
         return checker.builder().type_error();
 
-    assert(false);
-    /*auto rhs_type = checker.infer_type(*aliased_type);
-    signature = checker.builder().type_signature(rhs_type);
-    var = checker.mod_builder().add_in_module(rhs_type, checker.infer_key(*this));
-    checker.add_decl_to_parent_mod_sig(this);*/
+    auto rhs_type = checker.infer_type(*aliased_type);
+    var = checker.builder().type_var(id);
+    checker.let_rec_builder().bind(var, rhs_type);
 
     /*const artic::Type* type = nullptr;
     if (type_params) {
@@ -2745,7 +2743,7 @@ const tir::Node* TypeDecl::infer(TypeChecker& checker) {
 const tir::ModVar* ModDecl::infer_head(TypeChecker& checker) {
     LetRecBuilder& parent_builder = checker.let_rec_builder();
     auto signature = parent_builder.mod_signature();
-    self = parent_builder.mod_var(checker.infer_key(*this), signature);
+    self = parent_builder.mod_var(id, signature);
     builder = &parent_builder;
     return self;
 }

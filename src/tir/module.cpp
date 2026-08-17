@@ -216,8 +216,8 @@ bool ModAccess::equals(const Node* other) const {
     return false;
 }
 
-ModVar::ModVar(Builder& builder, const Key* key, const Signature* signature)
-    : Node(builder.arena), Var(key), signature_(signature) {}
+ModVar::ModVar(Builder& builder, std::optional<ast::Identifier> id, const Signature* signature)
+    : Node(builder.arena), Var(id), signature_(signature) {}
 
 const Signature* ModVar::signature() const {
     assert(signature_);

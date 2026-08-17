@@ -415,7 +415,7 @@ struct TypeVar : public Type, public Var {
     size_t order(const Scope&, std::unordered_set<const Type*>&) const override;
     bool is_sized(const Scope&, std::unordered_set<const Type*>&) const override;
 private:
-    TypeVar(Arena&, const Key*);
+    TypeVar(Arena&, std::optional<ast::Identifier> id);
 
     friend class Arena;
 };

@@ -10,9 +10,18 @@ namespace artic {
 namespace tir {
 
 std::string Printer::unique_name(const Node& node) {
-    if (auto param = node.isa<Var>(); param && param->key->id)
-        return param->key->id->name;
-    return "%" + std::to_string(node.gid);
+    auto prefix = "!";
+    if (node.isa<TypeVar>())
+        prefix = "^";
+    if (node.isa<ModVar>())
+        prefix = "$";
+    if (node.isa<CtorVar>())
+        prefix = "@";
+    if (node.isa<Param>())
+        prefix = "%";
+    if (auto param = node.isa<Var>(); param && param->id)
+        return prefix + param->id->name;
+    return prefix + std::to_string(node.gid);
 }
 
 void Printer::insert(const Node& node, std::string str) {
@@ -150,12 +159,12 @@ void TypeError::print(Printer& p) const {
 }
 
 void TypeVar::print(Printer& p) const {
-    p.print(*key, true);
+    p << p.unique_name(*this);
 }
 
 void TypeVar::print_head(Printer& p) const {
     p << log::keyword_style("type") << ' ' << log::keyword_style("var") << " ";
-    p.print(*key, true);
+    p << p.unique_name(*this);
 }
 
 void StructType::print(Printer& p) const {
@@ -192,8 +201,8 @@ void App::print(Printer& p) const {
 
 std::string key2string(const Key& key) {
     if (key.id)
-        return key.id->name;
-    return "$" + std::to_string(key.gid);
+        return "'" + key.id->name + "'";
+    return "'_" + std::to_string(key.gid) + "'";
 }
 
 void Key::print(Printer& p) const {
@@ -201,18 +210,18 @@ void Key::print(Printer& p) const {
 }
 
 void ModVar::print(Printer& p) const {
-    p.print(*key, true);
+    p << p.unique_name(*this);
 }
 
 void ModVar::print_head(Printer& p) const {
     p << log::keyword_style("mod") << ' ' << log::keyword_style("var") << " ";
-    p.print(*key, true);
+    p << p.unique_name(*this);
 }
 
 void LetRec::print(Printer& p) const {
-    p << log::keyword_style("let") << " {" << p.indent() << p.endl();
+    p << log::keyword_style("let rec") << " {" << p.indent() << p.endl();
     for (auto [var, val] : vars) {
-        p.insert(*var, key2string(*var->key));
+        p.insert(*var, p.unique_name(*var));
     }
     size_t i = 0;
     for (auto [var, val] : vars) {

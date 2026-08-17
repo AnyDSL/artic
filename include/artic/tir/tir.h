@@ -80,22 +80,9 @@ struct Node : public DynCast<Node> {
     void dump_fvs() const;
 };
 
-struct Key : virtual public Node {
-    std::optional<ast::Identifier> id;
-
-    void print(Printer&) const override;
-    const Node* rewrite(Rewriter&) const override;
-    void free_variables(FVSet&, Seen&) const override {};
-
-    NodeKind kind() const override { return NodeKind::Key; }
-    bool is_simple() const override { return true; }
-
-    Key(Arena& arena, std::optional<ast::Identifier> id) : Node(arena), id(id) {}
-};
-
 struct Var : virtual public Node {
     mutable const Scope* binder = nullptr;
-    const Key* key;
+    std::optional<ast::Identifier> id;
 
     bool is_simple() const override { return true; };
 
@@ -103,7 +90,7 @@ struct Var : virtual public Node {
     void print(Printer&) const override;
     virtual void print_head(Printer&) const = 0;
 
-    Var(const Key* key) : key(key) {}
+    Var(std::optional<ast::Identifier> id) : id(id) {}
 };
 
 struct LetRec : virtual Node {
@@ -144,7 +131,7 @@ struct CtorVar : public Var {
 
     NodeKind kind() const override { return NodeKind::Ctor; }
 
-    CtorVar(Arena& arena, const Key* key) : Node(arena), Var(key) {}
+    CtorVar(Arena& arena, std::optional<ast::Identifier> id) : Node(arena), Var(id) {}
 };
 
 struct App : virtual Node {

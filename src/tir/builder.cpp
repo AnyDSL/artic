@@ -137,8 +137,8 @@ const Type* Builder::member_type(const Type* type, size_t idx) {
     }
 }
 
-const TypeVar* Builder::type_var(const Key* key) {
-    return arena.insert<TypeVar>(arena, key);
+const TypeVar* Builder::type_var(std::optional<ast::Identifier> id) {
+    return arena.insert<TypeVar>(arena, id);
 }
 
 const Type* Builder::Unsafe::type_app(const CtorVar* applied, const ArrayRef<const Node*>& type_args) {
@@ -164,8 +164,8 @@ const Key* Builder::decl_key(std::optional<ast::Identifier> id) {
     return arena.insert<Key>(arena, id);
 }
 
-const ModVar* Builder::mod_var(const Key* key, const Signature* sig) {
-    return arena.insert<ModVar>(*this, key, sig);
+const ModVar* Builder::mod_var(std::optional<ast::Identifier> id, const Signature* sig) {
+    return arena.insert<ModVar>(*this, id, sig);
 }
 
 const ModError* Builder::mod_error() {
@@ -204,8 +204,8 @@ const CtorVar* LetRecBuilder::type_ctor(Scope& scope, const ArrayRef<const Var*>
     return schedule(unsafe().type_ctor(scope, params, contents))->as<CtorVar>();
 }
 
-const CtorVar* Builder::ctor_var(const Key* key) {
-    return arena.insert<CtorVar>(arena, key);
+const CtorVar* Builder::ctor_var(std::optional<ast::Identifier> id) {
+    return arena.insert<CtorVar>(arena, id);
 }
 
 const ModValue* Builder::Unsafe::mod_app(const CtorVar* applicand, const ArrayRef<const Node*>& args) {
@@ -255,8 +255,8 @@ const Value* Builder::unit() {
     return arena.insert<Unit>(arena, unit_type());
 }
 
-const Param* Builder::param(const Key* key, const Type* type) {
-    return arena.insert<Param>(arena, key, type);
+const Param* Builder::param(std::optional<ast::Identifier> id, const Type* type) {
+    return arena.insert<Param>(arena, id, type);
 }
 
 const LocalVariable* Builder::Unsafe::local_variable(const Type* value_type) {
@@ -378,7 +378,7 @@ void ExprBuilder::add_instruction(const Value* instruction) {
 const Value* ExprBuilder::bind_value(const Value* value) {
     if (value->is_simple())
         return value;
-    auto param = this->param(decl_key(std::nullopt), value->type());
+    auto param = this->param(std::nullopt, value->type());
     bind(param, value);
     return param;
 }
@@ -619,13 +619,13 @@ const Var* LetRecBuilder::schedule(const Node* node, std::optional<ast::Identifi
 
     const Var* var;
     if (auto mod_value = node->isa<ModValue>()) {
-        var = mod_var(decl_key(maybe_id), mod_value->signature());
+        var = mod_var(maybe_id, mod_value->signature());
     } else if (auto type = node->isa<Type>()) {
-        var = type_var(decl_key(maybe_id));
+        var = type_var(maybe_id);
     } else if (auto value = node->isa<Value>()) {
-        var = param(decl_key(std::nullopt), value->type());
+        var = param(std::nullopt, value->type());
     } else if (node->isa<Ctor>()) {
-        var = ctor_var(decl_key(maybe_id));
+        var = ctor_var(maybe_id);
     } else {
         assert(false);
     }

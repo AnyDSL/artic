@@ -13,7 +13,19 @@ struct Signature;
 struct Param;
 struct TypeVar;
 struct Module;
-struct Key;
+
+struct Key : virtual public Node {
+    std::optional<ast::Identifier> id;
+
+    void print(Printer&) const override;
+    const Node* rewrite(Rewriter&) const override;
+    void free_variables(FVSet&, Seen&) const override {};
+
+    NodeKind kind() const override { return NodeKind::Key; }
+    bool is_simple() const override { return true; }
+
+    Key(Arena& arena, std::optional<ast::Identifier> id) : Node(arena), id(id) {}
+};
 
 struct Signature : virtual public Node {
     NodeKind elem_kind;
@@ -66,7 +78,7 @@ struct ModVar : public ModValue, public Var {
 
     const Signature* signature() const override;
 
-    ModVar(Builder&, const Key*, const Signature*);
+    ModVar(Builder&, std::optional<ast::Identifier> id, const Signature*);
 };
 
 struct Module : public ModValue {

@@ -57,7 +57,7 @@ bool ErrorValue::equals(const Node* n) const {
     return false;
 }
 
-Param::Param(Arena& arena, const Key* key, const Type* type) : Value(type), Var(key), Node(arena) {}
+Param::Param(Arena& arena, std::optional<ast::Identifier> id, const Type* type) : Value(type), Var(id), Node(arena) {}
 
 Call::Call(Arena& arena, const Value* callee, const Value* arg) : Value(callee->type()->as<FnType>()->codom), Node(arena), callee(callee), arg(arg) {
     assert(callee->is_simple());

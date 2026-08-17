@@ -66,7 +66,7 @@ struct ErrorValue : public Value {
 };
 
 struct Param : public Value, public Var {
-    Param(Arena&, const Key*, const Type*);
+    Param(Arena&, std::optional<ast::Identifier> id, const Type*);
 
     void print(Printer&) const override;
     void print_head(Printer&) const override;

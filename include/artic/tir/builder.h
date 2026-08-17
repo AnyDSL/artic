@@ -114,12 +114,12 @@ struct Builder : public artic::Cast<Builder> {
     const StructType*        struct_type(const ast::RecordDecl*);
     const EnumType*          enum_type(const ast::EnumDecl*);
     const Type*              member_type(const Type*, size_t);
-    const TypeVar*           type_var(const Key*);
+    const TypeVar*           type_var(std::optional<ast::Identifier> id);
 
-    const CtorVar* ctor_var(const Key*);
+    const CtorVar* ctor_var(std::optional<ast::Identifier> id);
 
     const Key* decl_key(std::optional<ast::Identifier>);
-    const ModVar* mod_var(const Key*, const Signature*);
+    const ModVar* mod_var(std::optional<ast::Identifier> id, const Signature*);
     const ModError* mod_error();
     // const ModValue* mod_access(const ModValue*, const Key*);
 
@@ -130,7 +130,7 @@ struct Builder : public artic::Cast<Builder> {
     const Value* error_value();
 
     //const Fn* function(const Param*, const Type* codom);
-    const Param* param(const Key*, const Type*);
+    const Param* param(std::optional<ast::Identifier> id, const Type*);
     // const Value* seq(const ArrayRef<const Value*>&);
     const Value* unit();
 

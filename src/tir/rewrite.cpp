@@ -72,7 +72,7 @@ const RefType* RefType::rewrite(Rewriter& r) const {
 }
 
 const TypeVar* TypeVar::rewrite(Rewriter& r) const {
-    return r.builder().type_var(r.instantiate(key, true));
+    return r.builder().type_var(id);
 }
 
 const Type* TypeApp::rewrite(Rewriter& r) const {
@@ -88,7 +88,7 @@ const Node* Key::rewrite(Rewriter& r) const {
 }
 
 const Node* ModVar::rewrite(Rewriter& r) const {
-    return r.builder().mod_var(r.instantiate(key, false)->as<Key>(), r.instantiate(signature_, false)->as<Signature>());
+    return r.builder().mod_var(id, r.instantiate(signature_, false)->as<Signature>());
 }
 
 const Node* Module::rewrite(Rewriter& r) const {
@@ -146,7 +146,7 @@ const Node* TypeCtor::rewrite(Rewriter& r) const {
 }
 
 const Node* CtorVar::rewrite(Rewriter& r) const {
-    return r.builder().ctor_var(r.instantiate(key, true));
+    return r.builder().ctor_var(id);
 }
 
 const Node* ModApp::rewrite(Rewriter& r) const {
@@ -220,7 +220,7 @@ const Node* ErrorValue::rewrite(Rewriter& r) const {
 }
 
 const Node* Param::rewrite(Rewriter& r) const {
-    return r.builder().param(r.instantiate(key), r.instantiate(type_));
+    return r.builder().param(id, r.instantiate(type_));
 }
 
 const Node* Call::rewrite(Rewriter& r) const {

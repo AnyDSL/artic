@@ -73,8 +73,8 @@ NoRetType::NoRetType(Arena& arena)
     : BottomType(arena), Node(arena)
 {}
 
-TypeVar::TypeVar(Arena& arena, const Key* key)
-    : Type(), Node(arena), Var(key)
+TypeVar::TypeVar(Arena& arena, std::optional<ast::Identifier> id)
+    : Type(), Node(arena), Var(id)
 {}
 
 StructType::StructType(Arena& arena, const ast::RecordDecl* decl)
