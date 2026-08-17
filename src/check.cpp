@@ -454,6 +454,7 @@ const tir::Var* TypeChecker::infer_mod_decl(ast::Decl& node) {
 
     if (node.enclosing_module) {
         // this ensures lazily inferred decls are parented to the right module
+        infer_mod_head(*node.enclosing_module);
         BuilderGuard guard(*this, *node.enclosing_module->builder);
         node.var = node.infer(*this)->as<Var>();
     } else {
@@ -462,6 +463,20 @@ const tir::Var* TypeChecker::infer_mod_decl(ast::Decl& node) {
     if (node.attrs)
         node.attrs->check(*this, &node);
     return node.var;
+}
+
+const tir::ModVar* TypeChecker::infer_mod_head(ast::ModDecl& node) {
+    if (node.self)
+        return node.self;
+
+    if (node.enclosing_module) {
+        // this ensures lazily inferred decls are parented to the right module
+        BuilderGuard guard(*this, *node.enclosing_module->builder);
+        node.self = node.infer_head(*this);
+    } else {
+        node.self = node.infer_head(*this);
+    }
+    return node.self;
 }
 
 const tir::TypeVar* TypeChecker::infer_type_param(ast::TypeParam& ast) {
@@ -2727,6 +2742,14 @@ const tir::Node* TypeDecl::infer(TypeChecker& checker) {
     return signature;
 }*/
 
+const tir::ModVar* ModDecl::infer_head(TypeChecker& checker) {
+    LetRecBuilder& parent_builder = checker.let_rec_builder();
+    auto signature = parent_builder.mod_signature();
+    self = parent_builder.mod_var(checker.infer_key(*this), signature);
+    builder = &parent_builder;
+    return self;
+}
+
 const tir::Node* ModDecl::infer(TypeChecker& checker) {
     // for (auto& decl: decls)
     //     if (auto impl_decl = decl->isa<ImplicitDecl>())
@@ -2737,11 +2760,11 @@ const tir::Node* ModDecl::infer(TypeChecker& checker) {
     checker.enter_decl(this);
 
     LetRecBuilder& parent_builder = checker.let_rec_builder();
-    auto signature = parent_builder.mod_signature();
-    auto mod_var = parent_builder.mod_var(checker.infer_key(*this), signature);
-    var = mod_var;
+    if (!self)
+        checker.infer_mod_head(*this);
+    assert(self && builder);
+    var = self;
 
-    builder = &parent_builder;
     TypeChecker::BuilderGuard guard(checker, *builder);
     std::unordered_map<const Key*, const tir::Node*> decls;
     for (auto& decl : this->decls) {

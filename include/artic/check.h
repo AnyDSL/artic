@@ -62,6 +62,7 @@ public:
     const Type* join(Ptr<ast::Expr>&, Ptr<ast::Expr>&, ExprBuilder&, ExprBuilder&);
 
     const tir::Var* infer_mod_decl(ast::Decl&);
+    const tir::ModVar* infer_mod_head(ast::ModDecl&);
 
     const tir::Key* infer_key(ast::NamedDecl&);
 

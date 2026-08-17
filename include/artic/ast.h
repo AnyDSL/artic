@@ -28,6 +28,7 @@ namespace tir {
     struct Module;
     struct Key;
     struct Var;
+    struct ModVar;
     struct Param;
     struct Signature;
     struct Builder;
@@ -1493,12 +1494,9 @@ struct ModDecl : public NamedDecl {
     PtrVector<Decl> decls;
     ModDecl* super = nullptr;
 
-    // Set during type-checking
-    //mutable const tir::Module* self = nullptr;
-    // used by decl inference so they can be scheduled at the right place
+    // Created in infer_head
+    mutable const tir::ModVar* self = nullptr;
     mutable tir::LetRecBuilder* builder = nullptr;
-    // mutable tir::Builder* sig_builder = nullptr;
-    // mutable tir::Builder* parent_builder = nullptr;
 
     /// Constructor for the implicitly defined global module.
     /// When using this constructor, the user is responsible for calling
@@ -1517,6 +1515,7 @@ struct ModDecl : public NamedDecl {
     void set_super();
     std::optional<NamedDecl*> find_member(const std::string_view& name) const;
 
+    const tir::ModVar* infer_head(TypeChecker&);
     const tir::Node* infer(TypeChecker&) override;
     void bind_head(NameBinder&) override;
     void bind(NameBinder&) override;
