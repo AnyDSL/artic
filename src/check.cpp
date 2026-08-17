@@ -443,6 +443,7 @@ static inline void check_kind(TypeChecker& checker, ast::Node& src, const tir::N
 
 const tir::Key* TypeChecker::infer_key(ast::NamedDecl& decl) {
     if (decl.key)
+    if (decl.key)
         return decl.key;
     decl.key = builder().decl_key(decl.id.name.size() > 0 ? std::make_optional(decl.id) : std::nullopt);
     return decl.key;
@@ -1078,7 +1079,7 @@ const tir::Node* Ptrn::check(TypeChecker& checker, const artic::Type* expected) 
 
 // Path ----------------------------------------------------------------------------
 
-std::optional<Path::Elem::Inferred> Path::Elem::infer(TypeChecker& checker, size_t i, Path& path, Inferred* prev, std::optional<tir::NodeKind> expected_kind) {
+std::optional<Path::Elem::Inferred> Path::Elem::infer(TypeChecker& checker, size_t i, const Path& path, Inferred* prev, std::optional<tir::NodeKind> expected_kind) const {
     if (!prev) {
         if (auto use = path.start_decl->isa<UseDecl>(); use && use->is_alias()) {
             return use->path.infer_path(checker, expected_kind);
@@ -1089,7 +1090,10 @@ std::optional<Path::Elem::Inferred> Path::Elem::infer(TypeChecker& checker, size
             const TypeVar* var = checker.infer_type_param(*type_param);
             return Inferred { .var = var };
         } else if (auto mod_decl = path.start_decl->isa<ast::ModDecl>()) {
-            return Inferred { .mod_decl = mod_decl };
+            return Inferred {
+                .var = checker.infer_mod_head(*mod_decl),
+                .mod_decl = mod_decl
+            };
         } else if (expected_kind == NodeKind::Signature) {
             assert(false);
         } else {
@@ -1108,6 +1112,7 @@ std::optional<Path::Elem::Inferred> Path::Elem::infer(TypeChecker& checker, size
             }
             if (prev->mod_decl->super) {
                 return Inferred {
+                    .var = checker.infer_mod_head(*prev->mod_decl->super),
                     .mod_decl = prev->mod_decl->super,
                 };
             } else {
@@ -1125,7 +1130,10 @@ std::optional<Path::Elem::Inferred> Path::Elem::infer(TypeChecker& checker, size
                             return use->path.infer_path(checker, expected_kind);
                         }
                         if (auto mod_decl = decl->isa<ModDecl>()) {
-                            return Inferred { .mod_decl = mod_decl };
+                            return Inferred {
+                                .var = checker.infer_mod_head(*mod_decl),
+                                .mod_decl = mod_decl
+                            };
                         }
                         // if this is the last part of the path, make sure we fully infer whatever we have
                         // if (expected_kind == NodeKind::Signature) {
@@ -1222,7 +1230,7 @@ std::optional<Path::Elem::Inferred> Path::Elem::infer(TypeChecker& checker, size
     //return checker.type_expected(loc, type, "module or enum");
 }
 
-std::optional<Path::Elem::Inferred> Path::infer_path(TypeChecker& checker, std::optional<tir::NodeKind> expected_kind) {
+std::optional<Path::Elem::Inferred> Path::infer_path(TypeChecker& checker, std::optional<tir::NodeKind> expected_kind) const {
     std::optional<Path::Elem::Inferred> prev;
     for (size_t i = 0, n = elems.size(); i < n; ++i) {
         auto& elem = elems[i];
@@ -1230,8 +1238,9 @@ std::optional<Path::Elem::Inferred> Path::infer_path(TypeChecker& checker, std::
         // give up when an element fails to infer
         if (!prev)
             return std::nullopt;
+        assert(prev->var);
 
-        if (!elem.args.empty() || prev->var && prev->var->kind() == NodeKind::Ctor) {
+        if (!elem.args.empty() || prev->var->kind() == NodeKind::Ctor) {
             // const size_t type_param_count = user_type
             //     ? user_type->type_params().size()
             //     : forall_type->type_params().size();
@@ -1249,10 +1258,9 @@ std::optional<Path::Elem::Inferred> Path::infer_path(TypeChecker& checker, std::
                 //     if (!checker.infer_fn_type_args(loc, forall_type, arg_type, ret_type, type_args))
                 //         return std::nullopt;
                 // }
-                elem.inferred_args = type_args;
 
                 prev = Elem::Inferred {
-                    .var = prev->var ? checker.builder().enclosing_let_rec().type_app(prev->var->as<CtorVar>(), elem.inferred_args) : nullptr,
+                    .var = prev->var ? checker.builder().enclosing_let_rec().type_app(prev->var->as<CtorVar>(), type_args) : nullptr,
                 };
             } else if (!elem.args.empty() || /* we allow leaving out type params when importing definitions */ !is_use_path_) {
                 checker.error(elem.loc, "expected {} type argument(s), but got {}", type_param_count, elem.args.size());
@@ -2808,20 +2816,22 @@ const tir::Node* UseDecl::infer(TypeChecker& checker) {
     if (!checker.enter_decl(this))
         return nullptr;
 
-    auto dst = path.infer(checker, std::nullopt);
-    if (dst) {
-        assert(false);
-        // auto dst_sig = dst->as<Signature>();
-        // auto modvar = checker.mod_builder().mod_var(checker.infer_key(*this), dst_sig);
-        // var = modvar;
-    } else {
-        // checker.error(loc, "use decls cannot refer to variable declarations");
+    if (auto inferred = path.infer_path(checker, std::nullopt)) {
+        if (inferred->var->kind() == NodeKind::Module) {
+            // if the use isn't an alias, we're re-exporting the definitions which means we need to have fully inferred them!
+            if (inferred->mod_decl)
+                checker.infer_mod_decl(*inferred->mod_decl);
+            var = inferred->var;
+        } else {
+            checker.error(loc, "use decls cannot refer to {} declarations", kind2str(inferred->var->kind()));
+        }
+    }
+    if (!var) {
         var = checker.let_rec_builder().schedule_mod_value(checker.builder().mod_error());
     }
 
     checker.exit_decl(this);
     return var;
-    //return checker.mod_builder().add_in_module(resolved_path, id);
 }
 
 // Patterns ------------------------------------------------------------------------

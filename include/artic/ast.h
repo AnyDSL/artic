@@ -199,12 +199,11 @@ struct Path : public Node {
         // These members are set during type-checking
         struct Inferred {
             const tir::Var* var = nullptr;
-            const ModDecl* mod_decl = nullptr;
+            ModDecl* mod_decl = nullptr;
             //const tir::Module* module = nullptr;
         };
 
         size_t index = 0;
-        std::vector<const tir::Node*> inferred_args;
 
         bool is_super() const { return id.name == "super"; }
         bool is_wildcard() const { return id.name == "*"; }
@@ -213,7 +212,7 @@ struct Path : public Node {
             : loc(loc), id(std::move(id)), args(std::move(args))
         {}
 
-        std::optional<Inferred> infer(TypeChecker& checker, size_t, Path& path, Inferred*, std::optional<tir::NodeKind>);
+        std::optional<Inferred> infer(TypeChecker& checker, size_t, const Path& path, Inferred*, std::optional<tir::NodeKind>) const;
     };
 
     std::vector<Elem> elems;
@@ -234,7 +233,7 @@ struct Path : public Node {
         : Node(loc), is_use_path_(is_use_path), elems(std::move(elems))
     {}
 
-    std::optional<Elem::Inferred> infer_path(TypeChecker&, std::optional<tir::NodeKind>);
+    std::optional<Elem::Inferred> infer_path(TypeChecker&, std::optional<tir::NodeKind>) const;
     const tir::Node* infer(TypeChecker&, std::optional<tir::NodeKind>, Ptr<Expr>* = nullptr, const tir::Type* = nullptr);
 
     void bind(NameBinder&) override;
