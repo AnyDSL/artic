@@ -201,6 +201,56 @@ const ModVar* LetRecBuilder::mod_mod_access(const ModValue* src, const Key* key)
     return schedule(unsafe().mod_mod_access(src, key))->as<ModVar>();
 }
 
+const Type* Builder::Unsafe::mod_type_access(const ModValue* src, const Key* key) {
+    assert(src->is_simple());
+    if (auto var = src->isa<ModVar>()) {
+        auto mod = builder.scope.peek_mod_value(var)->isa<Module>();
+        if (mod) {
+            if (auto found = mod->lookup(key))
+                return found->as<Type>();
+        }
+    }
+    assert(false);
+    //return builder.arena.insert<ModModAccess>(builder, src, key);
+}
+
+const TypeVar* LetRecBuilder::mod_type_access(const ModValue* src, const Key* key) {
+    return schedule(unsafe().mod_type_access(src, key))->as<TypeVar>();
+}
+
+const Value* Builder::Unsafe::mod_value_access(const ModValue* src, const Key* key) {
+    assert(src->is_simple());
+    if (auto var = src->isa<ModVar>()) {
+        auto mod = builder.scope.peek_mod_value(var)->isa<Module>();
+        if (mod) {
+            if (auto found = mod->lookup(key))
+                return found->as<Value>();
+        }
+    }
+    assert(false);
+    //return builder.arena.insert<ModModAccess>(builder, src, key);
+}
+
+const Param* LetRecBuilder::mod_value_access(const ModValue* src, const Key* key) {
+    return schedule(unsafe().mod_value_access(src, key))->as<Param>();
+}
+
+const Var* LetRecBuilder::mod_access(const ModValue* src, const Key* key) {
+    auto mod_sig = scope.resolve_sig(src->signature()->as<SigVar>())->as<ModSignature>();
+    auto sig = mod_sig->lookup(key);
+    assert(sig);
+    sig = scope.resolve_sig(sig->as<SigVar>());
+    if (sig->isa<ModSignature>()) {
+        return mod_mod_access(src, key);
+    } else if (sig->isa<TypeSignature>()) {
+        return mod_type_access(src, key);
+    }else if (sig->isa<ValueSignature>()) {
+        return mod_value_access(src, key);
+    }
+    assert(false);
+    return nullptr;
+}
+
 const ModCtor* Builder::Unsafe::mod_ctor(Scope& scope, const ArrayRef<const Var*>& params, const ModValue* contents) {
     return builder.arena.insert<ModCtor>(builder, scope, params, contents);
 }
@@ -622,6 +672,7 @@ static const Scope* get_node_scope_helper(Builder& builder, const Node* node) {
 
 void LetRecBuilder::bind(const Var* var, const Node* value) {
     //assert(!contents.contains(var));
+    assert(value != var);
     contents.emplace_back(var, value);
     scope.insert(var, value);
 }

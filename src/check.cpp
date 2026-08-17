@@ -443,7 +443,6 @@ static inline void check_kind(TypeChecker& checker, ast::Node& src, const tir::N
 
 const tir::Key* TypeChecker::infer_key(ast::NamedDecl& decl) {
     if (decl.key)
-    if (decl.key)
         return decl.key;
     decl.key = builder().decl_key(decl.id.name.size() > 0 ? std::make_optional(decl.id) : std::nullopt);
     return decl.key;
@@ -1151,48 +1150,12 @@ std::optional<Path::Elem::Inferred> Path::Elem::infer(TypeChecker& checker, size
         assert(prev->var);
         auto prev_mod_var = prev->var->as<ModVar>();
 
-        /*bool must_infer = false;
-        for (auto [key, sub_sig] : prev->sig->mod_signature) {
-            if (key->id->name == id.name) {
-                Inferred inferred = {};
-                // if the signature isn't known, we have to infer the relevant decl
-                if (!sub_sig) {
-                    must_infer = true;
-                    break;
-                }
-                inferred.sig = sub_sig;
-                // In signature mode, just provide the next step
-                if (expected_kind == NodeKind::Signature) {
-                    assert(inferred.sig);
-                    return inferred;
-                }
-                if (prev->var) {
-                    inferred.var = checker.builder().enclosing_module().mod_access(prev->var, key, inferred.sig);
-                    return inferred;
-                } else {
-                    assert(prev->module);
-                    checker.error("no var available to extract {} from", *key);
-                    for (auto mod_decl : prev->module->decls()) {
-                        if (mod_decl->var->key->id && mod_decl->var->key->id->name == id.name && checker.scope().is_in_scope(mod_decl->var)) {
-                            // if there is a match and it'd be in scope, we can just use it directly
-                            inferred.var = mod_decl->var;
-                            return inferred;
-                        }
-                    }
-                }
-            }
-        }
+        // propagate signature errors atp
+        if (prev_mod_var->signature()->isa<SigError>())
+            return std::nullopt;
 
-        if (must_infer) {
-
-            // if (expected_kind == NodeKind::Signature) {
-            //     sig = checker.infer_signature(*decl);
-            //     return;
-            // }
-            // var = checker.infer_mod_decl(*decl);
-            // sig = checker.infer_signature(*decl);
-            // return;
-        }*/
+        if (auto key = checker.scope().resolve_sig(prev_mod_var->signature()->as<SigVar>())->as<ModSignature>()->lookup_key(id))
+            return Inferred { .var = checker.builder().enclosing_let_rec().mod_access(prev_mod_var, key) };
 
         // if something is missing, maybe we just haven't had the chance to infer it yet
         checker.unknown_module_member(loc, *prev, id.name);
@@ -2792,8 +2755,9 @@ const tir::Node* ModDecl::infer(TypeChecker& checker) {
         // }
     }
 
-    parent_builder.bind(var, parent_builder.module(std::move(decls), this));
-    parent_builder.bind(sig, var->as<ModVar>()->signature());
+    auto unbound_mod = parent_builder.module(std::move(decls), this);
+    parent_builder.bind(var, unbound_mod);
+    parent_builder.bind(sig, unbound_mod->signature());
 
     checker.exit_decl(this);
 
@@ -2818,14 +2782,10 @@ const tir::Node* UseDecl::infer(TypeChecker& checker) {
         return nullptr;
 
     if (auto inferred = path.infer_path(checker, std::nullopt)) {
-        if (inferred->var->kind() == NodeKind::Module) {
-            // if the use isn't an alias, we're re-exporting the definitions which means we need to have fully inferred them!
-            if (inferred->mod_decl)
-                checker.infer_mod_decl(*inferred->mod_decl);
-            var = inferred->var;
-        } else {
-            checker.error(loc, "use decls cannot refer to {} declarations", kind2str(inferred->var->kind()));
-        }
+        // if the use isn't an alias, we're re-exporting the definitions which means we need to have fully inferred them!
+        if (inferred->mod_decl)
+            checker.infer_mod_decl(*inferred->mod_decl);
+        var = inferred->var;
     }
     if (!var) {
         var = checker.let_rec_builder().schedule_mod_value(checker.builder().mod_error());

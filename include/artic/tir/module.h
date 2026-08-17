@@ -76,6 +76,9 @@ struct ModSignature : public Sig {
 
     bool is_sub(const Scope&, const Sig*) const override;
 
+    const Sig* lookup(const Key*) const;
+    const Key* lookup_key(const ast::Identifier&) const;
+
     ModSignature(Builder&, std::unordered_map<const Key*, const Sig*>&&);
 };
 

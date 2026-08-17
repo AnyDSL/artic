@@ -74,6 +74,21 @@ bool ModSignature::equals(const Node* other) const {
     return false;
 }
 
+const Sig* ModSignature::lookup(const Key* key) const {
+    auto found = elems.find(key);
+    if (found == elems.end())
+        return nullptr;
+    return found->second;
+}
+
+const Key* ModSignature::lookup_key(const ast::Identifier& id) const {
+    for (auto [key, _] : elems) {
+        if (key->id->name == id.name)
+            return key;
+    }
+    return nullptr;
+}
+
 CtorSignature::CtorSignature(Builder& builder, const ArrayRef<const Sig*>& dom, const Sig* codom) : Node(builder.arena), Sig(), dom(dom), codom(codom) {
     for (auto d : dom)
         assert(d->is_simple());

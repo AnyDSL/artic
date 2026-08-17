@@ -151,6 +151,7 @@ struct Builder : public artic::Cast<Builder> {
         const ModValue* mod_mod_access(const ModValue*, const Key*);
         const ModValue* mod_let_rec(const ArrayRef<std::tuple<const Var*, const Node*>>&, const ModValue*);
 
+        const Type* mod_type_access(const ModValue*, const Key*);
         const Type* type_let_rec(const ArrayRef<std::tuple<const Var*, const Node*>>&, const Type*);
         const TypeCtor* type_ctor(Scope&, const ArrayRef<const Var*>&, const Type*);
         const Type* type_app(const CtorVar*, const ArrayRef<const Node*>&);
@@ -160,6 +161,7 @@ struct Builder : public artic::Cast<Builder> {
         const TypeSignature* type_signature(const Type*);
         const CtorSignature* ctor_signature(const ArrayRef<const Sig*>&, const Sig*);
 
+        const Value* mod_value_access(const ModValue*, const Key*);
         const LocalVariable* local_variable(const Type*);
 
         const Bind* bind(const Param*, const Value*);
@@ -211,8 +213,13 @@ struct LetRecBuilder : public Builder {
     const ModVar* mod_app(const CtorVar*, const ArrayRef<const Node*>&);
     const ModVar* mod_mod_access(const ModValue*, const Key*);
 
+    const Var* mod_access(const ModValue*, const Key*);
+
+    const TypeVar* mod_type_access(const ModValue*, const Key*);
     const CtorVar* type_ctor(Scope&, const ArrayRef<const Var*>&, const Type*);
     const TypeVar* type_app(const CtorVar*, const ArrayRef<const Node*>&);
+
+    const Param* mod_value_access(const ModValue*, const Key*);
 
     // const ModValue* mod_access(const ModValue*, const Key*);
 
