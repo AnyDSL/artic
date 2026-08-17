@@ -260,6 +260,11 @@ void ModCtor::print(Printer& p) const {
     Ctor::print(p);
 }
 
+void TypeCtor::print(Printer& p) const {
+    p << log::keyword_style("type") << " ";
+    Ctor::print(p);
+}
+
 void ModApp::print(Printer& p) const {
     p << log::keyword_style("mod") << " ";
     App::print(p);
@@ -384,6 +389,11 @@ void Param::print_head(Printer& p) const {
     p << p.unique_name(*this);
     p << " : ";
     p.print(*type());
+}
+
+void CtorVar::print_head(Printer& p) const {
+    p << log::keyword_style("ctor") << ' ' << log::keyword_style("var") << " ";
+    p << p.unique_name(*this);
 }
 
 void Call::print(Printer& p) const {

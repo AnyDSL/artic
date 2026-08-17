@@ -40,7 +40,7 @@ struct Rewriter {
 
     std::unique_ptr<Root> instantiate(const Root& old) {
         std::unique_ptr<Root> root = std::make_unique<Root>(dst);
-        Builder builder(dst, root->scope, nullptr);
+        LetRecBuilder builder(dst, root->scope, nullptr);
         BuilderGuard guard(*this, builder);
         root->root_module = instantiate(old.root_module, true);
         return root;

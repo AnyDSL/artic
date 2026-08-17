@@ -2484,9 +2484,7 @@ std::string TypeVar::stringify(Emitter& emitter) const {
 }
 
 const thorin::Type* TypeVar::convert(Emitter& emitter) const {
-    assert(false);
-    // assert(emitter.type_vars.count(this));
-    // return emitter.type_vars[this]->convert(emitter);
+    return emitter.emit_bound_var(this).as_type;
 }
 
 inline std::string stringify_types(

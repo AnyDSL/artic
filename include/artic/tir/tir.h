@@ -108,7 +108,7 @@ struct Var : virtual public Node {
 
 struct LetRec : virtual Node {
     const Scope& scope;
-    std::unordered_map<const Var*, const Node*> vars;
+    Array<std::tuple<const Var*, const Node*>> vars;
     const Node* body_;
 
     virtual const Node* body() const { return body_; }
@@ -119,7 +119,7 @@ struct LetRec : virtual Node {
     void free_variables(FVSet&, Seen&) const override;
     void print(Printer&) const override;
 
-    LetRec(Scope&, std::unordered_map<const Var*, const Node*>&&, const Node*);
+    LetRec(Scope&, const ArrayRef<std::tuple<const Var*, const Node*>>&, const Node*);
 };
 
 struct Ctor : virtual Node {
@@ -137,7 +137,15 @@ struct Ctor : virtual Node {
     Ctor(Scope&, const ArrayRef<const Var*>&, const Node*);
 };
 
-using CtorVar = Var;
+struct CtorVar : public Var {
+    void print_head(Printer&) const override;
+
+    const Node* rewrite(Rewriter&) const override;
+
+    NodeKind kind() const override { return NodeKind::Ctor; }
+
+    CtorVar(Arena& arena, const Key* key) : Node(arena), Var(key) {}
+};
 
 struct App : virtual Node {
     const CtorVar* applicand_;

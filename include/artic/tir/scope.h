@@ -6,7 +6,7 @@
 namespace artic::tir {
 
 struct ModValue;
-struct ModCtor;
+struct Ctor;
 struct ExprBuilder;
 struct LetRecBuilder;
 struct FnBuilder;
@@ -64,7 +64,7 @@ private:
     friend ExprBuilder;
     friend LetRecBuilder;
     friend FnBuilder;
-    friend ModCtor;
+    friend Ctor;
 };
 
 const Scope* unify_scopes(const Scope*, const Scope*);

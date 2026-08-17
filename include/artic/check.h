@@ -91,7 +91,7 @@ public:
     const tir::Value* infer(const Loc&, const Literal&);
     const tir::Value* check(const Loc&, const Literal&, const Type*);
 
-    Array<const TypeVar*> infer(ast::TypeParamList*);
+    Array<const Var*> infer(ast::TypeParamList*);
 
     /// Explores a pattern recursively and makes sure the body is wrapped in Bind nodes that extract the value of each sub-pattern
     void bind_ptrn_params(ast::Ptrn&, const Value*);
@@ -116,7 +116,7 @@ public:
 
     template <typename CheckFn, typename Fields>
     void check_fields(
-        const Loc&, const StructType*, const TypeApp*,
+        const Loc&, const StructType*, const Type*,
         const Fields&, CheckFn&, const std::string_view&,
         bool = false, bool = false);
 

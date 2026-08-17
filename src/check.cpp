@@ -674,10 +674,10 @@ const tir::Value* TypeChecker::check(const Loc& loc, const Literal& lit, const T
     }
 }
 
-Array<const TypeVar*> TypeChecker::infer(ast::TypeParamList* list) {
+Array<const Var*> TypeChecker::infer(ast::TypeParamList* list) {
     if (!list)
         return {};
-    Array<const TypeVar*> vars(list->params.size());
+    Array<const Var*> vars(list->params.size());
     for (size_t i = 0; i < list->params.size(); ++i) {
         vars[i] = infer_type_param(*list->params[i]);
     }
@@ -694,7 +694,7 @@ Array<const TypeVar*> TypeChecker::infer(ast::TypeParamList* list) {
 
 template <typename CheckFn, typename Fields>
 void TypeChecker::check_fields(
-    const Loc& loc, const StructType* struct_type, const TypeApp* type_app,
+    const Loc& loc, const StructType* struct_type, const Type* type,
     const Fields& fields, CheckFn& check_fn, const std::string_view& msg,
     bool has_etc, bool accept_defaults)
 {
@@ -712,7 +712,7 @@ void TypeChecker::check_fields(
             return (void)error(loc, "field '{}' specified more than once", fields[i]->id.name);
         seen[*index] = true;
         fields[i]->index = *index;
-        check_fn(*fields[i], builder().member_type(type_app ? type_app->as<Type>() : struct_type, *index));
+        check_fn(*fields[i], builder().member_type(type, *index));
     }
     // Check that all fields have been specified, unless '...' was used
     if (!has_etc && !std::all_of(seen.begin(), seen.end(), [] (bool b) { return b; })) {
@@ -992,7 +992,7 @@ const Type* TypeChecker::infer_record_type(const Type* type, const TypeApp* type
         assert(index < option_decl->parent->options.size());
         auto enum_type_or_ctor = infer_mod_decl(*option_decl->parent);
         if (type_app)
-            return let_rec_builder().type_app(enum_type_or_ctor, type_app->args);
+            return let_rec_builder().type_app(enum_type_or_ctor->as<CtorVar>(), type_app->args);
         return enum_type_or_ctor->as<Type>();
     }
     //return type_app ? builder().as_type(type_app->instantiate(builder().enclosing_module())) : type;
@@ -1237,7 +1237,7 @@ std::optional<Path::Elem::Inferred> Path::infer_path(TypeChecker& checker, std::
                 elem.inferred_args = type_args;
 
                 prev = Elem::Inferred {
-                    .var = prev->var ? checker.builder().enclosing_let_rec().type_app(prev->var, elem.inferred_args) : nullptr,
+                    .var = prev->var ? checker.builder().enclosing_let_rec().type_app(prev->var->as<CtorVar>(), elem.inferred_args) : nullptr,
                 };
             } else if (!elem.args.empty() || /* we allow leaving out type params when importing definitions */ !is_use_path_) {
                 checker.error(elem.loc, "expected {} type argument(s), but got {}", type_param_count, elem.args.size());
@@ -1568,7 +1568,7 @@ const tir::Node* RecordExpr::infer(TypeChecker& checker) {
         return checker.builder().error_value();
     }
     auto check_fn = [&](ast::Expr& expr, const tir::Type* type) { return checker.check_value(expr, type); };
-    checker.check_fields(loc, struct_type, type_app, fields, check_fn, "expression", static_cast<bool>(expr), true);
+    checker.check_fields(loc, struct_type, record_type, fields, check_fn, "expression", static_cast<bool>(expr), true);
     auto type = checker.infer_record_type(record_type, type_app, struct_type, variant_index);
     assert(!expr && "TODO: insert");
     Array<const Value*> ops(struct_type->member_count());
@@ -2403,7 +2403,7 @@ const tir::Node* AsmExpr::infer(TypeChecker& checker) {
 // Declarations --------------------------------------------------------------------
 
 const tir::Node* TypeParam::infer(TypeChecker& checker) {
-    return var = checker.builder().mod_var(checker.infer_key(*this), checker.builder().type_signature(nullptr));
+    return var = checker.builder().type_var(checker.infer_key(*this));
 }
 
 const tir::Node* PtrnDecl::check(TypeChecker& checker, const artic::Type* expected) {
@@ -2564,26 +2564,14 @@ const tir::Node* StructDecl::infer(TypeChecker& checker) {
 
     std::unique_ptr<Builder> ctor_builder;
     std::unique_ptr<LetRecBuilder> inner_module_builder;
-    const Signature* ctor_sig = nullptr;
-    const ModCtor* ctor = nullptr;
-    const Key* internal_key = nullptr;
 
     if (!type_params.empty()) {
-        /*Array<const Signature*> dom(type_params.size());
-        for (size_t i = 0; i < type_params.size(); i++) {
-            dom[i] = type_params[i]->signature();
-        }
-        ctor_sig = checker.builder().ctor_signature(dom, checker.builder().type_signature(nullptr));
+        Scope& ctor_scope = mb->scope.new_child();
+        ctor_builder = std::make_unique<Builder>(mb->arena, ctor_scope, mb);
+        Scope& inner_scope = ctor_builder->scope.new_child();
+        inner_module_builder = std::make_unique<LetRecBuilder>(mb->arena, inner_scope, &*ctor_builder);
 
-        internal_key = checker.builder().decl_key(std::nullopt);
-
-        ctor = mb->mod_ctor(type_params, ctor_sig);
-        ctor_builder = std::make_unique<Builder>(mb->arena, ctor->scope, mb);
-        const Module* mod = ctor_builder->module(nullptr);
-        inner_module_builder = std::make_unique<LetRecBuilder>(mb->arena, &*ctor_builder, mod);
-
-        // var = generic_var = ctor_var;
-        mb = &*inner_module_builder;*/
+        mb = &*inner_module_builder;
     }
 
     {
@@ -2594,12 +2582,13 @@ const tir::Node* StructDecl::infer(TypeChecker& checker) {
 
         // inner stuff, only valid inside!
         if (type_params.empty()) {
-            var = mb->schedule(struct_type);
+            var = mb->schedule_type(struct_type);
+            unnamed_type = var->as<TypeVar>();
         } else {
+            var = mb->schedule_type(struct_type);
             // var = mb->add_in_module(struct_type, internal_key, false);
             // ctor->set_body(*ctor_builder, &inner_module_builder->module(), internal_key);
         }
-        unnamed_type = var->as<TypeVar>();
 
         for (auto& field : fields)
             struct_type->members.push_back(checker.infer_type(*field));
@@ -2607,7 +2596,8 @@ const tir::Node* StructDecl::infer(TypeChecker& checker) {
     }
 
     if (!type_params.empty()) {
-        var = checker.let_rec_builder().schedule(ctor);
+        const TypeCtor* ctor = nullptr;
+        var = checker.let_rec_builder().type_ctor(ctor_builder->scope, type_params, mb->finish_type(var->as<TypeVar>()));
     }
     // unnamed_type = checker.builder().as_type(var);
 
@@ -2879,7 +2869,7 @@ const tir::Node* RecordPtrn::infer(TypeChecker& checker) {
     }
 
     auto check_fn = [&](ast::Ptrn& ptrn, const tir::Type* type) { return checker.check_ptrn(ptrn, type); };
-    checker.check_fields(loc, struct_type, mod_app, fields, check_fn, "pattern");
+    checker.check_fields(loc, struct_type, path_type, fields, check_fn, "pattern");
     return checker.infer_record_type(path_type, mod_app, struct_type, variant_index);
 }
 

@@ -72,11 +72,11 @@ const RefType* RefType::rewrite(Rewriter& r) const {
 }
 
 const TypeVar* TypeVar::rewrite(Rewriter& r) const {
-    // return r.builder().type_var(decl);
+    return r.builder().type_var(r.instantiate(key, true));
 }
 
 const Type* TypeApp::rewrite(Rewriter& r) const {
-    return r.builder().enclosing_let_rec().type_app(r.instantiate(applicand()), r.instantiate_array(args));
+    return r.builder().unsafe().type_app(r.instantiate(applicand()), r.instantiate_array(args));
 }
 
 const TypeError* TypeError::rewrite(Rewriter& r) const {
@@ -134,6 +134,21 @@ const Node* ModCtor::rewrite(Rewriter& r) const {
     return r.builder().unsafe().mod_ctor(scope, params, r.instantiate(body(), true));
 }
 
+const Node* TypeCtor::rewrite(Rewriter& r) const {
+    Scope& scope = r.builder().scope.new_child();
+    Array<const Var*> params(this->params.size());
+    for (size_t i = 0; i < params.size(); i++) {
+        r.insert(this->params[i], params[i] = r.instantiate(this->params[i], true));
+    }
+    auto ctor_builder = Builder(arena, scope, &r.builder());
+    Rewriter::BuilderGuard guard(r, ctor_builder);
+    return r.builder().unsafe().type_ctor(scope, params, r.instantiate(body(), true));
+}
+
+const Node* CtorVar::rewrite(Rewriter& r) const {
+    return r.builder().ctor_var(r.instantiate(key, true));
+}
+
 const Node* ModApp::rewrite(Rewriter& r) const {
     auto nargs = r.instantiate_array(args);
     return r.builder().unsafe().mod_app(r.instantiate(applicand()), nargs);
@@ -158,6 +173,19 @@ const Node* LetRecMod::rewrite(Rewriter& r) const {
         builder.bind(r.lookup(ovar)->as<Var>(), r.instantiate(oval, true));
     }
     return builder.finish_module(r.instantiate(body(), false));
+}
+
+const Node* LetRecType::rewrite(Rewriter& r) const {
+    Scope& scope = r.builder().scope.new_child();
+    LetRecBuilder builder(r.dst, scope, r.is_root() ? nullptr : &r.builder());
+    Rewriter::BuilderGuard guard(r, builder);
+    for (auto [ovar, _] : vars) {
+        r.insert(ovar, r.instantiate(ovar, true));
+    }
+    for (auto [ovar, oval] : vars) {
+        builder.bind(r.lookup(ovar)->as<Var>(), r.instantiate(oval, true));
+    }
+    return builder.finish_type(r.instantiate(body(), false));
 }
 
 const Node* GlobalVariable::rewrite(Rewriter& r) const {

@@ -71,6 +71,11 @@ std::tuple<const Node*, const Scope&> Scope::resolve_var_deep_return_scope(const
     auto [_, resolved] = resolve_var_rec(var);
     if (!resolved)
         return { nullptr, *this };
+    if (auto let_rec = resolved->isa<LetRec>()) {
+        if (auto keep_going = let_rec->body()->isa<Var>())
+            return let_rec->scope.resolve_var_deep_return_scope(keep_going);
+        return { let_rec->body(), let_rec->scope };
+    }
     if (auto mod_access = resolved->isa<ModAccess>()) {
         if (!mod_access->mod->isa<ModVar>()) {
             // this can happen if it is ModError instead

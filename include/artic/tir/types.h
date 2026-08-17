@@ -525,7 +525,25 @@ private:
 
 // those aren't really types, are they
 struct TypeCtor : public Ctor {
-    const Type* body() const override;
+    const Type* body() const override {
+        return Ctor::body()->as<Type>();
+    }
+
+    void print(Printer&) const override;
+    const Node* rewrite(Rewriter&) const override;
+
+    TypeCtor(Builder&, Scope&, const ArrayRef<const Var*>&, const Type*);
+};
+
+struct LetRecType : public Type, public LetRec {
+    const Type* body() const override {
+        return LetRec::body()->as<Type>();
+    }
+
+    bool equals(const Node* other) const override;
+    const Node* rewrite(Rewriter&) const override;
+
+    LetRecType(Builder&, Scope&, const ArrayRef<std::tuple<const Var*, const Node*>>&, const Type*);
 };
 
 bool is_int_type(const Type*);

@@ -137,11 +137,15 @@ const Type* Builder::member_type(const Type* type, size_t idx) {
     }
 }
 
-const Type* Builder::Unsafe::type_app(const Var* applied, const ArrayRef<const Node*>& type_args) {
+const TypeVar* Builder::type_var(const Key* key) {
+    return arena.insert<TypeVar>(arena, key);
+}
+
+const Type* Builder::Unsafe::type_app(const CtorVar* applied, const ArrayRef<const Node*>& type_args) {
     return builder.arena.insert<TypeApp>(builder, applied, std::move(type_args));
 }
 
-const TypeVar* LetRecBuilder::type_app(const Var* applied, const ArrayRef<const Node*>& type_args) {
+const TypeVar* LetRecBuilder::type_app(const CtorVar* applied, const ArrayRef<const Node*>& type_args) {
     return schedule_type(unsafe().type_app(applied, type_args));
 }
 
@@ -192,11 +196,23 @@ const ModCtor* Builder::Unsafe::mod_ctor(Scope& scope, const ArrayRef<const Var*
     return builder.arena.insert<ModCtor>(builder, scope, params, contents);
 }
 
+const TypeCtor* Builder::Unsafe::type_ctor(Scope& scope, const ArrayRef<const Var*>& params, const Type* contents) {
+    return builder.arena.insert<TypeCtor>(builder, scope, params, contents);
+}
+
+const CtorVar* LetRecBuilder::type_ctor(Scope& scope, const ArrayRef<const Var*>& params, const Type* contents) {
+    return schedule(unsafe().type_ctor(scope, params, contents))->as<CtorVar>();
+}
+
+const CtorVar* Builder::ctor_var(const Key* key) {
+    return arena.insert<CtorVar>(arena, key);
+}
+
 const ModValue* Builder::Unsafe::mod_app(const CtorVar* applicand, const ArrayRef<const Node*>& args) {
     return builder.arena.insert<ModApp>(builder, applicand, args);
 }
 
-const ModVar* LetRecBuilder::mod_app(const Var* applicand, const ArrayRef<const Node*>& args) {
+const ModVar* LetRecBuilder::mod_app(const CtorVar* applicand, const ArrayRef<const Node*>& args) {
     return schedule(unsafe().mod_app(applicand, args))->as<ModVar>();
 }
 
@@ -576,8 +592,8 @@ static const Scope* get_node_scope_helper(Builder& builder, const Node* node) {
 }
 
 void LetRecBuilder::bind(const Var* var, const Node* value) {
-    assert(!contents.contains(var));
-    contents.emplace(var, value);
+    //assert(!contents.contains(var));
+    contents.emplace_back(var, value);
     scope.insert(var, value);
 }
 
@@ -605,10 +621,11 @@ const Var* LetRecBuilder::schedule(const Node* node, std::optional<ast::Identifi
     if (auto mod_value = node->isa<ModValue>()) {
         var = mod_var(decl_key(maybe_id), mod_value->signature());
     } else if (auto type = node->isa<Type>()) {
-        assert(false);
-        //var = type_var();
+        var = type_var(decl_key(maybe_id));
     } else if (auto value = node->isa<Value>()) {
         var = param(decl_key(std::nullopt), value->type());
+    } else if (node->isa<Ctor>()) {
+        var = ctor_var(decl_key(maybe_id));
     } else {
         assert(false);
     }
@@ -631,10 +648,24 @@ const ModVar* LetRecBuilder::schedule_mod_value(const ModValue* node, std::optio
     return schedule(node, id)->as<ModVar>();
 }
 
-const ModValue* Builder::Unsafe::mod_let_rec(std::unordered_map<const Var*, const Node*>&& contents, const ModValue* in) {
+const Type* Builder::Unsafe::type_let_rec(const ArrayRef<std::tuple<const Var*, const Node*>>& contents, const Type* in) {
     if (contents.empty())
         return in;
-    return builder.arena.insert<LetRecMod>(builder, builder.scope, std::move(contents), in);
+    if (contents.size() == 1 && std::get<0>(*contents.begin())->equals(in))
+        return std::get<1>(*contents.begin())->as<Type>();
+    return builder.arena.insert<LetRecType>(builder, builder.scope, contents, in);
+}
+
+const ModValue* Builder::Unsafe::mod_let_rec(const ArrayRef<std::tuple<const Var*, const Node*>>& contents, const ModValue* in) {
+    if (contents.empty())
+        return in;
+    if (contents.size() == 1 && std::get<0>(*contents.begin())->equals(in))
+        return std::get<1>(*contents.begin())->as<ModValue>();
+    return builder.arena.insert<LetRecMod>(builder, builder.scope, contents, in);
+}
+
+const Type* LetRecBuilder::finish_type(const Type* in) {
+    return unsafe().type_let_rec(contents, in);
 }
 
 const ModValue* LetRecBuilder::finish_module(const ModValue* in) {

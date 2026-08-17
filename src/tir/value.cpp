@@ -169,17 +169,17 @@ Agg::Agg(Builder& builder, const Type* agg_type, const ArrayRef<const Value*>& a
         assert(arg->is_simple());
     }
     auto [_, peeked_agg_type] = peek_app_type(builder, agg_type);
-    if (auto tuple_t = agg_type->isa<TupleType>()) {
+    if (auto tuple_t = peeked_agg_type->isa<TupleType>()) {
         assert(tuple_t->args.size() == args.size());
         for (size_t i = 0; i < tuple_t->args.size(); i++) {
             assert(args[i]->type() == tuple_t->args[i]);
         }
-    } else if (auto array_t = agg_type->isa<SizedArrayType>()) {
+    } else if (auto array_t = peeked_agg_type->isa<SizedArrayType>()) {
         assert(array_t->size == args.size());
         for (size_t i = 0; i < args.size(); i++) {
             assert(args[i]->type() == array_t->elem);
         }
-    } else if (auto struct_t = agg_type->isa<StructType>()) {
+    } else if (auto struct_t = peeked_agg_type->isa<StructType>()) {
         assert(struct_t->member_count() == args.size());
         for (size_t i = 0; i < args.size(); i++) {
             assert(args[i]->type() == builder.member_type(peeked_agg_type, i));

@@ -148,7 +148,7 @@ struct LetRecMod : public ModValue, public LetRec {
     bool equals(const Node* other) const override;
     const Node* rewrite(Rewriter&) const override;
 
-    LetRecMod(Builder&, Scope&, std::unordered_map<const Var*, const Node*>&&, const Node*);
+    LetRecMod(Builder&, Scope&, const ArrayRef<std::tuple<const Var*, const Node*>>&, const ModValue*);
 };
 
 struct ModError : public ModValue {

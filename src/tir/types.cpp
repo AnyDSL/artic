@@ -95,7 +95,7 @@ void EnumType::validate() const {
         assert(t->is_simple());
 }
 
-TypeApp::TypeApp(Builder& builder, const Var* applicand, const ArrayRef<const Node*>& args)
+TypeApp::TypeApp(Builder& builder, const CtorVar* applicand, const ArrayRef<const Node*>& args)
     : Type(), Node(builder.arena), App(applicand, args)
 {
     assert(applicand_->is_simple());
@@ -109,6 +109,26 @@ const TypeVar* TypeApp::instantiated(LetRecBuilder& b) const {
     auto spec_module = instantiate(b)->as<Type>();
     instantiated_ = b.schedule_type(spec_module);
     return instantiated_;
+}
+
+TypeCtor::TypeCtor(Builder& builder, Scope& scope, const ArrayRef<const Var*>& params, const Type* body)
+    : Node(builder.arena), Ctor(scope, params, body) {
+    // assert(signature_->elem_kind == NodeKind::Ctor);
+    // assert(signature->dom.size() == params.size());
+    for (size_t i = 0; i < params.size(); i++) {
+        // assert(signature->dom[i]->is_sub(builder.scope, params[i]->signature()));
+    }
+}
+
+LetRecType::LetRecType(Builder& builder, Scope& scope, const ArrayRef<std::tuple<const Var*, const Node*>>& vars, const Type* in)
+    : Node(builder.arena), Type(), LetRec(scope, vars, in)
+{}
+
+bool LetRecType::equals(const Node* other) const {
+    if (auto other_lrt = other->isa<LetRecType>()) {
+        return LetRec::equals(other_lrt);
+    }
+    return false;
 }
 
 // Type Bounds ---------------------------------------------------------------------
@@ -536,8 +556,8 @@ void TypeApp::free_variables(FVSet& vars, Seen& seen) const {
        arg->free_variables(vars, seen);
 }
 
-void TypeVar::free_variables(FVSet&, Seen&) const {
-    assert(false);
+void TypeVar::free_variables(FVSet& vars, Seen& seen) const {
+    return Var::free_variables(vars, seen);
 }
 
 void TypeError::free_variables(FVSet&, Seen&) const {
@@ -775,22 +795,20 @@ std::pair<const RefType*, const Type*> remove_ref(Builder& builder, const Type* 
     return std::make_pair(nullptr, type);
 }
 
-std::pair<const App*, const Var*> match_app(Builder& builder, const Var* var) {
-    auto resolved = builder.scope.resolve_var_deep(var);
-    if (resolved) {
-        if (auto app = resolved->isa<App>()) {
-            return { app, app->instantiated(builder.enclosing_let_rec()) };
-        }
+std::pair<const App*, const Var*> match_app(Builder& builder, const Node* node) {
+    if (auto var = node->isa<Var>()) {
+        node = builder.scope.resolve_var_deep(var);
+    }
+    if (auto app = node->isa<App>()) {
+        return { app, app->instantiated(builder.enclosing_let_rec()) };
     }
     return { nullptr, nullptr };
 }
 
 std::pair<const TypeApp*, const Type*> match_app_type_(Builder& builder, const Type* type) {
-    if (auto var = type->isa<TypeVar>()) {
-        auto [app, instantiated] = match_app(builder, var);
-        if (app) {
-            return { app->as<TypeApp>(), instantiated->as<Type>() };
-        }
+    auto [app, instantiated] = match_app(builder, type);
+    if (app) {
+        return { app->as<TypeApp>(), instantiated->as<Type>() };
     }
     return { nullptr, type };
 }

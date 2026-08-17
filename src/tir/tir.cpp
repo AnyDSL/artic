@@ -56,6 +56,7 @@ size_t App::hash() const {
 Ctor::Ctor(Scope& scope, const ArrayRef<const Var*>& params, const Node* body)
 : scope(scope), params(params), body_(body) {
     for (size_t i = 0; i < params.size(); i++) {
+        scope.insert(params[i], nullptr);
         assert(scope.is_in_scope(params[i]));
         assert(params[i]->is_simple());
     }
@@ -117,7 +118,7 @@ struct Specializer : public Rewriter {
 
 const Node* App::instantiate(Builder& builder) const {
     auto peeked = builder.scope.resolve_ctor(applicand());
-    if (auto ctor = peeked->isa<ModCtor>()) {
+    if (auto ctor = peeked->isa<Ctor>()) {
         Specializer s(builder, ctor->scope);
         for (size_t i = 0; i < ctor->params.size(); i++) {
             s.insert(ctor->params[i], args[i]);
@@ -128,7 +129,7 @@ const Node* App::instantiate(Builder& builder) const {
     }
 }
 
-LetRec::LetRec(Scope& scope, std::unordered_map<const Var*, const Node*>&& vars, const Node* in)
+LetRec::LetRec(Scope& scope, const ArrayRef<std::tuple<const Var*, const Node*>>& vars, const Node* in)
     : scope(scope), vars(vars), body_(in)
 {}
 

@@ -114,6 +114,9 @@ struct Builder : public artic::Cast<Builder> {
     const StructType*        struct_type(const ast::RecordDecl*);
     const EnumType*          enum_type(const ast::EnumDecl*);
     const Type*              member_type(const Type*, size_t);
+    const TypeVar*           type_var(const Key*);
+
+    const CtorVar* ctor_var(const Key*);
 
     const Key* decl_key(std::optional<ast::Identifier>);
     const ModVar* mod_var(const Key*, const Signature*);
@@ -151,9 +154,10 @@ struct Builder : public artic::Cast<Builder> {
         const ModCtor* mod_ctor(Scope&, const ArrayRef<const Var*>&, const ModValue*);
         const ModValue* mod_app(const CtorVar*, const ArrayRef<const Node*>&);
         const Node* mod_access(const ModValue*, const Key*, const Signature*);
-        const ModValue* mod_let_rec(std::unordered_map<const Var*, const Node*>&&, const ModValue*);
+        const ModValue* mod_let_rec(const ArrayRef<std::tuple<const Var*, const Node*>>&, const ModValue*);
 
-        const TypeCtor* type_ctor(const ArrayRef<const Var*>&, const Type*);
+        const Type* type_let_rec(const ArrayRef<std::tuple<const Var*, const Node*>>&, const Type*);
+        const TypeCtor* type_ctor(Scope&, const ArrayRef<const Var*>&, const Type*);
         const Type* type_app(const CtorVar*, const ArrayRef<const Node*>&);
 
         const LocalVariable* local_variable(const Type*);
@@ -199,10 +203,11 @@ struct LetRecBuilder : public Builder {
 
     //std::tuple<const ModVar*, const ModCtor*> mod_ctor(const ModVar*);
     const ModVar* module(std::unordered_map<const Key*, const Node*>&&, const ast::ModDecl* = nullptr);
-    const ModVar* mod_app(const Var*, const ArrayRef<const Node*>&);
+    const ModVar* mod_app(const CtorVar*, const ArrayRef<const Node*>&);
     const Var* mod_access(const ModValue*, const Key*, const Signature*);
 
-    const TypeVar* type_app(const Var*, const ArrayRef<const Node*>&);
+    const CtorVar* type_ctor(Scope&, const ArrayRef<const Var*>&, const Type*);
+    const TypeVar* type_app(const CtorVar*, const ArrayRef<const Node*>&);
 
     // const ModValue* mod_access(const ModValue*, const Key*);
 
@@ -221,6 +226,7 @@ struct LetRecBuilder : public Builder {
     const ModVar* schedule_mod_value(const ModValue*, std::optional<ast::Identifier> = std::nullopt);
     //const Type* schedule_and_bind_type(const Type*, std::optional<ast::Identifier> = std::nullopt);
     // const LetRec* finish(const Node*);
+    const Type* finish_type(const Type*);
     const ModValue* finish_module(const ModValue*);
 private:
     //const Module* module_;
@@ -228,7 +234,7 @@ private:
     // const Node* import(const Node*);
     const Var* schedule(const Node*, std::optional<ast::Identifier> = std::nullopt);
 
-    std::unordered_map<const Var*, const Node*> contents;
+    std::vector<std::tuple<const Var*, const Node*>> contents;
     std::unordered_map<const Node*, const Var*> already_bound_here;
 
     // Scope* root_scope_;

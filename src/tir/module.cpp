@@ -244,7 +244,6 @@ ModCtor::ModCtor(Builder& builder, Scope& scope, const ArrayRef<const Var*>& par
     // assert(signature_->elem_kind == NodeKind::Ctor);
     // assert(signature->dom.size() == params.size());
     for (size_t i = 0; i < params.size(); i++) {
-        scope.insert(params[i], nullptr);
         // assert(signature->dom[i]->is_sub(builder.scope, params[i]->signature()));
     }
 }
@@ -315,8 +314,8 @@ const Signature* ModError::signature() const {
     return signature_;
 }
 
-LetRecMod::LetRecMod(Builder& builder, Scope& scope, std::unordered_map<const Var*, const Node*>&& vars, const Node* in)
-    : Node(builder.arena), ModValue(), LetRec(scope, std::move(vars), in)
+LetRecMod::LetRecMod(Builder& builder, Scope& scope, const ArrayRef<std::tuple<const Var*, const Node*>>& vars, const ModValue* in)
+    : Node(builder.arena), ModValue(), LetRec(scope, vars, in)
 {}
 
 bool LetRecMod::equals(const Node* other) const {
