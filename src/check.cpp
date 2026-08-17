@@ -2714,7 +2714,9 @@ const tir::Node* TypeDecl::infer(TypeChecker& checker) {
 const tir::ModVar* ModDecl::infer_head(TypeChecker& checker) {
     LetRecBuilder& parent_builder = checker.let_rec_builder();
     sig = parent_builder.sig_var(id);
+    sig->binder = &parent_builder.scope;
     self = parent_builder.mod_var(id, sig);
+    self->binder = &parent_builder.scope;
     builder = &parent_builder;
     return self;
 }

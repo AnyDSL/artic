@@ -12,6 +12,7 @@
 #include "artic/hash.h"
 
 #include "artic/tir/tir.h"
+#include "artic/tir/module.h"
 
 namespace thorin {
 
