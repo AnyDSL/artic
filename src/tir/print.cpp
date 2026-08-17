@@ -19,6 +19,8 @@ std::string Printer::unique_name(const Node& node) {
         prefix = "@";
     if (node.isa<Param>())
         prefix = "%";
+    if (node.isa<SigVar>())
+        prefix = "*";
     if (auto param = node.isa<Var>(); param && param->id)
         return prefix + param->id->name;
     return prefix + std::to_string(node.gid);
@@ -158,6 +160,10 @@ void TypeError::print(Printer& p) const {
     p << log::error_style("<invalid type>");
 }
 
+void SigError::print(Printer& p) const {
+    p << log::error_style("<invalid signature>");
+}
+
 void TypeVar::print(Printer& p) const {
     p << p.unique_name(*this);
 }
@@ -215,6 +221,13 @@ void ModVar::print(Printer& p) const {
 
 void ModVar::print_head(Printer& p) const {
     p << log::keyword_style("mod") << ' ' << log::keyword_style("var") << " ";
+    p << p.unique_name(*this);
+    p << " : ";
+    p.print(*signature());
+}
+
+void SigVar::print_head(Printer& p) const {
+    p << log::keyword_style("sig") << ' ' << log::keyword_style("var") << " ";
     p << p.unique_name(*this);
 }
 
@@ -284,51 +297,47 @@ void TypeApp::print(Printer& p) const {
     App::print(p);
 }
 
-void Signature::print(Printer& p) const {
+void ValueSignature::print(Printer& p) const {
     p << log::keyword_style("sig") << " ";
-    switch (elem_kind) {
-        case NodeKind::Value: {
-            p << log::keyword_style("val");
-            p << " : ";
-            p.print(*value_type);
-            break;
-        }
-        case NodeKind::Type: {
-            p << log::keyword_style("type");
-            if (type) {
-                p << " : ";
-                p.print(*type);
-            }
-            break;
-        }
-        case NodeKind::Module: {
-            p << log::keyword_style("mod") << " {" << p.indent() << p.endl();
-            size_t i = 0;
-            for (auto [key, sub_signature] : mod_signature) {
-                p.print(*key);
-                p << " = ";
-                if (sub_signature)
-                    p.print(*sub_signature);
-                else
-                    p << "<unfinished>";
-                p << ";";
-                if (i++ + 1 < mod_signature.size())
-                    p << p.endl();
-            }
-            p << p.unindent() << p.endl() << "}";
-            break;
-        }
-        case NodeKind::Ctor: {
-            p << log::keyword_style("ctor") << "(";
-            print_list(p.top(), ", ", dom, [&] (auto& s) {
-                p.print(*s);
-            });
-            p << ") -> ";
-            p.print(*codom);
-            break;
-        }
-        default: assert(false);
+    p << log::keyword_style("val");
+    p << " : ";
+    p.print(*value_type);
+}
+
+void TypeSignature::print(Printer& p) const {
+    p << log::keyword_style("sig") << " ";
+    p << log::keyword_style("type");
+    if (type) {
+        p << " : ";
+        p.print(*type);
     }
+}
+
+void ModSignature::print(Printer& p) const {
+    p << log::keyword_style("sig") << " ";
+    p << log::keyword_style("mod") << " {" << p.indent() << p.endl();
+    size_t i = 0;
+    for (auto [key, sub_signature] : elems) {
+        p.print(*key);
+        p << " = ";
+        if (sub_signature)
+            p.print(*sub_signature);
+        else
+            p << "<unfinished>";
+        p << ";";
+        if (i++ + 1 < elems.size())
+            p << p.endl();
+    }
+    p << p.unindent() << p.endl() << "}";
+}
+
+void CtorSignature::print(Printer& p) const {
+    p << log::keyword_style("sig") << " ";p << log::keyword_style("ctor") << "(";
+    print_list(p.top(), ", ", dom, [&] (auto& s) {
+        p.print(*s);
+    });
+    p << ") -> ";
+    p.print(*codom);
 }
 
 void ModAccess::print(Printer& p) const {

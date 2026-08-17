@@ -164,7 +164,7 @@ const Key* Builder::decl_key(std::optional<ast::Identifier> id) {
     return arena.insert<Key>(arena, id);
 }
 
-const ModVar* Builder::mod_var(std::optional<ast::Identifier> id, const Signature* sig) {
+const ModVar* Builder::mod_var(std::optional<ast::Identifier> id, const Sig* sig) {
     return arena.insert<ModVar>(*this, id, sig);
 }
 
@@ -172,24 +172,33 @@ const ModError* Builder::mod_error() {
     return arena.insert<ModError>(*this);
 }
 
-const Module* Builder::Unsafe::module(std::unordered_map<const Key*, const Node*>&& decls, const ast::ModDecl* decl) {
-    return builder.arena.insert<Module>(builder, std::move(decls), decl);
+const Module* Builder::Unsafe::module(std::unordered_map<const Key*, const Node*>&& decls, const Sig* sig, const ast::ModDecl* decl) {
+    return builder.arena.insert<Module>(builder, std::move(decls), sig, decl);
 }
 
-const Node* Builder::Unsafe::mod_access(const ModValue* src, const Key* key, const Signature* sig) {
+const ModVar* LetRecBuilder::module(std::unordered_map<const Key*, const Node*>&& decls, const ast::ModDecl* decl) {
+    std::unordered_map<const Key*, const Sig*> sig_elems;
+    for (auto [key, val] : decls) {
+        sig_elems[key] = Sig::from_node(*this, val);
+    }
+    auto sig = mod_signature(std::move(sig_elems));
+    return schedule_mod_value(unsafe().module(std::move(decls), sig, decl));
+}
+
+const ModValue* Builder::Unsafe::mod_mod_access(const ModValue* src, const Key* key) {
     assert(src->is_simple());
     if (auto var = src->isa<ModVar>()) {
         auto mod = builder.scope.peek_mod_value(var)->isa<Module>();
         if (mod) {
             if (auto found = mod->lookup(key))
-                return found;
+                return found->as<ModValue>();
         }
     }
-    return builder.arena.insert<ModAccess>(builder.arena, src, key, sig);
+    return builder.arena.insert<ModModAccess>(builder, src, key);
 }
 
-const Var* LetRecBuilder::mod_access(const ModValue* src, const Key* key, const Signature* sig) {
-    return schedule(unsafe().mod_access(src, key, sig))->as<ModVar>();
+const ModVar* LetRecBuilder::mod_mod_access(const ModValue* src, const Key* key) {
+    return schedule(unsafe().mod_mod_access(src, key))->as<ModVar>();
 }
 
 const ModCtor* Builder::Unsafe::mod_ctor(Scope& scope, const ArrayRef<const Var*>& params, const ModValue* contents) {
@@ -206,6 +215,14 @@ const CtorVar* LetRecBuilder::type_ctor(Scope& scope, const ArrayRef<const Var*>
 
 const CtorVar* Builder::ctor_var(std::optional<ast::Identifier> id) {
     return arena.insert<CtorVar>(arena, id);
+}
+
+const SigVar* Builder::sig_var(std::optional<ast::Identifier> id) {
+    return arena.insert<SigVar>(*this, id);
+}
+
+const SigError* Builder::sig_error() {
+    return arena.insert<SigError>(arena);
 }
 
 const ModValue* Builder::Unsafe::mod_app(const CtorVar* applicand, const ArrayRef<const Node*>& args) {
@@ -416,24 +433,36 @@ const Value* ExprBuilder::finish_unit() {
     return finish(unit());
 }
 
-const Signature* Arena::root_mod_signature() {
-    return insert<Signature>(*this, NodeKind::Module, nullptr, nullptr);
+const ModSignature* Builder::Unsafe::mod_signature(std::unordered_map<const Key*, const Sig*>&& elems) {
+    return builder.arena.insert<ModSignature>(builder, std::move(elems));
 }
 
-const Signature* Builder::mod_signature() {
-    return arena.insert<Signature>(arena, NodeKind::Module, nullptr, nullptr);
+const Sig* LetRecBuilder::mod_signature(std::unordered_map<const Key*, const Sig*>&& elems) {
+    return schedule_sig(unsafe().mod_signature(std::move(elems)));
 }
 
-const Signature* Builder::value_signature(const Type* inner) {
-    return arena.insert<Signature>(arena, NodeKind::Value, inner, nullptr);
+const ValueSignature* Builder::Unsafe::value_signature(const Type* inner) {
+    return builder.arena.insert<ValueSignature>(builder, inner);
 }
 
-const Signature* Builder::type_signature(const Type* inner) {
-    return arena.insert<Signature>(arena, NodeKind::Type, nullptr, inner);
+const Sig* LetRecBuilder::value_signature(const Type* inner) {
+    return schedule_sig(unsafe().value_signature(inner));
 }
 
-const Signature* Builder::ctor_signature(const ArrayRef<const Signature*>& dom, const Signature* codom) {
-    return arena.insert<Signature>(*this, dom, codom);
+const TypeSignature* Builder::Unsafe::type_signature(const Type* inner) {
+    return builder.arena.insert<TypeSignature>(builder, inner);
+}
+
+const Sig* LetRecBuilder::type_signature(const Type* inner) {
+    return schedule_sig(unsafe().type_signature(inner));
+}
+
+const CtorSignature* Builder::Unsafe::ctor_signature(const ArrayRef<const Sig*>& dom, const Sig* codom) {
+    return builder.arena.insert<CtorSignature>(builder, dom, codom);
+}
+
+const Sig* LetRecBuilder::ctor_signature(const ArrayRef<const Sig*>& dom, const Sig* codom) {
+    return schedule_sig(unsafe().ctor_signature(dom, codom));
 }
 
 LetRecBuilder& Builder::enclosing_let_rec() {
@@ -626,6 +655,8 @@ const Var* LetRecBuilder::schedule(const Node* node, std::optional<ast::Identifi
         var = param(std::nullopt, value->type());
     } else if (node->isa<Ctor>()) {
         var = ctor_var(maybe_id);
+    } else if (node->isa<Sig>()) {
+        var = sig_var(maybe_id);
     } else {
         assert(false);
     }
@@ -646,6 +677,10 @@ const Param* LetRecBuilder::schedule_value(const Value* value, std::optional<ast
 
 const ModVar* LetRecBuilder::schedule_mod_value(const ModValue* node, std::optional<ast::Identifier> id) {
     return schedule(node, id)->as<ModVar>();
+}
+
+const SigVar* LetRecBuilder::schedule_sig(const Sig* node, std::optional<ast::Identifier> id) {
+    return schedule(node, id)->as<SigVar>();
 }
 
 const Type* Builder::Unsafe::type_let_rec(const ArrayRef<std::tuple<const Var*, const Node*>>& contents, const Type* in) {

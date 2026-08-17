@@ -135,6 +135,10 @@ const Ctor* Scope::resolve_ctor(const CtorVar* var) const {
     return resolve_var_deep(var)->as<Ctor>();
 }
 
+const Sig* Scope::resolve_sig(const SigVar* var) const {
+    return resolve_var_deep(var)->as<Sig>();
+}
+
 const Scope* unify_scopes(const Scope* l, const Scope* r) {
     if (l == r)
         return l;

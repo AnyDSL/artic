@@ -2750,8 +2750,8 @@ const tir::Node* TypeDecl::infer(TypeChecker& checker) {
 
 const tir::ModVar* ModDecl::infer_head(TypeChecker& checker) {
     LetRecBuilder& parent_builder = checker.let_rec_builder();
-    auto signature = parent_builder.mod_signature();
-    self = parent_builder.mod_var(id, signature);
+    sig = parent_builder.sig_var(id);
+    self = parent_builder.mod_var(id, sig);
     builder = &parent_builder;
     return self;
 }
@@ -2792,7 +2792,8 @@ const tir::Node* ModDecl::infer(TypeChecker& checker) {
         // }
     }
 
-    parent_builder.bind(var, parent_builder.unsafe().module(std::move(decls), this));
+    parent_builder.bind(var, parent_builder.module(std::move(decls), this));
+    parent_builder.bind(sig, var->as<ModVar>()->signature());
 
     checker.exit_decl(this);
 

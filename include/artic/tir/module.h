@@ -9,7 +9,6 @@ struct Type;
 struct Value;
 struct ModVar;
 struct ModValue;
-struct Signature;
 struct Param;
 struct TypeVar;
 struct Module;
@@ -27,15 +26,19 @@ struct Key : virtual public Node {
     Key(Arena& arena, std::optional<ast::Identifier> id) : Node(arena), id(id) {}
 };
 
-struct Signature : virtual public Node {
-    NodeKind elem_kind;
+struct Sig : virtual Node {
+    NodeKind kind() const override { return NodeKind::Signature; }
+
+    /// subtyping, but for signatures
+    virtual bool is_sub(const Scope&, const Sig*) const;
+
+    const Node* to_error(Builder&) const;
+
+    static const Sig* from_node(LetRecBuilder&, const Node*, bool public_interface = true);
+};
+
+struct ValueSignature : public Sig {
     const Type* value_type = nullptr;
-    const Type* type = nullptr;
-    // we must lazily build module signatures, which means they are treated like nominal nodes until sealed
-    mutable std::unordered_map<const Key*, const Signature*> mod_signature;
-    mutable bool sealed = false;
-    Array<const Signature*> dom;
-    const Signature* codom;
 
     size_t hash() const override;
     bool equals(const Node*) const override;
@@ -43,31 +46,82 @@ struct Signature : virtual public Node {
     const Node* rewrite(Rewriter&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
-    static const Signature* from_node(Builder&, const Node*, bool public_interface = true);
-    const Node* to_error(Builder&) const;
+    bool is_sub(const Scope&, const Sig*) const override;
 
-    NodeKind kind() const override { return NodeKind::Signature; }
-    bool is_simple() const override { return true; }
+    ValueSignature(Builder&, const Type*);
+};
 
-    bool is_complete() const;
-    /// subtyping, but for signatures
-    bool is_sub(const Scope&, const Signature*) const;
+struct TypeSignature : public Sig {
+    const Type* type = nullptr;
 
-    Signature(Arena&, NodeKind elem_kind, const Type*, const Type*);
-    // ctor signature constructor
-    Signature(Builder&, const ArrayRef<const Signature*>&, const Signature*);
+    size_t hash() const override;
+    bool equals(const Node*) const override;
+    void print(Printer& p) const override;
+    const Node* rewrite(Rewriter&) const override;
+    void free_variables(FVSet&, Seen&) const override;
+
+    bool is_sub(const Scope&, const Sig*) const override;
+
+    TypeSignature(Builder&, const Type*);
+};
+
+struct ModSignature : public Sig {
+    std::unordered_map<const Key*, const Sig*> elems;
+
+    size_t hash() const override;
+    bool equals(const Node*) const override;
+    void print(Printer& p) const override;
+    const Node* rewrite(Rewriter&) const override;
+    void free_variables(FVSet&, Seen&) const override;
+
+    bool is_sub(const Scope&, const Sig*) const override;
+
+    ModSignature(Builder&, std::unordered_map<const Key*, const Sig*>&&);
+};
+
+struct CtorSignature : public Sig {
+    Array<const Sig*> dom;
+    const Sig* codom;
+
+    size_t hash() const override;
+    bool equals(const Node*) const override;
+    void print(Printer& p) const override;
+    const Node* rewrite(Rewriter&) const override;
+    void free_variables(FVSet&, Seen&) const override;
+
+    bool is_sub(const Scope&, const Sig*) const override;
+
+    CtorSignature(Builder&, const ArrayRef<const Sig*>&, const Sig*);
+};
+
+struct SigVar : public Sig, public Var {
+    void print_head(Printer&) const override;
+
+    const Node* rewrite(Rewriter&) const override;
+
+    SigVar(Builder&, std::optional<ast::Identifier> id);
+};
+
+struct SigError : public Sig {
+    void print(Printer&) const override;
+    const Node* rewrite(Rewriter&) const override;
+
+    bool is_simple() const override { return true; };
+    void free_variables(FVSet&, Seen&) const override;
+
+    SigError(Arena&);
 };
 
 struct ModValue : virtual public Node {
     NodeKind kind() const override { return NodeKind::Module; }
 
-    virtual const Signature* signature() const = 0;
+    virtual const Sig* signature() const = 0;
 
     ModValue() {}
 };
 
 struct ModVar : public ModValue, public Var {
-    const Signature* signature_;
+    const Sig* signature_;
 
     void print(Printer&) const override;
     void print_head(Printer&) const override;
@@ -76,19 +130,18 @@ struct ModVar : public ModValue, public Var {
 
     bool is_simple() const override { return true; }
 
-    const Signature* signature() const override;
+    const Sig* signature() const override;
 
-    ModVar(Builder&, std::optional<ast::Identifier> id, const Signature*);
+    ModVar(Builder&, std::optional<ast::Identifier> id, const Sig*);
 };
 
 struct Module : public ModValue {
     const ast::ModDecl* decl;
-    const Signature* signature_ = nullptr;
     std::unordered_map<const Key*, const Node*> decls;
 
     const Node* lookup(const Key*) const;
 
-    const Signature* signature() const override;
+    const Sig* signature() const override;
 
     void print(Printer&) const override;
     const Node* rewrite(Rewriter&) const override;
@@ -96,25 +149,33 @@ struct Module : public ModValue {
 
     // void emit(Emitter&) const;
 
-    Module(Builder&, std::unordered_map<const Key*, const Node*>&&, const ast::ModDecl*);
+    Module(Builder&, std::unordered_map<const Key*, const Node*>&&, const Sig*, const ast::ModDecl*);
     Module(const Module&) = delete;
+private:
+    const Sig* signature_ = nullptr;
 };
 
-struct ModAccess : public ModValue {
+struct ModAccess : virtual Node {
     const ModValue* mod;
     const Key* key;
-    const Signature* signature_;
 
     size_t hash() const override;
     bool equals(const Node*) const override;
     void print(Printer&) const override;
+    void free_variables(FVSet&, Seen&) const override;
+
+    ModAccess(Builder&, const ModValue*, const Key*);
+};
+
+struct ModModAccess : public ModAccess, public ModValue {
+    const Sig* signature_;
+    const Sig* signature() const override;
+
+    bool equals(const Node*) const override;
     const Node* rewrite(Rewriter&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
-    const Signature* signature() const override;
-
-    ModAccess(Arena& arena, const ModValue*, const Key*, const Signature*);
-    ModAccess(Arena& arena, const ModValue*, const Key*);
+    ModModAccess(Builder&, const ModValue*, const Key*);
 };
 
 struct ModCtor : public Ctor {
@@ -136,13 +197,13 @@ struct ModApp : public ModValue, public App {
     const Node* rewrite(Rewriter&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
-    const Signature* signature() const override;
+    const Sig* signature() const override;
 
     const ModVar* instantiated(LetRecBuilder& b) const override;
 
     ModApp(Builder&, const CtorVar*, const ArrayRef<const Node*>& args);
 private:
-    const Signature* signature_;
+    const Sig* signature_;
     mutable const ModVar* instantiated_ = nullptr;
     friend Emitter;
 };
@@ -152,7 +213,7 @@ struct LetRecMod : public ModValue, public LetRec {
         return LetRec::body()->as<ModValue>();
     }
 
-    const Signature* signature() const override {
+    const Sig* signature() const override {
         assert(false && "TODO");
         return nullptr;
     }
@@ -164,7 +225,7 @@ struct LetRecMod : public ModValue, public LetRec {
 };
 
 struct ModError : public ModValue {
-    const Signature* signature_;
+    const Sig* signature_;
 
     size_t hash() const override;
     bool equals(const Node*) const override;
@@ -172,7 +233,7 @@ struct ModError : public ModValue {
     const Node* rewrite(Rewriter&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
-    const Signature* signature() const override;
+    const Sig* signature() const override;
 
     ModError(Builder&);
 };

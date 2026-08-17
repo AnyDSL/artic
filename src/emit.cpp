@@ -1157,11 +1157,15 @@ const R* Emitter::emit_letrec(const T* letrec) {
     for (auto [var, value] : letrec->vars) {
         if (var->kind() == NodeKind::Ctor)
             continue;
+        if (var->kind() == NodeKind::Signature)
+            continue;
         decls.decls.emplace(var, std::make_unique<ModuleDecl>(var, value));
     }
     for (auto& decl : decls.decls) {
         auto& [var, value] = decl;
         if (var->kind() == NodeKind::Ctor)
+            continue;
+        if (var->kind() == NodeKind::Signature)
             continue;
         emit_bound_var(var);
     }

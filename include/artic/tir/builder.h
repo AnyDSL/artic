@@ -29,8 +29,6 @@ public:
     const NoRetType* no_ret_type();
     const TypeError* type_error();
 
-    const Signature* root_mod_signature();
-
 private:
     template <typename T, typename... Args>
     const T* insert(Args&&... args) {
@@ -91,11 +89,6 @@ struct Builder : public artic::Cast<Builder> {
     LetRecBuilder& enclosing_let_rec();
     ExprBuilder& enclosing_expr();
 
-    const Signature* mod_signature();
-    const Signature* value_signature(const Type*);
-    const Signature* type_signature(const Type*);
-    const Signature* ctor_signature(const ArrayRef<const Signature*>&, const Signature*);
-
     const PrimType*          prim_type(ast::PrimType::Tag);
     const PrimType*          bool_type();
     const TupleType*         unit_type();
@@ -117,9 +110,11 @@ struct Builder : public artic::Cast<Builder> {
     const TypeVar*           type_var(std::optional<ast::Identifier> id);
 
     const CtorVar* ctor_var(std::optional<ast::Identifier> id);
+    const SigVar* sig_var(std::optional<ast::Identifier> id);
+    const SigError* sig_error();
 
     const Key* decl_key(std::optional<ast::Identifier>);
-    const ModVar* mod_var(std::optional<ast::Identifier> id, const Signature*);
+    const ModVar* mod_var(std::optional<ast::Identifier> id, const Sig*);
     const ModError* mod_error();
     // const ModValue* mod_access(const ModValue*, const Key*);
 
@@ -150,15 +145,20 @@ struct Builder : public artic::Cast<Builder> {
 
     // un-scheduled node ctors where you should probably used the scheduled version instead!
     struct Unsafe {
-        const Module* module(std::unordered_map<const Key*, const Node*>&&, const ast::ModDecl* = nullptr);
+        const Module* module(std::unordered_map<const Key*, const Node*>&&, const Sig*, const ast::ModDecl* = nullptr);
         const ModCtor* mod_ctor(Scope&, const ArrayRef<const Var*>&, const ModValue*);
         const ModValue* mod_app(const CtorVar*, const ArrayRef<const Node*>&);
-        const Node* mod_access(const ModValue*, const Key*, const Signature*);
+        const ModValue* mod_mod_access(const ModValue*, const Key*);
         const ModValue* mod_let_rec(const ArrayRef<std::tuple<const Var*, const Node*>>&, const ModValue*);
 
         const Type* type_let_rec(const ArrayRef<std::tuple<const Var*, const Node*>>&, const Type*);
         const TypeCtor* type_ctor(Scope&, const ArrayRef<const Var*>&, const Type*);
         const Type* type_app(const CtorVar*, const ArrayRef<const Node*>&);
+
+        const ModSignature* mod_signature(std::unordered_map<const Key*, const Sig*>&&);
+        const ValueSignature* value_signature(const Type*);
+        const TypeSignature* type_signature(const Type*);
+        const CtorSignature* ctor_signature(const ArrayRef<const Sig*>&, const Sig*);
 
         const LocalVariable* local_variable(const Type*);
 
@@ -201,10 +201,15 @@ struct LetRecBuilder : public Builder {
     LetRecBuilder(Arena& arena, Scope&, Builder* parent);
     ~LetRecBuilder();
 
+    const Sig* mod_signature(std::unordered_map<const Key*, const Sig*>&&);
+    const Sig* value_signature(const Type*);
+    const Sig* type_signature(const Type*);
+    const Sig* ctor_signature(const ArrayRef<const Sig*>&, const Sig*);
+
     //std::tuple<const ModVar*, const ModCtor*> mod_ctor(const ModVar*);
     const ModVar* module(std::unordered_map<const Key*, const Node*>&&, const ast::ModDecl* = nullptr);
     const ModVar* mod_app(const CtorVar*, const ArrayRef<const Node*>&);
-    const Var* mod_access(const ModValue*, const Key*, const Signature*);
+    const ModVar* mod_mod_access(const ModValue*, const Key*);
 
     const CtorVar* type_ctor(Scope&, const ArrayRef<const Var*>&, const Type*);
     const TypeVar* type_app(const CtorVar*, const ArrayRef<const Node*>&);
@@ -224,6 +229,8 @@ struct LetRecBuilder : public Builder {
     const TypeVar* schedule_type(const Type*, std::optional<ast::Identifier> = std::nullopt);
     const Param* schedule_value(const Value*, std::optional<ast::Identifier> = std::nullopt);
     const ModVar* schedule_mod_value(const ModValue*, std::optional<ast::Identifier> = std::nullopt);
+    const CtorVar* schedule_ctor(const Ctor*, std::optional<ast::Identifier> = std::nullopt);
+    const SigVar* schedule_sig(const Sig*, std::optional<ast::Identifier> = std::nullopt);
     //const Type* schedule_and_bind_type(const Type*, std::optional<ast::Identifier> = std::nullopt);
     // const LetRec* finish(const Node*);
     const Type* finish_type(const Type*);

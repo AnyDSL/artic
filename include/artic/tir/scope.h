@@ -7,6 +7,8 @@ namespace artic::tir {
 
 struct ModValue;
 struct Ctor;
+struct SigVar;
+struct Sig;
 struct ExprBuilder;
 struct LetRecBuilder;
 struct FnBuilder;
@@ -48,6 +50,7 @@ struct Scope {
     const Value* peek_value(const Value*) const;
 
     const Ctor* resolve_ctor(const CtorVar*) const;
+    const Sig* resolve_sig(const SigVar*) const;
 
     Scope& new_child();
 private:

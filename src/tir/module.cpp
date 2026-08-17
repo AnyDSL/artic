@@ -6,9 +6,11 @@
 
 namespace artic::tir {
 
-Module::Module(Builder& builder, std::unordered_map<const Key*, const Node*>&& decls, const ast::ModDecl* decl)
-    : ModValue(), Node(builder.arena), decls(std::move(decls)), decl(decl), signature_(builder.mod_signature())
-{}
+Module::Module(Builder& builder, std::unordered_map<const Key*, const Node*>&& decls, const Sig* signature, const ast::ModDecl* decl)
+    : ModValue(), Node(builder.arena), decls(std::move(decls)), decl(decl), signature_(signature) {
+    const ModSignature* ms = builder.scope.resolve_sig(signature->as<SigVar>())->isa<ModSignature>();
+    assert(ms);
+}
 
 const Node* Module::lookup(const Key* key) const {
     for (auto [decl_key, val] : decls) {
@@ -18,104 +20,92 @@ const Node* Module::lookup(const Key* key) const {
     return nullptr;
 }
 
-Signature::Signature(Arena& arena, NodeKind elem_kind, const Type* value_type, const Type* type)
-: Node(arena), elem_kind(elem_kind), value_type(value_type), type(type) {
-    switch (elem_kind) {
-        case NodeKind::Value: {
-            assert(value_type && value_type->is_simple());
-            break;
-        }
-        case NodeKind::Type: {
-            if (type)
-                assert(type->is_simple());
-            break;
-        }
-        case NodeKind::Module: {
-            // for (auto [var, sig] : mod_signature) {
-            //     // nothing to check actually
-            // }
-            break;
-        }
-        default: assert(false);
-    }
-}
-Signature::Signature(Builder& builder, const ArrayRef<const Signature*>& dom, const Signature* codom)
-: Node(builder.arena), elem_kind(NodeKind::Ctor), dom(dom), codom(codom) {}
-
-size_t Signature::hash() const {
-    auto h = fnv::Hash().combine(elem_kind);
-    switch (elem_kind) {
-        case NodeKind::Value:
-            h = h.combine(value_type);
-            break;
-        case NodeKind::Type:
-            if (type)
-                h = h.combine(type);
-            break;
-        case NodeKind::Module:
-            if (!sealed)
-                return h.combine(this);
-            // for (auto [key, sig] : mod_signature) {
-            //     h = h.combine(key);
-            //     h = h.combine(sig);
-            // }
-            break;
-        case NodeKind::Ctor:
-            for (auto d : dom)
-                h = h.combine(d->hash());
-            h = h.combine(codom->hash());
-            break;
-        default: assert(false);
-    }
-    return h;
+ValueSignature::ValueSignature(Builder& builder, const Type* value_type) : Node(builder.arena), Sig(), value_type(value_type) {
+    assert(value_type->is_simple());
 }
 
-bool Signature::equals(const Node* other) const {
-    if (this == other)
-        return true;
-    if (auto other_signature = other->isa<Signature>()) {
-        if (other_signature->elem_kind != elem_kind)
-            return false;
-        switch (elem_kind) {
-            case NodeKind::Value: {
-                if (other_signature->value_type != value_type)
-                    return false;
-                break;
-            }
-            case NodeKind::Type: {
-                if (other_signature->type != type)
-                    return false;
-                break;
-            }
-            case NodeKind::Module: {
-                // unsealed modules are nominal
-                if (!other_signature->sealed || !sealed)
-                    return false;
-                // if (other_signature->mod_signature.size() != mod_signature.size())
-                //     return false;
-                // for (size_t i = 0; i < mod_signature.size(); i++) {
-                //     if (!Compare()(mod_signature[i], other_signature->mod_signature[i]))
-                //         return false;
-                // }
-                // return true;
-            }
-            case NodeKind::Ctor: {
-                if (other_signature->dom.size() != dom.size())
-                    return false;
-                for (size_t i = 0; i < dom.size(); i++) {
-                    if (!dom[i]->equals(other_signature->dom[i]))
-                        return false;
-                }
-                return codom->equals(other_signature->codom);
-            }
-            default: assert(false);
-        }
-        return true;
+size_t ValueSignature::hash() const {
+    return value_type->hash();
+}
+
+bool ValueSignature::equals(const Node* other) const {
+    if (auto other_vs = other->isa<ValueSignature>()) {
+        return other_vs->value_type == value_type;
     }
     return false;
 }
 
-const Signature* Signature::from_node(Builder& builder, const Node* node, bool public_interface) {
+TypeSignature::TypeSignature(Builder& builder, const Type* type) : Node(builder.arena), Sig(), type(type) {
+    if (type)
+        assert(type->is_simple());
+}
+
+size_t TypeSignature::hash() const {
+    auto h = fnv::Hash();
+    if (type)
+        h = h.combine(type->hash());
+    return h;
+}
+
+bool TypeSignature::equals(const Node* other) const {
+    if (auto other_ts = other->isa<TypeSignature>()) {
+        return other_ts->type == type;
+    }
+    return false;
+}
+
+ModSignature::ModSignature(Builder& builder, std::unordered_map<const Key*, const Sig*>&& elems) : Node(builder.arena), Sig(), elems(std::move(elems)) {
+
+}
+
+size_t ModSignature::hash() const {
+    auto h = fnv::Hash();
+    for (auto [key, val] : elems)
+        h = h.combine(key->hash()).combine(val->hash());
+    return h;
+}
+
+bool ModSignature::equals(const Node* other) const {
+    if (auto other_ms = other->isa<ModSignature>()) {
+        if (other_ms->elems.size() != elems.size())
+            return false;
+        return other_ms->elems == elems;
+    }
+    return false;
+}
+
+CtorSignature::CtorSignature(Builder& builder, const ArrayRef<const Sig*>& dom, const Sig* codom) : Node(builder.arena), Sig(), dom(dom), codom(codom) {
+    for (auto d : dom)
+        assert(d->is_simple());
+    assert(codom->is_simple());
+}
+
+size_t CtorSignature::hash() const {
+    auto h = fnv::Hash();
+    for (auto d : dom)
+        h = h.combine(d->hash());
+    h = h.combine(codom->hash());
+    return h;
+}
+
+bool CtorSignature::equals(const Node* other) const {
+    if (auto other_cts = other->isa<CtorSignature>()) {
+        if (other_cts->dom.size() != dom.size())
+            return false;
+        for (size_t i = 0; i < other_cts->dom.size(); i++) {
+            if (other_cts->dom[i] != dom[i])
+                return false;
+        }
+        return codom == other_cts->codom;
+    }
+    return false;
+}
+
+SigVar::SigVar(Builder& builder, std::optional<ast::Identifier> id) : Node(builder.arena), Var(id), Sig() {}
+
+SigError::SigError(Arena& arena) : Node(arena), Sig() {}
+
+const Sig* Sig::from_node(LetRecBuilder& builder, const Node* node, bool public_interface) {
     if (auto mod_val = node->isa<ModValue>()) {
         return mod_val->signature();
     }
@@ -131,13 +121,21 @@ const Signature* Signature::from_node(Builder& builder, const Node* node, bool p
             return node->as<ModValue>()->signature();
         }
         // Module constructors have no signature
-        // case NodeKind::Ctor:
-        //     return nullptr;
+        case NodeKind::Ctor: {
+            while (auto ctor_var = node->isa<CtorVar>()) {
+                node = builder.scope.resolve_ctor(ctor_var);
+            }
+            const Ctor* ctor = node->as<Ctor>();
+            Array<const Sig*> dom(ctor->params.size());
+            for (size_t i = 0; i < dom.size(); i++)
+                dom[i] = Sig::from_node(builder, ctor->params[i], false);
+            return builder.ctor_signature(dom, Sig::from_node(builder, ctor->body(), false));
+        }
         default: assert(false);
     }
 }
 
-const Node* Signature::to_error(Builder& builder) const {
+/*const Node* Sig::to_error(Builder& builder) const {
     switch (elem_kind) {
         case NodeKind::Value: {
             return builder.error_value(value_type);
@@ -150,58 +148,76 @@ const Node* Signature::to_error(Builder& builder) const {
         }
         default: assert(false);
     }
-}
+}*/
 
-bool Signature::is_complete() const {
-    switch (elem_kind) {
-        case NodeKind::Value:
-            return true;
-        case NodeKind::Type:
-            return true;
-        case NodeKind::Module:
-            for (auto [key, sub_sig] : mod_signature) {
-                if (!sub_sig || !sub_sig->is_complete())
-                    return false;
-            }
-            return true;
-        case NodeKind::Ctor:
-            // only Type -> Type ctors are supported for now.
-            for (auto d : dom) {
-                assert(d->kind() == NodeKind::Type);
-                if (!d->is_complete())
-                    return false;
-            }
-            assert(codom->kind() == NodeKind::Type);
-            return codom->is_complete();
-        default: assert(false);
-    }
-}
-
-bool Signature::is_sub(const Scope& scope, const Signature* other) const {
+bool Sig::is_sub(const Scope& scope, const Sig* other) const {
     if (this == other)
         return true;
-    if (elem_kind != other->elem_kind)
-        return false;
+    if (auto var = this->isa<SigVar>())
+        return scope.resolve_sig(var)->is_sub(scope, other);
 
-    switch (elem_kind) {
-        case NodeKind::Value:
-            return value_type->subtype(scope, other->value_type);
-        case NodeKind::Type:
-            if (!other->type)
-                return true;
-            if (!type)
-                return false;
-            return type->subtype(scope, other->type);
-        case NodeKind::Module:
-            assert(false && "TODO");
-        case NodeKind::Ctor:
-            assert(false && "TODO");
-        default: assert(false);
-    }
+    return false;
 }
 
-const Signature* Module::signature() const {
+bool ValueSignature::is_sub(const Scope& scope, const Sig* other) const {
+    while (auto var = other->isa<SigVar>())
+        other = scope.resolve_sig(var);
+    if (auto other_vs = other->isa<ValueSignature>()) {
+        return value_type->subtype(scope, other_vs->value_type);
+    }
+    return false;
+}
+
+bool TypeSignature::is_sub(const Scope& scope, const Sig* other) const {
+    while (auto var = other->isa<SigVar>())
+        other = scope.resolve_sig(var);
+    if (auto other_ts = other->isa<TypeSignature>()) {
+        if (!other_ts->type)
+            return true;
+        if (!type)
+            return false;
+        return type->subtype(scope, other_ts->type);
+    }
+    return false;
+}
+
+bool ModSignature::is_sub(const Scope&, const Sig*) const {
+    assert(false && "TODO");
+}
+
+bool CtorSignature::is_sub(const Scope&, const Sig*) const {
+    assert(false && "TODO");
+}
+
+const Sig* Module::signature() const {
     return signature_;
+}
+
+ModVar::ModVar(Builder& builder, std::optional<ast::Identifier> id, const Sig* signature)
+    : Node(builder.arena), Var(id), signature_(signature) {}
+
+const Sig* ModVar::signature() const {
+    assert(signature_);
+    return signature_;
+}
+
+const Sig* ModModAccess::signature() const {
+    return signature_;
+}
+
+ModAccess::ModAccess(Builder& builder, const ModValue* mod, const Key* key)
+    : mod(mod), key(key) {
+    assert(mod->is_simple() && mod->kind() == NodeKind::Module);
+    assert(key->isa<Key>());
+}
+
+ModModAccess::ModModAccess(Builder& builder, const ModValue* mod, const Key* key)
+    : Node(builder.arena), ModAccess(builder, mod, key), signature_([&]() -> const Sig*  {
+        auto mod_sig = builder.scope.resolve_sig(mod->signature()->as<SigVar>())->as<ModSignature>();
+        return mod_sig->elems.find(key)->second;
+    }()) {
+    assert(mod->is_simple() && mod->kind() == NodeKind::Module);
+    assert(key->isa<Key>());
 }
 
 size_t ModAccess::hash() const {
@@ -216,23 +232,11 @@ bool ModAccess::equals(const Node* other) const {
     return false;
 }
 
-ModVar::ModVar(Builder& builder, std::optional<ast::Identifier> id, const Signature* signature)
-    : Node(builder.arena), Var(id), signature_(signature) {}
-
-const Signature* ModVar::signature() const {
-    assert(signature_);
-    return signature_;
-}
-
-const Signature* ModAccess::signature() const {
-    return signature_;
-}
-
-ModAccess::ModAccess(Arena& arena, const ModValue* mod, const Key* key, const Signature* sig)
-    : ModValue(), Node(arena), mod(mod), key(key), signature_(sig) {
-    assert(mod->is_simple() && mod->kind() == NodeKind::Module);
-    assert(key->isa<Key>());
-    assert(sig);
+bool ModModAccess::equals(const Node* other) const {
+    if (auto other_access = other->isa<ModModAccess>()) {
+        return ModAccess::equals(other_access);
+    }
+    return false;
 }
 
 /*ModAccess::ModAccess(Arena& arena, const ModValue* mod, const Key* key) : ModAccess {
@@ -293,12 +297,12 @@ const ModVar* ModApp::instantiated(LetRecBuilder& b) const {
     return instantiated_;
 }
 
-const Signature* ModApp::signature() const {
+const Sig* ModApp::signature() const {
     return signature_;
 }
 
 ModError::ModError(Builder& builder)
-    : ModValue(), Node(builder.arena), signature_(builder.mod_signature()) {}
+    : ModValue(), Node(builder.arena), signature_(builder.sig_error()) {}
 
 size_t ModError::hash() const {
     return fnv::Hash().combine(1337);
@@ -310,7 +314,7 @@ bool ModError::equals(const Node* other) const {
     return false;
 }
 
-const Signature* ModError::signature() const {
+const Sig* ModError::signature() const {
     return signature_;
 }
 
@@ -327,29 +331,24 @@ bool LetRecMod::equals(const Node* other) const {
 
 // Free variables ------------------------------------------------------------------
 
-void Signature::free_variables(FVSet& vars, Seen& seen) const {
-    switch (elem_kind) {
-        case NodeKind::Value:
-            value_type->free_variables(vars, seen);
-            break;
-        case NodeKind::Type:
-            if (type)
-                type->free_variables(vars, seen);
-            break;
-        case NodeKind::Module:
-            for (auto& [key, sig] : mod_signature) {
-                assert(sig && "cannot determine free variables of an incomplete signature");
-                sig->free_variables(vars, seen);
-            }
-            break;
-        case NodeKind::Ctor: {
-            for (auto d : dom)
-                d->free_variables(vars, seen);
-            codom->free_variables(vars, seen);
-            break;
-        }
-        default: assert(false);
-    }
+void ValueSignature::free_variables(FVSet& vars, Seen& seen) const {
+    value_type->free_variables(vars, seen);
+}
+
+void TypeSignature::free_variables(FVSet& vars, Seen& seen) const {
+    if (type)
+        type->free_variables(vars, seen);
+}
+
+void ModSignature::free_variables(FVSet& vars, Seen& seen) const {
+    for (auto [_, val] : elems)
+        val->free_variables(vars, seen);
+}
+
+void CtorSignature::free_variables(FVSet& vars, Seen& seen) const {
+    for (auto d : dom)
+        d->free_variables(vars, seen);
+    codom->free_variables(vars, seen);
 }
 
 void ModVar::free_variables(FVSet& vars, Seen& seen) const {
@@ -360,6 +359,10 @@ void ModVar::free_variables(FVSet& vars, Seen& seen) const {
 
 void ModAccess::free_variables(FVSet& vars, Seen& seen) const {
    mod->free_variables(vars, seen);
+}
+
+void ModModAccess::free_variables(FVSet& vars, Seen& seen) const {
+   ModAccess::free_variables(vars, seen);
    signature_->free_variables(vars, seen);
 }
 
@@ -385,4 +388,9 @@ void ModApp::free_variables(FVSet& vars, Seen& seen) const {
 void ModError::free_variables(FVSet&, Seen&) const {
 
 }
+
+void SigError::free_variables(FVSet&, Seen&) const {
+
+}
+
 }

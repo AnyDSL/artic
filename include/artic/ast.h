@@ -30,7 +30,7 @@ namespace tir {
     struct Var;
     struct ModVar;
     struct Param;
-    struct Signature;
+    struct SigVar;
     struct Builder;
     struct LetRecBuilder;
     enum class NodeKind;
@@ -1494,6 +1494,7 @@ struct ModDecl : public NamedDecl {
     ModDecl* super = nullptr;
 
     // Created in infer_head
+    mutable const tir::SigVar* sig = nullptr;
     mutable const tir::ModVar* self = nullptr;
     mutable tir::LetRecBuilder* builder = nullptr;
 

@@ -88,7 +88,15 @@ const Node* Key::rewrite(Rewriter& r) const {
 }
 
 const Node* ModVar::rewrite(Rewriter& r) const {
-    return r.builder().mod_var(id, r.instantiate(signature_, false)->as<Signature>());
+    return r.builder().mod_var(id, r.instantiate(signature_, false)->as<Sig>());
+}
+
+const Node* SigVar::rewrite(Rewriter& r) const {
+    return r.builder().sig_var(id);
+}
+
+const Node* SigError::rewrite(Rewriter& r) const {
+    return r.builder().sig_error();
 }
 
 const Node* Module::rewrite(Rewriter& r) const {
@@ -98,7 +106,7 @@ const Node* Module::rewrite(Rewriter& r) const {
         auto nval = r.instantiate(oval);
         decls.emplace(nkey, nval);
     }
-    return r.builder().unsafe().module(std::move(decls), decl);
+    return r.builder().unsafe().module(std::move(decls), r.instantiate(signature()), decl);
     // const Module* m = nullptr;
     // std::optional<LetRecBuilder> mod_builder;
     // if (r.is_root()) {
@@ -154,8 +162,8 @@ const Node* ModApp::rewrite(Rewriter& r) const {
     return r.builder().unsafe().mod_app(r.instantiate(applicand()), nargs);
 }
 
-const Node* ModAccess::rewrite(Rewriter& r) const {
-    return r.builder().unsafe().mod_access(r.instantiate(mod), r.instantiate(key), r.instantiate(signature_));
+const Node* ModModAccess::rewrite(Rewriter& r) const {
+    return r.builder().unsafe().mod_mod_access(r.instantiate(mod), r.instantiate(key));
 }
 
 const Node* ModError::rewrite(Rewriter& r) const {
@@ -290,33 +298,31 @@ const Node* Control::rewrite(Rewriter& r) const {
     return r.builder().unsafe().control(r.instantiate(body, true));
 }
 
-const Node* Signature::rewrite(Rewriter& rewriter) const {
-    switch (elem_kind) {
-        case NodeKind::Value: {
-            return rewriter.builder().value_signature(rewriter.instantiate(value_type)->as<Type>());
-        }
-        case NodeKind::Type: {
-            if (type)
-                return rewriter.builder().type_signature(rewriter.instantiate(type)->as<Type>());
-            return rewriter.builder().type_signature(nullptr);
-        }
-        case NodeKind::Module: {
-            auto new_sig = rewriter.builder().mod_signature();
-            for (auto [key, sig] : mod_signature) {
-                new_sig->mod_signature.emplace(key, rewriter.instantiate(sig)->as<Signature>());
-            }
-            return new_sig;
-        }
-        case NodeKind::Ctor: {
-            Array<const Signature*> new_dom(dom.size());
-            for (size_t i = 0; i < dom.size(); ++i) {
-                new_dom[i] = rewriter.instantiate(dom[i])->as<Signature>();
-            }
-            auto new_codom = rewriter.instantiate(codom)->as<Signature>();
-            return rewriter.builder().ctor_signature(new_dom, new_codom);
-        }
-        default: assert(false);
+const Node* ValueSignature::rewrite(Rewriter& rewriter) const {
+    return rewriter.builder().unsafe().value_signature(rewriter.instantiate(value_type)->as<Type>());
+}
+
+const Node* TypeSignature::rewrite(Rewriter& rewriter) const {
+    if (type)
+        return rewriter.builder().unsafe().type_signature(rewriter.instantiate(type)->as<Type>());
+    return rewriter.builder().unsafe().type_signature(nullptr);
+}
+
+const Node* ModSignature::rewrite(Rewriter& rewriter) const {
+    std::unordered_map<const Key*, const Sig*> nelems;
+    for (auto [key, sig] : elems) {
+        nelems.emplace(key, rewriter.instantiate(sig));
     }
+    return rewriter.builder().unsafe().mod_signature(std::move(nelems));
+}
+
+const Node* CtorSignature::rewrite(Rewriter& rewriter) const {
+    Array<const Sig*> new_dom(dom.size());
+    for (size_t i = 0; i < dom.size(); ++i) {
+        new_dom[i] = rewriter.instantiate(dom[i]);
+    }
+    auto new_codom = rewriter.instantiate(codom);
+    return rewriter.builder().unsafe().ctor_signature(new_dom, new_codom);
 }
 
 }
