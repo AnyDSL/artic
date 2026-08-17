@@ -170,7 +170,7 @@ const Node* LetRecMod::rewrite(Rewriter& r) const {
         r.insert(ovar, r.instantiate(ovar, true));
     }
     for (auto [ovar, oval] : vars) {
-        builder.bind(r.lookup(ovar)->as<Var>(), r.instantiate(oval, true));
+        builder.bind(r.lookup(ovar)->as<Var>(), r.instantiate(oval, false));
     }
     return builder.finish_module(r.instantiate(body(), false));
 }
@@ -183,7 +183,7 @@ const Node* LetRecType::rewrite(Rewriter& r) const {
         r.insert(ovar, r.instantiate(ovar, true));
     }
     for (auto [ovar, oval] : vars) {
-        builder.bind(r.lookup(ovar)->as<Var>(), r.instantiate(oval, true));
+        builder.bind(r.lookup(ovar)->as<Var>(), r.instantiate(oval, false));
     }
     return builder.finish_type(r.instantiate(body(), false));
 }
