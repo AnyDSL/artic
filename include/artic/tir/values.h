@@ -79,6 +79,43 @@ struct Param : public Value, public Var {
     const thorin::Def* emit(Emitter&) const override;
 };
 
+struct ValueApp : public Value, public App {
+    void print(Printer&) const override;
+    bool equals(const Node*) const override;
+    const Value* rewrite(Rewriter&) const override;
+    void free_variables(FVSet&, Seen&) const override;
+
+    const Value* instantiated(LetRecBuilder&) const override;
+private:
+    ValueApp(Builder&, const CtorVar*, const ArrayRef<const Node*>&);
+    mutable const Value* instantiated_ = nullptr;
+
+    friend class Arena;
+};
+
+struct ValueCtor : public Ctor {
+    const Value* body() const override {
+        return Ctor::body()->as<Value>();
+    }
+
+    void print(Printer&) const override;
+    const Node* rewrite(Rewriter&) const override;
+
+    ValueCtor(Builder&, Scope&, const ArrayRef<const Var*>&, const Value*);
+};
+
+struct LetRecValue : public Value, public LetRec {
+    const Value* body() const override {
+        return LetRec::body()->as<Value>();
+    }
+
+    bool equals(const Node* other) const override;
+    const Node* rewrite(Rewriter&) const override;
+
+    LetRecValue(Builder&, Scope&, const ArrayRef<std::tuple<const Var*, const Node*>>&, const Value*);
+};
+
+
 struct Fn : public Value {
     const Param* param;
     const Type* codom;

@@ -139,16 +139,17 @@ struct App : virtual Node {
     Array<const Node*> args;
 
     const CtorVar* applicand() const { return applicand_; };
-    virtual const Var* instantiated(LetRecBuilder&) const = 0;
 
     size_t hash() const override;
     bool equals(const Node* other) const override;
     void print(Printer&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
-    App(const CtorVar*, const ArrayRef<const Node*>&);
-protected:
+    const Node* instantiate(Builder&, Rewriter&) const;
     const Node* instantiate(Builder&) const;
+    virtual const Node* instantiated(LetRecBuilder&) const = 0;
+
+    App(const CtorVar*, const ArrayRef<const Node*>&);
 };
 
 }

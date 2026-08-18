@@ -37,7 +37,8 @@ add_library(libartic
     tir/module.cpp
     tir/scope.cpp
     tir/builder.cpp
-    passes/resolve_mod_app.cpp)
+    passes/resolve_mod_app.cpp
+    passes/gc.cpp)
 
 set_target_properties(libartic PROPERTIES PREFIX "" CXX_STANDARD 20)
 

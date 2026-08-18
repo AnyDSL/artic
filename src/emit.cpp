@@ -2514,7 +2514,8 @@ std::string StructType::stringify(Emitter& emitter) const {
 }
 
 const thorin::Type* StructType::convert(Emitter& emitter, SetHeadFn set_head) const {
-    auto type = emitter.world.struct_type(stringify(emitter), member_count());
+    //auto type = emitter.world.struct_type(stringify(emitter), member_count());
+    auto type = emitter.world.struct_type("^"+std::to_string(gid), member_count());
     set_head(type);
     for (size_t i = 0, n = member_count(); i < n; ++i) {
         type->set_op(i, emitter.emit(member_type(i)));

@@ -115,6 +115,9 @@ public:
         return f();
     };
 
+    const Var* maybe_polymorphic(const ast::Identifier&, std::optional<Array<const Var*>>&, const std::function<const Var*(LetRecBuilder&, const Var*&, const std::function<void(const Var*)>&)>&);
+    Array<const Var*> duplicate_params(const ArrayRef<const Var*>&);
+
     template <typename CheckFn, typename Fields>
     void check_fields(
         const Loc&, const StructType*, const Type*,

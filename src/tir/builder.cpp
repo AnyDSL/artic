@@ -235,6 +235,14 @@ const Param* LetRecBuilder::mod_value_access(const ModValue* src, const Key* key
     return schedule(unsafe().mod_value_access(src, key))->as<Param>();
 }
 
+const Value* Builder::Unsafe::value_app(const CtorVar* applied, const ArrayRef<const Node*>& type_args) {
+    return builder.arena.insert<ValueApp>(builder, applied, std::move(type_args));
+}
+
+const Param* LetRecBuilder::value_app(const CtorVar* applied, const ArrayRef<const Node*>& type_args) {
+    return schedule_value(unsafe().value_app(applied, type_args));
+}
+
 const Var* LetRecBuilder::mod_access(const ModValue* src, const Key* key) {
     auto mod_sig = scope.resolve_sig(src->signature()->as<SigVar>())->as<ModSignature>();
     auto sig = mod_sig->lookup(key);
@@ -261,6 +269,14 @@ const TypeCtor* Builder::Unsafe::type_ctor(Scope& scope, const ArrayRef<const Va
 
 const CtorVar* LetRecBuilder::type_ctor(Scope& scope, const ArrayRef<const Var*>& params, const Type* contents) {
     return schedule(unsafe().type_ctor(scope, params, contents))->as<CtorVar>();
+}
+
+const ValueCtor* Builder::Unsafe::value_ctor(Scope& scope, const ArrayRef<const Var*>& params, const Value* contents) {
+    return builder.arena.insert<ValueCtor>(builder, scope, params, contents);
+}
+
+const CtorVar* LetRecBuilder::value_ctor(Scope& scope, const ArrayRef<const Var*>& params, const Value* contents) {
+    return schedule(unsafe().value_ctor(scope, params, contents))->as<CtorVar>();
 }
 
 const CtorVar* Builder::ctor_var(std::optional<ast::Identifier> id) {
@@ -677,7 +693,7 @@ void LetRecBuilder::bind(const Var* var, const Node* value) {
     scope.insert(var, value);
 }
 
-const Var* LetRecBuilder::schedule(const Node* node, std::optional<ast::Identifier> maybe_id) {
+std::tuple<const Var*, LetRecBuilder*> LetRecBuilder::locate(const Node* node) {
     const Scope* node_scope = get_node_scope_helper(*this, node);
     assert(scope.contains(node_scope) && "this node cannot be scheduled here or in any parent module, it has free variables that would not be bound");
 
@@ -694,8 +710,15 @@ const Var* LetRecBuilder::schedule(const Node* node, std::optional<ast::Identifi
     assert(dst && "failed to find the matching builder for the dst scope");
     auto found = dst->already_bound_here.find(node);
     if (found != dst->already_bound_here.end()) {
-        return found->second;
+        return { found->second, dst };
     }
+    return { nullptr, dst };
+}
+
+const Var* LetRecBuilder::schedule(const Node* node, std::optional<ast::Identifier> maybe_id) {
+    auto [prev, dst] = locate(node);
+    if (prev)
+        return prev;
 
     const Var* var;
     if (auto mod_value = node->isa<ModValue>()) {
@@ -712,7 +735,7 @@ const Var* LetRecBuilder::schedule(const Node* node, std::optional<ast::Identifi
         assert(false);
     }
 
-    bind(var, node);
+    dst->bind(var, node);
 
     dst->already_bound_here[node] = var;
     return var;
@@ -750,12 +773,30 @@ const ModValue* Builder::Unsafe::mod_let_rec(const ArrayRef<std::tuple<const Var
     return builder.arena.insert<LetRecMod>(builder, builder.scope, contents, in);
 }
 
+const Value* Builder::Unsafe::value_let_rec(const ArrayRef<std::tuple<const Var*, const Node*>>& contents, const Value* in) {
+    if (contents.empty())
+        return in;
+    if (contents.size() == 1 && std::get<0>(*contents.begin())->equals(in))
+        return std::get<1>(*contents.begin())->as<Value>();
+    return builder.arena.insert<LetRecValue>(builder, builder.scope, contents, in);
+}
+
 const Type* LetRecBuilder::finish_type(const Type* in) {
+    if (!in->is_simple())
+        in = schedule_type(in);
     return unsafe().type_let_rec(contents, in);
 }
 
 const ModValue* LetRecBuilder::finish_module(const ModValue* in) {
-    return unsafe().mod_let_rec(std::move(contents), in);
+    if (!in->is_simple())
+        in = schedule_mod_value(in);
+    return unsafe().mod_let_rec(contents, in);
+}
+
+const Value* LetRecBuilder::finish_value(const Value* in) {
+    if (!in->is_simple())
+        in = schedule_value(in);
+    return unsafe().value_let_rec(contents, in);
 }
 
 /*const ModVar* ModuleBuilder::add_in_module(const Node* node, const Key* key, bool public_interface) {

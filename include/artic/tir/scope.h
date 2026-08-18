@@ -53,8 +53,8 @@ struct Scope {
     const Sig* resolve_sig(const SigVar*) const;
 
     Scope& new_child();
-private:
     void insert(const Var*, const Node*);
+private:
 
     std::vector<std::unique_ptr<Scope>> child_scopes;
     std::unordered_map<const Var*, const Node*> vars;

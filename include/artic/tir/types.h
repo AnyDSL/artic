@@ -515,16 +515,16 @@ struct TypeApp : public Type, public App {
     void bounds(const Scope&, TypeVarMap<TypeBounds>&, const Type*, bool) const override;
     bool is_sized(const Scope&, std::unordered_set<const Type*>&) const override;
 
-    const TypeVar* instantiated(LetRecBuilder&) const override;
+    const Type* instantiated(LetRecBuilder&) const override;
 
 private:
     TypeApp(Builder&, const CtorVar*, const ArrayRef<const Node*>&);
-    mutable const TypeVar* instantiated_ = nullptr;
+    mutable const Type* instantiated_ = nullptr;
 
     friend class Arena;
 };
 
-// those aren't really types, are they
+// this isn't a type, but it makes one!
 struct TypeCtor : public Ctor {
     const Type* body() const override {
         return Ctor::body()->as<Type>();

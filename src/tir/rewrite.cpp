@@ -136,10 +136,11 @@ const Node* ModCtor::rewrite(Rewriter& r) const {
     Array<const Var*> params(this->params.size());
     for (size_t i = 0; i < params.size(); i++) {
         r.insert(this->params[i], params[i] = r.instantiate(this->params[i], true));
+        scope.insert(params[i], nullptr);
     }
-    auto ctor_builder = Builder(arena, scope, &r.builder());
+    auto ctor_builder = LetRecBuilder(arena, scope, &r.builder());
     Rewriter::BuilderGuard guard(r, ctor_builder);
-    return r.builder().unsafe().mod_ctor(scope, params, r.instantiate(body(), true));
+    return r.builder().unsafe().mod_ctor(scope, params, ctor_builder.finish_module(r.instantiate(body(), true)));
 }
 
 const Node* TypeCtor::rewrite(Rewriter& r) const {
@@ -147,10 +148,23 @@ const Node* TypeCtor::rewrite(Rewriter& r) const {
     Array<const Var*> params(this->params.size());
     for (size_t i = 0; i < params.size(); i++) {
         r.insert(this->params[i], params[i] = r.instantiate(this->params[i], true));
+        scope.insert(params[i], nullptr);
     }
-    auto ctor_builder = Builder(arena, scope, &r.builder());
+    auto ctor_builder = LetRecBuilder(arena, scope, &r.builder());
     Rewriter::BuilderGuard guard(r, ctor_builder);
-    return r.builder().unsafe().type_ctor(scope, params, r.instantiate(body(), true));
+    return r.builder().unsafe().type_ctor(scope, params, ctor_builder.finish_type(r.instantiate(body(), true)));
+}
+
+const Node* ValueCtor::rewrite(Rewriter& r) const {
+    Scope& scope = r.builder().scope.new_child();
+    Array<const Var*> params(this->params.size());
+    for (size_t i = 0; i < params.size(); i++) {
+        r.insert(this->params[i], params[i] = r.instantiate(this->params[i], true));
+        scope.insert(params[i], nullptr);
+    }
+    auto ctor_builder = LetRecBuilder(arena, scope, &r.builder());
+    Rewriter::BuilderGuard guard(r, ctor_builder);
+    return r.builder().unsafe().value_ctor(scope, params, ctor_builder.finish_value(r.instantiate(body(), true)));
 }
 
 const Node* CtorVar::rewrite(Rewriter& r) const {
@@ -178,7 +192,10 @@ const Node* LetRecMod::rewrite(Rewriter& r) const {
         r.insert(ovar, r.instantiate(ovar, true));
     }
     for (auto [ovar, oval] : vars) {
-        builder.bind(r.lookup(ovar)->as<Var>(), r.instantiate(oval, false));
+        auto def = r.instantiate(oval, false);
+        auto [_, dst] = builder.locate(def);
+        assert(dst);
+        dst->bind(r.lookup(ovar)->as<Var>(), def);
     }
     return builder.finish_module(r.instantiate(body(), false));
 }
@@ -191,9 +208,32 @@ const Node* LetRecType::rewrite(Rewriter& r) const {
         r.insert(ovar, r.instantiate(ovar, true));
     }
     for (auto [ovar, oval] : vars) {
-        builder.bind(r.lookup(ovar)->as<Var>(), r.instantiate(oval, false));
+        auto def = r.instantiate(oval, false);
+        auto [_, dst] = builder.locate(def);
+        assert(dst);
+        dst->bind(r.lookup(ovar)->as<Var>(), def);
     }
     return builder.finish_type(r.instantiate(body(), false));
+}
+
+const Node* LetRecValue::rewrite(Rewriter& r) const {
+    Scope& scope = r.builder().scope.new_child();
+    LetRecBuilder builder(r.dst, scope, r.is_root() ? nullptr : &r.builder());
+    Rewriter::BuilderGuard guard(r, builder);
+    for (auto [ovar, _] : vars) {
+        r.insert(ovar, r.instantiate(ovar, true));
+    }
+    for (auto [ovar, oval] : vars) {
+        auto def = r.instantiate(oval, false);
+        auto [_, dst] = builder.locate(def);
+        assert(dst);
+        dst->bind(r.lookup(ovar)->as<Var>(), def);
+    }
+    return builder.finish_value(r.instantiate(body(), false));
+}
+
+const Value* ValueApp::rewrite(Rewriter& r) const {
+    return r.builder().unsafe().value_app(r.instantiate(applicand()), r.instantiate_array(args));
 }
 
 const Node* GlobalVariable::rewrite(Rewriter& r) const {

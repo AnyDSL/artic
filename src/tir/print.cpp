@@ -22,7 +22,7 @@ std::string Printer::unique_name(const Node& node) {
     if (node.isa<SigVar>())
         prefix = "*";
     if (auto param = node.isa<Var>(); param && param->id)
-        return prefix + param->id->name;
+        return prefix + param->id->name + "_" + std::to_string(node.gid);
     return prefix + std::to_string(node.gid);
 }
 
@@ -287,6 +287,11 @@ void TypeCtor::print(Printer& p) const {
     Ctor::print(p);
 }
 
+void ValueCtor::print(Printer& p) const {
+    p << log::keyword_style("val") << " ";
+    Ctor::print(p);
+}
+
 void ModApp::print(Printer& p) const {
     p << log::keyword_style("mod") << " ";
     App::print(p);
@@ -294,6 +299,11 @@ void ModApp::print(Printer& p) const {
 
 void TypeApp::print(Printer& p) const {
     p << log::keyword_style("type") << " ";
+    App::print(p);
+}
+
+void ValueApp::print(Printer& p) const {
+    p << log::keyword_style("val") << " ";
     App::print(p);
 }
 

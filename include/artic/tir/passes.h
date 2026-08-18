@@ -8,15 +8,17 @@
 namespace artic::tir {
 
 struct Root {
-    Arena& arena;
+    std::unique_ptr<Arena> arena;
     Scope scope;
-    const ModValue* root_module;
+    const ModValue* root_module = nullptr;
 
-    explicit Root(Arena& arena) : arena(arena), scope(nullptr) {}
+    explicit Root();
     Root(const Root&) = delete;
+    Root(Root&&) = delete;
 };
 
 bool lower_mod_app(std::unique_ptr<Root>& module);
+bool gc(std::unique_ptr<Root>& module);
 
 }
 

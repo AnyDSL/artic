@@ -38,12 +38,10 @@ struct Rewriter {
         return result;
     }
 
-    std::unique_ptr<Root> instantiate(const Root& old) {
-        std::unique_ptr<Root> root = std::make_unique<Root>(dst);
-        LetRecBuilder builder(dst, root->scope, nullptr);
+    void instantiate(Root& dst, const Root& old) {
+        LetRecBuilder builder(*dst.arena, dst.scope, nullptr);
         BuilderGuard guard(*this, builder);
-        root->root_module = instantiate(old.root_module, true);
-        return root;
+        dst.root_module = builder.finish_module(instantiate(old.root_module, true));
     }
 
     void insert(const Node* old, const Node* new_) {

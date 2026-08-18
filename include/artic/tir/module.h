@@ -202,12 +202,12 @@ struct ModApp : public ModValue, public App {
 
     const Sig* signature() const override;
 
-    const ModVar* instantiated(LetRecBuilder& b) const override;
+    const ModValue* instantiated(LetRecBuilder& b) const override;
 
     ModApp(Builder&, const CtorVar*, const ArrayRef<const Node*>& args);
 private:
     const Sig* signature_;
-    mutable const ModVar* instantiated_ = nullptr;
+    mutable const ModValue* instantiated_ = nullptr;
     friend Emitter;
 };
 

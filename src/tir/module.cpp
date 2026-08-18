@@ -304,11 +304,11 @@ bool ModApp::equals(const Node* other) const {
     return false;
 }
 
-const ModVar* ModApp::instantiated(LetRecBuilder& b) const {
+const ModValue* ModApp::instantiated(LetRecBuilder& b) const {
     if (instantiated_)
         return instantiated_;
-    auto spec_module = instantiate(b)->as<ModValue>();
-    instantiated_ = b.schedule_mod_value(spec_module);
+    auto spec = instantiate(b)->as<ModValue>();
+    instantiated_ = spec;//b.schedule_mod_value(spec);
     return instantiated_;
 }
 

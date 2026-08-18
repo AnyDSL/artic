@@ -6,6 +6,10 @@ namespace artic {
 
 namespace tir {
 
+Root::Root() : arena(std::make_unique<Arena>()), scope(nullptr) {
+
+}
+
 Node::Node(Arena& arena) : arena(arena), gid(arena.alloc_gid()) {}
 
 void Var::free_variables(FVSet& vars, Seen& seen) const {
@@ -91,35 +95,40 @@ void App::free_variables(FVSet& vars, Seen& seen) const {
         arg->free_variables(vars, seen);
 }
 
+struct NoOpRewriter : public Rewriter {
+    NoOpRewriter(Arena& a) : Rewriter(a, a) {}
+
+    const Node* rewrite(const Node* old, bool) override {
+        return old;
+    }
+};
+
 struct Specializer : public Rewriter {
     Builder& b;
     Scope& s;
+    Rewriter& out_of_scope;
 
-    Specializer(Builder& b, Scope& s) : Rewriter(b.arena, b.arena), b(b), s(s) {
+    Specializer(Builder& b, Scope& s, Rewriter& out_of_scope) : Rewriter(b.arena, b.arena), b(b), s(s), out_of_scope(out_of_scope) {
         builder_ = &b;
     }
 
     const Node* rewrite(const Node* old, bool immediate) override {
-        // leave keys alone
-        if (old->isa<Key>())
-            return old;
         if (immediate)
             return old->rewrite(*this);
 
-        auto fvs = old->free_variables();
-        auto old_scope = b.vars_scope(fvs);
-        if (!s.contains(old_scope)) {
-            return old;
+        if (auto var = old->isa<Var>()) {
+            if (!var->binder->contains(&s) && &s != var->binder)
+                return out_of_scope.instantiate(old, immediate);
         }
 
         return old->rewrite(*this);
     }
 };
 
-const Node* App::instantiate(Builder& builder) const {
+const Node* App::instantiate(Builder& builder, Rewriter& super) const {
     auto peeked = builder.scope.resolve_ctor(applicand());
     if (auto ctor = peeked->isa<Ctor>()) {
-        Specializer s(builder, ctor->scope);
+        Specializer s(builder, ctor->scope, super);
         for (size_t i = 0; i < ctor->params.size(); i++) {
             s.insert(ctor->params[i], args[i]);
         }
@@ -129,9 +138,15 @@ const Node* App::instantiate(Builder& builder) const {
     }
 }
 
+const Node* App::instantiate(Builder& builder) const {
+    NoOpRewriter noop(builder.arena);
+    return instantiate(builder, noop);
+}
+
 LetRec::LetRec(Scope& scope, const ArrayRef<std::tuple<const Var*, const Node*>>& vars, const Node* in)
-    : scope(scope), vars(vars), body_(in)
-{}
+    : scope(scope), vars(vars), body_(in) {
+    assert(in->is_simple());
+}
 
 size_t LetRec::hash() const {
     auto h = fnv::Hash();

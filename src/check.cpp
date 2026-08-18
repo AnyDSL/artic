@@ -8,7 +8,7 @@
 namespace artic {
 
 std::unique_ptr<Root> TypeChecker::run(ast::ModDecl& module) {
-    std::unique_ptr<Root> root = std::make_unique<Root>(arena);
+    std::unique_ptr<Root> root = std::make_unique<Root>();
     LetRecBuilder builder(arena, root->scope, nullptr);
     TypeChecker::BuilderGuard guard(*this, builder);
     auto mod = infer_mod_decl(module);
@@ -420,6 +420,65 @@ const Type* TypeChecker::join(Ptr<ast::Expr>& left, Ptr<ast::Expr>& right, ExprB
     with_expr_builder(right_builder, [&] { return coerce(&*right, type); });
     return type;
 }
+
+const Var* TypeChecker::maybe_polymorphic(const ast::Identifier& id, std::optional<Array<const Var*>>& type_params, const std::function<const Var*(LetRecBuilder&, const Var*&, const std::function<void(const Var*)>&)>& f) {
+    LetRecBuilder& mod_builder = let_rec_builder();
+    LetRecBuilder* mb = &mod_builder;
+
+    std::unique_ptr<LetRecBuilder> ctor_builder;
+
+    const Var* self = nullptr;
+    if (type_params) {
+        self = builder().ctor_var(id);
+        self->binder = &mod_builder.scope;
+
+        Scope& ctor_scope = mb->scope.new_child();
+        ctor_builder = std::make_unique<LetRecBuilder>(mb->arena, ctor_scope, mb);
+
+        for (auto p : *type_params) {
+            assert(!p->binder);
+            p->binder = &ctor_scope;
+        }
+
+        mb = &*ctor_builder;
+        BuilderGuard guard(*this, *mb);
+        const Var* inner_var = nullptr;
+        auto set_head = [&](const Var* v) {
+            inner_var = v;
+        };
+
+        inner_var = f(*mb, self, set_head);
+        if (auto type_var = inner_var->isa<TypeVar>())
+            mod_builder.bind(self, mod_builder.type_ctor(ctor_builder->scope, *type_params, mb->finish_type(type_var)));
+        else if (auto value_var = inner_var->isa<Param>())
+            mod_builder.bind(self, mod_builder.value_ctor(ctor_builder->scope, *type_params, mb->finish_value(value_var)));
+        else if (auto mod_var = inner_var->isa<ModVar>())
+            assert(false && "TODO");
+            //mod_builder.bind(self, mod_builder.mod_ctor(ctor_builder->scope, *type_params, mb->finish_module(mod_var)));
+        else
+            assert(false);
+    } else {
+        auto set_head = [&](const Var* v) {
+            self = v;
+        };
+        self = f(*mb, self, set_head);
+    }
+
+    return self;
+}
+
+Array<const Var*> TypeChecker::duplicate_params(const ArrayRef<const Var*>& params) {
+    auto type_vars = Array<const Var*>(params.size());
+    for (size_t i = 0; i < params.size(); i++) {
+        auto src_var = params[i];
+        if (auto type_param = src_var->isa<TypeVar>())
+            type_vars[i] = builder().type_var(type_param->id);
+        else
+            assert(false && "TODO");
+    }
+    return type_vars;
+}
+
 
 static std::string kind2str(NodeKind kind) {
     switch (kind) {
@@ -1203,6 +1262,19 @@ std::optional<Path::Elem::Inferred> Path::infer_path(TypeChecker& checker, std::
             return std::nullopt;
         assert(prev->var);
 
+        // Treat tuple-like structure constructors as functions
+        if (expected_kind == NodeKind::Value && prev->var->kind() != NodeKind::Value) {
+            const tir::Type* type = prev->var->isa<TypeVar>();
+            // enter polymorphic types...
+            if (auto ctor_var = prev->var->isa<CtorVar>())
+                type = checker.scope().resolve_ctor(ctor_var)->body()->isa<tir::Type>();
+            if (type) if (auto [type_app, struct_type] = peek_app_type<StructType>(checker.builder(), type);
+                     struct_type && struct_type->is_tuple_like()) {
+                auto decl = struct_type->decl->as<StructDecl>();
+                prev = Elem::Inferred { .var = decl->ctor_or_default_value(checker) };
+            }
+        }
+
         if (!elem.args.empty() || prev->var->kind() == NodeKind::Ctor) {
             // const size_t type_param_count = user_type
             //     ? user_type->type_params().size()
@@ -1222,9 +1294,21 @@ std::optional<Path::Elem::Inferred> Path::infer_path(TypeChecker& checker, std::
                 //         return std::nullopt;
                 // }
 
-                prev = Elem::Inferred {
-                    .var = prev->var ? checker.builder().enclosing_let_rec().type_app(prev->var->as<CtorVar>(), type_args) : nullptr,
-                };
+                switch (ctor->body()->kind()) {
+                    case NodeKind::Type: prev = Elem::Inferred {
+                            .var = prev->var ? checker.builder().enclosing_let_rec().type_app(prev->var->as<CtorVar>(), type_args) : nullptr,
+                        };
+                        break;
+                    case NodeKind::Value: prev = Elem::Inferred {
+                            .var = prev->var ? checker.builder().enclosing_let_rec().value_app(prev->var->as<CtorVar>(), type_args) : nullptr,
+                        };
+                        break;
+                    case NodeKind::Module: prev = Elem::Inferred {
+                            .var = prev->var ? checker.builder().enclosing_let_rec().mod_app(prev->var->as<CtorVar>(), type_args) : nullptr,
+                        };
+                        break;
+                    default: assert(false);
+                }
             } else if (!elem.args.empty() || /* we allow leaving out type params when importing definitions */ !is_use_path_) {
                 checker.error(elem.loc, "expected {} type argument(s), but got {}", type_param_count, elem.args.size());
                 return std::nullopt;
@@ -1305,16 +1389,6 @@ const tir::Node* Path::infer(TypeChecker& checker, std::optional<NodeKind> expec
 
     auto var = inferred->var;
     assert(var);
-
-    // Treat tuple-like structure constructors as functions
-    if (var->kind() == NodeKind::Type && expected_kind == NodeKind::Value) {
-        auto type = var->as<TypeVar>();
-        if (auto [type_app, struct_type] = peek_app_type<StructType>(checker.builder(), type);
-                 struct_type && struct_type->is_tuple_like()) {
-            auto decl = struct_type->decl->as<StructDecl>();
-            return decl->ctor_or_default_value();
-        }
-    }
 
     if (expected_kind == NodeKind::Value) {
         if (var->kind() == expected_kind)
@@ -1803,11 +1877,11 @@ const tir::Node* CallExpr::check(TypeChecker& checker, const artic::Type* expect
         path_expr->value = path_expr->path.infer(checker, NodeKind::Value, &arg, expected)->as<Value>();
 
     auto [ref_type, callee_type] = remove_ref(checker.builder(), checker.infer_value(*callee)->type());
-    if (auto fn_type = callee_type->isa<artic::FnType>()) {
+    if (auto fn_type = checker.scope().peek_type(callee_type)->isa<artic::FnType>()) {
         return checker.expr_builder().call(checker.coerce(&*callee, fn_type), checker.coerce(&*arg, fn_type->dom));
     } else {
         // Accept pointers to arrays
-        auto ptr_type = callee_type->isa<artic::PtrType>();
+        auto ptr_type = checker.scope().peek_type(callee_type)->isa<artic::PtrType>();
         if (ptr_type) {
             // Create an implicit cast from the reference type to
             // a pointer type, so as to de-reference the reference.
@@ -1815,7 +1889,7 @@ const tir::Node* CallExpr::check(TypeChecker& checker, const artic::Type* expect
                 checker.coerce(&*callee, callee_type);
             callee_type = ptr_type->pointee;
         }
-        if (auto array_type = callee_type->isa<artic::ArrayType>()) {
+        if (auto array_type = checker.scope().peek_type(callee_type)->isa<artic::ArrayType>()) {
             auto idx = checker.deref(arg);
             auto index_type = idx->type();
             if (!is_int_type(index_type)) {
@@ -2541,91 +2615,75 @@ const tir::Node* FieldDecl::infer(TypeChecker& checker) {
 }
 
 const tir::Node* StructDecl::infer(TypeChecker& checker) {
-    auto type_params = checker.infer(this->type_params ? &*this->type_params : nullptr);
-
-    auto key = checker.infer_key(*this);
-
-    LetRecBuilder& mod_builder = checker.let_rec_builder();
-    LetRecBuilder* mb = &mod_builder;
-
-    std::unique_ptr<Builder> ctor_builder;
-    std::unique_ptr<LetRecBuilder> inner_module_builder;
-
-    if (!type_params.empty()) {
-        Scope& ctor_scope = mb->scope.new_child();
-        ctor_builder = std::make_unique<Builder>(mb->arena, ctor_scope, mb);
-        Scope& inner_scope = ctor_builder->scope.new_child();
-        inner_module_builder = std::make_unique<LetRecBuilder>(mb->arena, inner_scope, &*ctor_builder);
-
-        mb = &*inner_module_builder;
-    }
-
-    {
-        TypeChecker::BuilderGuard guard(checker, *mb);
-        auto struct_type = mb->struct_type(this);
-        // Create the type, the signature of the type and add the type to the interface of the module before proceeding
-        self = struct_type;
-
-        // inner stuff, only valid inside!
-        if (type_params.empty()) {
-            var = mb->schedule_type(struct_type);
-            unnamed_type = var->as<TypeVar>();
-        } else {
-            var = mb->schedule_type(struct_type);
-            // var = mb->add_in_module(struct_type, internal_key, false);
-            // ctor->set_body(*ctor_builder, &inner_module_builder->module(), internal_key);
-        }
-
+    LetRecBuilder& parent_builder = checker.let_rec_builder();
+    std::optional<Array<const Var*>> params = this->type_params ? std::make_optional(checker.infer(&*this->type_params)) : std::nullopt;
+    return checker.maybe_polymorphic(id, params, [&](auto& builder, auto& self, auto& set_head) -> const Var* {
+        auto struct_type = builder.struct_type(this);
+        auto var = builder.type_var(id);
+        set_head(var);
         for (auto& field : fields)
             struct_type->members.push_back(checker.infer_type(*field));
         struct_type->validate();
-    }
-
-    if (!type_params.empty()) {
-        const TypeCtor* ctor = nullptr;
-        var = checker.let_rec_builder().type_ctor(ctor_builder->scope, type_params, mb->finish_type(var->as<TypeVar>()));
-    }
-    // unnamed_type = checker.builder().as_type(var);
-
-    return var;
+        builder.bind(var, struct_type);
+        return var;
+    });
 }
 
-const tir::Value* StructDecl::ctor_or_default_value() const {
+const tir::Var* StructDecl::ctor_or_default_value(TypeChecker& checker) const {
     if (ctor_or_default_value_)
         return ctor_or_default_value_;
+
     assert(enclosing_module);
     auto& builder = *enclosing_module->builder;
-    if (self->member_count() > 0) {
-        SmallArray<const artic::Type*> tuple_args(self->member_count());
-        for (size_t i = 0, n = self->member_count(); i < n; ++i) {
-            tuple_args[i] = builder.member_type(unnamed_type, i);
+    TypeChecker::BuilderGuard guard(checker, builder);
+
+    size_t member_count = fields.size();
+
+    std::optional<Array<const Var*>> params = this->type_params ? std::make_optional(checker.duplicate_params(checker.infer(&*this->type_params))) : std::nullopt;
+    ctor_or_default_value_ = checker.maybe_polymorphic(id, params, [&](auto& builder, auto& selff, auto& set_head) -> const Var* {
+        const TypeVar* self_type;
+        if (params) {
+            Array<const tir::Node*> args(params->size());
+            for (size_t i = 0; i < params->size(); i++) {
+                args[i] = (*params)[i];
+            }
+            self_type = builder.type_app(var->as<CtorVar>(), args);
         }
-        auto dom = self->member_count() == 1
-                   ? tuple_args.front()
-                   : builder.tuple_type(tuple_args);
-        auto param = builder.param(Identifier { loc, "param" }, dom);
-        FnBuilder fn_builder(builder, param);
-        auto fn = fn_builder.build_function(unnamed_type);
-        //auto fn = builder.function(param, unnamed_type);
-        fn->set_body(fn_builder, fn_builder.yield_expr_scope([&](ExprBuilder& expr_builder) -> const Value* {
-            if (self->member_count() == 1) {
-                Array<const Value*> args = { param };
-                return expr_builder.agg(unnamed_type, args);
+        else
+            self_type = var->as<TypeVar>();
+
+        if (member_count > 0) {
+            SmallArray<const artic::Type*> tuple_args(member_count);
+            for (size_t i = 0, n = member_count; i < n; ++i) {
+                tuple_args[i] = builder.member_type(self_type, i);
             }
-            Array<const Value*> args(self->member_count());
-            for (size_t i = 0, n = self->member_count(); i < n; ++i) {
-                auto idx = expr_builder.typed_literal(Literal(uint64_t(i)), expr_builder.prim_type(ast::PrimType::U64));
-                args[i] = expr_builder.extract(param, idx);
-            }
-            return expr_builder.agg(unnamed_type, args);
-        }));
-        ctor_or_default_value_ = builder.enclosing_let_rec().schedule_value(fn);
-    } else {
-        auto default_value = builder.yield_expr_scope([&](ExprBuilder& expr_builder) -> const Value* {
-            return expr_builder.agg(unnamed_type, {});
-        });
-        ctor_or_default_value_ = builder.enclosing_let_rec().schedule_value(default_value);
-    }
+            auto dom = member_count == 1
+                       ? tuple_args.front()
+                       : builder.tuple_type(tuple_args);
+            auto param = builder.param(Identifier { loc, "param" }, dom);
+            FnBuilder fn_builder(builder, param);
+            auto fn = fn_builder.build_function(self_type);
+            //auto fn = builder.function(param, unnamed_type);
+            fn->set_body(fn_builder, fn_builder.yield_expr_scope([&](ExprBuilder& expr_builder) -> const Value* {
+                if (member_count == 1) {
+                    Array<const Value*> args = { param };
+                    return expr_builder.agg(self_type, args);
+                }
+                Array<const Value*> args(member_count);
+                for (size_t i = 0, n = member_count; i < n; ++i) {
+                    auto idx = expr_builder.typed_literal(Literal(uint64_t(i)), expr_builder.prim_type(ast::PrimType::U64));
+                    args[i] = expr_builder.extract(param, idx);
+                }
+                return expr_builder.agg(self_type, args);
+            }));
+            return builder.schedule_value(fn);
+        } else {
+            auto default_value = builder.yield_expr_scope([&](ExprBuilder& expr_builder) -> const Value* {
+                return expr_builder.agg(self_type, {});
+            });
+            return builder.schedule_value(default_value);
+        }
+    });
     return ctor_or_default_value_;
 }
 
@@ -2871,7 +2929,7 @@ const tir::Node* CtorPtrn::infer(TypeChecker& checker) {
     auto path_type = path.infer(checker, NodeKind::Type)->as<tir::Type>();
     auto peeked_type = checker.scope().peek_type(path_type);
 
-    if (auto [_, struct_type] = peek_app_type<StructType>(checker.builder(), peeked_type); struct_type) {
+    if (auto [type_app, struct_type] = peek_app_type<StructType>(checker.builder(), peeked_type); struct_type) {
         if (struct_type->is_tuple_like()) {
             auto decl = struct_type->decl->as<ast::StructDecl>();
             if (struct_type->member_count() == 0 && arg) {
@@ -2883,8 +2941,12 @@ const tir::Node* CtorPtrn::infer(TypeChecker& checker) {
                 return checker.builder().type_error();
             }
             if (arg) {
-                auto ctor = decl->ctor_or_default_value();
-                auto peeked_ctor_t = checker.scope().peek_type(ctor->type());
+                auto ctor = decl->ctor_or_default_value(checker);
+                if (auto ctor_var = ctor->isa<CtorVar>()) {
+                    ctor = checker.builder().enclosing_let_rec().value_app(ctor_var, type_app->args);
+                }
+                assert(ctor->isa<Value>());
+                auto peeked_ctor_t = checker.scope().peek_type(ctor->as<Value>()->type());
                 auto fn_t = peeked_ctor_t->as<tir::FnType>();
                 auto dom = fn_t->dom;
                 checker.check_ptrn(*arg, dom);

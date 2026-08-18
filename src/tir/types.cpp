@@ -103,11 +103,11 @@ TypeApp::TypeApp(Builder& builder, const CtorVar* applicand, const ArrayRef<cons
         assert(arg->is_simple());
 }
 
-const TypeVar* TypeApp::instantiated(LetRecBuilder& b) const {
+const Type* TypeApp::instantiated(LetRecBuilder& b) const {
     if (instantiated_)
         return instantiated_;
-    auto spec_module = instantiate(b)->as<Type>();
-    instantiated_ = b.schedule_type(spec_module);
+    auto spec = instantiate(b)->as<Type>();
+    instantiated_ = spec;//b.schedule_type(spec);
     return instantiated_;
 }
 
@@ -795,7 +795,7 @@ std::pair<const RefType*, const Type*> remove_ref(Builder& builder, const Type* 
     return std::make_pair(nullptr, type);
 }
 
-std::pair<const App*, const Var*> match_app(Builder& builder, const Node* node) {
+std::pair<const App*, const Node*> match_app(Builder& builder, const Node* node) {
     if (auto var = node->isa<Var>()) {
         node = builder.scope.resolve_var_deep(var);
     }

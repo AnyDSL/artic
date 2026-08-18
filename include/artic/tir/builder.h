@@ -162,6 +162,10 @@ struct Builder : public artic::Cast<Builder> {
         const CtorSignature* ctor_signature(const ArrayRef<const Sig*>&, const Sig*);
 
         const Value* mod_value_access(const ModValue*, const Key*);
+        const Value* value_let_rec(const ArrayRef<std::tuple<const Var*, const Node*>>&, const Value*);
+        const ValueCtor* value_ctor(Scope&, const ArrayRef<const Var*>&, const Value*);
+        const Value* value_app(const CtorVar*, const ArrayRef<const Node*>&);
+
         const LocalVariable* local_variable(const Type*);
 
         const Bind* bind(const Param*, const Value*);
@@ -219,6 +223,8 @@ struct LetRecBuilder : public Builder {
     const CtorVar* type_ctor(Scope&, const ArrayRef<const Var*>&, const Type*);
     const TypeVar* type_app(const CtorVar*, const ArrayRef<const Node*>&);
 
+    const CtorVar* value_ctor(Scope&, const ArrayRef<const Var*>&, const Value*);
+    const Param* value_app(const CtorVar*, const ArrayRef<const Node*>&);
     const Param* mod_value_access(const ModValue*, const Key*);
 
     // const ModValue* mod_access(const ModValue*, const Key*);
@@ -242,6 +248,9 @@ struct LetRecBuilder : public Builder {
     // const LetRec* finish(const Node*);
     const Type* finish_type(const Type*);
     const ModValue* finish_module(const ModValue*);
+    const Value* finish_value(const Value*);
+
+    std::tuple<const Var*, LetRecBuilder*> locate(const Node*);
 private:
     //const Module* module_;
 

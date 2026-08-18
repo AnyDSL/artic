@@ -2,6 +2,7 @@
 #include "artic/tir/builder.h"
 #include "artic/tir/scope.h"
 #include "artic/tir/module.h"
+#include "artic/tir/rewrite.h"
 
 #include "artic/hash.h"
 
@@ -58,6 +59,108 @@ bool ErrorValue::equals(const Node* n) const {
 }
 
 Param::Param(Arena& arena, std::optional<ast::Identifier> id, const Type* type) : Value(type), Var(id), Node(arena) {}
+
+struct TypeExtractor : public Rewriter {
+    Builder& b;
+    Scope& s;
+    const Value* xtract;
+
+    TypeExtractor(Builder& b, Scope& s, const Value* x) : Rewriter(b.arena, b.arena), b(b), s(s), xtract(x) {
+        builder_ = &b;
+    }
+
+    const Node* rewrite(const Node* old, bool immediate) override {
+        // leave keys alone
+        if (old->isa<Key>())
+            return old;
+        if (immediate)
+            return old->rewrite(*this);
+
+        if (auto var = old->isa<Var>()) {
+            if (!var->binder->contains(&s) && &s != var->binder)
+                return old;
+        }
+        // auto fvs = old->free_variables();
+        // auto old_scope = b.vars_scope(fvs);
+        // if (!s.contains(old_scope)) {
+        //     return old;
+        // }
+
+        if (old == xtract) {
+            if (auto letrec = old->isa<LetRecValue>()) {
+                // xtract = nullptr;
+                // for (auto [var, val] : letrec->vars) {
+                //     if (var->as<Node>() == letrec->body())
+                //         xtract = val->as<Value>();
+                // }
+                // assert(xtract);
+                // return letrec->rewrite(*this);
+                Scope& scope = builder().scope.new_child();
+                LetRecBuilder builder(dst, scope, is_root() ? nullptr : &this->builder());
+                Rewriter::BuilderGuard guard(*this, builder);
+                for (auto [ovar, _] : letrec->vars) {
+                    insert(ovar, instantiate(ovar, true));
+                }
+                for (auto [ovar, oval] : letrec->vars) {
+                    auto def = instantiate(oval, false);
+                    auto [_, dst] = builder.locate(def);
+                    assert(dst);
+                    dst->bind(lookup(ovar)->as<Var>(), def);
+                }
+                return builder.finish_type(instantiate(letrec->body()->type(), false));
+            }
+            return old->rewrite(*this)->as<Value>()->type();
+        }
+
+        return old->rewrite(*this);
+    }
+};
+
+ValueApp::ValueApp(Builder& builder, const CtorVar* ctor_var, const ArrayRef<const Node*>& args)
+    : Node(builder.arena), App(ctor_var, args), Value([&]() -> const Type* {
+        auto ctor = builder.scope.resolve_ctor(ctor_var);
+        TypeExtractor replacer(builder, ctor->scope, ctor->body()->as<Value>());
+        for (size_t i = 0; i < args.size(); i++) {
+            replacer.insert(ctor->params[i], args[i]);
+        }
+        return builder.enclosing_let_rec().schedule_type(replacer.instantiate<Node, Type>(ctor->body(), false));
+    }()) {
+}
+
+void ValueApp::free_variables(FVSet& vars, Seen& seen) const {
+    type()->free_variables(vars, seen);
+    App::free_variables(vars, seen);
+}
+
+bool ValueApp::equals(const Node* other) const {
+    if (auto other_vapp = other->isa<ValueApp>())
+        return App::equals(other_vapp);
+    return false;
+}
+
+const Value* ValueApp::instantiated(LetRecBuilder& b) const {
+    if (instantiated_)
+        return instantiated_;
+    auto spec = instantiate(b)->as<Value>();
+    instantiated_ = spec;//b.schedule_value(spec);
+    return instantiated_;
+}
+
+ValueCtor::ValueCtor(Builder& builder, Scope& scope, const ArrayRef<const Var*>& params, const Value* body)
+    : Node(builder.arena), Ctor(scope, params, body)
+{}
+
+LetRecValue::LetRecValue(Builder& builder, Scope& scope, const ArrayRef<std::tuple<const Var*, const Node*>>& vars, const Value* in)
+    // TODO: make the type opaque if it leaks ?
+    : Node(builder.arena), Value(in->type()), LetRec(scope, vars, in)
+{}
+
+bool LetRecValue::equals(const Node* other) const {
+    if (auto other_lrv = other->isa<LetRecValue>()) {
+        return LetRec::equals(other_lrv);
+    }
+    return false;
+}
 
 Call::Call(Arena& arena, const Value* callee, const Value* arg) : Value(callee->type()->as<FnType>()->codom), Node(arena), callee(callee), arg(arg) {
     assert(callee->is_simple());

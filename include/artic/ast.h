@@ -29,6 +29,7 @@ namespace tir {
     struct Key;
     struct Var;
     struct ModVar;
+    struct TypeVar;
     struct Param;
     struct SigVar;
     struct Builder;
@@ -1398,10 +1399,8 @@ struct StructDecl : public RecordDecl {
         , is_tuple_like(is_tuple_like)
     {}
 
-    const tir::StructType* self;
-    const tir::Type* unnamed_type;
-    mutable const tir::Value* ctor_or_default_value_ = nullptr;
-    const tir::Value* ctor_or_default_value() const;
+    mutable const tir::Var* ctor_or_default_value_ = nullptr;
+    const tir::Var* ctor_or_default_value(TypeChecker&) const;
 
     const tir::Node* infer(TypeChecker&) override;
     void bind_head(NameBinder&) override;
