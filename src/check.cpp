@@ -105,7 +105,7 @@ const Value* TypeChecker::build_fn_body(const Param* param, ast::FnExpr& fn, con
             auto yield_fn_type = builder().fn_type(codom, builder().no_ret_type());
             auto yield_param = builder().param(ast::Identifier { fn.loc, "ret" }, yield_fn_type);
             fn.return_ = yield_param;
-            auto control_fn = builder().unsafe().function(yield_param, builder().no_ret_type());
+            auto control_fn = builder().unsafe().function(yield_param, builder().no_ret_type(), fn.decl);
             control_fn->set_body(builder(), yield_expr_scope([&] {
                 builder().scope.insert(yield_param, nullptr);
                 auto ret_value = build_body();
@@ -1820,7 +1820,7 @@ const tir::Node* FnExpr::infer(TypeChecker& checker) {
         checker.cannot_infer(loc, "function");
         return checker.builder().error_value();
     }
-    auto fn = checker.builder().unsafe().function(param, codom);
+    auto fn = checker.builder().unsafe().function(param, codom, nullptr);
     if (body)
         fn->set_body(checker.builder(), body);
     if (decl)
@@ -1851,7 +1851,7 @@ const tir::Node* FnExpr::check(TypeChecker& checker, const artic::Type* expected
         return checker.builder().error_value(expected);
     }
 
-    auto fn = checker.builder().unsafe().function(param, codom);
+    auto fn = checker.builder().unsafe().function(param, codom, nullptr);
     if (this->body) {
         fn->set_body(checker.builder(), checker.build_fn_body(param, *this, codom));
     }
@@ -2004,16 +2004,16 @@ inline const LiteralExpr* is_untyped_int_or_float_literal(const Expr* expr) {
 static const tir::Node* build_if(TypeChecker& checker, const IfExpr& expr, const tir::Type* yield_type, ExprBuilder& true_builder, ExprBuilder& else_builder) {
     auto yield_fn_type = checker.builder().fn_type(yield_type, checker.builder().no_ret_type());
     auto yield_param = checker.builder().param(Identifier { expr.loc, "yield" }, yield_fn_type);
-    auto control_fn = checker.builder().unsafe().function(yield_param, checker.builder().no_ret_type());
+    auto control_fn = checker.builder().unsafe().function(yield_param, checker.builder().no_ret_type(), nullptr);
     {
         control_fn->set_body(checker.builder(), checker.with_expr_scope<const Value*>([&] {
             checker.builder().scope.insert(yield_param, nullptr);
-            const Fn* true_fn = checker.builder().unsafe().function(checker.builder().param(std::nullopt, checker.builder().unit_type()), checker.builder().no_ret_type());
+            const Fn* true_fn = checker.builder().unsafe().function(checker.builder().param(std::nullopt, checker.builder().unit_type()), checker.builder().no_ret_type(), nullptr);
             {
                 TypeChecker::BuilderGuard guard(checker, true_builder);
                 true_fn->set_body(checker.builder(), checker.expr_builder().finish(checker.expr_builder().call(yield_param, expr.if_true->value)));
             }
-            const Fn* else_fn = checker.builder().unsafe().function(checker.builder().param(std::nullopt, checker.builder().unit_type()), checker.builder().no_ret_type());
+            const Fn* else_fn = checker.builder().unsafe().function(checker.builder().param(std::nullopt, checker.builder().unit_type()), checker.builder().no_ret_type(), nullptr);
             {
                 TypeChecker::BuilderGuard guard(checker, else_builder);
                 if (expr.if_false)
@@ -2594,7 +2594,7 @@ const tir::Node* FnDecl::infer(TypeChecker& checker) {
         const Param* param = checker.builder().param(Identifier { fn->param->loc, "param" }, param_type);
         auto fn_type = checker.let_rec_builder().fn_type(param->type(), codom);
         var = checker.builder().param(id, fn_type);
-        tir_fn = checker.builder().unsafe().function(param, codom);
+        tir_fn = checker.builder().unsafe().function(param, codom, this);
 
         if (fn->ret_type && fn->body) {
             tir_fn->set_body(checker.builder(), checker.build_fn_body(param, *fn, codom));
@@ -2678,7 +2678,7 @@ const tir::Var* StructDecl::ctor_or_default_value(TypeChecker& checker) const {
                        : builder.tuple_type(tuple_args);
             auto param = builder.param(Identifier { loc, "param" }, dom);
             // FnBuilder fn_builder(builder, param);
-            auto fn = builder.unsafe().function(param, self_type);
+            auto fn = builder.unsafe().function(param, self_type, nullptr);
             //auto fn = builder.function(param, unnamed_type);
             fn->set_body(builder, builder.yield_expr_scope([&](ExprBuilder& expr_builder) -> const Value* {
                 expr_builder.scope.insert(param, nullptr);

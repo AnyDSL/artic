@@ -121,6 +121,7 @@ struct LetRecValue : public Value, public LetRec {
 struct Fn : public Value {
     const Param* param;
     const Type* codom;
+    const ast::FnDecl* decl = nullptr;
     mutable const Value* filter = nullptr;
 
     void print(Printer&) const override;
@@ -135,7 +136,7 @@ struct Fn : public Value {
     void set_body(Builder&, const Value* body) const;
     const Value* body() const { return body_; }
 
-    Fn(Builder&, const Param*, const Type* codom);
+    Fn(Builder&, const Param*, const Type* codom, const ast::FnDecl*);
 private:
     mutable const Value* body_ = nullptr;
 };

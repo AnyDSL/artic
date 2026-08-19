@@ -26,8 +26,8 @@ LocalVariable::LocalVariable(Builder& builder, const Type* allocated_type)
     assert(allocated_type->is_simple());
 }
 
-Fn::Fn(Builder& builder, const Param* param, const Type* codom)
-    : Value(builder.fn_type(param->type(), codom)), Node(builder.arena), param(param), codom(codom) {
+Fn::Fn(Builder& builder, const Param* param, const Type* codom, const ast::FnDecl* decl)
+    : Value(builder.fn_type(param->type(), codom)), Node(builder.arena), param(param), codom(codom), decl(decl) {
     // assert(builder.scope.is_in_scope(param));
 }
 

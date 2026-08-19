@@ -940,6 +940,10 @@ static inline const thorin::Def* isfinite(const thorin::Def* val) {
     return world.cmp_ne(exponent, exponent_mask); // The exponent must not be all 1s
 }
 
+const thorin::Def* Emitter::builtin(const ast::FnDecl& fn_decl, thorin::Continuation* cont) {
+    assert(false && "TODO");
+}
+
 /*const thorin::Def* Emitter::builtin(const ast::FnDecl& fn_decl, thorin::Continuation* cont) {
     if (cont->name() == "alignof") {
         auto target_type = fn_decl.type_params->params[0]->type->convert(*this);
@@ -1281,7 +1285,6 @@ const thorin::Def* LetRecValue::emit(Emitter& emitter) const {
 }
 
 const thorin::Def* Fn::emit(Emitter& emitter, SetHeadFn set_head) const {
-    //assert(false && "TODO");
     auto _ = emitter.save_state();
     auto cont = emitter.world.continuation(
         emitter.emit(type())->as<thorin::FnType>(),
@@ -1299,6 +1302,42 @@ const thorin::Def* Fn::emit(Emitter& emitter, SetHeadFn set_head) const {
         if (!resolve_type(emitter.scope())->codom->isa<artic::NoRetType>())
             emitter.jump(cont->params().back(), value);
     }
+
+    if (decl)
+        cont->set_name(decl->id.name);
+
+    // Set the calling convention and export the continuation if needed
+    if (decl && decl->attrs) {
+        auto& attrs = decl->attrs;
+        if (auto export_attr = attrs->find("export")) {
+            if (auto name_attr = export_attr->find("name"))
+                cont->set_name(name_attr->as<ast::LiteralAttr>()->lit.as_string());
+            emitter.world.make_external(cont);
+            cont->attributes().cc = thorin::CC::C;
+        } else if (auto import_attr = attrs->find("import")) {
+            if (auto name_attr = import_attr->find("name"))
+                cont->set_name(name_attr->as<ast::LiteralAttr>()->lit.as_string());
+            if (auto cc_attr = import_attr->find("cc")) {
+                auto cc = cc_attr->as<ast::LiteralAttr>()->lit.as_string();
+                if (cc == "device") {
+                    emitter.world.make_external(cont);
+                    cont->attributes().cc = thorin::CC::Device;
+                } else if (cc == "C") {
+                    emitter.world.make_external(cont);
+                    cont->attributes().cc = thorin::CC::C;
+                } else if (cc == "thorin")
+                    cont->set_intrinsic();
+                else if (cc == "builtin")
+                    emitter.builtin(*decl, cont);
+            }
+        } else if (auto intern_attr = attrs->find("intern")) {
+            if (auto name_attr = intern_attr->find("name"))
+                cont->set_name(name_attr->as<ast::LiteralAttr>()->lit.as_string());
+            emitter.world.make_external(cont);
+            cont->attributes().cc = thorin::CC::Thorin;
+        }
+    }
+
     return cont;
 }
 
@@ -2236,36 +2275,7 @@ const thorin::Def* FnDecl::emit(Emitter& emitter) const {
 
         cont->params().back()->set_name("ret");
 
-        // Set the calling convention and export the continuation if needed
-        if (attrs) {
-            if (auto export_attr = attrs->find("export")) {
-                if (auto name_attr = export_attr->find("name"))
-                    cont->set_name(name_attr->as<LiteralAttr>()->lit.as_string());
-                emitter.world.make_external(cont);
-                cont->attributes().cc = thorin::CC::C;
-            } else if (auto import_attr = attrs->find("import")) {
-                if (auto name_attr = import_attr->find("name"))
-                    cont->set_name(name_attr->as<LiteralAttr>()->lit.as_string());
-                if (auto cc_attr = import_attr->find("cc")) {
-                    auto cc = cc_attr->as<LiteralAttr>()->lit.as_string();
-                    if (cc == "device") {
-                        emitter.world.make_external(cont);
-                        cont->attributes().cc = thorin::CC::Device;
-                    } else if (cc == "C") {
-                        emitter.world.make_external(cont);
-                        cont->attributes().cc = thorin::CC::C;
-                    } else if (cc == "thorin")
-                        cont->set_intrinsic();
-                    else if (cc == "builtin")
-                        emitter.builtin(*this, cont);
-                }
-            } else if (auto intern_attr = attrs->find("intern")) {
-                if (auto name_attr = intern_attr->find("name"))
-                    cont->set_name(name_attr->as<LiteralAttr>()->lit.as_string());
-                emitter.world.make_external(cont);
-                cont->attributes().cc = thorin::CC::Thorin;
-            }
-        }
+
 
         if (fn->body) {
             // Set the IR node before entering the body, in case

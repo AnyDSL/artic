@@ -322,8 +322,8 @@ const Value* Builder::undef(const Type* type) {
     return arena.insert<Undef>(arena, type);
 }
 
-const Fn* Builder::Unsafe::function(const Param* param, const Type* codom) {
-    return builder.arena.insert<Fn>(builder, param, codom);
+const Fn* Builder::Unsafe::function(const Param* param, const Type* codom, const ast::FnDecl* decl) {
+    return builder.arena.insert<Fn>(builder, param, codom, decl);
 }
 
 const Value* Builder::unit() {
