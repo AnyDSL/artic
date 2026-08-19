@@ -216,24 +216,13 @@ struct LetRecBuilder : public Builder {
     const Param* value_app(const CtorVar*, const ArrayRef<const Node*>&);
     const Param* mod_value_access(const ModValue*, const Key*);
 
-    // const ModValue* mod_access(const ModValue*, const Key*);
-
-    // const ModVar* add_in_module(const Node*, const Key*, bool public_interface = true);
-    // const ModVar* add_in_module(std::optional<ast::Identifier> = std::nullopt);
     void bind(const Var*, const Node*);
-
-    // const Module& module() { return *module_; }
-
-    // const Type* import_type(const Type*);
-    // const Signature* import_signature(const Signature*);
-    // const ModVar* import_mod_var(const ModVar*);
 
     const TypeVar* schedule_type(const Type*, std::optional<ast::Identifier> = std::nullopt);
     const Param* schedule_value(const Value*, std::optional<ast::Identifier> = std::nullopt);
     const ModVar* schedule_mod_value(const ModValue*, std::optional<ast::Identifier> = std::nullopt);
     const CtorVar* schedule_ctor(const Ctor*, std::optional<ast::Identifier> = std::nullopt);
     const SigVar* schedule_sig(const Sig*, std::optional<ast::Identifier> = std::nullopt);
-    //const Type* schedule_and_bind_type(const Type*, std::optional<ast::Identifier> = std::nullopt);
     // const LetRec* finish(const Node*);
     const Type* finish_type(const Type*);
     const ModValue* finish_module(const ModValue*);
@@ -246,7 +235,6 @@ private:
     std::vector<std::tuple<const Var*, const Node*>> contents;
     std::unordered_map<const Node*, const Var*> already_bound_here;
 
-    // Scope* root_scope_;
     friend ast::StructDecl;
 };
 

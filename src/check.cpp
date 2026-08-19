@@ -836,14 +836,6 @@ Array<const Var*> TypeChecker::infer(ast::TypeParamList* list) {
     return vars;
 }
 
-/*static inline const artic::Type* member_type(
-    const artic::TypeApp* type_app,
-    const artic::ComplexType* complex_type,
-    size_t index)
-{
-    return type_app ? type_app->member_type(index) : complex_type->member_type(index);
-}*/
-
 template <typename CheckFn, typename Fields>
 void TypeChecker::check_fields(
     const Loc& loc, const StructType* struct_type, const Type* type,
@@ -874,13 +866,6 @@ void TypeChecker::check_fields(
         }
     }
 }
-
-/*void TypeChecker::assign_scope_to_block_decls(const PtrVector<ast::Stmt>& stmts, ScopeBuilder& scope) {
-    for (auto& stmt : stmts) {
-        if (auto decl_stmt = stmt->isa<ast::DeclStmt>())
-            decl_stmt->scope = &scope;
-    }
-}*/
 
 void TypeChecker::check_block(const Loc& loc, const PtrVector<ast::Stmt>& stmts, bool last_semi) {
     assert(!stmts.empty());
