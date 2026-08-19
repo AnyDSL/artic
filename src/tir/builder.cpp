@@ -322,18 +322,8 @@ const Value* Builder::undef(const Type* type) {
     return arena.insert<Undef>(arena, type);
 }
 
-// const Fn* Builder::function(const Param* param, const Type* codom) {
-//     return arena.insert<Fn>(*this, param, codom);
-// }
-
-FnBuilder::FnBuilder(Builder& parent, const Param* param) : Builder(parent.arena, parent.scope.new_child(), &parent), param_(param) {
-    scope.insert(param, nullptr);
-}
-
-const Fn* FnBuilder::build_function(const Type* codom) {
-    assert(!fn_);
-    fn_ = arena.insert<Fn>(*this, param_, codom);
-    return fn_;
+const Fn* Builder::Unsafe::function(const Param* param, const Type* codom) {
+    return builder.arena.insert<Fn>(builder, param, codom);
 }
 
 const Value* Builder::unit() {
@@ -703,6 +693,9 @@ std::tuple<const Var*, LetRecBuilder*> LetRecBuilder::locate(const Node* node) {
     LetRecBuilder* dst = nullptr;
     for (Builder* b = this; b; b = b->parent) {
         if (auto mb = b->isa<LetRecBuilder>()) {
+            if (mb->scope.is_child_of(node_scope)) {
+                dst = mb;
+            }
             if (&mb->scope == node_scope) {
                 dst = mb;
                 break;

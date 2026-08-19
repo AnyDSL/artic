@@ -58,7 +58,8 @@ private:
     Ptr<ast::ErrorPtrn>     parse_error_ptrn();
 
     Ptr<ast::Stmt>          parse_stmt();
-    Ptr<ast::DeclStmt>      parse_decl_stmt();
+    Ptr<ast::LetStmt>       parse_let_stmt();
+    Ptr<ast::RecDeclsStmt>  parse_rec_decls_stmt();
     Ptr<ast::ExprStmt>      parse_expr_stmt();
 
     Ptr<ast::Expr>          parse_expr(bool = true);

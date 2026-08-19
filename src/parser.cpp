@@ -462,8 +462,10 @@ Ptr<ast::ErrorPtrn> Parser::parse_error_ptrn() {
 // Statements ----------------------------------------------------------------------
 
 Ptr<ast::Stmt> Parser::parse_stmt() {
-    if (ahead().tag() == Token::Let || ahead().tag() == Token::Fn || ahead().tag() == Token::Implicit)
-        return parse_decl_stmt();
+    if (ahead().tag() == Token::Let)
+        return parse_let_stmt();
+    if (ahead().tag() == Token::Fn || ahead().tag() == Token::Implicit)
+        return parse_rec_decls_stmt();
     Tracker tracker(this);
     Ptr<ast::Expr> expr;
     switch (ahead().tag()) {
@@ -477,10 +479,18 @@ Ptr<ast::Stmt> Parser::parse_stmt() {
     return _arena.make_ptr<ast::ExprStmt>(tracker(), std::move(expr));
 }
 
-Ptr<ast::DeclStmt> Parser::parse_decl_stmt() {
+Ptr<ast::LetStmt> Parser::parse_let_stmt() {
     Tracker tracker(this);
-    auto decl = parse_decl();
-    return _arena.make_ptr<ast::DeclStmt>(tracker(), std::move(decl));
+    return _arena.make_ptr<ast::LetStmt>(tracker(), std::move(parse_let_decl()));
+}
+
+Ptr<ast::RecDeclsStmt> Parser::parse_rec_decls_stmt() {
+    Tracker tracker(this);
+    PtrVector<ast::Decl> decls;
+    while (ahead().tag() == Token::Fn || ahead().tag() == Token::Implicit) {
+        decls.push_back(parse_decl(true));
+    }
+    return _arena.make_ptr<ast::RecDeclsStmt>(tracker(), std::move(decls));
 }
 
 Ptr<ast::ExprStmt> Parser::parse_expr_stmt() {

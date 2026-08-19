@@ -97,7 +97,8 @@ log::Output& operator << (log::Output&, const Node&);
 // Base AST nodes ------------------------------------------------------------------
 
 struct ModDecl;
-struct DeclStmt;
+struct RecDeclsStmt;
+struct LetDecl;
 
 /// Base class for all declarations.
 struct Decl : public Node {
@@ -107,7 +108,7 @@ struct Decl : public Node {
     bool is_top_level = false;
 
     ModDecl* enclosing_module = nullptr;
-    DeclStmt* stmt = nullptr;
+    RecDeclsStmt* enclosing_stmt = nullptr;
 
     /// The variable the decl was bound to
     mutable const tir::Var* var = nullptr;
@@ -474,15 +475,34 @@ struct ErrorType : public Type {
 
 // Statements ----------------------------------------------------------------------
 
-// Statement containing a declaration.
-struct DeclStmt : public Stmt {
-    Ptr<Decl> decl;
+// Statement containing a let binding
+struct LetStmt : public Stmt {
+    Ptr<LetDecl> decl;
 
+    LetStmt(const Loc& loc, Ptr<LetDecl>&& decl)
+        : Stmt(loc), decl(std::move(decl))
+    {}
+
+    bool is_jumping() const override;
+    bool needs_semicolon() const override;
+    bool has_side_effect() const override;
+
+    const tir::Node* infer(TypeChecker&) override;
+    const tir::Node* check(TypeChecker&, const tir::Type*) override;
+    void bind(NameBinder&) override;
+    void print(Printer&) const override;
+};
+
+// Statement containing mutually recursive declarations.
+struct RecDeclsStmt : public Stmt {
+    PtrVector<Decl> decls;
+
+    mutable tir::LetRecBuilder* builder = nullptr;
     // set during type-checking
     // ScopeBuilder* scope = nullptr;
 
-    DeclStmt(const Loc& loc, Ptr<Decl>&& decl)
-        : Stmt(loc), decl(std::move(decl))
+    RecDeclsStmt(const Loc& loc, PtrVector<Decl>&& decls)
+        : Stmt(loc), decls(std::move(decls))
     {}
 
     bool is_jumping() const override;

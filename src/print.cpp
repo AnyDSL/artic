@@ -86,8 +86,13 @@ void AttrList::print(Printer& p) const {
 
 // Statements ----------------------------------------------------------------------
 
-void DeclStmt::print(Printer& p) const {
+void LetStmt::print(Printer& p) const {
     decl->print(p);
+}
+
+void RecDeclsStmt::print(Printer& p) const {
+    for (auto& decl : decls)
+        decl->print(p);
 }
 
 void ExprStmt::print(Printer& p) const {

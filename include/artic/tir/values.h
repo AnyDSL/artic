@@ -112,6 +112,8 @@ struct LetRecValue : public Value, public LetRec {
     bool equals(const Node* other) const override;
     const Node* rewrite(Rewriter&) const override;
 
+    const thorin::Def* emit(Emitter&) const override;
+
     LetRecValue(Builder&, Scope&, const ArrayRef<std::tuple<const Var*, const Node*>>&, const Value*);
 };
 

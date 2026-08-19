@@ -67,7 +67,7 @@ public:
 
     const tir::Key* infer_key(ast::NamedDecl&);
 
-    void infer_decl_stmt(ast::Decl&);
+    const Value* build_block(ast::BlockExpr&, const Type* expected, size_t i);
 
     const tir::Value* infer_value(ast::Expr& ast);
     const tir::Value* infer_value(ast::Stmt& ast);
@@ -97,6 +97,7 @@ public:
 
     /// Explores a pattern recursively and makes sure the body is wrapped in Bind nodes that extract the value of each sub-pattern
     void bind_ptrn_params(ast::Ptrn&, const Value*);
+    const Value* build_fn_body(const Param* param, ast::FnExpr& fn, const tir::Type* codom);
 
     template<typename T, typename Fn>
     T with_expr_scope(Fn f) {

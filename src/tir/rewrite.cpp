@@ -263,11 +263,11 @@ const Node* LocalVariable::rewrite(Rewriter& r) const {
 const Node* Fn::rewrite(Rewriter& r) const {
     auto nparam = r.instantiate(param, true);
     auto ncodom = r.instantiate(codom);
-    FnBuilder fn_builder(r.builder(), nparam);
-    auto nfn = fn_builder.build_function(ncodom);
+    auto nfn = r.builder().unsafe().function(nparam, ncodom);
     r.insert(this, nfn);
     r.insert(param, nparam);
-    ExprBuilder expr_builder(r.dst, &fn_builder);
+    ExprBuilder expr_builder(r.dst, &r.builder());
+    expr_builder.scope.insert(nparam, nullptr);
     Rewriter::BuilderGuard guard(r, expr_builder);
     if (body_)
         nfn->set_body(r.builder(), r.instantiate(body_, false));

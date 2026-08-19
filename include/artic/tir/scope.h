@@ -11,7 +11,6 @@ struct SigVar;
 struct Sig;
 struct ExprBuilder;
 struct LetRecBuilder;
-struct FnBuilder;
 struct Fn;
 
 struct Scope {
@@ -67,7 +66,6 @@ private:
     friend TypeChecker;
     friend ExprBuilder;
     friend LetRecBuilder;
-    friend FnBuilder;
     friend Ctor;
 };
 

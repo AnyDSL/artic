@@ -1276,6 +1276,10 @@ const thorin::Def* Param::emit(Emitter& emitter) const {
     return emitter.emit_bound_var(this).as_value;
 }
 
+const thorin::Def* LetRecValue::emit(Emitter& emitter) const {
+    return emitter.emit_letrec<LetRecValue, thorin::Def>(this);
+}
+
 const thorin::Def* Fn::emit(Emitter& emitter, SetHeadFn set_head) const {
     //assert(false && "TODO");
     auto _ = emitter.save_state();

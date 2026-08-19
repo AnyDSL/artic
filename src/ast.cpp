@@ -292,18 +292,29 @@ const Attr* NamedAttr::find(const std::string_view& name) const {
 
 // Statements ----------------------------------------------------------------------
 
-bool DeclStmt::is_jumping() const {
+bool LetStmt::is_jumping() const {
     return
-        decl->isa<LetDecl>() &&
-        decl->as<LetDecl>()->init &&
-        decl->as<LetDecl>()->init->is_jumping();
+        decl->init &&
+        decl->init->is_jumping();
 }
 
-bool DeclStmt::needs_semicolon() const {
+bool LetStmt::needs_semicolon() const {
     return false;
 }
 
-bool DeclStmt::has_side_effect() const {
+bool LetStmt::has_side_effect() const {
+    return true;
+}
+
+bool RecDeclsStmt::is_jumping() const {
+    return false;
+}
+
+bool RecDeclsStmt::needs_semicolon() const {
+    return false;
+}
+
+bool RecDeclsStmt::has_side_effect() const {
     return true;
 }
 

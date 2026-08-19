@@ -86,6 +86,41 @@ void TypeChecker::bind_ptrn_params(ast::Ptrn& ptrn, const Value* value) {
     }
 }
 
+const Value* TypeChecker::build_fn_body(const Param* param, ast::FnExpr& fn, const tir::Type* codom) {
+    auto build_body = [&]() -> const Value* {
+        if (codom)
+            return coerce(&*fn.body, codom);
+        else
+            return deref(fn.body);
+    };
+
+
+    //TypeChecker::BuilderGuard guard(*this, fn_builder);
+
+    if (codom) {
+        assert(codom->is_simple());
+        return yield_expr_scope([&]() -> const Value* {
+            builder().scope.insert(param, nullptr);
+            bind_ptrn_params(*fn.param, param);
+            auto yield_fn_type = builder().fn_type(codom, builder().no_ret_type());
+            auto yield_param = builder().param(ast::Identifier { fn.loc, "ret" }, yield_fn_type);
+            fn.return_ = yield_param;
+            auto control_fn = builder().unsafe().function(yield_param, builder().no_ret_type());
+            control_fn->set_body(builder(), yield_expr_scope([&] {
+                builder().scope.insert(yield_param, nullptr);
+                auto ret_value = build_body();
+                return expr_builder().call(yield_param, ret_value);
+            }));
+            return expr_builder().control(control_fn);
+        });
+    } else
+        return yield_expr_scope([&] {
+            builder().scope.insert(param, nullptr);
+            bind_ptrn_params(*fn.param, param);
+            return build_body();
+        });
+}
+
 void TypeChecker::run_expr_scope(const std::function<void()>& f) {
     ExprBuilder builder(arena(), &this->builder());
     BuilderGuard guard(*this, builder);
@@ -516,8 +551,14 @@ const tir::Var* TypeChecker::infer_mod_decl(ast::Decl& node) {
         infer_mod_head(*node.enclosing_module);
         BuilderGuard guard(*this, *node.enclosing_module->builder);
         node.var = node.infer(*this)->as<Var>();
-    } else {
+    } else if (node.enclosing_stmt) {
+        assert(node.enclosing_stmt->builder);
+        BuilderGuard guard(*this, *node.enclosing_stmt->builder);
         node.var = node.infer(*this)->as<Var>();
+    } else if (auto mod_decl = node.isa<ast::ModDecl>(); mod_decl && !mod_decl->super) {
+        node.var = node.infer(*this)->as<Var>();
+    } else {
+        assert(false && "decls need to be parented to a ModDecl or a RecDeclsStmt");
     }
     if (node.attrs)
         node.attrs->check(*this, &node);
@@ -552,11 +593,48 @@ const tir::TypeVar* TypeChecker::infer_type_param(ast::TypeParam& ast) {
 //     decl->enclosing_module->signature->mod_signature[decl->var->key] = decl->enclosing_module->sig_builder->import_signature(decl->var->signature());
 // }
 
-void TypeChecker::infer_decl_stmt(ast::Decl& decl) {
-    if (auto let = decl.isa<ast::LetDecl>())
-        let->infer(*this);
-    else
-        infer_mod_decl(decl); // TODO: generate dummy internal modules
+const Value* TypeChecker::build_block(ast::BlockExpr& expr, const Type* expected, size_t start) {
+    return expr_builder().bind_value(yield_expr_scope([&]() -> const Value* {
+        for (size_t i = start; i < expr.stmts.size(); i++) {
+            bool last_expected = false;
+            if (i == expr.stmts.size() - 1 && expected && !expr.last_semi)
+                last_expected = true;
+            ExprBuilder& expr_b = expr_builder();
+            if (auto rec_stmt = expr.stmts[i]->isa<ast::RecDeclsStmt>()) {
+                // oh that's weird
+                Scope& scope = builder().scope.new_child();
+                Builder& parent = builder();
+                LetRecBuilder builder(arena(), scope, &parent);
+                rec_stmt->builder = &builder;
+                BuilderGuard guard(*this, builder);
+                // switch back to expression mode
+                auto val = yield_expr_scope([&]() -> const Value* {
+                    return build_block(expr, expected, i + 1);
+                });
+                auto yield = builder.param(std::nullopt, val->type());
+                builder.bind(yield, val);
+                return expr_b.bind_value(builder.finish_value(yield));
+            } else {
+                if (last_expected)
+                    check_value(*expr.stmts[i], expected);
+                else
+                    infer_value(*expr.stmts[i]);
+            }
+        }
+
+        // expr.last_semi ? infer_value(*expr.stmts.back()) : check_value(*expr.stmts.back(), expected);
+        check_block(expr.loc, expr.stmts, expr.last_semi);
+        if (expr.last_semi && expected && !is_unit_type(expected)) {
+            incompatible_type(expr.loc, "block expression terminated by semicolon", expected);
+            note("removing the last semicolon may solve this issue");
+            return builder().error_value();
+        }
+
+        // if the block ends with `;`, make sure we add an extra tuple to make the whole thing type as ()
+        if (expr.last_semi)
+            return builder().unit();
+        return infer_value(*expr.stmts.back());
+    }));
 }
 
 const Value* TypeChecker::check_value(ast::Expr& node, const Type* expected) {
@@ -1562,15 +1640,22 @@ const tir::Node* NoCodomType::infer(TypeChecker& checker) {
 
 // Statements ----------------------------------------------------------------------
 
-const tir::Node* DeclStmt::infer(TypeChecker& checker) {
-    checker.infer_decl_stmt(*decl);
+const tir::Node* LetStmt::infer(TypeChecker& checker) {
+    return decl->infer(checker);
+}
+
+const tir::Node* LetStmt::check(TypeChecker& checker, const tir::Type* expected) {
+    checker.expect(loc, checker.builder().unit_type(), expected);
+    decl->infer(checker);
     return checker.builder().unit();
 }
 
-const tir::Node* DeclStmt::check(TypeChecker& checker, const artic::Type* expected) {
-    checker.expect(loc, checker.builder().unit_type(), expected);
-    checker.infer_decl_stmt(*decl);
-    return checker.builder().unit();
+const tir::Node* RecDeclsStmt::infer(TypeChecker&) {
+    assert(false);
+}
+
+const tir::Node* RecDeclsStmt::check(TypeChecker&, const artic::Type*) {
+    assert(false);
 }
 
 const tir::Node* ExprStmt::infer(TypeChecker& checker) {
@@ -1733,53 +1818,23 @@ const tir::Node* RepeatArrayExpr::check(TypeChecker& checker, const artic::Type*
     return checker.expr_builder().repeat(type, elem->value);
 }
 
-static inline const Value* build_fn_body(TypeChecker& checker, FnBuilder& fn_builder, FnExpr& fn, const tir::Type* codom) {
-    auto build_body = [&]() -> const Value* {
-        checker.bind_ptrn_params(*fn.param, fn_builder.param());
-        if (codom)
-            return checker.coerce(&*fn.body, codom);
-        else
-            return checker.deref(fn.body);
-    };
-
-    TypeChecker::BuilderGuard guard(checker, fn_builder);
-
-    if (codom) {
-        assert(codom->is_simple());
-        return checker.yield_expr_scope([&]() -> const Value* {
-            auto yield_fn_type = checker.builder().fn_type(codom, checker.builder().no_ret_type());
-            auto yield_param = checker.builder().param(Identifier { fn.loc, "ret" }, yield_fn_type);
-            fn.return_ = yield_param;
-            FnBuilder control_fn_builder(checker.builder(), yield_param);
-            auto control_fn = control_fn_builder.build_function(checker.builder().no_ret_type());
-            control_fn->set_body(control_fn_builder, checker.yield_expr_scope([&] {
-                auto ret_value = build_body();
-                return checker.expr_builder().call(yield_param, ret_value);
-            }));
-            return checker.expr_builder().control(control_fn);
-        });
-    } else
-        return checker.yield_expr_scope([&] {
-            return build_body();
-        });
-}
-
 const tir::Node* FnExpr::infer(TypeChecker& checker) {
     checker.check_refutability(*param, true);
     if (filter)
         checker.check_value(*filter, checker.builder().bool_type());
     auto codom = ret_type ? checker.infer_type(*ret_type) : nullptr;
-    FnBuilder builder(checker.builder(), checker.builder().param(Identifier { param->loc, "param" }, checker.infer_ptrn(*param)));
+    auto param = checker.builder().param(Identifier { this->param->loc, "param" }, checker.infer_ptrn(*this->param));
+
     const Value* body = nullptr;
     if (this->body) {
-        body = build_fn_body(checker, builder, *this, codom);
+        body = checker.build_fn_body(param, *this, codom);
         codom = body->type();
     }
     if (!codom) {
         checker.cannot_infer(loc, "function");
         return checker.builder().error_value();
     }
-    auto fn = builder.build_function(codom);
+    auto fn = checker.builder().unsafe().function(param, codom);
     if (body)
         fn->set_body(checker.builder(), body);
     if (decl)
@@ -1798,8 +1853,8 @@ const tir::Node* FnExpr::check(TypeChecker& checker, const artic::Type* expected
     auto codom = fn_t->codom;
 
     auto param_type = checker.check_ptrn(*param, dom);
-    FnBuilder builder(checker.builder(), checker.builder().param(Identifier { param->loc, "param" }, param_type));
-    checker.check_refutability(*param, true);
+    checker.check_refutability(*this->param, true);
+    auto param = checker.builder().param(Identifier { this->param->loc, "param" }, param_type);
     if (filter)
         checker.check_value(*filter, checker.builder().bool_type());
 
@@ -1810,9 +1865,9 @@ const tir::Node* FnExpr::check(TypeChecker& checker, const artic::Type* expected
         return checker.builder().error_value(expected);
     }
 
-    auto fn = builder.build_function(codom);
+    auto fn = checker.builder().unsafe().function(param, codom);
     if (this->body) {
-        fn->set_body(builder, build_fn_body(checker, builder, *this, codom));
+        fn->set_body(checker.builder(), checker.build_fn_body(param, *this, codom));
     }
 
     if (decl)
@@ -1825,15 +1880,7 @@ const tir::Node* BlockExpr::infer(TypeChecker& checker) {
     if (stmts.empty())
         return checker.builder().unit();
 
-    return checker.expr_builder().bind_value(checker.yield_expr_scope([&]() -> const Value* {
-        //checker.assign_scope_to_block_decls(stmts, checker.current_scope_builder());
-        for (int i = 0; i < stmts.size(); i++)
-            checker.infer_value(*stmts[i]);
-        checker.check_block(loc, stmts, last_semi);
-        if (last_semi)
-            return checker.builder().unit();
-        return checker.infer_value(*stmts.back());
-    }));
+    return checker.build_block(*this, nullptr, 0);
 }
 
 const tir::Node* BlockExpr::check(TypeChecker& checker, const artic::Type* expected) {
@@ -1845,24 +1892,7 @@ const tir::Node* BlockExpr::check(TypeChecker& checker, const artic::Type* expec
         return checker.builder().unit();
     }
 
-    return checker.expr_builder().bind_value(checker.yield_expr_scope([&]() -> const Value* {
-        //checker.assign_scope_to_block_decls(stmts, checker.current_scope_builder());
-        for (size_t i = 0; i < stmts.size() - 1; ++i)
-            checker.infer_value(*stmts[i]);
-        last_semi ? checker.infer_value(*stmts.back()) : checker.check_value(*stmts.back(), expected);
-        checker.check_block(loc, stmts, last_semi);
-        if (last_semi && !is_unit_type(expected)) {
-            checker.incompatible_type(loc, "block expression terminated by semicolon", expected);
-            checker.note("removing the last semicolon may solve this issue");
-            assert(false);
-            //return checker.builder().type_error();
-        }
-
-        // if the block ends with `;`, make sure we add an extra tuple to make the whole thing type as ()
-        if (last_semi)
-            return checker.builder().unit();
-        return checker.infer_value(*stmts.back());
-    }));
+    return checker.build_block(*this, expected, 0);
 }
 
 static inline PathExpr* callee_path(Expr* expr) {
@@ -1988,20 +2018,16 @@ inline const LiteralExpr* is_untyped_int_or_float_literal(const Expr* expr) {
 static const tir::Node* build_if(TypeChecker& checker, const IfExpr& expr, const tir::Type* yield_type, ExprBuilder& true_builder, ExprBuilder& else_builder) {
     auto yield_fn_type = checker.builder().fn_type(yield_type, checker.builder().no_ret_type());
     auto yield_param = checker.builder().param(Identifier { expr.loc, "yield" }, yield_fn_type);
-    FnBuilder control_fn_builder(checker.builder(), yield_param);
-    auto control_fn = control_fn_builder.build_function(checker.builder().no_ret_type());
-    //auto control_fn = checker.builder().function(yield_param, checker.builder().no_ret_type());
+    auto control_fn = checker.builder().unsafe().function(yield_param, checker.builder().no_ret_type());
     {
-        TypeChecker::BuilderGuard outer_guard(checker, control_fn_builder);
         control_fn->set_body(checker.builder(), checker.with_expr_scope<const Value*>([&] {
-            FnBuilder true_fn_builder(checker.builder(), checker.builder().param(std::nullopt, checker.builder().unit_type()));
-            const Fn* true_fn = true_fn_builder.build_function(checker.builder().no_ret_type());
+            checker.builder().scope.insert(yield_param, nullptr);
+            const Fn* true_fn = checker.builder().unsafe().function(checker.builder().param(std::nullopt, checker.builder().unit_type()), checker.builder().no_ret_type());
             {
                 TypeChecker::BuilderGuard guard(checker, true_builder);
                 true_fn->set_body(checker.builder(), checker.expr_builder().finish(checker.expr_builder().call(yield_param, expr.if_true->value)));
             }
-            FnBuilder else_fn_builder(checker.builder(), checker.builder().param(std::nullopt, checker.builder().unit_type()));
-            const Fn* else_fn = else_fn_builder.build_function(checker.builder().no_ret_type());
+            const Fn* else_fn = checker.builder().unsafe().function(checker.builder().param(std::nullopt, checker.builder().unit_type()), checker.builder().no_ret_type());
             {
                 TypeChecker::BuilderGuard guard(checker, else_builder);
                 if (expr.if_false)
@@ -2570,29 +2596,34 @@ const tir::Node* FnDecl::infer(TypeChecker& checker) {
     if (!checker.enter_decl(this))
         return checker.builder().type_error();
 
-    const tir::Fn* tir_fn = nullptr;
-    std::optional<FnBuilder> builder;
-    const tir::Type* codom = nullptr;
+    const Fn* tir_fn = nullptr;
+
     if (fn->ret_type) {
         auto param_type = checker.infer_ptrn(*fn->param);
-        codom = checker.infer_type(*fn->ret_type);
+        auto codom = checker.infer_type(*fn->ret_type);
 
         if (fn->filter)
             checker.check_value(*fn->filter, checker.builder().bool_type());
         checker.check_refutability(*fn->param, true);
-        builder.emplace(checker.builder(), checker.builder().param(Identifier { fn->param->loc, "param" }, param_type));
-        tir_fn = builder->build_function(codom);
+        const Param* param = checker.builder().param(Identifier { fn->param->loc, "param" }, param_type);
+        auto fn_type = checker.let_rec_builder().fn_type(param->type(), codom);
+        var = checker.builder().param(id, fn_type);
+        tir_fn = checker.builder().unsafe().function(param, codom);
+
+        if (fn->ret_type && fn->body) {
+            tir_fn->set_body(checker.builder(), checker.build_fn_body(param, *fn, codom));
+        }
     } else {
         tir_fn = checker.infer_value(*fn)->as<tir::Fn>();
-        //fn_type = tir_fn->resolve_type(checker.scope());
+        var = checker.builder().param(id, tir_fn->type());
     }
 
-    var = checker.let_rec_builder().schedule_value(tir_fn);
     // if (forall)
     //     forall->body = fn_type;
-    if (fn->ret_type && fn->body) {
-        tir_fn->set_body(checker.builder(), build_fn_body(checker, *builder, *fn, codom));
-    }
+
+    auto [_, dst] = checker.let_rec_builder().locate(tir_fn);
+    dst->bind(var, tir_fn);
+
     checker.exit_decl(this);
     return var;
 }
@@ -2661,10 +2692,11 @@ const tir::Var* StructDecl::ctor_or_default_value(TypeChecker& checker) const {
                        ? tuple_args.front()
                        : builder.tuple_type(tuple_args);
             auto param = builder.param(Identifier { loc, "param" }, dom);
-            FnBuilder fn_builder(builder, param);
-            auto fn = fn_builder.build_function(self_type);
+            // FnBuilder fn_builder(builder, param);
+            auto fn = builder.unsafe().function(param, self_type);
             //auto fn = builder.function(param, unnamed_type);
-            fn->set_body(fn_builder, fn_builder.yield_expr_scope([&](ExprBuilder& expr_builder) -> const Value* {
+            fn->set_body(builder, builder.yield_expr_scope([&](ExprBuilder& expr_builder) -> const Value* {
+                expr_builder.scope.insert(param, nullptr);
                 if (member_count == 1) {
                     Array<const Value*> args = { param };
                     return expr_builder.agg(self_type, args);

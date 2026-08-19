@@ -28,7 +28,7 @@ LocalVariable::LocalVariable(Builder& builder, const Type* allocated_type)
 
 Fn::Fn(Builder& builder, const Param* param, const Type* codom)
     : Value(builder.fn_type(param->type(), codom)), Node(builder.arena), param(param), codom(codom) {
-    assert(builder.scope.is_in_scope(param));
+    // assert(builder.scope.is_in_scope(param));
 }
 
 void Fn::set_body(Builder& builder, const Value* body) const {

@@ -157,9 +157,18 @@ void ErrorType::bind(NameBinder&) {}
 
 // Statements ----------------------------------------------------------------------
 
-void DeclStmt::bind(NameBinder& binder) {
+void LetStmt::bind(NameBinder& binder) {
     binder.bind(*decl);
-    decl->stmt = this;
+}
+
+void RecDeclsStmt::bind(NameBinder& binder) {
+    for (auto& decl : decls) {
+        decl->enclosing_stmt = this;
+        binder.bind_head(*decl);
+    }
+    for (auto& decl : decls) {
+        binder.bind(*decl);
+    }
 }
 
 void ExprStmt::bind(NameBinder& binder) {
@@ -231,10 +240,6 @@ void FnExpr::bind(NameBinder& binder) {
 
 void BlockExpr::bind(NameBinder& binder) {
     binder.push_scope();
-    for (auto& stmt : stmts) {
-        if (auto decl_stmt = stmt->isa<DeclStmt>())
-            binder.bind_head(*decl_stmt->decl);
-    }
     for (auto& stmt : stmts) binder.bind(*stmt);
     binder.pop_scope();
 }
