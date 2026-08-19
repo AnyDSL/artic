@@ -630,7 +630,7 @@ const Value* TypeChecker::build_block(ast::BlockExpr& expr, const Type* expected
             return builder().error_value();
         }
 
-        // if the block ends with `;`, make sure we add an extra tuple to make the whole thing type as ()
+        // if the block ends with `;`, make sure we yield a tuple to make the whole thing type as ()
         if (expr.last_semi)
             return builder().unit();
         return infer_value(*expr.stmts.back());
@@ -1635,12 +1635,13 @@ const tir::Node* LetStmt::check(TypeChecker& checker, const tir::Type* expected)
     return checker.builder().unit();
 }
 
-const tir::Node* RecDeclsStmt::infer(TypeChecker&) {
-    assert(false);
+const tir::Node* RecDeclsStmt::infer(TypeChecker& checker) {
+    return checker.builder().unit();
 }
 
-const tir::Node* RecDeclsStmt::check(TypeChecker&, const artic::Type*) {
-    assert(false);
+const tir::Node* RecDeclsStmt::check(TypeChecker& checker, const artic::Type* expected) {
+    checker.expect(loc, checker.builder().unit_type(), expected);
+    return checker.builder().unit();
 }
 
 const tir::Node* ExprStmt::infer(TypeChecker& checker) {
@@ -2606,8 +2607,7 @@ const tir::Node* FnDecl::infer(TypeChecker& checker) {
     // if (forall)
     //     forall->body = fn_type;
 
-    auto [_, dst] = checker.let_rec_builder().locate(tir_fn);
-    dst->bind(var, tir_fn);
+    checker.let_rec_builder().bind(var, tir_fn);
 
     checker.exit_decl(this);
     return var;
