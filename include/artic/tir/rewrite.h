@@ -45,10 +45,11 @@ struct Rewriter {
     }
 
     void insert(const Node* old, const Node* new_) {
+        assert(&new_->arena == &dst);
         map.emplace(old, new_);
     }
 
-    const Node* lookup(const Node* old) {
+    virtual const Node* lookup(const Node* old) {
         auto found = map.find(old);
         if (found != map.end()) {
             return found->second;

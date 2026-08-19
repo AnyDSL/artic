@@ -95,20 +95,11 @@ void App::free_variables(FVSet& vars, Seen& seen) const {
         arg->free_variables(vars, seen);
 }
 
-struct NoOpRewriter : public Rewriter {
-    NoOpRewriter(Arena& a) : Rewriter(a, a) {}
-
-    const Node* rewrite(const Node* old, bool) override {
-        return old;
-    }
-};
-
 struct Specializer : public Rewriter {
     Builder& b;
     Scope& s;
-    Rewriter& out_of_scope;
 
-    Specializer(Builder& b, Scope& s, Rewriter& out_of_scope) : Rewriter(b.arena, b.arena), b(b), s(s), out_of_scope(out_of_scope) {
+    Specializer(Arena&, Builder& b, Scope& s) : Rewriter(b.arena, b.arena), b(b), s(s) {
         builder_ = &b;
     }
 
@@ -117,30 +108,36 @@ struct Specializer : public Rewriter {
             return old->rewrite(*this);
 
         if (auto var = old->isa<Var>()) {
-            if (!var->binder->contains(&s) && &s != var->binder)
-                return out_of_scope.instantiate(old, immediate);
+            if (!var->binder->is_child_of(&s) && &s != var->binder)
+                return old;
         }
 
         return old->rewrite(*this);
     }
 };
 
-const Node* App::instantiate(Builder& builder, Rewriter& super) const {
+const Node* App::instantiate_into(Builder& builder, Rewriter& r) const {
     auto peeked = builder.scope.resolve_ctor(applicand());
     if (auto ctor = peeked->isa<Ctor>()) {
-        Specializer s(builder, ctor->scope, super);
         for (size_t i = 0; i < ctor->params.size(); i++) {
-            s.insert(ctor->params[i], args[i]);
+            r.insert(ctor->params[i], args[i]);
         }
-        return s.instantiate(ctor->body_, true);
+        return r.instantiate(ctor->body_, true);
     } else {
         assert(false);
     }
 }
 
+Scope& App::applicand_body_scope(Builder& builder) const {
+    auto peeked = builder.scope.resolve_ctor(applicand());
+    if (auto ctor = peeked->isa<Ctor>()) {
+        return ctor->scope;
+    }
+    assert(false);
+}
+
 const Node* App::instantiate(Builder& builder) const {
-    NoOpRewriter noop(builder.arena);
-    return instantiate(builder, noop);
+    return instantiate_with<Specializer>(builder);
 }
 
 LetRec::LetRec(Scope& scope, const ArrayRef<std::tuple<const Var*, const Node*>>& vars, const Node* in)

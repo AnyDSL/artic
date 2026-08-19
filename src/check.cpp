@@ -8,14 +8,14 @@
 namespace artic {
 
 std::unique_ptr<Root> TypeChecker::run(ast::ModDecl& module) {
-    std::unique_ptr<Root> root = std::make_unique<Root>();
-    LetRecBuilder builder(arena, root->scope, nullptr);
+    root = std::make_unique<Root>();
+    LetRecBuilder builder(arena(), root->scope, nullptr);
     TypeChecker::BuilderGuard guard(*this, builder);
     auto mod = infer_mod_decl(module);
     if (errors > 0)
         return nullptr;
     root->root_module = builder.finish_module(mod->as<ModValue>());
-    return root;
+    return std::move(root);
 }
 
 bool TypeChecker::enter_decl(const ast::Decl* decl) {
@@ -87,7 +87,7 @@ void TypeChecker::bind_ptrn_params(ast::Ptrn& ptrn, const Value* value) {
 }
 
 void TypeChecker::run_expr_scope(const std::function<void()>& f) {
-    ExprBuilder builder(arena, &this->builder());
+    ExprBuilder builder(arena(), &this->builder());
     BuilderGuard guard(*this, builder);
     f();
 }
@@ -2023,8 +2023,8 @@ const tir::Node* IfExpr::infer(TypeChecker& checker) {
         checker.infer_ptrn(*ptrn, expr);
         checker.check_refutability(*ptrn, false);
     }
-    ExprBuilder true_builder(checker.arena, &checker.builder());
-    ExprBuilder else_builder(checker.arena, &checker.builder());
+    ExprBuilder true_builder(checker.arena(), &checker.builder());
+    ExprBuilder else_builder(checker.arena(), &checker.builder());
 
     const tir::Type* yield_type;
     if (if_false) {
@@ -2071,8 +2071,8 @@ const tir::Node* IfExpr::check(TypeChecker& checker, const artic::Type* expected
         checker.infer_ptrn(*ptrn, expr);
         checker.check_refutability(*ptrn, false);
     }
-    ExprBuilder true_builder(checker.arena, &checker.builder());
-    ExprBuilder else_builder(checker.arena, &checker.builder());
+    ExprBuilder true_builder(checker.arena(), &checker.builder());
+    ExprBuilder else_builder(checker.arena(), &checker.builder());
     if (if_false) {
         {
             TypeChecker::BuilderGuard guard(checker, true_builder);
@@ -2816,8 +2816,8 @@ const tir::Node* ModDecl::infer(TypeChecker& checker) {
     }
 
     auto unbound_mod = parent_builder.module(std::move(decls), this);
-    parent_builder.bind(var, unbound_mod);
     parent_builder.bind(sig, unbound_mod->signature());
+    parent_builder.bind(var, unbound_mod);
 
     checker.exit_decl(this);
 

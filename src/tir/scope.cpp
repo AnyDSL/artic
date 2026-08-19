@@ -35,7 +35,7 @@ bool Scope::is_in_scope(const Var* var) const {
     return find_scope(var) != nullptr;
 }
 
-bool Scope::contains(const Scope* other_scope) const {
+bool Scope::is_child_of(const Scope* other_scope) const {
     const Scope* s = this;
     while (s) {
         if (s == other_scope)
@@ -179,6 +179,16 @@ void Scope::dump() const {
     printf("\n");
     if (parent)
         parent->dump();
+}
+
+int Scope::depth() const {
+    int depth = 0;
+    const Scope* s = this;
+    while (s->parent) {
+        depth++;
+        s = s->parent;
+    }
+    return depth;
 }
 
 }

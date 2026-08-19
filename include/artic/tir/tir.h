@@ -93,6 +93,14 @@ struct Var : virtual public Node {
     Var(std::optional<ast::Identifier> id) : id(id) {}
 };
 
+static inline bool schedulable(Node::FVSet& set) {
+    for (auto fv : set) {
+        if (!fv->binder)
+            return false;
+    }
+    return true;
+}
+
 struct LetRec : virtual Node {
     const Scope& scope;
     Array<std::tuple<const Var*, const Node*>> vars;
@@ -145,11 +153,20 @@ struct App : virtual Node {
     void print(Printer&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
-    const Node* instantiate(Builder&, Rewriter&) const;
+    const Node* instantiate_into(Builder&, Rewriter&) const;
     const Node* instantiate(Builder&) const;
+
+    template<typename T, typename... Args>
+    const Node* instantiate_with(Builder& builder, Args... t_args) const {
+        T s(arena, builder, applicand_body_scope(builder), t_args...);
+        return instantiate_into(builder, s);
+    }
+
     virtual const Node* instantiated(LetRecBuilder&) const = 0;
 
     App(const CtorVar*, const ArrayRef<const Node*>&);
+private:
+    Scope& applicand_body_scope(Builder&) const;
 };
 
 }

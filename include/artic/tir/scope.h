@@ -20,7 +20,7 @@ struct Scope {
     Scope(Scope* parent) : parent(parent) {}
     Scope(const Scope&) = delete;
 
-    bool contains(const Scope*) const;
+    bool is_child_of(const Scope*) const;
     const Scope& root() const;
 
     const Scope* find_scope(const Var* var) const;
@@ -60,6 +60,7 @@ private:
     std::unordered_map<const Var*, const Node*> vars;
 
     void dump() const;
+    int depth() const;
 
     friend Module;
     friend Fn;

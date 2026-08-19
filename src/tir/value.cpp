@@ -58,7 +58,10 @@ bool ErrorValue::equals(const Node* n) const {
     return false;
 }
 
-Param::Param(Arena& arena, std::optional<ast::Identifier> id, const Type* type) : Value(type), Var(id), Node(arena) {}
+Param::Param(Arena& arena, std::optional<ast::Identifier> id, const Type* type)
+    : Value(type), Var(id), Node(arena) {
+    assert(&type->arena == &arena);
+}
 
 struct TypeExtractor : public Rewriter {
     Builder& b;
@@ -77,7 +80,7 @@ struct TypeExtractor : public Rewriter {
             return old->rewrite(*this);
 
         if (auto var = old->isa<Var>()) {
-            if (!var->binder->contains(&s) && &s != var->binder)
+            if (!var->binder->is_child_of(&s) && &s != var->binder)
                 return old;
         }
         // auto fvs = old->free_variables();

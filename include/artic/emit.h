@@ -206,7 +206,6 @@ std::tuple<Ptr<ast::ModDecl>, std::unique_ptr<tir::Root>, bool> compile(
     bool warns_as_errors,
     bool enable_all_warns,
     ::Arena& arena,
-    tir::Arena& table,
     thorin::World& world,
     Log& log);
 

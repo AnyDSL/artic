@@ -280,7 +280,9 @@ const CtorVar* LetRecBuilder::value_ctor(Scope& scope, const ArrayRef<const Var*
 }
 
 const CtorVar* Builder::ctor_var(std::optional<ast::Identifier> id) {
-    return arena.insert<CtorVar>(arena, id);
+    auto var = arena.insert<CtorVar>(arena, id);
+    assert(var->gid != 96);
+    return var;
 }
 
 const SigVar* Builder::sig_var(std::optional<ast::Identifier> id) {
@@ -695,7 +697,7 @@ void LetRecBuilder::bind(const Var* var, const Node* value) {
 
 std::tuple<const Var*, LetRecBuilder*> LetRecBuilder::locate(const Node* node) {
     const Scope* node_scope = get_node_scope_helper(*this, node);
-    assert(scope.contains(node_scope) && "this node cannot be scheduled here or in any parent module, it has free variables that would not be bound");
+    assert(scope.is_child_of(node_scope) && "this node cannot be scheduled here or in any parent module, it has free variables that would not be bound");
 
     // find the corresponding module builder
     LetRecBuilder* dst = nullptr;

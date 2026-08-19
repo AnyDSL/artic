@@ -2606,7 +2606,6 @@ std::tuple<Ptr<ast::ModDecl>, std::unique_ptr<Root>, bool> compile(
     bool warns_as_errors,
     bool enable_all_warns,
     ::Arena& arena,
-    tir::Arena& type_table,
     thorin::World& world,
     Log& log)
 {
@@ -2639,7 +2638,7 @@ std::tuple<Ptr<ast::ModDecl>, std::unique_ptr<Root>, bool> compile(
     if (enable_all_warns)
         name_binder.warn_on_shadowing = true;
 
-    TypeChecker type_checker(log, type_table);
+    TypeChecker type_checker(log);
     type_checker.warns_as_errors = warns_as_errors;
 
     if (!name_binder.run(*program))
@@ -2649,7 +2648,7 @@ std::tuple<Ptr<ast::ModDecl>, std::unique_ptr<Root>, bool> compile(
     if (!root_module)
         return std::make_tuple(std::move(program), nullptr, false);
 
-    if (!lower_mod_app(root_module))
+    if (!lower_app(root_module))
         return std::make_tuple(std::move(program), nullptr, false);
 
     Emitter emitter(log, world, arena);
@@ -2673,6 +2672,5 @@ bool compile(
     log::Output out(error_stream, false);
     Log log(out, &locator);
     ::Arena arena;
-    tir::Arena type_table;
-    return get<1>(artic::compile(file_names, file_data, false, false, arena, type_table, world, log)) != nullptr;
+    return get<1>(artic::compile(file_names, file_data, false, false, arena, world, log)) != nullptr;
 }

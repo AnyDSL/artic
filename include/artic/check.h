@@ -18,11 +18,12 @@ using namespace tir;
 /// Utility class to perform bidirectional type checking.
 class TypeChecker : public Logger {
 public:
-    TypeChecker(Log& log, Arena& arena)
-        : Logger(log), arena(arena)
+    TypeChecker(Log& log)
+        : Logger(log)
     {}
 
-    Arena& arena;
+    std::unique_ptr<Root> root;
+    Arena& arena() { return *root->arena; }
 
     /// Performs type checking on a whole program.
     /// Returns a TIR module on success, otherwise null.

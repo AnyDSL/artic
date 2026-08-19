@@ -251,12 +251,9 @@ struct LetRecBuilder : public Builder {
     const Value* finish_value(const Value*);
 
     std::tuple<const Var*, LetRecBuilder*> locate(const Node*);
-private:
-    //const Module* module_;
 
-    // const Node* import(const Node*);
     const Var* schedule(const Node*, std::optional<ast::Identifier> = std::nullopt);
-
+private:
     std::vector<std::tuple<const Var*, const Node*>> contents;
     std::unordered_map<const Node*, const Var*> already_bound_here;
 

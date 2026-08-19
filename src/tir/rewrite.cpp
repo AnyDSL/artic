@@ -138,7 +138,7 @@ const Node* ModCtor::rewrite(Rewriter& r) const {
         r.insert(this->params[i], params[i] = r.instantiate(this->params[i], true));
         scope.insert(params[i], nullptr);
     }
-    auto ctor_builder = LetRecBuilder(arena, scope, &r.builder());
+    auto ctor_builder = LetRecBuilder(r.dst, scope, &r.builder());
     Rewriter::BuilderGuard guard(r, ctor_builder);
     return r.builder().unsafe().mod_ctor(scope, params, ctor_builder.finish_module(r.instantiate(body(), true)));
 }
@@ -150,7 +150,7 @@ const Node* TypeCtor::rewrite(Rewriter& r) const {
         r.insert(this->params[i], params[i] = r.instantiate(this->params[i], true));
         scope.insert(params[i], nullptr);
     }
-    auto ctor_builder = LetRecBuilder(arena, scope, &r.builder());
+    auto ctor_builder = LetRecBuilder(r.dst, scope, &r.builder());
     Rewriter::BuilderGuard guard(r, ctor_builder);
     return r.builder().unsafe().type_ctor(scope, params, ctor_builder.finish_type(r.instantiate(body(), true)));
 }
@@ -162,7 +162,7 @@ const Node* ValueCtor::rewrite(Rewriter& r) const {
         r.insert(this->params[i], params[i] = r.instantiate(this->params[i], true));
         scope.insert(params[i], nullptr);
     }
-    auto ctor_builder = LetRecBuilder(arena, scope, &r.builder());
+    auto ctor_builder = LetRecBuilder(r.dst, scope, &r.builder());
     Rewriter::BuilderGuard guard(r, ctor_builder);
     return r.builder().unsafe().value_ctor(scope, params, ctor_builder.finish_value(r.instantiate(body(), true)));
 }
@@ -193,9 +193,14 @@ const Node* LetRecMod::rewrite(Rewriter& r) const {
     }
     for (auto [ovar, oval] : vars) {
         auto def = r.instantiate(oval, false);
-        auto [_, dst] = builder.locate(def);
-        assert(dst);
-        dst->bind(r.lookup(ovar)->as<Var>(), def);
+        auto fvs = def->free_variables();
+        if (schedulable(fvs)) {
+            auto [_, dst] = builder.locate(def);
+            assert(dst);
+            dst->bind(r.lookup(ovar)->as<Var>(), def);
+        } else {
+            builder.bind(r.lookup(ovar)->as<Var>(), def);
+        }
     }
     return builder.finish_module(r.instantiate(body(), false));
 }
@@ -209,9 +214,14 @@ const Node* LetRecType::rewrite(Rewriter& r) const {
     }
     for (auto [ovar, oval] : vars) {
         auto def = r.instantiate(oval, false);
-        auto [_, dst] = builder.locate(def);
-        assert(dst);
-        dst->bind(r.lookup(ovar)->as<Var>(), def);
+        auto fvs = def->free_variables();
+        if (schedulable(fvs)) {
+            auto [_, dst] = builder.locate(def);
+            assert(dst);
+            dst->bind(r.lookup(ovar)->as<Var>(), def);
+        } else {
+            builder.bind(r.lookup(ovar)->as<Var>(), def);
+        }
     }
     return builder.finish_type(r.instantiate(body(), false));
 }
@@ -225,9 +235,14 @@ const Node* LetRecValue::rewrite(Rewriter& r) const {
     }
     for (auto [ovar, oval] : vars) {
         auto def = r.instantiate(oval, false);
-        auto [_, dst] = builder.locate(def);
-        assert(dst);
-        dst->bind(r.lookup(ovar)->as<Var>(), def);
+        auto fvs = def->free_variables();
+        if (schedulable(fvs)) {
+            auto [_, dst] = builder.locate(def);
+            assert(dst);
+            dst->bind(r.lookup(ovar)->as<Var>(), def);
+        } else {
+            builder.bind(r.lookup(ovar)->as<Var>(), def);
+        }
     }
     return builder.finish_value(r.instantiate(body(), false));
 }
@@ -252,7 +267,7 @@ const Node* Fn::rewrite(Rewriter& r) const {
     auto nfn = fn_builder.build_function(ncodom);
     r.insert(this, nfn);
     r.insert(param, nparam);
-    ExprBuilder expr_builder(arena, &fn_builder);
+    ExprBuilder expr_builder(r.dst, &fn_builder);
     Rewriter::BuilderGuard guard(r, expr_builder);
     if (body_)
         nfn->set_body(r.builder(), r.instantiate(body_, false));
@@ -315,7 +330,7 @@ const Node* Bind::rewrite(Rewriter& r) const {
 }
 
 const Node* Seq::rewrite(Rewriter& r) const {
-    ExprBuilder builder(arena, &r.builder());
+    ExprBuilder builder(r.dst, &r.builder());
     Rewriter::BuilderGuard guard(r, builder);
     for (auto ev : evaluate)
         builder.add_instruction(r.instantiate<Value>(ev, false));
@@ -351,7 +366,7 @@ const Node* TypeSignature::rewrite(Rewriter& rewriter) const {
 const Node* ModSignature::rewrite(Rewriter& rewriter) const {
     std::unordered_map<const Key*, const Sig*> nelems;
     for (auto [key, sig] : elems) {
-        nelems.emplace(key, rewriter.instantiate(sig));
+        nelems.emplace(rewriter.instantiate(key), rewriter.instantiate(sig));
     }
     return rewriter.builder().unsafe().mod_signature(std::move(nelems));
 }

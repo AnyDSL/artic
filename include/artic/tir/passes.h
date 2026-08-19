@@ -17,7 +17,7 @@ struct Root {
     Root(Root&&) = delete;
 };
 
-bool lower_mod_app(std::unique_ptr<Root>& module);
+bool lower_app(std::unique_ptr<Root>& module);
 bool gc(std::unique_ptr<Root>& module);
 
 }

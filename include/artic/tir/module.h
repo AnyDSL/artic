@@ -217,8 +217,7 @@ struct LetRecMod : public ModValue, public LetRec {
     }
 
     const Sig* signature() const override {
-        assert(false && "TODO");
-        return nullptr;
+        return body()->signature();
     }
 
     bool equals(const Node* other) const override;
