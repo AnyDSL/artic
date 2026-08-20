@@ -118,6 +118,12 @@ bool CtorSignature::equals(const Node* other) const {
 
 SigVar::SigVar(Builder& builder, std::optional<ast::Identifier> id) : Node(builder.arena), Var(id), Sig() {}
 
+bool SigVar::can_bind(const Scope& scope, const Node* other) const {
+    if (other->isa<Sig>())
+        return true;
+    return false;
+}
+
 SigError::SigError(Arena& arena) : Node(arena), Sig() {}
 
 const Sig* Sig::from_node(LetRecBuilder& builder, const Node* node, bool public_interface) {
@@ -140,7 +146,7 @@ const Sig* Sig::from_node(LetRecBuilder& builder, const Node* node, bool public_
             while (auto ctor_var = node->isa<CtorVar>()) {
                 node = builder.scope.resolve_ctor(ctor_var);
             }
-            const Ctor* ctor = node->as<Ctor>();
+            const Constructor* ctor = node->as<Constructor>();
             Array<const Sig*> dom(ctor->params.size());
             for (size_t i = 0; i < dom.size(); i++)
                 dom[i] = Sig::from_node(builder, ctor->params[i], false);
@@ -175,8 +181,7 @@ bool Sig::is_sub(const Scope& scope, const Sig* other) const {
 }
 
 bool ValueSignature::is_sub(const Scope& scope, const Sig* other) const {
-    while (auto var = other->isa<SigVar>())
-        other = scope.resolve_sig(var);
+    other = scope.peek_sig(other);
     if (auto other_vs = other->isa<ValueSignature>()) {
         return value_type->subtype(scope, other_vs->value_type);
     }
@@ -184,8 +189,7 @@ bool ValueSignature::is_sub(const Scope& scope, const Sig* other) const {
 }
 
 bool TypeSignature::is_sub(const Scope& scope, const Sig* other) const {
-    while (auto var = other->isa<SigVar>())
-        other = scope.resolve_sig(var);
+    other = scope.peek_sig(other);
     if (auto other_ts = other->isa<TypeSignature>()) {
         if (!other_ts->type)
             return true;
@@ -196,11 +200,24 @@ bool TypeSignature::is_sub(const Scope& scope, const Sig* other) const {
     return false;
 }
 
-bool ModSignature::is_sub(const Scope&, const Sig*) const {
-    assert(false && "TODO");
+bool ModSignature::is_sub(const Scope& scope, const Sig* other) const {
+    other = scope.peek_sig(other);
+    if (auto other_ms = other->isa<ModSignature>()) {
+        // all the super signature keys must be present
+        for (auto [key, super_elem] : other_ms->elems) {
+            auto sig = lookup(key);
+            if (!sig)
+                return false;
+            // and we must fit their types
+            if (!sig->is_sub(scope, super_elem))
+                return false;
+        }
+        return true;
+    }
+    return false;
 }
 
-bool CtorSignature::is_sub(const Scope&, const Sig*) const {
+bool CtorSignature::is_sub(const Scope& scope, const Sig* other) const {
     assert(false && "TODO");
 }
 
@@ -214,6 +231,13 @@ ModVar::ModVar(Builder& builder, std::optional<ast::Identifier> id, const Sig* s
 const Sig* ModVar::signature() const {
     assert(signature_);
     return signature_;
+}
+
+bool ModVar::can_bind(const Scope& scope, const Node* other) const {
+    if (auto mod = other->isa<ModValue>()) {
+        return mod->signature()->is_sub(scope, signature());
+    }
+    return false;
 }
 
 const Sig* ModModAccess::signature() const {
@@ -259,7 +283,7 @@ bool ModModAccess::equals(const Node* other) const {
 }*/
 
 ModCtor::ModCtor(Builder& builder, Scope& scope, const ArrayRef<const Var*>& params, const ModValue* body)
-    : Node(builder.arena), Ctor(scope, params, body) {
+    : Node(builder.arena), Constructor(scope, params, body) {
     // assert(signature_->elem_kind == NodeKind::Ctor);
     // assert(signature->dom.size() == params.size());
     for (size_t i = 0; i < params.size(); i++) {
@@ -391,7 +415,7 @@ void Module::free_variables(FVSet& vars, Seen& seen) const {
 }
 
 void ModCtor::free_variables(FVSet& vars, Seen& seen) const {
-    return Ctor::free_variables(vars, seen);
+    return Constructor::free_variables(vars, seen);
 }
 
 void ModApp::free_variables(FVSet& vars, Seen& seen) const {

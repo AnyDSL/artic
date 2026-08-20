@@ -63,6 +63,13 @@ Param::Param(Arena& arena, std::optional<ast::Identifier> id, const Type* type)
     assert(&type->arena == &arena);
 }
 
+bool Param::can_bind(const Scope& scope, const Node* other) const {
+    if (auto value = other->isa<Value>()) {
+        return value->type()->subtype(scope, type());
+    }
+    return false;
+}
+
 struct TypeExtractor : public Rewriter {
     Builder& b;
     Scope& s;
@@ -121,7 +128,7 @@ struct TypeExtractor : public Rewriter {
 
 ValueApp::ValueApp(Builder& builder, const CtorVar* ctor_var, const ArrayRef<const Node*>& args)
     : Node(builder.arena), App(ctor_var, args), Value([&]() -> const Type* {
-        auto ctor = builder.scope.resolve_ctor(ctor_var);
+        auto ctor = builder.scope.resolve_ctor(ctor_var)->as<Constructor>();
         TypeExtractor replacer(builder, ctor->scope, ctor->body()->as<Value>());
         for (size_t i = 0; i < args.size(); i++) {
             replacer.insert(ctor->params[i], args[i]);
@@ -150,7 +157,7 @@ const Value* ValueApp::instantiated(LetRecBuilder& b) const {
 }
 
 ValueCtor::ValueCtor(Builder& builder, Scope& scope, const ArrayRef<const Var*>& params, const Value* body)
-    : Node(builder.arena), Ctor(scope, params, body)
+    : Node(builder.arena), Constructor(scope, params, body)
 {}
 
 LetRecValue::LetRecValue(Builder& builder, Scope& scope, const ArrayRef<std::tuple<const Var*, const Node*>>& vars, const Value* in)

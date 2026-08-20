@@ -279,8 +279,8 @@ const CtorVar* LetRecBuilder::value_ctor(Scope& scope, const ArrayRef<const Var*
     return schedule(unsafe().value_ctor(scope, params, contents))->as<CtorVar>();
 }
 
-const CtorVar* Builder::ctor_var(std::optional<ast::Identifier> id) {
-    auto var = arena.insert<CtorVar>(arena, id);
+const CtorVar* Builder::ctor_var(std::optional<ast::Identifier> id, size_t num_params, NodeKind body_kind) {
+    auto var = arena.insert<CtorVar>(arena, id, num_params, body_kind);
     assert(var->gid != 96);
     return var;
 }
@@ -711,9 +711,16 @@ std::tuple<const Var*, LetRecBuilder*> LetRecBuilder::locate(const Node* node) {
 }
 
 const Var* LetRecBuilder::schedule(const Node* node, std::optional<ast::Identifier> maybe_id) {
-    auto [prev, dst] = locate(node);
-    if (prev)
-        return prev;
+    auto fvs = node->free_variables();
+    LetRecBuilder* dst;
+    if (schedulable(fvs)) {
+        const Var* prev;
+        std::tie(prev, dst) = locate(node);
+        if (prev)
+            return prev;
+    } else {
+        dst = this;
+    }
 
     const Var* var;
     if (auto mod_value = node->isa<ModValue>()) {
@@ -722,8 +729,8 @@ const Var* LetRecBuilder::schedule(const Node* node, std::optional<ast::Identifi
         var = type_var(maybe_id);
     } else if (auto value = node->isa<Value>()) {
         var = param(std::nullopt, value->type());
-    } else if (node->isa<Ctor>()) {
-        var = ctor_var(maybe_id);
+    } else if (auto ctor = node->isa<Ctor>()) {
+        var = ctor_var(maybe_id, ctor->num_params, ctor->body_kind());
     } else if (node->isa<Sig>()) {
         var = sig_var(maybe_id);
     } else {

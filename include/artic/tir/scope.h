@@ -47,6 +47,8 @@ struct Scope {
     const Type* peek_type(const Type* type) const;
     const ModValue* peek_mod_value(const ModValue*) const;
     const Value* peek_value(const Value*) const;
+    const Ctor* peek_ctor(const Ctor* sig) const;
+    const Sig* peek_sig(const Sig* sig) const;
 
     const Ctor* resolve_ctor(const CtorVar*) const;
     const Sig* resolve_sig(const SigVar*) const;

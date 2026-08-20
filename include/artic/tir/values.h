@@ -76,6 +76,8 @@ struct Param : public Value, public Var {
     bool is_computation() const override { return false; }
     bool is_simple() const override { return true; }
 
+    bool can_bind(const Scope&, const Node*) const override;
+
     const thorin::Def* emit(Emitter&) const override;
 };
 
@@ -93,9 +95,9 @@ private:
     friend class Arena;
 };
 
-struct ValueCtor : public Ctor {
+struct ValueCtor : public Constructor {
     const Value* body() const override {
-        return Ctor::body()->as<Value>();
+        return Constructor::body()->as<Value>();
     }
 
     void print(Printer&) const override;

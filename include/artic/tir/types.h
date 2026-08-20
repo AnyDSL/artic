@@ -415,6 +415,8 @@ struct TypeVar : public Type, public Var {
     void bounds(const Scope&, TypeVarMap<TypeBounds>&, const Type*, bool) const override;
     size_t order(const Scope&, std::unordered_set<const Type*>&) const override;
     bool is_sized(const Scope&, std::unordered_set<const Type*>&) const override;
+
+    bool can_bind(const Scope&, const Node*) const override;
 private:
     TypeVar(Arena&, std::optional<ast::Identifier> id);
 
@@ -525,9 +527,9 @@ private:
 };
 
 // this isn't a type, but it makes one!
-struct TypeCtor : public Ctor {
+struct TypeCtor : public Constructor {
     const Type* body() const override {
-        return Ctor::body()->as<Type>();
+        return Constructor::body()->as<Type>();
     }
 
     void print(Printer&) const override;

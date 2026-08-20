@@ -107,7 +107,7 @@ struct Builder : public artic::Cast<Builder> {
     const Type*              member_type(const Type*, size_t);
     const TypeVar*           type_var(std::optional<ast::Identifier> id);
 
-    const CtorVar* ctor_var(std::optional<ast::Identifier> id);
+    const CtorVar* ctor_var(std::optional<ast::Identifier> id, size_t, NodeKind);
     const SigVar* sig_var(std::optional<ast::Identifier> id);
     const SigError* sig_error();
 

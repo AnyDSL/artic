@@ -90,6 +90,8 @@ struct Var : virtual public Node {
     void print(Printer&) const override;
     virtual void print_head(Printer&) const = 0;
 
+    virtual bool can_bind(const Scope&, const Node*) const = 0;
+
     Var(std::optional<ast::Identifier> id) : id(id) {}
 };
 
@@ -117,29 +119,41 @@ struct LetRec : virtual Node {
     LetRec(Scope&, const ArrayRef<std::tuple<const Var*, const Node*>>&, const Node*);
 };
 
-struct Ctor : virtual Node {
+struct Ctor : virtual public Node {
+    size_t num_params;
+    NodeKind kind() const override { return NodeKind::Ctor; }
+
+    virtual NodeKind body_kind() const { return body_kind_; }
+
+    Ctor(size_t num_params, NodeKind body_kind) : num_params(num_params), body_kind_(body_kind) {}
+private:
+    const NodeKind body_kind_;
+};
+
+struct Constructor : public Ctor {
     Scope& scope;
     Array<const Var*> params;
     mutable const Node* body_;
 
     virtual const Node* body() const { return body_;};
 
-    NodeKind kind() const override { return NodeKind::Ctor; }
-
     void print(Printer&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
-    Ctor(Scope&, const ArrayRef<const Var*>&, const Node*);
+    Constructor(Scope&, const ArrayRef<const Var*>&, const Node*);
 };
 
-struct CtorVar : public Var {
+struct CtorVar : public Ctor, public Var {
     void print_head(Printer&) const override;
 
     const Node* rewrite(Rewriter&) const override;
 
-    NodeKind kind() const override { return NodeKind::Ctor; }
+    bool can_bind(const Scope&, const Node*) const override;
 
-    CtorVar(Arena& arena, std::optional<ast::Identifier> id) : Node(arena), Var(id) {}
+    void print(Printer&) const override;
+    void free_variables(FVSet&, Seen&) const override;
+
+    CtorVar(Arena&, std::optional<ast::Identifier>, size_t, NodeKind);
 };
 
 struct App : virtual Node {

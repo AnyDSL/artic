@@ -57,8 +57,8 @@ size_t App::hash() const {
     return h;
 }
 
-Ctor::Ctor(Scope& scope, const ArrayRef<const Var*>& params, const Node* body)
-: scope(scope), params(params), body_(body) {
+Constructor::Constructor(Scope& scope, const ArrayRef<const Var*>& params, const Node* body)
+: Ctor(params.size(), body->kind()), scope(scope), params(params), body_(body) {
     for (size_t i = 0; i < params.size(); i++) {
         scope.insert(params[i], nullptr);
         assert(scope.is_in_scope(params[i]));
@@ -66,7 +66,7 @@ Ctor::Ctor(Scope& scope, const ArrayRef<const Var*>& params, const Node* body)
     }
 }
 
-void Ctor::free_variables(FVSet& vars, Seen& seen) const {
+void Constructor::free_variables(FVSet& vars, Seen& seen) const {
     FVSet inner_vars;
     // we don't want to visit stuff we've seen before, but we do want to visit that stuff if we reach it from outside the module
     Seen inner_seen = seen;
@@ -81,6 +81,20 @@ void Ctor::free_variables(FVSet& vars, Seen& seen) const {
     for (auto fv : inner_vars) {
         vars.emplace(fv);
     }
+}
+
+CtorVar::CtorVar(Arena& arena, std::optional<ast::Identifier> id, size_t num_params, NodeKind body_kind)
+    : Node(arena), Var(id), Ctor(num_params, body_kind) {}
+
+bool CtorVar::can_bind(const Scope&, const Node* node) const {
+    if (auto ctor = node->isa<Ctor>()) {
+        return body_kind() == ctor->body_kind();
+    }
+    return false;
+}
+
+void CtorVar::free_variables(FVSet& vars, Seen& seen) const {
+    Var::free_variables(vars, seen);
 }
 
 App::App(const CtorVar* applicand, const ArrayRef<const Node*>& args) : applicand_(applicand), args(args) {
@@ -118,7 +132,7 @@ struct Specializer : public Rewriter {
 
 const Node* App::instantiate_into(Builder& builder, Rewriter& r) const {
     auto peeked = builder.scope.resolve_ctor(applicand());
-    if (auto ctor = peeked->isa<Ctor>()) {
+    if (auto ctor = peeked->isa<Constructor>()) {
         for (size_t i = 0; i < ctor->params.size(); i++) {
             r.insert(ctor->params[i], args[i]);
         }
@@ -130,7 +144,7 @@ const Node* App::instantiate_into(Builder& builder, Rewriter& r) const {
 
 Scope& App::applicand_body_scope(Builder& builder) const {
     auto peeked = builder.scope.resolve_ctor(applicand());
-    if (auto ctor = peeked->isa<Ctor>()) {
+    if (auto ctor = peeked->isa<Constructor>()) {
         return ctor->scope;
     }
     assert(false);
@@ -143,6 +157,9 @@ const Node* App::instantiate(Builder& builder) const {
 LetRec::LetRec(Scope& scope, const ArrayRef<std::tuple<const Var*, const Node*>>& vars, const Node* in)
     : scope(scope), vars(vars), body_(in) {
     assert(in->is_simple());
+    for (auto [var, def] : vars) {
+        assert(var->can_bind(scope, def));
+    }
 }
 
 size_t LetRec::hash() const {

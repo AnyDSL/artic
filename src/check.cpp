@@ -456,7 +456,7 @@ const Type* TypeChecker::join(Ptr<ast::Expr>& left, Ptr<ast::Expr>& right, ExprB
     return type;
 }
 
-const Var* TypeChecker::maybe_polymorphic(const ast::Identifier& id, std::optional<Array<const Var*>>& type_params, const std::function<const Var*(LetRecBuilder&, const Var*&, const std::function<void(const Var*)>&)>& f) {
+const Var* TypeChecker::maybe_polymorphic(const ast::Identifier& id, std::optional<Array<const Var*>>& type_params, NodeKind kind, const std::function<const Var*(LetRecBuilder&, const Var*&, const std::function<void(const Var*)>&)>& f) {
     LetRecBuilder& mod_builder = let_rec_builder();
     LetRecBuilder* mb = &mod_builder;
 
@@ -464,7 +464,7 @@ const Var* TypeChecker::maybe_polymorphic(const ast::Identifier& id, std::option
 
     const Var* self = nullptr;
     if (type_params) {
-        self = builder().ctor_var(id);
+        self = builder().ctor_var(id, type_params->size(), kind);
         self->binder = &mod_builder.scope;
 
         Scope& ctor_scope = mb->scope.new_child();
@@ -1329,8 +1329,12 @@ std::optional<Path::Elem::Inferred> Path::infer_path(TypeChecker& checker, std::
         if (expected_kind == NodeKind::Value && prev->var->kind() != NodeKind::Value) {
             const tir::Type* type = prev->var->isa<TypeVar>();
             // enter polymorphic types...
-            if (auto ctor_var = prev->var->isa<CtorVar>())
-                type = checker.scope().resolve_ctor(ctor_var)->body()->isa<tir::Type>();
+            if (auto ctor_var = prev->var->isa<Ctor>()) {
+                auto ctor = checker.scope().peek_ctor(ctor_var)->isa<Constructor>();
+                // TODO: if ctors get signatures, update this
+                if (ctor)
+                    type = ctor->body()->isa<tir::Type>();
+            }
             if (type) if (auto [type_app, struct_type] = peek_app_type<StructType>(checker.builder(), type);
                      struct_type && struct_type->is_tuple_like()) {
                 auto decl = struct_type->decl->as<StructDecl>();
@@ -1338,13 +1342,11 @@ std::optional<Path::Elem::Inferred> Path::infer_path(TypeChecker& checker, std::
             }
         }
 
-        if (!elem.args.empty() || prev->var->kind() == NodeKind::Ctor) {
+        if (auto ctor = prev->var->isa<Ctor>()) {
             // const size_t type_param_count = user_type
             //     ? user_type->type_params().size()
             //     : forall_type->type_params().size();
-            auto [_, must_be_ctor] = checker.scope().resolve_var_rec(prev->var);
-            auto ctor = must_be_ctor->as<Ctor>();
-            const size_t type_param_count = ctor->params.size();
+            const size_t type_param_count = ctor->num_params;
             if (type_param_count == elem.args.size() /*||
                 (forall_type && arg && type_param_count > elem.args.size())*/) {
                 std::vector<const artic::Node*> type_args(type_param_count);
@@ -1357,7 +1359,7 @@ std::optional<Path::Elem::Inferred> Path::infer_path(TypeChecker& checker, std::
                 //         return std::nullopt;
                 // }
 
-                switch (ctor->body()->kind()) {
+                switch (ctor->body_kind()) {
                     case NodeKind::Type: prev = Elem::Inferred {
                             .var = prev->var ? checker.builder().enclosing_let_rec().type_app(prev->var->as<CtorVar>(), type_args) : nullptr,
                         };
@@ -2631,16 +2633,22 @@ const tir::Node* FieldDecl::infer(TypeChecker& checker) {
 }
 
 const tir::Node* StructDecl::infer(TypeChecker& checker) {
+    if (!checker.enter_decl(this))
+        return checker.builder().type_error();
+
     LetRecBuilder& parent_builder = checker.let_rec_builder();
     std::optional<Array<const Var*>> params = this->type_params ? std::make_optional(checker.infer(&*this->type_params)) : std::nullopt;
-    return checker.maybe_polymorphic(id, params, [&](auto& builder, auto& self, auto& set_head) -> const Var* {
+    return checker.maybe_polymorphic(id, params, NodeKind::Type, [&](auto& builder, auto& self, auto& set_head) -> const Var* {
         auto struct_type = builder.struct_type(this);
         auto var = builder.type_var(id);
+        var->binder = &builder.scope;
         set_head(var);
+        this->var = self;
         for (auto& field : fields)
             struct_type->members.push_back(checker.infer_type(*field));
         struct_type->validate();
         builder.bind(var, struct_type);
+        checker.exit_decl(this);
         return var;
     });
 }
@@ -2656,7 +2664,7 @@ const tir::Var* StructDecl::ctor_or_default_value(TypeChecker& checker) const {
     size_t member_count = fields.size();
 
     std::optional<Array<const Var*>> params = this->type_params ? std::make_optional(checker.duplicate_params(checker.infer(&*this->type_params))) : std::nullopt;
-    ctor_or_default_value_ = checker.maybe_polymorphic(id, params, [&](auto& builder, auto& selff, auto& set_head) -> const Var* {
+    ctor_or_default_value_ = checker.maybe_polymorphic(id, params, NodeKind::Value, [&](auto& builder, auto& selff, auto& set_head) -> const Var* {
         const TypeVar* self_type;
         if (params) {
             Array<const tir::Node*> args(params->size());

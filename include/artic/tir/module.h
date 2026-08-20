@@ -102,6 +102,8 @@ struct SigVar : public Sig, public Var {
 
     const Node* rewrite(Rewriter&) const override;
 
+    bool can_bind(const Scope&, const Node*) const override;
+
     SigVar(Builder&, std::optional<ast::Identifier> id);
 };
 
@@ -134,6 +136,8 @@ struct ModVar : public ModValue, public Var {
     bool is_simple() const override { return true; }
 
     const Sig* signature() const override;
+
+    bool can_bind(const Scope&, const Node*) const override;
 
     ModVar(Builder&, std::optional<ast::Identifier> id, const Sig*);
 };
@@ -181,13 +185,13 @@ struct ModModAccess : public ModAccess, public ModValue {
     ModModAccess(Builder&, const ModValue*, const Key*);
 };
 
-struct ModCtor : public Ctor {
+struct ModCtor : public Constructor {
     void print(Printer&) const override;
     const Node* rewrite(Rewriter&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
     const ModValue* body() const override {
-        return Ctor::body()->as<ModValue>();
+        return Constructor::body()->as<ModValue>();
     }
 
     ModCtor(Builder&, Scope&, const ArrayRef<const Var*>&, const ModValue*);

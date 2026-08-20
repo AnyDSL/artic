@@ -168,7 +168,7 @@ const Node* ValueCtor::rewrite(Rewriter& r) const {
 }
 
 const Node* CtorVar::rewrite(Rewriter& r) const {
-    return r.builder().ctor_var(id);
+    return r.builder().ctor_var(id, num_params, body_kind());
 }
 
 const Node* ModApp::rewrite(Rewriter& r) const {

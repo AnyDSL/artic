@@ -77,6 +77,12 @@ TypeVar::TypeVar(Arena& arena, std::optional<ast::Identifier> id)
     : Type(), Node(arena), Var(id)
 {}
 
+bool TypeVar::can_bind(const Scope&, const Node* other) const {
+    if (other->isa<Type>())
+        return true;
+    return false;
+}
+
 StructType::StructType(Arena& arena, const ast::RecordDecl* decl)
     : ComplexType(), Node(arena), decl(decl)
 {}
@@ -112,7 +118,7 @@ const Type* TypeApp::instantiated(LetRecBuilder& b) const {
 }
 
 TypeCtor::TypeCtor(Builder& builder, Scope& scope, const ArrayRef<const Var*>& params, const Type* body)
-    : Node(builder.arena), Ctor(scope, params, body) {
+    : Node(builder.arena), Constructor(scope, params, body) {
     // assert(signature_->elem_kind == NodeKind::Ctor);
     // assert(signature->dom.size() == params.size());
     for (size_t i = 0; i < params.size(); i++) {

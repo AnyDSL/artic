@@ -131,8 +131,30 @@ const ModValue* Scope::peek_mod_value(const ModValue* maybe_module) const {
     return maybe_module;
 }
 
+const Ctor* Scope::peek_ctor(const Ctor* ctor) const {
+    while (auto var = ctor->isa<CtorVar>()) {
+        auto resolved = resolve_var_deep(var);
+        if (resolved)
+            ctor = resolved->as<Ctor>();
+        else
+            break;
+    }
+    return ctor;
+}
+
 const Ctor* Scope::resolve_ctor(const CtorVar* var) const {
     return resolve_var_deep(var)->as<Ctor>();
+}
+
+const Sig* Scope::peek_sig(const Sig* sig) const {
+    while (auto var = sig->isa<SigVar>()) {
+        auto resolved = resolve_var_deep(var);
+        if (resolved)
+            sig = resolved->as<Sig>();
+        else
+            break;
+    }
+    return sig;
 }
 
 const Sig* Scope::resolve_sig(const SigVar* var) const {

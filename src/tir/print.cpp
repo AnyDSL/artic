@@ -215,6 +215,10 @@ void Key::print(Printer& p) const {
     p << key2string(*this);
 }
 
+void CtorVar::print(Printer& p) const {
+    p << p.unique_name(*this);
+}
+
 void ModVar::print(Printer& p) const {
     p << p.unique_name(*this);
 }
@@ -264,7 +268,7 @@ void Module::print(Printer& p) const {
     p << p.unindent() << p.endl() << "}";
 }
 
-void Ctor::print(Printer& p) const {
+void Constructor::print(Printer& p) const {
     p << log::keyword_style("ctor") << "(";
     print_list(p.top(), ", ", params, [&] (auto& s) {
         s->print_head(p);
@@ -279,17 +283,17 @@ void Ctor::print(Printer& p) const {
 
 void ModCtor::print(Printer& p) const {
     p << log::keyword_style("mod") << " ";
-    Ctor::print(p);
+    Constructor::print(p);
 }
 
 void TypeCtor::print(Printer& p) const {
     p << log::keyword_style("type") << " ";
-    Ctor::print(p);
+    Constructor::print(p);
 }
 
 void ValueCtor::print(Printer& p) const {
     p << log::keyword_style("val") << " ";
-    Ctor::print(p);
+    Constructor::print(p);
 }
 
 void ModApp::print(Printer& p) const {
