@@ -170,6 +170,7 @@ struct Builder : public artic::Cast<Builder> {
         const Bind* bind(const ValueVar*, const Value*);
         const Value* call(const Value* callee, const Value* arg);
         const Value* agg(const Type*, const ArrayRef<const Value*>&);
+        const Value* tuple(const ArrayRef<const Value*>&);
         const Value* repeat(const Type*, const Value*);
         const Value* extract(const Value*, const Value*);
         const Value* proj(const Value*, const Value*);
@@ -248,8 +249,8 @@ struct ExprBuilder : public Builder {
 
     const Value* call(const Value* callee, const Value* arg);
     const Value* agg(const Type*, const ArrayRef<const Value*>&);
-    const Value* repeat(const Type*, const Value*);
     const Value* tuple(const ArrayRef<const Value*>&);
+    const Value* repeat(const Type*, const Value*);
     const Value* extract(const Value*, const Value*);
     const Value* proj(const Value*, const Value*);
 

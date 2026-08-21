@@ -935,16 +935,12 @@ static inline const thorin::Def* isfinite(const thorin::Def* val) {
 }
 
 const thorin::Def* Emitter::builtin(const ast::FnDecl& fn_decl, thorin::Continuation* cont) {
-    assert(false && "TODO");
-}
-
-/*const thorin::Def* Emitter::builtin(const ast::FnDecl& fn_decl, thorin::Continuation* cont) {
     if (cont->name() == "alignof") {
         auto target_type = fn_decl.type_params->params[0]->type->convert(*this);
         cont->jump(cont->params().back(), { cont->param(0), world.align_of(target_type) }, debug_info(fn_decl));
     } else if (cont->name() == "bitcast") {
         auto param = tuple_from_params(cont, true);
-        auto target_type = fn_decl.type->as<ForallType>()->body->as<FnType>()->codom->convert(*this);
+        auto target_type = fn_decl.var->as<Value>()->resolve_type(scope())->as<FnType>()->codom->convert(*this);
         cont->jump(cont->params().back(), call_args(cont->param(0), world.bitcast(target_type, param)), debug_info(fn_decl));
     } else if (cont->name() == "insert") {
         cont->jump(
@@ -957,16 +953,19 @@ const thorin::Def* Emitter::builtin(const ast::FnDecl& fn_decl, thorin::Continua
             call_args(cont->param(0), world.select(cont->param(1), cont->param(2), cont->param(3))),
             debug_info(fn_decl));
     } else if (cont->name() == "sizeof") {
-        auto target_type = fn_decl.type_params->params[0]->type->convert(*this);
-        cont->jump(cont->params().back(), { cont->param(0), world.size_of(target_type) }, debug_info(fn_decl));
+        assert(false && "TODO");
+        // auto target_type = fn_decl.type_params->params[0]->type->convert(*this);
+        // cont->jump(cont->params().back(), { cont->param(0), world.size_of(target_type) }, debug_info(fn_decl));
     } else if (cont->name() == "undef") {
-        auto target_type = fn_decl.type_params->params[0]->type->convert(*this);
-        cont->jump(cont->params().back(), call_args(cont->param(0), world.bottom(target_type)), debug_info(fn_decl));
+        assert(false && "TODO");
+        // auto target_type = fn_decl.type_params->params[0]->type->convert(*this);
+        // cont->jump(cont->params().back(), call_args(cont->param(0), world.bottom(target_type)), debug_info(fn_decl));
     } else if (cont->name() == "compare") {
-        enter(cont);
-        auto mono_type = member_type(fn_decl.fn->param->type->replace(type_vars), 1)->as<PtrType>()->pointee;
-        auto ret_val = call(comparator(fn_decl.loc, mono_type), tuple_from_params(cont, true));
-        jump(cont->params().back(), ret_val);
+        assert(false && "TODO");
+        // enter(cont);
+        // auto mono_type = member_type(fn_decl.fn->param->type->replace(type_vars), 1)->as<PtrType>()->pointee;
+        // auto ret_val = call(comparator(fn_decl.loc, mono_type), tuple_from_params(cont, true));
+        // jump(cont->params().back(), ret_val);
     } else {
         static const std::unordered_map<std::string, std::function<const thorin::Def* (Emitter*, const thorin::Continuation*)>> functions = {
             { "fabs",     [] (Emitter* self, const thorin::Continuation* cont) { return self->world.fabs(cont->param(1)); } },
@@ -1003,7 +1002,7 @@ const thorin::Def* Emitter::builtin(const ast::FnDecl& fn_decl, thorin::Continua
     return cont;
 }
 
-const thorin::Def* Emitter::comparator(const Loc& loc, const Type* type) {
+/*const thorin::Def* Emitter::comparator(const Loc& loc, const Type* type) {
     if (auto it = comparators.find(type); it != comparators.end())
         return it->second;
 
@@ -1122,31 +1121,6 @@ thorin::Debug Emitter::debug_info(const ast::Node& node, const std::string_view&
         return debug_info(*named_decl);
     return thorin::Debug(std::string(name), location(node.loc));
 }
-
-/*const thorin::Def* Emitter::emit_poly_decl(ast::Decl* decl, ast::TypeParamList* type_params, const std::vector<const artic::Type*>* type_args) {
-    // If type arguments are present, this is a polymorphic application
-    std::unordered_map<const artic::TypeVar*, const artic::Type*> map;
-    if (type_args && !type_args->empty()) {
-        for (size_t j = 0, n = type_args->size(); j < n; ++j) {
-            auto var = type_params->params[j]->type->as<artic::TypeVar>();
-            auto type = type_args->at(j)->replace(type_vars);
-            map.emplace(var, type);
-        }
-        // We need to also add the caller's map in case the function is nested in another
-        map.insert(type_vars.begin(), type_vars.end());
-        std::swap(map, type_vars);
-    }
-    auto def = emit(*decl);
-    if (type_args && !type_args->empty()) {
-        // Polymorphic nodes are emitted with the map from type variable
-        // to concrete type, which means that the emitted node cannot be
-        // kept around: Another instantiation may be using a different map,
-        // which would conflict with this one.
-        decl->def = nullptr;
-        std::swap(map, type_vars);
-    }
-    return def;
-}*/
 
 template<typename T, typename R>
 const R* Emitter::emit_letrec(const T* letrec) {
@@ -2522,22 +2496,7 @@ std::string TypeApp::stringify(Emitter& emitter) const {
     assert(false);
 }
 
-const thorin::Type* TypeApp::convert(Emitter& emitter) const {
-    // Monomorphize this type by replacing bound type variables
-    /*auto mono_type = replace(emitter.type_vars)->as<TypeApp>();
-    if (auto it = emitter.types.find(mono_type); it != emitter.types.end())
-        return it->second;
-
-    // if we have the type application S[i64, i32] and if S has type
-    // variables A and B, then we should use the replacement map
-    // A = i64, B = i32 when entering the applied type.
-    auto map = mono_type->replace_map();
-
-    // Use the new type variable map when replacing the body
-    std::swap(emitter.type_vars, map);
-    auto result = applied->convert(emitter, mono_type);
-    std::swap(emitter.type_vars, map);
-    return result;*/
+const thorin::Type* TypeApp::convert(Emitter&) const {
     assert(false);
 }
 

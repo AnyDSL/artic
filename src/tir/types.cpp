@@ -382,6 +382,8 @@ void ImplicitParamType::variance(const Scope& scope, TypeVarMap<TypeVariance>& v
 }
 
 void TypeVar::variance(const Scope& scope, std::unordered_map<const TypeVar*, TypeVariance>& vars, bool dir) const {
+    if (auto resolved = scope.resolve_type_var(this))
+        return resolved->variance(scope, vars, dir);
     if (auto it = vars.find(this); it != vars.end()) {
         bool var_dir = it->second == TypeVariance::Covariant ? true : false;
         if (var_dir != dir)
@@ -429,6 +431,8 @@ void FnType::bounds(const Scope& scope, std::unordered_map<const TypeVar*, TypeB
 }
 
 void TypeVar::bounds(const Scope& scope, std::unordered_map<const TypeVar*, TypeBounds>& bounds, const Type* type, bool dir) const {
+    if (auto resolved = scope.resolve_type_var(this))
+        return resolved->bounds(scope, bounds, type, dir);
     TypeBounds type_bounds;
     if (dir)
         type_bounds = TypeBounds { type, arena.top_type() };
@@ -502,11 +506,10 @@ bool TypeApp::is_sized(const Scope& scope, std::unordered_set<const Type*>& seen
 }
 
 bool TypeVar::is_sized(const Scope& scope, std::unordered_set<const Type*>& seen) const {
-    auto resolved = scope.peek_type(this);
+    if (auto resolved = scope.resolve_type_var(this))
+        return resolved->is_sized(scope, seen);
     // unknown types are assumed to be unsized
-    if (resolved == this)
-        return false;
-    return resolved->is_sized(scope, seen);
+    return false;
 }
 
 // Free variables ------------------------------------------------------------------

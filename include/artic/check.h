@@ -59,7 +59,7 @@ public:
 
     const Value* deref(Ptr<ast::Expr>&);
     const Value* coerce(ast::Expr*, const Type*);
-    const Value* try_coerce(Ptr<ast::Expr>&, const Type*);
+    const Type* try_coerce(Ptr<ast::Expr>&, const Type*);
     const Type* join(Ptr<ast::Expr>&, Ptr<ast::Expr>&, ExprBuilder&, ExprBuilder&);
 
     const tir::Var* infer_mod_decl(ast::Decl&);
@@ -141,9 +141,9 @@ public:
     template <typename CheckElems>
     const Type* check_array(const Loc&, const std::string_view&, const Type*, size_t, bool, const CheckElems&);
 
-    bool try_infer_type_args(const Loc&, const TypeCtor*, TypeVarMap<TypeBounds>& bounds, TypeVarMap<TypeVariance>& variance, std::vector<const Type*>&, bool);
-    bool infer_fn_type_args(const Loc&, const TypeCtor*, const Type*, const Type*, std::vector<const Type*>&);
-    bool try_infer_implicit_type_args(const Loc&, const TypeCtor*, const Type*, std::vector<const Type*>&);
+    bool try_infer_type_args(const Loc&, ArrayRef<const Var*>, TypeVarMap<TypeBounds>& bounds, TypeVarMap<TypeVariance>& variance, std::vector<const Node*>&, bool);
+    bool infer_fn_args(const Loc&, const ValueCtor*, const Type*, const Type*, std::vector<const Node*>&);
+    bool try_infer_implicit_args(const Loc&, const ValueCtor*, const Type*, std::vector<const Node*>&);
     const Type* infer_record_type(const Type*, const TypeApp*, const StructType*, std::optional<size_t>&);
 
     size_t resolve_integer_constant(const Loc&, const Value*, const ast::Node*, const std::string_view&);

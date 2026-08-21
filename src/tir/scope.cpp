@@ -161,6 +161,13 @@ const Sig* Scope::resolve_sig(const SigVar* var) const {
     return resolve_var_deep(var)->as<Sig>();
 }
 
+const Type* Scope::resolve_type_var(const TypeVar* var) const {
+    auto r = resolve_var_deep(var);
+    if (r)
+        return r->as<Type>();
+    return nullptr;
+}
+
 const Scope* unify_scopes(const Scope* l, const Scope* r) {
     if (l == r)
         return l;

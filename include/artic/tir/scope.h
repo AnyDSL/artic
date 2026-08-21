@@ -52,6 +52,7 @@ struct Scope {
 
     const Ctor* resolve_ctor(const CtorVar*) const;
     const Sig* resolve_sig(const SigVar*) const;
+    const Type* resolve_type_var(const TypeVar*) const;
 
     Scope& new_child();
     void insert(const Var*, const Node*);

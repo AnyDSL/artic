@@ -390,8 +390,12 @@ inline static const TupleType* tuple_type_from_elems(Builder& builder, const Arr
     return builder.tuple_type(types);
 }
 
+const Value* Builder::Unsafe::tuple(const ArrayRef<const Value*>& args) {
+    return agg(tuple_type_from_elems(builder, args), args);
+}
+
 const Value* ExprBuilder::tuple(const ArrayRef<const Value*>& args) {
-    return agg(tuple_type_from_elems(*this, args), args);
+    return bind_value(unsafe().tuple(args));
 }
 
 const Value* Builder::Unsafe::extract(const Value* src, const Value* idx) {

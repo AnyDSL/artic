@@ -235,7 +235,7 @@ struct Path : public Node {
         : Node(loc), is_use_path_(is_use_path), elems(std::move(elems))
     {}
 
-    std::optional<Elem::Inferred> infer_path(TypeChecker&, std::optional<tir::NodeKind>) const;
+    std::optional<Elem::Inferred> infer_path(TypeChecker&, std::optional<tir::NodeKind>, Ptr<Expr>* = nullptr, const tir::Type* = nullptr) const;
     const tir::Node* infer(TypeChecker&, std::optional<tir::NodeKind>, Ptr<Expr>* = nullptr, const tir::Type* = nullptr);
 
     void bind(NameBinder&) override;
