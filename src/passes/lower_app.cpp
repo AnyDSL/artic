@@ -103,7 +103,7 @@ struct LowerApp : public Rewriter {
 
         if (auto var = old->isa<Var>()) {
             if (s && s->is_child_of(var->binder) && s != var->binder)
-                return old; //p->instantiate(old, imm);
+                return p->instantiate(old, imm);
             assert(false);
         }
 
