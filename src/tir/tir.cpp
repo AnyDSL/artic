@@ -72,7 +72,6 @@ Constructor::Constructor(LetRecBuilder& builder, Scope& scope, const ArrayRef<co
     return builder.ctor_signature(dom, body->kind());
 }()), scope(scope), params(params), body_(body) {
     for (size_t i = 0; i < params.size(); i++) {
-        scope.insert(params[i], nullptr);
         assert(scope.is_in_scope(params[i]));
         assert(params[i]->is_simple());
     }

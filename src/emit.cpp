@@ -1227,8 +1227,8 @@ const thorin::Def* Function::emit(Emitter& emitter) const {
     emitted = cont;
     param->emitted = emitter.tuple_from_params(cont, !resolve_type(emitter.scope())->codom->isa<artic::NoRetType>());
     //emitter.emit(*param, emitter.tuple_from_params(cont, true));
-    if (filter)
-        cont->set_filter(emitter.world.filter(thorin::Array<const thorin::Def*>(cont->num_params(), emitter.emit(filter))));
+    if (filter_)
+        cont->set_filter(emitter.world.filter(thorin::Array<const thorin::Def*>(cont->num_params(), emitter.emit(filter_))));
     if (body()) {
         emitter.enter(cont);
         auto value = emitter.emit(body());

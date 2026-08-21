@@ -165,7 +165,7 @@ struct Builder : public artic::Cast<Builder> {
         const Value* value_app(const CtorVar*, const ArrayRef<const Node*>&);
 
         const LocalVariable* local_variable(const Type*);
-        const Function* function(const ValueVar*, const Type* codom, const ast::FnDecl*);
+        const Function* function(const ValueVar*, Scope&, const Type* codom, const ast::FnDecl*);
 
         const Bind* bind(const ValueVar*, const Value*);
         const Value* call(const Value* callee, const Value* arg);

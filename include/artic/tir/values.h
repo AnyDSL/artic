@@ -126,10 +126,10 @@ struct LetRecValue : public Value, public LetRec {
 
 
 struct Function : public Value {
+    Scope& scope;
     const ValueVar* param;
     const Type* codom;
     const ast::FnDecl* decl = nullptr;
-    mutable const Value* filter = nullptr;
 
     void print(Printer&) const override;
     const Node* rewrite(Rewriter&) const override;
@@ -140,12 +140,15 @@ struct Function : public Value {
 
     const thorin::Def* emit(Emitter&) const override;
 
-    void set_body(Builder&, const Value* body) const;
+    void set_body(Builder&, const Value*) const;
+    void set_filter(Builder&, const Value*) const;
     const Value* body() const { return body_; }
+    const Value* filter() const { return filter_; }
 
-    Function(Builder&, const ValueVar*, const Type* codom, const ast::FnDecl*);
+    Function(Builder&, Scope&, const ValueVar*, const Type* codom, const ast::FnDecl*);
 private:
     mutable const Value* body_ = nullptr;
+    mutable const Value* filter_ = nullptr;
 };
 
 struct Call : public Value {

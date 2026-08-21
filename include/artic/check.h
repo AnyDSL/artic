@@ -72,8 +72,9 @@ public:
     const tir::Value* infer_value(ast::Expr& ast);
     const tir::Value* infer_value(ast::Stmt& ast);
     const tir::Value* check_value(ast::Expr&, const Type*);
-    const tir::Value* check_value(ast::Filter&, const Type*);
     const tir::Value* check_value(ast::Stmt&, const Type*);
+    /// Filters always have bool as their type.
+    const tir::Value* check_filter(ast::Filter&);
 
     const tir::Type* infer_type(ast::Type& ast);
     const tir::Type* infer_type(ast::FieldDecl&);
@@ -98,6 +99,7 @@ public:
     /// Explores a pattern recursively and makes sure the body is wrapped in Bind nodes that extract the value of each sub-pattern
     void bind_ptrn_params(ast::Ptrn&, const Value*);
     const Value* build_fn_body(const ValueVar* param, ast::FnExpr& fn, const tir::Type* codom);
+    const Value* build_fn_filter(const ValueVar* param, ast::FnExpr& fn);
 
     template<typename T, typename Fn>
     T with_expr_scope(Fn f) {
@@ -116,6 +118,8 @@ public:
         BuilderGuard guard(*this, builder);
         return f();
     };
+
+    const Function* build_fn(const ValueVar* param, const std::function<const Value*()>&);
 
     const Var* maybe_polymorphic(const ast::Identifier&, std::optional<Array<const Var*>>&, NodeKind, const std::function<const Var*(LetRecBuilder&, const Var*&, const std::function<void(const Var*)>&)>&);
     Array<const Var*> duplicate_params(const ArrayRef<const Var*>&);

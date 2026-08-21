@@ -254,7 +254,6 @@ struct Filter : public Node {
         : Node(loc), expr(std::move(expr))
     {}
 
-    
     const tir::Node* check(TypeChecker&, const tir::Type*) override;
     void bind(NameBinder&) override;
     void print(Printer&) const override;

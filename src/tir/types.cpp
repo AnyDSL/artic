@@ -781,14 +781,14 @@ bool is_unit_type(const Type* type) {
     return type->isa<TupleType>() && type->as<TupleType>()->args.empty();
 }
 
-std::pair<const PtrType*, const Type*> remove_ptr(Builder& builder, const Type* type) {
-    if (auto ref_type = builder.scope.peek_type(type)->isa<PtrType>())
+std::pair<const PtrType*, const Type*> remove_ptr(const Scope& scope, const Type* type) {
+    if (auto ref_type = scope.peek_type(type)->isa<PtrType>())
         return std::make_pair(ref_type, ref_type->pointee);
     return std::make_pair(nullptr, type);
 }
 
-std::pair<const RefType*, const Type*> remove_ref(Builder& builder, const Type* type) {
-    if (auto ref_type = builder.scope.peek_type(type)->isa<RefType>())
+std::pair<const RefType*, const Type*> remove_ref(const Scope& scope, const Type* type) {
+    if (auto ref_type = scope.peek_type(type)->isa<RefType>())
         return std::make_pair(ref_type, ref_type->pointee);
     return std::make_pair(nullptr, type);
 }

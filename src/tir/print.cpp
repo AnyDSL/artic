@@ -388,6 +388,11 @@ void LocalVariable::print(Printer& p) const {
 }
 
 void Function::print(Printer& p) const {
+    if (filter_) {
+        p << "@(";
+        p.print(*filter_, true);
+        p << ")";
+    }
     p << log::keyword_style("fn") << "(";
     p.print(*param);
     p << ": ";

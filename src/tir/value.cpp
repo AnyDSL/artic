@@ -26,9 +26,9 @@ LocalVariable::LocalVariable(Builder& builder, const Type* allocated_type)
     assert(allocated_type->is_simple());
 }
 
-Function::Function(Builder& builder, const ValueVar* param, const Type* codom, const ast::FnDecl* decl)
-    : Value(builder.fn_type(param->type(), codom)), Node(builder.arena), param(param), codom(codom), decl(decl) {
-    // assert(builder.scope.is_in_scope(param));
+Function::Function(Builder& builder, Scope& scope, const ValueVar* param, const Type* codom, const ast::FnDecl* decl)
+    : Value(builder.fn_type(param->type(), codom)), Node(builder.arena), scope(scope), param(param), codom(codom), decl(decl) {
+    assert(scope.is_in_scope(param));
 }
 
 void Function::set_body(Builder& builder, const Value* body) const {
@@ -36,6 +36,13 @@ void Function::set_body(Builder& builder, const Value* body) const {
     auto fn_t = resolve_type(builder.scope);
     assert(body->type() == fn_t->codom);
     this->body_ = body;
+}
+
+void Function::set_filter(Builder& builder, const Value* body) const {
+    assert(!this->filter_ && "can't set the filer twice!");
+    auto fn_t = resolve_type(builder.scope);
+    assert(body->type() == builder.prim_type(ast::PrimType::Bool));
+    this->filter_ = body;
 }
 
 size_t Unit::hash() const {
@@ -375,13 +382,13 @@ Proj::Proj(Builder& builder, const Value* src, const Value* idx) : Value([&]() -
     size_t as;
 
     auto peeked_addr_type = builder.scope.peek_type(src->type());
-    auto [ref_t, ref_pointee] = remove_ref(builder, peeked_addr_type);
+    auto [ref_t, ref_pointee] = remove_ref(builder.scope, peeked_addr_type);
     if (ref_t) {
         pointee_t = ref_t->pointee;
         mut = ref_t->is_mut;
         as = ref_t->addr_space;
     } else {
-        auto [ptr_t, ptr_pointee] = remove_ptr(builder, peeked_addr_type);
+        auto [ptr_t, ptr_pointee] = remove_ptr(builder.scope, peeked_addr_type);
         assert(ptr_t && "Proj works on Ref or Ptr types.");
         pointee_t = ptr_t->pointee;
         mut = ptr_t->is_mut;
@@ -481,7 +488,7 @@ bool Seq::equals(const Node* other) const {
 using namespace artic::ast;
 
 UnOp::UnOp(Builder& builder, const UnaryExpr::Tag tag, const Value* arg) : Value([&]() -> const Type* {
-    auto [ref_type, arg_type] = remove_ref(builder, arg->type());
+    auto [ref_type, arg_type] = remove_ref(builder.scope, arg->type());
     if (tag == UnaryExpr::Known)
         return builder.bool_type();
     if (tag == UnaryExpr::Forget)
