@@ -195,7 +195,7 @@ struct App : virtual Node {
 
     App(const CtorVar*, const ArrayRef<const Node*>&);
 private:
-    mutable const Node* instantiated_;
+    mutable const Node* instantiated_ = nullptr;
 };
 
 }
