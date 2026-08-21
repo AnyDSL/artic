@@ -1814,7 +1814,7 @@ const tir::Node* FnExpr::infer(TypeChecker& checker) {
         checker.cannot_infer(loc, "function");
         return checker.builder().error_value();
     }
-    auto fn = checker.builder().unsafe().function(param, codom, nullptr);
+    auto fn = checker.builder().unsafe().function(param, codom, decl);
     if (body)
         fn->set_body(checker.builder(), body);
     if (decl)
@@ -2563,48 +2563,49 @@ const tir::Node* StaticDecl::infer(TypeChecker& checker) {
 }
 
 const tir::Node* FnDecl::infer(TypeChecker& checker) {
-    //TypeChecker::BuilderGuard guard(checker, *this);
-
-    const tir::Node* forall = nullptr;
-    //const artic::ForallType* forall = nullptr;
-    if (type_params) {
-        assert(false && "TODO");
-        // forall = checker.builder().forall_type(*this);
-        // for (auto& param : type_params->params)
-        //     checker.infer(*param);
-    }
     if (!checker.enter_decl(this))
         return checker.builder().type_error();
 
-    const Fn* tir_fn = nullptr;
+    std::optional<Array<const Var*>> params = this->type_params ? std::make_optional(checker.infer(&*this->type_params)) : std::nullopt;
+    return checker.maybe_polymorphic(id, params, NodeKind::Value, [&](auto& builder, auto& self, auto& set_head) -> const Var* {
+        const Fn* tir_fn = nullptr;
+        if (fn->ret_type) {
+            auto param_type = checker.infer_ptrn(*fn->param);
+            auto codom = checker.infer_type(*fn->ret_type);
 
-    if (fn->ret_type) {
-        auto param_type = checker.infer_ptrn(*fn->param);
-        auto codom = checker.infer_type(*fn->ret_type);
+            if (fn->filter)
+                checker.check_value(*fn->filter, checker.builder().bool_type());
+            checker.check_refutability(*fn->param, true);
+            const Param* param = checker.builder().param(Identifier { fn->param->loc, "param" }, param_type);
+            auto fn_type = checker.let_rec_builder().fn_type(param->type(), codom);
+            auto var = checker.builder().param(id, fn_type);
+            var->binder = &builder.scope;
+            set_head(var);
+            this->var = self;
+            tir_fn = checker.builder().unsafe().function(param, codom, this);
 
-        if (fn->filter)
-            checker.check_value(*fn->filter, checker.builder().bool_type());
-        checker.check_refutability(*fn->param, true);
-        const Param* param = checker.builder().param(Identifier { fn->param->loc, "param" }, param_type);
-        auto fn_type = checker.let_rec_builder().fn_type(param->type(), codom);
-        var = checker.builder().param(id, fn_type);
-        tir_fn = checker.builder().unsafe().function(param, codom, this);
+            if (fn->ret_type && fn->body) {
+                tir_fn->set_body(checker.builder(), checker.build_fn_body(param, *fn, codom));
+            }
+            checker.let_rec_builder().bind(var, tir_fn);
 
-        if (fn->ret_type && fn->body) {
-            tir_fn->set_body(checker.builder(), checker.build_fn_body(param, *fn, codom));
+            checker.exit_decl(this);
+            return var;
+        } else {
+            auto fn_type_var = builder.type_var(std::nullopt);
+            auto var = builder.param(id, fn_type_var);
+            var->binder = &builder.scope;
+            set_head(var);
+            this->var = self;
+            tir_fn = checker.infer_value(*fn)->as<tir::Fn>();
+            checker.let_rec_builder().bind(fn_type_var, tir_fn->type());
+            checker.let_rec_builder().bind(var, tir_fn);
+            // var = checker.builder().param(id, tir_fn->type());
+
+            checker.exit_decl(this);
+            return var;
         }
-    } else {
-        tir_fn = checker.infer_value(*fn)->as<tir::Fn>();
-        var = checker.builder().param(id, tir_fn->type());
-    }
-
-    // if (forall)
-    //     forall->body = fn_type;
-
-    checker.let_rec_builder().bind(var, tir_fn);
-
-    checker.exit_decl(this);
-    return var;
+    });
 }
 
 const tir::Node* FnDecl::check(TypeChecker& checker, [[maybe_unused]] const artic::Type* expected) {
@@ -2628,7 +2629,6 @@ const tir::Node* StructDecl::infer(TypeChecker& checker) {
     if (!checker.enter_decl(this))
         return checker.builder().type_error();
 
-    LetRecBuilder& parent_builder = checker.let_rec_builder();
     std::optional<Array<const Var*>> params = this->type_params ? std::make_optional(checker.infer(&*this->type_params)) : std::nullopt;
     return checker.maybe_polymorphic(id, params, NodeKind::Type, [&](auto& builder, auto& self, auto& set_head) -> const Var* {
         auto struct_type = builder.struct_type(this);
