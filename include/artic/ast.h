@@ -30,7 +30,7 @@ namespace tir {
     struct Var;
     struct ModVar;
     struct TypeVar;
-    struct Param;
+    struct ValueVar;
     struct SigVar;
     struct Builder;
     struct LetRecBuilder;

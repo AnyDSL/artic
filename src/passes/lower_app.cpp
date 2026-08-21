@@ -70,7 +70,7 @@ struct LowerApp : public Rewriter {
             return found->second;
         const Var* var = nullptr;
         if (auto value_app = app->isa<ValueApp>()) {
-            var = builder().param(ast::Identifier { {}, "lower_value_app" }, instantiate(value_app->type()));
+            var = builder().value_var(ast::Identifier { {}, "lower_value_app" }, instantiate(value_app->type()));
         } else if (app->isa<TypeApp>()) {
             var = builder().type_var(ast::Identifier { {}, "lower_type_app" });
         } else {

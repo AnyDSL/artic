@@ -1209,7 +1209,7 @@ LazyEmitDef& Emitter::resolve_var(const Var* var) {
     assert(false);
 };
 
-const thorin::Def* Param::emit(Emitter& emitter) const {
+const thorin::Def* ValueVar::emit(Emitter& emitter) const {
     return emitter.emit(emitter.resolve_var(this).def->as<Value>());
 }
 
@@ -1217,7 +1217,7 @@ const thorin::Def* LetRecValue::emit(Emitter& emitter) const {
     return emitter.emit_letrec<LetRecValue, thorin::Def>(this);
 }
 
-const thorin::Def* Fn::emit(Emitter& emitter) const {
+const thorin::Def* Function::emit(Emitter& emitter) const {
     auto _ = emitter.save_state();
     auto cont = emitter.world.continuation(
         emitter.emit(type())->as<thorin::FnType>(),

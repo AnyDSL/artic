@@ -9,7 +9,7 @@ struct Type;
 struct Value;
 struct ModVar;
 struct ModValue;
-struct Param;
+struct ValueVar;
 struct TypeVar;
 struct Module;
 

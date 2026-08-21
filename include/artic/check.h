@@ -84,8 +84,8 @@ public:
     const tir::Type* check_ptrn(ast::Ptrn&, const Type*);
     const tir::Type* infer_ptrn(ast::Ptrn& ast);
 
-    const tir::Param* infer_ptrn_decl(ast::PtrnDecl& ast);
-    const tir::Param* check_ptrn_decl(ast::PtrnDecl& ast, const Type*);
+    const tir::ValueVar* infer_ptrn_decl(ast::PtrnDecl& ast);
+    const tir::ValueVar* check_ptrn_decl(ast::PtrnDecl& ast, const Type*);
 
     const tir::TypeVar* infer_type_param(ast::TypeParam& ast);
     // const tir::ModVar* check_type_param(ast::TypeParam& ast, const Type*);
@@ -97,7 +97,7 @@ public:
 
     /// Explores a pattern recursively and makes sure the body is wrapped in Bind nodes that extract the value of each sub-pattern
     void bind_ptrn_params(ast::Ptrn&, const Value*);
-    const Value* build_fn_body(const Param* param, ast::FnExpr& fn, const tir::Type* codom);
+    const Value* build_fn_body(const ValueVar* param, ast::FnExpr& fn, const tir::Type* codom);
 
     template<typename T, typename Fn>
     T with_expr_scope(Fn f) {

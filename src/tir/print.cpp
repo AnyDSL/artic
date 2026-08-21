@@ -17,12 +17,12 @@ std::string Printer::unique_name(const Node& node) {
         prefix = "$";
     if (node.isa<CtorVar>())
         prefix = "@";
-    if (node.isa<Param>())
+    if (node.isa<ValueVar>())
         prefix = "%";
     if (node.isa<SigVar>())
         prefix = "*";
-    if (auto param = node.isa<Var>(); param && param->id)
-        return prefix + param->id->name + "_" + std::to_string(node.gid);
+    if (auto var = node.isa<Var>(); var && var->id)
+        return prefix + var->id->name + "_" + std::to_string(node.gid);
     return prefix + std::to_string(node.gid);
 }
 
@@ -387,7 +387,7 @@ void LocalVariable::print(Printer& p) const {
     p << ')';
 }
 
-void Fn::print(Printer& p) const {
+void Function::print(Printer& p) const {
     p << log::keyword_style("fn") << "(";
     p.print(*param);
     p << ": ";
@@ -409,7 +409,7 @@ void ErrorValue::print(Printer& p) const {
     p << log::keyword_style("<error value>");
 }
 
-void Param::print(Printer& p) const {
+void ValueVar::print(Printer& p) const {
     p << p.unique_name(*this);
 }
 
@@ -417,8 +417,8 @@ void Var::print(Printer& p) const {
     p << p.unique_name(*this);
 }
 
-void Param::print_head(Printer& p) const {
-    p << log::keyword_style("param") << ' ';
+void ValueVar::print_head(Printer& p) const {
+    p << log::keyword_style("val") << ' ' << log::keyword_style("var") << " ";
     p << p.unique_name(*this);
     p << " : ";
     p.print(*type());

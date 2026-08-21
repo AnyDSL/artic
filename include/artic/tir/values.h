@@ -7,7 +7,7 @@ namespace artic {
 
 namespace tir {
 
-struct Fn;
+struct Function;
 struct Bind;
 struct Control;
 
@@ -33,7 +33,7 @@ protected:
     const Type* type_;
     mutable const thorin::Def* emitted = nullptr;
     friend Emitter;
-    friend Fn;
+    friend Function;
     friend Bind;
     friend Control;
 };
@@ -68,8 +68,8 @@ struct ErrorValue : public Value {
     bool is_simple() const override { return true; }
 };
 
-struct Param : public Value, public Var {
-    Param(Arena&, std::optional<ast::Identifier> id, const Type*);
+struct ValueVar : public Value, public Var {
+    ValueVar(Arena&, std::optional<ast::Identifier> id, const Type*);
 
     void print(Printer&) const override;
     void print_head(Printer&) const override;
@@ -125,8 +125,8 @@ struct LetRecValue : public Value, public LetRec {
 };
 
 
-struct Fn : public Value {
-    const Param* param;
+struct Function : public Value {
+    const ValueVar* param;
     const Type* codom;
     const ast::FnDecl* decl = nullptr;
     mutable const Value* filter = nullptr;
@@ -143,7 +143,7 @@ struct Fn : public Value {
     void set_body(Builder&, const Value* body) const;
     const Value* body() const { return body_; }
 
-    Fn(Builder&, const Param*, const Type* codom, const ast::FnDecl*);
+    Function(Builder&, const ValueVar*, const Type* codom, const ast::FnDecl*);
 private:
     mutable const Value* body_ = nullptr;
 };
@@ -325,7 +325,7 @@ struct Proj : public Value {
 };
 
 struct Bind : public Value {
-    const Param* param;
+    const ValueVar* param;
     const Value* value;
 
     bool equals(const Node*) const override;
@@ -337,7 +337,7 @@ struct Bind : public Value {
 
     const thorin::Def* emit(Emitter&) const override;
 
-    Bind(Builder&, const Param*, const Value*);
+    Bind(Builder&, const ValueVar*, const Value*);
 };
 
 /*struct WithMod : public NominalNode<Value> {
@@ -404,8 +404,8 @@ struct BinOp : public Value {
 
 struct Branch : public Value {
     const Value* cond;
-    const Fn* true_branch;
-    const Fn* else_branch;
+    const Function* true_branch;
+    const Function* else_branch;
 
     bool equals(const Node*) const override;
     size_t hash() const override;
@@ -416,11 +416,11 @@ struct Branch : public Value {
 
     const thorin::Def* emit(Emitter&) const override;
 
-    Branch(Builder&, const Value* cond, const Fn* true_branch, const Fn* false_branch);
+    Branch(Builder&, const Value* cond, const Function* true_branch, const Function* false_branch);
 };
 
 struct Control : public Value {
-    const Fn* body;
+    const Function* body;
 
     bool equals(const Node*) const override;
     size_t hash() const override;
@@ -431,7 +431,7 @@ struct Control : public Value {
 
     const thorin::Def* emit(Emitter&) const override;
 
-    Control(Builder&, const Fn*);
+    Control(Builder&, const Function*);
 };
 
 }

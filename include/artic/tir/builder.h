@@ -123,7 +123,7 @@ struct Builder : public artic::Cast<Builder> {
     const Value* error_value();
 
     //const Fn* function(const Param*, const Type* codom);
-    const Param* param(std::optional<ast::Identifier> id, const Type*);
+    const ValueVar* value_var(std::optional<ast::Identifier> id, const Type*);
     // const Value* seq(const ArrayRef<const Value*>&);
     const Value* unit();
 
@@ -165,9 +165,9 @@ struct Builder : public artic::Cast<Builder> {
         const Value* value_app(const CtorVar*, const ArrayRef<const Node*>&);
 
         const LocalVariable* local_variable(const Type*);
-        const Fn* function(const Param*, const Type* codom, const ast::FnDecl*);
+        const Function* function(const ValueVar*, const Type* codom, const ast::FnDecl*);
 
-        const Bind* bind(const Param*, const Value*);
+        const Bind* bind(const ValueVar*, const Value*);
         const Value* call(const Value* callee, const Value* arg);
         const Value* agg(const Type*, const ArrayRef<const Value*>&);
         const Value* repeat(const Type*, const Value*);
@@ -180,8 +180,8 @@ struct Builder : public artic::Cast<Builder> {
         const Value* unop(ast::UnaryExpr::Tag, const Value*);
         const Value* binop(ast::BinaryExpr::Tag, const Value*, const Value*);
 
-        const Control* control(const Fn*);
-        const Branch* branch(const Value*, const Fn*, const Fn*);
+        const Control* control(const Function*);
+        const Branch* branch(const Value*, const Function*, const Function*);
 
     private:
         Builder& builder;
@@ -213,13 +213,13 @@ struct LetRecBuilder : public Builder {
     const TypeVar* type_app(const CtorVar*, const ArrayRef<const Node*>&);
 
     const CtorVar* value_ctor(Scope&, const ArrayRef<const Var*>&, const Value*);
-    const Param* value_app(const CtorVar*, const ArrayRef<const Node*>&);
-    const Param* mod_value_access(const ModValue*, const Key*);
+    const ValueVar* value_app(const CtorVar*, const ArrayRef<const Node*>&);
+    const ValueVar* mod_value_access(const ModValue*, const Key*);
 
     void bind(const Var*, const Node*);
 
     const TypeVar* schedule_type(const Type*, std::optional<ast::Identifier> = std::nullopt);
-    const Param* schedule_value(const Value*, std::optional<ast::Identifier> = std::nullopt);
+    const ValueVar* schedule_value(const Value*, std::optional<ast::Identifier> = std::nullopt);
     const ModVar* schedule_mod_value(const ModValue*, std::optional<ast::Identifier> = std::nullopt);
     const CtorVar* schedule_ctor(const Ctor*, std::optional<ast::Identifier> = std::nullopt);
     const SigVar* schedule_sig(const Sig*, std::optional<ast::Identifier> = std::nullopt);
@@ -241,7 +241,7 @@ private:
 struct ExprBuilder : public Builder {
     ExprBuilder(Arena&, Builder*);
 
-    void bind(const Param*, const Value*);
+    void bind(const ValueVar*, const Value*);
     const Value* bind_value(const Value*);
 
     const Value* local_variable(const Type*);
@@ -259,14 +259,14 @@ struct ExprBuilder : public Builder {
     const Value* unop(ast::UnaryExpr::Tag, const Value*);
     const Value* binop(ast::BinaryExpr::Tag, const Value*, const Value*);
 
-    const Value* control(const Fn*);
+    const Value* control(const Function*);
 
     /// Finish the expression and make it yield this value
     const Value* finish(const Value*);
     /// Finish the expression and make it yield unit
     const Value* finish_unit();
     /// Finish the expression and make it do a branch last, yielding NoRet
-    const Value* finish_branch(const Value*, const Fn*, const Fn*);
+    const Value* finish_branch(const Value*, const Function*, const Function*);
 private:
     void add_instruction(const Value* instruction);
 

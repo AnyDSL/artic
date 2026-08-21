@@ -112,7 +112,7 @@ const Type* Scope::peek_type(const Type* type) const {
     return type;
 }
 const Value* Scope::peek_value(const Value* value) const {
-    while (auto var = value->isa<Param>()) {
+    while (auto var = value->isa<ValueVar>()) {
         auto resolved = resolve_var_deep(var);
         if (resolved && resolved->isa<Value>())
             value = resolved->as<Value>();

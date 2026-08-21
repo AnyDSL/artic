@@ -231,15 +231,15 @@ const Value* Builder::Unsafe::mod_value_access(const ModValue* src, const Key* k
     //return builder.arena.insert<ModModAccess>(builder, src, key);
 }
 
-const Param* LetRecBuilder::mod_value_access(const ModValue* src, const Key* key) {
-    return schedule(unsafe().mod_value_access(src, key))->as<Param>();
+const ValueVar* LetRecBuilder::mod_value_access(const ModValue* src, const Key* key) {
+    return schedule(unsafe().mod_value_access(src, key))->as<ValueVar>();
 }
 
 const Value* Builder::Unsafe::value_app(const CtorVar* applied, const ArrayRef<const Node*>& type_args) {
     return builder.arena.insert<ValueApp>(builder, applied, std::move(type_args));
 }
 
-const Param* LetRecBuilder::value_app(const CtorVar* applied, const ArrayRef<const Node*>& type_args) {
+const ValueVar* LetRecBuilder::value_app(const CtorVar* applied, const ArrayRef<const Node*>& type_args) {
     return schedule_value(unsafe().value_app(applied, type_args));
 }
 
@@ -322,16 +322,16 @@ const Value* Builder::undef(const Type* type) {
     return arena.insert<Undef>(arena, type);
 }
 
-const Fn* Builder::Unsafe::function(const Param* param, const Type* codom, const ast::FnDecl* decl) {
-    return builder.arena.insert<Fn>(builder, param, codom, decl);
+const Function* Builder::Unsafe::function(const ValueVar* param, const Type* codom, const ast::FnDecl* decl) {
+    return builder.arena.insert<Function>(builder, param, codom, decl);
 }
 
 const Value* Builder::unit() {
     return arena.insert<Unit>(arena, unit_type());
 }
 
-const Param* Builder::param(std::optional<ast::Identifier> id, const Type* type) {
-    return arena.insert<Param>(arena, id, type);
+const ValueVar* Builder::value_var(std::optional<ast::Identifier> id, const Type* type) {
+    return arena.insert<ValueVar>(arena, id, type);
 }
 
 const LocalVariable* Builder::Unsafe::local_variable(const Type* value_type) {
@@ -426,19 +426,19 @@ const Value* ExprBuilder::binop(ast::BinaryExpr::Tag tag, const Value* lhs, cons
     return bind_value(unsafe().binop(tag, lhs, rhs));
 }
 
-const Branch* Builder::Unsafe::branch(const Value* cond, const Fn* true_branch, const Fn* else_branch) {
+const Branch* Builder::Unsafe::branch(const Value* cond, const Function* true_branch, const Function* else_branch) {
     return builder.arena.insert<Branch>(builder, cond, true_branch, else_branch);
 }
 
-const Value* ExprBuilder::finish_branch(const Value* cond, const Fn* true_branch, const Fn* else_branch) {
+const Value* ExprBuilder::finish_branch(const Value* cond, const Function* true_branch, const Function* else_branch) {
     return finish(unsafe().branch(cond, true_branch, else_branch));
 }
 
-const Control* Builder::Unsafe::control(const Fn* fn) {
+const Control* Builder::Unsafe::control(const Function* fn) {
     return builder.arena.insert<Control>(builder, fn);
 }
 
-const Value* ExprBuilder::control(const Fn* fn) {
+const Value* ExprBuilder::control(const Function* fn) {
     return bind_value(unsafe().control(fn));
 }
 
@@ -453,7 +453,7 @@ void ExprBuilder::add_instruction(const Value* instruction) {
 const Value* ExprBuilder::bind_value(const Value* value) {
     if (value->is_simple())
         return value;
-    auto param = this->param(std::nullopt, value->type());
+    auto param = this->value_var(std::nullopt, value->type());
     bind(param, value);
     return param;
 }
@@ -462,11 +462,11 @@ ExprBuilder::ExprBuilder(Arena& arena, Builder* parent)
     : Builder(arena, parent->scope.new_child(), parent)
 {}
 
-const Bind* Builder::Unsafe::bind(const Param* param, const Value* value) {
+const Bind* Builder::Unsafe::bind(const ValueVar* param, const Value* value) {
     return builder.arena.insert<Bind>(builder, param, value);
 }
 
-void ExprBuilder::bind(const Param* param, const Value* value) {
+void ExprBuilder::bind(const ValueVar* param, const Value* value) {
     if (value->type()->isa<TypeError>())
         value = error_value(param->type());
     add_instruction(unsafe().bind(param, value));
@@ -728,7 +728,7 @@ const Var* LetRecBuilder::schedule(const Node* node, std::optional<ast::Identifi
     } else if (auto type = node->isa<Type>()) {
         var = type_var(maybe_id);
     } else if (auto value = node->isa<Value>()) {
-        var = param(std::nullopt, value->type());
+        var = value_var(std::nullopt, value->type());
     } else if (auto ctor = node->isa<Ctor>()) {
         var = ctor_var(maybe_id, ctor->ctor_sig);
     } else if (node->isa<Sig>()) {
@@ -747,8 +747,8 @@ const TypeVar* LetRecBuilder::schedule_type(const Type* type, std::optional<ast:
     return schedule(type, id)->as<TypeVar>();
 }
 
-const Param* LetRecBuilder::schedule_value(const Value* value, std::optional<ast::Identifier> id) {
-    return schedule(value, id)->as<Param>();
+const ValueVar* LetRecBuilder::schedule_value(const Value* value, std::optional<ast::Identifier> id) {
+    return schedule(value, id)->as<ValueVar>();
 }
 
 const ModVar* LetRecBuilder::schedule_mod_value(const ModValue* node, std::optional<ast::Identifier> id) {

@@ -266,7 +266,7 @@ const Node* LocalVariable::rewrite(Rewriter& r) const {
     return r.builder().unsafe().local_variable(r.instantiate(allocated_type));
 }
 
-const Node* Fn::rewrite(Rewriter& r) const {
+const Node* Function::rewrite(Rewriter& r) const {
     auto nparam = r.instantiate(param, true);
     auto ncodom = r.instantiate(codom);
     auto nfn = r.builder().unsafe().function(nparam, ncodom, decl);
@@ -288,8 +288,8 @@ const Node* ErrorValue::rewrite(Rewriter& r) const {
     return r.builder().error_value(r.instantiate(type()));
 }
 
-const Node* Param::rewrite(Rewriter& r) const {
-    return r.builder().param(id, r.instantiate(type_));
+const Node* ValueVar::rewrite(Rewriter& r) const {
+    return r.builder().value_var(id, r.instantiate(type_));
 }
 
 const Node* Call::rewrite(Rewriter& r) const {

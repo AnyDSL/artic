@@ -26,12 +26,12 @@ LocalVariable::LocalVariable(Builder& builder, const Type* allocated_type)
     assert(allocated_type->is_simple());
 }
 
-Fn::Fn(Builder& builder, const Param* param, const Type* codom, const ast::FnDecl* decl)
+Function::Function(Builder& builder, const ValueVar* param, const Type* codom, const ast::FnDecl* decl)
     : Value(builder.fn_type(param->type(), codom)), Node(builder.arena), param(param), codom(codom), decl(decl) {
     // assert(builder.scope.is_in_scope(param));
 }
 
-void Fn::set_body(Builder& builder, const Value* body) const {
+void Function::set_body(Builder& builder, const Value* body) const {
     assert(!this->body_ && "can't set the body twice!");
     auto fn_t = resolve_type(builder.scope);
     assert(body->type() == fn_t->codom);
@@ -58,12 +58,12 @@ bool ErrorValue::equals(const Node* n) const {
     return false;
 }
 
-Param::Param(Arena& arena, std::optional<ast::Identifier> id, const Type* type)
+ValueVar::ValueVar(Arena& arena, std::optional<ast::Identifier> id, const Type* type)
     : Value(type), Var(id), Node(arena) {
     assert(&type->arena == &arena);
 }
 
-bool Param::can_bind(const Scope& scope, const Node* other) const {
+bool ValueVar::can_bind(const Scope& scope, const Node* other) const {
     if (auto value = other->isa<Value>()) {
         return value->type()->subtype(scope, type());
     }
@@ -430,7 +430,7 @@ bool Proj::equals(const Node* other) const {
     return false;
 }
 
-Bind::Bind(Builder& builder, const Param* param, const Value* value) : Value([&]() -> const Type* {
+Bind::Bind(Builder& builder, const ValueVar* param, const Value* value) : Value([&]() -> const Type* {
     if (value->type() != param->type()) {
         assert(false);
     }
@@ -538,7 +538,7 @@ bool BinOp::equals(const Node* other) const {
     return false;
 }
 
-Branch::Branch(Builder& builder, const Value* cond, const Fn* true_branch, const Fn* else_branch) : Value([&]() -> const Type* {
+Branch::Branch(Builder& builder, const Value* cond, const Function* true_branch, const Function* else_branch) : Value([&]() -> const Type* {
     if (cond->type() != builder.bool_type())
         return builder.type_error();
     // both branches must have no param
@@ -566,7 +566,7 @@ bool Branch::equals(const Node* other) const {
     return false;
 }
 
-Control::Control(Builder& builder, const Fn* fn) : Value([&]() -> const Type* {
+Control::Control(Builder& builder, const Function* fn) : Value([&]() -> const Type* {
     if (auto yield_fn_type = fn->param->type()->isa<FnType>()) {
         if (yield_fn_type->codom != builder.no_ret_type())
             return builder.type_error();
@@ -603,12 +603,12 @@ void TypedLiteral::free_variables(FVSet& vars, Seen& seen) const {
     type()->free_variables(vars, seen);
 }
 
-void Param::free_variables(FVSet& vars, Seen& seen) const {
+void ValueVar::free_variables(FVSet& vars, Seen& seen) const {
     Var::free_variables(vars, seen);
     type()->free_variables(vars, seen);
 }
 
-void Fn::free_variables(FVSet& vars, Seen& seen) const {
+void Function::free_variables(FVSet& vars, Seen& seen) const {
     // TODO: track params
     type()->free_variables(vars, seen);
     FVSet rhs;

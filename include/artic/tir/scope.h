@@ -11,7 +11,7 @@ struct SigVar;
 struct Sig;
 struct ExprBuilder;
 struct LetRecBuilder;
-struct Fn;
+struct Function;
 
 struct Scope {
     Scope* parent;
@@ -64,7 +64,7 @@ private:
     int depth() const;
 
     friend Module;
-    friend Fn;
+    friend Function;
     friend TypeChecker;
     friend ExprBuilder;
     friend LetRecBuilder;
