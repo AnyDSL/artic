@@ -109,16 +109,8 @@ TypeApp::TypeApp(Builder& builder, const CtorVar* applicand, const ArrayRef<cons
         assert(arg->is_simple());
 }
 
-const Type* TypeApp::instantiated(LetRecBuilder& b) const {
-    if (instantiated_)
-        return instantiated_;
-    auto spec = instantiate(b)->as<Type>();
-    instantiated_ = spec;//b.schedule_type(spec);
-    return instantiated_;
-}
-
 TypeCtor::TypeCtor(Builder& builder, Scope& scope, const ArrayRef<const Var*>& params, const Type* body)
-    : Node(builder.arena), Constructor(scope, params, body) {
+    : Node(builder.arena), Constructor(builder.enclosing_let_rec(), scope, params, body) {
     // assert(signature_->elem_kind == NodeKind::Ctor);
     // assert(signature->dom.size() == params.size());
     for (size_t i = 0; i < params.size(); i++) {

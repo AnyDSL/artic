@@ -19,6 +19,25 @@
 
 namespace artic {
 
+struct LazyEmit {
+    const tir::Scope& scope;
+    const LazyEmit* super = nullptr;
+    std::unordered_map<const tir::Var*, std::unique_ptr<LazyEmitDef>> decls;
+
+    LazyEmit(const tir::Scope& scope, const LazyEmit* super) : scope(scope), super(super) {}
+    LazyEmit(const LazyEmitDef&) = delete;
+};
+
+struct LazyEmitDef {
+    Emitter& emitter;
+    const tir::Var* var;
+    const tir::Node* def;
+    LazyEmitDef(Emitter& emitter, const tir::Var* var, const tir::Node* def) : emitter(emitter), var(var), def(def) {}
+    LazyEmitDef(const LazyEmitDef&) = delete;
+
+    friend Emitter;
+};
+
 /// Helper class for Thorin IR generation.
 class Emitter : public Logger {
 public:
@@ -100,28 +119,7 @@ public:
     std::unordered_map<const Type*, const thorin::Def*> comparators;
     /// Vector containing definitions that are generated during monomorphization.
     std::vector<std::vector<const thorin::Def**>> poly_defs;*/
-    std::unordered_map<const tir::Node*, const thorin::Def*> emitted;
-    struct ModuleDecls;
-    struct ModuleDecl {
-        const tir::Var* var;
-        const tir::Node* definition;
-        bool emitting = false;
-        bool done = false;
-        const thorin::Def* as_value = nullptr;
-        const thorin::Type* as_type = nullptr;
-        //const ModuleDecls* as_mod = nullptr;
-
-        ModuleDecl(const tir::Var* var, const tir::Node* definition) : var(var), definition(definition) {}
-        ModuleDecl(const ModuleDecl&) = delete;
-    };
-    struct ModuleDecls {
-        const tir::Scope& scope;
-        const ModuleDecls* super = nullptr;
-        std::unordered_map<const tir::Var*, std::unique_ptr<ModuleDecl>> decls;
-
-        ModuleDecls(const tir::Scope& scope, const ModuleDecls* super) : scope(scope), super(super) {}
-        ModuleDecls(const ModuleDecl&) = delete;
-    };
+    //std::unordered_map<const tir::Node*, const thorin::Def*> emitted;
 
     template<typename T, typename R>
     const R* emit_letrec(const T*);
@@ -162,13 +160,11 @@ public:
     const thorin::Def* no_ret();
     const thorin::Def* down_cast(const thorin::Def*, const tir::Scope&, const tir::Type*, const tir::Type*, thorin::Debug = {});
 
-    const thorin::Def* emit(const tir::Value*, ModuleDecl* decl = nullptr);
-    const thorin::Type* emit(const tir::Type*, ModuleDecl* decl = nullptr);
-    std::nullptr_t emit(const tir::ModValue*, ModuleDecl* decl = nullptr);
+    const thorin::Def* emit(const tir::Value*);
+    const thorin::Type* emit(const tir::Type*);
+    std::nullptr_t emit(const tir::ModValue*);
 
-    void emit(const tir::ModAccess*, ModuleDecl& decl);
-
-    ModuleDecl& emit_bound_var(const tir::Var*);
+    LazyEmitDef& resolve_var(const tir::Var*);
 
     /// Emit a mod value, assuming it is of kind Module
     // const ModuleDecls& emit_module(const tir::ModValue*);
@@ -188,7 +184,7 @@ public:
 
     // tir::Scope* scope = nullptr;
     // tir::Module* module = nullptr;
-    const ModuleDecls* cur_module = nullptr;
+    const LazyEmit* cur_module = nullptr;
     const tir::Scope& scope() {
         assert(cur_module);
         return cur_module->scope;

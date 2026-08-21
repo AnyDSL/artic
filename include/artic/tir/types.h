@@ -65,10 +65,10 @@ struct Type : virtual public Node {
     virtual bool contains(const Type* type) const { return this == type; }
 
     /// Converts this type to a Thorin type
-    using SetHeadFn = const std::function<void(thorin::Def*)>&;
-    virtual const thorin::Type* convert(Emitter& emitter, SetHeadFn) const {
-        return convert(emitter);
-    }
+    // virtual const thorin::Type* convert(Emitter& emitter, LazyEmitDef*) const {
+    //     return convert(emitter);
+    // }
+    virtual const thorin::Type* convert_head(Emitter& emitter) const;
     virtual const thorin::Type* convert(Emitter&) const;
     /// Converts this type into a string that can be
     /// used as C union/structure/typedef name.
@@ -110,6 +110,10 @@ struct Type : virtual public Node {
 
     /// Returns the least upper bound between this type and another.
     const Type* join(const Scope& scope, const Type*) const;
+
+protected:
+    mutable const thorin::Type* emitted = nullptr;
+    friend Emitter;
 };
 
 /// The type of an attribute.
@@ -403,7 +407,7 @@ protected:
 
 struct TypeVar : public Type, public Var {
     void print(Printer&) const override;
-    virtual void print_head(Printer&) const;
+    void print_head(Printer&) const override;
 
     const TypeVar* rewrite(Rewriter&) const override;
     void free_variables(FVSet&, Seen&) const override;
@@ -449,7 +453,8 @@ struct StructType : public ComplexType {
     void print(Printer&) const override;
 
     using UserType::convert;
-    const thorin::Type* convert(Emitter&, SetHeadFn) const override;
+    const thorin::Type* convert_head(Emitter&) const override;
+    const thorin::Type* convert(Emitter&) const override;
     std::string stringify(Emitter&) const override;
     const StructType* rewrite(Rewriter&) const override;
 
@@ -474,8 +479,9 @@ private:
 struct EnumType : public ComplexType {
     void print(Printer&) const override;
 
-    using UserType::convert;
-    const thorin::Type* convert(Emitter&, SetHeadFn) const override;
+    using UserType::convert;;
+    const thorin::Type* convert_head(Emitter&) const override;
+    const thorin::Type* convert(Emitter&) const override;
     std::string stringify(Emitter&) const override;
     const EnumType* rewrite(Rewriter&) const override;
 
@@ -517,13 +523,14 @@ struct TypeApp : public Type, public App {
     void bounds(const Scope&, TypeVarMap<TypeBounds>&, const Type*, bool) const override;
     bool is_sized(const Scope&, std::unordered_set<const Type*>&) const override;
 
-    const Type* instantiated(LetRecBuilder&) const override;
+    const Type* instantiated(Builder& b) const override {
+        return App::instantiated(b)->as<Type>();
+    }
 
 private:
     TypeApp(Builder&, const CtorVar*, const ArrayRef<const Node*>&);
-    mutable const Type* instantiated_ = nullptr;
 
-    friend class Arena;
+    friend struct Arena;
 };
 
 // this isn't a type, but it makes one!
@@ -545,6 +552,9 @@ struct LetRecType : public Type, public LetRec {
 
     bool equals(const Node* other) const override;
     const Node* rewrite(Rewriter&) const override;
+    ;
+    const thorin::Type* convert_head(Emitter&) const override;
+    const thorin::Type* convert(Emitter&) const override;
 
     LetRecType(Builder&, Scope&, const ArrayRef<std::tuple<const Var*, const Node*>>&, const Type*);
 };

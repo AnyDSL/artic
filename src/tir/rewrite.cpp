@@ -132,6 +132,7 @@ const Node* Module::rewrite(Rewriter& r) const {
 }
 
 const Node* ModCtor::rewrite(Rewriter& r) const {
+    Rewriter::MapGuard map_guard(r);
     Scope& scope = r.builder().scope.new_child();
     Array<const Var*> params(this->params.size());
     for (size_t i = 0; i < params.size(); i++) {
@@ -144,6 +145,7 @@ const Node* ModCtor::rewrite(Rewriter& r) const {
 }
 
 const Node* TypeCtor::rewrite(Rewriter& r) const {
+    Rewriter::MapGuard map_guard(r);
     Scope& scope = r.builder().scope.new_child();
     Array<const Var*> params(this->params.size());
     for (size_t i = 0; i < params.size(); i++) {
@@ -156,6 +158,7 @@ const Node* TypeCtor::rewrite(Rewriter& r) const {
 }
 
 const Node* ValueCtor::rewrite(Rewriter& r) const {
+    Rewriter::MapGuard map_guard(r);
     Scope& scope = r.builder().scope.new_child();
     Array<const Var*> params(this->params.size());
     for (size_t i = 0; i < params.size(); i++) {
@@ -168,7 +171,7 @@ const Node* ValueCtor::rewrite(Rewriter& r) const {
 }
 
 const Node* CtorVar::rewrite(Rewriter& r) const {
-    return r.builder().ctor_var(id, num_params, body_kind());
+    return r.builder().ctor_var(id, r.instantiate(ctor_sig));
 }
 
 const Node* ModApp::rewrite(Rewriter& r) const {
@@ -185,6 +188,7 @@ const Node* ModError::rewrite(Rewriter& r) const {
 }
 
 const Node* LetRecMod::rewrite(Rewriter& r) const {
+    Rewriter::OldScopeGuard old_scope_guard(r, &scope);
     Scope& scope = r.builder().scope.new_child();
     LetRecBuilder builder(r.dst, scope, r.is_root() ? nullptr : &r.builder());
     Rewriter::BuilderGuard guard(r, builder);
@@ -206,6 +210,7 @@ const Node* LetRecMod::rewrite(Rewriter& r) const {
 }
 
 const Node* LetRecType::rewrite(Rewriter& r) const {
+    Rewriter::OldScopeGuard old_scope_guard(r, &scope);
     Scope& scope = r.builder().scope.new_child();
     LetRecBuilder builder(r.dst, scope, r.is_root() ? nullptr : &r.builder());
     Rewriter::BuilderGuard guard(r, builder);
@@ -227,6 +232,7 @@ const Node* LetRecType::rewrite(Rewriter& r) const {
 }
 
 const Node* LetRecValue::rewrite(Rewriter& r) const {
+    Rewriter::OldScopeGuard old_scope_guard(r, &scope);
     Scope& scope = r.builder().scope.new_child();
     LetRecBuilder builder(r.dst, scope, r.is_root() ? nullptr : &r.builder());
     Rewriter::BuilderGuard guard(r, builder);
@@ -376,8 +382,7 @@ const Node* CtorSignature::rewrite(Rewriter& rewriter) const {
     for (size_t i = 0; i < dom.size(); ++i) {
         new_dom[i] = rewriter.instantiate(dom[i]);
     }
-    auto new_codom = rewriter.instantiate(codom);
-    return rewriter.builder().unsafe().ctor_signature(new_dom, new_codom);
+    return rewriter.builder().unsafe().ctor_signature(new_dom, codom_kind);
 }
 
 }

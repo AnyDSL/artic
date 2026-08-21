@@ -464,7 +464,12 @@ const Var* TypeChecker::maybe_polymorphic(const ast::Identifier& id, std::option
 
     const Var* self = nullptr;
     if (type_params) {
-        self = builder().ctor_var(id, type_params->size(), kind);
+        Array<const Sig*> ctor_dom(type_params->size());
+        for (size_t i = 0; i < type_params->size(); i++) {
+            ctor_dom[i] = Sig::from_node(mod_builder, (*type_params)[i], false);
+        }
+        auto ctor_sig = mod_builder.ctor_signature(ctor_dom, kind);
+        self = builder().ctor_var(id, ctor_sig);
         self->binder = &mod_builder.scope;
 
         Scope& ctor_scope = mb->scope.new_child();
@@ -512,20 +517,6 @@ Array<const Var*> TypeChecker::duplicate_params(const ArrayRef<const Var*>& para
             assert(false && "TODO");
     }
     return type_vars;
-}
-
-
-static std::string kind2str(NodeKind kind) {
-    switch (kind) {
-        case NodeKind::Value: return "value";
-        case NodeKind::Type: return "type";
-        case NodeKind::Module: return "module";
-        case NodeKind::Key: return "key";
-        case NodeKind::Alias: return "alias";
-        case NodeKind::Signature: return "signature";
-        case NodeKind::Ctor: return "constructor";
-    }
-    return "";
 }
 
 static inline void check_kind(TypeChecker& checker, ast::Node& src, const tir::Node* node, NodeKind expected_kind) {
@@ -1346,7 +1337,8 @@ std::optional<Path::Elem::Inferred> Path::infer_path(TypeChecker& checker, std::
             // const size_t type_param_count = user_type
             //     ? user_type->type_params().size()
             //     : forall_type->type_params().size();
-            const size_t type_param_count = ctor->num_params;
+            auto ctor_sig = checker.scope().peek_sig(ctor->ctor_sig)->as<CtorSignature>();
+            const size_t type_param_count = ctor_sig->dom.size();
             if (type_param_count == elem.args.size() /*||
                 (forall_type && arg && type_param_count > elem.args.size())*/) {
                 std::vector<const artic::Node*> type_args(type_param_count);
@@ -1359,7 +1351,7 @@ std::optional<Path::Elem::Inferred> Path::infer_path(TypeChecker& checker, std::
                 //         return std::nullopt;
                 // }
 
-                switch (ctor->body_kind()) {
+                switch (ctor_sig->codom_kind) {
                     case NodeKind::Type: prev = Elem::Inferred {
                             .var = prev->var ? checker.builder().enclosing_let_rec().type_app(prev->var->as<CtorVar>(), type_args) : nullptr,
                         };

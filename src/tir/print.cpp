@@ -351,7 +351,8 @@ void CtorSignature::print(Printer& p) const {
         p.print(*s);
     });
     p << ") -> ";
-    p.print(*codom);
+    p << kind2str(codom_kind);
+    //p.print(*codom);
 }
 
 void ModAccess::print(Printer& p) const {
@@ -426,6 +427,8 @@ void Param::print_head(Printer& p) const {
 void CtorVar::print_head(Printer& p) const {
     p << log::keyword_style("ctor") << ' ' << log::keyword_style("var") << " ";
     p << p.unique_name(*this);
+    p << " : ";
+    p.print(*ctor_sig);
 }
 
 void Call::print(Printer& p) const {

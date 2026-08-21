@@ -77,8 +77,33 @@ struct Rewriter {
         }
     };
 
+    class OldScopeGuard {
+        Rewriter& r;
+        const Scope* old_old_scope;
+    public:
+        OldScopeGuard(Rewriter& r, const Scope* old_scope) : r(r), old_old_scope(old_scope) {
+            std::swap(r.old_scope, old_old_scope);
+        }
+        ~OldScopeGuard() {
+            std::swap(r.old_scope, old_old_scope);
+        }
+    };
+
+    class MapGuard {
+        Rewriter& r;
+        std::unordered_map<const Node*, const Node*> map;
+    public:
+        MapGuard(Rewriter& r) : r(r), map(r.map) {
+            std::swap(r.map, map);
+        }
+        ~MapGuard() {
+            std::swap(r.map, map);
+        }
+    };
+
 protected:
     std::unordered_map<const Node*, const Node*> map;
+    const Scope* old_scope = nullptr;
     Builder* builder_ = nullptr;
 };
 

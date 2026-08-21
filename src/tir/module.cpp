@@ -89,17 +89,17 @@ const Key* ModSignature::lookup_key(const ast::Identifier& id) const {
     return nullptr;
 }
 
-CtorSignature::CtorSignature(Builder& builder, const ArrayRef<const Sig*>& dom, const Sig* codom) : Node(builder.arena), Sig(), dom(dom), codom(codom) {
+CtorSignature::CtorSignature(Builder& builder, const ArrayRef<const Sig*>& dom, NodeKind codom_kind) : Node(builder.arena), Sig(), dom(dom), codom_kind(codom_kind) {
     for (auto d : dom)
         assert(d->is_simple());
-    assert(codom->is_simple());
+    // assert(codom->is_simple());
 }
 
 size_t CtorSignature::hash() const {
     auto h = fnv::Hash();
     for (auto d : dom)
         h = h.combine(d->hash());
-    h = h.combine(codom->hash());
+    //h = h.combine(codom->hash());
     return h;
 }
 
@@ -111,7 +111,7 @@ bool CtorSignature::equals(const Node* other) const {
             if (other_cts->dom[i] != dom[i])
                 return false;
         }
-        return codom == other_cts->codom;
+        return codom_kind == other_cts->codom_kind;
     }
     return false;
 }
@@ -143,14 +143,15 @@ const Sig* Sig::from_node(LetRecBuilder& builder, const Node* node, bool public_
         }
         // Module constructors have no signature
         case NodeKind::Ctor: {
-            while (auto ctor_var = node->isa<CtorVar>()) {
-                node = builder.scope.resolve_ctor(ctor_var);
-            }
-            const Constructor* ctor = node->as<Constructor>();
-            Array<const Sig*> dom(ctor->params.size());
-            for (size_t i = 0; i < dom.size(); i++)
-                dom[i] = Sig::from_node(builder, ctor->params[i], false);
-            return builder.ctor_signature(dom, Sig::from_node(builder, ctor->body(), false));
+            return node->as<Ctor>()->ctor_sig;
+            // while (auto ctor_var = node->isa<CtorVar>()) {
+            //     node = builder.scope.resolve_ctor(ctor_var);
+            // }
+            // const Constructor* ctor = node->as<Constructor>();
+            // Array<const Sig*> dom(ctor->params.size());
+            // for (size_t i = 0; i < dom.size(); i++)
+            //     dom[i] = Sig::from_node(builder, ctor->params[i], false);
+            // return builder.ctor_signature(dom, Sig::from_node(builder, ctor->body(), false));
         }
         default: assert(false);
     }
@@ -218,7 +219,20 @@ bool ModSignature::is_sub(const Scope& scope, const Sig* other) const {
 }
 
 bool CtorSignature::is_sub(const Scope& scope, const Sig* other) const {
-    assert(false && "TODO");
+    other = scope.peek_sig(other);
+    if (auto super_cs = other->isa<CtorSignature>()) {
+        if (super_cs->codom_kind != codom_kind)
+            return false;
+        if (super_cs->dom.size() != dom.size())
+            return false;
+        // inverse relationship for "functions"
+        for (size_t i = 0; i < super_cs->dom.size(); i++) {
+            if (!super_cs->dom[i]->is_sub(scope, dom[i]))
+                return false;
+        }
+        return true;
+    }
+    return false;
 }
 
 const Sig* Module::signature() const {
@@ -283,7 +297,7 @@ bool ModModAccess::equals(const Node* other) const {
 }*/
 
 ModCtor::ModCtor(Builder& builder, Scope& scope, const ArrayRef<const Var*>& params, const ModValue* body)
-    : Node(builder.arena), Constructor(scope, params, body) {
+    : Node(builder.arena), Constructor(builder.enclosing_let_rec(), scope, params, body) {
     // assert(signature_->elem_kind == NodeKind::Ctor);
     // assert(signature->dom.size() == params.size());
     for (size_t i = 0; i < params.size(); i++) {
@@ -328,16 +342,8 @@ bool ModApp::equals(const Node* other) const {
     return false;
 }
 
-const ModValue* ModApp::instantiated(LetRecBuilder& b) const {
-    if (instantiated_)
-        return instantiated_;
-    auto spec = instantiate(b)->as<ModValue>();
-    instantiated_ = spec;//b.schedule_mod_value(spec);
-    return instantiated_;
-}
-
 const Sig* ModApp::signature() const {
-    return signature_;
+    assert(false && "TODO");
 }
 
 ModError::ModError(Builder& builder)
@@ -387,7 +393,7 @@ void ModSignature::free_variables(FVSet& vars, Seen& seen) const {
 void CtorSignature::free_variables(FVSet& vars, Seen& seen) const {
     for (auto d : dom)
         d->free_variables(vars, seen);
-    codom->free_variables(vars, seen);
+    //codom->free_variables(vars, seen);
 }
 
 void ModVar::free_variables(FVSet& vars, Seen& seen) const {

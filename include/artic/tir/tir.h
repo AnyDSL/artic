@@ -14,6 +14,7 @@
 namespace artic {
 
 struct Emitter;
+struct LazyEmitDef;
 
 namespace tir {
 
@@ -24,6 +25,7 @@ struct Rewriter;
 struct Printer;
 struct Scope;
 struct Var;
+struct Sig;
 
 log::Output& operator << (log::Output&, const Node&);
 
@@ -36,6 +38,19 @@ enum class NodeKind {
     Signature,
     Ctor,
 };
+
+static inline std::string kind2str(NodeKind kind) {
+    switch (kind) {
+        case NodeKind::Value: return "value";
+        case NodeKind::Type: return "type";
+        case NodeKind::Module: return "module";
+        case NodeKind::Key: return "key";
+        case NodeKind::Alias: return "alias";
+        case NodeKind::Signature: return "signature";
+        case NodeKind::Ctor: return "constructor";
+    }
+    return "";
+}
 
 /// Base class for all nodes. Types should be created by a `Arena`,
 /// which will hash them and place them into a set. This makes nodes
@@ -120,14 +135,12 @@ struct LetRec : virtual Node {
 };
 
 struct Ctor : virtual public Node {
-    size_t num_params;
+    const Sig* ctor_sig;
     NodeKind kind() const override { return NodeKind::Ctor; }
 
-    virtual NodeKind body_kind() const { return body_kind_; }
+    void free_variables(FVSet&, Seen&) const override;
 
-    Ctor(size_t num_params, NodeKind body_kind) : num_params(num_params), body_kind_(body_kind) {}
-private:
-    const NodeKind body_kind_;
+    Ctor(const Sig* ctor_sig);
 };
 
 struct Constructor : public Ctor {
@@ -140,7 +153,16 @@ struct Constructor : public Ctor {
     void print(Printer&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
-    Constructor(Scope&, const ArrayRef<const Var*>&, const Node*);
+    template<typename T, typename... Args>
+    const Node* instantiate_with(Arena& arena, ArrayRef<const Node*> args, Args&&... xtra_args) const {
+        T s(arena, scope, xtra_args...);
+        return instantiate_into(args, s);
+    }
+
+    Constructor(LetRecBuilder&, Scope&, const ArrayRef<const Var*>&, const Node*);
+
+private:
+    const Node* instantiate_into(ArrayRef<const Node*> args, Rewriter&) const;
 };
 
 struct CtorVar : public Ctor, public Var {
@@ -153,7 +175,7 @@ struct CtorVar : public Ctor, public Var {
     void print(Printer&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
-    CtorVar(Arena&, std::optional<ast::Identifier>, size_t, NodeKind);
+    CtorVar(Arena&, std::optional<ast::Identifier>, const Sig*);
 };
 
 struct App : virtual Node {
@@ -167,20 +189,13 @@ struct App : virtual Node {
     void print(Printer&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
-    const Node* instantiate_into(Builder&, Rewriter&) const;
-    const Node* instantiate(Builder&) const;
-
-    template<typename T, typename... Args>
-    const Node* instantiate_with(Builder& builder, Args... t_args) const {
-        T s(arena, builder, applicand_body_scope(builder), t_args...);
-        return instantiate_into(builder, s);
-    }
-
-    virtual const Node* instantiated(LetRecBuilder&) const = 0;
+    // attempts forcefully instantiating the app but does not schedule the resulting node!
+    // intended for use in 'peek' functions
+    virtual const Node* instantiated(Builder&) const;
 
     App(const CtorVar*, const ArrayRef<const Node*>&);
 private:
-    Scope& applicand_body_scope(Builder&) const;
+    mutable const Node* instantiated_;
 };
 
 }

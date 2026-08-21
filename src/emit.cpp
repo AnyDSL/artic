@@ -463,9 +463,9 @@ void PtrnCompiler::dump() const {
 
 struct ScopeGuard {
     Emitter& emitter;
-    const Emitter::ModuleDecls* old;
+    const LazyEmit* old;
 
-    ScopeGuard(Emitter& emitter, const Emitter::ModuleDecls& scope) : emitter(emitter) {
+    ScopeGuard(Emitter& emitter, const LazyEmit& scope) : emitter(emitter) {
         old = &scope;
         std::swap(emitter.cur_module, old);
     }
@@ -791,34 +791,28 @@ const thorin::Def* Emitter::down_cast(const thorin::Def* def, const Scope& start
     return node.def = node.emit(*this);
 }*/
 
-const thorin::Def* Emitter::emit(const Value* node, ModuleDecl* decl) {
-    auto found = emitted.find(node);
-    if (found != emitted.end())
-        return found->second;
-    auto set_fn = [&](const thorin::Def* def) {
-        //emitted[decl->var] = def;
-        emitted[node] = def;
-        if (decl)
-            decl->as_value = def;
-    };
-    auto def = node->emit(*this, set_fn);
-    emitted[node] = def;
+const thorin::Def* Emitter::emit(const Value* node) {
+    if (node->emitted)
+        return node->emitted;
+    auto def = node->emit(*this);
+    node->emitted = def;
     return def;
 }
 
-const thorin::Type* Emitter::emit(const Type* node, ModuleDecl* decl) {
-    auto found = emitted.find(node);
-    if (found != emitted.end())
-        return found->second->as<thorin::Type>();
-    auto set_fn = [&](const thorin::Def* def) {
-        //emitted[decl->var] = def;
-        emitted[node] = def;
-        if (decl)
-            decl->as_type = def->as<thorin::Type>();
-    };
-    auto def = node->convert(*this, set_fn);
-    emitted[node] = def;
+const thorin::Type* Emitter::emit(const Type* node) {
+    if (node->emitted)
+        return node->emitted;
+    auto head = node->convert_head(*this);
+    if (head)
+        node->emitted = head;
+    auto def = node->convert(*this);
+    node->emitted = def;
     return def;
+}
+
+std::nullptr_t Emitter::emit(const ModValue* mod) {
+    mod->emit(*this);
+    return nullptr;
 }
 
 /*void Emitter::emit(const ast::Ptrn& ptrn, const thorin::Def* value) {
@@ -1156,143 +1150,82 @@ thorin::Debug Emitter::debug_info(const ast::Node& node, const std::string_view&
 
 template<typename T, typename R>
 const R* Emitter::emit_letrec(const T* letrec) {
-    ModuleDecls decls(letrec->scope, cur_module);
+    LazyEmit decls(letrec->scope, cur_module);
     ScopeGuard sg(*this, decls);
     for (auto [var, value] : letrec->vars) {
         if (var->kind() == NodeKind::Ctor)
             continue;
         if (var->kind() == NodeKind::Signature)
             continue;
-        decls.decls.emplace(var, std::make_unique<ModuleDecl>(var, value));
+        decls.decls.emplace(var, std::make_unique<LazyEmitDef>(*this, var, value));
     }
-    for (auto& decl : decls.decls) {
-        auto& [var, value] = decl;
+    for (auto& [var, value] : decls.decls) {
         if (var->kind() == NodeKind::Ctor)
             continue;
         if (var->kind() == NodeKind::Signature)
             continue;
-        emit_bound_var(var);
+        // emit_bound_var(var);
     }
     return emit(letrec->body());
 }
 
-static inline std::tuple<const Emitter::ModuleDecls&, Emitter::ModuleDecl&> lookup_mod_decl(Emitter& emitter, const Var* var) {
-    const Emitter::ModuleDecls* mod = emitter.cur_module;
+void Module::emit(Emitter& emitter) const {
+    for (auto [key, def] : decls) {
+        // TODO: do something with the values in here ?
+        if (auto value = def->isa<Value>())
+            emitter.emit(value);
+    }
+}
+
+void ModVar::emit(Emitter& emitter) const {
+    emitter.emit(emitter.resolve_var(this).def->as<ModValue>());
+}
+
+void LetRecMod::emit(Emitter& emitter) const {
+    emitter.emit_letrec<LetRecMod, std::nullptr_t>(this);
+}
+
+void ModModAccess::emit(Emitter&) const {
+    assert(false && "TODO");
+}
+
+void ModApp::emit(Emitter&) const {
+    assert(false && "TODO");
+}
+
+void ModError::emit(Emitter&) const {
+    assert(false && "TODO");
+}
+
+LazyEmitDef& Emitter::resolve_var(const Var* var) {
+    const LazyEmit* mod = cur_module;
     while (mod) {
         auto found = mod->decls.find(var);
         if (found != mod->decls.end()) {
-            return { *mod, *found->second };
+            return *found->second;
         }
         mod = mod->super;
     }
     assert(false);
 };
 
-void Emitter::emit(const tir::ModAccess* mod_access, ModuleDecl& decl) {
-    /*auto& module = emit(mod_access->mod);
-    ScopeGuard sg2(*this, module);
-    for (auto& [var, def] : module.decls) {
-        if (var->key == mod_access->key) {
-            auto r = emit(var);
-            switch (var->kind()) {
-                case NodeKind::Module:
-                    decl.as_mod = def->as_mod;
-                    assert(decl.as_mod);
-                    break;
-                case NodeKind::Value:
-                    decl.as_value = def->as_value;
-                    assert(decl.as_value);
-                    break;
-                case NodeKind::Type:
-                    decl.as_type = def->as_type;
-                    assert(decl.as_type);
-                    break;
-                default: assert(false);
-            }
-            return;
-        }
-    }*/
-    assert(false);
-}
-
-std::nullptr_t Emitter::emit(const ModValue* mod, ModuleDecl* decl) {
-    if (auto module = mod->isa<Module>()) {
-        for (auto [var, value] : module->decls) {
-            //emit(value);
-        }
-    } else if (auto letrec_mod = mod->isa<LetRecMod>()) {
-        emit_letrec<LetRecMod, ModValue>(letrec_mod);
-    } else if (auto mod_var = mod->isa<ModVar>()) {
-        emit_bound_var(mod_var);
-    }/*else if (auto mod_access = decl.definition->isa<ModAccess>()) {
-        emit(mod_access, decl);
-    } else if (auto mod_var = decl.definition->isa<ModVar>()) {
-        auto r = emit(mod_var);
-        switch (mod_var->kind()) {
-        case NodeKind::Module: decl.as_mod = std::get<const ModuleDecls*>(r); break;
-        case NodeKind::Value: decl.as_value = std::get<const thorin::Def*>(r); break;
-        case NodeKind::Type: decl.as_type = std::get<const thorin::Def*>(r); break;
-        case NodeKind::Ctor: return {};
-        default: assert(false);
-        }
-    } else if (auto mod_app = decl.definition->isa<ModApp>()) {
-        // lol what no this is super hacky ?!
-        // instantiate() needs a builder so we just steal the instantiated thing assuming it was built
-        // TODO: rewrite pass should nuke these things
-        auto r = emit(mod_app->instantiated_);
-        switch (mod_app->kind()) {
-        case NodeKind::Module: decl.as_mod = std::get<const ModuleDecls*>(r); break;
-        case NodeKind::Value: decl.as_value = std::get<const thorin::Def*>(r); break;
-        case NodeKind::Type: decl.as_type = std::get<const thorin::Def*>(r); break;
-        default: assert(false);
-        }
-    } */else {
-        assert(false);
-    }
-    return nullptr;
-}
-
-Emitter::ModuleDecl& Emitter::emit_bound_var(const Var* var) {
-    auto [enclosing, decl] = lookup_mod_decl(*this, var);
-    if (decl.done)
-        return decl;
-
-    ScopeGuard sg(*this, enclosing);
-
-    assert(!decl.emitting && "recursive module def");
-    if (auto value = decl.definition->isa<Value>()) {
-        decl.as_value = emit(value, &decl);
-        assert(decl.as_value);
-    } else if (auto typ = decl.definition->isa<Type>()) {
-        decl.as_type = emit(typ, &decl);
-        assert(decl.as_type);
-    } else if (auto mod = decl.definition->isa<ModValue>()) {
-        emit(mod);
-    } else {
-        assert(false);
-    }
-    decl.emitting = false;
-    decl.done = true;
-    return decl;
-}
-
 const thorin::Def* Param::emit(Emitter& emitter) const {
-    return emitter.emit_bound_var(this).as_value;
+    return emitter.emit(emitter.resolve_var(this).def->as<Value>());
 }
 
 const thorin::Def* LetRecValue::emit(Emitter& emitter) const {
     return emitter.emit_letrec<LetRecValue, thorin::Def>(this);
 }
 
-const thorin::Def* Fn::emit(Emitter& emitter, SetHeadFn set_head) const {
+const thorin::Def* Fn::emit(Emitter& emitter) const {
     auto _ = emitter.save_state();
     auto cont = emitter.world.continuation(
         emitter.emit(type())->as<thorin::FnType>(),
         emitter.debug_info(this));
     cont->params().back()->set_name("ret");
     // Set the IR node before entering the body
-    set_head(cont);
-    emitter.emitted[param] = emitter.tuple_from_params(cont, !resolve_type(emitter.scope())->codom->isa<artic::NoRetType>());
+    emitted = cont;
+    param->emitted = emitter.tuple_from_params(cont, !resolve_type(emitter.scope())->codom->isa<artic::NoRetType>());
     //emitter.emit(*param, emitter.tuple_from_params(cont, true));
     if (filter)
         cont->set_filter(emitter.world.filter(thorin::Array<const thorin::Def*>(cont->num_params(), emitter.emit(filter))));
@@ -1351,7 +1284,7 @@ const thorin::Def* Call::emit(Emitter& emitter) const {
     return emitter.call(fn, value, emitter.debug_info(this));
 }
 
-const thorin::Def* GlobalVariable::emit(Emitter& emitter, SetHeadFn) const {
+const thorin::Def* GlobalVariable::emit(Emitter& emitter) const {
     auto value = init
         ? emitter.emit(init)
         : emitter.world.bottom(emitter.emit(resolve_type(emitter.scope())->pointee));
@@ -1433,7 +1366,7 @@ const thorin::Def* Proj::emit(Emitter& emitter) const {
 }
 
 const thorin::Def* Bind::emit(Emitter& emitter) const {
-    emitter.emitted[param] = emitter.emit(value);
+    param->emitted = emitter.emit(value);
     return emitter.world.tuple({});
 }
 
@@ -1598,7 +1531,7 @@ const thorin::Def* Control::emit(Emitter& emitter) const {
             emitter.debug_info(this, "if_join"))
         : nullptr;
 
-    emitter.emitted[body->param] = join;
+    body->param->emitted = join;
     emitter.emit(body->body());
 
     emitter.enter(join);
@@ -2386,6 +2319,11 @@ std::string Type::stringify(Emitter&) const {
     return std::string();
 }
 
+const thorin::Type* Type::convert_head(Emitter&) const {
+    // does nothing
+    return nullptr;
+}
+
 const thorin::Type* Type::convert(Emitter&) const {
     // Should never be called
     assert(false);
@@ -2394,6 +2332,18 @@ const thorin::Type* Type::convert(Emitter&) const {
 
 std::string PrimType::stringify(Emitter&) const {
     return ast::PrimType::tag_to_string(tag);
+}
+
+const thorin::Type* LetRecType::convert_head(Emitter& emitter) const {
+    auto head = body()->convert_head(emitter);
+    if (head) {
+        emitted = head;
+    }
+    return head;
+}
+
+const thorin::Type* LetRecType::convert(Emitter& emitter) const {
+    return emitter.emit_letrec<LetRecType, thorin::Type>(this);
 }
 
 const thorin::Type* PrimType::convert(Emitter& emitter) const {
@@ -2502,7 +2452,7 @@ std::string TypeVar::stringify(Emitter& emitter) const {
 }
 
 const thorin::Type* TypeVar::convert(Emitter& emitter) const {
-    return emitter.emit_bound_var(this).as_type;
+    return emitter.emit(emitter.resolve_var(this).def->as<Type>());
 }
 
 inline std::string stringify_types(
@@ -2527,10 +2477,13 @@ std::string StructType::stringify(Emitter& emitter) const {
     return "anonymous_struct";
 }
 
-const thorin::Type* StructType::convert(Emitter& emitter, SetHeadFn set_head) const {
-    //auto type = emitter.world.struct_type(stringify(emitter), member_count());
-    auto type = emitter.world.struct_type("^"+std::to_string(gid), member_count());
-    set_head(type);
+const thorin::Type* StructType::convert_head(Emitter& emitter) const {
+    emitted = emitter.world.struct_type("^"+std::to_string(gid), member_count());
+    return emitted;
+}
+
+const thorin::Type* StructType::convert(Emitter& emitter) const {
+    thorin::StructType* type = const_cast<thorin::StructType*>(emitted->as<thorin::StructType>());
     for (size_t i = 0, n = member_count(); i < n; ++i) {
         type->set_op(i, emitter.emit(member_type(i)));
         type->set_op_name(i, std::string(member_name(i)));
@@ -2546,9 +2499,13 @@ std::string EnumType::stringify(Emitter& emitter) const {
     return "anonymous_enum";
 }
 
-const thorin::Type* EnumType::convert(Emitter& emitter, SetHeadFn set_head) const {
-    auto type = emitter.world.variant_type(stringify(emitter), member_count());
-    set_head(type);
+const thorin::Type* EnumType::convert_head(Emitter& emitter) const {
+    emitted = emitter.world.variant_type(stringify(emitter), member_count());
+    return emitted;
+}
+
+const thorin::Type* EnumType::convert(Emitter& emitter) const {
+    thorin::VariantType* type = const_cast<thorin::VariantType*>(emitted->as<thorin::VariantType>());
     for (size_t i = 0, n = member_count(); i < n; ++i) {
         type->set_op(i, emitter.emit(member_type(i)));
         type->set_op_name(i, std::string(member_name(i)));

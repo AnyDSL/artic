@@ -7,6 +7,10 @@ namespace artic {
 
 namespace tir {
 
+struct Fn;
+struct Bind;
+struct Control;
+
 struct Value : virtual public Node {
     Value(const Type* type) : type_(type) {
         assert(type->is_simple());
@@ -20,12 +24,6 @@ struct Value : virtual public Node {
     /// Emits a branch for boolean expressions.
     virtual void emit_branch(Emitter&, thorin::Continuation*, thorin::Continuation*) const;
 
-    /// emission path for recursive nodes
-    using SetHeadFn = const std::function<void(thorin::Def*)>&;
-    virtual const thorin::Def* emit(Emitter& emitter, SetHeadFn set_head) const {
-        return emit(emitter);
-    };
-
     /// emission for non-recursive nodes
     virtual const thorin::Def* emit(Emitter&) const {
         assert(false && "this node cannot be emitted");
@@ -33,6 +31,11 @@ struct Value : virtual public Node {
 
 protected:
     const Type* type_;
+    mutable const thorin::Def* emitted = nullptr;
+    friend Emitter;
+    friend Fn;
+    friend Bind;
+    friend Control;
 };
 
 struct Unit : public Value {
@@ -87,7 +90,9 @@ struct ValueApp : public Value, public App {
     const Value* rewrite(Rewriter&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
-    const Value* instantiated(LetRecBuilder&) const override;
+    const Value* instantiated(Builder& b) const override {
+        return App::instantiated(b)->as<Value>();
+    }
 private:
     ValueApp(Builder&, const CtorVar*, const ArrayRef<const Node*>&);
     mutable const Value* instantiated_ = nullptr;
@@ -133,7 +138,7 @@ struct Fn : public Value {
     const FnType* resolve_type(const Scope& s) const override { return Value::resolve_type(s)->as<FnType>(); }
     bool is_computation() const override { return false; }
 
-    const thorin::Def* emit(Emitter&, SetHeadFn) const override;
+    const thorin::Def* emit(Emitter&) const override;
 
     void set_body(Builder&, const Value* body) const;
     const Value* body() const { return body_; }
@@ -172,7 +177,7 @@ struct GlobalVariable : public Value {
     const RefType* resolve_type(const Scope& s) const override { return Value::resolve_type(s)->as<RefType>(); }
     bool is_computation() const override { return false; }
 
-    const thorin::Def* emit(Emitter&, SetHeadFn) const override;
+    const thorin::Def* emit(Emitter&) const override;
 
     GlobalVariable(Builder& arena, const Type*, bool is_mut, const Value* init, const ast::StaticDecl* decl);
 };

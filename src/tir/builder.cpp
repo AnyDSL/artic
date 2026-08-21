@@ -121,8 +121,8 @@ const EnumType* Builder::enum_type(const ast::EnumDecl* decl) {
 const Type* Builder::member_type(const Type* type, size_t idx) {
     type = scope.peek_type(type);
 
-    if (auto [app, _] = match_app_type_(*this, type); app) {
-        return member_type(app->instantiated(enclosing_let_rec()), idx);
+    if (auto [app, peeked_type] = peek_app_type(*this, type); app) {
+        return member_type(peeked_type, idx);
     }
 
     if (auto complex_type = type->isa<ComplexType>())
@@ -279,8 +279,8 @@ const CtorVar* LetRecBuilder::value_ctor(Scope& scope, const ArrayRef<const Var*
     return schedule(unsafe().value_ctor(scope, params, contents))->as<CtorVar>();
 }
 
-const CtorVar* Builder::ctor_var(std::optional<ast::Identifier> id, size_t num_params, NodeKind body_kind) {
-    auto var = arena.insert<CtorVar>(arena, id, num_params, body_kind);
+const CtorVar* Builder::ctor_var(std::optional<ast::Identifier> id, const Sig* sig) {
+    auto var = arena.insert<CtorVar>(arena, id, sig);
     assert(var->gid != 96);
     return var;
 }
@@ -515,12 +515,12 @@ const Sig* LetRecBuilder::type_signature(const Type* inner) {
     return schedule_sig(unsafe().type_signature(inner));
 }
 
-const CtorSignature* Builder::Unsafe::ctor_signature(const ArrayRef<const Sig*>& dom, const Sig* codom) {
-    return builder.arena.insert<CtorSignature>(builder, dom, codom);
+const CtorSignature* Builder::Unsafe::ctor_signature(const ArrayRef<const Sig*>& dom, NodeKind codom_kind) {
+    return builder.arena.insert<CtorSignature>(builder, dom, codom_kind);
 }
 
-const Sig* LetRecBuilder::ctor_signature(const ArrayRef<const Sig*>& dom, const Sig* codom) {
-    return schedule_sig(unsafe().ctor_signature(dom, codom));
+const Sig* LetRecBuilder::ctor_signature(const ArrayRef<const Sig*>& dom, NodeKind codom_kind) {
+    return schedule_sig(unsafe().ctor_signature(dom, codom_kind));
 }
 
 LetRecBuilder& Builder::enclosing_let_rec() {
@@ -730,7 +730,7 @@ const Var* LetRecBuilder::schedule(const Node* node, std::optional<ast::Identifi
     } else if (auto value = node->isa<Value>()) {
         var = param(std::nullopt, value->type());
     } else if (auto ctor = node->isa<Ctor>()) {
-        var = ctor_var(maybe_id, ctor->num_params, ctor->body_kind());
+        var = ctor_var(maybe_id, ctor->ctor_sig);
     } else if (node->isa<Sig>()) {
         var = sig_var(maybe_id);
     } else {

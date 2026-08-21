@@ -29,6 +29,7 @@ struct Key : virtual public Node {
 struct Sig : virtual Node {
     NodeKind kind() const override { return NodeKind::Signature; }
 
+    //virtual NodeKind element_kind() const = 0;
     /// subtyping, but for signatures
     virtual bool is_sub(const Scope&, const Sig*) const;
 
@@ -46,6 +47,7 @@ struct ValueSignature : public Sig {
     const Node* rewrite(Rewriter&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
+    //NodeKind element_kind() const override { return NodeKind::Value; }
     bool is_sub(const Scope&, const Sig*) const override;
 
     ValueSignature(Builder&, const Type*);
@@ -60,6 +62,7 @@ struct TypeSignature : public Sig {
     const Node* rewrite(Rewriter&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
+    //NodeKind element_kind() const override { return NodeKind::Type; }
     bool is_sub(const Scope&, const Sig*) const override;
 
     TypeSignature(Builder&, const Type*);
@@ -74,6 +77,7 @@ struct ModSignature : public Sig {
     const Node* rewrite(Rewriter&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
+    //NodeKind element_kind() const override { return NodeKind::Module; }
     bool is_sub(const Scope&, const Sig*) const override;
 
     const Sig* lookup(const Key*) const;
@@ -84,7 +88,9 @@ struct ModSignature : public Sig {
 
 struct CtorSignature : public Sig {
     Array<const Sig*> dom;
-    const Sig* codom;
+    // TODO: do we need real abstractions in here? do we?
+    // const Sig* codom;
+    NodeKind codom_kind;
 
     size_t hash() const override;
     bool equals(const Node*) const override;
@@ -92,9 +98,10 @@ struct CtorSignature : public Sig {
     const Node* rewrite(Rewriter&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
+    //NodeKind element_kind() const override { return NodeKind::Ctor; }
     bool is_sub(const Scope&, const Sig*) const override;
 
-    CtorSignature(Builder&, const ArrayRef<const Sig*>&, const Sig*);
+    CtorSignature(Builder&, const ArrayRef<const Sig*>&, NodeKind);
 };
 
 struct SigVar : public Sig, public Var {
@@ -121,6 +128,7 @@ struct ModValue : virtual public Node {
     NodeKind kind() const override { return NodeKind::Module; }
 
     virtual const Sig* signature() const = 0;
+    virtual void emit(Emitter&) const = 0;
 
     ModValue() {}
 };
@@ -132,10 +140,8 @@ struct ModVar : public ModValue, public Var {
     void print_head(Printer&) const override;
     const Node* rewrite(Rewriter&) const override;
     void free_variables(FVSet&, Seen&) const override;
-
-    bool is_simple() const override { return true; }
-
     const Sig* signature() const override;
+    void emit(Emitter&) const override;
 
     bool can_bind(const Scope&, const Node*) const override;
 
@@ -154,7 +160,7 @@ struct Module : public ModValue {
     const Node* rewrite(Rewriter&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
-    // void emit(Emitter&) const;
+    void emit(Emitter&) const override;
 
     Module(Builder&, std::unordered_map<const Key*, const Node*>&&, const Sig*, const ast::ModDecl*);
     Module(const Module&) = delete;
@@ -177,6 +183,7 @@ struct ModAccess : virtual Node {
 struct ModModAccess : public ModAccess, public ModValue {
     const Sig* signature_;
     const Sig* signature() const override;
+    void emit(Emitter&) const override;
 
     bool equals(const Node*) const override;
     const Node* rewrite(Rewriter&) const override;
@@ -203,14 +210,16 @@ struct ModApp : public ModValue, public App {
     void print(Printer&) const override;
     const Node* rewrite(Rewriter&) const override;
     void free_variables(FVSet&, Seen&) const override;
+    void emit(Emitter&) const override;
 
     const Sig* signature() const override;
 
-    const ModValue* instantiated(LetRecBuilder& b) const override;
+    const ModValue* instantiated(Builder& b) const override {
+        return App::instantiated(b)->as<ModValue>();
+    }
 
     ModApp(Builder&, const CtorVar*, const ArrayRef<const Node*>& args);
 private:
-    const Sig* signature_;
     mutable const ModValue* instantiated_ = nullptr;
     friend Emitter;
 };
@@ -223,6 +232,7 @@ struct LetRecMod : public ModValue, public LetRec {
     const Sig* signature() const override {
         return body()->signature();
     }
+    void emit(Emitter&) const override;
 
     bool equals(const Node* other) const override;
     const Node* rewrite(Rewriter&) const override;
@@ -240,6 +250,7 @@ struct ModError : public ModValue {
     void free_variables(FVSet&, Seen&) const override;
 
     const Sig* signature() const override;
+    void emit(Emitter&) const override;
 
     ModError(Builder&);
 };

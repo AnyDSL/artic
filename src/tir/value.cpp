@@ -148,16 +148,8 @@ bool ValueApp::equals(const Node* other) const {
     return false;
 }
 
-const Value* ValueApp::instantiated(LetRecBuilder& b) const {
-    if (instantiated_)
-        return instantiated_;
-    auto spec = instantiate(b)->as<Value>();
-    instantiated_ = spec;//b.schedule_value(spec);
-    return instantiated_;
-}
-
 ValueCtor::ValueCtor(Builder& builder, Scope& scope, const ArrayRef<const Var*>& params, const Value* body)
-    : Node(builder.arena), Constructor(scope, params, body)
+    : Node(builder.arena), Constructor(builder.enclosing_let_rec(), scope, params, body)
 {}
 
 LetRecValue::LetRecValue(Builder& builder, Scope& scope, const ArrayRef<std::tuple<const Var*, const Node*>>& vars, const Value* in)

@@ -107,7 +107,7 @@ struct Builder : public artic::Cast<Builder> {
     const Type*              member_type(const Type*, size_t);
     const TypeVar*           type_var(std::optional<ast::Identifier> id);
 
-    const CtorVar* ctor_var(std::optional<ast::Identifier> id, size_t, NodeKind);
+    const CtorVar* ctor_var(std::optional<ast::Identifier> id, const Sig*);
     const SigVar* sig_var(std::optional<ast::Identifier> id);
     const SigError* sig_error();
 
@@ -157,7 +157,7 @@ struct Builder : public artic::Cast<Builder> {
         const ModSignature* mod_signature(std::unordered_map<const Key*, const Sig*>&&);
         const ValueSignature* value_signature(const Type*);
         const TypeSignature* type_signature(const Type*);
-        const CtorSignature* ctor_signature(const ArrayRef<const Sig*>&, const Sig*);
+        const CtorSignature* ctor_signature(const ArrayRef<const Sig*>&, NodeKind);
 
         const Value* mod_value_access(const ModValue*, const Key*);
         const Value* value_let_rec(const ArrayRef<std::tuple<const Var*, const Node*>>&, const Value*);
@@ -199,7 +199,7 @@ struct LetRecBuilder : public Builder {
     const Sig* mod_signature(std::unordered_map<const Key*, const Sig*>&&);
     const Sig* value_signature(const Type*);
     const Sig* type_signature(const Type*);
-    const Sig* ctor_signature(const ArrayRef<const Sig*>&, const Sig*);
+    const Sig* ctor_signature(const ArrayRef<const Sig*>&, NodeKind);
 
     //std::tuple<const ModVar*, const ModCtor*> mod_ctor(const ModVar*);
     const ModVar* module(std::unordered_map<const Key*, const Node*>&&, const ast::ModDecl* = nullptr);
