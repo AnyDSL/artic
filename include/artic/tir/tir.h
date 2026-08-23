@@ -148,7 +148,8 @@ struct Constructor : public Ctor {
     Array<const Var*> params;
     mutable const Node* body_;
 
-    virtual const Node* body() const { return body_;};
+    virtual const Node* body() const { return body_; }
+    virtual std::tuple<const Scope&, const Node*> peek_body() const;
 
     void print(Printer&) const override;
     void free_variables(FVSet&, Seen&) const override;

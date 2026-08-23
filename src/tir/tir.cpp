@@ -77,6 +77,16 @@ Constructor::Constructor(LetRecBuilder& builder, Scope& scope, const ArrayRef<co
     }
 }
 
+std::tuple<const Scope&, const Node*> Constructor::peek_body() const {
+    const Scope* s = &scope;
+    const Node* body = body_;
+    while (auto let_rec = body->isa<LetRec>()) {
+        s = &let_rec->scope;
+        body = let_rec->body();
+    }
+    return {*s, body};
+}
+
 void Constructor::free_variables(FVSet& vars, Seen& seen) const {
     Ctor::free_variables(vars, seen);
     FVSet inner_vars;

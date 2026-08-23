@@ -1270,16 +1270,17 @@ bool TypeChecker::try_infer_type_args(
 
 bool TypeChecker::infer_fn_args(
     const Loc& loc,
-    const ValueCtor* forall_type,
+    const ValueCtor* fn_ctor,
     const Type* arg_type,
     const Type* ret_type,
     std::vector<const Node*>& type_args) {
-    auto body = forall_type->body()->type()->as<FnType>();
-    auto bounds = body->dom->bounds(scope(), arg_type);
+    auto [body_scope, body] = fn_ctor->peek_body();
+    const FnType* body_type = body_scope.peek_type(body->as<Value>()->type())->as<FnType>();
+    auto bounds = body_type->dom->bounds(scope(), arg_type);
     if (ret_type)
-        body->codom->bounds(scope(), bounds, ret_type, false);
-    auto variance = body->Type::variance(scope(), false);
-    return try_infer_type_args(loc, forall_type->params, bounds, variance, type_args, true);
+        body_type->codom->bounds(scope(), bounds, ret_type, false);
+    auto variance = body_type->Type::variance(scope(), false);
+    return try_infer_type_args(loc, fn_ctor->params, bounds, variance, type_args, true);
 }
 
 bool TypeChecker::try_infer_implicit_args(
@@ -1533,7 +1534,10 @@ std::optional<Path::Elem::Inferred> Path::infer_path(TypeChecker& checker, std::
                         checker.error(elem.loc, "unknown");
                         return std::nullopt;
                     }
-                    auto arg_type = checker.try_coerce(*arg, val_ctor->body()->type()->as<artic::FnType>()->dom);
+
+                    auto [body_scope, body] = val_ctor->peek_body();
+
+                    auto arg_type = checker.try_coerce(*arg, body_scope.peek_type(body->as<Value>()->type())->as<artic::FnType>()->dom);
                     if (!checker.infer_fn_args(loc, val_ctor, arg_type, ret_type, type_args))
                         return std::nullopt;
                 }
