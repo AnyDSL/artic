@@ -1,5 +1,7 @@
 #include "artic/tir/rewrite.h"
 
+#include <complex>
+
 #include "artic/tir/scope.h"
 #include "artic/tir/types.h"
 #include "artic/tir/values.h"
@@ -259,7 +261,10 @@ const Value* ValueApp::rewrite(Rewriter& r) const {
 
 const Node* GlobalVariable::rewrite(Rewriter& r) const {
     auto init = this->init ? r.instantiate(this->init, false) : nullptr;
-    return r.builder().global_variable(r.instantiate(allocated_type), is_mut, init, decl);
+    auto nglobal = r.builder().global_variable(r.instantiate(allocated_type), is_mut, init, decl);
+    if (linkage)
+        nglobal->linkage = linkage;
+    return nglobal;
 }
 
 const Node* LocalVariable::rewrite(Rewriter& r) const {
@@ -281,6 +286,8 @@ const Node* Function::rewrite(Rewriter& r) const {
         nfn->set_body(r.builder(), r.instantiate(body_, false));
     if (filter_)
         nfn->set_filter(r.builder(), r.instantiate(filter_, false));
+    if (linkage)
+        nfn->linkage = linkage;
     return nfn;
 }
 
@@ -353,6 +360,14 @@ const Node* UnOp::rewrite(Rewriter& r) const {
 
 const Node* BinOp::rewrite(Rewriter& r) const {
     return r.builder().unsafe().binop(tag, r.instantiate(lhs), r.instantiate(rhs));
+}
+
+const Node* Builtin::rewrite(Rewriter& r) const {
+    return r.builder().unsafe().builtin(tag, r.instantiate_array(args));
+}
+
+const Node* MathOp::rewrite(Rewriter& r) const {
+    return r.builder().unsafe().mathop(tag, r.instantiate_array(args));
 }
 
 const Node* Branch::rewrite(Rewriter& r) const {

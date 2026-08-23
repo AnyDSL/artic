@@ -545,6 +545,82 @@ bool BinOp::equals(const Node* other) const {
     return false;
 }
 
+Builtin::Builtin(Builder& builder, Tag tag, const ArrayRef<const Node*>& args) : Value([&]() -> const Type* {
+    switch (tag) {
+        case Tag::AlignOf:
+        case Tag::SizeOf:
+            return builder.prim_type(ast::PrimType::I64);
+        case Tag::BitCast:
+            return args[0]->as<Type>();
+        case Tag::Insert:
+            return args[0]->as<Value>()->type();
+        case Tag::Select:
+            return args[1]->as<Value>()->type();
+        case Tag::SignBit:
+        case Tag::IsNaN:
+        case Tag::IsFinite:
+            return builder.bool_type();
+        case Tag::Compare:
+            assert(false);
+            break;
+    }
+}()), Node(builder.arena), tag(tag), args(args) {
+    for (auto arg : args)
+        assert(arg->is_simple());
+}
+
+size_t Builtin::hash() const {
+    auto h = fnv::Hash();
+    h = h.combine(tag);
+    for (auto arg : args)
+        h = h.combine(arg->hash());
+    return h;
+}
+
+bool Builtin::equals(const Node* other) const {
+    if (auto other_builtin = other->isa<Builtin>()) {
+        if (other_builtin->tag != tag)
+            return false;
+        if (other_builtin->args.size() != args.size())
+            return false;
+        for (size_t i = 0; i < args.size(); i++) {
+            if (other_builtin->args[i] != args[i])
+                return false;
+        }
+        return true;
+    }
+    return false;
+}
+
+MathOp::MathOp(Builder& builder, thorin::MathOpTag tag, const ArrayRef<const Value*>& args)
+: Value(args[0]->type()), Node(builder.arena), tag(tag), args(args) {
+    for (auto arg : args)
+        assert(arg->is_simple());
+}
+
+size_t MathOp::hash() const {
+    auto h = fnv::Hash();
+    h = h.combine(tag);
+    for (auto arg : args)
+        h = h.combine(arg->hash());
+    return h;
+}
+
+bool MathOp::equals(const Node* other) const {
+    if (auto other_mathop = other->isa<MathOp>()) {
+        if (other_mathop->tag != tag)
+            return false;
+        if (other_mathop->args.size() != args.size())
+            return false;
+        for (size_t i = 0; i < args.size(); i++) {
+            if (other_mathop->args[i] != args[i])
+                return false;
+        }
+        return true;
+    }
+    return false;
+}
+
 Branch::Branch(Builder& builder, const Value* cond, const Function* true_branch, const Function* else_branch) : Value([&]() -> const Type* {
     if (cond->type() != builder.bool_type())
         return builder.type_error();
@@ -709,6 +785,16 @@ void BinOp::free_variables(FVSet& vars, Seen& seen) const {
     type()->free_variables(vars, seen);
     lhs->free_variables(vars, seen);
     rhs->free_variables(vars, seen);
+}
+
+void Builtin::free_variables(FVSet& vars, Seen& seen) const {
+    for (auto arg : args)
+        arg->free_variables(vars, seen);
+}
+
+void MathOp::free_variables(FVSet& vars, Seen& seen) const {
+    for (auto arg : args)
+        arg->free_variables(vars, seen);
 }
 
 void Branch::free_variables(FVSet& vars, Seen& seen) const {

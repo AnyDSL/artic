@@ -175,7 +175,7 @@ public:
 
     // const thorin::Def* emit_poly_decl(ast::Decl*, ast::TypeParamList*, const std::vector<const artic::Type*>*);
 
-    const thorin::Def* builtin(const ast::FnDecl&, thorin::Continuation*);
+    // const thorin::Def* builtin(const ast::FnDecl&, thorin::Continuation*);
     // const thorin::Def* comparator(const Loc&, const Type*);
 
     thorin::Debug debug_info(const ast::NamedDecl&);

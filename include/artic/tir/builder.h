@@ -181,6 +181,9 @@ struct Builder : public artic::Cast<Builder> {
         const Value* unop(ast::UnaryExpr::Tag, const Value*);
         const Value* binop(ast::BinaryExpr::Tag, const Value*, const Value*);
 
+        const Value* builtin(Builtin::Tag, const ArrayRef<const Node*>&);
+        const Value* mathop(thorin::MathOpTag, const ArrayRef<const Value*>&);
+
         const Control* control(const Function*);
         const Branch* branch(const Value*, const Function*, const Function*);
 

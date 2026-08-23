@@ -116,12 +116,6 @@ protected:
     friend Emitter;
 };
 
-/// The type of an attribute.
-struct AttrType {
-    std::string name;
-    enum { Integer, String, Path, Other } type;
-};
-
 /// Integer and floating-point types.
 struct PrimType : public Type {
     ast::PrimType::Tag tag;

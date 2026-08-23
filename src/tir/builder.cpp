@@ -326,6 +326,14 @@ const Function* Builder::Unsafe::function(const ValueVar* param, Scope& scope, c
     return builder.arena.insert<Function>(builder, scope, param, codom, decl);
 }
 
+const Value* Builder::Unsafe::builtin(Builtin::Tag tag, const ArrayRef<const Node*>& args) {
+    return builder.arena.insert<Builtin>(builder, tag, args);
+}
+
+const Value* Builder::Unsafe::mathop(thorin::MathOpTag tag, const ArrayRef<const Value*>& args) {
+    return builder.arena.insert<MathOp>(builder, tag, args);
+}
+
 const Value* Builder::unit() {
     return arena.insert<Unit>(arena, unit_type());
 }

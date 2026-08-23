@@ -934,7 +934,32 @@ static inline const thorin::Def* isfinite(const thorin::Def* val) {
     return world.cmp_ne(exponent, exponent_mask); // The exponent must not be all 1s
 }
 
-const thorin::Def* Emitter::builtin(const ast::FnDecl& fn_decl, thorin::Continuation* cont) {
+const thorin::Def* Builtin::emit(Emitter& emitter) const {
+    switch (tag) {
+        case Tag::AlignOf: return emitter.world.align_of(emitter.emit(args[0]->as<Type>()));
+        case Tag::SizeOf: return emitter.world.size_of(emitter.emit(args[0]->as<Type>()));
+        case Tag::BitCast: return emitter.world.bitcast(emitter.emit(args[0]->as<Type>()), emitter.emit(args[1]->as<Value>()));
+        case Tag::Insert: return emitter.world.insert(emitter.emit(args[0]->as<Value>()), emitter.emit(args[1]->as<Value>()), emitter.emit(args[2]->as<Value>()));
+        case Tag::Select: return emitter.world.select(emitter.emit(args[0]->as<Value>()), emitter.emit(args[1]->as<Value>()), emitter.emit(args[2]->as<Value>()));
+        case Tag::IsNaN: return isnan(emitter.emit(args[0]->as<Value>()));
+        case Tag::IsFinite: return isfinite(emitter.emit(args[0]->as<Value>()));
+        case Tag::Compare:
+            assert(false);
+            break;
+            // return comparator(fn_decl.loc, mono_type), tuple_from_params(cont, true)
+    }
+    assert(false);
+}
+
+const thorin::Def* MathOp::emit(Emitter& emitter) const {
+    thorin::Array<const thorin::Def*> defs(args.size());
+    for (size_t i = 0; i < defs.size(); ++i) {
+        defs[i] = emitter.emit(args[i]->as<Value>());
+    }
+    return emitter.world.mathop(tag, defs);
+}
+
+/*const thorin::Def* Emitter::builtin(const ast::FnDecl& fn_decl, thorin::Continuation* cont) {
     if (cont->name() == "alignof") {
         auto target_type = fn_decl.type_params->params[0]->type->convert(*this);
         cont->jump(cont->params().back(), { cont->param(0), world.align_of(target_type) }, debug_info(fn_decl));
@@ -1000,7 +1025,7 @@ const thorin::Def* Emitter::builtin(const ast::FnDecl& fn_decl, thorin::Continua
     }
     cont->set_filter(cont->all_true_filter());
     return cont;
-}
+}*/
 
 /*const thorin::Def* Emitter::comparator(const Loc& loc, const Type* type) {
     if (auto it = comparators.find(type); it != comparators.end())
@@ -1214,35 +1239,13 @@ const thorin::Def* Function::emit(Emitter& emitter) const {
         cont->set_name(decl->id.name);
 
     // Set the calling convention and export the continuation if needed
-    if (decl && decl->attrs) {
-        auto& attrs = decl->attrs;
-        if (auto export_attr = attrs->find("export")) {
-            if (auto name_attr = export_attr->find("name"))
-                cont->set_name(name_attr->as<ast::LiteralAttr>()->lit.as_string());
+    if (linkage) {
+        cont->set_name(linkage->symbol);
+        cont->attributes().cc = linkage->cc;
+        if (linkage->is_thorin_intrinsic)
+            cont->set_intrinsic();
+        if (linkage->is_external)
             emitter.world.make_external(cont);
-            cont->attributes().cc = thorin::CC::C;
-        } else if (auto import_attr = attrs->find("import")) {
-            if (auto name_attr = import_attr->find("name"))
-                cont->set_name(name_attr->as<ast::LiteralAttr>()->lit.as_string());
-            if (auto cc_attr = import_attr->find("cc")) {
-                auto cc = cc_attr->as<ast::LiteralAttr>()->lit.as_string();
-                if (cc == "device") {
-                    emitter.world.make_external(cont);
-                    cont->attributes().cc = thorin::CC::Device;
-                } else if (cc == "C") {
-                    emitter.world.make_external(cont);
-                    cont->attributes().cc = thorin::CC::C;
-                } else if (cc == "thorin")
-                    cont->set_intrinsic();
-                else if (cc == "builtin")
-                    emitter.builtin(*decl, cont);
-            }
-        } else if (auto intern_attr = attrs->find("intern")) {
-            if (auto name_attr = intern_attr->find("name"))
-                cont->set_name(name_attr->as<ast::LiteralAttr>()->lit.as_string());
-            emitter.world.make_external(cont);
-            cont->attributes().cc = thorin::CC::Thorin;
-        }
     }
 
     return cont;
@@ -1265,14 +1268,11 @@ const thorin::Def* GlobalVariable::emit(Emitter& emitter) const {
     // TODO: one day globals should probably be able to be mutually recursive
     auto global = emitter.world.global(value, is_mut, emitter.debug_info(this));
 
-    // TODO
-    // if (attrs) {
-    //     if (auto export_attr = attrs->find("export")) {
-    //         if (auto name_attr = export_attr->find("name"))
-    //             global->set_name(name_attr->as<LiteralAttr>()->lit.as_string());
-    //         emitter.world.make_external(const_cast<thorin::Def*>(global));
-    //     }
-    // }
+    if (linkage) {
+        global->set_name(linkage->symbol);
+        if (linkage->is_external)
+            emitter.world.make_external(const_cast<thorin::Def*>(global));
+    }
 
     return global;
 }

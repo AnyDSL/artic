@@ -269,6 +269,8 @@ struct Attr : public Node {
         : Node(loc), name(std::move(name))
     {}
 
+    mutable bool checked = false;
+
     /// Checks that the attribute is well-formed.
     virtual void check(TypeChecker&, const ast::Node*) = 0;
     /// Finds the sub-attribute with the given name in this attribute.

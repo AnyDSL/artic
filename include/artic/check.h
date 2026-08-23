@@ -100,6 +100,8 @@ public:
     void bind_ptrn_params(ast::Ptrn&, const Value*);
     const Value* build_fn_body(const ValueVar* param, ast::FnExpr& fn, const tir::Type* codom);
     const Value* build_fn_filter(const ValueVar* param, ast::FnExpr& fn);
+    void infer_fn_attrs(const ast::FnDecl* fn_decl, const Function* fn);
+    void infer_global_attrs(const ast::StaticDecl* decl, const GlobalVariable* fn);
 
     template<typename T, typename Fn>
     T with_expr_scope(Fn f) {
@@ -130,9 +132,21 @@ public:
         const Fields&, CheckFn&, const std::string_view&,
         bool = false, bool = false);
 
-    // void assign_scope_to_block_decls(const PtrVector<ast::Stmt>&, ScopeBuilder&);
     void check_block(const Loc&, const PtrVector<ast::Stmt>&, bool);
-    bool check_attrs(const ast::NamedAttr&, const ArrayRef<AttrType>&);
+
+    /// The type of an attribute.
+    struct AttrCase {
+        std::string name;
+        enum LiteralType { Integer, String } lit_type;
+        const std::function<void(ast::LiteralAttr&)>* f_lit = nullptr;
+        const std::function<void(ast::PathAttr&)>* f_path = nullptr;
+        const std::function<void(ast::NamedAttr&)>* f_named = nullptr;
+
+        AttrCase(std::string name, const std::function<void(ast::NamedAttr&)>& f) : name(name), f_named(&f) {}
+        AttrCase(std::string name, const std::function<void(ast::PathAttr&)>& f) : name(name), f_path(&f) {}
+        AttrCase(std::string name, LiteralType lit_type, const std::function<void(ast::LiteralAttr&)>& f) : name(name), lit_type(lit_type), f_lit(&f) {}
+    };
+    bool check_attrs(const ast::NamedAttr&, const ArrayRef<AttrCase>&);
     bool check_filter(const ast::Expr&);
     void check_refutability(const ast::Ptrn&, bool);
 

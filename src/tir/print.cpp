@@ -554,6 +554,22 @@ void BinOp::print(Printer& p) const {
     p.print(*rhs);
 }
 
+void Builtin::print(Printer& p) const {
+    p << log::keyword_style("builtin") << " \"" << tag_name(tag) << "\" (";
+    print_list(p.top(), ", ", args, [&] (auto& a) {
+        p.print(*a, true);
+    });
+    p << ")";
+}
+
+void MathOp::print(Printer& p) const {
+    p << log::keyword_style("mathop") << " " << tag << " (";
+    print_list(p.top(), ", ", args, [&] (auto& a) {
+        p.print(*a, true);
+    });
+    p << ")";
+}
+
 void Branch::print(Printer& p) const {
     p << log::keyword_style("if") << " (";
     p.print(*cond);

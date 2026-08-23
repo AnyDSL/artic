@@ -116,6 +116,161 @@ const Value* TypeChecker::build_fn_body(const ValueVar* param, ast::FnExpr& fn, 
         });
 }
 
+void TypeChecker::infer_fn_attrs(const ast::FnDecl* fn_decl, const Function* fn) {
+    if (!fn_decl->attrs)
+        return;
+    check_attrs(*fn_decl->attrs, std::array<AttrCase, 2> {
+        AttrCase { "export", [&](ast::NamedAttr& export_attr) -> void {
+            FunctionLinkage linkage {
+                .symbol = fn_decl->id.name,
+                .is_external = true
+            };
+            auto fn_type = scope().peek_type(scope().peek_value(fn_decl->var->as<Value>())->type())->isa<artic::FnType>();
+            if (!fn_type)
+                error(fn_decl->loc, "polymorphic functions cannot be exported");
+            else if (fn_type->Type::order(scope()) > 1)
+                error(fn_decl->loc, "higher-order functions cannot be exported");
+            else if (!fn_decl->fn->body)
+                error(fn_decl->loc, "exported functions must have a body");
+            else
+                check_attrs(export_attr, std::array<AttrCase, 1> { AttrCase { "name", AttrCase::String, [&](ast::LiteralAttr& name_attr) {
+                    linkage.symbol = name_attr.lit.as_string();
+                }}});
+            fn->linkage = linkage;
+        }},
+        AttrCase { "import", [&](ast::NamedAttr& import_attr) -> void {
+            if (fn_decl->fn->body) {
+                error(fn_decl->loc, "imported functions cannot have a body");
+                // don't bother diagnosing further, avoids setting body twice
+                return;
+            }
+            std::optional<FunctionLinkage> linkage = FunctionLinkage {
+                .symbol = fn_decl->id.name,
+            };
+            check_attrs(import_attr, std::array<AttrCase, 2> {
+                AttrCase { "name", AttrCase::String, [&](auto& name_attr) {
+                    linkage->symbol = name_attr.lit.as_string();
+                }},
+                AttrCase { "cc", AttrCase::String, [&](auto& cc_attr) {
+                    const auto& cc = cc_attr.lit.as_string();
+                    if (cc == "C") {
+                        linkage->cc = thorin::CC::C;
+                        linkage->is_external = true;
+                    } else if (cc == "device") {
+                        linkage->cc = thorin::CC::Device;
+                        linkage->is_external = true;
+                    } else if (cc == "thorin") {
+                        // imported thorin functions are NOT external
+                        linkage->cc = thorin::CC::Thorin;
+                        linkage->is_external = false;
+                    } else if (cc == "builtin") {
+                        // builtin functions are actually not external at all
+                        const auto& builtin_name = linkage->symbol;
+                        linkage = std::nullopt;
+                        static const std::unordered_map<std::string, thorin::MathOpTag> math_ops = {
+                            { "fabs",     thorin::MathOpTag::MathOp_fabs },
+                            { "copysign", thorin::MathOpTag::MathOp_copysign },
+                            { "round",    thorin::MathOpTag::MathOp_round },
+                            { "ceil",     thorin::MathOpTag::MathOp_ceil },
+                            { "floor",    thorin::MathOpTag::MathOp_floor },
+                            { "fmin",     thorin::MathOpTag::MathOp_fmin },
+                            { "fmax",     thorin::MathOpTag::MathOp_fmax },
+                            { "cos",      thorin::MathOpTag::MathOp_cos },
+                            { "sin",      thorin::MathOpTag::MathOp_sin },
+                            { "tan",      thorin::MathOpTag::MathOp_tan },
+                            { "acos",     thorin::MathOpTag::MathOp_acos },
+                            { "asin",     thorin::MathOpTag::MathOp_asin },
+                            { "atan",     thorin::MathOpTag::MathOp_atan },
+                            { "atan2",    thorin::MathOpTag::MathOp_atan2 },
+                            { "sqrt",     thorin::MathOpTag::MathOp_sqrt },
+                            { "cbrt",     thorin::MathOpTag::MathOp_cbrt },
+                            { "pow",      thorin::MathOpTag::MathOp_pow },
+                            { "exp",      thorin::MathOpTag::MathOp_exp },
+                            { "exp2",     thorin::MathOpTag::MathOp_exp2 },
+                            { "log",      thorin::MathOpTag::MathOp_log },
+                            { "log2",     thorin::MathOpTag::MathOp_log2 },
+                            { "log10",    thorin::MathOpTag::MathOp_log10 },
+                        };
+                        auto found_mathop = math_ops.find(builtin_name);
+                        if (found_mathop != math_ops.end()) {
+                            Array<const Value*> args = { fn->param };
+                            fn->set_body(builder(), builder().unsafe().mathop(found_mathop->second, args));
+                            return;
+                        }
+                        for (int t = 0; t <= int(Builtin::Tag::Max); t++) {
+                            auto tag = Builtin::Tag(t);
+                            if (Builtin::tag_name(tag) == builtin_name) {
+                                Array<const Node*> args = { fn->param };
+                                if (tag == Builtin::Tag::SizeOf || tag == Builtin::Tag::AlignOf)
+                                    args = { fn_decl->type_params->params[0]->var };
+                                if (tag == Builtin::Tag::BitCast)
+                                    args = { fn_decl->type_params->params[0]->var, fn->param };
+                                fn->set_body(builder(), builder().unsafe().builtin(tag, args));
+                                return;
+                            }
+                        }
+                        if (builtin_name == "undef") {
+                            fn->set_body(builder(), builder().undef(fn_decl->type_params->params[0]->var->as<Type>()));
+                            return;
+                        }
+                        error(fn_decl->loc, "unsupported built-in function");
+                    } else
+                        error(cc_attr.loc, "invalid calling convention '{}'", cc);
+                }},
+            });
+            if (linkage)
+                fn->linkage = linkage;
+            /*{
+                auto name = fn_decl->id.name;
+                if (auto name_attr = import_attr.find("name"))
+                    name = name_attr->as<ast::LiteralAttr>()->lit.as_string();
+                if (auto cc_attr = import_attr.find("cc")) {
+                    auto& cc = cc_attr->as<ast::LiteralAttr>()->lit.as_string();
+                    if (cc == "builtin") {
+                        static const std::unordered_set<std::string> builtins = {
+                            "alignof", "bitcast", "insert", "select", "sizeof", "undef", "compare",
+                            "fabs", "copysign", "signbit",
+                            "round", "ceil", "floor",
+                            "fmin", "fmax",
+                            "cos", "sin", "tan",
+                            "acos", "asin", "atan", "atan2",
+                            "sqrt", "cbrt",
+                            "pow", "exp", "exp2",
+                            "log", "log2", "log10",
+                            "isnan", "isfinite"
+                        };
+                        if (builtins.count(name) == 0)
+                            error(fn_decl->loc, "unsupported built-in function");
+                    } else if (cc != "C" && cc != "device" && cc != "thorin")
+                        error(cc_attr->loc, "invalid calling convention '{}'", cc);
+                }
+            }
+            if (fn_decl->fn->body)
+                error(fn_decl->loc, "imported functions cannot have a body");*/
+        }}
+    });
+}
+
+void TypeChecker::infer_global_attrs(const ast::StaticDecl* decl, const GlobalVariable* fn) {
+    if (!decl->attrs)
+        return;
+    check_attrs(*decl->attrs, std::array<AttrCase, 1> {
+        AttrCase { "import", [&](ast::NamedAttr& import_attr) -> void {
+            if (!decl->is_top_level)
+                error(import_attr.loc, "attribute '{}' is only valid for top level declarations", import_attr.name);
+            fn->linkage = GlobalVarLinkage {
+                .symbol = decl->id.name,
+                .is_external = true,
+            };
+            check_attrs(import_attr, std::array<AttrCase, 1> {
+                AttrCase { "name", AttrCase::String, [&](ast::LiteralAttr& name_attr) -> void {
+                    fn->linkage->symbol = name_attr.lit.as_string();
+                }}
+            });
+        }},
+    });
+}
+
 const Value* TypeChecker::build_fn_filter(const ValueVar* param, ast::FnExpr& fn) {
     return yield_expr_scope([&] {
         bind_ptrn_params(*fn.param, param);
@@ -941,35 +1096,49 @@ void TypeChecker::check_refutability(const ast::Ptrn& ptrn, bool must_be_trivial
         invalid_ptrn(ptrn.loc, must_be_trivial);
 }
 
-bool TypeChecker::check_attrs(const ast::NamedAttr& named_attr, const ArrayRef<AttrType>& attr_types) {
-    std::unordered_map<std::string_view, const ast::Attr*> seen;
+bool TypeChecker::check_attrs(const ast::NamedAttr& named_attr, const ArrayRef<AttrCase>& cases) {
+    assert(!named_attr.checked && "don't check attributes twice");
+    std::unordered_map<const AttrCase*, ast::Attr*> seen;
     for (auto& attr : named_attr.args) {
-        if (!seen.emplace(attr->name, attr.get()).second) {
+        auto it = std::find_if(cases.begin(), cases.end(), [&] (auto& attr_type) {
+            return attr_type.name == attr->name;
+        });
+        if (it == cases.end()) {
+            error(attr->loc, "unsupported attribute '{}'", attr->name);
+            return false;
+        }
+
+        assert(!attr->checked && "don't check attributes twice");
+        if (!seen.emplace(it, attr.get()).second) {
             error(attr->loc, "redeclaration of attribute '{}'", attr->name);
-            note(seen[attr->name]->loc, "previously declared here");
+            note(seen[it]->loc, "previously declared here");
             return false;
         }
     }
-    for (auto& attr : named_attr.args) {
-        auto it = std::find_if(attr_types.begin(), attr_types.end(), [&] (auto& attr_type) {
-            return attr_type.name == attr->name;
-        });
-        if (it == attr_types.end()) {
-            error(attr->loc, "unsupported attribute '{}'", attr->name);
-            return false;
-        } else {
-            if (auto literal_attr = attr->isa<ast::LiteralAttr>()) {
-                if (it->type == AttrType::Integer && literal_attr->lit.is_integer())
-                    continue;
-                if (it->type == AttrType::String && literal_attr->lit.is_string())
-                    continue;
-            } else if (auto path_attr = attr->isa<ast::PathAttr>(); path_attr && it->type == AttrType::Path)
+
+    for (auto [cas, attr] : seen) {
+        if (auto literal_attr = attr->isa<ast::LiteralAttr>()) {
+            if (cas->f_lit && cas->lit_type == AttrCase::Integer && literal_attr->lit.is_integer()) {
+                (*cas->f_lit)(*literal_attr);
+                literal_attr->checked = true;
                 continue;
-            else if (it->type == AttrType::Other)
+            }
+            if (cas->f_lit && cas->lit_type == AttrCase::String && literal_attr->lit.is_string()) {
+                (*cas->f_lit)(*literal_attr);
+                literal_attr->checked = true;
                 continue;
-            error(attr->loc, "malformed '{}' attribute", attr->name);
-            return false;
+            }
+        } else if (auto path_attr = attr->isa<ast::PathAttr>(); path_attr && cas->f_path) {
+            (*cas->f_path)(*path_attr);
+            path_attr->checked = true;
+            continue;
+        } else if (auto named_attr2 = attr->isa<ast::NamedAttr>(); named_attr2 && cas->f_named) {
+            (*cas->f_named)(*named_attr2);
+            attr->checked = true;
+            continue;
         }
+        error(attr->loc, "malformed '{}' attribute", attr->name);
+        return false;
     }
     return true;
 }
@@ -1461,68 +1630,9 @@ const tir::Node* Filter::check(TypeChecker& checker, const artic::Type* expected
 // Attributes ----------------------------------------------------------------------
 
 void NamedAttr::check(TypeChecker& checker, const ast::Node* node) {
-    if (name == "export" || name == "import") {
-        if (auto fn_decl = node->isa<FnDecl>()) {
-            if (name == "export") {
-                auto fn_type = checker.scope().resolve_var_deep(fn_decl->var)->as<Value>()->type()->isa<artic::FnType>();
-                if (!fn_type)
-                    checker.error(fn_decl->loc, "polymorphic functions cannot be exported");
-                else if (fn_type->Type::order(checker.scope()) > 1)
-                    checker.error(fn_decl->loc, "higher-order functions cannot be exported");
-                else if (!fn_decl->fn->body)
-                    checker.error(fn_decl->loc, "exported functions must have a body");
-                else
-                    checker.check_attrs(*this, std::array<AttrType, 1> { AttrType { "name", AttrType::String } });
-            } else if (name == "import") {
-                if (checker.check_attrs(*this, std::array<AttrType, 2> {
-                        AttrType { "cc", AttrType::String },
-                        AttrType { "name", AttrType::String }
-                    }))
-                {
-                    auto name = fn_decl->id.name;
-                    if (auto name_attr = find("name"))
-                        name = name_attr->as<LiteralAttr>()->lit.as_string();
-                    if (auto cc_attr = find("cc")) {
-                        auto& cc = cc_attr->as<LiteralAttr>()->lit.as_string();
-                        if (cc == "builtin") {
-                            static const std::unordered_set<std::string> builtins = {
-                                "alignof", "bitcast", "insert", "select", "sizeof", "undef", "compare",
-                                "fabs", "copysign", "signbit",
-                                "round", "ceil", "floor",
-                                "fmin", "fmax",
-                                "cos", "sin", "tan",
-                                "acos", "asin", "atan", "atan2",
-                                "sqrt", "cbrt",
-                                "pow", "exp", "exp2",
-                                "log", "log2", "log10",
-                                "isnan", "isfinite"
-                            };
-                            if (builtins.count(name) == 0)
-                                checker.error(fn_decl->loc, "unsupported built-in function");
-                        } else if (cc != "C" && cc != "device" && cc != "thorin")
-                            checker.error(cc_attr->loc, "invalid calling convention '{}'", cc);
-                    }
-                }
-                if (fn_decl->fn->body)
-                    checker.error(fn_decl->loc, "imported functions cannot have a body");
-            }
-        } else if (auto staticdecl = node->isa<StaticDecl>()) {
-            if (name == "import") {
-                checker.error(loc, "attribute '{}' is only valid for function declarations", name);
-            }
-            if (!staticdecl->is_top_level) {
-                checker.error(loc, "attribute '{}' is only valid for top level declarations", name);
-            }
-        } else {
-            if (name == "import")
-                checker.error(loc, "attribute '{}' is only valid for function declarations", name);
-            else
-                checker.error(loc, "attribute '{}' is only valid for function and static declarations", name);
-        }
-    } else if (name == "intern") {
-        checker.check_attrs(*this, std::array<AttrType, 1> { AttrType { "name", AttrType::String } });
-    } else
-        checker.invalid_attr(loc, name);
+    if (checked)
+        return;
+    checker.invalid_attr(loc, name);
 }
 
 void PathAttr::check(TypeChecker& checker, const ast::Node*) {
@@ -2544,7 +2654,9 @@ const tir::Node* StaticDecl::infer(TypeChecker& checker) {
         }
     }
     checker.exit_decl(this);
-    var = checker.let_rec_builder().schedule_value(checker.builder().global_variable(value_type, is_mut, value, this));
+    auto global = checker.builder().global_variable(value_type, is_mut, value, this);
+    checker.infer_global_attrs(this, global);
+    var = checker.let_rec_builder().schedule_value(global);
     return var;
 }
 
@@ -2582,6 +2694,7 @@ const tir::Node* FnDecl::infer(TypeChecker& checker) {
                 tir_fn->set_filter(checker.builder(), checker.build_fn_filter(param, *fn));
 
             prev.bind(var, tir_fn);
+            checker.infer_fn_attrs(this, tir_fn);
 
             checker.exit_decl(this);
             return var;
@@ -2594,6 +2707,7 @@ const tir::Node* FnDecl::infer(TypeChecker& checker) {
             tir_fn = checker.infer_value(*fn)->as<tir::Function>();
             checker.let_rec_builder().bind(fn_type_var, tir_fn->type());
             checker.let_rec_builder().bind(var, tir_fn);
+            checker.infer_fn_attrs(this, tir_fn);
             // var = checker.builder().param(id, tir_fn->type());
 
             checker.exit_decl(this);

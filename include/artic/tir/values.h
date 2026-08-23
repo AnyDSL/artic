@@ -3,6 +3,8 @@
 
 #include "artic/tir/types.h"
 
+#include "thorin/continuation.h"
+
 namespace artic {
 
 namespace tir {
@@ -124,12 +126,19 @@ struct LetRecValue : public Value, public LetRec {
     LetRecValue(Builder&, Scope&, const ArrayRef<std::tuple<const Var*, const Node*>>&, const Value*);
 };
 
+struct FunctionLinkage {
+    std::string symbol;
+    bool is_external = false;
+    bool is_thorin_intrinsic = false;
+    thorin::CC cc = thorin::CC::C;
+};
 
 struct Function : public Value {
     Scope& scope;
     const ValueVar* param;
     const Type* codom;
     const ast::FnDecl* decl = nullptr;
+    mutable std::optional<FunctionLinkage> linkage;
 
     void print(Printer&) const override;
     const Node* rewrite(Rewriter&) const override;
@@ -167,11 +176,18 @@ struct Call : public Value {
     Call(Arena&, const Value* callee, const Value* arg);
 };
 
+struct GlobalVarLinkage {
+    std::string symbol;
+    bool is_external = false;
+};
+
 struct GlobalVariable : public Value {
     const Type* allocated_type;
     bool is_mut;
     const Value* init;
     const ast::StaticDecl* decl;
+
+    mutable std::optional<GlobalVarLinkage> linkage;
 
     void print(Printer&) const override;
     const Node* rewrite(Rewriter&) const override;
@@ -343,18 +359,6 @@ struct Bind : public Value {
     Bind(Builder&, const ValueVar*, const Value*);
 };
 
-/*struct WithMod : public NominalNode<Value> {
-    const ModVar* var;
-    const ModValue* value;
-
-    void print(Printer&) const override;
-    const Node* rewrite(Rewriter&) const override;
-
-    const thorin::Def* emit(Emitter&) const override;
-
-    WithMod(Arena&, const ModVar*, const ModValue*);
-};*/
-
 struct Seq : public Value {
     Array<const Value*> evaluate;
     const Value* yield;
@@ -403,6 +407,65 @@ struct BinOp : public Value {
     void emit_branch(Emitter&, thorin::Continuation*, thorin::Continuation*) const override;
 
     BinOp(Builder&, const ast::BinaryExpr::Tag, const Value*, const Value*);
+};
+
+const Array<std::string> builtin_tag_names = {
+    "alignof",
+    "sizeof",
+    "bitcast",
+    "insert",
+    "select",
+    "isnan",
+    "isfinite",
+    "compare",
+};
+
+struct Builtin : public Value {
+    enum class Tag {
+        AlignOf,
+        SizeOf,
+        BitCast,
+        Insert,
+        Select,
+        SignBit,
+        IsNaN,
+        IsFinite,
+        Compare,
+        Max = Compare,
+    } tag;
+
+    static std::string_view tag_name(Tag tag) {
+        return builtin_tag_names[int(tag)];
+    }
+
+    Array<const Node*> args;
+
+    bool equals(const Node*) const override;
+    size_t hash() const override;
+    void free_variables(FVSet&, Seen&) const override;
+
+    void print(Printer&) const override;
+    const Node* rewrite(Rewriter&) const override;
+
+    const thorin::Def* emit(Emitter&) const override;
+
+    Builtin(Builder&, Tag, const ArrayRef<const Node*>&);
+};
+
+struct MathOp : public Value {
+    thorin::MathOpTag tag;
+    Array<const Value*> args;
+
+    bool equals(const Node*) const override;
+    size_t hash() const override;
+    void free_variables(FVSet&, Seen&) const override;
+
+    void print(Printer&) const override;
+    const Node* rewrite(Rewriter&) const override;
+
+    const thorin::Def* emit(Emitter&) const override;
+
+    MathOp(Builder&, thorin::MathOpTag, const ArrayRef<const Value*>&);
 };
 
 struct Branch : public Value {
