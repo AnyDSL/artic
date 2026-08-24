@@ -582,8 +582,9 @@ std::pair<const TypeApp*, const T*> peek_app_type(Builder& builder, const Type* 
 
 template <typename T>
 std::pair<const TypeApp*, const T*> peek_app_type_unapplied(const Scope& scope, const Type* type) {
-    auto [app, t] = peek_app_type(builder, type);
-    return { app, t->isa<T>() };
+    assert(false);
+    //auto [app, t] = peek_app_type(builder, type);
+    //return { app, t->isa<T>() };
 }
 
 } // namespace tir

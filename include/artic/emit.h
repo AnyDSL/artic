@@ -151,6 +151,7 @@ public:
     const thorin::Def* call(const thorin::Def*, const thorin::Def*, thorin::Debug = {});
     const thorin::Def* call(const thorin::Def*, const thorin::Def*, thorin::Continuation*, thorin::Debug = {});
     void branch(const thorin::Def*, const thorin::Def*, const thorin::Def*, thorin::Debug = {});
+    void match(const thorin::Def*, thorin::Continuation*, thorin::Defs, thorin::ArrayRef<thorin::Continuation*>, thorin::Debug debug = {});
 
     const thorin::Def* alloc(const thorin::Type*, thorin::Debug = {});
     void store(const thorin::Def*, const thorin::Def*, thorin::Debug = {});

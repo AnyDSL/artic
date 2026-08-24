@@ -1,5 +1,6 @@
 #include "artic/tir/passes.h"
 #include "artic/tir/rewrite.h"
+#include "artic/tir/print.h"
 
 #include "artic/arena.h"
 
@@ -12,52 +13,37 @@ class PtrnCompiler : public Logger {
 public:
     struct MatchCase {
         const Match::Case* match_case;
-        // const ast::Ptrn* ptrn;
-        // const ast::Expr* expr;
-        // const ast::Node* node;
-
         bool is_redundant = true;
         const Function* fn = nullptr;
-        // thorin::Continuation* cont = nullptr;
-        // const thorin::Continuation* target;
-        std::vector<const struct ast::IdPtrn*> bound_ptrns;
 
-        MatchCase(
-            const ast::Ptrn* ptrn,
-            const ast::Expr* expr,
-            const ast::Node* node,
-            const thorin::Continuation* target)
-            : ptrn(ptrn)
-            , expr(expr)
-            , node(node)
-            , target(target)
-        {
-            ptrn->collect_bound_ptrns(bound_ptrns);
-        }
+        MatchCase(const Match::Case* match_case)
+            : match_case(match_case)
+        {}
 
         const Function* emit(ExprBuilder&);
     };
 
-    static void emit(
+    static const Value* emit(
         Builder&,
+        ::Arena&,
+        Log&,
         const Match* node,
-        std::vector<MatchCase>&& cases,
-        std::unordered_map<const ast::IdPtrn*, const Value*>&& matched_values);
+        std::vector<MatchCase>&& cases);
 
 private:
     // Note: `nullptr`s are used to denote row elements that are not connected to any pattern
-    using Row = std::pair<std::vector<const ast::Ptrn*>, MatchCase*>;
+    using Row = std::pair<std::vector<const Match::Ptrn*>, MatchCase*>;
     // using Value = std::pair<const Value*, const Type*>;
     using Cost = size_t;
 
     Builder& builder;
     ::Arena& arena;
     const Match* node;
-    const Value* expr;
     std::vector<Row> rows;
     std::vector<const Value*> values;
-    std::unordered_map<const ast::IdPtrn*, const tir::Value*>& matched_values;
-    PtrVector<ast::Ptrn> tmp_ptrns;
+    // std::unordered_map<const ast::IdPtrn*, const tir::Value*>& matched_values;
+    std::vector<std::unique_ptr<Match::Ptrn>> tmp_ptrns;
+    // PtrVector<ast::Ptrn> tmp_ptrns;
 
     PtrnCompiler(
         Builder& builder,
@@ -65,20 +51,21 @@ private:
         Log& log,
         const Match* match,
         std::vector<Row>&& rows,
-        std::vector<const Value*>&& values,
-        std::unordered_map<const ast::IdPtrn*, const tir::Value*>& matched_values)
+        std::vector<const Value*>&& values)
         : builder(builder)
         , arena(arena)
         , node(match)
-        , expr(match->cond)
         , rows(std::move(rows))
         , values(std::move(values))
-        , matched_values(matched_values)
         , Logger(log)
     {}
 
     static bool is_wildcard(const ast::Ptrn* ptrn) {
         return !ptrn || ptrn->isa<ast::IdPtrn>();
+    }
+
+    static bool is_wildcard(const Match::Ptrn* ptrn) {
+        return !ptrn || ptrn->is_trivial();
     }
 
     template <typename T>
@@ -116,7 +103,13 @@ private:
             return ctor_index(*record_ptrn->variant_index/*, debug_info(ptrn)*/);
         return ptrn.isa<ast::LiteralPtrn>()
             ? builder.typed_literal(ptrn.as<ast::LiteralPtrn>()->lit, ptrn.type)
-            : ctor_index(ptrn.as<ast::CtorPtrn>()->variant_index/*, debug_info(ptrn)*/);
+            : ctor_index(*ptrn.as<ast::CtorPtrn>()->variant_index/*, debug_info(ptrn)*/);
+    }
+
+    const Value* ctor_index(const Match::Ptrn& ptrn) const {
+        if (ptrn.variant_index)
+            return ctor_index(*ptrn.variant_index);
+        assert(false);
     }
 
     const Value* ctor_index(size_t index/*, thorin::Debug debug*/) const {
@@ -147,13 +140,26 @@ private:
         return std::find(enabled.begin(), enabled.end(), true) - enabled.begin();
     }
 
+    static void expand(Row& row, const Match::Ptrn* ptrn) {
+        if (ptrn->sub_ptrn) {
+            row.first.push_back(ptrn->sub_ptrn);
+        }
+        if (!ptrn->elem_ptrns.empty()) {
+            std::vector<const Match::Ptrn*> new_elems(ptrn->elem_ptrns.size(), nullptr);
+            for (size_t j = 0; j < ptrn->elem_ptrns.size(); ++j) {
+                new_elems[j] = std::get<1>(ptrn->elem_ptrns[j]);
+            }
+            row.first.insert(row.first.end(), new_elems.begin(), new_elems.end());
+        }
+    }
+
     // Transforms the rows such that tuples and structures are completely deconstructed
     void expand(ExprBuilder& expr_builder) {
         for (size_t i = 0; i < values.size();) {
             // Replace patterns by their sub-patterns, if possible
             // i.e if the pattern is `z as (x, y)` then we replace it with `(x, y)`
             // and remember that `z` maps to the value bound to `(x, y)`
-            for (auto& row : rows) {
+            /*for (auto& row : rows) {
                 if (!row.first[i])
                     continue;
                 while (true) {
@@ -163,9 +169,9 @@ private:
                     } else
                         break;
                 }
-            }
+            }*/
 
-            auto type = values[i]->type();
+            auto type = builder.scope.peek_type(values[i]->type());
             auto [type_app, struct_type] = peek_app_type_unapplied<StructType>(builder.scope, type);
 
             // Can only expand tuples or structures
@@ -184,9 +190,12 @@ private:
 
             // Expand the patterns in this column, for each row
             for (auto& row : rows) {
-                std::vector<const ast::Ptrn*> new_elems(member_count, nullptr);
                 if (row.first[i]) {
-                    if (auto struct_ptrn = row.first[i]->isa<ast::RecordPtrn>()) {
+                    const Match::Ptrn* ptrn = row.first[i];
+                    assert(ptrn->is_trivial());
+                    remove_col(row.first, i);
+                    expand(row, ptrn);
+                    /*if (auto struct_ptrn = row.first[i]->isa<ast::RecordPtrn>()) {
                         for (auto& field : struct_ptrn->fields) {
                             if (!field->is_etc())
                                 new_elems[field->index] = field->ptrn.get();
@@ -219,10 +228,9 @@ private:
                         }
                     } else {
                         matched_values.emplace(row.first[i]->as<ast::IdPtrn>(), values[i]);
-                    }
+                    }*/
                 }
-                remove_col(row.first, i);
-                row.first.insert(row.first.end(), new_elems.begin(), new_elems.end());
+                //row.first.insert(row.first.end(), new_elems.begin(), new_elems.end());
             }
 
             // Expand the value to match against
@@ -238,6 +246,14 @@ private:
         }
     }
 
+    std::tuple<std::unique_ptr<Builder>, const Function*> make_fn() {
+        auto param = builder.value_var(std::nullopt, builder.unit_type());
+        Scope& scope = builder.scope.new_child();
+        scope.insert(param, nullptr);
+        auto fn_builder = std::make_unique<Builder>(builder.arena, scope, &builder);
+        return { std::move(fn_builder), builder.unsafe().function(param, scope, builder.no_ret_type(), nullptr) };
+    }
+
     const Value* compile() {
         if (rows.empty()) {
             non_exhaustive_match(node->loc);
@@ -250,26 +266,20 @@ private:
         if (std::all_of(
                 rows.front().first.begin(),
                 rows.front().first.end(),
-                [] (const ast::Ptrn* ptrn) {
+                [] (const Match::Ptrn* ptrn) {
                     return is_wildcard(ptrn);
                 }))
         {
             // If the first row is made of only wildcards, it is a match
             rows.front().second->is_redundant = false;
-            for (size_t i = 0, n = rows.front().first.size(); i < n; ++i) {
+            /*for (size_t i = 0, n = rows.front().first.size(); i < n; ++i) {
                 auto ptrn = rows.front().first[i];
                 // Emit names that are bound in this row
                 if (ptrn && ptrn->isa<ast::IdPtrn>())
                     matched_values.emplace(ptrn->as<ast::IdPtrn>(), values[i]);
-            }
+            }*/
             auto case_block = rows.front().second->emit(expr_builder);
-
-            // Map the matched patterns to arguments of the continuation
-            auto& bound_ptrns = rows.front().second->bound_ptrns;
-            Array<const Value*> args(bound_ptrns.size());
-            for (size_t i = 0, n = bound_ptrns.size(); i < n; ++i)
-                args[i] = matched_values[bound_ptrns[i]];
-            return expr_builder.finish(builder.unsafe().call(case_block, expr_builder.tuple(args)));
+            return expr_builder.finish(builder.unsafe().call(case_block, expr_builder.unit()));
         }
 
 #ifndef NDEBUG
@@ -294,8 +304,8 @@ private:
         // Then, build the new rows for each constructor case
         for (auto& row : rows) {
             if (is_wildcard(row.first[col])) {
-                if (row.first[col])
-                    matched_values.emplace(row.first[col]->as<ast::IdPtrn>(), values[col]);
+                // if (row.first[col])
+                //     matched_values.emplace(row.first[col]->as<ast::IdPtrn>(), values[col]);
                 remove_col(row.first, col);
                 for (auto& [ctor_index, ctor_rows] : ctors) {
                     // Wildcard rows "fall" in all sub-trees
@@ -311,13 +321,14 @@ private:
             } else {
                 auto ptrn = row.first[col];
                 remove_col(row.first, col);
-                if (auto call_ptrn = ptrn->isa<ast::CtorPtrn>(); call_ptrn && call_ptrn->arg) {
-                    row.first.push_back(call_ptrn->arg.get());
-                } else if (auto record_ptrn = ptrn->isa<ast::RecordPtrn>()) {
-                    // Since expansion uses the type of the value vector to know when to expand,
-                    // the record pattern will be expanded in the next iteration.
-                    row.first.push_back(record_ptrn);
-                }
+                expand(row, ptrn);
+                // if (auto call_ptrn = ptrn->isa<ast::CtorPtrn>(); call_ptrn && call_ptrn->arg) {
+                //     row.first.push_back(call_ptrn->arg.get());
+                // } else if (auto record_ptrn = ptrn->isa<ast::RecordPtrn>()) {
+                //     // Since expansion uses the type of the value vector to know when to expand,
+                //     // the record pattern will be expanded in the next iteration.
+                //     row.first.push_back(record_ptrn);
+                // }
                 ctors[ctor_index(*ptrn)].emplace_back(std::move(row));
             }
         }
@@ -325,75 +336,99 @@ private:
         // Generate jumps to each constructor case
         bool no_default = is_complete(builder.scope, col_type, ctors.size());
         if (is_bool_type(col_type)) {
-            const Function* match_true  = emitter.basic_block_with_mem(emitter.debug_info(node, "match_true"));
-            const Function* match_false = emitter.basic_block_with_mem(emitter.debug_info(node, "match_false"));
-            auto br = builder.unsafe().branch(values[col], match_true, match_false);
+            const Function* match_true;//  = emitter.basic_block_with_mem(emitter.debug_info(node, "match_true"));
+            const Function* match_false;// = emitter.basic_block_with_mem(emitter.debug_info(node, "match_false"));
 
             remove_col(values, col);
             for (auto& ctor : ctors) {
-                auto _ = emitter.save_state();
-                emitter.enter(thorin::is_allset(ctor.first) ? match_true : match_false);
-                PtrnCompiler(emitter, node, expr, std::move(ctor.second), std::vector<const Value*>(values), matched_values).compile();
+                auto [fn_builder, fn] = make_fn();
+                match_false = fn;
+                // auto _ = emitter.save_state();
+                // emitter.enter(thorin::is_allset(ctor.first) ? match_true : match_false);
+                match_false->set_body(builder, PtrnCompiler(*fn_builder, arena, log, node, std::move(ctor.second), std::vector<const Value*>(values)).compile());
             }
             if (!no_default) {
-                emitter.enter(thorin::is_allset(ctors.begin()->first) ? match_false : match_true);
-                PtrnCompiler(emitter, node, expr, std::move(wildcards), std::move(values), matched_values).compile();
+                auto [fn_builder, fn] = make_fn();
+                match_true = fn;
+                // auto _ = emitter.save_state();
+                // emitter.enter(thorin::is_allset(ctor.first) ? match_true : match_false);
+                match_true->set_body(builder, PtrnCompiler(*fn_builder, arena, log, node, std::move(wildcards), std::vector<const Value*>(values)).compile());
             }
 
+            if (ctors.begin()->first->as<TypedLiteral>()->value.as_bool())
+                std::swap(match_true, match_false);
+
+            auto br = builder.unsafe().branch(values[col], match_true, match_false);
             return expr_builder.finish(br);
         } else {
             assert(enum_type || is_int_type(col_type));
-            Array<thorin::Continuation*> targets(ctors.size());
+            Array<std::tuple<std::unique_ptr<Builder>, const Function*>> targets(ctors.size());
             Array<const Value*> defs(ctors.size());
-            auto otherwise = emitter.basic_block_with_mem(emitter.debug_info(node, "match_otherwise"));
+
+            auto otherwise = make_fn();
+            //auto otherwise = emitter.basic_block_with_mem(emitter.debug_info(node, "match_otherwise"));
 
             size_t count = 0;
             for (auto& ctor : ctors) {
                 defs[count] = ctor.first;
-                targets[count] = emitter.basic_block_with_mem(emitter.debug_info(node, "match_case"));
+                targets[count] = make_fn(); //emitter.basic_block_with_mem(emitter.debug_info(node, "match_case"));
                 count++;
             }
 
             const Value* sw;
-            if (emitter.state.cont) {
-                auto match_value = enum_type
-                   ? emitter.world.variant_index(values[col].first, emitter.debug_info(node, "variant_index"))
-                   : values[col].first;
-                emitter.state.cont->match(
-                    emitter.state.mem,
-                    match_value, otherwise,
-                    no_default ? defs.skip_back() : defs.ref(),
-                    no_default ? targets.skip_back() : targets.ref(),
-                    emitter.debug_info(node));
-            }
+            //if (emitter.state.cont) {
+            auto match_value = enum_type ? expr_builder.variant_index(values[col]) : values[col];
+                // auto match_value = enum_type
+                //    ? emitter.world.variant_index(values[col].first, emitter.debug_info(node, "variant_index"))
+                //    : values[col].first;
+                // emitter.state.cont->match(
+                //     emitter.state.mem,
+                //     match_value, otherwise,
+                //     no_default ? defs.skip_back() : defs.ref(),
+                //     no_default ? targets.skip_back() : targets.ref(),
+                //     emitter.debug_info(node));
+            //}
 
             auto col_value = values[col];
             remove_col(values, col);
 
             for (size_t i = 0, n = targets.size(); i < n; ++i) {
                 auto& rows = ctors[defs[i]];
-                auto _ = emitter.save_state();
-                emitter.enter(i == n - 1 && no_default ? otherwise : targets[i]);
+                auto& [case_builder, case_fn] = i == n - 1 && no_default ? otherwise : targets[i];
+
+                ExprBuilder case_expr_builder(builder.arena, &builder);
 
                 auto new_values = values;
                 if (enum_type) {
-                    auto index = thorin::primlit_value<uint64_t>(defs[i]);
-                    auto type  = member_type(col_type, index);
-                    auto value = emitter.world.variant_extract(col_value, index);
+                    auto index = defs[i]->as<TypedLiteral>()->value.as_integer();
+                    auto type  = case_builder->member_type(col_type, index);
+                    auto value = case_expr_builder.variant_extract(col_value, index);
                     // If the constructor refers to an option that has a parameter,
                     // we need to extract it and add it to the values.
                     if (!is_unit_type(type))
-                        new_values.emplace_back(emitter.world.cast(type->convert(emitter), value), type);
+                        new_values.emplace_back(/*emitter.world.cast(type->convert(emitter), value), type, */value);
                 }
 
-                PtrnCompiler(emitter, node, expr, std::move(rows), std::move(new_values), matched_values).compile();
+                auto yielded = case_expr_builder.finish(PtrnCompiler(*case_builder, arena, log, node, std::move(rows), std::move(new_values)).compile());
+                case_fn->set_body(builder, yielded);
             }
             if (!no_default) {
-                emitter.enter(otherwise);
-                PtrnCompiler(emitter, node, expr, std::move(wildcards), std::move(values), matched_values).compile();
+                //emitter.enter(otherwise);
+                auto& [otherwise_builder, otherwise_fn] = otherwise;
+                otherwise_fn->set_body(builder, PtrnCompiler(*otherwise_builder, arena, log, node, std::move(wildcards), std::move(values)).compile());
             }
 
-            return sw;
+            Array<Switch::Case> cases(no_default ? defs.size() - 1 : defs.size());
+            for (size_t i = 0; i < defs.size(); i++)
+                cases[i] = Switch::Case(defs[i], std::get<1>(targets[i]));
+            sw = expr_builder.unsafe().switch_(match_value, std::get<1>(otherwise), std::move(cases));
+            // emitter.state.cont->match(
+            //     emitter.state.mem,
+            //     match_value, otherwise,
+            //     no_default ? defs.skip_back() : defs.ref(),
+            //     no_default ? targets.skip_back() : targets.ref(),
+            //     emitter.debug_info(node));
+            return expr_builder.finish(sw);
         }
     }
 
@@ -411,36 +446,33 @@ private:
 
 const Function* PtrnCompiler::MatchCase::emit(ExprBuilder& expr_builder) {
     if (!fn) {
-        Array<const Type*> param_types(bound_ptrns.size());
-        for (size_t i = 0, n = bound_ptrns.size(); i < n; ++i)
-            param_types[i] = bound_ptrns[i]->type;
-        cont = emitter.basic_block_with_mem(emitter.world.tuple_type(param_types), emitter.debug_info(*node, "case_body"));
-        auto _ = emitter.save_state();
-        emitter.enter(cont);
-        auto tuple = emitter.tuple_from_params(cont);
-        for (size_t i = 0, n = bound_ptrns.size(); i < n; ++i)
-            emitter.bind(*bound_ptrns[i], n == 1 ? tuple : emitter.world.extract(tuple, i));
-        emitter.jump(target, emitter.emit(*expr), emitter.debug_info(*node));
+        fn = match_case->branch;
+        // cont = emitter.basic_block_with_mem(emitter.world.tuple_type(param_types), emitter.debug_info(*node, "case_body"));
+        // auto _ = emitter.save_state();
+        // emitter.enter(cont);
+        // auto tuple = emitter.tuple_from_params(cont);
+        // emitter.jump(target, emitter.emit(*expr), emitter.debug_info(*node));
     }
     return fn;
 }
 
 const Value* PtrnCompiler::emit(
     Builder& builder,
+    ::Arena& arena,
+    Log& log,
     const Match* match,
-    std::vector<MatchCase>&& cases,
-    std::unordered_map<const ast::IdPtrn*, const Value*>&& matched_values)
+    std::vector<MatchCase>&& cases)
 {
     auto rows = std::vector<PtrnCompiler::Row>();
     for (auto& case_ : cases)
-        rows.emplace_back(std::vector<const ast::Ptrn*>{ case_.match_case->ptrn }, &case_);
+        rows.emplace_back(std::vector<const Match::Ptrn*> { case_.match_case->ptrn }, &case_);
 
-    std::vector<const Value*> values = { match->cond };
-    auto compiler = PtrnCompiler(builder, log, node, expr, std::move(rows), std::move(values), matched_values);
+    std::vector<const Value*> values = { match->value };
+    auto compiler = PtrnCompiler(builder, arena, log, match, std::move(rows), std::move(values));
     auto r = compiler.compile();
     for (auto &row : compiler.rows) {
         if (row.second->is_redundant)
-            compiler.redundant_case(row.second->match_case->loc);
+            compiler.redundant_case(*row.second->match_case->loc);
     }
     return r;
 }
@@ -448,9 +480,6 @@ const Value* PtrnCompiler::emit(
 // Since this code is used for debugging only, it makes sense to hide it in
 // the coverage report. This is done using these START/STOP markers.
 #ifndef NDEBUG // GCOV_EXCL_START
-
-#include "artic/tir/print.h"
-
 void PtrnCompiler::dump() const {
     artic::Printer base(log::out);
     artic::tir::Printer p(base);
@@ -474,13 +503,13 @@ void PtrnCompiler::dump() const {
     }
     p << p.unindent() << p.endl();
     p << '}' << p.endl();
-    p << "(matched: " << p.indent();
+    /*p << "(matched: " << p.indent();
     for (auto& pair : matched_values) {
         p << p.endl();
         pair.first->print(base);
         p << " = ";
         p << pair.second;
-    }
+    }*/
     p << ')' << p.unindent() << p.endl();
 }
 #endif // GCOV_EXCL_STOP

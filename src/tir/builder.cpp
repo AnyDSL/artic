@@ -131,6 +131,8 @@ const Type* Builder::member_type(const Type* type, size_t idx) {
         return tuple_type->args[idx];
     else if (auto array_type = type->isa<ArrayType>())
         return array_type->elem;
+    else if (auto enum_type = type->isa<EnumType>())
+        return enum_type->members[idx];
     else {
         assert(false);
         return nullptr;
@@ -422,6 +424,30 @@ const Value* ExprBuilder::proj(const Value* src, const Value* idx) {
     return bind_value(unsafe().proj(src, idx));
 }
 
+const Value* Builder::Unsafe::variant(const Type* type, size_t idx, const Value* elem) {
+    return builder.arena.insert<Variant>(builder, type, idx, elem);
+}
+
+const Value* ExprBuilder::variant(const Type* type, size_t idx, const Value* elem) {
+    return bind_value(unsafe().variant(type, idx, elem));
+}
+
+const Value* Builder::Unsafe::variant_index(const Value* value) {
+    return builder.arena.insert<VariantIndex>(builder, value);
+}
+
+const Value* ExprBuilder::variant_index(const Value* value) {
+    return bind_value(unsafe().variant_index(value));
+}
+
+const Value* Builder::Unsafe::variant_extract(const Value* value, size_t idx) {
+    return builder.arena.insert<VariantExtract>(builder, value, idx);
+}
+
+const Value* ExprBuilder::variant_extract(const Value* value, size_t idx) {
+    return bind_value(unsafe().variant_extract(value, idx));
+}
+
 const Value* Builder::Unsafe::unop(ast::UnaryExpr::Tag tag, const Value* arg) {
     return builder.arena.insert<UnOp>(builder, tag, arg);
 }
@@ -440,6 +466,19 @@ const Value* ExprBuilder::binop(ast::BinaryExpr::Tag tag, const Value* lhs, cons
 
 const Branch* Builder::Unsafe::branch(const Value* cond, const Function* true_branch, const Function* else_branch) {
     return builder.arena.insert<Branch>(builder, cond, true_branch, else_branch);
+}
+
+const Match::Ptrn* Builder::Unsafe::match_ptrn(Match::Ptrn&& ptrn) {
+    return new Match::Ptrn(ptrn);
+    //return builder.arena.insert<Match::Ptrn>(ptrn);
+}
+
+const Match* Builder::Unsafe::match(const Loc& loc, const Value* value, Array<Match::Case>&& cases) {
+    return builder.arena.insert<Match>(builder, loc, value, std::move(cases));
+}
+
+const Switch* Builder::Unsafe::switch_(const Value* value, const Function* default_case, Array<Switch::Case>&& cases) {
+    return builder.arena.insert<Switch>(builder, value, default_case, std::move(cases));
 }
 
 const Value* ExprBuilder::finish_branch(const Value* cond, const Function* true_branch, const Function* else_branch) {

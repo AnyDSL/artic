@@ -42,6 +42,7 @@ public:
     void incompatible_types(const Loc&, const Type*, const Type*, const std::string_view& = "type");
     void incompatible_type(const Loc&, const std::string_view&, const Type*);
     void type_expected(const Loc&, const Type*, const std::string_view&);
+    void expected(const Loc&, const std::string_view&);
     void unknown_member(const Loc&, const UserType*, const std::string_view&);
     void unknown_module_member(const Loc&, const ast::Path::Elem::Inferred&, const std::string_view&);
     void cannot_infer(const Loc&, const std::string_view&);
@@ -97,7 +98,7 @@ public:
     Array<const Var*> infer(ast::TypeParamList*);
 
     /// Explores a pattern recursively and makes sure the body is wrapped in Bind nodes that extract the value of each sub-pattern
-    void bind_ptrn_params(ast::Ptrn&, const Value*);
+    const Match::Ptrn* bind_ptrn_params(ast::Ptrn&, const Value*);
     const Value* build_fn_body(const ValueVar* param, ast::FnExpr& fn, const tir::Type* codom);
     const Value* build_fn_filter(const ValueVar* param, ast::FnExpr& fn);
     void infer_fn_attrs(const ast::FnDecl* fn_decl, const Function* fn);

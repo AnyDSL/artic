@@ -513,6 +513,31 @@ void Extract::print(Printer& p) const {
     p << ')';
 }
 
+void Variant::print(Printer& p) const {
+    p << log::keyword_style("variant") << '[';
+    p.print(*type(), true);
+    p << ", " << index;
+    p << "]";
+    p << '(';
+    p.print(*elem, true);
+    p << ')';
+}
+
+void VariantIndex::print(Printer& p) const {
+    p << log::keyword_style("variant_index");
+    p << '(';
+    p.print(*src);
+    p << ')';
+}
+
+void VariantExtract::print(Printer& p) const {
+    p << log::keyword_style("variant_extract");
+    p << '(';
+    p.print(*src);
+    p << ", " << index;
+    p << ')';
+}
+
 void Proj::print(Printer& p) const {
     p << log::keyword_style("proj");
     p << '(';
@@ -577,6 +602,64 @@ void Branch::print(Printer& p) const {
     p.print(*true_branch, true);
     p << " " << log::keyword_style("else") << " ";
     p.print(*else_branch, true);
+}
+
+void Match::Ptrn::print(Printer& p) const {
+    p << log::keyword_style("ptrn") << ' ';
+    if (variant_index)
+        p << log::keyword_style("variant_index") << " = " << *variant_index << " ";
+    if (sub_ptrn) {
+        p << log::keyword_style("sub") << ' ';
+        sub_ptrn->print(p);
+    }
+    if (!elem_ptrns.empty()) {
+        p << log::keyword_style("elems") << '(';
+        for (size_t i = 0; i < elem_ptrns.size(); i++) {
+            auto [idx, elem_ptrn] = elem_ptrns[i];
+            p << log::keyword_style("at_idx") << "[" << idx << "] = ";
+            elem_ptrn->print(p);
+            if (i + 1 < elem_ptrns.size())
+                p << ", ";
+        }
+        p << ")";
+    }
+}
+
+void Match::print(Printer& p) const {
+    p << log::keyword_style("match") << ' ';
+    p.print(*value);
+    p << " { " << p.indent() << p.endl();
+    for (size_t i = 0; i < cases.size(); i++) {
+        auto& cas = cases[i];
+        p << log::keyword_style("case") << ' ';
+        cas.ptrn->print(p);
+        p << " => ";
+        p.print(*cas.branch, true);
+        if (i + 1 < cases.size())
+            p << p.endl();
+    }
+    p << p.unindent() << p.endl() << '}';
+}
+
+void Switch::print(Printer& p) const {
+    p << log::keyword_style("switch") << ' ';
+    p.print(*value);
+    p << " { " << p.indent() << p.endl();
+    for (size_t i = 0; i < cases.size(); i++) {
+        auto& cas = cases[i];
+        p << log::keyword_style("case") << ' ';
+        cas.value->print(p);
+        p << " => ";
+        p.print(*cas.branch, true);
+        if (i + 1 < cases.size())
+            p << p.endl();
+        else if (default_case) {
+            p << p.endl();
+            p << log::keyword_style("default") << " => ";
+            p.print(*default_case, true);
+        }
+    }
+    p << p.unindent() << p.endl() << '}';
 }
 
 void Control::print(Printer& p) const {

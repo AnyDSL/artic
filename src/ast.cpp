@@ -624,12 +624,6 @@ bool AsmExpr::has_side_effect() const {
 
 // Patterns ------------------------------------------------------------------------
 
-void Ptrn::collect_bound_ptrns(std::vector<const IdPtrn*>&) const {}
-
-void TypedPtrn::collect_bound_ptrns(std::vector<const IdPtrn*>& bound_ptrns) const {
-    ptrn->collect_bound_ptrns(bound_ptrns);
-}
-
 bool TypedPtrn::is_trivial() const {
     return !ptrn || ptrn->is_trivial();
 }
@@ -638,12 +632,6 @@ const Expr* TypedPtrn::to_expr(Arena& arena) {
     if (!ptrn)
         return nullptr;
     return ptrn->to_expr(arena);
-}
-
-void IdPtrn::collect_bound_ptrns(std::vector<const IdPtrn*>& bound_ptrns) const {
-    bound_ptrns.emplace_back(this);
-    if (sub_ptrn)
-        sub_ptrn->collect_bound_ptrns(bound_ptrns);
 }
 
 bool IdPtrn::is_trivial() const {
@@ -678,18 +666,8 @@ bool ImplicitParamPtrn::is_trivial() const {
     return underlying->is_trivial();
 }
 
-void FieldPtrn::collect_bound_ptrns(std::vector<const IdPtrn*>& bound_ptrns) const {
-    if (ptrn)
-        ptrn->collect_bound_ptrns(bound_ptrns);
-}
-
 bool FieldPtrn::is_trivial() const {
     return !ptrn || ptrn->is_trivial();
-}
-
-void RecordPtrn::collect_bound_ptrns(std::vector<const IdPtrn*>& bound_ptrns) const {
-    for (auto& field : fields)
-        field->collect_bound_ptrns(bound_ptrns);
 }
 
 bool RecordPtrn::is_trivial() const {
@@ -702,28 +680,14 @@ bool RecordPtrn::is_trivial() const {
     //     });
 }
 
-void CtorPtrn::collect_bound_ptrns(std::vector<const IdPtrn*>& bound_ptrns) const {
-    if (arg) arg->collect_bound_ptrns(bound_ptrns);
-}
-
 bool CtorPtrn::is_trivial() const {
     assert(false && "TODO");
     // assert(type);
     // return match_app<tir::StructType>(type).second && (!arg || arg->is_trivial());
 }
 
-void TuplePtrn::collect_bound_ptrns(std::vector<const IdPtrn*>& bound_ptrns) const {
-    for (auto& arg : args)
-        arg->collect_bound_ptrns(bound_ptrns);
-}
-
 bool TuplePtrn::is_trivial() const {
     return std::all_of(args.begin(), args.end(), [] (auto& arg) { return arg->is_trivial(); });
-}
-
-void ArrayPtrn::collect_bound_ptrns(std::vector<const IdPtrn*>& bound_ptrns) const {
-    for (auto& elem : elems)
-        elem->collect_bound_ptrns(bound_ptrns);
 }
 
 bool ArrayPtrn::is_trivial() const {

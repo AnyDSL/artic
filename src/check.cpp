@@ -51,36 +51,84 @@ LetRecBuilder& TypeChecker::let_rec_builder() {
     return *builder().as<LetRecBuilder>();
 }
 
-void TypeChecker::bind_ptrn_params(ast::Ptrn& ptrn, const Value* value) {
+const Match::Ptrn* TypeChecker::bind_ptrn_params(ast::Ptrn& ptrn, const Value* value) {
+    auto& eb = expr_builder();
+
     if (auto tuple_ptrn = ptrn.isa<ast::TuplePtrn>()) {
+        std::vector<std::tuple<size_t, const Match::Ptrn*>> elem_ptrns;
         for (int i = 0; i < tuple_ptrn->args.size(); ++i) {
             auto idx = builder().typed_literal(Literal(uint64_t(i)), builder().prim_type(ast::PrimType::U64));
-            bind_ptrn_params(*tuple_ptrn->args[i], expr_builder().extract(value, idx));
+            elem_ptrns.emplace_back(i, bind_ptrn_params(*tuple_ptrn->args[i], eb.extract(value, idx)));
         }
+        return builder().unsafe().match_ptrn(Match::Ptrn {
+            .type = ptrn.type,
+            .elem_ptrns = std::move(elem_ptrns)
+        });
     } else if (auto array_ptrn = ptrn.isa<ast::ArrayPtrn>()) {
+        std::vector<std::tuple<size_t, const Match::Ptrn*>> elem_ptrns;
         for (size_t i = 0; i < array_ptrn->elems.size(); ++i) {
             auto idx = builder().typed_literal(Literal(uint64_t(i)), builder().prim_type(ast::PrimType::U64));
-            bind_ptrn_params(*array_ptrn->elems[i], expr_builder().extract(value, idx));
+            elem_ptrns.emplace_back(i, bind_ptrn_params(*array_ptrn->elems[i], eb.extract(value, idx)));
         }
+        return builder().unsafe().match_ptrn(Match::Ptrn {
+            .type = ptrn.type,
+            .elem_ptrns = std::move(elem_ptrns)
+        });
+    } else if (auto record_ptrn = ptrn.isa<ast::RecordPtrn>()) {
+        if (record_ptrn->variant_index) {
+            value = eb.variant_extract(value, *record_ptrn->variant_index);
+        }
+        std::vector<std::tuple<size_t, const Match::Ptrn*>> elem_ptrns;
+        for (size_t i = 0; i < record_ptrn->fields.size(); ++i) {
+            auto idx = builder().typed_literal(Literal(uint64_t(i)), builder().prim_type(ast::PrimType::U64));
+            elem_ptrns.emplace_back(i, bind_ptrn_params(*record_ptrn->fields[i], eb.extract(value, idx)));
+        }
+        auto match_ptrn = builder().unsafe().match_ptrn(Match::Ptrn {
+            .type = ptrn.type,
+            .elem_ptrns = std::move(elem_ptrns)
+        });
+        if (record_ptrn->variant_index) {
+            match_ptrn = builder().unsafe().match_ptrn(Match::Ptrn {
+                .type = ptrn.type,
+                .variant_index = record_ptrn->variant_index,
+                .sub_ptrn = match_ptrn
+            });
+        }
+        return match_ptrn;
     } else if (auto ctor_ptrn = ptrn.isa<ast::CtorPtrn>()) {
-        bind_ptrn_params(*ctor_ptrn->arg, value);
+        if (ctor_ptrn->variant_index) {
+            value = eb.variant_extract(value, *ctor_ptrn->variant_index);
+        }
+        auto match_ptrn = bind_ptrn_params(*ctor_ptrn->arg, value);
+        if (ctor_ptrn->variant_index) {
+            match_ptrn = builder().unsafe().match_ptrn(Match::Ptrn {
+                .type = ptrn.type,
+                .variant_index = ctor_ptrn->variant_index,
+                .sub_ptrn = match_ptrn
+            });
+        }
+        return match_ptrn;
     } else if (auto field_ptrn = ptrn.isa<ast::FieldPtrn>()) {
         auto idx = builder().typed_literal(Literal(uint64_t(field_ptrn->index)), builder().prim_type(ast::PrimType::U64));
-        bind_ptrn_params(*field_ptrn->ptrn, expr_builder().extract(value, idx));
+        return bind_ptrn_params(*field_ptrn->ptrn, eb.extract(value, idx));
     } else if (auto id_ptrn = ptrn.isa<ast::IdPtrn>()) {
         if (id_ptrn->decl->is_mut) {
-            auto alloc = expr_builder().local_variable(value->type());
-            expr_builder().binop(ast::BinaryExpr::Tag::Eq, alloc, value);
+            auto alloc = eb.local_variable(value->type());
+            eb.binop(ast::BinaryExpr::Tag::Eq, alloc, value);
             value = alloc;
         }
         // bodies and filters need the param deconstructed twice, in different places
         const Type* old_type = infer_ptrn_decl(*id_ptrn->decl)->type();
         id_ptrn->decl->var = nullptr;
-        expr_builder().bind(check_ptrn_decl(*id_ptrn->decl, old_type), value);
+        eb.bind(check_ptrn_decl(*id_ptrn->decl, old_type), value);
         if (id_ptrn->sub_ptrn)
-            bind_ptrn_params(*id_ptrn->sub_ptrn, value);
+            return bind_ptrn_params(*id_ptrn->sub_ptrn, value);
+        // otherwise this is a trivial pattern
+        return builder().unsafe().match_ptrn(Match::Ptrn {
+            .type = ptrn.type,
+        });
     } else if (auto typed_ptrn = ptrn.isa<ast::TypedPtrn>()) {
-        bind_ptrn_params(*typed_ptrn->ptrn, value);
+        return bind_ptrn_params(*typed_ptrn->ptrn, value);
     } else {
         assert(false && "TODO");
     }
@@ -460,6 +508,11 @@ void TypeChecker::incompatible_type(const Loc& loc, const std::string_view& msg,
 void TypeChecker::type_expected(const Loc& loc, const artic::Type* type, const std::string_view& name) {
     if (should_report_error(type))
         error(loc, "expected {} type, but got '{}'", name, *type);
+}
+
+void TypeChecker::expected(const Loc& loc, const std::string_view& name) {
+    //if (should_report_error(type))
+        error(loc, "expected {}, but got '{}'", name);
 }
 
 void TypeChecker::unknown_member(const Loc& loc, const UserType* user_type, const std::string_view& member) {
@@ -1464,16 +1517,26 @@ std::optional<Path::Elem::Inferred> Path::Elem::infer(TypeChecker& checker, size
         checker.error(loc, "'super' can only be used on modules");
         return std::nullopt;
     }
-    assert(false && "TODO");
-    /*if (auto prev_elem_type = prev->tir->isa<tir::Type>()) {
-        if (auto [type_app, enum_type] = match_app<EnumType>(prev_elem_type); enum_type) {
+
+    if (auto prev_elem_type = prev->var->isa<tir::Type>()) {
+        if (auto [type_app, enum_type] = peek_app_type_unapplied<EnumType>(checker.scope(), prev_elem_type); enum_type) {
             auto index = enum_type->find_member(id.name);
-            if (!index)
-                return tir = checker.unknown_member(loc, enum_type, id.name);
-            this->index = *index;
-            if (enum_type->decl.options[*index]->struct_type) {
+            if (!index) {
+                checker.unknown_member(loc, enum_type, id.name);
+                return std::nullopt;
+            }
+            auto& option = *enum_type->decl->options[*index];
+            auto ctor = option.struct_type ? option.struct_type : option.ctor_or_default_value(checker);
+            // apply the type args given to the enum
+            if (type_app)
+                ctor = checker.builder().enclosing_let_rec().value_app(ctor->as<CtorVar>(), type_app->args);
+            return Inferred {
+                .var = ctor
+            };
+            // this->index = *index;
+            /*if (enum_type->decl->options[*index]->struct_type) {
                 // If the enumeration option uses the record syntax, we use the corresponding structure type
-                type = enum_type->decl.options[*index]->struct_type;
+                type = enum_type->decl->options[*index]->struct_type;
                 if (type_app)
                     type = checker.builder().type_app(type->as<StructType>(), type_app->type_args);
                 return type;
@@ -1481,21 +1544,24 @@ std::optional<Path::Elem::Inferred> Path::Elem::infer(TypeChecker& checker, size
                 auto member = member_type(type_app, enum_type, *index);
                 path.is_ctor = true;
                 if (is_unit_type(member)) {
-                    return type = prev_elem_type;
                 } else {
+                    return Inferred {
+                        .var =
+                    }
                     return type = checker.builder().fn_type(member, prev_elem_type);
                 }
-            }
+            }*/
         }
-    }*/
-    //return checker.type_expected(loc, type, "module or enum");
+    }
+    checker.expected(loc, "module or enum");
+    return std::nullopt;
 }
 
 std::optional<Path::Elem::Inferred> Path::infer_path(TypeChecker& checker, std::optional<tir::NodeKind> expected_kind, Ptr<Expr>* arg, const artic::Type* ret_type) const {
     std::optional<Path::Elem::Inferred> prev;
     for (size_t i = 0, n = elems.size(); i < n; ++i) {
         auto& elem = elems[i];
-        prev = elem.infer(checker, i, *this, prev ? &*prev : nullptr, expected_kind);
+        prev = elem.infer(checker, i, *this, prev ? &*prev : nullptr, i == n - 1 ? expected_kind : std::nullopt);
         // give up when an element fails to infer
         if (!prev)
             return std::nullopt;
@@ -2198,19 +2264,28 @@ const tir::Node* IfExpr::check(TypeChecker& checker, const artic::Type* expected
 }
 
 const tir::Node* MatchExpr::infer(TypeChecker& checker) {
-    assert(false && "TODO");
     return check(checker, nullptr);
 }
 
 const tir::Node* MatchExpr::check(TypeChecker& checker, const artic::Type* expected) {
-    assert(false && "TODO");
-    /*auto arg_type = checker.deref(arg);
+    auto arg = checker.deref(this->arg);
     const artic::Type* type = expected;
-    for (auto& case_ : cases) {
-        checker.check(*case_->ptrn, arg_type);
-        type = type ? checker.coerce(case_->expr, type) : checker.deref(case_->expr);
+    std::vector<Match::Case> cases;
+    for (auto& case_ : this->cases) {
+        checker.check_ptrn(*case_->ptrn, arg->type());
+        const Match::Ptrn* match_ptrn = nullptr;
+        auto fn = checker.build_fn(checker.builder().value_var(std::nullopt, checker.builder().unit_type()), [&]() {
+            ExprBuilder case_builder(checker.arena(), &checker.builder());
+            TypeChecker::BuilderGuard guard(checker, case_builder);
+            match_ptrn = checker.bind_ptrn_params(*case_->ptrn, arg);
+            auto body = type ? checker.coerce(&*case_->expr, type) : checker.deref(case_->expr);
+            type = body->type();
+            return body;
+        });
+        cases.emplace_back(&case_->loc, match_ptrn, fn);
     }
-    return type ? type : checker.cannot_infer(loc, "match expression");*/
+
+    return checker.builder().unsafe().match(loc, arg, std::move(cases));
 }
 
 const tir::Node* WhileExpr::infer(TypeChecker& checker) {
@@ -2823,11 +2898,20 @@ const tir::Node* OptionDecl::infer(TypeChecker& checker) {
     if (param)
         return checker.infer_type(*param);
     else if (has_fields) {
-        struct_type = checker.builder().struct_type(this);
-        for (auto& field : fields)
-            struct_type->members.push_back(checker.infer_type(*field));
-        struct_type->validate();
-        return struct_type;
+        std::optional<Array<const Var*>> params = parent->type_params ? std::make_optional(checker.duplicate_params(checker.infer(&*parent->type_params))) : std::nullopt;
+        struct_type = checker.maybe_polymorphic(id, params, NodeKind::Value, [&](auto& builder, auto& self, auto& set_head) -> const Var* {
+            auto struct_type = builder.struct_type(this);
+            auto var = builder.type_var(id);
+            var->binder = &builder.scope;
+            set_head(var);
+            this->var = self;
+            for (auto& field : fields)
+                struct_type->members.push_back(checker.infer_type(*field));
+            struct_type->validate();
+            builder.bind(var, struct_type);
+            checker.exit_decl(this);
+            return var;
+        });
     } else {
         return checker.builder().unit_type();
     }
@@ -2841,6 +2925,69 @@ const tir::Node* EnumDecl::infer(TypeChecker& checker) {
         enum_type->members.push_back(checker.infer_type(*option));
     enum_type->validate();
     return var;
+}
+
+const tir::Var* OptionDecl::ctor_or_default_value(TypeChecker& checker) const {
+    if (ctor_or_default_value_)
+        return ctor_or_default_value_;
+
+    assert(enclosing_module);
+    auto& builder = *enclosing_module->builder;
+    TypeChecker::BuilderGuard guard(checker, builder);
+
+    assert(!struct_type);
+    size_t member_count = fields.size();
+
+    std::optional<Array<const Var*>> params = parent->type_params ? std::make_optional(checker.duplicate_params(checker.infer(&*parent->type_params))) : std::nullopt;
+    ctor_or_default_value_ = checker.maybe_polymorphic(id, params, NodeKind::Value, [&](auto& builder, auto& selff, auto& set_head) -> const Var* {
+        const TypeVar* self_type;
+        if (params) {
+            Array<const tir::Node*> args(params->size());
+            for (size_t i = 0; i < params->size(); i++) {
+                args[i] = (*params)[i];
+            }
+            self_type = builder.type_app(var->as<CtorVar>(), args);
+        }
+        else
+            self_type = var->as<TypeVar>();
+
+        if (member_count > 0) {
+            SmallArray<const artic::Type*> tuple_args(member_count);
+            for (size_t i = 0, n = member_count; i < n; ++i) {
+                tuple_args[i] = builder.member_type(self_type, i);
+            }
+            auto dom = member_count == 1
+                       ? tuple_args.front()
+                       : builder.tuple_type(tuple_args);
+            auto param = builder.value_var(Identifier { loc, "param" }, dom);
+
+            Scope& fn_scope = checker.scope().new_child();
+            fn_scope.insert(param, nullptr);
+            Builder fn_builder(checker.arena(), fn_scope, &checker.builder());
+            TypeChecker::BuilderGuard guard(checker, fn_builder);
+
+            auto fn = builder.unsafe().function(param, fn_scope, self_type, nullptr);
+            fn->set_body(builder, builder.yield_expr_scope([&](ExprBuilder& expr_builder) -> const Value* {
+                if (member_count == 1) {
+                    Array<const Value*> args = { param };
+                    return expr_builder.agg(self_type, args);
+                }
+                Array<const Value*> args(member_count);
+                for (size_t i = 0, n = member_count; i < n; ++i) {
+                    auto idx = expr_builder.typed_literal(Literal(uint64_t(i)), expr_builder.prim_type(ast::PrimType::U64));
+                    args[i] = expr_builder.extract(param, idx);
+                }
+                return expr_builder.variant(self_type, index, expr_builder.agg(self_type, args));
+            }));
+            return builder.schedule_value(fn);
+        } else {
+            auto default_value = builder.yield_expr_scope([&](ExprBuilder& expr_builder) -> const Value* {
+                return expr_builder.variant(self_type, index, expr_builder.unit());
+            });
+            return builder.schedule_value(default_value);
+        }
+    });
+    return ctor_or_default_value_;
 }
 
 const tir::Node* TypeDecl::infer(TypeChecker& checker) {

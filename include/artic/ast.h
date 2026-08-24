@@ -179,8 +179,6 @@ struct Ptrn : public Node {
 
     const tir::Node* check(TypeChecker&, const tir::Type*) override;
 
-    /// Collect patterns that bind an identifier to a value in this pattern.
-    virtual void collect_bound_ptrns(std::vector<const IdPtrn*>&) const;
     /// Rewrites the pattern into an expression
     virtual const Expr* to_expr(Arena&) { return as_expr.get(); }
     /// Returns true when the pattern is trivial (e.g. always matches).
@@ -205,7 +203,7 @@ struct Path : public Node {
             //const tir::Module* module = nullptr;
         };
 
-        size_t index = 0;
+        // size_t index = 0;
 
         bool is_super() const { return id.name == "super"; }
         bool is_wildcard() const { return id.name == "*"; }
@@ -1440,11 +1438,12 @@ struct OptionDecl : public RecordDecl {
     mutable const tir::Type* type = nullptr;
 
     // Set during type-checking for options that have braces
-    // Note: can be a type application of a structure type
-    const tir::StructType* struct_type = nullptr;
+    // Note: can be a type constructor for a structure type
+    const tir::Var* struct_type = nullptr;
 
     // Set at name-binding time, points to the parent enumeration
     EnumDecl* parent = nullptr;
+    size_t index = -1;
 
     OptionDecl(
         const Loc& loc,
@@ -1456,6 +1455,9 @@ struct OptionDecl : public RecordDecl {
         , param(std::move(param))
         , has_fields(has_fields)
     {}
+
+    mutable const tir::Var* ctor_or_default_value_ = nullptr;
+    const tir::Var* ctor_or_default_value(TypeChecker&) const;
 
     const tir::Node* infer(TypeChecker&) override;
     void bind(NameBinder&) override;
@@ -1580,7 +1582,6 @@ struct TypedPtrn : public Ptrn {
         : Ptrn(loc), ptrn(std::move(ptrn)), type(std::move(type))
     {}
 
-    void collect_bound_ptrns(std::vector<const IdPtrn*>&) const override;
     bool is_trivial() const override;
 
     const tir::Node* infer(TypeChecker&) override;
@@ -1598,7 +1599,6 @@ struct IdPtrn : public Ptrn {
         : Ptrn(loc), decl(std::move(decl)), sub_ptrn(std::move(sub_ptrn))
     {}
 
-    void collect_bound_ptrns(std::vector<const IdPtrn*>&) const override;
     bool is_trivial() const override;
 
     const tir::Node* infer(TypeChecker&) override;
@@ -1653,7 +1653,6 @@ struct FieldPtrn : public Ptrn {
 
     bool is_etc() const { return !ptrn; }
 
-    void collect_bound_ptrns(std::vector<const IdPtrn*>&) const override;
     bool is_trivial() const override;
 
     const tir::Node* check(TypeChecker&, const tir::Type*) override;
@@ -1667,7 +1666,7 @@ struct RecordPtrn : public Ptrn {
     PtrVector<FieldPtrn> fields;
 
     // Set during type-checking if the record is an enumeration variant
-    std::optional<size_t> variant_index = 0;
+    std::optional<size_t> variant_index = std::nullopt;
 
     RecordPtrn(const Loc& loc, Path&& path, PtrVector<FieldPtrn>&& fields)
         : Ptrn(loc), path(std::move(path)), fields(std::move(fields))
@@ -1675,7 +1674,6 @@ struct RecordPtrn : public Ptrn {
 
     bool has_etc() const { return !fields.empty() && fields.back()->is_etc(); }
 
-    void collect_bound_ptrns(std::vector<const IdPtrn*>&) const override;
     bool is_trivial() const override;
 
     const tir::Node* infer(TypeChecker&) override;
@@ -1689,13 +1687,12 @@ struct CtorPtrn : public Ptrn {
     Ptr<Ptrn> arg;
 
     // Set during type-checking if the constructor is an enumeration variant
-    size_t variant_index = 0;
+    std::optional<size_t> variant_index = std::nullopt;
 
     CtorPtrn(const Loc& loc, Path&& path, Ptr<Ptrn>&& arg)
         : Ptrn(loc), path(std::move(path)), arg(std::move(arg))
     {}
 
-    void collect_bound_ptrns(std::vector<const IdPtrn*>&) const override;
     bool is_trivial() const override;
 
     const tir::Node* infer(TypeChecker&) override;
@@ -1711,7 +1708,6 @@ struct TuplePtrn : public Ptrn {
         : Ptrn(loc), args(std::move(args))
     {}
 
-    void collect_bound_ptrns(std::vector<const IdPtrn*>&) const override;
     bool is_trivial() const override;
 
     const tir::Node* infer(TypeChecker&) override;
@@ -1729,7 +1725,6 @@ struct ArrayPtrn : public Ptrn {
         : Ptrn(loc), elems(std::move(elems)), is_simd(is_simd)
     {}
 
-    void collect_bound_ptrns(std::vector<const IdPtrn*>&) const override;
     bool is_trivial() const override;
 
     const tir::Node* infer(TypeChecker&) override;

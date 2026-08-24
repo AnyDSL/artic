@@ -175,6 +175,10 @@ struct Builder : public artic::Cast<Builder> {
         const Value* extract(const Value*, const Value*);
         const Value* proj(const Value*, const Value*);
 
+        const Value* variant(const Type*, size_t, const Value*);
+        const Value* variant_index(const Value*);
+        const Value* variant_extract(const Value*, size_t);
+
         const Value* implicit_cast(const Value*, const Type*);
         const Value* cast(const Value*, const Type*);
 
@@ -186,6 +190,9 @@ struct Builder : public artic::Cast<Builder> {
 
         const Control* control(const Function*);
         const Branch* branch(const Value*, const Function*, const Function*);
+        const Match::Ptrn* match_ptrn(Match::Ptrn&&);
+        const Match* match(const Loc&, const Value*, Array<Match::Case>&&);
+        const Switch* switch_(const Value*, const Function*, Array<Switch::Case>&&);
 
     private:
         Builder& builder;
@@ -256,6 +263,10 @@ struct ExprBuilder : public Builder {
     const Value* repeat(const Type*, const Value*);
     const Value* extract(const Value*, const Value*);
     const Value* proj(const Value*, const Value*);
+
+    const Value* variant(const Type*, size_t, const Value*);
+    const Value* variant_index(const Value*);
+    const Value* variant_extract(const Value*, size_t);
 
     const Value* implicit_cast(const Value*, const Type*);
     const Value* cast(const Value*, const Type*);

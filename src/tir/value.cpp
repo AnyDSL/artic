@@ -359,6 +359,57 @@ bool Extract::equals(const Node* other) const {
     return false;
 }
 
+Variant::Variant(Builder& builder, const Type* type, size_t idx, const Value* elem)
+    : Node(builder.arena), Value(type), index(idx), elem(elem) {
+    assert(elem->is_simple());
+}
+
+size_t Variant::hash() const {
+    return fnv::Hash().combine(elem).combine(index);
+}
+
+bool Variant::equals(const Node* other) const {
+    if (auto other_variant = other->isa<Variant>()) {
+        if (other_variant->elem == elem && other_variant->index == index)
+            return true;
+    }
+    return false;
+}
+
+VariantIndex::VariantIndex(Builder& builder, const Value* src)
+    : Node(builder.arena), Value(builder.prim_type(ast::PrimType::I32)), src(src) {
+    assert(src->is_simple());
+}
+
+size_t VariantIndex::hash() const {
+    return fnv::Hash().combine(src);
+}
+
+bool VariantIndex::equals(const Node* other) const {
+    if (auto other_variant = other->isa<VariantIndex>()) {
+        return other_variant->src == src;
+    }
+    return false;
+}
+
+VariantExtract::VariantExtract(Builder& builder, const Value* src, size_t idx) : Node(builder.arena), Value([&]() -> const Type* {
+    // auto [_, enum_type] = peek_app_type<EnumType>(builder, src->type());
+    return builder.member_type(src->type(), idx);
+}()), src(src), index(idx) {
+    assert(src->is_simple());
+}
+
+size_t VariantExtract::hash() const {
+    return fnv::Hash().combine(src).combine(index);
+}
+
+bool VariantExtract::equals(const Node* other) const {
+    if (auto other_variant = other->isa<VariantExtract>()) {
+        return other_variant->src == src && other_variant->index == index;
+    }
+    return false;
+}
+
 Repeat::Repeat(Builder& builder, const Type* type, const Value* elem) : Value(type), Node(builder.arena), elem(elem) {
     auto peeked_arr_type = builder.scope.peek_type(type);
     assert(peeked_arr_type->isa<ArrayType>());
@@ -649,6 +700,19 @@ bool Branch::equals(const Node* other) const {
     return false;
 }
 
+Match::Match(Builder& builder, const Loc& loc, const Value* value, Array<Case>&& cases)
+: Node(builder.arena), Value(builder.no_ret_type()), loc(loc), value(value), cases(std::move(cases)) {
+    assert(value->is_simple());
+    for (auto& cas : this->cases) {
+    }
+}
+
+Switch::Switch(Builder& builder, const Value* value, const Function* default_case, Array<Case>&& cases) : Node(builder.arena), Value(builder.no_ret_type()), value(value), default_case(default_case), cases(std::move(cases)) {
+    for (auto& cas : this->cases) {
+        assert(cas.value->is_simple());
+    }
+}
+
 Control::Control(Builder& builder, const Function* fn) : Value([&]() -> const Type* {
     if (auto yield_fn_type = fn->param->type()->isa<FnType>()) {
         if (yield_fn_type->codom != builder.no_ret_type())
@@ -735,6 +799,21 @@ void Extract::free_variables(FVSet& vars, Seen& seen) const {
     idx->free_variables(vars, seen);
 }
 
+void Variant::free_variables(FVSet& vars, Seen& seen) const {
+    type()->free_variables(vars, seen);
+    elem->free_variables(vars, seen);
+}
+
+void VariantIndex::free_variables(FVSet& vars, Seen& seen) const {
+    type()->free_variables(vars, seen);
+    src->free_variables(vars, seen);
+}
+
+void VariantExtract::free_variables(FVSet& vars, Seen& seen) const {
+    type()->free_variables(vars, seen);
+    src->free_variables(vars, seen);
+}
+
 void Proj::free_variables(FVSet& vars, Seen& seen) const {
     type()->free_variables(vars, seen);
     src->free_variables(vars, seen);
@@ -802,6 +881,33 @@ void Branch::free_variables(FVSet& vars, Seen& seen) const {
     cond->free_variables(vars, seen);
     true_branch->free_variables(vars, seen);
     else_branch->free_variables(vars, seen);
+}
+
+void Match::Ptrn::free_variables(FVSet& vars, Seen& seen) const {
+    type->free_variables(vars, seen);
+    if (sub_ptrn)
+        sub_ptrn->free_variables(vars, seen);
+    for (auto& [_, sub] : elem_ptrns)
+        sub->free_variables(vars, seen);
+}
+
+void Match::free_variables(FVSet& vars, Seen& seen) const {
+    type()->free_variables(vars, seen);
+    value->free_variables(vars, seen);
+    for (auto& cas : cases) {
+        cas.ptrn->free_variables(vars, seen);
+    }
+}
+
+void Switch::free_variables(FVSet& vars, Seen& seen) const {
+    type()->free_variables(vars, seen);
+    value->free_variables(vars, seen);
+    for (auto& cas : cases) {
+        auto& [value, fn] = cas;
+        value->free_variables(vars, seen);
+        fn->free_variables(vars, seen);
+    }
+    default_case->free_variables(vars, seen);
 }
 
 void Control::free_variables(FVSet& vars, Seen& seen) const {

@@ -335,6 +335,18 @@ const Node* Extract::rewrite(Rewriter& r) const {
     return r.builder().unsafe().extract(r.instantiate(src), r.instantiate(idx));
 }
 
+const Node* Variant::rewrite(Rewriter& r) const {
+    return r.builder().unsafe().variant(r.instantiate(type()), index, r.instantiate(elem));
+}
+
+const Node* VariantIndex::rewrite(Rewriter& r) const {
+    return r.builder().unsafe().variant_index(r.instantiate(src));
+}
+
+const Node* VariantExtract::rewrite(Rewriter& r) const {
+    return r.builder().unsafe().variant_extract(r.instantiate(src), index);
+}
+
 const Node* Proj::rewrite(Rewriter& r) const {
     return r.builder().unsafe().proj(r.instantiate(src), r.instantiate(idx));
 }
@@ -372,6 +384,34 @@ const Node* MathOp::rewrite(Rewriter& r) const {
 
 const Node* Branch::rewrite(Rewriter& r) const {
     return r.builder().unsafe().branch(r.instantiate(cond), r.instantiate(true_branch), r.instantiate(else_branch));
+}
+
+const Match::Ptrn* Match::Ptrn::rewrite(Rewriter& r) const {
+    Ptrn nptrn = {
+        .type = r.instantiate(type),
+        .variant_index = variant_index,
+        .sub_ptrn = sub_ptrn ? sub_ptrn->rewrite(r) : nullptr,
+    };
+    for (auto& [idx, optrn] : elem_ptrns) {
+        nptrn.elem_ptrns.emplace_back(idx, optrn->rewrite(r));
+    }
+    return r.builder().unsafe().match_ptrn(std::move(nptrn));
+}
+
+const Node* Match::rewrite(Rewriter& r) const {
+    std::vector<Case> ncases;
+    for (size_t i = 0; i < cases.size(); i++) {
+        ncases.emplace_back(cases[i].loc, cases[i].ptrn->rewrite(r), r.instantiate(cases[i].branch));
+    }
+    return r.builder().unsafe().match(loc, r.instantiate(value), ncases);
+}
+
+const Node* Switch::rewrite(Rewriter& r) const {
+    Array<Case> ncases(cases.size());
+    for (size_t i = 0; i < cases.size(); i++) {
+        ncases[i] = Case(r.instantiate(cases[i].value), r.instantiate(cases[i].branch));
+    }
+    return r.builder().unsafe().switch_(r.instantiate(value), r.instantiate(default_case), std::move(ncases));
 }
 
 const Node* Control::rewrite(Rewriter& r) const {

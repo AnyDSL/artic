@@ -526,8 +526,10 @@ void EnumDecl::bind_head(NameBinder& binder) {
 void EnumDecl::bind(NameBinder& binder) {
     binder.push_scope();
     if (type_params) binder.bind(*type_params);
+    size_t i = 0;
     for (auto& option : options) {
         option->parent = this;
+        option->index = i++;
         binder.bind(*option);
     }
     binder.pop_scope();

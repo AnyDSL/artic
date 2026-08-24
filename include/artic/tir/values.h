@@ -320,15 +320,48 @@ struct Insert : public Value {
 struct Variant : public Value {
     size_t index;
     const Value* elem;
-};
 
-struct VariantExtract : public Value {
-    size_t index;
-    const Value* src;
+    bool equals(const Node*) const override;
+    size_t hash() const override;
+
+    void print(Printer&) const override;
+    const Node* rewrite(Rewriter&) const override;
+    void free_variables(FVSet&, Seen&) const override;
+
+    const thorin::Def* emit(Emitter&) const override;
+
+    Variant(Builder&, const Type*, size_t, const Value*);
 };
 
 struct VariantIndex : public Value {
     const Value* src;
+
+    bool equals(const Node*) const override;
+    size_t hash() const override;
+
+    void print(Printer&) const override;
+    const Node* rewrite(Rewriter&) const override;
+    void free_variables(FVSet&, Seen&) const override;
+
+    const thorin::Def* emit(Emitter&) const override;
+
+    VariantIndex(Builder&, const Value*);
+};
+
+struct VariantExtract : public Value {
+    const Value* src;
+    size_t index;
+
+    bool equals(const Node*) const override;
+    size_t hash() const override;
+
+    void print(Printer&) const override;
+    const Node* rewrite(Rewriter&) const override;
+    void free_variables(FVSet&, Seen&) const override;
+
+    const thorin::Def* emit(Emitter&) const override;
+
+    VariantExtract(Builder&, const Value*, size_t);
 };
 
 struct Repeat : public Value {
@@ -506,23 +539,70 @@ struct Branch : public Value {
 };
 
 struct Match : public Value {
-    const Loc& loc;
+    /// A simplified form of the pattern language found in the AST, encodes a tree of extract/variant extracts
+    struct Ptrn {
+        const Type* type;
+        std::optional<size_t> variant_index = std::nullopt;
+        const Ptrn* sub_ptrn = nullptr;
+        std::vector<std::tuple<size_t, const Ptrn*>> elem_ptrns;
 
-    const Value* cond;
+        void print(Printer&) const;
+        const Ptrn* rewrite(Rewriter&) const;
+        void free_variables(FVSet& vars, Seen& seen) const;
+
+        bool is_trivial() const {
+            if (variant_index)
+                return false;
+            if (sub_ptrn && !sub_ptrn->is_trivial())
+                return false;
+            for (auto& [_, ptrn] : elem_ptrns) {
+                if (!ptrn->is_trivial())
+                    return false;
+            }
+            return true;
+        }
+    };
+
     struct Case {
-        const Loc& loc;
-        const ast::Ptrn* ptrn;
+        const Loc* loc;
+        const Ptrn* ptrn;
         const Function* branch;
     };
+
+    const Loc& loc;
+    const Value* value;
+    Array<Case> cases;
+
+    //bool equals(const Node*) const override;
+    //size_t hash() const override;
+
+    void print(Printer&) const override;
+    const Node* rewrite(Rewriter&) const override;
+    void free_variables(FVSet&, Seen&) const override;
+
+    Match(Builder&, const Loc&, const Value*, Array<Case>&&);
 };
 
 struct Switch : public Value {
-    const Value* cond;
     struct Case {
-        const Value* ptrn;
+        const Value* value;
         const Function* branch;
     };
-    const Function* default_branch;
+
+    const Value* value;
+    Array<Case> cases;
+    const Function* default_case;
+
+    // bool equals(const Node*) const override;
+    // size_t hash() const override;
+
+    void print(Printer&) const override;
+    const Node* rewrite(Rewriter&) const override;
+    void free_variables(FVSet&, Seen&) const override;
+
+    const thorin::Def* emit(Emitter&) const override;
+
+    Switch(Builder&, const Value*, const Function*, Array<Case>&&);
 };
 
 struct Control : public Value {

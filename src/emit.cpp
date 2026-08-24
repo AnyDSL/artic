@@ -626,6 +626,19 @@ void Emitter::branch(
     state.cont = nullptr;
 }
 
+void Emitter::match(
+    const thorin::Def* cond,
+    thorin::Continuation* otherwise,
+    thorin::Defs patterns,
+    thorin::ArrayRef<thorin::Continuation*> cases,
+    thorin::Debug debug)
+{
+    if (!state.cont)
+        return;
+    state.cont->match(state.mem, cond, otherwise, patterns, cases, debug);
+    state.cont = nullptr;
+}
+
 const thorin::Def* Emitter::alloc(const thorin::Type* type, thorin::Debug debug) {
     assert(state.mem);
     auto pair = world.enter(state.mem);
@@ -1335,6 +1348,18 @@ const thorin::Def* Extract::emit(Emitter& emitter) const {
     return emitter.world.extract(emitter.emit(src), emitter.emit(idx));
 }
 
+const thorin::Def* Variant::emit(Emitter& emitter) const {
+    return emitter.world.variant(emitter.emit(type())->as<thorin::VariantType>(), emitter.emit(elem), index);
+}
+
+const thorin::Def* VariantIndex::emit(Emitter& emitter) const {
+    return emitter.world.variant_index(emitter.emit(src));
+}
+
+const thorin::Def* VariantExtract::emit(Emitter& emitter) const {
+    return emitter.world.variant_extract(emitter.emit(src), index);
+}
+
 const thorin::Def* Proj::emit(Emitter& emitter) const {
     return emitter.world.lea(emitter.emit(src), emitter.emit(idx), {});
 }
@@ -1495,6 +1520,17 @@ const thorin::Def* BinOp::emit(Emitter& emitter) const {
 
 const thorin::Def* Branch::emit(Emitter& emitter) const {
     emitter.branch(emitter.emit(cond), emitter.emit(true_branch), emitter.emit(else_branch));
+    return emitter.world.tuple({});
+}
+
+const thorin::Def* Switch::emit(Emitter& emitter) const {
+    thorin::Array<const thorin::Def*> patterns(cases.size(), [&](size_t i) -> const thorin::Def* {
+        return emitter.emit(cases[i].value);
+    });
+    thorin::Array<thorin::Continuation*> conts(cases.size(), [&](size_t i) -> thorin::Continuation* {
+        return emitter.emit(cases[i].branch)->as_nom<thorin::Continuation>();
+    });
+    emitter.match(emitter.emit(value), emitter.emit(default_case)->as_nom<thorin::Continuation>(), patterns, conts);
     return emitter.world.tuple({});
 }
 

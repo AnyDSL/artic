@@ -54,6 +54,8 @@ struct Scope {
     const Sig* resolve_sig(const SigVar*) const;
     const Type* resolve_type_var(const TypeVar*) const;
 
+    const Type* member_count(const Type*, size_t);
+
     Scope& new_child();
     void insert(const Var*, const Node*);
 private:
