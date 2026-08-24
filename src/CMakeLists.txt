@@ -37,6 +37,7 @@ add_library(libartic
     tir/module.cpp
     tir/scope.cpp
     tir/builder.cpp
+    passes/lower_match.cpp
     passes/lower_app.cpp
     passes/gc.cpp)
 

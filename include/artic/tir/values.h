@@ -311,6 +311,26 @@ struct Extract : public Value {
     Extract(Builder&, const Value*, const Value*);
 };
 
+struct Insert : public Value {
+    const Value* src;
+    const Value* idx;
+    const Value* elem;
+};
+
+struct Variant : public Value {
+    size_t index;
+    const Value* elem;
+};
+
+struct VariantExtract : public Value {
+    size_t index;
+    const Value* src;
+};
+
+struct VariantIndex : public Value {
+    const Value* src;
+};
+
 struct Repeat : public Value {
     const Value* elem;
 
@@ -483,6 +503,26 @@ struct Branch : public Value {
     const thorin::Def* emit(Emitter&) const override;
 
     Branch(Builder&, const Value* cond, const Function* true_branch, const Function* false_branch);
+};
+
+struct Match : public Value {
+    const Loc& loc;
+
+    const Value* cond;
+    struct Case {
+        const Loc& loc;
+        const ast::Ptrn* ptrn;
+        const Function* branch;
+    };
+};
+
+struct Switch : public Value {
+    const Value* cond;
+    struct Case {
+        const Value* ptrn;
+        const Function* branch;
+    };
+    const Function* default_branch;
 };
 
 struct Control : public Value {

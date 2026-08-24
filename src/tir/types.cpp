@@ -801,7 +801,7 @@ std::pair<const App*, const Node*> match_app(Builder& builder, const Node* node)
         node = builder.scope.resolve_var_deep(var);
     }
     if (auto app = node->isa<App>()) {
-        return { app, app->instantiated(builder.enclosing_let_rec()) };
+        return { app, app->instantiated(builder) };
     }
     return { nullptr, nullptr };
 }
