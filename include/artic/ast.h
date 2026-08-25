@@ -1435,7 +1435,7 @@ struct OptionDecl : public RecordDecl {
     bool has_fields;
 
     // Set during type-checking. Contains the type the option constructs
-    mutable const tir::Type* type = nullptr;
+    mutable const tir::Node* maybe_ctor_type_or_unit = nullptr;
 
     // Set during type-checking for options that have braces
     // Note: can be a type constructor for a structure type

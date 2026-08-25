@@ -796,6 +796,14 @@ std::pair<const RefType*, const Type*> remove_ref(const Scope& scope, const Type
     return std::make_pair(nullptr, type);
 }
 
+std::pair<const TypeApp*, const Type*> peek_app_type_unapplied_generic(const Scope& scope, const Type* type) {
+    auto [app, t] = match_app_unapplied(scope, type);
+    assert(t->isa<Type>());
+    if (!app)
+        return { nullptr, scope.peek_type(t->as<Type>()) };
+    return { app->as<TypeApp>(), scope.peek_type(t->as<Type>()) };
+}
+
 } // namespace tir
 
 } // namespace artic

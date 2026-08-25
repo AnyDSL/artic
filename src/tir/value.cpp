@@ -365,12 +365,12 @@ Variant::Variant(Builder& builder, const Type* type, size_t idx, const Value* el
 }
 
 size_t Variant::hash() const {
-    return fnv::Hash().combine(elem).combine(index);
+    return fnv::Hash().combine(elem).combine(index).combine(type());
 }
 
 bool Variant::equals(const Node* other) const {
     if (auto other_variant = other->isa<Variant>()) {
-        if (other_variant->elem == elem && other_variant->index == index)
+        if (other_variant->type() == type() && other_variant->elem == elem && other_variant->index == index)
             return true;
     }
     return false;

@@ -510,9 +510,13 @@ void TypeChecker::type_expected(const Loc& loc, const artic::Type* type, const s
         error(loc, "expected {} type, but got '{}'", name, *type);
 }
 
+void TypeChecker::expected(const Loc& loc, const Node* n, const std::string_view& name) {
+    //if (should_report_error(n))
+        error(loc, "expected {}, but got '{}'", name, kind2str(n->kind()));
+}
+
 void TypeChecker::expected(const Loc& loc, const std::string_view& name) {
-    //if (should_report_error(type))
-        error(loc, "expected {}, but got '{}'", name);
+    error(loc, "expected {}", name);
 }
 
 void TypeChecker::unknown_member(const Loc& loc, const UserType* user_type, const std::string_view& member) {
@@ -919,13 +923,13 @@ const Type* TypeChecker::infer_type(ast::FieldDecl& node) {
     return node.field_type->as<Type>();
 }
 
-const Type* TypeChecker::infer_type(ast::OptionDecl& node) {
-    if (node.type)
-        return node.type->as<Type>();
-    node.type = node.infer(*this)->as<Type>();
+const Node* TypeChecker::infer_option(ast::OptionDecl& node) {
+    if (node.maybe_ctor_type_or_unit)
+        return node.maybe_ctor_type_or_unit;
+    node.maybe_ctor_type_or_unit = node.infer(*this);
     if (node.attrs)
         node.attrs->check(*this, &node);
-    return node.type->as<Type>();
+    return node.maybe_ctor_type_or_unit;
 }
 
 const Type* TypeChecker::check_ptrn(ast::Ptrn& node, const Type* expected) {
@@ -1000,6 +1004,8 @@ const tir::Value* TypeChecker::infer(const Loc&, const Literal& lit) {
 }
 
 const tir::Value* TypeChecker::check(const Loc& loc, const Literal& lit, const Type* expected) {
+    const TypeApp* _ = nullptr;
+    std::tie(_, expected) = peek_app_type_applied(builder(), expected);
     if (expected->isa<NoRetType>())
         return infer(loc, lit);
     if (lit.is_integer()) {
@@ -1353,7 +1359,7 @@ const Type* TypeChecker::infer_record_type(const Type* type, const TypeApp* type
         index = std::find_if(
             option_decl->parent->options.begin(),
             option_decl->parent->options.end(),
-            [struct_type] (auto& option) { return option->type == struct_type; })
+            [struct_type] (auto& option) { return option->maybe_ctor_type_or_unit == struct_type; })
             - option_decl->parent->options.begin();
         assert(index < option_decl->parent->options.size());
         auto enum_type_or_ctor = infer_mod_decl(*option_decl->parent);
@@ -1553,7 +1559,7 @@ std::optional<Path::Elem::Inferred> Path::Elem::infer(TypeChecker& checker, size
             }*/
         }
     }
-    checker.expected(loc, "module or enum");
+    checker.expected(loc,"module or enum");
     return std::nullopt;
 }
 
@@ -2894,12 +2900,54 @@ const tir::Var* StructDecl::ctor_or_default_value(TypeChecker& checker) const {
     return ctor_or_default_value_;
 }
 
+struct ShadowPolyParamsHelper {
+    TypeChecker& checker;
+    Ptr<TypeParamList>& list;
+
+    std::optional<Array<const Var*>> old_vars;
+    std::optional<Array<const Var*>> new_vars;
+
+    ShadowPolyParamsHelper(TypeChecker& checker, Ptr<TypeParamList>& list) : checker(checker), list(list) {
+        if (list) {
+            old_vars = checker.infer(&*list);
+            new_vars = checker.duplicate_params(*old_vars);
+            for (size_t i = 0, n = list->params.size(); i < n; ++i) {
+                list->params[i]->var = (*new_vars)[i];
+            }
+        }
+    }
+
+    ~ShadowPolyParamsHelper() {
+        if (list) {
+            for (size_t i = 0, n = list->params.size(); i < n; ++i) {
+                list->params[i]->var = (*old_vars)[i];
+            }
+        }
+    }
+};
+
 const tir::Node* OptionDecl::infer(TypeChecker& checker) {
-    if (param)
-        return checker.infer_type(*param);
+    // we don't want the upcoming definitions to end up enclosed in the enum itself
+    assert(parent->enclosing_module);
+    auto& builder = *parent->enclosing_module->builder;
+    TypeChecker::BuilderGuard guard(checker, builder);
+
+    if (param) {
+        ShadowPolyParamsHelper poly_shadow_helper(checker, parent->type_params);
+        return checker.maybe_polymorphic(id, poly_shadow_helper.new_vars, NodeKind::Type, [&](auto& builder, auto& self, auto& set_head) -> const Var* {
+            auto option_type = checker.infer_type(*param);
+            auto var = builder.type_var(id);
+            var->binder = &builder.scope;
+            set_head(var);
+            this->var = self;
+            builder.bind(var, option_type);
+            checker.exit_decl(this);
+            return var;
+        });
+    }
     else if (has_fields) {
         std::optional<Array<const Var*>> params = parent->type_params ? std::make_optional(checker.duplicate_params(checker.infer(&*parent->type_params))) : std::nullopt;
-        struct_type = checker.maybe_polymorphic(id, params, NodeKind::Value, [&](auto& builder, auto& self, auto& set_head) -> const Var* {
+        struct_type = checker.maybe_polymorphic(id, params, NodeKind::Type, [&](auto& builder, auto& self, auto& set_head) -> const Var* {
             auto struct_type = builder.struct_type(this);
             auto var = builder.type_var(id);
             var->binder = &builder.scope;
@@ -2912,31 +2960,51 @@ const tir::Node* OptionDecl::infer(TypeChecker& checker) {
             checker.exit_decl(this);
             return var;
         });
+        return struct_type;
     } else {
         return checker.builder().unit_type();
     }
 }
 
 const tir::Node* EnumDecl::infer(TypeChecker& checker) {
-    auto enum_type = checker.builder().enum_type(this);
-    // Set the type before entering the options
-    var = checker.let_rec_builder().schedule_type(enum_type);
-    for (auto& option : options)
-        enum_type->members.push_back(checker.infer_type(*option));
-    enum_type->validate();
-    return var;
+    if (!checker.enter_decl(this))
+        return checker.builder().type_error();
+
+    std::optional<Array<const Var*>> params = this->type_params ? std::make_optional(checker.infer(&*this->type_params)) : std::nullopt;
+    return checker.maybe_polymorphic(id, params, NodeKind::Type, [&](auto& builder, auto& self, auto& set_head) -> const Var* {
+        auto enum_type = checker.builder().enum_type(this);
+        auto var = builder.type_var(id);
+        var->binder = &builder.scope;
+        set_head(var);
+        this->var = self;
+        for (auto& option : options) {
+            auto option_type_or_ctor = checker.infer_option(*option);
+            const tir::Type* option_type = option_type_or_ctor->isa<tir::Type>();
+            if (!option_type) {
+                Array<const tir::Node*> args(params->size());
+                for (size_t i = 0; i < params->size(); ++i) {
+                    args[i] = (*params)[i];
+                }
+                option_type = builder.type_app(option_type_or_ctor->as<CtorVar>(), args);
+            }
+            enum_type->members.push_back(option_type);
+        }
+        enum_type->validate();
+        builder.bind(var, enum_type);
+        checker.exit_decl(this);
+        return var;
+    });
 }
 
 const tir::Var* OptionDecl::ctor_or_default_value(TypeChecker& checker) const {
     if (ctor_or_default_value_)
         return ctor_or_default_value_;
 
-    assert(enclosing_module);
-    auto& builder = *enclosing_module->builder;
+    assert(parent->enclosing_module);
+    auto& builder = *parent->enclosing_module->builder;
     TypeChecker::BuilderGuard guard(checker, builder);
 
     assert(!struct_type);
-    size_t member_count = fields.size();
 
     std::optional<Array<const Var*>> params = parent->type_params ? std::make_optional(checker.duplicate_params(checker.infer(&*parent->type_params))) : std::nullopt;
     ctor_or_default_value_ = checker.maybe_polymorphic(id, params, NodeKind::Value, [&](auto& builder, auto& selff, auto& set_head) -> const Var* {
@@ -2946,20 +3014,22 @@ const tir::Var* OptionDecl::ctor_or_default_value(TypeChecker& checker) const {
             for (size_t i = 0; i < params->size(); i++) {
                 args[i] = (*params)[i];
             }
-            self_type = builder.type_app(var->as<CtorVar>(), args);
+            self_type = builder.type_app(parent->var->as<CtorVar>(), args);
         }
         else
-            self_type = var->as<TypeVar>();
+            self_type = parent->var->as<TypeVar>();
 
-        if (member_count > 0) {
-            SmallArray<const artic::Type*> tuple_args(member_count);
-            for (size_t i = 0, n = member_count; i < n; ++i) {
-                tuple_args[i] = builder.member_type(self_type, i);
+        const tir::Type* type = maybe_ctor_type_or_unit->isa<tir::Type>();
+        if (!type) {
+            Array<const tir::Node*> args(params->size());
+            for (size_t i = 0; i < params->size(); ++i) {
+                args[i] = (*params)[i];
             }
-            auto dom = member_count == 1
-                       ? tuple_args.front()
-                       : builder.tuple_type(tuple_args);
-            auto param = builder.value_var(Identifier { loc, "param" }, dom);
+            //type = builder.type_app(maybe_ctor_type_or_unit->as<CtorVar>(), args);
+            type = builder.scope.resolve_ctor(maybe_ctor_type_or_unit->as<CtorVar>())->template as<TypeCtor>()->instantiate(builder, args)->template as<tir::Type>();
+        }
+        if (type != builder.unit_type()) {
+            auto param = builder.value_var(Identifier { loc, "param" }, type);
 
             Scope& fn_scope = checker.scope().new_child();
             fn_scope.insert(param, nullptr);
@@ -2968,16 +3038,7 @@ const tir::Var* OptionDecl::ctor_or_default_value(TypeChecker& checker) const {
 
             auto fn = builder.unsafe().function(param, fn_scope, self_type, nullptr);
             fn->set_body(builder, builder.yield_expr_scope([&](ExprBuilder& expr_builder) -> const Value* {
-                if (member_count == 1) {
-                    Array<const Value*> args = { param };
-                    return expr_builder.agg(self_type, args);
-                }
-                Array<const Value*> args(member_count);
-                for (size_t i = 0, n = member_count; i < n; ++i) {
-                    auto idx = expr_builder.typed_literal(Literal(uint64_t(i)), expr_builder.prim_type(ast::PrimType::U64));
-                    args[i] = expr_builder.extract(param, idx);
-                }
-                return expr_builder.variant(self_type, index, expr_builder.agg(self_type, args));
+                return expr_builder.variant(self_type, index, param);
             }));
             return builder.schedule_value(fn);
         } else {

@@ -65,6 +65,29 @@ std::tuple<const Var*, const Node*> Scope::resolve_var_rec(const Var* var) const
     }
 }
 
+std::tuple<const Node*, const Scope&> Scope::resolve_deep_return_scope(const Node* node) const {
+    const Scope* s = this;
+    while (true) {
+        if (auto var = node->isa<Var>()) {
+            auto [last_var, resolved] = s->resolve_var_rec(var);
+            if (last_var->binder)
+                s = last_var->binder;
+            if (resolved) {
+                node = resolved;
+                continue;
+            } else if (node != last_var) {
+                node = last_var;
+                continue;
+            }
+        }
+        if (auto let_rec = node->isa<LetRec>()) {
+            s = &let_rec->scope;
+            node = let_rec->body();
+        } else break;
+    }
+    return { node, *s };
+}
+
 std::tuple<const Node*, const Scope&> Scope::resolve_var_deep_return_scope(const Var* var) const {
     // TODO: this shouldn't be necessary if trivial mod_var bindings are disallowed
     // resolve the variable normally
@@ -102,14 +125,15 @@ std::tuple<const Node*, const Scope&> Scope::resolve_var_deep_return_scope(const
 }
 
 const Type* Scope::peek_type(const Type* type) const {
-    while (auto var = type->isa<TypeVar>()) {
-        auto resolved = resolve_var_deep(var);
-        if (resolved)
-            type = resolved->as<Type>();
-        else
-            break;
-    }
-    return type;
+    return resolve_deep(type)->as<Type>();
+    // while (auto var = type->isa<TypeVar>()) {
+    //     auto resolved = resolve_var_deep(var);
+    //     if (resolved)
+    //         type = resolved->as<Type>();
+    //     else
+    //         break;
+    // }
+    // return type;
 }
 const Value* Scope::peek_value(const Value* value) const {
     while (auto var = value->isa<ValueVar>()) {

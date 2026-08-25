@@ -160,6 +160,8 @@ struct Constructor : public Ctor {
         return instantiate_into(args, s);
     }
 
+    const Node* instantiate(Builder&, ArrayRef<const Node*> args) const;
+
     Constructor(LetRecBuilder&, Scope&, const ArrayRef<const Var*>&, const Node*);
 
 private:

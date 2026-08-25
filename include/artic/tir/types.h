@@ -577,13 +577,12 @@ std::pair<const TypeApp*, const T*> peek_app_type_applied(Builder& builder, cons
     return { app->as<TypeApp>(), t->isa<T>() };
 }
 
+std::pair<const TypeApp*, const Type*> peek_app_type_unapplied_generic(const Scope& scope, const Type* type);
+
 template <typename T = Type>
 std::pair<const TypeApp*, const T*> peek_app_type_unapplied(const Scope& scope, const Type* type) {
-    auto [app, t] = match_app_unapplied(scope, type);
-    assert(t->isa<Type>());
-    if (!app)
-        return { nullptr, t->isa<T>() };
-    return { app->as<TypeApp>(), t->isa<T>() };
+    auto [app, t] = peek_app_type_unapplied_generic(scope, type);
+    return { app, t->isa<T>() };
 }
 
 } // namespace tir

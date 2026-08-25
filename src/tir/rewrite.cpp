@@ -49,8 +49,13 @@ const StructType* StructType::rewrite(Rewriter& r) const {
     return ns;
 }
 
-const EnumType* EnumType::rewrite(Rewriter&) const {
-    assert(false);
+const EnumType* EnumType::rewrite(Rewriter& r) const {
+    auto ne = r.builder().enum_type(decl);
+    r.insert(this, ne);
+    for (auto elem : members) {
+        ne->members.push_back(r.instantiate(elem));
+    }
+    return ne;
 }
 
 const SizedArrayType* SizedArrayType::rewrite(Rewriter& r) const {

@@ -42,6 +42,7 @@ public:
     void incompatible_types(const Loc&, const Type*, const Type*, const std::string_view& = "type");
     void incompatible_type(const Loc&, const std::string_view&, const Type*);
     void type_expected(const Loc&, const Type*, const std::string_view&);
+    void expected(const Loc&, const Node*, const std::string_view&);
     void expected(const Loc&, const std::string_view&);
     void unknown_member(const Loc&, const UserType*, const std::string_view&);
     void unknown_module_member(const Loc&, const ast::Path::Elem::Inferred&, const std::string_view&);
@@ -79,7 +80,7 @@ public:
 
     const tir::Type* infer_type(ast::Type& ast);
     const tir::Type* infer_type(ast::FieldDecl&);
-    const tir::Type* infer_type(ast::OptionDecl&);
+    const tir::Node* infer_option(ast::OptionDecl&);
     const tir::Type* infer_type(ast::TypeParam&);
 
     const tir::Type* infer_ptrn(ast::Ptrn&, Ptr<ast::Expr>&);

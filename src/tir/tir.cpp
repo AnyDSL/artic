@@ -136,7 +136,7 @@ const Node* Constructor::instantiate_into(ArrayRef<const Node*> args, Rewriter& 
     for (size_t i = 0; i < params.size(); i++) {
         r.insert(params[i], args[i]);
     }
-    return r.instantiate(body_, true);
+    return r.instantiate(body_, false);
 }
 
 struct Specializer : public Rewriter {
@@ -160,13 +160,17 @@ struct Specializer : public Rewriter {
     }
 };
 
+const Node* Constructor::instantiate(Builder& builder, ArrayRef<const Node*> args) const {
+    return instantiate_with<Specializer>(builder.arena, args, builder);
+}
+
 const Node* App::instantiated(Builder& builder) const {
     if (instantiated_)
         return instantiated_;
     auto constructor = builder.scope.resolve_ctor(applicand())->isa<Constructor>();
     assert(constructor);
     assert(&builder.arena == &arena);
-    return instantiated_ = constructor->instantiate_with<Specializer>(builder.arena, args, builder);
+    return instantiated_ = constructor->instantiate(builder, args);
 }
 
 LetRec::LetRec(Scope& scope, const ArrayRef<std::tuple<const Var*, const Node*>>& vars, const Node* in)
@@ -195,9 +199,7 @@ bool LetRec::equals(const Node* other) const {
 }
 
 std::pair<const App*, const Node*> match_app_unapplied(const Scope& scope, const Node* node) {
-    if (auto var = node->isa<Var>()) {
-        node = scope.resolve_var_deep(var);
-    }
+    node = scope.resolve_deep(node);
     if (auto app = node->isa<App>()) {
         auto constructor = scope.resolve_ctor(app->applicand())->isa<Constructor>();
         return { app, constructor->body() };
@@ -206,9 +208,7 @@ std::pair<const App*, const Node*> match_app_unapplied(const Scope& scope, const
 }
 
 std::pair<const App*, const Node*> match_app_applied(Builder& builder, const Node* node) {
-    if (auto var = node->isa<Var>()) {
-        node = builder.scope.resolve_var_deep(var);
-    }
+    node = builder.scope.resolve_deep(node);
     if (auto app = node->isa<App>()) {
         return { app, app->instantiated(builder) };
     }

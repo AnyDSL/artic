@@ -38,6 +38,12 @@ struct Scope {
         return r;
     }
 
+    std::tuple<const Node*, const Scope&> resolve_deep_return_scope(const Node*) const;
+    const Node* resolve_deep(const Node* n) const {
+        auto [r, _] = resolve_deep_return_scope(n);
+        return r;
+    }
+
     /// Tries to resolve a type by following the let-bindings in this scope
     // const Type* resolve_type(const Type* type) const;
     // const ModValue* resolve_mod_value(const ModValue*) const;
