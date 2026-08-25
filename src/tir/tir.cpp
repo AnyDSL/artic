@@ -194,6 +194,28 @@ bool LetRec::equals(const Node* other) const {
     return false;
 }
 
+std::pair<const App*, const Node*> match_app_unapplied(const Scope& scope, const Node* node) {
+    if (auto var = node->isa<Var>()) {
+        node = scope.resolve_var_deep(var);
+    }
+    if (auto app = node->isa<App>()) {
+        auto constructor = scope.resolve_ctor(app->applicand())->isa<Constructor>();
+        return { app, constructor->body() };
+    }
+    return { nullptr, node };
+}
+
+std::pair<const App*, const Node*> match_app_applied(Builder& builder, const Node* node) {
+    if (auto var = node->isa<Var>()) {
+        node = builder.scope.resolve_var_deep(var);
+    }
+    if (auto app = node->isa<App>()) {
+        return { app, app->instantiated(builder) };
+    }
+    return { nullptr, node };
+}
+
+
 }
 
 }

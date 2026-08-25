@@ -121,7 +121,7 @@ const EnumType* Builder::enum_type(const ast::EnumDecl* decl) {
 const Type* Builder::member_type(const Type* type, size_t idx) {
     type = scope.peek_type(type);
 
-    if (auto [app, peeked_type] = peek_app_type(*this, type); app) {
+    if (auto [app, peeked_type] = peek_app_type_applied(*this, type); app) {
         return member_type(peeked_type, idx);
     }
 

@@ -796,29 +796,6 @@ std::pair<const RefType*, const Type*> remove_ref(const Scope& scope, const Type
     return std::make_pair(nullptr, type);
 }
 
-std::pair<const App*, const Node*> match_app(Builder& builder, const Node* node) {
-    if (auto var = node->isa<Var>()) {
-        node = builder.scope.resolve_var_deep(var);
-    }
-    if (auto app = node->isa<App>()) {
-        return { app, app->instantiated(builder) };
-    }
-    return { nullptr, nullptr };
-}
-
-std::pair<const TypeApp*, const Type*> match_app_type_(Builder& builder, const Type* type) {
-    auto [app, instantiated] = match_app(builder, type);
-    if (app) {
-        return { app->as<TypeApp>(), instantiated->as<Type>() };
-    }
-    return { nullptr, type };
-}
-
-std::pair<const TypeApp*, const Type*> peek_app_type(Builder& builder, const Type* type) {
-    auto [app, resolved_type] = match_app_type_(builder, type);
-    return { app, builder.scope.peek_type(resolved_type) };
-}
-
 } // namespace tir
 
 } // namespace artic

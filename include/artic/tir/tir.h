@@ -199,6 +199,10 @@ private:
     mutable const Node* instantiated_ = nullptr;
 };
 
+std::pair<const App*, const Node*> match_app_unapplied(const Scope&, const Node*);
+std::pair<const App*, const Node*> match_app_applied(Builder& builder, const Node*);
+
+
 }
 
 }

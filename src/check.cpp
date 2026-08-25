@@ -1577,7 +1577,7 @@ std::optional<Path::Elem::Inferred> Path::infer_path(TypeChecker& checker, std::
                 if (ctor)
                     type = ctor->body()->isa<tir::Type>();
             }
-            if (type) if (auto [type_app, struct_type] = peek_app_type<StructType>(checker.builder(), type);
+            if (type) if (auto [type_app, struct_type] = peek_app_type_unapplied<StructType>(checker.scope(), type);
                      struct_type && struct_type->is_tuple_like()) {
                 auto decl = struct_type->decl->as<StructDecl>();
                 prev = Elem::Inferred { .var = decl->ctor_or_default_value(checker) };
@@ -1846,7 +1846,7 @@ const tir::Node* FieldExpr::check(TypeChecker& checker, const artic::Type* expec
 
 const tir::Node* RecordExpr::infer(TypeChecker& checker) {
     auto record_type = expr ? checker.deref(expr)->type() : checker.infer_type(*this->type);
-    auto [type_app, struct_type] = peek_app_type<artic::StructType>(checker.builder(), record_type);
+    auto [type_app, struct_type] = peek_app_type_applied<artic::StructType>(checker.builder(), record_type);
     if (!struct_type ||
         struct_type->is_tuple_like()) {
         checker.type_expected(expr ? expr->loc : this->loc, record_type, "record-like structure");
@@ -2107,7 +2107,7 @@ const tir::Node* ProjExpr::infer(TypeChecker& checker) {
     }
 
     const artic::Type* result_type = nullptr;
-    auto [type_app, struct_type] = peek_app_type<StructType>(checker.builder(), expr_type);
+    auto [type_app, struct_type] = peek_app_type_unapplied<StructType>(checker.scope(), expr_type);
     if (std::holds_alternative<Identifier>(field)) {
         // Regular field expressions using identifiers
         if (!struct_type) {
@@ -3191,7 +3191,7 @@ const tir::Node* FieldPtrn::check(TypeChecker& checker, const artic::Type* expec
 const tir::Node* RecordPtrn::infer(TypeChecker& checker) {
     auto path_type = path.infer(checker, NodeKind::Type)->as<tir::Type>();
     //if (path_type->isa<TypeError>())
-    auto [mod_app, struct_type] = peek_app_type<artic::StructType>(checker.builder(), path_type);
+    auto [mod_app, struct_type] = peek_app_type_applied<artic::StructType>(checker.builder(), path_type);
     if (!struct_type ||
         (struct_type->decl->isa<StructDecl>() &&
          struct_type->decl->as<StructDecl>()->is_tuple_like)) {
@@ -3208,7 +3208,7 @@ const tir::Node* CtorPtrn::infer(TypeChecker& checker) {
     auto path_type = path.infer(checker, NodeKind::Type)->as<tir::Type>();
     auto peeked_type = checker.scope().peek_type(path_type);
 
-    if (auto [type_app, struct_type] = peek_app_type<StructType>(checker.builder(), peeked_type); struct_type) {
+    if (auto [type_app, struct_type] = peek_app_type_unapplied<StructType>(checker.scope(), peeked_type); struct_type) {
         if (struct_type->is_tuple_like()) {
             auto decl = struct_type->decl->as<ast::StructDecl>();
             if (struct_type->member_count() == 0 && arg) {
@@ -3233,7 +3233,7 @@ const tir::Node* CtorPtrn::infer(TypeChecker& checker) {
             return path_type;
         }
     }
-    if (auto [_, enum_type] = peek_app_type<EnumType>(checker.builder(), peeked_type); enum_type) {
+    if (auto [_, enum_type] = peek_app_type_applied<EnumType>(checker.builder(), peeked_type); enum_type) {
         assert(false && "TODO");
     }
     checker.type_expected(path.loc, path_type, "enumeration or structure");
