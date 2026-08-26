@@ -369,7 +369,7 @@ const Value* ExprBuilder::cast(const Value* src, const Type* dst) {
 }
 
 const Value* Builder::Unsafe::call(const Value* callee, const Value* arg) {
-    return builder.arena.insert<Call>(builder.arena, callee, arg);
+    return builder.arena.insert<Call>(builder, callee, arg);
 }
 
 const Value* ExprBuilder::call(const Value* callee, const Value* arg) {

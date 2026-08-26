@@ -20,12 +20,12 @@ public:
             : match_case(match_case)
         {}
 
-        const Function* emit(ExprBuilder&);
+        const Value* emit(Rewriter&, ExprBuilder&);
     };
 
     static const Value* emit(
+        Rewriter&,
         Builder&,
-        ::Arena&,
         Log&,
         const Match* node,
         std::vector<MatchCase>&& cases);
@@ -36,9 +36,9 @@ private:
     // using Value = std::pair<const Value*, const Type*>;
     using Cost = size_t;
 
+    Rewriter& r;
     Builder& builder;
-    ::Arena& arena;
-    const Match* node;
+    const Match* old_match;
     std::vector<Row> rows;
     std::vector<const Value*> values;
     // std::unordered_map<const ast::IdPtrn*, const tir::Value*>& matched_values;
@@ -46,15 +46,15 @@ private:
     // PtrVector<ast::Ptrn> tmp_ptrns;
 
     PtrnCompiler(
+        Rewriter& r,
         Builder& builder,
-        ::Arena& arena,
         Log& log,
-        const Match* match,
+        const Match* old_match,
         std::vector<Row>&& rows,
         std::vector<const Value*>&& values)
-        : builder(builder)
-        , arena(arena)
-        , node(match)
+        : r(r)
+        , builder(builder)
+        , old_match(old_match)
         , rows(std::move(rows))
         , values(std::move(values))
         , Logger(log)
@@ -256,7 +256,7 @@ private:
 
     const Value* compile() {
         if (rows.empty()) {
-            non_exhaustive_match(node->loc);
+            non_exhaustive_match(old_match->loc);
             return builder.error_value(builder.type_error());
         }
 
@@ -278,7 +278,7 @@ private:
                 if (ptrn && ptrn->isa<ast::IdPtrn>())
                     matched_values.emplace(ptrn->as<ast::IdPtrn>(), values[i]);
             }*/
-            auto case_block = rows.front().second->emit(expr_builder);
+            auto case_block = rows.front().second->emit(r, expr_builder);
             return expr_builder.finish(builder.unsafe().call(case_block, expr_builder.unit()));
         }
 
@@ -345,14 +345,14 @@ private:
                 match_false = fn;
                 // auto _ = emitter.save_state();
                 // emitter.enter(thorin::is_allset(ctor.first) ? match_true : match_false);
-                match_false->set_body(builder, PtrnCompiler(*fn_builder, arena, log, node, std::move(ctor.second), std::vector<const Value*>(values)).compile());
+                match_false->set_body(builder, PtrnCompiler(r, *fn_builder, log, old_match, std::move(ctor.second), std::vector<const Value*>(values)).compile());
             }
             if (!no_default) {
                 auto [fn_builder, fn] = make_fn();
                 match_true = fn;
                 // auto _ = emitter.save_state();
                 // emitter.enter(thorin::is_allset(ctor.first) ? match_true : match_false);
-                match_true->set_body(builder, PtrnCompiler(*fn_builder, arena, log, node, std::move(wildcards), std::vector<const Value*>(values)).compile());
+                match_true->set_body(builder, PtrnCompiler(r, *fn_builder, log, old_match, std::move(wildcards), std::vector<const Value*>(values)).compile());
             }
 
             if (ctors.begin()->first->as<TypedLiteral>()->value.as_bool())
@@ -409,17 +409,17 @@ private:
                         new_values.emplace_back(/*emitter.world.cast(type->convert(emitter), value), type, */value);
                 }
 
-                auto yielded = case_expr_builder.finish(PtrnCompiler(*case_builder, arena, log, node, std::move(rows), std::move(new_values)).compile());
+                auto yielded = case_expr_builder.finish(PtrnCompiler(r, *case_builder, log, old_match, std::move(rows), std::move(new_values)).compile());
                 case_fn->set_body(builder, yielded);
             }
             if (!no_default) {
                 //emitter.enter(otherwise);
                 auto& [otherwise_builder, otherwise_fn] = otherwise;
-                otherwise_fn->set_body(builder, PtrnCompiler(*otherwise_builder, arena, log, node, std::move(wildcards), std::move(values)).compile());
+                otherwise_fn->set_body(builder, PtrnCompiler(r, *otherwise_builder, log, old_match, std::move(wildcards), std::move(values)).compile());
             }
 
             Array<Switch::Case> cases(no_default ? defs.size() - 1 : defs.size());
-            for (size_t i = 0; i < defs.size(); i++)
+            for (size_t i = 0; i < cases.size(); i++)
                 cases[i] = Switch::Case(defs[i], std::get<1>(targets[i]));
             sw = expr_builder.unsafe().switch_(match_value, std::get<1>(otherwise), std::move(cases));
             // emitter.state.cont->match(
@@ -444,31 +444,31 @@ private:
 #endif
 };
 
-const Function* PtrnCompiler::MatchCase::emit(ExprBuilder& expr_builder) {
+const Value* PtrnCompiler::MatchCase::emit(Rewriter& r, ExprBuilder& b) {
     if (!fn) {
-        fn = match_case->branch;
+        fn = r.instantiate(match_case->branch);
         // cont = emitter.basic_block_with_mem(emitter.world.tuple_type(param_types), emitter.debug_info(*node, "case_body"));
         // auto _ = emitter.save_state();
         // emitter.enter(cont);
         // auto tuple = emitter.tuple_from_params(cont);
         // emitter.jump(target, emitter.emit(*expr), emitter.debug_info(*node));
     }
-    return fn;
+    return b.bind_value(fn);
 }
 
 const Value* PtrnCompiler::emit(
+    Rewriter& rewriter,
     Builder& builder,
-    ::Arena& arena,
     Log& log,
-    const Match* match,
+    const Match* old_match,
     std::vector<MatchCase>&& cases)
 {
     auto rows = std::vector<PtrnCompiler::Row>();
     for (auto& case_ : cases)
         rows.emplace_back(std::vector<const Match::Ptrn*> { case_.match_case->ptrn }, &case_);
 
-    std::vector<const Value*> values = { match->value };
-    auto compiler = PtrnCompiler(builder, arena, log, match, std::move(rows), std::move(values));
+    std::vector<const Value*> values = { rewriter.instantiate(old_match->value) };
+    auto compiler = PtrnCompiler(rewriter, builder, log, old_match, std::move(rows), std::move(values));
     auto r = compiler.compile();
     for (auto &row : compiler.rows) {
         if (row.second->is_redundant)
@@ -515,19 +515,23 @@ void PtrnCompiler::dump() const {
 #endif // GCOV_EXCL_STOP
 
 struct LowerMatch : public Rewriter {
-    LowerMatch(Arena& src, Arena& dst) : Rewriter(src, dst) {}
+    Log& log;
+    LowerMatch(Arena& src, Arena& dst, Log& log) : Rewriter(src, dst), log(log) {}
 
     const Node* rewrite(const Node* old, bool imm) override {
         if (auto old_match = old->isa<Match>()) {
-
+            std::vector<PtrnCompiler::MatchCase> match_cases;
+            for (auto& case_ : old_match->cases)
+                match_cases.emplace_back(&case_);
+            return PtrnCompiler::emit(*this, builder(), log, old_match, std::move(match_cases));
         }
         return old->rewrite(*this);
     }
 };
 
-bool lower_match(std::unique_ptr<Root>& root) {
+bool lower_match(std::unique_ptr<Root>& root, Log& log) {
     std::unique_ptr<Root> new_root = std::make_unique<Root>();
-    LowerMatch pass(*root->arena, *new_root->arena);
+    LowerMatch pass(*root->arena, *new_root->arena, log);
     pass.instantiate(*new_root, *root);
     root = std::move(new_root);
     return true;

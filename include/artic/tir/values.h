@@ -173,7 +173,7 @@ struct Call : public Value {
 
     const thorin::Def* emit(Emitter&) const override;
 
-    Call(Arena&, const Value* callee, const Value* arg);
+    Call(Builder&, const Value* callee, const Value* arg);
 };
 
 struct GlobalVarLinkage {

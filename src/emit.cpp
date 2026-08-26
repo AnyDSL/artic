@@ -2614,6 +2614,9 @@ std::tuple<Ptr<ast::ModDecl>, std::unique_ptr<Root>, bool> compile(
     if (!root_module)
         return std::make_tuple(std::move(program), nullptr, false);
 
+    if (!lower_match(root_module, log))
+        return std::make_tuple(std::move(program), nullptr, false);
+
     if (!lower_app(root_module))
         return std::make_tuple(std::move(program), nullptr, false);
 

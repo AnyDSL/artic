@@ -171,7 +171,7 @@ bool LetRecValue::equals(const Node* other) const {
     return false;
 }
 
-Call::Call(Arena& arena, const Value* callee, const Value* arg) : Value(callee->type()->as<FnType>()->codom), Node(arena), callee(callee), arg(arg) {
+Call::Call(Builder& builder, const Value* callee, const Value* arg) : Value(builder.scope.peek_type(callee->type())->as<FnType>()->codom), Node(builder.arena), callee(callee), arg(arg) {
     assert(callee->is_simple());
     assert(arg->is_simple());
 }
@@ -714,7 +714,7 @@ Switch::Switch(Builder& builder, const Value* value, const Function* default_cas
 }
 
 Control::Control(Builder& builder, const Function* fn) : Value([&]() -> const Type* {
-    if (auto yield_fn_type = fn->param->type()->isa<FnType>()) {
+    if (auto yield_fn_type = builder.scope.peek_type(fn->param->type())->isa<FnType>()) {
         if (yield_fn_type->codom != builder.no_ret_type())
             return builder.type_error();
         return yield_fn_type->dom;

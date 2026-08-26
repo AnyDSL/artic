@@ -2261,22 +2261,32 @@ const tir::Node* MatchExpr::infer(TypeChecker& checker) {
 const tir::Node* MatchExpr::check(TypeChecker& checker, const artic::Type* expected) {
     auto arg = checker.deref(this->arg);
     const artic::Type* type = expected;
-    std::vector<Match::Case> cases;
-    for (auto& case_ : this->cases) {
-        checker.check_ptrn(*case_->ptrn, arg->type());
-        const Match::Ptrn* match_ptrn = nullptr;
-        auto fn = checker.build_fn(checker.builder().value_var(std::nullopt, checker.builder().unit_type()), [&]() {
-            ExprBuilder case_builder(checker.arena(), &checker.builder());
-            TypeChecker::BuilderGuard guard(checker, case_builder);
-            match_ptrn = checker.bind_ptrn_params(*case_->ptrn, arg);
-            auto body = type ? checker.coerce(&*case_->expr, type) : checker.deref(case_->expr);
-            type = body->type();
-            return case_builder.finish(body);
-        });
-        cases.emplace_back(&case_->loc, match_ptrn, fn);
-    }
 
-    return checker.builder().unsafe().match(loc, arg, std::move(cases));
+    auto yield_fn_type = checker.builder().type_var(std::nullopt);
+    // auto yield_fn_type = checker.builder().fn_type(yield_type, checker.builder().no_ret_type());
+    auto yield_param = checker.builder().value_var(Identifier { loc, "yield" }, yield_fn_type);
+    auto control_fn = checker.build_fn(yield_param, [&]() -> const Value* {
+        std::vector<Match::Case> cases;
+        for (auto& case_ : this->cases) {
+            checker.check_ptrn(*case_->ptrn, arg->type());
+            const Match::Ptrn* match_ptrn = nullptr;
+            auto fn = checker.build_fn(checker.builder().value_var(std::nullopt, checker.builder().unit_type()), [&]() {
+                ExprBuilder case_builder(checker.arena(), &checker.builder());
+                TypeChecker::BuilderGuard guard(checker, case_builder);
+                match_ptrn = checker.bind_ptrn_params(*case_->ptrn, arg);
+                auto body = type ? checker.coerce(&*case_->expr, type) : checker.deref(case_->expr);
+                if (!type) {
+                    type = body->type();
+                    checker.builder().enclosing_let_rec().bind(yield_fn_type, checker.builder().fn_type(type, checker.builder().no_ret_type()));
+                }
+                return case_builder.finish(case_builder.call(yield_param, body));
+            });
+            cases.emplace_back(&case_->loc, match_ptrn, fn);
+        }
+
+        return checker.builder().unsafe().match(loc, arg, std::move(cases));
+    });
+    return checker.expr_builder().control(control_fn);
 }
 
 const tir::Node* WhileExpr::infer(TypeChecker& checker) {
