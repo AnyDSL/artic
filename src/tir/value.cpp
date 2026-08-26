@@ -489,7 +489,7 @@ bool Proj::equals(const Node* other) const {
 }
 
 Bind::Bind(Builder& builder, const ValueVar* param, const Value* value) : Value([&]() -> const Type* {
-    if (value->type() != param->type()) {
+    if (!value->type()->subtype(builder.scope, param->type())) {
         assert(false);
     }
     return builder.tuple_type({});
@@ -885,10 +885,12 @@ void Branch::free_variables(FVSet& vars, Seen& seen) const {
 
 void Match::Ptrn::free_variables(FVSet& vars, Seen& seen) const {
     type->free_variables(vars, seen);
+    if (elem_ptrns) {
+        for (auto& [_, sub] : *elem_ptrns)
+            sub->free_variables(vars, seen);
+    }
     if (sub_ptrn)
         sub_ptrn->free_variables(vars, seen);
-    for (auto& [_, sub] : elem_ptrns)
-        sub->free_variables(vars, seen);
 }
 
 void Match::free_variables(FVSet& vars, Seen& seen) const {

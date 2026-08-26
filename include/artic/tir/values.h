@@ -468,6 +468,7 @@ const Array<std::string> builtin_tag_names = {
     "bitcast",
     "insert",
     "select",
+    "sign_bit",
     "isnan",
     "isfinite",
     "compare",
@@ -540,26 +541,42 @@ struct Branch : public Value {
 
 struct Match : public Value {
     /// A simplified form of the pattern language found in the AST, encodes a tree of extract/variant extracts
-    struct Ptrn {
+    struct Ptrn : Node {
         const Type* type;
         std::optional<size_t> variant_index = std::nullopt;
+        std::optional<Array<std::tuple<size_t, const Ptrn*>>> elem_ptrns;
         const Ptrn* sub_ptrn = nullptr;
-        std::vector<std::tuple<size_t, const Ptrn*>> elem_ptrns;
 
-        void print(Printer&) const;
-        const Ptrn* rewrite(Rewriter&) const;
-        void free_variables(FVSet& vars, Seen& seen) const;
+        void print(Printer&) const override;
+        const Ptrn* rewrite(Rewriter&) const override;
+        void free_variables(FVSet& vars, Seen& seen) const override;
+
+        NodeKind kind() const override { return NodeKind::Ptrn; }
 
         bool is_trivial() const {
             if (variant_index)
                 return false;
             if (sub_ptrn && !sub_ptrn->is_trivial())
                 return false;
-            for (auto& [_, ptrn] : elem_ptrns) {
-                if (!ptrn->is_trivial())
-                    return false;
+            if (elem_ptrns) {
+                for (auto& [_, ptrn] : *elem_ptrns) {
+                    if (!ptrn->is_trivial())
+                        return false;
+                }
             }
             return true;
+        }
+
+        Ptrn(Arena& arena, const Type* type) : Node(arena), type(type) {}
+        Ptrn(Arena& arena, const Type* type, size_t variant_index, const Ptrn* sub_ptrn) : Ptrn(arena, type, sub_ptrn) {
+            this->variant_index = variant_index;
+        }
+        Ptrn(Arena& arena, const Type* type, const ArrayRef<std::tuple<size_t, const Ptrn*>>& ref, const Ptrn* sub_ptrn) : Ptrn(arena, type, sub_ptrn) {
+            this->elem_ptrns = ref;
+        }
+    private:
+        Ptrn(Arena& arena, const Type* type, const Ptrn* sub_ptrn) : Ptrn(arena, type) {
+            this->sub_ptrn = sub_ptrn;
         }
     };
 

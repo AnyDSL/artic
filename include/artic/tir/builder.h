@@ -190,7 +190,9 @@ struct Builder : public artic::Cast<Builder> {
 
         const Control* control(const Function*);
         const Branch* branch(const Value*, const Function*, const Function*);
-        const Match::Ptrn* match_ptrn(Match::Ptrn&&);
+        const Match::Ptrn* trivial_match_ptrn(const Type*);
+        const Match::Ptrn* variant_match_ptrn(const Type*, size_t, const Match::Ptrn*);
+        const Match::Ptrn* compound_match_ptrn(const Type*, const ArrayRef<std::tuple<size_t, const Match::Ptrn*>>&, const Match::Ptrn*);
         const Match* match(const Loc&, const Value*, Array<Match::Case>&&);
         const Switch* switch_(const Value*, const Function*, Array<Switch::Case>&&);
 

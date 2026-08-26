@@ -60,20 +60,14 @@ const Match::Ptrn* TypeChecker::bind_ptrn_params(ast::Ptrn& ptrn, const Value* v
             auto idx = builder().typed_literal(Literal(uint64_t(i)), builder().prim_type(ast::PrimType::U64));
             elem_ptrns.emplace_back(i, bind_ptrn_params(*tuple_ptrn->args[i], eb.extract(value, idx)));
         }
-        return builder().unsafe().match_ptrn(Match::Ptrn {
-            .type = ptrn.type,
-            .elem_ptrns = std::move(elem_ptrns)
-        });
+        return builder().unsafe().compound_match_ptrn(ptrn.type, elem_ptrns, nullptr);
     } else if (auto array_ptrn = ptrn.isa<ast::ArrayPtrn>()) {
         std::vector<std::tuple<size_t, const Match::Ptrn*>> elem_ptrns;
         for (size_t i = 0; i < array_ptrn->elems.size(); ++i) {
             auto idx = builder().typed_literal(Literal(uint64_t(i)), builder().prim_type(ast::PrimType::U64));
             elem_ptrns.emplace_back(i, bind_ptrn_params(*array_ptrn->elems[i], eb.extract(value, idx)));
         }
-        return builder().unsafe().match_ptrn(Match::Ptrn {
-            .type = ptrn.type,
-            .elem_ptrns = std::move(elem_ptrns)
-        });
+        return builder().unsafe().compound_match_ptrn(ptrn.type, elem_ptrns, nullptr);
     } else if (auto record_ptrn = ptrn.isa<ast::RecordPtrn>()) {
         if (record_ptrn->variant_index) {
             value = eb.variant_extract(value, *record_ptrn->variant_index);
@@ -83,34 +77,18 @@ const Match::Ptrn* TypeChecker::bind_ptrn_params(ast::Ptrn& ptrn, const Value* v
             auto idx = builder().typed_literal(Literal(uint64_t(i)), builder().prim_type(ast::PrimType::U64));
             elem_ptrns.emplace_back(i, bind_ptrn_params(*record_ptrn->fields[i], eb.extract(value, idx)));
         }
-        auto match_ptrn = builder().unsafe().match_ptrn(Match::Ptrn {
-            .type = ptrn.type,
-            .elem_ptrns = std::move(elem_ptrns)
-        });
+        auto match_ptrn = builder().unsafe().compound_match_ptrn(ptrn.type, elem_ptrns, nullptr);
         if (record_ptrn->variant_index) {
-            match_ptrn = builder().unsafe().match_ptrn(Match::Ptrn {
-                .type = ptrn.type,
-                .variant_index = record_ptrn->variant_index,
-                .sub_ptrn = match_ptrn
-            });
+            match_ptrn = builder().unsafe().variant_match_ptrn(ptrn.type, *record_ptrn->variant_index, match_ptrn);
         }
         return match_ptrn;
     } else if (auto ctor_ptrn = ptrn.isa<ast::CtorPtrn>()) {
-        if (!ctor_ptrn->arg)
-            return builder().unsafe().match_ptrn(Match::Ptrn {
-                .type = ptrn.type,
-                .variant_index = ctor_ptrn->variant_index
-            });
         if (ctor_ptrn->variant_index) {
             value = eb.variant_extract(value, *ctor_ptrn->variant_index);
         }
-        auto match_ptrn = bind_ptrn_params(*ctor_ptrn->arg, value);
+        auto match_ptrn = ctor_ptrn->arg ? bind_ptrn_params(*ctor_ptrn->arg, value) : builder().unsafe().trivial_match_ptrn(ptrn.type);
         if (ctor_ptrn->variant_index) {
-            match_ptrn = builder().unsafe().match_ptrn(Match::Ptrn {
-                .type = ptrn.type,
-                .variant_index = ctor_ptrn->variant_index,
-                .sub_ptrn = match_ptrn
-            });
+            match_ptrn = builder().unsafe().variant_match_ptrn(ptrn.type, *ctor_ptrn->variant_index, match_ptrn);
         }
         return match_ptrn;
     } else if (auto field_ptrn = ptrn.isa<ast::FieldPtrn>()) {
@@ -129,9 +107,7 @@ const Match::Ptrn* TypeChecker::bind_ptrn_params(ast::Ptrn& ptrn, const Value* v
         if (id_ptrn->sub_ptrn)
             return bind_ptrn_params(*id_ptrn->sub_ptrn, value);
         // otherwise this is a trivial pattern
-        return builder().unsafe().match_ptrn(Match::Ptrn {
-            .type = ptrn.type,
-        });
+        return builder().unsafe().trivial_match_ptrn(ptrn.type);
     } else if (auto typed_ptrn = ptrn.isa<ast::TypedPtrn>()) {
         return bind_ptrn_params(*typed_ptrn->ptrn, value);
     } else {

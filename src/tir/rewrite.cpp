@@ -392,15 +392,17 @@ const Node* Branch::rewrite(Rewriter& r) const {
 }
 
 const Match::Ptrn* Match::Ptrn::rewrite(Rewriter& r) const {
-    Ptrn nptrn = {
-        .type = r.instantiate(type),
-        .variant_index = variant_index,
-        .sub_ptrn = sub_ptrn ? sub_ptrn->rewrite(r) : nullptr,
-    };
-    for (auto& [idx, optrn] : elem_ptrns) {
-        nptrn.elem_ptrns.emplace_back(idx, optrn->rewrite(r));
+    if (variant_index) {
+        return r.builder().unsafe().variant_match_ptrn(r.instantiate(type), *variant_index, sub_ptrn ? r.instantiate(sub_ptrn) : nullptr);
+    } else if (elem_ptrns) {
+        std::vector<std::tuple<size_t, const Ptrn*>> new_array;
+        for (auto& [idx, old] : *elem_ptrns) {
+            new_array.emplace_back(idx, r.instantiate(old));
+        }
+        return r.builder().unsafe().compound_match_ptrn(r.instantiate(type), new_array, sub_ptrn ? r.instantiate(sub_ptrn) : nullptr);
+    } else {
+        return r.builder().unsafe().trivial_match_ptrn(r.instantiate(type));
     }
-    return r.builder().unsafe().match_ptrn(std::move(nptrn));
 }
 
 const Node* Match::rewrite(Rewriter& r) const {

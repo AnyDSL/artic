@@ -605,23 +605,25 @@ void Branch::print(Printer& p) const {
 }
 
 void Match::Ptrn::print(Printer& p) const {
-    p << log::keyword_style("ptrn") << ' ';
+    p << log::keyword_style("ptrn");
     if (variant_index)
-        p << log::keyword_style("variant_index") << " = " << *variant_index << " ";
-    if (sub_ptrn) {
-        p << log::keyword_style("sub") << ' ';
-        sub_ptrn->print(p);
-    }
-    if (!elem_ptrns.empty()) {
-        p << log::keyword_style("elems") << '(';
-        for (size_t i = 0; i < elem_ptrns.size(); i++) {
-            auto [idx, elem_ptrn] = elem_ptrns[i];
+        p << " " << log::keyword_style("variant_index") << "(" << *variant_index << ")";
+    else if (elem_ptrns) {
+        p << " " << log::keyword_style("elems") << '(';
+        for (size_t i = 0; i < elem_ptrns->size(); i++) {
+            auto [idx, elem_ptrn] = (*elem_ptrns)[i];
             p << log::keyword_style("at_idx") << "[" << idx << "] = ";
             elem_ptrn->print(p);
-            if (i + 1 < elem_ptrns.size())
+            if (i + 1 < elem_ptrns->size())
                 p << ", ";
         }
         p << ")";
+    } else {
+        p << " " << log::keyword_style("trivial");
+    }
+    if (sub_ptrn) {
+        p << ' ' << log::keyword_style("sub") << ' ';
+        sub_ptrn->print(p);
     }
 }
 

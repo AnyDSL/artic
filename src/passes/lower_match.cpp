@@ -144,10 +144,10 @@ private:
         if (ptrn->sub_ptrn) {
             row.first.push_back(ptrn->sub_ptrn);
         }
-        if (!ptrn->elem_ptrns.empty()) {
-            std::vector<const Match::Ptrn*> new_elems(ptrn->elem_ptrns.size(), nullptr);
-            for (size_t j = 0; j < ptrn->elem_ptrns.size(); ++j) {
-                new_elems[j] = std::get<1>(ptrn->elem_ptrns[j]);
+        if (ptrn->elem_ptrns) {
+            std::vector<const Match::Ptrn*> new_elems(ptrn->elem_ptrns->size(), nullptr);
+            for (size_t j = 0; j < ptrn->elem_ptrns->size(); ++j) {
+                new_elems[j] = std::get<1>((*ptrn->elem_ptrns)[j]);
             }
             row.first.insert(row.first.end(), new_elems.begin(), new_elems.end());
         }

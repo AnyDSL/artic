@@ -34,7 +34,7 @@ enum class NodeKind {
     Type,
     Module,
     Key,
-    Alias,
+    Ptrn,
     Signature,
     Ctor,
 };
@@ -45,7 +45,7 @@ static inline std::string kind2str(NodeKind kind) {
         case NodeKind::Type: return "type";
         case NodeKind::Module: return "module";
         case NodeKind::Key: return "key";
-        case NodeKind::Alias: return "alias";
+        case NodeKind::Ptrn: return "ptrn";
         case NodeKind::Signature: return "signature";
         case NodeKind::Ctor: return "constructor";
     }

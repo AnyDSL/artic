@@ -468,9 +468,20 @@ const Branch* Builder::Unsafe::branch(const Value* cond, const Function* true_br
     return builder.arena.insert<Branch>(builder, cond, true_branch, else_branch);
 }
 
-const Match::Ptrn* Builder::Unsafe::match_ptrn(Match::Ptrn&& ptrn) {
-    return new Match::Ptrn(ptrn);
-    //return builder.arena.insert<Match::Ptrn>(ptrn);
+const Match::Ptrn* Builder::Unsafe::trivial_match_ptrn(const Type* type) {
+    return builder.arena.insert<Match::Ptrn>(builder.arena, type);
+}
+
+const Match::Ptrn* Builder::Unsafe::variant_match_ptrn(const Type* type, size_t index, const Match::Ptrn* sub_ptrn) {
+    if (sub_ptrn && sub_ptrn->is_trivial())
+        sub_ptrn = nullptr;
+    return builder.arena.insert<Match::Ptrn>(builder.arena, type, index, sub_ptrn);
+}
+
+const Match::Ptrn* Builder::Unsafe::compound_match_ptrn(const Type* type, const ArrayRef<std::tuple<size_t, const Match::Ptrn*>>& elems, const Match::Ptrn* sub_ptrn) {
+    if (sub_ptrn && sub_ptrn->is_trivial())
+        sub_ptrn = nullptr;
+    return builder.arena.insert<Match::Ptrn>(builder.arena, type, elems, sub_ptrn);
 }
 
 const Match* Builder::Unsafe::match(const Loc& loc, const Value* value, Array<Match::Case>&& cases) {
