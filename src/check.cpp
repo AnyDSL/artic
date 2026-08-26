@@ -96,6 +96,11 @@ const Match::Ptrn* TypeChecker::bind_ptrn_params(ast::Ptrn& ptrn, const Value* v
         }
         return match_ptrn;
     } else if (auto ctor_ptrn = ptrn.isa<ast::CtorPtrn>()) {
+        if (!ctor_ptrn->arg)
+            return builder().unsafe().match_ptrn(Match::Ptrn {
+                .type = ptrn.type,
+                .variant_index = ctor_ptrn->variant_index
+            });
         if (ctor_ptrn->variant_index) {
             value = eb.variant_extract(value, *ctor_ptrn->variant_index);
         }
@@ -176,8 +181,8 @@ void TypeChecker::infer_fn_attrs(const ast::FnDecl* fn_decl, const Function* fn)
             auto fn_type = scope().peek_type(scope().peek_value(fn_decl->var->as<Value>())->type())->isa<artic::FnType>();
             if (!fn_type)
                 error(fn_decl->loc, "polymorphic functions cannot be exported");
-            else if (fn_type->Type::order(scope()) > 1)
-                error(fn_decl->loc, "higher-order functions cannot be exported");
+            // else if (fn_type->Type::order(scope()) > 1)
+            //     error(fn_decl->loc, "higher-order functions cannot be exported");
             else if (!fn_decl->fn->body)
                 error(fn_decl->loc, "exported functions must have a body");
             else
@@ -1335,9 +1340,9 @@ bool TypeChecker::infer_fn_args(
     std::vector<const Node*>& type_args) {
     auto [body_scope, body] = fn_ctor->peek_body();
     const FnType* body_type = body_scope.peek_type(body->as<Value>()->type())->as<FnType>();
-    auto bounds = body_type->dom->bounds(scope(), arg_type);
+    auto bounds = body_type->dom->bounds(body_scope, arg_type);
     if (ret_type)
-        body_type->codom->bounds(scope(), bounds, ret_type, false);
+        body_type->codom->bounds(body_scope, bounds, ret_type, false);
     auto variance = body_type->Type::variance(scope(), false);
     return try_infer_type_args(loc, fn_ctor->params, bounds, variance, type_args, true);
 }
@@ -1537,7 +1542,11 @@ std::optional<Path::Elem::Inferred> Path::Elem::infer(TypeChecker& checker, size
             if (type_app)
                 ctor = checker.builder().enclosing_let_rec().value_app(ctor->as<CtorVar>(), type_app->args);
             return Inferred {
-                .var = ctor
+                .var = ctor,
+                .option = {
+                    .parent_type = prev_elem_type,
+                    .index = option.index,
+                },
             };
             // this->index = *index;
             /*if (enum_type->decl->options[*index]->struct_type) {
@@ -2286,7 +2295,7 @@ const tir::Node* MatchExpr::check(TypeChecker& checker, const artic::Type* expec
             match_ptrn = checker.bind_ptrn_params(*case_->ptrn, arg);
             auto body = type ? checker.coerce(&*case_->expr, type) : checker.deref(case_->expr);
             type = body->type();
-            return body;
+            return case_builder.finish(body);
         });
         cases.emplace_back(&case_->loc, match_ptrn, fn);
     }
@@ -3266,9 +3275,19 @@ const tir::Node* RecordPtrn::infer(TypeChecker& checker) {
 }
 
 const tir::Node* CtorPtrn::infer(TypeChecker& checker) {
-    auto path_type = path.infer(checker, NodeKind::Type)->as<tir::Type>();
-    auto peeked_type = checker.scope().peek_type(path_type);
+    auto inferred_path = path.infer_path(checker, std::nullopt);
+    if (inferred_path->option.index) {
+        variant_index = inferred_path->option.index;
+        if (auto [type_app, enum_type] = peek_app_type_applied<EnumType>(checker.builder(), inferred_path->option.parent_type); enum_type) {
+            if (arg)
+                checker.check_ptrn(*arg, enum_type->members[*inferred_path->option.index]);
+            return inferred_path->option.parent_type;
+        }
+        assert(false);
+    }
 
+    auto path_type = inferred_path->var->as<tir::Type>();
+    auto peeked_type = checker.scope().peek_type(path_type);
     if (auto [type_app, struct_type] = peek_app_type_unapplied<StructType>(checker.scope(), peeked_type); struct_type) {
         if (struct_type->is_tuple_like()) {
             auto decl = struct_type->decl->as<ast::StructDecl>();
@@ -3293,9 +3312,6 @@ const tir::Node* CtorPtrn::infer(TypeChecker& checker) {
             }
             return path_type;
         }
-    }
-    if (auto [_, enum_type] = peek_app_type_applied<EnumType>(checker.builder(), peeked_type); enum_type) {
-        assert(false && "TODO");
     }
     checker.type_expected(path.loc, path_type, "enumeration or structure");
     return checker.builder().type_error();

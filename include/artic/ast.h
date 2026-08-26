@@ -201,6 +201,10 @@ struct Path : public Node {
             const tir::Var* var = nullptr;
             ModDecl* mod_decl = nullptr;
             //const tir::Module* module = nullptr;
+            struct {
+                const tir::Type* parent_type = nullptr;
+                std::optional<size_t> index = std::nullopt;
+            } option;
         };
 
         // size_t index = 0;

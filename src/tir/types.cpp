@@ -796,6 +796,14 @@ std::pair<const RefType*, const Type*> remove_ref(const Scope& scope, const Type
     return std::make_pair(nullptr, type);
 }
 
+std::pair<const TypeApp*, const Type*> peek_app_type_applied_generic(Builder& builder, const Type* type) {
+    auto [app, n] = match_app_applied(builder, type);
+    auto t = builder.scope.peek_type(n->as<Type>());
+    if (!app)
+        return { nullptr, t };
+    return { app->as<TypeApp>(), t };
+}
+
 std::pair<const TypeApp*, const Type*> peek_app_type_unapplied_generic(const Scope& scope, const Type* type) {
     auto [app, t] = match_app_unapplied(scope, type);
     assert(t->isa<Type>());
