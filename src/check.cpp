@@ -3347,7 +3347,7 @@ const tir::Node* TuplePtrn::infer(TypeChecker& checker) {
 }
 
 const tir::Node* TuplePtrn::check(TypeChecker& checker, const artic::Type* expected) {
-    if (auto tuple_type = expected->isa<artic::TupleType>()) {
+    if (auto [_, tuple_type] = peek_app_type_applied<artic::TupleType>(checker.builder(), expected); tuple_type) {
         if (args.size() != tuple_type->args.size()) {
             checker.bad_arguments(loc, "tuple pattern", args.size(), tuple_type->args.size());
             return checker.builder().error_value(expected);

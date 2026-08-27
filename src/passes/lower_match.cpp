@@ -58,12 +58,8 @@ private:
         , Logger(log)
     {}
 
-    static bool is_wildcard(const ast::Ptrn* ptrn) {
-        return !ptrn || ptrn->isa<ast::IdPtrn>();
-    }
-
     static bool is_wildcard(const Match::Ptrn* ptrn) {
-        return !ptrn || ptrn->is_trivial();
+        return !ptrn || !(ptrn->variant_index || ptrn->literal);
     }
 
     template <typename T>
@@ -306,8 +302,8 @@ private:
         std::vector<Row> wildcards;
 
         auto col = pick_col();
-        auto col_type = values[col]->type();
-        auto [type_app, enum_type] = peek_app_type_unapplied<EnumType>(builder.scope, col_type);
+        auto [_, col_type] = peek_app_type_unapplied_generic(builder.scope, values[col]->type());
+        auto enum_type = col_type->isa<EnumType>();
 
         // First, collect constructors
         for (auto& row : rows) {
