@@ -95,6 +95,7 @@ const Match::Ptrn* TypeChecker::bind_ptrn_params(ast::Ptrn& ptrn, const Value* v
         auto idx = builder().typed_literal(Literal(uint64_t(field_ptrn->index)), builder().prim_type(ast::PrimType::U64));
         return bind_ptrn_params(*field_ptrn->ptrn, eb.extract(value, idx));
     } else if (auto id_ptrn = ptrn.isa<ast::IdPtrn>()) {
+        auto orignal_value = value;
         if (id_ptrn->decl->is_mut) {
             auto alloc = eb.local_variable(value->type());
             eb.binop(ast::BinaryExpr::Tag::Eq, alloc, value);
@@ -104,8 +105,10 @@ const Match::Ptrn* TypeChecker::bind_ptrn_params(ast::Ptrn& ptrn, const Value* v
         const Type* old_type = infer_ptrn_decl(*id_ptrn->decl)->type();
         id_ptrn->decl->var = nullptr;
         eb.bind(check_ptrn_decl(*id_ptrn->decl, old_type), value);
+        // bind the sub-pattern to the _original_ (non-ref) value
+        // bind the sub-pattern to the _original_ (non-ref) value
         if (id_ptrn->sub_ptrn)
-            return bind_ptrn_params(*id_ptrn->sub_ptrn, value);
+            return bind_ptrn_params(*id_ptrn->sub_ptrn, orignal_value);
         // otherwise this is a trivial pattern
         return builder().unsafe().trivial_match_ptrn(ptrn.type);
     } else if (auto typed_ptrn = ptrn.isa<ast::TypedPtrn>()) {

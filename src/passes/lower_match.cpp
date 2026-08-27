@@ -142,6 +142,7 @@ private:
 
     void expand(Row& row, const Match::Ptrn* ptrn) {
         if (ptrn->sub_ptrn) {
+            assert(false);
             row.first.push_back(ptrn->sub_ptrn);
         }
         if (ptrn->elem_ptrns) {
@@ -199,10 +200,10 @@ private:
 
             // Expand the patterns in this column, for each row
             for (auto& row : rows) {
-                if (row.first[i]) {
-                    const Match::Ptrn* ptrn = row.first[i];
+                const Match::Ptrn* ptrn = row.first[i];
+                remove_col(row.first, i);
+                if (ptrn && (ptrn->elem_ptrns || ptrn->literal)) {
                     // assert(ptrn->is_trivial());
-                    remove_col(row.first, i);
                     expand(row, ptrn);
                     /*if (auto struct_ptrn = row.first[i]->isa<ast::RecordPtrn>()) {
                         for (auto& field : struct_ptrn->fields) {
@@ -238,6 +239,10 @@ private:
                     } else {
                         matched_values.emplace(row.first[i]->as<ast::IdPtrn>(), values[i]);
                     }*/
+                } else {
+                    // insert a bunch of wildcards in there
+                    for (int j = 0; j < member_count; j++)
+                        row.first.emplace_back(nullptr);
                 }
                 //row.first.insert(row.first.end(), new_elems.begin(), new_elems.end());
             }
@@ -352,20 +357,21 @@ private:
             const Function* match_true = nullptr;//  = emitter.basic_block_with_mem(emitter.debug_info(node, "match_true"));
             const Function* match_false = nullptr;// = emitter.basic_block_with_mem(emitter.debug_info(node, "match_false"));
 
+            auto cond = values[col];
             remove_col(values, col);
             for (auto& ctor : ctors) {
                 auto [fn_builder, fn] = make_fn();
-                match_false = fn;
-                // auto _ = emitter.save_state();
-                // emitter.enter(thorin::is_allset(ctor.first) ? match_true : match_false);
-                match_false->set_body(builder, PtrnCompiler(r, *fn_builder, log, old_match, std::move(ctor.second), std::vector<const Value*>(values)).compile());
+                auto &dst_case = ctor.first->as<TypedLiteral>()->value.as_bool() ? match_true : match_false;
+                dst_case = fn;
+                dst_case->set_body(builder, PtrnCompiler(r, *fn_builder, log, old_match, std::move(ctor.second), std::vector<const Value*>(values)).compile());
             }
             if (!no_default) {
+                // build the other case
                 auto [fn_builder, fn] = make_fn();
-                match_true = fn;
-                // auto _ = emitter.save_state();
-                // emitter.enter(thorin::is_allset(ctor.first) ? match_true : match_false);
-                match_true->set_body(builder, PtrnCompiler(r, *fn_builder, log, old_match, std::move(wildcards), std::vector<const Value*>(values)).compile());
+                auto &dst_case = !match_true ? match_true : match_false;
+                assert(!dst_case);
+                dst_case = fn;
+                dst_case->set_body(builder, PtrnCompiler(r, *fn_builder, log, old_match, std::move(wildcards), std::vector<const Value*>(values)).compile());
             }
 
             assert(match_true->param->type()->isa<TupleType>());
@@ -373,7 +379,7 @@ private:
                 std::swap(match_true, match_false);
             assert(match_true->param->type()->isa<TupleType>());
 
-            auto br = builder.unsafe().branch(values[col], match_true, match_false);
+            auto br = builder.unsafe().branch(cond, match_true, match_false);
             return expr_builder.finish(br);
         } else {
             assert(enum_type || is_int_type(col_type));
