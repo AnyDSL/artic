@@ -448,8 +448,8 @@ void TypeVar::bounds(const Scope& scope, std::unordered_map<const TypeVar*, Type
 void TypeApp::bounds(const Scope& scope, std::unordered_map<const TypeVar*, TypeBounds>& bounds, const Type* type, bool dir) const {
     if (auto type_app = type->isa<TypeApp>()) {
         for (size_t i = 0, n = std::min(args.size(), type_app->args.size()); i < n; ++i)
-            if (auto t = args[i]->isa<Type>())
-                t->bounds(scope, bounds, t, dir);
+            if (auto t = type_app->args[i]->isa<Type>())
+                args[i]->as<Type>()->bounds(scope, bounds, t, dir);
     }
 }
 

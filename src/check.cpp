@@ -1322,6 +1322,10 @@ bool TypeChecker::infer_fn_args(
     const Type* ret_type,
     std::vector<const Node*>& type_args) {
     auto [body_scope, body] = fn_ctor->peek_body();
+    if (arg_type)
+        arg_type = body_scope.peek_type(arg_type);
+    if (ret_type)
+        ret_type = body_scope.peek_type(ret_type);
     const FnType* body_type = body_scope.peek_type(body->as<Value>()->type())->as<FnType>();
     auto bounds = body_type->dom->bounds(body_scope, arg_type);
     if (ret_type)
