@@ -484,6 +484,12 @@ const Match::Ptrn* Builder::Unsafe::compound_match_ptrn(const Type* type, const 
     return builder.arena.insert<Match::Ptrn>(builder.arena, type, elems, sub_ptrn);
 }
 
+const Match::Ptrn* Builder::Unsafe::literal_match_ptrn(const Type* type, Literal literal, const Match::Ptrn* sub_ptrn) {
+    if (sub_ptrn && sub_ptrn->is_trivial())
+        sub_ptrn = nullptr;
+    return builder.arena.insert<Match::Ptrn>(builder.arena, type, literal, sub_ptrn);
+}
+
 const Match* Builder::Unsafe::match(const Loc& loc, const Value* value, Array<Match::Case>&& cases) {
     return builder.arena.insert<Match>(builder, loc, value, std::move(cases));
 }

@@ -42,8 +42,6 @@ private:
     std::vector<Row> rows;
     std::vector<const Value*> values;
     // std::unordered_map<const ast::IdPtrn*, const tir::Value*>& matched_values;
-    std::vector<std::unique_ptr<Match::Ptrn>> tmp_ptrns;
-    // PtrVector<ast::Ptrn> tmp_ptrns;
 
     PtrnCompiler(
         Rewriter& r,
@@ -109,11 +107,13 @@ private:
     const Value* ctor_index(const Match::Ptrn& ptrn) const {
         if (ptrn.variant_index)
             return ctor_index(*ptrn.variant_index);
+        if (ptrn.literal)
+            return builder.typed_literal(*ptrn.literal, r.instantiate(ptrn.type));
         assert(false);
     }
 
     const Value* ctor_index(size_t index/*, thorin::Debug debug*/) const {
-        return builder.typed_literal(Literal((uint64_t) index), builder.prim_type(ast::PrimType::I32));
+        return builder.typed_literal(Literal((uint64_t) index), builder.prim_type(ast::PrimType::U64));
     }
 
     size_t pick_col() const {
@@ -140,7 +140,7 @@ private:
         return std::find(enabled.begin(), enabled.end(), true) - enabled.begin();
     }
 
-    static void expand(Row& row, const Match::Ptrn* ptrn) {
+    void expand(Row& row, const Match::Ptrn* ptrn) {
         if (ptrn->sub_ptrn) {
             row.first.push_back(ptrn->sub_ptrn);
         }
@@ -148,6 +148,15 @@ private:
             std::vector<const Match::Ptrn*> new_elems(ptrn->elem_ptrns->size(), nullptr);
             for (size_t j = 0; j < ptrn->elem_ptrns->size(); ++j) {
                 new_elems[j] = std::get<1>((*ptrn->elem_ptrns)[j]);
+            }
+            row.first.insert(row.first.end(), new_elems.begin(), new_elems.end());
+        }
+        if (ptrn->literal) {
+            assert(ptrn->literal->is_string());
+            const char* str = ptrn->literal->as_string().c_str();
+            std::vector<const Match::Ptrn*> new_elems(ptrn->literal->as_string().size() + 1, nullptr);
+            for (size_t j = 0; j < new_elems.size(); ++j) {
+                new_elems[j] = builder.unsafe().literal_match_ptrn(builder.prim_type(ast::PrimType::U8), Literal(uint8_t(str[j])), nullptr);
             }
             row.first.insert(row.first.end(), new_elems.begin(), new_elems.end());
         }
@@ -192,7 +201,7 @@ private:
             for (auto& row : rows) {
                 if (row.first[i]) {
                     const Match::Ptrn* ptrn = row.first[i];
-                    assert(ptrn->is_trivial());
+                    // assert(ptrn->is_trivial());
                     remove_col(row.first, i);
                     expand(row, ptrn);
                     /*if (auto struct_ptrn = row.first[i]->isa<ast::RecordPtrn>()) {
@@ -321,7 +330,11 @@ private:
             } else {
                 auto ptrn = row.first[col];
                 remove_col(row.first, col);
-                expand(row, ptrn);
+                if (ptrn->sub_ptrn)
+                    row.first.push_back(ptrn->sub_ptrn);
+                else if (ptrn->elem_ptrns)
+                    row.first.push_back(ptrn);
+                // expand(row, ptrn);
                 // if (auto call_ptrn = ptrn->isa<ast::CtorPtrn>(); call_ptrn && call_ptrn->arg) {
                 //     row.first.push_back(call_ptrn->arg.get());
                 // } else if (auto record_ptrn = ptrn->isa<ast::RecordPtrn>()) {
@@ -336,8 +349,8 @@ private:
         // Generate jumps to each constructor case
         bool no_default = is_complete(builder.scope, col_type, ctors.size());
         if (is_bool_type(col_type)) {
-            const Function* match_true;//  = emitter.basic_block_with_mem(emitter.debug_info(node, "match_true"));
-            const Function* match_false;// = emitter.basic_block_with_mem(emitter.debug_info(node, "match_false"));
+            const Function* match_true = nullptr;//  = emitter.basic_block_with_mem(emitter.debug_info(node, "match_true"));
+            const Function* match_false = nullptr;// = emitter.basic_block_with_mem(emitter.debug_info(node, "match_false"));
 
             remove_col(values, col);
             for (auto& ctor : ctors) {
@@ -355,8 +368,10 @@ private:
                 match_true->set_body(builder, PtrnCompiler(r, *fn_builder, log, old_match, std::move(wildcards), std::vector<const Value*>(values)).compile());
             }
 
+            assert(match_true->param->type()->isa<TupleType>());
             if (ctors.begin()->first->as<TypedLiteral>()->value.as_bool())
                 std::swap(match_true, match_false);
+            assert(match_true->param->type()->isa<TupleType>());
 
             auto br = builder.unsafe().branch(values[col], match_true, match_false);
             return expr_builder.finish(br);

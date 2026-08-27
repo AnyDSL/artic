@@ -606,9 +606,9 @@ void Branch::print(Printer& p) const {
 
 void Match::Ptrn::print(Printer& p) const {
     p << log::keyword_style("ptrn");
-    if (variant_index)
+    if (variant_index) {
         p << " " << log::keyword_style("variant_index") << "(" << *variant_index << ")";
-    else if (elem_ptrns) {
+    } else if (elem_ptrns) {
         p << " " << log::keyword_style("elems") << '(';
         for (size_t i = 0; i < elem_ptrns->size(); i++) {
             auto [idx, elem_ptrn] = (*elem_ptrns)[i];
@@ -618,6 +618,8 @@ void Match::Ptrn::print(Printer& p) const {
                 p << ", ";
         }
         p << ")";
+    } else  if (literal) {
+        p << " " << log::keyword_style("literal") << "(" << *literal << ")";
     } else {
         p << " " << log::keyword_style("trivial");
     }

@@ -377,7 +377,7 @@ bool Variant::equals(const Node* other) const {
 }
 
 VariantIndex::VariantIndex(Builder& builder, const Value* src)
-    : Node(builder.arena), Value(builder.prim_type(ast::PrimType::I32)), src(src) {
+    : Node(builder.arena), Value(builder.prim_type(ast::PrimType::U64)), src(src) {
     assert(src->is_simple());
 }
 

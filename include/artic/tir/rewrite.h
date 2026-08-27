@@ -39,9 +39,9 @@ struct Rewriter {
     }
 
     void instantiate(Root& dst, const Root& old) {
-        LetRecBuilder builder(*dst.arena, dst.scope, nullptr);
+        Builder builder(*dst.arena, dst.scope, nullptr);
         BuilderGuard guard(*this, builder);
-        dst.root_module = builder.finish_module(instantiate(old.root_module, true));
+        dst.root_module = instantiate(old.root_module, true);
     }
 
     void insert(const Node* old, const Node* new_) {

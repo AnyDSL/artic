@@ -110,6 +110,8 @@ const Match::Ptrn* TypeChecker::bind_ptrn_params(ast::Ptrn& ptrn, const Value* v
         return builder().unsafe().trivial_match_ptrn(ptrn.type);
     } else if (auto typed_ptrn = ptrn.isa<ast::TypedPtrn>()) {
         return bind_ptrn_params(*typed_ptrn->ptrn, value);
+    } else if (auto literal_ptrn = ptrn.isa<ast::LiteralPtrn>()) {
+        return builder().unsafe().literal_match_ptrn(ptrn.type, literal_ptrn->lit, nullptr);
     } else {
         assert(false && "TODO");
     }
@@ -686,7 +688,8 @@ const Type* TypeChecker::try_coerce(Ptr<ast::Expr>& expr, const Type* expected) 
             SmallArray<const Type*> arg_types(tuple_expr->args.size());
             for (size_t i = 0, n = tuple_expr->args.size(); i < n; ++i)
                 arg_types[i] = try_coerce(tuple_expr->args[i], tuple_type->args[i]);
-            return builder().tuple_type(arg_types);
+            return infer_value(*tuple_expr)->type();
+            // return builder().tuple_type(arg_types);
         }
     }
     // If the expected type does not contain any type variable,
@@ -956,7 +959,8 @@ const tir::Type* TypeChecker::infer_ptrn(ast::Ptrn& ptrn, Ptr<ast::Expr>& expr) 
             SmallArray<const Type*> args(tuple_expr->args.size());
             for (size_t i = 0, n = tuple_expr->args.size(); i < n; ++i)
                 args[i] = infer_ptrn(*tuple_ptrn->args[i], tuple_expr->args[i]);
-            return expr_builder().tuple_type(args);
+            return infer_value(*tuple_expr)->type();
+            //return expr_builder().tuple_type(args);
         }
     } else if (auto typed_ptrn = ptrn.isa<ast::TypedPtrn>())
         return coerce(&*expr, infer_ptrn(*typed_ptrn))->type();

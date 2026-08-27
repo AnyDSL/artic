@@ -193,6 +193,7 @@ struct Builder : public artic::Cast<Builder> {
         const Match::Ptrn* trivial_match_ptrn(const Type*);
         const Match::Ptrn* variant_match_ptrn(const Type*, size_t, const Match::Ptrn*);
         const Match::Ptrn* compound_match_ptrn(const Type*, const ArrayRef<std::tuple<size_t, const Match::Ptrn*>>&, const Match::Ptrn*);
+        const Match::Ptrn* literal_match_ptrn(const Type*, Literal, const Match::Ptrn*);
         const Match* match(const Loc&, const Value*, Array<Match::Case>&&);
         const Switch* switch_(const Value*, const Function*, Array<Switch::Case>&&);
 

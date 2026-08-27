@@ -1353,7 +1353,7 @@ const thorin::Def* Variant::emit(Emitter& emitter) const {
 }
 
 const thorin::Def* VariantIndex::emit(Emitter& emitter) const {
-    return emitter.world.variant_index(emitter.emit(src));
+    return emitter.world.cast(emitter.world.type_pu64(), emitter.world.variant_index(emitter.emit(src)));
 }
 
 const thorin::Def* VariantExtract::emit(Emitter& emitter) const {

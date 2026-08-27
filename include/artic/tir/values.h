@@ -544,7 +544,8 @@ struct Match : public Value {
     struct Ptrn : Node {
         const Type* type;
         std::optional<size_t> variant_index = std::nullopt;
-        std::optional<Array<std::tuple<size_t, const Ptrn*>>> elem_ptrns;
+        std::optional<Array<std::tuple<size_t, const Ptrn*>>> elem_ptrns = std::nullopt;
+        std::optional<Literal> literal = std::nullopt;
         const Ptrn* sub_ptrn = nullptr;
 
         void print(Printer&) const override;
@@ -557,6 +558,8 @@ struct Match : public Value {
             if (variant_index)
                 return false;
             if (sub_ptrn && !sub_ptrn->is_trivial())
+                return false;
+            if (literal)
                 return false;
             if (elem_ptrns) {
                 for (auto& [_, ptrn] : *elem_ptrns) {
@@ -573,6 +576,9 @@ struct Match : public Value {
         }
         Ptrn(Arena& arena, const Type* type, const ArrayRef<std::tuple<size_t, const Ptrn*>>& ref, const Ptrn* sub_ptrn) : Ptrn(arena, type, sub_ptrn) {
             this->elem_ptrns = ref;
+        }
+        Ptrn(Arena& arena, const Type* type, Literal literal, const Ptrn* sub_ptrn) : Ptrn(arena, type, sub_ptrn) {
+            this->literal = literal;
         }
     private:
         Ptrn(Arena& arena, const Type* type, const Ptrn* sub_ptrn) : Ptrn(arena, type) {

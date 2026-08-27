@@ -148,7 +148,7 @@ const Node* ModCtor::rewrite(Rewriter& r) const {
     }
     auto ctor_builder = LetRecBuilder(r.dst, scope, &r.builder());
     Rewriter::BuilderGuard guard(r, ctor_builder);
-    return r.builder().unsafe().mod_ctor(scope, params, ctor_builder.finish_module(r.instantiate(body(), true)));
+    return r.builder().unsafe().mod_ctor(scope, params, ctor_builder.finish_module(r.instantiate(body())));
 }
 
 const Node* TypeCtor::rewrite(Rewriter& r) const {
@@ -161,7 +161,7 @@ const Node* TypeCtor::rewrite(Rewriter& r) const {
     }
     auto ctor_builder = LetRecBuilder(r.dst, scope, &r.builder());
     Rewriter::BuilderGuard guard(r, ctor_builder);
-    return r.builder().unsafe().type_ctor(scope, params, ctor_builder.finish_type(r.instantiate(body(), true)));
+    return r.builder().unsafe().type_ctor(scope, params, ctor_builder.finish_type(r.instantiate(body())));
 }
 
 const Node* ValueCtor::rewrite(Rewriter& r) const {
@@ -174,7 +174,7 @@ const Node* ValueCtor::rewrite(Rewriter& r) const {
     }
     auto ctor_builder = LetRecBuilder(r.dst, scope, &r.builder());
     Rewriter::BuilderGuard guard(r, ctor_builder);
-    return r.builder().unsafe().value_ctor(scope, params, ctor_builder.finish_value(r.instantiate(body(), true)));
+    return r.builder().unsafe().value_ctor(scope, params, ctor_builder.finish_value(r.instantiate(body())));
 }
 
 const Node* CtorVar::rewrite(Rewriter& r) const {
@@ -400,6 +400,8 @@ const Match::Ptrn* Match::Ptrn::rewrite(Rewriter& r) const {
             new_array.emplace_back(idx, r.instantiate(old));
         }
         return r.builder().unsafe().compound_match_ptrn(r.instantiate(type), new_array, sub_ptrn ? r.instantiate(sub_ptrn) : nullptr);
+    } else if (literal) {
+        return r.builder().unsafe().literal_match_ptrn(r.instantiate(type), *literal, sub_ptrn ? r.instantiate(sub_ptrn) : nullptr);
     } else {
         return r.builder().unsafe().trivial_match_ptrn(r.instantiate(type));
     }
