@@ -673,7 +673,7 @@ bool MathOp::equals(const Node* other) const {
 }
 
 Branch::Branch(Builder& builder, const Value* cond, const Function* true_branch, const Function* else_branch) : Value([&]() -> const Type* {
-    if (cond->type() != builder.bool_type())
+    if (std::get<1>(peek_app_type_unapplied(builder.scope, cond->type())) != builder.bool_type())
         return builder.type_error();
     // both branches must have no param
     if (true_branch->param->type() != builder.tuple_type({}))

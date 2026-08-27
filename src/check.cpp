@@ -92,8 +92,8 @@ const Match::Ptrn* TypeChecker::bind_ptrn_params(ast::Ptrn& ptrn, const Value* v
         }
         return match_ptrn;
     } else if (auto field_ptrn = ptrn.isa<ast::FieldPtrn>()) {
-        auto idx = builder().typed_literal(Literal(uint64_t(field_ptrn->index)), builder().prim_type(ast::PrimType::U64));
-        return bind_ptrn_params(*field_ptrn->ptrn, eb.extract(value, idx));
+        //auto idx = builder().typed_literal(Literal(uint64_t(field_ptrn->index)), builder().prim_type(ast::PrimType::U64));
+        return bind_ptrn_params(*field_ptrn->ptrn, value);
     } else if (auto id_ptrn = ptrn.isa<ast::IdPtrn>()) {
         auto orignal_value = value;
         if (id_ptrn->decl->is_mut) {
@@ -1351,7 +1351,7 @@ const Type* TypeChecker::infer_record_type(const Type* type, const TypeApp* type
         index = std::find_if(
             option_decl->parent->options.begin(),
             option_decl->parent->options.end(),
-            [struct_type] (auto& option) { return option->maybe_ctor_type_or_unit == struct_type; })
+            [&] (auto& option) { return option->struct_type == type->as<TypeVar>(); })
             - option_decl->parent->options.begin();
         assert(index < option_decl->parent->options.size());
         auto enum_type_or_ctor = infer_mod_decl(*option_decl->parent);
@@ -3258,7 +3258,7 @@ const tir::Node* FieldPtrn::check(TypeChecker& checker, const artic::Type* expec
 const tir::Node* RecordPtrn::infer(TypeChecker& checker) {
     auto path_type = path.infer(checker, NodeKind::Type)->as<tir::Type>();
     //if (path_type->isa<TypeError>())
-    auto [mod_app, struct_type] = peek_app_type_applied<artic::StructType>(checker.builder(), path_type);
+    auto [type_app, struct_type] = peek_app_type_applied<artic::StructType>(checker.builder(), path_type);
     if (!struct_type ||
         (struct_type->decl->isa<StructDecl>() &&
          struct_type->decl->as<StructDecl>()->is_tuple_like)) {
@@ -3268,7 +3268,7 @@ const tir::Node* RecordPtrn::infer(TypeChecker& checker) {
 
     auto check_fn = [&](ast::Ptrn& ptrn, const tir::Type* type) { return checker.check_ptrn(ptrn, type); };
     checker.check_fields(loc, struct_type, path_type, fields, check_fn, "pattern");
-    return checker.infer_record_type(path_type, mod_app, struct_type, variant_index);
+    return checker.infer_record_type(path_type, type_app, struct_type, variant_index);
 }
 
 const tir::Node* CtorPtrn::infer(TypeChecker& checker) {

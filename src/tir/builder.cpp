@@ -473,20 +473,14 @@ const Match::Ptrn* Builder::Unsafe::trivial_match_ptrn(const Type* type) {
 }
 
 const Match::Ptrn* Builder::Unsafe::variant_match_ptrn(const Type* type, size_t index, const Match::Ptrn* sub_ptrn) {
-    if (sub_ptrn && sub_ptrn->is_trivial())
-        sub_ptrn = nullptr;
     return builder.arena.insert<Match::Ptrn>(builder.arena, type, index, sub_ptrn);
 }
 
 const Match::Ptrn* Builder::Unsafe::compound_match_ptrn(const Type* type, const ArrayRef<std::tuple<size_t, const Match::Ptrn*>>& elems, const Match::Ptrn* sub_ptrn) {
-    if (sub_ptrn && sub_ptrn->is_trivial())
-        sub_ptrn = nullptr;
     return builder.arena.insert<Match::Ptrn>(builder.arena, type, elems, sub_ptrn);
 }
 
 const Match::Ptrn* Builder::Unsafe::literal_match_ptrn(const Type* type, Literal literal, const Match::Ptrn* sub_ptrn) {
-    if (sub_ptrn && sub_ptrn->is_trivial())
-        sub_ptrn = nullptr;
     return builder.arena.insert<Match::Ptrn>(builder.arena, type, literal, sub_ptrn);
 }
 
