@@ -323,7 +323,7 @@ private:
                     if (enum_type) {
                         auto index = ctor_index->as<TypedLiteral>()->value.as_integer();
                         // If the sub-tree introduces the extracted contents of an enum variant, add a dummy column to the row
-                        if (!is_unit_type(enum_type->member_type(index)))
+                        // if (!is_unit_type(enum_type->member_type(index)))
                             ctor_rows.back().first.push_back(nullptr);
                     }
                 }
@@ -422,7 +422,7 @@ private:
                     auto value = case_expr_builder.variant_extract(col_value, index);
                     // If the constructor refers to an option that has a parameter,
                     // we need to extract it and add it to the values.
-                    if (!is_unit_type(type))
+                    // if (!is_unit_type(type))
                         new_values.emplace_back(/*emitter.world.cast(type->convert(emitter), value), type, */value);
                 }
 
