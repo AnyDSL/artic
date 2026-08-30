@@ -546,13 +546,12 @@ Ptr<ast::RecordExpr> Parser::parse_record_expr(ast::Path&& path) {
     // path.loc and std::move(path) in the argument list
     // (argument evaluation order is not defined).
     auto loc = path.loc;
-    auto type_app = _arena.make_ptr<ast::TypeApp>(loc, std::move(path));
     eat(Token::LBrace);
     PtrVector<ast::FieldExpr> fields;
     parse_list(Token::RBrace, Token::Comma, [&] {
         fields.emplace_back(parse_field_expr());
     });
-    return _arena.make_ptr<ast::RecordExpr>(tracker(), std::move(type_app), std::move(fields));
+    return _arena.make_ptr<ast::RecordExpr>(tracker(), std::move(path), std::move(fields));
 }
 
 Ptr<ast::RecordExpr> Parser::parse_record_expr(Ptr<ast::Expr>&& expr) {

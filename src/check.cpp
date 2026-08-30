@@ -52,6 +52,7 @@ LetRecBuilder& TypeChecker::let_rec_builder() {
 }
 
 const Match::Ptrn* TypeChecker::convert_ptrn(const ast::Ptrn& ptrn) {
+    assert(ptrn.type && "ptrn must be inferred first");
     if (auto tuple_ptrn = ptrn.isa<ast::TuplePtrn>()) {
         std::vector<std::tuple<size_t, const Match::Ptrn*>> elem_ptrns;
         for (int i = 0; i < tuple_ptrn->args.size(); ++i) {
@@ -1570,10 +1571,10 @@ std::optional<Path::Elem::Inferred> Path::Elem::infer(TypeChecker& checker, size
                 if (type_app)
                     type = checker.builder().enclosing_let_rec().type_app(option.struct_type->as<CtorVar>(), type_app->args);
                 return Inferred {
-                    .var = type,
-                    .option = {
+                    .option = Inferred::Option {
                         .parent_type = prev_elem_type,
                         .index = option.index,
+                        .struct_type = type,
                     },
                 };
             }
@@ -1583,7 +1584,7 @@ std::optional<Path::Elem::Inferred> Path::Elem::infer(TypeChecker& checker, size
                 ctor = checker.builder().enclosing_let_rec().value_app(ctor->as<CtorVar>(), type_app->args);
             return Inferred {
                 .var = ctor,
-                .option = {
+                .option = Inferred::Option {
                     .parent_type = prev_elem_type,
                     .index = option.index,
                 },
@@ -1620,8 +1621,15 @@ std::optional<Path::Elem::Inferred> Path::infer_path(TypeChecker& checker, std::
         // give up when an element fails to infer
         if (!prev)
             return std::nullopt;
-        assert(prev->var);
+        if (prev->option) {
+            if (i + 1 < elems.size()) {
+                checker.error(elems[i + 1].loc, "enum option must be last element in a path");
+                return std::nullopt;
+            }
+            return prev;
+        }
 
+        assert(prev->var);
         // Treat tuple-like structure constructors as functions
         if (expected_kind == NodeKind::Value && prev->var->kind() != NodeKind::Value) {
             const tir::Type* type = prev->var->isa<TypeVar>();
@@ -1688,6 +1696,27 @@ std::optional<Path::Elem::Inferred> Path::infer_path(TypeChecker& checker, std::
         }
     }
     return *prev;
+}
+
+const tir::Type* Path::infer_record_constructor(TypeChecker& checker) {
+    auto inferred = infer_path(checker, NodeKind::Type);
+    if (!inferred)
+        return nullptr;
+    // If the path points to an enum option, it _must_ point at one that is struct-like
+    if (inferred->option) {
+        if (!inferred->option->struct_type) {
+            checker.error(loc, "this enum option uses tuple syntax, not record syntax");
+            return nullptr;
+        }
+        return inferred->option->struct_type;
+    } else {
+        auto record_type = inferred->var->isa<tir::Type>();
+        if (!record_type) {
+            checker.expected(loc, inferred->var, "record type");
+            return nullptr;
+        }
+        return record_type;
+    }
 }
 
 const tir::Node* Path::infer(TypeChecker& checker, std::optional<NodeKind> expected_kind, Ptr<Expr>* arg, const artic::Type* ret_type) {
@@ -1900,7 +1929,10 @@ const tir::Node* FieldExpr::check(TypeChecker& checker, const artic::Type* expec
 }
 
 const tir::Node* RecordExpr::infer(TypeChecker& checker) {
-    auto record_type = expr ? checker.deref(expr)->type() : checker.infer_type(*this->type);
+    auto record_type = expr ? checker.deref(expr)->type() : path->infer_record_constructor(checker);
+    if (!record_type)
+        return checker.builder().error_value(checker.builder().type_error());
+
     auto [type_app, struct_type] = peek_app_type_applied<artic::StructType>(checker.builder(), record_type);
     if (!struct_type ||
         struct_type->is_tuple_like()) {
@@ -2014,9 +2046,9 @@ const tir::Node* RepeatArrayExpr::check(TypeChecker& checker, const artic::Type*
 }
 
 const tir::Node* FnExpr::infer(TypeChecker& checker) {
-    checker.check_refutability(*param, true);
     auto codom = ret_type ? checker.infer_type(*ret_type) : nullptr;
     auto param = checker.builder().value_var(Identifier { this->param->loc, "param" }, checker.infer_ptrn(*this->param));
+    checker.check_refutability(*this->param, true);
 
     Builder& prev = checker.builder();
 
@@ -3310,7 +3342,10 @@ const tir::Node* FieldPtrn::check(TypeChecker& checker, const artic::Type* expec
 }
 
 const tir::Node* RecordPtrn::infer(TypeChecker& checker) {
-    auto path_type = path.infer(checker, NodeKind::Type)->as<tir::Type>();
+    auto path_type = path.infer_record_constructor(checker);
+    if (!path_type)
+        return checker.builder().error_value(checker.builder().type_error());
+
     //if (path_type->isa<TypeError>())
     auto [type_app, struct_type] = peek_app_type_applied<artic::StructType>(checker.builder(), path_type);
     if (!struct_type ||
@@ -3327,12 +3362,12 @@ const tir::Node* RecordPtrn::infer(TypeChecker& checker) {
 
 const tir::Node* CtorPtrn::infer(TypeChecker& checker) {
     auto inferred_path = path.infer_path(checker, std::nullopt);
-    if (inferred_path->option.index) {
-        variant_index = inferred_path->option.index;
-        if (auto [type_app, enum_type] = peek_app_type_applied<EnumType>(checker.builder(), inferred_path->option.parent_type); enum_type) {
+    if (inferred_path->option) {
+        variant_index = inferred_path->option->index;
+        if (auto [type_app, enum_type] = peek_app_type_applied<EnumType>(checker.builder(), inferred_path->option->parent_type); enum_type) {
             if (arg)
-                checker.check_ptrn(*arg, enum_type->members[*inferred_path->option.index]);
-            return inferred_path->option.parent_type;
+                checker.check_ptrn(*arg, enum_type->members[inferred_path->option->index]);
+            return inferred_path->option->parent_type;
         }
         assert(false);
     }

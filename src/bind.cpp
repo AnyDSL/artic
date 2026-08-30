@@ -200,7 +200,7 @@ void RecordExpr::bind(NameBinder& binder) {
     if (expr)
         binder.bind(*expr);
     else
-        binder.bind(*type);
+        binder.bind(*path);
     for (auto& field : fields) binder.bind(*field);
 }
 

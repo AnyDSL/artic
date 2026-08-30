@@ -199,10 +199,12 @@ struct Path : public Node {
             const tir::Var* var = nullptr;
             ModDecl* mod_decl = nullptr;
             //const tir::Module* module = nullptr;
-            struct {
-                const tir::Type* parent_type = nullptr;
-                std::optional<size_t> index = std::nullopt;
-            } option;
+            struct Option {
+                const tir::Type* parent_type;
+                size_t index;
+                const tir::Type* struct_type;
+            };
+            std::optional<Option> option;
         };
 
         // size_t index = 0;
@@ -237,6 +239,8 @@ struct Path : public Node {
 
     std::optional<Elem::Inferred> infer_path(TypeChecker&, std::optional<tir::NodeKind>, Ptr<Expr>* = nullptr, const tir::Type* = nullptr) const;
     const tir::Node* infer(TypeChecker&, std::optional<tir::NodeKind>, Ptr<Expr>* = nullptr, const tir::Type* = nullptr);
+
+    const tir::Type* infer_record_constructor(TypeChecker&);
 
     void bind(NameBinder&) override;
     void print(Printer&) const override;
@@ -633,7 +637,7 @@ struct FieldExpr : public Expr {
 /// Record-like braced expression containing fields
 /// (e.g. `S { x = 1, y = 2 }` or `foo() .{ x = 1 }`).
 struct RecordExpr : public Expr {
-    Ptr<Type> type;
+    std::optional<Path> path;
     Ptr<Expr> expr;
     PtrVector<FieldExpr> fields;
 
@@ -643,10 +647,10 @@ struct RecordExpr : public Expr {
     /// Constructor for the record constructor form: `S { x = 1, y = 2 }`.
     RecordExpr(
         const Loc& loc,
-        Ptr<Type>&& type,
+        Path&& path,
         PtrVector<FieldExpr>&& fields)
         : Expr(loc)
-        , type(std::move(type))
+        , path(std::move(path))
         , fields(std::move(fields))
     {}
 

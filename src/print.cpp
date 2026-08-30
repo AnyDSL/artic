@@ -134,7 +134,7 @@ void RecordExpr::print(Printer& p) const {
         expr->print(p);
         p << " .";
     } else
-        type->print(p);
+        path->print(p);
     p << " {";
     if (!fields.empty()) {
         p << ' ';
