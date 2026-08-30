@@ -51,31 +51,23 @@ LetRecBuilder& TypeChecker::let_rec_builder() {
     return *builder().as<LetRecBuilder>();
 }
 
-const Match::Ptrn* TypeChecker::bind_ptrn_params(ast::Ptrn& ptrn, const Value* value) {
-    auto& eb = expr_builder();
-
+const Match::Ptrn* TypeChecker::convert_ptrn(const ast::Ptrn& ptrn) {
     if (auto tuple_ptrn = ptrn.isa<ast::TuplePtrn>()) {
         std::vector<std::tuple<size_t, const Match::Ptrn*>> elem_ptrns;
         for (int i = 0; i < tuple_ptrn->args.size(); ++i) {
-            auto idx = builder().typed_literal(Literal(uint64_t(i)), builder().prim_type(ast::PrimType::U64));
-            elem_ptrns.emplace_back(i, bind_ptrn_params(*tuple_ptrn->args[i], eb.extract(value, idx)));
+            elem_ptrns.emplace_back(i, convert_ptrn(*tuple_ptrn->args[i]));
         }
         return builder().unsafe().compound_match_ptrn(ptrn.type, elem_ptrns, nullptr);
     } else if (auto array_ptrn = ptrn.isa<ast::ArrayPtrn>()) {
         std::vector<std::tuple<size_t, const Match::Ptrn*>> elem_ptrns;
         for (size_t i = 0; i < array_ptrn->elems.size(); ++i) {
-            auto idx = builder().typed_literal(Literal(uint64_t(i)), builder().prim_type(ast::PrimType::U64));
-            elem_ptrns.emplace_back(i, bind_ptrn_params(*array_ptrn->elems[i], eb.extract(value, idx)));
+            elem_ptrns.emplace_back(i, convert_ptrn(*array_ptrn->elems[i]));
         }
         return builder().unsafe().compound_match_ptrn(ptrn.type, elem_ptrns, nullptr);
     } else if (auto record_ptrn = ptrn.isa<ast::RecordPtrn>()) {
-        if (record_ptrn->variant_index) {
-            value = eb.variant_extract(value, *record_ptrn->variant_index);
-        }
         std::vector<std::tuple<size_t, const Match::Ptrn*>> elem_ptrns;
         for (size_t i = 0; i < record_ptrn->fields.size(); ++i) {
-            auto idx = builder().typed_literal(Literal(uint64_t(i)), builder().prim_type(ast::PrimType::U64));
-            elem_ptrns.emplace_back(i, bind_ptrn_params(*record_ptrn->fields[i], eb.extract(value, idx)));
+            elem_ptrns.emplace_back(i, convert_ptrn(*record_ptrn->fields[i]));
         }
         auto match_ptrn = builder().unsafe().compound_match_ptrn(ptrn.type, elem_ptrns, nullptr);
         if (record_ptrn->variant_index) {
@@ -83,17 +75,59 @@ const Match::Ptrn* TypeChecker::bind_ptrn_params(ast::Ptrn& ptrn, const Value* v
         }
         return match_ptrn;
     } else if (auto ctor_ptrn = ptrn.isa<ast::CtorPtrn>()) {
-        if (ctor_ptrn->variant_index) {
-            value = eb.variant_extract(value, *ctor_ptrn->variant_index);
-        }
-        auto match_ptrn = ctor_ptrn->arg ? bind_ptrn_params(*ctor_ptrn->arg, value) : builder().unsafe().trivial_match_ptrn(ptrn.type);
+        auto match_ptrn = ctor_ptrn->arg ? convert_ptrn(*ctor_ptrn->arg) : builder().unsafe().trivial_match_ptrn(ptrn.type);
         if (ctor_ptrn->variant_index) {
             match_ptrn = builder().unsafe().variant_match_ptrn(ptrn.type, *ctor_ptrn->variant_index, match_ptrn);
         }
         return match_ptrn;
     } else if (auto field_ptrn = ptrn.isa<ast::FieldPtrn>()) {
         //auto idx = builder().typed_literal(Literal(uint64_t(field_ptrn->index)), builder().prim_type(ast::PrimType::U64));
-        return bind_ptrn_params(*field_ptrn->ptrn, value);
+        return convert_ptrn(*field_ptrn->ptrn);
+    } else if (auto id_ptrn = ptrn.isa<ast::IdPtrn>()) {
+        // bind the sub-pattern to the _original_ (non-ref) value
+        if (id_ptrn->sub_ptrn)
+            return convert_ptrn(*id_ptrn->sub_ptrn);
+        // otherwise this is a trivial pattern
+        return builder().unsafe().trivial_match_ptrn(ptrn.type);
+    } else if (auto typed_ptrn = ptrn.isa<ast::TypedPtrn>()) {
+        if (typed_ptrn->ptrn)
+            return convert_ptrn(*typed_ptrn->ptrn);
+        return builder().unsafe().trivial_match_ptrn(ptrn.type);
+    } else if (auto literal_ptrn = ptrn.isa<ast::LiteralPtrn>()) {
+        return builder().unsafe().literal_match_ptrn(ptrn.type, literal_ptrn->lit, nullptr);
+    } else {
+        assert(false && "TODO");
+    }
+}
+
+void TypeChecker::bind_ptrn_params(ast::Ptrn& ptrn, const Value* value) {
+    auto& eb = expr_builder();
+
+    if (auto tuple_ptrn = ptrn.isa<ast::TuplePtrn>()) {
+        for (int i = 0; i < tuple_ptrn->args.size(); ++i) {
+            auto idx = builder().typed_literal(Literal(uint64_t(i)), builder().prim_type(ast::PrimType::U64));
+            bind_ptrn_params(*tuple_ptrn->args[i], eb.extract(value, idx));
+        }
+    } else if (auto array_ptrn = ptrn.isa<ast::ArrayPtrn>()) {
+        for (size_t i = 0; i < array_ptrn->elems.size(); ++i) {
+            auto idx = builder().typed_literal(Literal(uint64_t(i)), builder().prim_type(ast::PrimType::U64));
+            bind_ptrn_params(*array_ptrn->elems[i], eb.extract(value, idx));
+        }
+    } else if (auto record_ptrn = ptrn.isa<ast::RecordPtrn>()) {
+        if (record_ptrn->variant_index) {
+            value = eb.variant_extract(value, *record_ptrn->variant_index);
+        }
+        for (size_t i = 0; i < record_ptrn->fields.size(); ++i) {
+            auto idx = builder().typed_literal(Literal(uint64_t(i)), builder().prim_type(ast::PrimType::U64));
+            bind_ptrn_params(*record_ptrn->fields[i], eb.extract(value, idx));
+        }
+    } else if (auto ctor_ptrn = ptrn.isa<ast::CtorPtrn>()) {
+        if (ctor_ptrn->variant_index) {
+            value = eb.variant_extract(value, *ctor_ptrn->variant_index);
+        }
+        if (ctor_ptrn->arg) bind_ptrn_params(*ctor_ptrn->arg, value);
+    } else if (auto field_ptrn = ptrn.isa<ast::FieldPtrn>()) {
+        bind_ptrn_params(*field_ptrn->ptrn, value);
     } else if (auto id_ptrn = ptrn.isa<ast::IdPtrn>()) {
         auto orignal_value = value;
         if (id_ptrn->decl->is_mut) {
@@ -108,13 +142,12 @@ const Match::Ptrn* TypeChecker::bind_ptrn_params(ast::Ptrn& ptrn, const Value* v
         // bind the sub-pattern to the _original_ (non-ref) value
         // bind the sub-pattern to the _original_ (non-ref) value
         if (id_ptrn->sub_ptrn)
-            return bind_ptrn_params(*id_ptrn->sub_ptrn, orignal_value);
-        // otherwise this is a trivial pattern
-        return builder().unsafe().trivial_match_ptrn(ptrn.type);
+            bind_ptrn_params(*id_ptrn->sub_ptrn, orignal_value);
     } else if (auto typed_ptrn = ptrn.isa<ast::TypedPtrn>()) {
-        return bind_ptrn_params(*typed_ptrn->ptrn, value);
-    } else if (auto literal_ptrn = ptrn.isa<ast::LiteralPtrn>()) {
-        return builder().unsafe().literal_match_ptrn(ptrn.type, literal_ptrn->lit, nullptr);
+        if (typed_ptrn->ptrn)
+            bind_ptrn_params(*typed_ptrn->ptrn, value);
+    } else if (ptrn.isa<ast::LiteralPtrn>()) {
+
     } else {
         assert(false && "TODO");
     }
@@ -1139,7 +1172,7 @@ bool TypeChecker::check_filter(const ast::Expr& expr) {
 }
 
 void TypeChecker::check_refutability(const ast::Ptrn& ptrn, bool must_be_trivial) {
-    if (must_be_trivial != ptrn.is_trivial())
+    if (must_be_trivial != convert_ptrn(ptrn)->is_trivial())
         invalid_ptrn(ptrn.loc, must_be_trivial);
 }
 
@@ -2304,7 +2337,8 @@ const tir::Node* MatchExpr::check(TypeChecker& checker, const artic::Type* expec
             auto fn = checker.build_fn(checker.builder().value_var(std::nullopt, checker.builder().unit_type()), [&]() {
                 ExprBuilder case_builder(checker.arena(), &checker.builder());
                 TypeChecker::BuilderGuard guard(checker, case_builder);
-                match_ptrn = checker.bind_ptrn_params(*case_->ptrn, arg);
+                match_ptrn = checker.convert_ptrn(*case_->ptrn);
+                checker.bind_ptrn_params(*case_->ptrn, arg);
                 auto body = type ? checker.coerce(&*case_->expr, type) : checker.deref(case_->expr);
                 if (!type) {
                     type = body->type();

@@ -99,7 +99,10 @@ public:
     Array<const Var*> infer(ast::TypeParamList*);
 
     /// Explores a pattern recursively and makes sure the body is wrapped in Bind nodes that extract the value of each sub-pattern
-    const Match::Ptrn* bind_ptrn_params(ast::Ptrn&, const Value*);
+    void bind_ptrn_params(ast::Ptrn&, const Value*);
+
+    const Match::Ptrn* convert_ptrn(const ast::Ptrn&);
+
     const Value* build_fn_body(const ValueVar* param, ast::FnExpr& fn, const tir::Type* codom);
     const Value* build_fn_filter(const ValueVar* param, ast::FnExpr& fn);
     void infer_fn_attrs(const ast::FnDecl* fn_decl, const Function* fn);

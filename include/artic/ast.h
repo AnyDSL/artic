@@ -181,8 +181,6 @@ struct Ptrn : public Node {
 
     /// Rewrites the pattern into an expression
     virtual const Expr* to_expr(Arena&) { return as_expr.get(); }
-    /// Returns true when the pattern is trivial (e.g. always matches).
-    virtual bool is_trivial() const = 0;
 };
 
 // Path ----------------------------------------------------------------------------
@@ -1586,8 +1584,6 @@ struct TypedPtrn : public Ptrn {
         : Ptrn(loc), ptrn(std::move(ptrn)), type(std::move(type))
     {}
 
-    bool is_trivial() const override;
-
     const tir::Node* infer(TypeChecker&) override;
     void bind(NameBinder&) override;
     const Expr* to_expr(Arena&) override;
@@ -1602,8 +1598,6 @@ struct IdPtrn : public Ptrn {
     IdPtrn(const Loc& loc, Ptr<PtrnDecl>&& decl, Ptr<Ptrn>&& sub_ptrn)
         : Ptrn(loc), decl(std::move(decl)), sub_ptrn(std::move(sub_ptrn))
     {}
-
-    bool is_trivial() const override;
 
     const tir::Node* infer(TypeChecker&) override;
     const tir::Node* check(TypeChecker&, const tir::Type*) override;
@@ -1620,8 +1614,6 @@ struct LiteralPtrn : public Ptrn {
         : Ptrn(loc), lit(lit)
     {}
 
-    bool is_trivial() const override;
-
     const tir::Node* infer(TypeChecker&) override;
     const tir::Node* check(TypeChecker&, const tir::Type*) override;
     void bind(NameBinder&) override;
@@ -1635,8 +1627,6 @@ struct ImplicitParamPtrn : public Ptrn {
     ImplicitParamPtrn(const Loc& loc, Ptr<Ptrn>&& underlying)
         : Ptrn(loc), underlying(std::move(underlying))
     {}
-
-    bool is_trivial() const override;
 
     const tir::Node* infer(TypeChecker&) override;
     const tir::Node* check(TypeChecker&, const tir::Type*) override;
@@ -1657,8 +1647,6 @@ struct FieldPtrn : public Ptrn {
 
     bool is_etc() const { return !ptrn; }
 
-    bool is_trivial() const override;
-
     const tir::Node* check(TypeChecker&, const tir::Type*) override;
     void bind(NameBinder&) override;
     void print(Printer&) const override;
@@ -1678,8 +1666,6 @@ struct RecordPtrn : public Ptrn {
 
     bool has_etc() const { return !fields.empty() && fields.back()->is_etc(); }
 
-    bool is_trivial() const override;
-
     const tir::Node* infer(TypeChecker&) override;
     void bind(NameBinder&) override;
     void print(Printer&) const override;
@@ -1697,8 +1683,6 @@ struct CtorPtrn : public Ptrn {
         : Ptrn(loc), path(std::move(path)), arg(std::move(arg))
     {}
 
-    bool is_trivial() const override;
-
     const tir::Node* infer(TypeChecker&) override;
     void bind(NameBinder&) override;
     void print(Printer&) const override;
@@ -1711,8 +1695,6 @@ struct TuplePtrn : public Ptrn {
     TuplePtrn(const Loc& loc, PtrVector<Ptrn>&& args)
         : Ptrn(loc), args(std::move(args))
     {}
-
-    bool is_trivial() const override;
 
     const tir::Node* infer(TypeChecker&) override;
     const tir::Node* check(TypeChecker&, const tir::Type*) override;
@@ -1729,8 +1711,6 @@ struct ArrayPtrn : public Ptrn {
         : Ptrn(loc), elems(std::move(elems)), is_simd(is_simd)
     {}
 
-    bool is_trivial() const override;
-
     const tir::Node* infer(TypeChecker&) override;
     const tir::Node* check(TypeChecker&, const tir::Type*) override;
     void bind(NameBinder&) override;
@@ -1740,8 +1720,6 @@ struct ArrayPtrn : public Ptrn {
 /// A pattern resulting from a parsing error.
 struct ErrorPtrn : public Ptrn {
     ErrorPtrn(const Loc& loc) : Ptrn(loc) {}
-
-    bool is_trivial() const override;
 
     void bind(NameBinder&) override;
     void print(Printer&) const override;

@@ -624,18 +624,10 @@ bool AsmExpr::has_side_effect() const {
 
 // Patterns ------------------------------------------------------------------------
 
-bool TypedPtrn::is_trivial() const {
-    return !ptrn || ptrn->is_trivial();
-}
-
 const Expr* TypedPtrn::to_expr(Arena& arena) {
     if (!ptrn)
         return nullptr;
     return ptrn->to_expr(arena);
-}
-
-bool IdPtrn::is_trivial() const {
-    return !sub_ptrn || sub_ptrn->is_trivial();
 }
 
 const Expr* IdPtrn::to_expr(Arena& arena) {
@@ -651,51 +643,11 @@ const Expr* IdPtrn::to_expr(Arena& arena) {
     return as_expr.get();
 }
 
-bool LiteralPtrn::is_trivial() const {
-    return false;
-}
-
 const Expr* LiteralPtrn::to_expr(Arena& arena) {
     if (as_expr)
         return as_expr.get();
     as_expr = arena.make_ptr<LiteralExpr>(loc, lit);
     return as_expr.get();
-}
-
-bool ImplicitParamPtrn::is_trivial() const {
-    return underlying->is_trivial();
-}
-
-bool FieldPtrn::is_trivial() const {
-    return !ptrn || ptrn->is_trivial();
-}
-
-bool RecordPtrn::is_trivial() const {
-    assert(false && "TODO");
-    // assert(type);
-    // return
-    //     match_app<tir::StructType>(type).second &&
-    //     std::all_of(fields.begin(), fields.end(), [] (auto& field) {
-    //         return field->is_trivial();
-    //     });
-}
-
-bool CtorPtrn::is_trivial() const {
-    assert(false && "TODO");
-    // assert(type);
-    // return match_app<tir::StructType>(type).second && (!arg || arg->is_trivial());
-}
-
-bool TuplePtrn::is_trivial() const {
-    return std::all_of(args.begin(), args.end(), [] (auto& arg) { return arg->is_trivial(); });
-}
-
-bool ArrayPtrn::is_trivial() const {
-    return std::all_of(elems.begin(), elems.end(), [] (auto& elem) { return elem->is_trivial(); });
-}
-
-bool ErrorPtrn::is_trivial() const {
-    return false;
 }
 
 } // namespace artic::ast

@@ -554,6 +554,7 @@ struct Match : public Value {
 
         NodeKind kind() const override { return NodeKind::Ptrn; }
 
+        /// Returns true when the pattern is trivial (e.g. always matches).
         bool is_trivial() const {
             if (variant_index)
                 return false;
