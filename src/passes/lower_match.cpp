@@ -177,12 +177,11 @@ private:
                 }
             }*/
 
-            auto type = builder.scope.peek_type(values[i]->type());
-            auto [type_app, struct_type] = peek_app_type_unapplied<StructType>(builder.scope, type);
+            auto [_, type] = peek_app_type_unapplied_generic(builder.scope, values[i]->type());
 
             // Can only expand tuples or structures
             size_t member_count = 0;
-            if (struct_type)
+            if (auto struct_type = type->isa<StructType>())
                 member_count = struct_type->member_count();
             else if (auto tuple_type = type->isa<TupleType>())
                 member_count = tuple_type->args.size();
