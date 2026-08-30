@@ -1351,12 +1351,18 @@ const Type* TypeChecker::infer_record_type(const Type* type, const TypeApp* type
         index = std::find_if(
             option_decl->parent->options.begin(),
             option_decl->parent->options.end(),
-            [&] (auto& option) { return option->struct_type == type->as<TypeVar>(); })
+            [&] (auto& option) {
+                if (auto [app, _] = peek_app_type_unapplied_generic(scope(), type); app) {
+                    if (app->applicand() == option->var)
+                        return true;
+                }
+                return option->struct_type == type->as<TypeVar>();
+            })
             - option_decl->parent->options.begin();
         assert(index < option_decl->parent->options.size());
         auto enum_type_or_ctor = infer_mod_decl(*option_decl->parent);
         if (type_app)
-            return let_rec_builder().type_app(enum_type_or_ctor->as<CtorVar>(), type_app->args);
+            return builder().enclosing_let_rec().type_app(enum_type_or_ctor->as<CtorVar>(), type_app->args);
         return enum_type_or_ctor->as<Type>();
     }
     //return type_app ? builder().as_type(type_app->instantiate(builder().enclosing_module())) : type;
@@ -1524,7 +1530,21 @@ std::optional<Path::Elem::Inferred> Path::Elem::infer(TypeChecker& checker, size
                 return std::nullopt;
             }
             auto& option = *enum_type->decl->options[*index];
-            auto ctor = option.struct_type ? option.struct_type : option.ctor_or_default_value(checker);
+            // if the option is record-like, this syntax refers to the hidden underlying type
+            // TODO: prevent accessing said type outside intended locations
+            if (option.struct_type) {
+                auto type = option.struct_type->isa<tir::TypeVar>();
+                if (type_app)
+                    type = checker.builder().enclosing_let_rec().type_app(option.struct_type->as<CtorVar>(), type_app->args);
+                return Inferred {
+                    .var = type,
+                    .option = {
+                        .parent_type = prev_elem_type,
+                        .index = option.index,
+                    },
+                };
+            }
+            auto ctor = option.ctor_or_default_value(checker);
             // apply the type args given to the enum
             if (type_app)
                 ctor = checker.builder().enclosing_let_rec().value_app(ctor->as<CtorVar>(), type_app->args);
@@ -2952,8 +2972,8 @@ const tir::Node* OptionDecl::infer(TypeChecker& checker) {
         });
     }
     else if (has_fields) {
-        std::optional<Array<const Var*>> params = parent->type_params ? std::make_optional(checker.duplicate_params(checker.infer(&*parent->type_params))) : std::nullopt;
-        struct_type = checker.maybe_polymorphic(id, params, NodeKind::Type, [&](auto& builder, auto& self, auto& set_head) -> const Var* {
+        ShadowPolyParamsHelper poly_shadow_helper(checker, parent->type_params);
+        struct_type = checker.maybe_polymorphic(id, poly_shadow_helper.new_vars, NodeKind::Type, [&](auto& builder, auto& self, auto& set_head) -> const Var* {
             auto struct_type = builder.struct_type(this);
             auto var = builder.type_var(id);
             var->binder = &builder.scope;
