@@ -481,15 +481,20 @@ bool Emitter::run(const Root& root) {
 }
 
 thorin::Continuation* Emitter::basic_block(thorin::Debug debug) {
-    return world.continuation(world.fn_type(), debug);
+    auto cont = world.continuation(world.fn_type(), debug);
+    return cont;
 }
 
 thorin::Continuation* Emitter::basic_block_with_mem(thorin::Debug debug) {
-    return world.continuation(world.fn_type({ world.mem_type() }), debug);
+    auto cont = world.continuation(world.fn_type({ world.mem_type() }), debug);
+    cont->mem_param()->set_name("mem");
+    return cont;
 }
 
 thorin::Continuation* Emitter::basic_block_with_mem(const thorin::Type* param, thorin::Debug debug) {
-    return world.continuation(continuation_type_with_mem(param), debug);
+    auto cont = world.continuation(continuation_type_with_mem(param), debug);
+    cont->mem_param()->set_name("mem");
+    return cont;
 }
 
 /*const thorin::Def* Emitter::ctor_index(const ast::Ptrn& ptrn) {
@@ -597,7 +602,9 @@ const thorin::Def* Emitter::call(const thorin::Def* callee, const thorin::Def* a
     if (!state.cont)
         return nullptr;
     auto cont_type = callee->type()->as<thorin::FnType>()->ops().back()->as<thorin::FnType>();
-    auto cont = world.continuation(cont_type, thorin::Debug("cont"));
+    auto cont = world.continuation(cont_type, thorin::Debug("post_call"));
+    if (cont->mem_param())
+        cont->mem_param()->set_name("mem");
     return call(callee, arg, cont, debug);
 }
 
@@ -805,11 +812,7 @@ const thorin::Def* Emitter::down_cast(const thorin::Def* def, const Scope& start
 }*/
 
 const thorin::Def* Emitter::emit(const Value* node) {
-    if (node->emitted)
-        return node->emitted;
-    auto def = node->emit(*this);
-    node->emitted = def;
-    return def;
+    return node->emit(*this, nullptr);
 }
 
 const thorin::Type* Emitter::emit(const Type* node) {
@@ -1222,30 +1225,35 @@ LazyEmitDef& Emitter::resolve_var(const Var* var) {
 };
 
 const thorin::Def* ValueVar::emit(Emitter& emitter) const {
-    return emitter.emit(emitter.resolve_var(this).def->as<Value>());
+    if (emitted)
+        return emitted;
+    LazyEmitDef& lazy = emitter.resolve_var(this);
+    return emitted = lazy.def->as<Value>()->emit(emitter, this);
 }
 
 const thorin::Def* LetRecValue::emit(Emitter& emitter) const {
     return emitter.emit_letrec<LetRecValue, thorin::Def>(this);
 }
 
-const thorin::Def* Function::emit(Emitter& emitter) const {
+const thorin::Def* Function::emit(Emitter& emitter, const ValueVar* self) const {
     auto _ = emitter.save_state();
     auto cont = emitter.world.continuation(
         emitter.emit(type())->as<thorin::FnType>(),
         emitter.debug_info(this));
-    cont->params().back()->set_name("ret");
     // Set the IR node before entering the body
-    emitted = cont;
-    param->emitted = emitter.tuple_from_params(cont, !resolve_type(emitter.scope())->codom->isa<artic::NoRetType>());
+    if (self)
+        self->emitted = cont;
+    auto is_returnless = resolve_type(emitter.scope())->codom->isa<artic::NoRetType>();
+    param->emitted = emitter.tuple_from_params(cont, !is_returnless);
     //emitter.emit(*param, emitter.tuple_from_params(cont, true));
     if (filter_)
         cont->set_filter(emitter.world.filter(thorin::Array<const thorin::Def*>(cont->num_params(), emitter.emit(filter_))));
     if (body()) {
         emitter.enter(cont);
         auto value = emitter.emit(body());
-        if (!resolve_type(emitter.scope())->codom->isa<artic::NoRetType>())
+        if (!is_returnless)
             emitter.jump(cont->params().back(), value);
+        assert(!emitter.state.cont);
     }
 
     if (decl)
@@ -1260,6 +1268,14 @@ const thorin::Def* Function::emit(Emitter& emitter) const {
         if (linkage->is_external)
             emitter.world.make_external(cont);
     }
+
+    // uncomment once rebased on non-broken Thorin
+    // if (cont->ret_param())
+    //     cont->ret_param()->set_name("ret");
+    if (!is_returnless)
+        cont->params().back()->set_name("ret");
+    if (cont->mem_param())
+        cont->mem_param()->set_name("mem");
 
     return cont;
 }

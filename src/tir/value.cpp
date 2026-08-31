@@ -714,6 +714,8 @@ Switch::Switch(Builder& builder, const Value* value, const Function* default_cas
 }
 
 Control::Control(Builder& builder, const Function* fn) : Value([&]() -> const Type* {
+    if (fn->codom != builder.no_ret_type())
+        return builder.type_error();
     if (auto yield_fn_type = builder.scope.peek_type(fn->param->type())->isa<FnType>()) {
         if (yield_fn_type->codom != builder.no_ret_type())
             return builder.type_error();

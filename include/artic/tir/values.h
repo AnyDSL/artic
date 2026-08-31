@@ -30,10 +30,12 @@ struct Value : virtual public Node {
     virtual const thorin::Def* emit(Emitter&) const {
         assert(false && "this node cannot be emitted");
     };
+    virtual const thorin::Def* emit(Emitter& emitter, const ValueVar*) const {
+        return emit(emitter);
+    }
 
 protected:
     const Type* type_;
-    mutable const thorin::Def* emitted = nullptr;
     friend Emitter;
     friend Function;
     friend Bind;
@@ -84,6 +86,7 @@ struct ValueVar : public Value, public Var {
     bool can_bind(const Scope&, const Node*) const override;
 
     const thorin::Def* emit(Emitter&) const override;
+    mutable const thorin::Def* emitted = nullptr;
 };
 
 struct ValueApp : public Value, public App {
@@ -147,7 +150,7 @@ struct Function : public Value {
     const FnType* resolve_type(const Scope& s) const override { return Value::resolve_type(s)->as<FnType>(); }
     bool is_computation() const override { return false; }
 
-    const thorin::Def* emit(Emitter&) const override;
+    const thorin::Def* emit(Emitter&, const ValueVar*) const override;
 
     void set_body(Builder&, const Value*) const;
     void set_filter(Builder&, const Value*) const;

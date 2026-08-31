@@ -2602,7 +2602,8 @@ const tir::Node* ForExpr::infer(TypeChecker& checker) {
                     }));
 
                     auto generator_loop = checker.expr_builder().call(checker.coerce(&*generator, generator_type), wrapped_body);
-                    return checker.expr_builder().call(generator_loop, checker.infer_value(*generator_args));
+                    auto result = checker.expr_builder().call(generator_loop, checker.infer_value(*generator_args));
+                    return checker.expr_builder().call(break_, result);
                 });
             });
         } else {
