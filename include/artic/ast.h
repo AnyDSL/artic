@@ -958,10 +958,12 @@ struct WhileExpr : public LoopExpr {
 
 /// For loop expression.
 struct ForExpr : public LoopExpr {
-    Ptr<CallExpr> call;
+    Ptr<FnExpr> body;
+    Ptr<Expr> generator;
+    Ptr<Expr> generator_args;
 
-    ForExpr(const Loc& loc, Ptr<CallExpr>&& call)
-        : LoopExpr(loc), call(std::move(call))
+    ForExpr(const Loc& loc, Ptr<FnExpr>&& body, Ptr<Expr>&& generator, Ptr<Expr>&& generator_args)
+        : LoopExpr(loc), body(std::move(body)), generator(std::move(generator)), generator_args(std::move(generator_args))
     {}
 
     bool is_jumping() const override;

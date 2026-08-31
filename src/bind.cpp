@@ -308,15 +308,15 @@ void ForExpr::bind(NameBinder& binder) {
     // The call expression looks like:
     // iterate(|i| { ... })(...)
     // continue() and break() should only be available to the lambda
-    binder.bind(*call->callee->as<CallExpr>()->callee);
+    binder.bind(*generator);
     auto old_loop = binder.cur_loop;
     binder.cur_loop = this;
-    auto loop_body = call->callee->as<CallExpr>()->arg->as<FnExpr>();
+    auto loop_body = &*body;
     if (loop_body->attrs)
         loop_body->attrs->bind(binder);
     loop_body->bind(binder, true);
     binder.cur_loop = old_loop;
-    binder.bind(*call->arg);
+    binder.bind(*generator_args);
 }
 
 void BreakExpr::bind(NameBinder& binder) {

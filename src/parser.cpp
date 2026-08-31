@@ -804,8 +804,8 @@ Ptr<ast::Expr> Parser::parse_for_expr() {
 
     auto expr = parse_expr();
     auto call_loc = expr->loc;
-    Ptr<ast::CallExpr> call(expr->isa<ast::CallExpr>() ? expr->as<ast::CallExpr>() : nullptr);
-    if (!call) {
+    Ptr<ast::CallExpr> generator_pseudo_call(expr->isa<ast::CallExpr>() ? expr->as<ast::CallExpr>() : nullptr);
+    if (!generator_pseudo_call) {
         error(ahead().loc(), "invalid for loop expression");
         return _arena.make_ptr<ast::ErrorExpr>(tracker());
     }
@@ -820,9 +820,7 @@ Ptr<ast::Expr> Parser::parse_for_expr() {
     // Cannot use body->loc directly because std::move(body) might be executed first
     auto lambda = _arena.make_ptr<ast::FnExpr>(lambda_loc, nullptr, std::move(ptrn), nullptr, std::move(body));
 
-    Ptr<ast::Expr> callee(call->callee.get());
-    call->callee = _arena.make_ptr<ast::CallExpr>(call_loc, std::move(callee), std::move(lambda));
-    return _arena.make_ptr<ast::ForExpr>(tracker(), std::move(call));
+    return _arena.make_ptr<ast::ForExpr>(tracker(), std::move(lambda), std::move(generator_pseudo_call->callee), std::move(generator_pseudo_call->arg));
 }
 
 Ptr<ast::BreakExpr> Parser::parse_break_expr() {

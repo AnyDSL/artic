@@ -218,14 +218,15 @@ const Value* TypeChecker::build_loop(ast::LoopExpr& loop, const std::string& loo
         send_param(outer_yield_param);
         loop.break_ = outer_yield_param;
 
-        Scope& outer_scope = scope().new_child();
-        LetRecBuilder rec_builder(arena(), outer_scope, &builder());
-        BuilderGuard guard(*this, rec_builder);
+        // Scope& outer_scope = scope().new_child();
+        // LetRecBuilder rec_builder(arena(), outer_scope, &builder());
+        // BuilderGuard guard(*this, rec_builder);
 
-        auto make_inner = [&](InnerLoopBuilderFn inner_body_f) {
-            auto head_fn_type = b.fn_type(b.unit_type(), builder().no_ret_type());
-            auto head_fn_var = b.value_var(ast::Identifier { loop.loc, loop_name + "_head" }, head_fn_type);
-            auto head_fn = build_fn(b.value_var(ast::Identifier { loop.loc, "_" }, b.unit_type()), [&]() -> const Value* {
+        auto make_inner = [&](const Type* loop_param_t, InnerLoopBuilderFn inner_body_f) {
+            // auto head_fn_type = b.fn_type(loop_param_t, builder().no_ret_type());
+            // auto head_fn_var = b.value_var(ast::Identifier { loop.loc, loop_name + "_head" }, head_fn_type);
+            auto loop_param = b.value_var(ast::Identifier { loop.loc, loop_name + "_iter_param" }, loop_param_t);
+            return build_fn(loop_param, [&]() -> const Value* {
                 auto inner_control_fn = build_fn([&](auto& send_param) -> const Value* {
                     auto body_codom_type_var = b.type_var(ast::Identifier { loop.loc, loop_name + "_body_codom_t" });
                     auto inner_yield_type = b.fn_type(body_codom_type_var,  builder().no_ret_type());
@@ -238,9 +239,9 @@ const Value* TypeChecker::build_loop(ast::LoopExpr& loop, const std::string& loo
                         auto receive_type = [&](const tir::Type* t) {
                             assert(!received_type);
                             received_type = t;
-                            rec_builder.bind(body_codom_type_var, t);
+                            b.enclosing_let_rec().bind(body_codom_type_var, t);
                         };
-                        auto inner_body = expr_builder().bind_value(inner_body_f(receive_type));
+                        auto inner_body = expr_builder().bind_value(inner_body_f(receive_type, loop_param));
                         assert(received_type);
                         return expr_builder().call(inner_yield_param, inner_body);
                     });
@@ -248,11 +249,12 @@ const Value* TypeChecker::build_loop(ast::LoopExpr& loop, const std::string& loo
 
                 return yield_expr_scope([&]() -> const Value* {
                     auto inner_control = expr_builder().control(inner_control_fn);
-                    return builder().unsafe().call(head_fn_var, builder().unit());
+                    return inner_control;
+                    //return builder().unsafe().call(head_fn_var, builder().unit());
                 });
             });
-            rec_builder.bind(head_fn_var, head_fn);
-            return head_fn_var;
+            // rec_builder.bind(head_fn_var, head_fn);
+            // return head_fn_var;
         };
 
         const tir::Type* received_type = nullptr;
@@ -264,7 +266,8 @@ const Value* TypeChecker::build_loop(ast::LoopExpr& loop, const std::string& loo
         auto outer_body = loop_builder(receive_type, make_inner);
         assert(received_type);
         //b.enclosing_let_rec().bind(body_type_var, outer_body->type());
-        return rec_builder.finish_value(outer_body);
+        //return rec_builder.finish_value(outer_body);
+        return outer_body;
     });
 
     return expr_builder().control(outer_control_fn);
@@ -2470,7 +2473,7 @@ const tir::Node* MatchExpr::check(TypeChecker& checker, const artic::Type* expec
 
 const tir::Node* WhileExpr::infer(TypeChecker& checker) {
     auto& b = checker.builder();
-    auto make_inner = [&](auto& set_continue_type) -> const Value* {
+    auto make_inner = [&](auto& set_continue_type, auto _) -> const Value* {
         set_continue_type(b.unit_type());
         return checker.yield_expr_scope([&]() -> const Value* {
             const Value* cond = nullptr;
@@ -2498,8 +2501,24 @@ const tir::Node* WhileExpr::infer(TypeChecker& checker) {
     };
     auto make_loop = [&](auto& set_break_type, auto& inner_maker) -> const Value* {
         set_break_type(b.unit_type());
-        auto head = inner_maker(make_inner);
-        return checker.builder().unsafe().call(head, checker.builder().unit());
+
+        Scope& outer_scope = checker.scope().new_child();
+        LetRecBuilder rec_builder(checker.arena(), outer_scope, &checker.builder());
+        TypeChecker::BuilderGuard guard(checker, rec_builder);
+
+        auto head_fn_type = b.fn_type(b.unit_type(), b.no_ret_type());
+        auto head_fn_var = b.value_var(ast::Identifier { loc, "while_head" }, head_fn_type);
+
+        auto wrapped_body = rec_builder.schedule_value(inner_maker(b.unit_type(), make_inner));
+        auto head_fn = checker.build_fn(b.value_var(ast::Identifier { loc, "_" }, b.unit_type()), [&]() -> const Value* {
+            return checker.yield_expr_scope([&]() -> const Value* {
+                checker.expr_builder().call(wrapped_body, b.unit());
+                return checker.expr_builder().call(head_fn_var, b.unit());
+            });
+        });
+
+        rec_builder.bind(head_fn_var, head_fn);
+        return rec_builder.finish_value(checker.builder().unsafe().call(head_fn_var, checker.builder().unit()));
     };
     return checker.build_loop(*this, "while", make_loop);
     /*auto& b = checker.builder();
@@ -2562,7 +2581,37 @@ const tir::Node* WhileExpr::infer(TypeChecker& checker) {
 }
 
 const tir::Node* ForExpr::infer(TypeChecker& checker) {
-    return checker.infer_value(*call);
+    if (auto path_expr = callee_path(generator.get()))
+        path_expr->value = path_expr->path.infer(checker, NodeKind::Value, reinterpret_cast<Ptr<Expr>*>(&body), nullptr)->as<Value>();
+
+    auto [ref_type, callee_type] = remove_ref(checker.scope(), checker.infer_value(*generator)->type());
+    if (auto generator_type = checker.scope().peek_type(callee_type)->isa<artic::FnType>()) {
+        auto body_type = checker.scope().peek_type(generator_type->dom)->isa<artic::FnType>();
+        auto generator_loop_type = checker.scope().peek_type(generator_type->codom)->isa<artic::FnType>();
+        if (body_type && generator_loop_type) {
+            return checker.build_loop(*this, "for", [&](auto& set_break_type, auto& make_body) -> const Value* {
+                set_break_type(generator_loop_type->codom);
+                return checker.yield_expr_scope([&]() {
+                    // body + 'continue' escape hatch
+                    auto wrapped_body = checker.expr_builder().bind_value(make_body(body_type->dom, [&](auto& set_continue_type, auto loop_param) -> const Value* {
+                        set_continue_type(body_type->codom);
+                        return checker.yield_expr_scope([&]() -> const Value* {
+                            return checker.expr_builder().call(checker.coerce(&*this->body, body_type), loop_param);
+                        });
+                        //return checker.coerce(&*this->body, body_type);
+                    }));
+
+                    auto generator_loop = checker.expr_builder().call(checker.coerce(&*generator, generator_type), wrapped_body);
+                    return checker.expr_builder().call(generator_loop, checker.infer_value(*generator_args));
+                });
+            });
+        } else {
+            assert(false);
+        }
+    }
+
+    assert(false);
+    //return checker.infer_value(*call);
 }
 
 const tir::Node* BreakExpr::infer(TypeChecker& checker) {

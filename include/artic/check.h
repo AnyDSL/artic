@@ -108,8 +108,8 @@ public:
     const Value* build_if(const ast::IfExpr& expr, const tir::Type* yield_type, ExprBuilder& true_builder, ExprBuilder& else_builder);
 
     using SetTypeFn = const std::function<void(const tir::Type*)>&;
-    using InnerLoopBuilderFn = const std::function<const Value*(SetTypeFn)>&;
-    using BuildInnerLoopFn = const std::function<const Value*(InnerLoopBuilderFn)>&;
+    using InnerLoopBuilderFn = const std::function<const Value*(SetTypeFn, const Value* loop_param)>&;
+    using BuildInnerLoopFn = const std::function<const Value*(const Type*, InnerLoopBuilderFn)>&;
     using LoopBuilderFn = const std::function<const Value*(SetTypeFn, BuildInnerLoopFn)>&;
     const Value* build_loop(ast::LoopExpr& loop, const std::string&, LoopBuilderFn);
 

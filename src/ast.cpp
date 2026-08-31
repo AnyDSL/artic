@@ -535,11 +535,11 @@ bool WhileExpr::has_side_effect() const {
 }
 
 bool ForExpr::is_jumping() const {
-    return call->is_jumping();
+    return body->is_jumping() || generator->is_jumping() || generator_args->is_jumping();
 }
 
 bool ForExpr::has_side_effect() const {
-    return call->has_side_effect();
+    return body->has_side_effect() || generator->has_side_effect() || generator_args->has_side_effect();
 }
 
 bool UnaryExpr::is_jumping() const {

@@ -288,15 +288,13 @@ void WhileExpr::print(Printer& p) const {
 }
 
 void ForExpr::print(Printer& p) const {
-    auto& iter = call->callee->as<ast::CallExpr>()->callee;
-    auto lambda = call->callee->as<ast::CallExpr>()->arg->as<ast::FnExpr>();
     p << log::keyword_style("for") << ' ';
-    lambda->param->print(p);
+    body->param->print(p);
     p << ' ' << log::keyword_style("in") << ' ';
-    iter->print(p);
-    print_parens(p, call->arg);
+    generator->print(p);
+    print_parens(p, generator_args);
     p << ' ';
-    lambda->body->print(p);
+    body->body->print(p);
 }
 
 void BreakExpr::print(Printer& p) const {
