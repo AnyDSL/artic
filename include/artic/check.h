@@ -127,6 +127,7 @@ public:
     };
 
     const Function* build_fn(const ValueVar* param, const std::function<const Value*()>&);
+    const Function* build_fn(const std::function<const Value*(const std::function<void(const ValueVar*)>&)>&);
 
     const Var* maybe_polymorphic(const ast::Identifier&, std::optional<Array<const Var*>>&, NodeKind, const std::function<const Var*(LetRecBuilder&, const Var*&, const std::function<void(const Var*)>&)>&);
     Array<const Var*> duplicate_params(const ArrayRef<const Var*>&);

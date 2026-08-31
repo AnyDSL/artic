@@ -923,8 +923,8 @@ struct MatchExpr : public Expr {
 /// Base class for loop expressions (while, for)
 struct LoopExpr : public Expr {
     // Set during IR emission
-    mutable const thorin::Def* break_ = nullptr;
-    mutable const thorin::Def* continue_ = nullptr;
+    mutable const tir::Value* break_ = nullptr;
+    mutable const tir::Value* continue_ = nullptr;
 
     LoopExpr(const Loc& loc)
         : Expr(loc)

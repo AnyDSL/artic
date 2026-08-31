@@ -403,6 +403,24 @@ const Value* TypeChecker::yield_expr_scope(const std::function<const Value* ()>&
     });
 }
 
+const Function* TypeChecker::build_fn(const std::function<const Value*(const std::function<void(const ValueVar*)>&)>& f) {
+    Scope& fn_scope = scope().new_child();
+    Builder& prev = builder();
+    Builder fn_builder(arena(), fn_scope, &builder());
+    TypeChecker::BuilderGuard guard(*this, fn_builder);
+    const ValueVar* received_param = nullptr;
+    auto receive_param = [&](const ValueVar* param) {
+        fn_scope.insert(param, nullptr);
+        assert(!received_param);
+        received_param = param;
+    };
+    auto body = f(receive_param);
+    assert(received_param);
+    auto fn = prev.unsafe().function(received_param, fn_scope, body->type(), nullptr);
+    fn->set_body(fn_builder, body);
+    return fn;
+}
+
 const Function* TypeChecker::build_fn(const ValueVar* param, const std::function<const Value*()>& f) {
     Scope& fn_scope = scope().new_child();
     fn_scope.insert(param, nullptr);
@@ -2387,24 +2405,71 @@ const tir::Node* MatchExpr::check(TypeChecker& checker, const artic::Type* expec
 }
 
 const tir::Node* WhileExpr::infer(TypeChecker& checker) {
-    assert(false && "TODO");
-    /*if (cond)
-        checker.coerce(cond, checker.builder().bool_type());
-    else {
-        checker.infer(*ptrn, expr);
-        checker.check_refutability(*ptrn, false);
-    }
-    // Using infer mode here would cause the type system to allow code such as: while true { break }
-    return checker.coerce(body, checker.builder().unit_type());*/
+    auto& b = checker.builder();
+
+    auto outer_control_fn = checker.build_fn([&](auto& send_param) -> const Value* {
+        auto outer_yield_type = b.fn_type(b.unit_type(), checker.builder().no_ret_type());
+        auto outer_yield_param = b.value_var(Identifier { loc, "while_break" }, outer_yield_type);
+        send_param(outer_yield_param);
+        break_ = outer_yield_param;
+
+        Scope& outer_scope = checker.scope().new_child();
+        LetRecBuilder rec_builder(checker.arena(), outer_scope, &checker.builder());
+        TypeChecker::BuilderGuard guard(checker, rec_builder);
+
+        auto head_fn_type = b.fn_type(b.unit_type(), checker.builder().no_ret_type());
+        auto head_fn_var = b.value_var(Identifier { loc, "while_head" }, head_fn_type);
+        auto head_fn = checker.build_fn(b.value_var(Identifier { loc, "_" }, b.unit_type()), [&]() -> const Value* {
+            auto inner_control_fn = checker.build_fn([&](auto& send_param) -> const Value* {
+                auto inner_yield_type = b.fn_type(b.unit_type(), checker.builder().no_ret_type());
+                auto inner_yield_param = b.value_var(Identifier { loc, "while_continue" }, inner_yield_type);
+                send_param(inner_yield_param);
+                continue_ = inner_yield_param;
+
+                return checker.yield_expr_scope([&]() -> const Value* {
+                    const Value* cond = nullptr;
+                    if (this->cond)
+                        cond = checker.coerce(&*this->cond, checker.builder().bool_type());
+                    else {
+                        checker.infer_ptrn(*ptrn, expr);
+                        checker.check_refutability(*ptrn, false);
+                    }
+
+                    auto if_loop = checker.build_fn(b.value_var(Identifier { loc, "_" }, b.unit_type()), [&]() -> const Value* {
+                        return checker.yield_expr_scope([&]() {
+                            // Using infer mode here would cause the type system to allow code such as: while true { break }
+                            checker.coerce(&*body, checker.builder().unit_type());
+                            // After the body, default to calling the head
+                            return checker.builder().unsafe().call(continue_, checker.builder().unit());
+                        });
+                    });
+                    auto if_dont_loop = checker.build_fn(b.value_var(Identifier { loc, "_" }, b.unit_type()), [&]() -> const Value* {
+                        // just get outta there
+                        return checker.builder().unsafe().call(break_, checker.builder().unit());
+                    });
+                    return checker.builder().unsafe().branch(cond, if_loop, if_dont_loop);
+                });
+            });
+
+            return checker.yield_expr_scope([&]() -> const Value* {
+                auto inner_control = checker.expr_builder().control(inner_control_fn);
+                return checker.builder().unsafe().call(head_fn_var, checker.builder().unit());
+            });
+        });
+
+        rec_builder.bind(head_fn_var, head_fn);
+        return rec_builder.finish_value(checker.builder().unsafe().call(head_fn_var, checker.builder().unit()));
+    });
+
+    return checker.expr_builder().control(outer_control_fn);
 }
 
 const tir::Node* ForExpr::infer(TypeChecker& checker) {
-    assert(false && "TODO");
     return checker.infer_value(*call);
 }
 
 const tir::Node* BreakExpr::infer(TypeChecker& checker) {
-    assert(false && "TODO");
+    return loop->break_;
     /*const artic::Type* domain = nullptr;
     if (loop->isa<WhileExpr>())
         domain = checker.builder().unit_type();
@@ -2417,14 +2482,17 @@ const tir::Node* BreakExpr::infer(TypeChecker& checker) {
             if (type->isa<artic::FnType>())
                 domain = type->as<artic::FnType>()->codom;
         }
-        if (!domain)
-            return checker.cannot_infer(loc, "break expression");
+        if (!domain) {
+            checker.cannot_infer(loc, "break expression");
+            return checker.builder().error_value(checker.builder().type_error());
+        }
     } else
         assert(false);
     return checker.builder().cn_type(domain);*/
 }
 
 const tir::Node* ContinueExpr::infer(TypeChecker& checker) {
+    return loop->continue_;
     assert(false && "TODO");
     /*const artic::Type* domain = nullptr;
     if (loop->isa<WhileExpr>())
