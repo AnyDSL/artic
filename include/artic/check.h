@@ -105,6 +105,14 @@ public:
 
     const Value* build_fn_body(const ValueVar* param, ast::FnExpr& fn, const tir::Type* codom);
     const Value* build_fn_filter(const ValueVar* param, ast::FnExpr& fn);
+    const Value* build_if(const ast::IfExpr& expr, const tir::Type* yield_type, ExprBuilder& true_builder, ExprBuilder& else_builder);
+
+    using SetTypeFn = const std::function<void(const tir::Type*)>&;
+    using InnerLoopBuilderFn = const std::function<const Value*(SetTypeFn)>&;
+    using BuildInnerLoopFn = const std::function<const Value*(InnerLoopBuilderFn)>&;
+    using LoopBuilderFn = const std::function<const Value*(SetTypeFn, BuildInnerLoopFn)>&;
+    const Value* build_loop(ast::LoopExpr& loop, const std::string&, LoopBuilderFn);
+
     void infer_fn_attrs(const ast::FnDecl* fn_decl, const Function* fn);
     void infer_global_attrs(const ast::StaticDecl* decl, const GlobalVariable* fn);
 

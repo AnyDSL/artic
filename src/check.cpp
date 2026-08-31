@@ -184,6 +184,92 @@ const Value* TypeChecker::build_fn_body(const ValueVar* param, ast::FnExpr& fn, 
         });
 }
 
+const Value* TypeChecker::build_if(const ast::IfExpr& expr, const tir::Type* yield_type, ExprBuilder& true_builder, ExprBuilder& else_builder) {
+    auto yield_fn_type = builder().fn_type(yield_type, builder().no_ret_type());
+    auto yield_param = builder().value_var(ast::Identifier { expr.loc, "yield" }, yield_fn_type);
+    auto control_fn = build_fn(yield_param, [&]() -> const Value* {
+        return builder(), with_expr_scope<const Value*>([&] {
+            const Function* true_fn = build_fn(builder().value_var(std::nullopt, builder().unit_type()), [&]() -> const Value* {
+                TypeChecker::BuilderGuard guard(*this, true_builder);
+                return expr_builder().finish(expr_builder().call(yield_param, expr.if_true->value));
+            });
+            const Function* else_fn = build_fn(builder().value_var(std::nullopt, builder().unit_type()), [&]() -> const Value* {
+                TypeChecker::BuilderGuard guard(*this, else_builder);
+                if (expr.if_false)
+                    return expr_builder().finish(expr_builder().call(yield_param, expr.if_false->value));
+                else
+                    return expr_builder().finish(expr_builder().call(yield_param, builder().unit()));
+            });
+            return expr_builder().finish_branch(expr.cond->value, true_fn, else_fn);
+        });
+    });
+    return expr_builder().control(control_fn);
+}
+
+const Value* TypeChecker::build_loop(ast::LoopExpr& loop, const std::string& loop_name, LoopBuilderFn loop_builder) {
+    auto& b = builder();
+
+    auto outer_control_fn = build_fn([&](auto& send_param) -> const Value* {
+        auto body_type_var = b.type_var(ast::Identifier { loop.loc, loop_name + "_body_t" });
+
+        //auto outer_yield_type = b.fn_type(b.unit_type(), builder().no_ret_type());
+        auto outer_yield_type = b.fn_type(body_type_var, builder().no_ret_type());
+        auto outer_yield_param = b.value_var(ast::Identifier { loop.loc, loop_name + "_break" }, outer_yield_type);
+        send_param(outer_yield_param);
+        loop.break_ = outer_yield_param;
+
+        Scope& outer_scope = scope().new_child();
+        LetRecBuilder rec_builder(arena(), outer_scope, &builder());
+        BuilderGuard guard(*this, rec_builder);
+
+        auto make_inner = [&](InnerLoopBuilderFn inner_body_f) {
+            auto head_fn_type = b.fn_type(b.unit_type(), builder().no_ret_type());
+            auto head_fn_var = b.value_var(ast::Identifier { loop.loc, loop_name + "_head" }, head_fn_type);
+            auto head_fn = build_fn(b.value_var(ast::Identifier { loop.loc, "_" }, b.unit_type()), [&]() -> const Value* {
+                auto inner_control_fn = build_fn([&](auto& send_param) -> const Value* {
+                    auto body_codom_type_var = b.type_var(ast::Identifier { loop.loc, loop_name + "_body_codom_t" });
+                    auto inner_yield_type = b.fn_type(body_codom_type_var,  builder().no_ret_type());
+                    auto inner_yield_param = b.value_var(ast::Identifier { loop.loc, loop_name + "_continue" }, inner_yield_type);
+                    send_param(inner_yield_param);
+                    loop.continue_ = inner_yield_param;
+
+                    return yield_expr_scope([&]() -> const Value* {
+                        const tir::Type* received_type = nullptr;
+                        auto receive_type = [&](const tir::Type* t) {
+                            assert(!received_type);
+                            received_type = t;
+                            rec_builder.bind(body_codom_type_var, t);
+                        };
+                        auto inner_body = expr_builder().bind_value(inner_body_f(receive_type));
+                        assert(received_type);
+                        return expr_builder().call(inner_yield_param, inner_body);
+                    });
+                });
+
+                return yield_expr_scope([&]() -> const Value* {
+                    auto inner_control = expr_builder().control(inner_control_fn);
+                    return builder().unsafe().call(head_fn_var, builder().unit());
+                });
+            });
+            rec_builder.bind(head_fn_var, head_fn);
+            return head_fn_var;
+        };
+
+        const tir::Type* received_type = nullptr;
+        auto receive_type = [&](const tir::Type* t) {
+            assert(!received_type);
+            received_type = t;
+            b.enclosing_let_rec().bind(body_type_var, t);
+        };
+        auto outer_body = loop_builder(receive_type, make_inner);
+        assert(received_type);
+        //b.enclosing_let_rec().bind(body_type_var, outer_body->type());
+        return rec_builder.finish_value(outer_body);
+    });
+
+    return expr_builder().control(outer_control_fn);
+}
+
 void TypeChecker::infer_fn_attrs(const ast::FnDecl* fn_decl, const Function* fn) {
     if (!fn_decl->attrs)
         return;
@@ -2273,28 +2359,6 @@ inline const LiteralExpr* is_untyped_int_or_float_literal(const Expr* expr) {
     return nullptr;
 }
 
-static const tir::Node* build_if(TypeChecker& checker, const IfExpr& expr, const tir::Type* yield_type, ExprBuilder& true_builder, ExprBuilder& else_builder) {
-    auto yield_fn_type = checker.builder().fn_type(yield_type, checker.builder().no_ret_type());
-    auto yield_param = checker.builder().value_var(Identifier { expr.loc, "yield" }, yield_fn_type);
-    auto control_fn = checker.build_fn(yield_param, [&]() -> const Value* {
-        return checker.builder(), checker.with_expr_scope<const Value*>([&] {
-            const Function* true_fn = checker.build_fn(checker.builder().value_var(std::nullopt, checker.builder().unit_type()), [&]() -> const Value* {
-                TypeChecker::BuilderGuard guard(checker, true_builder);
-                return checker.expr_builder().finish(checker.expr_builder().call(yield_param, expr.if_true->value));
-            });
-            const Function* else_fn = checker.build_fn(checker.builder().value_var(std::nullopt, checker.builder().unit_type()), [&]() -> const Value* {
-                TypeChecker::BuilderGuard guard(checker, else_builder);
-                if (expr.if_false)
-                    return checker.expr_builder().finish(checker.expr_builder().call(yield_param, expr.if_false->value));
-                else
-                    return checker.expr_builder().finish(checker.expr_builder().call(yield_param, checker.builder().unit()));
-            });
-            return checker.expr_builder().finish_branch(expr.cond->value, true_fn, else_fn);
-        });
-    });
-    return checker.expr_builder().control(control_fn);
-}
-
 const tir::Node* IfExpr::infer(TypeChecker& checker) {
     if (cond)
         checker.coerce(&*cond, checker.builder().bool_type());
@@ -2340,7 +2404,7 @@ const tir::Node* IfExpr::infer(TypeChecker& checker) {
     } else
         yield_type = checker.with_expr_builder(true_builder, [&] { return checker.coerce(&*if_true, checker.builder().unit_type()); })->type();
 
-    return build_if(checker, *this, yield_type, true_builder, else_builder);
+    return checker.build_if(*this, yield_type, true_builder, else_builder);
 }
 
 const tir::Node* IfExpr::check(TypeChecker& checker, const artic::Type* expected) {
@@ -2365,7 +2429,7 @@ const tir::Node* IfExpr::check(TypeChecker& checker, const artic::Type* expected
         checker.coerce(&*if_true, expected);
     }
 
-    return build_if(checker, *this, expected, true_builder, else_builder);
+    return checker.build_if(*this, expected, true_builder, else_builder);
 }
 
 const tir::Node* MatchExpr::infer(TypeChecker& checker) {
@@ -2406,6 +2470,39 @@ const tir::Node* MatchExpr::check(TypeChecker& checker, const artic::Type* expec
 
 const tir::Node* WhileExpr::infer(TypeChecker& checker) {
     auto& b = checker.builder();
+    auto make_inner = [&](auto& set_continue_type) -> const Value* {
+        set_continue_type(b.unit_type());
+        return checker.yield_expr_scope([&]() -> const Value* {
+            const Value* cond = nullptr;
+            if (this->cond)
+                cond = checker.coerce(&*this->cond, checker.builder().bool_type());
+            else {
+                checker.infer_ptrn(*ptrn, expr);
+                checker.check_refutability(*ptrn, false);
+            }
+
+            auto if_loop = checker.build_fn(b.value_var(Identifier { loc, "_" }, b.unit_type()), [&]() -> const Value* {
+                return checker.yield_expr_scope([&]() {
+                    // Using infer mode here would cause the type system to allow code such as: while true { break }
+                    checker.coerce(&*body, checker.builder().unit_type());
+                    // After the body, default to calling the head
+                    return checker.builder().unsafe().call(continue_, checker.builder().unit());
+                });
+            });
+            auto if_dont_loop = checker.build_fn(b.value_var(Identifier { loc, "_" }, b.unit_type()), [&]() -> const Value* {
+                // just get outta there
+                return checker.builder().unsafe().call(break_, checker.builder().unit());
+            });
+            return checker.builder().unsafe().branch(cond, if_loop, if_dont_loop);
+        });
+    };
+    auto make_loop = [&](auto& set_break_type, auto& inner_maker) -> const Value* {
+        set_break_type(b.unit_type());
+        auto head = inner_maker(make_inner);
+        return checker.builder().unsafe().call(head, checker.builder().unit());
+    };
+    return checker.build_loop(*this, "while", make_loop);
+    /*auto& b = checker.builder();
 
     auto outer_control_fn = checker.build_fn([&](auto& send_param) -> const Value* {
         auto outer_yield_type = b.fn_type(b.unit_type(), checker.builder().no_ret_type());
@@ -2461,7 +2558,7 @@ const tir::Node* WhileExpr::infer(TypeChecker& checker) {
         return rec_builder.finish_value(checker.builder().unsafe().call(head_fn_var, checker.builder().unit()));
     });
 
-    return checker.expr_builder().control(outer_control_fn);
+    return checker.expr_builder().control(outer_control_fn);*/
 }
 
 const tir::Node* ForExpr::infer(TypeChecker& checker) {
