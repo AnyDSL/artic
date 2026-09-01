@@ -121,6 +121,27 @@ const EnumType* Builder::enum_type(const ast::EnumDecl* decl) {
 const Type* Builder::member_type(const Type* type, size_t idx) {
     type = scope.peek_type(type);
 
+    if (auto [type_app, enum_type, enum_body_scope] = peek_app_type_unapplied_return_scope<EnumType>(scope, type); enum_type) {
+        const ast::EnumDecl& decl = *enum_type->decl;
+        const ast::OptionDecl& option = *decl.options[idx];
+
+        auto member_type = enum_type->member_type(idx);
+        auto [member_type_app, _] = peek_app_type_unapplied_generic(enum_body_scope, member_type);
+        if (option.struct_type) {
+            if (type_app && member_type_app) {
+                return this->enclosing_let_rec().type_app(member_type_app->applicand(), type_app->args);
+            }
+            return member_type;
+        } else {
+            // if (!option.var)
+            //     return unit_type();
+            if (type_app && member_type_app) {
+                return unsafe().type_app(member_type_app->applicand(), type_app->args)->instantiated(*this);
+            }
+        }
+        return member_type;
+    }
+
     if (auto [app, peeked_type] = peek_app_type_applied(*this, type); app) {
         return member_type(peeked_type, idx);
     }
@@ -143,7 +164,7 @@ const TypeVar* Builder::type_var(std::optional<ast::Identifier> id) {
     return arena.insert<TypeVar>(arena, id);
 }
 
-const Type* Builder::Unsafe::type_app(const CtorVar* applied, const ArrayRef<const Node*>& type_args) {
+const TypeApp* Builder::Unsafe::type_app(const CtorVar* applied, const ArrayRef<const Node*>& type_args) {
     return builder.arena.insert<TypeApp>(builder, applied, std::move(type_args));
 }
 

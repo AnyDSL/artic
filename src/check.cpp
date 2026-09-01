@@ -2444,6 +2444,8 @@ const tir::Node* MatchExpr::check(TypeChecker& checker, const artic::Type* expec
     const artic::Type* type = expected;
 
     auto yield_fn_type = checker.builder().type_var(std::nullopt);
+    if (expected)
+        checker.builder().enclosing_let_rec().bind(yield_fn_type, checker.builder().fn_type(type, checker.builder().no_ret_type()));
     // auto yield_fn_type = checker.builder().fn_type(yield_type, checker.builder().no_ret_type());
     auto yield_param = checker.builder().value_var(Identifier { loc, "yield" }, yield_fn_type);
     auto control_fn = checker.build_fn(yield_param, [&]() -> const Value* {
@@ -3579,9 +3581,9 @@ const tir::Node* CtorPtrn::infer(TypeChecker& checker) {
     auto inferred_path = path.infer_path(checker, std::nullopt);
     if (inferred_path->option) {
         variant_index = inferred_path->option->index;
-        if (auto [type_app, enum_type] = peek_app_type_applied<EnumType>(checker.builder(), inferred_path->option->parent_type); enum_type) {
+        if (auto [type_app, enum_type] = peek_app_type_unapplied<EnumType>(checker.scope(), inferred_path->option->parent_type); enum_type) {
             if (arg)
-                checker.check_ptrn(*arg, enum_type->members[inferred_path->option->index]);
+                checker.check_ptrn(*arg, checker.builder().member_type(inferred_path->option->parent_type, inferred_path->option->index));
             return inferred_path->option->parent_type;
         }
         assert(false);

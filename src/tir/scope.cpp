@@ -135,6 +135,12 @@ const Type* Scope::peek_type(const Type* type) const {
     // }
     // return type;
 }
+
+std::tuple<const Type*, const Scope&> Scope::peek_type_return_scope(const Type* type) const {
+    auto [def, scope] = resolve_deep_return_scope(type);
+    return { def->as<Type>(), scope };
+}
+
 const Value* Scope::peek_value(const Value* value) const {
     while (auto var = value->isa<ValueVar>()) {
         auto resolved = resolve_var_deep(var);
@@ -168,6 +174,11 @@ const Ctor* Scope::peek_ctor(const Ctor* ctor) const {
 
 const Ctor* Scope::resolve_ctor(const CtorVar* var) const {
     return resolve_var_deep(var)->as<Ctor>();
+}
+
+std::tuple<const Ctor*, const Scope&> Scope::resolve_ctor_return_scope(const CtorVar* var) const {
+    auto [n, s] = resolve_var_deep_return_scope(var);
+    return { n->as<Ctor>(), s };
 }
 
 const Sig* Scope::peek_sig(const Sig* sig) const {

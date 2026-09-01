@@ -152,7 +152,7 @@ struct Builder : public artic::Cast<Builder> {
         const Type* mod_type_access(const ModValue*, const Key*);
         const Type* type_let_rec(const ArrayRef<std::tuple<const Var*, const Node*>>&, const Type*);
         const TypeCtor* type_ctor(Scope&, const ArrayRef<const Var*>&, const Type*);
-        const Type* type_app(const CtorVar*, const ArrayRef<const Node*>&);
+        const TypeApp* type_app(const CtorVar*, const ArrayRef<const Node*>&);
 
         const ModSignature* mod_signature(std::unordered_map<const Key*, const Sig*>&&);
         const ValueSignature* value_signature(const Type*);

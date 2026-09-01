@@ -804,12 +804,13 @@ std::pair<const TypeApp*, const Type*> peek_app_type_applied_generic(Builder& bu
     return { app->as<TypeApp>(), t };
 }
 
-std::pair<const TypeApp*, const Type*> peek_app_type_unapplied_generic(const Scope& scope, const Type* type) {
-    auto [app, t] = match_app_unapplied(scope, type);
+std::tuple<const TypeApp*, const Type*, const Scope&> peek_app_type_unapplied_generic_return_scope(const Scope& scope, const Type* type) {
+    auto [app, t, s] = match_app_unapplied(scope, type);
     assert(t->isa<Type>());
+    auto [pt, pts] = s.peek_type_return_scope(t->as<Type>());
     if (!app)
-        return { nullptr, scope.peek_type(t->as<Type>()) };
-    return { app->as<TypeApp>(), scope.peek_type(t->as<Type>()) };
+        return { nullptr, pt, pts };
+    return { app->as<TypeApp>(), pt, pts };
 }
 
 } // namespace tir

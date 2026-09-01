@@ -301,7 +301,8 @@ private:
         std::vector<Row> wildcards;
 
         auto col = pick_col();
-        auto [_, col_type] = peek_app_type_unapplied_generic(builder.scope, values[col]->type());
+        auto og_col_type = values[col]->type();
+        auto [_, col_type] = peek_app_type_unapplied_generic(builder.scope, og_col_type);
         auto enum_type = col_type->isa<EnumType>();
 
         // First, collect constructors
@@ -417,7 +418,7 @@ private:
                 auto new_values = values;
                 if (enum_type) {
                     auto index = defs[i]->as<TypedLiteral>()->value.as_integer();
-                    auto type  = case_builder->member_type(col_type, index);
+                    //auto type  = case_builder->member_type(og_col_type, index);
                     auto value = case_expr_builder.variant_extract(col_value, index);
                     // If the constructor refers to an option that has a parameter,
                     // we need to extract it and add it to the values.

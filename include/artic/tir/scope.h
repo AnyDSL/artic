@@ -51,12 +51,15 @@ struct Scope {
 
     /// Tries to resolve a type by following the let-bindings in this scope and entering ModAccesses
     const Type* peek_type(const Type* type) const;
+    std::tuple<const Type*, const Scope&> peek_type_return_scope(const Type* type) const;
+
     const ModValue* peek_mod_value(const ModValue*) const;
     const Value* peek_value(const Value*) const;
     const Ctor* peek_ctor(const Ctor* sig) const;
     const Sig* peek_sig(const Sig* sig) const;
 
     const Ctor* resolve_ctor(const CtorVar*) const;
+    std::tuple<const Ctor*, const Scope&> resolve_ctor_return_scope(const CtorVar*) const;
     const Sig* resolve_sig(const SigVar*) const;
     const Type* resolve_type_var(const TypeVar*) const;
 

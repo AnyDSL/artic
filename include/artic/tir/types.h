@@ -29,6 +29,7 @@ namespace tir {
 
 // class Emitter;
 struct TypeVar;
+struct TypeApp;
 struct ModVar;
 
 template <typename T> using TypeMap = std::unordered_map<const Type*, T>;
@@ -576,11 +577,23 @@ std::pair<const TypeApp*, const T*> peek_app_type_applied(Builder& builder, cons
     return { app, t->isa<T>() };
 }
 
-std::pair<const TypeApp*, const Type*> peek_app_type_unapplied_generic(const Scope& scope, const Type* type);
+std::tuple<const TypeApp*, const Type*, const Scope&> peek_app_type_unapplied_generic_return_scope(const Scope& scope, const Type* type);
+
+inline std::pair<const TypeApp*, const Type*> peek_app_type_unapplied_generic(const Scope& scope, const Type* type) {
+    auto [app, t, _] = peek_app_type_unapplied_generic_return_scope(scope, type);
+    return { app, t };
+}
+
+template <typename T = Type>
+std::tuple<const TypeApp*, const T*, const Scope&> peek_app_type_unapplied_return_scope(const Scope& scope, const Type* type) {
+    auto [app, t, s] = peek_app_type_unapplied_generic_return_scope(scope, type);
+    return { app, t->isa<T>(), s };
+}
+
 
 template <typename T = Type>
 std::pair<const TypeApp*, const T*> peek_app_type_unapplied(const Scope& scope, const Type* type) {
-    auto [app, t] = peek_app_type_unapplied_generic(scope, type);
+    auto [app, t, _] = peek_app_type_unapplied_return_scope(scope, type);
     return { app, t->isa<T>() };
 }
 
