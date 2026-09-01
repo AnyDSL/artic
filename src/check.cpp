@@ -2394,10 +2394,13 @@ const tir::Node* IfExpr::infer(TypeChecker& checker) {
         auto lit_true = is_untyped_int_or_float_literal(if_true.get());
         auto lit_false = is_untyped_int_or_float_literal(if_false.get());
         if (lit_true && lit_false) {
-            if (lit_true->lit.is_double())
-                checker.with_expr_builder(else_builder, [&] { return checker.coerce(&*if_false, checker.deref(if_true)->type()); });
-            else
-                checker.with_expr_builder(true_builder, [&] { return checker.coerce(&*if_true, checker.deref(if_false)->type()); });
+            if (lit_true->lit.is_double()) {
+                auto true_lit_value = checker.with_expr_builder(true_builder, [&] { return checker.deref(if_true); });
+                checker.with_expr_builder(else_builder, [&] { return checker.coerce(&*if_false, true_lit_value->type()); });
+            } else {
+                auto else_lit_value = checker.with_expr_builder(else_builder, [&] { return checker.deref(if_false); });
+                checker.with_expr_builder(true_builder, [&] { return checker.coerce(&*if_true, else_lit_value->type()); });
+            }
         } else if (lit_true) {
             auto if_false_type = checker.with_expr_builder(else_builder, [&] { return checker.deref(if_false); })->type();
             if (is_int_or_float_type(if_false_type))
