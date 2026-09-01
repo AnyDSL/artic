@@ -159,21 +159,6 @@ private:
     // Transforms the rows such that tuples and structures are completely deconstructed
     void expand(ExprBuilder& expr_builder) {
         for (size_t i = 0; i < values.size();) {
-            // Replace patterns by their sub-patterns, if possible
-            // i.e if the pattern is `z as (x, y)` then we replace it with `(x, y)`
-            // and remember that `z` maps to the value bound to `(x, y)`
-            /*for (auto& row : rows) {
-                if (!row.first[i])
-                    continue;
-                while (true) {
-                    if (auto id_ptrn = row.first[i]->isa<ast::IdPtrn>(); id_ptrn && id_ptrn->sub_ptrn) {
-                        matched_values.emplace(id_ptrn, values[i]);
-                        row.first[i] = id_ptrn->sub_ptrn.get();
-                    } else
-                        break;
-                }
-            }*/
-
             auto [_, type] = peek_app_type_unapplied_generic(builder.scope, values[i]->type());
 
             // Can only expand tuples or structures
@@ -195,48 +180,12 @@ private:
                 const Match::Ptrn* ptrn = row.first[i];
                 remove_col(row.first, i);
                 if (ptrn && (ptrn->elem_ptrns || ptrn->literal)) {
-                    // assert(ptrn->is_trivial());
-                    expand(row, ptrn);
-                    /*if (auto struct_ptrn = row.first[i]->isa<ast::RecordPtrn>()) {
-                        for (auto& field : struct_ptrn->fields) {
-                            if (!field->is_etc())
-                                new_elems[field->index] = field->ptrn.get();
-                        }
-                    } else if (auto ctor_ptrn = row.first[i]->isa<ast::CtorPtrn>()) {
-                        // This must be a tuple-like struct.
-                        if (struct_type->member_count() == 1)
-                            new_elems[0] = ctor_ptrn->arg.get();
-                        else {
-                            for (size_t j = 0; j < member_count; ++j)
-                                new_elems[j] = ctor_ptrn->arg->as<ast::TuplePtrn>()->args[j].get();
-                        }
-                    } else if (auto tuple_ptrn = row.first[i]->isa<ast::TuplePtrn>()) {
-                        for (size_t j = 0; j < member_count; ++j)
-                            new_elems[j] = tuple_ptrn->args[j].get();
-                    } else if (auto array_ptrn = row.first[i]->isa<ast::ArrayPtrn>()) {
-                        for (size_t j = 0; j < member_count; ++j)
-                            new_elems[j] = array_ptrn->elems[j].get();
-                    } else if (auto literal_ptrn = row.first[i]->isa<ast::LiteralPtrn>()) {
-                        // This must be a string. In that case we need to create a literal
-                        // pattern for each character.
-                        assert(literal_ptrn->lit.is_string());
-                        assert(literal_ptrn->lit.as_string().size() + 1 == member_count);
-                        const char* str = literal_ptrn->lit.as_string().c_str();
-                        for (size_t j = 0; j < member_count; ++j) {
-                            auto char_ptrn = arena.make_ptr<ast::LiteralPtrn>(literal_ptrn->loc, uint8_t(str[j]));
-                            char_ptrn->type = builder.prim_type(ast::PrimType::U8);
-                            new_elems[j] = char_ptrn.get();
-                            tmp_ptrns.emplace_back(std::move(char_ptrn));
-                        }
-                    } else {
-                        matched_values.emplace(row.first[i]->as<ast::IdPtrn>(), values[i]);
-                    }*/
+                    expand(row, ptrn, member_count);
                 } else {
                     // insert a bunch of wildcards in there
                     for (int j = 0; j < member_count; j++)
                         row.first.emplace_back(nullptr);
                 }
-                //row.first.insert(row.first.end(), new_elems.begin(), new_elems.end());
             }
 
             // Expand the value to match against
@@ -244,8 +193,6 @@ private:
             for (size_t j = 0; j < member_count; ++j) {
                 auto j_idx = builder.typed_literal(Literal(uint64_t(j)), builder.prim_type(ast::PrimType::I64));
                 new_values[j] = expr_builder.extract(values[i], j_idx);
-                //new_values[j] = emitter.world.extract(values[i].first, j, emitter.debug_info(expr));
-                //new_values[j].second = builder.member_type(type, j);
             }
             remove_col(values, i);
             values.insert(values.end(), new_values.begin(), new_values.end());
@@ -278,12 +225,6 @@ private:
         {
             // If the first row is made of only wildcards, it is a match
             rows.front().second->is_redundant = false;
-            /*for (size_t i = 0, n = rows.front().first.size(); i < n; ++i) {
-                auto ptrn = rows.front().first[i];
-                // Emit names that are bound in this row
-                if (ptrn && ptrn->isa<ast::IdPtrn>())
-                    matched_values.emplace(ptrn->as<ast::IdPtrn>(), values[i]);
-            }*/
             auto case_block = rows.front().second->emit(r, expr_builder);
             return expr_builder.finish(builder.unsafe().call(case_block, expr_builder.unit()));
         }
@@ -320,8 +261,7 @@ private:
                     if (enum_type) {
                         auto index = ctor_index->as<TypedLiteral>()->value.as_integer();
                         // If the sub-tree introduces the extracted contents of an enum variant, add a dummy column to the row
-                        // if (!is_unit_type(enum_type->member_type(index)))
-                            ctor_rows.back().first.push_back(nullptr);
+                        ctor_rows.back().first.push_back(nullptr);
                     }
                 }
                 wildcards.emplace_back(std::move(row));
@@ -332,14 +272,6 @@ private:
                     row.first.push_back(ptrn->sub_ptrn);
                 else if (ptrn->elem_ptrns)
                     row.first.push_back(ptrn);
-                // expand(row, ptrn);
-                // if (auto call_ptrn = ptrn->isa<ast::CtorPtrn>(); call_ptrn && call_ptrn->arg) {
-                //     row.first.push_back(call_ptrn->arg.get());
-                // } else if (auto record_ptrn = ptrn->isa<ast::RecordPtrn>()) {
-                //     // Since expansion uses the type of the value vector to know when to expand,
-                //     // the record pattern will be expanded in the next iteration.
-                //     row.first.push_back(record_ptrn);
-                // }
                 ctors[ctor_index(*ptrn)].emplace_back(std::move(row));
             }
         }
@@ -347,8 +279,8 @@ private:
         // Generate jumps to each constructor case
         bool no_default = is_complete(builder.scope, col_type, ctors.size());
         if (is_bool_type(col_type)) {
-            const Function* match_true = nullptr;//  = emitter.basic_block_with_mem(emitter.debug_info(node, "match_true"));
-            const Function* match_false = nullptr;// = emitter.basic_block_with_mem(emitter.debug_info(node, "match_false"));
+            const Function* match_true = nullptr;
+            const Function* match_false = nullptr;
 
             auto cond = values[col];
             remove_col(values, col);
@@ -380,7 +312,6 @@ private:
             Array<const Value*> defs(ctors.size());
 
             auto otherwise = make_fn();
-            //auto otherwise = emitter.basic_block_with_mem(emitter.debug_info(node, "match_otherwise"));
 
             size_t count = 0;
             for (auto& ctor : ctors) {
@@ -390,18 +321,7 @@ private:
             }
 
             const Value* sw;
-            //if (emitter.state.cont) {
             auto match_value = enum_type ? expr_builder.variant_index(values[col]) : values[col];
-                // auto match_value = enum_type
-                //    ? emitter.world.variant_index(values[col].first, emitter.debug_info(node, "variant_index"))
-                //    : values[col].first;
-                // emitter.state.cont->match(
-                //     emitter.state.mem,
-                //     match_value, otherwise,
-                //     no_default ? defs.skip_back() : defs.ref(),
-                //     no_default ? targets.skip_back() : targets.ref(),
-                //     emitter.debug_info(node));
-            //}
 
             auto col_value = values[col];
             remove_col(values, col);
@@ -415,12 +335,10 @@ private:
                 auto new_values = values;
                 if (enum_type) {
                     auto index = defs[i]->as<TypedLiteral>()->value.as_integer();
-                    //auto type  = case_builder->member_type(og_col_type, index);
                     auto value = case_expr_builder.variant_extract(col_value, index);
                     // If the constructor refers to an option that has a parameter,
                     // we need to extract it and add it to the values.
-                    // if (!is_unit_type(type))
-                        new_values.emplace_back(/*emitter.world.cast(type->convert(emitter), value), type, */value);
+                    new_values.emplace_back(value);
                 }
 
                 auto yielded = case_expr_builder.finish(PtrnCompiler(r, *case_builder, log, old_match, std::move(rows), std::move(new_values)).compile());
@@ -436,12 +354,6 @@ private:
             for (size_t i = 0; i < cases.size(); i++)
                 cases[i] = Switch::Case(defs[i], std::get<1>(targets[i]));
             sw = expr_builder.unsafe().switch_(match_value, std::get<1>(otherwise), std::move(cases));
-            // emitter.state.cont->match(
-            //     emitter.state.mem,
-            //     match_value, otherwise,
-            //     no_default ? defs.skip_back() : defs.ref(),
-            //     no_default ? targets.skip_back() : targets.ref(),
-            //     emitter.debug_info(node));
             return expr_builder.finish(sw);
         }
     }
@@ -461,11 +373,6 @@ private:
 const Value* PtrnCompiler::MatchCase::emit(Rewriter& r, ExprBuilder& b) {
     if (!fn) {
         fn = r.instantiate(match_case->branch);
-        // cont = emitter.basic_block_with_mem(emitter.world.tuple_type(param_types), emitter.debug_info(*node, "case_body"));
-        // auto _ = emitter.save_state();
-        // emitter.enter(cont);
-        // auto tuple = emitter.tuple_from_params(cont);
-        // emitter.jump(target, emitter.emit(*expr), emitter.debug_info(*node));
     }
     return b.bind_value(fn);
 }
