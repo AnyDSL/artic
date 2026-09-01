@@ -68,6 +68,8 @@ const Match::Ptrn* TypeChecker::convert_ptrn(const ast::Ptrn& ptrn) {
     } else if (auto record_ptrn = ptrn.isa<ast::RecordPtrn>()) {
         std::vector<std::tuple<size_t, const Match::Ptrn*>> elem_ptrns;
         for (size_t i = 0; i < record_ptrn->fields.size(); ++i) {
+            if (record_ptrn->fields[i]->is_etc())
+                continue;
             elem_ptrns.emplace_back(i, convert_ptrn(*record_ptrn->fields[i]));
         }
         auto match_ptrn = builder().unsafe().compound_match_ptrn(ptrn.type, elem_ptrns, nullptr);
@@ -119,6 +121,8 @@ void TypeChecker::bind_ptrn_params(ast::Ptrn& ptrn, const Value* value) {
             value = eb.variant_extract(value, *record_ptrn->variant_index);
         }
         for (size_t i = 0; i < record_ptrn->fields.size(); ++i) {
+            if (record_ptrn->fields[i]->is_etc())
+                continue;
             auto idx = builder().typed_literal(Literal(uint64_t(i)), builder().prim_type(ast::PrimType::U64));
             bind_ptrn_params(*record_ptrn->fields[i], eb.extract(value, idx));
         }
