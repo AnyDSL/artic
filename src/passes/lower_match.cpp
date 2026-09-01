@@ -136,19 +136,14 @@ private:
         return std::find(enabled.begin(), enabled.end(), true) - enabled.begin();
     }
 
-    void expand(Row& row, const Match::Ptrn* ptrn) {
-        if (ptrn->sub_ptrn) {
-            assert(false);
-            row.first.push_back(ptrn->sub_ptrn);
-        }
+    void expand(Row& row, const Match::Ptrn* ptrn, size_t member_count) {
         if (ptrn->elem_ptrns) {
-            std::vector<const Match::Ptrn*> new_elems(ptrn->elem_ptrns->size(), nullptr);
-            for (size_t j = 0; j < ptrn->elem_ptrns->size(); ++j) {
-                new_elems[j] = std::get<1>((*ptrn->elem_ptrns)[j]);
+            std::vector<const Match::Ptrn*> new_elems(member_count, nullptr);
+            for (auto [idx, sub_ptrn] : *ptrn->elem_ptrns) {
+                new_elems[idx] = sub_ptrn;
             }
             row.first.insert(row.first.end(), new_elems.begin(), new_elems.end());
-        }
-        if (ptrn->literal) {
+        } else if (ptrn->literal) {
             assert(ptrn->literal->is_string());
             const char* str = ptrn->literal->as_string().c_str();
             std::vector<const Match::Ptrn*> new_elems(ptrn->literal->as_string().size() + 1, nullptr);
@@ -156,6 +151,8 @@ private:
                 new_elems[j] = builder.unsafe().literal_match_ptrn(builder.prim_type(ast::PrimType::U8), Literal(uint8_t(str[j])), nullptr);
             }
             row.first.insert(row.first.end(), new_elems.begin(), new_elems.end());
+        } else {
+            assert(false);
         }
     }
 
