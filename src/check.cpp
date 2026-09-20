@@ -2513,15 +2513,20 @@ const tir::Node* WhileExpr::infer(TypeChecker& checker) {
         set_continue_type(b.unit_type());
         return checker.yield_expr_scope([&]() -> const Value* {
             const Value* cond = nullptr;
+            const Value* arg = nullptr;
             if (this->cond)
                 cond = checker.coerce(&*this->cond, checker.builder().bool_type());
             else {
                 checker.infer_ptrn(*ptrn, expr);
                 checker.check_refutability(*ptrn, false);
+
+                arg = checker.deref(expr);
             }
 
             auto if_loop = checker.build_fn(b.value_var(Identifier { loc, "_" }, b.unit_type()), [&]() -> const Value* {
                 return checker.yield_expr_scope([&]() {
+                    if (arg)
+                        checker.bind_ptrn_params(*ptrn, arg);
                     // Using infer mode here would cause the type system to allow code such as: while true { break }
                     checker.coerce(&*body, checker.builder().unit_type());
                     // After the body, default to calling the head
@@ -2532,6 +2537,20 @@ const tir::Node* WhileExpr::infer(TypeChecker& checker) {
                 // just get outta there
                 return checker.builder().unsafe().call(break_, checker.builder().unit());
             });
+
+            if (ptrn) {
+                std::vector<Match::Case> cases;
+                cases.push_back(Match::Case {
+                    .ptrn = checker.convert_ptrn(*ptrn),
+                    .branch = if_loop,
+                });
+                cases.push_back(Match::Case {
+                    .ptrn = checker.builder().unsafe().trivial_match_ptrn(arg->type()),
+                    .branch = if_dont_loop,
+                });
+                return checker.builder().unsafe().match(loc, arg, std::move(cases));
+            }
+
             return checker.builder().unsafe().branch(cond, if_loop, if_dont_loop);
         });
     };
