@@ -144,12 +144,12 @@ struct Builder : public artic::Cast<Builder> {
     // un-scheduled node ctors where you should probably used the scheduled version instead!
     struct Unsafe {
         const Module* module(std::unordered_map<const Key*, const Node*>&&, const Sig*, const ast::ModDecl* = nullptr);
-        const ModCtor* mod_ctor(Scope&, const ArrayRef<const Var*>&, const ModValue*);
-        const ModValue* mod_app(const CtorVar*, const ArrayRef<const Node*>&);
-        const ModValue* mod_mod_access(const ModValue*, const Key*);
-        const ModValue* mod_let_rec(const ArrayRef<std::tuple<const Var*, const Node*>>&, const ModValue*);
+        const ModCtor* mod_ctor(Scope&, const ArrayRef<const Var*>&, const Mod*);
+        const Mod* mod_app(const CtorVar*, const ArrayRef<const Node*>&);
+        const Mod* mod_mod_access(const Mod*, const Key*);
+        const Mod* mod_let_rec(const ArrayRef<std::tuple<const Var*, const Node*>>&, const Mod*);
 
-        const Type* mod_type_access(const ModValue*, const Key*);
+        const Type* mod_type_access(const Mod*, const Key*);
         const Type* type_let_rec(const ArrayRef<std::tuple<const Var*, const Node*>>&, const Type*);
         const TypeCtor* type_ctor(Scope&, const ArrayRef<const Var*>&, const Type*);
         const TypeApp* type_app(const CtorVar*, const ArrayRef<const Node*>&);
@@ -159,7 +159,7 @@ struct Builder : public artic::Cast<Builder> {
         const TypeSignature* type_signature(const Type*);
         const CtorSignature* ctor_signature(const ArrayRef<const Sig*>&, NodeKind);
 
-        const Value* mod_value_access(const ModValue*, const Key*);
+        const Value* mod_value_access(const Mod*, const Key*);
         const Value* value_let_rec(const ArrayRef<std::tuple<const Var*, const Node*>>&, const Value*);
         const ValueCtor* value_ctor(Scope&, const ArrayRef<const Var*>&, const Value*);
         const Value* value_app(const CtorVar*, const ArrayRef<const Node*>&);
@@ -218,28 +218,28 @@ struct LetRecBuilder : public Builder {
     //std::tuple<const ModVar*, const ModCtor*> mod_ctor(const ModVar*);
     const ModVar* module(std::unordered_map<const Key*, const Node*>&&, const ast::ModDecl* = nullptr);
     const ModVar* mod_app(const CtorVar*, const ArrayRef<const Node*>&);
-    const ModVar* mod_mod_access(const ModValue*, const Key*);
+    const ModVar* mod_mod_access(const Mod*, const Key*);
 
-    const Var* mod_access(const ModValue*, const Key*);
+    const Var* mod_access(const Mod*, const Key*);
 
-    const TypeVar* mod_type_access(const ModValue*, const Key*);
+    const TypeVar* mod_type_access(const Mod*, const Key*);
     const CtorVar* type_ctor(Scope&, const ArrayRef<const Var*>&, const Type*);
     const TypeVar* type_app(const CtorVar*, const ArrayRef<const Node*>&);
 
     const CtorVar* value_ctor(Scope&, const ArrayRef<const Var*>&, const Value*);
     const ValueVar* value_app(const CtorVar*, const ArrayRef<const Node*>&);
-    const ValueVar* mod_value_access(const ModValue*, const Key*);
+    const ValueVar* mod_value_access(const Mod*, const Key*);
 
     void bind(const Var*, const Node*);
 
     const TypeVar* schedule_type(const Type*, std::optional<ast::Identifier> = std::nullopt);
     const ValueVar* schedule_value(const Value*, std::optional<ast::Identifier> = std::nullopt);
-    const ModVar* schedule_mod_value(const ModValue*, std::optional<ast::Identifier> = std::nullopt);
+    const ModVar* schedule_mod_value(const Mod*, std::optional<ast::Identifier> = std::nullopt);
     const CtorVar* schedule_ctor(const Ctor*, std::optional<ast::Identifier> = std::nullopt);
     const SigVar* schedule_sig(const Sig*, std::optional<ast::Identifier> = std::nullopt);
     // const LetRec* finish(const Node*);
     const Type* finish_type(const Type*);
-    const ModValue* finish_module(const ModValue*);
+    const Mod* finish_module(const Mod*);
     const Value* finish_value(const Value*);
 
     std::tuple<const Var*, LetRecBuilder*> locate(const Node*);

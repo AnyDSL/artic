@@ -64,7 +64,7 @@ void Ctor::free_variables(FVSet& vars, Seen& seen) const {
 }
 
 Constructor::Constructor(LetRecBuilder& builder, Scope& scope, const ArrayRef<const Var*>& params, const Node* body)
-: Ctor([&]() -> const Sig* {
+: CtorDef([&]() -> const Sig* {
     Array<const Sig*> dom(params.size());
     for (size_t i = 0; i < params.size(); i++) {
         dom[i] = Sig::from_node(builder, params[i], false);
@@ -73,7 +73,7 @@ Constructor::Constructor(LetRecBuilder& builder, Scope& scope, const ArrayRef<co
 }()), scope(scope), params(params), body_(body) {
     for (size_t i = 0; i < params.size(); i++) {
         assert(scope.is_in_scope(params[i]));
-        assert(params[i]->is_simple());
+        assert(params[i]->is_var());
     }
 }
 
@@ -121,9 +121,9 @@ void CtorVar::free_variables(FVSet& vars, Seen& seen) const {
 }
 
 App::App(const CtorVar* applicand, const ArrayRef<const Node*>& args) : applicand_(applicand), args(args) {
-    assert(applicand_->is_simple());
+    assert(applicand_->is_var());
     for (auto arg : args)
-        assert(arg->is_simple());
+        assert(arg->is_var());
 }
 
 void App::free_variables(FVSet& vars, Seen& seen) const {
@@ -175,7 +175,7 @@ const Node* App::instantiated(Builder& builder) const {
 
 LetRec::LetRec(Scope& scope, const ArrayRef<std::tuple<const Var*, const Node*>>& vars, const Node* in)
     : scope(scope), vars(vars), body_(in) {
-    assert(in->is_simple());
+    assert(in->is_var());
     for (auto [var, def] : vars) {
         assert(var->can_bind(scope, def));
     }

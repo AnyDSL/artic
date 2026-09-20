@@ -15,19 +15,19 @@ const Type* Value::resolve_type(const Scope& s) const {
 }
 
 GlobalVariable::GlobalVariable(Builder& builder, const Type* value_type, bool is_mut, const Value* init, const ast::StaticDecl* decl)
-    : Value(builder.ref_type(value_type, is_mut, 0)), Node(builder.arena), allocated_type(value_type), is_mut(is_mut), init(init), decl(decl) {
-    assert(value_type->is_simple());
+    : ValueDef(builder.arena, builder.ref_type(value_type, is_mut, 0)), Node(builder.arena), allocated_type(value_type), is_mut(is_mut), init(init), decl(decl) {
+    assert(value_type->is_var());
     if (init)
         assert(init->type() == value_type);
 }
 
 LocalVariable::LocalVariable(Builder& builder, const Type* allocated_type)
-    : Value(builder.ref_type(allocated_type, true, 0)), Node(builder.arena), allocated_type(allocated_type) {
-    assert(allocated_type->is_simple());
+    : ValueDef(builder.arena, builder.ref_type(allocated_type, true, 0)), Node(builder.arena), allocated_type(allocated_type) {
+    assert(allocated_type->is_var());
 }
 
 Function::Function(Builder& builder, Scope& scope, const ValueVar* param, const Type* codom, const ast::FnDecl* decl)
-    : Value(builder.fn_type(param->type(), codom)), Node(builder.arena), scope(scope), param(param), codom(codom), decl(decl) {
+    : ValueDef(builder.arena, builder.fn_type(param->type(), codom)), Node(builder.arena), scope(scope), param(param), codom(codom), decl(decl) {
     assert(scope.is_in_scope(param));
 }
 
@@ -66,8 +66,7 @@ bool ErrorValue::equals(const Node* n) const {
 }
 
 ValueVar::ValueVar(Arena& arena, std::optional<ast::Identifier> id, const Type* type)
-    : Value(type), Var(id), Node(arena) {
-    assert(&type->arena == &arena);
+    : Value(arena, type), Var(id), Node(arena) {
 }
 
 bool ValueVar::can_bind(const Scope& scope, const Node* other) const {
@@ -134,7 +133,7 @@ struct TypeExtractor : public Rewriter {
 };
 
 ValueApp::ValueApp(Builder& builder, const CtorVar* ctor_var, const ArrayRef<const Node*>& args)
-    : Node(builder.arena), App(ctor_var, args), Value([&]() -> const Type* {
+    : Node(builder.arena), App(ctor_var, args), ValueDef(builder.arena, [&]() -> const Type* {
         auto ctor = builder.scope.resolve_ctor(ctor_var)->as<Constructor>();
         TypeExtractor replacer(builder, ctor->scope, ctor->body()->as<Value>());
         for (size_t i = 0; i < args.size(); i++) {
@@ -161,7 +160,7 @@ ValueCtor::ValueCtor(Builder& builder, Scope& scope, const ArrayRef<const Var*>&
 
 LetRecValue::LetRecValue(Builder& builder, Scope& scope, const ArrayRef<std::tuple<const Var*, const Node*>>& vars, const Value* in)
     // TODO: make the type opaque if it leaks ?
-    : Node(builder.arena), Value(in->type()), LetRec(scope, vars, in)
+    : Node(builder.arena), ValueDef(builder.arena, in->type()), LetRec(scope, vars, in)
 {}
 
 bool LetRecValue::equals(const Node* other) const {
@@ -171,9 +170,9 @@ bool LetRecValue::equals(const Node* other) const {
     return false;
 }
 
-Call::Call(Builder& builder, const Value* callee, const Value* arg) : Value(builder.scope.peek_type(callee->type())->as<FnType>()->codom), Node(builder.arena), callee(callee), arg(arg) {
-    assert(callee->is_simple());
-    assert(arg->is_simple());
+Call::Call(Builder& builder, const Value* callee, const Value* arg) : ValueDef(builder.arena, builder.scope.peek_type(callee->type())->as<FnType>()->codom), Node(builder.arena), callee(callee), arg(arg) {
+    assert(callee->is_var());
+    assert(arg->is_var());
 }
 
 size_t Call::hash() const {
@@ -186,8 +185,8 @@ bool Call::equals(const Node* other) const {
     return false;
 }
 
-ImplicitCast::ImplicitCast(Builder& builder, const Value* src, const Type* dst) : Value(dst), Node(builder.arena), src(src), dst(dst) {
-    assert(src->is_simple());
+ImplicitCast::ImplicitCast(Builder& builder, const Value* src, const Type* dst) : ValueDef(builder.arena, dst), Node(builder.arena), src(src), dst(dst) {
+    assert(src->is_var());
     assert(src->type()->subtype(builder.scope, dst));
 }
 
@@ -201,8 +200,8 @@ bool ImplicitCast::equals(const Node* other) const {
     return false;
 }
 
-Cast::Cast(Arena& arena, const Value* src, const Type* dst) : Value(dst), Node(arena), src(src), dst(dst) {
-    assert(src->is_simple());
+Cast::Cast(Arena& arena, const Value* src, const Type* dst) : ValueDef(arena, dst), Node(arena), src(src), dst(dst) {
+    assert(src->is_var());
 }
 
 size_t Cast::hash() const {
@@ -215,8 +214,8 @@ bool Cast::equals(const Node* other) const {
     return false;
 }
 
-TypedLiteral::TypedLiteral(Builder& builder, Literal lit, const Type* type) : Value(type), Node(builder.arena), value(lit) {
-    assert(type->is_simple());
+TypedLiteral::TypedLiteral(Builder& builder, Literal lit, const Type* type) : ValueDef(builder.arena, type), Node(builder.arena), value(lit) {
+    assert(type->is_var());
     type = builder.scope.peek_type(type);
     if (auto sized_array_type = type->isa<SizedArrayType>())
         type = builder.scope.peek_type(sized_array_type->elem);
@@ -260,8 +259,8 @@ bool TypedLiteral::equals(const Node* other) const {
     return false;
 }
 
-Undef::Undef(Arena& arena, const Type* type) : Value(type), Node(arena) {
-    assert(type->is_simple());
+Undef::Undef(Arena& arena, const Type* type) : ValueDef(arena, type), Node(arena) {
+    assert(type->is_var());
 }
 
 size_t Undef::hash() const {
@@ -276,9 +275,9 @@ bool Undef::equals(const Node* other) const {
     return false;
 }
 
-Agg::Agg(Builder& builder, const Type* agg_type, const ArrayRef<const Value*>& args) : Value(agg_type), Node(builder.arena), args(args) {
+Agg::Agg(Builder& builder, const Type* agg_type, const ArrayRef<const Value*>& args) : ValueDef(builder.arena, agg_type), Node(builder.arena), args(args) {
     for (auto arg : args) {
-        assert(arg->is_simple());
+        assert(arg->is_var());
     }
     auto [_, peeked_agg_type] = peek_app_type_applied(builder, agg_type);
     if (auto tuple_t = peeked_agg_type->isa<TupleType>()) {
@@ -321,7 +320,7 @@ bool Agg::equals(const Node* other) const {
     return false;
 }
 
-Extract::Extract(Builder& builder, const Value* src, const Value* idx) : Value([&]() -> const Type* {
+Extract::Extract(Builder& builder, const Value* src, const Value* idx) : ValueDef(builder.arena, [&]() -> const Type* {
     auto [_, peeked_agg_type] = peek_app_type_applied(builder, src->type());
     if (auto tuple_t = peeked_agg_type->isa<TupleType>()) {
         if (auto lit_idx = idx->isa<TypedLiteral>(); lit_idx) {
@@ -343,8 +342,8 @@ Extract::Extract(Builder& builder, const Value* src, const Value* idx) : Value([
     }
     return builder.type_error();
 }()), Node(builder.arena), src(src), idx(idx) {
-    assert(src->is_simple());
-    assert(idx->is_simple());
+    assert(src->is_var());
+    assert(idx->is_var());
 }
 
 size_t Extract::hash() const {
@@ -360,8 +359,8 @@ bool Extract::equals(const Node* other) const {
 }
 
 Variant::Variant(Builder& builder, const Type* type, size_t idx, const Value* elem)
-    : Node(builder.arena), Value(type), index(idx), elem(elem) {
-    assert(elem->is_simple());
+    : Node(builder.arena), ValueDef(builder.arena, type), index(idx), elem(elem) {
+    assert(elem->is_var());
 }
 
 size_t Variant::hash() const {
@@ -377,8 +376,8 @@ bool Variant::equals(const Node* other) const {
 }
 
 VariantIndex::VariantIndex(Builder& builder, const Value* src)
-    : Node(builder.arena), Value(builder.prim_type(ast::PrimType::U64)), src(src) {
-    assert(src->is_simple());
+    : Node(builder.arena), ValueDef(builder.arena, builder.prim_type(ast::PrimType::U64)), src(src) {
+    assert(src->is_var());
 }
 
 size_t VariantIndex::hash() const {
@@ -392,11 +391,11 @@ bool VariantIndex::equals(const Node* other) const {
     return false;
 }
 
-VariantExtract::VariantExtract(Builder& builder, const Value* src, size_t idx) : Node(builder.arena), Value([&]() -> const Type* {
+VariantExtract::VariantExtract(Builder& builder, const Value* src, size_t idx) : Node(builder.arena), ValueDef(builder.arena, [&]() -> const Type* {
     // auto [_, enum_type] = peek_app_type<EnumType>(builder, src->type());
     return builder.member_type(src->type(), idx);
 }()), src(src), index(idx) {
-    assert(src->is_simple());
+    assert(src->is_var());
 }
 
 size_t VariantExtract::hash() const {
@@ -410,7 +409,7 @@ bool VariantExtract::equals(const Node* other) const {
     return false;
 }
 
-Repeat::Repeat(Builder& builder, const Type* type, const Value* elem) : Value(type), Node(builder.arena), elem(elem) {
+Repeat::Repeat(Builder& builder, const Type* type, const Value* elem) : ValueDef(builder.arena, type), Node(builder.arena), elem(elem) {
     auto peeked_arr_type = builder.scope.peek_type(type);
     assert(peeked_arr_type->isa<ArrayType>());
 }
@@ -427,7 +426,7 @@ bool Repeat::equals(const Node* other) const {
     return false;
 }
 
-Proj::Proj(Builder& builder, const Value* src, const Value* idx) : Value([&]() -> const Type* {
+Proj::Proj(Builder& builder, const Value* src, const Value* idx) : ValueDef(builder.arena, [&]() -> const Type* {
     const Type* pointee_t = nullptr;
     bool mut;
     size_t as;
@@ -449,7 +448,7 @@ Proj::Proj(Builder& builder, const Value* src, const Value* idx) : Value([&]() -
     auto [mod_app, peeked_pointee_t] = peek_app_type_applied(builder, pointee_t);
 
     auto wrap_pointee = [&](const Type* new_pointee) -> const Type* {
-        assert(new_pointee->is_simple());
+        assert(new_pointee->is_var());
         return builder.ref_type(new_pointee, mut, as);
     };
 
@@ -472,8 +471,8 @@ Proj::Proj(Builder& builder, const Value* src, const Value* idx) : Value([&]() -
     }
     return builder.type_error();
 }()), Node(builder.arena), src(src), idx(idx) {
-    assert(src->is_simple());
-    assert(idx->is_simple());
+    assert(src->is_var());
+    assert(idx->is_var());
 }
 
 size_t Proj::hash() const {
@@ -488,7 +487,7 @@ bool Proj::equals(const Node* other) const {
     return false;
 }
 
-Bind::Bind(Builder& builder, const ValueVar* param, const Value* value) : Value([&]() -> const Type* {
+Bind::Bind(Builder& builder, const ValueVar* param, const Value* value) : ValueDef(builder.arena, [&]() -> const Type* {
     if (!value->type()->subtype(builder.scope, param->type())) {
         assert(false);
     }
@@ -507,10 +506,10 @@ bool Bind::equals(const Node* other) const {
     return false;
 }
 
-Seq::Seq(Builder& builder, const ArrayRef<const Value*>& evaluate, const Value* yield) : Value(yield->type()), Node(builder.arena), evaluate(evaluate), yield(yield) {
+Seq::Seq(Builder& builder, const ArrayRef<const Value*>& evaluate, const Value* yield) : ValueDef(builder.arena, yield->type()), Node(builder.arena), evaluate(evaluate), yield(yield) {
     assert(!evaluate.empty());
     for (auto e : evaluate) {
-        assert(!e->is_simple());
+        assert(!e->is_var());
     }
 }
 
@@ -538,7 +537,7 @@ bool Seq::equals(const Node* other) const {
 
 using namespace artic::ast;
 
-UnOp::UnOp(Builder& builder, const UnaryExpr::Tag tag, const Value* arg) : Value([&]() -> const Type* {
+UnOp::UnOp(Builder& builder, const UnaryExpr::Tag tag, const Value* arg) : ValueDef(builder.arena, [&]() -> const Type* {
     auto [ref_type, arg_type] = remove_ref(builder.scope, arg->type());
     if (tag == UnaryExpr::Known)
         return builder.bool_type();
@@ -555,7 +554,7 @@ UnOp::UnOp(Builder& builder, const UnaryExpr::Tag tag, const Value* arg) : Value
     }
     return arg_type;
 }()), Node(builder.arena), tag(tag), arg(arg) {
-    assert(arg->is_simple());
+    assert(arg->is_var());
 }
 
 size_t UnOp::hash() const {
@@ -570,7 +569,7 @@ bool UnOp::equals(const Node* other) const {
     return false;
 }
 
-BinOp::BinOp(Builder& builder, const BinaryExpr::Tag tag, const Value* lhs, const Value* rhs) : Value([&]() -> const Type* {
+BinOp::BinOp(Builder& builder, const BinaryExpr::Tag tag, const Value* lhs, const Value* rhs) : ValueDef(builder.arena, [&]() -> const Type* {
     if (BinaryExpr::has_eq(tag)) {
         assert(builder.scope.peek_type(lhs->type())->isa<RefType>());
         return builder.unit_type();
@@ -580,8 +579,8 @@ BinOp::BinOp(Builder& builder, const BinaryExpr::Tag tag, const Value* lhs, cons
         return builder.type_error();
     return lhs->type();
 }()), Node(builder.arena), tag(tag), lhs(lhs), rhs(rhs) {
-    assert(lhs->is_simple());
-    assert(rhs->is_simple());
+    assert(lhs->is_var());
+    assert(rhs->is_var());
 }
 
 size_t BinOp::hash() const {
@@ -596,7 +595,7 @@ bool BinOp::equals(const Node* other) const {
     return false;
 }
 
-Builtin::Builtin(Builder& builder, Tag tag, const ArrayRef<const Node*>& args) : Value([&]() -> const Type* {
+Builtin::Builtin(Builder& builder, Tag tag, const ArrayRef<const Node*>& args) : ValueDef(builder.arena, [&]() -> const Type* {
     switch (tag) {
         case Tag::AlignOf:
         case Tag::SizeOf:
@@ -617,7 +616,7 @@ Builtin::Builtin(Builder& builder, Tag tag, const ArrayRef<const Node*>& args) :
     }
 }()), Node(builder.arena), tag(tag), args(args) {
     for (auto arg : args)
-        assert(arg->is_simple());
+        assert(arg->is_var());
 }
 
 size_t Builtin::hash() const {
@@ -644,9 +643,9 @@ bool Builtin::equals(const Node* other) const {
 }
 
 MathOp::MathOp(Builder& builder, thorin::MathOpTag tag, const ArrayRef<const Value*>& args)
-: Value(args[0]->type()), Node(builder.arena), tag(tag), args(args) {
+: ValueDef(builder.arena, args[0]->type()), Node(builder.arena), tag(tag), args(args) {
     for (auto arg : args)
-        assert(arg->is_simple());
+        assert(arg->is_var());
 }
 
 size_t MathOp::hash() const {
@@ -672,7 +671,7 @@ bool MathOp::equals(const Node* other) const {
     return false;
 }
 
-Branch::Branch(Builder& builder, const Value* cond, const Function* true_branch, const Function* else_branch) : Value([&]() -> const Type* {
+Branch::Branch(Builder& builder, const Value* cond, const Function* true_branch, const Function* else_branch) : ValueDef(builder.arena, [&]() -> const Type* {
     if (std::get<1>(peek_app_type_unapplied(builder.scope, cond->type())) != builder.bool_type())
         return builder.type_error();
     // both branches must have no param
@@ -685,7 +684,7 @@ Branch::Branch(Builder& builder, const Value* cond, const Function* true_branch,
         return builder.type_error();
     return true_branch->resolve_type(builder.scope)->codom;
 }()), Node(builder.arena), cond(cond), true_branch(true_branch), else_branch(else_branch) {
-    assert(cond->is_simple());
+    assert(cond->is_var());
 }
 
 size_t Branch::hash() const {
@@ -701,19 +700,19 @@ bool Branch::equals(const Node* other) const {
 }
 
 Match::Match(Builder& builder, const Loc& loc, const Value* value, Array<Case>&& cases)
-: Node(builder.arena), Value(builder.no_ret_type()), loc(loc), value(value), cases(std::move(cases)) {
-    assert(value->is_simple());
+: Node(builder.arena), ValueDef(builder.arena, builder.no_ret_type()), loc(loc), value(value), cases(std::move(cases)) {
+    assert(value->is_var());
     for (auto& cas : this->cases) {
     }
 }
 
-Switch::Switch(Builder& builder, const Value* value, const Function* default_case, Array<Case>&& cases) : Node(builder.arena), Value(builder.no_ret_type()), value(value), default_case(default_case), cases(std::move(cases)) {
+Switch::Switch(Builder& builder, const Value* value, const Function* default_case, Array<Case>&& cases) : Node(builder.arena), ValueDef(builder.arena, builder.no_ret_type()), value(value), default_case(default_case), cases(std::move(cases)) {
     for (auto& cas : this->cases) {
-        assert(cas.value->is_simple());
+        assert(cas.value->is_var());
     }
 }
 
-Control::Control(Builder& builder, const Function* fn) : Value([&]() -> const Type* {
+Control::Control(Builder& builder, const Function* fn) : ValueDef(builder.arena, [&]() -> const Type* {
     if (fn->codom != builder.no_ret_type())
         return builder.type_error();
     if (auto yield_fn_type = builder.scope.peek_type(fn->param->type())->isa<FnType>()) {

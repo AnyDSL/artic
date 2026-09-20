@@ -826,7 +826,7 @@ const thorin::Type* Emitter::emit(const Type* node) {
     return def;
 }
 
-std::nullptr_t Emitter::emit(const ModValue* mod) {
+std::nullptr_t Emitter::emit(const Mod* mod) {
     mod->emit(*this);
     return nullptr;
 }
@@ -1193,7 +1193,7 @@ void Module::emit(Emitter& emitter) const {
 }
 
 void ModVar::emit(Emitter& emitter) const {
-    emitter.emit(emitter.resolve_var(this).def->as<ModValue>());
+    emitter.emit(emitter.resolve_var(this).def->as<Mod>());
 }
 
 void LetRecMod::emit(Emitter& emitter) const {

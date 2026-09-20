@@ -10,7 +10,7 @@ namespace artic::tir {
 struct Root {
     std::unique_ptr<Arena> arena;
     Scope scope;
-    const ModValue* root_module = nullptr;
+    const Mod* root_module = nullptr;
 
     explicit Root();
     Root(const Root&) = delete;

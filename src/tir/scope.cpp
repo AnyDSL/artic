@@ -152,11 +152,11 @@ const Value* Scope::peek_value(const Value* value) const {
     return value;
 }
 
-const ModValue* Scope::peek_mod_value(const ModValue* maybe_module) const {
+const Mod* Scope::peek_mod_value(const Mod* maybe_module) const {
     if (auto mod_var = maybe_module->isa<ModVar>()) {
         auto bound_to = resolve_var_deep(mod_var);
-        if (bound_to && bound_to->isa<ModValue>())
-            return bound_to->as<ModValue>();
+        if (bound_to && bound_to->isa<Mod>())
+            return bound_to->as<Mod>();
     }
     return maybe_module;
 }

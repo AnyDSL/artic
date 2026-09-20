@@ -14,8 +14,9 @@ struct Bind;
 struct Control;
 
 struct Value : virtual public Node {
-    Value(const Type* type) : type_(type) {
-        assert(type->is_simple());
+    Value(Arena& arena, const Type* type) : type_(type) {
+        assert(type->is_var());
+        assert(&type->arena == &arena);
     }
 
     NodeKind kind() const override { return NodeKind::Value; }
@@ -42,36 +43,6 @@ protected:
     friend Control;
 };
 
-struct Unit : public Value {
-    Unit(Arena& arena, const Type* unit_type) : Value(unit_type), Node(arena) {}
-
-    bool equals(const Node*) const override;
-    size_t hash() const override;
-    void print(Printer&) const override;
-    const Node* rewrite(Rewriter&) const override;
-    void free_variables(FVSet&, Seen&) const override;
-
-    const thorin::Def* emit(Emitter&) const override;
-
-    bool is_computation() const override { return false; }
-    bool is_simple() const override { return true; }
-};
-
-struct ErrorValue : public Value {
-    ErrorValue(Arena& arena, const Type* type) : Value(type), Node(arena) {}
-
-    bool equals(const Node*) const override;
-    size_t hash() const override;
-    void print(Printer&) const override;
-    const Node* rewrite(Rewriter&) const override;
-    void free_variables(FVSet&, Seen&) const override;
-
-    const thorin::Def* emit(Emitter&) const override;
-
-    bool is_computation() const override { return false; }
-    bool is_simple() const override { return true; }
-};
-
 struct ValueVar : public Value, public Var {
     ValueVar(Arena&, std::optional<ast::Identifier> id, const Type*);
 
@@ -81,7 +52,6 @@ struct ValueVar : public Value, public Var {
     void free_variables(FVSet&, Seen&) const override;
 
     bool is_computation() const override { return false; }
-    bool is_simple() const override { return true; }
 
     bool can_bind(const Scope&, const Node*) const override;
 
@@ -89,7 +59,39 @@ struct ValueVar : public Value, public Var {
     mutable const thorin::Def* emitted = nullptr;
 };
 
-struct ValueApp : public Value, public App {
+struct ValueDef : public Value, public Def {
+    ValueDef(Arena& arena, const Type* type) : Value(arena, type), Def() {}
+};
+
+struct Unit : public ValueDef {
+    Unit(Arena& arena, const Type* unit_type) : ValueDef(arena, unit_type), Node(arena) {}
+
+    bool equals(const Node*) const override;
+    size_t hash() const override;
+    void print(Printer&) const override;
+    const Node* rewrite(Rewriter&) const override;
+    void free_variables(FVSet&, Seen&) const override;
+
+    const thorin::Def* emit(Emitter&) const override;
+
+    bool is_computation() const override { return false; }
+};
+
+struct ErrorValue : public ValueDef {
+    ErrorValue(Arena& arena, const Type* type) : ValueDef(arena, type), Node(arena) {}
+
+    bool equals(const Node*) const override;
+    size_t hash() const override;
+    void print(Printer&) const override;
+    const Node* rewrite(Rewriter&) const override;
+    void free_variables(FVSet&, Seen&) const override;
+
+    const thorin::Def* emit(Emitter&) const override;
+
+    bool is_computation() const override { return false; }
+};
+
+struct ValueApp : public ValueDef, public App {
     void print(Printer&) const override;
     bool equals(const Node*) const override;
     const Value* rewrite(Rewriter&) const override;
@@ -116,7 +118,7 @@ struct ValueCtor : public Constructor {
     ValueCtor(Builder&, Scope&, const ArrayRef<const Var*>&, const Value*);
 };
 
-struct LetRecValue : public Value, public LetRec {
+struct LetRecValue : public ValueDef, public LetRec {
     const Value* body() const override {
         return LetRec::body()->as<Value>();
     }
@@ -136,7 +138,7 @@ struct FunctionLinkage {
     thorin::CC cc = thorin::CC::C;
 };
 
-struct Function : public Value {
+struct Function : public ValueDef {
     Scope& scope;
     const ValueVar* param;
     const Type* codom;
@@ -163,7 +165,7 @@ private:
     mutable const Value* filter_ = nullptr;
 };
 
-struct Call : public Value {
+struct Call : public ValueDef {
     const Value* callee;
     const Value* arg;
 
@@ -184,7 +186,7 @@ struct GlobalVarLinkage {
     bool is_external = false;
 };
 
-struct GlobalVariable : public Value {
+struct GlobalVariable : public ValueDef {
     const Type* allocated_type;
     bool is_mut;
     const Value* init;
@@ -204,7 +206,7 @@ struct GlobalVariable : public Value {
     GlobalVariable(Builder& arena, const Type*, bool is_mut, const Value* init, const ast::StaticDecl* decl);
 };
 
-struct LocalVariable : public Value {
+struct LocalVariable : public ValueDef {
     const Type* allocated_type;
 
     void print(Printer&) const override;
@@ -217,7 +219,7 @@ struct LocalVariable : public Value {
     LocalVariable(Builder&, const Type*);
 };
 
-struct ImplicitCast : public Value {
+struct ImplicitCast : public ValueDef {
     const Value* src;
     const Type* dst;
 
@@ -233,7 +235,7 @@ struct ImplicitCast : public Value {
     ImplicitCast(Builder&, const Value*, const Type*);
 };
 
-struct Cast : public Value {
+struct Cast : public ValueDef {
     const Value* src;
     const Type* dst;
 
@@ -249,7 +251,7 @@ struct Cast : public Value {
     Cast(Arena&, const Value*, const Type*);
 };
 
-struct TypedLiteral : public Value {
+struct TypedLiteral : public ValueDef {
     Literal value;
 
     bool equals(const Node*) const override;
@@ -261,12 +263,11 @@ struct TypedLiteral : public Value {
 
     const thorin::Def* emit(Emitter&) const override;
     bool is_computation() const override { return false; }
-    bool is_simple() const override { return true; };
 
     TypedLiteral(Builder&, Literal, const Type*);
 };
 
-struct Undef : public Value {
+struct Undef : public ValueDef {
     bool equals(const Node*) const override;
     size_t hash() const override;
 
@@ -276,13 +277,12 @@ struct Undef : public Value {
 
     const thorin::Def* emit(Emitter&) const override;
     bool is_computation() const override { return false; }
-    bool is_simple() const override { return true; };
 
     Undef(Arena&, const Type*);
 };
 
 /// Aggregate constructor, used to build tuples, arrays etc
-struct Agg : public Value {
+struct Agg : public ValueDef {
     Array<const Value*> args;
 
     bool equals(const Node*) const override;
@@ -298,7 +298,7 @@ struct Agg : public Value {
     Agg(Builder&, const Type*, const ArrayRef<const Value*>&);
 };
 
-struct Extract : public Value {
+struct Extract : public ValueDef {
     const Value* src;
     const Value* idx;
 
@@ -314,13 +314,13 @@ struct Extract : public Value {
     Extract(Builder&, const Value*, const Value*);
 };
 
-struct Insert : public Value {
+struct Insert : public ValueDef {
     const Value* src;
     const Value* idx;
     const Value* elem;
 };
 
-struct Variant : public Value {
+struct Variant : public ValueDef {
     size_t index;
     const Value* elem;
 
@@ -336,7 +336,7 @@ struct Variant : public Value {
     Variant(Builder&, const Type*, size_t, const Value*);
 };
 
-struct VariantIndex : public Value {
+struct VariantIndex : public ValueDef {
     const Value* src;
 
     bool equals(const Node*) const override;
@@ -351,7 +351,7 @@ struct VariantIndex : public Value {
     VariantIndex(Builder&, const Value*);
 };
 
-struct VariantExtract : public Value {
+struct VariantExtract : public ValueDef {
     const Value* src;
     size_t index;
 
@@ -367,7 +367,7 @@ struct VariantExtract : public Value {
     VariantExtract(Builder&, const Value*, size_t);
 };
 
-struct Repeat : public Value {
+struct Repeat : public ValueDef {
     const Value* elem;
 
     bool equals(const Node*) const override;
@@ -383,7 +383,7 @@ struct Repeat : public Value {
     Repeat(Builder&, const Type*, const Value*);
 };
 
-struct Proj : public Value {
+struct Proj : public ValueDef {
     const Value* src;
     const Value* idx;
 
@@ -399,7 +399,7 @@ struct Proj : public Value {
     Proj(Builder&, const Value*, const Value*);
 };
 
-struct Bind : public Value {
+struct Bind : public ValueDef {
     const ValueVar* param;
     const Value* value;
 
@@ -415,7 +415,7 @@ struct Bind : public Value {
     Bind(Builder&, const ValueVar*, const Value*);
 };
 
-struct Seq : public Value {
+struct Seq : public ValueDef {
     Array<const Value*> evaluate;
     const Value* yield;
 
@@ -431,7 +431,7 @@ struct Seq : public Value {
     Seq(Builder&, const ArrayRef<const Value*>&, const Value*);
 };
 
-struct UnOp : public Value {
+struct UnOp : public ValueDef {
     ast::UnaryExpr::Tag tag;
     const Value* arg;
 
@@ -447,7 +447,7 @@ struct UnOp : public Value {
     UnOp(Builder&, const ast::UnaryExpr::Tag, const Value*);
 };
 
-struct BinOp : public Value {
+struct BinOp : public ValueDef {
     ast::BinaryExpr::Tag tag;
     const Value* lhs;
     const Value* rhs;
@@ -477,7 +477,7 @@ const Array<std::string> builtin_tag_names = {
     "compare",
 };
 
-struct Builtin : public Value {
+struct Builtin : public ValueDef {
     enum class Tag {
         AlignOf,
         SizeOf,
@@ -509,7 +509,7 @@ struct Builtin : public Value {
     Builtin(Builder&, Tag, const ArrayRef<const Node*>&);
 };
 
-struct MathOp : public Value {
+struct MathOp : public ValueDef {
     thorin::MathOpTag tag;
     Array<const Value*> args;
 
@@ -525,7 +525,7 @@ struct MathOp : public Value {
     MathOp(Builder&, thorin::MathOpTag, const ArrayRef<const Value*>&);
 };
 
-struct Branch : public Value {
+struct Branch : public ValueDef {
     const Value* cond;
     const Function* true_branch;
     const Function* else_branch;
@@ -542,7 +542,7 @@ struct Branch : public Value {
     Branch(Builder&, const Value* cond, const Function* true_branch, const Function* false_branch);
 };
 
-struct Match : public Value {
+struct Match : public ValueDef {
     /// A simplified form of the pattern language found in the AST, encodes a tree of extract/variant extracts
     struct Ptrn : Node {
         const Type* type;
@@ -572,6 +572,10 @@ struct Match : public Value {
                 }
             }
             return true;
+        }
+
+        bool is_var() const override {
+            return false;
         }
 
         Ptrn(Arena& arena, const Type* type) : Node(arena), type(type) {}
@@ -610,7 +614,7 @@ struct Match : public Value {
     Match(Builder&, const Loc&, const Value*, Array<Case>&&);
 };
 
-struct Switch : public Value {
+struct Switch : public ValueDef {
     struct Case {
         const Value* value;
         const Function* branch;
@@ -632,7 +636,7 @@ struct Switch : public Value {
     Switch(Builder&, const Value*, const Function*, Array<Case>&&);
 };
 
-struct Control : public Value {
+struct Control : public ValueDef {
     const Function* body;
 
     bool equals(const Node*) const override;

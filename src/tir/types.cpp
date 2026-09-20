@@ -13,60 +13,60 @@ namespace tir {
 // Constructors and validation -----------------------------------------------------
 
 PrimType::PrimType(Arena& arena, ast::PrimType::Tag tag)
-    : Type(), Node(arena), tag(tag)
+    : TypeDef(), Node(arena), tag(tag)
 {}
 
 TupleType::TupleType(Arena& arena, const ArrayRef<const Type*>& args)
-    : Type(), Node(arena), args(args)
+    : TypeDef(), Node(arena), args(args)
 {
     for (auto& elem : args)
-        assert(elem->is_simple());
+        assert(elem->is_var());
 }
 
 SizedArrayType::SizedArrayType(Arena& arena, const Type* elem, size_t size, bool is_simd)
     : ArrayType(arena, elem), Node(arena), size(size), is_simd(is_simd)
 {
-    assert(elem->is_simple());
+    assert(elem->is_var());
 }
 
 UnsizedArrayType::UnsizedArrayType(Arena& arena, const Type* elem)
     : ArrayType(arena, elem), Node(arena)
 {
-    assert(elem->is_simple());
+    assert(elem->is_var());
 }
 
 PtrType::PtrType(Arena& arena, const Type* pointee, bool is_mut, size_t addr_space)
     : AddrType(arena, pointee, is_mut, addr_space), Node(arena)
 {
-    assert(pointee->is_simple());
+    assert(pointee->is_var());
 }
 
 RefType::RefType(Arena& arena, const Type* pointee, bool is_mut, size_t addr_space)
     : AddrType(arena, pointee, is_mut, addr_space), Node(arena)
 {
-    assert(pointee->is_simple());
+    assert(pointee->is_var());
 }
 
 ImplicitParamType::ImplicitParamType(Arena& arena, const Type* underlying)
-    : Type(), Node(arena)
+    : TypeDef(), Node(arena)
     , underlying(underlying)
 {
-    assert(underlying->is_simple());
+    assert(underlying->is_var());
 }
 
 FnType::FnType(Arena& arena, const Type* dom, const Type* codom)
-    : Type(), dom(dom), codom(codom), Node(arena)
+    : TypeDef(), dom(dom), codom(codom), Node(arena)
 {
-    assert(dom->is_simple());
-    assert(codom->is_simple());
+    assert(dom->is_var());
+    assert(codom->is_var());
 }
 
 BottomType::BottomType(Arena& arena)
-    : Type(), Node(arena)
+    : TypeDef(), Node(arena)
 {}
 
 TopType::TopType(Arena& arena)
-    : Type(), Node(arena)
+    : TypeDef(), Node(arena)
 {}
 
 NoRetType::NoRetType(Arena& arena)
@@ -89,7 +89,7 @@ StructType::StructType(Arena& arena, const ast::RecordDecl* decl)
 
 void StructType::validate() const {
     for (auto& t : members)
-        assert(t->is_simple());
+        assert(t->is_var());
 }
 
 EnumType::EnumType(Arena& arena, const ast::EnumDecl* decl)
@@ -98,15 +98,15 @@ EnumType::EnumType(Arena& arena, const ast::EnumDecl* decl)
 
 void EnumType::validate() const {
     for (auto& t : members)
-        assert(t->is_simple());
+        assert(t->is_var());
 }
 
 TypeApp::TypeApp(Builder& builder, const CtorVar* applicand, const ArrayRef<const Node*>& args)
-    : Type(), Node(builder.arena), App(applicand, args)
+    : TypeDef(), Node(builder.arena), App(applicand, args)
 {
-    assert(applicand_->is_simple());
+    assert(applicand_->is_var());
     for (auto& arg : args)
-        assert(arg->is_simple());
+        assert(arg->is_var());
 }
 
 TypeCtor::TypeCtor(Builder& builder, Scope& scope, const ArrayRef<const Var*>& params, const Type* body)
@@ -119,7 +119,7 @@ TypeCtor::TypeCtor(Builder& builder, Scope& scope, const ArrayRef<const Var*>& p
 }
 
 LetRecType::LetRecType(Builder& builder, Scope& scope, const ArrayRef<std::tuple<const Var*, const Node*>>& vars, const Type* in)
-    : Node(builder.arena), Type(), LetRec(scope, vars, in)
+    : Node(builder.arena), TypeDef(), LetRec(scope, vars, in)
 {}
 
 bool LetRecType::equals(const Node* other) const {

@@ -31,7 +31,7 @@ void Printer::insert(const Node& node, std::string str) {
 }
 
 void Printer::print(const Node& node, bool print_inline) {
-    if (print_inline || node.is_simple()) {
+    if (print_inline || node.is_var()) {
         node.print(*this);
         return;
     }
@@ -563,7 +563,7 @@ void Seq::print(Printer& p) const {
         p.print(*evaluate[i], true);
         p << ';' << p.endl();
     }
-    p.print(*yield, !yield->is_simple());
+    p.print(*yield, !yield->is_var());
     p << p.endl();
     p << p.unindent() << p.endl() << '}';
 }

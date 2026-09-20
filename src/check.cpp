@@ -14,7 +14,7 @@ std::unique_ptr<Root> TypeChecker::run(ast::ModDecl& module) {
     auto mod = infer_mod_decl(module);
     if (errors > 0)
         return nullptr;
-    root->root_module = builder.finish_module(mod->as<ModValue>());
+    root->root_module = builder.finish_module(mod->as<Mod>());
     return std::move(root);
 }
 
@@ -167,7 +167,7 @@ const Value* TypeChecker::build_fn_body(const ValueVar* param, ast::FnExpr& fn, 
     };
 
     if (codom) {
-        assert(codom->is_simple());
+        assert(codom->is_var());
         return yield_expr_scope([&]() -> const Value* {
             bind_ptrn_params(*fn.param, param);
             auto yield_fn_type = builder().fn_type(codom, builder().no_ret_type());

@@ -117,8 +117,34 @@ protected:
     friend Emitter;
 };
 
+struct TypeVar : public Type, public Var {
+    void print(Printer&) const override;
+    void print_head(Printer&) const override;
+
+    const TypeVar* rewrite(Rewriter&) const override;
+    void free_variables(FVSet&, Seen&) const override;
+
+    const thorin::Type* convert(Emitter&) const override;
+    std::string stringify(Emitter&) const override;
+
+    void variance(const Scope&, TypeVarMap<TypeVariance>&, bool) const override;
+    void bounds(const Scope&, TypeVarMap<TypeBounds>&, const Type*, bool) const override;
+    size_t order(const Scope&, std::unordered_set<const Type*>&) const override;
+    bool is_sized(const Scope&, std::unordered_set<const Type*>&) const override;
+
+    bool can_bind(const Scope&, const Node*) const override;
+private:
+    TypeVar(Arena&, std::optional<ast::Identifier> id);
+
+    friend class Arena;
+};
+
+struct TypeDef : public Type, public Def {
+    TypeDef() : Type(), Def() {}
+};
+
 /// Integer and floating-point types.
-struct PrimType : public Type {
+struct PrimType : public TypeDef {
     ast::PrimType::Tag tag;
 
     void print(Printer&) const override;
@@ -126,8 +152,6 @@ struct PrimType : public Type {
     size_t hash() const override;
     const PrimType* rewrite(Rewriter&) const override;
     void free_variables(FVSet&, Seen&) const override;
-
-    bool is_simple() const override { return true; }
 
     const thorin::Type* convert(Emitter&) const override;
     std::string stringify(Emitter&) const override;
@@ -138,10 +162,8 @@ private:
     friend class Arena;
 };
 
-struct TupleType : public Type {
+struct TupleType : public TypeDef {
     Array<const Type*> args;
-
-    bool is_simple() const override { return true; }
 
     void print(Printer&) const override;
     bool equals(const Node*) const override;
@@ -165,15 +187,14 @@ private:
 };
 
 /// Base class for array types.
-struct ArrayType : public Type {
+struct ArrayType : public TypeDef {
     const Type* elem;
 
     ArrayType(Arena& arena, const Type* elem)
-        : Type(), elem(elem)
+        : TypeDef(), elem(elem)
     {}
 
     bool contains(const Type*) const override;
-    bool is_simple() const override { return true; }
     void free_variables(FVSet&, Seen&) const override;
 
     size_t order(const Scope&, std::unordered_set<const Type*>&) const override;
@@ -218,13 +239,13 @@ private:
 };
 
 /// Base type for pointer types.
-struct AddrType : public Type {
+struct AddrType : public TypeDef {
     const Type* pointee;
     bool is_mut;
     size_t addr_space;
 
     AddrType(Arena& arena, const Type* pointee, bool is_mut, size_t addr_space)
-        : Type(), pointee(pointee), is_mut(is_mut), addr_space(addr_space)
+        : TypeDef(), pointee(pointee), is_mut(is_mut), addr_space(addr_space)
     {}
 
     bool equals(const Node*) const override;
@@ -233,7 +254,6 @@ struct AddrType : public Type {
 
     bool contains(const Type*) const override;
     bool is_compatible_with(const AddrType* other) const;
-    bool is_simple() const override { return true; }
 
     const thorin::Type* convert(Emitter&) const override;
 
@@ -271,7 +291,7 @@ private:
 };
 std::pair<const RefType*, const Type*> remove_ref(const Scope& scope, const Type* type);
 
-struct ImplicitParamType : public Type {
+struct ImplicitParamType : public TypeDef {
     const Type* underlying;
 
     void print(Printer&) const override;
@@ -280,7 +300,6 @@ struct ImplicitParamType : public Type {
     bool contains(const Type*) const override;
     const ImplicitParamType* rewrite(Rewriter&) const override;
     void free_variables(FVSet&, Seen&) const override;
-    bool is_simple() const override { return true; }
 
     const thorin::Type* convert(Emitter&) const override;
     std::string stringify(Emitter&) const override;
@@ -296,7 +315,7 @@ private:
 };
 
 /// Function type (can represent continuations when the codomain is a `NoRetType`).
-struct FnType : public Type {
+struct FnType : public TypeDef {
     const Type* dom;
     const Type* codom;
 
@@ -306,7 +325,6 @@ struct FnType : public Type {
     bool contains(const Type*) const override;
     const FnType* rewrite(Rewriter&) const override;
     void free_variables(FVSet&, Seen&) const override;
-    bool is_simple() const override { return true; }
 
     const thorin::Type* convert(Emitter&) const override;
     std::string stringify(Emitter&) const override;
@@ -323,13 +341,12 @@ private:
 };
 
 /// Bottom type: Subtype of any other type
-struct BottomType : public Type {
+struct BottomType : public TypeDef {
     void print(Printer&) const override;
     bool equals(const Node*) const override;
     size_t hash() const override;
     const BottomType* rewrite(Rewriter&) const override;
     void free_variables(FVSet&, Seen&) const override;
-    bool is_simple() const override { return true; }
 
 protected:
     BottomType(Arena&);
@@ -338,13 +355,12 @@ protected:
 };
 
 /// Top type: Supertype of any other type
-struct TopType : public Type {
+struct TopType : public TypeDef {
     void print(Printer&) const override;
     bool equals(const Node*) const override;
     size_t hash() const override;
     const TopType* rewrite(Rewriter&) const override;
     void free_variables(FVSet&, Seen&) const override;
-    bool is_simple() const override { return true; }
 
 protected:
     TopType(Arena&);
@@ -371,7 +387,6 @@ struct TypeError : public TopType {
     void print(Printer&) const override;
     const TypeError* rewrite(Rewriter&) const override;
     void free_variables(FVSet&, Seen&) const override;
-    bool is_simple() const override { return true; }
 
 private:
     TypeError(Arena& arena)
@@ -400,30 +415,8 @@ protected:
     {}
 };
 
-struct TypeVar : public Type, public Var {
-    void print(Printer&) const override;
-    void print_head(Printer&) const override;
-
-    const TypeVar* rewrite(Rewriter&) const override;
-    void free_variables(FVSet&, Seen&) const override;
-
-    const thorin::Type* convert(Emitter&) const override;
-    std::string stringify(Emitter&) const override;
-
-    void variance(const Scope&, TypeVarMap<TypeVariance>&, bool) const override;
-    void bounds(const Scope&, TypeVarMap<TypeBounds>&, const Type*, bool) const override;
-    size_t order(const Scope&, std::unordered_set<const Type*>&) const override;
-    bool is_sized(const Scope&, std::unordered_set<const Type*>&) const override;
-
-    bool can_bind(const Scope&, const Node*) const override;
-private:
-    TypeVar(Arena&, std::optional<ast::Identifier> id);
-
-    friend class Arena;
-};
-
 /// Base class for user-declared types.
-struct UserType : public Type {
+struct UserType : public TypeDef {
 };
 
 /// Base class for complex, user-declared types.
@@ -499,7 +492,7 @@ private:
 };
 
 /// An application of a complex type with polymorphic parameters.
-struct TypeApp : public Type, public App {
+struct TypeApp : public TypeDef, public App {
     // const UserType* applied;
     // Array<const Type*> type_args;
 
@@ -540,7 +533,7 @@ struct TypeCtor : public Constructor {
     TypeCtor(Builder&, Scope&, const ArrayRef<const Var*>&, const Type*);
 };
 
-struct LetRecType : public Type, public LetRec {
+struct LetRecType : public TypeDef, public LetRec {
     const Type* body() const override {
         return LetRec::body()->as<Type>();
     }

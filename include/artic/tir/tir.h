@@ -76,7 +76,7 @@ struct Node : public DynCast<Node> {
     }
     virtual const Node* rewrite(Rewriter&) const = 0;
 
-    virtual bool is_simple() const { return false; }
+    virtual bool is_var() const = 0;
 
     using Seen = std::unordered_set<const Node*>;
     using FVSet = std::unordered_set<const Var*>;
@@ -99,7 +99,7 @@ struct Var : virtual public Node {
     mutable const Scope* binder = nullptr;
     std::optional<ast::Identifier> id;
 
-    bool is_simple() const override { return true; };
+    virtual bool is_var() const final { return true; }
 
     void free_variables(FVSet&, Seen&) const override;
     void print(Printer&) const override;
@@ -108,6 +108,10 @@ struct Var : virtual public Node {
     virtual bool can_bind(const Scope&, const Node*) const = 0;
 
     Var(std::optional<ast::Identifier> id) : id(id) {}
+};
+
+struct Def : virtual public Node {
+    virtual bool is_var() const final { return false; }
 };
 
 static inline bool schedulable(Node::FVSet& set) {
@@ -143,7 +147,11 @@ struct Ctor : virtual public Node {
     Ctor(const Sig* ctor_sig);
 };
 
-struct Constructor : public Ctor {
+struct CtorDef : public Ctor, public Def {
+    CtorDef(const Sig* sig) : Ctor(sig), Def() {}
+};
+
+struct Constructor : public CtorDef {
     Scope& scope;
     Array<const Var*> params;
     mutable const Node* body_;

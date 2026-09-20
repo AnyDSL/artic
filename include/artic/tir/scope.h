@@ -5,7 +5,7 @@
 
 namespace artic::tir {
 
-struct ModValue;
+struct Mod;
 struct Ctor;
 struct SigVar;
 struct Sig;
@@ -53,7 +53,7 @@ struct Scope {
     const Type* peek_type(const Type* type) const;
     std::tuple<const Type*, const Scope&> peek_type_return_scope(const Type* type) const;
 
-    const ModValue* peek_mod_value(const ModValue*) const;
+    const Mod* peek_mod_value(const Mod*) const;
     const Value* peek_value(const Value*) const;
     const Ctor* peek_ctor(const Ctor* sig) const;
     const Sig* peek_sig(const Sig* sig) const;

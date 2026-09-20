@@ -163,7 +163,7 @@ public:
 
     const thorin::Def* emit(const tir::Value*);
     const thorin::Type* emit(const tir::Type*);
-    std::nullptr_t emit(const tir::ModValue*);
+    std::nullptr_t emit(const tir::Mod*);
 
     LazyEmitDef& resolve_var(const tir::Var*);
 
