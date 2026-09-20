@@ -188,11 +188,11 @@ const Value* TypeChecker::build_fn_body(const ValueVar* param, ast::FnExpr& fn, 
         });
 }
 
-const Value* TypeChecker::build_if(const ast::IfExpr& expr, const tir::Type* yield_type, ExprBuilder& true_builder, ExprBuilder& else_builder) {
+const Value* TypeChecker::build_if(const ast::IfExpr& expr, const tir::Type* yield_type, const Value* arg, ExprBuilder& true_builder, ExprBuilder& else_builder) {
     auto yield_fn_type = builder().fn_type(yield_type, builder().no_ret_type());
     auto yield_param = builder().value_var(ast::Identifier { expr.loc, "yield" }, yield_fn_type);
     auto control_fn = build_fn(yield_param, [&]() -> const Value* {
-        return builder(), with_expr_scope<const Value*>([&] {
+        return builder(), with_expr_scope<const Value*>([&]() -> const Value* {
             const Function* true_fn = build_fn(builder().value_var(std::nullopt, builder().unit_type()), [&]() -> const Value* {
                 TypeChecker::BuilderGuard guard(*this, true_builder);
                 return expr_builder().finish(expr_builder().call(yield_param, expr.if_true->value));
@@ -204,6 +204,20 @@ const Value* TypeChecker::build_if(const ast::IfExpr& expr, const tir::Type* yie
                 else
                     return expr_builder().finish(expr_builder().call(yield_param, builder().unit()));
             });
+
+            if (expr.ptrn) {
+                std::vector<Match::Case> cases;
+                cases.push_back(Match::Case {
+                    .ptrn = convert_ptrn(*expr.ptrn),
+                    .branch = true_fn,
+                });
+                cases.push_back(Match::Case {
+                    .ptrn = builder().unsafe().trivial_match_ptrn(arg->type()),
+                    .branch = else_fn,
+                });
+                return builder().unsafe().match(expr.loc, arg, std::move(cases));
+            }
+
             return expr_builder().finish_branch(expr.cond->value, true_fn, else_fn);
         });
     });
@@ -2376,6 +2390,12 @@ const tir::Node* IfExpr::infer(TypeChecker& checker) {
     ExprBuilder true_builder(checker.arena(), &checker.builder());
     ExprBuilder else_builder(checker.arena(), &checker.builder());
 
+    const Value* arg = expr ? checker.deref(expr) : nullptr;
+    if (arg) {
+        TypeChecker::BuilderGuard guard(checker, true_builder);
+        checker.bind_ptrn_params(*ptrn, arg);
+    }
+
     const tir::Type* yield_type;
     if (if_false) {
         // In general, we need to find the join of the type of the two branches.
@@ -2414,7 +2434,7 @@ const tir::Node* IfExpr::infer(TypeChecker& checker) {
     } else
         yield_type = checker.with_expr_builder(true_builder, [&] { return checker.coerce(&*if_true, checker.builder().unit_type()); })->type();
 
-    return checker.build_if(*this, yield_type, true_builder, else_builder);
+    return checker.build_if(*this, yield_type, arg, true_builder, else_builder);
 }
 
 const tir::Node* IfExpr::check(TypeChecker& checker, const artic::Type* expected) {
@@ -2426,6 +2446,13 @@ const tir::Node* IfExpr::check(TypeChecker& checker, const artic::Type* expected
     }
     ExprBuilder true_builder(checker.arena(), &checker.builder());
     ExprBuilder else_builder(checker.arena(), &checker.builder());
+
+    const Value* arg = expr ? checker.deref(expr) : nullptr;
+    if (arg) {
+        TypeChecker::BuilderGuard guard(checker, true_builder);
+        checker.bind_ptrn_params(*ptrn, arg);
+    }
+
     if (if_false) {
         {
             TypeChecker::BuilderGuard guard(checker, true_builder);
@@ -2439,7 +2466,7 @@ const tir::Node* IfExpr::check(TypeChecker& checker, const artic::Type* expected
         checker.coerce(&*if_true, expected);
     }
 
-    return checker.build_if(*this, expected, true_builder, else_builder);
+    return checker.build_if(*this, expected, arg, true_builder, else_builder);
 }
 
 const tir::Node* MatchExpr::infer(TypeChecker& checker) {
