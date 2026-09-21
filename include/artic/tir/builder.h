@@ -87,45 +87,44 @@ struct Builder : public artic::Cast<Builder> {
     LetRecBuilder& enclosing_let_rec();
     ExprBuilder& enclosing_expr();
 
-    const PrimType*          prim_type(ast::PrimType::Tag);
-    const PrimType*          bool_type();
-    const TupleType*         unit_type();
-    const TupleType*         tuple_type(const ArrayRef<const Type*>&);
-    const SizedArrayType*    sized_array_type(const Type*, size_t, bool);
-    const UnsizedArrayType*  unsized_array_type(const Type*);
-    const PtrType*           ptr_type(const Type*, bool, size_t);
-    const RefType*           ref_type(const Type*, bool, size_t);
-    const ImplicitParamType* implicit_param_type(const Type*);
-    const FnType*            fn_type(const Type*, const Type*);
-    const FnType*            cn_type(const Type*);
-    const BottomType*        bottom_type();
-    const TopType*           top_type();
-    const NoRetType*         no_ret_type();
-    const TypeError*         type_error();
-    const StructType*        struct_type(const ast::RecordDecl*);
-    const EnumType*          enum_type(const ast::EnumDecl*);
-    const Type*              member_type(const Type*, size_t);
-    const TypeVar*           type_var(std::optional<ast::Identifier> id);
+    const TypeVar* prim_type(ast::PrimType::Tag);
+    const TypeVar* bool_type();
+    const TypeVar* unit_type();
+    const TypeVar* tuple_type(const ArrayRef<const Type*>&);
+    const TypeVar* sized_array_type(const Type*, size_t, bool);
+    const TypeVar* unsized_array_type(const Type*);
+    const TypeVar* ptr_type(const Type*, bool, size_t);
+    const TypeVar* ref_type(const Type*, bool, size_t);
+    const TypeVar* implicit_param_type(const Type*);
+    const TypeVar* fn_type(const Type*, const Type*);
+    const TypeVar* cn_type(const Type*);
+    const TypeVar* bottom_type();
+    const TypeVar* top_type();
+    const TypeVar* no_ret_type();
+    const TypeVar* type_error();
+
+    const TypeVar* member_type(const TypeDef*, size_t);
+    const TypeVar* type_var(std::optional<ast::Identifier> id);
 
     const CtorVar* ctor_var(std::optional<ast::Identifier> id, const Sig*);
     const SigVar* sig_var(std::optional<ast::Identifier> id);
-    const SigError* sig_error();
+    const SigVar* sig_error();
 
     const Key* decl_key(std::optional<ast::Identifier>);
     const ModVar* mod_var(std::optional<ast::Identifier> id, const Sig*);
     const ModError* mod_error();
     // const ModValue* mod_access(const ModValue*, const Key*);
 
-    const GlobalVariable* global_variable(const Type*, bool is_mut, const Value*, const ast::StaticDecl*);
-    const Value* typed_literal(Literal, const Type*);
-    const Value* undef(const Type*);
-    const Value* error_value(const Type*);
-    const Value* error_value();
+    const ValueVar* global_variable(const Type*, bool is_mut, const Value*, const ast::StaticDecl*);
+    const ValueVar* typed_literal(Literal, const Type*);
+    const ValueVar* undef(const Type*);
+    const ValueVar* error_value(const Type*);
+    const ValueVar* error_value();
 
     //const Fn* function(const Param*, const Type* codom);
     const ValueVar* value_var(std::optional<ast::Identifier> id, const Type*);
     // const Value* seq(const ArrayRef<const Value*>&);
-    const Value* unit();
+    const ValueVar* unit();
 
     template<typename T, typename Fn>
     T with_expr_scope(Fn f) {
@@ -143,6 +142,26 @@ struct Builder : public artic::Cast<Builder> {
 
     // un-scheduled node ctors where you should probably used the scheduled version instead!
     struct Unsafe {
+        const PrimType*          prim_type(ast::PrimType::Tag);
+        const PrimType*          bool_type();
+        const TupleType*         unit_type();
+        const TupleType*         tuple_type(const ArrayRef<const Type*>&);
+        const SizedArrayType*    sized_array_type(const Type*, size_t, bool);
+        const UnsizedArrayType*  unsized_array_type(const Type*);
+        const PtrType*           ptr_type(const Type*, bool, size_t);
+        const RefType*           ref_type(const Type*, bool, size_t);
+        const ImplicitParamType* implicit_param_type(const Type*);
+        const FnType*            fn_type(const Type*, const Type*);
+        const FnType*            cn_type(const Type*);
+        const BottomType*        bottom_type();
+        const TopType*           top_type();
+        const NoRetType*         no_ret_type();
+        const TypeError*         type_error();
+        const StructType*        struct_type(const ast::RecordDecl*);
+        const EnumType*          enum_type(const ast::EnumDecl*);
+
+        const SigError* sig_error();
+
         const Module* module(std::unordered_map<const Key*, const Node*>&&, const Sig*, const ast::ModDecl* = nullptr);
         const ModCtor* mod_ctor(Scope&, const ArrayRef<const Var*>&, const Mod*);
         const Mod* mod_app(const CtorVar*, const ArrayRef<const Node*>&);
@@ -167,6 +186,12 @@ struct Builder : public artic::Cast<Builder> {
         const LocalVariable* local_variable(const Type*);
         const Function* function(const ValueVar*, Scope&, const Type* codom, const ast::FnDecl*);
 
+        const GlobalVariable* global_variable(const Type*, bool is_mut, const Value*, const ast::StaticDecl*);
+        const Value* typed_literal(Literal, const Type*);
+        const Value* undef(const Type*);
+        const Value* error_value(const Type*);
+        const Value* error_value();
+
         const Bind* bind(const ValueVar*, const Value*);
         const Value* call(const Value* callee, const Value* arg);
         const Value* agg(const Type*, const ArrayRef<const Value*>&);
@@ -182,8 +207,8 @@ struct Builder : public artic::Cast<Builder> {
         const Value* implicit_cast(const Value*, const Type*);
         const Value* cast(const Value*, const Type*);
 
-        const Value* unop(ast::UnaryExpr::Tag, const Value*);
-        const Value* binop(ast::BinaryExpr::Tag, const Value*, const Value*);
+        const Value* unop(ast::UnaryExpr::Tag, const ValueVar*);
+        const Value* binop(ast::BinaryExpr::Tag, const ValueVar*, const ValueVar*);
 
         const Value* builtin(Builtin::Tag, const ArrayRef<const Node*>&);
         const Value* mathop(thorin::MathOpTag, const ArrayRef<const Value*>&);
@@ -256,28 +281,28 @@ struct ExprBuilder : public Builder {
     ExprBuilder(Arena&, Builder*);
 
     void bind(const ValueVar*, const Value*);
-    const Value* bind_value(const Value*);
+    const ValueVar* bind_value(const Value*);
 
     const Value* local_variable(const Type*);
 
-    const Value* call(const Value* callee, const Value* arg);
-    const Value* agg(const Type*, const ArrayRef<const Value*>&);
-    const Value* tuple(const ArrayRef<const Value*>&);
-    const Value* repeat(const Type*, const Value*);
-    const Value* extract(const Value*, const Value*);
-    const Value* proj(const Value*, const Value*);
+    const ValueVar* call(const ValueVar* callee, const ValueVar* arg);
+    const ValueVar* agg(const Type*, const ArrayRef<const Value*>&);
+    const ValueVar* tuple(const ArrayRef<const Value*>&);
+    const ValueVar* repeat(const Type*, const Value*);
+    const ValueVar* extract(const Value*, const Value*);
+    const ValueVar* proj(const Value*, const Value*);
 
-    const Value* variant(const Type*, size_t, const Value*);
-    const Value* variant_index(const Value*);
-    const Value* variant_extract(const Value*, size_t);
+    const ValueVar* variant(const Type*, size_t, const Value*);
+    const ValueVar* variant_index(const Value*);
+    const ValueVar* variant_extract(const Value*, size_t);
 
-    const Value* implicit_cast(const Value*, const Type*);
-    const Value* cast(const Value*, const Type*);
+    const ValueVar* implicit_cast(const Value*, const Type*);
+    const ValueVar* cast(const Value*, const Type*);
 
-    const Value* unop(ast::UnaryExpr::Tag, const Value*);
-    const Value* binop(ast::BinaryExpr::Tag, const Value*, const Value*);
+    const ValueVar* unop(ast::UnaryExpr::Tag, const ValueVar*);
+    const ValueVar* binop(ast::BinaryExpr::Tag, const ValueVar*, const ValueVar*);
 
-    const Value* control(const Function*);
+    const ValueVar* control(const Function*);
 
     /// Finish the expression and make it yield this value
     const Value* finish(const Value*);

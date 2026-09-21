@@ -6,9 +6,9 @@
 
 namespace artic::tir {
 
-Module::Module(Builder& builder, std::unordered_map<const Key*, const Node*>&& decls, const Sig* signature, const ast::ModDecl* decl)
+Module::Module(Builder& builder, std::unordered_map<const Key*, const Node*>&& decls, const SigVar* signature, const ast::ModDecl* decl)
     : ModDef(), Node(builder.arena), decls(std::move(decls)), decl(decl), signature_(signature) {
-    const ModSignature* ms = builder.scope.resolve_sig(signature->as<SigVar>())->isa<ModSignature>();
+    const ModSignature* ms = resolve_sig(builder.scope, signature->as<SigVar>())->isa<ModSignature>();
     assert(ms);
 }
 
@@ -54,9 +54,9 @@ bool TypeSignature::equals(const Node* other) const {
     return false;
 }
 
-ModSignature::ModSignature(Builder& builder, std::unordered_map<const Key*, const Sig*>&& elems) : Node(builder.arena), SigDef(), elems(std::move(elems)) {
-
-}
+ModSignature::ModSignature(Builder& builder, std::unordered_map<const Key*, const SigVar*>&& elems)
+    : Node(builder.arena), SigDef(), elems(std::move(elems))
+{}
 
 size_t ModSignature::hash() const {
     auto h = fnv::Hash();
@@ -89,7 +89,7 @@ const Key* ModSignature::lookup_key(const ast::Identifier& id) const {
     return nullptr;
 }
 
-CtorSignature::CtorSignature(Builder& builder, const ArrayRef<const Sig*>& dom, NodeKind codom_kind) : Node(builder.arena), SigDef(), dom(dom), codom_kind(codom_kind) {
+CtorSignature::CtorSignature(Builder& builder, const ArrayRef<const SigVar*>& dom, NodeKind codom_kind) : Node(builder.arena), SigDef(), dom(dom), codom_kind(codom_kind) {
     for (auto d : dom)
         assert(d->is_var());
     // assert(codom->is_simple());
@@ -172,25 +172,48 @@ const Sig* Sig::from_node(LetRecBuilder& builder, const Node* node, bool public_
     }
 }*/
 
-bool Sig::is_sub(const Scope& scope, const Sig* other) const {
+bool SigVar::is_sub(const Scope& scope, const Sig* other) const {
     if (this == other)
         return true;
-    if (auto var = this->isa<SigVar>())
-        return scope.resolve_sig(var)->is_sub(scope, other);
+
+    if (auto other_def = other->isa<SigDef>()) {
+        auto def = lookup_sig_def(scope, this);
+        if (def)
+            return def->is_sub_def(scope, other_def);
+        // unbound variables can't be sub-signatures to defs
+        return false;
+    }
+
+    // we're both variables!
+    auto sig = lookup_sig(scope, this);
+    auto other_sig = lookup_sig(scope, other->as<SigVar>());
+    if (sig && other_sig)
+        return sig->is_sub(scope, other_sig);
 
     return false;
 }
 
-bool ValueSignature::is_sub(const Scope& scope, const Sig* other) const {
-    other = scope.peek_sig(other);
+bool SigDef::is_sub(const Scope& scope, const Sig* other) const {
+    if (this == other)
+        return true;
+
+    if (auto other_def = other->isa<SigDef>())
+        return is_sub_def(scope, other_def);
+    auto other_sig = lookup_sig_def(scope, other->as<SigVar>());
+    if (other_sig)
+        return is_sub_def(scope, other_sig);
+    // unknown variables can't be super signatures to defs
+    return false;
+}
+
+bool ValueSignature::is_sub_def(const Scope& scope, const SigDef* other) const {
     if (auto other_vs = other->isa<ValueSignature>()) {
         return value_type->subtype(scope, other_vs->value_type);
     }
     return false;
 }
 
-bool TypeSignature::is_sub(const Scope& scope, const Sig* other) const {
-    other = scope.peek_sig(other);
+bool TypeSignature::is_sub_def(const Scope& scope, const SigDef* other) const {
     if (auto other_ts = other->isa<TypeSignature>()) {
         if (!other_ts->type)
             return true;
@@ -201,8 +224,7 @@ bool TypeSignature::is_sub(const Scope& scope, const Sig* other) const {
     return false;
 }
 
-bool ModSignature::is_sub(const Scope& scope, const Sig* other) const {
-    other = scope.peek_sig(other);
+bool ModSignature::is_sub_def(const Scope& scope, const SigDef* other) const {
     if (auto other_ms = other->isa<ModSignature>()) {
         // all the super signature keys must be present
         for (auto [key, super_elem] : other_ms->elems) {
@@ -218,8 +240,7 @@ bool ModSignature::is_sub(const Scope& scope, const Sig* other) const {
     return false;
 }
 
-bool CtorSignature::is_sub(const Scope& scope, const Sig* other) const {
-    other = scope.peek_sig(other);
+bool CtorSignature::is_sub_def(const Scope& scope, const SigDef* other) const {
     if (auto super_cs = other->isa<CtorSignature>()) {
         if (super_cs->codom_kind != codom_kind)
             return false;
@@ -235,14 +256,14 @@ bool CtorSignature::is_sub(const Scope& scope, const Sig* other) const {
     return false;
 }
 
-const Sig* Module::signature() const {
+const SigVar* Module::signature() const {
     return signature_;
 }
 
-ModVar::ModVar(Builder& builder, std::optional<ast::Identifier> id, const Sig* signature)
+ModVar::ModVar(Builder& builder, std::optional<ast::Identifier> id, const SigVar* signature)
     : Node(builder.arena), Var(id), signature_(signature) {}
 
-const Sig* ModVar::signature() const {
+const SigVar* ModVar::signature() const {
     assert(signature_);
     return signature_;
 }
@@ -254,19 +275,19 @@ bool ModVar::can_bind(const Scope& scope, const Node* other) const {
     return false;
 }
 
-const Sig* ModModAccess::signature() const {
+const SigVar* ModModAccess::signature() const {
     return signature_;
 }
 
-ModAccess::ModAccess(Builder& builder, const Mod* mod, const Key* key)
+ModAccess::ModAccess(Builder& builder, const ModVar* mod, const Key* key)
     : mod(mod), key(key) {
     assert(mod->is_var() && mod->kind() == NodeKind::Module);
     assert(key->isa<Key>());
 }
 
-ModModAccess::ModModAccess(Builder& builder, const Mod* mod, const Key* key)
-    : Node(builder.arena), ModDef(), ModAccess(builder, mod, key), signature_([&]() -> const Sig*  {
-        auto mod_sig = builder.scope.resolve_sig(mod->signature()->as<SigVar>())->as<ModSignature>();
+ModModAccess::ModModAccess(Builder& builder, const ModVar* mod, const Key* key)
+    : Node(builder.arena), ModDef(), ModAccess(builder, mod, key), signature_([&]() -> const SigVar*  {
+        auto mod_sig = resolve_sig(builder.scope, mod->signature()->as<SigVar>())->as<ModSignature>();
         return mod_sig->elems.find(key)->second;
     }()) {
     assert(mod->is_var() && mod->kind() == NodeKind::Module);
@@ -342,7 +363,7 @@ bool ModApp::equals(const Node* other) const {
     return false;
 }
 
-const Sig* ModApp::signature() const {
+const SigVar* ModApp::signature() const {
     assert(false && "TODO");
 }
 
@@ -359,7 +380,7 @@ bool ModError::equals(const Node* other) const {
     return false;
 }
 
-const Sig* ModError::signature() const {
+const SigVar* ModError::signature() const {
     return signature_;
 }
 

@@ -82,17 +82,17 @@ private:
             enabled[i] = enabled[i] & (cost[i] == min_cost);
     }
 
-    static bool is_complete(const Scope& scope, const Type* type, size_t ctor_count) {
+    static bool is_complete(const Scope& scope, const TypeDef* type, size_t ctor_count) {
         if (is_bool_type(type) && ctor_count == 2)
             return true;
         else if (
-            auto [_, enum_type] = peek_app_type_unapplied<EnumType>(scope, type);
+            auto [_, enum_type] = match_type_app_unapplied<EnumType>(scope, type);
             enum_type && enum_type->member_count() == ctor_count)
             return true;
         return false;
     }
 
-    const Value* ctor_index(const ast::Ptrn& ptrn) const {
+    const ValueVar* ctor_index(const ast::Ptrn& ptrn) const {
         if (auto record_ptrn = ptrn.isa<ast::RecordPtrn>())
             return ctor_index(*record_ptrn->variant_index/*, debug_info(ptrn)*/);
         return ptrn.isa<ast::LiteralPtrn>()
@@ -100,7 +100,7 @@ private:
             : ctor_index(*ptrn.as<ast::CtorPtrn>()->variant_index/*, debug_info(ptrn)*/);
     }
 
-    const Value* ctor_index(const Match::Ptrn& ptrn) const {
+    const ValueVar* ctor_index(const Match::Ptrn& ptrn) const {
         if (ptrn.variant_index)
             return ctor_index(*ptrn.variant_index);
         if (ptrn.literal)
@@ -108,7 +108,7 @@ private:
         assert(false);
     }
 
-    const Value* ctor_index(size_t index/*, thorin::Debug debug*/) const {
+    const ValueVar* ctor_index(size_t index/*, thorin::Debug debug*/) const {
         return builder.typed_literal(Literal((uint64_t) index), builder.prim_type(ast::PrimType::U64));
     }
 
@@ -131,7 +131,7 @@ private:
                     ctors.emplace(ctor_index(*row.first[i]));
             }
             // If the match expression is complete, then the default case can be omitted
-            return is_complete(builder.scope, values[i]->type(), ctors.size()) ? ctors.size() : ctors.size() + 1;
+            return is_complete(builder.scope, values[i]->resolve_type(builder.scope), ctors.size()) ? ctors.size() : ctors.size() + 1;
         });
         return std::find(enabled.begin(), enabled.end(), true) - enabled.begin();
     }
@@ -159,7 +159,7 @@ private:
     // Transforms the rows such that tuples and structures are completely deconstructed
     void expand(ExprBuilder& expr_builder) {
         for (size_t i = 0; i < values.size();) {
-            auto [_, type] = peek_app_type_unapplied_generic(builder.scope, values[i]->type());
+            auto [_, type] = match_type_app_unapplied_generic(builder.scope, values[i]->resolve_type(builder.scope));
 
             // Can only expand tuples or structures
             size_t member_count = 0;
@@ -235,12 +235,12 @@ private:
 #endif
 
         // Map from constructor index (e.g. literal or enumeration option index, encoded as an integer) to row.
-        std::unordered_map<const Value*, std::vector<Row>> ctors;
+        std::unordered_map<const ValueVar*, std::vector<Row>> ctors;
         std::vector<Row> wildcards;
 
         auto col = pick_col();
         auto og_col_type = values[col]->type();
-        auto [_, col_type] = peek_app_type_unapplied_generic(builder.scope, og_col_type);
+        auto [_, col_type, _2] = resolve_type_app_unapplied_generic(builder.scope, resolve_type_def(builder.scope, og_col_type));
         auto enum_type = col_type->isa<EnumType>();
 
         // First, collect constructors
@@ -309,7 +309,7 @@ private:
         } else {
             assert(enum_type || is_int_type(col_type));
             Array<std::tuple<std::unique_ptr<Builder>, const Function*>> targets(ctors.size());
-            Array<const Value*> defs(ctors.size());
+            Array<const ValueVar*> defs(ctors.size());
 
             auto otherwise = make_fn();
 

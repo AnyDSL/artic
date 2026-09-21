@@ -66,7 +66,7 @@ const TupleType* Builder::unit_type() {
     return tuple_type({});
 }
 
-const TupleType* Builder::tuple_type(const ArrayRef<const Type*>& elems) {
+const TupleType* Builder::tuple_type(const ArrayRef<const TypeVar*>& elems) {
     return arena.insert<TupleType>(arena, std::move(elems));
 }
 
@@ -110,39 +110,41 @@ const ForallType* Builder::forall_type(ArrayRef<const TypeVar*> type_params, con
     return arena.insert<ForallType>(arena, type_params, decl);
 }*/
 
-const StructType* Builder::struct_type(const ast::RecordDecl* decl) {
-    return arena.insert<StructType>(arena, decl);
+const StructType* Builder::Unsafe::struct_type(const ast::RecordDecl* decl) {
+    return builder.arena.insert<StructType>(builder.arena, decl);
 }
 
-const EnumType* Builder::enum_type(const ast::EnumDecl* decl) {
-    return arena.insert<EnumType>(arena, decl);
+const EnumType* Builder::Unsafe::enum_type(const ast::EnumDecl* decl) {
+    return builder.arena.insert<EnumType>(builder.arena, decl);
 }
 
-const Type* Builder::member_type(const Type* type, size_t idx) {
-    type = scope.peek_type(type);
+const TypeVar* Builder::member_type(const TypeDef* type, size_t idx) {
+    //type = scope.peek_type(type);
 
-    if (auto [type_app, enum_type, enum_body_scope] = peek_app_type_unapplied_return_scope<EnumType>(scope, type); enum_type) {
+    if (auto [type_app, enum_type, enum_body_scope] = resolve_type_app_unapplied<EnumType>(scope, type); enum_type) {
         const ast::EnumDecl& decl = *enum_type->decl;
         const ast::OptionDecl& option = *decl.options[idx];
 
         auto member_type = enum_type->member_type(idx);
-        auto [member_type_app, _] = peek_app_type_unapplied_generic(enum_body_scope, member_type);
+        auto [member_type_def, member_type_scope] = resolve_type_def_deep(enum_body_scope, member_type);
+        auto [member_type_app, _, _2] = resolve_type_app_unapplied_generic(member_type_scope, member_type_def);
         if (option.struct_type) {
             if (type_app && member_type_app) {
                 return this->enclosing_let_rec().type_app(member_type_app->applicand(), type_app->args);
             }
             return member_type;
         } else {
-            // if (!option.var)
-            //     return unit_type();
+            // non-struct enum options are immediately specialized
             if (type_app && member_type_app) {
-                return unsafe().type_app(member_type_app->applicand(), type_app->args)->instantiated(*this);
+                return this->enclosing_let_rec().schedule_type(unsafe().type_app(member_type_app->applicand(), type_app->args)->instantiated(*this));
             }
         }
         return member_type;
     }
 
-    if (auto [app, peeked_type] = peek_app_type_applied(*this, type); app) {
+    // other type applications are immediately instantiated too
+    if (auto [app, peeked_type, _] = resolve_type_app_applied(*this, type); app) {
+        // note: if we allow nested type apps, we should actually get a builder for the returned scope!
         return member_type(peeked_type, idx);
     }
 
@@ -469,19 +471,19 @@ const Value* ExprBuilder::variant_extract(const Value* value, size_t idx) {
     return bind_value(unsafe().variant_extract(value, idx));
 }
 
-const Value* Builder::Unsafe::unop(ast::UnaryExpr::Tag tag, const Value* arg) {
+const Value* Builder::Unsafe::unop(ast::UnaryExpr::Tag tag, const ValueVar* arg) {
     return builder.arena.insert<UnOp>(builder, tag, arg);
 }
 
-const Value* ExprBuilder::unop(ast::UnaryExpr::Tag tag, const Value* arg) {
+const ValueVar* ExprBuilder::unop(ast::UnaryExpr::Tag tag, const ValueVar* arg) {
     return bind_value(unsafe().unop(tag, arg));
 }
 
-const Value* Builder::Unsafe::binop(ast::BinaryExpr::Tag tag, const Value* lhs, const Value* rhs) {
+const Value* Builder::Unsafe::binop(ast::BinaryExpr::Tag tag, const ValueVar* lhs, const ValueVar* rhs) {
     return builder.arena.insert<BinOp>(builder, tag, lhs, rhs);
 }
 
-const Value* ExprBuilder::binop(ast::BinaryExpr::Tag tag, const Value* lhs, const Value* rhs) {
+const ValueVar* ExprBuilder::binop(ast::BinaryExpr::Tag tag, const ValueVar* lhs, const ValueVar* rhs) {
     return bind_value(unsafe().binop(tag, lhs, rhs));
 }
 
@@ -533,7 +535,7 @@ void ExprBuilder::add_instruction(const Value* instruction) {
     seq.push_back(instruction);
 }
 
-const Value* ExprBuilder::bind_value(const Value* value) {
+const ValueVar* ExprBuilder::bind_value(const Value* value) {
     if (value->is_var())
         return value;
     auto param = this->value_var(std::nullopt, value->type());

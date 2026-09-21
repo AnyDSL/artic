@@ -29,7 +29,7 @@ const BottomType* BottomType::rewrite(Rewriter& r) const {
 const FnType* FnType::rewrite(Rewriter& r) const {
     const Type* ndom = r.instantiate(dom);
     const Type* ncodom = r.instantiate(codom);
-    return r.builder().fn_type(ndom, ncodom);
+    return r.builder().unsafe().fn_type(ndom, ncodom);
 }
 
 const TupleType* TupleType::rewrite(Rewriter& r) const {

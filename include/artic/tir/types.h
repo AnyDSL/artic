@@ -117,7 +117,7 @@ protected:
     friend Emitter;
 };
 
-struct TypeVar : public Type, public Var {
+struct TypeVar final : public Type, public Var {
     void print(Printer&) const override;
     void print_head(Printer&) const override;
 
@@ -163,7 +163,7 @@ private:
 };
 
 struct TupleType : public TypeDef {
-    Array<const Type*> args;
+    Array<const TypeVar*> args;
 
     void print(Printer&) const override;
     bool equals(const Node*) const override;
@@ -181,16 +181,16 @@ struct TupleType : public TypeDef {
     bool is_sized(const Scope&, std::unordered_set<const Type*>&) const override;
 
 private:
-    TupleType(Arena&, const ArrayRef<const Type*>&);
+    TupleType(Arena&, const ArrayRef<const TypeVar*>&);
 
     friend class Arena;
 };
 
 /// Base class for array types.
 struct ArrayType : public TypeDef {
-    const Type* elem;
+    const TypeVar* elem;
 
-    ArrayType(Arena& arena, const Type* elem)
+    ArrayType(Arena& arena, const TypeVar* elem)
         : TypeDef(), elem(elem)
     {}
 
@@ -217,7 +217,7 @@ struct SizedArrayType : public ArrayType {
     std::string stringify(Emitter&) const override;
 
 private:
-    SizedArrayType(Arena&, const Type*, size_t, bool);
+    SizedArrayType(Arena&, const TypeVar*, size_t, bool);
 
     friend class Arena;
 };
@@ -233,18 +233,18 @@ struct UnsizedArrayType : public ArrayType {
     std::string stringify(Emitter&) const override;
 
 private:
-    UnsizedArrayType(Arena&, const Type*);
+    UnsizedArrayType(Arena&, const TypeVar*);
 
     friend class Arena;
 };
 
 /// Base type for pointer types.
 struct AddrType : public TypeDef {
-    const Type* pointee;
+    const TypeVar* pointee;
     bool is_mut;
     size_t addr_space;
 
-    AddrType(Arena& arena, const Type* pointee, bool is_mut, size_t addr_space)
+    AddrType(Arena& arena, const TypeVar* pointee, bool is_mut, size_t addr_space)
         : TypeDef(), pointee(pointee), is_mut(is_mut), addr_space(addr_space)
     {}
 
@@ -272,12 +272,12 @@ struct PtrType : public AddrType {
     std::string stringify(Emitter&) const override;
 
 private:
-    PtrType(Arena&, const Type*, bool, size_t);
+    PtrType(Arena&, const TypeVar*, bool, size_t);
 
     friend class Arena;
 };
 
-std::pair<const PtrType*, const Type*> remove_ptr(const Scope& scope, const Type* type);
+std::pair<const PtrType*, const TypeVar*> remove_ptr(const Scope& scope, const TypeVar* type);
 
 /// The type of mutable identifiers or expressions.
 struct RefType : public AddrType {
@@ -285,14 +285,14 @@ struct RefType : public AddrType {
     const RefType* rewrite(Rewriter&) const override;
 
 private:
-    RefType(Arena&, const Type*, bool, size_t);
+    RefType(Arena&, const TypeVar*, bool, size_t);
 
     friend class Arena;
 };
-std::pair<const RefType*, const Type*> remove_ref(const Scope& scope, const Type* type);
+std::pair<const RefType*, const TypeVar*> remove_ref(const Scope& scope, const TypeVar* type);
 
 struct ImplicitParamType : public TypeDef {
-    const Type* underlying;
+    const TypeVar* underlying;
 
     void print(Printer&) const override;
     bool equals(const Node*) const override;
@@ -309,15 +309,15 @@ struct ImplicitParamType : public TypeDef {
     void bounds(const Scope&, TypeVarMap<TypeBounds>&, const Type*, bool) const override;
     bool is_sized(const Scope&, std::unordered_set<const Type*>&) const override;
 private:
-    ImplicitParamType(Arena&, const Type*);
+    ImplicitParamType(Arena&, const TypeVar*);
 
     friend class Arena;
 };
 
 /// Function type (can represent continuations when the codomain is a `NoRetType`).
 struct FnType : public TypeDef {
-    const Type* dom;
-    const Type* codom;
+    const TypeVar* dom;
+    const TypeVar* codom;
 
     void print(Printer&) const override;
     bool equals(const Node*) const override;
@@ -335,7 +335,7 @@ struct FnType : public TypeDef {
     bool is_sized(const Scope&, std::unordered_set<const Type*>&) const override;
 
 private:
-    FnType(Arena&, const Type*, const Type*);
+    FnType(Arena&, const TypeVar*, const TypeVar*);
 
     friend class Arena;
 };
@@ -428,7 +428,7 @@ struct ComplexType : public UserType {
     std::optional<size_t> find_member(const std::string_view&) const;
 
     virtual std::string_view member_name(size_t) const = 0;
-    virtual const Type* member_type(size_t) const = 0;
+    virtual const TypeVar* member_type(size_t) const = 0;
     virtual size_t member_count() const = 0;
 
     using Type::is_sized;
@@ -447,13 +447,13 @@ struct StructType : public ComplexType {
     const StructType* rewrite(Rewriter&) const override;
 
     std::string_view member_name(size_t) const override;
-    const Type* member_type(size_t) const;
+    const TypeVar* member_type(size_t) const;
     size_t member_count() const override;
 
     bool is_tuple_like() const;
 
     const ast::RecordDecl* decl;
-    mutable std::vector<const Type*> members;
+    mutable std::vector<const TypeVar*> members;
 
     void validate() const;
 private:
@@ -474,11 +474,11 @@ struct EnumType : public ComplexType {
     const EnumType* rewrite(Rewriter&) const override;
 
     std::string_view member_name(size_t) const override;
-    const Type* member_type(size_t) const;
+    const TypeVar* member_type(size_t) const;
     size_t member_count() const override;
 
     const ast::EnumDecl* decl;
-    mutable std::vector<const Type*> members;
+    mutable std::vector<const TypeVar*> members;
 
     // Returns true if the enumeration is only made
     // of constructors without arguments.
@@ -547,13 +547,13 @@ struct LetRecType : public TypeDef, public LetRec {
     LetRecType(Builder&, Scope&, const ArrayRef<std::tuple<const Var*, const Node*>>&, const Type*);
 };
 
-bool is_int_type(const Type*);
-bool is_float_type(const Type*);
-bool is_int_or_float_type(const Type*);
-bool is_prim_type(const Type*, ast::PrimType::Tag);
-bool is_simd_type(const Type*);
-bool is_unit_type(const Type*);
-inline bool is_bool_type(const Type* type) { return is_prim_type(type, ast::PrimType::Bool); }
+bool is_int_type(const TypeDef*);
+bool is_float_type(const TypeDef*);
+bool is_int_or_float_type(const TypeDef*);
+bool is_prim_type(const TypeDef*, ast::PrimType::Tag);
+bool is_simd_type(const TypeDef*);
+bool is_unit_type(const TypeDef*);
+inline bool is_bool_type(const TypeDef* type) { return is_prim_type(type, ast::PrimType::Bool); }
 
 /*template <typename T>
 std::pair<const TypeApp*, const T*> match_app(const Type* type) {
@@ -562,15 +562,28 @@ std::pair<const TypeApp*, const T*> match_app(const Type* type) {
     return std::make_pair(nullptr, type->isa<T>());
 }*/
 
-std::pair<const TypeApp*, const Type*> peek_app_type_applied_generic(Builder& builder, const Type* type);
+const Type* lookup_type(const Scope&, const TypeVar*);
+const TypeDef* lookup_type_def(const Scope&, const TypeVar*);
+
+const TypeDef* resolve_type_def(const Scope&, const TypeVar*);
+std::tuple<const TypeDef*, const Scope&> resolve_type_def_deep(const Scope&, const TypeVar*);
+
+std::tuple<const TypeApp*, const Type*> match_type_app_applied_generic(Builder&, const TypeDef*);
+std::tuple<const TypeApp*, const TypeDef*> resolve_type_app_applied_generic(Builder&, const TypeDef*);
 
 template <typename T = Type>
-std::pair<const TypeApp*, const T*> peek_app_type_applied(Builder& builder, const Type* type) {
-    auto [app, t] = peek_app_type_applied_generic(builder, type);
+std::pair<const TypeApp*, const T*> match_type_app_applied(Builder& builder, const TypeDef* type) {
+    auto [app, t] = match_type_app_applied_generic(builder, type);
     return { app, t->isa<T>() };
 }
 
-std::tuple<const TypeApp*, const Type*, const Scope&> peek_app_type_unapplied_generic_return_scope(const Scope& scope, const Type* type);
+template <typename T = TypeDef>
+std::tuple<const TypeApp*, const T*> resolve_type_app_applied(Builder& builder, const TypeDef* type) {
+    auto [app, t] = resolve_type_app_applied_generic(builder, type);
+    return { app, t->isa<T>() };
+}
+
+/*std::tuple<const TypeApp*, const Type*, const Scope&> peek_app_type_unapplied_generic_return_scope(const Scope& scope, const Type* type);
 
 inline std::pair<const TypeApp*, const Type*> peek_app_type_unapplied_generic(const Scope& scope, const Type* type) {
     auto [app, t, _] = peek_app_type_unapplied_generic_return_scope(scope, type);
@@ -588,6 +601,21 @@ template <typename T = Type>
 std::pair<const TypeApp*, const T*> peek_app_type_unapplied(const Scope& scope, const Type* type) {
     auto [app, t, _] = peek_app_type_unapplied_return_scope(scope, type);
     return { app, t->isa<T>() };
+}*/
+
+std::pair<const TypeApp*, const Type*> match_type_app_unapplied_generic(const Scope&, const TypeDef*);
+std::tuple<const TypeApp*, const TypeDef*, const Scope&> resolve_type_app_unapplied_generic(const Scope&, const TypeDef*);
+
+template <typename T = Type>
+std::pair<const TypeApp*, const T*> match_type_app_unapplied(const Scope& scope, const TypeDef* type) {
+    auto [app, t] = match_type_app_unapplied_generic(scope, type);
+    return { app, t->isa<T>() };
+}
+
+template <typename T = TypeDef>
+std::tuple<const TypeApp*, const T*, const Scope&> resolve_type_app_unapplied(const Scope& scope, const TypeDef* type) {
+    auto [app, t, s] = resolve_type_app_unapplied_generic(scope, type);
+    return { app, t->isa<T>(), s };
 }
 
 } // namespace tir

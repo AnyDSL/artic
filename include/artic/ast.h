@@ -82,9 +82,9 @@ struct Node : public Cast<Node> {
     /// Binds identifiers to AST nodes.
     virtual void bind(NameBinder&) = 0;
     /// Infers the type of the node.
-    virtual const tir::Node* infer(TypeChecker&);
+    virtual const tir::Var* infer(TypeChecker&);
     /// Checks that the node types and has the given type.
-    virtual const tir::Node* check(TypeChecker&, const tir::Type*);
+    virtual const tir::Var* check(TypeChecker&, const tir::TypeVar*);
     /// Prints the node with the given formatting parameters.
     virtual void print(Printer&) const = 0;
 
@@ -122,7 +122,7 @@ struct Type : public Node {
     Type(const Loc& loc) : Node(loc) {}
 
     /// The simple type correspond to this type
-    mutable const tir::Type* type = nullptr;
+    mutable const tir::TypeVar* type = nullptr;
 
     bool is_tuple() const;
 };
@@ -151,7 +151,7 @@ struct Expr : public Node {
 
     bool is_tuple() const;
 
-    const tir::Node* check(TypeChecker&, const tir::Type*) override;
+    const tir::Var* check(TypeChecker&, const tir::TypeVar*) override;
 
     /// Records the fact that this expression is written to.
     virtual void write_to() const {}
@@ -173,11 +173,11 @@ struct Ptrn : public Node {
     Ptr<Expr> as_expr;
 
     /// Contains the type this pattern matches to
-    mutable const tir::Type* type = nullptr;
+    mutable const tir::TypeVar* type = nullptr;
 
     bool is_tuple() const;
 
-    const tir::Node* check(TypeChecker&, const tir::Type*) override;
+    const tir::Var* check(TypeChecker&, const tir::TypeVar*) override;
 
     /// Rewrites the pattern into an expression
     virtual const Expr* to_expr(Arena&) { return as_expr.get(); }
@@ -238,7 +238,7 @@ struct Path : public Node {
     {}
 
     std::optional<Elem::Inferred> infer_path(TypeChecker&, std::optional<tir::NodeKind>, Ptr<Expr>* = nullptr, const tir::Type* = nullptr) const;
-    const tir::Node* infer(TypeChecker&, std::optional<tir::NodeKind>, Ptr<Expr>* = nullptr, const tir::Type* = nullptr);
+    const tir::Var* infer(TypeChecker&, std::optional<tir::NodeKind>, Ptr<Expr>* = nullptr, const tir::Type* = nullptr);
 
     const tir::Type* infer_record_constructor(TypeChecker&);
 
@@ -258,7 +258,7 @@ struct Filter : public Node {
         : Node(loc), expr(std::move(expr))
     {}
 
-    const tir::Node* check(TypeChecker&, const tir::Type*) override;
+    const tir::Var* check(TypeChecker&, const tir::TypeVar*) override;
     void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
@@ -360,7 +360,7 @@ struct PrimType : public Type {
         : Type(loc), tag(tag)
     {}
 
-    const tir::Node* infer(TypeChecker&) override;
+    const tir::Var* infer(TypeChecker&) override;
     void bind(NameBinder&) override;
     void print(Printer&) const override;
 
@@ -376,7 +376,7 @@ struct TupleType : public Type {
         : Type(loc), args(std::move(args))
     {}
 
-    const tir::Node* infer(TypeChecker&) override;
+    const tir::Var* infer(TypeChecker&) override;
     void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
@@ -401,7 +401,7 @@ struct SizedArrayType : public ArrayType {
         : ArrayType(loc, std::move(elem)), size(std::move(size)), is_simd(is_simd)
     {}
 
-    const tir::Node* infer(TypeChecker&) override;
+    const tir::Var* infer(TypeChecker&) override;
     void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
@@ -412,7 +412,7 @@ struct UnsizedArrayType : public ArrayType {
         : ArrayType(loc, std::move(elem))
     {}
 
-    const tir::Node* infer(TypeChecker&) override;
+    const tir::Var* infer(TypeChecker&) override;
     void print(Printer&) const override;
 };
 
@@ -425,7 +425,7 @@ struct FnType : public Type {
         : Type(loc), from(std::move(from)), to(std::move(to))
     {}
 
-    const tir::Node* infer(TypeChecker&) override;
+    const tir::Var* infer(TypeChecker&) override;
     void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
@@ -439,7 +439,7 @@ struct PtrType : public Type {
         : Type(loc), pointee(std::move(pointee)), is_mut(is_mut), addr_space(addr_space)
     {}
 
-    const tir::Node* infer(TypeChecker&) override;
+    const tir::Var* infer(TypeChecker&) override;
     void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
@@ -452,7 +452,7 @@ struct TypeApp : public Type {
         : Type(loc), path(std::move(path))
     {}
 
-    const tir::Node* infer(TypeChecker&) override;
+    const tir::Var* infer(TypeChecker&) override;
     void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
@@ -463,7 +463,7 @@ struct NoCodomType : public Type {
         : Type(loc)
     {}
 
-    const tir::Node* infer(TypeChecker&) override;
+    const tir::Var* infer(TypeChecker&) override;
     void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
@@ -492,8 +492,8 @@ struct LetStmt : public Stmt {
     bool needs_semicolon() const override;
     bool has_side_effect() const override;
 
-    const tir::Node* infer(TypeChecker&) override;
-    const tir::Node* check(TypeChecker&, const tir::Type*) override;
+    const tir::Var* infer(TypeChecker&) override;
+    const tir::Var* check(TypeChecker&, const tir::TypeVar*) override;
     void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
@@ -514,8 +514,8 @@ struct RecDeclsStmt : public Stmt {
     bool needs_semicolon() const override;
     bool has_side_effect() const override;
 
-    const tir::Node* infer(TypeChecker&) override;
-    const tir::Node* check(TypeChecker&, const tir::Type*) override;
+    const tir::Var* infer(TypeChecker&) override;
+    const tir::Var* check(TypeChecker&, const tir::TypeVar*) override;
     void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
@@ -532,8 +532,8 @@ struct ExprStmt : public Stmt {
     bool needs_semicolon() const override;
     bool has_side_effect() const override;
 
-    const tir::Node* infer(TypeChecker&) override;
-    const tir::Node* check(TypeChecker&, const tir::Type*) override;
+    const tir::Var* infer(TypeChecker&) override;
+    const tir::Var* check(TypeChecker&, const tir::TypeVar*) override;
     void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
@@ -555,7 +555,7 @@ struct TypedExpr : public Expr {
     bool has_side_effect() const override;
     bool is_constant() const override;
 
-    const tir::Node* infer(TypeChecker&) override;
+    const tir::Var* infer(TypeChecker&) override;
     void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
@@ -571,7 +571,7 @@ struct PathExpr : public Expr {
     bool is_constant() const override;
     void write_to() const override;
 
-    const tir::Node* infer(TypeChecker&) override;
+    const tir::Var* infer(TypeChecker&) override;
     void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
@@ -586,8 +586,8 @@ struct LiteralExpr : public Expr {
 
     bool is_constant() const override;
 
-    const tir::Node* infer(TypeChecker&) override;
-    const tir::Node* check(TypeChecker&, const tir::Type*) override;
+    const tir::Var* infer(TypeChecker&) override;
+    const tir::Var* check(TypeChecker&, const tir::TypeVar*) override;
     void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
@@ -602,7 +602,7 @@ struct SummonExpr : public Expr {
         : Expr(loc), type_expr(std::move(type_expr))
     {}
 
-    const tir::Node* infer(TypeChecker&) override;
+    const tir::Var* infer(TypeChecker&) override;
     void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
@@ -629,7 +629,7 @@ struct FieldExpr : public Expr {
     bool has_side_effect() const override;
     bool is_constant() const override;
 
-    const tir::Node* check(TypeChecker&, const tir::Type*) override;
+    const tir::Var* check(TypeChecker&, const tir::TypeVar*) override;
     void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
@@ -668,7 +668,7 @@ struct RecordExpr : public Expr {
     bool has_side_effect() const override;
     bool is_constant() const override;
 
-    const tir::Node* infer(TypeChecker&) override;
+    const tir::Var* infer(TypeChecker&) override;
     void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
@@ -685,8 +685,8 @@ struct TupleExpr : public Expr {
     bool has_side_effect() const override;
     bool is_constant() const override;
 
-    const tir::Node* infer(TypeChecker&) override;
-    const tir::Node* check(TypeChecker&, const tir::Type*) override;
+    const tir::Var* infer(TypeChecker&) override;
+    const tir::Var* check(TypeChecker&, const tir::TypeVar*) override;
     void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
@@ -704,8 +704,8 @@ struct ArrayExpr : public Expr {
     bool has_side_effect() const override;
     bool is_constant() const override;
 
-    const tir::Node* infer(TypeChecker&) override;
-    const tir::Node* check(TypeChecker&, const tir::Type*) override;
+    const tir::Var* infer(TypeChecker&) override;
+    const tir::Var* check(TypeChecker&, const tir::TypeVar*) override;
     void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
@@ -724,8 +724,8 @@ struct RepeatArrayExpr : public Expr {
     bool has_side_effect() const override;
     bool is_constant() const override;
 
-    const tir::Node* infer(TypeChecker&) override;
-    const tir::Node* check(TypeChecker&, const tir::Type*) override;
+    const tir::Var* infer(TypeChecker&) override;
+    const tir::Var* check(TypeChecker&, const tir::TypeVar*) override;
     void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
@@ -761,8 +761,8 @@ struct FnExpr : public Expr {
 
     bool is_constant() const override;
 
-    const tir::Node* infer(TypeChecker&) override;
-    const tir::Node* check(TypeChecker&, const tir::Type*) override;
+    const tir::Var* infer(TypeChecker&) override;
+    const tir::Var* check(TypeChecker&, const tir::TypeVar*) override;
     void bind(NameBinder&, bool);
     void bind(NameBinder&) override;
     void print(Printer&) const override;
@@ -780,8 +780,8 @@ struct BlockExpr : public Expr {
     bool is_jumping() const override;
     bool has_side_effect() const override;
 
-    const tir::Node* infer(TypeChecker&) override;
-    const tir::Node* check(TypeChecker&, const tir::Type*) override;
+    const tir::Var* infer(TypeChecker&) override;
+    const tir::Var* check(TypeChecker&, const tir::TypeVar*) override;
     void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
@@ -802,8 +802,8 @@ struct CallExpr : public Expr {
 
     void write_to() const override;
 
-    const tir::Node* infer(TypeChecker&) override;
-    const tir::Node* check(TypeChecker&, const tir::Type*) override;
+    const tir::Var* infer(TypeChecker&) override;
+    const tir::Var* check(TypeChecker&, const tir::TypeVar*) override;
     void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
@@ -834,7 +834,7 @@ struct ProjExpr : public Expr {
 
     void write_to() const override;
 
-    const tir::Node* infer(TypeChecker&) override;
+    const tir::Var* infer(TypeChecker&) override;
     void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
@@ -876,8 +876,8 @@ struct IfExpr : public Expr {
     bool is_jumping() const override;
     bool has_side_effect() const override;
 
-    const tir::Node* infer(TypeChecker&) override;
-    const tir::Node* check(TypeChecker&, const tir::Type*) override;
+    const tir::Var* infer(TypeChecker&) override;
+    const tir::Var* check(TypeChecker&, const tir::TypeVar*) override;
     void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
@@ -914,8 +914,8 @@ struct MatchExpr : public Expr {
     bool is_jumping() const override;
     bool has_side_effect() const override;
 
-    const tir::Node* infer(TypeChecker&) override;
-    const tir::Node* check(TypeChecker&, const tir::Type*) override;
+    const tir::Var* infer(TypeChecker&) override;
+    const tir::Var* check(TypeChecker&, const tir::TypeVar*) override;
     void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
@@ -951,7 +951,7 @@ struct WhileExpr : public LoopExpr {
     bool is_jumping() const override;
     bool has_side_effect() const override;
 
-    const tir::Node* infer(TypeChecker&) override;
+    const tir::Var* infer(TypeChecker&) override;
     void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
@@ -969,7 +969,7 @@ struct ForExpr : public LoopExpr {
     bool is_jumping() const override;
     bool has_side_effect() const override;
 
-    const tir::Node* infer(TypeChecker&) override;
+    const tir::Var* infer(TypeChecker&) override;
     void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
@@ -982,7 +982,7 @@ struct BreakExpr : public Expr {
         : Expr(loc)
     {}
 
-    const tir::Node* infer(TypeChecker&) override;
+    const tir::Var* infer(TypeChecker&) override;
     void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
@@ -995,7 +995,7 @@ struct ContinueExpr : public Expr {
         : Expr(loc)
     {}
 
-    const tir::Node* infer(TypeChecker&) override;
+    const tir::Var* infer(TypeChecker&) override;
     void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
@@ -1008,7 +1008,7 @@ struct ReturnExpr : public Expr {
         : Expr(loc)
     {}
 
-    const tir::Node* infer(TypeChecker&) override;
+    const tir::Var* infer(TypeChecker&) override;
     void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
@@ -1044,8 +1044,8 @@ struct UnaryExpr : public Expr {
     bool has_side_effect() const override;
     bool is_constant() const override;
 
-    const tir::Node* infer(TypeChecker&) override;
-    const tir::Node* check(TypeChecker&, const tir::Type*) override;
+    const tir::Var* infer(TypeChecker&) override;
+    const tir::Var* check(TypeChecker&, const tir::TypeVar*) override;
     void bind(NameBinder&) override;
     void print(Printer&) const override;
 
@@ -1094,8 +1094,8 @@ struct BinaryExpr : public Expr {
     bool is_constant() const override;
     int precedence() const { return precedence(tag); }
 
-    const tir::Node* infer(TypeChecker&) override;
-    const tir::Node* check(TypeChecker&, const tir::Type*) override;
+    const tir::Var* infer(TypeChecker&) override;
+    const tir::Var* check(TypeChecker&, const tir::TypeVar*) override;
     void bind(NameBinder&) override;
     void print(Printer&) const override;
 
@@ -1127,7 +1127,7 @@ struct FilterExpr : public Expr {
 
     bool has_side_effect() const override;
 
-    const tir::Node* infer(TypeChecker&) override;
+    const tir::Var* infer(TypeChecker&) override;
     void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
@@ -1148,7 +1148,7 @@ struct CastExpr : public Expr {
     bool has_side_effect() const override;
     bool is_constant() const override;
 
-    const tir::Node* infer(TypeChecker&) override;
+    const tir::Var* infer(TypeChecker&) override;
     void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
@@ -1187,7 +1187,7 @@ struct AsmExpr : public Expr {
     bool has_side_effect() const override;
 
     
-    const tir::Node* infer(TypeChecker&) override;
+    const tir::Var* infer(TypeChecker&) override;
     void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
@@ -1236,9 +1236,9 @@ struct TypeParam : public NamedDecl {
     {}
 
     // Set during type-checking. Contains the type variable
-    mutable const tir::Type* type = nullptr;
+    mutable const tir::TypeVar* type = nullptr;
 
-    const tir::Node* infer(TypeChecker&) override;
+    const tir::Var* infer(TypeChecker&) override;
     void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
@@ -1266,7 +1266,7 @@ struct PtrnDecl : public ValueDecl {
         : ValueDecl(loc, std::move(id)), is_mut(is_mut)
     {}
 
-    const tir::Node* check(TypeChecker&, const tir::Type*) override;
+    const tir::Var* check(TypeChecker&, const tir::TypeVar*) override;
     void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
@@ -1282,7 +1282,7 @@ struct LetDecl : public Decl {
         , init(std::move(init))
     {}
 
-    const tir::Node* infer(TypeChecker&) override;
+    const tir::Var* infer(TypeChecker&) override;
     void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
@@ -1306,7 +1306,7 @@ struct ImplicitDecl : public Decl {
             , body(std::move(value))
     {}
 
-    const tir::Node* infer(TypeChecker&) override;
+    const tir::Var* infer(TypeChecker&) override;
     void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
@@ -1318,7 +1318,7 @@ struct ImplicitDecl : public Decl {
 
     ImplicitInstantiationExpr(ImplicitDecl* impl, std::vector<const tir::Type*>&& type_args, Ptr<Expr>&& arg) : Expr(impl->loc), impl(impl), type_args(std::move(type_args)), arg(std::move(arg)) {}
 
-    const tir::Node* infer(TypeChecker&) override;
+    const tir::Var* infer(TypeChecker&) override;
     void bind(NameBinder&) override {
         assert(false);
     };
@@ -1345,7 +1345,7 @@ struct StaticDecl : public ValueDecl {
         , is_mut(is_mut)
     {}
 
-    const tir::Node* infer(TypeChecker&) override;
+    const tir::Var* infer(TypeChecker&) override;
     void bind_head(NameBinder&) override;
     void bind(NameBinder&) override;
     void print(Printer&) const override;
@@ -1366,8 +1366,8 @@ struct FnDecl : public ValueDecl {
         , type_params(std::move(type_params))
     {}
 
-    const tir::Node* infer(TypeChecker&) override;
-    const tir::Node* check(TypeChecker&, const tir::Type*) override;
+    const tir::Var* infer(TypeChecker&) override;
+    const tir::Var* check(TypeChecker&, const tir::TypeVar*) override;
     void bind_head(NameBinder&) override;
     void bind(NameBinder&) override;
     void print(Printer&) const override;
@@ -1389,9 +1389,9 @@ struct FieldDecl : public NamedDecl {
     {}
 
     // Set during type-checking. Contains the type this field declares
-    mutable const tir::Type* field_type = nullptr;
+    mutable const tir::TypeVar* field_type = nullptr;
 
-    const tir::Node* infer(TypeChecker&) override;
+    const tir::Var* infer(TypeChecker&) override;
     void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
@@ -1429,7 +1429,7 @@ struct StructDecl : public RecordDecl {
     mutable const tir::Var* ctor_or_default_value_ = nullptr;
     const tir::Var* ctor_or_default_value(TypeChecker&) const;
 
-    const tir::Node* infer(TypeChecker&) override;
+    const tir::Var* infer(TypeChecker&) override;
     void bind_head(NameBinder&) override;
     void bind(NameBinder&) override;
     void print(Printer&) const override;
@@ -1443,7 +1443,7 @@ struct OptionDecl : public RecordDecl {
     bool has_fields;
 
     // Set during type-checking. Contains the type the option constructs
-    mutable const tir::Node* maybe_ctor_type_or_unit = nullptr;
+    mutable const tir::Var* maybe_ctor_type_or_unit = nullptr;
 
     // Set during type-checking for options that have braces
     // Note: can be a type constructor for a structure type
@@ -1467,7 +1467,7 @@ struct OptionDecl : public RecordDecl {
     mutable const tir::Var* ctor_or_default_value_ = nullptr;
     const tir::Var* ctor_or_default_value(TypeChecker&) const;
 
-    const tir::Node* infer(TypeChecker&) override;
+    const tir::Var* infer(TypeChecker&) override;
     void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
@@ -1491,7 +1491,7 @@ struct EnumDecl : public CtorDecl {
 
     // const tir::Type* unnamed_type;
 
-    const tir::Node* infer(TypeChecker&) override;
+    const tir::Var* infer(TypeChecker&) override;
     void bind_head(NameBinder&) override;
     void bind(NameBinder&) override;
     void print(Printer&) const override;
@@ -1512,7 +1512,7 @@ struct TypeDecl : public NamedDecl {
         , aliased_type(std::move(aliased_type))
     {}
 
-    const tir::Node* infer(TypeChecker&) override;
+    const tir::Var* infer(TypeChecker&) override;
     void bind_head(NameBinder&) override;
     void bind(NameBinder&) override;
     void print(Printer&) const override;
@@ -1546,7 +1546,7 @@ struct ModDecl : public NamedDecl {
     std::optional<NamedDecl*> find_member(const std::string_view& name) const;
 
     const tir::ModVar* infer_head(TypeChecker&);
-    const tir::Node* infer(TypeChecker&) override;
+    const tir::Var* infer(TypeChecker&) override;
     void bind_head(NameBinder&) override;
     void bind(NameBinder&) override;
     void print(Printer&) const override;
@@ -1560,7 +1560,7 @@ struct UseDecl : public NamedDecl {
         : NamedDecl(loc, std::move(id)), path(std::move(path))
     {}
 
-    const tir::Node* infer(TypeChecker&) override;
+    const tir::Var* infer(TypeChecker&) override;
     void bind_head(NameBinder&) override;
     void bind(NameBinder&) override;
     void print(Printer&) const override;
@@ -1590,7 +1590,7 @@ struct TypedPtrn : public Ptrn {
         : Ptrn(loc), ptrn(std::move(ptrn)), type(std::move(type))
     {}
 
-    const tir::Node* infer(TypeChecker&) override;
+    const tir::Var* infer(TypeChecker&) override;
     void bind(NameBinder&) override;
     const Expr* to_expr(Arena&) override;
     void print(Printer&) const override;
@@ -1605,8 +1605,8 @@ struct IdPtrn : public Ptrn {
         : Ptrn(loc), decl(std::move(decl)), sub_ptrn(std::move(sub_ptrn))
     {}
 
-    const tir::Node* infer(TypeChecker&) override;
-    const tir::Node* check(TypeChecker&, const tir::Type*) override;
+    const tir::Var* infer(TypeChecker&) override;
+    const tir::Var* check(TypeChecker&, const tir::TypeVar*) override;
     void bind(NameBinder&) override;
     const Expr* to_expr(Arena&) override;
     void print(Printer&) const override;
@@ -1620,8 +1620,8 @@ struct LiteralPtrn : public Ptrn {
         : Ptrn(loc), lit(lit)
     {}
 
-    const tir::Node* infer(TypeChecker&) override;
-    const tir::Node* check(TypeChecker&, const tir::Type*) override;
+    const tir::Var* infer(TypeChecker&) override;
+    const tir::Var* check(TypeChecker&, const tir::TypeVar*) override;
     void bind(NameBinder&) override;
     const Expr* to_expr(Arena&) override;
     void print(Printer&) const override;
@@ -1634,8 +1634,8 @@ struct ImplicitParamPtrn : public Ptrn {
         : Ptrn(loc), underlying(std::move(underlying))
     {}
 
-    const tir::Node* infer(TypeChecker&) override;
-    const tir::Node* check(TypeChecker&, const tir::Type*) override;
+    const tir::Var* infer(TypeChecker&) override;
+    const tir::Var* check(TypeChecker&, const tir::TypeVar*) override;
     void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
@@ -1653,7 +1653,7 @@ struct FieldPtrn : public Ptrn {
 
     bool is_etc() const { return !ptrn; }
 
-    const tir::Node* check(TypeChecker&, const tir::Type*) override;
+    const tir::Var* check(TypeChecker&, const tir::TypeVar*) override;
     void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
@@ -1672,7 +1672,7 @@ struct RecordPtrn : public Ptrn {
 
     bool has_etc() const { return !fields.empty() && fields.back()->is_etc(); }
 
-    const tir::Node* infer(TypeChecker&) override;
+    const tir::Var* infer(TypeChecker&) override;
     void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
@@ -1689,7 +1689,7 @@ struct CtorPtrn : public Ptrn {
         : Ptrn(loc), path(std::move(path)), arg(std::move(arg))
     {}
 
-    const tir::Node* infer(TypeChecker&) override;
+    const tir::Var* infer(TypeChecker&) override;
     void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
@@ -1702,8 +1702,8 @@ struct TuplePtrn : public Ptrn {
         : Ptrn(loc), args(std::move(args))
     {}
 
-    const tir::Node* infer(TypeChecker&) override;
-    const tir::Node* check(TypeChecker&, const tir::Type*) override;
+    const tir::Var* infer(TypeChecker&) override;
+    const tir::Var* check(TypeChecker&, const tir::TypeVar*) override;
     void bind(NameBinder&) override;
     void print(Printer&) const override;
 };
@@ -1717,8 +1717,8 @@ struct ArrayPtrn : public Ptrn {
         : Ptrn(loc), elems(std::move(elems)), is_simd(is_simd)
     {}
 
-    const tir::Node* infer(TypeChecker&) override;
-    const tir::Node* check(TypeChecker&, const tir::Type*) override;
+    const tir::Var* infer(TypeChecker&) override;
+    const tir::Var* check(TypeChecker&, const tir::TypeVar*) override;
     void bind(NameBinder&) override;
     void print(Printer&) const override;
 };

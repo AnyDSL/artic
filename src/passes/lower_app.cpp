@@ -57,7 +57,7 @@ struct LowerApp : public Rewriter {
     bool are_args_known(ArrayRef<const Node*> args) const {
         for (auto arg : args) {
             if (auto var = arg->isa<Var>())
-                if (!builder().scope.resolve_var_deep(var))
+                if (!std::get<1>(builder().scope.lookup_def(var)))
                     return false;
         }
         return true;
@@ -98,7 +98,7 @@ struct LowerApp : public Rewriter {
                 args[i] = instantiate(old_app->args[i], false);
             }
             if (are_args_known(args)) {
-                auto constructor = old_scope->resolve_ctor(old_app->applicand())->isa<Constructor>();
+                auto constructor = resolve_ctor(*old_scope, old_app->applicand())->isa<Constructor>();
                 if (constructor)
                     return instantiate_app(old_app, constructor, args);
             }

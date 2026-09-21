@@ -16,50 +16,43 @@ PrimType::PrimType(Arena& arena, ast::PrimType::Tag tag)
     : TypeDef(), Node(arena), tag(tag)
 {}
 
-TupleType::TupleType(Arena& arena, const ArrayRef<const Type*>& args)
+TupleType::TupleType(Arena& arena, const ArrayRef<const TypeVar*>& args)
     : TypeDef(), Node(arena), args(args)
 {
     for (auto& elem : args)
         assert(elem->is_var());
 }
 
-SizedArrayType::SizedArrayType(Arena& arena, const Type* elem, size_t size, bool is_simd)
+SizedArrayType::SizedArrayType(Arena& arena, const TypeVar* elem, size_t size, bool is_simd)
     : ArrayType(arena, elem), Node(arena), size(size), is_simd(is_simd)
 {
     assert(elem->is_var());
 }
 
-UnsizedArrayType::UnsizedArrayType(Arena& arena, const Type* elem)
+UnsizedArrayType::UnsizedArrayType(Arena& arena, const TypeVar* elem)
     : ArrayType(arena, elem), Node(arena)
 {
     assert(elem->is_var());
 }
 
-PtrType::PtrType(Arena& arena, const Type* pointee, bool is_mut, size_t addr_space)
+PtrType::PtrType(Arena& arena, const TypeVar* pointee, bool is_mut, size_t addr_space)
     : AddrType(arena, pointee, is_mut, addr_space), Node(arena)
-{
-    assert(pointee->is_var());
-}
+{}
 
-RefType::RefType(Arena& arena, const Type* pointee, bool is_mut, size_t addr_space)
+RefType::RefType(Arena& arena, const TypeVar* pointee, bool is_mut, size_t addr_space)
     : AddrType(arena, pointee, is_mut, addr_space), Node(arena)
-{
-    assert(pointee->is_var());
-}
+{}
 
-ImplicitParamType::ImplicitParamType(Arena& arena, const Type* underlying)
+ImplicitParamType::ImplicitParamType(Arena& arena, const TypeVar* underlying)
     : TypeDef(), Node(arena)
     , underlying(underlying)
 {
     assert(underlying->is_var());
 }
 
-FnType::FnType(Arena& arena, const Type* dom, const Type* codom)
+FnType::FnType(Arena& arena, const TypeVar* dom, const TypeVar* codom)
     : TypeDef(), dom(dom), codom(codom), Node(arena)
-{
-    assert(dom->is_var());
-    assert(codom->is_var());
-}
+{}
 
 BottomType::BottomType(Arena& arena)
     : TypeDef(), Node(arena)
@@ -350,8 +343,8 @@ size_t TypeApp::order(const Scope& scope, std::unordered_set<const Type*>& seen)
 }
 
 size_t TypeVar::order(const Scope& scope, std::unordered_set<const Type*>& seen) const {
-    auto resolved = scope.peek_type(this);
-    assert(resolved != this && "unknown order, there's a type var in the way");
+    auto resolved = resolve_type_def(scope, this);
+    // assert(resolved != this && "unknown order, there's a type var in the way");
     return resolved->order(scope, seen);
 }
 
@@ -382,8 +375,10 @@ void ImplicitParamType::variance(const Scope& scope, TypeVarMap<TypeVariance>& v
 }
 
 void TypeVar::variance(const Scope& scope, std::unordered_map<const TypeVar*, TypeVariance>& vars, bool dir) const {
-    if (auto resolved = scope.resolve_type_var(this))
+    // if the variable is bound to something, look up the variance of that thing
+    if (auto resolved = lookup_type(scope, this))
         return resolved->variance(scope, vars, dir);
+    // instead insert ourselves into the set
     if (auto it = vars.find(this); it != vars.end()) {
         bool var_dir = it->second == TypeVariance::Covariant ? true : false;
         if (var_dir != dir)
@@ -431,7 +426,7 @@ void FnType::bounds(const Scope& scope, std::unordered_map<const TypeVar*, TypeB
 }
 
 void TypeVar::bounds(const Scope& scope, std::unordered_map<const TypeVar*, TypeBounds>& bounds, const Type* type, bool dir) const {
-    if (auto resolved = scope.resolve_type_var(this))
+    if (auto resolved = lookup_type(scope, this))
         return resolved->bounds(scope, bounds, type, dir);
     TypeBounds type_bounds;
     if (dir)
@@ -506,7 +501,7 @@ bool TypeApp::is_sized(const Scope& scope, std::unordered_set<const Type*>& seen
 }
 
 bool TypeVar::is_sized(const Scope& scope, std::unordered_set<const Type*>& seen) const {
-    if (auto resolved = scope.resolve_type_var(this))
+    if (auto resolved = lookup_type(scope, this))
         return resolved->is_sized(scope, seen);
     // unknown types are assumed to be unsized
     return false;
@@ -593,7 +588,7 @@ std::string_view StructType::member_name(size_t i) const {
     return names[i];
 }
 
-const Type* StructType::member_type(size_t i) const {
+const TypeVar* StructType::member_type(size_t i) const {
     return members[i];
 }
 
@@ -607,7 +602,7 @@ std::string_view EnumType::member_name(size_t i) const {
     return "_" + std::to_string(i);
 }
 
-const Type* EnumType::member_type(size_t i) const {
+const TypeVar* EnumType::member_type(size_t i) const {
     return members[i];
 }
 
@@ -623,40 +618,49 @@ size_t EnumType::member_count() const {
 
 // Misc. ---------------------------------------------------------------------------
 
-static inline bool is_subtype(const Scope& start_scope, const Type* t, const Type* other) {
+bool is_subtype_def(const Scope& scope, const TypeDef* t, const TypeDef* other);
+
+bool is_subtype(const Scope& start_scope, const Type* t, const Type* other) {
     const Scope* lhs_scope = &start_scope;
     const Scope* rhs_scope = &start_scope;
-    while (auto var = t->isa<TypeVar>()) {
-        auto [resolved, resolved_scope] = lhs_scope->resolve_var_deep_return_scope(var);
-        if (!resolved || !resolved->isa<Type>()) {
-            break;
-        }
-        t = resolved->as<Type>();
+    if (auto t_var = t->isa<TypeVar>()) {
+        auto [var, def, resolved_scope] = lhs_scope->lookup_def_deep(t_var);
+        if (def)
+            t = def->as<TypeDef>();
+        else
+            t = var->as<TypeVar>();
         lhs_scope = &resolved_scope;
     }
-    while (auto var = other->isa<TypeVar>()) {
-        auto [resolved, resolved_scope] = rhs_scope->resolve_var_deep_return_scope(var);
-        if (!resolved || !resolved->isa<Type>()) {
-            break;
-        }
-        other = resolved->as<Type>();
+    if (auto other_var = other->isa<TypeVar>()) {
+        auto [var, def, resolved_scope] = rhs_scope->lookup_def_deep(other_var);
+        if (def)
+            other = def->as<TypeDef>();
+        else
+            other = var->as<TypeVar>();
         rhs_scope = &resolved_scope;
     }
-
-    // after this point we never want to see unresolved ModVars
-    // if(t->isa<ModVarAsType>() || other->isa<ModVarAsType>())
-    //     return false;
 
     const Scope* joint_scope = unify_scopes(lhs_scope, rhs_scope);
     // if the resolved scopes aren't unifiable, the two types cannot be compatible
     if (!joint_scope)
         return false;
 
+    if (auto t_def = t->isa<TypeDef>()) {
+        if (auto other_def = t->isa<TypeDef>()) {
+            if (is_subtype_def(*joint_scope, t_def, other_def))
+                return true;
+        }
+    }
+
+    return t == other;
+}
+
+bool is_subtype_def(const Scope& scope, const TypeDef* t, const TypeDef* other) {
     if (t == other || t->isa<BottomType>() || other->isa<TopType>())
         return true;
 
     if (auto implicit = other->isa<ImplicitParamType>())
-        return is_subtype(*joint_scope, t, implicit->underlying) || is_unit_type(t);
+        return is_subtype(scope, t, implicit->underlying) || is_unit_type(t);
 
     auto other_ptr_type = other->isa<PtrType>(); 
 
@@ -665,31 +669,31 @@ static inline bool is_subtype(const Scope& start_scope, const Type* t, const Typ
     if (other_ptr_type &&
         !other_ptr_type->is_mut &&
         other_ptr_type->addr_space == 0 &&
-        is_subtype(*joint_scope, t, other_ptr_type->pointee))
+        is_subtype(scope, t, other_ptr_type->pointee))
         return true;
 
     if (auto ref_type = t->isa<RefType>()) {
         // ref U <: &T if U <: T
         if (other_ptr_type &&
             ref_type->is_compatible_with(other_ptr_type) &&
-            is_subtype(*joint_scope, ref_type->pointee, other_ptr_type->pointee))
+            is_subtype(scope, ref_type->pointee, other_ptr_type->pointee))
             return true;
         // ref U <: T if U <: T
-        return is_subtype(*joint_scope, ref_type->pointee, other);
+        return is_subtype(scope, ref_type->pointee, other);
     } else if (auto ptr_type = t->isa<AddrType>(); ptr_type && other_ptr_type && ptr_type->is_compatible_with(other_ptr_type)) {
         // &U <: &T if U <: T
         // &mut U <: &T if U <: T
-        return is_subtype(*joint_scope, ptr_type->pointee, other_ptr_type->pointee);
+        return is_subtype(scope, ptr_type->pointee, other_ptr_type->pointee);
     } else if (auto sized_array_type = t->isa<SizedArrayType>(); sized_array_type && !sized_array_type->is_simd) {
         // [U * N] <: [T] if U <: T
         if (auto other_array_type = other->isa<UnsizedArrayType>())
-            return is_subtype(*joint_scope, sized_array_type->elem, other_array_type->elem);
+            return is_subtype(scope, sized_array_type->elem, other_array_type->elem);
     } else if (auto tuple_type = t->isa<TupleType>()) {
         if (auto other_tuple_type = other->isa<TupleType>();
             other_tuple_type && other_tuple_type->args.size() == tuple_type->args.size()) {
             // (U1, ..., Un) <: (T1, ..., Tn) if U1 <: T1 and ... and Un <: Tn
             for (size_t i = 0, n = tuple_type->args.size(); i < n; ++i) {
-                if (!is_subtype(*joint_scope, tuple_type->args[i], other_tuple_type->args[i]))
+                if (!is_subtype(scope, tuple_type->args[i], other_tuple_type->args[i]))
                     return false;
             }
             return true;
@@ -698,8 +702,8 @@ static inline bool is_subtype(const Scope& start_scope, const Type* t, const Typ
         if (auto other_fn_type = other->isa<FnType>()) {
             // fn (V) -> W <: fn (T) -> U if T <: V and W <: U
             return
-                is_subtype(*joint_scope, other_fn_type->dom, fn_type->dom) &&
-                is_subtype(*joint_scope, fn_type->codom, other_fn_type->codom);
+                is_subtype(scope, other_fn_type->dom, fn_type->dom) &&
+                is_subtype(scope, fn_type->codom, other_fn_type->codom);
         }
     }
     return false;
@@ -768,35 +772,56 @@ bool is_float_type(const Type* type) {
     return false;
 }
 
-bool is_int_or_float_type(const Type* type) {
+bool is_int_or_float_type(const TypeDef* type) {
     return is_int_type(type) || is_float_type(type);
 }
 
-bool is_prim_type(const Type* type, ast::PrimType::Tag tag) {
+bool is_prim_type(const TypeDef* type, ast::PrimType::Tag tag) {
     return type->isa<PrimType>() && type->as<PrimType>()->tag == tag;
 }
 
-bool is_simd_type(const Type* type) {
+bool is_simd_type(const TypeDef* type) {
     return type->isa<SizedArrayType>() && type->as<SizedArrayType>()->is_simd;
 }
 
-bool is_unit_type(const Type* type) {
+bool is_unit_type(const TypeDef* type) {
     return type->isa<TupleType>() && type->as<TupleType>()->args.empty();
 }
 
-std::pair<const PtrType*, const Type*> remove_ptr(const Scope& scope, const Type* type) {
-    if (auto ref_type = scope.peek_type(type)->isa<PtrType>())
+std::pair<const PtrType*, const TypeVar*> remove_ptr(const Scope& scope, const TypeVar* type) {
+    if (auto ref_type = resolve_type_def(scope, type)->isa<PtrType>())
         return std::make_pair(ref_type, ref_type->pointee);
     return std::make_pair(nullptr, type);
 }
 
-std::pair<const RefType*, const Type*> remove_ref(const Scope& scope, const Type* type) {
-    if (auto ref_type = scope.peek_type(type)->isa<RefType>())
+std::pair<const RefType*, const TypeVar*> remove_ref(const Scope& scope, const TypeVar* type) {
+    if (auto ref_type = resolve_type_def(scope, type)->isa<RefType>())
         return std::make_pair(ref_type, ref_type->pointee);
     return std::make_pair(nullptr, type);
 }
 
-std::pair<const TypeApp*, const Type*> peek_app_type_applied_generic(Builder& builder, const Type* type) {
+
+std::tuple<const TypeApp*, const Type*> match_type_app_applied_generic(Builder& b, const TypeDef* maybe_type_app) {
+    auto [app, body, scope] = match_app_unapplied(b.scope, maybe_type_app);
+    if (auto type_app = app->isa<TypeApp>()) {
+        return { type_app, type_app->instantiated(b) };
+    }
+    return { nullptr, maybe_type_app };
+}
+
+std::tuple<const TypeApp*, const TypeDef*> resolve_type_app_applied_generic(Builder& b, const TypeDef* maybe_type_app) {
+    auto [app, body, scope] = match_app_unapplied(b.scope, maybe_type_app);
+    if (auto type_app = app->isa<TypeApp>()) {
+        auto instantiated = type_app->instantiated(b);
+        if (auto type_def = instantiated->isa<TypeDef>())
+            return { type_app, type_def };
+        auto type_def = resolve_type_def(scope, instantiated->as<TypeVar>());
+        return { type_app, type_def };
+    }
+    return { nullptr, maybe_type_app };
+}
+
+/*std::pair<const TypeApp*, const Type*> peek_app_type_applied_generic(Builder& builder, const TypeDef* type) {
     auto [app, n] = match_app_applied(builder, type);
     auto t = builder.scope.peek_type(n->as<Type>());
     if (!app)
@@ -811,7 +836,7 @@ std::tuple<const TypeApp*, const Type*, const Scope&> peek_app_type_unapplied_ge
     if (!app)
         return { nullptr, pt, pts };
     return { app->as<TypeApp>(), pt, pts };
-}
+}*/
 
 } // namespace tir
 

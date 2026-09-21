@@ -69,26 +69,26 @@ public:
 
     const tir::Key* infer_key(ast::NamedDecl&);
 
-    const Value* build_block(ast::BlockExpr&, const Type* expected, size_t i);
+    const Value* build_block(ast::BlockExpr&, const TypeVar* expected, size_t i);
 
     const tir::Value* infer_value(ast::Expr& ast);
     const tir::Value* infer_value(ast::Stmt& ast);
-    const tir::Value* check_value(ast::Expr&, const Type*);
-    const tir::Value* check_value(ast::Stmt&, const Type*);
+    const tir::Value* check_value(ast::Expr&, const TypeVar*);
+    const tir::Value* check_value(ast::Stmt&, const TypeVar*);
     /// Filters always have bool as their type.
     const tir::Value* check_filter(ast::Filter&);
 
-    const tir::Type* infer_type(ast::Type& ast);
-    const tir::Type* infer_type(ast::FieldDecl&);
-    const tir::Node* infer_option(ast::OptionDecl&);
-    const tir::Type* infer_type(ast::TypeParam&);
+    const tir::TypeVar* infer_type(ast::Type& ast);
+    const tir::TypeVar* infer_type(ast::FieldDecl&);
+    const tir::Var* infer_option(ast::OptionDecl&);
+    const tir::TypeVar* infer_type(ast::TypeParam&);
 
-    const tir::Type* infer_ptrn(ast::Ptrn&, Ptr<ast::Expr>&);
-    const tir::Type* check_ptrn(ast::Ptrn&, const Type*);
-    const tir::Type* infer_ptrn(ast::Ptrn& ast);
+    const tir::TypeVar* infer_ptrn(ast::Ptrn&, Ptr<ast::Expr>&);
+    const tir::TypeVar* check_ptrn(ast::Ptrn&, const TypeVar*);
+    const tir::TypeVar* infer_ptrn(ast::Ptrn& ast);
 
     const tir::ValueVar* infer_ptrn_decl(ast::PtrnDecl& ast);
-    const tir::ValueVar* check_ptrn_decl(ast::PtrnDecl& ast, const Type*);
+    const tir::ValueVar* check_ptrn_decl(ast::PtrnDecl& ast, const TypeVar*);
 
     const tir::TypeVar* infer_type_param(ast::TypeParam& ast);
     // const tir::ModVar* check_type_param(ast::TypeParam& ast, const Type*);
@@ -165,9 +165,9 @@ public:
     void check_refutability(const ast::Ptrn&, bool);
 
     template <typename InferElems>
-    const Type* infer_array(const Loc&, const std::string_view&, size_t, bool, const InferElems&);
+    const TypeVar* infer_array(const Loc&, const std::string_view&, size_t, bool, const InferElems&);
     template <typename CheckElems>
-    const Type* check_array(const Loc&, const std::string_view&, const Type*, size_t, bool, const CheckElems&);
+    const TypeVar* check_array(const Loc&, const std::string_view&, const TypeVar*, size_t, bool, const CheckElems&);
 
     bool try_infer_type_args(const Loc&, ArrayRef<const Var*>, TypeVarMap<TypeBounds>& bounds, TypeVarMap<TypeVariance>& variance, std::vector<const Node*>&, bool);
     bool infer_fn_args(const Loc&, const ValueCtor*, const Type*, const Type*, std::vector<const Node*>&);

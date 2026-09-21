@@ -26,9 +26,17 @@ struct Scope {
     bool is_in_scope(const Var* var) const;
 
     /// resolves one step of let-binding
-    const Node* resolve_var(const Var* var) const;
-    /// Resolves N steps of let bindings, returns the last one entered (if any) and its corresponding value
-    std::tuple<const Var*, const Node*> resolve_var_rec(const Var* var) const;
+    const Node* lookup(const Var* var) const;
+    /// Resolves N steps of let bindings, returns the last one entered (if any) and its corresponding def
+    std::tuple<const Var*, const Def*> lookup_def(const Var* var) const;
+    /// Resolves N steps of let bindings, returns the last one entered (if any) and its corresponding def
+    /// Also enters bodies of LetRecs and returns the innermost scope that was entered
+    std::tuple<const Var*, const Def*, const Scope&> lookup_def_deep(const Var* var) const;
+
+    const Def* resolve_def(const Var* var) const;
+    std::tuple<const Def*, const Scope&> resolve_def_deep(const Var* var) const;
+
+    /*
     /// resolves N steps of let bindings, and enters ModAccesses too
     /// Careful! the resulting node might not be in this scope!
     std::tuple<const Node*, const Scope&> resolve_var_deep_return_scope(const Var*) const;
@@ -42,7 +50,7 @@ struct Scope {
     const Node* resolve_deep(const Node* n) const {
         auto [r, _] = resolve_deep_return_scope(n);
         return r;
-    }
+    }*/
 
     /// Tries to resolve a type by following the let-bindings in this scope
     // const Type* resolve_type(const Type* type) const;
@@ -50,20 +58,20 @@ struct Scope {
     // const Value* resolve_value(const Value*) const;
 
     /// Tries to resolve a type by following the let-bindings in this scope and entering ModAccesses
-    const Type* peek_type(const Type* type) const;
-    std::tuple<const Type*, const Scope&> peek_type_return_scope(const Type* type) const;
+    //const Type* peek_type(const Type* type) const;
+    //std::tuple<const Type*, const Scope&> peek_type_return_scope(const Type* type) const;
 
-    const Mod* peek_mod_value(const Mod*) const;
+    /*const Mod* peek_mod_value(const Mod*) const;
     const Value* peek_value(const Value*) const;
     const Ctor* peek_ctor(const Ctor* sig) const;
     const Sig* peek_sig(const Sig* sig) const;
 
     const Ctor* resolve_ctor(const CtorVar*) const;
-    std::tuple<const Ctor*, const Scope&> resolve_ctor_return_scope(const CtorVar*) const;
-    const Sig* resolve_sig(const SigVar*) const;
-    const Type* resolve_type_var(const TypeVar*) const;
+    std::tuple<const CtorDef*, const Scope&> resolve_ctor_return_scope(const CtorVar*) const;
+    const Sig* resolve_sig(const SigVar*) const;*/
+    //const Type* resolve_type_var(const TypeVar*) const;
 
-    const Type* member_count(const Type*, size_t);
+    //const Type* member_count(const Type*, size_t);
 
     Scope& new_child();
     void insert(const Var*, const Node*);
