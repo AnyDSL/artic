@@ -35,15 +35,18 @@ struct GC : public Rewriter {
                     progress = true;
                     continue;
                 }
-                auto def = instantiate(oval, false);
-                auto fvs = def->free_variables();
-                if (schedulable(fvs)) {
-                    auto [_, dst] = builder.locate(def);
-                    assert(dst);
-                    dst->bind(lookup(ovar)->as<Var>(), def);
-                } else {
-                    builder.bind(lookup(ovar)->as<Var>(), def);
-                }
+                auto var = lookup(ovar)->as<Var>();
+                auto instantiated = builder.maybe_schedule(instantiate(oval, false));
+                auto dst = builder.find_builder_for_scope(instantiated->binder);
+                dst->bind(var, instantiated);
+                // auto fvs = instantiated->free_variables();
+                // if (schedulable(fvs)) {
+                //     auto [_, dst] = builder.locate(def);
+                //     assert(dst);
+                //     dst->bind(lookup(ovar)->as<Var>(), def);
+                // } else {
+                //     builder.bind(lookup(ovar)->as<Var>(), def);
+                // }
             }
             if (auto value = let_rec->isa<LetRecValue>())
                 return builder.finish_value(instantiate(value->body(), false));

@@ -118,10 +118,13 @@ struct TypeExtractor : public Rewriter {
                     insert(ovar, instantiate(ovar, true));
                 }
                 for (auto [ovar, oval] : letrec->vars) {
-                    auto def = instantiate(oval, false);
-                    auto [_, dst] = builder.locate(def);
-                    assert(dst);
-                    dst->bind(lookup(ovar)->as<Var>(), def);
+                    auto var = lookup(ovar)->as<Var>();
+                    auto instantiated = builder.maybe_schedule(instantiate(oval, false));
+                    auto dst = builder.find_builder_for_scope(instantiated->binder);
+                    dst->bind(var, instantiated);
+                    // auto [_, dst] = builder.locate(def);
+                    // assert(dst);
+                    // dst->bind(lookup(ovar)->as<Var>(), def);
                 }
                 return builder.finish_type(instantiate(letrec->body()->type(), false));
             }
@@ -139,7 +142,7 @@ ValueApp::ValueApp(Builder& builder, const CtorVar* ctor_var, const ArrayRef<con
         for (size_t i = 0; i < args.size(); i++) {
             replacer.insert(ctor->params[i], args[i]);
         }
-        return builder.enclosing_let_rec().schedule_type(replacer.instantiate<Node, Type>(ctor->body(), false));
+        return builder.enclosing_let_rec().maybe_schedule_type(replacer.instantiate<Node, Type>(ctor->body(), false));
     }()) {
 }
 

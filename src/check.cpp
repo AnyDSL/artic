@@ -104,7 +104,7 @@ const Match::Ptrn* TypeChecker::convert_ptrn(const ast::Ptrn& ptrn) {
 }
 
 void TypeChecker::bind_ptrn_params(ast::Ptrn& ptrn, const ValueVar* value) {
-    auto& b = let_rec_builder();
+    auto& b = builder().enclosing_let_rec();
     auto& eb = expr_builder();
 
     if (auto tuple_ptrn = ptrn.isa<ast::TuplePtrn>()) {
@@ -166,13 +166,14 @@ const Value* TypeChecker::build_fn_body(const ValueVar* param, ast::FnExpr& fn, 
         else
             return deref(fn.body);
     };
+    auto& b = builder().enclosing_let_rec();
 
     if (codom) {
         assert(codom->is_var());
         return yield_expr_scope([&]() -> const Value* {
             bind_ptrn_params(*fn.param, param);
-            auto yield_fn_type = let_rec_builder().fn_type(codom, let_rec_builder().no_ret_type());
-            auto yield_param = builder().value_var(ast::Identifier { fn.loc, "ret" }, yield_fn_type);
+            auto yield_fn_type = b.fn_type(codom, b.no_ret_type());
+            auto yield_param = b.value_var(ast::Identifier { fn.loc, "ret" }, yield_fn_type);
             fn.return_ = yield_param;
             auto control_fn = build_fn(yield_param, [&]() -> const Value* {
                 return yield_expr_scope([&] -> const Value* {
@@ -861,14 +862,15 @@ const TypeVar* TypeChecker::try_coerce(Ptr<ast::Expr>& expr, const TypeVar* expe
 }
 
 const TypeVar* TypeChecker::join(Ptr<ast::Expr>& left, Ptr<ast::Expr>& right, ExprBuilder& left_builder, ExprBuilder& right_builder) {
+    auto& b = builder().enclosing_let_rec();
     auto left_type  = with_expr_builder(left_builder, [&] { return deref(left); })->type();
     auto right_type = with_expr_builder(right_builder, [&] { return deref(right); })->type();
     auto type = left_type->join(builder().enclosing_let_rec(), scope(), right_type);
     if (type->isa<TopType>()) {
         incompatible_types(right->loc, right_type, left_type);
-        return let_rec_builder().type_error();
+        return b.type_error();
     }
-    auto type_var = type->isa<TypeVar>() ? type->as<TypeVar>() : builder().enclosing_let_rec().schedule_type(type);
+    auto type_var = type->isa<TypeVar>() ? type->as<TypeVar>() : builder().enclosing_let_rec().maybe_schedule_type(type);
     with_expr_builder(left_builder, [&] { return coerce(&*left, type_var); });
     with_expr_builder(right_builder, [&] { return coerce(&*right, type_var); });
     return type_var;
@@ -1132,7 +1134,7 @@ const tir::TypeVar* TypeChecker::infer_ptrn(ast::Ptrn& ptrn, Ptr<ast::Expr>& exp
 }
 
 const tir::ValueVar* TypeChecker::infer(const Loc&, const Literal& lit) {
-    auto& b = let_rec_builder();
+    auto& b = builder().enclosing_let_rec();
     // These are defaults for when there is no type annotation on the literal.
     if (lit.is_integer())
         return b.typed_literal(lit, b.prim_type(ast::PrimType::I32));
@@ -1154,7 +1156,7 @@ const tir::ValueVar* TypeChecker::infer(const Loc&, const Literal& lit) {
 }
 
 const tir::ValueVar* TypeChecker::check(const Loc& loc, const Literal& lit, const TypeVar* expected) {
-    auto& b = let_rec_builder();
+    auto& b = builder().enclosing_let_rec();
     const TypeApp* _ = nullptr;
     auto expected_def = resolve_type_def(scope(), expected);
     if (expected->isa<NoRetType>())
@@ -1936,21 +1938,24 @@ void AttrList::check(TypeChecker& checker, const ast::Node* parent) {
 // Types ---------------------------------------------------------------------------
 
 const tir::Var* PrimType::infer(TypeChecker& checker) {
-    return checker.let_rec_builder().prim_type(tag);
+    auto& b = checker.builder().enclosing_let_rec();
+    return b.prim_type(tag);
 }
 
 const tir::Var* TupleType::infer(TypeChecker& checker) {
+    auto& b = checker.builder().enclosing_let_rec();
     SmallArray<const artic::TypeVar*> arg_types(args.size());
     for (size_t i = 0, n = args.size(); i < n; ++i)
         arg_types[i] = checker.infer_type(*args[i]);
-    return checker.let_rec_builder().tuple_type(arg_types);
+    return b.tuple_type(arg_types);
 }
 
 const tir::Var* SizedArrayType::infer(TypeChecker& checker) {
+    auto& b = checker.builder().enclosing_let_rec();
     auto elem_type = checker.infer_type(*elem);
     if (is_simd && !(elem_type->template isa<artic::PrimType>() || elem_type->template isa<artic::PtrType>())) {
         checker.invalid_simd(loc, elem_type);
-        return checker.let_rec_builder().type_error();
+        return b.type_error();
     }
 
     if (std::holds_alternative<ast::Path>(size)) {
@@ -1959,29 +1964,32 @@ const tir::Var* SizedArrayType::infer(TypeChecker& checker) {
         size = checker.resolve_integer_constant(path.loc, value, &path, "sized array size");
     }
 
-    return checker.let_rec_builder().sized_array_type(elem_type, std::get<size_t>(size), is_simd);
+    return b.sized_array_type(elem_type, std::get<size_t>(size), is_simd);
 }
 
 const tir::Var* UnsizedArrayType::infer(TypeChecker& checker) {
-    auto type = checker.let_rec_builder().unsized_array_type(checker.infer_type(*elem));
+    auto& b = checker.builder().enclosing_let_rec();
+    auto type = b.unsized_array_type(checker.infer_type(*elem));
     checker.error(loc, "unsized array types cannot be used directly");
-    checker.note("use '{}' instead", *checker.let_rec_builder().ptr_type(type, false, 0));
-    return checker.let_rec_builder().type_error();
+    checker.note("use '{}' instead", *b.ptr_type(type, false, 0));
+    return b.type_error();
 }
 
 const tir::Var* FnType::infer(TypeChecker& checker) {
+    auto& b = checker.builder().enclosing_let_rec();
     if (to->isa<ast::NoCodomType>())
-        return checker.let_rec_builder().cn_type(checker.infer_type(*from));
-    return checker.let_rec_builder().fn_type(checker.infer_type(*from), checker.infer_type(*to));
+        return b.cn_type(checker.infer_type(*from));
+    return b.fn_type(checker.infer_type(*from), checker.infer_type(*to));
 }
 
 const tir::Var* PtrType::infer(TypeChecker& checker) {
+    auto& b = checker.builder().enclosing_let_rec();
     const tir::TypeVar* pointee_type = nullptr;
     if (auto unsized_array_type = pointee->isa<UnsizedArrayType>())
-        pointee_type = checker.let_rec_builder().unsized_array_type(checker.infer_type(*unsized_array_type->elem));
+        pointee_type = b.unsized_array_type(checker.infer_type(*unsized_array_type->elem));
     else
         pointee_type = checker.infer_type(*pointee);
-    return checker.let_rec_builder().ptr_type(pointee_type, is_mut, addr_space);
+    return b.ptr_type(pointee_type, is_mut, addr_space);
 }
 
 const tir::Var* TypeApp::infer(TypeChecker& checker) {
@@ -1989,7 +1997,8 @@ const tir::Var* TypeApp::infer(TypeChecker& checker) {
 }
 
 const tir::Var* NoCodomType::infer(TypeChecker& checker) {
-    return checker.let_rec_builder().no_ret_type();
+    auto& b = checker.builder().enclosing_let_rec();
+    return b.no_ret_type();
 }
 
 // Statements ----------------------------------------------------------------------
@@ -1999,18 +2008,21 @@ const tir::Var* LetStmt::infer(TypeChecker& checker) {
 }
 
 const tir::Var* LetStmt::check(TypeChecker& checker, const tir::TypeVar* expected) {
-    checker.expect(loc, checker.let_rec_builder().unit_type(), expected);
+    auto& b = checker.builder().enclosing_let_rec();
+    checker.expect(loc, b.unit_type(), expected);
     decl->infer(checker);
-    return checker.let_rec_builder().unit();
+    return b.unit();
 }
 
 const tir::Var* RecDeclsStmt::infer(TypeChecker& checker) {
-    return checker.let_rec_builder().unit();
+    auto& b = checker.builder().enclosing_let_rec();
+    return b.unit();
 }
 
 const tir::Var* RecDeclsStmt::check(TypeChecker& checker, const artic::TypeVar* expected) {
-    checker.expect(loc, checker.let_rec_builder().unit_type(), expected);
-    return checker.let_rec_builder().unit();
+    auto& b = checker.builder().enclosing_let_rec();
+    checker.expect(loc, b.unit_type(), expected);
+    return b.unit();
 }
 
 const tir::Var* ExprStmt::infer(TypeChecker& checker) {
@@ -2060,15 +2072,16 @@ const tir::Var* FieldExpr::check(TypeChecker& checker, const artic::TypeVar* exp
 }
 
 const tir::Var* RecordExpr::infer(TypeChecker& checker) {
+    auto& b = checker.builder().enclosing_let_rec();
     auto record_type = expr ? checker.deref(expr)->type() : path->infer_record_constructor(checker);
     if (!record_type)
-        return checker.let_rec_builder().error_value(checker.let_rec_builder().type_error());
+        return b.error_value(b.type_error());
 
     auto [type_app, struct_type] = resolve_type_app_applied<artic::StructType>(checker.builder(), resolve_type_def(checker.scope(), record_type));
     if (!struct_type ||
         struct_type->is_tuple_like()) {
         checker.type_expected(expr ? expr->loc : this->loc, record_type, "record-like structure");
-        return checker.let_rec_builder().error_value();
+        return b.error_value();
     }
     auto check_fn = [&](ast::Expr& expr, const tir::TypeVar* type) { return checker.check_value(expr, type); };
     checker.check_fields(loc, struct_type, record_type, fields, check_fn, "expression", static_cast<bool>(expr), true);
@@ -2098,11 +2111,12 @@ const tir::Var* TupleExpr::infer(TypeChecker& checker) {
 }
 
 const tir::Var* TupleExpr::check(TypeChecker& checker, const artic::TypeVar* expected) {
+    auto& b = checker.builder().enclosing_let_rec();
     auto peek_expected = resolve_type_def(checker.scope(), expected);
     if (auto tuple_type = peek_expected->isa<artic::TupleType>()) {
         if (args.size() != tuple_type->args.size()) {
             checker.bad_arguments(loc, "tuple expression", args.size(), tuple_type->args.size());
-            return checker.let_rec_builder().error_value(expected);
+            return b.error_value(expected);
         }
         SmallArray<const artic::ValueVar*> tir_args(args.size());
         for (size_t i = 0, n = args.size(); i < n; ++i)
@@ -2110,10 +2124,11 @@ const tir::Var* TupleExpr::check(TypeChecker& checker, const artic::TypeVar* exp
         return checker.expr_builder().tuple(tir_args);
     }
     checker.incompatible_type(loc, "tuple expression", expected);
-    return checker.let_rec_builder().error_value(expected);
+    return b.error_value(expected);
 }
 
 const tir::Var* ArrayExpr::infer(TypeChecker& checker) {
+    auto& b = checker.builder().enclosing_let_rec();
     auto agg_t = checker.infer_array(loc, "array expression", elems.size(), is_simd, [&] {
         auto elem_type = checker.deref(elems.front())->type();
         for (size_t i = 1, n = elems.size(); i < n; ++i)
@@ -2121,7 +2136,7 @@ const tir::Var* ArrayExpr::infer(TypeChecker& checker) {
         return elem_type;
     });
     if (agg_t->isa<TypeError>())
-        return checker.let_rec_builder().error_value(agg_t);
+        return b.error_value(agg_t);
     Array<const ValueVar*> ops(elems.size());
     for (size_t i = 0, n = elems.size(); i < n; ++i)
         ops[i] = elems[i]->value;
@@ -2129,13 +2144,14 @@ const tir::Var* ArrayExpr::infer(TypeChecker& checker) {
 }
 
 const tir::Var* ArrayExpr::check(TypeChecker& checker, const artic::TypeVar* expected) {
+    auto& b = checker.builder().enclosing_let_rec();
     auto agg_t = checker.check_array(loc, "array expression",
         expected, elems.size(), is_simd, [&] (auto elem_type) {
         for (auto& elem : elems)
             checker.coerce(&*elem, elem_type);
     });
     if (agg_t->isa<TypeError>())
-        return checker.let_rec_builder().error_value(expected);
+        return b.error_value(expected);
     Array<const ValueVar*> ops(elems.size());
     for (size_t i = 0, n = elems.size(); i < n; ++i)
         ops[i] = elems[i]->value;
@@ -2143,11 +2159,12 @@ const tir::Var* ArrayExpr::check(TypeChecker& checker, const artic::TypeVar* exp
 }
 
 const tir::Var* RepeatArrayExpr::infer(TypeChecker& checker) {
+    auto& b = checker.builder().enclosing_let_rec();
     auto elem = checker.deref(this->elem);
     auto peeked_elem_t = resolve_type_def(checker.scope(), elem->type());
     if (is_simd && !(peeked_elem_t->template isa<artic::PrimType>() || peeked_elem_t->template isa<artic::PtrType>())) {
         checker.invalid_simd(loc, peeked_elem_t);
-        return checker.let_rec_builder().error_value();
+        return b.error_value();
     }
 
     if (std::holds_alternative<ast::Path>(size)) {
@@ -2156,10 +2173,11 @@ const tir::Var* RepeatArrayExpr::infer(TypeChecker& checker) {
         size = checker.resolve_integer_constant(path.loc, value, &path, "repeat array expression size");
     }
 
-    return checker.expr_builder().repeat(checker.let_rec_builder().sized_array_type(elem->type(), std::get<size_t>(size), is_simd), elem);
+    return checker.expr_builder().repeat(b.sized_array_type(elem->type(), std::get<size_t>(size), is_simd), elem);
 }
 
 const tir::Var* RepeatArrayExpr::check(TypeChecker& checker, const artic::TypeVar* expected) {
+    auto& b = checker.builder().enclosing_let_rec();
     if (std::holds_alternative<ast::Path>(size)) {
         auto &path = std::get<ast::Path>(size);
         auto value = path.infer(checker, NodeKind::Value)->as<ValueVar>();
@@ -2171,12 +2189,13 @@ const tir::Var* RepeatArrayExpr::check(TypeChecker& checker, const artic::TypeVa
         checker.coerce(&*elem, elem_type);
     });
     if (type->isa<TypeError>())
-        return checker.let_rec_builder().error_value(expected);
+        return b.error_value(expected);
     assert(elem->value);
     return checker.expr_builder().repeat(type, elem->value);
 }
 
 const tir::Var* FnExpr::infer(TypeChecker& checker) {
+    auto& b = checker.builder().enclosing_let_rec();
     auto codom = ret_type ? checker.infer_type(*ret_type) : nullptr;
     auto param = checker.builder().value_var(Identifier { this->param->loc, "param" }, checker.infer_ptrn(*this->param));
     checker.check_refutability(*this->param, true);
@@ -2195,7 +2214,7 @@ const tir::Var* FnExpr::infer(TypeChecker& checker) {
     }
     if (!codom) {
         checker.cannot_infer(loc, "function");
-        return checker.let_rec_builder().error_value();
+        return b.error_value();
     }
     auto fn = checker.builder().unsafe().function(param, fn_scope, codom, decl);
     if (body)
@@ -2209,10 +2228,11 @@ const tir::Var* FnExpr::infer(TypeChecker& checker) {
 }
 
 const tir::Var* FnExpr::check(TypeChecker& checker, const artic::TypeVar* expected) {
+    auto& b = checker.builder().enclosing_let_rec();
     auto fn_t = resolve_type_def(checker.scope(), expected)->isa<tir::FnType>();
     if (!fn_t) {
         checker.incompatible_type(loc, "function", expected);
-        return checker.let_rec_builder().error_value();
+        return b.error_value();
     }
     auto dom = fn_t->dom;
     auto codom = fn_t->codom;
@@ -2225,7 +2245,7 @@ const tir::Var* FnExpr::check(TypeChecker& checker, const artic::TypeVar* expect
     if (body_type != codom) {
         assert(ret_type);
         checker.incompatible_types(ret_type->loc, body_type, codom, "return type");
-        return checker.let_rec_builder().error_value(expected);
+        return b.error_value(expected);
     }
 
     Builder& prev = checker.builder();
@@ -2248,19 +2268,21 @@ const tir::Var* FnExpr::check(TypeChecker& checker, const artic::TypeVar* expect
 }
 
 const tir::Var* BlockExpr::infer(TypeChecker& checker) {
+    auto& b = checker.builder().enclosing_let_rec();
     if (stmts.empty())
-        return checker.let_rec_builder().unit();
+        return b.unit();
 
     return checker.build_block(*this, nullptr, 0);
 }
 
 const tir::Var* BlockExpr::check(TypeChecker& checker, const artic::TypeVar* expected) {
+    auto& b = checker.builder().enclosing_let_rec();
     if (stmts.empty()) {
         if (!is_unit_type(resolve_type_def(checker.scope(), expected))) {
             checker.incompatible_type(loc, "empty block expression", expected);
-            return checker.let_rec_builder().error_value();
+            return b.error_value();
         }
-        return checker.let_rec_builder().unit();
+        return b.unit();
     }
 
     return checker.build_block(*this, expected, 0);
@@ -2570,7 +2592,7 @@ const tir::Var* WhileExpr::infer(TypeChecker& checker) {
         auto head_fn_type = b.fn_type(b.unit_type(), b.no_ret_type());
         auto head_fn_var = b.value_var(ast::Identifier { loc, "while_head" }, head_fn_type);
 
-        auto wrapped_body = rec_builder.schedule_value(inner_maker(b.unit_type(), make_inner));
+        auto wrapped_body = rec_builder.maybe_schedule_value(inner_maker(b.unit_type(), make_inner));
         auto head_fn = checker.build_fn(b.value_var(ast::Identifier { loc, "_" }, b.unit_type()), [&]() -> const Value* {
             return checker.yield_expr_scope([&]() -> const Value* {
                 checker.expr_builder().call(wrapped_body, b.unit());
@@ -3029,14 +3051,14 @@ const tir::Var* LetDecl::infer(TypeChecker& checker) {
     if (init) {
         checker.infer_ptrn(*ptrn, init);
         checker.bind_ptrn_params(*ptrn, init->value);
-        return checker.let_rec_builder().unit();
+        return checker.builder().enclosing_let_rec().unit();
     } else {
         auto ptrn_type = checker.infer_ptrn(*ptrn);
         checker.bind_ptrn_params(*ptrn, checker.let_rec_builder().undef(ptrn_type));
-        return checker.let_rec_builder().unit();
+        return checker.builder().enclosing_let_rec().unit();
     }
     checker.check_refutability(*ptrn, true);
-    return checker.let_rec_builder().unit();
+    return checker.builder().enclosing_let_rec().unit();
 }
 
 const tir::Var* ImplicitDecl::infer(TypeChecker& checker) {
@@ -3095,7 +3117,7 @@ const tir::Var* StaticDecl::infer(TypeChecker& checker) {
         value_type = value->type();
     } else {
         checker.cannot_infer(loc, "static variable");
-        var = checker.let_rec_builder().schedule_value(checker.let_rec_builder().error_value());
+        var = checker.let_rec_builder().error_value();
         return var;
     }
     if (init && !init->is_constant())
@@ -3157,7 +3179,7 @@ const tir::Var* FnDecl::infer(TypeChecker& checker) {
             var->binder = &builder.scope;
             set_head(var);
             this->var = self;
-            tir_fn = checker.infer_value(*fn)->as<tir::Function>();
+            tir_fn = resolve_value_def(checker.scope(), checker.infer_value(*fn))->as<tir::Function>();
             checker.let_rec_builder().bind(fn_type_var, tir_fn->type());
             checker.let_rec_builder().bind(var, tir_fn);
             checker.infer_fn_attrs(this, tir_fn);
@@ -3262,7 +3284,7 @@ const tir::Var* StructDecl::ctor_or_default_value(TypeChecker& checker) const {
             auto default_value = builder.yield_expr_scope([&](ExprBuilder& expr_builder) -> const Value* {
                 return expr_builder.agg(self_type, {});
             });
-            return builder.schedule_value(default_value);
+            return builder.maybe_schedule_value(default_value);
         }
     });
     return ctor_or_default_value_;
@@ -3413,7 +3435,7 @@ const tir::Var* OptionDecl::ctor_or_default_value(TypeChecker& checker) const {
             auto default_value = builder.yield_expr_scope([&](ExprBuilder& expr_builder) -> const Value* {
                 return expr_builder.variant(self_type, index, expr_builder.enclosing_let_rec().unit());
             });
-            return builder.schedule_value(default_value);
+            return builder.maybe_schedule_value(default_value);
         }
     });
     return ctor_or_default_value_;
@@ -3556,7 +3578,7 @@ const tir::Var* UseDecl::infer(TypeChecker& checker) {
         var = inferred->var;
     }
     if (!var) {
-        var = checker.let_rec_builder().schedule_mod(checker.let_rec_builder().mod_error());
+        var = checker.let_rec_builder().mod_error();
     }
 
     checker.exit_decl(this);

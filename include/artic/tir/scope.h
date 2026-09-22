@@ -79,6 +79,7 @@ private:
 
     std::vector<std::unique_ptr<Scope>> child_scopes;
     std::unordered_map<const Var*, const Node*> vars;
+    std::unordered_map<const Def*, const Var*> bound_defs;
 
     void dump() const;
     int depth() const;

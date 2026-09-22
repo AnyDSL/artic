@@ -76,14 +76,16 @@ struct LowerApp : public Rewriter {
             assert(false);
         }
         instantiated_stuff.emplace(std::move(key), var);
-        auto def = builder().enclosing_let_rec().schedule(ctor->instantiate_with<LowerApp>(dst, args, builder().enclosing_let_rec(), *this));
-        auto def_fvset = def->Node::free_variables();
-        if (schedulable(def_fvset)) {
-            auto [_, dst] = builder().enclosing_let_rec().locate(def);
-            dst->bind(var, def);
-        } else {
-            builder().enclosing_let_rec().bind(var, def);
-        }
+        auto instantiated = builder().enclosing_let_rec().maybe_schedule(ctor->instantiate_with<LowerApp>(dst, args, builder().enclosing_let_rec(), *this));
+        auto dst = builder().find_builder_for_scope(instantiated->binder);
+        dst->bind(var, instantiated);
+        //auto def_fvset = def->Node::free_variables();
+        //if (schedulable(def_fvset)) {
+        //    auto [_, dst] = builder().enclosing_let_rec().locate(def);
+        //    dst->bind(var, def);
+        //} else {
+        //    builder().enclosing_let_rec().bind(var, def);
+        //}
         return var;
     }
 

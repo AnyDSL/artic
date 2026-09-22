@@ -170,7 +170,7 @@ const TypeVar* Builder::member_type(const TypeDef* type, size_t idx) {
         } else {
             // non-struct enum options are immediately specialized
             if (type_app && member_type_app) {
-                return this->enclosing_let_rec().schedule_type(unsafe().type_app(member_type_app->applicand(), type_app->args)->instantiated(*this));
+                return enclosing_let_rec().maybe_schedule_type(unsafe().type_app(member_type_app->applicand(), type_app->args)->instantiated(*this));
             }
         }
         return member_type;
@@ -258,7 +258,7 @@ const Mod* Builder::Unsafe::mod_mod_access(const ModVar* src, const Key* key) {
 }
 
 const ModVar* LetRecBuilder::mod_mod_access(const ModVar* src, const Key* key) {
-    return schedule(unsafe().mod_mod_access(src, key))->as<ModVar>();
+    return maybe_schedule_mod(unsafe().mod_mod_access(src, key));
 }
 
 const Type* Builder::Unsafe::mod_type_access(const ModVar* src, const Key* key) {
@@ -272,7 +272,7 @@ const Type* Builder::Unsafe::mod_type_access(const ModVar* src, const Key* key) 
 }
 
 const TypeVar* LetRecBuilder::mod_type_access(const ModVar* src, const Key* key) {
-    return schedule(unsafe().mod_type_access(src, key))->as<TypeVar>();
+    return maybe_schedule_type(unsafe().mod_type_access(src, key));
 }
 
 const Value* Builder::Unsafe::mod_value_access(const ModVar* src, const Key* key) {
@@ -286,10 +286,10 @@ const Value* Builder::Unsafe::mod_value_access(const ModVar* src, const Key* key
 }
 
 const ValueVar* LetRecBuilder::mod_value_access(const ModVar* src, const Key* key) {
-    return schedule(unsafe().mod_value_access(src, key))->as<ValueVar>();
+    return maybe_schedule_value(unsafe().mod_value_access(src, key));
 }
 
-const Value* Builder::Unsafe::value_app(const CtorVar* applied, const ArrayRef<const Var*>& type_args) {
+const ValueApp* Builder::Unsafe::value_app(const CtorVar* applied, const ArrayRef<const Var*>& type_args) {
     return builder.arena.insert<ValueApp>(builder, applied, std::move(type_args));
 }
 
@@ -351,7 +351,7 @@ const SigVar* LetRecBuilder::sig_error() {
     return schedule_sig(unsafe().sig_error());
 }
 
-const Mod* Builder::Unsafe::mod_app(const CtorVar* applicand, const ArrayRef<const Var*>& args) {
+const ModApp* Builder::Unsafe::mod_app(const CtorVar* applicand, const ArrayRef<const Var*>& args) {
     return builder.arena.insert<ModApp>(builder, applicand, args);
 }
 
@@ -359,7 +359,7 @@ const ModVar* LetRecBuilder::mod_app(const CtorVar* applicand, const ArrayRef<co
     return schedule(unsafe().mod_app(applicand, args))->as<ModVar>();
 }
 
-const Value* Builder::Unsafe::error_value(const TypeVar* t) {
+const ErrorValue* Builder::Unsafe::error_value(const TypeVar* t) {
     return arena.insert<ErrorValue>(arena, t);
 }
 
@@ -367,7 +367,7 @@ const ValueVar* LetRecBuilder::error_value(const TypeVar* t) {
     return schedule_value(unsafe().error_value(t));
 }
 
-const Value* Builder::Unsafe::error_value() {
+const ErrorValue* Builder::Unsafe::error_value() {
     return error_value(builder.enclosing_let_rec().type_error());
 }
 
@@ -379,7 +379,7 @@ const GlobalVariable* Builder::Unsafe::global_variable(const TypeVar* value_type
     return arena.insert<GlobalVariable>(builder, value_type, is_mut, init, decl);
 }
 
-const Value* Builder::Unsafe::typed_literal(Literal literal, const TypeVar* type) {
+const TypedLiteral* Builder::Unsafe::typed_literal(Literal literal, const TypeVar* type) {
     // TODO: normalize literal representation based on type
     return arena.insert<TypedLiteral>(builder, literal, type);
 }
@@ -388,7 +388,7 @@ const ValueVar* LetRecBuilder::typed_literal(Literal literal, const TypeVar* typ
     return schedule_value(unsafe().typed_literal(literal, type));
 }
 
-const Value* Builder::Unsafe::undef(const TypeVar* type) {
+const Undef* Builder::Unsafe::undef(const TypeVar* type) {
     return arena.insert<Undef>(arena, type);
 }
 
@@ -408,7 +408,7 @@ const Value* Builder::Unsafe::mathop(thorin::MathOpTag tag, const ArrayRef<const
     return builder.arena.insert<MathOp>(builder, tag, args);
 }
 
-const Value* Builder::Unsafe::unit() {
+const Unit* Builder::Unsafe::unit() {
     return arena.insert<Unit>(arena, builder.enclosing_let_rec().unit_type());
 }
 
@@ -823,32 +823,46 @@ void LetRecBuilder::bind(const Var* var, const Node* value) {
     scope.insert(var, value);
 }
 
-std::tuple<const Var*, LetRecBuilder*> LetRecBuilder::locate(const Node* node) {
-    const Scope* node_scope = get_node_scope_helper(*this, node);
-    assert(scope.is_child_of(node_scope) && "this node cannot be scheduled here or in any parent module, it has free variables that would not be bound");
-
-    // find the corresponding module builder
+LetRecBuilder* Builder::find_builder_for_scope(const Scope* scope) {
     LetRecBuilder* dst = nullptr;
     for (Builder* b = this; b; b = b->parent) {
         if (auto mb = b->isa<LetRecBuilder>()) {
-            if (mb->scope.is_child_of(node_scope)) {
+            if (mb->scope.is_child_of(scope)) {
                 dst = mb;
             }
-            if (&mb->scope == node_scope) {
+            if (&mb->scope == scope) {
                 dst = mb;
                 break;
             }
         }
     }
+    return dst;
+}
+
+std::tuple<const Var*, LetRecBuilder*> LetRecBuilder::locate(const Def* node) {
+    const Scope* node_scope = get_node_scope_helper(*this, node);
+    assert(scope.is_child_of(node_scope) && "this node cannot be scheduled here or in any parent module, it has free variables that would not be bound");
+
+    // find the corresponding module builder
+    LetRecBuilder* dst = find_builder_for_scope(node_scope);
+
     assert(dst && "failed to find the matching builder for the dst scope");
-    auto found = dst->already_bound_here.find(node);
-    if (found != dst->already_bound_here.end()) {
+    auto found = dst->scope.bound_defs.find(node);
+    if (found != dst->scope.bound_defs.end()) {
         return { found->second, dst };
     }
     return { nullptr, dst };
 }
 
-const Var* LetRecBuilder::schedule(const Node* node, std::optional<ast::Identifier> maybe_id) {
+const Var* LetRecBuilder::maybe_schedule(const Node* node) {
+    assert(node);
+    if (auto var = node->isa<Var>()) {
+        return var;
+    }
+    return schedule(node->as<Def>());
+}
+
+const Var* LetRecBuilder::schedule(const Def* node, std::optional<ast::Identifier> maybe_id) {
     auto fvs = node->free_variables();
     LetRecBuilder* dst;
     if (schedulable(fvs)) {
@@ -877,23 +891,35 @@ const Var* LetRecBuilder::schedule(const Node* node, std::optional<ast::Identifi
 
     dst->bind(var, node);
 
-    dst->already_bound_here[node] = var;
+    //dst->already_bound_here[node] = var;
     return var;
 }
 
-const TypeVar* LetRecBuilder::schedule_type(const Type* type, std::optional<ast::Identifier> id) {
+const TypeVar* LetRecBuilder::schedule_type(const TypeDef* type, std::optional<ast::Identifier> id) {
     return schedule(type, id)->as<TypeVar>();
 }
 
-const ValueVar* LetRecBuilder::schedule_value(const Value* value, std::optional<ast::Identifier> id) {
+const TypeVar* LetRecBuilder::maybe_schedule_type(const Type* type) {
+    return maybe_schedule(type)->as<TypeVar>();
+}
+
+const ValueVar* LetRecBuilder::schedule_value(const ValueDef* value, std::optional<ast::Identifier> id) {
     return schedule(value, id)->as<ValueVar>();
 }
 
-const ModVar* LetRecBuilder::schedule_mod(const Mod* node, std::optional<ast::Identifier> id) {
+const ValueVar* LetRecBuilder::maybe_schedule_value(const Value* type) {
+    return maybe_schedule(type)->as<ValueVar>();
+}
+
+const ModVar* LetRecBuilder::schedule_mod(const ModDef* node, std::optional<ast::Identifier> id) {
     return schedule(node, id)->as<ModVar>();
 }
 
-const SigVar* LetRecBuilder::schedule_sig(const Sig* node, std::optional<ast::Identifier> id) {
+const ModVar* LetRecBuilder::maybe_schedule_mod(const Mod* type) {
+    return maybe_schedule(type)->as<ModVar>();
+}
+
+const SigVar* LetRecBuilder::schedule_sig(const SigDef* node, std::optional<ast::Identifier> id) {
     return schedule(node, id)->as<SigVar>();
 }
 
@@ -922,20 +948,20 @@ const Value* Builder::Unsafe::value_let_rec(const ArrayRef<std::tuple<const Var*
 }
 
 const Type* LetRecBuilder::finish_type(const Type* in) {
-    if (!in->is_var())
-        in = schedule_type(in);
+    if (auto def = in->isa<TypeDef>())
+        in = schedule_type(def);
     return unsafe().type_let_rec(contents, in);
 }
 
 const Mod* LetRecBuilder::finish_module(const Mod* in) {
-    if (!in->is_var())
-        in = schedule_mod(in);
+    if (auto def = in->isa<ModDef>())
+        in = schedule_mod(def);
     return unsafe().mod_let_rec(contents, in);
 }
 
 const Value* LetRecBuilder::finish_value(const Value* in) {
-    if (!in->is_var())
-        in = schedule_value(in);
+    if (auto def = in->isa<ValueDef>())
+        in = schedule_value(def);
     return unsafe().value_let_rec(contents, in);
 }
 

@@ -11,6 +11,8 @@ void Scope::insert(const Var* var, const Node* value) {
     assert(!vars.contains(var) || (vars[var] == nullptr));
     vars[var] = value;
     var->binder = this;
+    if (auto def = value->isa<Def>())
+        bound_defs[def] = var;
 }
 
 const Node* Scope::lookup(const Var* var) const {

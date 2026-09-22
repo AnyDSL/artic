@@ -113,6 +113,8 @@ struct Builder : public artic::Cast<Builder> {
     const Value* yield_expr_scope(const std::function<const Value*(ExprBuilder&)>& f);
     void run_expr_scope(const std::function<void(ExprBuilder&)>& f);
 
+    LetRecBuilder* find_builder_for_scope(const Scope*);
+
     std::vector<std::unique_ptr<Builder>> children;
 
     // un-scheduled node ctors where you should probably used the scheduled version instead!
@@ -140,7 +142,7 @@ struct Builder : public artic::Cast<Builder> {
 
         const Module* module(std::unordered_map<const Key*, const Node*>&&, const SigVar*, const ast::ModDecl* = nullptr);
         const ModCtor* mod_ctor(Scope&, const ArrayRef<const Var*>&, const Mod*);
-        const Mod* mod_app(const CtorVar*, const ArrayRef<const Var*>&);
+        const ModApp* mod_app(const CtorVar*, const ArrayRef<const Var*>&);
         const Mod* mod_mod_access(const ModVar*, const Key*);
         const Mod* mod_let_rec(const ArrayRef<std::tuple<const Var*, const Node*>>&, const Mod*);
 
@@ -162,16 +164,16 @@ struct Builder : public artic::Cast<Builder> {
         const Function* function(const ValueVar*, Scope&, const TypeVar* codom, const ast::FnDecl*);
 
         const GlobalVariable* global_variable(const TypeVar*, bool is_mut, const Value*, const ast::StaticDecl*);
-        const Value* typed_literal(Literal, const TypeVar*);
-        const Value* undef(const TypeVar*);
-        const Value* error_value(const TypeVar*);
-        const Value* error_value();
-        const Value* value_app(const CtorVar*, const ArrayRef<const Var*>&);
+        const TypedLiteral* typed_literal(Literal, const TypeVar*);
+        const Undef* undef(const TypeVar*);
+        const ErrorValue* error_value(const TypeVar*);
+        const ErrorValue* error_value();
+        const ValueApp* value_app(const CtorVar*, const ArrayRef<const Var*>&);
 
         const Bind* bind(const ValueVar*, const Value*);
         const Value* call(const ValueVar* callee, const ValueVar* arg);
         const Value* agg(const TypeVar*, const ArrayRef<const ValueVar*>&);
-        const Value* unit();
+        const Unit* unit();
         const Value* tuple(const ArrayRef<const ValueVar*>&);
         const Value* repeat(const TypeVar*, const ValueVar*);
         const Value* extract(const ValueVar*, const ValueVar*);
@@ -258,22 +260,28 @@ struct LetRecBuilder : public Builder {
 
     void bind(const Var*, const Node*);
 
-    const TypeVar* schedule_type(const Type*, std::optional<ast::Identifier> = std::nullopt);
-    const ValueVar* schedule_value(const Value*, std::optional<ast::Identifier> = std::nullopt);
-    const ModVar* schedule_mod(const Mod*, std::optional<ast::Identifier> = std::nullopt);
-    const CtorVar* schedule_ctor(const Ctor*, std::optional<ast::Identifier> = std::nullopt);
-    const SigVar* schedule_sig(const Sig*, std::optional<ast::Identifier> = std::nullopt);
+    const TypeVar* schedule_type(const TypeDef*, std::optional<ast::Identifier> = std::nullopt);
+    const ValueVar* schedule_value(const ValueDef*, std::optional<ast::Identifier> = std::nullopt);
+    const ModVar* schedule_mod(const ModDef*, std::optional<ast::Identifier> = std::nullopt);
+    const CtorVar* schedule_ctor(const CtorDef*, std::optional<ast::Identifier> = std::nullopt);
+    const SigVar* schedule_sig(const SigDef*, std::optional<ast::Identifier> = std::nullopt);
+
+    const TypeVar* maybe_schedule_type(const Type*);
+    const ValueVar* maybe_schedule_value(const Value*);
+    const ModVar* maybe_schedule_mod(const Mod*);
+
     // const LetRec* finish(const Node*);
     const Type* finish_type(const Type*);
     const Mod* finish_module(const Mod*);
     const Value* finish_value(const Value*);
 
-    std::tuple<const Var*, LetRecBuilder*> locate(const Node*);
+    std::tuple<const Var*, LetRecBuilder*> locate(const Def*);
 
-    const Var* schedule(const Node*, std::optional<ast::Identifier> = std::nullopt);
+    const Var* maybe_schedule(const Node*);
+    const Var* schedule(const Def*, std::optional<ast::Identifier> = std::nullopt);
 private:
     std::vector<std::tuple<const Var*, const Node*>> contents;
-    std::unordered_map<const Node*, const Var*> already_bound_here;
+    //std::unordered_map<const Node*, const Var*> already_bound_here;
 
     friend ast::StructDecl;
 };

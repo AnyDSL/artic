@@ -851,7 +851,7 @@ void Emitter::bind(const ast::IdPtrn& id_ptrn, const thorin::Def* value) {
 }*/
 
 const thorin::Def* Emitter::emit(const Value* node, const Literal& lit) {
-    if (auto prim_type = node->type()->isa<artic::PrimType>()) {
+    if (auto prim_type = isa<const artic::PrimType*>(resolve_type_def(scope(), node->type()))) {
         switch (prim_type->tag) {
             case ast::PrimType::Bool: return world.literal_bool(lit.as_bool(),    debug_info(node));
             case ast::PrimType::U8:   return world.literal_pu8 (lit.is_integer() ? lit.as_integer() : lit.as_char(), debug_info(node));
