@@ -1511,7 +1511,7 @@ const TypeVar* TypeChecker::infer_record_type(const TypeVar* type, const TypeApp
             option_decl->parent->options.begin(),
             option_decl->parent->options.end(),
             [&] (auto& option) {
-                if (auto [app, _] = match_type_app_unapplied_generic(scope(), resolve_type_def(scope(), type)); app) {
+                if (auto [app, _, _2] = match_type_app_unapplied_generic(scope(), resolve_type_def(scope(), type)); app) {
                     if (app->applicand() == option->var)
                         return true;
                 }
@@ -1685,7 +1685,7 @@ std::optional<Path::Elem::Inferred> Path::Elem::infer(TypeChecker& checker, size
     }
 
     if (auto prev_elem_type = prev->var->isa<tir::TypeVar>()) {
-        if (auto [type_app, enum_type] = match_type_app_unapplied<EnumType>(checker.scope(), resolve_type_def(checker.scope(), prev_elem_type)); enum_type) {
+        if (auto [type_app, enum_type, _] = match_type_app_unapplied<EnumType>(checker.scope(), resolve_type_def(checker.scope(), prev_elem_type)); enum_type) {
             auto index = enum_type->find_member(id.name);
             if (!index) {
                 checker.unknown_member(loc, enum_type, id.name);
@@ -3556,7 +3556,7 @@ const tir::Var* UseDecl::infer(TypeChecker& checker) {
         var = inferred->var;
     }
     if (!var) {
-        var = checker.let_rec_builder().schedule_mod_value(checker.let_rec_builder().mod_error());
+        var = checker.let_rec_builder().schedule_mod(checker.let_rec_builder().mod_error());
     }
 
     checker.exit_decl(this);
@@ -3650,7 +3650,7 @@ const tir::Var* CtorPtrn::infer(TypeChecker& checker) {
 
     auto path_type = inferred_path->var->as<tir::TypeVar>();
     auto peeked_type = resolve_type_def(checker.scope(), path_type);
-    if (auto [type_app, struct_type] = match_type_app_unapplied<StructType>(checker.scope(), peeked_type); struct_type) {
+    if (auto [type_app, struct_type, _] = match_type_app_unapplied<StructType>(checker.scope(), peeked_type); struct_type) {
         if (struct_type->is_tuple_like()) {
             auto decl = struct_type->decl->as<ast::StructDecl>();
             if (struct_type->member_count() == 0 && arg) {

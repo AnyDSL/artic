@@ -86,7 +86,7 @@ private:
         if (is_bool_type(type) && ctor_count == 2)
             return true;
         else if (
-            auto [_, enum_type] = match_type_app_unapplied<EnumType>(scope, type);
+            auto [_, enum_type, _2] = match_type_app_unapplied<EnumType>(scope, type);
             enum_type && enum_type->member_count() == ctor_count)
             return true;
         return false;
@@ -159,7 +159,7 @@ private:
     // Transforms the rows such that tuples and structures are completely deconstructed
     void expand(ExprBuilder& expr_builder) {
         for (size_t i = 0; i < values.size();) {
-            auto [_, type] = match_type_app_unapplied_generic(builder.scope, values[i]->resolve_type(builder.scope));
+            auto [_, type, _2] = match_type_app_unapplied_generic(builder.scope, values[i]->resolve_type(builder.scope));
 
             // Can only expand tuples or structures
             size_t member_count = 0;

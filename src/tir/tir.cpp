@@ -196,6 +196,10 @@ bool LetRec::equals(const Node* other) const {
     return false;
 }
 
+const CtorDef* resolve_ctor_def(const Scope& scope, const CtorVar* var) {
+    return scope.resolve_def(var)->as<CtorDef>();
+}
+
 std::tuple<const App*, const Node*, const Scope&> match_app_unapplied(const Scope& scope, const Def* def) {
     if (auto app = def->isa<App>()) {
         auto ctor = resolve_ctor_def(scope, app->applicand());

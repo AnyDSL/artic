@@ -260,7 +260,7 @@ struct LetRecBuilder : public Builder {
 
     const TypeVar* schedule_type(const Type*, std::optional<ast::Identifier> = std::nullopt);
     const ValueVar* schedule_value(const Value*, std::optional<ast::Identifier> = std::nullopt);
-    const ModVar* schedule_mod_value(const Mod*, std::optional<ast::Identifier> = std::nullopt);
+    const ModVar* schedule_mod(const Mod*, std::optional<ast::Identifier> = std::nullopt);
     const CtorVar* schedule_ctor(const Ctor*, std::optional<ast::Identifier> = std::nullopt);
     const SigVar* schedule_sig(const Sig*, std::optional<ast::Identifier> = std::nullopt);
     // const LetRec* finish(const Node*);

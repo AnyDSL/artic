@@ -16,27 +16,55 @@ const PrimType* Builder::Unsafe::prim_type(ast::PrimType::Tag tag) {
     return arena.insert<PrimType>(arena, tag);
 }
 
+const TypeVar* LetRecBuilder::prim_type(ast::PrimType::Tag tag) {
+    return schedule_type(unsafe().prim_type(tag));
+}
+
 const PrimType* Builder::Unsafe::bool_type() {
     return prim_type(ast::PrimType::Bool);
+}
+
+const TypeVar* LetRecBuilder::bool_type() {
+    return schedule_type(unsafe().bool_type());
 }
 
 const BottomType* Builder::Unsafe::bottom_type() {
     return arena.insert<BottomType>(arena);
 }
 
+const TypeVar* LetRecBuilder::bottom_type() {
+    return schedule_type(unsafe().bottom_type());
+}
+
 const TopType* Builder::Unsafe::top_type() {
     return arena.insert<TopType>(arena);
+}
+
+const TypeVar* LetRecBuilder::top_type() {
+    return schedule_type(unsafe().top_type());
 }
 
 const NoRetType* Builder::Unsafe::no_ret_type() {
     return arena.insert<NoRetType>(arena);
 }
 
+const TypeVar* LetRecBuilder::no_ret_type() {
+    return schedule_type(unsafe().no_ret_type());
+}
+
 const TypeError* Builder::Unsafe::type_error() {
     return arena.insert<TypeError>(arena);
 }
 
+const TypeVar* LetRecBuilder::type_error() {
+    return schedule_type(unsafe().type_error());
+}
+
 const TupleType* Builder::Unsafe::unit_type() {
+    return tuple_type({});
+}
+
+const TypeVar* LetRecBuilder::unit_type() {
     return tuple_type({});
 }
 
@@ -44,32 +72,64 @@ const TupleType* Builder::Unsafe::tuple_type(const ArrayRef<const TypeVar*>& ele
     return arena.insert<TupleType>(arena, std::move(elems));
 }
 
+const TypeVar* LetRecBuilder::tuple_type(const ArrayRef<const TypeVar*>& elems) {
+    return schedule_type(unsafe().tuple_type(elems));
+}
+
 const SizedArrayType* Builder::Unsafe::sized_array_type(const TypeVar* elem, size_t size, bool is_simd) {
     return arena.insert<SizedArrayType>(arena, elem, size, is_simd);
+}
+
+const TypeVar* LetRecBuilder::sized_array_type(const TypeVar* elem, size_t size, bool is_simd) {
+    return schedule_type(unsafe().sized_array_type(elem, size, is_simd));
 }
 
 const UnsizedArrayType* Builder::Unsafe::unsized_array_type(const TypeVar* elem) {
     return arena.insert<UnsizedArrayType>(arena, elem);
 }
 
+const TypeVar* LetRecBuilder::unsized_array_type(const TypeVar* elem) {
+    return schedule_type(unsafe().unsized_array_type(elem));
+}
+
 const PtrType* Builder::Unsafe::ptr_type(const TypeVar* pointee, bool is_mut, size_t addr_space) {
     return arena.insert<PtrType>(arena, pointee, is_mut, addr_space);
+}
+
+const TypeVar* LetRecBuilder::ptr_type(const TypeVar* pointee, bool is_mut, size_t addr_space) {
+    return schedule_type(unsafe().ptr_type(pointee, is_mut, addr_space));
 }
 
 const RefType* Builder::Unsafe::ref_type(const TypeVar* pointee, bool is_mut, size_t addr_space) {
     return arena.insert<RefType>(arena, pointee, is_mut, addr_space);
 }
 
+const TypeVar* LetRecBuilder::ref_type(const TypeVar* pointee, bool is_mut, size_t addr_space) {
+    return schedule_type(unsafe().ref_type(pointee, is_mut, addr_space));
+}
+
 const ImplicitParamType* Builder::Unsafe::implicit_param_type(const TypeVar* underlying) {
     return arena.insert<ImplicitParamType>(arena, underlying);
+}
+
+const TypeVar* LetRecBuilder::implicit_param_type(const TypeVar* var) {
+    return schedule_type(unsafe().implicit_param_type(var));
 }
 
 const FnType* Builder::Unsafe::fn_type(const TypeVar* dom, const TypeVar* codom) {
     return arena.insert<FnType>(arena, dom, codom);
 }
 
+const TypeVar* LetRecBuilder::fn_type(const TypeVar* dom, const TypeVar* codom) {
+    return schedule_type(unsafe().fn_type(dom, codom));
+}
+
 const FnType* Builder::Unsafe::cn_type(const TypeVar* dom) {
     return fn_type(dom, builder.enclosing_let_rec().no_ret_type());
+}
+
+const TypeVar* LetRecBuilder::cn_type(const TypeVar* dom) {
+    return schedule_type(unsafe().cn_type(dom));
 }
 
 /*const TypeVar* Builder::type_var(const ast::TypeParam* param) {
@@ -171,6 +231,10 @@ const ModError* Builder::Unsafe::mod_error() {
     return arena.insert<ModError>(builder);
 }
 
+const ModVar* LetRecBuilder::mod_error() {
+    return schedule_mod(unsafe().mod_error());
+}
+
 const Module* Builder::Unsafe::module(std::unordered_map<const Key*, const Node*>&& decls, const SigVar* sig, const ast::ModDecl* decl) {
     return builder.arena.insert<Module>(builder, std::move(decls), sig, decl);
 }
@@ -181,7 +245,7 @@ const ModVar* LetRecBuilder::module(std::unordered_map<const Key*, const Node*>&
         sig_elems[key] = Sig::from_node(*this, val);
     }
     auto sig = mod_signature(std::move(sig_elems));
-    return schedule_mod_value(unsafe().module(std::move(decls), sig, decl));
+    return schedule_mod(unsafe().module(std::move(decls), sig, decl));
 }
 
 const Mod* Builder::Unsafe::mod_mod_access(const ModVar* src, const Key* key) {
@@ -825,7 +889,7 @@ const ValueVar* LetRecBuilder::schedule_value(const Value* value, std::optional<
     return schedule(value, id)->as<ValueVar>();
 }
 
-const ModVar* LetRecBuilder::schedule_mod_value(const Mod* node, std::optional<ast::Identifier> id) {
+const ModVar* LetRecBuilder::schedule_mod(const Mod* node, std::optional<ast::Identifier> id) {
     return schedule(node, id)->as<ModVar>();
 }
 
@@ -865,7 +929,7 @@ const Type* LetRecBuilder::finish_type(const Type* in) {
 
 const Mod* LetRecBuilder::finish_module(const Mod* in) {
     if (!in->is_var())
-        in = schedule_mod_value(in);
+        in = schedule_mod(in);
     return unsafe().mod_let_rec(contents, in);
 }
 

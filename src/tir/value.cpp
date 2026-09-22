@@ -917,6 +917,10 @@ void Control::free_variables(FVSet& vars, Seen& seen) const {
     body->free_variables(vars, seen);
 }
 
+const ValueDef* resolve_value_def(const Scope& scope, const ValueVar* var) {
+    return scope.resolve_def(var)->as<ValueDef>();
+}
+
 }
 
 }

@@ -126,6 +126,10 @@ bool SigVar::can_bind(const Scope& scope, const Node* other) const {
 
 SigError::SigError(Arena& arena) : Node(arena), SigDef() {}
 
+bool SigError::is_sub_def(const Scope&, const SigDef*) const {
+    return false;
+}
+
 const SigVar* Sig::from_node(LetRecBuilder& builder, const Node* node, bool public_interface) {
     if (auto mod_val = node->isa<Mod>()) {
         return mod_val->signature();
@@ -258,6 +262,24 @@ bool CtorSignature::is_sub_def(const Scope& scope, const SigDef* other) const {
 
 const SigVar* Module::signature() const {
     return signature_;
+}
+
+const Sig* lookup_sig(const Scope& scope, const SigVar* var) {
+    auto found = scope.lookup(var);
+    if (found)
+        return found->as<Sig>();
+    return nullptr;
+}
+
+const SigDef* lookup_sig_def(const Scope& scope, const SigVar* var) {
+    auto [_, found] = scope.lookup_def(var);
+    if (found)
+        return found->as<SigDef>();
+    return nullptr;
+}
+
+const SigDef* resolve_sig_def(const Scope& scope, const SigVar* var) {
+    return scope.resolve_def(var)->as<SigDef>();
 }
 
 ModVar::ModVar(Builder& builder, std::optional<ast::Identifier> id, const SigVar* signature)
@@ -393,6 +415,17 @@ bool LetRecMod::equals(const Node* other) const {
         return LetRec::equals(other_lrm);
     }
     return false;
+}
+
+const ModDef* lookup_mod_def(const Scope& scope, const ModVar* var) {
+    auto [_, found] = scope.lookup_def(var);
+    if (found)
+        return found->as<ModDef>();
+    return nullptr;
+}
+
+const ModDef* resolve_mod_def(const Scope& scope, const ModVar* var) {
+    return scope.resolve_def(var)->as<ModDef>();
 }
 
 // Free variables ------------------------------------------------------------------

@@ -735,7 +735,7 @@ bool EnumType::is_trivial() const {
 
 // Helpers -------------------------------------------------------------------------
 
-bool is_int_type(const Type* type) {
+bool is_int_type(const TypeDef* type) {
     if (auto prim_type = type->isa<PrimType>()) {
         switch (prim_type->tag) {
             case ast::PrimType::U8:
@@ -754,7 +754,7 @@ bool is_int_type(const Type* type) {
     return false;
 }
 
-bool is_float_type(const Type* type) {
+bool is_float_type(const TypeDef* type) {
     if (auto prim_type = type->isa<PrimType>()) {
         switch (prim_type->tag) {
             case ast::PrimType::F16:
@@ -796,6 +796,28 @@ std::pair<const RefType*, const TypeVar*> remove_ref(const Scope& scope, const T
     return std::make_pair(nullptr, type);
 }
 
+const Type* lookup_type(const Scope& scope, const TypeVar* var) {
+    auto found = scope.lookup(var);
+    if (found)
+        return found->as<Type>();
+    return nullptr;
+}
+
+const TypeDef* lookup_type_def(const Scope& scope, const TypeVar* var) {
+    auto [_, found] = scope.lookup_def(var);
+    if (found)
+        return found->as<TypeDef>();
+    return nullptr;
+}
+
+const TypeDef* resolve_type_def(const Scope& scope, const TypeVar* var) {
+    return scope.resolve_def(var)->as<TypeDef>();
+}
+
+std::tuple<const TypeDef*, const Scope&> resolve_type_def_deep(const Scope& scope, const TypeVar* var) {
+    auto [def, s] = scope.resolve_def_deep(var);
+    return { def->as<TypeDef>(), s };
+}
 
 std::tuple<const TypeApp*, const Type*> match_type_app_applied_generic(Builder& b, const TypeDef* maybe_type_app) {
     auto [app, body, scope] = match_app_unapplied(b.scope, maybe_type_app);
@@ -815,6 +837,25 @@ std::tuple<const TypeApp*, const TypeDef*> resolve_type_app_applied_generic(Buil
         return { type_app, type_def };
     }
     return { nullptr, maybe_type_app };
+}
+
+std::tuple<const TypeApp*, const Type*, const Scope&> match_type_app_unapplied_generic(const Scope& scope, const TypeDef* maybe_type_app) {
+    auto [app, body, body_scope] = match_app_unapplied(scope, maybe_type_app);
+    if (auto type_app = app->isa<TypeApp>()) {
+        return { type_app, body->as<Type>(), body_scope };
+    }
+    return { nullptr, maybe_type_app, scope };
+}
+
+std::tuple<const TypeApp*, const TypeDef*, const Scope&> resolve_type_app_unapplied_generic(const Scope& scope, const TypeDef* maybe_type_app) {
+    auto [app, body, body_scope] = match_app_unapplied(scope, maybe_type_app);
+    if (auto type_app = app->isa<TypeApp>()) {
+        if (auto body_def = body->isa<TypeDef>())
+            return { type_app, body_def, body_scope };
+        auto type_def = resolve_type_def(scope, body->as<TypeVar>());
+        return { type_app, type_def, body_scope };
+    }
+    return { nullptr, maybe_type_app, scope };
 }
 
 /*std::pair<const TypeApp*, const Type*> peek_app_type_applied_generic(Builder& builder, const TypeDef* type) {

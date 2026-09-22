@@ -603,13 +603,13 @@ std::pair<const TypeApp*, const T*> peek_app_type_unapplied(const Scope& scope, 
     return { app, t->isa<T>() };
 }*/
 
-std::pair<const TypeApp*, const Type*> match_type_app_unapplied_generic(const Scope&, const TypeDef*);
+std::tuple<const TypeApp*, const Type*, const Scope&> match_type_app_unapplied_generic(const Scope&, const TypeDef*);
 std::tuple<const TypeApp*, const TypeDef*, const Scope&> resolve_type_app_unapplied_generic(const Scope&, const TypeDef*);
 
 template <typename T = Type>
-std::pair<const TypeApp*, const T*> match_type_app_unapplied(const Scope& scope, const TypeDef* type) {
-    auto [app, t] = match_type_app_unapplied_generic(scope, type);
-    return { app, t->isa<T>() };
+std::tuple<const TypeApp*, const T*, const Scope&> match_type_app_unapplied(const Scope& scope, const TypeDef* type) {
+    auto [app, t, s] = match_type_app_unapplied_generic(scope, type);
+    return { app, t->isa<T>(), s };
 }
 
 template <typename T = TypeDef>
