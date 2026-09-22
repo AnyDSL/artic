@@ -54,16 +54,15 @@ struct LowerApp : public Rewriter {
     }
 
     // this ensures we don't accidentally end up with two specialized copies of the same specialization
-    bool are_args_known(ArrayRef<const Node*> args) const {
-        for (auto arg : args) {
-            if (auto var = arg->isa<Var>())
-                if (!std::get<1>(builder().scope.lookup_def(var)))
-                    return false;
+    bool are_args_known(ArrayRef<const Var*> args) const {
+        for (auto var : args) {
+            if (!std::get<1>(builder().scope.lookup_def(var)))
+                return false;
         }
         return true;
     }
 
-    const Var* instantiate_app(const App* app, const Constructor* ctor, ArrayRef<const Node*> args) {
+    const Var* instantiate_app(const App* app, const Constructor* ctor, ArrayRef<const Var*> args) {
         Key key = { ctor, args };
         auto found = instantiated_stuff.find(key);
         if (found != instantiated_stuff.end())
@@ -93,12 +92,12 @@ struct LowerApp : public Rewriter {
             // if (are_args_known(old_app->args)) {
             //     return old_app->instantiate_with<LowerApp>(builder().enclosing_let_rec(), this);
             // }
-            Array<const Node*> args(old_app->args.size());
+            Array<const Var*> args(old_app->args.size());
             for (size_t i = 0; i < old_app->args.size(); i++) {
                 args[i] = instantiate(old_app->args[i], false);
             }
             if (are_args_known(args)) {
-                auto constructor = resolve_ctor(*old_scope, old_app->applicand())->isa<Constructor>();
+                auto constructor = resolve_ctor_def(*old_scope, old_app->applicand())->isa<Constructor>();
                 if (constructor)
                     return instantiate_app(old_app, constructor, args);
             }

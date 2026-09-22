@@ -21,12 +21,12 @@ public:
     Arena(const Arena&) = delete;
     ~Arena();// = default;
 
-    const PrimType* prim_type(ast::PrimType::Tag);
-    const PrimType* bool_type();
-    const BottomType* bottom_type();
-    const TopType* top_type();
-    const NoRetType* no_ret_type();
-    const TypeError* type_error();
+    // const PrimType* prim_type(ast::PrimType::Tag);
+    // const PrimType* bool_type();
+    // const BottomType* bottom_type();
+    // const TopType* top_type();
+    // const NoRetType* no_ret_type();
+    // const TypeError* type_error();
 
 private:
     template <typename T, typename... Args>
@@ -87,44 +87,19 @@ struct Builder : public artic::Cast<Builder> {
     LetRecBuilder& enclosing_let_rec();
     ExprBuilder& enclosing_expr();
 
-    const TypeVar* prim_type(ast::PrimType::Tag);
-    const TypeVar* bool_type();
-    const TypeVar* unit_type();
-    const TypeVar* tuple_type(const ArrayRef<const Type*>&);
-    const TypeVar* sized_array_type(const Type*, size_t, bool);
-    const TypeVar* unsized_array_type(const Type*);
-    const TypeVar* ptr_type(const Type*, bool, size_t);
-    const TypeVar* ref_type(const Type*, bool, size_t);
-    const TypeVar* implicit_param_type(const Type*);
-    const TypeVar* fn_type(const Type*, const Type*);
-    const TypeVar* cn_type(const Type*);
-    const TypeVar* bottom_type();
-    const TypeVar* top_type();
-    const TypeVar* no_ret_type();
-    const TypeVar* type_error();
-
     const TypeVar* member_type(const TypeDef*, size_t);
     const TypeVar* type_var(std::optional<ast::Identifier> id);
 
-    const CtorVar* ctor_var(std::optional<ast::Identifier> id, const Sig*);
+    const CtorVar* ctor_var(std::optional<ast::Identifier> id, const SigVar*);
     const SigVar* sig_var(std::optional<ast::Identifier> id);
-    const SigVar* sig_error();
 
     const Key* decl_key(std::optional<ast::Identifier>);
-    const ModVar* mod_var(std::optional<ast::Identifier> id, const Sig*);
-    const ModError* mod_error();
+    const ModVar* mod_var(std::optional<ast::Identifier> id, const SigVar*);
     // const ModValue* mod_access(const ModValue*, const Key*);
 
-    const ValueVar* global_variable(const Type*, bool is_mut, const Value*, const ast::StaticDecl*);
-    const ValueVar* typed_literal(Literal, const Type*);
-    const ValueVar* undef(const Type*);
-    const ValueVar* error_value(const Type*);
-    const ValueVar* error_value();
+    // const ValueVar* global_variable(const Type*, bool is_mut, const Value*, const ast::StaticDecl*);
 
-    //const Fn* function(const Param*, const Type* codom);
-    const ValueVar* value_var(std::optional<ast::Identifier> id, const Type*);
-    // const Value* seq(const ArrayRef<const Value*>&);
-    const ValueVar* unit();
+    const ValueVar* value_var(std::optional<ast::Identifier> id, const TypeVar*);
 
     template<typename T, typename Fn>
     T with_expr_scope(Fn f) {
@@ -145,14 +120,14 @@ struct Builder : public artic::Cast<Builder> {
         const PrimType*          prim_type(ast::PrimType::Tag);
         const PrimType*          bool_type();
         const TupleType*         unit_type();
-        const TupleType*         tuple_type(const ArrayRef<const Type*>&);
-        const SizedArrayType*    sized_array_type(const Type*, size_t, bool);
-        const UnsizedArrayType*  unsized_array_type(const Type*);
-        const PtrType*           ptr_type(const Type*, bool, size_t);
-        const RefType*           ref_type(const Type*, bool, size_t);
-        const ImplicitParamType* implicit_param_type(const Type*);
-        const FnType*            fn_type(const Type*, const Type*);
-        const FnType*            cn_type(const Type*);
+        const TupleType*         tuple_type(const ArrayRef<const TypeVar*>&);
+        const SizedArrayType*    sized_array_type(const TypeVar*, size_t, bool);
+        const UnsizedArrayType*  unsized_array_type(const TypeVar*);
+        const PtrType*           ptr_type(const TypeVar*, bool, size_t);
+        const RefType*           ref_type(const TypeVar*, bool, size_t);
+        const ImplicitParamType* implicit_param_type(const TypeVar*);
+        const FnType*            fn_type(const TypeVar*, const TypeVar*);
+        const FnType*            cn_type(const TypeVar*);
         const BottomType*        bottom_type();
         const TopType*           top_type();
         const NoRetType*         no_ret_type();
@@ -161,70 +136,73 @@ struct Builder : public artic::Cast<Builder> {
         const EnumType*          enum_type(const ast::EnumDecl*);
 
         const SigError* sig_error();
+        const ModError* mod_error();
 
-        const Module* module(std::unordered_map<const Key*, const Node*>&&, const Sig*, const ast::ModDecl* = nullptr);
+        const Module* module(std::unordered_map<const Key*, const Node*>&&, const SigVar*, const ast::ModDecl* = nullptr);
         const ModCtor* mod_ctor(Scope&, const ArrayRef<const Var*>&, const Mod*);
-        const Mod* mod_app(const CtorVar*, const ArrayRef<const Node*>&);
-        const Mod* mod_mod_access(const Mod*, const Key*);
+        const Mod* mod_app(const CtorVar*, const ArrayRef<const Var*>&);
+        const Mod* mod_mod_access(const ModVar*, const Key*);
         const Mod* mod_let_rec(const ArrayRef<std::tuple<const Var*, const Node*>>&, const Mod*);
 
-        const Type* mod_type_access(const Mod*, const Key*);
+        const Type* mod_type_access(const ModVar*, const Key*);
         const Type* type_let_rec(const ArrayRef<std::tuple<const Var*, const Node*>>&, const Type*);
         const TypeCtor* type_ctor(Scope&, const ArrayRef<const Var*>&, const Type*);
-        const TypeApp* type_app(const CtorVar*, const ArrayRef<const Node*>&);
+        const TypeApp* type_app(const CtorVar*, const ArrayRef<const Var*>&);
 
-        const ModSignature* mod_signature(std::unordered_map<const Key*, const Sig*>&&);
-        const ValueSignature* value_signature(const Type*);
-        const TypeSignature* type_signature(const Type*);
-        const CtorSignature* ctor_signature(const ArrayRef<const Sig*>&, NodeKind);
+        const ModSignature* mod_signature(std::unordered_map<const Key*, const SigVar*>&&);
+        const ValueSignature* value_signature(const TypeVar*);
+        const TypeSignature* type_signature(const TypeVar*);
+        const CtorSignature* ctor_signature(const ArrayRef<const SigVar*>&, NodeKind);
 
-        const Value* mod_value_access(const Mod*, const Key*);
+        const Value* mod_value_access(const ModVar*, const Key*);
         const Value* value_let_rec(const ArrayRef<std::tuple<const Var*, const Node*>>&, const Value*);
         const ValueCtor* value_ctor(Scope&, const ArrayRef<const Var*>&, const Value*);
-        const Value* value_app(const CtorVar*, const ArrayRef<const Node*>&);
 
-        const LocalVariable* local_variable(const Type*);
-        const Function* function(const ValueVar*, Scope&, const Type* codom, const ast::FnDecl*);
+        const LocalVariable* local_variable(const TypeVar*);
+        const Function* function(const ValueVar*, Scope&, const TypeVar* codom, const ast::FnDecl*);
 
-        const GlobalVariable* global_variable(const Type*, bool is_mut, const Value*, const ast::StaticDecl*);
-        const Value* typed_literal(Literal, const Type*);
-        const Value* undef(const Type*);
-        const Value* error_value(const Type*);
+        const GlobalVariable* global_variable(const TypeVar*, bool is_mut, const Value*, const ast::StaticDecl*);
+        const Value* typed_literal(Literal, const TypeVar*);
+        const Value* undef(const TypeVar*);
+        const Value* error_value(const TypeVar*);
         const Value* error_value();
+        const Value* value_app(const CtorVar*, const ArrayRef<const Var*>&);
 
         const Bind* bind(const ValueVar*, const Value*);
-        const Value* call(const Value* callee, const Value* arg);
-        const Value* agg(const Type*, const ArrayRef<const Value*>&);
-        const Value* tuple(const ArrayRef<const Value*>&);
-        const Value* repeat(const Type*, const Value*);
-        const Value* extract(const Value*, const Value*);
-        const Value* proj(const Value*, const Value*);
+        const Value* call(const ValueVar* callee, const ValueVar* arg);
+        const Value* agg(const TypeVar*, const ArrayRef<const ValueVar*>&);
+        const Value* unit();
+        const Value* tuple(const ArrayRef<const ValueVar*>&);
+        const Value* repeat(const TypeVar*, const ValueVar*);
+        const Value* extract(const ValueVar*, const ValueVar*);
+        const Value* proj(const ValueVar*, const ValueVar*);
 
-        const Value* variant(const Type*, size_t, const Value*);
-        const Value* variant_index(const Value*);
-        const Value* variant_extract(const Value*, size_t);
+        const Value* variant(const TypeVar*, size_t, const ValueVar*);
+        const Value* variant_index(const ValueVar*);
+        const Value* variant_extract(const ValueVar*, size_t);
 
-        const Value* implicit_cast(const Value*, const Type*);
-        const Value* cast(const Value*, const Type*);
+        const Value* implicit_cast(const ValueVar*, const TypeVar*);
+        const Value* cast(const ValueVar*, const TypeVar*);
 
         const Value* unop(ast::UnaryExpr::Tag, const ValueVar*);
         const Value* binop(ast::BinaryExpr::Tag, const ValueVar*, const ValueVar*);
 
-        const Value* builtin(Builtin::Tag, const ArrayRef<const Node*>&);
-        const Value* mathop(thorin::MathOpTag, const ArrayRef<const Value*>&);
+        const Value* builtin(Builtin::Tag, const ArrayRef<const Var*>&);
+        const Value* mathop(thorin::MathOpTag, const ArrayRef<const ValueVar*>&);
 
         const Control* control(const Function*);
-        const Branch* branch(const Value*, const Function*, const Function*);
-        const Match::Ptrn* trivial_match_ptrn(const Type*);
-        const Match::Ptrn* variant_match_ptrn(const Type*, size_t, const Match::Ptrn*);
-        const Match::Ptrn* compound_match_ptrn(const Type*, const ArrayRef<std::tuple<size_t, const Match::Ptrn*>>&, const Match::Ptrn*);
-        const Match::Ptrn* literal_match_ptrn(const Type*, Literal, const Match::Ptrn*);
-        const Match* match(const Loc&, const Value*, Array<Match::Case>&&);
-        const Switch* switch_(const Value*, const Function*, Array<Switch::Case>&&);
+        const Branch* branch(const ValueVar*, const Function*, const Function*);
+        const Match::Ptrn* trivial_match_ptrn(const TypeVar*);
+        const Match::Ptrn* variant_match_ptrn(const TypeVar*, size_t, const Match::Ptrn*);
+        const Match::Ptrn* compound_match_ptrn(const TypeVar*, const ArrayRef<std::tuple<size_t, const Match::Ptrn*>>&, const Match::Ptrn*);
+        const Match::Ptrn* literal_match_ptrn(const TypeVar*, Literal, const Match::Ptrn*);
+        const Match* match(const Loc&, const ValueVar*, Array<Match::Case>&&);
+        const Switch* switch_(const ValueVar*, const Function*, Array<Switch::Case>&&);
 
     private:
         Builder& builder;
-        Unsafe(Builder& builder) : builder(builder) {}
+        Arena& arena;
+        Unsafe(Builder& builder) : builder(builder), arena(builder.arena) {}
         friend Builder;
     } unsafe_;
 
@@ -235,25 +213,48 @@ struct LetRecBuilder : public Builder {
     LetRecBuilder(Arena& arena, Scope&, Builder* parent);
     ~LetRecBuilder();
 
-    const Sig* mod_signature(std::unordered_map<const Key*, const Sig*>&&);
-    const Sig* value_signature(const Type*);
-    const Sig* type_signature(const Type*);
-    const Sig* ctor_signature(const ArrayRef<const Sig*>&, NodeKind);
+    const SigVar* mod_signature(std::unordered_map<const Key*, const SigVar*>&&);
+    const SigVar* value_signature(const TypeVar*);
+    const SigVar* type_signature(const TypeVar*);
+    const SigVar* ctor_signature(const ArrayRef<const SigVar*>&, NodeKind);
+    const SigVar* sig_error();
 
     //std::tuple<const ModVar*, const ModCtor*> mod_ctor(const ModVar*);
     const ModVar* module(std::unordered_map<const Key*, const Node*>&&, const ast::ModDecl* = nullptr);
-    const ModVar* mod_app(const CtorVar*, const ArrayRef<const Node*>&);
-    const ModVar* mod_mod_access(const Mod*, const Key*);
+    const ModVar* mod_app(const CtorVar*, const ArrayRef<const Var*>&);
+    const ModVar* mod_mod_access(const ModVar*, const Key*);
+    const Var* mod_access(const ModVar*, const Key*);
+    const ModVar* mod_error();
 
-    const Var* mod_access(const Mod*, const Key*);
+    const TypeVar* prim_type(ast::PrimType::Tag);
+    const TypeVar* bool_type();
+    const TypeVar* unit_type();
+    const TypeVar* tuple_type(const ArrayRef<const TypeVar*>&);
+    const TypeVar* sized_array_type(const TypeVar*, size_t, bool);
+    const TypeVar* unsized_array_type(const TypeVar*);
+    const TypeVar* ptr_type(const TypeVar*, bool, size_t);
+    const TypeVar* ref_type(const TypeVar*, bool, size_t);
+    const TypeVar* implicit_param_type(const TypeVar*);
+    const TypeVar* fn_type(const TypeVar*, const TypeVar*);
+    const TypeVar* cn_type(const TypeVar*);
+    const TypeVar* bottom_type();
+    const TypeVar* top_type();
+    const TypeVar* no_ret_type();
+    const TypeVar* type_error();
 
-    const TypeVar* mod_type_access(const Mod*, const Key*);
+    const TypeVar* mod_type_access(const ModVar*, const Key*);
     const CtorVar* type_ctor(Scope&, const ArrayRef<const Var*>&, const Type*);
-    const TypeVar* type_app(const CtorVar*, const ArrayRef<const Node*>&);
+    const TypeVar* type_app(const CtorVar*, const ArrayRef<const Var*>&);
 
     const CtorVar* value_ctor(Scope&, const ArrayRef<const Var*>&, const Value*);
-    const ValueVar* value_app(const CtorVar*, const ArrayRef<const Node*>&);
-    const ValueVar* mod_value_access(const Mod*, const Key*);
+    const ValueVar* value_app(const CtorVar*, const ArrayRef<const Var*>&);
+    const ValueVar* mod_value_access(const ModVar*, const Key*);
+    const ValueVar* unit();
+
+    const ValueVar* typed_literal(Literal, const TypeVar*);
+    const ValueVar* undef(const TypeVar*);
+    const ValueVar* error_value(const TypeVar*);
+    const ValueVar* error_value();
 
     void bind(const Var*, const Node*);
 
@@ -283,21 +284,21 @@ struct ExprBuilder : public Builder {
     void bind(const ValueVar*, const Value*);
     const ValueVar* bind_value(const Value*);
 
-    const Value* local_variable(const Type*);
+    const ValueVar* local_variable(const TypeVar*);
 
     const ValueVar* call(const ValueVar* callee, const ValueVar* arg);
-    const ValueVar* agg(const Type*, const ArrayRef<const Value*>&);
-    const ValueVar* tuple(const ArrayRef<const Value*>&);
-    const ValueVar* repeat(const Type*, const Value*);
-    const ValueVar* extract(const Value*, const Value*);
-    const ValueVar* proj(const Value*, const Value*);
+    const ValueVar* agg(const TypeVar*, const ArrayRef<const ValueVar*>&);
+    const ValueVar* tuple(const ArrayRef<const ValueVar*>&);
+    const ValueVar* repeat(const TypeVar*, const ValueVar*);
+    const ValueVar* extract(const ValueVar*, const ValueVar*);
+    const ValueVar* proj(const ValueVar*, const ValueVar*);
 
-    const ValueVar* variant(const Type*, size_t, const Value*);
-    const ValueVar* variant_index(const Value*);
-    const ValueVar* variant_extract(const Value*, size_t);
+    const ValueVar* variant(const TypeVar*, size_t, const ValueVar*);
+    const ValueVar* variant_index(const ValueVar*);
+    const ValueVar* variant_extract(const ValueVar*, size_t);
 
-    const ValueVar* implicit_cast(const Value*, const Type*);
-    const ValueVar* cast(const Value*, const Type*);
+    const ValueVar* implicit_cast(const ValueVar*, const TypeVar*);
+    const ValueVar* cast(const ValueVar*, const TypeVar*);
 
     const ValueVar* unop(ast::UnaryExpr::Tag, const ValueVar*);
     const ValueVar* binop(ast::BinaryExpr::Tag, const ValueVar*, const ValueVar*);
@@ -309,7 +310,7 @@ struct ExprBuilder : public Builder {
     /// Finish the expression and make it yield unit
     const Value* finish_unit();
     /// Finish the expression and make it do a branch last, yielding NoRet
-    const Value* finish_branch(const Value*, const Function*, const Function*);
+    const Value* finish_branch(const ValueVar*, const Function*, const Function*);
 private:
     void add_instruction(const Value* instruction);
 

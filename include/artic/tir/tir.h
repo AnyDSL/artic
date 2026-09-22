@@ -139,16 +139,16 @@ struct LetRec : virtual Node {
 };
 
 struct Ctor : virtual public Node {
-    const Sig* ctor_sig;
+    const SigVar* ctor_sig;
     NodeKind kind() const override { return NodeKind::Ctor; }
 
     void free_variables(FVSet&, Seen&) const override;
 
-    Ctor(const Sig* ctor_sig);
+    Ctor(const SigVar* ctor_sig);
 };
 
 struct CtorDef : public Ctor, public Def {
-    CtorDef(const Sig* sig) : Ctor(sig), Def() {}
+    CtorDef(const SigVar* sig) : Ctor(sig), Def() {}
 };
 
 struct Constructor : public CtorDef {
@@ -163,17 +163,17 @@ struct Constructor : public CtorDef {
     void free_variables(FVSet&, Seen&) const override;
 
     template<typename T, typename... Args>
-    const Node* instantiate_with(Arena& arena, ArrayRef<const Node*> args, Args&&... xtra_args) const {
+    const Node* instantiate_with(Arena& arena, ArrayRef<const Var*> args, Args&&... xtra_args) const {
         T s(arena, scope, xtra_args...);
         return instantiate_into(args, s);
     }
 
-    const Node* instantiate(Builder&, ArrayRef<const Node*> args) const;
+    const Node* instantiate(Builder&, ArrayRef<const Var*> args) const;
 
     Constructor(LetRecBuilder&, Scope&, const ArrayRef<const Var*>&, const Node*);
 
 private:
-    const Node* instantiate_into(ArrayRef<const Node*> args, Rewriter&) const;
+    const Node* instantiate_into(ArrayRef<const Var*> args, Rewriter&) const;
 };
 
 struct CtorVar : public Ctor, public Var {
@@ -186,12 +186,12 @@ struct CtorVar : public Ctor, public Var {
     void print(Printer&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
-    CtorVar(Arena&, std::optional<ast::Identifier>, const Sig*);
+    CtorVar(Arena&, std::optional<ast::Identifier>, const SigVar*);
 };
 
 struct App : virtual Node {
     const CtorVar* applicand_;
-    Array<const Node*> args;
+    Array<const Var*> args;
 
     const CtorVar* applicand() const { return applicand_; };
 
@@ -204,12 +204,12 @@ struct App : virtual Node {
     // intended for use in 'peek' functions
     virtual const Node* instantiated(Builder&) const;
 
-    App(const CtorVar*, const ArrayRef<const Node*>&);
+    App(const CtorVar*, const ArrayRef<const Var*>&);
 private:
     mutable const Node* instantiated_ = nullptr;
 };
 
-const CtorDef* resolve_ctor(const Scope&, const CtorVar*);
+const CtorDef* resolve_ctor_def(const Scope&, const CtorVar*);
 
 std::tuple<const App*, const Node*, const Scope&> match_app_unapplied(const Scope&, const Def*);
 std::pair<const App*, const Node*> match_app_applied(Builder& builder, const Def*);

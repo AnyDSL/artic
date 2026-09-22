@@ -35,7 +35,7 @@ struct Sig : virtual Node {
 
     const Node* to_error(Builder&) const;
 
-    static const Sig* from_node(LetRecBuilder&, const Node*, bool public_interface = true);
+    static const SigVar* from_node(LetRecBuilder&, const Node*, bool public_interface = true);
 };
 
 struct SigVar : public Sig, public Var {
@@ -55,7 +55,7 @@ struct SigDef : public Sig, public Def {
 };
 
 struct ValueSignature : public SigDef {
-    const Type* value_type = nullptr;
+    const TypeVar* value_type = nullptr;
 
     size_t hash() const override;
     bool equals(const Node*) const override;
@@ -66,11 +66,11 @@ struct ValueSignature : public SigDef {
     //NodeKind element_kind() const override { return NodeKind::Value; }
     bool is_sub_def(const Scope&, const SigDef*) const override;
 
-    ValueSignature(Builder&, const Type*);
+    ValueSignature(Builder&, const TypeVar*);
 };
 
 struct TypeSignature : public SigDef {
-    const Type* type = nullptr;
+    const TypeVar* type = nullptr;
 
     size_t hash() const override;
     bool equals(const Node*) const override;
@@ -81,7 +81,7 @@ struct TypeSignature : public SigDef {
     //NodeKind element_kind() const override { return NodeKind::Type; }
     bool is_sub_def(const Scope&, const SigDef*) const override;
 
-    TypeSignature(Builder&, const Type*);
+    TypeSignature(Builder&, const TypeVar*);
 };
 
 struct ModSignature : public SigDef {
@@ -126,13 +126,15 @@ struct SigError : public SigDef {
 
     void free_variables(FVSet&, Seen&) const override;
 
+    virtual bool is_sub_def(const Scope&, const SigDef*) const override;
+
     SigError(Arena&);
 };
 
 const Sig* lookup_sig(const Scope&, const SigVar*);
 const SigDef* lookup_sig_def(const Scope&, const SigVar*);
 
-const SigDef* resolve_sig(const Scope&, const SigVar*);
+const SigDef* resolve_sig_def(const Scope&, const SigVar*);
 
 struct Mod : virtual public Node {
     NodeKind kind() const override { return NodeKind::Module; }
@@ -232,7 +234,7 @@ struct ModApp : public ModDef, public App {
         return App::instantiated(b)->as<Mod>();
     }
 
-    ModApp(Builder&, const CtorVar*, const ArrayRef<const Node*>& args);
+    ModApp(Builder&, const CtorVar*, const ArrayRef<const Var*>& args);
 private:
     mutable const Mod* instantiated_ = nullptr;
     friend Emitter;
@@ -269,7 +271,8 @@ struct ModError : public ModDef {
     ModError(Builder&);
 };
 
-const ModDef* resolve_mod(const Scope&, const ModVar*);
+const ModDef* lookup_mod_def(const Scope&, const ModVar*);
+const ModDef* resolve_mod_def(const Scope&, const ModVar*);
 
 }
 

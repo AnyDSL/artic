@@ -11,37 +11,37 @@ namespace artic {
 namespace tir {
 
 const PrimType* PrimType::rewrite(Rewriter& r) const {
-    return r.dst.prim_type(tag);
+    return r.builder().unsafe().prim_type(tag);
 }
 
 const NoRetType* NoRetType::rewrite(Rewriter& r) const {
-    return r.dst.no_ret_type();
+    return r.builder().unsafe().no_ret_type();
 }
 
 const TopType* TopType::rewrite(Rewriter& r) const {
-    return r.dst.top_type();
+    return r.builder().unsafe().top_type();
 }
 
 const BottomType* BottomType::rewrite(Rewriter& r) const {
-    return r.dst.bottom_type();
+    return r.builder().unsafe().bottom_type();
 }
 
 const FnType* FnType::rewrite(Rewriter& r) const {
-    const Type* ndom = r.instantiate(dom);
-    const Type* ncodom = r.instantiate(codom);
+    const TypeVar* ndom = r.instantiate(dom);
+    const TypeVar* ncodom = r.instantiate(codom);
     return r.builder().unsafe().fn_type(ndom, ncodom);
 }
 
 const TupleType* TupleType::rewrite(Rewriter& r) const {
-    Array<const Type*> elems(this->args.size());
+    Array<const TypeVar*> elems(this->args.size());
     for (size_t i = 0; i < elems.size(); ++i) {
         elems[i] = r.instantiate(this->args[i]);
     }
-    return r.builder().tuple_type(elems);
+    return r.builder().unsafe().tuple_type(elems);
 }
 
 const StructType* StructType::rewrite(Rewriter& r) const {
-    auto ns = r.builder().struct_type(decl);
+    auto ns = r.builder().unsafe().struct_type(decl);
     r.insert(this, ns);
     for (auto elem : members) {
         ns->members.push_back(r.instantiate(elem));
@@ -50,7 +50,7 @@ const StructType* StructType::rewrite(Rewriter& r) const {
 }
 
 const EnumType* EnumType::rewrite(Rewriter& r) const {
-    auto ne = r.builder().enum_type(decl);
+    auto ne = r.builder().unsafe().enum_type(decl);
     r.insert(this, ne);
     for (auto elem : members) {
         ne->members.push_back(r.instantiate(elem));
@@ -59,23 +59,23 @@ const EnumType* EnumType::rewrite(Rewriter& r) const {
 }
 
 const SizedArrayType* SizedArrayType::rewrite(Rewriter& r) const {
-    return r.builder().sized_array_type(r.instantiate(elem), size, is_simd);
+    return r.builder().unsafe().sized_array_type(r.instantiate(elem), size, is_simd);
 }
 
 const UnsizedArrayType* UnsizedArrayType::rewrite(Rewriter& r) const {
-    return r.builder().unsized_array_type(r.instantiate(elem));
+    return r.builder().unsafe().unsized_array_type(r.instantiate(elem));
 }
 
 const ImplicitParamType* ImplicitParamType::rewrite(Rewriter& r) const {
-    return r.builder().implicit_param_type(r.instantiate(underlying));
+    return r.builder().unsafe().implicit_param_type(r.instantiate(underlying));
 }
 
 const PtrType* PtrType::rewrite(Rewriter& r) const {
-    return r.builder().ptr_type(r.instantiate(pointee), is_mut, addr_space);
+    return r.builder().unsafe().ptr_type(r.instantiate(pointee), is_mut, addr_space);
 }
 
 const RefType* RefType::rewrite(Rewriter& r) const {
-    return r.builder().ref_type(r.instantiate(pointee), is_mut, addr_space);
+    return r.builder().unsafe().ref_type(r.instantiate(pointee), is_mut, addr_space);
 }
 
 const TypeVar* TypeVar::rewrite(Rewriter& r) const {
@@ -87,7 +87,7 @@ const Type* TypeApp::rewrite(Rewriter& r) const {
 }
 
 const TypeError* TypeError::rewrite(Rewriter& r) const {
-    return r.dst.type_error();
+    return r.builder().unsafe().type_error();
 }
 
 const Node* Key::rewrite(Rewriter& r) const {
@@ -95,7 +95,7 @@ const Node* Key::rewrite(Rewriter& r) const {
 }
 
 const Node* ModVar::rewrite(Rewriter& r) const {
-    return r.builder().mod_var(id, r.instantiate(signature_, false)->as<Sig>());
+    return r.builder().mod_var(id, r.instantiate(signature_, false));
 }
 
 const Node* SigVar::rewrite(Rewriter& r) const {
@@ -103,7 +103,7 @@ const Node* SigVar::rewrite(Rewriter& r) const {
 }
 
 const Node* SigError::rewrite(Rewriter& r) const {
-    return r.builder().sig_error();
+    return r.builder().enclosing_let_rec().sig_error();
 }
 
 const Node* Module::rewrite(Rewriter& r) const {
@@ -191,7 +191,7 @@ const Node* ModModAccess::rewrite(Rewriter& r) const {
 }
 
 const Node* ModError::rewrite(Rewriter& r) const {
-    return r.builder().mod_error();
+    return r.builder().enclosing_let_rec().mod_error();
 }
 
 const Node* LetRecMod::rewrite(Rewriter& r) const {
@@ -266,7 +266,7 @@ const Value* ValueApp::rewrite(Rewriter& r) const {
 
 const Node* GlobalVariable::rewrite(Rewriter& r) const {
     auto init = this->init ? r.instantiate(this->init, false) : nullptr;
-    auto nglobal = r.builder().global_variable(r.instantiate(allocated_type), is_mut, init, decl);
+    auto nglobal = r.builder().unsafe().global_variable(r.instantiate(allocated_type), is_mut, init, decl);
     if (linkage)
         nglobal->linkage = linkage;
     return nglobal;
@@ -297,11 +297,11 @@ const Node* Function::rewrite(Rewriter& r) const {
 }
 
 const Node* Unit::rewrite(Rewriter& r) const {
-    return r.builder().unit();
+    return r.builder().unsafe().unit();
 }
 
 const Node* ErrorValue::rewrite(Rewriter& r) const {
-    return r.builder().error_value(r.instantiate(type()));
+    return r.builder().unsafe().error_value(r.instantiate(type()));
 }
 
 const Node* ValueVar::rewrite(Rewriter& r) const {
@@ -321,11 +321,11 @@ const Node* Cast::rewrite(Rewriter& r) const {
 }
 
 const Node* TypedLiteral::rewrite(Rewriter& r) const {
-    return r.builder().typed_literal(value, r.instantiate(type_));
+    return r.builder().unsafe().typed_literal(value, r.instantiate(type_));
 }
 
 const Node* Undef::rewrite(Rewriter& r) const {
-    return r.builder().undef(r.instantiate(type_));
+    return r.builder().unsafe().undef(r.instantiate(type_));
 }
 
 const Node* Agg::rewrite(Rewriter& r) const {
@@ -428,17 +428,17 @@ const Node* Control::rewrite(Rewriter& r) const {
 }
 
 const Node* ValueSignature::rewrite(Rewriter& rewriter) const {
-    return rewriter.builder().unsafe().value_signature(rewriter.instantiate(value_type)->as<Type>());
+    return rewriter.builder().unsafe().value_signature(rewriter.instantiate(value_type));
 }
 
 const Node* TypeSignature::rewrite(Rewriter& rewriter) const {
     if (type)
-        return rewriter.builder().unsafe().type_signature(rewriter.instantiate(type)->as<Type>());
+        return rewriter.builder().unsafe().type_signature(rewriter.instantiate(type));
     return rewriter.builder().unsafe().type_signature(nullptr);
 }
 
 const Node* ModSignature::rewrite(Rewriter& rewriter) const {
-    std::unordered_map<const Key*, const Sig*> nelems;
+    std::unordered_map<const Key*, const SigVar*> nelems;
     for (auto [key, sig] : elems) {
         nelems.emplace(rewriter.instantiate(key), rewriter.instantiate(sig));
     }
@@ -446,7 +446,7 @@ const Node* ModSignature::rewrite(Rewriter& rewriter) const {
 }
 
 const Node* CtorSignature::rewrite(Rewriter& rewriter) const {
-    Array<const Sig*> new_dom(dom.size());
+    Array<const SigVar*> new_dom(dom.size());
     for (size_t i = 0; i < dom.size(); ++i) {
         new_dom[i] = rewriter.instantiate(dom[i]);
     }

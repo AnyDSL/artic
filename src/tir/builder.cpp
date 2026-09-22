@@ -12,90 +12,64 @@ Arena::~Arena() {
         delete t;
 }
 
-const PrimType* Arena::prim_type(ast::PrimType::Tag tag) {
-    return insert<PrimType>(*this, tag);
+const PrimType* Builder::Unsafe::prim_type(ast::PrimType::Tag tag) {
+    return arena.insert<PrimType>(arena, tag);
 }
 
-const PrimType* Arena::bool_type() {
+const PrimType* Builder::Unsafe::bool_type() {
     return prim_type(ast::PrimType::Bool);
 }
 
-const BottomType* Arena::bottom_type() {
-    return bottom_type_ ? bottom_type_ : bottom_type_ = insert<BottomType>(*this);
+const BottomType* Builder::Unsafe::bottom_type() {
+    return arena.insert<BottomType>(arena);
 }
 
-const TopType* Arena::top_type() {
-    return top_type_ ? top_type_ : top_type_ = insert<TopType>(*this);
+const TopType* Builder::Unsafe::top_type() {
+    return arena.insert<TopType>(arena);
 }
 
-const NoRetType* Arena::no_ret_type() {
-    return no_ret_type_ ? no_ret_type_ : no_ret_type_ = insert<NoRetType>(*this);
+const NoRetType* Builder::Unsafe::no_ret_type() {
+    return arena.insert<NoRetType>(arena);
 }
 
-const TypeError* Arena::type_error() {
-    return type_error_ ? type_error_ : type_error_ = insert<TypeError>(*this);
+const TypeError* Builder::Unsafe::type_error() {
+    return arena.insert<TypeError>(arena);
 }
 
-// builder stuff here
-
-const PrimType* Builder::prim_type(ast::PrimType::Tag tag) {
-    return arena.prim_type(tag);
-}
-
-const PrimType* Builder::bool_type() {
-    return arena.bool_type();
-}
-
-const BottomType* Builder::bottom_type() {
-    return arena.bottom_type();
-}
-
-const TopType* Builder::top_type() {
-    return arena.top_type();
-}
-
-const NoRetType* Builder::no_ret_type() {
-    return arena.no_ret_type();
-}
-
-const TypeError* Builder::type_error() {
-    return arena.type_error();
-}
-
-const TupleType* Builder::unit_type() {
+const TupleType* Builder::Unsafe::unit_type() {
     return tuple_type({});
 }
 
-const TupleType* Builder::tuple_type(const ArrayRef<const TypeVar*>& elems) {
+const TupleType* Builder::Unsafe::tuple_type(const ArrayRef<const TypeVar*>& elems) {
     return arena.insert<TupleType>(arena, std::move(elems));
 }
 
-const SizedArrayType* Builder::sized_array_type(const Type* elem, size_t size, bool is_simd) {
+const SizedArrayType* Builder::Unsafe::sized_array_type(const TypeVar* elem, size_t size, bool is_simd) {
     return arena.insert<SizedArrayType>(arena, elem, size, is_simd);
 }
 
-const UnsizedArrayType* Builder::unsized_array_type(const Type* elem) {
+const UnsizedArrayType* Builder::Unsafe::unsized_array_type(const TypeVar* elem) {
     return arena.insert<UnsizedArrayType>(arena, elem);
 }
 
-const PtrType* Builder::ptr_type(const Type* pointee, bool is_mut, size_t addr_space) {
+const PtrType* Builder::Unsafe::ptr_type(const TypeVar* pointee, bool is_mut, size_t addr_space) {
     return arena.insert<PtrType>(arena, pointee, is_mut, addr_space);
 }
 
-const RefType* Builder::ref_type(const Type* pointee, bool is_mut, size_t addr_space) {
+const RefType* Builder::Unsafe::ref_type(const TypeVar* pointee, bool is_mut, size_t addr_space) {
     return arena.insert<RefType>(arena, pointee, is_mut, addr_space);
 }
 
-const ImplicitParamType* Builder::implicit_param_type(const Type* underlying) {
+const ImplicitParamType* Builder::Unsafe::implicit_param_type(const TypeVar* underlying) {
     return arena.insert<ImplicitParamType>(arena, underlying);
 }
 
-const FnType* Builder::fn_type(const Type* dom, const Type* codom) {
+const FnType* Builder::Unsafe::fn_type(const TypeVar* dom, const TypeVar* codom) {
     return arena.insert<FnType>(arena, dom, codom);
 }
 
-const FnType* Builder::cn_type(const Type* dom) {
-    return fn_type(dom, no_ret_type());
+const FnType* Builder::Unsafe::cn_type(const TypeVar* dom) {
+    return fn_type(dom, builder.enclosing_let_rec().no_ret_type());
 }
 
 /*const TypeVar* Builder::type_var(const ast::TypeParam* param) {
@@ -143,7 +117,7 @@ const TypeVar* Builder::member_type(const TypeDef* type, size_t idx) {
     }
 
     // other type applications are immediately instantiated too
-    if (auto [app, peeked_type, _] = resolve_type_app_applied(*this, type); app) {
+    if (auto [app, peeked_type] = resolve_type_app_applied(*this, type); app) {
         // note: if we allow nested type apps, we should actually get a builder for the returned scope!
         return member_type(peeked_type, idx);
     }
@@ -166,11 +140,11 @@ const TypeVar* Builder::type_var(std::optional<ast::Identifier> id) {
     return arena.insert<TypeVar>(arena, id);
 }
 
-const TypeApp* Builder::Unsafe::type_app(const CtorVar* applied, const ArrayRef<const Node*>& type_args) {
+const TypeApp* Builder::Unsafe::type_app(const CtorVar* applied, const ArrayRef<const Var*>& type_args) {
     return builder.arena.insert<TypeApp>(builder, applied, std::move(type_args));
 }
 
-const TypeVar* LetRecBuilder::type_app(const CtorVar* applied, const ArrayRef<const Node*>& type_args) {
+const TypeVar* LetRecBuilder::type_app(const CtorVar* applied, const ArrayRef<const Var*>& type_args) {
     return schedule_type(unsafe().type_app(applied, type_args));
 }
 
@@ -189,20 +163,20 @@ const Key* Builder::decl_key(std::optional<ast::Identifier> id) {
     return arena.insert<Key>(arena, id);
 }
 
-const ModVar* Builder::mod_var(std::optional<ast::Identifier> id, const Sig* sig) {
+const ModVar* Builder::mod_var(std::optional<ast::Identifier> id, const SigVar* sig) {
     return arena.insert<ModVar>(*this, id, sig);
 }
 
-const ModError* Builder::mod_error() {
-    return arena.insert<ModError>(*this);
+const ModError* Builder::Unsafe::mod_error() {
+    return arena.insert<ModError>(builder);
 }
 
-const Module* Builder::Unsafe::module(std::unordered_map<const Key*, const Node*>&& decls, const Sig* sig, const ast::ModDecl* decl) {
+const Module* Builder::Unsafe::module(std::unordered_map<const Key*, const Node*>&& decls, const SigVar* sig, const ast::ModDecl* decl) {
     return builder.arena.insert<Module>(builder, std::move(decls), sig, decl);
 }
 
 const ModVar* LetRecBuilder::module(std::unordered_map<const Key*, const Node*>&& decls, const ast::ModDecl* decl) {
-    std::unordered_map<const Key*, const Sig*> sig_elems;
+    std::unordered_map<const Key*, const SigVar*> sig_elems;
     for (auto [key, val] : decls) {
         sig_elems[key] = Sig::from_node(*this, val);
     }
@@ -210,74 +184,65 @@ const ModVar* LetRecBuilder::module(std::unordered_map<const Key*, const Node*>&
     return schedule_mod_value(unsafe().module(std::move(decls), sig, decl));
 }
 
-const Mod* Builder::Unsafe::mod_mod_access(const Mod* src, const Key* key) {
-    assert(src->is_var());
-    if (auto var = src->isa<ModVar>()) {
-        auto mod = builder.scope.peek_mod_value(var)->isa<Module>();
-        if (mod) {
-            if (auto found = mod->lookup(key))
-                return found->as<Mod>();
-        }
+const Mod* Builder::Unsafe::mod_mod_access(const ModVar* src, const Key* key) {
+    auto mod = lookup_mod_def(builder.scope, src)->isa<Module>();
+    if (mod) {
+        if (auto found = mod->lookup(key))
+            return found->as<Mod>();
     }
-    return builder.arena.insert<ModModAccess>(builder, src, key);
+    return arena.insert<ModModAccess>(builder, src, key);
 }
 
-const ModVar* LetRecBuilder::mod_mod_access(const Mod* src, const Key* key) {
+const ModVar* LetRecBuilder::mod_mod_access(const ModVar* src, const Key* key) {
     return schedule(unsafe().mod_mod_access(src, key))->as<ModVar>();
 }
 
-const Type* Builder::Unsafe::mod_type_access(const Mod* src, const Key* key) {
-    assert(src->is_var());
-    if (auto var = src->isa<ModVar>()) {
-        auto mod = builder.scope.peek_mod_value(var)->isa<Module>();
-        if (mod) {
-            if (auto found = mod->lookup(key))
-                return found->as<Type>();
-        }
+const Type* Builder::Unsafe::mod_type_access(const ModVar* src, const Key* key) {
+    auto mod = lookup_mod_def(builder.scope, src)->isa<Module>();
+    if (mod) {
+        if (auto found = mod->lookup(key))
+            return found->as<Type>();
     }
     assert(false);
     //return builder.arena.insert<ModModAccess>(builder, src, key);
 }
 
-const TypeVar* LetRecBuilder::mod_type_access(const Mod* src, const Key* key) {
+const TypeVar* LetRecBuilder::mod_type_access(const ModVar* src, const Key* key) {
     return schedule(unsafe().mod_type_access(src, key))->as<TypeVar>();
 }
 
-const Value* Builder::Unsafe::mod_value_access(const Mod* src, const Key* key) {
-    assert(src->is_var());
-    if (auto var = src->isa<ModVar>()) {
-        auto mod = builder.scope.peek_mod_value(var)->isa<Module>();
-        if (mod) {
-            if (auto found = mod->lookup(key))
-                return found->as<Value>();
-        }
+const Value* Builder::Unsafe::mod_value_access(const ModVar* src, const Key* key) {
+    auto mod = lookup_mod_def(builder.scope, src)->isa<Module>();
+    if (mod) {
+        if (auto found = mod->lookup(key))
+            return found->as<Value>();
     }
     assert(false);
     //return builder.arena.insert<ModModAccess>(builder, src, key);
 }
 
-const ValueVar* LetRecBuilder::mod_value_access(const Mod* src, const Key* key) {
+const ValueVar* LetRecBuilder::mod_value_access(const ModVar* src, const Key* key) {
     return schedule(unsafe().mod_value_access(src, key))->as<ValueVar>();
 }
 
-const Value* Builder::Unsafe::value_app(const CtorVar* applied, const ArrayRef<const Node*>& type_args) {
+const Value* Builder::Unsafe::value_app(const CtorVar* applied, const ArrayRef<const Var*>& type_args) {
     return builder.arena.insert<ValueApp>(builder, applied, std::move(type_args));
 }
 
-const ValueVar* LetRecBuilder::value_app(const CtorVar* applied, const ArrayRef<const Node*>& type_args) {
+const ValueVar* LetRecBuilder::value_app(const CtorVar* applied, const ArrayRef<const Var*>& type_args) {
     return schedule_value(unsafe().value_app(applied, type_args));
 }
 
-const Var* LetRecBuilder::mod_access(const Mod* src, const Key* key) {
-    auto mod_sig = scope.resolve_sig(src->signature()->as<SigVar>())->as<ModSignature>();
+const Var* LetRecBuilder::mod_access(const ModVar* src, const Key* key) {
+    auto mod_sig = resolve_sig_def(scope, src->signature()->as<SigVar>())->as<ModSignature>();
     auto sig = mod_sig->lookup(key);
     assert(sig);
-    sig = scope.resolve_sig(sig->as<SigVar>());
+    sig = resolve_sig_def(scope, sig->as<SigVar>());
     if (sig->isa<ModSignature>()) {
         return mod_mod_access(src, key);
     } else if (sig->isa<TypeSignature>()) {
         return mod_type_access(src, key);
-    }else if (sig->isa<ValueSignature>()) {
+    } else if (sig->isa<ValueSignature>()) {
         return mod_value_access(src, key);
     }
     assert(false);
@@ -304,7 +269,7 @@ const CtorVar* LetRecBuilder::value_ctor(Scope& scope, const ArrayRef<const Var*
     return schedule(unsafe().value_ctor(scope, params, contents))->as<CtorVar>();
 }
 
-const CtorVar* Builder::ctor_var(std::optional<ast::Identifier> id, const Sig* sig) {
+const CtorVar* Builder::ctor_var(std::optional<ast::Identifier> id, const SigVar* sig) {
     auto var = arena.insert<CtorVar>(arena, id, sig);
     assert(var->gid != 96);
     return var;
@@ -314,160 +279,184 @@ const SigVar* Builder::sig_var(std::optional<ast::Identifier> id) {
     return arena.insert<SigVar>(*this, id);
 }
 
-const SigError* Builder::sig_error() {
+const SigError* Builder::Unsafe::sig_error() {
     return arena.insert<SigError>(arena);
 }
 
-const Mod* Builder::Unsafe::mod_app(const CtorVar* applicand, const ArrayRef<const Node*>& args) {
+const SigVar* LetRecBuilder::sig_error() {
+    return schedule_sig(unsafe().sig_error());
+}
+
+const Mod* Builder::Unsafe::mod_app(const CtorVar* applicand, const ArrayRef<const Var*>& args) {
     return builder.arena.insert<ModApp>(builder, applicand, args);
 }
 
-const ModVar* LetRecBuilder::mod_app(const CtorVar* applicand, const ArrayRef<const Node*>& args) {
+const ModVar* LetRecBuilder::mod_app(const CtorVar* applicand, const ArrayRef<const Var*>& args) {
     return schedule(unsafe().mod_app(applicand, args))->as<ModVar>();
 }
 
-const Value* Builder::error_value(const Type* t) {
+const Value* Builder::Unsafe::error_value(const TypeVar* t) {
     return arena.insert<ErrorValue>(arena, t);
 }
 
-const Value* Builder::error_value() {
-    return error_value(type_error());
+const ValueVar* LetRecBuilder::error_value(const TypeVar* t) {
+    return schedule_value(unsafe().error_value(t));
 }
 
-const GlobalVariable* Builder::global_variable(const Type* value_type, bool is_mut, const Value* init, const ast::StaticDecl* decl) {
-    return arena.insert<GlobalVariable>(*this, value_type, is_mut, init, decl);
+const Value* Builder::Unsafe::error_value() {
+    return error_value(builder.enclosing_let_rec().type_error());
 }
 
-const Value* Builder::typed_literal(Literal literal, const Type* type) {
+const ValueVar* LetRecBuilder::error_value() {
+    return schedule_value(unsafe().error_value());
+}
+
+const GlobalVariable* Builder::Unsafe::global_variable(const TypeVar* value_type, bool is_mut, const Value* init, const ast::StaticDecl* decl) {
+    return arena.insert<GlobalVariable>(builder, value_type, is_mut, init, decl);
+}
+
+const Value* Builder::Unsafe::typed_literal(Literal literal, const TypeVar* type) {
     // TODO: normalize literal representation based on type
-    return arena.insert<TypedLiteral>(*this, literal, type);
+    return arena.insert<TypedLiteral>(builder, literal, type);
 }
 
-const Value* Builder::undef(const Type* type) {
+const ValueVar* LetRecBuilder::typed_literal(Literal literal, const TypeVar* type) {
+    return schedule_value(unsafe().typed_literal(literal, type));
+}
+
+const Value* Builder::Unsafe::undef(const TypeVar* type) {
     return arena.insert<Undef>(arena, type);
 }
 
-const Function* Builder::Unsafe::function(const ValueVar* param, Scope& scope, const Type* codom, const ast::FnDecl* decl) {
+const ValueVar* LetRecBuilder::undef(const TypeVar* type) {
+    return schedule_value(unsafe().undef(type));
+}
+
+const Function* Builder::Unsafe::function(const ValueVar* param, Scope& scope, const TypeVar* codom, const ast::FnDecl* decl) {
     return builder.arena.insert<Function>(builder, scope, param, codom, decl);
 }
 
-const Value* Builder::Unsafe::builtin(Builtin::Tag tag, const ArrayRef<const Node*>& args) {
+const Value* Builder::Unsafe::builtin(Builtin::Tag tag, const ArrayRef<const Var*>& args) {
     return builder.arena.insert<Builtin>(builder, tag, args);
 }
 
-const Value* Builder::Unsafe::mathop(thorin::MathOpTag tag, const ArrayRef<const Value*>& args) {
+const Value* Builder::Unsafe::mathop(thorin::MathOpTag tag, const ArrayRef<const ValueVar*>& args) {
     return builder.arena.insert<MathOp>(builder, tag, args);
 }
 
-const Value* Builder::unit() {
-    return arena.insert<Unit>(arena, unit_type());
+const Value* Builder::Unsafe::unit() {
+    return arena.insert<Unit>(arena, builder.enclosing_let_rec().unit_type());
 }
 
-const ValueVar* Builder::value_var(std::optional<ast::Identifier> id, const Type* type) {
+const ValueVar* LetRecBuilder::unit() {
+    return schedule_value(unsafe().unit());
+}
+
+const ValueVar* Builder::value_var(std::optional<ast::Identifier> id, const TypeVar* type) {
     return arena.insert<ValueVar>(arena, id, type);
 }
 
-const LocalVariable* Builder::Unsafe::local_variable(const Type* value_type) {
+const LocalVariable* Builder::Unsafe::local_variable(const TypeVar* value_type) {
     return builder.arena.insert<LocalVariable>(builder, value_type);
 }
 
-const Value* ExprBuilder::local_variable(const Type* value_type) {
+const ValueVar* ExprBuilder::local_variable(const TypeVar* value_type) {
     return bind_value(unsafe().local_variable(value_type));
 }
 
-const Value* Builder::Unsafe::implicit_cast(const Value* src, const Type* dst) {
+const Value* Builder::Unsafe::implicit_cast(const ValueVar* src, const TypeVar* dst) {
     return builder.arena.insert<ImplicitCast>(builder, src, dst);
 }
 
-const Value* ExprBuilder::implicit_cast(const Value* src, const Type* dst) {
+const ValueVar* ExprBuilder::implicit_cast(const ValueVar* src, const TypeVar* dst) {
     return bind_value(unsafe().implicit_cast(src, dst));
 }
 
-const Value* Builder::Unsafe::cast(const Value* src, const Type* dst) {
+const Value* Builder::Unsafe::cast(const ValueVar* src, const TypeVar* dst) {
     return builder.arena.insert<tir::Cast>(builder.arena, src, dst);
 }
 
-const Value* ExprBuilder::cast(const Value* src, const Type* dst) {
+const ValueVar* ExprBuilder::cast(const ValueVar* src, const TypeVar* dst) {
     return bind_value(unsafe().cast(src, dst));
 }
 
-const Value* Builder::Unsafe::call(const Value* callee, const Value* arg) {
+const Value* Builder::Unsafe::call(const ValueVar* callee, const ValueVar* arg) {
     return builder.arena.insert<Call>(builder, callee, arg);
 }
 
-const Value* ExprBuilder::call(const Value* callee, const Value* arg) {
+const ValueVar* ExprBuilder::call(const ValueVar* callee, const ValueVar* arg) {
     return bind_value(unsafe().call(callee, arg));
 }
 
-const Value* Builder::Unsafe::agg(const Type* type, const ArrayRef<const Value*>& args) {
+const Value* Builder::Unsafe::agg(const TypeVar* type, const ArrayRef<const ValueVar*>& args) {
     return builder.arena.insert<Agg>(builder, type, args);
 }
 
-const Value* ExprBuilder::agg(const Type* type, const ArrayRef<const Value*>& args) {
+const ValueVar* ExprBuilder::agg(const TypeVar* type, const ArrayRef<const ValueVar*>& args) {
     return bind_value(unsafe().agg(type, args));
 }
 
-const Value* Builder::Unsafe::repeat(const Type* type, const Value* elem) {
+const Value* Builder::Unsafe::repeat(const TypeVar* type, const ValueVar* elem) {
     return builder.arena.insert<Repeat>(builder, type, elem);
 }
 
-const Value* ExprBuilder::repeat(const Type* type, const Value* elem) {
+const ValueVar* ExprBuilder::repeat(const TypeVar* type, const ValueVar* elem) {
     return bind_value(unsafe().repeat(type, elem));
 }
 
-inline static const TupleType* tuple_type_from_elems(Builder& builder, const ArrayRef<const Value*>& args) {
-    Array<const Type*> types(args.size());
+inline static const TypeVar* tuple_type_from_elems(Builder& builder, const ArrayRef<const ValueVar*>& args) {
+    Array<const TypeVar*> types(args.size());
     for (size_t i = 0; i < args.size(); i++) {
         types[i] = args[i]->type();
     }
-    return builder.tuple_type(types);
+    return builder.enclosing_let_rec().tuple_type(types);
 }
 
-const Value* Builder::Unsafe::tuple(const ArrayRef<const Value*>& args) {
+const Value* Builder::Unsafe::tuple(const ArrayRef<const ValueVar*>& args) {
     return agg(tuple_type_from_elems(builder, args), args);
 }
 
-const Value* ExprBuilder::tuple(const ArrayRef<const Value*>& args) {
+const ValueVar* ExprBuilder::tuple(const ArrayRef<const ValueVar*>& args) {
     return bind_value(unsafe().tuple(args));
 }
 
-const Value* Builder::Unsafe::extract(const Value* src, const Value* idx) {
+const Value* Builder::Unsafe::extract(const ValueVar* src, const ValueVar* idx) {
     return builder.arena.insert<Extract>(builder, src, idx);
 }
 
-const Value* ExprBuilder::extract(const Value* src, const Value* idx) {
+const ValueVar* ExprBuilder::extract(const ValueVar* src, const ValueVar* idx) {
     return bind_value(unsafe().extract(src, idx));
 }
 
-const Value* Builder::Unsafe::proj(const Value* src, const Value* idx) {
+const Value* Builder::Unsafe::proj(const ValueVar* src, const ValueVar* idx) {
     return builder.arena.insert<Proj>(builder, src, idx);
 }
 
-const Value* ExprBuilder::proj(const Value* src, const Value* idx) {
+const ValueVar* ExprBuilder::proj(const ValueVar* src, const ValueVar* idx) {
     return bind_value(unsafe().proj(src, idx));
 }
 
-const Value* Builder::Unsafe::variant(const Type* type, size_t idx, const Value* elem) {
+const Value* Builder::Unsafe::variant(const TypeVar* type, size_t idx, const ValueVar* elem) {
     return builder.arena.insert<Variant>(builder, type, idx, elem);
 }
 
-const Value* ExprBuilder::variant(const Type* type, size_t idx, const Value* elem) {
+const ValueVar* ExprBuilder::variant(const TypeVar* type, size_t idx, const ValueVar* elem) {
     return bind_value(unsafe().variant(type, idx, elem));
 }
 
-const Value* Builder::Unsafe::variant_index(const Value* value) {
+const Value* Builder::Unsafe::variant_index(const ValueVar* value) {
     return builder.arena.insert<VariantIndex>(builder, value);
 }
 
-const Value* ExprBuilder::variant_index(const Value* value) {
+const ValueVar* ExprBuilder::variant_index(const ValueVar* value) {
     return bind_value(unsafe().variant_index(value));
 }
 
-const Value* Builder::Unsafe::variant_extract(const Value* value, size_t idx) {
+const Value* Builder::Unsafe::variant_extract(const ValueVar* value, size_t idx) {
     return builder.arena.insert<VariantExtract>(builder, value, idx);
 }
 
-const Value* ExprBuilder::variant_extract(const Value* value, size_t idx) {
+const ValueVar* ExprBuilder::variant_extract(const ValueVar* value, size_t idx) {
     return bind_value(unsafe().variant_extract(value, idx));
 }
 
@@ -487,35 +476,35 @@ const ValueVar* ExprBuilder::binop(ast::BinaryExpr::Tag tag, const ValueVar* lhs
     return bind_value(unsafe().binop(tag, lhs, rhs));
 }
 
-const Branch* Builder::Unsafe::branch(const Value* cond, const Function* true_branch, const Function* else_branch) {
+const Branch* Builder::Unsafe::branch(const ValueVar* cond, const Function* true_branch, const Function* else_branch) {
     return builder.arena.insert<Branch>(builder, cond, true_branch, else_branch);
 }
 
-const Match::Ptrn* Builder::Unsafe::trivial_match_ptrn(const Type* type) {
+const Match::Ptrn* Builder::Unsafe::trivial_match_ptrn(const TypeVar* type) {
     return builder.arena.insert<Match::Ptrn>(builder.arena, type);
 }
 
-const Match::Ptrn* Builder::Unsafe::variant_match_ptrn(const Type* type, size_t index, const Match::Ptrn* sub_ptrn) {
+const Match::Ptrn* Builder::Unsafe::variant_match_ptrn(const TypeVar* type, size_t index, const Match::Ptrn* sub_ptrn) {
     return builder.arena.insert<Match::Ptrn>(builder.arena, type, index, sub_ptrn);
 }
 
-const Match::Ptrn* Builder::Unsafe::compound_match_ptrn(const Type* type, const ArrayRef<std::tuple<size_t, const Match::Ptrn*>>& elems, const Match::Ptrn* sub_ptrn) {
+const Match::Ptrn* Builder::Unsafe::compound_match_ptrn(const TypeVar* type, const ArrayRef<std::tuple<size_t, const Match::Ptrn*>>& elems, const Match::Ptrn* sub_ptrn) {
     return builder.arena.insert<Match::Ptrn>(builder.arena, type, elems, sub_ptrn);
 }
 
-const Match::Ptrn* Builder::Unsafe::literal_match_ptrn(const Type* type, Literal literal, const Match::Ptrn* sub_ptrn) {
+const Match::Ptrn* Builder::Unsafe::literal_match_ptrn(const TypeVar* type, Literal literal, const Match::Ptrn* sub_ptrn) {
     return builder.arena.insert<Match::Ptrn>(builder.arena, type, literal, sub_ptrn);
 }
 
-const Match* Builder::Unsafe::match(const Loc& loc, const Value* value, Array<Match::Case>&& cases) {
+const Match* Builder::Unsafe::match(const Loc& loc, const ValueVar* value, Array<Match::Case>&& cases) {
     return builder.arena.insert<Match>(builder, loc, value, std::move(cases));
 }
 
-const Switch* Builder::Unsafe::switch_(const Value* value, const Function* default_case, Array<Switch::Case>&& cases) {
+const Switch* Builder::Unsafe::switch_(const ValueVar* value, const Function* default_case, Array<Switch::Case>&& cases) {
     return builder.arena.insert<Switch>(builder, value, default_case, std::move(cases));
 }
 
-const Value* ExprBuilder::finish_branch(const Value* cond, const Function* true_branch, const Function* else_branch) {
+const Value* ExprBuilder::finish_branch(const ValueVar* cond, const Function* true_branch, const Function* else_branch) {
     return finish(unsafe().branch(cond, true_branch, else_branch));
 }
 
@@ -523,7 +512,7 @@ const Control* Builder::Unsafe::control(const Function* fn) {
     return builder.arena.insert<Control>(builder, fn);
 }
 
-const Value* ExprBuilder::control(const Function* fn) {
+const ValueVar* ExprBuilder::control(const Function* fn) {
     return bind_value(unsafe().control(fn));
 }
 
@@ -536,8 +525,8 @@ void ExprBuilder::add_instruction(const Value* instruction) {
 }
 
 const ValueVar* ExprBuilder::bind_value(const Value* value) {
-    if (value->is_var())
-        return value;
+    if (auto var = value->isa<ValueVar>())
+        return var;
     auto param = this->value_var(std::nullopt, value->type());
     bind(param, value);
     return param;
@@ -553,17 +542,17 @@ const Bind* Builder::Unsafe::bind(const ValueVar* param, const Value* value) {
 
 void ExprBuilder::bind(const ValueVar* param, const Value* value) {
     if (value->type()->isa<TypeError>())
-        value = error_value(param->type());
+        value = enclosing_let_rec().error_value(param->type());
     add_instruction(unsafe().bind(param, value));
 }
 
 const Value* ExprBuilder::finish(const Value* last) {
-    assert(last->is_var() || last->type() == no_ret_type());
-    std::vector<const Value*> filtered_values;
+    assert(last->is_var() || last->type() == enclosing_let_rec().no_ret_type());
+    std::vector<const ValueDef*> filtered_values;
     for (size_t i = 0; i < seq.size(); i++) {
-        auto value = seq[i];
+        auto value = seq[i]->isa<ValueDef>();
         // get rid of non-computations
-        if (!value->is_computation())
+        if (!value || !value->is_computation())
             continue;
         filtered_values.push_back(value);
     }
@@ -573,38 +562,38 @@ const Value* ExprBuilder::finish(const Value* last) {
 }
 
 const Value* ExprBuilder::finish_unit() {
-    return finish(unit());
+    return finish(enclosing_let_rec().unit());
 }
 
-const ModSignature* Builder::Unsafe::mod_signature(std::unordered_map<const Key*, const Sig*>&& elems) {
+const ModSignature* Builder::Unsafe::mod_signature(std::unordered_map<const Key*, const SigVar*>&& elems) {
     return builder.arena.insert<ModSignature>(builder, std::move(elems));
 }
 
-const Sig* LetRecBuilder::mod_signature(std::unordered_map<const Key*, const Sig*>&& elems) {
+const SigVar* LetRecBuilder::mod_signature(std::unordered_map<const Key*, const SigVar*>&& elems) {
     return schedule_sig(unsafe().mod_signature(std::move(elems)));
 }
 
-const ValueSignature* Builder::Unsafe::value_signature(const Type* inner) {
+const ValueSignature* Builder::Unsafe::value_signature(const TypeVar* inner) {
     return builder.arena.insert<ValueSignature>(builder, inner);
 }
 
-const Sig* LetRecBuilder::value_signature(const Type* inner) {
+const SigVar* LetRecBuilder::value_signature(const TypeVar* inner) {
     return schedule_sig(unsafe().value_signature(inner));
 }
 
-const TypeSignature* Builder::Unsafe::type_signature(const Type* inner) {
+const TypeSignature* Builder::Unsafe::type_signature(const TypeVar* inner) {
     return builder.arena.insert<TypeSignature>(builder, inner);
 }
 
-const Sig* LetRecBuilder::type_signature(const Type* inner) {
+const SigVar* LetRecBuilder::type_signature(const TypeVar* inner) {
     return schedule_sig(unsafe().type_signature(inner));
 }
 
-const CtorSignature* Builder::Unsafe::ctor_signature(const ArrayRef<const Sig*>& dom, NodeKind codom_kind) {
+const CtorSignature* Builder::Unsafe::ctor_signature(const ArrayRef<const SigVar*>& dom, NodeKind codom_kind) {
     return builder.arena.insert<CtorSignature>(builder, dom, codom_kind);
 }
 
-const Sig* LetRecBuilder::ctor_signature(const ArrayRef<const Sig*>& dom, NodeKind codom_kind) {
+const SigVar* LetRecBuilder::ctor_signature(const ArrayRef<const SigVar*>& dom, NodeKind codom_kind) {
     return schedule_sig(unsafe().ctor_signature(dom, codom_kind));
 }
 

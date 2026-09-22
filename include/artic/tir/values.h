@@ -101,7 +101,7 @@ struct ValueApp : public ValueDef, public App {
         return App::instantiated(b)->as<Value>();
     }
 private:
-    ValueApp(Builder&, const CtorVar*, const ArrayRef<const Node*>&);
+    ValueApp(Builder&, const CtorVar*, const ArrayRef<const Var*>&);
     mutable const Value* instantiated_ = nullptr;
 
     friend class Arena;
@@ -189,7 +189,7 @@ struct GlobalVarLinkage {
 struct GlobalVariable : public ValueDef {
     const TypeVar* allocated_type;
     bool is_mut;
-    const ValueVar* init;
+    const Value* init;
     const ast::StaticDecl* decl;
 
     mutable std::optional<GlobalVarLinkage> linkage;
@@ -203,7 +203,7 @@ struct GlobalVariable : public ValueDef {
 
     const thorin::Def* emit(Emitter&) const override;
 
-    GlobalVariable(Builder& arena, const TypeVar*, bool is_mut, const ValueVar* init, const ast::StaticDecl* decl);
+    GlobalVariable(Builder& arena, const TypeVar*, bool is_mut, const Value* init, const ast::StaticDecl* decl);
 };
 
 struct LocalVariable : public ValueDef {
@@ -495,7 +495,7 @@ struct Builtin : public ValueDef {
         return builtin_tag_names[int(tag)];
     }
 
-    Array<const Node*> args;
+    Array<const Var*> args;
 
     bool equals(const Node*) const override;
     size_t hash() const override;
@@ -506,7 +506,7 @@ struct Builtin : public ValueDef {
 
     const thorin::Def* emit(Emitter&) const override;
 
-    Builtin(Builder&, Tag, const ArrayRef<const Node*>&);
+    Builtin(Builder&, Tag, const ArrayRef<const Var*>&);
 };
 
 struct MathOp : public ValueDef {
@@ -601,7 +601,7 @@ struct Match : public ValueDef {
     };
 
     const Loc& loc;
-    const Value* value;
+    const ValueVar* value;
     Array<Case> cases;
 
     //bool equals(const Node*) const override;
@@ -611,7 +611,7 @@ struct Match : public ValueDef {
     const Node* rewrite(Rewriter&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
-    Match(Builder&, const Loc&, const Value*, Array<Case>&&);
+    Match(Builder&, const Loc&, const ValueVar*, Array<Case>&&);
 };
 
 struct Switch : public ValueDef {
@@ -650,6 +650,8 @@ struct Control : public ValueDef {
 
     Control(Builder&, const Function*);
 };
+
+const ValueDef* resolve_value_def(const Scope&, const ValueVar*);
 
 }
 

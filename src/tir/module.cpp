@@ -8,7 +8,7 @@ namespace artic::tir {
 
 Module::Module(Builder& builder, std::unordered_map<const Key*, const Node*>&& decls, const SigVar* signature, const ast::ModDecl* decl)
     : ModDef(), Node(builder.arena), decls(std::move(decls)), decl(decl), signature_(signature) {
-    const ModSignature* ms = resolve_sig(builder.scope, signature->as<SigVar>())->isa<ModSignature>();
+    const ModSignature* ms = resolve_sig_def(builder.scope, signature->as<SigVar>())->isa<ModSignature>();
     assert(ms);
 }
 
@@ -20,7 +20,7 @@ const Node* Module::lookup(const Key* key) const {
     return nullptr;
 }
 
-ValueSignature::ValueSignature(Builder& builder, const Type* value_type) : Node(builder.arena), SigDef(), value_type(value_type) {
+ValueSignature::ValueSignature(Builder& builder, const TypeVar* value_type) : Node(builder.arena), SigDef(), value_type(value_type) {
     assert(value_type->is_var());
 }
 
@@ -35,7 +35,7 @@ bool ValueSignature::equals(const Node* other) const {
     return false;
 }
 
-TypeSignature::TypeSignature(Builder& builder, const Type* type) : Node(builder.arena), SigDef(), type(type) {
+TypeSignature::TypeSignature(Builder& builder, const TypeVar* type) : Node(builder.arena), SigDef(), type(type) {
     if (type)
         assert(type->is_var());
 }
@@ -126,7 +126,7 @@ bool SigVar::can_bind(const Scope& scope, const Node* other) const {
 
 SigError::SigError(Arena& arena) : Node(arena), SigDef() {}
 
-const Sig* Sig::from_node(LetRecBuilder& builder, const Node* node, bool public_interface) {
+const SigVar* Sig::from_node(LetRecBuilder& builder, const Node* node, bool public_interface) {
     if (auto mod_val = node->isa<Mod>()) {
         return mod_val->signature();
     }
@@ -136,7 +136,7 @@ const Sig* Sig::from_node(LetRecBuilder& builder, const Node* node, bool public_
             return builder.value_signature(value->type());
         }
         case NodeKind::Type: {
-            return builder.type_signature(public_interface ? node->as<Type>() : nullptr);
+            return builder.type_signature(public_interface ? node->as<TypeVar>() : nullptr);
         }
         case NodeKind::Module: {
             return node->as<Mod>()->signature();
@@ -287,7 +287,7 @@ ModAccess::ModAccess(Builder& builder, const ModVar* mod, const Key* key)
 
 ModModAccess::ModModAccess(Builder& builder, const ModVar* mod, const Key* key)
     : Node(builder.arena), ModDef(), ModAccess(builder, mod, key), signature_([&]() -> const SigVar*  {
-        auto mod_sig = resolve_sig(builder.scope, mod->signature()->as<SigVar>())->as<ModSignature>();
+        auto mod_sig = resolve_sig_def(builder.scope, mod->signature()->as<SigVar>())->as<ModSignature>();
         return mod_sig->elems.find(key)->second;
     }()) {
     assert(mod->is_var() && mod->kind() == NodeKind::Module);
@@ -326,7 +326,7 @@ ModCtor::ModCtor(Builder& builder, Scope& scope, const ArrayRef<const Var*>& par
     }
 }
 
-ModApp::ModApp(Builder& builder, const CtorVar* applicand, const ArrayRef<const Node*>& args)
+ModApp::ModApp(Builder& builder, const CtorVar* applicand, const ArrayRef<const Var*>& args)
     : ModDef()
     /*: ModValue([&]() -> NodeKind {
     auto ctor_sig = applicand->signature();
@@ -368,7 +368,7 @@ const SigVar* ModApp::signature() const {
 }
 
 ModError::ModError(Builder& builder)
-    : ModDef(), Node(builder.arena), signature_(builder.sig_error()) {}
+    : ModDef(), Node(builder.arena), signature_(builder.enclosing_let_rec().sig_error()) {}
 
 size_t ModError::hash() const {
     return fnv::Hash().combine(1337);

@@ -57,15 +57,15 @@ size_t App::hash() const {
     return h;
 }
 
-Ctor::Ctor(const Sig* ctor_sig) : ctor_sig(ctor_sig) {}
+Ctor::Ctor(const SigVar* ctor_sig) : ctor_sig(ctor_sig) {}
 
 void Ctor::free_variables(FVSet& vars, Seen& seen) const {
     ctor_sig->free_variables(vars, seen);
 }
 
 Constructor::Constructor(LetRecBuilder& builder, Scope& scope, const ArrayRef<const Var*>& params, const Node* body)
-: CtorDef([&]() -> const Sig* {
-    Array<const Sig*> dom(params.size());
+: CtorDef([&]() -> const SigVar* {
+    Array<const SigVar*> dom(params.size());
     for (size_t i = 0; i < params.size(); i++) {
         dom[i] = Sig::from_node(builder, params[i], false);
     }
@@ -105,7 +105,7 @@ void Constructor::free_variables(FVSet& vars, Seen& seen) const {
     }
 }
 
-CtorVar::CtorVar(Arena& arena, std::optional<ast::Identifier> id, const Sig* sig)
+CtorVar::CtorVar(Arena& arena, std::optional<ast::Identifier> id, const SigVar* sig)
     : Node(arena), Var(id), Ctor(sig) {}
 
 bool CtorVar::can_bind(const Scope& scope, const Node* node) const {
@@ -120,11 +120,9 @@ void CtorVar::free_variables(FVSet& vars, Seen& seen) const {
     Var::free_variables(vars, seen);
 }
 
-App::App(const CtorVar* applicand, const ArrayRef<const Node*>& args) : applicand_(applicand), args(args) {
-    assert(applicand_->is_var());
-    for (auto arg : args)
-        assert(arg->is_var());
-}
+App::App(const CtorVar* applicand, const ArrayRef<const Var*>& args)
+    : applicand_(applicand), args(args)
+{}
 
 void App::free_variables(FVSet& vars, Seen& seen) const {
     applicand_->free_variables(vars, seen);
@@ -132,7 +130,7 @@ void App::free_variables(FVSet& vars, Seen& seen) const {
         arg->free_variables(vars, seen);
 }
 
-const Node* Constructor::instantiate_into(ArrayRef<const Node*> args, Rewriter& r) const {
+const Node* Constructor::instantiate_into(ArrayRef<const Var*> args, Rewriter& r) const {
     for (size_t i = 0; i < params.size(); i++) {
         r.insert(params[i], args[i]);
     }
@@ -160,14 +158,14 @@ struct Specializer : public Rewriter {
     }
 };
 
-const Node* Constructor::instantiate(Builder& builder, ArrayRef<const Node*> args) const {
+const Node* Constructor::instantiate(Builder& builder, ArrayRef<const Var*> args) const {
     return instantiate_with<Specializer>(builder.arena, args, builder);
 }
 
 const Node* App::instantiated(Builder& builder) const {
     if (instantiated_)
         return instantiated_;
-    auto constructor = builder.scope.resolve_ctor(applicand())->isa<Constructor>();
+    auto constructor = resolve_ctor_def(builder.scope, applicand())->isa<Constructor>();
     assert(constructor);
     assert(&builder.arena == &arena);
     return instantiated_ = constructor->instantiate(builder, args);
@@ -200,8 +198,8 @@ bool LetRec::equals(const Node* other) const {
 
 std::tuple<const App*, const Node*, const Scope&> match_app_unapplied(const Scope& scope, const Def* def) {
     if (auto app = def->isa<App>()) {
-        auto [ctor, cs] = scope.resolve_ctor_return_scope(app->applicand());
-        return { app, ctor->as<Constructor>()->body(), cs };
+        auto ctor = resolve_ctor_def(scope, app->applicand());
+        return { app, ctor->as<Constructor>()->body(), scope };
     }
     return { nullptr, def, scope };
 }

@@ -14,20 +14,20 @@ const TypeDef* Value::resolve_type(const Scope& s) const {
     return resolve_type_def(s, type());
 }
 
-GlobalVariable::GlobalVariable(Builder& builder, const TypeVar* value_type, bool is_mut, const ValueVar* init, const ast::StaticDecl* decl)
-    : ValueDef(builder.arena, builder.ref_type(value_type, is_mut, 0)), Node(builder.arena), allocated_type(value_type), is_mut(is_mut), init(init), decl(decl) {
+GlobalVariable::GlobalVariable(Builder& builder, const TypeVar* value_type, bool is_mut, const Value* init, const ast::StaticDecl* decl)
+    : ValueDef(builder.arena, builder.enclosing_let_rec().ref_type(value_type, is_mut, 0)), Node(builder.arena), allocated_type(value_type), is_mut(is_mut), init(init), decl(decl) {
     assert(value_type->is_var());
     if (init)
         assert(init->type() == value_type);
 }
 
 LocalVariable::LocalVariable(Builder& builder, const TypeVar* allocated_type)
-    : ValueDef(builder.arena, builder.ref_type(allocated_type, true, 0)), Node(builder.arena), allocated_type(allocated_type) {
+    : ValueDef(builder.arena, builder.enclosing_let_rec().ref_type(allocated_type, true, 0)), Node(builder.arena), allocated_type(allocated_type) {
     assert(allocated_type->is_var());
 }
 
 Function::Function(Builder& builder, Scope& scope, const ValueVar* param, const TypeVar* codom, const ast::FnDecl* decl)
-    : ValueDef(builder.arena, builder.fn_type(param->type(), codom)), Node(builder.arena), scope(scope), param(param), codom(codom), decl(decl) {
+    : ValueDef(builder.arena, builder.enclosing_let_rec().fn_type(param->type(), codom)), Node(builder.arena), scope(scope), param(param), codom(codom), decl(decl) {
     assert(scope.is_in_scope(param));
 }
 
@@ -41,7 +41,7 @@ void Function::set_body(Builder& builder, const Value* body) const {
 void Function::set_filter(Builder& builder, const Value* body) const {
     assert(!this->filter_ && "can't set the filer twice!");
     auto fn_t = resolve_type(builder.scope);
-    assert(body->type() == builder.prim_type(ast::PrimType::Bool));
+    assert(body->type() == builder.enclosing_let_rec().prim_type(ast::PrimType::Bool));
     this->filter_ = body;
 }
 
@@ -132,9 +132,9 @@ struct TypeExtractor : public Rewriter {
     }
 };
 
-ValueApp::ValueApp(Builder& builder, const CtorVar* ctor_var, const ArrayRef<const Node*>& args)
+ValueApp::ValueApp(Builder& builder, const CtorVar* ctor_var, const ArrayRef<const Var*>& args)
     : Node(builder.arena), App(ctor_var, args), ValueDef(builder.arena, [&]() -> const TypeVar* {
-        auto ctor = resolve_ctor(builder.scope, ctor_var)->as<Constructor>();
+        auto ctor = resolve_ctor_def(builder.scope, ctor_var)->as<Constructor>();
         TypeExtractor replacer(builder, ctor->scope, ctor->body()->as<Value>());
         for (size_t i = 0; i < args.size(); i++) {
             replacer.insert(ctor->params[i], args[i]);
@@ -327,7 +327,7 @@ Extract::Extract(Builder& builder, const ValueVar* src, const ValueVar* idx) : V
         if (auto lit_idx = idx->isa<TypedLiteral>(); lit_idx) {
             size_t idx_value = lit_idx->value.as_integer();
             if (idx_value >= tuple_t->args.size())
-                return builder.type_error();
+                return builder.enclosing_let_rec().type_error();
             return tuple_t->args[idx_value];
         }
     } else if (auto array_t = peeked_agg_type->isa<SizedArrayType>()) {
@@ -341,7 +341,7 @@ Extract::Extract(Builder& builder, const ValueVar* src, const ValueVar* idx) : V
     } else {
         assert(false);
     }
-    return builder.type_error();
+    return builder.enclosing_let_rec().type_error();
 }()), Node(builder.arena), src(src), idx(idx) {
     assert(src->is_var());
     assert(idx->is_var());
@@ -377,7 +377,7 @@ bool Variant::equals(const Node* other) const {
 }
 
 VariantIndex::VariantIndex(Builder& builder, const ValueVar* src)
-    : Node(builder.arena), ValueDef(builder.arena, builder.prim_type(ast::PrimType::U64)), src(src) {
+    : Node(builder.arena), ValueDef(builder.arena, builder.enclosing_let_rec().prim_type(ast::PrimType::U64)), src(src) {
     assert(src->is_var());
 }
 
@@ -448,16 +448,16 @@ Proj::Proj(Builder& builder, const ValueVar* src, const ValueVar* idx) : ValueDe
 
     auto [mod_app, peeked_pointee_t] = resolve_type_app_applied(builder, resolved_pointee_t);
 
-    auto wrap_pointee = [&](const Type* new_pointee) -> const TypeVar* {
+    auto wrap_pointee = [&](const TypeVar* new_pointee) -> const TypeVar* {
         assert(new_pointee->is_var());
-        return builder.ref_type(new_pointee, mut, as);
+        return builder.enclosing_let_rec().ref_type(new_pointee, mut, as);
     };
 
     if (auto tuple_t = peeked_pointee_t->isa<TupleType>()) {
         if (auto lit_idx = idx->isa<TypedLiteral>(); lit_idx) {
             size_t idx_value = lit_idx->value.as_integer();
             if (idx_value >= tuple_t->args.size())
-                return builder.type_error();
+                return builder.enclosing_let_rec().type_error();
             return wrap_pointee(tuple_t->args[idx_value]);
         }
     } else if (auto array_t = peeked_pointee_t->isa<ArrayType>()) {
@@ -470,7 +470,7 @@ Proj::Proj(Builder& builder, const ValueVar* src, const ValueVar* idx) : ValueDe
     } else {
         assert(false);
     }
-    return builder.type_error();
+    return builder.enclosing_let_rec().type_error();
 }()), Node(builder.arena), src(src), idx(idx) {
     assert(src->is_var());
     assert(idx->is_var());
@@ -492,7 +492,7 @@ Bind::Bind(Builder& builder, const ValueVar* param, const Value* value) : ValueD
     if (!value->type()->subtype(builder.scope, param->type())) {
         assert(false);
     }
-    return builder.tuple_type({});
+    return builder.enclosing_let_rec().tuple_type({});
 }()), Node(builder.arena), param(param), value(value) {}
 
 size_t Bind::hash() const {
@@ -541,17 +541,17 @@ using namespace artic::ast;
 UnOp::UnOp(Builder& builder, const UnaryExpr::Tag tag, const ValueVar* arg) : ValueDef(builder.arena, [&]() -> const TypeVar* {
     auto [ref_type, arg_type] = remove_ref(builder.scope, arg->type());
     if (tag == UnaryExpr::Known)
-        return builder.bool_type();
+        return builder.enclosing_let_rec().bool_type();
     if (tag == UnaryExpr::Forget)
         return arg->type();
     if (tag == UnaryExpr::AddrOf)
-        return builder.ptr_type(arg_type, false, ref_type ? ref_type->addr_space : 0);
+        return builder.enclosing_let_rec().ptr_type(arg_type, false, ref_type ? ref_type->addr_space : 0);
     if (tag == UnaryExpr::AddrOfMut)
-        return builder.ptr_type(arg_type, true, ref_type->addr_space);
+        return builder.enclosing_let_rec().ptr_type(arg_type, true, ref_type->addr_space);
     if (tag == UnaryExpr::Deref) {
         if (auto ptr_type = arg_type->isa<PtrType>())
-            return builder.ref_type(ptr_type->pointee, ptr_type->is_mut, ptr_type->addr_space);
-        return builder.type_error();
+            return builder.enclosing_let_rec().ref_type(ptr_type->pointee, ptr_type->is_mut, ptr_type->addr_space);
+        return builder.enclosing_let_rec().type_error();
     }
     return arg_type;
 }()), Node(builder.arena), tag(tag), arg(arg) {
@@ -573,11 +573,11 @@ bool UnOp::equals(const Node* other) const {
 BinOp::BinOp(Builder& builder, const BinaryExpr::Tag tag, const ValueVar* lhs, const ValueVar* rhs) : ValueDef(builder.arena, [&]() -> const TypeVar* {
     if (BinaryExpr::has_eq(tag)) {
         assert(resolve_type_def(builder.scope, lhs->type())->isa<RefType>());
-        return builder.unit_type();
+        return builder.enclosing_let_rec().unit_type();
     } if (BinaryExpr::has_cmp(tag))
-        return builder.bool_type();
+        return builder.enclosing_let_rec().bool_type();
     if (lhs->type() != rhs->type())
-        return builder.type_error();
+        return builder.enclosing_let_rec().type_error();
     return lhs->type();
 }()), Node(builder.arena), tag(tag), lhs(lhs), rhs(rhs) {
     assert(lhs->is_var());
@@ -596,11 +596,11 @@ bool BinOp::equals(const Node* other) const {
     return false;
 }
 
-Builtin::Builtin(Builder& builder, Tag tag, const ArrayRef<const Node*>& args) : ValueDef(builder.arena, [&]() -> const TypeVar* {
+Builtin::Builtin(Builder& builder, Tag tag, const ArrayRef<const Var*>& args) : ValueDef(builder.arena, [&]() -> const TypeVar* {
     switch (tag) {
         case Tag::AlignOf:
         case Tag::SizeOf:
-            return builder.prim_type(ast::PrimType::I64);
+            return builder.enclosing_let_rec().prim_type(ast::PrimType::I64);
         case Tag::BitCast:
             return args[0]->as<TypeVar>();
         case Tag::Insert:
@@ -610,7 +610,7 @@ Builtin::Builtin(Builder& builder, Tag tag, const ArrayRef<const Node*>& args) :
         case Tag::SignBit:
         case Tag::IsNaN:
         case Tag::IsFinite:
-            return builder.bool_type();
+            return builder.enclosing_let_rec().bool_type();
         case Tag::Compare:
             assert(false);
             break;
@@ -674,15 +674,15 @@ bool MathOp::equals(const Node* other) const {
 
 Branch::Branch(Builder& builder, const ValueVar* cond, const Function* true_branch, const Function* else_branch) : ValueDef(builder.arena, [&]() -> const TypeVar* {
     if (!is_bool_type(resolve_type_def(builder.scope, cond->type())))
-        return builder.type_error();
+        return builder.enclosing_let_rec().type_error();
     // both branches must have no param
     if (!is_unit_type(resolve_type_def(builder.scope, true_branch->param->type())))
-        return builder.type_error();
+        return builder.enclosing_let_rec().type_error();
     if (!is_unit_type(resolve_type_def(builder.scope, else_branch->param->type())))
-        return builder.type_error();
+        return builder.enclosing_let_rec().type_error();
     // both branches must yield the same thing (if we do direct-style which we don't ATP!)
     if (true_branch->resolve_type(builder.scope)->codom != else_branch->resolve_type(builder.scope)->codom)
-        return builder.type_error();
+        return builder.enclosing_let_rec().type_error();
     return true_branch->resolve_type(builder.scope)->codom;
 }()), Node(builder.arena), cond(cond), true_branch(true_branch), else_branch(else_branch) {
     assert(cond->is_var());
@@ -700,28 +700,26 @@ bool Branch::equals(const Node* other) const {
     return false;
 }
 
-Match::Match(Builder& builder, const Loc& loc, const Value* value, Array<Case>&& cases)
-: Node(builder.arena), ValueDef(builder.arena, builder.no_ret_type()), loc(loc), value(value), cases(std::move(cases)) {
+Match::Match(Builder& builder, const Loc& loc, const ValueVar* value, Array<Case>&& cases)
+: Node(builder.arena), ValueDef(builder.arena, builder.enclosing_let_rec().no_ret_type()), loc(loc), value(value), cases(std::move(cases)) {
     assert(value->is_var());
     for (auto& cas : this->cases) {
     }
 }
 
-Switch::Switch(Builder& builder, const ValueVar* value, const Function* default_case, Array<Case>&& cases) : Node(builder.arena), ValueDef(builder.arena, builder.no_ret_type()), value(value), default_case(default_case), cases(std::move(cases)) {
-    for (auto& cas : this->cases) {
-        assert(cas.value->is_var());
-    }
-}
+Switch::Switch(Builder& builder, const ValueVar* value, const Function* default_case, Array<Case>&& cases)
+    : Node(builder.arena), ValueDef(builder.arena, builder.enclosing_let_rec().no_ret_type()), value(value), default_case(default_case), cases(std::move(cases))
+{}
 
 Control::Control(Builder& builder, const Function* fn) : ValueDef(builder.arena, [&]() -> const TypeVar* {
-    if (fn->codom != builder.no_ret_type())
-        return builder.type_error();
+    if (fn->codom != builder.enclosing_let_rec().no_ret_type())
+        return builder.enclosing_let_rec().type_error();
     if (auto yield_fn_type = resolve_type_def(builder.scope, fn->param->type())->isa<FnType>()) {
-        if (yield_fn_type->codom != builder.no_ret_type())
-            return builder.type_error();
+        if (yield_fn_type->codom != builder.enclosing_let_rec().no_ret_type())
+            return builder.enclosing_let_rec().type_error();
         return yield_fn_type->dom;
     }
-    return builder.type_error();
+    return builder.enclosing_let_rec().type_error();
 }()), Node(builder.arena), body(fn) {}
 
 size_t Control::hash() const {

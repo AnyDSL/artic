@@ -20,7 +20,7 @@ public:
             : match_case(match_case)
         {}
 
-        const Value* emit(Rewriter&, ExprBuilder&);
+        const ValueVar* emit(Rewriter&, ExprBuilder&);
     };
 
     static const Value* emit(
@@ -40,7 +40,7 @@ private:
     Builder& builder;
     const Match* old_match;
     std::vector<Row> rows;
-    std::vector<const Value*> values;
+    std::vector<const ValueVar*> values;
     // std::unordered_map<const ast::IdPtrn*, const tir::Value*>& matched_values;
 
     PtrnCompiler(
@@ -49,7 +49,7 @@ private:
         Log& log,
         const Match* old_match,
         std::vector<Row>&& rows,
-        std::vector<const Value*>&& values)
+        std::vector<const ValueVar*>&& values)
         : r(r)
         , builder(builder)
         , old_match(old_match)
@@ -96,7 +96,7 @@ private:
         if (auto record_ptrn = ptrn.isa<ast::RecordPtrn>())
             return ctor_index(*record_ptrn->variant_index/*, debug_info(ptrn)*/);
         return ptrn.isa<ast::LiteralPtrn>()
-            ? builder.typed_literal(ptrn.as<ast::LiteralPtrn>()->lit, ptrn.type)
+            ? builder.enclosing_let_rec().typed_literal(ptrn.as<ast::LiteralPtrn>()->lit, ptrn.type)
             : ctor_index(*ptrn.as<ast::CtorPtrn>()->variant_index/*, debug_info(ptrn)*/);
     }
 
@@ -104,12 +104,12 @@ private:
         if (ptrn.variant_index)
             return ctor_index(*ptrn.variant_index);
         if (ptrn.literal)
-            return builder.typed_literal(*ptrn.literal, r.instantiate(ptrn.type));
+            return builder.enclosing_let_rec().typed_literal(*ptrn.literal, r.instantiate(ptrn.type));
         assert(false);
     }
 
     const ValueVar* ctor_index(size_t index/*, thorin::Debug debug*/) const {
-        return builder.typed_literal(Literal((uint64_t) index), builder.prim_type(ast::PrimType::U64));
+        return builder.enclosing_let_rec().typed_literal(Literal((uint64_t) index), builder.enclosing_let_rec().prim_type(ast::PrimType::U64));
     }
 
     size_t pick_col() const {
@@ -148,7 +148,7 @@ private:
             const char* str = ptrn->literal->as_string().c_str();
             std::vector<const Match::Ptrn*> new_elems(ptrn->literal->as_string().size() + 1, nullptr);
             for (size_t j = 0; j < new_elems.size(); ++j) {
-                new_elems[j] = builder.unsafe().literal_match_ptrn(builder.prim_type(ast::PrimType::U8), Literal(uint8_t(str[j])), nullptr);
+                new_elems[j] = builder.unsafe().literal_match_ptrn(builder.enclosing_let_rec().prim_type(ast::PrimType::U8), Literal(uint8_t(str[j])), nullptr);
             }
             row.first.insert(row.first.end(), new_elems.begin(), new_elems.end());
         } else {
@@ -189,9 +189,9 @@ private:
             }
 
             // Expand the value to match against
-            std::vector<const Value*> new_values(member_count);
+            std::vector<const ValueVar*> new_values(member_count);
             for (size_t j = 0; j < member_count; ++j) {
-                auto j_idx = builder.typed_literal(Literal(uint64_t(j)), builder.prim_type(ast::PrimType::I64));
+                auto j_idx = builder.enclosing_let_rec().typed_literal(Literal(uint64_t(j)), builder.enclosing_let_rec().prim_type(ast::PrimType::I64));
                 new_values[j] = expr_builder.extract(values[i], j_idx);
             }
             remove_col(values, i);
@@ -200,17 +200,17 @@ private:
     }
 
     std::tuple<std::unique_ptr<Builder>, const Function*> make_fn() {
-        auto param = builder.value_var(std::nullopt, builder.unit_type());
+        auto param = builder.value_var(std::nullopt, builder.enclosing_let_rec().unit_type());
         Scope& scope = builder.scope.new_child();
         scope.insert(param, nullptr);
         auto fn_builder = std::make_unique<Builder>(builder.arena, scope, &builder);
-        return { std::move(fn_builder), builder.unsafe().function(param, scope, builder.no_ret_type(), nullptr) };
+        return { std::move(fn_builder), builder.unsafe().function(param, scope, builder.enclosing_let_rec().no_ret_type(), nullptr) };
     }
 
     const Value* compile() {
         if (rows.empty()) {
             non_exhaustive_match(old_match->loc);
-            return builder.error_value(builder.type_error());
+            return builder.enclosing_let_rec().error_value(builder.enclosing_let_rec().type_error());
         }
 
         ExprBuilder expr_builder(builder.arena, &builder);
@@ -226,7 +226,7 @@ private:
             // If the first row is made of only wildcards, it is a match
             rows.front().second->is_redundant = false;
             auto case_block = rows.front().second->emit(r, expr_builder);
-            return expr_builder.finish(builder.unsafe().call(case_block, expr_builder.unit()));
+            return expr_builder.finish(builder.unsafe().call(case_block, expr_builder.enclosing_let_rec().unit()));
         }
 
 #ifndef NDEBUG
@@ -288,7 +288,7 @@ private:
                 auto [fn_builder, fn] = make_fn();
                 auto &dst_case = ctor.first->as<TypedLiteral>()->value.as_bool() ? match_true : match_false;
                 dst_case = fn;
-                dst_case->set_body(builder, PtrnCompiler(r, *fn_builder, log, old_match, std::move(ctor.second), std::vector<const Value*>(values)).compile());
+                dst_case->set_body(builder, PtrnCompiler(r, *fn_builder, log, old_match, std::move(ctor.second), std::vector<const ValueVar*>(values)).compile());
             }
             if (!no_default) {
                 // build the other case
@@ -296,7 +296,7 @@ private:
                 auto &dst_case = !match_true ? match_true : match_false;
                 assert(!dst_case);
                 dst_case = fn;
-                dst_case->set_body(builder, PtrnCompiler(r, *fn_builder, log, old_match, std::move(wildcards), std::vector<const Value*>(values)).compile());
+                dst_case->set_body(builder, PtrnCompiler(r, *fn_builder, log, old_match, std::move(wildcards), std::vector<const ValueVar*>(values)).compile());
             }
 
             assert(match_true->param->type()->isa<TupleType>());
@@ -370,7 +370,7 @@ private:
 #endif
 };
 
-const Value* PtrnCompiler::MatchCase::emit(Rewriter& r, ExprBuilder& b) {
+const ValueVar* PtrnCompiler::MatchCase::emit(Rewriter& r, ExprBuilder& b) {
     if (!fn) {
         fn = r.instantiate(match_case->branch);
     }
@@ -388,7 +388,7 @@ const Value* PtrnCompiler::emit(
     for (auto& case_ : cases)
         rows.emplace_back(std::vector<const Match::Ptrn*> { case_.match_case->ptrn }, &case_);
 
-    std::vector<const Value*> values = { rewriter.instantiate(old_match->value) };
+    std::vector<const ValueVar*> values = { rewriter.instantiate(old_match->value) };
     auto compiler = PtrnCompiler(rewriter, builder, log, old_match, std::move(rows), std::move(values));
     auto r = compiler.compile();
     for (auto &row : compiler.rows) {

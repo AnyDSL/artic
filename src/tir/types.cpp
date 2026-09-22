@@ -94,13 +94,9 @@ void EnumType::validate() const {
         assert(t->is_var());
 }
 
-TypeApp::TypeApp(Builder& builder, const CtorVar* applicand, const ArrayRef<const Node*>& args)
+TypeApp::TypeApp(Builder& builder, const CtorVar* applicand, const ArrayRef<const Var*>& args)
     : TypeDef(), Node(builder.arena), App(applicand, args)
-{
-    assert(applicand_->is_var());
-    for (auto& arg : args)
-        assert(arg->is_var());
-}
+{}
 
 TypeCtor::TypeCtor(Builder& builder, Scope& scope, const ArrayRef<const Var*>& params, const Type* body)
     : Node(builder.arena), Constructor(builder.enclosing_let_rec(), scope, params, body) {
@@ -124,15 +120,15 @@ bool LetRecType::equals(const Node* other) const {
 
 // Type Bounds ---------------------------------------------------------------------
 
-TypeBounds& TypeBounds::meet(const Scope& scope, const TypeBounds& bounds) {
+TypeBounds& TypeBounds::meet(LetRecBuilder& b, const Scope& scope, const TypeBounds& bounds) {
     if (lower->subtype(scope, bounds.lower))
         lower = bounds.lower;
     else if (!bounds.lower->subtype(scope, lower))
-        lower = lower->arena.top_type();
+        lower = b.top_type();
     if (bounds.upper->subtype(scope, upper))
         upper = bounds.upper;
     else if (!upper->subtype(scope, bounds.upper))
-        upper = upper->arena.bottom_type();
+        upper = b.bottom_type();
     return *this;
 }
 
@@ -395,56 +391,56 @@ void TypeApp::variance(const Scope& scope, std::unordered_map<const TypeVar*, Ty
 
 // Bounds --------------------------------------------------------------------------
 
-void Type::bounds(const Scope& scope, std::unordered_map<const TypeVar*, TypeBounds>&, const Type*, bool) const {}
+void Type::bounds(LetRecBuilder& b, const Scope& scope, std::unordered_map<const TypeVar*, TypeBounds>&, const TypeVar*, bool) const {}
 
-void TupleType::bounds(const Scope& scope, std::unordered_map<const TypeVar*, TypeBounds>& bounds, const Type* type, bool dir) const {
+void TupleType::bounds(LetRecBuilder& b, const Scope& scope, std::unordered_map<const TypeVar*, TypeBounds>& bounds, const TypeVar* type, bool dir) const {
     if (auto tuple_type = type->isa<TupleType>()) {
         for (size_t i = 0, n = std::min(args.size(), tuple_type->args.size()); i < n; ++i)
-            args[i]->bounds(scope, bounds, tuple_type->args[i], dir);
+            args[i]->bounds(b, scope, bounds, tuple_type->args[i], dir);
     }
 }
 
-void ArrayType::bounds(const Scope& scope, std::unordered_map<const TypeVar*, TypeBounds>& bounds, const Type* type, bool dir) const {
+void ArrayType::bounds(LetRecBuilder& b, const Scope& scope, std::unordered_map<const TypeVar*, TypeBounds>& bounds, const TypeVar* type, bool dir) const {
     if (auto array_type = type->isa<ArrayType>())
-        elem->bounds(scope, bounds, array_type->elem, dir);
+        elem->bounds(b, scope, bounds, array_type->elem, dir);
 }
 
-void AddrType::bounds(const Scope& scope, std::unordered_map<const TypeVar*, TypeBounds>& bounds, const Type* type, bool dir) const {
+void AddrType::bounds(LetRecBuilder& b, const Scope& scope, std::unordered_map<const TypeVar*, TypeBounds>& bounds, const TypeVar* type, bool dir) const {
     if (auto addr_type = type->isa<AddrType>())
-        pointee->bounds(scope, bounds, addr_type->pointee, dir);
+        pointee->bounds(b, scope, bounds, addr_type->pointee, dir);
 }
 
-void ImplicitParamType::bounds(const Scope& scope, TypeVarMap<TypeBounds>& bounds, const Type* type, bool dir) const {
-    underlying->bounds(scope, bounds, type, dir);
+void ImplicitParamType::bounds(LetRecBuilder& b, const Scope& scope, TypeVarMap<TypeBounds>& bounds, const TypeVar* type, bool dir) const {
+    underlying->bounds(b, scope, bounds, type, dir);
 }
 
-void FnType::bounds(const Scope& scope, std::unordered_map<const TypeVar*, TypeBounds>& bounds, const Type* type, bool dir) const {
+void FnType::bounds(LetRecBuilder& b, const Scope& scope, std::unordered_map<const TypeVar*, TypeBounds>& bounds, const TypeVar* type, bool dir) const {
     if (auto fn_type = type->isa<FnType>()) {
-        dom->bounds(scope, bounds, fn_type->dom, !dir);
-        codom->bounds(scope, bounds, fn_type->codom, dir);
+        dom->bounds(b, scope, bounds, fn_type->dom, !dir);
+        codom->bounds(b, scope, bounds, fn_type->codom, dir);
     }
 }
 
-void TypeVar::bounds(const Scope& scope, std::unordered_map<const TypeVar*, TypeBounds>& bounds, const Type* type, bool dir) const {
+void TypeVar::bounds(LetRecBuilder& b, const Scope& scope, std::unordered_map<const TypeVar*, TypeBounds>& bounds, const TypeVar* type, bool dir) const {
     if (auto resolved = lookup_type(scope, this))
-        return resolved->bounds(scope, bounds, type, dir);
+        return resolved->Type::bounds(b, scope, bounds, type, dir);
     TypeBounds type_bounds;
     if (dir)
-        type_bounds = TypeBounds { type, arena.top_type() };
+        type_bounds = TypeBounds { type, b.top_type() };
     else
-        type_bounds = TypeBounds { arena.bottom_type(), type };
+        type_bounds = TypeBounds { b.bottom_type(), type };
 
     if (auto it = bounds.find(this); it != bounds.end())
-        it->second.meet(scope, type_bounds);
+        it->second.meet(b, scope, type_bounds);
     else
         bounds[this] = type_bounds;
 }
 
-void TypeApp::bounds(const Scope& scope, std::unordered_map<const TypeVar*, TypeBounds>& bounds, const Type* type, bool dir) const {
+void TypeApp::bounds(LetRecBuilder& b, const Scope& scope, std::unordered_map<const TypeVar*, TypeBounds>& bounds, const TypeVar* type, bool dir) const {
     if (auto type_app = type->isa<TypeApp>()) {
         for (size_t i = 0, n = std::min(args.size(), type_app->args.size()); i < n; ++i)
-            if (auto t = type_app->args[i]->isa<Type>())
-                args[i]->as<Type>()->bounds(scope, bounds, t, dir);
+            if (auto t = type_app->args[i]->isa<TypeVar>())
+                args[i]->as<Type>()->bounds(b, scope, bounds, t, dir);
     }
 }
 
@@ -713,12 +709,12 @@ bool Type::subtype(const Scope& scope, const Type* other) const {
     return is_subtype(scope, this, other);
 }
 
-const Type* Type::join(const Scope& scope, const Type* other) const {
+const Type* Type::join(LetRecBuilder& b, const Scope& scope, const Type* other) const {
     if (subtype(scope, other))
         return other;
     if (other->subtype(scope, this))
         return this;
-    return arena.top_type();
+    return b.top_type();
 }
 
 bool AddrType::is_compatible_with(const AddrType* other) const {

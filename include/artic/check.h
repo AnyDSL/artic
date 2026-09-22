@@ -57,26 +57,26 @@ public:
     void invalid_attr(const Loc&, const std::string_view&);
     void unsized_type(const Loc&, const Type*);
 
-    const Type* expect(const Loc&, const Type*, const Type*);
+    const TypeVar* expect(const Loc&, const TypeVar*, const TypeVar*);
 
-    const Value* deref(Ptr<ast::Expr>&);
-    const Value* coerce(ast::Expr*, const Type*);
-    const Type* try_coerce(Ptr<ast::Expr>&, const Type*);
-    const Type* join(Ptr<ast::Expr>&, Ptr<ast::Expr>&, ExprBuilder&, ExprBuilder&);
+    const ValueVar* deref(Ptr<ast::Expr>&);
+    const ValueVar* coerce(ast::Expr*, const TypeVar*);
+    const TypeVar* try_coerce(Ptr<ast::Expr>&, const TypeVar*);
+    const TypeVar* join(Ptr<ast::Expr>&, Ptr<ast::Expr>&, ExprBuilder&, ExprBuilder&);
 
     const tir::Var* infer_mod_decl(ast::Decl&);
     const tir::ModVar* infer_mod_head(ast::ModDecl&);
 
     const tir::Key* infer_key(ast::NamedDecl&);
 
-    const Value* build_block(ast::BlockExpr&, const TypeVar* expected, size_t i);
+    const ValueVar* build_block(ast::BlockExpr&, const TypeVar* expected, size_t i);
 
-    const tir::Value* infer_value(ast::Expr& ast);
-    const tir::Value* infer_value(ast::Stmt& ast);
-    const tir::Value* check_value(ast::Expr&, const TypeVar*);
-    const tir::Value* check_value(ast::Stmt&, const TypeVar*);
+    const tir::ValueVar* infer_value(ast::Expr& ast);
+    const tir::ValueVar* infer_value(ast::Stmt& ast);
+    const tir::ValueVar* check_value(ast::Expr&, const TypeVar*);
+    const tir::ValueVar* check_value(ast::Stmt&, const TypeVar*);
     /// Filters always have bool as their type.
-    const tir::Value* check_filter(ast::Filter&);
+    const tir::ValueVar* check_filter(ast::Filter&);
 
     const tir::TypeVar* infer_type(ast::Type& ast);
     const tir::TypeVar* infer_type(ast::FieldDecl&);
@@ -93,25 +93,25 @@ public:
     const tir::TypeVar* infer_type_param(ast::TypeParam& ast);
     // const tir::ModVar* check_type_param(ast::TypeParam& ast, const Type*);
 
-    const tir::Value* infer(const Loc&, const Literal&);
-    const tir::Value* check(const Loc&, const Literal&, const Type*);
+    const tir::ValueVar* infer(const Loc&, const Literal&);
+    const tir::ValueVar* check(const Loc&, const Literal&, const TypeVar*);
 
     Array<const Var*> infer(ast::TypeParamList*);
 
     /// Explores a pattern recursively and makes sure the body is wrapped in Bind nodes that extract the value of each sub-pattern
-    void bind_ptrn_params(ast::Ptrn&, const Value*);
+    void bind_ptrn_params(ast::Ptrn&, const ValueVar*);
 
     const Match::Ptrn* convert_ptrn(const ast::Ptrn&);
 
-    const Value* build_fn_body(const ValueVar* param, ast::FnExpr& fn, const tir::Type* codom);
+    const Value* build_fn_body(const ValueVar* param, ast::FnExpr& fn, const tir::TypeVar* codom);
     const Value* build_fn_filter(const ValueVar* param, ast::FnExpr& fn);
-    const Value* build_if(const ast::IfExpr& expr, const tir::Type* yield_type, const Value*, ExprBuilder& true_builder, ExprBuilder& else_builder);
+    const ValueVar* build_if(const ast::IfExpr& expr, const tir::TypeVar* yield_type, const ValueVar*, ExprBuilder& true_builder, ExprBuilder& else_builder);
 
     using SetTypeFn = const std::function<void(const tir::Type*)>&;
-    using InnerLoopBuilderFn = const std::function<const Value*(SetTypeFn, const Value* loop_param)>&;
-    using BuildInnerLoopFn = const std::function<const Value*(const Type*, InnerLoopBuilderFn)>&;
+    using InnerLoopBuilderFn = const std::function<const Value*(SetTypeFn, const ValueVar* loop_param)>&;
+    using BuildInnerLoopFn = const std::function<const Value*(const TypeVar*, InnerLoopBuilderFn)>&;
     using LoopBuilderFn = const std::function<const Value*(SetTypeFn, BuildInnerLoopFn)>&;
-    const Value* build_loop(ast::LoopExpr& loop, const std::string&, LoopBuilderFn);
+    const ValueVar* build_loop(ast::LoopExpr& loop, const std::string&, LoopBuilderFn);
 
     void infer_fn_attrs(const ast::FnDecl* fn_decl, const Function* fn);
     void infer_global_attrs(const ast::StaticDecl* decl, const GlobalVariable* fn);
@@ -142,7 +142,7 @@ public:
 
     template <typename CheckFn, typename Fields>
     void check_fields(
-        const Loc&, const StructType*, const Type*,
+        const Loc&, const StructType*, const TypeVar*,
         const Fields&, CheckFn&, const std::string_view&,
         bool = false, bool = false);
 
@@ -169,12 +169,12 @@ public:
     template <typename CheckElems>
     const TypeVar* check_array(const Loc&, const std::string_view&, const TypeVar*, size_t, bool, const CheckElems&);
 
-    bool try_infer_type_args(const Loc&, ArrayRef<const Var*>, TypeVarMap<TypeBounds>& bounds, TypeVarMap<TypeVariance>& variance, std::vector<const Node*>&, bool);
-    bool infer_fn_args(const Loc&, const ValueCtor*, const Type*, const Type*, std::vector<const Node*>&);
-    bool try_infer_implicit_args(const Loc&, const ValueCtor*, const Type*, std::vector<const Node*>&);
-    const Type* infer_record_type(const Type*, const TypeApp*, const StructType*, std::optional<size_t>&);
+    bool try_infer_type_args(const Loc&, ArrayRef<const Var*>, TypeVarMap<TypeBounds>& bounds, TypeVarMap<TypeVariance>& variance, std::vector<const Var*>&, bool);
+    bool infer_fn_args(const Loc&, const ValueCtor*, const TypeVar*, const TypeVar*, std::vector<const Var*>&);
+    bool try_infer_implicit_args(const Loc&, const ValueCtor*, const TypeVar*, std::vector<const Var*>&);
+    const TypeVar* infer_record_type(const TypeVar*, const TypeApp*, const StructType*, std::optional<size_t>&);
 
-    size_t resolve_integer_constant(const Loc&, const Value*, const ast::Node*, const std::string_view&);
+    size_t resolve_integer_constant(const Loc&, const ValueVar*, const ast::Node*, const std::string_view&);
 
     Scope& scope();
     Builder& builder();
@@ -199,7 +199,7 @@ public:
 private:
     std::unordered_set<const ast::Decl*> decls_;
 
-    Value* summon_value(const artic::Type*, const artic::Loc& at);
+    ValueVar* summon_value(const artic::TypeVar*, const artic::Loc& at);
 
     Builder* current_builder_ = nullptr;
     std::unique_ptr<LetRecBuilder> root_builder;

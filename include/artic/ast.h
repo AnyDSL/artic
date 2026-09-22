@@ -132,7 +132,7 @@ struct Stmt : public Node {
     Stmt(const Loc& loc) : Node(loc) {}
 
     /// Simple value correspond to this statement
-    mutable const tir::Value* value = nullptr;
+    mutable const tir::ValueVar* value = nullptr;
 
     /// Returns true if the statement is changes the control-flow.
     virtual bool is_jumping() const = 0;
@@ -147,7 +147,7 @@ struct Expr : public Node {
     Expr(const Loc& loc) : Node(loc) {}
 
     /// Simple value correspond to this expression
-    mutable const tir::Value* value = nullptr;
+    mutable const tir::ValueVar* value = nullptr;
 
     bool is_tuple() const;
 
@@ -200,9 +200,9 @@ struct Path : public Node {
             ModDecl* mod_decl = nullptr;
             //const tir::Module* module = nullptr;
             struct Option {
-                const tir::Type* parent_type;
+                const tir::TypeVar* parent_type;
                 size_t index;
-                const tir::Type* struct_type;
+                const tir::TypeVar* struct_type;
             };
             std::optional<Option> option;
         };
@@ -237,10 +237,10 @@ struct Path : public Node {
         : Node(loc), is_use_path_(is_use_path), elems(std::move(elems))
     {}
 
-    std::optional<Elem::Inferred> infer_path(TypeChecker&, std::optional<tir::NodeKind>, Ptr<Expr>* = nullptr, const tir::Type* = nullptr) const;
-    const tir::Var* infer(TypeChecker&, std::optional<tir::NodeKind>, Ptr<Expr>* = nullptr, const tir::Type* = nullptr);
+    std::optional<Elem::Inferred> infer_path(TypeChecker&, std::optional<tir::NodeKind>, Ptr<Expr>* = nullptr, const tir::TypeVar* = nullptr) const;
+    const tir::Var* infer(TypeChecker&, std::optional<tir::NodeKind>, Ptr<Expr>* = nullptr, const tir::TypeVar* = nullptr);
 
-    const tir::Type* infer_record_constructor(TypeChecker&);
+    const tir::TypeVar* infer_record_constructor(TypeChecker&);
 
     void bind(NameBinder&) override;
     void print(Printer&) const override;
@@ -252,7 +252,7 @@ struct Path : public Node {
 struct Filter : public Node {
     Ptr<Expr> expr;
 
-    mutable const tir::Value* value = nullptr;
+    mutable const tir::ValueVar* value = nullptr;
 
     Filter(const Loc& loc, Ptr<Expr>&& expr)
         : Node(loc), expr(std::move(expr))
@@ -744,7 +744,7 @@ struct FnExpr : public Expr {
 
     // set during type-checking
     // mutable const tir::Value* tir_body = nullptr;
-    mutable const tir::Value* return_ = nullptr;
+    mutable const tir::ValueVar* return_ = nullptr;
 
     FnExpr(
         const Loc& loc,
@@ -923,8 +923,8 @@ struct MatchExpr : public Expr {
 /// Base class for loop expressions (while, for)
 struct LoopExpr : public Expr {
     // Set during IR emission
-    mutable const tir::Value* break_ = nullptr;
-    mutable const tir::Value* continue_ = nullptr;
+    mutable const tir::ValueVar* break_ = nullptr;
+    mutable const tir::ValueVar* continue_ = nullptr;
 
     LoopExpr(const Loc& loc)
         : Expr(loc)
