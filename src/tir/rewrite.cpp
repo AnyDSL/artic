@@ -204,18 +204,8 @@ const Node* LetRecMod::rewrite(Rewriter& r) const {
     }
     for (auto [ovar, oval] : vars) {
         auto var = r.lookup(ovar)->as<Var>();
-        auto instantiated = builder.maybe_schedule(r.instantiate(oval, false));
-        auto dst = builder.find_builder_for_scope(instantiated->binder);
-        dst->bind(var, instantiated);
-        /*auto def = r.instantiate(oval, false);
-        auto fvs = def->free_variables();
-        if (schedulable(fvs)) {
-            auto [_, dst] = builder.locate(def);
-            assert(dst);
-            dst->bind(r.lookup(ovar)->as<Var>(), def);
-        } else {
-            builder.bind(r.lookup(ovar)->as<Var>(), def);
-        }*/
+        auto instantiated = r.instantiate(oval, false);
+        builder.bind(var, instantiated);
     }
     return builder.finish_module(r.instantiate(body(), false));
 }
@@ -231,17 +221,7 @@ const Node* LetRecType::rewrite(Rewriter& r) const {
     for (auto [ovar, oval] : vars) {
         auto var = r.lookup(ovar)->as<Var>();
         auto instantiated = builder.maybe_schedule(r.instantiate(oval, false));
-        auto dst = builder.find_builder_for_scope(instantiated->binder);
-        dst->bind(var, instantiated);
-        /*auto def = r.instantiate(oval, false);
-        auto fvs = def->free_variables();
-        if (schedulable(fvs)) {
-            auto [_, dst] = builder.locate(def);
-            assert(dst);
-            dst->bind(r.lookup(ovar)->as<Var>(), def);
-        } else {
-            builder.bind(r.lookup(ovar)->as<Var>(), def);
-        }*/
+        builder.bind(var, instantiated);
     }
     return builder.finish_type(r.instantiate(body(), false));
 }
@@ -257,17 +237,7 @@ const Node* LetRecValue::rewrite(Rewriter& r) const {
     for (auto [ovar, oval] : vars) {
         auto var = r.lookup(ovar)->as<Var>();
         auto instantiated = builder.maybe_schedule(r.instantiate(oval, false));
-        auto dst = builder.find_builder_for_scope(instantiated->binder);
-        dst->bind(var, instantiated);
-        /*auto def = r.instantiate(oval, false);
-        auto fvs = def->free_variables();
-        if (schedulable(fvs)) {
-            auto [_, dst] = builder.locate(def);
-            assert(dst);
-            dst->bind(r.lookup(ovar)->as<Var>(), def);
-        } else {
-            builder.bind(r.lookup(ovar)->as<Var>(), def);
-        }*/
+        builder.bind(var, instantiated);
     }
     return builder.finish_value(r.instantiate(body(), false));
 }

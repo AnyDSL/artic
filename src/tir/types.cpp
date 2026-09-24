@@ -642,7 +642,7 @@ bool is_subtype(const Scope& start_scope, const Type* t, const Type* other) {
         return false;
 
     if (auto t_def = t->isa<TypeDef>()) {
-        if (auto other_def = t->isa<TypeDef>()) {
+        if (auto other_def = other->isa<TypeDef>()) {
             if (is_subtype_def(*joint_scope, t_def, other_def))
                 return true;
         }

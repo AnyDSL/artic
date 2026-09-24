@@ -781,7 +781,7 @@ const thorin::Def* Emitter::down_cast(const thorin::Def* def, const Scope& start
         enter(cont);
         auto param = down_cast(tuple_from_params(cont, true), scope, to->as<FnType>()->dom, from_fn_type->dom, debug);
         // No-ret functions downcast to returning ones, but call() can't work with those (see also CallExpr, IfExpr)
-        if (from->as<FnType>()->codom->isa<artic::NoRetType>()) {
+        if (resolve_type_def(scope, from->as<FnType>()->codom)->isa<artic::NoRetType>()) {
             jump(def, param, debug);
         } else {
             auto value = down_cast(call(def, param, debug), scope, from_fn_type->codom, to->as<FnType>()->codom, debug);
@@ -1243,7 +1243,7 @@ const thorin::Def* Function::emit(Emitter& emitter, const ValueVar* self) const 
     // Set the IR node before entering the body
     if (self)
         self->emitted = cont;
-    auto is_returnless = resolve_type(emitter.scope())->codom->isa<artic::NoRetType>();
+    auto is_returnless = resolve_type_def(emitter.scope(), resolve_type(emitter.scope())->codom)->isa<artic::tir::NoRetType>();
     param->emitted = emitter.tuple_from_params(cont, !is_returnless);
     //emitter.emit(*param, emitter.tuple_from_params(cont, true));
     if (filter_)
@@ -1283,7 +1283,7 @@ const thorin::Def* Function::emit(Emitter& emitter, const ValueVar* self) const 
 const thorin::Def* Call::emit(Emitter& emitter) const {
     auto fn = emitter.emit(callee);
     auto value = emitter.emit(arg);
-    if (type()->isa<artic::NoRetType>()) {
+    if (resolve_type(emitter.scope())->isa<artic::NoRetType>()) {
         emitter.jump(fn, value, emitter.debug_info(this));
         return emitter.no_ret();
     }
@@ -1551,7 +1551,7 @@ const thorin::Def* Switch::emit(Emitter& emitter) const {
 }
 
 const thorin::Def* Control::emit(Emitter& emitter) const {
-    auto join = !type()->isa<NoRetType>()
+    auto join = !resolve_type(emitter.scope())->isa<NoRetType>()
         ? emitter.basic_block_with_mem(
             emitter.emit(type()),
             emitter.debug_info(this, "if_join"))
@@ -2459,7 +2459,7 @@ const thorin::Type* ImplicitParamType::convert(artic::Emitter& emitter) const {
 }
 
 const thorin::Type* FnType::convert(Emitter& emitter) const {
-    if (codom->isa<BottomType>())
+    if (resolve_type_def(emitter.scope(), codom)->isa<NoRetType>())
         return emitter.continuation_type_with_mem(emitter.emit(dom));
     return emitter.function_type_with_mem(emitter.emit(dom), emitter.emit(codom));
 }
