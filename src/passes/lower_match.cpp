@@ -163,11 +163,11 @@ private:
 
             // Can only expand tuples or structures
             size_t member_count = 0;
-            if (auto struct_type = type->isa<StructType>())
+            if (auto struct_type = match_type_def<StructType>(builder.scope, type))
                 member_count = struct_type->member_count();
-            else if (auto tuple_type = type->isa<TupleType>())
+            else if (auto tuple_type = match_type_def<TupleType>(builder.scope, type))
                 member_count = tuple_type->args.size();
-            else if (auto sized_array_type = type->isa<SizedArrayType>())
+            else if (auto sized_array_type = match_type_def<SizedArrayType>(builder.scope, type))
                 member_count = sized_array_type->size;
             else {
                 // Move to the next column
@@ -241,7 +241,7 @@ private:
         auto col = pick_col();
         auto og_col_type = values[col]->type();
         auto [_, col_type, _2] = resolve_type_app_unapplied_generic(builder.scope, resolve_type_def(builder.scope, og_col_type));
-        auto enum_type = col_type->isa<EnumType>();
+        auto enum_type = match_type_def<EnumType>(builder.scope, col_type);
 
         // First, collect constructors
         for (auto& row : rows) {
@@ -259,7 +259,7 @@ private:
                     // Wildcard rows "fall" in all sub-trees
                     ctor_rows.push_back(row);
                     if (enum_type) {
-                        auto index = ctor_index->as<TypedLiteral>()->value.as_integer();
+                        auto index = match_value_def<TypedLiteral>(builder.scope, ctor_index)->value.as_integer();
                         // If the sub-tree introduces the extracted contents of an enum variant, add a dummy column to the row
                         ctor_rows.back().first.push_back(nullptr);
                     }
@@ -286,7 +286,7 @@ private:
             remove_col(values, col);
             for (auto& ctor : ctors) {
                 auto [fn_builder, fn] = make_fn();
-                auto &dst_case = ctor.first->as<TypedLiteral>()->value.as_bool() ? match_true : match_false;
+                auto &dst_case = match_value_def<TypedLiteral>(builder.scope, ctor.first)->value.as_bool() ? match_true : match_false;
                 dst_case = fn;
                 dst_case->set_body(builder, PtrnCompiler(r, *fn_builder, log, old_match, std::move(ctor.second), std::vector<const ValueVar*>(values)).compile());
             }
@@ -299,10 +299,10 @@ private:
                 dst_case->set_body(builder, PtrnCompiler(r, *fn_builder, log, old_match, std::move(wildcards), std::vector<const ValueVar*>(values)).compile());
             }
 
-            assert(match_true->param->type()->isa<TupleType>());
-            if (ctors.begin()->first->as<TypedLiteral>()->value.as_bool())
+            assert(match_type_def<TupleType>(builder.scope, match_true->param->type()));
+            if (match_value_def<TypedLiteral>(builder.scope, ctors.begin()->first)->value.as_bool())
                 std::swap(match_true, match_false);
-            assert(match_true->param->type()->isa<TupleType>());
+            assert(match_type_def<TupleType>(builder.scope, match_true->param->type()));
 
             auto br = builder.unsafe().branch(cond, match_true, match_false);
             return expr_builder.finish(br);
@@ -334,7 +334,7 @@ private:
 
                 auto new_values = values;
                 if (enum_type) {
-                    auto index = defs[i]->as<TypedLiteral>()->value.as_integer();
+                    auto index = match_value_def<TypedLiteral>(builder.scope, defs[i])->value.as_integer();
                     auto value = case_expr_builder.variant_extract(col_value, index);
                     // If the constructor refers to an option that has a parameter,
                     // we need to extract it and add it to the values.

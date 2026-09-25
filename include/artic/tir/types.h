@@ -563,7 +563,23 @@ std::pair<const TypeApp*, const T*> match_app(const Type* type) {
 }*/
 
 const Type* lookup_type(const Scope&, const TypeVar*);
+
 const TypeDef* lookup_type_def(const Scope&, const TypeVar*);
+
+template <typename T = TypeDef>
+const T* match_type_def(const Scope& scope, const TypeVar* var) {
+    auto def = lookup_type_def(scope, var);
+    if (def)
+        return def->isa<T>();
+    return nullptr;
+}
+
+template <typename T = TypeDef>
+const T* match_type_def(const Scope& scope, const Type* type) {
+    if (auto def = type->isa<Def>())
+        return def->isa<T>();
+    return match_type_def<T>(scope, type->as<TypeVar>());
+}
 
 const TypeDef* resolve_type_def(const Scope&, const TypeVar*);
 std::tuple<const TypeDef*, const Scope&> resolve_type_def_deep(const Scope&, const TypeVar*);
@@ -582,26 +598,6 @@ std::tuple<const TypeApp*, const T*> resolve_type_app_applied(Builder& builder, 
     auto [app, t] = resolve_type_app_applied_generic(builder, type);
     return { app, t->isa<T>() };
 }
-
-/*std::tuple<const TypeApp*, const Type*, const Scope&> peek_app_type_unapplied_generic_return_scope(const Scope& scope, const Type* type);
-
-inline std::pair<const TypeApp*, const Type*> peek_app_type_unapplied_generic(const Scope& scope, const Type* type) {
-    auto [app, t, _] = peek_app_type_unapplied_generic_return_scope(scope, type);
-    return { app, t };
-}
-
-template <typename T = Type>
-std::tuple<const TypeApp*, const T*, const Scope&> peek_app_type_unapplied_return_scope(const Scope& scope, const Type* type) {
-    auto [app, t, s] = peek_app_type_unapplied_generic_return_scope(scope, type);
-    return { app, t->isa<T>(), s };
-}
-
-
-template <typename T = Type>
-std::pair<const TypeApp*, const T*> peek_app_type_unapplied(const Scope& scope, const Type* type) {
-    auto [app, t, _] = peek_app_type_unapplied_return_scope(scope, type);
-    return { app, t->isa<T>() };
-}*/
 
 std::tuple<const TypeApp*, const Type*, const Scope&> match_type_app_unapplied_generic(const Scope&, const TypeDef*);
 std::tuple<const TypeApp*, const TypeDef*, const Scope&> resolve_type_app_unapplied_generic(const Scope&, const TypeDef*);

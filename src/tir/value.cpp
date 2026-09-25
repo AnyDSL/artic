@@ -324,20 +324,21 @@ bool Agg::equals(const Node* other) const {
 }
 
 Extract::Extract(Builder& builder, const ValueVar* src, const ValueVar* idx) : ValueDef(builder.arena, [&]() -> const TypeVar* {
-    auto resolved_src_type = resolve_type_def(builder.scope, src->type());
+    auto& s = builder.scope;
+    auto resolved_src_type = resolve_type_def(s, src->type());
     auto [_, peeked_agg_type] = resolve_type_app_applied(builder, resolved_src_type);
     if (auto tuple_t = peeked_agg_type->isa<TupleType>()) {
-        if (auto lit_idx = idx->isa<TypedLiteral>(); lit_idx) {
+        if (auto lit_idx = match_value_def<TypedLiteral>(s, idx); lit_idx) {
             size_t idx_value = lit_idx->value.as_integer();
             if (idx_value >= tuple_t->args.size())
                 return builder.enclosing_let_rec().type_error();
             return tuple_t->args[idx_value];
         }
     } else if (auto array_t = peeked_agg_type->isa<SizedArrayType>()) {
-        assert(idx->isa<TypedLiteral>());
+        assert(match_value_def<TypedLiteral>(s, idx));
         return array_t->elem;
     } else if (auto struct_t = peeked_agg_type->isa<StructType>()) {
-        if (auto lit_idx = idx->isa<TypedLiteral>(); lit_idx) {
+        if (auto lit_idx = match_value_def<TypedLiteral>(s, idx); lit_idx) {
             size_t idx_value = lit_idx->value.as_integer();
             return builder.member_type(resolved_src_type, idx_value);
         }
@@ -431,6 +432,7 @@ bool Repeat::equals(const Node* other) const {
 }
 
 Proj::Proj(Builder& builder, const ValueVar* src, const ValueVar* idx) : ValueDef(builder.arena, [&]() -> const TypeVar* {
+    auto& s = builder.scope;
     const TypeDef* resolved_pointee_t = nullptr;
     bool mut;
     size_t as;
@@ -457,7 +459,7 @@ Proj::Proj(Builder& builder, const ValueVar* src, const ValueVar* idx) : ValueDe
     };
 
     if (auto tuple_t = peeked_pointee_t->isa<TupleType>()) {
-        if (auto lit_idx = idx->isa<TypedLiteral>(); lit_idx) {
+        if (auto lit_idx = match_value_def<TypedLiteral>(s, idx); lit_idx) {
             size_t idx_value = lit_idx->value.as_integer();
             if (idx_value >= tuple_t->args.size())
                 return builder.enclosing_let_rec().type_error();
@@ -466,7 +468,7 @@ Proj::Proj(Builder& builder, const ValueVar* src, const ValueVar* idx) : ValueDe
     } else if (auto array_t = peeked_pointee_t->isa<ArrayType>()) {
         return wrap_pointee(array_t->elem);
     } else if (auto struct_t = peeked_pointee_t->isa<StructType>()) {
-        if (auto lit_idx = idx->isa<TypedLiteral>(); lit_idx) {
+        if (auto lit_idx = match_value_def<TypedLiteral>(s, idx); lit_idx) {
             size_t idx_value = lit_idx->value.as_integer();
             return wrap_pointee(builder.member_type(resolved_pointee_t, idx_value));
         }
@@ -918,6 +920,13 @@ void Switch::free_variables(FVSet& vars, Seen& seen) const {
 void Control::free_variables(FVSet& vars, Seen& seen) const {
     type()->free_variables(vars, seen);
     body->free_variables(vars, seen);
+}
+
+const ValueDef* lookup_value_def(const Scope& scope, const ValueVar* var) {
+    auto [_, def] = scope.lookup_def(var);
+    if (def)
+        return def->as<ValueDef>();
+    return nullptr;
 }
 
 const ValueDef* resolve_value_def(const Scope& scope, const ValueVar* var) {

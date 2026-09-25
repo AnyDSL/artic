@@ -458,6 +458,7 @@ const Value* TypeChecker::build_fn_filter(const ValueVar* param, ast::FnExpr& fn
 }
 
 const ValueVar* TypeChecker::build_block(ast::BlockExpr& expr, const TypeVar* expected, size_t start) {
+    auto& b = builder().enclosing_let_rec();
     return expr_builder().bind_value(yield_expr_scope([&]() -> const Value* {
         for (size_t i = start; i < expr.stmts.size(); i++) {
             bool last_expected = false;
@@ -491,12 +492,12 @@ const ValueVar* TypeChecker::build_block(ast::BlockExpr& expr, const TypeVar* ex
         if (expr.last_semi && expected && !is_unit_type(resolve_type_def(scope(), expected))) {
             incompatible_type(expr.loc, "block expression terminated by semicolon", expected);
             note("removing the last semicolon may solve this issue");
-            return let_rec_builder().error_value();
+            return b.error_value();
         }
 
         // if the block ends with `;`, make sure we yield a tuple to make the whole thing type as ()
         if (expr.last_semi)
-            return let_rec_builder().unit();
+            return b.unit();
         return infer_value(*expr.stmts.back());
     }));
 }
@@ -641,7 +642,7 @@ ValueVar* TypeChecker::summon_value(const TypeVar*, const artic::Loc& at) {
 // Error messages ------------------------------------------------------------------
 
 bool TypeChecker::should_report_error(const Type* type) {
-    return !type->contains(let_rec_builder().type_error());
+    return !type->contains(builder().enclosing_let_rec().type_error());
 }
 
 void TypeChecker::incompatible_types(const Loc& loc, const Type* type, const Type* expected, const std::string_view& what) {
@@ -751,9 +752,10 @@ void TypeChecker::unsized_type(const Loc& loc, const Type* type) {
 // Helpers -------------------------------------------------------------------------
 
 const TypeVar* TypeChecker::expect(const Loc& loc, const TypeVar* type, const TypeVar* expected) {
+    auto& b = builder().enclosing_let_rec();
     if (!type->subtype(scope(), expected)) {
         incompatible_types(loc, type, expected);
-        return let_rec_builder().type_error();
+        return b.type_error();
     }
     return type;
 }
@@ -786,6 +788,7 @@ static bool is_tuple_type_with_implicits(const artic::Type* type) {
 }
 
 const ValueVar* TypeChecker::coerce(ast::Expr* expr, const TypeVar* expected) {
+    auto& b = builder().enclosing_let_rec();
     if (auto implicit = expected->isa<ImplicitParamType>()) {
         // Only the empty tuple () can be coerced into a Summon[T]
         if (is_unit(expr))
@@ -829,7 +832,7 @@ const ValueVar* TypeChecker::coerce(ast::Expr* expr, const TypeVar* expected) {
             tir = expr_builder().implicit_cast(tir, expected);
         } else {
             incompatible_types(expr->loc, tir->type(), expected);
-            return let_rec_builder().error_value(expected);
+            return b.error_value(expected);
         }
     }
     return tir;
@@ -1032,8 +1035,9 @@ const ValueVar* TypeChecker::check_value(ast::Stmt& node, const TypeVar* expecte
 }
 
 const ValueVar* TypeChecker::check_filter(ast::Filter& node) {
+    auto& b = builder().enclosing_let_rec();
     assert(!node.value); // Nodes can only be visited once
-    node.value = node.check(*this, let_rec_builder().bool_type())->as<ValueVar>();
+    node.value = node.check(*this, b.bool_type())->as<ValueVar>();
     if (node.attrs)
         node.attrs->check(*this, &node);
     return node.value;
@@ -1365,16 +1369,18 @@ const TypeVar* TypeChecker::infer_array(
     bool is_simd,
     const InferElems& infer_elems)
 {
+    auto& b = builder().enclosing_let_rec();
+    auto& s = builder().scope;
     if (elem_count == 0) {
         cannot_infer(loc, msg);
-        return let_rec_builder().type_error();
+        return b.type_error();
     }
     const TypeVar* elem_type = infer_elems();
-    if (is_simd && !(elem_type->template isa<PrimType>() || elem_type->template isa<PtrType>())) {
+    if (is_simd && !(match_type_def<PrimType>(s, elem_type) || match_type_def<PtrType>(s, elem_type))) {
         invalid_simd(loc, elem_type);
-        return let_rec_builder().type_error();
+        return b.type_error();
     }
-    return let_rec_builder().sized_array_type(elem_type, elem_count, is_simd);
+    return b.sized_array_type(elem_type, elem_count, is_simd);
 }
 
 template <typename CheckElems>
@@ -1386,28 +1392,30 @@ const TypeVar* TypeChecker::check_array(
     bool is_simd,
     const CheckElems& check_elems)
 {
-    auto array_type = remove_ptr(scope(), expected).second->isa<ArrayType>();
+    auto& b = builder().enclosing_let_rec();
+    auto& s = builder().scope;
+    auto array_type = match_type_def<ArrayType>(s, remove_ptr(scope(), expected).second);
     if (!array_type) {
         incompatible_type(loc, msg, expected);
-        return let_rec_builder().type_error();
+        return b.type_error();
     }
     if (is_simd_type(array_type) != is_simd) {
         incompatible_type(loc, (is_simd ? "simd " : "non-simd ") + std::string(msg), expected);
-        return let_rec_builder().type_error();
+        return b.type_error();
     }
     auto elem_type = array_type->elem;
-    if (is_simd && !(elem_type->template isa<PrimType>() || elem_type->template isa<PtrType>())) {
+    if (is_simd && !(match_type_def<PrimType>(s, elem_type) || match_type_def<PtrType>(s, elem_type))) {
         invalid_simd(loc, elem_type);
-        return let_rec_builder().type_error();
+        return b.type_error();
     }
     check_elems(elem_type);
     if (auto sized_array_type = array_type->isa<artic::SizedArrayType>();
         sized_array_type && elem_count != sized_array_type->size) {
         error(loc, "expected {} array element(s), but got {}",
             sized_array_type->size, elem_count);
-        return let_rec_builder().type_error();
+        return b.type_error();
     }
-    return let_rec_builder().sized_array_type(elem_type, elem_count, is_simd);
+    return b.sized_array_type(elem_type, elem_count, is_simd);
 }
 
 bool TypeChecker::try_infer_type_args(
@@ -1488,11 +1496,12 @@ bool TypeChecker::infer_fn_args(
     const TypeVar* arg_type,
     const TypeVar* ret_type,
     std::vector<const Var*>& type_args) {
+    auto& b = builder().enclosing_let_rec();
     auto [body_scope, body] = fn_ctor->peek_body();
     const FnType* body_type = resolve_type_def(body_scope, body->as<Value>()->type())->as<FnType>();
-    auto bounds = body_type->dom->Type::bounds(let_rec_builder(), body_scope, arg_type);
+    auto bounds = body_type->dom->Type::bounds(b, body_scope, arg_type);
     if (ret_type)
-        body_type->codom->bounds(let_rec_builder(), body_scope, bounds, ret_type, false);
+        body_type->codom->bounds(b, body_scope, bounds, ret_type, false);
     auto variance = body_type->Type::variance(scope(), false);
     return try_infer_type_args(loc, fn_ctor->params, bounds, variance, type_args, true);
 }
@@ -1502,8 +1511,9 @@ bool TypeChecker::try_infer_implicit_args(
     const ValueCtor* forall_type,
     const TypeVar* expected_type,
     std::vector<const Var*>& type_args) {
+    auto& b = builder().enclosing_let_rec();
     auto body = forall_type->body()->type();
-    auto bounds = body->Type::bounds(let_rec_builder(), scope(), expected_type);
+    auto bounds = body->Type::bounds(b, scope(), expected_type);
     auto variance = body->Type::variance(scope(), true);
     return try_infer_type_args(loc, forall_type->params, bounds, variance, type_args, false);
 }
@@ -1581,18 +1591,20 @@ const tir::Var* Node::check(TypeChecker& checker, const artic::TypeVar* expected
 }
 
 const tir::Var* Node::infer(TypeChecker& checker) {
+    auto& b = checker.builder().enclosing_let_rec();
     checker.cannot_infer(loc, "expression");
-    return checker.let_rec_builder().error_value();
+    return b.error_value();
 }
 
 const tir::Var* Ptrn::check(TypeChecker& checker, const artic::TypeVar* expected) {
+    auto& b = checker.builder().enclosing_let_rec();
     // Patterns use the inverted subtype relation: In this case, the expected type
     // is assumed to be the type of the expression bound by the pattern, and thus
     // must be a subtype of the pattern type.
     auto type = checker.infer_ptrn(*this);
     if (!expected->subtype(checker.scope(), type)) {
         checker.incompatible_types(loc, type, expected);
-        return checker.let_rec_builder().type_error();
+        return b.type_error();
     }
     return type;
 }
@@ -1689,7 +1701,8 @@ std::optional<Path::Elem::Inferred> Path::Elem::infer(TypeChecker& checker, size
     }
 
     if (auto prev_elem_type = prev->var->isa<tir::TypeVar>()) {
-        if (auto [type_app, enum_type, _] = match_type_app_unapplied<EnumType>(checker.scope(), resolve_type_def(checker.scope(), prev_elem_type)); enum_type) {
+        auto [type_app, body, body_s] = resolve_type_app_unapplied_generic(checker.scope(), resolve_type_def(checker.scope(), prev_elem_type));
+        if (auto [enum_type, _] = resolve_type_def_deep(body_s, body); enum_type) {
             auto index = enum_type->find_member(id.name);
             if (!index) {
                 checker.unknown_member(loc, enum_type, id.name);
@@ -1855,19 +1868,20 @@ const tir::TypeVar* Path::infer_record_constructor(TypeChecker& checker) {
 }
 
 const tir::Var* Path::infer(TypeChecker& checker, std::optional<NodeKind> expected_kind, Ptr<Expr>* arg, const artic::TypeVar* ret_type) {
+    auto& b = checker.builder().enclosing_let_rec();
     // if (elems.back().is_wildcard())
     //     return nullptr;
 
     auto inferred = infer_path(checker, expected_kind, arg, ret_type);
     if (!inferred) {
         if (expected_kind == NodeKind::Value) {
-            return checker.let_rec_builder().error_value();
+            return b.error_value();
         }
         if (expected_kind == NodeKind::Type) {
-            return checker.let_rec_builder().type_error();
+            return b.type_error();
         }
         if (expected_kind == NodeKind::Module) {
-            return checker.let_rec_builder().mod_error();
+            return b.mod_error();
         }
         return nullptr;
     }
@@ -1889,14 +1903,14 @@ const tir::Var* Path::infer(TypeChecker& checker, std::optional<NodeKind> expect
         if (var->kind() == expected_kind)
             return var->as<ValueVar>();
         checker.error(loc, "expected a value but got a {}", kind2str(var->kind()));
-        return checker.let_rec_builder().error_value();
+        return b.error_value();
     }
 
     if (expected_kind == NodeKind::Type) {
         if (var->kind() == expected_kind)
             return var->as<TypeVar>();
         checker.error(loc, "expected a type but got a {}", kind2str(var->kind()));
-        return checker.let_rec_builder().type_error();
+        return b.type_error();
     }
 
     if (expected_kind)
@@ -1908,12 +1922,13 @@ const tir::Var* Path::infer(TypeChecker& checker, std::optional<NodeKind> expect
 // Filter --------------------------------------------------------------------------
 
 const tir::Var* Filter::check(TypeChecker& checker, const artic::TypeVar* expected) {
+    auto& b = checker.builder().enclosing_let_rec();
     if (expr) {
         checker.check_value(*expr, expected);
         checker.check_filter(*expr);
         return expr->value;
     }
-    return checker.let_rec_builder().typed_literal(Literal(true), expected);
+    return b.typed_literal(Literal(true), expected);
 }
 
 // Attributes ----------------------------------------------------------------------
@@ -2297,6 +2312,7 @@ static inline PathExpr* callee_path(Expr* expr) {
 }
 
 const tir::Var* CallExpr::check(TypeChecker& checker, const artic::TypeVar* expected) {
+    auto& b = checker.builder().enclosing_let_rec();
     // Perform type argument inference when possible
     if (auto path_expr = callee_path(callee.get()))
         path_expr->value = path_expr->path.infer(checker, NodeKind::Value, &arg, expected)->as<ValueVar>();
@@ -2319,14 +2335,14 @@ const tir::Var* CallExpr::check(TypeChecker& checker, const artic::TypeVar* expe
             auto index_type = idx->type();
             if (!is_int_type(resolve_type_def(checker.scope(), index_type))) {
                 checker.type_expected(arg->loc, index_type, "integer type");
-                return checker.let_rec_builder().error_value();
+                return b.error_value();
             }
             return ref_type || ptr_type
                 ? checker.expr_builder().proj(callee->value, idx)
                 : checker.expr_builder().extract(callee->value, idx);
         } else {
             checker.type_expected(callee->loc, callee_type, "function, array or constructor");
-            return checker.let_rec_builder().error_value();
+            return b.error_value();
         }
     }
 }
@@ -2336,6 +2352,7 @@ const tir::Var* CallExpr::infer(TypeChecker& checker) {
 }
 
 const tir::Var* ProjExpr::infer(TypeChecker& checker) {
+    auto& b = checker.builder().enclosing_let_rec();
     auto [ref_type, expr_type_var] = remove_ref(checker.scope(), checker.infer_value(*expr)->type());
     auto expr_type = resolve_type_def(checker.scope(), expr_type_var);
     auto ptr_type = expr_type->isa<artic::PtrType>();
@@ -2354,7 +2371,7 @@ const tir::Var* ProjExpr::infer(TypeChecker& checker) {
         // Regular field expressions using identifiers
         if (!struct_type) {
             checker.type_expected(expr->loc, expr_type, "structure");
-            return checker.let_rec_builder().error_value();
+            return b.error_value();
         }
         auto& field_name = std::get<Identifier>(field).name;
         if (auto index = struct_type->find_member(field_name)) {
@@ -2362,25 +2379,25 @@ const tir::Var* ProjExpr::infer(TypeChecker& checker) {
             result_type = checker.builder().member_type(expr_type, *index);
         } else {
             checker.unknown_member(loc, struct_type, field_name);
-            return checker.let_rec_builder().error_value();
+            return b.error_value();
         }
     } else {
         // Tuple index expression
         auto tuple_type = expr_type->isa<artic::TupleType>();
         if (!tuple_type && (!struct_type || !struct_type->is_tuple_like())) {
             checker.type_expected(expr->loc, expr_type, "tuple or tuple-like structure");
-            return checker.let_rec_builder().error_value();
+            return b.error_value();
         }
         index = std::get<size_t>(field);
         size_t member_count = tuple_type ? tuple_type->args.size() : struct_type->member_count();
         if (index >= member_count) {
             checker.error(loc, "invalid tuple element index '{}'", index);
-            return checker.let_rec_builder().type_error();
+            return b.type_error();
         }
         result_type = tuple_type ? tuple_type->args[index] : checker.builder().member_type(expr_type, index);
     }
 
-    auto idx = checker.let_rec_builder().typed_literal(artic::Literal(uint64_t(index)), checker.let_rec_builder().prim_type(ast::PrimType::U64));
+    auto idx = b.typed_literal(artic::Literal(uint64_t(index)), b.prim_type(ast::PrimType::U64));
 
     return ref_type || ptr_type
         ? checker.expr_builder().proj(expr->value, idx)

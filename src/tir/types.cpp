@@ -821,39 +821,47 @@ std::tuple<const TypeDef*, const Scope&> resolve_type_def_deep(const Scope& scop
 
 std::tuple<const TypeApp*, const Type*> match_type_app_applied_generic(Builder& b, const TypeDef* maybe_type_app) {
     auto [app, body, scope] = match_app_unapplied(b.scope, maybe_type_app);
-    if (auto type_app = app->isa<TypeApp>()) {
-        return { type_app, type_app->instantiated(b) };
+    if (app) {
+        if (auto type_app = app->isa<TypeApp>()) {
+            return { type_app, type_app->instantiated(b) };
+        }
     }
     return { nullptr, maybe_type_app };
 }
 
 std::tuple<const TypeApp*, const TypeDef*> resolve_type_app_applied_generic(Builder& b, const TypeDef* maybe_type_app) {
     auto [app, body, scope] = match_app_unapplied(b.scope, maybe_type_app);
-    if (auto type_app = app->isa<TypeApp>()) {
-        auto instantiated = type_app->instantiated(b);
-        if (auto type_def = instantiated->isa<TypeDef>())
+    if (app) {
+        if (auto type_app = app->isa<TypeApp>()) {
+            auto instantiated = type_app->instantiated(b);
+            if (auto type_def = instantiated->isa<TypeDef>())
+                return { type_app, type_def };
+            auto type_def = resolve_type_def(scope, instantiated->as<TypeVar>());
             return { type_app, type_def };
-        auto type_def = resolve_type_def(scope, instantiated->as<TypeVar>());
-        return { type_app, type_def };
+        }
     }
     return { nullptr, maybe_type_app };
 }
 
 std::tuple<const TypeApp*, const Type*, const Scope&> match_type_app_unapplied_generic(const Scope& scope, const TypeDef* maybe_type_app) {
     auto [app, body, body_scope] = match_app_unapplied(scope, maybe_type_app);
-    if (auto type_app = app->isa<TypeApp>()) {
-        return { type_app, body->as<Type>(), body_scope };
+    if (app) {
+        if (auto type_app = app->isa<TypeApp>()) {
+            return { type_app, body->as<Type>(), body_scope };
+        }
     }
     return { nullptr, maybe_type_app, scope };
 }
 
 std::tuple<const TypeApp*, const TypeDef*, const Scope&> resolve_type_app_unapplied_generic(const Scope& scope, const TypeDef* maybe_type_app) {
     auto [app, body, body_scope] = match_app_unapplied(scope, maybe_type_app);
-    if (auto type_app = app->isa<TypeApp>()) {
-        if (auto body_def = body->isa<TypeDef>())
-            return { type_app, body_def, body_scope };
-        auto type_def = resolve_type_def(scope, body->as<TypeVar>());
-        return { type_app, type_def, body_scope };
+    if (app) {
+        if (auto type_app = app->isa<TypeApp>()) {
+            if (auto body_def = body->isa<TypeDef>())
+                return { type_app, body_def, body_scope };
+            auto type_def = resolve_type_def(scope, body->as<TypeVar>());
+            return { type_app, type_def, body_scope };
+        }
     }
     return { nullptr, maybe_type_app, scope };
 }

@@ -1482,6 +1482,7 @@ void BinOp::emit_branch(
 
 const thorin::Def* BinOp::emit(Emitter& emitter) const {
     using namespace ast;
+    auto& s = emitter.scope();
     if (BinaryExpr::is_logic(tag)) {
         auto join = emitter.basic_block_with_mem(emitter.world.type_bool(), emitter.debug_info(this, "join"));
         auto join_true  = emitter.basic_block_with_mem(emitter.debug_info(this, "join_true"));
@@ -1496,7 +1497,7 @@ const thorin::Def* BinOp::emit(Emitter& emitter) const {
     }
     const thorin::Def* lhs = nullptr;
     const thorin::Def* ptr = nullptr;
-    if (this->lhs->type()->isa<RefType>()) {
+    if (match_type_def(s, this->lhs->type())->isa<RefType>()) {
         ptr = emitter.emit(this->lhs);
         if (tag != BinaryExpr::Eq)
             lhs = emitter.load(ptr, emitter.debug_info(this));
