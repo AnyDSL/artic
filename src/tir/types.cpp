@@ -339,7 +339,7 @@ size_t TypeApp::order(const Scope& scope, std::unordered_set<const Type*>& seen)
 }
 
 size_t TypeVar::order(const Scope& scope, std::unordered_set<const Type*>& seen) const {
-    auto resolved = resolve_type_def(scope, this);
+    auto resolved = resolve_type_var(scope, this);
     // assert(resolved != this && "unknown order, there's a type var in the way");
     return resolved->order(scope, seen);
 }
@@ -372,7 +372,7 @@ void ImplicitParamType::variance(const Scope& scope, TypeVarMap<TypeVariance>& v
 
 void TypeVar::variance(const Scope& scope, std::unordered_map<const TypeVar*, TypeVariance>& vars, bool dir) const {
     // if the variable is bound to something, look up the variance of that thing
-    if (auto resolved = lookup_type(scope, this))
+    if (auto resolved = lookup_type_var_single(scope, this))
         return resolved->variance(scope, vars, dir);
     // instead insert ourselves into the set
     if (auto it = vars.find(this); it != vars.end()) {
@@ -422,7 +422,7 @@ void FnType::bounds(LetRecBuilder& b, const Scope& scope, std::unordered_map<con
 }
 
 void TypeVar::bounds(LetRecBuilder& b, const Scope& scope, std::unordered_map<const TypeVar*, TypeBounds>& bounds, const TypeVar* type, bool dir) const {
-    if (auto resolved = lookup_type(scope, this))
+    if (auto resolved = lookup_type_var_single(scope, this))
         return resolved->Type::bounds(b, scope, bounds, type, dir);
     TypeBounds type_bounds;
     if (dir)
@@ -497,7 +497,7 @@ bool TypeApp::is_sized(const Scope& scope, std::unordered_set<const Type*>& seen
 }
 
 bool TypeVar::is_sized(const Scope& scope, std::unordered_set<const Type*>& seen) const {
-    if (auto resolved = lookup_type(scope, this))
+    if (auto resolved = lookup_type_var_single(scope, this))
         return resolved->is_sized(scope, seen);
     // unknown types are assumed to be unsized
     return false;
@@ -620,7 +620,7 @@ bool is_subtype(const Scope& start_scope, const Type* t, const Type* other) {
     const Scope* lhs_scope = &start_scope;
     const Scope* rhs_scope = &start_scope;
     if (auto t_var = t->isa<TypeVar>()) {
-        auto [var, def, resolved_scope] = lhs_scope->lookup_def_deep(t_var);
+        auto [var, def, resolved_scope] = lhs_scope->lookup_var_deep(t_var);
         if (def)
             t = def->as<TypeDef>();
         else
@@ -628,7 +628,7 @@ bool is_subtype(const Scope& start_scope, const Type* t, const Type* other) {
         lhs_scope = &resolved_scope;
     }
     if (auto other_var = other->isa<TypeVar>()) {
-        auto [var, def, resolved_scope] = rhs_scope->lookup_def_deep(other_var);
+        auto [var, def, resolved_scope] = rhs_scope->lookup_var_deep(other_var);
         if (def)
             other = def->as<TypeDef>();
         else
@@ -785,37 +785,56 @@ bool is_unit_type(const TypeDef* type) {
 }
 
 std::pair<const PtrType*, const TypeVar*> remove_ptr(const Scope& scope, const TypeVar* type) {
-    if (auto ref_type = resolve_type_def(scope, type)->isa<PtrType>())
+    if (auto ref_type = resolve_type_var(scope, type)->isa<PtrType>())
         return std::make_pair(ref_type, ref_type->pointee);
     return std::make_pair(nullptr, type);
 }
 
 std::pair<const RefType*, const TypeVar*> remove_ref(const Scope& scope, const TypeVar* type) {
-    if (auto ref_type = resolve_type_def(scope, type)->isa<RefType>())
+    if (auto ref_type = resolve_type_var(scope, type)->isa<RefType>())
         return std::make_pair(ref_type, ref_type->pointee);
     return std::make_pair(nullptr, type);
 }
 
-const Type* lookup_type(const Scope& scope, const TypeVar* var) {
-    auto found = scope.lookup(var);
+const Type* lookup_type_var_single(const Scope& scope, const TypeVar* var) {
+    auto found = scope.lookup_var_single(var);
     if (found)
         return found->as<Type>();
     return nullptr;
 }
 
-const TypeDef* lookup_type_def(const Scope& scope, const TypeVar* var) {
-    auto [_, found] = scope.lookup_def(var);
+const TypeDef* lookup_type_var(const Scope& scope, const TypeVar* var) {
+    auto [_, found] = scope.lookup_var(var);
     if (found)
         return found->as<TypeDef>();
     return nullptr;
 }
 
-const TypeDef* resolve_type_def(const Scope& scope, const TypeVar* var) {
-    return scope.resolve_def(var)->as<TypeDef>();
+const TypeDef* lookup_type(const Scope& scope, const Type* type) {
+    auto [_, found] = scope.lookup(type);
+    if (found)
+        return found->as<TypeDef>();
+    return nullptr;
 }
 
-std::tuple<const TypeDef*, const Scope&> resolve_type_def_deep(const Scope& scope, const TypeVar* var) {
-    auto [def, s] = scope.resolve_def_deep(var);
+std::tuple<const TypeDef*, const Scope&> lookup_type_deep(const Scope& scope, const Type* type) {
+    auto [_, def, s] = scope.lookup_deep(type);
+    if (def)
+        return { def->as<TypeDef>(), s };
+    return { nullptr, s };
+}
+
+const TypeDef* resolve_type_var(const Scope& scope, const TypeVar* var) {
+    return scope.resolve_var(var)->as<TypeDef>();
+}
+
+std::tuple<const TypeDef*, const Scope&> resolve_type_var_deep(const Scope& scope, const TypeVar* var) {
+    auto [def, s] = scope.resolve_var_deep(var);
+    return { def->as<TypeDef>(), s };
+}
+
+std::tuple<const TypeDef*, const Scope&> resolve_type_deep(const Scope& scope, const Type* type) {
+    auto [def, s] = scope.resolve_deep(type);
     return { def->as<TypeDef>(), s };
 }
 
@@ -836,7 +855,7 @@ std::tuple<const TypeApp*, const TypeDef*> resolve_type_app_applied_generic(Buil
             auto instantiated = type_app->instantiated(b);
             if (auto type_def = instantiated->isa<TypeDef>())
                 return { type_app, type_def };
-            auto type_def = resolve_type_def(scope, instantiated->as<TypeVar>());
+            auto type_def = resolve_type_var(scope, instantiated->as<TypeVar>());
             return { type_app, type_def };
         }
     }
@@ -859,7 +878,7 @@ std::tuple<const TypeApp*, const TypeDef*, const Scope&> resolve_type_app_unappl
         if (auto type_app = app->isa<TypeApp>()) {
             if (auto body_def = body->isa<TypeDef>())
                 return { type_app, body_def, body_scope };
-            auto type_def = resolve_type_def(scope, body->as<TypeVar>());
+            auto type_def = resolve_type_var(scope, body->as<TypeVar>());
             return { type_app, type_def, body_scope };
         }
     }

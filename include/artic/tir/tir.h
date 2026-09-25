@@ -209,7 +209,7 @@ private:
     mutable const Node* instantiated_ = nullptr;
 };
 
-const CtorDef* resolve_ctor_def(const Scope&, const CtorVar*);
+const CtorDef* resolve_ctor_var(const Scope&, const CtorVar*);
 
 std::tuple<const App*, const Node*, const Scope&> match_app_unapplied(const Scope&, const Def*);
 std::pair<const App*, const Node*> match_app_applied(Builder& builder, const Def*);

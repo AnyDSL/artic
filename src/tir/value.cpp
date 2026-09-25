@@ -11,7 +11,7 @@ namespace artic {
 namespace tir {
 
 const TypeDef* Value::resolve_type(const Scope& s) const {
-    return resolve_type_def(s, type());
+    return resolve_type_var(s, type());
 }
 
 GlobalVariable::GlobalVariable(Builder& builder, const TypeVar* value_type, bool is_mut, const Value* init, const ast::StaticDecl* decl)
@@ -137,7 +137,7 @@ struct TypeExtractor : public Rewriter {
 
 ValueApp::ValueApp(Builder& builder, const CtorVar* ctor_var, const ArrayRef<const Var*>& args)
     : Node(builder.arena), App(ctor_var, args), ValueDef(builder.arena, [&]() -> const TypeVar* {
-        auto ctor = resolve_ctor_def(builder.scope, ctor_var)->as<Constructor>();
+        auto ctor = resolve_ctor_var(builder.scope, ctor_var)->as<Constructor>();
         TypeExtractor replacer(builder, ctor->scope, ctor->body()->as<Value>());
         for (size_t i = 0; i < args.size(); i++) {
             replacer.insert(ctor->params[i], args[i]);
@@ -173,7 +173,7 @@ bool LetRecValue::equals(const Node* other) const {
     return false;
 }
 
-Call::Call(Builder& builder, const ValueVar* callee, const ValueVar* arg) : ValueDef(builder.arena, resolve_type_def(builder.scope, callee->type())->as<FnType>()->codom), Node(builder.arena), callee(callee), arg(arg) {
+Call::Call(Builder& builder, const ValueVar* callee, const ValueVar* arg) : ValueDef(builder.arena, resolve_type_var(builder.scope, callee->type())->as<FnType>()->codom), Node(builder.arena), callee(callee), arg(arg) {
     assert(callee->is_var());
     assert(arg->is_var());
 }
@@ -219,9 +219,9 @@ bool Cast::equals(const Node* other) const {
 
 TypedLiteral::TypedLiteral(Builder& builder, Literal lit, const TypeVar* type) : ValueDef(builder.arena, type), Node(builder.arena), value(lit) {
     assert(type->is_var());
-    auto type_def = resolve_type_def(builder.scope, type);
+    auto type_def = resolve_type_var(builder.scope, type);
     if (auto sized_array_type = type_def->isa<SizedArrayType>())
-        type_def = resolve_type_def(builder.scope, sized_array_type->elem);
+        type_def = resolve_type_var(builder.scope, sized_array_type->elem);
     assert(type_def->isa<PrimType>());
 }
 
@@ -282,7 +282,7 @@ Agg::Agg(Builder& builder, const TypeVar* agg_type, const ArrayRef<const ValueVa
     for (auto arg : args) {
         assert(arg->is_var());
     }
-    auto [_, peeked_agg_type] = resolve_type_app_applied(builder, resolve_type_def(builder.scope, agg_type));
+    auto [_, peeked_agg_type] = resolve_type_app_applied(builder, resolve_type_var(builder.scope, agg_type));
     if (auto tuple_t = peeked_agg_type->isa<TupleType>()) {
         assert(tuple_t->args.size() == args.size());
         for (size_t i = 0; i < tuple_t->args.size(); i++) {
@@ -325,20 +325,20 @@ bool Agg::equals(const Node* other) const {
 
 Extract::Extract(Builder& builder, const ValueVar* src, const ValueVar* idx) : ValueDef(builder.arena, [&]() -> const TypeVar* {
     auto& s = builder.scope;
-    auto resolved_src_type = resolve_type_def(s, src->type());
+    auto resolved_src_type = resolve_type_var(s, src->type());
     auto [_, peeked_agg_type] = resolve_type_app_applied(builder, resolved_src_type);
     if (auto tuple_t = peeked_agg_type->isa<TupleType>()) {
-        if (auto lit_idx = match_value_def<TypedLiteral>(s, idx); lit_idx) {
+        if (auto lit_idx = match_value_var<TypedLiteral>(s, idx); lit_idx) {
             size_t idx_value = lit_idx->value.as_integer();
             if (idx_value >= tuple_t->args.size())
                 return builder.enclosing_let_rec().type_error();
             return tuple_t->args[idx_value];
         }
     } else if (auto array_t = peeked_agg_type->isa<SizedArrayType>()) {
-        assert(match_value_def<TypedLiteral>(s, idx));
+        assert(match_value_var<TypedLiteral>(s, idx));
         return array_t->elem;
     } else if (auto struct_t = peeked_agg_type->isa<StructType>()) {
-        if (auto lit_idx = match_value_def<TypedLiteral>(s, idx); lit_idx) {
+        if (auto lit_idx = match_value_var<TypedLiteral>(s, idx); lit_idx) {
             size_t idx_value = lit_idx->value.as_integer();
             return builder.member_type(resolved_src_type, idx_value);
         }
@@ -397,7 +397,7 @@ bool VariantIndex::equals(const Node* other) const {
 }
 
 VariantExtract::VariantExtract(Builder& builder, const ValueVar* src, size_t idx) : Node(builder.arena), ValueDef(builder.arena, [&]() -> const TypeVar* {
-    auto resolved_src_type = resolve_type_def(builder.scope, src->type());
+    auto resolved_src_type = resolve_type_var(builder.scope, src->type());
     return builder.member_type(resolved_src_type, idx);
 }()), src(src), index(idx) {
     assert(src->is_var());
@@ -415,7 +415,7 @@ bool VariantExtract::equals(const Node* other) const {
 }
 
 Repeat::Repeat(Builder& builder, const TypeVar* type, const ValueVar* elem) : ValueDef(builder.arena, type), Node(builder.arena), elem(elem) {
-    auto peeked_arr_type = resolve_type_def(builder.scope, type);
+    auto peeked_arr_type = resolve_type_var(builder.scope, type);
     assert(peeked_arr_type->isa<ArrayType>());
 }
 
@@ -440,13 +440,13 @@ Proj::Proj(Builder& builder, const ValueVar* src, const ValueVar* idx) : ValueDe
     //auto peeked_addr_type = resolve_type_def(builder.scope, src->type());
     auto [ref_t, ref_pointee] = remove_ref(builder.scope, src->type());
     if (ref_t) {
-        resolved_pointee_t = resolve_type_def(builder.scope, ref_t->pointee);
+        resolved_pointee_t = resolve_type_var(builder.scope, ref_t->pointee);
         mut = ref_t->is_mut;
         as = ref_t->addr_space;
     } else {
         auto [ptr_t, ptr_pointee] = remove_ptr(builder.scope, src->type());
         assert(ptr_t && "Proj works on Ref or Ptr types.");
-        resolved_pointee_t = resolve_type_def(builder.scope, ptr_t->pointee);
+        resolved_pointee_t = resolve_type_var(builder.scope, ptr_t->pointee);
         mut = ptr_t->is_mut;
         as = ptr_t->addr_space;
     }
@@ -459,7 +459,7 @@ Proj::Proj(Builder& builder, const ValueVar* src, const ValueVar* idx) : ValueDe
     };
 
     if (auto tuple_t = peeked_pointee_t->isa<TupleType>()) {
-        if (auto lit_idx = match_value_def<TypedLiteral>(s, idx); lit_idx) {
+        if (auto lit_idx = match_value_var<TypedLiteral>(s, idx); lit_idx) {
             size_t idx_value = lit_idx->value.as_integer();
             if (idx_value >= tuple_t->args.size())
                 return builder.enclosing_let_rec().type_error();
@@ -468,7 +468,7 @@ Proj::Proj(Builder& builder, const ValueVar* src, const ValueVar* idx) : ValueDe
     } else if (auto array_t = peeked_pointee_t->isa<ArrayType>()) {
         return wrap_pointee(array_t->elem);
     } else if (auto struct_t = peeked_pointee_t->isa<StructType>()) {
-        if (auto lit_idx = match_value_def<TypedLiteral>(s, idx); lit_idx) {
+        if (auto lit_idx = match_value_var<TypedLiteral>(s, idx); lit_idx) {
             size_t idx_value = lit_idx->value.as_integer();
             return wrap_pointee(builder.member_type(resolved_pointee_t, idx_value));
         }
@@ -577,7 +577,7 @@ bool UnOp::equals(const Node* other) const {
 
 BinOp::BinOp(Builder& builder, const BinaryExpr::Tag tag, const ValueVar* lhs, const ValueVar* rhs) : ValueDef(builder.arena, [&]() -> const TypeVar* {
     if (BinaryExpr::has_eq(tag)) {
-        assert(resolve_type_def(builder.scope, lhs->type())->isa<RefType>());
+        assert(resolve_type_var(builder.scope, lhs->type())->isa<RefType>());
         return builder.enclosing_let_rec().unit_type();
     } if (BinaryExpr::has_cmp(tag))
         return builder.enclosing_let_rec().bool_type();
@@ -678,12 +678,12 @@ bool MathOp::equals(const Node* other) const {
 }
 
 Branch::Branch(Builder& builder, const ValueVar* cond, const Function* true_branch, const Function* else_branch) : ValueDef(builder.arena, [&]() -> const TypeVar* {
-    if (!is_bool_type(resolve_type_def(builder.scope, cond->type())))
+    if (!is_bool_type(resolve_type_var(builder.scope, cond->type())))
         return builder.enclosing_let_rec().type_error();
     // both branches must have no param
-    if (!is_unit_type(resolve_type_def(builder.scope, true_branch->param->type())))
+    if (!is_unit_type(resolve_type_var(builder.scope, true_branch->param->type())))
         return builder.enclosing_let_rec().type_error();
-    if (!is_unit_type(resolve_type_def(builder.scope, else_branch->param->type())))
+    if (!is_unit_type(resolve_type_var(builder.scope, else_branch->param->type())))
         return builder.enclosing_let_rec().type_error();
     // both branches must yield the same thing (if we do direct-style which we don't ATP!)
     if (true_branch->resolve_type(builder.scope)->codom != else_branch->resolve_type(builder.scope)->codom)
@@ -719,7 +719,7 @@ Switch::Switch(Builder& builder, const ValueVar* value, const Function* default_
 Control::Control(Builder& builder, const Function* fn) : ValueDef(builder.arena, [&]() -> const TypeVar* {
     if (fn->codom != builder.enclosing_let_rec().no_ret_type())
         return builder.enclosing_let_rec().type_error();
-    if (auto yield_fn_type = resolve_type_def(builder.scope, fn->param->type())->isa<FnType>()) {
+    if (auto yield_fn_type = resolve_type_var(builder.scope, fn->param->type())->isa<FnType>()) {
         if (yield_fn_type->codom != builder.enclosing_let_rec().no_ret_type())
             return builder.enclosing_let_rec().type_error();
         return yield_fn_type->dom;
@@ -922,15 +922,15 @@ void Control::free_variables(FVSet& vars, Seen& seen) const {
     body->free_variables(vars, seen);
 }
 
-const ValueDef* lookup_value_def(const Scope& scope, const ValueVar* var) {
-    auto [_, def] = scope.lookup_def(var);
+const ValueDef* lookup_value_var(const Scope& scope, const ValueVar* var) {
+    auto [_, def] = scope.lookup_var(var);
     if (def)
         return def->as<ValueDef>();
     return nullptr;
 }
 
-const ValueDef* resolve_value_def(const Scope& scope, const ValueVar* var) {
-    return scope.resolve_def(var)->as<ValueDef>();
+const ValueDef* resolve_value_var(const Scope& scope, const ValueVar* var) {
+    return scope.resolve_var(var)->as<ValueDef>();
 }
 
 }

@@ -651,12 +651,12 @@ struct Control : public ValueDef {
     Control(Builder&, const Function*);
 };
 
-const ValueDef* lookup_value_def(const Scope&, const ValueVar*);
-const ValueDef* resolve_value_def(const Scope&, const ValueVar*);
+const ValueDef* lookup_value_var(const Scope&, const ValueVar*);
+const ValueDef* resolve_value_var(const Scope&, const ValueVar*);
 
 template <typename T = ValueDef>
-const T* match_value_def(const Scope& scope, const ValueVar* var) {
-    auto def = lookup_value_def(scope, var);
+const T* match_value_var(const Scope& scope, const ValueVar* var) {
+    auto def = lookup_value_var(scope, var);
     if (def)
         return def->isa<T>();
     return nullptr;

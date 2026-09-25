@@ -165,7 +165,7 @@ const Node* Constructor::instantiate(Builder& builder, ArrayRef<const Var*> args
 const Node* App::instantiated(Builder& builder) const {
     if (instantiated_)
         return instantiated_;
-    auto constructor = resolve_ctor_def(builder.scope, applicand())->isa<Constructor>();
+    auto constructor = resolve_ctor_var(builder.scope, applicand())->isa<Constructor>();
     assert(constructor);
     assert(&builder.arena == &arena);
     return instantiated_ = constructor->instantiate(builder, args);
@@ -196,13 +196,13 @@ bool LetRec::equals(const Node* other) const {
     return false;
 }
 
-const CtorDef* resolve_ctor_def(const Scope& scope, const CtorVar* var) {
-    return scope.resolve_def(var)->as<CtorDef>();
+const CtorDef* resolve_ctor_var(const Scope& scope, const CtorVar* var) {
+    return scope.resolve_var(var)->as<CtorDef>();
 }
 
 std::tuple<const App*, const Node*, const Scope&> match_app_unapplied(const Scope& scope, const Def* def) {
     if (auto app = def->isa<App>()) {
-        auto ctor = resolve_ctor_def(scope, app->applicand());
+        auto ctor = resolve_ctor_var(scope, app->applicand());
         return { app, ctor->as<Constructor>()->body(), scope };
     }
     return { nullptr, def, scope };

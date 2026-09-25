@@ -56,7 +56,7 @@ struct LowerApp : public Rewriter {
     // this ensures we don't accidentally end up with two specialized copies of the same specialization
     bool are_args_known(ArrayRef<const Var*> args) const {
         for (auto var : args) {
-            if (!std::get<1>(builder().scope.lookup_def(var)))
+            if (!std::get<1>(builder().scope.lookup_var(var)))
                 return false;
         }
         return true;
@@ -99,7 +99,7 @@ struct LowerApp : public Rewriter {
                 args[i] = instantiate(old_app->args[i], false);
             }
             if (are_args_known(args)) {
-                auto constructor = resolve_ctor_def(*old_scope, old_app->applicand())->isa<Constructor>();
+                auto constructor = resolve_ctor_var(*old_scope, old_app->applicand())->isa<Constructor>();
                 if (constructor)
                     return instantiate_app(old_app, constructor, args);
             }

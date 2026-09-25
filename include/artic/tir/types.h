@@ -555,34 +555,38 @@ bool is_simd_type(const TypeDef*);
 bool is_unit_type(const TypeDef*);
 inline bool is_bool_type(const TypeDef* type) { return is_prim_type(type, ast::PrimType::Bool); }
 
-/*template <typename T>
-std::pair<const TypeApp*, const T*> match_app(const Type* type) {
-    if (auto type_app = type->isa<TypeApp>())
-        return std::make_pair(type_app, type_app->applied->isa<T>());
-    return std::make_pair(nullptr, type->isa<T>());
-}*/
-
-const Type* lookup_type(const Scope&, const TypeVar*);
-
-const TypeDef* lookup_type_def(const Scope&, const TypeVar*);
+const Type* lookup_type_var_single(const Scope&, const TypeVar*);
+const TypeDef* lookup_type_var(const Scope&, const TypeVar*);
+const TypeDef* lookup_type(const Scope&, const Type*);
+std::tuple<const TypeDef*, const Scope&> lookup_type_deep(const Scope&, const Type*);
 
 template <typename T = TypeDef>
-const T* match_type_def(const Scope& scope, const TypeVar* var) {
-    auto def = lookup_type_def(scope, var);
+const T* match_type_var(const Scope& scope, const TypeVar* var) {
+    auto def = lookup_type_var(scope, var);
     if (def)
         return def->isa<T>();
     return nullptr;
 }
 
 template <typename T = TypeDef>
-const T* match_type_def(const Scope& scope, const Type* type) {
-    if (auto def = type->isa<Def>())
+const T* match_type(const Scope& scope, const Type* type) {
+    auto def = lookup_type(scope, type->as<TypeVar>());
+    if (def)
         return def->isa<T>();
-    return match_type_def<T>(scope, type->as<TypeVar>());
+    return nullptr;
 }
 
-const TypeDef* resolve_type_def(const Scope&, const TypeVar*);
-std::tuple<const TypeDef*, const Scope&> resolve_type_def_deep(const Scope&, const TypeVar*);
+template <typename T = TypeDef>
+std::tuple<const T*, const Scope&> match_type_deep(const Scope& scope, const Type* type) {
+    auto [def, s] = lookup_type_deep(scope, type);
+    if (def)
+        return { def->isa<T>(), s };
+    return { nullptr, scope };
+}
+
+const TypeDef* resolve_type_var(const Scope&, const TypeVar*);
+std::tuple<const TypeDef*, const Scope&> resolve_type_var_deep(const Scope&, const TypeVar*);
+std::tuple<const TypeDef*, const Scope&> resolve_type_deep(const Scope&, const TypeVar*);
 
 std::tuple<const TypeApp*, const Type*> match_type_app_applied_generic(Builder&, const TypeDef*);
 std::tuple<const TypeApp*, const TypeDef*> resolve_type_app_applied_generic(Builder&, const TypeDef*);

@@ -155,13 +155,14 @@ const EnumType* Builder::Unsafe::enum_type(const ast::EnumDecl* decl) {
 const TypeVar* Builder::member_type(const TypeDef* type, size_t idx) {
     //type = scope.peek_type(type);
 
-    if (auto [type_app, enum_type, enum_body_scope] = resolve_type_app_unapplied<EnumType>(scope, type); enum_type) {
+    auto [type_app, body, body_s] = match_type_app_unapplied_generic(scope, type);
+    if (auto [enum_type, enum_body_scope] = match_type_deep<EnumType>(body_s, type); enum_type) {
         const ast::EnumDecl& decl = *enum_type->decl;
         const ast::OptionDecl& option = *decl.options[idx];
 
         auto member_type = enum_type->member_type(idx);
-        auto [member_type_def, member_type_scope] = resolve_type_def_deep(enum_body_scope, member_type);
-        auto [member_type_app, _, _2] = resolve_type_app_unapplied_generic(member_type_scope, member_type_def);
+        auto [member_type_def, member_type_scope] = resolve_type_var_deep(enum_body_scope, member_type);
+        auto [member_type_app, _, _2] = match_type_app_unapplied_generic(member_type_scope, member_type_def);
         if (option.struct_type) {
             if (type_app && member_type_app) {
                 return this->enclosing_let_rec().type_app(member_type_app->applicand(), type_app->args);
@@ -249,7 +250,7 @@ const ModVar* LetRecBuilder::module(std::unordered_map<const Key*, const Node*>&
 }
 
 const Mod* Builder::Unsafe::mod_mod_access(const ModVar* src, const Key* key) {
-    auto mod = lookup_mod_def(builder.scope, src)->isa<Module>();
+    auto mod = lookup_mod_var(builder.scope, src)->isa<Module>();
     if (mod) {
         if (auto found = mod->lookup(key))
             return found->as<Mod>();
@@ -262,7 +263,7 @@ const ModVar* LetRecBuilder::mod_mod_access(const ModVar* src, const Key* key) {
 }
 
 const Type* Builder::Unsafe::mod_type_access(const ModVar* src, const Key* key) {
-    auto mod = lookup_mod_def(builder.scope, src)->isa<Module>();
+    auto mod = lookup_mod_var(builder.scope, src)->isa<Module>();
     if (mod) {
         if (auto found = mod->lookup(key))
             return found->as<Type>();
@@ -276,7 +277,7 @@ const TypeVar* LetRecBuilder::mod_type_access(const ModVar* src, const Key* key)
 }
 
 const Value* Builder::Unsafe::mod_value_access(const ModVar* src, const Key* key) {
-    auto mod = lookup_mod_def(builder.scope, src)->isa<Module>();
+    auto mod = lookup_mod_var(builder.scope, src)->isa<Module>();
     if (mod) {
         if (auto found = mod->lookup(key))
             return found->as<Value>();
@@ -298,10 +299,10 @@ const ValueVar* LetRecBuilder::value_app(const CtorVar* applied, const ArrayRef<
 }
 
 const Var* LetRecBuilder::mod_access(const ModVar* src, const Key* key) {
-    auto mod_sig = resolve_sig_def(scope, src->signature()->as<SigVar>())->as<ModSignature>();
+    auto mod_sig = resolve_sig_var(scope, src->signature()->as<SigVar>())->as<ModSignature>();
     auto sig = mod_sig->lookup(key);
     assert(sig);
-    sig = resolve_sig_def(scope, sig->as<SigVar>());
+    sig = resolve_sig_var(scope, sig->as<SigVar>());
     if (sig->isa<ModSignature>()) {
         return mod_mod_access(src, key);
     } else if (sig->isa<TypeSignature>()) {

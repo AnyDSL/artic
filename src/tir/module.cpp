@@ -8,7 +8,7 @@ namespace artic::tir {
 
 Module::Module(Builder& builder, std::unordered_map<const Key*, const Node*>&& decls, const SigVar* signature, const ast::ModDecl* decl)
     : ModDef(), Node(builder.arena), decls(std::move(decls)), decl(decl), signature_(signature) {
-    const ModSignature* ms = resolve_sig_def(builder.scope, signature->as<SigVar>())->isa<ModSignature>();
+    const ModSignature* ms = resolve_sig_var(builder.scope, signature->as<SigVar>())->isa<ModSignature>();
     assert(ms);
 }
 
@@ -181,7 +181,7 @@ bool SigVar::is_sub(const Scope& scope, const Sig* other) const {
         return true;
 
     if (auto other_def = other->isa<SigDef>()) {
-        auto def = lookup_sig_def(scope, this);
+        auto def = lookup_sig_var(scope, this);
         if (def)
             return def->is_sub_def(scope, other_def);
         // unbound variables can't be sub-signatures to defs
@@ -189,8 +189,8 @@ bool SigVar::is_sub(const Scope& scope, const Sig* other) const {
     }
 
     // we're both variables!
-    auto sig = lookup_sig(scope, this);
-    auto other_sig = lookup_sig(scope, other->as<SigVar>());
+    auto sig = lookup_sig_var_single(scope, this);
+    auto other_sig = lookup_sig_var_single(scope, other->as<SigVar>());
     if (sig && other_sig)
         return sig->is_sub(scope, other_sig);
 
@@ -203,7 +203,7 @@ bool SigDef::is_sub(const Scope& scope, const Sig* other) const {
 
     if (auto other_def = other->isa<SigDef>())
         return is_sub_def(scope, other_def);
-    auto other_sig = lookup_sig_def(scope, other->as<SigVar>());
+    auto other_sig = lookup_sig_var(scope, other->as<SigVar>());
     if (other_sig)
         return is_sub_def(scope, other_sig);
     // unknown variables can't be super signatures to defs
@@ -264,22 +264,22 @@ const SigVar* Module::signature() const {
     return signature_;
 }
 
-const Sig* lookup_sig(const Scope& scope, const SigVar* var) {
-    auto found = scope.lookup(var);
+const Sig* lookup_sig_var_single(const Scope& scope, const SigVar* var) {
+    auto found = scope.lookup_var_single(var);
     if (found)
         return found->as<Sig>();
     return nullptr;
 }
 
-const SigDef* lookup_sig_def(const Scope& scope, const SigVar* var) {
-    auto [_, found] = scope.lookup_def(var);
+const SigDef* lookup_sig_var(const Scope& scope, const SigVar* var) {
+    auto [_, found] = scope.lookup_var(var);
     if (found)
         return found->as<SigDef>();
     return nullptr;
 }
 
-const SigDef* resolve_sig_def(const Scope& scope, const SigVar* var) {
-    return scope.resolve_def(var)->as<SigDef>();
+const SigDef* resolve_sig_var(const Scope& scope, const SigVar* var) {
+    return scope.resolve_var(var)->as<SigDef>();
 }
 
 ModVar::ModVar(Builder& builder, std::optional<ast::Identifier> id, const SigVar* signature)
@@ -309,7 +309,7 @@ ModAccess::ModAccess(Builder& builder, const ModVar* mod, const Key* key)
 
 ModModAccess::ModModAccess(Builder& builder, const ModVar* mod, const Key* key)
     : Node(builder.arena), ModDef(), ModAccess(builder, mod, key), signature_([&]() -> const SigVar*  {
-        auto mod_sig = resolve_sig_def(builder.scope, mod->signature()->as<SigVar>())->as<ModSignature>();
+        auto mod_sig = resolve_sig_var(builder.scope, mod->signature()->as<SigVar>())->as<ModSignature>();
         return mod_sig->elems.find(key)->second;
     }()) {
     assert(mod->is_var() && mod->kind() == NodeKind::Module);
@@ -417,15 +417,15 @@ bool LetRecMod::equals(const Node* other) const {
     return false;
 }
 
-const ModDef* lookup_mod_def(const Scope& scope, const ModVar* var) {
-    auto [_, found] = scope.lookup_def(var);
+const ModDef* lookup_mod_var(const Scope& scope, const ModVar* var) {
+    auto [_, found] = scope.lookup_var(var);
     if (found)
         return found->as<ModDef>();
     return nullptr;
 }
 
-const ModDef* resolve_mod_def(const Scope& scope, const ModVar* var) {
-    return scope.resolve_def(var)->as<ModDef>();
+const ModDef* resolve_mod_var(const Scope& scope, const ModVar* var) {
+    return scope.resolve_var(var)->as<ModDef>();
 }
 
 // Free variables ------------------------------------------------------------------

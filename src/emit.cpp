@@ -724,12 +724,12 @@ const thorin::Def* Emitter::down_cast(const thorin::Def* def, const Scope& start
     const Scope* lhs_scope = &start_scope;
     const Scope* rhs_scope = &start_scope;
     while (auto var = from->isa<TypeVar>()) {
-        auto [resolved, resolved_scope] = resolve_type_def_deep(*lhs_scope, var);
+        auto [resolved, resolved_scope] = resolve_type_var_deep(*lhs_scope, var);
         from = resolved->as<Type>();
         lhs_scope = &resolved_scope;
     }
     while (auto var = to->isa<TypeVar>()) {
-        auto [resolved, resolved_scope] = resolve_type_def_deep(*rhs_scope, var);
+        auto [resolved, resolved_scope] = resolve_type_var_deep(*rhs_scope, var);
         to = resolved->as<Type>();
         rhs_scope = &resolved_scope;
     }
@@ -781,7 +781,7 @@ const thorin::Def* Emitter::down_cast(const thorin::Def* def, const Scope& start
         enter(cont);
         auto param = down_cast(tuple_from_params(cont, true), scope, to->as<FnType>()->dom, from_fn_type->dom, debug);
         // No-ret functions downcast to returning ones, but call() can't work with those (see also CallExpr, IfExpr)
-        if (resolve_type_def(scope, from->as<FnType>()->codom)->isa<artic::NoRetType>()) {
+        if (resolve_type_var(scope, from->as<FnType>()->codom)->isa<artic::NoRetType>()) {
             jump(def, param, debug);
         } else {
             auto value = down_cast(call(def, param, debug), scope, from_fn_type->codom, to->as<FnType>()->codom, debug);
@@ -851,7 +851,7 @@ void Emitter::bind(const ast::IdPtrn& id_ptrn, const thorin::Def* value) {
 }*/
 
 const thorin::Def* Emitter::emit(const Value* node, const Literal& lit) {
-    if (auto prim_type = isa<const artic::PrimType*>(resolve_type_def(scope(), node->type()))) {
+    if (auto prim_type = isa<const artic::PrimType*>(resolve_type_var(scope(), node->type()))) {
         switch (prim_type->tag) {
             case ast::PrimType::Bool: return world.literal_bool(lit.as_bool(),    debug_info(node));
             case ast::PrimType::U8:   return world.literal_pu8 (lit.is_integer() ? lit.as_integer() : lit.as_char(), debug_info(node));
@@ -1243,7 +1243,7 @@ const thorin::Def* Function::emit(Emitter& emitter, const ValueVar* self) const 
     // Set the IR node before entering the body
     if (self)
         self->emitted = cont;
-    auto is_returnless = resolve_type_def(emitter.scope(), resolve_type(emitter.scope())->codom)->isa<artic::tir::NoRetType>();
+    auto is_returnless = resolve_type_var(emitter.scope(), resolve_type(emitter.scope())->codom)->isa<artic::tir::NoRetType>();
     param->emitted = emitter.tuple_from_params(cont, !is_returnless);
     //emitter.emit(*param, emitter.tuple_from_params(cont, true));
     if (filter_)
@@ -1339,7 +1339,7 @@ const thorin::Def* Agg::emit(Emitter& emitter) const {
     for (size_t i = 0; i < args.size(); ++i) {
         elems[i] = emitter.emit(args[i]);
     }
-    auto agg_type = resolve_type_def(emitter.scope(), type());
+    auto agg_type = resolve_type_var(emitter.scope(), type());
     if (agg_type->isa<TupleType>())
         return emitter.world.tuple(elems);
     else if (auto array_t = agg_type->isa<SizedArrayType>()) {
@@ -1353,7 +1353,7 @@ const thorin::Def* Agg::emit(Emitter& emitter) const {
 }
 
 const thorin::Def* Repeat::emit(Emitter& emitter) const {
-    auto arr_type = resolve_type_def(emitter.scope(), type())->as<SizedArrayType>();
+    auto arr_type = resolve_type_var(emitter.scope(), type())->as<SizedArrayType>();
     thorin::Array<const thorin::Def*> ops(arr_type->size, emitter.emit(elem));
     return arr_type->is_simd
         ? emitter.world.vector(ops, emitter.debug_info(this))
@@ -1497,7 +1497,7 @@ const thorin::Def* BinOp::emit(Emitter& emitter) const {
     }
     const thorin::Def* lhs = nullptr;
     const thorin::Def* ptr = nullptr;
-    if (match_type_def(s, this->lhs->type())->isa<RefType>()) {
+    if (match_type_var(s, this->lhs->type())->isa<RefType>()) {
         ptr = emitter.emit(this->lhs);
         if (tag != BinaryExpr::Eq)
             lhs = emitter.load(ptr, emitter.debug_info(this));
@@ -2460,7 +2460,7 @@ const thorin::Type* ImplicitParamType::convert(artic::Emitter& emitter) const {
 }
 
 const thorin::Type* FnType::convert(Emitter& emitter) const {
-    if (resolve_type_def(emitter.scope(), codom)->isa<NoRetType>())
+    if (resolve_type_var(emitter.scope(), codom)->isa<NoRetType>())
         return emitter.continuation_type_with_mem(emitter.emit(dom));
     return emitter.function_type_with_mem(emitter.emit(dom), emitter.emit(codom));
 }

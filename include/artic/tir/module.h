@@ -131,10 +131,10 @@ struct SigError : public SigDef {
     SigError(Arena&);
 };
 
-const Sig* lookup_sig(const Scope&, const SigVar*);
-const SigDef* lookup_sig_def(const Scope&, const SigVar*);
+const Sig* lookup_sig_var_single(const Scope&, const SigVar*);
+const SigDef* lookup_sig_var(const Scope&, const SigVar*);
 
-const SigDef* resolve_sig_def(const Scope&, const SigVar*);
+const SigDef* resolve_sig_var(const Scope&, const SigVar*);
 
 struct Mod : virtual public Node {
     NodeKind kind() const override { return NodeKind::Module; }
@@ -271,8 +271,8 @@ struct ModError : public ModDef {
     ModError(Builder&);
 };
 
-const ModDef* lookup_mod_def(const Scope&, const ModVar*);
-const ModDef* resolve_mod_def(const Scope&, const ModVar*);
+const ModDef* lookup_mod_var(const Scope&, const ModVar*);
+const ModDef* resolve_mod_var(const Scope&, const ModVar*);
 
 }
 
