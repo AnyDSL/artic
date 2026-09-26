@@ -31,10 +31,10 @@ void Printer::insert(const Node& node, std::string str) {
 }
 
 void Printer::print(const Node& node, bool print_inline) {
-    if (print_inline || node.is_var()) {
-        node.print(*this);
-        return;
-    }
+    // if (print_inline || node.is_var()) {
+    //     node.print(*this);
+    //     return;
+    // }
     auto found = named.find(&node);
     if (found != named.end()) {
         top() << found->second;
@@ -42,12 +42,42 @@ void Printer::print(const Node& node, bool print_inline) {
     }
     std::string node_name = unique_name(node);
     insert(node, node_name);
-    push();
-    node.print(*this);
-    base << node_name << " = ";
-    pop();
-    base << endl();
-    top() << node_name;
+
+    if (print_inline) {
+        push();
+        node.print(*this);
+        auto s = pop();
+        top().concat(s);
+        return;
+    }
+
+    int old_depth = depth;
+    depth++;
+    const Node* n = &node;
+    if (max_depth == 0 || depth < max_depth) {
+        auto was_var = n->is_var();
+        push();
+        while (true) {
+            n->print(*this);
+
+            if (auto var = n->isa<Var>(); var && resolve_unbound_vars) {
+                n = var->binder->lookup_var_single(var);
+                if (n) {
+                    top() << " => ";
+                    continue;
+                }
+            }
+            break;
+        }
+        if (!was_var)
+            base << node_name << " = ";
+        base << pop();
+        base << endl();
+        top() << node_name;
+    } else {
+        top() << node_name;
+    }
+    depth = old_depth;
 }
 
 void Printer::print(const Root& root) {
@@ -58,9 +88,10 @@ void Printer::push() {
     stack.push(std::make_unique<Scope>(*this));
 }
 
-void Printer::pop() {
-    base << stack.top()->os.str();
+std::string Printer::pop() {
+    std::string s = stack.top()->os.str();
     stack.pop();
+    return s;
 }
 
 artic::Printer& Printer::top() {
@@ -673,21 +704,35 @@ void Control::print(Printer& p) const {
 
 log::Output& operator << (log::Output& out, const Node& node) {
     artic::Printer p(out);
-    Printer tp(p);
+    Printer tp(p, 1);
     tp.print(node);
     return out;
 }
 
 void Node::dump() const {
     artic::Printer p(log::out);
-    Printer tp(p);
+    Printer tp(p, 1);
+    tp.print(*this);
+    p << '\n';
+}
+
+void Node::dump_def() const {
+    artic::Printer p(log::out);
+    Printer tp(p, 1, true);
+    tp.print(*this);
+    p << '\n';
+}
+
+void Node::dump_deep(int depth) const {
+    artic::Printer p(log::out);
+    Printer tp(p, depth, true);
     tp.print(*this);
     p << '\n';
 }
 
 void Node::dump_fvs() const {
     artic::Printer p(log::out);
-    Printer tp(p);
+    Printer tp(p, 1);
     for (auto fv : free_variables())
         tp.print(*fv);
     p << '\n';
@@ -695,7 +740,7 @@ void Node::dump_fvs() const {
 
 void dump_fvs(Node::FVSet& set) {
     artic::Printer p(log::out);
-    Printer tp(p);
+    Printer tp(p, 1);
     for (auto fv : set)
         tp.print(*fv);
     p << '\n';

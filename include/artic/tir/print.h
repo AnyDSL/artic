@@ -12,7 +12,9 @@ namespace tir {
 struct TypeVar;
 
 struct Printer {
-    Printer(artic::Printer& base) : base(base) { }
+    Printer(artic::Printer& base, int max_depth = 1, bool resolve_unbound_vars = true)
+        : base(base), max_depth(max_depth), resolve_unbound_vars(resolve_unbound_vars)
+    {}
     Printer(const Printer&) = delete;
 
     void print(const Root&);
@@ -31,7 +33,7 @@ struct Printer {
 
 private:
     void push();
-    void pop();
+    std::string pop();
 
     struct Scope {
         std::ostringstream os;
@@ -44,6 +46,9 @@ private:
     artic::Printer& base;
     std::stack<std::unique_ptr<Scope>> stack;
     std::unordered_map<const Node*, std::string> named;
+    int depth = 0;
+    int max_depth;
+    bool resolve_unbound_vars;
 };
 
 }

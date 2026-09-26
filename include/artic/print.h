@@ -37,6 +37,17 @@ struct Printer {
         for (size_t i = 0; i < level; i++) out << tab;
         return *this;
     }
+
+    Printer& concat(const std::string& s) {
+        for (char c : s) {
+            if (c == '\n') {
+                *this << Endl {};
+            } else {
+                *this << c;
+            }
+        }
+        return *this;
+    }
 };
 
 } // namespace artic

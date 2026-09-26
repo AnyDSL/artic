@@ -570,7 +570,7 @@ const T* match_type_var(const Scope& scope, const TypeVar* var) {
 
 template <typename T = TypeDef>
 const T* match_type(const Scope& scope, const Type* type) {
-    auto def = lookup_type(scope, type->as<TypeVar>());
+    auto def = lookup_type(scope, type);
     if (def)
         return def->isa<T>();
     return nullptr;

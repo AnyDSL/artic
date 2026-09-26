@@ -92,6 +92,8 @@ struct Node : public DynCast<Node> {
 
     /// Prints the type on the console, for debugging.
     void dump() const;
+    void dump_def() const;
+    void dump_deep(int depth) const;
     void dump_fvs() const;
 };
 
