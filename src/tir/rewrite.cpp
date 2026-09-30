@@ -262,11 +262,10 @@ const Node* Function::rewrite(Rewriter& r) const {
     auto nparam = r.instantiate(param, true);
     auto ncodom = r.instantiate(codom);
 
-    Scope& fn_scope = r.builder().scope.new_child();
-    Builder fn_builder(r.dst, fn_scope, &r.builder());
-    fn_scope.insert(nparam, nullptr);
+    AbstractBuilder fn_builder(r.builder());
+    fn_builder.register_var(nparam);
     Rewriter::BuilderGuard guard(r, fn_builder);
-    auto nfn = r.builder().unsafe().function(nparam, fn_scope, ncodom, decl);
+    auto nfn = r.builder().unsafe().function(nparam, fn_builder.scope, ncodom, decl);
     //r.insert(this, nfn);
     r.insert(param, nparam);
     if (body_)
@@ -338,15 +337,9 @@ const Node* Proj::rewrite(Rewriter& r) const {
     return r.builder().unsafe().proj(r.instantiate(src), r.instantiate(idx));
 }
 
-const Node* Bind::rewrite(Rewriter& r) const {
-    auto nvar = r.instantiate(param, true);
-    auto nval = r.instantiate(value, false);
-    r.insert(param, nvar);
-    return r.builder().unsafe().bind(nvar, nval);
-}
 
 const Node* Seq::rewrite(Rewriter& r) const {
-    ExprBuilder builder(r.dst, &r.builder());
+    ExprBuilder builder(r.builder());
     Rewriter::BuilderGuard guard(r, builder);
     for (auto ev : evaluate) {
         if (auto bind = std::get_if<Bind>(&ev)) {

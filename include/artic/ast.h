@@ -28,6 +28,7 @@ namespace tir {
     struct Module;
     struct Key;
     struct Var;
+    struct Function;
     struct ModVar;
     struct TypeVar;
     struct ValueVar;
@@ -763,6 +764,8 @@ struct FnExpr : public Expr {
 
     const tir::Var* infer(TypeChecker&) override;
     const tir::Var* check(TypeChecker&, const tir::TypeVar*) override;
+    const tir::Function* infer_function(TypeChecker&) override;
+    const tir::Function* check_function(TypeChecker&, const tir::TypeVar*) override;
     void bind(NameBinder&, bool);
     void bind(NameBinder&) override;
     void print(Printer&) const override;

@@ -69,7 +69,7 @@ public:
 
     const tir::Key* infer_key(ast::NamedDecl&);
 
-    const ValueVar* build_block(ast::BlockExpr&, const TypeVar* expected, size_t i);
+    const Value* build_block(ast::BlockExpr&, const TypeVar* expected, size_t i);
 
     const tir::ValueVar* infer_value(ast::Expr& ast);
     const tir::ValueVar* infer_value(ast::Stmt& ast);
@@ -105,28 +105,30 @@ public:
 
     const Value* build_fn_body(const ValueVar* param, ast::FnExpr& fn, const tir::TypeVar* codom);
     const Value* build_fn_filter(const ValueVar* param, ast::FnExpr& fn);
-    const ValueVar* build_if(const ast::IfExpr& expr, const tir::TypeVar* yield_type, const ValueVar*, ExprBuilder& true_builder, ExprBuilder& else_builder);
+    using SetTypeFn = std::function<void(const tir::Type*)>;
+    using IfBuilderFn = std::function<void(const SetTypeFn&, ExprBuilder& true_builder, ExprBuilder& else_builder)>;
+    const ValueVar* build_if(const ast::IfExpr& expr, const IfBuilderFn&);
 
-    using SetTypeFn = const std::function<void(const tir::Type*)>&;
-    using InnerLoopBuilderFn = const std::function<const Value*(SetTypeFn, const ValueVar* loop_param)>&;
-    using BuildInnerLoopFn = const std::function<const Value*(const TypeVar*, InnerLoopBuilderFn)>&;
-    using LoopBuilderFn = const std::function<const Value*(SetTypeFn, BuildInnerLoopFn)>&;
-    const ValueVar* build_loop(ast::LoopExpr& loop, const std::string&, LoopBuilderFn);
+    using InnerLoopBuilderFn = std::function<const Value*(const SetTypeFn&, const ValueVar* continue_param, const ValueVar* loop_param)>;
+    using BuildInnerLoopFn = std::function<const Function*(const TypeVar*, const InnerLoopBuilderFn&)>;
+    using LoopBuilderFn = std::function<const Value*(SetTypeFn, const BuildInnerLoopFn&)>;
+    const ValueVar* build_loop(ast::LoopExpr& loop, const std::string&, const LoopBuilderFn&);
 
     void infer_fn_attrs(const ast::FnDecl* fn_decl, const Function* fn);
     void infer_global_attrs(const ast::StaticDecl* decl, const GlobalVariable* fn);
 
-    template<typename T, typename Fn>
-    T with_expr_scope(Fn f) {
-        T r;
-        run_expr_scope([&] {
-            r = f();
-        });
-        return r;
-    }
+    // template<typename T, typename Fn>
+    // T with_expr_scope(Fn f) {
+    //     T r;
+    //     run_expr_scope([&](ExprBuilder& eb) {
+    //         r = f(eb);
+    //     });
+    //     return r;
+    // }
 
-    const Value* yield_expr_scope(const std::function<const Value*()>& f);
-    void run_expr_scope(const std::function<void()>& f);
+    const Value* with_expr_scope(const std::function<const Value*(ExprBuilder&)>& f);
+    const Value* yield_expr_scope(const std::function<const Value*(ExprBuilder&)>& f);
+    //void run_expr_scope(const std::function<void(ExprBuilder&)>& f);
 
     template<typename Fn>
     const Value* with_expr_builder(ExprBuilder& builder, Fn f) {

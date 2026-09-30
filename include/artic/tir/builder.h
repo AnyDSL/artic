@@ -282,6 +282,7 @@ struct ExprBuilder : public Builder {
     void bind(const Var*, const Node*) override;
 
     void add_instruction(const ValueDef*);
+    const ValueVar* bind_instruction(const ValueDef*);
     void bind_instruction(const ValueVar*, const ValueDef*);
 
     const ValueVar* local_variable(const TypeVar*);
@@ -328,14 +329,17 @@ private:
 
     std::vector<const Value*> seq;
     friend Seq;
+    friend TypeChecker;
 };
 
-struct CtorBodyBuilder : public Builder {
-    CtorBodyBuilder(Builder&);
+struct AbstractBuilder : public Builder {
+    AbstractBuilder(Builder&);
 
     void bind(const Var*, const Node*) override {
         assert(false);
     }
+
+    void register_var(const Var*);
 };
 
 }

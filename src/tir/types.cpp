@@ -754,7 +754,7 @@ const TypeVar* member_type(Builder& b, const TypeDef* type, size_t idx) {
         } else {
             // non-struct enum options are immediately specialized
             if (type_app && member_type_app) {
-                return enclosing_let_rec().maybe_schedule_type(unsafe().type_app(member_type_app->applicand(), type_app->args)->instantiated(*this));
+                return b.maybe_schedule_type(b.unsafe().type_app(member_type_app->applicand(), type_app->args)->instantiated(b));
             }
         }
         return member_type;
