@@ -296,7 +296,7 @@ Agg::Agg(Builder& builder, const TypeVar* agg_type, const ArrayRef<const ValueVa
     } else if (auto struct_t = peeked_agg_type->isa<StructType>()) {
         assert(struct_t->member_count() == args.size());
         for (size_t i = 0; i < args.size(); i++) {
-            assert(args[i]->type() == builder.member_type(peeked_agg_type, i));
+            assert(args[i]->type() == member_type(builder, peeked_agg_type, i));
         }
     } else {
         assert(false);
@@ -340,7 +340,7 @@ Extract::Extract(Builder& builder, const ValueVar* src, const ValueVar* idx) : V
     } else if (auto struct_t = peeked_agg_type->isa<StructType>()) {
         if (auto lit_idx = match_value_var<TypedLiteral>(s, idx); lit_idx) {
             size_t idx_value = lit_idx->value.as_integer();
-            return builder.member_type(resolved_src_type, idx_value);
+            return member_type(builder, resolved_src_type, idx_value);
         }
     } else {
         assert(false);
@@ -398,7 +398,7 @@ bool VariantIndex::equals(const Node* other) const {
 
 VariantExtract::VariantExtract(Builder& builder, const ValueVar* src, size_t idx) : Node(builder.arena), ValueDef(builder.arena, [&]() -> const TypeVar* {
     auto resolved_src_type = resolve_type_var(builder.scope, src->type());
-    return builder.member_type(resolved_src_type, idx);
+    return member_type(builder, resolved_src_type, idx);
 }()), src(src), index(idx) {
     assert(src->is_var());
 }
@@ -470,7 +470,7 @@ Proj::Proj(Builder& builder, const ValueVar* src, const ValueVar* idx) : ValueDe
     } else if (auto struct_t = peeked_pointee_t->isa<StructType>()) {
         if (auto lit_idx = match_value_var<TypedLiteral>(s, idx); lit_idx) {
             size_t idx_value = lit_idx->value.as_integer();
-            return wrap_pointee(builder.member_type(resolved_pointee_t, idx_value));
+            return wrap_pointee(member_type(builder, resolved_pointee_t, idx_value));
         }
     } else {
         assert(false);
@@ -493,7 +493,7 @@ bool Proj::equals(const Node* other) const {
     return false;
 }
 
-Bind::Bind(Builder& builder, const ValueVar* param, const Value* value) : ValueDef(builder.arena, [&]() -> const TypeVar* {
+/*Bind::Bind(Builder& builder, const ValueVar* param, const Value* value) : ValueDef(builder.arena, [&]() -> const TypeVar* {
     if (!value->type()->subtype(builder.scope, param->type())) {
         assert(false);
     }
@@ -510,19 +510,28 @@ bool Bind::equals(const Node* other) const {
             return true;
     }
     return false;
-}
+}*/
 
-Seq::Seq(Builder& builder, const ArrayRef<const ValueDef*>& evaluate, const Value* yield) : ValueDef(builder.arena, yield->type()), Node(builder.arena), evaluate(evaluate), yield(yield) {
+Seq::Seq(Builder& builder, const ArrayRef<std::variant<const ValueDef*, Bind>>& evaluate, const Value* yield) : ValueDef(builder.arena, yield->type()), Node(builder.arena), evaluate(evaluate), yield(yield) {
     assert(!evaluate.empty());
     for (auto e : evaluate) {
-        assert(!e->is_var());
+        // if (auto bind = std::get_if<Bind>(&e)) {
+        //
+        // }
+        // assert(!e->is_var());
     }
 }
 
 size_t Seq::hash() const {
     auto h = fnv::Hash().combine(yield);
-    for (auto e : evaluate)
-        h = h.combine(e);
+    for (auto e : evaluate) {
+        if (auto bind = std::get_if<Bind>(&e)) {
+            h = h.combine(bind->var);
+            h = h.combine(bind->value);
+        } else {
+            h = h.combine(std::get<const ValueDef*>(e));
+        }
+    }
     return h;
 }
 
@@ -533,8 +542,20 @@ bool Seq::equals(const Node* other) const {
         if (other_seq->evaluate.size() != evaluate.size())
             return false;
         for (size_t i = 0; i < evaluate.size(); i++) {
-            if (other_seq->evaluate[i] != evaluate[i])
+            if (other_seq->evaluate[i].index() != evaluate[i].index())
                 return false;
+            if (auto bind = std::get_if<Bind>(&evaluate[i])) {
+                auto other_bind = std::get<Bind>(other_seq->evaluate[i]);
+                if (bind->var != other_bind.var)
+                    return false;
+                if (bind->value != other_bind.value)
+                    return false;
+            } else {
+                auto def = std::get<const ValueDef*>(evaluate[i]);
+                auto other_def = std::get<const ValueDef*>(other_seq->evaluate[i]);
+                if (!def->equals(other_def))
+                    return false;
+            }
         }
         return true;
     }
@@ -825,26 +846,19 @@ void Proj::free_variables(FVSet& vars, Seen& seen) const {
     idx->free_variables(vars, seen);
 }
 
-void Bind::free_variables(FVSet& vars, Seen& seen) const {
-    assert(false);
-    type()->free_variables(vars, seen);
-    param->free_variables(vars, seen);
-    value->free_variables(vars, seen);
-}
-
 void Seq::free_variables(FVSet& vars, Seen& seen) const {
     type()->free_variables(vars, seen);
     FVSet rhs;
     yield->free_variables(rhs, seen);
     for (size_t i = evaluate.size() - 1; i < evaluate.size(); i--) {
         auto instr = evaluate[i];
-        if (auto bind = instr->isa<Bind>()) {
+        if (auto bind = std::get_if<Bind>(&instr)) {
             bind->value->free_variables(rhs, seen);
-            rhs.erase(bind->param);
-            bind->type()->free_variables(rhs, seen);
-            bind->param->type()->free_variables(rhs, seen);
+            rhs.erase(bind->var);
+            bind->value->type()->free_variables(rhs, seen);
+            bind->var->type()->free_variables(rhs, seen);
         } else {
-            instr->free_variables(rhs, seen);
+            std::get<const ValueDef*>(instr)->free_variables(rhs, seen);
         }
     }
     vars.merge(rhs);

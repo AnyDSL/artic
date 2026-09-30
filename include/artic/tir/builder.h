@@ -19,14 +19,7 @@ class Arena {
 public:
     Arena();
     Arena(const Arena&) = delete;
-    ~Arena();// = default;
-
-    // const PrimType* prim_type(ast::PrimType::Tag);
-    // const PrimType* bool_type();
-    // const BottomType* bottom_type();
-    // const TopType* top_type();
-    // const NoRetType* no_ret_type();
-    // const TypeError* type_error();
+    ~Arena();
 
 private:
     template <typename T, typename... Args>
@@ -87,21 +80,75 @@ struct Builder : public artic::Cast<Builder> {
     LetRecBuilder& enclosing_let_rec();
     ExprBuilder& enclosing_expr();
 
-    const TypeVar* member_type(const TypeDef*, size_t);
-    const TypeVar* type_var(std::optional<ast::Identifier> id);
-
-    const CtorVar* ctor_var(std::optional<ast::Identifier> id, const SigVar*);
+    // Signatures
     const SigVar* sig_var(std::optional<ast::Identifier> id);
+    const SigVar* mod_signature(std::unordered_map<const Key*, const SigVar*>&&);
+    const SigVar* value_signature(const TypeVar*);
+    const SigVar* type_signature(const TypeVar*);
+    const SigVar* ctor_signature(const ArrayRef<const SigVar*>&, NodeKind);
+    const SigVar* sig_error();
 
-    const Key* decl_key(std::optional<ast::Identifier>);
+    // Modules
     const ModVar* mod_var(std::optional<ast::Identifier> id, const SigVar*);
-    // const ModValue* mod_access(const ModValue*, const Key*);
+    const ModVar* module(std::unordered_map<const Key*, const Node*>&&, const ast::ModDecl* = nullptr);
+    const ModVar* mod_app(const CtorVar*, const ArrayRef<const Var*>&);
+    const ModVar* mod_mod_access(const ModVar*, const Key*);
+    const ModVar* mod_error();
+    const Var* mod_access(const ModVar*, const Key*);
 
-    // const ValueVar* global_variable(const Type*, bool is_mut, const Value*, const ast::StaticDecl*);
+    // Types
+    const TypeVar* type_var(std::optional<ast::Identifier> id);
+    const TypeVar* mod_type_access(const ModVar*, const Key*);
+    const TypeVar* type_app(const CtorVar*, const ArrayRef<const Var*>&);
+    const TypeVar* prim_type(ast::PrimType::Tag);
+    const TypeVar* bool_type();
+    const TypeVar* unit_type();
+    const TypeVar* tuple_type(const ArrayRef<const TypeVar*>&);
+    const TypeVar* sized_array_type(const TypeVar*, size_t, bool);
+    const TypeVar* unsized_array_type(const TypeVar*);
+    const TypeVar* ptr_type(const TypeVar*, bool, size_t);
+    const TypeVar* ref_type(const TypeVar*, bool, size_t);
+    const TypeVar* implicit_param_type(const TypeVar*);
+    const TypeVar* fn_type(const TypeVar*, const TypeVar*);
+    const TypeVar* cn_type(const TypeVar*);
+    const TypeVar* bottom_type();
+    const TypeVar* top_type();
+    const TypeVar* no_ret_type();
+    const TypeVar* type_error();
+    const CtorVar* type_ctor(Scope&, const ArrayRef<const Var*>&, const Type*);
 
+    // Values
     const ValueVar* value_var(std::optional<ast::Identifier> id, const TypeVar*);
+    const ValueVar* value_app(const CtorVar*, const ArrayRef<const Var*>&);
+    const ValueVar* mod_value_access(const ModVar*, const Key*);
+    const ValueVar* unit();
+    const ValueVar* typed_literal(Literal, const TypeVar*);
+    const ValueVar* undef(const TypeVar*);
+    const ValueVar* error_value(const TypeVar*);
+    const ValueVar* error_value();
+    const CtorVar* value_ctor(Scope&, const ArrayRef<const Var*>&, const Value*);
 
-    template<typename T, typename Fn>
+    // Misc
+    const CtorVar* ctor_var(std::optional<ast::Identifier> id, const SigVar*);
+    const Key* decl_key(std::optional<ast::Identifier>);
+
+    // Binding stuff
+    const TypeVar* schedule_type(const TypeDef*, std::optional<ast::Identifier> = std::nullopt);
+    const ValueVar* schedule_value(const ValueDef*, std::optional<ast::Identifier> = std::nullopt);
+    const ModVar* schedule_mod(const ModDef*, std::optional<ast::Identifier> = std::nullopt);
+    const CtorVar* schedule_ctor(const CtorDef*, std::optional<ast::Identifier> = std::nullopt);
+    const SigVar* schedule_sig(const SigDef*, std::optional<ast::Identifier> = std::nullopt);
+
+    const TypeVar* maybe_schedule_type(const Type*);
+    const ValueVar* maybe_schedule_value(const Value*);
+    const ModVar* maybe_schedule_mod(const Mod*);
+
+    virtual void bind(const Var*, const Node*) = 0;
+
+    const Var* maybe_schedule(const Node*);
+    const Var* schedule(const Def*, std::optional<ast::Identifier> = std::nullopt);
+
+    /*template<typename T, typename Fn>
     T with_expr_scope(Fn f) {
         T r;
         run_expr_scope([&](auto& expr) {
@@ -111,9 +158,11 @@ struct Builder : public artic::Cast<Builder> {
     }
 
     const Value* yield_expr_scope(const std::function<const Value*(ExprBuilder&)>& f);
-    void run_expr_scope(const std::function<void(ExprBuilder&)>& f);
+    void run_expr_scope(const std::function<void(ExprBuilder&)>& f);*/
 
-    LetRecBuilder* find_builder_for_scope(const Scope*);
+    std::tuple<const Var*, Builder*> locate(const Def*);
+
+    Builder* find_builder_for_scope(const Scope*);
 
     std::vector<std::unique_ptr<Builder>> children;
 
@@ -215,91 +264,35 @@ struct LetRecBuilder : public Builder {
     LetRecBuilder(Arena& arena, Scope&, Builder* parent);
     ~LetRecBuilder();
 
-    const SigVar* mod_signature(std::unordered_map<const Key*, const SigVar*>&&);
-    const SigVar* value_signature(const TypeVar*);
-    const SigVar* type_signature(const TypeVar*);
-    const SigVar* ctor_signature(const ArrayRef<const SigVar*>&, NodeKind);
-    const SigVar* sig_error();
-
-    //std::tuple<const ModVar*, const ModCtor*> mod_ctor(const ModVar*);
-    const ModVar* module(std::unordered_map<const Key*, const Node*>&&, const ast::ModDecl* = nullptr);
-    const ModVar* mod_app(const CtorVar*, const ArrayRef<const Var*>&);
-    const ModVar* mod_mod_access(const ModVar*, const Key*);
-    const Var* mod_access(const ModVar*, const Key*);
-    const ModVar* mod_error();
-
-    const TypeVar* prim_type(ast::PrimType::Tag);
-    const TypeVar* bool_type();
-    const TypeVar* unit_type();
-    const TypeVar* tuple_type(const ArrayRef<const TypeVar*>&);
-    const TypeVar* sized_array_type(const TypeVar*, size_t, bool);
-    const TypeVar* unsized_array_type(const TypeVar*);
-    const TypeVar* ptr_type(const TypeVar*, bool, size_t);
-    const TypeVar* ref_type(const TypeVar*, bool, size_t);
-    const TypeVar* implicit_param_type(const TypeVar*);
-    const TypeVar* fn_type(const TypeVar*, const TypeVar*);
-    const TypeVar* cn_type(const TypeVar*);
-    const TypeVar* bottom_type();
-    const TypeVar* top_type();
-    const TypeVar* no_ret_type();
-    const TypeVar* type_error();
-
-    const TypeVar* mod_type_access(const ModVar*, const Key*);
-    const CtorVar* type_ctor(Scope&, const ArrayRef<const Var*>&, const Type*);
-    const TypeVar* type_app(const CtorVar*, const ArrayRef<const Var*>&);
-
-    const CtorVar* value_ctor(Scope&, const ArrayRef<const Var*>&, const Value*);
-    const ValueVar* value_app(const CtorVar*, const ArrayRef<const Var*>&);
-    const ValueVar* mod_value_access(const ModVar*, const Key*);
-    const ValueVar* unit();
-
-    const ValueVar* typed_literal(Literal, const TypeVar*);
-    const ValueVar* undef(const TypeVar*);
-    const ValueVar* error_value(const TypeVar*);
-    const ValueVar* error_value();
-
-    void bind(const Var*, const Node*);
-
-    const TypeVar* schedule_type(const TypeDef*, std::optional<ast::Identifier> = std::nullopt);
-    const ValueVar* schedule_value(const ValueDef*, std::optional<ast::Identifier> = std::nullopt);
-    const ModVar* schedule_mod(const ModDef*, std::optional<ast::Identifier> = std::nullopt);
-    const CtorVar* schedule_ctor(const CtorDef*, std::optional<ast::Identifier> = std::nullopt);
-    const SigVar* schedule_sig(const SigDef*, std::optional<ast::Identifier> = std::nullopt);
-
-    const TypeVar* maybe_schedule_type(const Type*);
-    const ValueVar* maybe_schedule_value(const Value*);
-    const ModVar* maybe_schedule_mod(const Mod*);
+    void bind(const Var*, const Node*) override;
 
     // const LetRec* finish(const Node*);
     const Type* finish_type(const Type*);
     const Mod* finish_module(const Mod*);
     const Value* finish_value(const Value*);
 
-    std::tuple<const Var*, LetRecBuilder*> locate(const Def*);
-
-    const Var* maybe_schedule(const Node*);
-    const Var* schedule(const Def*, std::optional<ast::Identifier> = std::nullopt);
 private:
     std::vector<std::tuple<const Var*, const Node*>> contents;
-    //std::unordered_map<const Node*, const Var*> already_bound_here;
-
     friend ast::StructDecl;
 };
 
 struct ExprBuilder : public Builder {
-    ExprBuilder(Arena&, Builder*);
+    ExprBuilder(Builder&);
 
-    void bind(const ValueVar*, const Value*);
-    const ValueVar* bind_value(const Value*);
+    void bind(const Var*, const Node*) override;
+
+    void add_instruction(const ValueDef*);
+    void bind_instruction(const ValueVar*, const ValueDef*);
 
     const ValueVar* local_variable(const TypeVar*);
 
-    const ValueVar* call(const ValueVar* callee, const ValueVar* arg);
     const ValueVar* agg(const TypeVar*, const ArrayRef<const ValueVar*>&);
     const ValueVar* tuple(const ArrayRef<const ValueVar*>&);
     const ValueVar* repeat(const TypeVar*, const ValueVar*);
     const ValueVar* extract(const ValueVar*, const ValueVar*);
     const ValueVar* proj(const ValueVar*, const ValueVar*);
+
+    const ValueVar* call(const ValueVar* callee, const ValueVar* arg);
 
     const ValueVar* variant(const TypeVar*, size_t, const ValueVar*);
     const ValueVar* variant_index(const ValueVar*);
@@ -314,16 +307,35 @@ struct ExprBuilder : public Builder {
     const ValueVar* control(const Function*);
 
     /// Finish the expression and make it yield this value
-    const Value* finish(const Value*);
+    const Value* finish(const ValueVar* v) {
+        return finish(v->as<Value>());
+    }
+
+    const Value* finish(const Seq* v) {
+        return finish(v->as<Value>());
+    }
+
+    const Value* finish(const LetRecValue* v) {
+        return finish(v->as<Value>());
+    }
+
     /// Finish the expression and make it yield unit
     const Value* finish_unit();
     /// Finish the expression and make it do a branch last, yielding NoRet
     const Value* finish_branch(const ValueVar*, const Function*, const Function*);
 private:
-    void add_instruction(const Value* instruction);
+    const Value* finish(const Value*);
 
     std::vector<const Value*> seq;
     friend Seq;
+};
+
+struct CtorBodyBuilder : public Builder {
+    CtorBodyBuilder(Builder&);
+
+    void bind(const Var*, const Node*) override {
+        assert(false);
+    }
 };
 
 }

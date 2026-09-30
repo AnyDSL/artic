@@ -547,6 +547,8 @@ struct LetRecType : public TypeDef, public LetRec {
     LetRecType(Builder&, Scope&, const ArrayRef<std::tuple<const Var*, const Node*>>&, const Type*);
 };
 
+const TypeVar* member_type(Builder&, const TypeDef*, size_t);
+
 bool is_int_type(const TypeDef*);
 bool is_float_type(const TypeDef*);
 bool is_int_or_float_type(const TypeDef*);

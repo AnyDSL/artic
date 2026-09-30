@@ -140,6 +140,8 @@ struct LetRec : virtual Node {
     LetRec(Scope&, const ArrayRef<std::tuple<const Var*, const Node*>>&, const Node*);
 };
 
+inline bool is_exp(const Node* n) { return n->isa<Var>() || n->isa<LetRec>(); }
+
 struct Ctor : virtual public Node {
     const SigVar* ctor_sig;
     NodeKind kind() const override { return NodeKind::Ctor; }

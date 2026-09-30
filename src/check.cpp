@@ -239,10 +239,6 @@ const ValueVar* TypeChecker::build_loop(ast::LoopExpr& loop, const std::string& 
         send_param(outer_yield_param);
         loop.break_ = outer_yield_param;
 
-        // Scope& outer_scope = scope().new_child();
-        // LetRecBuilder rec_builder(arena(), outer_scope, &builder());
-        // BuilderGuard guard(*this, rec_builder);
-
         auto make_inner = [&](const TypeVar* loop_param_t, InnerLoopBuilderFn inner_body_f) {
             // auto head_fn_type = b.fn_type(loop_param_t, builder().no_ret_type());
             // auto head_fn_var = b.value_var(ast::Identifier { loop.loc, loop_name + "_head" }, head_fn_type);
@@ -2626,63 +2622,6 @@ const tir::Var* WhileExpr::infer(TypeChecker& checker) {
         return rec_builder.finish_value(checker.builder().unsafe().call(head_fn_var, b.unit()));
     };
     return checker.build_loop(*this, "while", make_loop);
-    /*auto& b = checker.builder();
-
-    auto outer_control_fn = checker.build_fn([&](auto& send_param) -> const Value* {
-        auto outer_yield_type = b.fn_type(b.unit_type(), checker.builder().no_ret_type());
-        auto outer_yield_param = b.value_var(Identifier { loc, "while_break" }, outer_yield_type);
-        send_param(outer_yield_param);
-        break_ = outer_yield_param;
-
-        Scope& outer_scope = checker.scope().new_child();
-        LetRecBuilder rec_builder(checker.arena(), outer_scope, &checker.builder());
-        TypeChecker::BuilderGuard guard(checker, rec_builder);
-
-        auto head_fn_type = b.fn_type(b.unit_type(), checker.builder().no_ret_type());
-        auto head_fn_var = b.value_var(Identifier { loc, "while_head" }, head_fn_type);
-        auto head_fn = checker.build_fn(b.value_var(Identifier { loc, "_" }, b.unit_type()), [&]() -> const Value* {
-            auto inner_control_fn = checker.build_fn([&](auto& send_param) -> const Value* {
-                auto inner_yield_type = b.fn_type(b.unit_type(), checker.builder().no_ret_type());
-                auto inner_yield_param = b.value_var(Identifier { loc, "while_continue" }, inner_yield_type);
-                send_param(inner_yield_param);
-                continue_ = inner_yield_param;
-
-                return checker.yield_expr_scope([&]() -> const Value* {
-                    const Value* cond = nullptr;
-                    if (this->cond)
-                        cond = checker.coerce(&*this->cond, checker.builder().bool_type());
-                    else {
-                        checker.infer_ptrn(*ptrn, expr);
-                        checker.check_refutability(*ptrn, false);
-                    }
-
-                    auto if_loop = checker.build_fn(b.value_var(Identifier { loc, "_" }, b.unit_type()), [&]() -> const Value* {
-                        return checker.yield_expr_scope([&]() {
-                            // Using infer mode here would cause the type system to allow code such as: while true { break }
-                            checker.coerce(&*body, checker.builder().unit_type());
-                            // After the body, default to calling the head
-                            return checker.builder().unsafe().call(continue_, checker.builder().unit());
-                        });
-                    });
-                    auto if_dont_loop = checker.build_fn(b.value_var(Identifier { loc, "_" }, b.unit_type()), [&]() -> const Value* {
-                        // just get outta there
-                        return checker.builder().unsafe().call(break_, checker.builder().unit());
-                    });
-                    return checker.builder().unsafe().branch(cond, if_loop, if_dont_loop);
-                });
-            });
-
-            return checker.yield_expr_scope([&]() -> const Value* {
-                auto inner_control = checker.expr_builder().control(inner_control_fn);
-                return checker.builder().unsafe().call(head_fn_var, checker.builder().unit());
-            });
-        });
-
-        rec_builder.bind(head_fn_var, head_fn);
-        return rec_builder.finish_value(checker.builder().unsafe().call(head_fn_var, checker.builder().unit()));
-    });
-
-    return checker.expr_builder().control(outer_control_fn);*/
 }
 
 const tir::Var* ForExpr::infer(TypeChecker& checker) {
@@ -3185,7 +3124,7 @@ const tir::Var* FnDecl::infer(TypeChecker& checker) {
 
             Scope& fn_scope = checker.scope().new_child();
             fn_scope.insert(param, nullptr);
-            Builder fn_builder(checker.arena(), fn_scope, &checker.builder());
+            ExprBuilder fn_builder(checker.arena(), fn_scope, &checker.builder());
             TypeChecker::BuilderGuard guard(checker, fn_builder);
             tir_fn = checker.builder().unsafe().function(param, fn_scope, codom, this);
 
@@ -3699,7 +3638,7 @@ const tir::Var* CtorPtrn::infer(TypeChecker& checker) {
         auto [type_app, body, body_s] = match_type_app_unapplied_generic(checker.scope(), resolve_type_var(checker.scope(), inferred_path->option->parent_type));
         if (auto [enum_type, _] = match_type_deep<EnumType>(body_s, body); enum_type) {
             if (arg)
-                checker.check_ptrn(*arg, checker.builder().member_type(resolve_type_var(checker.scope(), inferred_path->option->parent_type), inferred_path->option->index));
+                checker.check_ptrn(*arg, member_type(checker.builder(), resolve_type_var(checker.scope(), inferred_path->option->parent_type), inferred_path->option->index));
             return inferred_path->option->parent_type;
         }
         assert(false);

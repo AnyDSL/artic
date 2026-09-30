@@ -173,7 +173,7 @@ const Node* App::instantiated(Builder& builder) const {
 
 LetRec::LetRec(Scope& scope, const ArrayRef<std::tuple<const Var*, const Node*>>& vars, const Node* in)
     : scope(scope), vars(vars), body_(in) {
-    assert(in->is_var());
+    assert(in->is_var() || in->isa<LetRec>());
     for (auto [var, def] : vars) {
         assert(var->can_bind(scope, def));
     }

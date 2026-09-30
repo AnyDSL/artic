@@ -163,7 +163,7 @@ const Scope* unify_scopes(const Scope* l, const Scope* r) {
     const Scope* best = nullptr;
     for (size_t i = 0; i < lpath.size() && i < rpath.size(); i++) {
         if (lpath[i] != rpath[i])
-            break;
+            return nullptr;
         best = lpath[i];
     }
     if (lpath.size() > rpath.size())

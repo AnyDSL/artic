@@ -22,7 +22,6 @@ struct Value : virtual public Node {
     NodeKind kind() const override { return NodeKind::Value; }
     const TypeVar* type() const { return type_; }
     virtual const TypeDef* resolve_type(const Scope& s) const;
-    virtual bool is_computation() const { return true; }
 
     /// Emits a branch for boolean expressions.
     virtual void emit_branch(Emitter&, thorin::Continuation*, thorin::Continuation*) const;
@@ -51,8 +50,6 @@ struct ValueVar : public Value, public Var {
     const Node* rewrite(Rewriter&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
-    bool is_computation() const override { return false; }
-
     bool can_bind(const Scope&, const Node*) const override;
 
     const thorin::Def* emit(Emitter&) const override;
@@ -61,6 +58,9 @@ struct ValueVar : public Value, public Var {
 
 struct ValueDef : public Value, public Def {
     ValueDef(Arena& arena, const TypeVar* type) : Value(arena, type), Def() {}
+
+    virtual bool is_computation() const { return true; }
+    virtual bool has_side_effects() const { return true; }
 };
 
 struct Unit : public ValueDef {
@@ -399,24 +399,13 @@ struct Proj : public ValueDef {
     Proj(Builder&, const ValueVar*, const ValueVar*);
 };
 
-struct Bind : public ValueDef {
-    const ValueVar* param;
-    const Value* value;
-
-    bool equals(const Node*) const override;
-    size_t hash() const override;
-
-    void print(Printer&) const override;
-    const Node* rewrite(Rewriter&) const override;
-    void free_variables(FVSet&, Seen&) const override;
-
-    const thorin::Def* emit(Emitter&) const override;
-
-    Bind(Builder&, const ValueVar*, const Value*);
-};
-
 struct Seq : public ValueDef {
-    Array<const ValueDef*> evaluate;
+    struct Bind {
+        const ValueVar* var;
+        const ValueDef* value;
+    };
+
+    Array<std::variant<const ValueDef*, Bind>> evaluate;
     const Value* yield;
 
     bool equals(const Node*) const override;
@@ -428,7 +417,7 @@ struct Seq : public ValueDef {
 
     const thorin::Def* emit(Emitter&) const override;
 
-    Seq(Builder&, const ArrayRef<const ValueDef*>&, const Value*);
+    Seq(Builder&, const ArrayRef<std::variant<const ValueDef*, Bind>>&, const Value*);
 };
 
 struct UnOp : public ValueDef {

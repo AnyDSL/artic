@@ -348,8 +348,12 @@ const Node* Bind::rewrite(Rewriter& r) const {
 const Node* Seq::rewrite(Rewriter& r) const {
     ExprBuilder builder(r.dst, &r.builder());
     Rewriter::BuilderGuard guard(r, builder);
-    for (auto ev : evaluate)
+    for (auto ev : evaluate) {
+        if (auto bind = std::get_if<Bind>(&ev)) {
+
+        }
         builder.add_instruction(r.instantiate<Value>(ev, false));
+    }
     return builder.finish(r.instantiate(yield));
 }
 
