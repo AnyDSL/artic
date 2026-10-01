@@ -1380,15 +1380,15 @@ const thorin::Def* Proj::emit(Emitter& emitter) const {
     return emitter.world.lea(emitter.emit(src), emitter.emit(idx), {});
 }
 
-const thorin::Def* Bind::emit(Emitter& emitter) const {
-    param->emitted = emitter.emit(value);
-    return emitter.world.tuple({});
-}
-
 const thorin::Def* Seq::emit(Emitter& emitter) const {
     assert(!evaluate.empty());
-    for (auto value : evaluate)
-        emitter.emit(value);
+    for (auto value : evaluate) {
+        if (auto bind = std::get_if<Bind>(&value)) {
+            bind->var->emitted = emitter.emit(bind->value);
+        } else {
+            emitter.emit(std::get<const ValueDef*>(value));
+        }
+    }
     return emitter.emit(yield);
 }
 

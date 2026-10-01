@@ -69,7 +69,7 @@ public:
 
     const tir::Key* infer_key(ast::NamedDecl&);
 
-    const Value* build_block(ast::BlockExpr&, const TypeVar* expected, size_t i);
+    const ValueVar* build_block(ast::BlockExpr&, ExprBuilder&, const TypeVar* expected, size_t i);
 
     const tir::ValueVar* infer_value(ast::Expr& ast);
     const tir::ValueVar* infer_value(ast::Stmt& ast);

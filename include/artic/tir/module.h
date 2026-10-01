@@ -35,7 +35,7 @@ struct Sig : virtual Node {
 
     const Node* to_error(Builder&) const;
 
-    static const SigVar* from_node(LetRecBuilder&, const Node*, bool public_interface = true);
+    static const SigVar* from_node(Builder&, const Node*, bool public_interface = true);
 };
 
 struct SigVar : public Sig, public Var {

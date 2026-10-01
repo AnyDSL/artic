@@ -470,53 +470,57 @@ const Value* TypeChecker::build_fn_filter(const ValueVar* param, ast::FnExpr& fn
     });
 }
 
-const Value* TypeChecker::build_block(ast::BlockExpr& expr, const TypeVar* expected, size_t start) {
+const ValueVar* TypeChecker::build_block(ast::BlockExpr& expr, ExprBuilder& expr_builder, const TypeVar* expected, size_t start) {
     auto& b = builder().enclosing_let_rec();
-    return yield_expr_scope([&](auto& expr_b) -> const Value* {
-        for (size_t i = start; i < expr.stmts.size(); i++) {
-            bool last_expected = false;
-            if (i == expr.stmts.size() - 1 && expected && !expr.last_semi)
-                last_expected = true;
-            if (auto rec_stmt = expr.stmts[i]->isa<ast::RecDeclsStmt>()) {
-                // oh that's weird
-                Scope& scope = builder().scope.new_child();
-                Builder& parent = builder();
-                LetRecBuilder builder(arena(), scope, &parent);
-                rec_stmt->builder = &builder;
-                BuilderGuard guard(*this, builder);
-                // switch back to expression mode
-                auto val = yield_expr_scope([&](auto& _) -> const Value* {
-                    return build_block(expr, expected, i + 1);
-                });
-                auto yield = builder.value_var(std::nullopt, val->type());
-                builder.bind(yield, val);
-                // Wrap the let rec in the expr
-                auto maybe_let_rec = builder.finish_value(yield);
-                return maybe_let_rec;
-                // if (auto let_rec = maybe_let_rec->template isa<LetRecValue>())
-                //     return expr_b.finish(let_rec);
-                // return expr_b.finish(maybe_let_rec->template as<ValueVar>());
-            } else {
-                if (last_expected)
-                    check_value(*expr.stmts[i], expected);
-                else
-                    infer_value(*expr.stmts[i]);
+
+    auto block_fn = build_fn(b.value_var(std::nullopt, b.unit_type()), [&]() -> const Value* {
+        return yield_expr_scope([&](auto& expr_b) -> const Value* {
+            for (size_t i = start; i < expr.stmts.size(); i++) {
+                bool last_expected = false;
+                if (i == expr.stmts.size() - 1 && expected && !expr.last_semi)
+                    last_expected = true;
+                if (auto rec_stmt = expr.stmts[i]->isa<ast::RecDeclsStmt>()) {
+                    // oh that's weird
+                    Scope& scope = builder().scope.new_child();
+                    Builder& parent = builder();
+                    LetRecBuilder builder(arena(), scope, &parent);
+                    rec_stmt->builder = &builder;
+                    BuilderGuard guard(*this, builder);
+                    // switch back to expression mode
+                    auto val = yield_expr_scope([&](auto& internal_expr_builder) -> const Value* {
+                        return build_block(expr, internal_expr_builder, expected, i + 1);
+                    });
+                    auto yield = builder.value_var(std::nullopt, val->type());
+                    builder.bind(yield, val);
+                    // Wrap the let rec in the expr
+                    auto maybe_let_rec = builder.finish_value(yield);
+                    return maybe_let_rec;
+                    // if (auto let_rec = maybe_let_rec->template isa<LetRecValue>())
+                    //     return expr_b.finish(let_rec);
+                    // return expr_b.finish(maybe_let_rec->template as<ValueVar>());
+                } else {
+                    if (last_expected)
+                        check_value(*expr.stmts[i], expected);
+                    else
+                        infer_value(*expr.stmts[i]);
+                }
             }
-        }
 
-        // expr.last_semi ? infer_value(*expr.stmts.back()) : check_value(*expr.stmts.back(), expected);
-        check_block(expr.loc, expr.stmts, expr.last_semi);
-        if (expr.last_semi && expected && !is_unit_type(resolve_type_var(scope(), expected))) {
-            incompatible_type(expr.loc, "block expression terminated by semicolon", expected);
-            note("removing the last semicolon may solve this issue");
-            return b.error_value();
-        }
+            // expr.last_semi ? infer_value(*expr.stmts.back()) : check_value(*expr.stmts.back(), expected);
+            check_block(expr.loc, expr.stmts, expr.last_semi);
+            if (expr.last_semi && expected && !is_unit_type(resolve_type_var(scope(), expected))) {
+                incompatible_type(expr.loc, "block expression terminated by semicolon", expected);
+                note("removing the last semicolon may solve this issue");
+                return b.error_value();
+            }
 
-        // if the block ends with `;`, make sure we yield a tuple to make the whole thing type as ()
-        if (expr.last_semi)
-            return b.unit();
-        return infer_value(*expr.stmts.back());
+            // if the block ends with `;`, make sure we yield a tuple to make the whole thing type as ()
+            if (expr.last_semi)
+                return b.unit();
+            return infer_value(*expr.stmts.back());
+        });
     });
+    return expr_builder.call(expr_builder.bind_value(block_fn), b.unit());
 }
 
 const Value* TypeChecker::with_expr_scope(const std::function<const Value*(ExprBuilder&)>& f) {
@@ -2233,9 +2237,7 @@ const tir::Var* FnExpr::infer(TypeChecker& checker) {
     if (decl)
         return b.schedule_value(fn, decl->id);
 
-    auto var = b.value_var(std::nullopt, fn->type());
-    b.as<ExprBuilder>()->bind_instruction(var, fn);
-    return var;
+    return b.as<ExprBuilder>()->bind_value(fn);
 }
 
 const tir::Function* FnExpr::infer_function(TypeChecker& checker) {
@@ -2273,9 +2275,7 @@ const tir::Var* FnExpr::check(TypeChecker& checker, const TypeVar* expected) {
     if (decl)
         return b.schedule_value(fn, decl->id);
 
-    auto var = b.value_var(std::nullopt, fn->type());
-    b.as<ExprBuilder>()->bind_instruction(var, fn);
-    return var;
+    return b.as<ExprBuilder>()->bind_value(fn);
 }
 
 const tir::Function* FnExpr::check_function(TypeChecker& checker, const artic::TypeVar* expected) {
@@ -2316,7 +2316,7 @@ const tir::Var* BlockExpr::infer(TypeChecker& checker) {
     if (stmts.empty())
         return b.unit();
 
-    return checker.build_block(*this, nullptr, 0);
+    return checker.build_block(*this, checker.expr_builder(), nullptr, 0);
 }
 
 const tir::Var* BlockExpr::check(TypeChecker& checker, const artic::TypeVar* expected) {
@@ -2329,7 +2329,7 @@ const tir::Var* BlockExpr::check(TypeChecker& checker, const artic::TypeVar* exp
         return b.unit();
     }
 
-    return checker.build_block(*this, expected, 0);
+    return checker.build_block(*this, checker.expr_builder(), expected, 0);
 }
 
 static inline PathExpr* callee_path(Expr* expr) {
@@ -2662,9 +2662,9 @@ const tir::Var* ForExpr::infer(TypeChecker& checker) {
         if (body_type && generator_loop_type) {
             return checker.build_loop(*this, "for", [&](const TypeChecker::SetTypeFn& set_break_type, const TypeChecker::BuildInnerLoopFn& make_body) -> const Value* {
                 set_break_type(generator_loop_type->codom);
-                return checker.yield_expr_scope([&](auto& outer_expr_builder) {
+                return checker.yield_expr_scope([&](auto& outer_expr_builder) -> const Value* {
                     // body + 'continue' escape hatch
-                    auto wrapped_body = outer_expr_builder.bind_instruction(make_body(body_type->dom, [&](const auto& set_continue_type, const ValueVar* continue_param, auto loop_param) -> const Value* {
+                    auto wrapped_body = outer_expr_builder.bind_value(make_body(body_type->dom, [&](const auto& set_continue_type, const ValueVar* continue_param, auto loop_param) -> const Value* {
                         set_continue_type(body_type->codom);
                         return checker.yield_expr_scope([&](auto& inner_expr_builder) -> const ValueVar* {
                             auto generated = inner_expr_builder.call(checker.coerce(&*this->body, generator_type->dom), loop_param);

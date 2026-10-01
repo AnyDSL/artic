@@ -143,6 +143,7 @@ struct Builder : public artic::Cast<Builder> {
     const ValueVar* maybe_schedule_value(const Value*);
     const ModVar* maybe_schedule_mod(const Mod*);
 
+    virtual bool may_bind(const Node*) { return true; }
     virtual void bind(const Var*, const Node*) = 0;
 
     const Var* maybe_schedule(const Node*);
@@ -219,7 +220,6 @@ struct Builder : public artic::Cast<Builder> {
         const ErrorValue* error_value();
         const ValueApp* value_app(const CtorVar*, const ArrayRef<const Var*>&);
 
-        const Bind* bind(const ValueVar*, const Value*);
         const Value* call(const ValueVar* callee, const ValueVar* arg);
         const Value* agg(const TypeVar*, const ArrayRef<const ValueVar*>&);
         const Unit* unit();
@@ -279,11 +279,14 @@ private:
 struct ExprBuilder : public Builder {
     ExprBuilder(Builder&);
 
+    bool may_bind(const Node*) override;
     void bind(const Var*, const Node*) override;
 
     void add_instruction(const ValueDef*);
-    const ValueVar* bind_instruction(const ValueDef*);
-    void bind_instruction(const ValueVar*, const ValueDef*);
+    void add_binding(const ValueVar*, const ValueDef*);
+
+    /// Accepts either a ValueVar or a ValueDef
+    const ValueVar* bind_value(const Value*);
 
     const ValueVar* local_variable(const TypeVar*);
 
@@ -320,14 +323,15 @@ struct ExprBuilder : public Builder {
         return finish(v->as<Value>());
     }
 
+    const Value* finish(const Value*);
+
     /// Finish the expression and make it yield unit
     const Value* finish_unit();
     /// Finish the expression and make it do a branch last, yielding NoRet
     const Value* finish_branch(const ValueVar*, const Function*, const Function*);
 private:
-    const Value* finish(const Value*);
 
-    std::vector<const Value*> seq;
+    std::vector<std::variant<const ValueDef*, Seq::Bind>> seq;
     friend Seq;
     friend TypeChecker;
 };
@@ -335,6 +339,7 @@ private:
 struct AbstractBuilder : public Builder {
     AbstractBuilder(Builder&);
 
+    bool may_bind(const Node*) override { return false; }
     void bind(const Var*, const Node*) override {
         assert(false);
     }

@@ -10,7 +10,6 @@ namespace artic {
 namespace tir {
 
 struct Function;
-struct Bind;
 struct Control;
 
 struct Value : virtual public Node {
@@ -38,7 +37,6 @@ protected:
     const TypeVar* type_;
     friend Emitter;
     friend Function;
-    friend Bind;
     friend Control;
 };
 

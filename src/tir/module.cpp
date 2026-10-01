@@ -130,7 +130,7 @@ bool SigError::is_sub_def(const Scope&, const SigDef*) const {
     return false;
 }
 
-const SigVar* Sig::from_node(LetRecBuilder& builder, const Node* node, bool public_interface) {
+const SigVar* Sig::from_node(Builder& builder, const Node* node, bool public_interface) {
     if (auto mod_val = node->isa<Mod>()) {
         return mod_val->signature();
     }

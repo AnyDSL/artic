@@ -577,21 +577,20 @@ void Proj::print(Printer& p) const {
     p.print(*idx);
     p << ')';
 }
-
-void Bind::print(Printer& p) const {
-    p << log::keyword_style("let") << ' ';
-    p.print(*param, true);
-    p << ": ";
-    p.print(*param->type());
-    p.insert(*param, p.unique_name(*param));
-    p << " = ";
-    p.print(*value, true);
-}
-
 void Seq::print(Printer& p) const {
     p << log::keyword_style("seq") << " {" << p.indent() << p.endl();
     for (size_t i = 0; i < evaluate.size(); i++) {
-        p.print(*evaluate[i], true);
+        if (auto bind = std::get_if<Bind>(&evaluate[i])) {
+            p << log::keyword_style("let") << ' ';
+            p.print(*bind->var, true);
+            p << ": ";
+            p.print(*bind->var->type());
+            p.insert(*bind->var, p.unique_name(*bind->var));
+            p << " = ";
+            p.print(*bind->value, true);
+        } else {
+            p.print(*std::get<const ValueDef*>(evaluate[i]), true);
+        }
         p << ';' << p.endl();
     }
     p.print(*yield, !yield->is_var());

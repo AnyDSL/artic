@@ -514,6 +514,7 @@ bool Bind::equals(const Node* other) const {
 
 Seq::Seq(Builder& builder, const ArrayRef<std::variant<const ValueDef*, Bind>>& evaluate, const Value* yield) : ValueDef(builder.arena, yield->type()), Node(builder.arena), evaluate(evaluate), yield(yield) {
     assert(!evaluate.empty());
+    assert(yield->isa<ValueVar>() || yield->isa<LetRecValue>() || yield->isa<Seq>());
     for (auto e : evaluate) {
         // if (auto bind = std::get_if<Bind>(&e)) {
         //

@@ -199,12 +199,11 @@ private:
         }
     }
 
-    std::tuple<std::unique_ptr<Builder>, const Function*> make_fn() {
+    std::tuple<std::unique_ptr<AbstractBuilder>, const Function*> make_fn() {
         auto param = builder.value_var(std::nullopt, builder.enclosing_let_rec().unit_type());
-        Scope& scope = builder.scope.new_child();
-        scope.insert(param, nullptr);
-        auto fn_builder = std::make_unique<Builder>(builder.arena, scope, &builder);
-        return { std::move(fn_builder), builder.unsafe().function(param, scope, builder.enclosing_let_rec().no_ret_type(), nullptr) };
+        auto fn_builder = std::make_unique<AbstractBuilder>(builder);
+        fn_builder->register_var(param);
+        return { std::move(fn_builder), builder.unsafe().function(param, fn_builder->scope, builder.enclosing_let_rec().no_ret_type(), nullptr) };
     }
 
     const Value* compile() {
@@ -213,7 +212,7 @@ private:
             return builder.enclosing_let_rec().error_value(builder.enclosing_let_rec().type_error());
         }
 
-        ExprBuilder expr_builder(builder.arena, &builder);
+        ExprBuilder expr_builder(builder);
 
         expand(expr_builder);
         if (std::all_of(
@@ -226,7 +225,7 @@ private:
             // If the first row is made of only wildcards, it is a match
             rows.front().second->is_redundant = false;
             auto case_block = rows.front().second->emit(r, expr_builder);
-            return expr_builder.finish(builder.unsafe().call(case_block, expr_builder.enclosing_let_rec().unit()));
+            return expr_builder.finish(expr_builder.call(case_block, expr_builder.enclosing_let_rec().unit()));
         }
 
 #ifndef NDEBUG
@@ -308,7 +307,7 @@ private:
             return expr_builder.finish(br);
         } else {
             assert(enum_type || is_int_type(col_type));
-            Array<std::tuple<std::unique_ptr<Builder>, const Function*>> targets(ctors.size());
+            Array<std::tuple<std::unique_ptr<AbstractBuilder>, const Function*>> targets(ctors.size());
             Array<const ValueVar*> defs(ctors.size());
 
             auto otherwise = make_fn();
@@ -320,7 +319,7 @@ private:
                 count++;
             }
 
-            const Value* sw;
+            const ValueVar* sw;
             auto match_value = enum_type ? expr_builder.variant_index(values[col]) : values[col];
 
             auto col_value = values[col];
@@ -330,7 +329,7 @@ private:
                 auto& rows = ctors[defs[i]];
                 auto& [case_builder, case_fn] = i == n - 1 && no_default ? otherwise : targets[i];
 
-                ExprBuilder case_expr_builder(builder.arena, &builder);
+                ExprBuilder case_expr_builder(builder);
 
                 auto new_values = values;
                 if (enum_type) {
@@ -353,7 +352,7 @@ private:
             Array<Switch::Case> cases(no_default ? defs.size() - 1 : defs.size());
             for (size_t i = 0; i < cases.size(); i++)
                 cases[i] = Switch::Case(defs[i], std::get<1>(targets[i]));
-            sw = expr_builder.unsafe().switch_(match_value, std::get<1>(otherwise), std::move(cases));
+            sw = expr_builder.bind_value(expr_builder.unsafe().switch_(match_value, std::get<1>(otherwise), std::move(cases)));
             return expr_builder.finish(sw);
         }
     }

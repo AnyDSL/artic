@@ -56,7 +56,7 @@ private:
     friend Function;
     friend TypeChecker;
     friend ExprBuilder;
-    friend LetRecBuilder;
+    friend Builder;
     friend Ctor;
 };
 

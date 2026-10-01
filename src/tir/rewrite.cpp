@@ -343,9 +343,20 @@ const Node* Seq::rewrite(Rewriter& r) const {
     Rewriter::BuilderGuard guard(r, builder);
     for (auto ev : evaluate) {
         if (auto bind = std::get_if<Bind>(&ev)) {
-
+            auto new_var = r.instantiate<ValueVar>(bind->var);
+            auto new_value = r.instantiate<Value>(bind->value, false);
+            // TODO: revisit this decision if we add any kind of constant folding
+            assert(new_value->isa<ValueDef>());
+            builder.add_binding(new_var, new_value->as<ValueDef>());
+        } else {
+            auto new_value = r.instantiate<Value>(std::get<const ValueDef*>(ev), false);
+            if (auto new_def = new_value->isa<ValueDef>())
+                builder.add_instruction(new_def);
+            else {
+                assert(new_value->isa<ValueVar>());
+                // if it has become a variable, do nothing.
+            }
         }
-        builder.add_instruction(r.instantiate<Value>(ev, false));
     }
     return builder.finish(r.instantiate(yield));
 }
