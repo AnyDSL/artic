@@ -66,8 +66,8 @@ bool ErrorValue::equals(const Node* n) const {
 }
 
 ValueVar::ValueVar(Arena& arena, std::optional<ast::Identifier> id, const TypeVar* type)
-    : Value(arena, type), Var(id), Node(arena) {
-}
+    : Value(arena, type), Var(id), Node(arena)
+{}
 
 bool ValueVar::can_bind(const Scope& scope, const Node* other) const {
     if (auto value = other->isa<Value>()) {
@@ -739,10 +739,10 @@ Switch::Switch(Builder& builder, const ValueVar* value, const Function* default_
 {}
 
 Control::Control(Builder& builder, const Function* fn) : ValueDef(builder.arena, [&]() -> const TypeVar* {
-    if (fn->codom != builder.enclosing_let_rec().no_ret_type())
+    if (!resolve_type_var(builder.scope, fn->codom)->isa<NoRetType>())
         return builder.enclosing_let_rec().type_error();
     if (auto yield_fn_type = resolve_type_var(builder.scope, fn->param->type())->isa<FnType>()) {
-        if (yield_fn_type->codom != builder.enclosing_let_rec().no_ret_type())
+        if (!resolve_type_var(builder.scope, yield_fn_type->codom)->isa<NoRetType>())
             return builder.enclosing_let_rec().type_error();
         return yield_fn_type->dom;
     }

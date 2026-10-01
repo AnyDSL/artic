@@ -204,8 +204,18 @@ const Node* LetRecMod::rewrite(Rewriter& r) const {
     }
     for (auto [ovar, oval] : vars) {
         auto var = r.lookup(ovar)->as<Var>();
-        auto instantiated = r.instantiate(oval, false);
-        builder.bind(var, instantiated);
+        auto instantiated = builder.maybe_schedule(r.instantiate(oval, false));
+        if (auto def = instantiated->isa<Def>()) {
+            auto fvs = def->free_variables();
+            if (schedulable(fvs)) {
+                auto [_, dst] = builder.locate(def);
+                dst->bind(var, def);
+            } else {
+                builder.bind(var, instantiated);
+            }
+        } else {
+            builder.bind(var, instantiated);
+        }
     }
     return builder.finish_module(r.instantiate(body(), false));
 }
@@ -221,7 +231,17 @@ const Node* LetRecType::rewrite(Rewriter& r) const {
     for (auto [ovar, oval] : vars) {
         auto var = r.lookup(ovar)->as<Var>();
         auto instantiated = builder.maybe_schedule(r.instantiate(oval, false));
-        builder.bind(var, instantiated);
+        if (auto def = instantiated->isa<Def>()) {
+            auto fvs = def->free_variables();
+            if (schedulable(fvs)) {
+                auto [_, dst] = builder.locate(def);
+                dst->bind(var, def);
+            } else {
+                builder.bind(var, instantiated);
+            }
+        } else {
+            builder.bind(var, instantiated);
+        }
     }
     return builder.finish_type(r.instantiate(body(), false));
 }
@@ -237,7 +257,17 @@ const Node* LetRecValue::rewrite(Rewriter& r) const {
     for (auto [ovar, oval] : vars) {
         auto var = r.lookup(ovar)->as<Var>();
         auto instantiated = builder.maybe_schedule(r.instantiate(oval, false));
-        builder.bind(var, instantiated);
+        if (auto def = instantiated->isa<Def>()) {
+            auto fvs = def->free_variables();
+            if (schedulable(fvs)) {
+                auto [_, dst] = builder.locate(def);
+                dst->bind(var, def);
+            } else {
+                builder.bind(var, instantiated);
+            }
+        } else {
+            builder.bind(var, instantiated);
+        }
     }
     return builder.finish_value(r.instantiate(body(), false));
 }
@@ -337,13 +367,13 @@ const Node* Proj::rewrite(Rewriter& r) const {
     return r.builder().unsafe().proj(r.instantiate(src), r.instantiate(idx));
 }
 
-
 const Node* Seq::rewrite(Rewriter& r) const {
     ExprBuilder builder(r.builder());
     Rewriter::BuilderGuard guard(r, builder);
     for (auto ev : evaluate) {
         if (auto bind = std::get_if<Bind>(&ev)) {
             auto new_var = r.instantiate<ValueVar>(bind->var, true);
+            r.insert(bind->var, new_var);
             auto new_value = r.instantiate<Value>(bind->value);
             // TODO: revisit this decision if we add any kind of constant folding
             assert(new_value->isa<Value>());

@@ -54,7 +54,7 @@ void Printer::print(const Node& node, bool print_inline) {
     int old_depth = depth;
     depth++;
     const Node* n = &node;
-    if (max_depth == 0 || depth < max_depth) {
+    if (max_depth == 0 || depth <= max_depth) {
         auto was_var = n->is_var();
         push();
         while (true) {
