@@ -400,7 +400,7 @@ struct Proj : public ValueDef {
 struct Seq : public ValueDef {
     struct Bind {
         const ValueVar* var;
-        const ValueDef* value;
+        const Value* value;
     };
 
     Array<std::variant<const ValueDef*, Bind>> evaluate;

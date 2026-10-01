@@ -526,22 +526,23 @@ const ValueVar* ExprBuilder::control(const Function* fn) {
 }
 
 bool ExprBuilder::may_bind(const Node* node) {
-    return node->isa<ValueDef>();
+    return node->isa<ValueDef>() || node->isa<ValueVar>();
 }
 
 void ExprBuilder::bind(const Var* var, const Node* node) {
     auto value_var = var->as<ValueVar>();
-    auto value_def = node->as<ValueDef>();
-    add_binding(value_var, value_def);
+    auto value = node->as<Value>();
+    add_binding(value_var, value);
 }
 
 void ExprBuilder::add_instruction(const ValueDef* instruction) {
     seq.emplace_back(instruction);
 }
 
-void ExprBuilder::add_binding(const ValueVar* var, const ValueDef* def) {
-    seq.emplace_back(Seq::Bind(var, def));
-    scope.insert(var, def);
+void ExprBuilder::add_binding(const ValueVar* var, const Value* value) {
+    assert(may_bind(value));
+    seq.emplace_back(Seq::Bind(var, value));
+    scope.insert(var, value);
 }
 
 const ValueVar* ExprBuilder::bind_value(const Value* value) {

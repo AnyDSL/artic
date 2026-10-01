@@ -207,8 +207,8 @@ const ValueVar* TypeChecker::build_if(const ast::IfExpr& expr, const IfBuilderFn
         else_fn_builder.register_var(else_param);
         ExprBuilder else_builder = ExprBuilder(else_fn_builder);
 
-        SetTypeFn set_type = [&](const Type* t) -> void {
-            b.bind(yield_fn_type, t);
+        SetTypeFn set_type = [&](const TypeVar* yield_type) -> void {
+            b.bind(yield_fn_type, b.fn_type(yield_type, b.no_ret_type()));
         };
 
         f(set_type, true_builder, else_builder);

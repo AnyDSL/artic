@@ -283,7 +283,7 @@ struct ExprBuilder : public Builder {
     void bind(const Var*, const Node*) override;
 
     void add_instruction(const ValueDef*);
-    void add_binding(const ValueVar*, const ValueDef*);
+    void add_binding(const ValueVar*, const Value*);
 
     /// Accepts either a ValueVar or a ValueDef
     const ValueVar* bind_value(const Value*);

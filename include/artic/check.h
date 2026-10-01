@@ -105,7 +105,7 @@ public:
 
     const Value* build_fn_body(const ValueVar* param, ast::FnExpr& fn, const tir::TypeVar* codom);
     const Value* build_fn_filter(const ValueVar* param, ast::FnExpr& fn);
-    using SetTypeFn = std::function<void(const tir::Type*)>;
+    using SetTypeFn = std::function<void(const tir::TypeVar*)>;
     using IfBuilderFn = std::function<void(const SetTypeFn&, ExprBuilder& true_builder, ExprBuilder& else_builder)>;
     const ValueVar* build_if(const ast::IfExpr& expr, const IfBuilderFn&);
 
