@@ -10,6 +10,12 @@ namespace artic {
 
 namespace tir {
 
+void Rewriter::instantiate(Root& dst, const Root& old) {
+    LetRecBuilder builder(*dst.arena, dst.scope, nullptr);
+    BuilderGuard guard(*this, builder);
+    dst.root_module = builder.finish_module(instantiate(old.root_module, true));
+}
+
 const PrimType* PrimType::rewrite(Rewriter& r) const {
     return r.builder().unsafe().prim_type(tag);
 }
@@ -114,28 +120,6 @@ const Node* Module::rewrite(Rewriter& r) const {
         decls.emplace(nkey, nval);
     }
     return r.builder().unsafe().module(std::move(decls), r.instantiate(signature()), decl);
-    // const Module* m = nullptr;
-    // std::optional<LetRecBuilder> mod_builder;
-    // if (r.is_root()) {
-    //     mod_builder.emplace(r.dst, decl);
-    //     m = &mod_builder->module();
-    // } else {
-    //     m = r.builder().module(decl);
-    //     mod_builder.emplace(r.dst, &r.builder(), m);
-    // }
-    // assert(mod_builder);
-    // Rewriter::BuilderGuard guard(r, *mod_builder);
-    // std::vector<Module::Decl*> ndecls;
-    // for (auto decl : decls()) {
-    //     auto nvar = r.instantiate(decl->var, true);
-    //     r.insert(decl->var, nvar);
-    //     ndecls.push_back(m->add_decl(nvar));
-    // }
-    // size_t i = 0;
-    // for (auto decl : decls()) {
-    //     m->set_decl(ndecls[i++], r.instantiate(decl->value, false));
-    // }
-    // return m;
 }
 
 const Node* ModCtor::rewrite(Rewriter& r) const {
@@ -194,17 +178,14 @@ const Node* ModError::rewrite(Rewriter& r) const {
     return r.builder().enclosing_let_rec().mod_error();
 }
 
-const Node* LetRecMod::rewrite(Rewriter& r) const {
-    Rewriter::OldScopeGuard old_scope_guard(r, &scope);
-    Scope& scope = r.builder().scope.new_child();
-    LetRecBuilder builder(r.dst, scope, r.is_root() ? nullptr : &r.builder());
-    Rewriter::BuilderGuard guard(r, builder);
-    for (auto [ovar, _] : vars) {
-        r.insert(ovar, r.instantiate(ovar, true));
+void Rewriter::rewrite_letrec(Builder& builder, const LetRec* old) {
+    for (auto [ovar, _] : old->vars) {
+        insert(ovar, instantiate(ovar, true));
     }
-    for (auto [ovar, oval] : vars) {
-        auto var = r.lookup(ovar)->as<Var>();
-        auto instantiated = builder.maybe_schedule(r.instantiate(oval, false));
+    for (auto [ovar, oval] : old->vars) {
+        auto var = lookup(ovar)->as<Var>();
+        auto val = instantiate(oval, false);
+        auto instantiated = builder.maybe_schedule(val);
         if (auto def = instantiated->isa<Def>()) {
             auto fvs = def->free_variables();
             if (schedulable(fvs)) {
@@ -217,59 +198,24 @@ const Node* LetRecMod::rewrite(Rewriter& r) const {
             builder.bind(var, instantiated);
         }
     }
-    return builder.finish_module(r.instantiate(body(), false));
+}
+
+const Node* LetRecMod::rewrite(Rewriter& r) const {
+    LetRecBuilder& builder = *r.builder().as<LetRecBuilder>();
+    r.rewrite_letrec(builder, this);
+    return r.instantiate(body(), false);
 }
 
 const Node* LetRecType::rewrite(Rewriter& r) const {
-    Rewriter::OldScopeGuard old_scope_guard(r, &scope);
-    Scope& scope = r.builder().scope.new_child();
-    LetRecBuilder builder(r.dst, scope, r.is_root() ? nullptr : &r.builder());
-    Rewriter::BuilderGuard guard(r, builder);
-    for (auto [ovar, _] : vars) {
-        r.insert(ovar, r.instantiate(ovar, true));
-    }
-    for (auto [ovar, oval] : vars) {
-        auto var = r.lookup(ovar)->as<Var>();
-        auto instantiated = builder.maybe_schedule(r.instantiate(oval, false));
-        if (auto def = instantiated->isa<Def>()) {
-            auto fvs = def->free_variables();
-            if (schedulable(fvs)) {
-                auto [_, dst] = builder.locate(def);
-                dst->bind(var, def);
-            } else {
-                builder.bind(var, instantiated);
-            }
-        } else {
-            builder.bind(var, instantiated);
-        }
-    }
-    return builder.finish_type(r.instantiate(body(), false));
+    LetRecBuilder& builder = *r.builder().as<LetRecBuilder>();
+    r.rewrite_letrec(builder, this);
+    return r.instantiate(body(), false);
 }
 
 const Node* LetRecValue::rewrite(Rewriter& r) const {
-    Rewriter::OldScopeGuard old_scope_guard(r, &scope);
-    Scope& scope = r.builder().scope.new_child();
-    LetRecBuilder builder(r.dst, scope, r.is_root() ? nullptr : &r.builder());
-    Rewriter::BuilderGuard guard(r, builder);
-    for (auto [ovar, _] : vars) {
-        r.insert(ovar, r.instantiate(ovar, true));
-    }
-    for (auto [ovar, oval] : vars) {
-        auto var = r.lookup(ovar)->as<Var>();
-        auto instantiated = builder.maybe_schedule(r.instantiate(oval, false));
-        if (auto def = instantiated->isa<Def>()) {
-            auto fvs = def->free_variables();
-            if (schedulable(fvs)) {
-                auto [_, dst] = builder.locate(def);
-                dst->bind(var, def);
-            } else {
-                builder.bind(var, instantiated);
-            }
-        } else {
-            builder.bind(var, instantiated);
-        }
-    }
-    return builder.finish_value(r.instantiate(body(), false));
+    LetRecBuilder& builder = *r.builder().as<LetRecBuilder>();
+    r.rewrite_letrec(builder, this);
+    return r.instantiate(body(), false);
 }
 
 const Value* ValueApp::rewrite(Rewriter& r) const {

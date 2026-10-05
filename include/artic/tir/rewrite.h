@@ -38,11 +38,8 @@ struct Rewriter {
         return result;
     }
 
-    void instantiate(Root& dst, const Root& old) {
-        LetRecBuilder builder(*dst.arena, dst.scope, nullptr);
-        BuilderGuard guard(*this, builder);
-        dst.root_module = builder.finish_module(instantiate(old.root_module, true));
-    }
+    void instantiate(Root& dst, const Root& old);
+    void rewrite_letrec(Builder& builder, const LetRec* old);
 
     void insert(const Node* old, const Node* new_) {
         assert(&new_->arena == &dst);
