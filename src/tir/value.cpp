@@ -166,6 +166,11 @@ LetRecValue::LetRecValue(Builder& builder, Scope& scope, const ArrayRef<std::tup
     : Node(builder.arena), ValueDef(builder.arena, in->type()), LetRec(scope, vars, in)
 {}
 
+void LetRecValue::free_variables(FVSet& vars, Seen& seen) const {
+    LetRec::free_variables(vars, seen);
+    type()->free_variables(vars, seen);
+}
+
 bool LetRecValue::equals(const Node* other) const {
     if (auto other_lrv = other->isa<LetRecValue>()) {
         return LetRec::equals(other_lrv);

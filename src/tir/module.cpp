@@ -474,6 +474,11 @@ void Module::free_variables(FVSet& vars, Seen& seen) const {
     signature()->free_variables(vars, seen);
 }
 
+void LetRecMod::free_variables(FVSet& vars, Seen& seen) const {
+    LetRec::free_variables(vars, seen);
+    signature()->free_variables(vars, seen);
+}
+
 void ModCtor::free_variables(FVSet& vars, Seen& seen) const {
     return Constructor::free_variables(vars, seen);
 }

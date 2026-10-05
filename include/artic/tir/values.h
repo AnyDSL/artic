@@ -126,6 +126,8 @@ struct LetRecValue : public ValueDef, public LetRec {
 
     const thorin::Def* emit(Emitter&) const override;
 
+    void free_variables(FVSet&, Seen&) const override;
+
     LetRecValue(Builder&, Scope&, const ArrayRef<std::tuple<const Var*, const Node*>>&, const Value*);
 };
 

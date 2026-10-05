@@ -7,6 +7,7 @@
 namespace artic::tir {
 
 void Scope::insert(const Var* var, const Node* value) {
+    assert(!value || value->can_be_bound());
     assert(!var->binder || var->binder == this);
     assert(!vars.contains(var) || (vars[var] == nullptr));
     vars[var] = value;

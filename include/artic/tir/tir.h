@@ -90,6 +90,10 @@ struct Node : public DynCast<Node> {
         return vars;
     }
 
+    /// Nodes that can't be bound are nodes whose corresponding variable would have
+    /// to have free variables bound by the node!
+    virtual bool can_be_bound() const { return true; }
+
     /// Prints the type on the console, for debugging.
     void dump() const;
     void dump_def() const;
@@ -136,6 +140,8 @@ struct LetRec : virtual Node {
 
     void free_variables(FVSet&, Seen&) const override;
     void print(Printer&) const override;
+
+    bool can_be_bound() const override;
 
     LetRec(Scope&, const ArrayRef<std::tuple<const Var*, const Node*>>&, const Node*);
 };

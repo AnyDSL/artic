@@ -35,6 +35,15 @@ void LetRec::free_variables(FVSet& vars, Seen& seen) const {
     }
 }
 
+bool LetRec::can_be_bound() const {
+    auto fvs = Node::free_variables();
+    for (auto var : fvs) {
+        if (var->binder->is_child_of(&scope))
+            return false;
+    }
+    return true;
+}
+
 bool App::equals(const Node* other) const {
     if (auto other_app = other->isa<App>()) {
         if (applicand_ != other_app->applicand_)

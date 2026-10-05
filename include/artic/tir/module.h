@@ -253,6 +253,8 @@ struct LetRecMod : public ModDef, public LetRec {
     bool equals(const Node* other) const override;
     const Node* rewrite(Rewriter&) const override;
 
+    void free_variables(FVSet&, Seen&) const override;
+
     LetRecMod(Builder&, Scope&, const ArrayRef<std::tuple<const Var*, const Node*>>&, const Mod*);
 };
 
