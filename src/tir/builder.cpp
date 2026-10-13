@@ -320,8 +320,8 @@ const ValueVar* Builder::error_value() {
     return schedule_value(unsafe().error_value());
 }
 
-const GlobalVariable* Builder::Unsafe::global_variable(const TypeVar* value_type, bool is_mut, const Value* init, const ast::StaticDecl* decl) {
-    return arena.insert<GlobalVariable>(builder, value_type, is_mut, init, decl);
+const GlobalVariable* Builder::Unsafe::global_variable(const TypeVar* value_type, bool is_mut, std::optional<ValueExpr>&& init, const ast::StaticDecl* decl) {
+    return arena.insert<GlobalVariable>(builder, value_type, is_mut, std::move(init), decl);
 }
 
 const TypedLiteral* Builder::Unsafe::typed_literal(Literal literal, const TypeVar* type) {
@@ -349,8 +349,16 @@ const Value* Builder::Unsafe::builtin(Builtin::Tag tag, const ArrayRef<const Var
     return builder.arena.insert<Builtin>(builder, tag, args);
 }
 
+const ValueVar* ExprBuilder::builtin(Builtin::Tag tag, const ArrayRef<const Var*>& args) {
+    return bind_value(unsafe().builtin(tag, args));
+}
+
 const Value* Builder::Unsafe::mathop(thorin::MathOpTag tag, const ArrayRef<const ValueVar*>& args) {
     return builder.arena.insert<MathOp>(builder, tag, args);
+}
+
+const ValueVar* ExprBuilder::mathop(thorin::MathOpTag tag, const ArrayRef<const ValueVar*>& args) {
+    return bind_value(unsafe().mathop(tag, args));
 }
 
 const Unit* Builder::Unsafe::unit() {
@@ -397,20 +405,20 @@ const ValueVar* ExprBuilder::call(const ValueVar* callee, const ValueVar* arg) {
     return bind_value(unsafe().call(callee, arg));
 }
 
-const Value* Builder::Unsafe::agg(const TypeVar* type, const ArrayRef<const ValueVar*>& args) {
+const Agg* Builder::Unsafe::agg(const TypeVar* type, const ArrayRef<const ValueVar*>& args) {
     return builder.arena.insert<Agg>(builder, type, args);
 }
 
-const ValueVar* ExprBuilder::agg(const TypeVar* type, const ArrayRef<const ValueVar*>& args) {
-    return bind_value(unsafe().agg(type, args));
+const ValueVar* Builder::agg(const TypeVar* type, const ArrayRef<const ValueVar*>& args) {
+    return schedule_value(unsafe().agg(type, args));
 }
 
-const Value* Builder::Unsafe::repeat(const TypeVar* type, const ValueVar* elem) {
+const Repeat* Builder::Unsafe::repeat(const TypeVar* type, const ValueVar* elem) {
     return builder.arena.insert<Repeat>(builder, type, elem);
 }
 
-const ValueVar* ExprBuilder::repeat(const TypeVar* type, const ValueVar* elem) {
-    return bind_value(unsafe().repeat(type, elem));
+const ValueVar* Builder::repeat(const TypeVar* type, const ValueVar* elem) {
+    return schedule_value(unsafe().repeat(type, elem));
 }
 
 inline static const TypeVar* tuple_type_from_elems(Builder& builder, const ArrayRef<const ValueVar*>& args) {
@@ -421,12 +429,12 @@ inline static const TypeVar* tuple_type_from_elems(Builder& builder, const Array
     return builder.enclosing_let_rec().tuple_type(types);
 }
 
-const Value* Builder::Unsafe::tuple(const ArrayRef<const ValueVar*>& args) {
+const Agg* Builder::Unsafe::tuple(const ArrayRef<const ValueVar*>& args) {
     return agg(tuple_type_from_elems(builder, args), args);
 }
 
-const ValueVar* ExprBuilder::tuple(const ArrayRef<const ValueVar*>& args) {
-    return bind_value(unsafe().tuple(args));
+const ValueVar* Builder::tuple(const ArrayRef<const ValueVar*>& args) {
+    return schedule_value(unsafe().tuple(args));
 }
 
 const Value* Builder::Unsafe::extract(const ValueVar* src, const ValueVar* idx) {
@@ -445,12 +453,12 @@ const ValueVar* ExprBuilder::proj(const ValueVar* src, const ValueVar* idx) {
     return bind_value(unsafe().proj(src, idx));
 }
 
-const Value* Builder::Unsafe::variant(const TypeVar* type, size_t idx, const ValueVar* elem) {
+const Variant* Builder::Unsafe::variant(const TypeVar* type, size_t idx, const ValueVar* elem) {
     return builder.arena.insert<Variant>(builder, type, idx, elem);
 }
 
-const ValueVar* ExprBuilder::variant(const TypeVar* type, size_t idx, const ValueVar* elem) {
-    return bind_value(unsafe().variant(type, idx, elem));
+const ValueVar* Builder::variant(const TypeVar* type, size_t idx, const ValueVar* elem) {
+    return schedule_value(unsafe().variant(type, idx, elem));
 }
 
 const Value* Builder::Unsafe::variant_index(const ValueVar* value) {
@@ -513,8 +521,16 @@ const Switch* Builder::Unsafe::switch_(const ValueVar* value, const Function* de
     return builder.arena.insert<Switch>(builder, value, default_case, std::move(cases));
 }
 
-const Value* ExprBuilder::finish_branch(const ValueVar* cond, const Function* true_branch, const Function* else_branch) {
-    return finish(unsafe().branch(cond, true_branch, else_branch));
+ValueExpr ExprBuilder::finish_match(const Loc& loc, const ValueVar* value, Array<Match::Case>&& cases) {
+    return finish(bind_value(unsafe().match(loc, value, std::move(cases))));
+}
+
+ValueExpr ExprBuilder::finish_branch(const ValueVar* cond, const Function* true_branch, const Function* else_branch) {
+    return finish(bind_value(unsafe().branch(cond, true_branch, else_branch)));
+}
+
+ValueExpr ExprBuilder::finish_tailcall(const ValueVar* callee, const ValueVar* arg) {
+    return finish(bind_value(unsafe().call(callee, arg)));
 }
 
 const Control* Builder::Unsafe::control(const Function* fn) {
@@ -563,8 +579,7 @@ ExprBuilder::ExprBuilder(Builder& parent)
 //     add_instruction(unsafe().bind(param, value));
 // }
 
-const Value* ExprBuilder::finish(const Value* last) {
-    assert(last->is_var() || last->type() == enclosing_let_rec().no_ret_type());
+ValueExpr ExprBuilder::finish(ValueExpr expr) {
     // std::vector<const ValueDef*> filtered_values;
     // for (size_t i = 0; i < seq.size(); i++) {
     //     auto value = seq[i]->isa<ValueDef>();
@@ -576,13 +591,13 @@ const Value* ExprBuilder::finish(const Value* last) {
     // if (filtered_values.empty())
     //     return last;
     if (seq.empty())
-        return last;
-    return arena.insert<Seq>(*this, seq, last);
+        return expr;
+    return arena.insert<Seq>(*this, seq, expr);
 }
 
-const Value* ExprBuilder::finish_unit() {
+/*const Value* ExprBuilder::finish_unit() {
     return finish(enclosing_let_rec().unit());
-}
+}*/
 
 const ModSignature* Builder::Unsafe::mod_signature(std::unordered_map<const Key*, const SigVar*>&& elems) {
     return builder.arena.insert<ModSignature>(builder, std::move(elems));
@@ -892,14 +907,6 @@ const Mod* Builder::Unsafe::mod_let_rec(const ArrayRef<std::tuple<const Var*, co
     return builder.arena.insert<LetRecMod>(builder, builder.scope, contents, in);
 }
 
-const Value* Builder::Unsafe::value_let_rec(const ArrayRef<std::tuple<const Var*, const Node*>>& contents, const Value* in) {
-    if (contents.empty())
-        return in;
-    if (contents.size() == 1 && std::get<0>(*contents.begin())->equals(in))
-        return std::get<1>(*contents.begin())->as<Value>();
-    return builder.arena.insert<LetRecValue>(builder, builder.scope, contents, in);
-}
-
 const Type* LetRecBuilder::finish_type(const Type* in) {
     if (auto def = in->isa<TypeDef>())
         in = schedule_type(def);
@@ -912,10 +919,19 @@ const Mod* LetRecBuilder::finish_module(const Mod* in) {
     return unsafe().mod_let_rec(contents, in);
 }
 
-const Value* LetRecBuilder::finish_value(const Value* in) {
-    if (auto def = in->isa<ValueDef>())
-        in = schedule_value(def);
-    return unsafe().value_let_rec(contents, in);
+const LetRecValue* Builder::Unsafe::value_let_rec(const ArrayRef<std::tuple<const Var*, const Node*>>& contents, ValueExpr expr) {
+    return builder.arena.insert<LetRecValue>(builder, builder.scope, contents, expr);
+}
+
+ValueExpr LetRecBuilder::finish_value(ValueExpr expr) {
+    // if (auto def = expr->isa<ValueDef>())
+    //     in = schedule_value(def);
+    if (contents.empty())
+        return expr;
+    // directly let-bound definitions can be substituted
+    // if (contents.size() == 1 && std::get<0>(*contents.begin())->equals(in))
+    //     return std::get<1>(*contents.begin())->as<Value>();
+    return unsafe().value_let_rec(contents, expr);
 }
 
 AbstractBuilder::AbstractBuilder(Builder& builder)

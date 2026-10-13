@@ -116,6 +116,13 @@ struct ValueCtor : public Constructor {
     ValueCtor(Builder&, Scope&, const ArrayRef<const Var*>&, const Value*);
 };
 
+struct Seq;
+struct LetRecValue;
+
+using ValueExpr = std::variant<const Seq*, const LetRecValue*, const ValueVar*>;
+const Value* as_value(const ValueExpr&);
+ValueExpr as_valueexpr(const Value*);
+
 struct LetRecValue : public ValueDef, public LetRec {
     const Value* body() const override {
         return LetRec::body()->as<Value>();
@@ -128,7 +135,7 @@ struct LetRecValue : public ValueDef, public LetRec {
 
     void free_variables(FVSet&, Seen&) const override;
 
-    LetRecValue(Builder&, Scope&, const ArrayRef<std::tuple<const Var*, const Node*>>&, const Value*);
+    LetRecValue(Builder&, Scope&, const ArrayRef<std::tuple<const Var*, const Node*>>&, ValueExpr);
 };
 
 struct FunctionLinkage {
@@ -154,15 +161,15 @@ struct Function : public ValueDef {
 
     const thorin::Def* emit(Emitter&, const ValueVar*) const override;
 
-    void set_body(Builder&, const Value*) const;
-    void set_filter(Builder&, const Value*) const;
-    const Value* body() const { return body_; }
-    const Value* filter() const { return filter_; }
+    void set_body(Builder&, ValueExpr) const;
+    void set_filter(Builder&, ValueExpr) const;
+    const std::optional<ValueExpr>& body() const { return body_; }
+    const std::optional<ValueExpr>& filter() const { return filter_; }
 
     Function(Builder&, Scope&, const ValueVar*, const TypeVar* codom, const ast::FnDecl*);
 private:
-    mutable const Value* body_ = nullptr;
-    mutable const Value* filter_ = nullptr;
+    mutable std::optional<ValueExpr> body_ = std::nullopt;
+    mutable std::optional<ValueExpr> filter_ = std::nullopt;
 };
 
 struct Call : public ValueDef {
@@ -189,7 +196,7 @@ struct GlobalVarLinkage {
 struct GlobalVariable : public ValueDef {
     const TypeVar* allocated_type;
     bool is_mut;
-    const Value* init;
+    std::optional<ValueExpr> init;
     const ast::StaticDecl* decl;
 
     mutable std::optional<GlobalVarLinkage> linkage;
@@ -203,7 +210,7 @@ struct GlobalVariable : public ValueDef {
 
     const thorin::Def* emit(Emitter&) const override;
 
-    GlobalVariable(Builder& arena, const TypeVar*, bool is_mut, const Value* init, const ast::StaticDecl* decl);
+    GlobalVariable(Builder& arena, const TypeVar*, bool is_mut, std::optional<ValueExpr>&& init, const ast::StaticDecl* decl);
 };
 
 struct LocalVariable : public ValueDef {
@@ -406,7 +413,7 @@ struct Seq : public ValueDef {
     };
 
     Array<std::variant<const ValueDef*, Bind>> evaluate;
-    const Value* yield;
+    ValueExpr yield;
 
     bool equals(const Node*) const override;
     size_t hash() const override;
@@ -417,7 +424,7 @@ struct Seq : public ValueDef {
 
     const thorin::Def* emit(Emitter&) const override;
 
-    Seq(Builder&, const ArrayRef<std::variant<const ValueDef*, Bind>>&, const Value*);
+    Seq(Builder&, const ArrayRef<std::variant<const ValueDef*, Bind>>&, ValueExpr);
 };
 
 struct UnOp : public ValueDef {

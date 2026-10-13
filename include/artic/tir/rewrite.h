@@ -29,6 +29,10 @@ struct Rewriter {
         return rewritten;
     }
 
+    ValueExpr instantiate(ValueExpr old, bool immediate = false) {
+        return as_valueexpr(instantiate(as_value(old), immediate));
+    }
+
     template<typename T = tir::Node, typename S = T>
     const Array<const S*> instantiate_array(const Array<const T*>& old, bool immediate = false) {
         Array<const S*> result(old.size());

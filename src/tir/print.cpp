@@ -405,7 +405,7 @@ void GlobalVariable::print(Printer& p) const {
     p << ']';
     p << '(';
     if (init)
-        p.print(*init, true);
+        p.print(*as_value(*init), true);
     p << ')';
 }
 
@@ -421,7 +421,7 @@ void LocalVariable::print(Printer& p) const {
 void Function::print(Printer& p) const {
     if (filter_) {
         p << "@(";
-        p.print(*filter_, true);
+        p.print(*as_value(*filter_), true);
         p << ")";
     }
     p << log::keyword_style("fn") << "(";
@@ -432,7 +432,7 @@ void Function::print(Printer& p) const {
     p.print(*type());
     if (body_) {
         p << " {" << p.indent() << p.endl();
-        p.print(*body_, true);
+        p.print(*as_value(*body_), true);
         p << p.unindent() << p.endl() << "}";
     }
 }
@@ -593,7 +593,7 @@ void Seq::print(Printer& p) const {
         }
         p << ';' << p.endl();
     }
-    p.print(*yield, !yield->is_var());
+    p.print(*as_value(yield), !as_value(yield)->is_var());
     p << p.endl();
     p << p.unindent() << p.endl() << '}';
 }

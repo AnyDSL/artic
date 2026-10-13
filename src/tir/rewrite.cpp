@@ -158,7 +158,7 @@ const Node* ValueCtor::rewrite(Rewriter& r) const {
     }
     auto ctor_builder = LetRecBuilder(r.dst, scope, &r.builder());
     Rewriter::BuilderGuard guard(r, ctor_builder);
-    return r.builder().unsafe().value_ctor(scope, params, ctor_builder.finish_value(r.instantiate(body())));
+    return r.builder().unsafe().value_ctor(scope, params, as_value(ctor_builder.finish_value(as_valueexpr(r.instantiate(body())))));
 }
 
 const Node* CtorVar::rewrite(Rewriter& r) const {
@@ -223,8 +223,10 @@ const Value* ValueApp::rewrite(Rewriter& r) const {
 }
 
 const Node* GlobalVariable::rewrite(Rewriter& r) const {
-    auto init = this->init ? r.instantiate(this->init, false) : nullptr;
-    auto nglobal = r.builder().unsafe().global_variable(r.instantiate(allocated_type), is_mut, init, decl);
+    std::optional<ValueExpr> init;
+    if (this->init)
+        init = r.instantiate(*this->init, false);
+    auto nglobal = r.builder().unsafe().global_variable(r.instantiate(allocated_type), is_mut, std::move(init), decl);
     if (linkage)
         nglobal->linkage = linkage;
     return nglobal;
@@ -245,9 +247,9 @@ const Node* Function::rewrite(Rewriter& r) const {
     //r.insert(this, nfn);
     r.insert(param, nparam);
     if (body_)
-        nfn->set_body(r.builder(), r.instantiate(body_, false));
+        nfn->set_body(r.builder(), r.instantiate(*body_, false));
     if (filter_)
-        nfn->set_filter(r.builder(), r.instantiate(filter_, false));
+        nfn->set_filter(r.builder(), r.instantiate(*filter_, false));
     if (linkage)
         nfn->linkage = linkage;
     return nfn;
@@ -334,7 +336,7 @@ const Node* Seq::rewrite(Rewriter& r) const {
             }
         }
     }
-    return builder.finish(r.instantiate(yield));
+    return as_value(builder.finish(r.instantiate(yield)));
 }
 
 const Node* UnOp::rewrite(Rewriter& r) const {

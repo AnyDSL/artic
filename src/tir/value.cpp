@@ -14,11 +14,11 @@ const TypeDef* Value::resolve_type(const Scope& s) const {
     return resolve_type_var(s, type());
 }
 
-GlobalVariable::GlobalVariable(Builder& builder, const TypeVar* value_type, bool is_mut, const Value* init, const ast::StaticDecl* decl)
+GlobalVariable::GlobalVariable(Builder& builder, const TypeVar* value_type, bool is_mut, std::optional<ValueExpr>&& init, const ast::StaticDecl* decl)
     : ValueDef(builder.arena, builder.enclosing_let_rec().ref_type(value_type, is_mut, 0)), Node(builder.arena), allocated_type(value_type), is_mut(is_mut), init(init), decl(decl) {
     assert(value_type->is_var());
-    if (init)
-        assert(init->type() == value_type);
+    if (this->init)
+        assert(as_value(*this->init)->type() == value_type);
 }
 
 LocalVariable::LocalVariable(Builder& builder, const TypeVar* allocated_type)
@@ -31,18 +31,18 @@ Function::Function(Builder& builder, Scope& scope, const ValueVar* param, const 
     assert(scope.is_in_scope(param));
 }
 
-void Function::set_body(Builder& builder, const Value* body) const {
+void Function::set_body(Builder& builder, ValueExpr body) const {
     assert(!this->body_ && "can't set the body twice!");
     auto fn_t = resolve_type(builder.scope);
-    assert(body->type() == fn_t->codom);
+    assert(as_value(body)->type() == fn_t->codom);
     this->body_ = body;
 }
 
-void Function::set_filter(Builder& builder, const Value* body) const {
+void Function::set_filter(Builder& builder, ValueExpr filter) const {
     assert(!this->filter_ && "can't set the filer twice!");
     auto fn_t = resolve_type(builder.scope);
-    assert(body->type() == builder.enclosing_let_rec().prim_type(ast::PrimType::Bool));
-    this->filter_ = body;
+    assert(as_value(filter)->type() == builder.enclosing_let_rec().prim_type(ast::PrimType::Bool));
+    this->filter_ = filter;
 }
 
 size_t Unit::hash() const {
@@ -161,9 +161,28 @@ ValueCtor::ValueCtor(Builder& builder, Scope& scope, const ArrayRef<const Var*>&
     : Node(builder.arena), Constructor(builder.enclosing_let_rec(), scope, params, body)
 {}
 
-LetRecValue::LetRecValue(Builder& builder, Scope& scope, const ArrayRef<std::tuple<const Var*, const Node*>>& vars, const Value* in)
+const Value* as_value(const ValueExpr& expr) {
+    if (auto seq = std::get_if<const Seq*>(&expr)) {
+        return *seq;
+    }
+    if (auto letrec = std::get_if<const LetRecValue*>(&expr)) {
+        return *letrec;
+    }
+    return std::get<const ValueVar*>(expr);
+}
+
+ValueExpr as_valueexpr(const Value* value) {
+    assert(value);
+    if (auto seq = value->isa<Seq>())
+        return seq;
+    if (auto letrec = value->isa<LetRecValue>())
+        return letrec;
+    return value->as<ValueVar>();
+}
+
+LetRecValue::LetRecValue(Builder& builder, Scope& scope, const ArrayRef<std::tuple<const Var*, const Node*>>& vars, ValueExpr expr)
     // TODO: make the type opaque if it leaks ?
-    : Node(builder.arena), ValueDef(builder.arena, in->type()), LetRec(scope, vars, in)
+    : Node(builder.arena), ValueDef(builder.arena, as_value(expr)->type()), LetRec(scope, vars, as_value(expr))
 {}
 
 void LetRecValue::free_variables(FVSet& vars, Seen& seen) const {
@@ -517,9 +536,8 @@ bool Bind::equals(const Node* other) const {
     return false;
 }*/
 
-Seq::Seq(Builder& builder, const ArrayRef<std::variant<const ValueDef*, Bind>>& evaluate, const Value* yield) : ValueDef(builder.arena, yield->type()), Node(builder.arena), evaluate(evaluate), yield(yield) {
+Seq::Seq(Builder& builder, const ArrayRef<std::variant<const ValueDef*, Bind>>& evaluate, ValueExpr expr) : ValueDef(builder.arena, as_value(expr)->type()), Node(builder.arena), evaluate(evaluate), yield(expr) {
     assert(!evaluate.empty());
-    assert(yield->isa<ValueVar>() || yield->isa<LetRecValue>() || yield->isa<Seq>());
     for (auto e : evaluate) {
         // if (auto bind = std::get_if<Bind>(&e)) {
         //
@@ -529,7 +547,7 @@ Seq::Seq(Builder& builder, const ArrayRef<std::variant<const ValueDef*, Bind>>& 
 }
 
 size_t Seq::hash() const {
-    auto h = fnv::Hash().combine(yield);
+    auto h = fnv::Hash().combine(as_value(yield));
     for (auto e : evaluate) {
         if (auto bind = std::get_if<Bind>(&e)) {
             h = h.combine(bind->var);
@@ -792,7 +810,7 @@ void Function::free_variables(FVSet& vars, Seen& seen) const {
     type()->free_variables(vars, seen);
     FVSet rhs;
     if (body_)
-        body_->free_variables(rhs, seen);
+        as_value(*body_)->free_variables(rhs, seen);
     rhs.erase(param);
     vars.merge(rhs);
     param->type()->free_variables(vars, seen);
@@ -807,7 +825,7 @@ void Call::free_variables(FVSet& vars, Seen& seen) const {
 void GlobalVariable::free_variables(FVSet& vars, Seen& seen) const {
     type()->free_variables(vars, seen);
     if (init)
-        init->free_variables(vars, seen);
+        as_value(*init)->free_variables(vars, seen);
 }
 
 void LocalVariable::free_variables(FVSet& vars, Seen& seen) const {
@@ -855,7 +873,7 @@ void Proj::free_variables(FVSet& vars, Seen& seen) const {
 void Seq::free_variables(FVSet& vars, Seen& seen) const {
     type()->free_variables(vars, seen);
     FVSet rhs;
-    yield->free_variables(rhs, seen);
+    as_value(yield)->free_variables(rhs, seen);
     for (size_t i = evaluate.size() - 1; i < evaluate.size(); i--) {
         auto instr = evaluate[i];
         if (auto bind = std::get_if<Bind>(&instr)) {

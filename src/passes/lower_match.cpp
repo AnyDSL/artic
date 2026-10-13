@@ -206,7 +206,7 @@ private:
         return { std::move(fn_builder), builder.unsafe().function(param, fn_builder->scope, builder.enclosing_let_rec().no_ret_type(), nullptr) };
     }
 
-    const Value* compile() {
+    ValueExpr compile() {
         if (rows.empty()) {
             non_exhaustive_match(old_match->loc);
             return builder.enclosing_let_rec().error_value(builder.enclosing_let_rec().type_error());
@@ -303,8 +303,7 @@ private:
                 std::swap(match_true, match_false);
             assert(match_type_var<TupleType>(builder.scope, match_true->param->type()));
 
-            auto br = builder.unsafe().branch(cond, match_true, match_false);
-            return expr_builder.finish(br);
+            return expr_builder.finish_branch(cond, match_true, match_false);
         } else {
             assert(enum_type || is_int_type(col_type));
             Array<std::tuple<std::unique_ptr<AbstractBuilder>, const Function*>> targets(ctors.size());
@@ -394,7 +393,8 @@ const Value* PtrnCompiler::emit(
         if (row.second->is_redundant)
             compiler.redundant_case(*row.second->match_case->loc);
     }
-    return r;
+    assert(false && "TODO: fix this when we have tail nodesw");
+    // return r;
 }
 
 // Since this code is used for debugging only, it makes sense to hide it in

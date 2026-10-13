@@ -1247,10 +1247,10 @@ const thorin::Def* Function::emit(Emitter& emitter, const ValueVar* self) const 
     param->emitted = emitter.tuple_from_params(cont, !is_returnless);
     //emitter.emit(*param, emitter.tuple_from_params(cont, true));
     if (filter_)
-        cont->set_filter(emitter.world.filter(thorin::Array<const thorin::Def*>(cont->num_params(), emitter.emit(filter_))));
+        cont->set_filter(emitter.world.filter(thorin::Array<const thorin::Def*>(cont->num_params(), emitter.emit(as_value(*filter_)))));
     if (body()) {
         emitter.enter(cont);
-        auto value = emitter.emit(body());
+        auto value = emitter.emit(as_value(*body()));
         if (!is_returnless)
             emitter.jump(cont->params().back(), value);
         assert(!emitter.state.cont);
@@ -1292,7 +1292,7 @@ const thorin::Def* Call::emit(Emitter& emitter) const {
 
 const thorin::Def* GlobalVariable::emit(Emitter& emitter) const {
     auto value = init
-        ? emitter.emit(init)
+        ? emitter.emit(as_value(*init))
         : emitter.world.bottom(emitter.emit(resolve_type(emitter.scope())->pointee));
     // TODO: one day globals should probably be able to be mutually recursive
     auto global = emitter.world.global(value, is_mut, emitter.debug_info(this));
@@ -1389,7 +1389,7 @@ const thorin::Def* Seq::emit(Emitter& emitter) const {
             emitter.emit(std::get<const ValueDef*>(value));
         }
     }
-    return emitter.emit(yield);
+    return emitter.emit(as_value(yield));
 }
 
 const thorin::Def* UnOp::emit(Emitter& emitter) const {
@@ -1559,7 +1559,7 @@ const thorin::Def* Control::emit(Emitter& emitter) const {
         : nullptr;
 
     body->param->emitted = join;
-    emitter.emit(body->body());
+    emitter.emit(as_value(*body->body()));
 
     emitter.enter(join);
     return emitter.tuple_from_params(join);

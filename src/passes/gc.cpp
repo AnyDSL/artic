@@ -49,7 +49,7 @@ struct GC : public Rewriter {
                 // }
             }
             if (auto value = let_rec->isa<LetRecValue>())
-                return builder.finish_value(instantiate(value->body(), false));
+                return as_value(builder.finish_value(as_valueexpr(instantiate(value->body(), false))));
             else if (auto type = let_rec->isa<LetRecType>())
                 return builder.finish_type(instantiate(type->body(), false));
             else if (auto mod = let_rec->isa<LetRecMod>())

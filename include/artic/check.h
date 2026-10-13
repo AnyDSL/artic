@@ -103,15 +103,15 @@ public:
 
     const Match::Ptrn* convert_ptrn(const ast::Ptrn&);
 
-    const Value* build_fn_body(const ValueVar* param, ast::FnExpr& fn, const tir::TypeVar* codom);
-    const Value* build_fn_filter(const ValueVar* param, ast::FnExpr& fn);
+    ValueExpr build_fn_body(const ValueVar* param, ast::FnExpr& fn, const tir::TypeVar* codom);
+    ValueExpr build_fn_filter(const ValueVar* param, ast::FnExpr& fn);
     using SetTypeFn = std::function<void(const tir::TypeVar*)>;
     using IfBuilderFn = std::function<void(const SetTypeFn&, ExprBuilder& true_builder, ExprBuilder& else_builder)>;
     const ValueVar* build_if(const ast::IfExpr& expr, const IfBuilderFn&);
 
-    using InnerLoopBuilderFn = std::function<const Value*(const SetTypeFn&, const ValueVar* continue_param, const ValueVar* loop_param)>;
+    using InnerLoopBuilderFn = std::function<ValueExpr(const SetTypeFn&, const ValueVar* continue_param, const ValueVar* loop_param)>;
     using BuildInnerLoopFn = std::function<const Function*(const TypeVar*, const InnerLoopBuilderFn&)>;
-    using LoopBuilderFn = std::function<const Value*(SetTypeFn, const BuildInnerLoopFn&)>;
+    using LoopBuilderFn = std::function<ValueExpr(SetTypeFn, const BuildInnerLoopFn&)>;
     const ValueVar* build_loop(ast::LoopExpr& loop, const std::string&, const LoopBuilderFn&);
 
     void infer_fn_attrs(const ast::FnDecl* fn_decl, const Function* fn);
@@ -126,8 +126,8 @@ public:
     //     return r;
     // }
 
-    const Value* with_expr_scope(const std::function<const Value*(ExprBuilder&)>& f);
-    const Value* yield_expr_scope(const std::function<const Value*(ExprBuilder&)>& f);
+    ValueExpr with_expr_scope(const std::function<ValueExpr(ExprBuilder&)>& f);
+    ValueExpr yield_expr_scope(const std::function<ValueExpr(ExprBuilder&)>& f);
     //void run_expr_scope(const std::function<void(ExprBuilder&)>& f);
 
     template<typename Fn>
@@ -136,8 +136,8 @@ public:
         return f();
     };
 
-    const Function* build_fn(const ValueVar* param, const std::function<const Value*()>&);
-    const Function* build_fn(const std::function<const Value*(const std::function<void(const ValueVar*)>&)>&);
+    const Function* build_fn(const ValueVar* param, const std::function<ValueExpr()>&);
+    const Function* build_fn(const std::function<ValueExpr(const std::function<void(const ValueVar*)>&)>&);
 
     const Var* maybe_polymorphic(const ast::Identifier&, std::optional<Array<const Var*>>&, NodeKind, const std::function<const Var*(LetRecBuilder&, const Var*&, const std::function<void(const Var*)>&)>&);
     Array<const Var*> duplicate_params(const ArrayRef<const Var*>&);

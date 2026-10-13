@@ -3,6 +3,7 @@
 
 #include <cstddef>
 #include <unordered_set>
+#include <variant>
 
 #include "artic/ast.h"
 #include "artic/cast.h"

@@ -122,6 +122,10 @@ struct Builder : public artic::Cast<Builder> {
     const ValueVar* value_app(const CtorVar*, const ArrayRef<const Var*>&);
     const ValueVar* mod_value_access(const ModVar*, const Key*);
     const ValueVar* unit();
+    const ValueVar* agg(const TypeVar*, const ArrayRef<const ValueVar*>&);
+    const ValueVar* tuple(const ArrayRef<const ValueVar*>&);
+    const ValueVar* repeat(const TypeVar*, const ValueVar*);
+    const ValueVar* variant(const TypeVar*, size_t, const ValueVar*);
     const ValueVar* typed_literal(Literal, const TypeVar*);
     const ValueVar* undef(const TypeVar*);
     const ValueVar* error_value(const TypeVar*);
@@ -207,13 +211,13 @@ struct Builder : public artic::Cast<Builder> {
         const CtorSignature* ctor_signature(const ArrayRef<const SigVar*>&, NodeKind);
 
         const Value* mod_value_access(const ModVar*, const Key*);
-        const Value* value_let_rec(const ArrayRef<std::tuple<const Var*, const Node*>>&, const Value*);
+        const LetRecValue* value_let_rec(const ArrayRef<std::tuple<const Var*, const Node*>>&, ValueExpr);
         const ValueCtor* value_ctor(Scope&, const ArrayRef<const Var*>&, const Value*);
 
         const LocalVariable* local_variable(const TypeVar*);
         const Function* function(const ValueVar*, Scope&, const TypeVar* codom, const ast::FnDecl*);
 
-        const GlobalVariable* global_variable(const TypeVar*, bool is_mut, const Value*, const ast::StaticDecl*);
+        const GlobalVariable* global_variable(const TypeVar*, bool is_mut, std::optional<ValueExpr>&&, const ast::StaticDecl*);
         const TypedLiteral* typed_literal(Literal, const TypeVar*);
         const Undef* undef(const TypeVar*);
         const ErrorValue* error_value(const TypeVar*);
@@ -221,14 +225,14 @@ struct Builder : public artic::Cast<Builder> {
         const ValueApp* value_app(const CtorVar*, const ArrayRef<const Var*>&);
 
         const Value* call(const ValueVar* callee, const ValueVar* arg);
-        const Value* agg(const TypeVar*, const ArrayRef<const ValueVar*>&);
+        const Agg* agg(const TypeVar*, const ArrayRef<const ValueVar*>&);
         const Unit* unit();
-        const Value* tuple(const ArrayRef<const ValueVar*>&);
-        const Value* repeat(const TypeVar*, const ValueVar*);
+        const Agg* tuple(const ArrayRef<const ValueVar*>&);
+        const Repeat* repeat(const TypeVar*, const ValueVar*);
         const Value* extract(const ValueVar*, const ValueVar*);
         const Value* proj(const ValueVar*, const ValueVar*);
 
-        const Value* variant(const TypeVar*, size_t, const ValueVar*);
+        const Variant* variant(const TypeVar*, size_t, const ValueVar*);
         const Value* variant_index(const ValueVar*);
         const Value* variant_extract(const ValueVar*, size_t);
 
@@ -269,7 +273,7 @@ struct LetRecBuilder : public Builder {
     // const LetRec* finish(const Node*);
     const Type* finish_type(const Type*);
     const Mod* finish_module(const Mod*);
-    const Value* finish_value(const Value*);
+    ValueExpr finish_value(ValueExpr);
 
 private:
     std::vector<std::tuple<const Var*, const Node*>> contents;
@@ -290,15 +294,11 @@ struct ExprBuilder : public Builder {
 
     const ValueVar* local_variable(const TypeVar*);
 
-    const ValueVar* agg(const TypeVar*, const ArrayRef<const ValueVar*>&);
-    const ValueVar* tuple(const ArrayRef<const ValueVar*>&);
-    const ValueVar* repeat(const TypeVar*, const ValueVar*);
     const ValueVar* extract(const ValueVar*, const ValueVar*);
     const ValueVar* proj(const ValueVar*, const ValueVar*);
 
     const ValueVar* call(const ValueVar* callee, const ValueVar* arg);
 
-    const ValueVar* variant(const TypeVar*, size_t, const ValueVar*);
     const ValueVar* variant_index(const ValueVar*);
     const ValueVar* variant_extract(const ValueVar*, size_t);
 
@@ -308,27 +308,21 @@ struct ExprBuilder : public Builder {
     const ValueVar* unop(ast::UnaryExpr::Tag, const ValueVar*);
     const ValueVar* binop(ast::BinaryExpr::Tag, const ValueVar*, const ValueVar*);
 
+    const ValueVar* builtin(Builtin::Tag, const ArrayRef<const Var*>&);
+    const ValueVar* mathop(thorin::MathOpTag, const ArrayRef<const ValueVar*>&);
+
     const ValueVar* control(const Function*);
 
     /// Finish the expression and make it yield this value
-    const Value* finish(const ValueVar* v) {
-        return finish(v->as<Value>());
-    }
-
-    const Value* finish(const Seq* v) {
-        return finish(v->as<Value>());
-    }
-
-    const Value* finish(const LetRecValue* v) {
-        return finish(v->as<Value>());
-    }
-
-    const Value* finish(const Value*);
+    ValueExpr finish(ValueExpr);
 
     /// Finish the expression and make it yield unit
-    const Value* finish_unit();
+    ValueExpr finish_unit();
+
+    ValueExpr finish_tailcall(const ValueVar*, const ValueVar*);
+    ValueExpr finish_match(const Loc&, const ValueVar*, Array<Match::Case>&&);
     /// Finish the expression and make it do a branch last, yielding NoRet
-    const Value* finish_branch(const ValueVar*, const Function*, const Function*);
+    ValueExpr finish_branch(const ValueVar*, const Function*, const Function*);
 private:
 
     std::vector<std::variant<const ValueDef*, Seq::Bind>> seq;
