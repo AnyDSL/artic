@@ -599,7 +599,7 @@ UnOp::UnOp(Builder& builder, const UnaryExpr::Tag tag, const ValueVar* arg) : Va
     if (tag == UnaryExpr::AddrOfMut)
         return builder.enclosing_let_rec().ptr_type(arg_type, true, ref_type->addr_space);
     if (tag == UnaryExpr::Deref) {
-        if (auto ptr_type = arg_type->isa<PtrType>())
+        if (auto ptr_type = match_type_var<PtrType>(builder.scope, arg_type))
             return builder.enclosing_let_rec().ref_type(ptr_type->pointee, ptr_type->is_mut, ptr_type->addr_space);
         return builder.enclosing_let_rec().type_error();
     }

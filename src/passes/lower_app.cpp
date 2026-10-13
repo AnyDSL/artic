@@ -99,7 +99,7 @@ struct LowerApp : public Rewriter {
                 args[i] = instantiate(old_app->args[i], false);
             }
             if (are_args_known(args)) {
-                auto constructor = resolve_ctor_var(*old_scope, old_app->applicand())->isa<Constructor>();
+                auto constructor = resolve_ctor_var(*old_app->applicand()->binder, old_app->applicand())->isa<Constructor>();
                 if (constructor)
                     return instantiate_app(old_app, constructor, args);
             }

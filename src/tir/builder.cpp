@@ -280,7 +280,6 @@ const CtorVar* Builder::value_ctor(Scope& scope, const ArrayRef<const Var*>& par
 
 const CtorVar* Builder::ctor_var(std::optional<ast::Identifier> id, const SigVar* sig) {
     auto var = arena.insert<CtorVar>(arena, id, sig);
-    assert(var->gid != 96);
     return var;
 }
 

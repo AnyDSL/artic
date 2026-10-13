@@ -491,7 +491,7 @@ const ValueVar* TypeChecker::build_block(ast::BlockExpr& expr, ExprBuilder& expr
                         return build_block(expr, internal_expr_builder, expected, i + 1);
                     });
                     // Wrap the let rec in the expr
-                    auto maybe_let_rec = builder.finish_value(tail);
+                    return builder.finish_value(tail);
                 } else {
                     if (last_expected)
                         check_value(*expr.stmts[i], expected);
@@ -2743,11 +2743,11 @@ const tir::Var* UnaryExpr::infer(TypeChecker& checker) {
         return checker.expr_builder().unop(tag, arg->value);
     }
     if (tag == Deref) {
-        if (auto ptr_type = arg_type->isa<artic::PtrType>())
+        if (auto ptr_type = match_type_var<artic::PtrType>(*arg_type->binder, arg_type))
             return checker.expr_builder().unop(tag, arg->value);
         if (checker.should_report_error(arg_type))
             checker.error(loc, "cannot dereference non-pointer type '{}'", *arg_type);
-        return b.type_error();
+        return b.error_value();
     }
     const TypeDef* prim_type = resolve_type_var(checker.scope(), arg_type);
     if (is_simd_type(prim_type))
