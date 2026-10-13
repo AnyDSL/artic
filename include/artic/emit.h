@@ -159,7 +159,7 @@ public:
     const thorin::Def* addr_of(const thorin::Def*, thorin::Debug = {});
 
     const thorin::Def* no_ret();
-    const thorin::Def* down_cast(const thorin::Def*, const tir::Scope&, const tir::Type*, const tir::Type*, thorin::Debug = {});
+    const thorin::Def* down_cast(const thorin::Def*, const tir::TypeVar*, const tir::TypeVar*, thorin::Debug = {});
 
     const thorin::Def* emit(const tir::Value*);
     const thorin::Type* emit(const tir::Type*);

@@ -121,13 +121,13 @@ bool LetRecType::equals(const Node* other) const {
 // Type Bounds ---------------------------------------------------------------------
 
 TypeBounds& TypeBounds::meet(LetRecBuilder& b, const Scope& scope, const TypeBounds& bounds) {
-    if (lower->subtype(scope, bounds.lower))
+    if (lower->subtype(bounds.lower))
         lower = bounds.lower;
-    else if (!bounds.lower->subtype(scope, lower))
+    else if (!bounds.lower->subtype(lower))
         lower = b.top_type();
-    if (bounds.upper->subtype(scope, upper))
+    if (bounds.upper->subtype(upper))
         upper = bounds.upper;
-    else if (!upper->subtype(scope, bounds.upper))
+    else if (!upper->subtype(bounds.upper))
         upper = b.bottom_type();
     return *this;
 }
@@ -614,9 +614,9 @@ size_t EnumType::member_count() const {
 
 // Misc. ---------------------------------------------------------------------------
 
-bool is_subtype_def(const Scope& scope, const TypeDef* t, const TypeDef* other);
+//bool is_subtype_def(const Scope& scope, const TypeDef* t, const TypeDef* other);
 
-bool is_subtype(const Scope& start_scope, const Type* t, const Type* other) {
+/*bool is_subtype(const Scope& start_scope, const Type* t, const Type* other) {
     const Scope* lhs_scope = &start_scope;
     const Scope* rhs_scope = &start_scope;
     if (auto t_var = t->isa<TypeVar>()) {
@@ -649,70 +649,77 @@ bool is_subtype(const Scope& start_scope, const Type* t, const Type* other) {
     }
 
     return t == other;
-}
+}*/
 
-bool is_subtype_def(const Scope& scope, const TypeDef* t, const TypeDef* other) {
-    if (t == other || t->isa<BottomType>() || other->isa<TopType>())
+bool is_subtype(const TypeVar* t, const TypeVar* other) {
+    auto [t_var, t_def] = lookup_type_var(*t->binder, t);
+    auto [o_var, o_def] = lookup_type_var(*other->binder, other);
+
+    if (t_var == o_var)
+        return true;
+    if (t_def && t_def->isa<BottomType>())
+        return true;
+    if (o_def && o_def->isa<TopType>())
         return true;
 
-    if (auto implicit = other->isa<ImplicitParamType>())
-        return is_subtype(scope, t, implicit->underlying) || is_unit_type(t);
+    if (auto implicit = match_type_var<ImplicitParamType>(*other->binder, other))
+        return is_subtype(t, implicit->underlying) || is_unit_type(t);
 
-    auto other_ptr_type = other->isa<PtrType>(); 
+    auto other_ptr_type = match_type_var<PtrType>(*other->binder, other);
 
     // Take the address of values automatically:
     // U <: &T if U <: T (only for generic pointers)
     if (other_ptr_type &&
         !other_ptr_type->is_mut &&
         other_ptr_type->addr_space == 0 &&
-        is_subtype(scope, t, other_ptr_type->pointee))
+        is_subtype(t, other_ptr_type->pointee))
         return true;
 
-    if (auto ref_type = t->isa<RefType>()) {
+    if (auto ref_type = match_type_var<RefType>(*t->binder, t)) {
         // ref U <: &T if U <: T
         if (other_ptr_type &&
             ref_type->is_compatible_with(other_ptr_type) &&
-            is_subtype(scope, ref_type->pointee, other_ptr_type->pointee))
+            is_subtype(ref_type->pointee, other_ptr_type->pointee))
             return true;
         // ref U <: T if U <: T
-        return is_subtype(scope, ref_type->pointee, other);
-    } else if (auto ptr_type = t->isa<AddrType>(); ptr_type && other_ptr_type && ptr_type->is_compatible_with(other_ptr_type)) {
+        return is_subtype(ref_type->pointee, other);
+    } else if (auto ptr_type = match_type_var<AddrType>(*t->binder, t); ptr_type && other_ptr_type && ptr_type->is_compatible_with(other_ptr_type)) {
         // &U <: &T if U <: T
         // &mut U <: &T if U <: T
-        return is_subtype(scope, ptr_type->pointee, other_ptr_type->pointee);
-    } else if (auto sized_array_type = t->isa<SizedArrayType>(); sized_array_type && !sized_array_type->is_simd) {
+        return is_subtype(ptr_type->pointee, other_ptr_type->pointee);
+    } else if (auto sized_array_type = match_type_var<SizedArrayType>(*t->binder, t); sized_array_type && !sized_array_type->is_simd) {
         // [U * N] <: [T] if U <: T
-        if (auto other_array_type = other->isa<UnsizedArrayType>())
-            return is_subtype(scope, sized_array_type->elem, other_array_type->elem);
-    } else if (auto tuple_type = t->isa<TupleType>()) {
-        if (auto other_tuple_type = other->isa<TupleType>();
+        if (auto other_array_type = match_type_var<UnsizedArrayType>(*other->binder, other))
+            return is_subtype(sized_array_type->elem, other_array_type->elem);
+    } else if (auto tuple_type = match_type_var<TupleType>(*t->binder, t)) {
+        if (auto other_tuple_type = match_type_var<TupleType>(*other->binder, other);
             other_tuple_type && other_tuple_type->args.size() == tuple_type->args.size()) {
             // (U1, ..., Un) <: (T1, ..., Tn) if U1 <: T1 and ... and Un <: Tn
             for (size_t i = 0, n = tuple_type->args.size(); i < n; ++i) {
-                if (!is_subtype(scope, tuple_type->args[i], other_tuple_type->args[i]))
+                if (!is_subtype(tuple_type->args[i], other_tuple_type->args[i]))
                     return false;
             }
             return true;
             }
-    } else if (auto fn_type = t->isa<FnType>()) {
-        if (auto other_fn_type = other->isa<FnType>()) {
+    } else if (auto fn_type = match_type_var<FnType>(*t->binder, t)) {
+        if (auto other_fn_type = match_type_var<FnType>(*other->binder, other)) {
             // fn (V) -> W <: fn (T) -> U if T <: V and W <: U
             return
-                is_subtype(scope, other_fn_type->dom, fn_type->dom) &&
-                is_subtype(scope, fn_type->codom, other_fn_type->codom);
+                is_subtype(other_fn_type->dom, fn_type->dom) &&
+                is_subtype(fn_type->codom, other_fn_type->codom);
         }
     }
     return false;
 }
 
-bool Type::subtype(const Scope& scope, const Type* other) const {
-    return is_subtype(scope, this, other);
+bool TypeVar::subtype(const TypeVar* other) const {
+    return is_subtype(this, other);
 }
 
-const Type* Type::join(LetRecBuilder& b, const Scope& scope, const Type* other) const {
-    if (subtype(scope, other))
+const TypeVar* TypeVar::join(Builder& b, const TypeVar* other) const {
+    if (subtype(other))
         return other;
-    if (other->subtype(scope, this))
+    if (other->subtype(this))
         return this;
     return b.top_type();
 }
@@ -848,18 +855,18 @@ const Type* lookup_type_var_single(const Scope& scope, const TypeVar* var) {
     return nullptr;
 }
 
-const TypeDef* lookup_type_var(const Scope& scope, const TypeVar* var) {
-    auto [_, found] = scope.lookup_var(var);
+std::tuple<const TypeVar*, const TypeDef*> lookup_type_var(const Scope& scope, const TypeVar* var) {
+    auto [var2, found] = scope.lookup_var(var);
     if (found)
-        return found->as<TypeDef>();
-    return nullptr;
+        return { var2->as<TypeVar>(), found->isa<TypeDef>() };
+    return { var2->as<TypeVar>(), nullptr };
 }
 
-const TypeDef* lookup_type(const Scope& scope, const Type* type) {
-    auto [_, found] = scope.lookup(type);
+std::tuple<const TypeVar*, const TypeDef*> lookup_type(const Scope& scope, const Type* type) {
+    auto [var2, found] = scope.lookup(type);
     if (found)
-        return found->as<TypeDef>();
-    return nullptr;
+        return { var2->as<TypeVar>(), found->isa<TypeDef>() };
+    return { var2->as<TypeVar>(), nullptr };
 }
 
 std::tuple<const TypeDef*, const Scope&> lookup_type_deep(const Scope& scope, const Type* type) {

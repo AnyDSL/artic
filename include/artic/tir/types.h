@@ -107,15 +107,17 @@ struct Type : virtual public Node {
     }
 
     /// Returns true if this type is a sub-type of another.
-    bool subtype(const Scope& scope, const Type*) const;
+    // bool subtype(const Type*) const;
 
     /// Returns the least upper bound between this type and another.
-    const Type* join(LetRecBuilder&, const Scope& scope, const Type*) const;
+    // const Type* join(LetRecBuilder&, const Scope& scope, const Type*) const;
 
 protected:
     mutable const thorin::Type* emitted = nullptr;
     friend Emitter;
 };
+
+bool is_subtype(const TypeVar* t, const TypeVar* other);
 
 struct TypeVar final : public Type, public Var {
     void print(Printer&) const override;
@@ -131,6 +133,9 @@ struct TypeVar final : public Type, public Var {
     void bounds(LetRecBuilder&, const Scope&, TypeVarMap<TypeBounds>&, const TypeVar*, bool) const override;
     size_t order(const Scope&, std::unordered_set<const Type*>&) const override;
     bool is_sized(const Scope&, std::unordered_set<const Type*>&) const override;
+
+    bool subtype(const TypeVar*) const;
+    const TypeVar* join(Builder&, const TypeVar*) const;
 
     bool can_bind(const Scope&, const Node*) const override;
 private:
@@ -558,13 +563,13 @@ bool is_unit_type(const TypeDef*);
 inline bool is_bool_type(const TypeDef* type) { return is_prim_type(type, ast::PrimType::Bool); }
 
 const Type* lookup_type_var_single(const Scope&, const TypeVar*);
-const TypeDef* lookup_type_var(const Scope&, const TypeVar*);
-const TypeDef* lookup_type(const Scope&, const Type*);
+std::tuple<const TypeVar*, const TypeDef*> lookup_type_var(const Scope&, const TypeVar*);
+std::tuple<const TypeVar*, const TypeDef*> lookup_type(const Scope&, const Type*);
 std::tuple<const TypeDef*, const Scope&> lookup_type_deep(const Scope&, const Type*);
 
 template <typename T = TypeDef>
 const T* match_type_var(const Scope& scope, const TypeVar* var) {
-    auto def = lookup_type_var(scope, var);
+    auto [_, def] = lookup_type_var(scope, var);
     if (def)
         return def->isa<T>();
     return nullptr;
@@ -572,7 +577,7 @@ const T* match_type_var(const Scope& scope, const TypeVar* var) {
 
 template <typename T = TypeDef>
 const T* match_type(const Scope& scope, const Type* type) {
-    auto def = lookup_type(scope, type);
+    auto [_, def] = lookup_type(scope, type);
     if (def)
         return def->isa<T>();
     return nullptr;
@@ -618,6 +623,13 @@ template <typename T = TypeDef>
 std::tuple<const TypeApp*, const T*, const Scope&> resolve_type_app_unapplied(const Scope& scope, const TypeDef* type) {
     auto [app, t, s] = resolve_type_app_unapplied_generic(scope, type);
     return { app, t->isa<T>(), s };
+}
+
+static inline bool is_unit_type(const TypeVar* var) {
+    auto def = resolve_type_var(*var->binder, var);
+    if (def)
+        return is_unit_type(def);
+    return false;
 }
 
 } // namespace tir

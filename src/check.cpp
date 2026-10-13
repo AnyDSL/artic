@@ -765,7 +765,7 @@ void TypeChecker::unsized_type(const Loc& loc, const Type* type) {
 
 const TypeVar* TypeChecker::expect(const Loc& loc, const TypeVar* type, const TypeVar* expected) {
     auto& b = builder().enclosing_let_rec();
-    if (!type->subtype(scope(), expected)) {
+    if (!type->subtype(expected)) {
         incompatible_types(loc, type, expected);
         return b.type_error();
     }
@@ -840,7 +840,7 @@ const ValueVar* TypeChecker::coerce(ast::Expr* expr, const TypeVar* expected) {
 
     const ValueVar*& tir = expr->value;
     if (tir->type() != expected) {
-        if (tir->type()->subtype(scope(), expected)) {
+        if (tir->type()->subtype(expected)) {
             tir = expr_builder().implicit_cast(tir, expected);
         } else {
             incompatible_types(expr->loc, tir->type(), expected);
@@ -882,7 +882,7 @@ const TypeVar* TypeChecker::join(Ptr<ast::Expr>& left, Ptr<ast::Expr>& right, Ex
     auto& b = builder().enclosing_let_rec();
     auto left_type  = with_expr_builder(left_builder, [&] { return deref(left); })->type();
     auto right_type = with_expr_builder(right_builder, [&] { return deref(right); })->type();
-    auto type = left_type->join(builder().enclosing_let_rec(), scope(), right_type);
+    auto type = left_type->join(builder(), right_type);
     if (type->isa<TopType>()) {
         incompatible_types(right->loc, right_type, left_type);
         return b.type_error();
@@ -1205,7 +1205,7 @@ const tir::ValueVar* TypeChecker::check(const Loc& loc, const Literal& lit, cons
         return b.typed_literal(lit, expected);
     } else if (lit.is_string()) {
         auto typed_lit = infer(loc, lit);
-        if (!typed_lit->type()->subtype(scope(), expected)) {
+        if (!typed_lit->type()->subtype(expected)) {
             incompatible_type(loc, "string literal", expected);
             return b.error_value(expected);
         }
@@ -1448,9 +1448,9 @@ bool TypeChecker::try_infer_type_args(
 
         // Check that the provided arguments are compatible with the computed bounds
         if (args[index]) {
-            if (auto type_arg = args[index]->isa<Type>()) {
-                if (!type_arg->subtype(scope(), bound.second.upper) ||
-                    !bound.second.lower->subtype(scope(), type_arg)) {
+            if (auto type_arg = args[index]->isa<TypeVar>()) {
+                if (!type_arg->subtype(bound.second.upper) ||
+                    !bound.second.lower->subtype(type_arg)) {
                     if (diagnose_failure_as_error)
                         invalid_constraint(loc, bound.first, type_arg, bound.second.lower, bound.second.upper);
                     return false;
@@ -1462,7 +1462,7 @@ bool TypeChecker::try_infer_type_args(
             return false;
         }
 
-        if (!bound.second.lower->subtype(scope(), bound.second.upper) ||
+        if (!bound.second.lower->subtype(bound.second.upper) ||
             bound.second.lower->isa<TopType>() ||
             bound.second.upper->isa<BottomType>()) {
             if (diagnose_failure_as_error)
@@ -1614,7 +1614,7 @@ const tir::Var* Ptrn::check(TypeChecker& checker, const artic::TypeVar* expected
     // is assumed to be the type of the expression bound by the pattern, and thus
     // must be a subtype of the pattern type.
     auto type = checker.infer_ptrn(*this);
-    if (!expected->subtype(checker.scope(), type)) {
+    if (!expected->subtype(type)) {
         checker.incompatible_types(loc, type, expected);
         return b.type_error();
     }

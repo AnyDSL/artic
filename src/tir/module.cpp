@@ -212,7 +212,7 @@ bool SigDef::is_sub(const Scope& scope, const Sig* other) const {
 
 bool ValueSignature::is_sub_def(const Scope& scope, const SigDef* other) const {
     if (auto other_vs = other->isa<ValueSignature>()) {
-        return value_type->subtype(scope, other_vs->value_type);
+        return value_type->subtype(other_vs->value_type);
     }
     return false;
 }
@@ -223,7 +223,7 @@ bool TypeSignature::is_sub_def(const Scope& scope, const SigDef* other) const {
             return true;
         if (!type)
             return false;
-        return type->subtype(scope, other_ts->type);
+        return type->subtype(other_ts->type);
     }
     return false;
 }

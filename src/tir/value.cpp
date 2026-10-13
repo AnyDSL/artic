@@ -71,7 +71,7 @@ ValueVar::ValueVar(Arena& arena, std::optional<ast::Identifier> id, const TypeVa
 
 bool ValueVar::can_bind(const Scope& scope, const Node* other) const {
     if (auto value = other->isa<Value>()) {
-        return value->type()->subtype(scope, type());
+        return value->type()->subtype(type());
     }
     return false;
 }
@@ -214,7 +214,7 @@ bool Call::equals(const Node* other) const {
 
 ImplicitCast::ImplicitCast(Builder& builder, const ValueVar* src, const TypeVar* dst) : ValueDef(builder.arena, dst), Node(builder.arena), src(src), dst(dst) {
     assert(src->is_var());
-    assert(src->type()->subtype(builder.scope, dst));
+    assert(src->type()->subtype(dst));
 }
 
 size_t ImplicitCast::hash() const {

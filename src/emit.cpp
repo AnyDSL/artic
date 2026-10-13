@@ -710,81 +710,85 @@ const thorin::Def* Emitter::cast_pointers(
     const thorin::Def* addr = def;
     if (!is_compatible(from_addr_type, to_addr_type)) {
         // We have to downcast the value pointed at
-        assert(from_addr_type->pointee->subtype(scope(), to_addr_type->pointee));
-        auto casted_val = down_cast(load(def, debug), scope(), from_addr_type->pointee, to_addr_type->pointee, debug);
+        assert(from_addr_type->pointee->subtype(to_addr_type->pointee));
+        auto casted_val = down_cast(load(def, debug), from_addr_type->pointee, to_addr_type->pointee, debug);
         addr = addr_of(casted_val, debug);
     }
     return world.bitcast(to_addr_type->convert(*this), addr, debug);
 }
 
-const thorin::Def* Emitter::down_cast(const thorin::Def* def, const Scope& start_scope, const Type* from, const Type* to, thorin::Debug debug) {
+const thorin::Def* Emitter::down_cast(const thorin::Def* def, const TypeVar* from, const TypeVar* to, thorin::Debug debug) {
     // This function mirrors the subtyping relation and thus should be kept in sync
-    assert(from->subtype(start_scope, to));
+    assert(from->subtype(to));
 
-    const Scope* lhs_scope = &start_scope;
-    const Scope* rhs_scope = &start_scope;
-    while (auto var = from->isa<TypeVar>()) {
-        auto [resolved, resolved_scope] = resolve_type_var_deep(*lhs_scope, var);
-        from = resolved->as<Type>();
-        lhs_scope = &resolved_scope;
-    }
-    while (auto var = to->isa<TypeVar>()) {
-        auto [resolved, resolved_scope] = resolve_type_var_deep(*rhs_scope, var);
-        to = resolved->as<Type>();
-        rhs_scope = &resolved_scope;
-    }
+    // const Scope* lhs_scope = &start_scope;
+    // const Scope* rhs_scope = &start_scope;
+    // while (auto var = from->isa<TypeVar>()) {
+    //     auto [resolved, resolved_scope] = resolve_type_var_deep(*lhs_scope, var);
+    //     from = resolved->as<Type>();
+    //     lhs_scope = &resolved_scope;
+    // }
+    // while (auto var = to->isa<TypeVar>()) {
+    //     auto [resolved, resolved_scope] = resolve_type_var_deep(*rhs_scope, var);
+    //     to = resolved->as<Type>();
+    //     rhs_scope = &resolved_scope;
+    // }
+    //
+    // const Scope& scope = *unify_scopes(lhs_scope, rhs_scope);
 
-    const Scope& scope = *unify_scopes(lhs_scope, rhs_scope);
+    auto [from_var, from_def] = lookup_type_var(*from->binder, from);
+    auto [to_var, to_def] = lookup_type_var(*to->binder, to);
 
-    if (to == from || to->isa<TopType>())
+    if (to_var == from_var || match_type_var<TopType>(*to->binder, to))
         return def;
 
-    if (from->isa<BottomType>())
+    if (match_type_var<BottomType>(*from->binder, from))
         return world.bottom(to->convert(*this));
 
-    if (to->isa<ImplicitParamType>())
+    if (match_type_var<ImplicitParamType>(*to->binder, to))
         return def;
 
-    auto to_ptr_type = to->isa<PtrType>();
+    auto to_ptr_type = match_type_var<PtrType>(*to->binder, to);
     // Casting a value to a pointer to the type of the value effectively creates an allocation
     if (to_ptr_type &&
         !to_ptr_type->is_mut &&
         to_ptr_type->addr_space == 0 &&
-        from->subtype(scope, to_ptr_type->pointee))
-        return world.bitcast(to->convert(*this), addr_of(down_cast(def, scope, from, to_ptr_type->pointee, debug)), debug);
+        from->subtype(to_ptr_type->pointee))
+        return world.bitcast(to->convert(*this), addr_of(down_cast(def, from, to_ptr_type->pointee, debug)), debug);
 
-    if (auto from_ref_type = from->isa<RefType>()) {
-        if (to_ptr_type && from_ref_type->is_compatible_with(to_ptr_type) && from_ref_type->pointee->subtype(scope, to_ptr_type->pointee))
+    if (auto from_ref_type = match_type_var<RefType>(*from->binder, from)) {
+        if (to_ptr_type && from_ref_type->is_compatible_with(to_ptr_type) && from_ref_type->pointee->subtype(to_ptr_type->pointee))
             return cast_pointers(def, from_ref_type, to_ptr_type, debug);
-        return down_cast(load(def, debug), scope, from_ref_type->pointee, to, debug);
-    } else if (auto from_ptr_type = from->isa<PtrType>(); from_ptr_type && to_ptr_type) {
+        return down_cast(load(def, debug), from_ref_type->pointee, to, debug);
+    } else if (auto from_ptr_type = match_type_var<PtrType>(*from->binder, from); from_ptr_type && to_ptr_type) {
         assert(from_ptr_type->is_compatible_with(to_ptr_type));
         return cast_pointers(def, from_ptr_type, to_ptr_type, debug);
-    } else if (auto from_sized_array_type = from->isa<SizedArrayType>()) {
+    } else if (auto from_sized_array_type = match_type_var<SizedArrayType>(*from->binder, from)) {
         // Here, the returned value does not have the target type (it is a definite array instead
         // of an indefinite one). This is because Thorin does not have indefinite array values.
         // However, this is not important since indefinite arrays can only be used with pointers,
         // and we always emit bitcasts when down-casting those.
-        auto to_elem = to->as<ArrayType>()->elem;
+        auto to_elem = to_def->as<ArrayType>()->elem;
         thorin::Array<const thorin::Def*> elems(from_sized_array_type->size);
         for (size_t i = 0, n = from_sized_array_type->size; i < n; ++i)
-            elems[i] = down_cast(world.extract(def, i), scope, from_sized_array_type->elem, to_elem, debug);
+            elems[i] = down_cast(world.extract(def, i), from_sized_array_type->elem, to_elem, debug);
         return world.definite_array(to_elem->convert(*this), elems, debug);
-    } else if (auto from_tuple_type = from->isa<TupleType>()) {
+    } else if (auto from_tuple_type = match_type_var<TupleType>(*from->binder, from)) {
         thorin::Array<const thorin::Def*> ops(from_tuple_type->args.size());
         for (size_t i = 0, n = ops.size(); i < n; ++i)
-            ops[i] = down_cast(world.extract(def, i, debug), scope, from_tuple_type->args[i], to->as<TupleType>()->args[i], debug);
+            ops[i] = down_cast(world.extract(def, i, debug), from_tuple_type->args[i], to_def->as<TupleType>()->args[i], debug);
         return world.tuple(ops, debug);
-    } else if (auto from_fn_type = from->isa<FnType>()) {
+    } else if (auto from_fn_type = match_type_var<FnType>(*from->binder, from)) {
         auto _ = save_state();
         auto cont = world.continuation(to->convert(*this)->as<thorin::FnType>(), debug);
         enter(cont);
-        auto param = down_cast(tuple_from_params(cont, true), scope, to->as<FnType>()->dom, from_fn_type->dom, debug);
+        auto param = down_cast(tuple_from_params(cont, true), to_def->as<FnType>()->dom, from_fn_type->dom, debug);
         // No-ret functions downcast to returning ones, but call() can't work with those (see also CallExpr, IfExpr)
-        if (resolve_type_var(scope, from->as<FnType>()->codom)->isa<artic::NoRetType>()) {
+        auto codom_def = resolve_type_var(*from_fn_type->codom->binder, from_fn_type->codom);
+        if (codom_def->isa<artic::NoRetType>()) {
             jump(def, param, debug);
         } else {
-            auto value = down_cast(call(def, param, debug), scope, from_fn_type->codom, to->as<FnType>()->codom, debug);
+            auto value = down_cast(call(def, param, debug), from_fn_type->codom, to_def->as<FnType>()->codom, debug);
             jump(cont->params().back(), value, debug);
         }
         return cont;
@@ -1319,7 +1323,7 @@ const thorin::Def* Undef::emit(Emitter& emitter) const {
 }
 
 const thorin::Def* ImplicitCast::emit(Emitter& emitter) const {
-    return emitter.down_cast(emitter.emit(src), emitter.scope(), src->type(), dst);
+    return emitter.down_cast(emitter.emit(src), src->type(), dst);
 }
 
 const thorin::Def* tir::Cast::emit(Emitter& emitter) const {
