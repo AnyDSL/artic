@@ -242,14 +242,19 @@ const Node* Function::rewrite(Rewriter& r) const {
 
     AbstractBuilder fn_builder(r.builder());
     fn_builder.register_var(nparam);
-    Rewriter::BuilderGuard guard(r, fn_builder);
     auto nfn = r.builder().unsafe().function(nparam, fn_builder.scope, ncodom, decl);
     //r.insert(this, nfn);
     r.insert(param, nparam);
-    if (body_)
-        nfn->set_body(r.builder(), r.instantiate(*body_, false));
-    if (filter_)
-        nfn->set_filter(r.builder(), r.instantiate(*filter_, false));
+    if (body_) {
+        LetRecBuilder builder(fn_builder.arena, fn_builder.scope, nullptr);
+        Rewriter::BuilderGuard guard(r, builder);
+        nfn->set_body(r.builder(), builder.finish_value(r.instantiate(*body_, false)));
+    }
+    if (filter_) {
+        LetRecBuilder builder(fn_builder.arena, fn_builder.scope, nullptr);
+        Rewriter::BuilderGuard guard(r, builder);
+        nfn->set_filter(r.builder(), builder.finish_value(r.instantiate(*filter_, false)));
+    }
     if (linkage)
         nfn->linkage = linkage;
     return nfn;
@@ -336,7 +341,9 @@ const Node* Seq::rewrite(Rewriter& r) const {
             }
         }
     }
-    return as_value(builder.finish(r.instantiate(yield)));
+    LetRecBuilder letrec_builder(builder.arena, builder.scope, nullptr);
+    Rewriter::BuilderGuard guard2(r, letrec_builder);
+    return as_value(builder.finish(letrec_builder.finish_value(r.instantiate(yield))));
 }
 
 const Node* UnOp::rewrite(Rewriter& r) const {
