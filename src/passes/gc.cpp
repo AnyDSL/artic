@@ -37,7 +37,7 @@ struct GC : public Rewriter {
                 }
                 auto var = lookup(ovar)->as<Var>();
                 auto instantiated = builder.maybe_schedule(instantiate(oval, false));
-                auto dst = builder.find_builder_for_scope(instantiated->binder);
+                auto dst = builder.find_suitable_builder(instantiated->binder, instantiated);
                 dst->bind(var, instantiated);
                 // auto fvs = instantiated->free_variables();
                 // if (schedulable(fvs)) {

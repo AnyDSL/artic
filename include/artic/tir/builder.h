@@ -167,7 +167,7 @@ struct Builder : public artic::Cast<Builder> {
 
     std::tuple<const Var*, Builder*> locate(const Def*);
 
-    Builder* find_builder_for_scope(const Scope*);
+    Builder* find_suitable_builder(const Scope*, const Node*);
 
     std::vector<std::unique_ptr<Builder>> children;
 

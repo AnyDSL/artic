@@ -120,7 +120,7 @@ struct TypeExtractor : public Rewriter {
                 for (auto [ovar, oval] : letrec->vars) {
                     auto var = lookup(ovar)->as<Var>();
                     auto instantiated = builder.maybe_schedule(instantiate(oval, false));
-                    auto dst = builder.find_builder_for_scope(instantiated->binder);
+                    auto dst = builder.find_suitable_builder(instantiated->binder, instantiated);
                     dst->bind(var, instantiated);
                     // auto [_, dst] = builder.locate(def);
                     // assert(dst);

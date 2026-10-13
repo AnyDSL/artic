@@ -77,7 +77,7 @@ struct LowerApp : public Rewriter {
         }
         instantiated_stuff.emplace(std::move(key), var);
         auto instantiated = builder().enclosing_let_rec().maybe_schedule(ctor->instantiate_with<LowerApp>(dst, args, builder().enclosing_let_rec(), *this));
-        auto dst = builder().find_builder_for_scope(instantiated->binder);
+        auto dst = builder().find_suitable_builder(instantiated->binder, instantiated);
         dst->bind(var, instantiated);
         //auto def_fvset = def->Node::free_variables();
         //if (schedulable(def_fvset)) {

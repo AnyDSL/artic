@@ -766,6 +766,13 @@ const ModVar* ModuleBuilder::import_mod_var(const ModVar* mod_var) {
     return import(mod_var)->as<ModVar>();
 }*/
 
+void LetRecBuilder::bind(const Var* var, const Node* value) {
+    //assert(!contents.contains(var));
+    assert(value != var);
+    contents.emplace_back(var, value);
+    scope.insert(var, value);
+}
+
 const Scope* Builder::vars_scope(const Node::FVSet& fvs) {
     const Scope* s = &scope.root();
     for (auto fv : fvs) {
@@ -786,16 +793,11 @@ static const Scope* get_node_scope_helper(Builder& builder, const Node* node) {
     return builder.vars_scope(fvs);
 }
 
-void LetRecBuilder::bind(const Var* var, const Node* value) {
-    //assert(!contents.contains(var));
-    assert(value != var);
-    contents.emplace_back(var, value);
-    scope.insert(var, value);
-}
-
-Builder* Builder::find_builder_for_scope(const Scope* scope) {
+Builder* Builder::find_suitable_builder(const Scope* scope, const Node* node) {
     Builder* dst = nullptr;
     for (Builder* b = this; b; b = b->parent) {
+        if (!b->may_bind(node))
+            continue;
         if (b->scope.is_child_of(scope)) {
             dst = b;
         }
@@ -812,7 +814,7 @@ std::tuple<const Var*, Builder*> Builder::locate(const Def* node) {
     assert(scope.is_child_of(node_scope) && "this node cannot be scheduled here or in any parent module, it has free variables that would not be bound");
 
     // find the corresponding module builder
-    Builder* dst = find_builder_for_scope(node_scope);
+    Builder* dst = find_suitable_builder(node_scope, node);
 
     assert(dst && "failed to find the matching builder for the dst scope");
     auto found = dst->scope.bound_defs.find(node);
