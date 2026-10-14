@@ -2545,11 +2545,12 @@ const tir::Var* MatchExpr::check(TypeChecker& checker, const artic::TypeVar* exp
     auto arg = checker.deref(this->arg);
     const TypeVar* type = expected;
 
-    auto yield_fn_type = checker.builder().type_var(std::nullopt);
+    auto yield_fn_type = checker.builder().type_var(Identifier { loc, "match_yield_t" });
+    b.tie_var(yield_fn_type);
     if (expected)
         checker.builder().enclosing_let_rec().bind(yield_fn_type, b.fn_type(type, b.no_ret_type()));
     // auto yield_fn_type = checker.builder().fn_type(yield_type, checker.builder().no_ret_type());
-    auto yield_param = checker.builder().value_var(Identifier { loc, "yield" }, yield_fn_type);
+    auto yield_param = checker.builder().value_var(Identifier { loc, "match_yield" }, yield_fn_type);
     auto control_fn = checker.build_fn(yield_param, [&]() -> ValueExpr {
         std::vector<Match::Case> cases;
         for (auto& case_ : this->cases) {
@@ -2563,7 +2564,7 @@ const tir::Var* MatchExpr::check(TypeChecker& checker, const artic::TypeVar* exp
                 auto body = type ? checker.coerce(&*case_->expr, type) : checker.deref(case_->expr);
                 if (!type) {
                     type = body->type();
-                    checker.builder().enclosing_let_rec().bind(yield_fn_type, b.fn_type(type, b.no_ret_type()));
+                    b.bind(yield_fn_type, b.fn_type(type, b.no_ret_type()));
                 }
                 return case_builder.finish(case_builder.call(yield_param, body));
             });
