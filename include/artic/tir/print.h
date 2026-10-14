@@ -12,7 +12,7 @@ namespace tir {
 struct TypeVar;
 
 struct Printer {
-    Printer(artic::Printer& base, int max_depth = 1, bool resolve_unbound_vars = true)
+    Printer(artic::Printer& base, int max_depth = 0, bool resolve_unbound_vars = true)
         : base(base), max_depth(max_depth), resolve_unbound_vars(resolve_unbound_vars)
     {}
     Printer(const Printer&) = delete;

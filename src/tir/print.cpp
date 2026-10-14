@@ -35,13 +35,6 @@ void Printer::print(const Node& node, bool print_inline) {
     //     node.print(*this);
     //     return;
     // }
-    auto found = named.find(&node);
-    if (found != named.end()) {
-        top() << found->second;
-        return;
-    }
-    std::string node_name = unique_name(node);
-    insert(node, node_name);
 
     if (print_inline) {
         push();
@@ -50,6 +43,14 @@ void Printer::print(const Node& node, bool print_inline) {
         top().concat(s);
         return;
     }
+
+    auto found = named.find(&node);
+    if (found != named.end()) {
+        top() << found->second;
+        return;
+    }
+    std::string node_name = unique_name(node);
+    insert(node, node_name);
 
     int old_depth = depth;
     depth++;
@@ -283,7 +284,7 @@ void LetRec::print(Printer& p) const {
             p << p.endl();
     }
     p << p.unindent() << p.endl() << "} " << log::keyword_style("in") << " ";
-    p.print(*body());
+    p.print(*body(), true);
 }
 
 void Module::print(Printer& p) const {
