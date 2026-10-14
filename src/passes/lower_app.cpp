@@ -37,7 +37,7 @@ struct LowerApp : public Rewriter {
 
     LowerApp(Arena& src, Arena& dst, Map& stuff) : Rewriter(src, dst), instantiated_stuff(stuff) {}
 
-    LowerApp(Arena& src, Scope& s, Builder& b, LowerApp& p) : Rewriter(src, b.arena), s(&s), p(&p), instantiated_stuff(p.instantiated_stuff) {
+    LowerApp(Arena& src, Scope& s, LetRecBuilder& b, LowerApp& p) : Rewriter(src, b.arena), s(&s), p(&p), instantiated_stuff(p.instantiated_stuff) {
         builder_ = &b;
     }
 
@@ -62,7 +62,7 @@ struct LowerApp : public Rewriter {
         return true;
     }
 
-    const Var* instantiate_app(const App* app, const Constructor* ctor, ArrayRef<const Var*> args) {
+    const Var* instantiate_app(LetRecBuilder& target, const App* app, const Constructor* ctor, ArrayRef<const Var*> args) {
         Key key = { ctor, args };
         auto found = instantiated_stuff.find(key);
         if (found != instantiated_stuff.end())
@@ -75,10 +75,11 @@ struct LowerApp : public Rewriter {
         } else {
             assert(false);
         }
+        target.tie_var(var);
         instantiated_stuff.emplace(std::move(key), var);
-        auto instantiated = builder().enclosing_let_rec().maybe_schedule(ctor->instantiate_with<LowerApp>(dst, args, builder().enclosing_let_rec(), *this));
-        auto dst = builder().find_suitable_builder(instantiated->binder, instantiated);
-        dst->bind(var, instantiated);
+        auto instantiated = builder().enclosing_let_rec().maybe_schedule(ctor->instantiate_with<LowerApp>(dst, args, target, *this));
+        //auto dst = builder().find_suitable_builder(instantiated->binder, instantiated);
+        target.bind(var, instantiated);
         //auto def_fvset = def->Node::free_variables();
         //if (schedulable(def_fvset)) {
         //    auto [_, dst] = builder().enclosing_let_rec().locate(def);
@@ -101,7 +102,7 @@ struct LowerApp : public Rewriter {
             if (are_args_known(args)) {
                 auto constructor = resolve_ctor_var(*old_app->applicand()->binder, old_app->applicand())->isa<Constructor>();
                 if (constructor)
-                    return instantiate_app(old_app, constructor, args);
+                    return instantiate_app(builder().enclosing_let_rec(), old_app, constructor, args);
             }
             return old_app->rewrite(*this);
         }

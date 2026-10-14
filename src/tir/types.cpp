@@ -98,8 +98,8 @@ TypeApp::TypeApp(Builder& builder, const CtorVar* applicand, const ArrayRef<cons
     : TypeDef(), Node(builder.arena), App(applicand, args)
 {}
 
-TypeCtor::TypeCtor(Builder& builder, Scope& scope, const ArrayRef<const Var*>& params, const Type* body)
-    : Node(builder.arena), Constructor(builder.enclosing_let_rec(), scope, params, body) {
+TypeCtor::TypeCtor(Builder& builder, Scope& scope, const ArrayRef<const Var*>& params, TypeExpr body)
+    : Node(builder.arena), Constructor(builder.enclosing_let_rec(), scope, params, as_type(body)) {
     // assert(signature_->elem_kind == NodeKind::Ctor);
     // assert(signature->dom.size() == params.size());
     for (size_t i = 0; i < params.size(); i++) {
@@ -107,8 +107,8 @@ TypeCtor::TypeCtor(Builder& builder, Scope& scope, const ArrayRef<const Var*>& p
     }
 }
 
-LetRecType::LetRecType(Builder& builder, Scope& scope, const ArrayRef<std::tuple<const Var*, const Node*>>& vars, const Type* in)
-    : Node(builder.arena), TypeDef(), LetRec(scope, vars, in)
+LetRecType::LetRecType(Builder& builder, Scope& scope, const ArrayRef<std::tuple<const Var*, const Node*>>& vars, TypeExpr expr)
+    : Node(builder.arena), TypeDef(), LetRec(scope, vars, as_type(expr))
 {}
 
 bool LetRecType::equals(const Node* other) const {
@@ -742,7 +742,7 @@ bool EnumType::is_trivial() const {
 
 // Helpers -------------------------------------------------------------------------
 
-const TypeVar* member_type(Builder& b, const TypeDef* type, size_t idx) {
+const TypeVar* member_type(LetRecBuilder& b, const TypeDef* type, size_t idx) {
     //type = scope.peek_type(type);
 
     auto [type_app, body, body_s] = match_type_app_unapplied_generic(b.scope, type);
@@ -761,7 +761,10 @@ const TypeVar* member_type(Builder& b, const TypeDef* type, size_t idx) {
         } else {
             // non-struct enum options are immediately specialized
             if (type_app && member_type_app) {
-                return b.maybe_schedule_type(b.unsafe().type_app(member_type_app->applicand(), type_app->args)->instantiated(b));
+                LetRecBuilder lrb(b);
+                auto r = lrb.finish_type(b.unsafe().type_app(member_type_app->applicand(), type_app->args)->instantiated(lrb));
+                assert(r->isa<TypeVar>());
+                return b.maybe_schedule_type(r);
             }
         }
         return member_type;

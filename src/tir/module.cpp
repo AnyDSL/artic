@@ -339,8 +339,8 @@ bool ModModAccess::equals(const Node* other) const {
     assert(false && "TODO");
 }*/
 
-ModCtor::ModCtor(Builder& builder, Scope& scope, const ArrayRef<const Var*>& params, const Mod* body)
-    : Node(builder.arena), Constructor(builder.enclosing_let_rec(), scope, params, body) {
+ModCtor::ModCtor(Builder& builder, Scope& scope, const ArrayRef<const Var*>& params, ModExpr expr)
+    : Node(builder.arena), Constructor(builder.enclosing_let_rec(), scope, params, as_mod(expr)) {
     // assert(signature_->elem_kind == NodeKind::Ctor);
     // assert(signature->dom.size() == params.size());
     for (size_t i = 0; i < params.size(); i++) {
@@ -406,8 +406,8 @@ const SigVar* ModError::signature() const {
     return signature_;
 }
 
-LetRecMod::LetRecMod(Builder& builder, Scope& scope, const ArrayRef<std::tuple<const Var*, const Node*>>& vars, const Mod* in)
-    : Node(builder.arena), ModDef(), LetRec(scope, vars, in)
+LetRecMod::LetRecMod(Builder& builder, Scope& scope, const ArrayRef<std::tuple<const Var*, const Node*>>& vars, ModExpr expr)
+    : Node(builder.arena), ModDef(), LetRec(scope, vars, as_mod(expr))
 {}
 
 bool LetRecMod::equals(const Node* other) const {

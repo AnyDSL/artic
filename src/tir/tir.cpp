@@ -147,10 +147,10 @@ const Node* Constructor::instantiate_into(ArrayRef<const Var*> args, Rewriter& r
 }
 
 struct Specializer : public Rewriter {
-    Builder& b;
+    LetRecBuilder& b;
     Scope& s;
 
-    Specializer(Arena&, Scope& s, Builder& b) : Rewriter(b.arena, b.arena), b(b), s(s) {
+    Specializer(Arena&, Scope& s, LetRecBuilder& b) : Rewriter(b.arena, b.arena), b(b), s(s) {
         builder_ = &b;
     }
 
@@ -167,17 +167,17 @@ struct Specializer : public Rewriter {
     }
 };
 
-const Node* Constructor::instantiate(Builder& builder, ArrayRef<const Var*> args) const {
+const Node* Constructor::instantiate(LetRecBuilder& builder, ArrayRef<const Var*> args) const {
     return instantiate_with<Specializer>(builder.arena, args, builder);
 }
 
-const Node* App::instantiated(Builder& builder) const {
+const Node* App::instantiated(LetRecBuilder& builder) const {
     if (instantiated_)
         return instantiated_;
     auto constructor = resolve_ctor_var(builder.scope, applicand())->isa<Constructor>();
     assert(constructor);
     assert(&builder.arena == &arena);
-    return instantiated_ = constructor->instantiate(builder, args);
+    return instantiated_ = constructor->instantiate_with<Specializer>(builder.arena, args, builder);
 }
 
 LetRec::LetRec(Scope& scope, const ArrayRef<std::tuple<const Var*, const Node*>>& vars, const Node* in)
@@ -217,12 +217,12 @@ std::tuple<const App*, const Node*, const Scope&> match_app_unapplied(const Scop
     return { nullptr, def, scope };
 }
 
-std::pair<const App*, const Node*> match_app_applied(Builder& builder, const Def* def) {
+/*std::pair<const App*, const Node*> match_app_applied(Builder& builder, const Def* def) {
     if (auto app = def->isa<App>()) {
         return { app, app->instantiated(builder) };
     }
     return { nullptr, def };
-}
+}*/
 
 
 }

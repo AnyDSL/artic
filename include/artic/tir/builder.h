@@ -117,7 +117,7 @@ public:
     const TypeVar* top_type();
     const TypeVar* no_ret_type();
     const TypeVar* type_error();
-    const CtorVar* type_ctor(Scope&, const ArrayRef<const Var*>&, const Type*);
+    const CtorVar* type_ctor(Scope&, const ArrayRef<const Var*>&, TypeExpr);
 
     // Values
     const ValueVar* value_var(std::optional<ast::Identifier> id, const TypeVar*);
@@ -132,7 +132,7 @@ public:
     const ValueVar* undef(const TypeVar*);
     const ValueVar* error_value(const TypeVar*);
     const ValueVar* error_value();
-    const CtorVar* value_ctor(Scope&, const ArrayRef<const Var*>&, const Value*);
+    const CtorVar* value_ctor(Scope&, const ArrayRef<const Var*>&, ValueExpr);
 
     // Misc
     const CtorVar* ctor_var(std::optional<ast::Identifier> id, const SigVar*);
@@ -197,14 +197,14 @@ public:
         const ModError* mod_error();
 
         const Module* module(std::unordered_map<const Key*, const Node*>&&, const SigVar*, const ast::ModDecl* = nullptr);
-        const ModCtor* mod_ctor(Scope&, const ArrayRef<const Var*>&, const Mod*);
+        const ModCtor* mod_ctor(Scope&, const ArrayRef<const Var*>&, ModExpr);
         const ModApp* mod_app(const CtorVar*, const ArrayRef<const Var*>&);
         const Mod* mod_mod_access(const ModVar*, const Key*);
-        const Mod* mod_let_rec(const ArrayRef<std::tuple<const Var*, const Node*>>&, const Mod*);
+        const LetRecMod* mod_let_rec(const ArrayRef<std::tuple<const Var*, const Node*>>&, ModExpr);
 
         const Type* mod_type_access(const ModVar*, const Key*);
-        const Type* type_let_rec(const ArrayRef<std::tuple<const Var*, const Node*>>&, const Type*);
-        const TypeCtor* type_ctor(Scope&, const ArrayRef<const Var*>&, const Type*);
+        const LetRecType* type_let_rec(const ArrayRef<std::tuple<const Var*, const Node*>>&, TypeExpr);
+        const TypeCtor* type_ctor(Scope&, const ArrayRef<const Var*>&, TypeExpr);
         const TypeApp* type_app(const CtorVar*, const ArrayRef<const Var*>&);
 
         const ModSignature* mod_signature(std::unordered_map<const Key*, const SigVar*>&&);
@@ -214,7 +214,7 @@ public:
 
         const Value* mod_value_access(const ModVar*, const Key*);
         const LetRecValue* value_let_rec(const ArrayRef<std::tuple<const Var*, const Node*>>&, ValueExpr);
-        const ValueCtor* value_ctor(Scope&, const ArrayRef<const Var*>&, const Value*);
+        const ValueCtor* value_ctor(Scope&, const ArrayRef<const Var*>&, ValueExpr);
 
         const LocalVariable* local_variable(const TypeVar*);
         const Function* function(const ValueVar*, Scope&, const TypeVar* codom, const ast::FnDecl*);
@@ -276,8 +276,8 @@ struct LetRecBuilder : public Builder {
     void bind(const Var*, const Node*) override;
 
     // const LetRec* finish(const Node*);
-    const Type* finish_type(const Type*);
-    const Mod* finish_module(const Mod*);
+    TypeExpr finish_type(TypeExpr);
+    ModExpr finish_module(ModExpr);
     ValueExpr finish_value(ValueExpr);
 
 private:

@@ -14,7 +14,7 @@ std::unique_ptr<Root> TypeChecker::run(ast::ModDecl& module) {
     auto mod = infer_mod_decl(module);
     if (errors > 0)
         return nullptr;
-    root->root_module = builder.finish_module(mod->as<Mod>());
+    root->root_module = as_mod(builder.finish_module(mod->as<ModVar>()));
     return std::move(root);
 }
 
@@ -929,7 +929,7 @@ const Var* TypeChecker::maybe_polymorphic(const ast::Identifier& id, std::option
         if (auto type_var = inner_var->isa<TypeVar>())
             mod_builder.bind(self, mod_builder.type_ctor(ctor_scope, *type_params, mb->finish_type(type_var)));
         else if (auto value_var = inner_var->isa<ValueVar>())
-            mod_builder.bind(self, mod_builder.value_ctor(ctor_scope, *type_params, as_value(mb->finish_value(value_var))));
+            mod_builder.bind(self, mod_builder.value_ctor(ctor_scope, *type_params, mb->finish_value(value_var)));
         else if (auto mod_var = inner_var->isa<ModVar>())
             assert(false && "TODO");
             //mod_builder.bind(self, mod_builder.mod_ctor(ctor_builder->scope, *type_params, mb->finish_module(mod_var)));

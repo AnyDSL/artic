@@ -258,24 +258,24 @@ const Var* Builder::mod_access(const ModVar* src, const Key* key) {
     return nullptr;
 }
 
-const ModCtor* Builder::Unsafe::mod_ctor(Scope& scope, const ArrayRef<const Var*>& params, const Mod* contents) {
-    return builder.arena.insert<ModCtor>(builder, scope, params, contents);
+const ModCtor* Builder::Unsafe::mod_ctor(Scope& scope, const ArrayRef<const Var*>& params, ModExpr body) {
+    return builder.arena.insert<ModCtor>(builder, scope, params, body);
 }
 
-const TypeCtor* Builder::Unsafe::type_ctor(Scope& scope, const ArrayRef<const Var*>& params, const Type* contents) {
-    return builder.arena.insert<TypeCtor>(builder, scope, params, contents);
+const TypeCtor* Builder::Unsafe::type_ctor(Scope& scope, const ArrayRef<const Var*>& params, TypeExpr body) {
+    return builder.arena.insert<TypeCtor>(builder, scope, params, body);
 }
 
-const CtorVar* Builder::type_ctor(Scope& scope, const ArrayRef<const Var*>& params, const Type* contents) {
-    return schedule(unsafe().type_ctor(scope, params, contents))->as<CtorVar>();
+const CtorVar* Builder::type_ctor(Scope& scope, const ArrayRef<const Var*>& params, TypeExpr body) {
+    return schedule(unsafe().type_ctor(scope, params, body))->as<CtorVar>();
 }
 
-const ValueCtor* Builder::Unsafe::value_ctor(Scope& scope, const ArrayRef<const Var*>& params, const Value* contents) {
-    return builder.arena.insert<ValueCtor>(builder, scope, params, contents);
+const ValueCtor* Builder::Unsafe::value_ctor(Scope& scope, const ArrayRef<const Var*>& params, ValueExpr body) {
+    return builder.arena.insert<ValueCtor>(builder, scope, params, body);
 }
 
-const CtorVar* Builder::value_ctor(Scope& scope, const ArrayRef<const Var*>& params, const Value* contents) {
-    return schedule(unsafe().value_ctor(scope, params, contents))->as<CtorVar>();
+const CtorVar* Builder::value_ctor(Scope& scope, const ArrayRef<const Var*>& params, ValueExpr body) {
+    return schedule(unsafe().value_ctor(scope, params, body))->as<CtorVar>();
 }
 
 const CtorVar* Builder::ctor_var(std::optional<ast::Identifier> id, const SigVar* sig) {
@@ -912,22 +912,6 @@ const SigVar* Builder::schedule_sig(const SigDef* node, std::optional<ast::Ident
     return schedule(node, id)->as<SigVar>();
 }
 
-const Type* Builder::Unsafe::type_let_rec(const ArrayRef<std::tuple<const Var*, const Node*>>& contents, const Type* in) {
-    if (contents.empty())
-        return in;
-    if (contents.size() == 1 && std::get<0>(*contents.begin())->equals(in))
-        return std::get<1>(*contents.begin())->as<Type>();
-    return builder.arena.insert<LetRecType>(builder, builder.scope, contents, in);
-}
-
-const Mod* Builder::Unsafe::mod_let_rec(const ArrayRef<std::tuple<const Var*, const Node*>>& contents, const Mod* in) {
-    if (contents.empty())
-        return in;
-    if (contents.size() == 1 && std::get<0>(*contents.begin())->equals(in))
-        return std::get<1>(*contents.begin())->as<Mod>();
-    return builder.arena.insert<LetRecMod>(builder, builder.scope, contents, in);
-}
-
 std::vector<std::tuple<const Var*, const Node*>> LetRecBuilder::expand_contents() {
     std::vector<std::tuple<const Var*, const Node*>> contents;
     for (auto var : this->contents) {
@@ -937,20 +921,28 @@ std::vector<std::tuple<const Var*, const Node*>> LetRecBuilder::expand_contents(
     return contents;
 }
 
-const Type* LetRecBuilder::finish_type(const Type* in) {
-    assert(!finished);
-    finished = true;
-    if (auto def = in->isa<TypeDef>())
-        in = schedule_type(def);
-    return unsafe().type_let_rec(expand_contents(), in);
+const LetRecType* Builder::Unsafe::type_let_rec(const ArrayRef<std::tuple<const Var*, const Node*>>& contents, TypeExpr expr) {
+    return builder.arena.insert<LetRecType>(builder, builder.scope, contents, expr);
 }
 
-const Mod* LetRecBuilder::finish_module(const Mod* in) {
+TypeExpr LetRecBuilder::finish_type(TypeExpr expr) {
     assert(!finished);
     finished = true;
-    if (auto def = in->isa<ModDef>())
-        in = schedule_mod(def);
-    return unsafe().mod_let_rec(expand_contents(), in);
+    if (contents.empty())
+        return expr;
+    return unsafe().type_let_rec(expand_contents(), expr);
+}
+
+const LetRecMod* Builder::Unsafe::mod_let_rec(const ArrayRef<std::tuple<const Var*, const Node*>>& contents, ModExpr expr) {
+    return builder.arena.insert<LetRecMod>(builder, builder.scope, contents, expr);
+}
+
+ModExpr LetRecBuilder::finish_module(ModExpr expr) {
+    assert(!finished);
+    finished = true;
+    if (contents.empty())
+        return expr;
+    return unsafe().mod_let_rec(expand_contents(), expr);
 }
 
 const LetRecValue* Builder::Unsafe::value_let_rec(const ArrayRef<std::tuple<const Var*, const Node*>>& contents, ValueExpr expr) {
@@ -960,13 +952,8 @@ const LetRecValue* Builder::Unsafe::value_let_rec(const ArrayRef<std::tuple<cons
 ValueExpr LetRecBuilder::finish_value(ValueExpr expr) {
     assert(!finished);
     finished = true;
-    // if (auto def = expr->isa<ValueDef>())
-    //     in = schedule_value(def);
     if (contents.empty())
         return expr;
-    // directly let-bound definitions can be substituted
-    // if (contents.size() == 1 && std::get<0>(*contents.begin())->equals(in))
-    //     return std::get<1>(*contents.begin())->as<Value>();
     return unsafe().value_let_rec(expand_contents(), expr);
 }
 

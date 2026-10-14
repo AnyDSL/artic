@@ -36,6 +36,12 @@ template <typename T> using TypeMap = std::unordered_map<const Type*, T>;
 template <typename T> using TypeVarMap = std::unordered_map<const TypeVar*, T>;
 using ReplaceMap = TypeVarMap<const Type*>;
 
+struct LetRecType;
+
+using TypeExpr = std::variant<const LetRecType*, const TypeVar*>;
+const Type* as_type(const TypeExpr&);
+TypeExpr as_typeexpr(const Type*);
+
 /// Variance for a type variable appearing in a type. It represents the
 /// way the type changes when the type variable changes, with respect
 /// to the subtyping relation.
@@ -516,7 +522,7 @@ struct TypeApp : public TypeDef, public App {
     void bounds(LetRecBuilder& b, const Scope&, TypeVarMap<TypeBounds>&, const TypeVar*, bool) const override;
     bool is_sized(const Scope&, std::unordered_set<const Type*>&) const override;
 
-    const Type* instantiated(Builder& b) const override {
+    const Type* instantiated(LetRecBuilder& b) const override {
         return App::instantiated(b)->as<Type>();
     }
 
@@ -535,7 +541,7 @@ struct TypeCtor : public Constructor {
     void print(Printer&) const override;
     const Node* rewrite(Rewriter&) const override;
 
-    TypeCtor(Builder&, Scope&, const ArrayRef<const Var*>&, const Type*);
+    TypeCtor(Builder&, Scope&, const ArrayRef<const Var*>&, TypeExpr);
 };
 
 struct LetRecType : public TypeDef, public LetRec {
@@ -549,10 +555,10 @@ struct LetRecType : public TypeDef, public LetRec {
     const thorin::Type* convert_head(Emitter&) const override;
     const thorin::Type* convert(Emitter&) const override;
 
-    LetRecType(Builder&, Scope&, const ArrayRef<std::tuple<const Var*, const Node*>>&, const Type*);
+    LetRecType(Builder&, Scope&, const ArrayRef<std::tuple<const Var*, const Node*>>&, TypeExpr);
 };
 
-const TypeVar* member_type(Builder&, const TypeDef*, size_t);
+const TypeVar* member_type(LetRecBuilder&, const TypeDef*, size_t);
 
 bool is_int_type(const TypeDef*);
 bool is_float_type(const TypeDef*);

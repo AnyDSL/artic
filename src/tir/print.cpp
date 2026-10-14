@@ -49,6 +49,7 @@ void Printer::print(const Node& node, bool print_inline) {
         top() << found->second;
         return;
     }
+
     std::string node_name = unique_name(node);
     insert(node, node_name);
 
@@ -73,8 +74,8 @@ void Printer::print(const Node& node, bool print_inline) {
         if (!was_var)
             base << node_name << " = ";
         base << pop();
-        base << endl();
-        top() << node_name;
+        // base << endl();
+        // top() << node_name;
     } else {
         top() << node_name;
     }
@@ -578,6 +579,7 @@ void Proj::print(Printer& p) const {
     p.print(*idx);
     p << ')';
 }
+
 void Seq::print(Printer& p) const {
     p << log::keyword_style("seq") << " {" << p.indent() << p.endl();
     for (size_t i = 0; i < evaluate.size(); i++) {
@@ -730,8 +732,14 @@ void Node::dump_deep(int depth) const {
 void Node::dump_fvs() const {
     artic::Printer p(log::out);
     Printer tp(p, 1);
-    for (auto fv : free_variables())
+    int i = 1;
+    auto fvs = free_variables();
+    for (auto fv : fvs) {
         tp.print(*fv);
+        if (i++ < fvs.size()) {
+            p << ", ";
+        }
+    }
     p << '\n';
 }
 

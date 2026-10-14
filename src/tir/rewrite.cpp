@@ -13,7 +13,7 @@ namespace tir {
 void Rewriter::instantiate(Root& dst, const Root& old) {
     LetRecBuilder builder(dst);
     BuilderGuard guard(*this, builder);
-    dst.root_module = builder.finish_module(instantiate(old.root_module, true));
+    dst.root_module = as_mod(builder.finish_module(as_modexpr(instantiate(old.root_module, true))));
 }
 
 const PrimType* PrimType::rewrite(Rewriter& r) const {
@@ -132,7 +132,7 @@ const Node* ModCtor::rewrite(Rewriter& r) const {
     }
     auto body_builder = LetRecBuilder(ctor_builder);
     Rewriter::BuilderGuard guard(r, body_builder);
-    return r.builder().unsafe().mod_ctor(ctor_builder.scope, params, body_builder.finish_module(r.instantiate(body())));
+    return r.builder().unsafe().mod_ctor(ctor_builder.scope, params, body_builder.finish_module(as_modexpr(r.instantiate(body()))));
 }
 
 const Node* TypeCtor::rewrite(Rewriter& r) const {
@@ -145,7 +145,7 @@ const Node* TypeCtor::rewrite(Rewriter& r) const {
     }
     auto body_builder = LetRecBuilder(ctor_builder);
     Rewriter::BuilderGuard guard(r, body_builder);
-    return r.builder().unsafe().type_ctor(ctor_builder.scope, params, body_builder.finish_type(r.instantiate(body())));
+    return r.builder().unsafe().type_ctor(ctor_builder.scope, params, body_builder.finish_type(as_typeexpr(r.instantiate(body()))));
 }
 
 const Node* ValueCtor::rewrite(Rewriter& r) const {
@@ -158,7 +158,7 @@ const Node* ValueCtor::rewrite(Rewriter& r) const {
     }
     auto body_builder = LetRecBuilder(ctor_builder);
     Rewriter::BuilderGuard guard(r, body_builder);
-    return r.builder().unsafe().value_ctor(ctor_builder.scope, params, as_value(body_builder.finish_value(as_valueexpr(r.instantiate(body())))));
+    return r.builder().unsafe().value_ctor(ctor_builder.scope, params, body_builder.finish_value(as_valueexpr(r.instantiate(body()))));
 }
 
 const Node* CtorVar::rewrite(Rewriter& r) const {

@@ -160,6 +160,12 @@ struct ModVar : public Mod, public Var {
     ModVar(Builder&, std::optional<ast::Identifier> id, const SigVar*);
 };
 
+struct LetRecMod;
+
+using ModExpr = std::variant<const LetRecMod*, const ModVar*>;
+const Mod* as_mod(const ModExpr&);
+ModExpr as_modexpr(const Mod*);
+
 struct ModDef : public Mod, public Def {
 
 };
@@ -217,7 +223,7 @@ struct ModCtor : public Constructor {
         return Constructor::body()->as<Mod>();
     }
 
-    ModCtor(Builder&, Scope&, const ArrayRef<const Var*>&, const Mod*);
+    ModCtor(Builder&, Scope&, const ArrayRef<const Var*>&, ModExpr);
 };
 
 struct ModApp : public ModDef, public App {
@@ -230,7 +236,7 @@ struct ModApp : public ModDef, public App {
 
     const SigVar* signature() const override;
 
-    const Mod* instantiated(Builder& b) const override {
+    const Mod* instantiated(LetRecBuilder& b) const override {
         return App::instantiated(b)->as<Mod>();
     }
 
@@ -255,7 +261,7 @@ struct LetRecMod : public ModDef, public LetRec {
 
     void free_variables(FVSet&, Seen&) const override;
 
-    LetRecMod(Builder&, Scope&, const ArrayRef<std::tuple<const Var*, const Node*>>&, const Mod*);
+    LetRecMod(Builder&, Scope&, const ArrayRef<std::tuple<const Var*, const Node*>>&, ModExpr);
 };
 
 struct ModError : public ModDef {

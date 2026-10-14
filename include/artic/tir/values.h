@@ -54,6 +54,13 @@ struct ValueVar : public Value, public Var {
     mutable const thorin::Def* emitted = nullptr;
 };
 
+struct Seq;
+struct LetRecValue;
+
+using ValueExpr = std::variant<const Seq*, const LetRecValue*, const ValueVar*>;
+const Value* as_value(const ValueExpr&);
+ValueExpr as_valueexpr(const Value*);
+
 struct ValueDef : public Value, public Def {
     ValueDef(Arena& arena, const TypeVar* type) : Value(arena, type), Def() {}
 
@@ -95,7 +102,7 @@ struct ValueApp : public ValueDef, public App {
     const Value* rewrite(Rewriter&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
-    const Value* instantiated(Builder& b) const override {
+    const Value* instantiated(LetRecBuilder& b) const override {
         return App::instantiated(b)->as<Value>();
     }
 private:
@@ -113,15 +120,8 @@ struct ValueCtor : public Constructor {
     void print(Printer&) const override;
     const Node* rewrite(Rewriter&) const override;
 
-    ValueCtor(Builder&, Scope&, const ArrayRef<const Var*>&, const Value*);
+    ValueCtor(Builder&, Scope&, const ArrayRef<const Var*>&, ValueExpr);
 };
-
-struct Seq;
-struct LetRecValue;
-
-using ValueExpr = std::variant<const Seq*, const LetRecValue*, const ValueVar*>;
-const Value* as_value(const ValueExpr&);
-ValueExpr as_valueexpr(const Value*);
 
 struct LetRecValue : public ValueDef, public LetRec {
     const Value* body() const override {

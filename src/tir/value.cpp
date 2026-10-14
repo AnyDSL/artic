@@ -125,7 +125,7 @@ struct TypeExtractor : public Rewriter {
                     // assert(dst);
                     // dst->bind(lookup(ovar)->as<Var>(), def);
                 }
-                return builder.finish_type(instantiate(letrec->body()->type(), false));
+                return as_type(builder.finish_type(instantiate(letrec->body()->type(), false)));
             }
             return old->rewrite(*this)->as<Value>()->type();
         }
@@ -156,8 +156,8 @@ bool ValueApp::equals(const Node* other) const {
     return false;
 }
 
-ValueCtor::ValueCtor(Builder& builder, Scope& scope, const ArrayRef<const Var*>& params, const Value* body)
-    : Node(builder.arena), Constructor(builder.enclosing_let_rec(), scope, params, body)
+ValueCtor::ValueCtor(Builder& builder, Scope& scope, const ArrayRef<const Var*>& params, ValueExpr body)
+    : Node(builder.arena), Constructor(builder.enclosing_let_rec(), scope, params, as_value(body))
 {}
 
 const Value* as_value(const ValueExpr& expr) {

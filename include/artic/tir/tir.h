@@ -182,7 +182,7 @@ struct Constructor : public CtorDef {
         return instantiate_into(args, s);
     }
 
-    const Node* instantiate(Builder&, ArrayRef<const Var*> args) const;
+    const Node* instantiate(LetRecBuilder&, ArrayRef<const Var*> args) const;
 
     Constructor(LetRecBuilder&, Scope&, const ArrayRef<const Var*>&, const Node*);
 
@@ -216,7 +216,7 @@ struct App : virtual Node {
 
     // attempts forcefully instantiating the app but does not schedule the resulting node!
     // intended for use in 'peek' functions
-    virtual const Node* instantiated(Builder&) const;
+    virtual const Node* instantiated(LetRecBuilder&) const;
 
     App(const CtorVar*, const ArrayRef<const Var*>&);
 private:
@@ -226,7 +226,7 @@ private:
 const CtorDef* resolve_ctor_var(const Scope&, const CtorVar*);
 
 std::tuple<const App*, const Node*, const Scope&> match_app_unapplied(const Scope&, const Def*);
-std::pair<const App*, const Node*> match_app_applied(Builder& builder, const Def*);
+//std::pair<const App*, const Node*> match_app_applied(Builder& builder, const Def*);
 
 
 }
