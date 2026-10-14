@@ -1386,12 +1386,8 @@ const thorin::Def* Proj::emit(Emitter& emitter) const {
 
 const thorin::Def* Seq::emit(Emitter& emitter) const {
     assert(!evaluate.empty());
-    for (auto value : evaluate) {
-        if (auto bind = std::get_if<Bind>(&value)) {
-            bind->var->emitted = emitter.emit(bind->value);
-        } else {
-            emitter.emit(std::get<const ValueDef*>(value));
-        }
+    for (auto bind : evaluate) {
+        bind.var->emitted = emitter.emit(bind.value);
     }
     return emitter.emit(as_value(yield));
 }

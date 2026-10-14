@@ -327,26 +327,17 @@ const Node* Proj::rewrite(Rewriter& r) const {
 const Node* Seq::rewrite(Rewriter& r) const {
     ExprBuilder seq_builder(r.builder());
     Rewriter::BuilderGuard guard(r, seq_builder);
-    for (auto ev : evaluate) {
-        if (auto bind = std::get_if<Bind>(&ev)) {
-            auto new_value = r.instantiate<Value>(bind->value);
-            auto new_var = seq_builder.bind_value(new_value);
-            r.insert(bind->var, new_var);
-            // auto new_var = r.instantiate<ValueVar>(bind->var, true);
-            // r.insert(bind->var, new_var);
-            // auto new_value = r.instantiate<Value>(bind->value);
-            // // TODO: revisit this decision if we add any kind of constant folding
-            // assert(new_value->isa<Value>());
-            // builder.add_binding(new_var, new_value->as<Value>());
-        } else {
-            auto new_value = r.instantiate<Value>(std::get<const ValueDef*>(ev));
-            if (auto new_def = new_value->isa<ValueDef>())
-                seq_builder.add_instruction(new_def);
-            else {
-                assert(new_value->isa<ValueVar>());
-                // if it has become a variable, do nothing.
-            }
-        }
+    for (auto bind : evaluate) {
+        auto new_value = r.instantiate<Value>(bind.value);
+        assert(!new_value->isa<Def>() || !new_value->as<Def>()->bound_to);
+        auto new_var = seq_builder.bind_value(new_value);
+        r.insert(bind.var, new_var);
+        // auto new_var = r.instantiate<ValueVar>(bind->var, true);
+        // r.insert(bind->var, new_var);
+        // auto new_value = r.instantiate<Value>(bind->value);
+        // // TODO: revisit this decision if we add any kind of constant folding
+        // assert(new_value->isa<Value>());
+        // builder.add_binding(new_var, new_value->as<Value>());
     }
     LetRecBuilder letrec_builder(seq_builder);
     Rewriter::BuilderGuard guard2(r, letrec_builder);

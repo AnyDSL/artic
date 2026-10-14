@@ -286,7 +286,7 @@ const ValueVar* TypeChecker::build_loop(ast::LoopExpr& loop, const std::string& 
 
                 return yield_expr_scope([&](ExprBuilder& expr_builder) -> ValueExpr {
                     auto inner_control = expr_builder.control(inner_control_fn);
-                    return expr_builder.finish(inner_control);
+                    return inner_control;
                     //return builder().unsafe().call(head_fn_var, builder().unit());
                 });
             });
@@ -907,7 +907,7 @@ const Var* TypeChecker::maybe_polymorphic(const ast::Identifier& id, std::option
         }
         auto ctor_sig = mod_builder.ctor_signature(ctor_dom, kind);
         self = builder().ctor_var(id, ctor_sig);
-        self->binder = &mod_builder.scope;
+        mod_builder.tie_var(self);
 
         AbstractBuilder ctor_builder(*mb);
         Scope& ctor_scope = ctor_builder.scope;
@@ -3107,9 +3107,9 @@ const tir::Var* FnDecl::infer(TypeChecker& checker) {
 
             checker.check_refutability(*fn->param, true);
             const ValueVar* param = checker.builder().value_var(Identifier { fn->param->loc, "param" }, param_type);
-            auto fn_type = prev.fn_type(param->type(), codom);
+            auto fn_type = builder.fn_type(param->type(), codom);
             auto var = checker.builder().value_var(id, fn_type);
-            var->binder = &builder.scope;
+            builder.tie_var(var);
             set_head(var);
             this->var = self;
 
@@ -3124,15 +3124,16 @@ const tir::Var* FnDecl::infer(TypeChecker& checker) {
             if (fn->filter)
                 tir_fn->set_filter(checker.builder(), checker.build_fn_filter(param, *fn));
 
-            prev.bind(var, tir_fn);
+            builder.bind(var, tir_fn);
             checker.infer_fn_attrs(this, tir_fn);
 
             checker.exit_decl(this);
             return var;
         } else {
             auto fn_type_var = builder.type_var(std::nullopt);
+            builder.tie_var(fn_type_var);
             auto var = builder.value_var(id, fn_type_var);
-            var->binder = &builder.scope;
+            builder.tie_var(var);
             set_head(var);
             this->var = self;
             tir_fn = fn->infer_function(checker);
@@ -3172,7 +3173,7 @@ const tir::Var* StructDecl::infer(TypeChecker& checker) {
     return checker.maybe_polymorphic(id, params, NodeKind::Type, [&](auto& builder, auto& self, auto& set_head) -> const Var* {
         auto struct_type = builder.unsafe().struct_type(this);
         auto var = builder.type_var(id);
-        var->binder = &builder.scope;
+        builder.tie_var(var);
         set_head(var);
         this->var = self;
         for (auto& field : fields)
@@ -3279,7 +3280,7 @@ const tir::Var* OptionDecl::infer(TypeChecker& checker) {
         return checker.maybe_polymorphic(id, poly_shadow_helper.new_vars, NodeKind::Type, [&](auto& builder, auto& self, auto& set_head) -> const Var* {
             auto option_type = checker.infer_type(*param);
             auto var = builder.type_var(id);
-            var->binder = &builder.scope;
+            builder.tie_var(var);
             set_head(var);
             this->var = self;
             builder.bind(var, option_type);
@@ -3292,7 +3293,7 @@ const tir::Var* OptionDecl::infer(TypeChecker& checker) {
         struct_type = checker.maybe_polymorphic(id, poly_shadow_helper.new_vars, NodeKind::Type, [&](auto& builder, auto& self, auto& set_head) -> const Var* {
             auto struct_type = builder.unsafe().struct_type(this);
             auto var = builder.type_var(id);
-            var->binder = &builder.scope;
+            builder.tie_var(var);
             set_head(var);
             this->var = self;
             for (auto& field : fields)
@@ -3316,7 +3317,7 @@ const tir::Var* EnumDecl::infer(TypeChecker& checker) {
     return checker.maybe_polymorphic(id, params, NodeKind::Type, [&](auto& builder, auto& self, auto& set_head) -> const Var* {
         auto enum_type = checker.builder().unsafe().enum_type(this);
         auto var = builder.type_var(id);
-        var->binder = &builder.scope;
+        builder.tie_var(var);
         set_head(var);
         this->var = self;
         for (auto& option : options) {
@@ -3450,9 +3451,9 @@ const tir::Var* TypeDecl::infer(TypeChecker& checker) {
 const tir::ModVar* ModDecl::infer_head(TypeChecker& checker) {
     LetRecBuilder& parent_builder = checker.let_rec_builder();
     sig = parent_builder.sig_var(id);
-    sig->binder = &parent_builder.scope;
+    parent_builder.tie_var(sig);
     self = parent_builder.mod_var(id, sig);
-    self->binder = &parent_builder.scope;
+    parent_builder.tie_var(self);
     builder = &parent_builder;
     return self;
 }

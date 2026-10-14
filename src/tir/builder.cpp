@@ -550,10 +550,6 @@ void ExprBuilder::bind(const Var* var, const Node* node) {
     add_binding(value_var, value);
 }
 
-void ExprBuilder::add_instruction(const ValueDef* instruction) {
-    seq.emplace_back(instruction);
-}
-
 void ExprBuilder::add_binding(const ValueVar* var, const Value* value) {
     assert(may_bind(value));
     seq.emplace_back(Seq::Bind(var, value));
@@ -564,8 +560,9 @@ const ValueVar* ExprBuilder::bind_value(const Value* value) {
     if (auto var = value->isa<ValueVar>())
         return var;
     auto def = value->isa<Def>();
-    if (def->bound_to)
-        return def->bound_to->as<ValueVar>();
+    assert(!def->bound_to);
+    //if (def->bound_to)
+    //    return def->bound_to->as<ValueVar>();
     auto param = this->value_var(std::nullopt, value->type());
     bind(param, def);
     return param;
@@ -582,6 +579,8 @@ ExprBuilder::ExprBuilder(Builder& parent)
 // }
 
 ValueExpr ExprBuilder::finish(ValueExpr expr) {
+    assert(!finished);
+    finished = true;
     // std::vector<const ValueDef*> filtered_values;
     // for (size_t i = 0; i < seq.size(); i++) {
     //     auto value = seq[i]->isa<ValueDef>();
@@ -769,6 +768,10 @@ const ModVar* ModuleBuilder::import_mod_var(const ModVar* mod_var) {
     return import(mod_var)->as<ModVar>();
 }*/
 
+void LetRecBuilder::tie_var(const Var* var) {
+    scope.insert(var, nullptr);
+}
+
 void LetRecBuilder::reserve_bind(const Var* var) {
     scope.insert(var, nullptr);
     if (std::find(contents.begin(), contents.end(), var) == contents.end())
@@ -777,6 +780,10 @@ void LetRecBuilder::reserve_bind(const Var* var) {
 
 void LetRecBuilder::bind(const Var* var, const Node* value) {
     assert(value != var);
+    if (auto def = value->isa<Def>()) {
+        if (def->bound_to)
+            value = def->bound_to;
+    }
     scope.insert(var, value);
     if (std::find(contents.begin(), contents.end(), var) == contents.end())
        contents.emplace_back(var);
@@ -931,12 +938,16 @@ std::vector<std::tuple<const Var*, const Node*>> LetRecBuilder::expand_contents(
 }
 
 const Type* LetRecBuilder::finish_type(const Type* in) {
+    assert(!finished);
+    finished = true;
     if (auto def = in->isa<TypeDef>())
         in = schedule_type(def);
     return unsafe().type_let_rec(expand_contents(), in);
 }
 
 const Mod* LetRecBuilder::finish_module(const Mod* in) {
+    assert(!finished);
+    finished = true;
     if (auto def = in->isa<ModDef>())
         in = schedule_mod(def);
     return unsafe().mod_let_rec(expand_contents(), in);
@@ -947,6 +958,8 @@ const LetRecValue* Builder::Unsafe::value_let_rec(const ArrayRef<std::tuple<cons
 }
 
 ValueExpr LetRecBuilder::finish_value(ValueExpr expr) {
+    assert(!finished);
+    finished = true;
     // if (auto def = expr->isa<ValueDef>())
     //     in = schedule_value(def);
     if (contents.empty())

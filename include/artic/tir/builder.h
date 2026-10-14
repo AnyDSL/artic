@@ -271,6 +271,7 @@ struct LetRecBuilder : public Builder {
     LetRecBuilder(Root&);
     ~LetRecBuilder();
 
+    void tie_var(const Var*);
     void reserve_bind(const Var*);
     void bind(const Var*, const Node*) override;
 
@@ -282,6 +283,7 @@ struct LetRecBuilder : public Builder {
 private:
     std::vector<std::tuple<const Var*, const Node*>> expand_contents();
 
+    bool finished = false;
     std::vector<const Var*> contents;
     //std::vector<std::tuple<const Var*, const Node*>> contents;
     friend ast::StructDecl;
@@ -293,7 +295,6 @@ struct ExprBuilder : public Builder {
     bool may_bind(const Node*) override;
     void bind(const Var*, const Node*) override;
 
-    void add_instruction(const ValueDef*);
     void add_binding(const ValueVar*, const Value*);
 
     /// Accepts either a ValueVar or a ValueDef
@@ -332,7 +333,8 @@ struct ExprBuilder : public Builder {
     ValueExpr finish_branch(const ValueVar*, const Function*, const Function*);
 private:
 
-    std::vector<std::variant<const ValueDef*, Seq::Bind>> seq;
+    bool finished = false;
+    std::vector<Seq::Bind> seq;
     friend Seq;
     friend TypeChecker;
 };

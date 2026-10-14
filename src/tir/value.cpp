@@ -216,7 +216,7 @@ ImplicitCast::ImplicitCast(Builder& builder, const ValueVar* src, const TypeVar*
     assert(src->type()->subtype(dst));
 }
 
-size_t ImplicitCast::hash() const {
+/*size_t ImplicitCast::hash() const {
     return fnv::Hash().combine(src).combine(dst);
 }
 
@@ -224,13 +224,13 @@ bool ImplicitCast::equals(const Node* other) const {
     if (auto other_implicit_cast = other->isa<ImplicitCast>())
         return other_implicit_cast->src == src && other_implicit_cast->dst == dst;
     return false;
-}
+}*/
 
 Cast::Cast(Arena& arena, const ValueVar* src, const TypeVar* dst) : ValueDef(arena, dst), Node(arena), src(src), dst(dst) {
     assert(src->is_var());
 }
 
-size_t Cast::hash() const {
+/*size_t Cast::hash() const {
     return fnv::Hash().combine(src).combine(dst);
 }
 
@@ -238,7 +238,7 @@ bool Cast::equals(const Node* other) const {
     if (auto other_cast = other->isa<Cast>())
         return other_cast->src == src && other_cast->dst == dst;
     return false;
-}
+}*/
 
 TypedLiteral::TypedLiteral(Builder& builder, Literal lit, const TypeVar* type) : ValueDef(builder.arena, type), Node(builder.arena), value(lit) {
     assert(type->is_var());
@@ -374,7 +374,7 @@ Extract::Extract(Builder& builder, const ValueVar* src, const ValueVar* idx) : V
     assert(idx->is_var());
 }
 
-size_t Extract::hash() const {
+/*size_t Extract::hash() const {
     return fnv::Hash().combine(src).combine(idx);
 }
 
@@ -384,7 +384,7 @@ bool Extract::equals(const Node* other) const {
             return true;
     }
     return false;
-}
+}*/
 
 Variant::Variant(Builder& builder, const TypeVar* type, size_t idx, const ValueVar* elem)
     : Node(builder.arena), ValueDef(builder.arena, type), index(idx), elem(elem) {
@@ -408,7 +408,7 @@ VariantIndex::VariantIndex(Builder& builder, const ValueVar* src)
     assert(src->is_var());
 }
 
-size_t VariantIndex::hash() const {
+/*size_t VariantIndex::hash() const {
     return fnv::Hash().combine(src);
 }
 
@@ -417,7 +417,7 @@ bool VariantIndex::equals(const Node* other) const {
         return other_variant->src == src;
     }
     return false;
-}
+}*/
 
 VariantExtract::VariantExtract(Builder& builder, const ValueVar* src, size_t idx) : Node(builder.arena), ValueDef(builder.arena, [&]() -> const TypeVar* {
     auto resolved_src_type = resolve_type_var(builder.scope, src->type());
@@ -426,7 +426,7 @@ VariantExtract::VariantExtract(Builder& builder, const ValueVar* src, size_t idx
     assert(src->is_var());
 }
 
-size_t VariantExtract::hash() const {
+/*size_t VariantExtract::hash() const {
     return fnv::Hash().combine(src).combine(index);
 }
 
@@ -435,7 +435,7 @@ bool VariantExtract::equals(const Node* other) const {
         return other_variant->src == src && other_variant->index == index;
     }
     return false;
-}
+}*/
 
 Repeat::Repeat(Builder& builder, const TypeVar* type, const ValueVar* elem) : ValueDef(builder.arena, type), Node(builder.arena), elem(elem) {
     auto peeked_arr_type = resolve_type_var(builder.scope, type);
@@ -504,7 +504,7 @@ Proj::Proj(Builder& builder, const ValueVar* src, const ValueVar* idx) : ValueDe
     assert(idx->is_var());
 }
 
-size_t Proj::hash() const {
+/*size_t Proj::hash() const {
     return fnv::Hash().combine(src).combine(idx);
 }
 
@@ -514,7 +514,7 @@ bool Proj::equals(const Node* other) const {
             return true;
     }
     return false;
-}
+}*/
 
 /*Bind::Bind(Builder& builder, const ValueVar* param, const Value* value) : ValueDef(builder.arena, [&]() -> const TypeVar* {
     if (!value->type()->subtype(builder.scope, param->type())) {
@@ -535,7 +535,7 @@ bool Bind::equals(const Node* other) const {
     return false;
 }*/
 
-Seq::Seq(Builder& builder, const ArrayRef<std::variant<const ValueDef*, Bind>>& evaluate, ValueExpr expr) : ValueDef(builder.arena, as_value(expr)->type()), Node(builder.arena), evaluate(evaluate), yield(expr) {
+Seq::Seq(Builder& builder, const ArrayRef<Bind>& evaluate, ValueExpr expr) : ValueDef(builder.arena, as_value(expr)->type()), Node(builder.arena), evaluate(evaluate), yield(expr) {
     assert(!evaluate.empty());
     for (auto e : evaluate) {
         // if (auto bind = std::get_if<Bind>(&e)) {
@@ -545,7 +545,7 @@ Seq::Seq(Builder& builder, const ArrayRef<std::variant<const ValueDef*, Bind>>& 
     }
 }
 
-size_t Seq::hash() const {
+/*size_t Seq::hash() const {
     auto h = fnv::Hash().combine(as_value(yield));
     for (auto e : evaluate) {
         if (auto bind = std::get_if<Bind>(&e)) {
@@ -583,7 +583,7 @@ bool Seq::equals(const Node* other) const {
         return true;
     }
     return false;
-}
+}*/
 
 using namespace artic::ast;
 
@@ -607,7 +607,7 @@ UnOp::UnOp(Builder& builder, const UnaryExpr::Tag tag, const ValueVar* arg) : Va
     assert(arg->is_var());
 }
 
-size_t UnOp::hash() const {
+/*size_t UnOp::hash() const {
     return fnv::Hash().combine(tag).combine(arg);
 }
 
@@ -617,7 +617,7 @@ bool UnOp::equals(const Node* other) const {
             return true;
     }
     return false;
-}
+}*/
 
 BinOp::BinOp(Builder& builder, const BinaryExpr::Tag tag, const ValueVar* lhs, const ValueVar* rhs) : ValueDef(builder.arena, [&]() -> const TypeVar* {
     if (BinaryExpr::has_eq(tag)) {
@@ -633,7 +633,7 @@ BinOp::BinOp(Builder& builder, const BinaryExpr::Tag tag, const ValueVar* lhs, c
     assert(rhs->is_var());
 }
 
-size_t BinOp::hash() const {
+/*size_t BinOp::hash() const {
     return fnv::Hash().combine(tag).combine(lhs).combine(rhs);
 }
 
@@ -643,7 +643,7 @@ bool BinOp::equals(const Node* other) const {
             return true;
     }
     return false;
-}
+}*/
 
 Builtin::Builtin(Builder& builder, Tag tag, const ArrayRef<const Var*>& args) : ValueDef(builder.arena, [&]() -> const TypeVar* {
     switch (tag) {
@@ -669,7 +669,7 @@ Builtin::Builtin(Builder& builder, Tag tag, const ArrayRef<const Var*>& args) : 
         assert(arg->is_var());
 }
 
-size_t Builtin::hash() const {
+/*size_t Builtin::hash() const {
     auto h = fnv::Hash();
     h = h.combine(tag);
     for (auto arg : args)
@@ -690,7 +690,7 @@ bool Builtin::equals(const Node* other) const {
         return true;
     }
     return false;
-}
+}*/
 
 MathOp::MathOp(Builder& builder, thorin::MathOpTag tag, const ArrayRef<const ValueVar*>& args)
 : ValueDef(builder.arena, args[0]->type()), Node(builder.arena), tag(tag), args(args) {
@@ -698,7 +698,7 @@ MathOp::MathOp(Builder& builder, thorin::MathOpTag tag, const ArrayRef<const Val
         assert(arg->is_var());
 }
 
-size_t MathOp::hash() const {
+/*size_t MathOp::hash() const {
     auto h = fnv::Hash();
     h = h.combine(tag);
     for (auto arg : args)
@@ -719,7 +719,7 @@ bool MathOp::equals(const Node* other) const {
         return true;
     }
     return false;
-}
+}*/
 
 Branch::Branch(Builder& builder, const ValueVar* cond, const Function* true_branch, const Function* else_branch) : ValueDef(builder.arena, [&]() -> const TypeVar* {
     if (!is_bool_type(resolve_type_var(builder.scope, cond->type())))
@@ -737,7 +737,7 @@ Branch::Branch(Builder& builder, const ValueVar* cond, const Function* true_bran
     assert(cond->is_var());
 }
 
-size_t Branch::hash() const {
+/*size_t Branch::hash() const {
     return fnv::Hash().combine(cond).combine(true_branch).combine(else_branch);
 }
 
@@ -747,7 +747,7 @@ bool Branch::equals(const Node* other) const {
             return true;
     }
     return false;
-}
+}*/
 
 Match::Match(Builder& builder, const Loc& loc, const ValueVar* value, Array<Case>&& cases)
 : Node(builder.arena), ValueDef(builder.arena, builder.enclosing_let_rec().no_ret_type()), loc(loc), value(value), cases(std::move(cases)) {
@@ -771,7 +771,7 @@ Control::Control(Builder& builder, const Function* fn) : ValueDef(builder.arena,
     return builder.enclosing_let_rec().type_error();
 }()), Node(builder.arena), body(fn) {}
 
-size_t Control::hash() const {
+/*size_t Control::hash() const {
     return fnv::Hash().combine(body);
 }
 
@@ -781,7 +781,7 @@ bool Control::equals(const Node* other) const {
             return true;
     }
     return false;
-}
+}*/
 
 // Free variables ------------------------------------------------------------------
 
@@ -874,15 +874,11 @@ void Seq::free_variables(FVSet& vars, Seen& seen) const {
     FVSet rhs;
     as_value(yield)->free_variables(rhs, seen);
     for (size_t i = evaluate.size() - 1; i < evaluate.size(); i--) {
-        auto instr = evaluate[i];
-        if (auto bind = std::get_if<Bind>(&instr)) {
-            bind->value->free_variables(rhs, seen);
-            rhs.erase(bind->var);
-            bind->value->type()->free_variables(rhs, seen);
-            bind->var->type()->free_variables(rhs, seen);
-        } else {
-            std::get<const ValueDef*>(instr)->free_variables(rhs, seen);
-        }
+        auto bind = evaluate[i];
+        bind.value->free_variables(rhs, seen);
+        rhs.erase(bind.var);
+        bind.value->type()->free_variables(rhs, seen);
+        bind.var->type()->free_variables(rhs, seen);
     }
     vars.merge(rhs);
 }

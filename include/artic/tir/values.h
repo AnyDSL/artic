@@ -230,8 +230,8 @@ struct ImplicitCast : public ValueDef {
     const ValueVar* src;
     const TypeVar* dst;
 
-    bool equals(const Node*) const override;
-    size_t hash() const override;
+    // bool equals(const Node*) const override;
+    // size_t hash() const override;
 
     void print(Printer&) const override;
     const Node* rewrite(Rewriter&) const override;
@@ -246,8 +246,8 @@ struct Cast : public ValueDef {
     const ValueVar* src;
     const TypeVar* dst;
 
-    bool equals(const Node*) const override;
-    size_t hash() const override;
+    // bool equals(const Node*) const override;
+    // size_t hash() const override;
 
     void print(Printer&) const override;
     const Node* rewrite(Rewriter&) const override;
@@ -309,8 +309,8 @@ struct Extract : public ValueDef {
     const ValueVar* src;
     const ValueVar* idx;
 
-    bool equals(const Node*) const override;
-    size_t hash() const override;
+    // bool equals(const Node*) const override;
+    // size_t hash() const override;
 
     void print(Printer&) const override;
     const Node* rewrite(Rewriter&) const override;
@@ -346,8 +346,8 @@ struct Variant : public ValueDef {
 struct VariantIndex : public ValueDef {
     const ValueVar* src;
 
-    bool equals(const Node*) const override;
-    size_t hash() const override;
+    // bool equals(const Node*) const override;
+    // size_t hash() const override;
 
     void print(Printer&) const override;
     const Node* rewrite(Rewriter&) const override;
@@ -362,8 +362,8 @@ struct VariantExtract : public ValueDef {
     const ValueVar* src;
     size_t index;
 
-    bool equals(const Node*) const override;
-    size_t hash() const override;
+    // bool equals(const Node*) const override;
+    // size_t hash() const override;
 
     void print(Printer&) const override;
     const Node* rewrite(Rewriter&) const override;
@@ -394,8 +394,8 @@ struct Proj : public ValueDef {
     const ValueVar* src;
     const ValueVar* idx;
 
-    bool equals(const Node*) const override;
-    size_t hash() const override;
+    // bool equals(const Node*) const override;
+    // size_t hash() const override;
 
     void print(Printer&) const override;
     const Node* rewrite(Rewriter&) const override;
@@ -412,11 +412,11 @@ struct Seq : public ValueDef {
         const Value* value;
     };
 
-    Array<std::variant<const ValueDef*, Bind>> evaluate;
+    Array<Bind> evaluate;
     ValueExpr yield;
 
-    bool equals(const Node*) const override;
-    size_t hash() const override;
+    // bool equals(const Node*) const override;
+    // size_t hash() const override;
 
     void print(Printer&) const override;
     const Node* rewrite(Rewriter&) const override;
@@ -424,15 +424,15 @@ struct Seq : public ValueDef {
 
     const thorin::Def* emit(Emitter&) const override;
 
-    Seq(Builder&, const ArrayRef<std::variant<const ValueDef*, Bind>>&, ValueExpr);
+    Seq(Builder&, const ArrayRef<Bind>&, ValueExpr);
 };
 
 struct UnOp : public ValueDef {
     ast::UnaryExpr::Tag tag;
     const ValueVar* arg;
 
-    bool equals(const Node*) const override;
-    size_t hash() const override;
+    // bool equals(const Node*) const override;
+    // size_t hash() const override;
 
     void print(Printer&) const override;
     const Node* rewrite(Rewriter&) const override;
@@ -448,8 +448,9 @@ struct BinOp : public ValueDef {
     const ValueVar* lhs;
     const ValueVar* rhs;
 
-    bool equals(const Node*) const override;
-    size_t hash() const override;
+    // bool equals(const Node*) const override;
+    // size_t hash() const override;
+
     void free_variables(FVSet&, Seen&) const override;
 
     void print(Printer&) const override;
@@ -493,8 +494,9 @@ struct Builtin : public ValueDef {
 
     Array<const Var*> args;
 
-    bool equals(const Node*) const override;
-    size_t hash() const override;
+    // bool equals(const Node*) const override;
+    // size_t hash() const override;
+
     void free_variables(FVSet&, Seen&) const override;
 
     void print(Printer&) const override;
@@ -509,8 +511,9 @@ struct MathOp : public ValueDef {
     thorin::MathOpTag tag;
     Array<const ValueVar*> args;
 
-    bool equals(const Node*) const override;
-    size_t hash() const override;
+    // bool equals(const Node*) const override;
+    // size_t hash() const override;
+
     void free_variables(FVSet&, Seen&) const override;
 
     void print(Printer&) const override;
@@ -526,8 +529,9 @@ struct Branch : public ValueDef {
     const Function* true_branch;
     const Function* else_branch;
 
-    bool equals(const Node*) const override;
-    size_t hash() const override;
+    // bool equals(const Node*) const override;
+    // size_t hash() const override;
+
     void free_variables(FVSet&, Seen&) const override;
 
     void print(Printer&) const override;
@@ -600,8 +604,8 @@ struct Match : public ValueDef {
     const ValueVar* value;
     Array<Case> cases;
 
-    //bool equals(const Node*) const override;
-    //size_t hash() const override;
+    // bool equals(const Node*) const override;
+    // size_t hash() const override;
 
     void print(Printer&) const override;
     const Node* rewrite(Rewriter&) const override;
@@ -635,8 +639,9 @@ struct Switch : public ValueDef {
 struct Control : public ValueDef {
     const Function* body;
 
-    bool equals(const Node*) const override;
-    size_t hash() const override;
+    // bool equals(const Node*) const override;
+    // size_t hash() const override;
+
     void free_variables(FVSet&, Seen&) const override;
 
     void print(Printer&) const override;
