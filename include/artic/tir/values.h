@@ -176,8 +176,8 @@ struct Call : public ValueDef {
     const ValueVar* callee;
     const ValueVar* arg;
 
-    bool equals(const Node*) const override;
-    size_t hash() const override;
+    // bool equals(const Node*) const override;
+    // size_t hash() const override;
 
     void print(Printer&) const override;
     const Node* rewrite(Rewriter&) const override;

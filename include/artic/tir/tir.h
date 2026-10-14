@@ -27,6 +27,7 @@ struct Printer;
 struct Scope;
 struct Var;
 struct Sig;
+struct Root;
 
 log::Output& operator << (log::Output&, const Node&);
 
@@ -119,6 +120,8 @@ struct Var : virtual public Node {
 
 struct Def : virtual public Node {
     virtual bool is_var() const final { return false; }
+
+    mutable const Var* bound_to = nullptr;
 };
 
 static inline bool schedulable(Node::FVSet& set) {

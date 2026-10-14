@@ -41,9 +41,9 @@ struct Scope {
     std::tuple<const Def*, const Scope&> resolve_def_deep(const Def*) const;
     std::tuple<const Def*, const Scope&> resolve_deep(const Node*) const;
 
+private:
     Scope& new_child();
     void insert(const Var*, const Node*);
-private:
 
     std::vector<std::unique_ptr<Scope>> child_scopes;
     std::unordered_map<const Var*, const Node*> vars;
@@ -54,8 +54,10 @@ private:
 
     friend Module;
     friend Function;
-    friend TypeChecker;
+    //friend TypeChecker;
     friend ExprBuilder;
+    friend LetRecBuilder;
+    friend AbstractBuilder;
     friend Builder;
     friend Ctor;
 };

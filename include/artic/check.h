@@ -117,18 +117,8 @@ public:
     void infer_fn_attrs(const ast::FnDecl* fn_decl, const Function* fn);
     void infer_global_attrs(const ast::StaticDecl* decl, const GlobalVariable* fn);
 
-    // template<typename T, typename Fn>
-    // T with_expr_scope(Fn f) {
-    //     T r;
-    //     run_expr_scope([&](ExprBuilder& eb) {
-    //         r = f(eb);
-    //     });
-    //     return r;
-    // }
-
     ValueExpr with_expr_scope(const std::function<ValueExpr(ExprBuilder&)>& f);
     ValueExpr yield_expr_scope(const std::function<ValueExpr(ExprBuilder&)>& f);
-    //void run_expr_scope(const std::function<void(ExprBuilder&)>& f);
 
     template<typename Fn>
     const Value* with_expr_builder(ExprBuilder& builder, Fn f) {

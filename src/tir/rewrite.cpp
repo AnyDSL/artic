@@ -11,7 +11,7 @@ namespace artic {
 namespace tir {
 
 void Rewriter::instantiate(Root& dst, const Root& old) {
-    LetRecBuilder builder(*dst.arena, dst.scope, nullptr);
+    LetRecBuilder builder(dst);
     BuilderGuard guard(*this, builder);
     dst.root_module = builder.finish_module(instantiate(old.root_module, true));
 }
@@ -124,41 +124,41 @@ const Node* Module::rewrite(Rewriter& r) const {
 
 const Node* ModCtor::rewrite(Rewriter& r) const {
     Rewriter::MapGuard map_guard(r);
-    Scope& scope = r.builder().scope.new_child();
+    AbstractBuilder ctor_builder(r.builder());
     Array<const Var*> params(this->params.size());
     for (size_t i = 0; i < params.size(); i++) {
         r.insert(this->params[i], params[i] = r.instantiate(this->params[i], true));
-        scope.insert(params[i], nullptr);
+        ctor_builder.register_var(params[i]);
     }
-    auto ctor_builder = LetRecBuilder(r.dst, scope, &r.builder());
-    Rewriter::BuilderGuard guard(r, ctor_builder);
-    return r.builder().unsafe().mod_ctor(scope, params, ctor_builder.finish_module(r.instantiate(body())));
+    auto body_builder = LetRecBuilder(ctor_builder);
+    Rewriter::BuilderGuard guard(r, body_builder);
+    return r.builder().unsafe().mod_ctor(ctor_builder.scope, params, body_builder.finish_module(r.instantiate(body())));
 }
 
 const Node* TypeCtor::rewrite(Rewriter& r) const {
     Rewriter::MapGuard map_guard(r);
-    Scope& scope = r.builder().scope.new_child();
+    AbstractBuilder ctor_builder(r.builder());
     Array<const Var*> params(this->params.size());
     for (size_t i = 0; i < params.size(); i++) {
         r.insert(this->params[i], params[i] = r.instantiate(this->params[i], true));
-        scope.insert(params[i], nullptr);
+        ctor_builder.register_var(params[i]);
     }
-    auto ctor_builder = LetRecBuilder(r.dst, scope, &r.builder());
-    Rewriter::BuilderGuard guard(r, ctor_builder);
-    return r.builder().unsafe().type_ctor(scope, params, ctor_builder.finish_type(r.instantiate(body())));
+    auto body_builder = LetRecBuilder(ctor_builder);
+    Rewriter::BuilderGuard guard(r, body_builder);
+    return r.builder().unsafe().type_ctor(ctor_builder.scope, params, body_builder.finish_type(r.instantiate(body())));
 }
 
 const Node* ValueCtor::rewrite(Rewriter& r) const {
     Rewriter::MapGuard map_guard(r);
-    Scope& scope = r.builder().scope.new_child();
+    AbstractBuilder ctor_builder(r.builder());
     Array<const Var*> params(this->params.size());
     for (size_t i = 0; i < params.size(); i++) {
         r.insert(this->params[i], params[i] = r.instantiate(this->params[i], true));
-        scope.insert(params[i], nullptr);
+        ctor_builder.register_var(params[i]);
     }
-    auto ctor_builder = LetRecBuilder(r.dst, scope, &r.builder());
-    Rewriter::BuilderGuard guard(r, ctor_builder);
-    return r.builder().unsafe().value_ctor(scope, params, as_value(ctor_builder.finish_value(as_valueexpr(r.instantiate(body())))));
+    auto body_builder = LetRecBuilder(ctor_builder);
+    Rewriter::BuilderGuard guard(r, body_builder);
+    return r.builder().unsafe().value_ctor(ctor_builder.scope, params, as_value(body_builder.finish_value(as_valueexpr(r.instantiate(body())))));
 }
 
 const Node* CtorVar::rewrite(Rewriter& r) const {
@@ -179,24 +179,28 @@ const Node* ModError::rewrite(Rewriter& r) const {
 }
 
 void Rewriter::rewrite_letrec(Builder& builder, const LetRec* old) {
+    LetRecBuilder& target = builder.enclosing_let_rec();
     for (auto [ovar, _] : old->vars) {
-        insert(ovar, instantiate(ovar, true));
+        auto var = instantiate(ovar, true);
+        insert(ovar, var);
+        target.reserve_bind(var);
     }
     for (auto [ovar, oval] : old->vars) {
         auto var = lookup(ovar)->as<Var>();
         auto val = instantiate(oval, false);
-        auto instantiated = builder.maybe_schedule(val);
-        if (auto def = instantiated->isa<Def>()) {
-            auto fvs = def->free_variables();
-            if (schedulable(fvs)) {
-                auto [_, dst] = builder.locate(def);
-                dst->bind(var, def);
-            } else {
-                builder.bind(var, instantiated);
-            }
-        } else {
-            builder.bind(var, instantiated);
-        }
+        target.bind(var, val);
+        // auto instantiated = builder.maybe_schedule(val);
+        // if (auto def = instantiated->isa<Def>()) {
+        //     auto fvs = def->free_variables();
+        //     if (schedulable(fvs)) {
+        //         auto [_, dst] = builder.locate(def);
+        //         dst->bind(var, def);
+        //     } else {
+        //         builder.bind(var, instantiated);
+        //     }
+        // } else {
+        //     builder.bind(var, instantiated);
+        // }
     }
 }
 
@@ -246,12 +250,12 @@ const Node* Function::rewrite(Rewriter& r) const {
     //r.insert(this, nfn);
     r.insert(param, nparam);
     if (body_) {
-        LetRecBuilder builder(fn_builder.arena, fn_builder.scope, nullptr);
+        LetRecBuilder builder(fn_builder);
         Rewriter::BuilderGuard guard(r, builder);
         nfn->set_body(r.builder(), builder.finish_value(r.instantiate(*body_, false)));
     }
     if (filter_) {
-        LetRecBuilder builder(fn_builder.arena, fn_builder.scope, nullptr);
+        LetRecBuilder builder(fn_builder);
         Rewriter::BuilderGuard guard(r, builder);
         nfn->set_filter(r.builder(), builder.finish_value(r.instantiate(*filter_, false)));
     }
@@ -321,29 +325,32 @@ const Node* Proj::rewrite(Rewriter& r) const {
 }
 
 const Node* Seq::rewrite(Rewriter& r) const {
-    ExprBuilder builder(r.builder());
-    Rewriter::BuilderGuard guard(r, builder);
+    ExprBuilder seq_builder(r.builder());
+    Rewriter::BuilderGuard guard(r, seq_builder);
     for (auto ev : evaluate) {
         if (auto bind = std::get_if<Bind>(&ev)) {
-            auto new_var = r.instantiate<ValueVar>(bind->var, true);
-            r.insert(bind->var, new_var);
             auto new_value = r.instantiate<Value>(bind->value);
-            // TODO: revisit this decision if we add any kind of constant folding
-            assert(new_value->isa<Value>());
-            builder.add_binding(new_var, new_value->as<Value>());
+            auto new_var = seq_builder.bind_value(new_value);
+            r.insert(bind->var, new_var);
+            // auto new_var = r.instantiate<ValueVar>(bind->var, true);
+            // r.insert(bind->var, new_var);
+            // auto new_value = r.instantiate<Value>(bind->value);
+            // // TODO: revisit this decision if we add any kind of constant folding
+            // assert(new_value->isa<Value>());
+            // builder.add_binding(new_var, new_value->as<Value>());
         } else {
             auto new_value = r.instantiate<Value>(std::get<const ValueDef*>(ev));
             if (auto new_def = new_value->isa<ValueDef>())
-                builder.add_instruction(new_def);
+                seq_builder.add_instruction(new_def);
             else {
                 assert(new_value->isa<ValueVar>());
                 // if it has become a variable, do nothing.
             }
         }
     }
-    LetRecBuilder letrec_builder(builder.arena, builder.scope, nullptr);
+    LetRecBuilder letrec_builder(seq_builder);
     Rewriter::BuilderGuard guard2(r, letrec_builder);
-    return as_value(builder.finish(letrec_builder.finish_value(r.instantiate(yield))));
+    return as_value(seq_builder.finish(letrec_builder.finish_value(r.instantiate(yield))));
 }
 
 const Node* UnOp::rewrite(Rewriter& r) const {

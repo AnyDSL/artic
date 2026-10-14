@@ -10,8 +10,7 @@ struct GC : public Rewriter {
 
     const Node* rewrite(const Node* old, bool imm) override {
         if (auto let_rec = old->isa<LetRec>()) {
-            Scope& scope = builder().scope.new_child();
-            LetRecBuilder builder(dst, scope, is_root() ? nullptr : &this->builder());
+            LetRecBuilder builder(this->builder());
             BuilderGuard guard(*this, builder);
 
             Node::FVSet used;

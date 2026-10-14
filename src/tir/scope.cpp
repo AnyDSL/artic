@@ -12,8 +12,19 @@ void Scope::insert(const Var* var, const Node* value) {
     assert(!vars.contains(var) || (vars[var] == nullptr));
     vars[var] = value;
     var->binder = this;
-    if (auto def = value->isa<Def>())
-        bound_defs[def] = var;
+    for (auto fv : var->Node::free_variables()) {
+        assert(find_scope(fv) && "var has unbound free variables");
+    }
+    if (value) {
+        for (auto fv : value->free_variables()) {
+            assert(find_scope(fv) && "value has unbound free variables");
+        }
+        if (auto def = value->isa<Def>()) {
+            bound_defs[def] = var;
+            assert(!def->bound_to || def->bound_to == var);
+            def->bound_to = var;
+        }
+    }
 }
 
 const Node* Scope::lookup_var_single(const Var* var) const {

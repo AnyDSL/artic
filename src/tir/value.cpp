@@ -111,8 +111,7 @@ struct TypeExtractor : public Rewriter {
                 // }
                 // assert(xtract);
                 // return letrec->rewrite(*this);
-                Scope& scope = builder().scope.new_child();
-                LetRecBuilder builder(dst, scope, is_root() ? nullptr : &this->builder());
+                LetRecBuilder builder(this->builder());
                 Rewriter::BuilderGuard guard(*this, builder);
                 for (auto [ovar, _] : letrec->vars) {
                     insert(ovar, instantiate(ovar, true));
@@ -187,7 +186,7 @@ LetRecValue::LetRecValue(Builder& builder, Scope& scope, const ArrayRef<std::tup
 
 void LetRecValue::free_variables(FVSet& vars, Seen& seen) const {
     LetRec::free_variables(vars, seen);
-    type()->free_variables(vars, seen);
+    // type()->free_variables(vars, seen);
 }
 
 bool LetRecValue::equals(const Node* other) const {
@@ -202,7 +201,7 @@ Call::Call(Builder& builder, const ValueVar* callee, const ValueVar* arg) : Valu
     assert(arg->is_var());
 }
 
-size_t Call::hash() const {
+/*size_t Call::hash() const {
     return fnv::Hash().combine(callee).combine(arg);
 }
 
@@ -210,7 +209,7 @@ bool Call::equals(const Node* other) const {
     if (auto other_app = other->isa<Call>())
         return other_app->callee == callee && other_app->arg == arg;
     return false;
-}
+}*/
 
 ImplicitCast::ImplicitCast(Builder& builder, const ValueVar* src, const TypeVar* dst) : ValueDef(builder.arena, dst), Node(builder.arena), src(src), dst(dst) {
     assert(src->is_var());

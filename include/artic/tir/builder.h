@@ -69,9 +69,11 @@ struct Builder : public artic::Cast<Builder> {
     Scope& scope;
     Builder* parent;
 
+protected:
     Builder(Arena& arena, Scope& scope, Builder* parent)
         : arena(arena), scope(scope), parent(parent), unsafe_(*this)
     {}
+public:
     Builder(const Builder&) = delete;
     virtual ~Builder() {}
 
@@ -265,9 +267,11 @@ struct Builder : public artic::Cast<Builder> {
 };
 
 struct LetRecBuilder : public Builder {
-    LetRecBuilder(Arena& arena, Scope&, Builder* parent);
+    LetRecBuilder(Builder&);
+    LetRecBuilder(Root&);
     ~LetRecBuilder();
 
+    void reserve_bind(const Var*);
     void bind(const Var*, const Node*) override;
 
     // const LetRec* finish(const Node*);
@@ -276,7 +280,10 @@ struct LetRecBuilder : public Builder {
     ValueExpr finish_value(ValueExpr);
 
 private:
-    std::vector<std::tuple<const Var*, const Node*>> contents;
+    std::vector<std::tuple<const Var*, const Node*>> expand_contents();
+
+    std::vector<const Var*> contents;
+    //std::vector<std::tuple<const Var*, const Node*>> contents;
     friend ast::StructDecl;
 };
 

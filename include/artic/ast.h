@@ -35,6 +35,7 @@ namespace tir {
     struct SigVar;
     struct Builder;
     struct LetRecBuilder;
+    struct AbstractBuilder;
     enum class NodeKind;
 }
 

@@ -9,7 +9,7 @@ namespace artic {
 
 std::unique_ptr<Root> TypeChecker::run(ast::ModDecl& module) {
     root = std::make_unique<Root>();
-    LetRecBuilder builder(arena(), root->scope, nullptr);
+    LetRecBuilder builder(*root);
     TypeChecker::BuilderGuard guard(*this, builder);
     auto mod = infer_mod_decl(module);
     if (errors > 0)
@@ -193,9 +193,10 @@ ValueExpr TypeChecker::build_fn_body(const ValueVar* param, ast::FnExpr& fn, con
 const ValueVar* TypeChecker::build_if(const ast::IfExpr& expr, const IfBuilderFn& f) {
     auto& b = builder().enclosing_let_rec();
     //auto yield_fn_type = b.fn_type(yield_type, b.no_ret_type());
-    auto yield_fn_type = b.type_var(std::nullopt);
+    auto yield_fn_type = b.type_var(ast::Identifier { expr.loc, "if_yield_t" });
+    b.reserve_bind(yield_fn_type);
 
-    auto yield_param = builder().value_var(ast::Identifier { expr.loc, "yield" }, yield_fn_type);
+    auto yield_param = builder().value_var(ast::Identifier { expr.loc, "if_yield" }, yield_fn_type);
     auto control_fn = build_fn(yield_param, [&]() -> ValueExpr {
         AbstractBuilder true_fn_builder(builder());
         auto true_param = builder().value_var(std::nullopt, b.unit_type());
@@ -250,6 +251,7 @@ const ValueVar* TypeChecker::build_loop(ast::LoopExpr& loop, const std::string& 
 
     auto outer_control_fn = build_fn([&](auto& send_param) -> ValueExpr {
         auto body_type_var = b.type_var(ast::Identifier { loop.loc, loop_name + "_body_t" });
+        b.reserve_bind(body_type_var);
 
         //auto outer_yield_type = b.fn_type(b.unit_type(), builder().no_ret_type());
         auto outer_yield_type = b.fn_type(body_type_var, b.no_ret_type());
@@ -264,6 +266,7 @@ const ValueVar* TypeChecker::build_loop(ast::LoopExpr& loop, const std::string& 
             return build_fn(loop_param, [&]() -> ValueExpr {
                 auto inner_control_fn = build_fn([&](auto& send_param) -> ValueExpr {
                     auto body_codom_type_var = b.type_var(ast::Identifier { loop.loc, loop_name + "_body_codom_t" });
+                    b.reserve_bind(body_codom_type_var);
                     auto inner_yield_type = b.fn_type(body_codom_type_var,  b.no_ret_type());
                     auto inner_yield_param = b.value_var(ast::Identifier { loop.loc, loop_name + "_continue" }, inner_yield_type);
                     send_param(inner_yield_param);
@@ -273,7 +276,7 @@ const ValueVar* TypeChecker::build_loop(ast::LoopExpr& loop, const std::string& 
                     auto receive_type = [&](const tir::Type* t) {
                         assert(!received_type);
                         received_type = t;
-                        b.enclosing_let_rec().bind(body_codom_type_var, t);
+                        b.bind(body_codom_type_var, t);
                     };
                     return inner_body_f(receive_type, inner_yield_param, loop_param);
                     //const ValueVar* inner_body = inner_body_f(receive_type, loop_param);
@@ -295,7 +298,7 @@ const ValueVar* TypeChecker::build_loop(ast::LoopExpr& loop, const std::string& 
         auto receive_type = [&](const tir::Type* t) {
             assert(!received_type);
             received_type = t;
-            b.enclosing_let_rec().bind(body_type_var, t);
+            b.bind(body_type_var, t);
         };
         auto outer_body = loop_builder(receive_type, make_inner);
         assert(received_type);
@@ -481,9 +484,8 @@ const ValueVar* TypeChecker::build_block(ast::BlockExpr& expr, ExprBuilder& expr
                     last_expected = true;
                 if (auto rec_stmt = expr.stmts[i]->isa<ast::RecDeclsStmt>()) {
                     // oh that's weird
-                    Scope& scope = builder().scope.new_child();
                     Builder& parent = builder();
-                    LetRecBuilder builder(arena(), scope, &parent);
+                    LetRecBuilder builder(parent);
                     rec_stmt->builder = &builder;
                     BuilderGuard guard(*this, builder);
                     // switch back to expression mode
@@ -909,8 +911,7 @@ const Var* TypeChecker::maybe_polymorphic(const ast::Identifier& id, std::option
 
         AbstractBuilder ctor_builder(*mb);
         Scope& ctor_scope = ctor_builder.scope;
-        Scope& ctor_body_scope = ctor_scope.new_child();
-        LetRecBuilder ctor_body_builder(arena(), ctor_body_scope, mb);
+        LetRecBuilder ctor_body_builder(ctor_builder);
 
         for (auto p : *type_params) {
             assert(!p->binder);
@@ -2628,12 +2629,12 @@ const tir::Var* WhileExpr::infer(TypeChecker& checker) {
     TypeChecker::LoopBuilderFn make_loop = [&](const auto& set_break_type, const auto& inner_maker) -> ValueExpr {
         set_break_type(b.unit_type());
 
-        Scope& outer_scope = checker.scope().new_child();
-        LetRecBuilder rec_builder(checker.arena(), outer_scope, &checker.builder());
+        LetRecBuilder rec_builder(checker.builder());
         TypeChecker::BuilderGuard guard(checker, rec_builder);
 
         auto head_fn_type = b.fn_type(b.unit_type(), b.no_ret_type());
         auto head_fn_var = b.value_var(ast::Identifier { loc, "while_head" }, head_fn_type);
+        rec_builder.reserve_bind(head_fn_var);
 
         auto wrapped_body = rec_builder.maybe_schedule_value(inner_maker(b.unit_type(), make_inner));
         auto head_fn = checker.build_fn(b.value_var(ast::Identifier { loc, "_" }, b.unit_type()), [&]() -> ValueExpr {
@@ -3134,8 +3135,8 @@ const tir::Var* FnDecl::infer(TypeChecker& checker) {
             var->binder = &builder.scope;
             set_head(var);
             this->var = self;
-            tir_fn = resolve_value_var(checker.scope(), checker.infer_value(*fn))->as<tir::Function>();
-            prev.bind(fn_type_var, tir_fn->type());
+            tir_fn = fn->infer_function(checker);
+            builder.bind(fn_type_var, tir_fn->type());
             builder.bind(var, tir_fn);
             checker.infer_fn_attrs(this, tir_fn);
             // var = checker.builder().param(id, tir_fn->type());
