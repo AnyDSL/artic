@@ -10,6 +10,20 @@ namespace artic {
 
 namespace tir {
 
+const Type* as_type(const TypeExpr& expr) {
+    if (auto letrec = std::get_if<const LetRecType*>(&expr)) {
+        return *letrec;
+    }
+    return std::get<const TypeVar*>(expr);
+}
+
+TypeExpr as_typeexpr(const Type* value) {
+    assert(value);
+    if (auto letrec = value->isa<LetRecType>())
+        return letrec;
+    return value->as<TypeVar>();
+}
+
 // Constructors and validation -----------------------------------------------------
 
 PrimType::PrimType(Arena& arena, ast::PrimType::Tag tag)
@@ -761,10 +775,9 @@ const TypeVar* member_type(LetRecBuilder& b, const TypeDef* type, size_t idx) {
         } else {
             // non-struct enum options are immediately specialized
             if (type_app && member_type_app) {
-                LetRecBuilder lrb(b);
-                auto r = lrb.finish_type(b.unsafe().type_app(member_type_app->applicand(), type_app->args)->instantiated(lrb));
+                auto r = b.unsafe().type_app(member_type_app->applicand(), type_app->args)->instantiated(b);
                 assert(r->isa<TypeVar>());
-                return b.maybe_schedule_type(r);
+                return r->as<TypeVar>();
             }
         }
         return member_type;
@@ -840,13 +853,13 @@ bool is_unit_type(const TypeDef* type) {
 }
 
 std::pair<const PtrType*, const TypeVar*> remove_ptr(const Scope& scope, const TypeVar* type) {
-    if (auto ref_type = resolve_type_var(scope, type)->isa<PtrType>())
+    if (auto ref_type = match_type_var<PtrType>(scope, type))
         return std::make_pair(ref_type, ref_type->pointee);
     return std::make_pair(nullptr, type);
 }
 
 std::pair<const RefType*, const TypeVar*> remove_ref(const Scope& scope, const TypeVar* type) {
-    if (auto ref_type = resolve_type_var(scope, type)->isa<RefType>())
+    if (auto ref_type = match_type_var<RefType>(scope, type))
         return std::make_pair(ref_type, ref_type->pointee);
     return std::make_pair(nullptr, type);
 }
@@ -893,7 +906,7 @@ std::tuple<const TypeDef*, const Scope&> resolve_type_deep(const Scope& scope, c
     return { def->as<TypeDef>(), s };
 }
 
-std::tuple<const TypeApp*, const Type*> match_type_app_applied_generic(Builder& b, const TypeDef* maybe_type_app) {
+std::tuple<const TypeApp*, const Type*> match_type_app_applied_generic(LetRecBuilder& b, const TypeDef* maybe_type_app) {
     auto [app, body, scope] = match_app_unapplied(b.scope, maybe_type_app);
     if (app) {
         if (auto type_app = app->isa<TypeApp>()) {
@@ -903,7 +916,7 @@ std::tuple<const TypeApp*, const Type*> match_type_app_applied_generic(Builder& 
     return { nullptr, maybe_type_app };
 }
 
-std::tuple<const TypeApp*, const TypeDef*> resolve_type_app_applied_generic(Builder& b, const TypeDef* maybe_type_app) {
+std::tuple<const TypeApp*, const TypeDef*> resolve_type_app_applied_generic(LetRecBuilder& b, const TypeDef* maybe_type_app) {
     auto [app, body, scope] = match_app_unapplied(b.scope, maybe_type_app);
     if (app) {
         if (auto type_app = app->isa<TypeApp>()) {

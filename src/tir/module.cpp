@@ -12,6 +12,20 @@ Module::Module(Builder& builder, std::unordered_map<const Key*, const Node*>&& d
     assert(ms);
 }
 
+const Mod* as_mod(const ModExpr& expr) {
+    if (auto letrec = std::get_if<const LetRecMod*>(&expr)) {
+        return *letrec;
+    }
+    return std::get<const ModVar*>(expr);
+}
+
+ModExpr as_modexpr(const Mod* value) {
+    assert(value);
+    if (auto letrec = value->isa<LetRecMod>())
+        return letrec;
+    return value->as<ModVar>();
+}
+
 const Node* Module::lookup(const Key* key) const {
     for (auto [decl_key, val] : decls) {
         if (decl_key == key)

@@ -601,17 +601,17 @@ const TypeDef* resolve_type_var(const Scope&, const TypeVar*);
 std::tuple<const TypeDef*, const Scope&> resolve_type_var_deep(const Scope&, const TypeVar*);
 std::tuple<const TypeDef*, const Scope&> resolve_type_deep(const Scope&, const TypeVar*);
 
-std::tuple<const TypeApp*, const Type*> match_type_app_applied_generic(Builder&, const TypeDef*);
-std::tuple<const TypeApp*, const TypeDef*> resolve_type_app_applied_generic(Builder&, const TypeDef*);
+std::tuple<const TypeApp*, const Type*> match_type_app_applied_generic(LetRecBuilder&, const TypeDef*);
+std::tuple<const TypeApp*, const TypeDef*> resolve_type_app_applied_generic(LetRecBuilder&, const TypeDef*);
 
 template <typename T = Type>
-std::pair<const TypeApp*, const T*> match_type_app_applied(Builder& builder, const TypeDef* type) {
+std::pair<const TypeApp*, const T*> match_type_app_applied(LetRecBuilder& builder, const TypeDef* type) {
     auto [app, t] = match_type_app_applied_generic(builder, type);
     return { app, t->isa<T>() };
 }
 
 template <typename T = TypeDef>
-std::tuple<const TypeApp*, const T*> resolve_type_app_applied(Builder& builder, const TypeDef* type) {
+std::tuple<const TypeApp*, const T*> resolve_type_app_applied(LetRecBuilder& builder, const TypeDef* type) {
     auto [app, t] = resolve_type_app_applied_generic(builder, type);
     return { app, t->isa<T>() };
 }

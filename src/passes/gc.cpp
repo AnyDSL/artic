@@ -50,9 +50,9 @@ struct GC : public Rewriter {
             if (auto value = let_rec->isa<LetRecValue>())
                 return as_value(builder.finish_value(as_valueexpr(instantiate(value->body(), false))));
             else if (auto type = let_rec->isa<LetRecType>())
-                return builder.finish_type(instantiate(type->body(), false));
+                return as_type(builder.finish_type(as_typeexpr(instantiate(type->body(), false))));
             else if (auto mod = let_rec->isa<LetRecMod>())
-                return builder.finish_module(instantiate(mod->body(), false));
+                return as_mod(builder.finish_module(as_modexpr(instantiate(mod->body(), false))));
             else
                 assert(false);
         }

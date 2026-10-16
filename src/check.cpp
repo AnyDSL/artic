@@ -1229,7 +1229,7 @@ Array<const Var*> TypeChecker::infer(ast::TypeParamList* list) {
 
 template <typename CheckFn, typename Fields>
 void TypeChecker::check_fields(
-    const Loc& loc, const StructType* struct_type, const TypeVar* type,
+    const Loc& loc, LetRecBuilder& b, const StructType* struct_type, const TypeVar* type,
     const Fields& fields, CheckFn& check_fn, const std::string_view& msg,
     bool has_etc, bool accept_defaults)
 {
@@ -1247,7 +1247,7 @@ void TypeChecker::check_fields(
             return (void)error(loc, "field '{}' specified more than once", fields[i]->id.name);
         seen[*index] = true;
         fields[i]->index = *index;
-        check_fn(*fields[i], member_type(builder(), resolve_type_var(scope(), type), *index));
+        check_fn(*fields[i], member_type(b, resolve_type_var(scope(), type), *index));
     }
     // Check that all fields have been specified, unless '...' was used
     if (!has_etc && !std::all_of(seen.begin(), seen.end(), [] (bool b) { return b; })) {
@@ -2107,14 +2107,14 @@ const tir::Var* RecordExpr::infer(TypeChecker& checker) {
     if (!record_type)
         return b.error_value(b.type_error());
 
-    auto [type_app, struct_type] = resolve_type_app_applied<artic::StructType>(checker.builder(), resolve_type_var(checker.scope(), record_type));
+    auto [type_app, struct_type] = resolve_type_app_applied<artic::StructType>(b, resolve_type_var(checker.scope(), record_type));
     if (!struct_type ||
         struct_type->is_tuple_like()) {
         checker.type_expected(expr ? expr->loc : this->loc, record_type, "record-like structure");
         return b.error_value();
     }
     auto check_fn = [&](ast::Expr& expr, const tir::TypeVar* type) { return checker.check_value(expr, type); };
-    checker.check_fields(loc, struct_type, record_type, fields, check_fn, "expression", static_cast<bool>(expr), true);
+    checker.check_fields(loc, b, struct_type, record_type, fields, check_fn, "expression", static_cast<bool>(expr), true);
     auto type = checker.infer_record_type(record_type, type_app, struct_type, variant_index);
     assert(!expr && "TODO: insert");
     Array<const ValueVar*> ops(struct_type->member_count());
@@ -2398,7 +2398,7 @@ const tir::Var* ProjExpr::infer(TypeChecker& checker) {
         auto& field_name = std::get<Identifier>(field).name;
         if (auto index = struct_type->find_member(field_name)) {
             this->index = *index;
-            result_type = member_type(checker.builder(), expr_type, *index);
+            result_type = member_type(b, expr_type, *index);
         } else {
             checker.unknown_member(loc, struct_type, field_name);
             return b.error_value();
@@ -2416,7 +2416,7 @@ const tir::Var* ProjExpr::infer(TypeChecker& checker) {
             checker.error(loc, "invalid tuple element index '{}'", index);
             return b.type_error();
         }
-        result_type = tuple_type ? tuple_type->args[index] : member_type(checker.builder(), expr_type, index);
+        result_type = tuple_type ? tuple_type->args[index] : member_type(b, expr_type, index);
     }
 
     auto idx = b.typed_literal(artic::Literal(uint64_t(index)), b.prim_type(ast::PrimType::U64));
@@ -3601,7 +3601,7 @@ const tir::Var* RecordPtrn::infer(TypeChecker& checker) {
         return b.error_value(b.type_error());
 
     //if (path_type->isa<TypeError>())
-    auto [type_app, struct_type] = resolve_type_app_applied<artic::StructType>(checker.builder(), resolve_type_var(checker.scope(), path_type));
+    auto [type_app, struct_type] = resolve_type_app_applied<artic::StructType>(b, resolve_type_var(checker.scope(), path_type));
     if (!struct_type ||
         (struct_type->decl->isa<StructDecl>() &&
          struct_type->decl->as<StructDecl>()->is_tuple_like)) {
@@ -3610,7 +3610,7 @@ const tir::Var* RecordPtrn::infer(TypeChecker& checker) {
     }
 
     auto check_fn = [&](ast::Ptrn& ptrn, const tir::TypeVar* type) { return checker.check_ptrn(ptrn, type); };
-    checker.check_fields(loc, struct_type, path_type, fields, check_fn, "pattern");
+    checker.check_fields(loc, b, struct_type, path_type, fields, check_fn, "pattern");
     return checker.infer_record_type(path_type, type_app, struct_type, variant_index);
 }
 
@@ -3622,7 +3622,7 @@ const tir::Var* CtorPtrn::infer(TypeChecker& checker) {
         auto [type_app, body, body_s] = match_type_app_unapplied_generic(checker.scope(), resolve_type_var(checker.scope(), inferred_path->option->parent_type));
         if (auto [enum_type, _] = match_type_deep<EnumType>(body_s, body); enum_type) {
             if (arg)
-                checker.check_ptrn(*arg, member_type(checker.builder(), resolve_type_var(checker.scope(), inferred_path->option->parent_type), inferred_path->option->index));
+                checker.check_ptrn(*arg, member_type(b, resolve_type_var(checker.scope(), inferred_path->option->parent_type), inferred_path->option->index));
             return inferred_path->option->parent_type;
         }
         assert(false);

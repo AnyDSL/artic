@@ -134,7 +134,7 @@ public:
 
     template <typename CheckFn, typename Fields>
     void check_fields(
-        const Loc&, const StructType*, const TypeVar*,
+        const Loc&, LetRecBuilder&, const StructType*, const TypeVar*,
         const Fields&, CheckFn&, const std::string_view&,
         bool = false, bool = false);
 

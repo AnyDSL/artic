@@ -77,12 +77,12 @@ bool ValueVar::can_bind(const Scope& scope, const Node* other) const {
 }
 
 struct TypeExtractor : public Rewriter {
-    Builder& b;
+    LetRecBuilder& dst;
     Scope& s;
     const Value* xtract;
 
-    TypeExtractor(Builder& b, Scope& s, const Value* x) : Rewriter(b.arena, b.arena), b(b), s(s), xtract(x) {
-        builder_ = &b;
+    TypeExtractor(LetRecBuilder& dst, Scope& s, const Value* x) : Rewriter(dst.arena, dst.arena), dst(dst), s(s), xtract(x) {
+        builder_ = &dst;
     }
 
     const Node* rewrite(const Node* old, bool immediate) override {
@@ -103,30 +103,24 @@ struct TypeExtractor : public Rewriter {
         // }
 
         if (old == xtract) {
-            if (auto letrec = old->isa<LetRecValue>()) {
-                // xtract = nullptr;
-                // for (auto [var, val] : letrec->vars) {
-                //     if (var->as<Node>() == letrec->body())
-                //         xtract = val->as<Value>();
-                // }
-                // assert(xtract);
-                // return letrec->rewrite(*this);
-                LetRecBuilder builder(this->builder());
-                Rewriter::BuilderGuard guard(*this, builder);
-                for (auto [ovar, _] : letrec->vars) {
-                    insert(ovar, instantiate(ovar, true));
-                }
-                for (auto [ovar, oval] : letrec->vars) {
-                    auto var = lookup(ovar)->as<Var>();
-                    auto instantiated = builder.maybe_schedule(instantiate(oval, false));
-                    auto dst = builder.find_suitable_builder(instantiated->binder, instantiated);
-                    dst->bind(var, instantiated);
-                    // auto [_, dst] = builder.locate(def);
-                    // assert(dst);
-                    // dst->bind(lookup(ovar)->as<Var>(), def);
-                }
-                return as_type(builder.finish_type(instantiate(letrec->body()->type(), false)));
-            }
+            // if (auto letrec = old->isa<LetRecValue>()) {
+            //     for (auto [ovar, _] : letrec->vars) {
+            //         auto nvar = instantiate(ovar, true);
+            //         insert(ovar, nvar);
+            //         dst.tie_var(nvar);
+            //     }
+            //     for (auto [ovar, oval] : letrec->vars) {
+            //         auto var = lookup(ovar)->as<Var>();
+            //         auto inst = instantiate(oval, false);
+            //         // auto instantiated = builder.maybe_schedule(inst);
+            //         // auto dst = builder.find_suitable_builder(instantiated->binder, instantiated);
+            //         dst.bind(var, inst);
+            //         // auto [_, dst] = builder.locate(def);
+            //         // assert(dst);
+            //         // dst->bind(lookup(ovar)->as<Var>(), def);
+            //     }
+            //     return instantiate(letrec->body()->type(), false);
+            // }
             return old->rewrite(*this)->as<Value>()->type();
         }
 
@@ -134,14 +128,23 @@ struct TypeExtractor : public Rewriter {
     }
 };
 
+const TypeVar* extract_value_app_type(LetRecBuilder& dst, const ValueCtor* ctor, const ArrayRef<const Var*>& args) {
+    TypeExtractor replacer(dst, ctor->scope, ctor->body()->as<Value>());
+    for (size_t i = 0; i < args.size(); i++) {
+        replacer.insert(ctor->params[i], args[i]);
+    }
+    return replacer.instantiate<Node, TypeVar>(ctor->body(), false);
+}
+
 ValueApp::ValueApp(Builder& builder, const CtorVar* ctor_var, const ArrayRef<const Var*>& args)
     : Node(builder.arena), App(ctor_var, args), ValueDef(builder.arena, [&]() -> const TypeVar* {
-        auto ctor = resolve_ctor_var(builder.scope, ctor_var)->as<Constructor>();
-        TypeExtractor replacer(builder, ctor->scope, ctor->body()->as<Value>());
-        for (size_t i = 0; i < args.size(); i++) {
-            replacer.insert(ctor->params[i], args[i]);
-        }
-        return builder.enclosing_let_rec().maybe_schedule_type(replacer.instantiate<Node, Type>(ctor->body(), false));
+        auto ctor = resolve_ctor_var(builder.scope, ctor_var)->as<ValueCtor>();
+        return extract_value_app_type(builder.enclosing_let_rec(), ctor, args);
+        // TypeExtractor replacer(builder.enclosing_let_rec(), ctor->scope, ctor->body()->as<Value>());
+        // for (size_t i = 0; i < args.size(); i++) {
+        //     replacer.insert(ctor->params[i], args[i]);
+        // }
+        // return builder.enclosing_let_rec().maybe_schedule_type(replacer.instantiate<Node, Type>(ctor->body(), false));
     }()) {
 }
 
@@ -305,7 +308,7 @@ Agg::Agg(Builder& builder, const TypeVar* agg_type, const ArrayRef<const ValueVa
     for (auto arg : args) {
         assert(arg->is_var());
     }
-    auto [_, peeked_agg_type] = resolve_type_app_applied(builder, resolve_type_var(builder.scope, agg_type));
+    auto [_, peeked_agg_type] = resolve_type_app_applied(builder.enclosing_let_rec(), resolve_type_var(builder.scope, agg_type));
     if (auto tuple_t = peeked_agg_type->isa<TupleType>()) {
         assert(tuple_t->args.size() == args.size());
         for (size_t i = 0; i < tuple_t->args.size(); i++) {
@@ -319,7 +322,7 @@ Agg::Agg(Builder& builder, const TypeVar* agg_type, const ArrayRef<const ValueVa
     } else if (auto struct_t = peeked_agg_type->isa<StructType>()) {
         assert(struct_t->member_count() == args.size());
         for (size_t i = 0; i < args.size(); i++) {
-            assert(args[i]->type() == member_type(builder, peeked_agg_type, i));
+            assert(args[i]->type() == member_type(builder.enclosing_let_rec(), peeked_agg_type, i));
         }
     } else {
         assert(false);
@@ -349,7 +352,7 @@ bool Agg::equals(const Node* other) const {
 Extract::Extract(Builder& builder, const ValueVar* src, const ValueVar* idx) : ValueDef(builder.arena, [&]() -> const TypeVar* {
     auto& s = builder.scope;
     auto resolved_src_type = resolve_type_var(s, src->type());
-    auto [_, peeked_agg_type] = resolve_type_app_applied(builder, resolved_src_type);
+    auto [_, peeked_agg_type] = resolve_type_app_applied(builder.enclosing_let_rec(), resolved_src_type);
     if (auto tuple_t = peeked_agg_type->isa<TupleType>()) {
         if (auto lit_idx = match_value_var<TypedLiteral>(s, idx); lit_idx) {
             size_t idx_value = lit_idx->value.as_integer();
@@ -363,7 +366,7 @@ Extract::Extract(Builder& builder, const ValueVar* src, const ValueVar* idx) : V
     } else if (auto struct_t = peeked_agg_type->isa<StructType>()) {
         if (auto lit_idx = match_value_var<TypedLiteral>(s, idx); lit_idx) {
             size_t idx_value = lit_idx->value.as_integer();
-            return member_type(builder, resolved_src_type, idx_value);
+            return member_type(builder.enclosing_let_rec(), resolved_src_type, idx_value);
         }
     } else {
         assert(false);
@@ -421,7 +424,7 @@ bool VariantIndex::equals(const Node* other) const {
 
 VariantExtract::VariantExtract(Builder& builder, const ValueVar* src, size_t idx) : Node(builder.arena), ValueDef(builder.arena, [&]() -> const TypeVar* {
     auto resolved_src_type = resolve_type_var(builder.scope, src->type());
-    return member_type(builder, resolved_src_type, idx);
+    return member_type(builder.enclosing_let_rec(), resolved_src_type, idx);
 }()), src(src), index(idx) {
     assert(src->is_var());
 }
@@ -474,7 +477,7 @@ Proj::Proj(Builder& builder, const ValueVar* src, const ValueVar* idx) : ValueDe
         as = ptr_t->addr_space;
     }
 
-    auto [mod_app, peeked_pointee_t] = resolve_type_app_applied(builder, resolved_pointee_t);
+    auto [mod_app, peeked_pointee_t] = resolve_type_app_applied(builder.enclosing_let_rec(), resolved_pointee_t);
 
     auto wrap_pointee = [&](const TypeVar* new_pointee) -> const TypeVar* {
         assert(new_pointee->is_var());
@@ -493,7 +496,7 @@ Proj::Proj(Builder& builder, const ValueVar* src, const ValueVar* idx) : ValueDe
     } else if (auto struct_t = peeked_pointee_t->isa<StructType>()) {
         if (auto lit_idx = match_value_var<TypedLiteral>(s, idx); lit_idx) {
             size_t idx_value = lit_idx->value.as_integer();
-            return wrap_pointee(member_type(builder, resolved_pointee_t, idx_value));
+            return wrap_pointee(member_type(builder.enclosing_let_rec(), resolved_pointee_t, idx_value));
         }
     } else {
         assert(false);
