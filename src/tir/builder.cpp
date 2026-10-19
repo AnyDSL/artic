@@ -568,8 +568,8 @@ const ValueVar* ExprBuilder::bind_value(const Value* value) {
     return param;
 }
 
-ExprBuilder::ExprBuilder(Builder& parent)
-    : Builder(parent.arena, parent.scope.new_child(), &parent)
+ExprBuilder::ExprBuilder(Builder& parent, std::string name)
+    : Builder(parent.arena, parent.scope.new_child(name), &parent)
 {}
 
 // void ExprBuilder::bind(const ValueVar* param, const Value* value) {
@@ -650,7 +650,7 @@ ExprBuilder& Builder::enclosing_expr() {
     assert(false);
 }
 
-LetRecBuilder::LetRecBuilder(Builder& parent) : Builder(parent.arena, parent.scope.new_child(), &parent) {}
+LetRecBuilder::LetRecBuilder(Builder& parent, std::string name) : Builder(parent.arena, parent.scope.new_child(name), &parent) {}
 LetRecBuilder::LetRecBuilder(Root& root) : Builder(*root.arena, root.scope, nullptr) {}
 
 LetRecBuilder::~LetRecBuilder() {}
@@ -957,8 +957,8 @@ ValueExpr LetRecBuilder::finish_value(ValueExpr expr) {
     return unsafe().value_let_rec(expand_contents(), expr);
 }
 
-AbstractBuilder::AbstractBuilder(Builder& builder)
-    : Builder(builder.arena, builder.scope.new_child(), &builder)
+AbstractBuilder::AbstractBuilder(Builder& builder, std::string name)
+    : Builder(builder.arena, builder.scope.new_child(name), &builder)
 {}
 
 void AbstractBuilder::register_var(const Var* var) {

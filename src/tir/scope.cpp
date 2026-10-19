@@ -183,13 +183,13 @@ const Scope* unify_scopes(const Scope* l, const Scope* r) {
     return rpath.back();
 }
 
-Scope& Scope::new_child() {
-    auto& ref = child_scopes.emplace_back(std::make_unique<Scope>(this));
+Scope& Scope::new_child(std::string name) {
+    auto& ref = child_scopes.emplace_back(std::make_unique<Scope>(this, name));
     return *ref;
 }
 
 void Scope::dump() const {
-    printf("scope ");
+    printf("scope %s", name.c_str());
     for (auto& [var, value] : vars) {
         var->dump();
         if (value) {

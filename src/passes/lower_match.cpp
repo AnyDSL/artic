@@ -201,7 +201,7 @@ private:
 
     std::tuple<std::unique_ptr<AbstractBuilder>, const Function*> make_fn() {
         auto param = builder.value_var(std::nullopt, builder.enclosing_let_rec().unit_type());
-        auto fn_builder = std::make_unique<AbstractBuilder>(builder);
+        auto fn_builder = std::make_unique<AbstractBuilder>(builder, "lowered_match_fn");
         fn_builder->register_var(param);
         return { std::move(fn_builder), builder.unsafe().function(param, fn_builder->scope, builder.enclosing_let_rec().no_ret_type(), nullptr) };
     }
@@ -212,7 +212,7 @@ private:
             return builder.enclosing_let_rec().error_value(builder.enclosing_let_rec().type_error());
         }
 
-        ExprBuilder expr_builder(builder);
+        ExprBuilder expr_builder(builder, "lowered_ptrn_expr");
 
         expand(expr_builder);
         if (std::all_of(
@@ -328,7 +328,7 @@ private:
                 auto& rows = ctors[defs[i]];
                 auto& [case_builder, case_fn] = i == n - 1 && no_default ? otherwise : targets[i];
 
-                ExprBuilder case_expr_builder(builder);
+                ExprBuilder case_expr_builder(builder, "lower_match_case");
 
                 auto new_values = values;
                 if (enum_type) {

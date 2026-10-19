@@ -198,15 +198,15 @@ const ValueVar* TypeChecker::build_if(const ast::IfExpr& expr, const IfBuilderFn
 
     auto yield_param = builder().value_var(ast::Identifier { expr.loc, "if_yield" }, yield_fn_type);
     auto control_fn = build_fn(yield_param, [&]() -> ValueExpr {
-        AbstractBuilder true_fn_builder(builder());
+        AbstractBuilder true_fn_builder(builder(), "if_true_abs");
         auto true_param = builder().value_var(std::nullopt, b.unit_type());
         true_fn_builder.register_var(true_param);
-        ExprBuilder true_builder = ExprBuilder(true_fn_builder);
+        ExprBuilder true_builder = ExprBuilder(true_fn_builder, "if_true_expr");
 
-        AbstractBuilder else_fn_builder(builder());
+        AbstractBuilder else_fn_builder(builder(), "if_else_abs");
         auto else_param = builder().value_var(std::nullopt, b.unit_type());
         else_fn_builder.register_var(else_param);
-        ExprBuilder else_builder = ExprBuilder(else_fn_builder);
+        ExprBuilder else_builder = ExprBuilder(else_fn_builder, "if_else_expr");
 
         SetTypeFn set_type = [&](const TypeVar* yield_type) -> void {
             b.bind(yield_fn_type, b.fn_type(yield_type, b.no_ret_type()));
@@ -485,7 +485,7 @@ const ValueVar* TypeChecker::build_block(ast::BlockExpr& expr, ExprBuilder& expr
                 if (auto rec_stmt = expr.stmts[i]->isa<ast::RecDeclsStmt>()) {
                     // oh that's weird
                     Builder& parent = builder();
-                    LetRecBuilder builder(parent);
+                    LetRecBuilder builder(parent, "block_inline_mod");
                     rec_stmt->builder = &builder;
                     BuilderGuard guard(*this, builder);
                     // switch back to expression mode
@@ -520,20 +520,20 @@ const ValueVar* TypeChecker::build_block(ast::BlockExpr& expr, ExprBuilder& expr
 }
 
 ValueExpr TypeChecker::with_expr_scope(const std::function<ValueExpr(ExprBuilder&)>& f) {
-    ExprBuilder builder(this->builder());
+    ExprBuilder builder(this->builder(), "expr_scope");
     BuilderGuard guard(*this, builder);
     return f(builder);
 }
 
 ValueExpr TypeChecker::yield_expr_scope(const std::function<ValueExpr (ExprBuilder&)>& f) {
-    ExprBuilder builder(this->builder());
+    ExprBuilder builder(this->builder(), "expr_scope");
     BuilderGuard guard(*this, builder);
     return builder.finish(f(builder));
 }
 
 const Function* TypeChecker::build_fn(const std::function<ValueExpr(const std::function<void(const ValueVar*)>&)>& f) {
     Builder& prev = builder();
-    AbstractBuilder fn_builder(builder());
+    AbstractBuilder fn_builder(builder(), "fn_abs");
     TypeChecker::BuilderGuard guard(*this, fn_builder);
     const ValueVar* received_param = nullptr;
     auto receive_param = [&](const ValueVar* param) {
@@ -550,7 +550,7 @@ const Function* TypeChecker::build_fn(const std::function<ValueExpr(const std::f
 
 const Function* TypeChecker::build_fn(const ValueVar* param, const std::function<ValueExpr()>& f) {
     Builder& prev = builder();
-    AbstractBuilder fn_builder(builder());
+    AbstractBuilder fn_builder(builder(), "fn_abs");
     fn_builder.register_var(param);
     TypeChecker::BuilderGuard guard(*this, fn_builder);
     auto body = f();
@@ -909,9 +909,9 @@ const Var* TypeChecker::maybe_polymorphic(const ast::Identifier& id, std::option
         self = builder().ctor_var(id, ctor_sig);
         mod_builder.tie_var(self);
 
-        AbstractBuilder ctor_builder(*mb);
+        AbstractBuilder ctor_builder(*mb, "poly_decl_abs");
         Scope& ctor_scope = ctor_builder.scope;
-        LetRecBuilder ctor_body_builder(ctor_builder);
+        LetRecBuilder ctor_body_builder(ctor_builder, "poly_decl_body");
 
         for (auto p : *type_params) {
             assert(!p->binder);
@@ -2241,7 +2241,7 @@ const tir::Function* FnExpr::infer_function(TypeChecker& checker) {
     auto param = checker.builder().value_var(Identifier { this->param->loc, "param" }, checker.infer_ptrn(*this->param));
     checker.check_refutability(*this->param, true);
 
-    AbstractBuilder fn_builder(checker.builder());
+    AbstractBuilder fn_builder(checker.builder(), "fnexpr_abs");
     fn_builder.register_var(param);
     TypeChecker::BuilderGuard guard(checker, fn_builder);
 
@@ -2294,7 +2294,7 @@ const tir::Function* FnExpr::check_function(TypeChecker& checker, const artic::T
         return nullptr;
     }
 
-    AbstractBuilder fn_builder(checker.builder());
+    AbstractBuilder fn_builder(checker.builder(), "fnexpr_abs");
     fn_builder.register_var(param);
     TypeChecker::BuilderGuard guard(checker, fn_builder);
 
@@ -2557,7 +2557,7 @@ const tir::Var* MatchExpr::check(TypeChecker& checker, const artic::TypeVar* exp
             checker.check_ptrn(*case_->ptrn, arg->type());
             const Match::Ptrn* match_ptrn = nullptr;
             auto fn = checker.build_fn(checker.builder().value_var(std::nullopt, b.unit_type()), [&]() {
-                ExprBuilder case_builder(checker.builder());
+                ExprBuilder case_builder(checker.builder(), "case_expr");
                 TypeChecker::BuilderGuard guard(checker, case_builder);
                 match_ptrn = checker.convert_ptrn(*case_->ptrn);
                 checker.bind_ptrn_params(*case_->ptrn, arg);
@@ -2571,7 +2571,7 @@ const tir::Var* MatchExpr::check(TypeChecker& checker, const artic::TypeVar* exp
             cases.emplace_back(&case_->loc, match_ptrn, fn);
         }
 
-        ExprBuilder tmp_builder(checker.builder());
+        ExprBuilder tmp_builder(checker.builder(), "match_expr");
         return tmp_builder.finish_match(loc, arg, std::move(cases));
     });
     return checker.expr_builder().control(control_fn);
@@ -2605,7 +2605,7 @@ const tir::Var* WhileExpr::infer(TypeChecker& checker) {
             });
             const Function* if_dont_loop = checker.build_fn(b.value_var(Identifier { loc, "_" }, b.unit_type()), [&]() -> ValueExpr {
                 // just get outta there
-                ExprBuilder tmp_builder(checker.builder());
+                ExprBuilder tmp_builder(checker.builder(), "while_else_expr");
                 return tmp_builder.finish_tailcall(break_, b.unit());
             });
 
@@ -2619,18 +2619,18 @@ const tir::Var* WhileExpr::infer(TypeChecker& checker) {
                     .ptrn = checker.builder().unsafe().trivial_match_ptrn(arg->type()),
                     .branch = if_dont_loop,
                 });
-                ExprBuilder tmp_builder(checker.builder());
+                ExprBuilder tmp_builder(checker.builder(), "tmp_match_while_inner");
                 return tmp_builder.finish_match(loc, arg, std::move(cases));
             }
 
-            ExprBuilder tmp_builder(checker.builder());
+            ExprBuilder tmp_builder(checker.builder(), "tmp_branch_while_inner");
             return tmp_builder.finish_branch(cond, if_loop, if_dont_loop);
         });
     };
     TypeChecker::LoopBuilderFn make_loop = [&](const auto& set_break_type, const auto& inner_maker) -> ValueExpr {
         set_break_type(b.unit_type());
 
-        LetRecBuilder rec_builder(checker.builder());
+        LetRecBuilder rec_builder(checker.builder(), "loop_outer_scope");
         TypeChecker::BuilderGuard guard(checker, rec_builder);
 
         auto head_fn_type = b.fn_type(b.unit_type(), b.no_ret_type());
@@ -2647,7 +2647,7 @@ const tir::Var* WhileExpr::infer(TypeChecker& checker) {
 
         rec_builder.bind(head_fn_var, head_fn);
 
-        ExprBuilder tmp_builder(checker.builder());
+        ExprBuilder tmp_builder(checker.builder(), "tmp_branch_while_outer");
         return rec_builder.finish_value(tmp_builder.finish_tailcall(head_fn_var, b.unit()));
     };
     return checker.build_loop(*this, "while", make_loop);
@@ -3114,7 +3114,7 @@ const tir::Var* FnDecl::infer(TypeChecker& checker) {
             set_head(var);
             this->var = self;
 
-            AbstractBuilder fn_builder(checker.builder());
+            AbstractBuilder fn_builder(checker.builder(), "fndecl_abs");
             fn_builder.register_var(param);
             TypeChecker::BuilderGuard guard(checker, fn_builder);
             tir_fn = checker.builder().unsafe().function(param, fn_builder.scope, codom, this);
@@ -3219,7 +3219,7 @@ const tir::Var* StructDecl::ctor_or_default_value(TypeChecker& checker) const {
                        : builder.tuple_type(tuple_args);
             auto param = builder.value_var(Identifier { loc, "param" }, dom);
 
-            AbstractBuilder fn_builder(checker.builder());
+            AbstractBuilder fn_builder(checker.builder(), "generated_struct_ctor_abs");
             fn_builder.register_var(param);
             TypeChecker::BuilderGuard guard(checker, fn_builder);
 
@@ -3375,7 +3375,7 @@ const tir::Var* OptionDecl::ctor_or_default_value(TypeChecker& checker) const {
         if (type != builder.unit_type()) {
             auto param = builder.value_var(Identifier { loc, "param" }, type);
 
-            AbstractBuilder fn_builder(checker.builder());
+            AbstractBuilder fn_builder(checker.builder(), "generated_enum_ctor_abs");
             fn_builder.register_var(param);
             TypeChecker::BuilderGuard guard(checker, fn_builder);
 

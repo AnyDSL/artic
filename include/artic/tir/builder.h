@@ -267,7 +267,7 @@ public:
 };
 
 struct LetRecBuilder : public Builder {
-    LetRecBuilder(Builder&);
+    LetRecBuilder(Builder&, std::string);
     LetRecBuilder(Root&);
     ~LetRecBuilder();
 
@@ -290,7 +290,7 @@ private:
 };
 
 struct ExprBuilder : public Builder {
-    ExprBuilder(Builder&);
+    ExprBuilder(Builder&, std::string);
 
     bool may_bind(const Node*) override;
     void bind(const Var*, const Node*) override;
@@ -340,7 +340,7 @@ private:
 };
 
 struct AbstractBuilder : public Builder {
-    AbstractBuilder(Builder&);
+    AbstractBuilder(Builder&, std::string);
 
     bool may_bind(const Node*) override { return false; }
     void bind(const Var*, const Node*) override {

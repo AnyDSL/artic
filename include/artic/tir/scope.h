@@ -16,7 +16,7 @@ struct Function;
 struct Scope {
     Scope* parent;
 
-    Scope(Scope* parent) : parent(parent) {}
+    Scope(Scope* parent, std::string name) : parent(parent), name(name) {}
     Scope(const Scope&) = delete;
 
     bool is_child_of(const Scope*) const;
@@ -42,9 +42,10 @@ struct Scope {
     std::tuple<const Def*, const Scope&> resolve_deep(const Node*) const;
 
 private:
-    Scope& new_child();
+    Scope& new_child(std::string);
     void insert(const Var*, const Node*);
 
+    std::string name;
     std::vector<std::unique_ptr<Scope>> child_scopes;
     std::unordered_map<const Var*, const Node*> vars;
     std::unordered_map<const Def*, const Var*> bound_defs;

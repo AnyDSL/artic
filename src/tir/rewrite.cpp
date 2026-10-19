@@ -159,39 +159,39 @@ const Node* Module::rewrite(Rewriter& r) const {
 
 const Node* ModCtor::rewrite(Rewriter& r) const {
     Rewriter::MapGuard map_guard(r);
-    AbstractBuilder ctor_builder(r.builder());
+    AbstractBuilder ctor_builder(r.builder(), "mod_ctor_abs");
     Array<const Var*> params(this->params.size());
     for (size_t i = 0; i < params.size(); i++) {
         r.insert(this->params[i], params[i] = r.rebuild_var(this->params[i]));
         ctor_builder.register_var(params[i]);
     }
-    auto body_builder = LetRecBuilder(ctor_builder);
+    auto body_builder = LetRecBuilder(ctor_builder, "mod_ctor_body");
     Rewriter::BuilderGuard guard(r, body_builder);
     return r.builder().unsafe().mod_ctor(ctor_builder.scope, params, body_builder.finish_module(r.instantiate(body_expr())));
 }
 
 const Node* TypeCtor::rewrite(Rewriter& r) const {
     Rewriter::MapGuard map_guard(r);
-    AbstractBuilder ctor_builder(r.builder());
+    AbstractBuilder ctor_builder(r.builder(), "type_ctor_abs");
     Array<const Var*> params(this->params.size());
     for (size_t i = 0; i < params.size(); i++) {
         r.insert(this->params[i], params[i] = r.rebuild_var(this->params[i]));
         ctor_builder.register_var(params[i]);
     }
-    auto body_builder = LetRecBuilder(ctor_builder);
+    auto body_builder = LetRecBuilder(ctor_builder, "type_ctor_body");
     Rewriter::BuilderGuard guard(r, body_builder);
     return r.builder().unsafe().type_ctor(ctor_builder.scope, params, body_builder.finish_type(r.instantiate(body_expr())));
 }
 
 const Node* ValueCtor::rewrite(Rewriter& r) const {
     Rewriter::MapGuard map_guard(r);
-    AbstractBuilder ctor_builder(r.builder());
+    AbstractBuilder ctor_builder(r.builder(), "value_ctor_abs");
     Array<const Var*> params(this->params.size());
     for (size_t i = 0; i < params.size(); i++) {
         r.insert(this->params[i], params[i] = r.rebuild_var(this->params[i]));
         ctor_builder.register_var(params[i]);
     }
-    auto body_builder = LetRecBuilder(ctor_builder);
+    auto body_builder = LetRecBuilder(ctor_builder, "value_ctor_body");
     Rewriter::BuilderGuard guard(r, body_builder);
     return r.builder().unsafe().value_ctor(ctor_builder.scope, params, body_builder.finish_value(r.instantiate(body_expr())));
 }
@@ -297,18 +297,18 @@ const Node* Function::rewrite(Rewriter& r) const {
     auto nparam = r.rebuild_var(param)->as<ValueVar>();
     auto ncodom = r.instantiate(codom);
 
-    AbstractBuilder fn_builder(r.builder());
+    AbstractBuilder fn_builder(r.builder(), "fn_abs["+std::to_string(param->gid)+"]");
     fn_builder.register_var(nparam);
     auto nfn = r.builder().unsafe().function(nparam, fn_builder.scope, ncodom, decl);
     //r.insert(this, nfn);
     r.insert(param, nparam);
     if (body_) {
-        LetRecBuilder builder(fn_builder);
+        LetRecBuilder builder(fn_builder, "fn_filter_letrec");
         Rewriter::BuilderGuard guard(r, builder);
         nfn->set_body(r.builder(), builder.finish_value(r.instantiate(*body_)));
     }
     if (filter_) {
-        LetRecBuilder builder(fn_builder);
+        LetRecBuilder builder(fn_builder, "fn_body_letrec");
         Rewriter::BuilderGuard guard(r, builder);
         nfn->set_filter(r.builder(), builder.finish_value(r.instantiate(*filter_)));
     }
@@ -378,7 +378,7 @@ const Node* Proj::rewrite(Rewriter& r) const {
 }
 
 const Value* Seq::rewrite(Rewriter& r) const {
-    ExprBuilder seq_builder(r.builder());
+    ExprBuilder seq_builder(r.builder(), "seq_expr");
     Rewriter::BuilderGuard guard(r, seq_builder);
     for (auto bind : evaluate) {
         auto new_value = r.instantiate_rhs(bind.value)->as<Value>();
@@ -386,7 +386,7 @@ const Value* Seq::rewrite(Rewriter& r) const {
         auto new_var = seq_builder.bind_value(new_value);
         r.insert(bind.var, new_var);
     }
-    LetRecBuilder letrec_builder(seq_builder);
+    LetRecBuilder letrec_builder(seq_builder, "seq_final");
     Rewriter::BuilderGuard guard2(r, letrec_builder);
     return as_value(seq_builder.finish(letrec_builder.finish_value(r.instantiate(yield))));
 }

@@ -6,7 +6,7 @@ namespace artic {
 
 namespace tir {
 
-Root::Root() : arena(std::make_unique<Arena>()), scope(nullptr) {
+Root::Root() : arena(std::make_unique<Arena>()), scope(nullptr, "root") {
 
 }
 
