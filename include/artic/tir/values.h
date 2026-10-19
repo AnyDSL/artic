@@ -45,7 +45,7 @@ struct ValueVar : public Value, public Var {
 
     void print(Printer&) const override;
     void print_head(Printer&) const override;
-    const Node* rewrite(Rewriter&) const override;
+    const ValueVar* rebuild(Rewriter&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
     bool can_bind(const Scope&, const Node*) const override;
@@ -117,6 +117,10 @@ struct ValueCtor : public Constructor {
         return Constructor::body()->as<Value>();
     }
 
+    ValueExpr body_expr() const {
+        return as_valueexpr(body());
+    }
+
     void print(Printer&) const override;
     const Node* rewrite(Rewriter&) const override;
 
@@ -128,8 +132,12 @@ struct LetRecValue : public ValueDef, public LetRec {
         return LetRec::body()->as<Value>();
     }
 
+    ValueExpr body_expr() const {
+        return as_valueexpr(body());
+    }
+
     bool equals(const Node* other) const override;
-    const Node* rewrite(Rewriter&) const override;
+    const Value* rewrite(Rewriter&) const override;
 
     const thorin::Def* emit(Emitter&) const override;
 
@@ -419,7 +427,7 @@ struct Seq : public ValueDef {
     // size_t hash() const override;
 
     void print(Printer&) const override;
-    const Node* rewrite(Rewriter&) const override;
+    const Value* rewrite(Rewriter&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
     const thorin::Def* emit(Emitter&) const override;

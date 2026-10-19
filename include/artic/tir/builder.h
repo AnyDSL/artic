@@ -92,7 +92,7 @@ public:
 
     // Modules
     const ModVar* mod_var(std::optional<ast::Identifier> id, const SigVar*);
-    const ModVar* module(std::unordered_map<const Key*, const Node*>&&, const ast::ModDecl* = nullptr);
+    const ModVar* module(std::unordered_map<const Key*, const Var*>&&, const ast::ModDecl* = nullptr);
     const ModVar* mod_app(const CtorVar*, const ArrayRef<const Var*>&);
     const ModVar* mod_mod_access(const ModVar*, const Key*);
     const ModVar* mod_error();
@@ -196,7 +196,7 @@ public:
         const SigError* sig_error();
         const ModError* mod_error();
 
-        const Module* module(std::unordered_map<const Key*, const Node*>&&, const SigVar*, const ast::ModDecl* = nullptr);
+        const Module* module(std::unordered_map<const Key*, const Var*>&&, const SigVar*, const ast::ModDecl* = nullptr);
         const ModCtor* mod_ctor(Scope&, const ArrayRef<const Var*>&, ModExpr);
         const ModApp* mod_app(const CtorVar*, const ArrayRef<const Var*>&);
         const Mod* mod_mod_access(const ModVar*, const Key*);

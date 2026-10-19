@@ -6,7 +6,7 @@
 
 namespace artic::tir {
 
-Module::Module(Builder& builder, std::unordered_map<const Key*, const Node*>&& decls, const SigVar* signature, const ast::ModDecl* decl)
+Module::Module(Builder& builder, std::unordered_map<const Key*, const Var*>&& decls, const SigVar* signature, const ast::ModDecl* decl)
     : ModDef(), Node(builder.arena), decls(std::move(decls)), decl(decl), signature_(signature) {
     const ModSignature* ms = resolve_sig_var(builder.scope, signature->as<SigVar>())->isa<ModSignature>();
     assert(ms);

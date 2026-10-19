@@ -129,7 +129,7 @@ struct TypeVar final : public Type, public Var {
     void print(Printer&) const override;
     void print_head(Printer&) const override;
 
-    const TypeVar* rewrite(Rewriter&) const override;
+    const TypeVar* rebuild(Rewriter&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
     const thorin::Type* convert(Emitter&) const override;
@@ -538,6 +538,10 @@ struct TypeCtor : public Constructor {
         return Constructor::body()->as<Type>();
     }
 
+    TypeExpr body_expr() const {
+        return as_typeexpr(body());
+    }
+
     void print(Printer&) const override;
     const Node* rewrite(Rewriter&) const override;
 
@@ -549,8 +553,12 @@ struct LetRecType : public TypeDef, public LetRec {
         return LetRec::body()->as<Type>();
     }
 
+    TypeExpr body_expr() const {
+        return as_typeexpr(body());
+    }
+
     bool equals(const Node* other) const override;
-    const Node* rewrite(Rewriter&) const override;
+    const Type* rewrite(Rewriter&) const override;
     ;
     const thorin::Type* convert_head(Emitter&) const override;
     const thorin::Type* convert(Emitter&) const override;

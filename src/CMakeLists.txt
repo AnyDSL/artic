@@ -38,8 +38,7 @@ add_library(libartic
     tir/scope.cpp
     tir/builder.cpp
     passes/lower_match.cpp
-    passes/lower_app.cpp
-    passes/gc.cpp)
+    passes/lower_app.cpp)
 
 set_target_properties(libartic PROPERTIES PREFIX "" CXX_STANDARD 20)
 

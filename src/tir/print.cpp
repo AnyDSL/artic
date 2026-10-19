@@ -71,9 +71,10 @@ void Printer::print(const Node& node, bool print_inline) {
             }
             break;
         }
-        if (!was_var)
-            base << node_name << " = ";
-        base << pop();
+        // if (!was_var)
+        //     top() << node_name << " = ";
+        auto popped = pop();
+        top() << popped;
         // base << endl();
         // top() << node_name;
     } else {
@@ -710,7 +711,7 @@ log::Output& operator << (log::Output& out, const Node& node) {
 
 void Node::dump() const {
     artic::Printer p(log::out);
-    Printer tp(p, 1);
+    Printer tp(p, 1, false);
     tp.print(*this);
     p << '\n';
 }

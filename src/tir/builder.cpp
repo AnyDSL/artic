@@ -180,11 +180,11 @@ const ModVar* Builder::mod_error() {
     return schedule_mod(unsafe().mod_error());
 }
 
-const Module* Builder::Unsafe::module(std::unordered_map<const Key*, const Node*>&& decls, const SigVar* sig, const ast::ModDecl* decl) {
+const Module* Builder::Unsafe::module(std::unordered_map<const Key*, const Var*>&& decls, const SigVar* sig, const ast::ModDecl* decl) {
     return builder.arena.insert<Module>(builder, std::move(decls), sig, decl);
 }
 
-const ModVar* Builder::module(std::unordered_map<const Key*, const Node*>&& decls, const ast::ModDecl* decl) {
+const ModVar* Builder::module(std::unordered_map<const Key*, const Var*>&& decls, const ast::ModDecl* decl) {
     std::unordered_map<const Key*, const SigVar*> sig_elems;
     for (auto [key, val] : decls) {
         sig_elems[key] = Sig::from_node(*this, val);

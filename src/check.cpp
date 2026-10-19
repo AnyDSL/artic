@@ -3475,7 +3475,7 @@ const tir::Var* ModDecl::infer(TypeChecker& checker) {
     var = self;
 
     TypeChecker::BuilderGuard guard(checker, *builder);
-    std::unordered_map<const Key*, const tir::Node*> decls;
+    std::unordered_map<const Key*, const tir::Var*> decls;
     for (auto& decl : this->decls) {
         if (auto use = decl->isa<UseDecl>(); use && use->is_alias())
             continue;

@@ -12,6 +12,10 @@ Root::Root() : arena(std::make_unique<Arena>()), scope(nullptr) {
 
 Node::Node(Arena& arena) : arena(arena), gid(arena.alloc_gid()) {}
 
+const Node* Var::rewrite(Rewriter&) const {
+    assert(false && "you cannot rewrite vars directly");
+}
+
 void Var::free_variables(FVSet& vars, Seen& seen) const {
     vars.emplace(this);
 }
@@ -143,7 +147,7 @@ const Node* Constructor::instantiate_into(ArrayRef<const Var*> args, Rewriter& r
     for (size_t i = 0; i < params.size(); i++) {
         r.insert(params[i], args[i]);
     }
-    return r.instantiate(body_, false);
+    return r.instantiate_expr(body_);
 }
 
 struct Specializer : public Rewriter {
@@ -154,10 +158,13 @@ struct Specializer : public Rewriter {
         builder_ = &b;
     }
 
-    const Node* rewrite(const Node* old, bool immediate) override {
-        if (immediate)
-            return old->rewrite(*this);
+    const Var* lookup(const Var* var) override {
+        if (!var->binder->is_child_of(&s) && &s != var->binder)
+            return var;
+        return Rewriter::lookup(var);
+    }
 
+    const Node* rewrite(const Node* old) override {
         if (auto var = old->isa<Var>()) {
             if (!var->binder->is_child_of(&s) && &s != var->binder)
                 return old;

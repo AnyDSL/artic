@@ -46,12 +46,12 @@ struct LowerApp : public Rewriter {
 
     Map& instantiated_stuff;
 
-    const Node* lookup(const Node* old) override {
-        auto found = Rewriter::lookup(old);
-        // if (!found && p)
-        //     return p->lookup(old);
-        return found;
-    }
+    // const Node* lookup(const Node* old) override {
+    //     auto found = Rewriter::lookup(old);
+    //     // if (!found && p)
+    //     //     return p->lookup(old);
+    //     return found;
+    // }
 
     // this ensures we don't accidentally end up with two specialized copies of the same specialization
     bool are_args_known(ArrayRef<const Var*> args) const {
@@ -90,14 +90,14 @@ struct LowerApp : public Rewriter {
         return var;
     }
 
-    const Node* rewrite(const Node* old, bool imm) override {
+    const Node* rewrite(const Node* old) override {
         if (auto old_app = old->isa<App>()) {
             // if (are_args_known(old_app->args)) {
             //     return old_app->instantiate_with<LowerApp>(builder().enclosing_let_rec(), this);
             // }
             Array<const Var*> args(old_app->args.size());
             for (size_t i = 0; i < old_app->args.size(); i++) {
-                args[i] = instantiate(old_app->args[i], false);
+                args[i] = instantiate(old_app->args[i]);
             }
             if (are_args_known(args)) {
                 auto constructor = resolve_ctor_var(*old_app->applicand()->binder, old_app->applicand())->isa<Constructor>();
@@ -106,12 +106,10 @@ struct LowerApp : public Rewriter {
             }
             return old_app->rewrite(*this);
         }
-        if (imm)
-            return old->rewrite(*this);
 
         if (auto var = old->isa<Var>()) {
             if (s && s->is_child_of(var->binder) && s != var->binder)
-                return p->instantiate(old, imm);
+                return p->instantiate(old);
             assert(false);
         }
 

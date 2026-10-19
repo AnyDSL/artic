@@ -85,12 +85,16 @@ struct TypeExtractor : public Rewriter {
         builder_ = &dst;
     }
 
-    const Node* rewrite(const Node* old, bool immediate) override {
+    const Var* lookup(const Var* var) override {
+        if (!var->binder->is_child_of(&s) && &s != var->binder)
+            return var;
+        return Rewriter::lookup(var);
+    }
+
+    const Node* rewrite(const Node* old) override {
         // leave keys alone
         if (old->isa<Key>())
             return old;
-        if (immediate)
-            return old->rewrite(*this);
 
         if (auto var = old->isa<Var>()) {
             if (!var->binder->is_child_of(&s) && &s != var->binder)
@@ -126,14 +130,27 @@ struct TypeExtractor : public Rewriter {
 
         return old->rewrite(*this);
     }
+
+    // enters let-recs recursively until a leaf is found, then rewrites the leaf and all the intermediate definitions as necessary
+    const TypeVar* extract_type(ValueExpr expr) {
+        if (auto is_let_rec = std::get_if<const LetRecValue*>(&expr)) {
+            auto let_rec = *is_let_rec;
+            record_letrec(dst, let_rec);
+            return extract_type(let_rec->body_expr());
+        }
+        if (auto is_seq = std::get_if<const Seq*>(&expr)) {
+            assert(false);
+        }
+        return instantiate(std::get<const ValueVar*>(expr)->type());
+    }
 };
 
 const TypeVar* extract_value_app_type(LetRecBuilder& dst, const ValueCtor* ctor, const ArrayRef<const Var*>& args) {
-    TypeExtractor replacer(dst, ctor->scope, ctor->body()->as<Value>());
+    TypeExtractor extractor(dst, ctor->scope, ctor->body()->as<Value>());
     for (size_t i = 0; i < args.size(); i++) {
-        replacer.insert(ctor->params[i], args[i]);
+        extractor.insert(ctor->params[i], args[i]);
     }
-    return replacer.instantiate<Node, TypeVar>(ctor->body(), false);
+    return extractor.extract_type(ctor->body_expr());
 }
 
 ValueApp::ValueApp(Builder& builder, const CtorVar* ctor_var, const ArrayRef<const Var*>& args)

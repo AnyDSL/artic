@@ -109,6 +109,9 @@ struct Var : virtual public Node {
 
     virtual bool is_var() const final { return true; }
 
+    const Node* rewrite(Rewriter&) const final;
+    virtual const Var* rebuild(Rewriter&) const = 0;
+
     void free_variables(FVSet&, Seen&) const override;
     void print(Printer&) const override;
     virtual void print_head(Printer&) const = 0;
@@ -193,7 +196,7 @@ private:
 struct CtorVar : public Ctor, public Var {
     void print_head(Printer&) const override;
 
-    const Node* rewrite(Rewriter&) const override;
+    const CtorVar* rebuild(Rewriter&) const override;
 
     bool can_bind(const Scope&, const Node*) const override;
 

@@ -41,7 +41,7 @@ struct Sig : virtual Node {
 struct SigVar : public Sig, public Var {
     void print_head(Printer&) const override;
 
-    const Node* rewrite(Rewriter&) const override;
+    const SigVar* rebuild(Rewriter&) const override;
 
     bool can_bind(const Scope&, const Node*) const override;
     bool is_sub(const Scope&, const Sig*) const override;
@@ -150,7 +150,7 @@ struct ModVar : public Mod, public Var {
 
     void print(Printer&) const override;
     void print_head(Printer&) const override;
-    const Node* rewrite(Rewriter&) const override;
+    const ModVar* rebuild(Rewriter&) const override;
     void free_variables(FVSet&, Seen&) const override;
     const SigVar* signature() const override;
     void emit(Emitter&) const override;
@@ -172,7 +172,7 @@ struct ModDef : public Mod, public Def {
 
 struct Module : public ModDef {
     const ast::ModDecl* decl;
-    std::unordered_map<const Key*, const Node*> decls;
+    std::unordered_map<const Key*, const Var*> decls;
 
     const Node* lookup(const Key*) const;
 
@@ -184,7 +184,7 @@ struct Module : public ModDef {
 
     void emit(Emitter&) const override;
 
-    Module(Builder&, std::unordered_map<const Key*, const Node*>&&, const SigVar*, const ast::ModDecl*);
+    Module(Builder&, std::unordered_map<const Key*, const Var*>&&, const SigVar*, const ast::ModDecl*);
     Module(const Module&) = delete;
 private:
     const SigVar* signature_ = nullptr;
@@ -223,6 +223,10 @@ struct ModCtor : public Constructor {
         return Constructor::body()->as<Mod>();
     }
 
+    ModExpr body_expr() const {
+        return as_modexpr(body());
+    }
+
     ModCtor(Builder&, Scope&, const ArrayRef<const Var*>&, ModExpr);
 };
 
@@ -251,13 +255,17 @@ struct LetRecMod : public ModDef, public LetRec {
         return LetRec::body()->as<Mod>();
     }
 
+    ModExpr body_expr() const {
+        return as_modexpr(body());
+    }
+
     const SigVar* signature() const override {
         return body()->signature();
     }
     void emit(Emitter&) const override;
 
     bool equals(const Node* other) const override;
-    const Node* rewrite(Rewriter&) const override;
+    const Mod* rewrite(Rewriter&) const override;
 
     void free_variables(FVSet&, Seen&) const override;
 

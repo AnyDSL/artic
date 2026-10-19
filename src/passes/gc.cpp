@@ -8,7 +8,7 @@ struct GC : public Rewriter {
 
     bool progress = false;
 
-    const Node* rewrite(const Node* old, bool imm) override {
+    const Node* rewrite(const Node* old) override {
         if (auto let_rec = old->isa<LetRec>()) {
             LetRecBuilder builder(this->builder());
             BuilderGuard guard(*this, builder);

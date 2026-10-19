@@ -438,7 +438,7 @@ struct LowerMatch : public Rewriter {
     Log& log;
     LowerMatch(Arena& src, Arena& dst, Log& log) : Rewriter(src, dst), log(log) {}
 
-    const Node* rewrite(const Node* old, bool imm) override {
+    const Node* rewrite(const Node* old) override {
         if (auto old_match = old->isa<Match>()) {
             std::vector<PtrnCompiler::MatchCase> match_cases;
             for (auto& case_ : old_match->cases)

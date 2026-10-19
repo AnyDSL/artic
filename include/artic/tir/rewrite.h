@@ -15,9 +15,9 @@ struct Rewriter {
 
     Rewriter(Arena& src, Arena& dst) : src(src), dst(dst) {}
 
-    virtual const Node* rewrite(const Node*, bool) = 0;
+    virtual const Node* rewrite(const Node*) = 0;
 
-    template<typename T = tir::Node, typename S = T>
+    /*template<typename T = tir::Node, typename S = T>
     const S* instantiate(const T* old, bool immediate = false) {
         if (immediate)
             return rewrite(old, true)->template as<S>();
@@ -27,32 +27,57 @@ struct Rewriter {
         auto rewritten = rewrite(old, false)->template as<S>();
         insert(old, rewritten);
         return rewritten;
+    }*/
+
+    const Var* instantiate(const Var*);
+    const Node* instantiate_rhs(const Node*);
+
+    template<typename T = tir::Var, typename S = T>
+    const S* instantiate(const T* old) {
+        const Var* var = old->template as<Var>();
+        return instantiate(var)->template as<S>();
     }
 
-    ValueExpr instantiate(ValueExpr old, bool immediate = false) {
-        return as_valueexpr(instantiate(as_value(old), immediate));
+    const Node* instantiate_expr(const Node*);
+
+    ValueExpr instantiate(ValueExpr);
+    TypeExpr instantiate(TypeExpr);
+    ModExpr instantiate(ModExpr);
+
+    const Function* instantiate(const Function* old) {
+        return rewrite(old)->as<Function>();
+    }
+
+    const Key* instantiate(const Key* old) {
+        return rewrite(old)->as<Key>();
+    }
+
+    const Match::Ptrn* instantiate(const Match::Ptrn* old) {
+        return rewrite(old)->as<Match::Ptrn>();
     }
 
     template<typename T = tir::Node, typename S = T>
-    const Array<const S*> instantiate_array(const Array<const T*>& old, bool immediate = false) {
+    const Array<const S*> instantiate_array(const Array<const T*>& old) {
         Array<const S*> result(old.size());
         for (size_t i = 0; i < old.size(); i++) {
-            result[i] = instantiate(old[i], immediate)->template as<S>();
+            result[i] = instantiate(old[i])->template as<S>();
         }
         return result;
     }
 
     void instantiate(Root& dst, const Root& old);
-    void rewrite_letrec(Builder& builder, const LetRec* old);
+    void record_letrec(Builder& builder, const LetRec* old);
 
-    void insert(const Node* old, const Node* new_) {
+    const Var* rebuild_var(const Var*);
+
+    void insert(const Var* old, const Var* new_) {
         assert(&new_->arena == &dst);
-        map.emplace(old, new_);
+        state.done.emplace(old, new_);
     }
 
-    virtual const Node* lookup(const Node* old) {
-        auto found = map.find(old);
-        if (found != map.end()) {
+    virtual const Var* lookup(const Var* old) {
+        auto found = state.done.find(old);
+        if (found != state.done.end()) {
             return found->second;
         }
         return nullptr;
@@ -90,20 +115,31 @@ struct Rewriter {
         }
     };
 
+    struct Pending {
+        const Var* nvar;
+        const Node* orhs;
+        Builder* dst;
+    };
+
+    struct State {
+        std::unordered_map<const Var*, Pending> pending;
+        std::unordered_map<const Var*, const Var*> done;
+    };
+
     class MapGuard {
         Rewriter& r;
-        std::unordered_map<const Node*, const Node*> map;
+        State state;
     public:
-        MapGuard(Rewriter& r) : r(r), map(r.map) {
-            std::swap(r.map, map);
+        MapGuard(Rewriter& r) : r(r), state(r.state) {
+            //std::swap(r.state, state);
         }
         ~MapGuard() {
-            std::swap(r.map, map);
+            //std::swap(r.state, state);
         }
     };
 
 protected:
-    std::unordered_map<const Node*, const Node*> map;
+    State state;
     const Scope* old_scope = nullptr;
     Builder* builder_ = nullptr;
 };
