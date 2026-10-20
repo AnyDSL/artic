@@ -169,7 +169,6 @@ ValueExpr TypeChecker::build_fn_body(const ValueVar* param, ast::FnExpr& fn, con
     auto& b = builder().enclosing_let_rec();
 
     if (codom) {
-        assert(codom->is_var());
         return yield_expr_scope([&](auto& _) -> ValueExpr {
             bind_ptrn_params(*fn.param, param);
             auto yield_fn_type = b.fn_type(codom, b.no_ret_type());

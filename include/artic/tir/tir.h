@@ -78,8 +78,6 @@ struct Node : public DynCast<Node> {
     }
     virtual const Node* rewrite(Rewriter&) const = 0;
 
-    virtual bool is_var() const = 0;
-
     using Seen = std::unordered_set<const Node*>;
     using FVSet = std::unordered_set<const Var*>;
 
@@ -106,8 +104,6 @@ struct Node : public DynCast<Node> {
 struct Var : virtual public Node {
     mutable const Scope* binder = nullptr;
     std::optional<ast::Identifier> id;
-
-    virtual bool is_var() const final { return true; }
 
     const Node* rewrite(Rewriter&) const final;
     virtual const Var* rebuild(Rewriter&) const = 0;

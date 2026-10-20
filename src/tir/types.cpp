@@ -32,22 +32,15 @@ PrimType::PrimType(Arena& arena, ast::PrimType::Tag tag)
 
 TupleType::TupleType(Arena& arena, const ArrayRef<const TypeVar*>& args)
     : TypeDef(), Node(arena), args(args)
-{
-    for (auto& elem : args)
-        assert(elem->is_var());
-}
+{}
 
 SizedArrayType::SizedArrayType(Arena& arena, const TypeVar* elem, size_t size, bool is_simd)
     : ArrayType(arena, elem), Node(arena), size(size), is_simd(is_simd)
-{
-    assert(elem->is_var());
-}
+{}
 
 UnsizedArrayType::UnsizedArrayType(Arena& arena, const TypeVar* elem)
     : ArrayType(arena, elem), Node(arena)
-{
-    assert(elem->is_var());
-}
+{}
 
 PtrType::PtrType(Arena& arena, const TypeVar* pointee, bool is_mut, size_t addr_space)
     : AddrType(arena, pointee, is_mut, addr_space), Node(arena)
@@ -60,9 +53,7 @@ RefType::RefType(Arena& arena, const TypeVar* pointee, bool is_mut, size_t addr_
 ImplicitParamType::ImplicitParamType(Arena& arena, const TypeVar* underlying)
     : TypeDef(), Node(arena)
     , underlying(underlying)
-{
-    assert(underlying->is_var());
-}
+{}
 
 FnType::FnType(Arena& arena, const TypeVar* dom, const TypeVar* codom)
     : TypeDef(), dom(dom), codom(codom), Node(arena)
@@ -94,19 +85,13 @@ StructType::StructType(Arena& arena, const ast::RecordDecl* decl)
     : ComplexType(), Node(arena), decl(decl)
 {}
 
-void StructType::validate() const {
-    for (auto& t : members)
-        assert(t->is_var());
-}
+void StructType::validate() const {}
 
 EnumType::EnumType(Arena& arena, const ast::EnumDecl* decl)
     : ComplexType(), Node(arena), decl(decl)
 {}
 
-void EnumType::validate() const {
-    for (auto& t : members)
-        assert(t->is_var());
-}
+void EnumType::validate() const {}
 
 TypeApp::TypeApp(Builder& builder, const CtorVar* applicand, const ArrayRef<const Var*>& args)
     : TypeDef(), Node(builder.arena), App(applicand, args)
@@ -122,7 +107,7 @@ TypeCtor::TypeCtor(Builder& builder, Scope& scope, const ArrayRef<const Var*>& p
 }
 
 LetRecType::LetRecType(Builder& builder, Scope& scope, const ArrayRef<std::tuple<const Var*, const Node*>>& vars, TypeExpr expr)
-    : Node(builder.arena), TypeDef(), LetRec(scope, vars, as_type(expr))
+    : Node(builder.arena), Type(), LetRec(scope, vars, as_type(expr))
 {}
 
 bool LetRecType::equals(const Node* other) const {

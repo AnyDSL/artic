@@ -14,7 +14,6 @@ struct Control;
 
 struct Value : virtual public Node {
     Value(Arena& arena, const TypeVar* type) : type_(type) {
-        assert(type->is_var());
         assert(&type->arena == &arena);
     }
 
@@ -127,7 +126,7 @@ struct ValueCtor : public Constructor {
     ValueCtor(Builder&, Scope&, const ArrayRef<const Var*>&, ValueExpr);
 };
 
-struct LetRecValue : public ValueDef, public LetRec {
+struct LetRecValue : public Value, public LetRec {
     const Value* body() const override {
         return LetRec::body()->as<Value>();
     }
@@ -580,10 +579,6 @@ struct Match : public ValueDef {
                 }
             }
             return true;
-        }
-
-        bool is_var() const override {
-            return false;
         }
 
         Ptrn(Arena& arena, const TypeVar* type) : Node(arena), type(type) {}

@@ -86,7 +86,6 @@ Constructor::Constructor(LetRecBuilder& builder, Scope& scope, const ArrayRef<co
 }()), scope(scope), params(params), body_(body) {
     for (size_t i = 0; i < params.size(); i++) {
         assert(scope.is_in_scope(params[i]));
-        assert(params[i]->is_var());
     }
 }
 

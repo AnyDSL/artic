@@ -34,9 +34,7 @@ const Node* Module::lookup(const Key* key) const {
     return nullptr;
 }
 
-ValueSignature::ValueSignature(Builder& builder, const TypeVar* value_type) : Node(builder.arena), SigDef(), value_type(value_type) {
-    assert(value_type->is_var());
-}
+ValueSignature::ValueSignature(Builder& builder, const TypeVar* value_type) : Node(builder.arena), SigDef(), value_type(value_type) {}
 
 size_t ValueSignature::hash() const {
     return value_type->hash();
@@ -49,10 +47,7 @@ bool ValueSignature::equals(const Node* other) const {
     return false;
 }
 
-TypeSignature::TypeSignature(Builder& builder, const TypeVar* type) : Node(builder.arena), SigDef(), type(type) {
-    if (type)
-        assert(type->is_var());
-}
+TypeSignature::TypeSignature(Builder& builder, const TypeVar* type) : Node(builder.arena), SigDef(), type(type) {}
 
 size_t TypeSignature::hash() const {
     auto h = fnv::Hash();
@@ -104,8 +99,6 @@ const Key* ModSignature::lookup_key(const ast::Identifier& id) const {
 }
 
 CtorSignature::CtorSignature(Builder& builder, const ArrayRef<const SigVar*>& dom, NodeKind codom_kind) : Node(builder.arena), SigDef(), dom(dom), codom_kind(codom_kind) {
-    for (auto d : dom)
-        assert(d->is_var());
     // assert(codom->is_simple());
 }
 
@@ -317,7 +310,7 @@ const SigVar* ModModAccess::signature() const {
 
 ModAccess::ModAccess(Builder& builder, const ModVar* mod, const Key* key)
     : mod(mod), key(key) {
-    assert(mod->is_var() && mod->kind() == NodeKind::Module);
+    assert(mod->kind() == NodeKind::Module);
     assert(key->isa<Key>());
 }
 
@@ -326,7 +319,7 @@ ModModAccess::ModModAccess(Builder& builder, const ModVar* mod, const Key* key)
         auto mod_sig = resolve_sig_var(builder.scope, mod->signature()->as<SigVar>())->as<ModSignature>();
         return mod_sig->elems.find(key)->second;
     }()) {
-    assert(mod->is_var() && mod->kind() == NodeKind::Module);
+    assert(mod->kind() == NodeKind::Module);
     assert(key->isa<Key>());
 }
 
@@ -373,11 +366,7 @@ ModApp::ModApp(Builder& builder, const CtorVar* applicand, const ArrayRef<const 
     }
     signature_ = ctor_sig->codom;
     return signature_->elem_kind;
-}())*/, Node(builder.arena), App(applicand,args) {
-    assert(applicand->is_var());
-    for (auto arg : args)
-        assert(arg->is_var());
-}
+}())*/, Node(builder.arena), App(applicand,args) {}
 
 size_t ModApp::hash() const {
     auto h = fnv::Hash().combine(applicand_);
@@ -421,7 +410,7 @@ const SigVar* ModError::signature() const {
 }
 
 LetRecMod::LetRecMod(Builder& builder, Scope& scope, const ArrayRef<std::tuple<const Var*, const Node*>>& vars, ModExpr expr)
-    : Node(builder.arena), ModDef(), LetRec(scope, vars, as_mod(expr))
+    : Node(builder.arena), Mod(), LetRec(scope, vars, as_mod(expr))
 {}
 
 bool LetRecMod::equals(const Node* other) const {

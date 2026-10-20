@@ -21,7 +21,6 @@ struct Key : virtual public Node {
     void free_variables(FVSet&, Seen&) const override {};
 
     NodeKind kind() const override { return NodeKind::Key; }
-    bool is_var() const override { return true; }
 
     Key(Arena& arena, std::optional<ast::Identifier> id) : Node(arena), id(id) {}
 };
@@ -250,7 +249,7 @@ private:
     friend Emitter;
 };
 
-struct LetRecMod : public ModDef, public LetRec {
+struct LetRecMod : public Mod, public LetRec {
     const Mod* body() const override {
         return LetRec::body()->as<Mod>();
     }

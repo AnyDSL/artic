@@ -548,7 +548,7 @@ struct TypeCtor : public Constructor {
     TypeCtor(Builder&, Scope&, const ArrayRef<const Var*>&, TypeExpr);
 };
 
-struct LetRecType : public TypeDef, public LetRec {
+struct LetRecType : public Type, public LetRec {
     const Type* body() const override {
         return LetRec::body()->as<Type>();
     }

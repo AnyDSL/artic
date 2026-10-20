@@ -57,7 +57,7 @@ void Printer::print(const Node& node, bool print_inline) {
     depth++;
     const Node* n = &node;
     if (max_depth == 0 || depth <= max_depth) {
-        auto was_var = n->is_var();
+        auto was_var = n->isa<Var>();
         push();
         while (true) {
             n->print(*this);
@@ -594,7 +594,7 @@ void Seq::print(Printer& p) const {
         p.print(*bind.value, true);
         p << ';' << p.endl();
     }
-    p.print(*as_value(yield), !as_value(yield)->is_var());
+    p.print(*as_value(yield), !as_value(yield)->isa<Var>());
     p << p.endl();
     p << p.unindent() << p.endl() << '}';
 }
