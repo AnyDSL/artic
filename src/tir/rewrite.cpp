@@ -12,7 +12,7 @@ namespace tir {
 
 void Rewriter::instantiate(Root& dst, const Root& old) {
     LetRecBuilder builder(dst);
-    BuilderGuard guard(*this, builder);
+    FrameGuard guard(*this, builder);
     dst.root_module = as_mod(builder.finish_module(instantiate(as_modexpr(old.root_module))));
 }
 
@@ -20,13 +20,19 @@ const Var* Rewriter::instantiate(const Var* old) {
     auto found = lookup(old);
     if (found)
         return found;
-    assert(state.pending.contains(old) && "trying to rewrite a variable we haven't seen yet");
-    Pending pending = state.pending.find(old)->second;
+    auto maybe_pending = lookup_pending(old);
+    if (!maybe_pending) {
+        assert(false && "trying to rewrite a variable we haven't seen yet");
+        return nullptr;
+    }
+    Pending pending = *maybe_pending;
+    printf("rebuilding %d\n", old->gid);
+    // BuilderGuard guard(*this, *pending.dst);
     if (auto dst_letrec = pending.dst->isa<LetRecBuilder>())
         dst_letrec->reserve_bind(pending.nvar);
-    insert(old, pending.nvar);
+    pending.frame->insert(old, pending.nvar);
     pending.dst->bind(pending.nvar, instantiate_rhs(pending.orhs));
-    state.pending.erase(old);
+    pending.frame->pending.erase(old);
     return pending.nvar;
 }
 
@@ -158,41 +164,41 @@ const Node* Module::rewrite(Rewriter& r) const {
 }
 
 const Node* ModCtor::rewrite(Rewriter& r) const {
-    Rewriter::MapGuard map_guard(r);
     AbstractBuilder ctor_builder(r.builder(), "mod_ctor_abs");
+    Rewriter::FrameGuard ctor_guard(r, ctor_builder);
     Array<const Var*> params(this->params.size());
     for (size_t i = 0; i < params.size(); i++) {
-        r.insert(this->params[i], params[i] = r.rebuild_var(this->params[i]));
+        r.frame().insert(this->params[i], params[i] = r.rebuild_var(this->params[i]));
         ctor_builder.register_var(params[i]);
     }
     auto body_builder = LetRecBuilder(ctor_builder, "mod_ctor_body");
-    Rewriter::BuilderGuard guard(r, body_builder);
+    Rewriter::FrameGuard body_guard(r, body_builder);
     return r.builder().unsafe().mod_ctor(ctor_builder.scope, params, body_builder.finish_module(r.instantiate(body_expr())));
 }
 
 const Node* TypeCtor::rewrite(Rewriter& r) const {
-    Rewriter::MapGuard map_guard(r);
     AbstractBuilder ctor_builder(r.builder(), "type_ctor_abs");
+    Rewriter::FrameGuard ctor_guard(r, ctor_builder);
     Array<const Var*> params(this->params.size());
     for (size_t i = 0; i < params.size(); i++) {
-        r.insert(this->params[i], params[i] = r.rebuild_var(this->params[i]));
+        r.frame().insert(this->params[i], params[i] = r.rebuild_var(this->params[i]));
         ctor_builder.register_var(params[i]);
     }
     auto body_builder = LetRecBuilder(ctor_builder, "type_ctor_body");
-    Rewriter::BuilderGuard guard(r, body_builder);
+    Rewriter::FrameGuard body_guard(r, body_builder);
     return r.builder().unsafe().type_ctor(ctor_builder.scope, params, body_builder.finish_type(r.instantiate(body_expr())));
 }
 
 const Node* ValueCtor::rewrite(Rewriter& r) const {
-    Rewriter::MapGuard map_guard(r);
     AbstractBuilder ctor_builder(r.builder(), "value_ctor_abs");
+    Rewriter::FrameGuard ctor_guard(r, ctor_builder);
     Array<const Var*> params(this->params.size());
     for (size_t i = 0; i < params.size(); i++) {
-        r.insert(this->params[i], params[i] = r.rebuild_var(this->params[i]));
+        r.frame().insert(this->params[i], params[i] = r.rebuild_var(this->params[i]));
         ctor_builder.register_var(params[i]);
     }
     auto body_builder = LetRecBuilder(ctor_builder, "value_ctor_body");
-    Rewriter::BuilderGuard guard(r, body_builder);
+    Rewriter::FrameGuard body_guard(r, body_builder);
     return r.builder().unsafe().value_ctor(ctor_builder.scope, params, body_builder.finish_value(r.instantiate(body_expr())));
 }
 
@@ -217,10 +223,12 @@ void Rewriter::record_letrec(Builder& builder, const LetRec* old) {
     LetRecBuilder& target = builder.enclosing_let_rec();
     for (auto [ovar, oval] : old->vars) {
         auto var = rebuild_var(ovar);
-        state.pending[ovar] = Pending {
+        ovar->dump();
+        state.top().pending[ovar] = Pending {
             .nvar = var,
             .orhs = oval,
             .dst = &target,
+            .frame = &state.top()
         };
         //insert(ovar, var);
         target.tie_var(var);
@@ -293,23 +301,23 @@ const Node* LocalVariable::rewrite(Rewriter& r) const {
 }
 
 const Node* Function::rewrite(Rewriter& r) const {
-    Rewriter::MapGuard guard(r);
     auto nparam = r.rebuild_var(param)->as<ValueVar>();
     auto ncodom = r.instantiate(codom);
 
     AbstractBuilder fn_builder(r.builder(), "fn_abs["+std::to_string(param->gid)+"]");
+    Rewriter::FrameGuard fn_guard(r, fn_builder);
     fn_builder.register_var(nparam);
     auto nfn = r.builder().unsafe().function(nparam, fn_builder.scope, ncodom, decl);
     //r.insert(this, nfn);
-    r.insert(param, nparam);
+    r.frame().insert(param, nparam);
     if (body_) {
-        LetRecBuilder builder(fn_builder, "fn_filter_letrec");
-        Rewriter::BuilderGuard guard(r, builder);
+        LetRecBuilder builder(fn_builder, "fn_body_letrec");
+        Rewriter::FrameGuard guard(r, builder);
         nfn->set_body(r.builder(), builder.finish_value(r.instantiate(*body_)));
     }
     if (filter_) {
-        LetRecBuilder builder(fn_builder, "fn_body_letrec");
-        Rewriter::BuilderGuard guard(r, builder);
+        LetRecBuilder builder(fn_builder, "fn_filter_letrec");
+        Rewriter::FrameGuard guard(r, builder);
         nfn->set_filter(r.builder(), builder.finish_value(r.instantiate(*filter_)));
     }
     if (linkage)
@@ -379,15 +387,15 @@ const Node* Proj::rewrite(Rewriter& r) const {
 
 const Value* Seq::rewrite(Rewriter& r) const {
     ExprBuilder seq_builder(r.builder(), "seq_expr");
-    Rewriter::BuilderGuard guard(r, seq_builder);
+    Rewriter::FrameGuard guard(r, seq_builder);
     for (auto bind : evaluate) {
         auto new_value = r.instantiate_rhs(bind.value)->as<Value>();
         assert(!new_value->isa<Def>() || !new_value->as<Def>()->bound_to);
         auto new_var = seq_builder.bind_value(new_value);
-        r.insert(bind.var, new_var);
+        r.frame().insert(bind.var, new_var);
     }
     LetRecBuilder letrec_builder(seq_builder, "seq_final");
-    Rewriter::BuilderGuard guard2(r, letrec_builder);
+    Rewriter::FrameGuard tail_guard(r, letrec_builder);
     return as_value(seq_builder.finish(letrec_builder.finish_value(r.instantiate(yield))));
 }
 

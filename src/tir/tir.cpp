@@ -145,7 +145,7 @@ void App::free_variables(FVSet& vars, Seen& seen) const {
 
 const Node* Constructor::instantiate_into(ArrayRef<const Var*> args, Rewriter& r) const {
     for (size_t i = 0; i < params.size(); i++) {
-        r.insert(params[i], args[i]);
+        r.frame().insert(params[i], args[i]);
     }
     return r.instantiate_expr(body_);
 }
@@ -154,11 +154,12 @@ struct Specializer : public Rewriter {
     LetRecBuilder& b;
     Scope& s;
 
-    Specializer(Arena&, Scope& s, LetRecBuilder& b) : Rewriter(b.arena, b.arena), b(b), s(s) {
-        builder_ = &b;
+    FrameGuard root_frame;
+    Specializer(Arena&, Scope& s, LetRecBuilder& b) : Rewriter(b.arena, b.arena), b(b), s(s), root_frame(*this, b) {
+
     }
 
-    const Var* lookup(const Var* var) override {
+    const Var* lookup(const Var* var) const override {
         if (!var->binder->is_child_of(&s) && &s != var->binder)
             return var;
         return Rewriter::lookup(var);

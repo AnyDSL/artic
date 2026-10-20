@@ -1,5 +1,6 @@
 #include "artic/tir/passes.h"
 #include "artic/tir/rewrite.h"
+#include "artic/tir/rewrite.h"
 
 namespace artic::tir {
 
@@ -38,11 +39,12 @@ struct LowerApp : public Rewriter {
     LowerApp(Arena& src, Arena& dst, Map& stuff) : Rewriter(src, dst), instantiated_stuff(stuff) {}
 
     LowerApp(Arena& src, Scope& s, LetRecBuilder& b, LowerApp& p) : Rewriter(src, b.arena), s(&s), p(&p), instantiated_stuff(p.instantiated_stuff) {
-        builder_ = &b;
+        inline_guard = std::make_unique<FrameGuard>(*this, b);
     }
 
     Scope* s = nullptr;
     LowerApp* p = nullptr;
+    std::unique_ptr<FrameGuard> inline_guard;
 
     Map& instantiated_stuff;
 
@@ -88,6 +90,12 @@ struct LowerApp : public Rewriter {
         //    builder().enclosing_let_rec().bind(var, def);
         //}
         return var;
+    }
+
+    const Var* lookup(const Var* var) const override {
+        if (s && !var->binder->is_child_of(s) && s != var->binder)
+            return p->instantiate(var);
+        return Rewriter::lookup(var);
     }
 
     const Node* rewrite(const Node* old) override {

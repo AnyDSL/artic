@@ -70,28 +70,21 @@ struct Rewriter {
 
     const Var* rebuild_var(const Var*);
 
-    void insert(const Var* old, const Var* new_) {
-        assert(&new_->arena == &dst);
-        state.done.emplace(old, new_);
-    }
-
-    virtual const Var* lookup(const Var* old) {
-        auto found = state.done.find(old);
-        if (found != state.done.end()) {
-            return found->second;
+    virtual const Var* lookup(const Var* old) const {
+        for (auto& f : state.stack) {
+            auto found = f->done.find(old);
+            if (found != f->done.end()) {
+                return found->second;
+            }
         }
         return nullptr;
     }
 
     Builder& builder() const {
-        return *builder_;
+        return state.top().builder;
     }
 
-    bool is_root() const {
-        return builder_ == nullptr;
-    }
-
-    class BuilderGuard {
+    /*class BuilderGuard {
         Rewriter& r;
         Builder* old;
     public:
@@ -101,32 +94,81 @@ struct Rewriter {
         ~BuilderGuard() {
             std::swap(r.builder_, old);
         }
-    };
+    };*/
 
-    class OldScopeGuard {
-        Rewriter& r;
-        const Scope* old_old_scope;
-    public:
-        OldScopeGuard(Rewriter& r, const Scope* old_scope) : r(r), old_old_scope(old_scope) {
-            std::swap(r.old_scope, old_old_scope);
-        }
-        ~OldScopeGuard() {
-            std::swap(r.old_scope, old_old_scope);
-        }
-    };
-
+    struct Frame;
     struct Pending {
         const Var* nvar;
         const Node* orhs;
         Builder* dst;
+        Frame* frame;
     };
 
-    struct State {
+    struct Frame {
+        Builder& builder;
         std::unordered_map<const Var*, Pending> pending;
         std::unordered_map<const Var*, const Var*> done;
+
+        Frame(Builder& builder) : builder(builder) {}
+
+        void insert(const Var* old, const Var* new_) {
+            assert(&new_->arena == &builder.arena);
+            done.emplace(old, new_);
+        }
     };
 
-    class MapGuard {
+    Frame& frame() {
+        return state.top();
+    }
+
+    /*struct LetRecFrame : Frame {
+        LetRecFrame(Root& root) : Frame(std::move(std::make_unique<LetRecBuilder>(root))) {}
+        LetRecFrame(Builder& builder, std::string name) : Frame(std::move(std::make_unique<LetRecBuilder>(builder, name))) {}
+    };
+
+    struct ExprFrame : Frame {
+        ExprFrame(Builder& builder, std::string name) : Frame(std::move(std::make_unique<ExprBuilder>(builder, name))) {}
+    };*/
+
+    struct State {
+        std::vector<std::unique_ptr<Frame>> stack;
+
+        Frame& top() const {
+            assert(!stack.empty());
+            return *stack.back();
+        }
+
+        void push(std::unique_ptr<Frame>&& frame) {
+            stack.push_back(std::move(frame));
+        }
+
+        void pop() {
+            stack.pop_back();
+        }
+    };
+
+    class FrameGuard {
+        Rewriter& r;
+    public:
+        FrameGuard(Rewriter& r, Builder& builder) : r(r) {
+            r.state.push(std::move(std::make_unique<Frame>(builder)));
+        }
+        ~FrameGuard() {
+            r.state.pop();
+        }
+    };
+
+    std::optional<Pending> lookup_pending(const Var* old) const {
+        for (auto& f : state.stack) {
+            auto found = f->pending.find(old);
+            if (found != f->pending.end()) {
+                return found->second;
+            }
+        }
+        return std::nullopt;
+    }
+
+    /*class MapGuard {
         Rewriter& r;
         State state;
     public:
@@ -136,12 +178,10 @@ struct Rewriter {
         ~MapGuard() {
             //std::swap(r.state, state);
         }
-    };
+    };*/
 
 protected:
     State state;
-    const Scope* old_scope = nullptr;
-    Builder* builder_ = nullptr;
 };
 
 }

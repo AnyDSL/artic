@@ -81,11 +81,13 @@ struct TypeExtractor : public Rewriter {
     Scope& s;
     const Value* xtract;
 
-    TypeExtractor(LetRecBuilder& dst, Scope& s, const Value* x) : Rewriter(dst.arena, dst.arena), dst(dst), s(s), xtract(x) {
-        builder_ = &dst;
+    FrameGuard root_frame;
+
+    TypeExtractor(LetRecBuilder& dst, Scope& s, const Value* x) : Rewriter(dst.arena, dst.arena), dst(dst), s(s), xtract(x), root_frame(*this, dst) {
+
     }
 
-    const Var* lookup(const Var* var) override {
+    const Var* lookup(const Var* var) const override {
         if (!var->binder->is_child_of(&s) && &s != var->binder)
             return var;
         return Rewriter::lookup(var);
@@ -148,7 +150,7 @@ struct TypeExtractor : public Rewriter {
 const TypeVar* extract_value_app_type(LetRecBuilder& dst, const ValueCtor* ctor, const ArrayRef<const Var*>& args) {
     TypeExtractor extractor(dst, ctor->scope, ctor->body()->as<Value>());
     for (size_t i = 0; i < args.size(); i++) {
-        extractor.insert(ctor->params[i], args[i]);
+        extractor.frame().insert(ctor->params[i], args[i]);
     }
     return extractor.extract_type(ctor->body_expr());
 }
