@@ -540,8 +540,8 @@ const ValueVar* ExprBuilder::control(const Function* fn) {
     return bind_value(unsafe().control(fn));
 }
 
-bool ExprBuilder::may_bind(const Node* node) {
-    return node->isa<ValueDef>() || node->isa<ValueVar>();
+bool ExprBuilder::may_bind(NodeKind kind) {
+    return kind == NodeKind::Value;
 }
 
 void ExprBuilder::bind(const Var* var, const Node* node) {
@@ -551,7 +551,6 @@ void ExprBuilder::bind(const Var* var, const Node* node) {
 }
 
 void ExprBuilder::add_binding(const ValueVar* var, const Value* value) {
-    assert(may_bind(value));
     seq.emplace_back(Seq::Bind(var, value));
     scope.insert(var, value);
 }
@@ -809,10 +808,10 @@ static const Scope* get_node_scope_helper(Builder& builder, const Node* node) {
     return builder.vars_scope(fvs);
 }
 
-Builder* Builder::find_suitable_builder(const Scope* scope, const Node* node) {
+Builder* Builder::find_suitable_builder(const Scope* scope, NodeKind kind) {
     Builder* dst = nullptr;
     for (Builder* b = this; b; b = b->parent) {
-        if (!b->may_bind(node))
+        if (!b->may_bind(kind))
             continue;
         if (b->scope.is_child_of(scope)) {
             dst = b;
@@ -830,7 +829,7 @@ std::tuple<const Var*, Builder*> Builder::locate(const Def* node) {
     assert(scope.is_child_of(node_scope) && "this node cannot be scheduled here or in any parent module, it has free variables that would not be bound");
 
     // find the corresponding module builder
-    Builder* dst = find_suitable_builder(node_scope, node);
+    Builder* dst = find_suitable_builder(node_scope, node->kind());
 
     assert(dst && "failed to find the matching builder for the dst scope");
     auto found = dst->scope.bound_defs.find(node);

@@ -149,7 +149,7 @@ public:
     const ValueVar* maybe_schedule_value(const Value*);
     const ModVar* maybe_schedule_mod(const Mod*);
 
-    virtual bool may_bind(const Node*) { return true; }
+    virtual bool may_bind(NodeKind) { return true; }
     virtual void bind(const Var*, const Node*) = 0;
 
     const Var* maybe_schedule(const Node*);
@@ -169,7 +169,7 @@ public:
 
     std::tuple<const Var*, Builder*> locate(const Def*);
 
-    Builder* find_suitable_builder(const Scope*, const Node*);
+    Builder* find_suitable_builder(const Scope*, NodeKind);
 
     std::vector<std::unique_ptr<Builder>> children;
 
@@ -292,7 +292,7 @@ private:
 struct ExprBuilder : public Builder {
     ExprBuilder(Builder&, std::string);
 
-    bool may_bind(const Node*) override;
+    bool may_bind(NodeKind) override;
     void bind(const Var*, const Node*) override;
 
     void add_binding(const ValueVar*, const Value*);
@@ -342,7 +342,7 @@ private:
 struct AbstractBuilder : public Builder {
     AbstractBuilder(Builder&, std::string);
 
-    bool may_bind(const Node*) override { return false; }
+    bool may_bind(NodeKind _) override { return false; }
     void bind(const Var*, const Node*) override {
         assert(false);
     }

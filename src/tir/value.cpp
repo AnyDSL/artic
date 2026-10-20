@@ -145,8 +145,16 @@ struct TypeExtractor : public Rewriter {
     }
 };
 
-const TypeVar* extract_value_app_type(LetRecBuilder& dst, const ValueCtor* ctor, const ArrayRef<const Var*>& args) {
-    TypeExtractor extractor(dst, ctor->scope, ctor->body()->as<Value>());
+const TypeVar* extract_value_app_type(LetRecBuilder& builder, const CtorVar* ctor_var, const ArrayRef<const Var*>& args) {
+    Node::FVSet set;
+    set.insert(ctor_var);
+    for (auto arg : args)
+        set.insert(arg);
+    const Scope* dst_scope = builder.vars_scope(set);
+    Builder* dst = builder.find_suitable_builder(dst_scope, NodeKind::Type);
+
+    auto ctor = resolve_ctor_var(builder.scope, ctor_var)->as<ValueCtor>();
+    TypeExtractor extractor(*dst->as<LetRecBuilder>(), ctor->scope, ctor->body()->as<Value>());
     for (size_t i = 0; i < args.size(); i++) {
         extractor.frame().insert(ctor->params[i], args[i]);
     }
@@ -155,8 +163,7 @@ const TypeVar* extract_value_app_type(LetRecBuilder& dst, const ValueCtor* ctor,
 
 ValueApp::ValueApp(Builder& builder, const CtorVar* ctor_var, const ArrayRef<const Var*>& args)
     : Node(builder.arena), App(ctor_var, args), ValueDef(builder.arena, [&]() -> const TypeVar* {
-        auto ctor = resolve_ctor_var(builder.scope, ctor_var)->as<ValueCtor>();
-        return extract_value_app_type(builder.enclosing_let_rec(), ctor, args);
+        return extract_value_app_type(builder.enclosing_let_rec(), ctor_var, args);
         // TypeExtractor replacer(builder.enclosing_let_rec(), ctor->scope, ctor->body()->as<Value>());
         // for (size_t i = 0; i < args.size(); i++) {
         //     replacer.insert(ctor->params[i], args[i]);
