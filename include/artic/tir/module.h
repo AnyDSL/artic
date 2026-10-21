@@ -17,7 +17,7 @@ struct Key : virtual public Node {
     std::optional<ast::Identifier> id;
 
     void print(Printer&) const override;
-    const Node* rewrite(Rewriter&) const override;
+    const Key* rewrite(Rewriter&) const;
     void free_variables(FVSet&, Seen&) const override {};
 
     NodeKind kind() const override { return NodeKind::Key; }
@@ -40,7 +40,7 @@ struct Sig : virtual Node {
 struct SigVar : public Sig, public Var {
     void print_head(Printer&) const override;
 
-    const SigVar* rebuild(Rewriter&) const override;
+    const SigVar* rebuild(Rewriter&, Builder&) const override;
 
     bool can_bind(const Scope&, const Node*) const override;
     bool is_sub(const Scope&, const Sig*) const override;
@@ -59,7 +59,7 @@ struct ValueSignature : public SigDef {
     size_t hash() const override;
     bool equals(const Node*) const override;
     void print(Printer& p) const override;
-    const Node* rewrite(Rewriter&) const override;
+    const Node* rewrite(Rewriter&, Builder&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
     //NodeKind element_kind() const override { return NodeKind::Value; }
@@ -74,7 +74,7 @@ struct TypeSignature : public SigDef {
     size_t hash() const override;
     bool equals(const Node*) const override;
     void print(Printer& p) const override;
-    const Node* rewrite(Rewriter&) const override;
+    const Node* rewrite(Rewriter&, Builder&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
     //NodeKind element_kind() const override { return NodeKind::Type; }
@@ -89,7 +89,7 @@ struct ModSignature : public SigDef {
     size_t hash() const override;
     bool equals(const Node*) const override;
     void print(Printer& p) const override;
-    const Node* rewrite(Rewriter&) const override;
+    const Node* rewrite(Rewriter&, Builder&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
     //NodeKind element_kind() const override { return NodeKind::Module; }
@@ -110,7 +110,7 @@ struct CtorSignature : public SigDef {
     size_t hash() const override;
     bool equals(const Node*) const override;
     void print(Printer& p) const override;
-    const Node* rewrite(Rewriter&) const override;
+    const Node* rewrite(Rewriter&, Builder&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
     //NodeKind element_kind() const override { return NodeKind::Ctor; }
@@ -121,7 +121,7 @@ struct CtorSignature : public SigDef {
 
 struct SigError : public SigDef {
     void print(Printer&) const override;
-    const Node* rewrite(Rewriter&) const override;
+    const Node* rewrite(Rewriter&, Builder&) const override;
 
     void free_variables(FVSet&, Seen&) const override;
 
@@ -149,7 +149,7 @@ struct ModVar : public Mod, public Var {
 
     void print(Printer&) const override;
     void print_head(Printer&) const override;
-    const ModVar* rebuild(Rewriter&) const override;
+    const ModVar* rebuild(Rewriter&, Builder&) const override;
     void free_variables(FVSet&, Seen&) const override;
     const SigVar* signature() const override;
     void emit(Emitter&) const override;
@@ -178,7 +178,7 @@ struct Module : public ModDef {
     const SigVar* signature() const override;
 
     void print(Printer&) const override;
-    const Node* rewrite(Rewriter&) const override;
+    const Node* rewrite(Rewriter&, Builder&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
     void emit(Emitter&) const override;
@@ -207,7 +207,7 @@ struct ModModAccess : public ModAccess, public ModDef {
     void emit(Emitter&) const override;
 
     bool equals(const Node*) const override;
-    const Node* rewrite(Rewriter&) const override;
+    const Node* rewrite(Rewriter&, Builder&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
     ModModAccess(Builder&, const ModVar*, const Key*);
@@ -215,7 +215,7 @@ struct ModModAccess : public ModAccess, public ModDef {
 
 struct ModCtor : public Constructor {
     void print(Printer&) const override;
-    const Node* rewrite(Rewriter&) const override;
+    const Node* rewrite(Rewriter&, Builder&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
     const Mod* body() const override {
@@ -233,7 +233,7 @@ struct ModApp : public ModDef, public App {
     size_t hash() const override;
     bool equals(const Node*) const override;
     void print(Printer&) const override;
-    const Node* rewrite(Rewriter&) const override;
+    const Node* rewrite(Rewriter&, Builder&) const override;
     void free_variables(FVSet&, Seen&) const override;
     void emit(Emitter&) const override;
 
@@ -264,7 +264,7 @@ struct LetRecMod : public Mod, public LetRec {
     void emit(Emitter&) const override;
 
     bool equals(const Node* other) const override;
-    const Mod* rewrite(Rewriter&) const override;
+    const Mod* rewrite(Rewriter&, Builder&) const override;
 
     void free_variables(FVSet&, Seen&) const override;
 
@@ -277,7 +277,7 @@ struct ModError : public ModDef {
     size_t hash() const override;
     bool equals(const Node*) const override;
     void print(Printer&) const override;
-    const Node* rewrite(Rewriter&) const override;
+    const Node* rewrite(Rewriter&, Builder&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
     const SigVar* signature() const override;

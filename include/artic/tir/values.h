@@ -44,7 +44,7 @@ struct ValueVar : public Value, public Var {
 
     void print(Printer&) const override;
     void print_head(Printer&) const override;
-    const ValueVar* rebuild(Rewriter&) const override;
+    const ValueVar* rebuild(Rewriter&, Builder&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
     bool can_bind(const Scope&, const Node*) const override;
@@ -73,7 +73,7 @@ struct Unit : public ValueDef {
     bool equals(const Node*) const override;
     size_t hash() const override;
     void print(Printer&) const override;
-    const Node* rewrite(Rewriter&) const override;
+    const Node* rewrite(Rewriter&, Builder&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
     const thorin::Def* emit(Emitter&) const override;
@@ -87,7 +87,7 @@ struct ErrorValue : public ValueDef {
     bool equals(const Node*) const override;
     size_t hash() const override;
     void print(Printer&) const override;
-    const Node* rewrite(Rewriter&) const override;
+    const Node* rewrite(Rewriter&, Builder&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
     const thorin::Def* emit(Emitter&) const override;
@@ -98,7 +98,7 @@ struct ErrorValue : public ValueDef {
 struct ValueApp : public ValueDef, public App {
     void print(Printer&) const override;
     bool equals(const Node*) const override;
-    const Value* rewrite(Rewriter&) const override;
+    const Value* rewrite(Rewriter&, Builder&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
     const Value* instantiated(LetRecBuilder& b) const override {
@@ -121,7 +121,7 @@ struct ValueCtor : public Constructor {
     }
 
     void print(Printer&) const override;
-    const Node* rewrite(Rewriter&) const override;
+    const Node* rewrite(Rewriter&, Builder&) const override;
 
     ValueCtor(Builder&, Scope&, const ArrayRef<const Var*>&, ValueExpr);
 };
@@ -136,7 +136,7 @@ struct LetRecValue : public Value, public LetRec {
     }
 
     bool equals(const Node* other) const override;
-    const Value* rewrite(Rewriter&) const override;
+    const Value* rewrite(Rewriter&, Builder&) const override;
 
     const thorin::Def* emit(Emitter&) const override;
 
@@ -160,7 +160,7 @@ struct Function : public ValueDef {
     mutable std::optional<FunctionLinkage> linkage;
 
     void print(Printer&) const override;
-    const Node* rewrite(Rewriter&) const override;
+    const Node* rewrite(Rewriter&, Builder&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
     const FnType* resolve_type(const Scope& s) const override { return Value::resolve_type(s)->as<FnType>(); }
@@ -187,7 +187,7 @@ struct Call : public ValueDef {
     // size_t hash() const override;
 
     void print(Printer&) const override;
-    const Node* rewrite(Rewriter&) const override;
+    const Node* rewrite(Rewriter&, Builder&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
     const thorin::Def* emit(Emitter&) const override;
@@ -209,7 +209,7 @@ struct GlobalVariable : public ValueDef {
     mutable std::optional<GlobalVarLinkage> linkage;
 
     void print(Printer&) const override;
-    const Node* rewrite(Rewriter&) const override;
+    const Node* rewrite(Rewriter&, Builder&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
     const RefType* resolve_type(const Scope& s) const override { return Value::resolve_type(s)->as<RefType>(); }
@@ -224,7 +224,7 @@ struct LocalVariable : public ValueDef {
     const TypeVar* allocated_type;
 
     void print(Printer&) const override;
-    const Node* rewrite(Rewriter&) const override;
+    const Node* rewrite(Rewriter&, Builder&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
     const RefType* resolve_type(const Scope& s) const override { return Value::resolve_type(s)->as<RefType>(); }
@@ -241,7 +241,7 @@ struct ImplicitCast : public ValueDef {
     // size_t hash() const override;
 
     void print(Printer&) const override;
-    const Node* rewrite(Rewriter&) const override;
+    const Node* rewrite(Rewriter&, Builder&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
     const thorin::Def* emit(Emitter&) const override;
@@ -257,7 +257,7 @@ struct Cast : public ValueDef {
     // size_t hash() const override;
 
     void print(Printer&) const override;
-    const Node* rewrite(Rewriter&) const override;
+    const Node* rewrite(Rewriter&, Builder&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
     const thorin::Def* emit(Emitter&) const override;
@@ -272,7 +272,7 @@ struct TypedLiteral : public ValueDef {
     size_t hash() const override;
 
     void print(Printer&) const override;
-    const Node* rewrite(Rewriter&) const override;
+    const Node* rewrite(Rewriter&, Builder&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
     const thorin::Def* emit(Emitter&) const override;
@@ -286,7 +286,7 @@ struct Undef : public ValueDef {
     size_t hash() const override;
 
     void print(Printer&) const override;
-    const Node* rewrite(Rewriter&) const override;
+    const Node* rewrite(Rewriter&, Builder&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
     const thorin::Def* emit(Emitter&) const override;
@@ -303,7 +303,7 @@ struct Agg : public ValueDef {
     size_t hash() const override;
 
     void print(Printer&) const override;
-    const Node* rewrite(Rewriter&) const override;
+    const Node* rewrite(Rewriter&, Builder&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
     bool is_computation() const override { return false; }
@@ -320,7 +320,7 @@ struct Extract : public ValueDef {
     // size_t hash() const override;
 
     void print(Printer&) const override;
-    const Node* rewrite(Rewriter&) const override;
+    const Node* rewrite(Rewriter&, Builder&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
     const thorin::Def* emit(Emitter&) const override;
@@ -342,7 +342,7 @@ struct Variant : public ValueDef {
     size_t hash() const override;
 
     void print(Printer&) const override;
-    const Node* rewrite(Rewriter&) const override;
+    const Node* rewrite(Rewriter&, Builder&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
     const thorin::Def* emit(Emitter&) const override;
@@ -357,7 +357,7 @@ struct VariantIndex : public ValueDef {
     // size_t hash() const override;
 
     void print(Printer&) const override;
-    const Node* rewrite(Rewriter&) const override;
+    const Node* rewrite(Rewriter&, Builder&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
     const thorin::Def* emit(Emitter&) const override;
@@ -373,7 +373,7 @@ struct VariantExtract : public ValueDef {
     // size_t hash() const override;
 
     void print(Printer&) const override;
-    const Node* rewrite(Rewriter&) const override;
+    const Node* rewrite(Rewriter&, Builder&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
     const thorin::Def* emit(Emitter&) const override;
@@ -388,7 +388,7 @@ struct Repeat : public ValueDef {
     size_t hash() const override;
 
     void print(Printer&) const override;
-    const Node* rewrite(Rewriter&) const override;
+    const Node* rewrite(Rewriter&, Builder&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
     bool is_computation() const override { return false; }
@@ -405,7 +405,7 @@ struct Proj : public ValueDef {
     // size_t hash() const override;
 
     void print(Printer&) const override;
-    const Node* rewrite(Rewriter&) const override;
+    const Node* rewrite(Rewriter&, Builder&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
     const thorin::Def* emit(Emitter&) const override;
@@ -426,7 +426,7 @@ struct Seq : public ValueDef {
     // size_t hash() const override;
 
     void print(Printer&) const override;
-    const Value* rewrite(Rewriter&) const override;
+    const Value* rewrite(Rewriter&, Builder&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
     const thorin::Def* emit(Emitter&) const override;
@@ -442,7 +442,7 @@ struct UnOp : public ValueDef {
     // size_t hash() const override;
 
     void print(Printer&) const override;
-    const Node* rewrite(Rewriter&) const override;
+    const Node* rewrite(Rewriter&, Builder&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
     const thorin::Def* emit(Emitter&) const override;
@@ -461,7 +461,7 @@ struct BinOp : public ValueDef {
     void free_variables(FVSet&, Seen&) const override;
 
     void print(Printer&) const override;
-    const Node* rewrite(Rewriter&) const override;
+    const Node* rewrite(Rewriter&, Builder&) const override;
 
     const thorin::Def* emit(Emitter&) const override;
     void emit_branch(Emitter&, thorin::Continuation*, thorin::Continuation*) const override;
@@ -507,7 +507,7 @@ struct Builtin : public ValueDef {
     void free_variables(FVSet&, Seen&) const override;
 
     void print(Printer&) const override;
-    const Node* rewrite(Rewriter&) const override;
+    const Node* rewrite(Rewriter&, Builder&) const override;
 
     const thorin::Def* emit(Emitter&) const override;
 
@@ -524,7 +524,7 @@ struct MathOp : public ValueDef {
     void free_variables(FVSet&, Seen&) const override;
 
     void print(Printer&) const override;
-    const Node* rewrite(Rewriter&) const override;
+    const Node* rewrite(Rewriter&, Builder&) const override;
 
     const thorin::Def* emit(Emitter&) const override;
 
@@ -542,7 +542,7 @@ struct Branch : public ValueDef {
     void free_variables(FVSet&, Seen&) const override;
 
     void print(Printer&) const override;
-    const Node* rewrite(Rewriter&) const override;
+    const Node* rewrite(Rewriter&, Builder&) const override;
 
     const thorin::Def* emit(Emitter&) const override;
 
@@ -559,7 +559,7 @@ struct Match : public ValueDef {
         const Ptrn* sub_ptrn = nullptr;
 
         void print(Printer&) const override;
-        const Ptrn* rewrite(Rewriter&) const override;
+        const Ptrn* rewrite(Rewriter&) const;
         void free_variables(FVSet& vars, Seen& seen) const override;
 
         NodeKind kind() const override { return NodeKind::Ptrn; }
@@ -611,7 +611,7 @@ struct Match : public ValueDef {
     // size_t hash() const override;
 
     void print(Printer&) const override;
-    const Node* rewrite(Rewriter&) const override;
+    const Node* rewrite(Rewriter&, Builder&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
     Match(Builder&, const Loc&, const ValueVar*, Array<Case>&&);
@@ -631,7 +631,7 @@ struct Switch : public ValueDef {
     // size_t hash() const override;
 
     void print(Printer&) const override;
-    const Node* rewrite(Rewriter&) const override;
+    const Node* rewrite(Rewriter&, Builder&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
     const thorin::Def* emit(Emitter&) const override;
@@ -648,7 +648,7 @@ struct Control : public ValueDef {
     void free_variables(FVSet&, Seen&) const override;
 
     void print(Printer&) const override;
-    const Node* rewrite(Rewriter&) const override;
+    const Node* rewrite(Rewriter&, Builder&) const override;
 
     const thorin::Def* emit(Emitter&) const override;
 

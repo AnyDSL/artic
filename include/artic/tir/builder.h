@@ -136,7 +136,6 @@ public:
 
     // Misc
     const CtorVar* ctor_var(std::optional<ast::Identifier> id, const SigVar*);
-    const Key* decl_key(std::optional<ast::Identifier>);
 
     // Binding stuff
     const TypeVar* schedule_type(const TypeDef*, std::optional<ast::Identifier> = std::nullopt);
@@ -175,6 +174,8 @@ public:
 
     // un-scheduled node ctors where you should probably used the scheduled version instead!
     struct Unsafe {
+        const Key* decl_key(std::optional<ast::Identifier>);
+
         const PrimType*          prim_type(ast::PrimType::Tag);
         const PrimType*          bool_type();
         const TupleType*         unit_type();

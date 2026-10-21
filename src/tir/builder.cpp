@@ -164,8 +164,8 @@ const TypeVar* Builder::type_app(const CtorVar* applied, const ArrayRef<const Va
     return schedule_type(unsafe().type_app(applied, type_args));
 }
 
-const Key* Builder::decl_key(std::optional<ast::Identifier> id) {
-    return arena.insert<Key>(arena, id);
+const Key* Builder::Unsafe::decl_key(std::optional<ast::Identifier> id) {
+    return builder.arena.insert<Key>(builder.arena, id);
 }
 
 const ModVar* Builder::mod_var(std::optional<ast::Identifier> id, const SigVar* sig) {

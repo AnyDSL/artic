@@ -104,7 +104,7 @@ private:
         if (ptrn.variant_index)
             return ctor_index(*ptrn.variant_index);
         if (ptrn.literal)
-            return builder.enclosing_let_rec().typed_literal(*ptrn.literal, r.instantiate(ptrn.type));
+            return builder.enclosing_let_rec().typed_literal(*ptrn.literal, r.instantiate_var(ptrn.type));
         assert(false);
     }
 
@@ -370,7 +370,7 @@ private:
 
 const ValueVar* PtrnCompiler::MatchCase::emit(Rewriter& r, ExprBuilder& b) {
     if (!fn) {
-        fn = r.instantiate(match_case->branch);
+        fn = r.instantiate_fn(b, match_case->branch);
     }
     return b.bind_value(fn);
 }
@@ -386,7 +386,7 @@ const Value* PtrnCompiler::emit(
     for (auto& case_ : cases)
         rows.emplace_back(std::vector<const Match::Ptrn*> { case_.match_case->ptrn }, &case_);
 
-    std::vector<const ValueVar*> values = { rewriter.instantiate(old_match->value) };
+    std::vector<const ValueVar*> values = { rewriter.instantiate_var(old_match->value) };
     auto compiler = PtrnCompiler(rewriter, builder, log, old_match, std::move(rows), std::move(values));
     auto r = compiler.compile();
     for (auto &row : compiler.rows) {
@@ -438,14 +438,14 @@ struct LowerMatch : public Rewriter {
     Log& log;
     LowerMatch(Arena& src, Arena& dst, Log& log) : Rewriter(src, dst), log(log) {}
 
-    const Node* rewrite(const Node* old) override {
+    const Node* rewrite(Builder& builder, const Def* old) override {
         if (auto old_match = old->isa<Match>()) {
             std::vector<PtrnCompiler::MatchCase> match_cases;
             for (auto& case_ : old_match->cases)
                 match_cases.emplace_back(&case_);
-            return PtrnCompiler::emit(*this, builder(), log, old_match, std::move(match_cases));
+            return PtrnCompiler::emit(*this, builder, log, old_match, std::move(match_cases));
         }
-        return old->rewrite(*this);
+        return old->rewrite(*this, builder);
     }
 };
 

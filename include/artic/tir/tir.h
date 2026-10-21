@@ -76,7 +76,6 @@ struct Node : public DynCast<Node> {
     virtual size_t hash() const {
         return fnv::Hash().combine(this);
     }
-    virtual const Node* rewrite(Rewriter&) const = 0;
 
     using Seen = std::unordered_set<const Node*>;
     using FVSet = std::unordered_set<const Var*>;
@@ -105,8 +104,7 @@ struct Var : virtual public Node {
     mutable const Scope* binder = nullptr;
     std::optional<ast::Identifier> id;
 
-    const Node* rewrite(Rewriter&) const final;
-    virtual const Var* rebuild(Rewriter&) const = 0;
+    virtual const Var* rebuild(Rewriter&, Builder&) const = 0;
 
     void free_variables(FVSet&, Seen&) const override;
     void print(Printer&) const override;
@@ -119,6 +117,8 @@ struct Var : virtual public Node {
 
 struct Def : virtual public Node {
     virtual bool is_var() const final { return false; }
+
+    virtual const Node* rewrite(Rewriter&, Builder&) const = 0;
 
     mutable const Var* bound_to = nullptr;
 };
@@ -140,6 +140,8 @@ struct LetRec : virtual Node {
 
     size_t hash() const override;
     bool equals(const Node* other) const override;
+
+    virtual const Node* rewrite(Rewriter&, Builder&) const = 0;
 
     void free_variables(FVSet&, Seen&) const override;
     void print(Printer&) const override;
@@ -176,9 +178,9 @@ struct Constructor : public CtorDef {
     void free_variables(FVSet&, Seen&) const override;
 
     template<typename T, typename... Args>
-    const Node* instantiate_with(Arena& arena, ArrayRef<const Var*> args, Args&&... xtra_args) const {
+    const Node* instantiate_with(Builder& builder, ArrayRef<const Var*> args, Args&&... xtra_args) const {
         T s(arena, scope, xtra_args...);
-        return instantiate_into(args, s);
+        return instantiate_into(s, builder, args);
     }
 
     const Node* instantiate(LetRecBuilder&, ArrayRef<const Var*> args) const;
@@ -186,13 +188,13 @@ struct Constructor : public CtorDef {
     Constructor(LetRecBuilder&, Scope&, const ArrayRef<const Var*>&, const Node*);
 
 private:
-    const Node* instantiate_into(ArrayRef<const Var*> args, Rewriter&) const;
+    const Node* instantiate_into(Rewriter&, Builder&, ArrayRef<const Var*> args) const;
 };
 
 struct CtorVar : public Ctor, public Var {
     void print_head(Printer&) const override;
 
-    const CtorVar* rebuild(Rewriter&) const override;
+    const CtorVar* rebuild(Rewriter&, Builder&) const override;
 
     bool can_bind(const Scope&, const Node*) const override;
 

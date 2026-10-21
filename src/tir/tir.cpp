@@ -12,10 +12,6 @@ Root::Root() : arena(std::make_unique<Arena>()), scope(nullptr, "root") {
 
 Node::Node(Arena& arena) : arena(arena), gid(arena.alloc_gid()) {}
 
-const Node* Var::rewrite(Rewriter&) const {
-    assert(false && "you cannot rewrite vars directly");
-}
-
 void Var::free_variables(FVSet& vars, Seen& seen) const {
     vars.emplace(this);
 }
@@ -142,11 +138,11 @@ void App::free_variables(FVSet& vars, Seen& seen) const {
         arg->free_variables(vars, seen);
 }
 
-const Node* Constructor::instantiate_into(ArrayRef<const Var*> args, Rewriter& r) const {
+const Node* Constructor::instantiate_into(Rewriter& r, Builder& b, ArrayRef<const Var*> args) const {
     for (size_t i = 0; i < params.size(); i++) {
         r.frame().insert(params[i], args[i]);
     }
-    return r.instantiate_expr(body_);
+    return r.instantiate_expr(b, body_);
 }
 
 struct Specializer : public Rewriter {
@@ -164,18 +160,13 @@ struct Specializer : public Rewriter {
         return Rewriter::lookup(var);
     }
 
-    const Node* rewrite(const Node* old) override {
-        if (auto var = old->isa<Var>()) {
-            if (!var->binder->is_child_of(&s) && &s != var->binder)
-                return old;
-        }
-
-        return old->rewrite(*this);
+    const Node* rewrite(Builder& b, const Def* old) override {
+        return old->rewrite(*this, b);
     }
 };
 
 const Node* Constructor::instantiate(LetRecBuilder& builder, ArrayRef<const Var*> args) const {
-    return instantiate_with<Specializer>(builder.arena, args, builder);
+    return instantiate_with<Specializer>(builder, args, builder);
 }
 
 const Node* App::instantiated(LetRecBuilder& builder) const {
@@ -184,7 +175,7 @@ const Node* App::instantiated(LetRecBuilder& builder) const {
     auto constructor = resolve_ctor_var(builder.scope, applicand())->isa<Constructor>();
     assert(constructor);
     assert(&builder.arena == &arena);
-    return instantiated_ = constructor->instantiate_with<Specializer>(builder.arena, args, builder);
+    return instantiated_ = constructor->instantiate_with<Specializer>(builder, args, builder);
 }
 
 LetRec::LetRec(Scope& scope, const ArrayRef<std::tuple<const Var*, const Node*>>& vars, const Node* in)

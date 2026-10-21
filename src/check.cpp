@@ -966,7 +966,7 @@ static inline void check_kind(TypeChecker& checker, ast::Node& src, const tir::N
 const tir::Key* TypeChecker::infer_key(ast::NamedDecl& decl) {
     if (decl.key)
         return decl.key;
-    decl.key = builder().decl_key(decl.id.name.size() > 0 ? std::make_optional(decl.id) : std::nullopt);
+    decl.key = builder().unsafe().decl_key(decl.id.name.size() > 0 ? std::make_optional(decl.id) : std::nullopt);
     return decl.key;
 }
 
@@ -3480,7 +3480,7 @@ const tir::Var* ModDecl::infer(TypeChecker& checker) {
             continue;
         auto var = checker.infer_mod_decl(*decl);
         if (auto named_decl = decl->isa<NamedDecl>())
-            decls.emplace(parent_builder.decl_key(named_decl->id), var);
+            decls.emplace(parent_builder.unsafe().decl_key(named_decl->id), var);
     }
 
     for (auto& decl : this->decls) {

@@ -81,9 +81,7 @@ struct TypeExtractor : public Rewriter {
 
     FrameGuard root_frame;
 
-    TypeExtractor(LetRecBuilder& dst, Scope& s, const Value* x) : Rewriter(dst.arena, dst.arena), dst(dst), s(s), xtract(x), root_frame(*this, dst) {
-
-    }
+    TypeExtractor(LetRecBuilder& dst, Scope& s, const Value* x) : Rewriter(dst.arena, dst.arena), dst(dst), s(s), xtract(x), root_frame(*this, dst) {}
 
     const Var* lookup(const Var* var) const override {
         if (!var->binder->is_child_of(&s) && &s != var->binder)
@@ -91,44 +89,8 @@ struct TypeExtractor : public Rewriter {
         return Rewriter::lookup(var);
     }
 
-    const Node* rewrite(const Node* old) override {
-        // leave keys alone
-        if (old->isa<Key>())
-            return old;
-
-        if (auto var = old->isa<Var>()) {
-            if (!var->binder->is_child_of(&s) && &s != var->binder)
-                return old;
-        }
-        // auto fvs = old->free_variables();
-        // auto old_scope = b.vars_scope(fvs);
-        // if (!s.contains(old_scope)) {
-        //     return old;
-        // }
-
-        if (old == xtract) {
-            // if (auto letrec = old->isa<LetRecValue>()) {
-            //     for (auto [ovar, _] : letrec->vars) {
-            //         auto nvar = instantiate(ovar, true);
-            //         insert(ovar, nvar);
-            //         dst.tie_var(nvar);
-            //     }
-            //     for (auto [ovar, oval] : letrec->vars) {
-            //         auto var = lookup(ovar)->as<Var>();
-            //         auto inst = instantiate(oval, false);
-            //         // auto instantiated = builder.maybe_schedule(inst);
-            //         // auto dst = builder.find_suitable_builder(instantiated->binder, instantiated);
-            //         dst.bind(var, inst);
-            //         // auto [_, dst] = builder.locate(def);
-            //         // assert(dst);
-            //         // dst->bind(lookup(ovar)->as<Var>(), def);
-            //     }
-            //     return instantiate(letrec->body()->type(), false);
-            // }
-            return old->rewrite(*this)->as<Value>()->type();
-        }
-
-        return old->rewrite(*this);
+    const Node* rewrite(Builder& b, const Def* old) override {
+        return old->rewrite(*this, b);
     }
 
     // enters let-recs recursively until a leaf is found, then rewrites the leaf and all the intermediate definitions as necessary
@@ -141,7 +103,7 @@ struct TypeExtractor : public Rewriter {
         if (auto is_seq = std::get_if<const Seq*>(&expr)) {
             assert(false);
         }
-        return instantiate(std::get<const ValueVar*>(expr)->type());
+        return instantiate_var(std::get<const ValueVar*>(expr)->type());
     }
 };
 

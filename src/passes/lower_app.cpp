@@ -48,17 +48,10 @@ struct LowerApp : public Rewriter {
 
     Map& instantiated_stuff;
 
-    // const Node* lookup(const Node* old) override {
-    //     auto found = Rewriter::lookup(old);
-    //     // if (!found && p)
-    //     //     return p->lookup(old);
-    //     return found;
-    // }
-
     // this ensures we don't accidentally end up with two specialized copies of the same specialization
-    bool are_args_known(ArrayRef<const Var*> args) const {
+    bool are_args_known(const Scope& scope, ArrayRef<const Var*> args) const {
         for (auto var : args) {
-            if (!std::get<1>(builder().scope.lookup_var(var)))
+            if (!std::get<1>(scope.lookup_var(var)))
                 return false;
         }
         return true;
@@ -71,65 +64,39 @@ struct LowerApp : public Rewriter {
             return found->second;
         const Var* var = nullptr;
         if (auto value_app = app->isa<ValueApp>()) {
-            var = builder().value_var(ast::Identifier { {}, "lower_value_app" }, instantiate(value_app->type()));
+            var = target.value_var(ast::Identifier { {}, "lower_value_app" }, instantiate_var(value_app->type()));
         } else if (app->isa<TypeApp>()) {
-            var = builder().type_var(ast::Identifier { {}, "lower_type_app" });
+            var = target.type_var(ast::Identifier { {}, "lower_type_app" });
         } else {
             assert(false);
         }
         target.tie_var(var);
         instantiated_stuff.emplace(std::move(key), var);
-        auto instantiated = builder().enclosing_let_rec().maybe_schedule(ctor->instantiate_with<LowerApp>(dst, args, target, *this));
-        //auto dst = builder().find_suitable_builder(instantiated->binder, instantiated);
+        auto instantiated = ctor->instantiate_with<LowerApp>(target, args, target, *this);
         target.bind(var, instantiated);
-        //auto def_fvset = def->Node::free_variables();
-        //if (schedulable(def_fvset)) {
-        //    auto [_, dst] = builder().enclosing_let_rec().locate(def);
-        //    dst->bind(var, def);
-        //} else {
-        //    builder().enclosing_let_rec().bind(var, def);
-        //}
         return var;
     }
 
     const Var* lookup(const Var* var) const override {
         if (s && !var->binder->is_child_of(s) && s != var->binder)
-            return p->instantiate(var);
+            return p->instantiate_var(var);
         return Rewriter::lookup(var);
     }
 
-    const Node* rewrite(const Node* old) override {
+    const Node* rewrite(Builder& builder, const Def* old) override {
         if (auto old_app = old->isa<App>()) {
-            // if (are_args_known(old_app->args)) {
-            //     return old_app->instantiate_with<LowerApp>(builder().enclosing_let_rec(), this);
-            // }
             Array<const Var*> args(old_app->args.size());
             for (size_t i = 0; i < old_app->args.size(); i++) {
-                args[i] = instantiate(old_app->args[i]);
+                args[i] = instantiate_var(old_app->args[i]);
             }
-            if (are_args_known(args)) {
+            if (are_args_known(builder.scope, args)) {
                 auto constructor = resolve_ctor_var(*old_app->applicand()->binder, old_app->applicand())->isa<Constructor>();
                 if (constructor)
-                    return instantiate_app(builder().enclosing_let_rec(), old_app, constructor, args);
+                    return instantiate_app(builder.enclosing_let_rec(), old_app, constructor, args);
             }
-            return old_app->rewrite(*this);
         }
 
-        if (auto var = old->isa<Var>()) {
-            if (s && s->is_child_of(var->binder) && s != var->binder)
-                return p->instantiate(old);
-            assert(false);
-        }
-
-        // if (auto ctor = old->isa<Ctor>()) {
-        //     auto rewritten = old->rewrite(*this)->as<Ctor>();
-        //     for (auto param : rewritten->params)
-        //         insert(param, param);
-        //     return rewritten;
-        // }
-        // if (&old->arena == &dst)
-        //     return old;
-        return old->rewrite(*this);
+        return old->rewrite(*this, builder);
     }
 };
 

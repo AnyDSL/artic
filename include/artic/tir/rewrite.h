@@ -15,52 +15,40 @@ struct Rewriter {
 
     Rewriter(Arena& src, Arena& dst) : src(src), dst(dst) {}
 
-    virtual const Node* rewrite(const Node*) = 0;
+    virtual const Node* rewrite(Builder&, const Def*) = 0;
 
-    /*template<typename T = tir::Node, typename S = T>
-    const S* instantiate(const T* old, bool immediate = false) {
-        if (immediate)
-            return rewrite(old, true)->template as<S>();
-        auto found = lookup(old);
-        if (found)
-            return found->template as<S>();
-        auto rewritten = rewrite(old, false)->template as<S>();
-        insert(old, rewritten);
-        return rewritten;
-    }*/
-
-    const Var* instantiate(const Var*);
-    const Node* instantiate_rhs(const Node*);
+    const Var* instantiate_var(const Var*);
+    const Node* instantiate_rhs(Builder&, const Node*);
 
     template<typename T = tir::Var, typename S = T>
-    const S* instantiate(const T* old) {
+    const S* instantiate_var(const T* old) {
         const Var* var = old->template as<Var>();
-        return instantiate(var)->template as<S>();
+        return instantiate_var(var)->template as<S>();
     }
 
-    const Node* instantiate_expr(const Node*);
+    const Node* instantiate_expr(Builder&, const Node*);
 
-    ValueExpr instantiate(ValueExpr);
-    TypeExpr instantiate(TypeExpr);
-    ModExpr instantiate(ModExpr);
+    ValueExpr instantiate_expr(Builder& b, ValueExpr);
+    TypeExpr instantiate_expr(Builder& b, TypeExpr);
+    ModExpr instantiate_expr(Builder& b, ModExpr);
 
-    const Function* instantiate(const Function* old) {
-        return rewrite(old)->as<Function>();
+    const Function* instantiate_fn(Builder& b, const Function* old) {
+        return rewrite(b, old)->as<Function>();
     }
 
-    const Key* instantiate(const Key* old) {
-        return rewrite(old)->as<Key>();
+    const Key* instantiate_key(const Key* old) {
+        return old->rewrite(*this);
     }
 
-    const Match::Ptrn* instantiate(const Match::Ptrn* old) {
-        return rewrite(old)->as<Match::Ptrn>();
+    const Match::Ptrn* instantiate_ptrn(const Match::Ptrn* old) {
+        return old->rewrite(*this);
     }
 
     template<typename T = tir::Node, typename S = T>
-    const Array<const S*> instantiate_array(const Array<const T*>& old) {
+    const Array<const S*> instantiate_var_array(const Array<const T*>& old) {
         Array<const S*> result(old.size());
         for (size_t i = 0; i < old.size(); i++) {
-            result[i] = instantiate(old[i])->template as<S>();
+            result[i] = instantiate_var(old[i])->template as<S>();
         }
         return result;
     }
@@ -68,7 +56,7 @@ struct Rewriter {
     void instantiate(Root& dst, const Root& old);
     void record_letrec(Builder& builder, const LetRec* old);
 
-    const Var* rebuild_var(const Var*);
+    const Var* rebuild_var(Builder& b, const Var*);
 
     virtual const Var* lookup(const Var* old) const {
         for (auto& f : state.stack) {
@@ -80,21 +68,9 @@ struct Rewriter {
         return nullptr;
     }
 
-    Builder& builder() const {
-        return state.top().builder;
+    Builder::Unsafe& unsafe_builder() const {
+        return state.top().builder.unsafe();
     }
-
-    /*class BuilderGuard {
-        Rewriter& r;
-        Builder* old;
-    public:
-        BuilderGuard(Rewriter& r, Builder& b) : r(r), old(&b) {
-            std::swap(r.builder_, old);
-        }
-        ~BuilderGuard() {
-            std::swap(r.builder_, old);
-        }
-    };*/
 
     struct Frame;
     struct Pending {
@@ -120,15 +96,6 @@ struct Rewriter {
     Frame& frame() {
         return state.top();
     }
-
-    /*struct LetRecFrame : Frame {
-        LetRecFrame(Root& root) : Frame(std::move(std::make_unique<LetRecBuilder>(root))) {}
-        LetRecFrame(Builder& builder, std::string name) : Frame(std::move(std::make_unique<LetRecBuilder>(builder, name))) {}
-    };
-
-    struct ExprFrame : Frame {
-        ExprFrame(Builder& builder, std::string name) : Frame(std::move(std::make_unique<ExprBuilder>(builder, name))) {}
-    };*/
 
     struct State {
         std::vector<std::unique_ptr<Frame>> stack;
@@ -167,18 +134,6 @@ struct Rewriter {
         }
         return std::nullopt;
     }
-
-    /*class MapGuard {
-        Rewriter& r;
-        State state;
-    public:
-        MapGuard(Rewriter& r) : r(r), state(r.state) {
-            //std::swap(r.state, state);
-        }
-        ~MapGuard() {
-            //std::swap(r.state, state);
-        }
-    };*/
 
 protected:
     State state;

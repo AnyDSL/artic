@@ -129,7 +129,7 @@ struct TypeVar final : public Type, public Var {
     void print(Printer&) const override;
     void print_head(Printer&) const override;
 
-    const TypeVar* rebuild(Rewriter&) const override;
+    const TypeVar* rebuild(Rewriter&, Builder&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
     const thorin::Type* convert(Emitter&) const override;
@@ -161,7 +161,7 @@ struct PrimType : public TypeDef {
     void print(Printer&) const override;
     bool equals(const Node*) const override;
     size_t hash() const override;
-    const PrimType* rewrite(Rewriter&) const override;
+    const PrimType* rewrite(Rewriter&, Builder&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
     const thorin::Type* convert(Emitter&) const override;
@@ -180,7 +180,7 @@ struct TupleType : public TypeDef {
     bool equals(const Node*) const override;
     size_t hash() const override;
     bool contains(const Type*) const override;
-    const TupleType* rewrite(Rewriter&) const override;
+    const TupleType* rewrite(Rewriter&, Builder&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
     const thorin::Type* convert(Emitter&) const override;
@@ -222,7 +222,7 @@ struct SizedArrayType : public ArrayType {
     void print(Printer&) const override;
     bool equals(const Node*) const override;
     size_t hash() const override;
-    const SizedArrayType* rewrite(Rewriter&) const override;
+    const SizedArrayType* rewrite(Rewriter&, Builder&) const override;
 
     const thorin::Type* convert(Emitter&) const override;
     std::string stringify(Emitter&) const override;
@@ -238,7 +238,7 @@ struct UnsizedArrayType : public ArrayType {
     void print(Printer&) const override;
     bool equals(const Node*) const override;
     size_t hash() const override;
-    const UnsizedArrayType* rewrite(Rewriter&) const override;
+    const UnsizedArrayType* rewrite(Rewriter&, Builder&) const override;
 
     const thorin::Type* convert(Emitter&) const override;
     std::string stringify(Emitter&) const override;
@@ -278,7 +278,7 @@ struct AddrType : public TypeDef {
 struct PtrType : public AddrType {
     void print(Printer&) const override;
 
-    const PtrType* rewrite(Rewriter&) const override;
+    const PtrType* rewrite(Rewriter&, Builder&) const override;
 
     std::string stringify(Emitter&) const override;
 
@@ -293,7 +293,7 @@ std::pair<const PtrType*, const TypeVar*> remove_ptr(const Scope& scope, const T
 /// The type of mutable identifiers or expressions.
 struct RefType : public AddrType {
     void print(Printer&) const override;
-    const RefType* rewrite(Rewriter&) const override;
+    const RefType* rewrite(Rewriter&, Builder&) const override;
 
 private:
     RefType(Arena&, const TypeVar*, bool, size_t);
@@ -309,7 +309,7 @@ struct ImplicitParamType : public TypeDef {
     bool equals(const Node*) const override;
     size_t hash() const override;
     bool contains(const Type*) const override;
-    const ImplicitParamType* rewrite(Rewriter&) const override;
+    const ImplicitParamType* rewrite(Rewriter&, Builder&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
     const thorin::Type* convert(Emitter&) const override;
@@ -334,7 +334,7 @@ struct FnType : public TypeDef {
     bool equals(const Node*) const override;
     size_t hash() const override;
     bool contains(const Type*) const override;
-    const FnType* rewrite(Rewriter&) const override;
+    const FnType* rewrite(Rewriter&, Builder&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
     const thorin::Type* convert(Emitter&) const override;
@@ -356,7 +356,7 @@ struct BottomType : public TypeDef {
     void print(Printer&) const override;
     bool equals(const Node*) const override;
     size_t hash() const override;
-    const BottomType* rewrite(Rewriter&) const override;
+    const BottomType* rewrite(Rewriter&, Builder&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
 protected:
@@ -370,7 +370,7 @@ struct TopType : public TypeDef {
     void print(Printer&) const override;
     bool equals(const Node*) const override;
     size_t hash() const override;
-    const TopType* rewrite(Rewriter&) const override;
+    const TopType* rewrite(Rewriter&, Builder&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
 protected:
@@ -385,7 +385,7 @@ struct NoRetType : public BottomType {
 
     const thorin::Type* convert(Emitter&) const override;
     std::string stringify(Emitter&) const override;
-    const NoRetType* rewrite(Rewriter&) const override;
+    const NoRetType* rewrite(Rewriter&, Builder&) const override;
 
 private:
     NoRetType(Arena&);
@@ -396,7 +396,7 @@ private:
 /// The type of an error (syntax or type errors will produce that type).
 struct TypeError : public TopType {
     void print(Printer&) const override;
-    const TypeError* rewrite(Rewriter&) const override;
+    const TypeError* rewrite(Rewriter&, Builder&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
 private:
@@ -455,7 +455,7 @@ struct StructType : public ComplexType {
     const thorin::Type* convert_head(Emitter&) const override;
     const thorin::Type* convert(Emitter&) const override;
     std::string stringify(Emitter&) const override;
-    const StructType* rewrite(Rewriter&) const override;
+    const StructType* rewrite(Rewriter&, Builder&) const override;
 
     std::string_view member_name(size_t) const override;
     const TypeVar* member_type(size_t) const;
@@ -482,7 +482,7 @@ struct EnumType : public ComplexType {
     const thorin::Type* convert_head(Emitter&) const override;
     const thorin::Type* convert(Emitter&) const override;
     std::string stringify(Emitter&) const override;
-    const EnumType* rewrite(Rewriter&) const override;
+    const EnumType* rewrite(Rewriter&, Builder&) const override;
 
     std::string_view member_name(size_t) const override;
     const TypeVar* member_type(size_t) const;
@@ -511,7 +511,7 @@ struct TypeApp : public TypeDef, public App {
     bool equals(const Node*) const override;
     //size_t hash() const override;
     bool contains(const Type*) const override;
-    const Type* rewrite(Rewriter&) const override;
+    const Type* rewrite(Rewriter&, Builder&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
     const thorin::Type* convert(Emitter&) const override;
@@ -543,7 +543,7 @@ struct TypeCtor : public Constructor {
     }
 
     void print(Printer&) const override;
-    const Node* rewrite(Rewriter&) const override;
+    const Node* rewrite(Rewriter&, Builder&) const override;
 
     TypeCtor(Builder&, Scope&, const ArrayRef<const Var*>&, TypeExpr);
 };
@@ -558,7 +558,7 @@ struct LetRecType : public Type, public LetRec {
     }
 
     bool equals(const Node* other) const override;
-    const Type* rewrite(Rewriter&) const override;
+    const Type* rewrite(Rewriter&, Builder&) const override;
     ;
     const thorin::Type* convert_head(Emitter&) const override;
     const thorin::Type* convert(Emitter&) const override;
