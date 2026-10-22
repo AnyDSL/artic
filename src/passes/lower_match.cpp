@@ -14,13 +14,15 @@ public:
     struct MatchCase {
         const Match::Case* match_case;
         bool is_redundant = true;
-        const Function* fn = nullptr;
+
+        //const Function* fn = nullptr;
+        const ValueVar* fn_var = nullptr;
 
         MatchCase(const Match::Case* match_case)
             : match_case(match_case)
         {}
 
-        const ValueVar* emit(Rewriter&, ExprBuilder&);
+        const ValueVar* instantiate_branch(PtrnCompiler&, Rewriter&);
     };
 
     static ValueExpr emit(
@@ -37,6 +39,7 @@ private:
     using Cost = size_t;
 
     Rewriter& r;
+    Builder& root_builder;
     Builder& builder;
     const Match* old_match;
     std::vector<Row> rows;
@@ -45,12 +48,14 @@ private:
 
     PtrnCompiler(
         Rewriter& r,
+        Builder& root_builder,
         Builder& builder,
         Log& log,
         const Match* old_match,
         std::vector<Row>&& rows,
         std::vector<const ValueVar*>&& values)
         : r(r)
+        , root_builder(root_builder)
         , builder(builder)
         , old_match(old_match)
         , rows(std::move(rows))
@@ -96,7 +101,7 @@ private:
         if (auto record_ptrn = ptrn.isa<ast::RecordPtrn>())
             return ctor_index(*record_ptrn->variant_index/*, debug_info(ptrn)*/);
         return ptrn.isa<ast::LiteralPtrn>()
-            ? builder.enclosing_let_rec().typed_literal(ptrn.as<ast::LiteralPtrn>()->lit, ptrn.type)
+            ? root_builder.typed_literal(ptrn.as<ast::LiteralPtrn>()->lit, ptrn.type)
             : ctor_index(*ptrn.as<ast::CtorPtrn>()->variant_index/*, debug_info(ptrn)*/);
     }
 
@@ -104,12 +109,12 @@ private:
         if (ptrn.variant_index)
             return ctor_index(*ptrn.variant_index);
         if (ptrn.literal)
-            return builder.enclosing_let_rec().typed_literal(*ptrn.literal, r.instantiate_var(ptrn.type));
+            return root_builder.typed_literal(*ptrn.literal, r.instantiate_var(ptrn.type));
         assert(false);
     }
 
     const ValueVar* ctor_index(size_t index/*, thorin::Debug debug*/) const {
-        return builder.enclosing_let_rec().typed_literal(Literal((uint64_t) index), builder.enclosing_let_rec().prim_type(ast::PrimType::U64));
+        return root_builder.typed_literal(Literal((uint64_t) index), builder.enclosing_let_rec().prim_type(ast::PrimType::U64));
     }
 
     size_t pick_col() const {
@@ -161,6 +166,12 @@ private:
         for (size_t i = 0; i < values.size();) {
             auto [_, type_def, _2] = match_type_app_unapplied_generic(builder.scope, values[i]->resolve_type(builder.scope));
 
+            if (!type_def) {
+                // Move to the next column
+                i++;
+                continue;
+            }
+
             // Can only expand tuples or structures
             size_t member_count = 0;
             if (auto struct_type = match_type_def<StructType>(type_def))
@@ -191,7 +202,7 @@ private:
             // Expand the value to match against
             std::vector<const ValueVar*> new_values(member_count);
             for (size_t j = 0; j < member_count; ++j) {
-                auto j_idx = builder.enclosing_let_rec().typed_literal(Literal(uint64_t(j)), builder.enclosing_let_rec().prim_type(ast::PrimType::I64));
+                auto j_idx = root_builder.typed_literal(Literal(uint64_t(j)), builder.enclosing_let_rec().prim_type(ast::PrimType::I64));
                 new_values[j] = expr_builder.extract(values[i], j_idx);
             }
             remove_col(values, i);
@@ -199,7 +210,7 @@ private:
         }
     }
 
-    std::tuple<std::unique_ptr<AbstractBuilder>, const Function*> make_fn() {
+    std::tuple<std::unique_ptr<AbstractBuilder>, const Function*> make_fn(Builder& builder) {
         auto param = builder.value_var(std::nullopt, builder.enclosing_let_rec().unit_type());
         auto fn_builder = std::make_unique<AbstractBuilder>(builder, "lowered_match_fn");
         fn_builder->register_var(param);
@@ -224,7 +235,7 @@ private:
         {
             // If the first row is made of only wildcards, it is a match
             rows.front().second->is_redundant = false;
-            auto case_block = rows.front().second->emit(r, expr_builder);
+            auto case_block = rows.front().second->instantiate_branch(*this, r);
             return expr_builder.finish(expr_builder.call(case_block, expr_builder.enclosing_let_rec().unit()));
         }
 
@@ -284,18 +295,18 @@ private:
             auto cond = values[col];
             remove_col(values, col);
             for (auto& ctor : ctors) {
-                auto [fn_builder, fn] = make_fn();
+                auto [fn_builder, fn] = make_fn(expr_builder);
                 auto &dst_case = match_value_var<TypedLiteral>(builder.scope, ctor.first)->value.as_bool() ? match_true : match_false;
                 dst_case = fn;
-                dst_case->set_body(builder, PtrnCompiler(r, *fn_builder, log, old_match, std::move(ctor.second), std::vector<const ValueVar*>(values)).compile());
+                dst_case->set_body(*fn_builder, PtrnCompiler(r, root_builder, *fn_builder, log, old_match, std::move(ctor.second), std::vector<const ValueVar*>(values)).compile());
             }
             if (!no_default) {
                 // build the other case
-                auto [fn_builder, fn] = make_fn();
+                auto [fn_builder, fn] = make_fn(expr_builder);
                 auto &dst_case = !match_true ? match_true : match_false;
                 assert(!dst_case);
                 dst_case = fn;
-                dst_case->set_body(builder, PtrnCompiler(r, *fn_builder, log, old_match, std::move(wildcards), std::vector<const ValueVar*>(values)).compile());
+                dst_case->set_body(*fn_builder, PtrnCompiler(r, root_builder, *fn_builder, log, old_match, std::move(wildcards), std::vector<const ValueVar*>(values)).compile());
             }
 
             assert(match_type_var<TupleType>(builder.scope, match_true->param->type()));
@@ -309,12 +320,12 @@ private:
             Array<std::tuple<std::unique_ptr<AbstractBuilder>, const Function*>> targets(ctors.size());
             Array<const ValueVar*> defs(ctors.size());
 
-            auto otherwise = make_fn();
+            auto otherwise = make_fn(expr_builder);
 
             size_t count = 0;
             for (auto& ctor : ctors) {
                 defs[count] = ctor.first;
-                targets[count] = make_fn(); //emitter.basic_block_with_mem(emitter.debug_info(node, "match_case"));
+                targets[count] = make_fn(expr_builder); //emitter.basic_block_with_mem(emitter.debug_info(node, "match_case"));
                 count++;
             }
 
@@ -328,7 +339,7 @@ private:
                 auto& rows = ctors[defs[i]];
                 auto& [case_builder, case_fn] = i == n - 1 && no_default ? otherwise : targets[i];
 
-                ExprBuilder case_expr_builder(builder, "lower_match_case");
+                ExprBuilder case_expr_builder(*case_builder, "lower_match_case");
 
                 auto new_values = values;
                 if (enum_type) {
@@ -339,13 +350,13 @@ private:
                     new_values.emplace_back(value);
                 }
 
-                auto yielded = case_expr_builder.finish(PtrnCompiler(r, *case_builder, log, old_match, std::move(rows), std::move(new_values)).compile());
-                case_fn->set_body(builder, yielded);
+                auto yielded = case_expr_builder.finish(PtrnCompiler(r, root_builder, case_expr_builder, log, old_match, std::move(rows), std::move(new_values)).compile());
+                case_fn->set_body(*case_builder, yielded);
             }
             if (!no_default) {
                 //emitter.enter(otherwise);
                 auto& [otherwise_builder, otherwise_fn] = otherwise;
-                otherwise_fn->set_body(builder, PtrnCompiler(r, *otherwise_builder, log, old_match, std::move(wildcards), std::move(values)).compile());
+                otherwise_fn->set_body(*otherwise_builder, PtrnCompiler(r, root_builder, *otherwise_builder, log, old_match, std::move(wildcards), std::move(values)).compile());
             }
 
             Array<Switch::Case> cases(no_default ? defs.size() - 1 : defs.size());
@@ -368,11 +379,13 @@ private:
 #endif
 };
 
-const ValueVar* PtrnCompiler::MatchCase::emit(Rewriter& r, ExprBuilder& b) {
-    if (!fn) {
-        fn = r.instantiate_fn(b, match_case->branch);
+const ValueVar* PtrnCompiler::MatchCase::instantiate_branch(PtrnCompiler& compiler, Rewriter& r) {
+    if (!fn_var) {
+        auto fn = r.instantiate_fn(compiler.root_builder, match_case->branch);
+        fn_var = compiler.root_builder.value_var(std::nullopt, fn->type());
+        compiler.root_builder.bind(fn_var, fn);
     }
-    return b.bind_value(fn);
+    return fn_var;
 }
 
 ValueExpr PtrnCompiler::emit(
@@ -387,13 +400,12 @@ ValueExpr PtrnCompiler::emit(
         rows.emplace_back(std::vector<const Match::Ptrn*> { case_.match_case->ptrn }, &case_);
 
     std::vector<const ValueVar*> values = { rewriter.instantiate_var(old_match->value) };
-    auto compiler = PtrnCompiler(rewriter, builder, log, old_match, std::move(rows), std::move(values));
+    auto compiler = PtrnCompiler(rewriter, builder, builder, log, old_match, std::move(rows), std::move(values));
     auto r = compiler.compile();
     for (auto &row : compiler.rows) {
         if (row.second->is_redundant)
             compiler.redundant_case(*row.second->match_case->loc);
     }
-    assert(false && "TODO: fix this when we have tail nodesw");
     return r;
 }
 
