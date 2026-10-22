@@ -436,17 +436,17 @@ const Match::Ptrn* Match::Ptrn::rewrite(Rewriter& r) const {
 const Node* Match::rewrite(Rewriter& r, Builder& b) const {
     std::vector<Case> ncases;
     for (size_t i = 0; i < cases.size(); i++) {
-        ncases.emplace_back(cases[i].loc, r.instantiate_var(cases[i].ptrn), r.instantiate_var(cases[i].branch));
+        ncases.emplace_back(cases[i].loc, r.instantiate_var(cases[i].ptrn), r.instantiate_fn(b, cases[i].branch));
     }
     return r.unsafe_builder().match(loc, r.instantiate_var(value), ncases);
 }
 
-const Node* Switch::rewrite(Rewriter& r, Builder&) const {
+const Node* Switch::rewrite(Rewriter& r, Builder& b) const {
     Array<Case> ncases(cases.size());
     for (size_t i = 0; i < cases.size(); i++) {
-        ncases[i] = Case(r.instantiate_var(cases[i].value), r.instantiate_var(cases[i].branch));
+        ncases[i] = Case(r.instantiate_var(cases[i].value), r.instantiate_fn(b, cases[i].branch));
     }
-    return r.unsafe_builder().switch_(r.instantiate_var(value), r.instantiate_var(default_case), std::move(ncases));
+    return r.unsafe_builder().switch_(r.instantiate_var(value), r.instantiate_fn(b, default_case), std::move(ncases));
 }
 
 const Node* Control::rewrite(Rewriter& r, Builder& b) const {
