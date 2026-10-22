@@ -5,6 +5,7 @@
 #include "artic/tir/builder.h"
 #include "artic/tir/scope.h"
 #include "artic/tir/module.h"
+#include "artic/tir/rewrite.h"
 
 namespace artic {
 
@@ -741,10 +742,75 @@ bool EnumType::is_trivial() const {
 
 // Helpers -------------------------------------------------------------------------
 
-const TypeVar* member_type(LetRecBuilder& b, const TypeDef* type, size_t idx) {
-    //type = scope.peek_type(type);
+struct MemberTypeExtractor : public Rewriter {
+    LetRecBuilder& dst;
+    size_t idx;
+    const Scope* s = nullptr;
 
-    auto [type_app, body, body_s] = match_type_app_unapplied_generic(b.scope, type);
+    FrameGuard root_frame;
+
+    MemberTypeExtractor(LetRecBuilder& dst, size_t idx)
+        : Rewriter(dst.arena, dst.arena), dst(dst), idx(idx), root_frame(*this, dst) {
+        // assert(ctor->params.size() == args.size());
+        // for (size_t i = 0, n = args.size(); i < n; ++i)
+        //     frame().insert(ctor->params[i], args[i]);
+    }
+
+    const Var* lookup(const Var* var) const override {
+        if (!s || (!var->binder->is_child_of(s) && s != var->binder))
+            return var;
+        return Rewriter::lookup(var);
+    }
+
+    const Node* rewrite(Builder& b, const Def* old) override {
+        return old->rewrite(*this, b);
+    }
+
+    // enters let-recs recursively until a leaf is found, then rewrites the leaf and all the intermediate definitions as necessary
+    const TypeVar* extract_member_type(const Scope& scope, TypeExpr expr) {
+        if (auto is_let_rec = std::get_if<const LetRecType*>(&expr)) {
+            auto let_rec = *is_let_rec;
+            record_letrec(dst, let_rec);
+            return extract_member_type(let_rec->scope, let_rec->body_expr());
+        }
+        auto old_user_ty_var = std::get<const TypeVar*>(expr);
+        auto [_, old_user_ty_def] = lookup_type_var(scope, old_user_ty_var);
+        return extract_member_type(scope, old_user_ty_def);
+    }
+
+    const TypeVar* extract_member_type(const Scope& scope, const TypeDef* old_user_ty_def) {
+        assert(old_user_ty_def && "trying to extract member type of unbound type variable");
+
+        if (auto complex_type = old_user_ty_def->isa<ComplexType>())
+            return instantiate_var(complex_type->member_type(idx));
+        if (auto tuple_type = old_user_ty_def->isa<TupleType>())
+            return instantiate_var(tuple_type->args[idx]);
+        if (auto array_type = old_user_ty_def->isa<ArrayType>())
+            return instantiate_var(array_type->elem);
+        if (auto enum_type = old_user_ty_def->isa<EnumType>())
+            return instantiate_var(enum_type->members[idx]);
+
+        if (auto type_app = old_user_ty_def->isa<TypeApp>()) {
+            FrameGuard guard(*this, dst);
+            auto ctor = resolve_ctor_var(scope, type_app->applicand())->as<TypeCtor>();
+            assert(ctor->params.size() == type_app->args.size());
+            for (size_t i = 0, n = type_app->args.size(); i < n; ++i)
+                frame().insert(ctor->params[i], type_app->args[i]);
+            auto old_scope = s;
+            s = &ctor->scope;
+            auto r = extract_member_type(ctor->scope, ctor->body_expr());
+            s = old_scope;
+            return r;
+        }
+
+        assert(false && "unhandled for member_type or this isn't a user type");
+    }
+};
+
+const TypeVar* member_type(LetRecBuilder& b, const TypeDef* type, size_t idx) {
+    MemberTypeExtractor extractor(b, idx);
+    return extractor.extract_member_type(b.scope, type);
+    /*auto [type_app, body, body_s] = match_type_app_unapplied_generic(b.scope, type);
     if (auto [enum_type, enum_body_scope] = match_type_deep<EnumType>(body_s, type); enum_type) {
         const ast::EnumDecl& decl = *enum_type->decl;
         const ast::OptionDecl& option = *decl.options[idx];
@@ -785,7 +851,7 @@ const TypeVar* member_type(LetRecBuilder& b, const TypeDef* type, size_t idx) {
     else {
         assert(false);
         return nullptr;
-    }
+    }*/
 }
 
 bool is_int_type(const TypeDef* type) {
