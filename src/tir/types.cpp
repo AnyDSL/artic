@@ -915,17 +915,26 @@ std::tuple<const TypeApp*, const TypeDef*> resolve_type_app_applied_generic(LetR
     return { nullptr, maybe_type_app };
 }
 
-std::tuple<const TypeApp*, const Type*, const Scope&> match_type_app_unapplied_generic(const Scope& scope, const TypeDef* maybe_type_app) {
+std::tuple<const TypeVar*, const Scope&> enter_type_expr_generic(const Scope& scope, TypeExpr expr) {
+    if (auto is_letrec = std::get_if<const LetRecType*>(&expr)) {
+        auto letrec = *is_letrec;
+        return enter_type_expr_generic(letrec->scope, letrec->body_expr());
+    }
+    return { std::get<const TypeVar*>(expr), scope };
+}
+
+std::tuple<const TypeApp*, const TypeDef*, const Scope&> match_type_app_unapplied_generic(const Scope& scope, const TypeDef* maybe_type_app) {
     auto [app, body, body_scope] = match_app_unapplied(scope, maybe_type_app);
     if (app) {
-        if (auto type_app = app->isa<TypeApp>()) {
-            return { type_app, body->as<Type>(), body_scope };
-        }
+        auto type_app = maybe_type_app->as<TypeApp>();
+        auto [type_var, def_scope] = enter_type_expr_generic(body_scope, as_typeexpr(body->as<Type>()));
+        auto [_, type_def] = lookup_type(def_scope, type_var);
+        return { type_app, type_def, def_scope };
     }
     return { nullptr, maybe_type_app, scope };
 }
 
-std::tuple<const TypeApp*, const TypeDef*, const Scope&> resolve_type_app_unapplied_generic(const Scope& scope, const TypeDef* maybe_type_app) {
+/*std::tuple<const TypeApp*, const TypeDef*, const Scope&> resolve_type_app_unapplied_generic(const Scope& scope, const TypeDef* maybe_type_app) {
     auto [app, body, body_scope] = match_app_unapplied(scope, maybe_type_app);
     if (app) {
         if (auto type_app = app->isa<TypeApp>()) {
@@ -936,7 +945,7 @@ std::tuple<const TypeApp*, const TypeDef*, const Scope&> resolve_type_app_unappl
         }
     }
     return { nullptr, maybe_type_app, scope };
-}
+}*/
 
 /*std::pair<const TypeApp*, const Type*> peek_app_type_applied_generic(Builder& builder, const TypeDef* type) {
     auto [app, n] = match_app_applied(builder, type);

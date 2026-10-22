@@ -159,15 +159,15 @@ private:
     // Transforms the rows such that tuples and structures are completely deconstructed
     void expand(ExprBuilder& expr_builder) {
         for (size_t i = 0; i < values.size();) {
-            auto [_, type, _2] = match_type_app_unapplied_generic(builder.scope, values[i]->resolve_type(builder.scope));
+            auto [_, type_def, _2] = match_type_app_unapplied_generic(builder.scope, values[i]->resolve_type(builder.scope));
 
             // Can only expand tuples or structures
             size_t member_count = 0;
-            if (auto struct_type = match_type<StructType>(builder.scope, type))
+            if (auto struct_type = match_type_def<StructType>(type_def))
                 member_count = struct_type->member_count();
-            else if (auto tuple_type = match_type<TupleType>(builder.scope, type))
+            else if (auto tuple_type = match_type_def<TupleType>(type_def))
                 member_count = tuple_type->args.size();
-            else if (auto sized_array_type = match_type<SizedArrayType>(builder.scope, type))
+            else if (auto sized_array_type = match_type_def<SizedArrayType>(type_def))
                 member_count = sized_array_type->size;
             else {
                 // Move to the next column
@@ -239,8 +239,8 @@ private:
 
         auto col = pick_col();
         auto og_col_type = values[col]->type();
-        auto [_, col_type, _2] = resolve_type_app_unapplied_generic(builder.scope, resolve_type_var(builder.scope, og_col_type));
-        auto enum_type = match_type<EnumType>(builder.scope, col_type);
+        auto [_, col_type, _2] = match_type_app_unapplied_generic(builder.scope, resolve_type_var(builder.scope, og_col_type));
+        auto enum_type = match_type_def<EnumType>(col_type);
 
         // First, collect constructors
         for (auto& row : rows) {

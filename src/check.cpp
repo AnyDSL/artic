@@ -1713,8 +1713,8 @@ std::optional<Path::Elem::Inferred> Path::Elem::infer(TypeChecker& checker, size
     }
 
     if (auto prev_elem_type = prev->var->isa<tir::TypeVar>()) {
-        auto [type_app, body, body_s] = resolve_type_app_unapplied_generic(checker.scope(), resolve_type_var(checker.scope(), prev_elem_type));
-        if (auto [enum_type, _] = match_type_deep<EnumType>(body_s, body); enum_type) {
+        auto [type_app, enum_type, body_s] = match_type_app_unapplied<EnumType>(checker.scope(), resolve_type_var(checker.scope(), prev_elem_type));
+        if (enum_type) {
             auto index = enum_type->find_member(id.name);
             if (!index) {
                 checker.unknown_member(loc, enum_type, id.name);
@@ -1789,20 +1789,25 @@ std::optional<Path::Elem::Inferred> Path::infer_path(TypeChecker& checker, std::
         assert(prev->var);
         // Treat tuple-like structure constructors as functions
         if (expected_kind == NodeKind::Value && prev->var->kind() != NodeKind::Value) {
-            const tir::Type* type = prev->var->isa<TypeVar>();
+            const Scope* type_s = &checker.scope();
+            auto type = prev->var->isa<TypeVar>();
             // enter polymorphic types...
             if (auto ctor_var = prev->var->isa<CtorVar>()) {
                 auto ctor = resolve_ctor_var(checker.scope(), ctor_var)->isa<Constructor>();
                 // TODO: if ctors get signatures, update this
-                if (ctor)
-                    type = ctor->body()->isa<tir::TypeVar>();
+                if (auto body_type = ctor->body()->isa<tir::Type>()) {
+                    auto [inner_def, inner_scope] = enter_type_expr_generic(*type_s, as_typeexpr(body_type));
+                    type = inner_def;
+                    type_s = &inner_scope;
+                }
             }
             if (type) {
-                auto type_def = type->isa<TypeDef>() ? type->as<TypeDef>() : resolve_type_var(checker.scope(), type->as<TypeVar>());
-                if (auto [type_app, struct_type, _] = resolve_type_app_unapplied<StructType>(checker.scope(), type_def);
-                     struct_type && struct_type->is_tuple_like()) {
-                    auto decl = struct_type->decl->as<StructDecl>();
-                    prev = Elem::Inferred { .var = decl->ctor_or_default_value(checker) };
+                assert(type_s);
+                if (auto [_, type_def] = lookup_type_var(*type_s, type); type_def) {
+                    if (auto [type_app, struct_type, _] = match_type_app_unapplied<StructType>(*type_s, type_def); struct_type && struct_type->is_tuple_like()) {
+                        auto decl = struct_type->decl->as<StructDecl>();
+                        prev = Elem::Inferred { .var = decl->ctor_or_default_value(checker) };
+                    }
                 }
             }
         }
@@ -2387,7 +2392,7 @@ const tir::Var* ProjExpr::infer(TypeChecker& checker) {
     }
 
     const artic::Type* result_type = nullptr;
-    auto [type_app, struct_type, _] = resolve_type_app_unapplied<StructType>(checker.scope(), expr_type);
+    auto [type_app, struct_type, _] = match_type_app_unapplied<StructType>(checker.scope(), expr_type);
     if (std::holds_alternative<Identifier>(field)) {
         // Regular field expressions using identifiers
         if (!struct_type) {

@@ -589,12 +589,17 @@ const T* match_type_var(const Scope& scope, const TypeVar* var) {
     return nullptr;
 }
 
-template <typename T = TypeDef>
+/*template <typename T = TypeDef>
 const T* match_type(const Scope& scope, const Type* type) {
     auto [_, def] = lookup_type(scope, type);
     if (def)
         return def->isa<T>();
     return nullptr;
+}*/
+
+template <typename T = TypeDef>
+const T* match_type_def(const Type* def) {
+    return def->isa<T>();
 }
 
 template <typename T = TypeDef>
@@ -624,20 +629,33 @@ std::tuple<const TypeApp*, const T*> resolve_type_app_applied(LetRecBuilder& bui
     return { app, t->isa<T>() };
 }
 
-std::tuple<const TypeApp*, const Type*, const Scope&> match_type_app_unapplied_generic(const Scope&, const TypeDef*);
-std::tuple<const TypeApp*, const TypeDef*, const Scope&> resolve_type_app_unapplied_generic(const Scope&, const TypeDef*);
+std::tuple<const TypeVar*, const Scope&> enter_type_expr_generic(const Scope&, TypeExpr);
+
+template <typename T = TypeDef>
+std::tuple<const T*, const TypeVar*, const Scope&> match_type_expr(const Scope& s, TypeExpr expr) {
+    auto [var1, scope] = enter_type_expr_generic(s, expr);
+    auto [var, def] = lookup_type(scope, var1);
+    if (def) {
+        if (auto t = def->isa<T>())
+            return { t, var, scope };
+    }
+    return { nullptr, var, scope };
+}
+
+//std::tuple<const TypeApp*, TypeExpr, const Scope&> resolve_type_app_unapplied_generic(const Scope&, const TypeDef*);
+std::tuple<const TypeApp*, const TypeDef*, const Scope&> match_type_app_unapplied_generic(const Scope&, const TypeDef*);
 
 template <typename T = Type>
 std::tuple<const TypeApp*, const T*, const Scope&> match_type_app_unapplied(const Scope& scope, const TypeDef* type) {
     auto [app, t, s] = match_type_app_unapplied_generic(scope, type);
-    return { app, t->isa<T>(), s };
+    return { app, t ? t->isa<T>() : nullptr, s };
 }
 
-template <typename T = TypeDef>
+/*template <typename T = TypeDef>
 std::tuple<const TypeApp*, const T*, const Scope&> resolve_type_app_unapplied(const Scope& scope, const TypeDef* type) {
     auto [app, t, s] = resolve_type_app_unapplied_generic(scope, type);
     return { app, t->isa<T>(), s };
-}
+}*/
 
 static inline bool is_unit_type(const TypeVar* var) {
     auto def = resolve_type_var(*var->binder, var);
