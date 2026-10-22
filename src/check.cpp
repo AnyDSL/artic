@@ -1821,19 +1821,25 @@ std::optional<Path::Elem::Inferred> Path::infer_path(TypeChecker& checker, std::
                     type_args[i] = checker.infer_type(*elem.args[i]);
 
                 // Infer type arguments when not all type arguments are given
-                if (type_param_count != elem.args.size() && i == n - 1) {
-                    assert(arg);
-                    auto val_ctor = resolve_ctor_var(checker.scope(), ctor)->isa<ValueCtor>();
-                    if (!val_ctor) {
-                        checker.error(elem.loc, "unknown");
+                if (type_param_count != elem.args.size()) {
+                    // only infer the last member of a path
+                    if (i == n - 1) {
+                        assert(arg);
+                        auto val_ctor = resolve_ctor_var(checker.scope(), ctor)->isa<ValueCtor>();
+                        if (!val_ctor) {
+                            checker.error(elem.loc, "unknown");
+                            return std::nullopt;
+                        }
+
+                        auto [body_scope, body] = val_ctor->peek_body();
+
+                        auto arg_type = checker.try_coerce(*arg, resolve_type_var(body_scope, body->as<Value>()->type())->as<artic::FnType>()->dom);
+                        if (!checker.infer_fn_args(loc, val_ctor, arg_type, ret_type, type_args))
+                            return std::nullopt;
+                    } else {
+                        checker.error(elem.loc, "expected {} type argument(s), but got {}", type_param_count, elem.args.size());
                         return std::nullopt;
                     }
-
-                    auto [body_scope, body] = val_ctor->peek_body();
-
-                    auto arg_type = checker.try_coerce(*arg, resolve_type_var(body_scope, body->as<Value>()->type())->as<artic::FnType>()->dom);
-                    if (!checker.infer_fn_args(loc, val_ctor, arg_type, ret_type, type_args))
-                        return std::nullopt;
                 }
 
                 switch (ctor_sig->codom_kind) {
@@ -2130,9 +2136,9 @@ const tir::Var* RecordExpr::infer(TypeChecker& checker) {
         if (!ops[i]) // check_fields already validated this is safe.
             ops[i] = struct_type->decl->fields[i]->init->value;
     }
-    auto agg = checker.expr_builder().agg(type, ops);
+    auto agg = checker.expr_builder().agg(record_type, ops);
     if (variant_index) {
-        assert(false && "TODO: emit enum options here");
+        agg = checker.expr_builder().variant(type, *variant_index, agg);
     }
     return agg;
 }
@@ -3699,13 +3705,15 @@ const tir::Var* TuplePtrn::infer(TypeChecker& checker) {
 const tir::Var* TuplePtrn::check(TypeChecker& checker, const artic::TypeVar* expected) {
     auto& b = checker.builder().enclosing_let_rec();
     //if (auto [_, tuple_type] = peek_app_type_applied<artic::TupleType>(checker.builder(), expected); tuple_type) {
-    if (auto tuple_type = resolve_type_var(checker.scope(), expected)->isa<tir::TupleType>()) {
+    auto [_, expected_def] = lookup_type_var(checker.scope(), expected);
+    assert(expected_def);
+    if (auto [app, tuple_type, _] = match_type_app_unapplied<tir::TupleType>(checker.scope(), expected_def); tuple_type) {
         if (args.size() != tuple_type->args.size()) {
             checker.bad_arguments(loc, "tuple pattern", args.size(), tuple_type->args.size());
             return b.error_value(expected);
         }
         for (size_t i = 0, n = args.size(); i < n; ++i)
-            checker.check_ptrn(*args[i], tuple_type->args[i]);
+            checker.check_ptrn(*args[i], member_type(b, expected_def, i));
         return expected;
     }
     checker.incompatible_type(loc, "tuple pattern", expected);
