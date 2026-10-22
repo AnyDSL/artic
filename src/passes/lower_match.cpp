@@ -23,7 +23,7 @@ public:
         const ValueVar* emit(Rewriter&, ExprBuilder&);
     };
 
-    static const Value* emit(
+    static ValueExpr emit(
         Rewriter&,
         Builder&,
         Log&,
@@ -375,7 +375,7 @@ const ValueVar* PtrnCompiler::MatchCase::emit(Rewriter& r, ExprBuilder& b) {
     return b.bind_value(fn);
 }
 
-const Value* PtrnCompiler::emit(
+ValueExpr PtrnCompiler::emit(
     Rewriter& rewriter,
     Builder& builder,
     Log& log,
@@ -394,7 +394,7 @@ const Value* PtrnCompiler::emit(
             compiler.redundant_case(*row.second->match_case->loc);
     }
     assert(false && "TODO: fix this when we have tail nodesw");
-    // return r;
+    return r;
 }
 
 // Since this code is used for debugging only, it makes sense to hide it in
@@ -443,7 +443,7 @@ struct LowerMatch : public Rewriter {
             std::vector<PtrnCompiler::MatchCase> match_cases;
             for (auto& case_ : old_match->cases)
                 match_cases.emplace_back(&case_);
-            return PtrnCompiler::emit(*this, builder, log, old_match, std::move(match_cases));
+            return as_value(PtrnCompiler::emit(*this, builder, log, old_match, std::move(match_cases)));
         }
         return old->rewrite(*this, builder);
     }
