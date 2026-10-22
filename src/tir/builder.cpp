@@ -859,6 +859,7 @@ const Var* Builder::schedule(const Def* node, std::optional<ast::Identifier> may
         if (prev)
             return prev;
     } else {
+        assert(false);
         dst = this;
     }
 

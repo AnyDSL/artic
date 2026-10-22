@@ -757,9 +757,14 @@ struct MemberTypeExtractor : public Rewriter {
     }
 
     const Var* lookup(const Var* var) const override {
-        if (!s || (!var->binder->is_child_of(s) && s != var->binder))
+        // if (!s || (!var->binder->is_child_of(s) && s != var->binder))
+        //     return var;
+        auto done =  Rewriter::lookup(var);
+        if (done)
+            return done;
+        if (!lookup_pending(var))
             return var;
-        return Rewriter::lookup(var);
+        return nullptr;
     }
 
     const Node* rewrite(Builder& b, const Def* old) override {
