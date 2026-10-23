@@ -851,7 +851,7 @@ const ValueVar* TypeChecker::coerce(ast::Expr* expr, const TypeVar* expected) {
     return tir;
 }
 
-const TypeVar* TypeChecker::try_coerce(Ptr<ast::Expr>& expr, const TypeVar* expected) {
+const TypeVar* TypeChecker::try_coerce(const Scope& scope, Ptr<ast::Expr>& expr, const TypeVar* expected) {
     // The goal here is to make type argument inference a bit more clever for literals.
     // Consider:
     //
@@ -864,19 +864,19 @@ const TypeVar* TypeChecker::try_coerce(Ptr<ast::Expr>& expr, const TypeVar* expe
     // To solve that, we just enter the expression if it is a tuple, and coerce the elements
     // of a tuple to the element of the expected type (the domain of the forall) if it does
     // not contain type variables.
-    if (auto tuple_type = expected->isa<TupleType>()) {
+    if (auto tuple_type = match_type_var<tir::TupleType>(scope, expected)) {
         if (auto tuple_expr = expr->isa<ast::TupleExpr>();
             tuple_expr && tuple_type->args.size() == tuple_expr->args.size()) {
             SmallArray<const TypeVar*> arg_types(tuple_expr->args.size());
             for (size_t i = 0, n = tuple_expr->args.size(); i < n; ++i)
-                arg_types[i] = try_coerce(tuple_expr->args[i], tuple_type->args[i]);
+                arg_types[i] = try_coerce(scope, tuple_expr->args[i], tuple_type->args[i]);
             return infer_value(*tuple_expr)->type();
             // return builder().tuple_type(arg_types);
         }
     }
     // If the expected type does not contain any type variable,
     // it is safe to coerce the expression to it.
-    return expected->Type::variance(scope()).empty() ? coerce(&*expr, expected)->type() : deref(expr)->type();
+    return expected->Type::variance(scope).empty() ? coerce(&*expr, expected)->type() : deref(expr)->type();
 }
 
 const TypeVar* TypeChecker::join(Ptr<ast::Expr>& left, Ptr<ast::Expr>& right, ExprBuilder& left_builder, ExprBuilder& right_builder) {
@@ -1833,7 +1833,7 @@ std::optional<Path::Elem::Inferred> Path::infer_path(TypeChecker& checker, std::
 
                         auto [body_scope, body] = val_ctor->peek_body();
 
-                        auto arg_type = checker.try_coerce(*arg, resolve_type_var(body_scope, body->as<Value>()->type())->as<artic::FnType>()->dom);
+                        auto arg_type = checker.try_coerce(body_scope, *arg, resolve_type_var(body_scope, body->as<Value>()->type())->as<artic::FnType>()->dom);
                         if (!checker.infer_fn_args(loc, val_ctor, arg_type, ret_type, type_args))
                             return std::nullopt;
                     } else {

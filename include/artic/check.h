@@ -61,7 +61,7 @@ public:
 
     const ValueVar* deref(Ptr<ast::Expr>&);
     const ValueVar* coerce(ast::Expr*, const TypeVar*);
-    const TypeVar* try_coerce(Ptr<ast::Expr>&, const TypeVar*);
+    const TypeVar* try_coerce(const Scope&, Ptr<ast::Expr>&, const TypeVar*);
     const TypeVar* join(Ptr<ast::Expr>&, Ptr<ast::Expr>&, ExprBuilder&, ExprBuilder&);
 
     const tir::Var* infer_mod_decl(ast::Decl&);
