@@ -97,19 +97,13 @@ private:
         return false;
     }
 
-    const ValueVar* ctor_index(const ast::Ptrn& ptrn) const {
-        if (auto record_ptrn = ptrn.isa<ast::RecordPtrn>())
-            return ctor_index(*record_ptrn->variant_index/*, debug_info(ptrn)*/);
-        return ptrn.isa<ast::LiteralPtrn>()
-            ? root_builder.typed_literal(ptrn.as<ast::LiteralPtrn>()->lit, ptrn.type)
-            : ctor_index(*ptrn.as<ast::CtorPtrn>()->variant_index/*, debug_info(ptrn)*/);
-    }
-
     const ValueVar* ctor_index(const Match::Ptrn& ptrn) const {
+        //assert(&ptrn.arena == &r.dst);
         if (ptrn.variant_index)
             return ctor_index(*ptrn.variant_index);
+        // TODO: figure out why this is inconsistent and fix it
         if (ptrn.literal)
-            return root_builder.typed_literal(*ptrn.literal, r.instantiate_var(ptrn.type));
+            return root_builder.typed_literal(*ptrn.literal, (&ptrn.type->arena == &r.dst) ? ptrn.type : r.instantiate_var(ptrn.type));
         assert(false);
     }
 
