@@ -114,6 +114,8 @@ struct Decl : public Node {
 
     /// The variable the decl was bound to
     mutable const tir::Var* var = nullptr;
+    /// Used to access the parent builder scope when inferring Options
+    mutable tir::LetRecBuilder* builder = nullptr;
 
     /// Binds the declaration to its AST node, without entering sub-AST nodes.
     virtual void bind_head(NameBinder&) {}

@@ -130,7 +130,8 @@ private:
                     ctors.emplace(ctor_index(*row.first[i]));
             }
             // If the match expression is complete, then the default case can be omitted
-            return is_complete(builder.scope, values[i]->resolve_type(builder.scope), ctors.size()) ? ctors.size() : ctors.size() + 1;
+            auto [_, t] = lookup_type_var(builder.scope, values[i]->type());
+            return (t && is_complete(builder.scope, t, ctors.size())) ? ctors.size() : ctors.size() + 1;
         });
         return std::find(enabled.begin(), enabled.end(), true) - enabled.begin();
     }
@@ -158,13 +159,13 @@ private:
     // Transforms the rows such that tuples and structures are completely deconstructed
     void expand(ExprBuilder& expr_builder) {
         for (size_t i = 0; i < values.size();) {
-            auto [_, type_def, _2] = match_type_app_unapplied_generic(builder.scope, values[i]->resolve_type(builder.scope));
-
-            if (!type_def) {
+            auto [_, t] = lookup_type_var(builder.scope, values[i]->type());
+            if (!t) {
                 // Move to the next column
                 i++;
                 continue;
             }
+            auto [_3, type_def, _2] = match_type_app_unapplied_generic(builder.scope, t);
 
             // Can only expand tuples or structures
             size_t member_count = 0;

@@ -3283,23 +3283,22 @@ struct ShadowPolyParamsHelper {
 const tir::Var* OptionDecl::infer(TypeChecker& checker) {
     // we don't want the upcoming definitions to end up enclosed in the enum itself
     assert(parent->enclosing_module);
-    auto& builder = *parent->enclosing_module->builder;
-    TypeChecker::BuilderGuard guard(checker, builder);
+    checker.enter_decl(this);
 
     if (param) {
-        ShadowPolyParamsHelper poly_shadow_helper(checker, parent->type_params);
-        return checker.maybe_polymorphic(id, poly_shadow_helper.new_vars, NodeKind::Type, [&](auto& builder, auto& self, auto& set_head) -> const Var* {
-            auto option_type = checker.infer_type(*param);
-            auto var = builder.type_var(id);
-            builder.tie_var(var);
-            set_head(var);
-            this->var = self;
-            builder.bind(var, option_type);
-            checker.exit_decl(this);
-            return var;
-        });
+        auto& builder = *parent->builder;
+        auto option_type = checker.infer_type(*param);
+        auto var = builder.type_var(id);
+        builder.tie_var(var);
+        this->var = var;
+        builder.bind(var, option_type);
+        checker.exit_decl(this);
+        return var;
     }
     else if (has_fields) {
+        auto& builder = *parent->enclosing_module->builder;
+        TypeChecker::BuilderGuard guard(checker, builder);
+
         ShadowPolyParamsHelper poly_shadow_helper(checker, parent->type_params);
         struct_type = checker.maybe_polymorphic(id, poly_shadow_helper.new_vars, NodeKind::Type, [&](auto& builder, auto& self, auto& set_head) -> const Var* {
             auto struct_type = builder.unsafe().struct_type(this);
@@ -3331,6 +3330,7 @@ const tir::Var* EnumDecl::infer(TypeChecker& checker) {
         builder.tie_var(var);
         set_head(var);
         this->var = self;
+        this->builder = &builder;
         for (auto& option : options) {
             auto option_type_or_ctor = checker.infer_option(*option);
             const TypeVar* option_type = option_type_or_ctor->isa<TypeVar>();
@@ -3373,15 +3373,7 @@ const tir::Var* OptionDecl::ctor_or_default_value(TypeChecker& checker) const {
         else
             self_type = parent->var->as<TypeVar>();
 
-        const tir::TypeVar* type = maybe_ctor_type_or_unit->isa<tir::TypeVar>();
-        if (!type) {
-            Array<const tir::Var*> args(params->size());
-            for (size_t i = 0; i < params->size(); ++i) {
-                args[i] = (*params)[i];
-            }
-            //type = builder.type_app(maybe_ctor_type_or_unit->as<CtorVar>(), args);
-            type = resolve_ctor_var(checker.scope(), maybe_ctor_type_or_unit->as<CtorVar>())->template as<TypeCtor>()->instantiate(builder, args)->template as<tir::TypeVar>();
-        }
+        auto type = member_type(builder, resolve_type_var(builder.scope, self_type), index);
         if (type != builder.unit_type()) {
             auto param = builder.value_var(Identifier { loc, "param" }, type);
 
