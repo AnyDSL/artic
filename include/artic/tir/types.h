@@ -150,18 +150,18 @@ private:
     friend class Arena;
 };
 
-struct TypeDef : public Type, public Def {
+struct TypeDef : public Type, virtual public Def {
     TypeDef() : Type(), Def() {}
 };
 
 /// Integer and floating-point types.
-struct PrimType : public TypeDef {
+struct PrimType : public TypeDef, PrimDef {
     ast::PrimType::Tag tag;
 
     void print(Printer&) const override;
     bool equals(const Node*) const override;
     size_t hash() const override;
-    const PrimType* rewrite(Rewriter&, Builder&) const override;
+    const TypeVar* rewrite(Rewriter&, Builder&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
     const thorin::Type* convert(Emitter&) const override;
@@ -173,14 +173,14 @@ private:
     friend class Arena;
 };
 
-struct TupleType : public TypeDef {
+struct TupleType : public TypeDef, PrimDef {
     Array<const TypeVar*> args;
 
     void print(Printer&) const override;
     bool equals(const Node*) const override;
     size_t hash() const override;
     bool contains(const Type*) const override;
-    const TupleType* rewrite(Rewriter&, Builder&) const override;
+    const TypeVar* rewrite(Rewriter&, Builder&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
     const thorin::Type* convert(Emitter&) const override;
@@ -198,11 +198,11 @@ private:
 };
 
 /// Base class for array types.
-struct ArrayType : public TypeDef {
+struct ArrayType : public TypeDef, PrimDef {
     const TypeVar* elem;
 
     ArrayType(Arena& arena, const TypeVar* elem)
-        : TypeDef(), elem(elem)
+        : TypeDef(), PrimDef(), elem(elem)
     {}
 
     bool contains(const Type*) const override;
@@ -222,7 +222,7 @@ struct SizedArrayType : public ArrayType {
     void print(Printer&) const override;
     bool equals(const Node*) const override;
     size_t hash() const override;
-    const SizedArrayType* rewrite(Rewriter&, Builder&) const override;
+    const TypeVar* rewrite(Rewriter&, Builder&) const override;
 
     const thorin::Type* convert(Emitter&) const override;
     std::string stringify(Emitter&) const override;
@@ -238,7 +238,7 @@ struct UnsizedArrayType : public ArrayType {
     void print(Printer&) const override;
     bool equals(const Node*) const override;
     size_t hash() const override;
-    const UnsizedArrayType* rewrite(Rewriter&, Builder&) const override;
+    const TypeVar* rewrite(Rewriter&, Builder&) const override;
 
     const thorin::Type* convert(Emitter&) const override;
     std::string stringify(Emitter&) const override;
@@ -250,13 +250,13 @@ private:
 };
 
 /// Base type for pointer types.
-struct AddrType : public TypeDef {
+struct AddrType : public TypeDef, PrimDef {
     const TypeVar* pointee;
     bool is_mut;
     size_t addr_space;
 
     AddrType(Arena& arena, const TypeVar* pointee, bool is_mut, size_t addr_space)
-        : TypeDef(), pointee(pointee), is_mut(is_mut), addr_space(addr_space)
+        : TypeDef(), PrimDef(), pointee(pointee), is_mut(is_mut), addr_space(addr_space)
     {}
 
     bool equals(const Node*) const override;
@@ -278,7 +278,7 @@ struct AddrType : public TypeDef {
 struct PtrType : public AddrType {
     void print(Printer&) const override;
 
-    const PtrType* rewrite(Rewriter&, Builder&) const override;
+    const TypeVar* rewrite(Rewriter&, Builder&) const override;
 
     std::string stringify(Emitter&) const override;
 
@@ -293,7 +293,7 @@ std::pair<const PtrType*, const TypeVar*> remove_ptr(const Scope& scope, const T
 /// The type of mutable identifiers or expressions.
 struct RefType : public AddrType {
     void print(Printer&) const override;
-    const RefType* rewrite(Rewriter&, Builder&) const override;
+    const TypeVar* rewrite(Rewriter&, Builder&) const override;
 
 private:
     RefType(Arena&, const TypeVar*, bool, size_t);
@@ -302,14 +302,14 @@ private:
 };
 std::pair<const RefType*, const TypeVar*> remove_ref(const Scope& scope, const TypeVar* type);
 
-struct ImplicitParamType : public TypeDef {
+struct ImplicitParamType : public TypeDef, PrimDef {
     const TypeVar* underlying;
 
     void print(Printer&) const override;
     bool equals(const Node*) const override;
     size_t hash() const override;
     bool contains(const Type*) const override;
-    const ImplicitParamType* rewrite(Rewriter&, Builder&) const override;
+    const TypeVar* rewrite(Rewriter&, Builder&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
     const thorin::Type* convert(Emitter&) const override;
@@ -326,7 +326,7 @@ private:
 };
 
 /// Function type (can represent continuations when the codomain is a `NoRetType`).
-struct FnType : public TypeDef {
+struct FnType : public TypeDef, PrimDef {
     const TypeVar* dom;
     const TypeVar* codom;
 
@@ -334,7 +334,7 @@ struct FnType : public TypeDef {
     bool equals(const Node*) const override;
     size_t hash() const override;
     bool contains(const Type*) const override;
-    const FnType* rewrite(Rewriter&, Builder&) const override;
+    const TypeVar* rewrite(Rewriter&, Builder&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
     const thorin::Type* convert(Emitter&) const override;
@@ -352,11 +352,11 @@ private:
 };
 
 /// Bottom type: Subtype of any other type
-struct BottomType : public TypeDef {
+struct BottomType : public TypeDef, PrimDef {
     void print(Printer&) const override;
     bool equals(const Node*) const override;
     size_t hash() const override;
-    const BottomType* rewrite(Rewriter&, Builder&) const override;
+    const TypeVar* rewrite(Rewriter&, Builder&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
 protected:
@@ -366,11 +366,11 @@ protected:
 };
 
 /// Top type: Supertype of any other type
-struct TopType : public TypeDef {
+struct TopType : public TypeDef, PrimDef {
     void print(Printer&) const override;
     bool equals(const Node*) const override;
     size_t hash() const override;
-    const TopType* rewrite(Rewriter&, Builder&) const override;
+    const TypeVar* rewrite(Rewriter&, Builder&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
 protected:
@@ -385,7 +385,7 @@ struct NoRetType : public BottomType {
 
     const thorin::Type* convert(Emitter&) const override;
     std::string stringify(Emitter&) const override;
-    const NoRetType* rewrite(Rewriter&, Builder&) const override;
+    const TypeVar* rewrite(Rewriter&, Builder&) const override;
 
 private:
     NoRetType(Arena&);
@@ -396,7 +396,7 @@ private:
 /// The type of an error (syntax or type errors will produce that type).
 struct TypeError : public TopType {
     void print(Printer&) const override;
-    const TypeError* rewrite(Rewriter&, Builder&) const override;
+    const TypeVar* rewrite(Rewriter&, Builder&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
 private:
@@ -407,27 +407,8 @@ private:
     friend class Arena;
 };
 
-/// Helper mixin to build hash and equality functions for a type that has a `Decl`.
-template <typename Super, typename Decl>
-struct NodeFromDecl : public Super {
-    const Decl& decl;
-
-    size_t hash() const override {
-        return fnv::Hash().combine(&decl);
-    }
-
-    bool equals(const Node* other) const override {
-        return other->isa<NodeFromDecl>() && &other->as<NodeFromDecl>()->decl == &decl;
-    }
-
-protected:
-    NodeFromDecl(Arena& arena, const Decl& decl)
-        : Super(arena), decl(decl)
-    {}
-};
-
 /// Base class for user-declared types.
-struct UserType : public TypeDef {
+struct UserType : public TypeDef, NominalDef {
 };
 
 /// Base class for complex, user-declared types.
@@ -511,7 +492,7 @@ struct TypeApp : public TypeDef, public App {
     bool equals(const Node*) const override;
     //size_t hash() const override;
     bool contains(const Type*) const override;
-    const Type* rewrite(Rewriter&, Builder&) const override;
+    const TypeVar* rewrite(Rewriter&, Builder&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
     const thorin::Type* convert(Emitter&) const override;

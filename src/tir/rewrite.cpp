@@ -16,30 +16,83 @@ void Rewriter::instantiate(Root& dst, const Root& old) {
     dst.root_module = as_mod(builder.finish_module(instantiate_expr(builder, as_modexpr(old.root_module))));
 }
 
+/*const Var* Rewriter::instantiate_fold_var(Pending& pending, const Var* ovar) {
+
+}*/
+
 const Var* Rewriter::instantiate_var(const Var* old) {
+    while (old->binder) {
+        auto found = old->binder->lookup_var_single(old);
+        if (auto var = found->isa<Var>()) {
+            old = var;
+        } else {
+            break;
+        }
+    }
+
     auto found = lookup(old);
     if (found)
         return found;
+
     auto maybe_pending = lookup_pending(old);
     if (!maybe_pending) {
         assert(false && "trying to rewrite a variable we haven't seen yet");
         return nullptr;
     }
     Pending pending = *maybe_pending;
-    // BuilderGuard guard(*this, *pending.dst);
-    if (auto dst_letrec = pending.dst->isa<LetRecBuilder>())
-        dst_letrec->reserve_bind(pending.nvar);
-    pending.frame->insert(old, pending.nvar);
-    pending.dst->bind(pending.nvar, instantiate_rhs(*pending.dst, pending.orhs));
-    pending.frame->pending.erase(old);
-    return pending.nvar;
+
+    if (auto prim_def = pending.orhs->isa<PrimDef>()) {
+        auto ndef = rewrite(*pending.dst, prim_def);
+        if (auto nvar = ndef->isa<Var>()) {
+            pending.frame->insert(old, nvar);
+            return nvar;
+        }
+        auto nvar = rebuild_var(*pending.dst, pending.ovar);
+        pending.dst->bind(nvar, ndef);
+        pending.frame->insert(old, nvar);
+        return nvar;
+    } else if (auto nominal_def = pending.orhs->isa<NominalDef>()) {
+        auto nvar = rebuild_var(*pending.dst, pending.ovar);
+        if (auto dst_letrec = pending.dst->isa<LetRecBuilder>())
+            dst_letrec->reserve_bind(nvar);
+        pending.frame->insert(old, nvar);
+        pending.dst->bind(nvar, rewrite(*pending.dst, nominal_def));
+        pending.frame->pending.erase(old);
+        return nvar;
+    } else {
+        auto var = pending.orhs->as<Var>();
+        auto nvar = lookup(var);
+        pending.frame->insert(old, nvar);
+        assert(nvar);
+        return nvar;
+    }
 }
 
-const Node* Rewriter::instantiate_rhs(Builder& b, const Node* rhs) {
-    if (auto def = rhs->isa<Def>())
-        return rewrite(b, def);
-    else
-        return instantiate_var(rhs->as<Var>());
+const Value* Seq::rewrite(Rewriter& r, Builder& builder) const {
+    ExprBuilder seq_builder(builder, "seq_expr");
+    Rewriter::FrameGuard guard(r, seq_builder);
+    for (auto bind : evaluate) {
+        const Value* new_value = nullptr; // = r.instantiate_rhs(seq_builder, bind.value)->as<Value>();
+
+        if (auto prim_def = bind.value->isa<PrimDef>()) {
+            assert(false && "putting PrimDef here is a problem.");
+        } else if (auto nominal_def = bind.value->isa<NominalDef>()) {
+            auto rewrite_result = r.rewrite(seq_builder, nominal_def);
+            new_value = rewrite_result->as<Value>();
+        } else {
+            auto new_var = r.instantiate_var(bind.value->as<ValueVar>());
+            r.frame().insert(bind.var, new_var);
+            continue;
+            // assert(false && "putting variables here is also a problem.");
+        }
+
+        assert(!new_value->isa<Def>() || !new_value->as<Def>()->bound_to);
+        auto new_var = seq_builder.bind_value(new_value);
+        r.frame().insert(bind.var, new_var);
+    }
+    LetRecBuilder letrec_builder(seq_builder, "seq_final");
+    Rewriter::FrameGuard tail_guard(r, letrec_builder);
+    return as_value(seq_builder.finish(letrec_builder.finish_value(r.instantiate_expr(letrec_builder, yield))));
 }
 
 const Node* Rewriter::instantiate_expr(Builder& b, const Node* must_be_expr) {
@@ -56,34 +109,34 @@ const Var* Rewriter::rebuild_var(Builder& b, const Var* var) {
     return var->rebuild(*this, b);
 }
 
-const PrimType* PrimType::rewrite(Rewriter& r, Builder&) const {
-    return r.unsafe_builder().prim_type(tag);
+const TypeVar* PrimType::rewrite(Rewriter&, Builder& b) const {
+    return b.prim_type(tag);
 }
 
-const NoRetType* NoRetType::rewrite(Rewriter& r, Builder&) const {
-    return r.unsafe_builder().no_ret_type();
+const TypeVar* NoRetType::rewrite(Rewriter&, Builder& b) const {
+    return b.no_ret_type();
 }
 
-const TopType* TopType::rewrite(Rewriter& r, Builder&) const {
-    return r.unsafe_builder().top_type();
+const TypeVar* TopType::rewrite(Rewriter& r, Builder& b) const {
+    return b.top_type();
 }
 
-const BottomType* BottomType::rewrite(Rewriter& r, Builder&) const {
-    return r.unsafe_builder().bottom_type();
+const TypeVar* BottomType::rewrite(Rewriter& r, Builder& b) const {
+    return b.bottom_type();
 }
 
-const FnType* FnType::rewrite(Rewriter& r, Builder&) const {
+const TypeVar* FnType::rewrite(Rewriter& r, Builder& b) const {
     const TypeVar* ndom = r.instantiate_var(dom);
     const TypeVar* ncodom = r.instantiate_var(codom);
-    return r.unsafe_builder().fn_type(ndom, ncodom);
+    return b.fn_type(ndom, ncodom);
 }
 
-const TupleType* TupleType::rewrite(Rewriter& r, Builder&) const {
+const TypeVar* TupleType::rewrite(Rewriter& r, Builder& b) const {
     Array<const TypeVar*> elems(this->args.size());
     for (size_t i = 0; i < elems.size(); ++i) {
         elems[i] = r.instantiate_var(this->args[i]);
     }
-    return r.unsafe_builder().tuple_type(elems);
+    return b.tuple_type(elems);
 }
 
 const StructType* StructType::rewrite(Rewriter& r, Builder&) const {
@@ -104,36 +157,36 @@ const EnumType* EnumType::rewrite(Rewriter& r, Builder&) const {
     return ne;
 }
 
-const SizedArrayType* SizedArrayType::rewrite(Rewriter& r, Builder&) const {
-    return r.unsafe_builder().sized_array_type(r.instantiate_var(elem), size, is_simd);
+const TypeVar* SizedArrayType::rewrite(Rewriter& r, Builder& b) const {
+    return b.sized_array_type(r.instantiate_var(elem), size, is_simd);
 }
 
-const UnsizedArrayType* UnsizedArrayType::rewrite(Rewriter& r, Builder&) const {
-    return r.unsafe_builder().unsized_array_type(r.instantiate_var(elem));
+const TypeVar* UnsizedArrayType::rewrite(Rewriter& r, Builder& b) const {
+    return b.unsized_array_type(r.instantiate_var(elem));
 }
 
-const ImplicitParamType* ImplicitParamType::rewrite(Rewriter& r, Builder&) const {
-    return r.unsafe_builder().implicit_param_type(r.instantiate_var(underlying));
+const TypeVar* ImplicitParamType::rewrite(Rewriter& r, Builder& b) const {
+    return b.implicit_param_type(r.instantiate_var(underlying));
 }
 
-const PtrType* PtrType::rewrite(Rewriter& r, Builder&) const {
-    return r.unsafe_builder().ptr_type(r.instantiate_var(pointee), is_mut, addr_space);
+const TypeVar* PtrType::rewrite(Rewriter& r, Builder& b) const {
+    return b.ptr_type(r.instantiate_var(pointee), is_mut, addr_space);
 }
 
-const RefType* RefType::rewrite(Rewriter& r, Builder&) const {
-    return r.unsafe_builder().ref_type(r.instantiate_var(pointee), is_mut, addr_space);
+const TypeVar* RefType::rewrite(Rewriter& r, Builder& b) const {
+    return b.ref_type(r.instantiate_var(pointee), is_mut, addr_space);
 }
 
 const TypeVar* TypeVar::rebuild(Rewriter& r, Builder& builder) const {
     return builder.type_var(id);
 }
 
-const Type* TypeApp::rewrite(Rewriter& r, Builder&) const {
-    return r.unsafe_builder().type_app(r.instantiate_var(applicand()), r.instantiate_var_array(args));
+const TypeVar* TypeApp::rewrite(Rewriter& r, Builder& b) const {
+    return b.type_app(r.instantiate_var(applicand()), r.instantiate_var_array(args));
 }
 
-const TypeError* TypeError::rewrite(Rewriter& r, Builder&) const {
-    return r.unsafe_builder().type_error();
+const TypeVar* TypeError::rewrite(Rewriter& r, Builder& b) const {
+    return b.type_error();
 }
 
 const Key* Key::rewrite(Rewriter& r) const {
@@ -148,11 +201,11 @@ const SigVar* SigVar::rebuild(Rewriter& r, Builder& builder) const {
     return builder.sig_var(id);
 }
 
-const Node* SigError::rewrite(Rewriter& r, Builder&) const {
-    return r.unsafe_builder().sig_error();
+const SigVar* SigError::rewrite(Rewriter& r, Builder& b) const {
+    return b.sig_error();
 }
 
-const Node* Module::rewrite(Rewriter& r, Builder&) const {
+const Module* Module::rewrite(Rewriter& r, Builder&) const {
     std::unordered_map<const Key*, const Var*> decls;
     for (auto [okey, oval] : this->decls) {
         auto nkey = r.instantiate_key(okey);
@@ -162,7 +215,7 @@ const Node* Module::rewrite(Rewriter& r, Builder&) const {
     return r.unsafe_builder().module(std::move(decls), r.instantiate_var(signature()), decl);
 }
 
-const Node* ModCtor::rewrite(Rewriter& r, Builder& builder) const {
+const ModCtor* ModCtor::rewrite(Rewriter& r, Builder& builder) const {
     AbstractBuilder ctor_builder(builder, "mod_ctor_abs");
     Rewriter::FrameGuard ctor_guard(r, ctor_builder);
     Array<const Var*> params(this->params.size());
@@ -205,31 +258,31 @@ const CtorVar* CtorVar::rebuild(Rewriter& r, Builder& builder) const {
     return builder.ctor_var(id, r.instantiate_var(ctor_sig));
 }
 
-const Node* ModApp::rewrite(Rewriter& r, Builder&) const {
+const ModVar* ModApp::rewrite(Rewriter& r, Builder& b) const {
     auto nargs = r.instantiate_var_array(args);
-    return r.unsafe_builder().mod_app(r.instantiate_var(applicand()), nargs);
+    return b.mod_app(r.instantiate_var(applicand()), nargs);
 }
 
-const Node* ModModAccess::rewrite(Rewriter& r, Builder&) const {
-    return r.unsafe_builder().mod_mod_access(r.instantiate_var(mod), r.instantiate_var(key));
+const ModVar* ModModAccess::rewrite(Rewriter& r, Builder& b) const {
+    return b.mod_mod_access(r.instantiate_var(mod), r.instantiate_var(key));
 }
 
-const Node* ModError::rewrite(Rewriter& r, Builder&) const {
-    return r.unsafe_builder().mod_error();
+const ModVar* ModError::rewrite(Rewriter& r, Builder& b) const {
+    return b.mod_error();
 }
 
 void Rewriter::record_letrec(Builder& builder, const LetRec* old) {
     LetRecBuilder& target = builder.enclosing_let_rec();
     for (auto [ovar, oval] : old->vars) {
-        auto var = rebuild_var(builder, ovar);
+        //auto var = rebuild_var(builder, ovar);
         state.top().pending[ovar] = Pending {
-            .nvar = var,
+            .ovar = ovar,
             .orhs = oval,
             .dst = &target,
             .frame = &state.top()
         };
         //insert(ovar, var);
-        target.tie_var(var);
+        //target.tie_var(var);
     }
     // for (auto [ovar, oval] : old->vars) {
     //     auto var = lookup(ovar)->as<Var>();
@@ -280,8 +333,8 @@ ModExpr Rewriter::instantiate_expr(Builder& b, ModExpr old) {
     return as_modexpr(instantiate_var(std::get<const ModVar*>(old)));
 }
 
-const Value* ValueApp::rewrite(Rewriter& r, Builder&) const {
-    return r.unsafe_builder().value_app(r.instantiate_var(applicand()), r.instantiate_var_array(args));
+const ValueVar* ValueApp::rewrite(Rewriter& r, Builder& b) const {
+    return b.value_app(r.instantiate_var(applicand()), r.instantiate_var_array(args));
 }
 
 const Node* GlobalVariable::rewrite(Rewriter& r, Builder& b) const {
@@ -323,12 +376,12 @@ const Node* Function::rewrite(Rewriter& r, Builder& b) const {
     return nfn;
 }
 
-const Node* Unit::rewrite(Rewriter& r, Builder&) const {
-    return r.unsafe_builder().unit();
+const ValueVar* Unit::rewrite(Rewriter& r, Builder& b) const {
+    return b.unit();
 }
 
-const Node* ErrorValue::rewrite(Rewriter& r, Builder&) const {
-    return r.unsafe_builder().error_value(r.instantiate_var(type()));
+const ValueVar* ErrorValue::rewrite(Rewriter& r, Builder& b) const {
+    return b.error_value(r.instantiate_var(type()));
 }
 
 const ValueVar* ValueVar::rebuild(Rewriter& r, Builder& builder) const {
@@ -347,12 +400,12 @@ const Node* Cast::rewrite(Rewriter& r, Builder&) const {
     return r.unsafe_builder().cast(r.instantiate_var(src), r.instantiate_var(type_));
 }
 
-const Node* TypedLiteral::rewrite(Rewriter& r, Builder&) const {
-    return r.unsafe_builder().typed_literal(value, r.instantiate_var(type_));
+const ValueVar* TypedLiteral::rewrite(Rewriter& r, Builder& b) const {
+    return b.typed_literal(value, r.instantiate_var(type_));
 }
 
-const Node* Undef::rewrite(Rewriter& r, Builder&) const {
-    return r.unsafe_builder().undef(r.instantiate_var(type_));
+const ValueVar* Undef::rewrite(Rewriter& r, Builder& b) const {
+    return b.undef(r.instantiate_var(type_));
 }
 
 const Node* Agg::rewrite(Rewriter& r, Builder&) const {
@@ -381,20 +434,6 @@ const Node* VariantExtract::rewrite(Rewriter& r, Builder&) const {
 
 const Node* Proj::rewrite(Rewriter& r, Builder&) const {
     return r.unsafe_builder().proj(r.instantiate_var(src), r.instantiate_var(idx));
-}
-
-const Value* Seq::rewrite(Rewriter& r, Builder& builder) const {
-    ExprBuilder seq_builder(builder, "seq_expr");
-    Rewriter::FrameGuard guard(r, seq_builder);
-    for (auto bind : evaluate) {
-        auto new_value = r.instantiate_rhs(seq_builder, bind.value)->as<Value>();
-        assert(!new_value->isa<Def>() || !new_value->as<Def>()->bound_to);
-        auto new_var = seq_builder.bind_value(new_value);
-        r.frame().insert(bind.var, new_var);
-    }
-    LetRecBuilder letrec_builder(seq_builder, "seq_final");
-    Rewriter::FrameGuard tail_guard(r, letrec_builder);
-    return as_value(seq_builder.finish(letrec_builder.finish_value(r.instantiate_expr(letrec_builder, yield))));
 }
 
 const Node* UnOp::rewrite(Rewriter& r, Builder&) const {
@@ -453,30 +492,30 @@ const Node* Control::rewrite(Rewriter& r, Builder& b) const {
     return r.unsafe_builder().control(r.instantiate_fn(b, body));
 }
 
-const Node* ValueSignature::rewrite(Rewriter& rewriter, Builder&) const {
-    return rewriter.unsafe_builder().value_signature(rewriter.instantiate_var(value_type));
+const SigVar* ValueSignature::rewrite(Rewriter& rewriter, Builder& b) const {
+    return b.value_signature(rewriter.instantiate_var(value_type));
 }
 
-const Node* TypeSignature::rewrite(Rewriter& rewriter, Builder&) const {
+const SigVar* TypeSignature::rewrite(Rewriter& rewriter, Builder& b) const {
     if (type)
-        return rewriter.unsafe_builder().type_signature(rewriter.instantiate_var(type));
-    return rewriter.unsafe_builder().type_signature(nullptr);
+        return b.type_signature(rewriter.instantiate_var(type));
+    return b.type_signature(nullptr);
 }
 
-const Node* ModSignature::rewrite(Rewriter& rewriter, Builder&) const {
+const SigVar* ModSignature::rewrite(Rewriter& rewriter, Builder& b) const {
     std::unordered_map<const Key*, const SigVar*> nelems;
     for (auto [key, sig] : elems) {
         nelems.emplace(rewriter.instantiate_key(key), rewriter.instantiate_var(sig));
     }
-    return rewriter.unsafe_builder().mod_signature(std::move(nelems));
+    return b.mod_signature(std::move(nelems));
 }
 
-const Node* CtorSignature::rewrite(Rewriter& rewriter, Builder&) const {
+const SigVar* CtorSignature::rewrite(Rewriter& rewriter, Builder& b) const {
     Array<const SigVar*> new_dom(dom.size());
     for (size_t i = 0; i < dom.size(); ++i) {
         new_dom[i] = rewriter.instantiate_var(dom[i]);
     }
-    return rewriter.unsafe_builder().ctor_signature(new_dom, codom_kind);
+    return b.ctor_signature(new_dom, codom_kind);
 }
 
 }

@@ -60,20 +60,20 @@ using ValueExpr = std::variant<const Seq*, const LetRecValue*, const ValueVar*>;
 const Value* as_value(const ValueExpr&);
 ValueExpr as_valueexpr(const Value*);
 
-struct ValueDef : public Value, public Def {
+struct ValueDef : public Value, virtual public Def {
     ValueDef(Arena& arena, const TypeVar* type) : Value(arena, type), Def() {}
 
     virtual bool is_computation() const { return true; }
     virtual bool has_side_effects() const { return true; }
 };
 
-struct Unit : public ValueDef {
-    Unit(Arena& arena, const TypeVar* unit_type) : ValueDef(arena, unit_type), Node(arena) {}
+struct Unit : public ValueDef, PrimDef {
+    Unit(Arena& arena, const TypeVar* unit_type) : ValueDef(arena, unit_type), PrimDef(), Node(arena) {}
 
     bool equals(const Node*) const override;
     size_t hash() const override;
     void print(Printer&) const override;
-    const Node* rewrite(Rewriter&, Builder&) const override;
+    const ValueVar* rewrite(Rewriter&, Builder&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
     const thorin::Def* emit(Emitter&) const override;
@@ -81,13 +81,13 @@ struct Unit : public ValueDef {
     bool is_computation() const override { return false; }
 };
 
-struct ErrorValue : public ValueDef {
-    ErrorValue(Arena& arena, const TypeVar* type) : ValueDef(arena, type), Node(arena) {}
+struct ErrorValue : public ValueDef, PrimDef {
+    ErrorValue(Arena& arena, const TypeVar* type) : ValueDef(arena, type), PrimDef(), Node(arena) {}
 
     bool equals(const Node*) const override;
     size_t hash() const override;
     void print(Printer&) const override;
-    const Node* rewrite(Rewriter&, Builder&) const override;
+    const ValueVar* rewrite(Rewriter&, Builder&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
     const thorin::Def* emit(Emitter&) const override;
@@ -98,7 +98,7 @@ struct ErrorValue : public ValueDef {
 struct ValueApp : public ValueDef, public App {
     void print(Printer&) const override;
     bool equals(const Node*) const override;
-    const Value* rewrite(Rewriter&, Builder&) const override;
+    const ValueVar* rewrite(Rewriter&, Builder&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
     const Value* instantiated(LetRecBuilder& b) const override {
@@ -152,7 +152,7 @@ struct FunctionLinkage {
     thorin::CC cc = thorin::CC::C;
 };
 
-struct Function : public ValueDef {
+struct Function : public ValueDef, NominalDef {
     Scope& scope;
     const ValueVar* param;
     const TypeVar* codom;
@@ -179,7 +179,7 @@ private:
     mutable std::optional<ValueExpr> filter_ = std::nullopt;
 };
 
-struct Call : public ValueDef {
+struct Call : public ValueDef, NominalDef {
     const ValueVar* callee;
     const ValueVar* arg;
 
@@ -200,7 +200,7 @@ struct GlobalVarLinkage {
     bool is_external = false;
 };
 
-struct GlobalVariable : public ValueDef {
+struct GlobalVariable : public ValueDef, NominalDef {
     const TypeVar* allocated_type;
     bool is_mut;
     std::optional<ValueExpr> init;
@@ -220,7 +220,7 @@ struct GlobalVariable : public ValueDef {
     GlobalVariable(Builder& arena, const TypeVar*, bool is_mut, std::optional<ValueExpr>&& init, const ast::StaticDecl* decl);
 };
 
-struct LocalVariable : public ValueDef {
+struct LocalVariable : public ValueDef, NominalDef {
     const TypeVar* allocated_type;
 
     void print(Printer&) const override;
@@ -233,7 +233,7 @@ struct LocalVariable : public ValueDef {
     LocalVariable(Builder&, const TypeVar*);
 };
 
-struct ImplicitCast : public ValueDef {
+struct ImplicitCast : public ValueDef, NominalDef {
     const ValueVar* src;
     const TypeVar* dst;
 
@@ -249,7 +249,7 @@ struct ImplicitCast : public ValueDef {
     ImplicitCast(Builder&, const ValueVar*, const TypeVar*);
 };
 
-struct Cast : public ValueDef {
+struct Cast : public ValueDef, NominalDef {
     const ValueVar* src;
     const TypeVar* dst;
 
@@ -265,14 +265,14 @@ struct Cast : public ValueDef {
     Cast(Arena&, const ValueVar*, const TypeVar*);
 };
 
-struct TypedLiteral : public ValueDef {
+struct TypedLiteral : public ValueDef, PrimDef {
     Literal value;
 
     bool equals(const Node*) const override;
     size_t hash() const override;
 
     void print(Printer&) const override;
-    const Node* rewrite(Rewriter&, Builder&) const override;
+    const ValueVar* rewrite(Rewriter&, Builder&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
     const thorin::Def* emit(Emitter&) const override;
@@ -281,12 +281,12 @@ struct TypedLiteral : public ValueDef {
     TypedLiteral(Builder&, Literal, const TypeVar*);
 };
 
-struct Undef : public ValueDef {
+struct Undef : public ValueDef, PrimDef {
     bool equals(const Node*) const override;
     size_t hash() const override;
 
     void print(Printer&) const override;
-    const Node* rewrite(Rewriter&, Builder&) const override;
+    const ValueVar* rewrite(Rewriter&, Builder&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
     const thorin::Def* emit(Emitter&) const override;
@@ -296,7 +296,7 @@ struct Undef : public ValueDef {
 };
 
 /// Aggregate constructor, used to build tuples, arrays etc
-struct Agg : public ValueDef {
+struct Agg : public ValueDef, NominalDef {
     Array<const ValueVar*> args;
 
     bool equals(const Node*) const override;
@@ -312,7 +312,7 @@ struct Agg : public ValueDef {
     Agg(Builder&, const TypeVar*, const ArrayRef<const ValueVar*>&);
 };
 
-struct Extract : public ValueDef {
+struct Extract : public ValueDef, NominalDef {
     const ValueVar* src;
     const ValueVar* idx;
 
@@ -334,7 +334,7 @@ struct Insert : public ValueDef {
     const ValueVar* elem;
 };
 
-struct Variant : public ValueDef {
+struct Variant : public ValueDef, NominalDef {
     size_t index;
     const ValueVar* elem;
 
@@ -350,7 +350,7 @@ struct Variant : public ValueDef {
     Variant(Builder&, const TypeVar*, size_t, const ValueVar*);
 };
 
-struct VariantIndex : public ValueDef {
+struct VariantIndex : public ValueDef, NominalDef {
     const ValueVar* src;
 
     // bool equals(const Node*) const override;
@@ -365,7 +365,7 @@ struct VariantIndex : public ValueDef {
     VariantIndex(Builder&, const ValueVar*);
 };
 
-struct VariantExtract : public ValueDef {
+struct VariantExtract : public ValueDef, NominalDef {
     const ValueVar* src;
     size_t index;
 
@@ -381,7 +381,7 @@ struct VariantExtract : public ValueDef {
     VariantExtract(Builder&, const ValueVar*, size_t);
 };
 
-struct Repeat : public ValueDef {
+struct Repeat : public ValueDef, NominalDef {
     const ValueVar* elem;
 
     bool equals(const Node*) const override;
@@ -397,7 +397,7 @@ struct Repeat : public ValueDef {
     Repeat(Builder&, const TypeVar*, const ValueVar*);
 };
 
-struct Proj : public ValueDef {
+struct Proj : public ValueDef, NominalDef {
     const ValueVar* src;
     const ValueVar* idx;
 
@@ -413,7 +413,7 @@ struct Proj : public ValueDef {
     Proj(Builder&, const ValueVar*, const ValueVar*);
 };
 
-struct Seq : public ValueDef {
+struct Seq : public ValueDef, NominalDef {
     struct Bind {
         const ValueVar* var;
         const Value* value;
@@ -434,7 +434,7 @@ struct Seq : public ValueDef {
     Seq(Builder&, const ArrayRef<Bind>&, ValueExpr);
 };
 
-struct UnOp : public ValueDef {
+struct UnOp : public ValueDef, NominalDef {
     ast::UnaryExpr::Tag tag;
     const ValueVar* arg;
 
@@ -450,7 +450,7 @@ struct UnOp : public ValueDef {
     UnOp(Builder&, const ast::UnaryExpr::Tag, const ValueVar*);
 };
 
-struct BinOp : public ValueDef {
+struct BinOp : public ValueDef, NominalDef {
     ast::BinaryExpr::Tag tag;
     const ValueVar* lhs;
     const ValueVar* rhs;
@@ -481,7 +481,7 @@ const Array<std::string> builtin_tag_names = {
     "compare",
 };
 
-struct Builtin : public ValueDef {
+struct Builtin : public ValueDef, NominalDef {
     enum class Tag {
         AlignOf,
         SizeOf,
@@ -514,7 +514,7 @@ struct Builtin : public ValueDef {
     Builtin(Builder&, Tag, const ArrayRef<const Var*>&);
 };
 
-struct MathOp : public ValueDef {
+struct MathOp : public ValueDef, NominalDef {
     thorin::MathOpTag tag;
     Array<const ValueVar*> args;
 
@@ -531,7 +531,7 @@ struct MathOp : public ValueDef {
     MathOp(Builder&, thorin::MathOpTag, const ArrayRef<const ValueVar*>&);
 };
 
-struct Branch : public ValueDef {
+struct Branch : public ValueDef, NominalDef {
     const ValueVar* cond;
     const Function* true_branch;
     const Function* else_branch;
@@ -549,7 +549,7 @@ struct Branch : public ValueDef {
     Branch(Builder&, const ValueVar* cond, const Function* true_branch, const Function* false_branch);
 };
 
-struct Match : public ValueDef {
+struct Match : public ValueDef, NominalDef {
     /// A simplified form of the pattern language found in the AST, encodes a tree of extract/variant extracts
     struct Ptrn : Node {
         const TypeVar* type;
@@ -617,7 +617,7 @@ struct Match : public ValueDef {
     Match(Builder&, const Loc&, const ValueVar*, Array<Case>&&);
 };
 
-struct Switch : public ValueDef {
+struct Switch : public ValueDef, NominalDef {
     struct Case {
         const ValueVar* value;
         const Function* branch;
@@ -639,7 +639,7 @@ struct Switch : public ValueDef {
     Switch(Builder&, const ValueVar*, const Function*, Array<Case>&&);
 };
 
-struct Control : public ValueDef {
+struct Control : public ValueDef, NominalDef {
     const Function* body;
 
     // bool equals(const Node*) const override;

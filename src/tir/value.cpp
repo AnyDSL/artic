@@ -25,7 +25,7 @@ LocalVariable::LocalVariable(Builder& builder, const TypeVar* allocated_type)
 }
 
 Function::Function(Builder& builder, Scope& scope, const ValueVar* param, const TypeVar* codom, const ast::FnDecl* decl)
-    : ValueDef(builder.arena, builder.enclosing_let_rec().fn_type(param->type(), codom)), Node(builder.arena), scope(scope), param(param), codom(codom), decl(decl) {
+    : ValueDef(builder.arena, builder.enclosing_let_rec().fn_type(param->type(), codom)), NominalDef(), Node(builder.arena), scope(scope), param(param), codom(codom), decl(decl) {
     assert(scope.is_in_scope(param));
 }
 

@@ -48,18 +48,18 @@ struct SigVar : public Sig, public Var {
     SigVar(Builder&, std::optional<ast::Identifier> id);
 };
 
-struct SigDef : public Sig, public Def {
+struct SigDef : public Sig, virtual public Def {
     bool is_sub(const Scope&, const Sig*) const override;
     virtual bool is_sub_def(const Scope&, const SigDef*) const = 0;
 };
 
-struct ValueSignature : public SigDef {
+struct ValueSignature : public SigDef, PrimDef {
     const TypeVar* value_type = nullptr;
 
     size_t hash() const override;
     bool equals(const Node*) const override;
     void print(Printer& p) const override;
-    const Node* rewrite(Rewriter&, Builder&) const override;
+    const SigVar* rewrite(Rewriter&, Builder&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
     //NodeKind element_kind() const override { return NodeKind::Value; }
@@ -68,13 +68,13 @@ struct ValueSignature : public SigDef {
     ValueSignature(Builder&, const TypeVar*);
 };
 
-struct TypeSignature : public SigDef {
+struct TypeSignature : public SigDef, PrimDef {
     const TypeVar* type = nullptr;
 
     size_t hash() const override;
     bool equals(const Node*) const override;
     void print(Printer& p) const override;
-    const Node* rewrite(Rewriter&, Builder&) const override;
+    const SigVar* rewrite(Rewriter&, Builder&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
     //NodeKind element_kind() const override { return NodeKind::Type; }
@@ -83,13 +83,13 @@ struct TypeSignature : public SigDef {
     TypeSignature(Builder&, const TypeVar*);
 };
 
-struct ModSignature : public SigDef {
+struct ModSignature : public SigDef, PrimDef {
     std::unordered_map<const Key*, const SigVar*> elems;
 
     size_t hash() const override;
     bool equals(const Node*) const override;
     void print(Printer& p) const override;
-    const Node* rewrite(Rewriter&, Builder&) const override;
+    const SigVar* rewrite(Rewriter&, Builder&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
     //NodeKind element_kind() const override { return NodeKind::Module; }
@@ -101,7 +101,7 @@ struct ModSignature : public SigDef {
     ModSignature(Builder&, std::unordered_map<const Key*, const SigVar*>&&);
 };
 
-struct CtorSignature : public SigDef {
+struct CtorSignature : public SigDef, PrimDef {
     Array<const SigVar*> dom;
     // TODO: do we need real abstractions in here? do we?
     // const Sig* codom;
@@ -110,7 +110,7 @@ struct CtorSignature : public SigDef {
     size_t hash() const override;
     bool equals(const Node*) const override;
     void print(Printer& p) const override;
-    const Node* rewrite(Rewriter&, Builder&) const override;
+    const SigVar* rewrite(Rewriter&, Builder&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
     //NodeKind element_kind() const override { return NodeKind::Ctor; }
@@ -119,9 +119,9 @@ struct CtorSignature : public SigDef {
     CtorSignature(Builder&, const ArrayRef<const SigVar*>&, NodeKind);
 };
 
-struct SigError : public SigDef {
+struct SigError : public SigDef, public PrimDef {
     void print(Printer&) const override;
-    const Node* rewrite(Rewriter&, Builder&) const override;
+    const SigVar* rewrite(Rewriter&, Builder&) const override;
 
     void free_variables(FVSet&, Seen&) const override;
 
@@ -165,11 +165,11 @@ using ModExpr = std::variant<const LetRecMod*, const ModVar*>;
 const Mod* as_mod(const ModExpr&);
 ModExpr as_modexpr(const Mod*);
 
-struct ModDef : public Mod, public Def {
+struct ModDef : public Mod, virtual public Def {
 
 };
 
-struct Module : public ModDef {
+struct Module : public ModDef, NominalDef {
     const ast::ModDecl* decl;
     std::unordered_map<const Key*, const Var*> decls;
 
@@ -178,7 +178,7 @@ struct Module : public ModDef {
     const SigVar* signature() const override;
 
     void print(Printer&) const override;
-    const Node* rewrite(Rewriter&, Builder&) const override;
+    const Module* rewrite(Rewriter&, Builder&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
     void emit(Emitter&) const override;
@@ -189,7 +189,7 @@ private:
     const SigVar* signature_ = nullptr;
 };
 
-struct ModAccess : virtual Node {
+struct ModAccess : virtual Node, PrimDef {
     const ModVar* mod;
     const Key* key;
 
@@ -207,7 +207,7 @@ struct ModModAccess : public ModAccess, public ModDef {
     void emit(Emitter&) const override;
 
     bool equals(const Node*) const override;
-    const Node* rewrite(Rewriter&, Builder&) const override;
+    const ModVar* rewrite(Rewriter&, Builder&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
     ModModAccess(Builder&, const ModVar*, const Key*);
@@ -215,7 +215,7 @@ struct ModModAccess : public ModAccess, public ModDef {
 
 struct ModCtor : public Constructor {
     void print(Printer&) const override;
-    const Node* rewrite(Rewriter&, Builder&) const override;
+    const ModCtor* rewrite(Rewriter&, Builder&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
     const Mod* body() const override {
@@ -233,7 +233,7 @@ struct ModApp : public ModDef, public App {
     size_t hash() const override;
     bool equals(const Node*) const override;
     void print(Printer&) const override;
-    const Node* rewrite(Rewriter&, Builder&) const override;
+    const ModVar* rewrite(Rewriter&, Builder&) const override;
     void free_variables(FVSet&, Seen&) const override;
     void emit(Emitter&) const override;
 
@@ -271,13 +271,13 @@ struct LetRecMod : public Mod, public LetRec {
     LetRecMod(Builder&, Scope&, const ArrayRef<std::tuple<const Var*, const Node*>>&, ModExpr);
 };
 
-struct ModError : public ModDef {
+struct ModError : public ModDef, PrimDef {
     const SigVar* signature_;
 
     size_t hash() const override;
     bool equals(const Node*) const override;
     void print(Printer&) const override;
-    const Node* rewrite(Rewriter&, Builder&) const override;
+    const ModVar* rewrite(Rewriter&, Builder&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
     const SigVar* signature() const override;

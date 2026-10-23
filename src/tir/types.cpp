@@ -28,11 +28,11 @@ TypeExpr as_typeexpr(const Type* value) {
 // Constructors and validation -----------------------------------------------------
 
 PrimType::PrimType(Arena& arena, ast::PrimType::Tag tag)
-    : TypeDef(), Node(arena), tag(tag)
+    : TypeDef(), PrimDef(), Node(arena), tag(tag)
 {}
 
 TupleType::TupleType(Arena& arena, const ArrayRef<const TypeVar*>& args)
-    : TypeDef(), Node(arena), args(args)
+    : TypeDef(), PrimDef(), Node(arena), args(args)
 {}
 
 SizedArrayType::SizedArrayType(Arena& arena, const TypeVar* elem, size_t size, bool is_simd)
@@ -52,20 +52,20 @@ RefType::RefType(Arena& arena, const TypeVar* pointee, bool is_mut, size_t addr_
 {}
 
 ImplicitParamType::ImplicitParamType(Arena& arena, const TypeVar* underlying)
-    : TypeDef(), Node(arena)
+    : TypeDef(), PrimDef(), Node(arena)
     , underlying(underlying)
 {}
 
 FnType::FnType(Arena& arena, const TypeVar* dom, const TypeVar* codom)
-    : TypeDef(), dom(dom), codom(codom), Node(arena)
+    : TypeDef(), PrimDef(), dom(dom), codom(codom), Node(arena)
 {}
 
 BottomType::BottomType(Arena& arena)
-    : TypeDef(), Node(arena)
+    : TypeDef(), PrimDef(), Node(arena)
 {}
 
 TopType::TopType(Arena& arena)
-    : TypeDef(), Node(arena)
+    : TypeDef(), PrimDef(), Node(arena)
 {}
 
 NoRetType::NoRetType(Arena& arena)
@@ -651,6 +651,12 @@ size_t EnumType::member_count() const {
     return t == other;
 }*/
 
+bool match(const Var* a, const Var* b) {
+    auto [a_var, _]  = a->binder->lookup(a);
+    auto [b_var, _2]  = b->binder->lookup(b);
+    return a_var == b_var;
+}
+
 bool is_subtype(const TypeVar* t, const TypeVar* other) {
     auto [t_var, t_def] = lookup_type_var(*t->binder, t);
     auto [o_var, o_def] = lookup_type_var(*other->binder, other);
@@ -708,7 +714,19 @@ bool is_subtype(const TypeVar* t, const TypeVar* other) {
                 is_subtype(other_fn_type->dom, fn_type->dom) &&
                 is_subtype(fn_type->codom, other_fn_type->codom);
         }
+    } else if (auto type_app = match_type_var<TypeApp>(*t->binder, t)) {
+        if (auto other_type_app = match_type_var<TypeApp>(*other->binder, other)) {
+            if (match(type_app->applicand(), other_type_app->applicand()) && type_app->args.size() == other_type_app->args.size()) {
+                bool ok = true;
+                for (size_t i = 0, n = type_app->args.size(); i < n; i++) {
+                    ok &= match(type_app->args[i], other_type_app->args[i]);
+                }
+                if (ok)
+                    return true;
+            }
+        }
     }
+
     return false;
 }
 

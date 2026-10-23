@@ -7,7 +7,7 @@
 namespace artic::tir {
 
 Module::Module(Builder& builder, std::unordered_map<const Key*, const Var*>&& decls, const SigVar* signature, const ast::ModDecl* decl)
-    : ModDef(), Node(builder.arena), decls(std::move(decls)), decl(decl), signature_(signature) {
+    : ModDef(), NominalDef(), Node(builder.arena), decls(std::move(decls)), decl(decl), signature_(signature) {
     const ModSignature* ms = resolve_sig_var(builder.scope, signature->as<SigVar>())->isa<ModSignature>();
     assert(ms);
 }
@@ -34,7 +34,7 @@ const Node* Module::lookup(const Key* key) const {
     return nullptr;
 }
 
-ValueSignature::ValueSignature(Builder& builder, const TypeVar* value_type) : Node(builder.arena), SigDef(), value_type(value_type) {}
+ValueSignature::ValueSignature(Builder& builder, const TypeVar* value_type) : Node(builder.arena), SigDef(), PrimDef(), value_type(value_type) {}
 
 size_t ValueSignature::hash() const {
     return value_type->hash();
@@ -47,7 +47,7 @@ bool ValueSignature::equals(const Node* other) const {
     return false;
 }
 
-TypeSignature::TypeSignature(Builder& builder, const TypeVar* type) : Node(builder.arena), SigDef(), type(type) {}
+TypeSignature::TypeSignature(Builder& builder, const TypeVar* type) : Node(builder.arena), SigDef(), PrimDef(), type(type) {}
 
 size_t TypeSignature::hash() const {
     auto h = fnv::Hash();
@@ -64,7 +64,7 @@ bool TypeSignature::equals(const Node* other) const {
 }
 
 ModSignature::ModSignature(Builder& builder, std::unordered_map<const Key*, const SigVar*>&& elems)
-    : Node(builder.arena), SigDef(), elems(std::move(elems))
+    : Node(builder.arena), SigDef(), PrimDef(), elems(std::move(elems))
 {}
 
 size_t ModSignature::hash() const {
@@ -98,7 +98,7 @@ const Key* ModSignature::lookup_key(const ast::Identifier& id) const {
     return nullptr;
 }
 
-CtorSignature::CtorSignature(Builder& builder, const ArrayRef<const SigVar*>& dom, NodeKind codom_kind) : Node(builder.arena), SigDef(), dom(dom), codom_kind(codom_kind) {
+CtorSignature::CtorSignature(Builder& builder, const ArrayRef<const SigVar*>& dom, NodeKind codom_kind) : Node(builder.arena), SigDef(), PrimDef(), dom(dom), codom_kind(codom_kind) {
     // assert(codom->is_simple());
 }
 
@@ -131,7 +131,7 @@ bool SigVar::can_bind(const Scope& scope, const Node* other) const {
     return false;
 }
 
-SigError::SigError(Arena& arena) : Node(arena), SigDef() {}
+SigError::SigError(Arena& arena) : Node(arena), SigDef(), PrimDef() {}
 
 bool SigError::is_sub_def(const Scope&, const SigDef*) const {
     return false;
@@ -309,7 +309,7 @@ const SigVar* ModModAccess::signature() const {
 }
 
 ModAccess::ModAccess(Builder& builder, const ModVar* mod, const Key* key)
-    : mod(mod), key(key) {
+    : PrimDef(), mod(mod), key(key) {
     assert(mod->kind() == NodeKind::Module);
     assert(key->isa<Key>());
 }
@@ -393,7 +393,7 @@ const SigVar* ModApp::signature() const {
 }
 
 ModError::ModError(Builder& builder)
-    : ModDef(), Node(builder.arena), signature_(builder.enclosing_let_rec().sig_error()) {}
+    : ModDef(), PrimDef(), Node(builder.arena), signature_(builder.enclosing_let_rec().sig_error()) {}
 
 size_t ModError::hash() const {
     return fnv::Hash().combine(1337);

@@ -65,7 +65,7 @@ void Printer::print(const Node& node, bool print_inline) {
             if (auto var = n->isa<Var>(); var && resolve_unbound_vars && var->binder) {
                 n = var->binder->lookup_var_single(var);
                 if (n) {
-                    top() << " => ";
+                    top() << " :=> ";
                     continue;
                 }
             }

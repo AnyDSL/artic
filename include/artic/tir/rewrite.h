@@ -18,7 +18,7 @@ struct Rewriter {
     virtual const Node* rewrite(Builder&, const Def*) = 0;
 
     const Var* instantiate_var(const Var*);
-    const Node* instantiate_rhs(Builder&, const Node*);
+    //const Node* instantiate_rhs(Builder&, const Node*);
 
     template<typename T = tir::Var, typename S = T>
     const S* instantiate_var(const T* old) {
@@ -74,7 +74,8 @@ struct Rewriter {
 
     struct Frame;
     struct Pending {
-        const Var* nvar;
+        // const Var* nvar;
+        const Var* ovar;
         const Node* orhs;
         Builder* dst;
         Frame* frame;

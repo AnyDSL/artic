@@ -69,6 +69,7 @@ struct Node : public DynCast<Node> {
     virtual NodeKind kind() const = 0;
 
     virtual void print(Printer&) const = 0;
+
     virtual bool equals(const Node* other) const {
         return this == other;
     }
@@ -117,10 +118,18 @@ struct Var : virtual public Node {
 
 struct Def : virtual public Node {
     virtual bool is_var() const final { return false; }
-
+    virtual bool is_nominal() const = 0;
     virtual const Node* rewrite(Rewriter&, Builder&) const = 0;
-
     mutable const Var* bound_to = nullptr;
+};
+
+struct PrimDef : virtual public Def {
+    const Var* rewrite(Rewriter&, Builder&) const override = 0;
+    bool is_nominal() const override { return false; };
+};
+
+struct NominalDef : virtual public Def {
+    bool is_nominal() const override { return true; };
 };
 
 static inline bool schedulable(Node::FVSet& set) {
@@ -162,11 +171,11 @@ struct Ctor : virtual public Node {
     Ctor(const SigVar* ctor_sig);
 };
 
-struct CtorDef : public Ctor, public Def {
+struct CtorDef : public Ctor, virtual public Def {
     CtorDef(const SigVar* sig) : Ctor(sig), Def() {}
 };
 
-struct Constructor : public CtorDef {
+struct Constructor : public CtorDef, NominalDef {
     Scope& scope;
     Array<const Var*> params;
     mutable const Node* body_;
@@ -204,7 +213,7 @@ struct CtorVar : public Ctor, public Var {
     CtorVar(Arena&, std::optional<ast::Identifier>, const SigVar*);
 };
 
-struct App : virtual Node {
+struct App : public PrimDef {
     const CtorVar* applicand_;
     Array<const Var*> args;
 
