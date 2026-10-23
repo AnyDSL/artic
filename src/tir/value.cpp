@@ -887,6 +887,7 @@ void Match::free_variables(FVSet& vars, Seen& seen) const {
     value->free_variables(vars, seen);
     for (auto& cas : cases) {
         cas.ptrn->free_variables(vars, seen);
+        cas.branch->free_variables(vars, seen);
     }
 }
 
