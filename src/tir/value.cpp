@@ -17,7 +17,7 @@ const TypeDef* Value::resolve_type(const Scope& s) const {
 GlobalVariable::GlobalVariable(Builder& builder, const TypeVar* value_type, bool is_mut, std::optional<ValueExpr>&& init, const ast::StaticDecl* decl)
     : ValueDef(builder.arena, builder.enclosing_let_rec().ref_type(value_type, is_mut, 0)), Node(builder.arena), allocated_type(value_type), is_mut(is_mut), init(init), decl(decl) {
     if (this->init)
-        assert(as_value(*this->init)->type() == value_type);
+        assert(as_value(*this->init)->type()->subtype(value_type));
 }
 
 LocalVariable::LocalVariable(Builder& builder, const TypeVar* allocated_type)
@@ -32,14 +32,14 @@ Function::Function(Builder& builder, Scope& scope, const ValueVar* param, const 
 void Function::set_body(Builder& builder, ValueExpr body) const {
     assert(!this->body_ && "can't set the body twice!");
     auto fn_t = resolve_type(builder.scope);
-    assert(as_value(body)->type() == fn_t->codom);
+    assert(as_value(body)->type()->subtype(fn_t->codom));
     this->body_ = body;
 }
 
 void Function::set_filter(Builder& builder, ValueExpr filter) const {
     assert(!this->filter_ && "can't set the filer twice!");
     auto fn_t = resolve_type(builder.scope);
-    assert(as_value(filter)->type() == builder.enclosing_let_rec().prim_type(ast::PrimType::Bool));
+    assert(as_value(filter)->type()->subtype(builder.enclosing_let_rec().prim_type(ast::PrimType::Bool)));
     this->filter_ = filter;
 }
 
@@ -59,7 +59,7 @@ size_t ErrorValue::hash() const {
 
 bool ErrorValue::equals(const Node* n) const {
     if (auto other_error = n->isa<ErrorValue>())
-        return other_error->type() == type();
+        return other_error->type()->subtype(type());
     return false;
 }
 
@@ -275,31 +275,18 @@ size_t Undef::hash() const {
 
 bool Undef::equals(const Node* other) const {
     if (auto other_undef = other->isa<Undef>()) {
-        if (other_undef->type() == type())
+        if (other_undef->type()->subtype(type()))
             return true;
     }
     return false;
 }
 
 Agg::Agg(Builder& builder, const TypeVar* agg_type, const ArrayRef<const ValueVar*>& args) : ValueDef(builder.arena, agg_type), Node(builder.arena), args(args) {
-    auto [_, peeked_agg_type] = resolve_type_app_applied(builder.enclosing_let_rec(), resolve_type_var(builder.scope, agg_type));
-    if (auto tuple_t = peeked_agg_type->isa<TupleType>()) {
-        assert(tuple_t->args.size() == args.size());
-        for (size_t i = 0; i < tuple_t->args.size(); i++) {
-            assert(args[i]->type() == tuple_t->args[i]);
-        }
-    } else if (auto array_t = peeked_agg_type->isa<SizedArrayType>()) {
-        assert(array_t->size == args.size());
-        for (size_t i = 0; i < args.size(); i++) {
-            assert(args[i]->type() == array_t->elem);
-        }
-    } else if (auto struct_t = peeked_agg_type->isa<StructType>()) {
-        assert(struct_t->member_count() == args.size());
-        for (size_t i = 0; i < args.size(); i++) {
-            assert(args[i]->type() == member_type(builder.enclosing_let_rec(), peeked_agg_type, i));
-        }
-    } else {
-        assert(false);
+    auto& s = builder.scope;
+    auto resolved_src_type = resolve_type_var(s, agg_type);
+    for (size_t i = 0; i < args.size(); i++) {
+        auto mem_ty = member_type(builder.enclosing_let_rec(), resolved_src_type, i);
+        assert(args[i]->type()->subtype(mem_ty));
     }
 }
 
@@ -326,26 +313,10 @@ bool Agg::equals(const Node* other) const {
 Extract::Extract(Builder& builder, const ValueVar* src, const ValueVar* idx) : ValueDef(builder.arena, [&]() -> const TypeVar* {
     auto& s = builder.scope;
     auto resolved_src_type = resolve_type_var(s, src->type());
-    auto [_, peeked_agg_type] = resolve_type_app_applied(builder.enclosing_let_rec(), resolved_src_type);
-    if (auto tuple_t = peeked_agg_type->isa<TupleType>()) {
-        if (auto lit_idx = match_value_var<TypedLiteral>(s, idx); lit_idx) {
-            size_t idx_value = lit_idx->value.as_integer();
-            if (idx_value >= tuple_t->args.size())
-                return builder.enclosing_let_rec().type_error();
-            return tuple_t->args[idx_value];
-        }
-    } else if (auto array_t = peeked_agg_type->isa<SizedArrayType>()) {
-        assert(match_value_var<TypedLiteral>(s, idx));
-        return array_t->elem;
-    } else if (auto struct_t = peeked_agg_type->isa<StructType>()) {
-        if (auto lit_idx = match_value_var<TypedLiteral>(s, idx); lit_idx) {
-            size_t idx_value = lit_idx->value.as_integer();
-            return member_type(builder.enclosing_let_rec(), resolved_src_type, idx_value);
-        }
-    } else {
-        assert(false);
-    }
-    return builder.enclosing_let_rec().type_error();
+    std::optional<size_t> known_idx;
+    if (auto lit_idx = match_value_var<TypedLiteral>(s, idx))
+        known_idx = lit_idx->value.as_integer();
+    return member_type(builder.enclosing_let_rec(), resolved_src_type, known_idx);
 }()), Node(builder.arena), src(src), idx(idx) {}
 
 /*size_t Extract::hash() const {
@@ -369,7 +340,7 @@ size_t Variant::hash() const {
 
 bool Variant::equals(const Node* other) const {
     if (auto other_variant = other->isa<Variant>()) {
-        if (other_variant->type() == type() && other_variant->elem == elem && other_variant->index == index)
+        if (other_variant->type()->subtype(type()) && other_variant->elem == elem && other_variant->index == index)
             return true;
     }
     return false;
@@ -416,7 +387,7 @@ size_t Repeat::hash() const {
 
 bool Repeat::equals(const Node* other) const {
     if (auto other_rep = other->isa<Repeat>()) {
-        if (other_rep->type() == type() && other_rep->elem == elem)
+        if (other_rep->type()->subtype(type()) && other_rep->elem == elem)
             return true;
     }
     return false;
@@ -442,30 +413,10 @@ Proj::Proj(Builder& builder, const ValueVar* src, const ValueVar* idx) : ValueDe
         as = ptr_t->addr_space;
     }
 
-    auto [mod_app, peeked_pointee_t] = resolve_type_app_applied(builder.enclosing_let_rec(), resolved_pointee_t);
-
-    auto wrap_pointee = [&](const TypeVar* new_pointee) -> const TypeVar* {
-        return builder.enclosing_let_rec().ref_type(new_pointee, mut, as);
-    };
-
-    if (auto tuple_t = peeked_pointee_t->isa<TupleType>()) {
-        if (auto lit_idx = match_value_var<TypedLiteral>(s, idx); lit_idx) {
-            size_t idx_value = lit_idx->value.as_integer();
-            if (idx_value >= tuple_t->args.size())
-                return builder.enclosing_let_rec().type_error();
-            return wrap_pointee(tuple_t->args[idx_value]);
-        }
-    } else if (auto array_t = peeked_pointee_t->isa<ArrayType>()) {
-        return wrap_pointee(array_t->elem);
-    } else if (auto struct_t = peeked_pointee_t->isa<StructType>()) {
-        if (auto lit_idx = match_value_var<TypedLiteral>(s, idx); lit_idx) {
-            size_t idx_value = lit_idx->value.as_integer();
-            return wrap_pointee(member_type(builder.enclosing_let_rec(), resolved_pointee_t, idx_value));
-        }
-    } else {
-        assert(false);
-    }
-    return builder.enclosing_let_rec().type_error();
+    std::optional<size_t> known_idx;
+    if (auto lit_idx = match_value_var<TypedLiteral>(s, idx))
+        known_idx = lit_idx->value.as_integer();
+    return builder.enclosing_let_rec().ref_type(member_type(builder.enclosing_let_rec(), resolved_pointee_t, known_idx), mut, as);
 }()), Node(builder.arena), src(src), idx(idx) {}
 
 /*size_t Proj::hash() const {

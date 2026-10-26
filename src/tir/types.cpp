@@ -762,12 +762,12 @@ bool EnumType::is_trivial() const {
 
 struct MemberTypeExtractor : public Rewriter {
     LetRecBuilder& dst;
-    size_t idx;
+    std::optional<size_t> idx;
     const Scope* s = nullptr;
 
     FrameGuard root_frame;
 
-    MemberTypeExtractor(LetRecBuilder& dst, size_t idx)
+    MemberTypeExtractor(LetRecBuilder& dst, std::optional<size_t> idx)
         : Rewriter(dst.arena, dst.arena), dst(dst), idx(idx), root_frame(*this, dst) {
         // assert(ctor->params.size() == args.size());
         // for (size_t i = 0, n = args.size(); i < n; ++i)
@@ -805,13 +805,11 @@ struct MemberTypeExtractor : public Rewriter {
         assert(old_user_ty_def && "trying to extract member type of unbound type variable");
 
         if (auto complex_type = old_user_ty_def->isa<ComplexType>())
-            return instantiate_var(complex_type->member_type(idx));
+            return instantiate_var(complex_type->member_type(*idx));
         if (auto tuple_type = old_user_ty_def->isa<TupleType>())
-            return instantiate_var(tuple_type->args[idx]);
+            return instantiate_var(tuple_type->args[*idx]);
         if (auto array_type = old_user_ty_def->isa<ArrayType>())
             return instantiate_var(array_type->elem);
-        if (auto enum_type = old_user_ty_def->isa<EnumType>())
-            return instantiate_var(enum_type->members[idx]);
 
         if (auto type_app = old_user_ty_def->isa<TypeApp>()) {
             FrameGuard guard(*this, dst);
@@ -830,51 +828,9 @@ struct MemberTypeExtractor : public Rewriter {
     }
 };
 
-const TypeVar* member_type(LetRecBuilder& b, const TypeDef* type, size_t idx) {
+const TypeVar* member_type(LetRecBuilder& b, const TypeDef* type, std::optional<size_t> idx) {
     MemberTypeExtractor extractor(b, idx);
     return extractor.extract_member_type(b.scope, type);
-    /*auto [type_app, body, body_s] = match_type_app_unapplied_generic(b.scope, type);
-    if (auto [enum_type, enum_body_scope] = match_type_deep<EnumType>(body_s, type); enum_type) {
-        const ast::EnumDecl& decl = *enum_type->decl;
-        const ast::OptionDecl& option = *decl.options[idx];
-
-        auto member_type = enum_type->member_type(idx);
-        auto [member_type_def, member_type_scope] = resolve_type_var_deep(enum_body_scope, member_type);
-        auto [member_type_app, _, _2] = match_type_app_unapplied_generic(member_type_scope, member_type_def);
-        if (option.struct_type) {
-            if (type_app && member_type_app) {
-                return b.type_app(member_type_app->applicand(), type_app->args);
-            }
-            return member_type;
-        } else {
-            // non-struct enum options are immediately specialized
-            if (type_app && member_type_app) {
-                auto r = b.unsafe().type_app(member_type_app->applicand(), type_app->args)->instantiated(b);
-                assert(r->isa<TypeVar>());
-                return r->as<TypeVar>();
-            }
-        }
-        return member_type;
-    }
-
-    // other type applications are immediately instantiated too
-    if (auto [app, peeked_type] = resolve_type_app_applied(b, type); app) {
-        // note: if we allow nested type apps, we should actually get a builder for the returned scope!
-        return member_type(b, peeked_type, idx);
-    }
-
-    if (auto complex_type = type->isa<ComplexType>())
-        return complex_type->member_type(idx);
-    else if (auto tuple_type = type->isa<TupleType>())
-        return tuple_type->args[idx];
-    else if (auto array_type = type->isa<ArrayType>())
-        return array_type->elem;
-    else if (auto enum_type = type->isa<EnumType>())
-        return enum_type->members[idx];
-    else {
-        assert(false);
-        return nullptr;
-    }*/
 }
 
 bool is_int_type(const TypeDef* type) {
