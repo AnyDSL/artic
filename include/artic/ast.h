@@ -775,6 +775,7 @@ struct FnExpr : public Expr {
     // set during type-checking
     // mutable const tir::Value* tir_body = nullptr;
     mutable const tir::ValueVar* return_ = nullptr;
+    mutable const tir::TypeVar* codom = nullptr;
 
     FnExpr(
         const Loc& loc,

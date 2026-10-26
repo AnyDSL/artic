@@ -2251,7 +2251,7 @@ const tir::Var* FnExpr::infer(TypeChecker& checker, ExprBuilder& expr_builder) {
 }
 
 const tir::Function* FnExpr::infer_function(TypeChecker& checker, Builder& b) {
-    auto codom = ret_type ? checker.infer_type(b.enclosing_let_rec(), *ret_type) : nullptr;
+    codom = ret_type ? checker.infer_type(b.enclosing_let_rec(), *ret_type) : nullptr;
     auto param = b.value_var(Identifier { this->param->loc, "param" }, checker.infer_ptrn(b.enclosing_let_rec(), *this->param));
     checker.check_refutability(*this->param, true);
 
@@ -2294,7 +2294,7 @@ const tir::Function* FnExpr::check_function(TypeChecker& checker, Builder& b, co
         return nullptr;
     }
     auto dom = fn_t->dom;
-    auto codom = fn_t->codom;
+    this->codom = fn_t->codom;
 
     auto param_type = checker.check_ptrn(b.enclosing_let_rec(), *param, dom);
     checker.check_refutability(*this->param, true);
@@ -2720,23 +2720,8 @@ const tir::Var* ContinueExpr::infer(TypeChecker& checker, ExprBuilder& expr_buil
 
 const tir::Var* ReturnExpr::infer(TypeChecker& checker, ExprBuilder& expr_builder) {
     auto& b = expr_builder.enclosing_let_rec();
-    if (fn && fn->return_) {
-        const artic::Type* arg_type = nullptr;
-        if (fn->value) {
-            auto fn_type = fn->value->resolve_type(expr_builder.scope)->isa<tir::FnType>();
-            assert(fn_type);
-            arg_type = fn_type->codom;
-        }
-        else if (fn->ret_type && fn->ret_type->type) {
-            // Note that this case is necessary, if the function linked to
-            // the `return` is currently being inferred. This gets the type
-            // directly from the return type annotation.
-            arg_type = fn->ret_type->type;
-        }
-        if (arg_type) {
-            // return checker.builder().cn_type(arg_type);
-            return fn->return_;
-        }
+    if (fn && fn->return_ && fn->codom) {
+        return fn->return_;
     }
     checker.error(loc, "cannot infer the type of '{}'", log::keyword_style("return"));
     if (fn)
@@ -3110,11 +3095,11 @@ const tir::Var* FnDecl::infer(TypeChecker& checker, LetRecBuilder& builder) {
         const Function* tir_fn = nullptr;
         if (fn->ret_type) {
             auto param_type = checker.infer_ptrn(builder, *fn->param);
-            auto codom = checker.infer_type(builder, *fn->ret_type);
+            fn->codom = checker.infer_type(builder, *fn->ret_type);
 
             checker.check_refutability(*fn->param, true);
             const ValueVar* param = builder.value_var(Identifier { fn->param->loc, "param" }, param_type);
-            auto fn_type = builder.fn_type(param->type(), codom);
+            auto fn_type = builder.fn_type(param->type(), fn->codom);
             auto var = builder.value_var(id, fn_type);
             builder.tie_var(var);
             set_head(var);
@@ -3123,10 +3108,10 @@ const tir::Var* FnDecl::infer(TypeChecker& checker, LetRecBuilder& builder) {
             AbstractBuilder fn_builder(builder, "fndecl_abs");
             fn_builder.register_var(param);
             TypeChecker::BuilderGuard guard(checker, fn_builder);
-            tir_fn = builder.unsafe().function(param, fn_builder.scope, codom, this);
+            tir_fn = builder.unsafe().function(param, fn_builder.scope, fn->codom, this);
 
             if (fn->ret_type && fn->body) {
-                tir_fn->set_body(builder, checker.build_fn_body(fn_builder, param, *fn, codom));
+                tir_fn->set_body(builder, checker.build_fn_body(fn_builder, param, *fn, fn->codom));
             }
             if (fn->filter)
                 tir_fn->set_filter(builder, checker.build_fn_filter(fn_builder, param, *fn));
