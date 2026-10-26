@@ -356,34 +356,45 @@ void TypeChecker::infer_fn_attrs(const ast::FnDecl* fn_decl, const Function* fn,
                         // builtin functions are actually not external at all
                         const auto& builtin_name = linkage->symbol;
                         linkage = std::nullopt;
-                        static const std::unordered_map<std::string, thorin::MathOpTag> math_ops = {
-                            { "fabs",     thorin::MathOpTag::MathOp_fabs },
-                            { "copysign", thorin::MathOpTag::MathOp_copysign },
-                            { "round",    thorin::MathOpTag::MathOp_round },
-                            { "ceil",     thorin::MathOpTag::MathOp_ceil },
-                            { "floor",    thorin::MathOpTag::MathOp_floor },
-                            { "fmin",     thorin::MathOpTag::MathOp_fmin },
-                            { "fmax",     thorin::MathOpTag::MathOp_fmax },
-                            { "cos",      thorin::MathOpTag::MathOp_cos },
-                            { "sin",      thorin::MathOpTag::MathOp_sin },
-                            { "tan",      thorin::MathOpTag::MathOp_tan },
-                            { "acos",     thorin::MathOpTag::MathOp_acos },
-                            { "asin",     thorin::MathOpTag::MathOp_asin },
-                            { "atan",     thorin::MathOpTag::MathOp_atan },
-                            { "atan2",    thorin::MathOpTag::MathOp_atan2 },
-                            { "sqrt",     thorin::MathOpTag::MathOp_sqrt },
-                            { "cbrt",     thorin::MathOpTag::MathOp_cbrt },
-                            { "pow",      thorin::MathOpTag::MathOp_pow },
-                            { "exp",      thorin::MathOpTag::MathOp_exp },
-                            { "exp2",     thorin::MathOpTag::MathOp_exp2 },
-                            { "log",      thorin::MathOpTag::MathOp_log },
-                            { "log2",     thorin::MathOpTag::MathOp_log2 },
-                            { "log10",    thorin::MathOpTag::MathOp_log10 },
+                        static const std::unordered_map<std::string, std::tuple<size_t, thorin::MathOpTag>> math_ops = {
+                            { "fabs",     {1, thorin::MathOpTag::MathOp_fabs }},
+                            { "copysign", {2, thorin::MathOpTag::MathOp_copysign }},
+                            { "round",    {1, thorin::MathOpTag::MathOp_round }},
+                            { "ceil",     {1, thorin::MathOpTag::MathOp_ceil }},
+                            { "floor",    {1, thorin::MathOpTag::MathOp_floor }},
+                            { "fmin",     {2, thorin::MathOpTag::MathOp_fmin }},
+                            { "fmax",     {2, thorin::MathOpTag::MathOp_fmax }},
+                            { "cos",      {1, thorin::MathOpTag::MathOp_cos }},
+                            { "sin",      {1, thorin::MathOpTag::MathOp_sin }},
+                            { "tan",      {1, thorin::MathOpTag::MathOp_tan }},
+                            { "acos",     {1, thorin::MathOpTag::MathOp_acos }},
+                            { "asin",     {1, thorin::MathOpTag::MathOp_asin }},
+                            { "atan",     {1, thorin::MathOpTag::MathOp_atan }},
+                            { "atan2",    {2, thorin::MathOpTag::MathOp_atan2 }},
+                            { "sqrt",     {1, thorin::MathOpTag::MathOp_sqrt }},
+                            { "cbrt",     {1, thorin::MathOpTag::MathOp_cbrt }},
+                            { "pow",      {2, thorin::MathOpTag::MathOp_pow }},
+                            { "exp",      {1, thorin::MathOpTag::MathOp_exp }},
+                            { "exp2",     {1, thorin::MathOpTag::MathOp_exp2 }},
+                            { "log",      {1, thorin::MathOpTag::MathOp_log }},
+                            { "log2",     {1, thorin::MathOpTag::MathOp_log2 }},
+                            { "log10",    {1, thorin::MathOpTag::MathOp_log10 }},
                         };
                         auto found_mathop = math_ops.find(builtin_name);
                         if (found_mathop != math_ops.end()) {
-                            Array<const ValueVar*> args = { fn->param };
-                            fn->set_body(fn_builder, yield_expr_scope(fn_builder, [&](ExprBuilder& expr_builder) { return expr_builder.mathop(found_mathop->second, args); }));
+                            auto [count, op] = found_mathop->second;
+                            fn->set_body(fn_builder, yield_expr_scope(fn_builder, [&](ExprBuilder& expr_builder) {
+                                Array<const ValueVar*> args(count);
+                                if (count == 1)
+                                    args[0] = fn->param;
+                                else {
+                                    for (size_t i = 0; i < count; i++) {
+                                        auto idx = expr_builder.typed_literal(artic::Literal(uint64_t(i)), expr_builder.prim_type(ast::PrimType::Tag::I32));
+                                        args[i] = expr_builder.extract(fn->param, idx);
+                                    }
+                                }
+                                return expr_builder.mathop(op, args);
+                            }));
                             return;
                         }
                         for (int t = 0; t <= int(Builtin::Tag::Max); t++) {
