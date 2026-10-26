@@ -1,0 +1,4 @@
+type Type[T] = (T, T);
+
+fn foo() -> (i32, i32);
+fn bar() -> Type[i32] = foo();
