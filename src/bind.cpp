@@ -158,7 +158,8 @@ void ErrorType::bind(NameBinder&) {}
 // Statements ----------------------------------------------------------------------
 
 void LetStmt::bind(NameBinder& binder) {
-    binder.bind(*decl);
+    if (init) binder.bind(*init);
+    binder.bind(*ptrn);
 }
 
 void RecDeclsStmt::bind(NameBinder& binder) {
@@ -413,11 +414,6 @@ void PtrnDecl::bind(NameBinder& binder) {
     binder.insert_symbol(*this);
 }
 
-void LetDecl::bind(NameBinder& binder) {
-    if (init) binder.bind(*init);
-    binder.bind(*ptrn);
-}
-
 void ImplicitDecl::bind(artic::NameBinder& binder) {
     binder.push_scope();
     if (type_params) binder.bind(*type_params);
@@ -506,15 +502,20 @@ void StructDecl::bind_head(NameBinder& binder) {
 void StructDecl::bind(NameBinder& binder) {
     binder.push_scope();
     if (type_params) binder.bind(*type_params);
-    for (auto& field : fields) binder.bind(*field);
+    for (auto& field : fields) {
+        field->parent = this;
+        binder.bind(*field);
+    }
     binder.pop_scope();
 }
 
 void OptionDecl::bind(NameBinder& binder) {
     if (param) binder.bind(*param);
     else {
-        for (auto& field : fields)
+        for (auto& field : fields) {
+            field->parent = this;
             binder.bind(*field);
+        }
     }
     binder.insert_symbol(*this);
 }

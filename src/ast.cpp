@@ -294,8 +294,8 @@ const Attr* NamedAttr::find(const std::string_view& name) const {
 
 bool LetStmt::is_jumping() const {
     return
-        decl->init &&
-        decl->init->is_jumping();
+        init &&
+        init->is_jumping();
 }
 
 bool LetStmt::needs_semicolon() const {

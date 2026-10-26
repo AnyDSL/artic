@@ -31,13 +31,6 @@ Ptr<ast::Decl> Parser::parse_decl(bool is_top_level) {
         attrs = parse_attr_list();
     Ptr<ast::Decl> decl;
     switch (ahead().tag()) {
-        case Token::Let:
-            decl = parse_let_decl();
-            if (is_top_level && decl->isa<ast::LetDecl>()) {
-                error(decl->loc, "let-statements are not allowed here");
-                note("use a static variable instead");
-            }
-            break;
         case Token::Fn:       decl = parse_fn_decl();       break;
         case Token::Struct:   decl = parse_struct_decl();   break;
         case Token::Enum:     decl = parse_enum_decl();     break;
@@ -51,18 +44,6 @@ Ptr<ast::Decl> Parser::parse_decl(bool is_top_level) {
     decl->attrs = std::move(attrs);
     decl->is_top_level = is_top_level;
     return decl;
-}
-
-Ptr<ast::LetDecl> Parser::parse_let_decl() {
-    Tracker tracker(this);
-    eat(Token::Let);
-
-    auto ptrn = parse_ptrn();
-    Ptr<ast::Expr> init;
-    if (accept(Token::Eq))
-        init = parse_expr();
-    expect(Token::Semi);
-    return _arena.make_ptr<ast::LetDecl>(tracker(), std::move(ptrn), std::move(init));
 }
 
 Ptr<ast::FnDecl> Parser::parse_fn_decl() {
@@ -481,7 +462,14 @@ Ptr<ast::Stmt> Parser::parse_stmt() {
 
 Ptr<ast::LetStmt> Parser::parse_let_stmt() {
     Tracker tracker(this);
-    return _arena.make_ptr<ast::LetStmt>(tracker(), std::move(parse_let_decl()));
+    eat(Token::Let);
+
+    auto ptrn = parse_ptrn();
+    Ptr<ast::Expr> init;
+    if (accept(Token::Eq))
+        init = parse_expr();
+    expect(Token::Semi);
+    return _arena.make_ptr<ast::LetStmt>(tracker(), std::move(ptrn), std::move(init));
 }
 
 Ptr<ast::RecDeclsStmt> Parser::parse_rec_decls_stmt() {

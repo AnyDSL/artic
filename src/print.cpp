@@ -87,7 +87,14 @@ void AttrList::print(Printer& p) const {
 // Statements ----------------------------------------------------------------------
 
 void LetStmt::print(Printer& p) const {
-    decl->print(p);
+    if (attrs) attrs->print(p);
+    p << log::keyword_style("let") << ' ';
+    ptrn->print(p);
+    if (init) {
+        p << " = ";
+        init->print(p);
+    }
+    p << ';';
 }
 
 void RecDeclsStmt::print(Printer& p) const {
@@ -471,17 +478,6 @@ void TypeParamList::print(Printer& p) const {
 void PtrnDecl::print(Printer& p) const {
     if (is_mut) p << log::keyword_style("mut") << ' ';
     p << id.name;
-}
-
-void LetDecl::print(Printer& p) const {
-    if (attrs) attrs->print(p);
-    p << log::keyword_style("let") << ' ';
-    ptrn->print(p);
-    if (init) {
-        p << " = ";
-        init->print(p);
-    }
-    p << ';';
 }
 
 void ImplicitDecl::print(Printer& p) const {

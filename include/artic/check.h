@@ -59,66 +59,65 @@ public:
 
     const TypeVar* expect(const Loc&, const TypeVar*, const TypeVar*);
 
-    const ValueVar* deref(Ptr<ast::Expr>&);
-    const ValueVar* coerce(ast::Expr*, const TypeVar*);
-    const TypeVar* try_coerce(const Scope&, Ptr<ast::Expr>&, const TypeVar*);
-    const TypeVar* join(Ptr<ast::Expr>&, Ptr<ast::Expr>&, ExprBuilder&, ExprBuilder&);
+    const ValueVar* deref(ExprBuilder&, Ptr<ast::Expr>&);
+    const ValueVar* coerce(ExprBuilder&, ast::Expr*, const TypeVar*);
+    const TypeVar* try_coerce(ExprBuilder&, const Scope&, Ptr<ast::Expr>&, const TypeVar*);
+    const TypeVar* join(Builder&, Ptr<ast::Expr>&, Ptr<ast::Expr>&, ExprBuilder&, ExprBuilder&);
 
     const tir::Var* infer_mod_decl(ast::Decl&);
     const tir::ModVar* infer_mod_head(ast::ModDecl&);
 
     const tir::Key* infer_key(ast::NamedDecl&);
 
-    const ValueVar* build_block(ast::BlockExpr&, ExprBuilder&, const TypeVar* expected, size_t i);
-
-    const tir::ValueVar* infer_value(ast::Expr& ast);
-    const tir::ValueVar* infer_value(ast::Stmt& ast);
-    const tir::ValueVar* check_value(ast::Expr&, const TypeVar*);
-    const tir::ValueVar* check_value(ast::Stmt&, const TypeVar*);
+    const tir::ValueVar* infer_expr(ExprBuilder&, ast::Expr& ast);
+    const tir::ValueVar* check_expr(ExprBuilder&, ast::Expr&, const TypeVar*);
+    const tir::ValueVar* check_stmt(ExprBuilder&, ast::Stmt&, const TypeVar*);
+    const tir::ValueVar* infer_stmt(ExprBuilder&, ast::Stmt& ast);
     /// Filters always have bool as their type.
-    const tir::ValueVar* check_filter(ast::Filter&);
+    const tir::ValueVar* check_filter(ExprBuilder&, ast::Filter&);
 
-    const tir::TypeVar* infer_type(ast::Type& ast);
-    const tir::TypeVar* infer_type(ast::FieldDecl&);
+    const tir::TypeVar* infer_type(LetRecBuilder&, ast::Type& ast);
+    const tir::TypeVar* infer_field(ast::FieldDecl&);
     const tir::Var* infer_option(ast::OptionDecl&);
-    const tir::TypeVar* infer_type(ast::TypeParam&);
 
-    const tir::TypeVar* infer_ptrn(ast::Ptrn&, Ptr<ast::Expr>&);
-    const tir::TypeVar* check_ptrn(ast::Ptrn&, const TypeVar*);
-    const tir::TypeVar* infer_ptrn(ast::Ptrn& ast);
+    const tir::TypeVar* infer_ptrn_expr_together(ExprBuilder&, ast::Ptrn&, Ptr<ast::Expr>&);
+    const tir::TypeVar* check_ptrn(LetRecBuilder&, ast::Ptrn&, const TypeVar*);
+    const tir::TypeVar* infer_ptrn(LetRecBuilder&, ast::Ptrn& ast);
 
-    const tir::ValueVar* infer_ptrn_decl(ast::PtrnDecl& ast);
-    const tir::ValueVar* check_ptrn_decl(ast::PtrnDecl& ast, const TypeVar*);
+    const tir::ValueVar* infer_ptrn_decl(LetRecBuilder&, ast::PtrnDecl& ast);
+    const tir::ValueVar* check_ptrn_decl(LetRecBuilder&, ast::PtrnDecl& ast, const TypeVar*);
 
-    const tir::TypeVar* infer_type_param(ast::TypeParam& ast);
+    const tir::TypeVar* infer_type_param(Builder&, ast::TypeParam& ast);
     // const tir::ModVar* check_type_param(ast::TypeParam& ast, const Type*);
 
-    const tir::ValueVar* infer(const Loc&, const Literal&);
-    const tir::ValueVar* check(const Loc&, const Literal&, const TypeVar*);
+    const tir::ValueVar* infer(Builder&, const Loc&, const Literal&);
+    const tir::ValueVar* check(Builder&, const Loc&, const Literal&, const TypeVar*);
 
-    Array<const Var*> infer(ast::TypeParamList*);
+    Array<const Var*> infer(Builder&, ast::TypeParamList*);
 
     /// Explores a pattern recursively and makes sure the body is wrapped in Bind nodes that extract the value of each sub-pattern
-    void bind_ptrn_params(ast::Ptrn&, const ValueVar*);
+    void bind_ptrn_params(Builder&, ExprBuilder&, ast::Ptrn&, const ValueVar*);
 
-    const Match::Ptrn* convert_ptrn(const ast::Ptrn&);
+    const Match::Ptrn* convert_ptrn(Builder&, const ast::Ptrn&);
 
-    ValueExpr build_fn_body(const ValueVar* param, ast::FnExpr& fn, const tir::TypeVar* codom);
-    ValueExpr build_fn_filter(const ValueVar* param, ast::FnExpr& fn);
+    const ValueVar* build_block(ExprBuilder&, ast::BlockExpr&, const TypeVar* expected, size_t i);
+
+    ValueExpr build_fn_body(Builder&, const ValueVar* param, ast::FnExpr& fn, const tir::TypeVar* codom);
+    ValueExpr build_fn_filter(Builder&, const ValueVar* param, ast::FnExpr& fn);
     using SetTypeFn = std::function<void(const tir::TypeVar*)>;
     using IfBuilderFn = std::function<void(const SetTypeFn&, ExprBuilder& true_builder, ExprBuilder& else_builder)>;
-    const ValueVar* build_if(const ast::IfExpr& expr, const IfBuilderFn&);
+    const ValueVar* build_if(ExprBuilder&, const ast::IfExpr& expr, const IfBuilderFn&);
 
-    using InnerLoopBuilderFn = std::function<ValueExpr(const SetTypeFn&, const ValueVar* continue_param, const ValueVar* loop_param)>;
-    using BuildInnerLoopFn = std::function<const Function*(const TypeVar*, const InnerLoopBuilderFn&)>;
-    using LoopBuilderFn = std::function<ValueExpr(SetTypeFn, const BuildInnerLoopFn&)>;
-    const ValueVar* build_loop(ast::LoopExpr& loop, const std::string&, const LoopBuilderFn&);
+    using InnerLoopBuilderFn = std::function<ValueExpr(Builder&, const SetTypeFn&, const ValueVar* continue_param, const ValueVar* loop_param)>;
+    using BuildInnerLoopFn = std::function<const Function*(Builder&, const TypeVar*, const InnerLoopBuilderFn&)>;
+    using LoopBuilderFn = std::function<ValueExpr(Builder&, SetTypeFn, const BuildInnerLoopFn&)>;
+    const ValueVar* build_loop(ExprBuilder&, ast::LoopExpr& loop, const std::string&, const LoopBuilderFn&);
 
-    void infer_fn_attrs(const ast::FnDecl* fn_decl, const Function* fn);
+    void infer_fn_attrs(const ast::FnDecl* fn_decl, const Function* fn, Builder& fn_builder);
     void infer_global_attrs(const ast::StaticDecl* decl, const GlobalVariable* fn);
 
-    ValueExpr with_expr_scope(const std::function<ValueExpr(ExprBuilder&)>& f);
-    ValueExpr yield_expr_scope(const std::function<ValueExpr(ExprBuilder&)>& f);
+    ValueExpr with_expr_scope (Builder&, const std::function<ValueExpr(ExprBuilder&)>& f);
+    ValueExpr yield_expr_scope(Builder&, const std::function<ValueExpr(ExprBuilder&)>& f);
 
     template<typename Fn>
     const Value* with_expr_builder(ExprBuilder& builder, Fn f) {
@@ -126,11 +125,11 @@ public:
         return f();
     };
 
-    const Function* build_fn(const ValueVar* param, const std::function<ValueExpr()>&);
-    const Function* build_fn(const std::function<ValueExpr(const std::function<void(const ValueVar*)>&)>&);
+    const Function* build_fn(Builder&, const ValueVar* param, const std::function<ValueExpr(AbstractBuilder&)>&);
+    const Function* build_fn(Builder&, const std::function<ValueExpr(AbstractBuilder&, const std::function<void(const ValueVar*)>&)>&);
 
-    const Var* maybe_polymorphic(const ast::Identifier&, std::optional<Array<const Var*>>&, NodeKind, const std::function<const Var*(LetRecBuilder&, const Var*&, const std::function<void(const Var*)>&)>&);
-    Array<const Var*> duplicate_params(const ArrayRef<const Var*>&);
+    const Var* maybe_polymorphic(LetRecBuilder&, const ast::Identifier&, std::optional<Array<const Var*>>&, NodeKind, const std::function<const Var*(LetRecBuilder&, const Var*&, const std::function<void(const Var*)>&)>&);
+    Array<const Var*> duplicate_params(Builder&, const ArrayRef<const Var*>&);
 
     template <typename CheckFn, typename Fields>
     void check_fields(
@@ -153,25 +152,25 @@ public:
         AttrCase(std::string name, LiteralType lit_type, const std::function<void(ast::LiteralAttr&)>& f) : name(name), lit_type(lit_type), f_lit(&f) {}
     };
     bool check_attrs(const ast::NamedAttr&, const ArrayRef<AttrCase>&);
-    bool check_filter(const ast::Expr&);
+    bool check_filter(const Scope&, const ast::Expr&);
     void check_refutability(const ast::Ptrn&, bool);
 
     template <typename InferElems>
-    const TypeVar* infer_array(const Loc&, const std::string_view&, size_t, bool, const InferElems&);
+    const TypeVar* infer_array(Builder&, const Loc&, const std::string_view&, size_t, bool, const InferElems&);
     template <typename CheckElems>
-    const TypeVar* check_array(const Loc&, const std::string_view&, const TypeVar*, size_t, bool, const CheckElems&);
+    const TypeVar* check_array(Builder&, const Loc&, const std::string_view&, const TypeVar*, size_t, bool, const CheckElems&);
 
     bool try_infer_type_args(const Loc&, ArrayRef<const Var*>, TypeVarMap<TypeBounds>& bounds, TypeVarMap<TypeVariance>& variance, std::vector<const Var*>&, bool);
-    bool infer_fn_args(const Loc&, const ValueCtor*, const TypeVar*, const TypeVar*, std::vector<const Var*>&);
-    bool try_infer_implicit_args(const Loc&, const ValueCtor*, const TypeVar*, std::vector<const Var*>&);
-    const TypeVar* infer_record_type(const TypeVar*, const TypeApp*, const StructType*, std::optional<size_t>&);
+    bool infer_fn_args(Builder&, const Loc&, const ValueCtor*, const TypeVar*, const TypeVar*, std::vector<const Var*>&);
+    bool try_infer_implicit_args(Builder&, const Loc&, const ValueCtor*, const TypeVar*, std::vector<const Var*>&);
+    const TypeVar* infer_record_type(Builder&, const TypeVar*, const TypeApp*, const StructType*, std::optional<size_t>&);
 
-    size_t resolve_integer_constant(const Loc&, const ValueVar*, const ast::Node*, const std::string_view&);
+    size_t resolve_integer_constant(const Scope&, const Loc&, const ValueVar*, const ast::Node*, const std::string_view&);
 
-    Scope& scope();
+    /*Scope& scope();
     Builder& builder();
     ExprBuilder& expr_builder();
-    LetRecBuilder& let_rec_builder();
+    LetRecBuilder& let_rec_builder();*/
 
     struct BuilderGuard {
         TypeChecker& checker;
@@ -194,7 +193,7 @@ private:
     ValueVar* summon_value(const artic::TypeVar*, const artic::Loc& at);
 
     Builder* current_builder_ = nullptr;
-    std::unique_ptr<LetRecBuilder> root_builder;
+    LetRecBuilder* root_builder = nullptr;
 
     friend ast::SummonExpr;
     friend ast::ImplicitDecl;
