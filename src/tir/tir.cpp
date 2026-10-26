@@ -215,14 +215,6 @@ std::tuple<const App*, const Node*, const Scope&> match_app_unapplied(const Scop
     return { nullptr, def, scope };
 }
 
-/*std::pair<const App*, const Node*> match_app_applied(Builder& builder, const Def* def) {
-    if (auto app = def->isa<App>()) {
-        return { app, app->instantiated(builder) };
-    }
-    return { nullptr, def };
-}*/
-
-
 }
 
 }

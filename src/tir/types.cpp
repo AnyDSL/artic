@@ -936,30 +936,6 @@ std::tuple<const TypeDef*, const Scope&> resolve_type_deep(const Scope& scope, c
     return { def->as<TypeDef>(), s };
 }
 
-std::tuple<const TypeApp*, const Type*> match_type_app_applied_generic(LetRecBuilder& b, const TypeDef* maybe_type_app) {
-    auto [app, body, scope] = match_app_unapplied(b.scope, maybe_type_app);
-    if (app) {
-        if (auto type_app = app->isa<TypeApp>()) {
-            return { type_app, type_app->instantiated(b) };
-        }
-    }
-    return { nullptr, maybe_type_app };
-}
-
-std::tuple<const TypeApp*, const TypeDef*> resolve_type_app_applied_generic(LetRecBuilder& b, const TypeDef* maybe_type_app) {
-    auto [app, body, scope] = match_app_unapplied(b.scope, maybe_type_app);
-    if (app) {
-        if (auto type_app = app->isa<TypeApp>()) {
-            auto instantiated = type_app->instantiated(b);
-            if (auto type_def = instantiated->isa<TypeDef>())
-                return { type_app, type_def };
-            auto type_def = resolve_type_var(scope, instantiated->as<TypeVar>());
-            return { type_app, type_def };
-        }
-    }
-    return { nullptr, maybe_type_app };
-}
-
 std::tuple<const TypeVar*, const Scope&> enter_type_expr_generic(const Scope& scope, TypeExpr expr) {
     if (auto is_letrec = std::get_if<const LetRecType*>(&expr)) {
         auto letrec = *is_letrec;
@@ -978,36 +954,6 @@ std::tuple<const TypeApp*, const TypeDef*, const Scope&> match_type_app_unapplie
     }
     return { nullptr, maybe_type_app, scope };
 }
-
-/*std::tuple<const TypeApp*, const TypeDef*, const Scope&> resolve_type_app_unapplied_generic(const Scope& scope, const TypeDef* maybe_type_app) {
-    auto [app, body, body_scope] = match_app_unapplied(scope, maybe_type_app);
-    if (app) {
-        if (auto type_app = app->isa<TypeApp>()) {
-            if (auto body_def = body->isa<TypeDef>())
-                return { type_app, body_def, body_scope };
-            auto type_def = resolve_type_var(scope, body->as<TypeVar>());
-            return { type_app, type_def, body_scope };
-        }
-    }
-    return { nullptr, maybe_type_app, scope };
-}*/
-
-/*std::pair<const TypeApp*, const Type*> peek_app_type_applied_generic(Builder& builder, const TypeDef* type) {
-    auto [app, n] = match_app_applied(builder, type);
-    auto t = builder.scope.peek_type(n->as<Type>());
-    if (!app)
-        return { nullptr, t };
-    return { app->as<TypeApp>(), t };
-}
-
-std::tuple<const TypeApp*, const Type*, const Scope&> peek_app_type_unapplied_generic_return_scope(const Scope& scope, const Type* type) {
-    auto [app, t, s] = match_app_unapplied(scope, type);
-    assert(t->isa<Type>());
-    auto [pt, pts] = s.peek_type_return_scope(t->as<Type>());
-    if (!app)
-        return { nullptr, pt, pts };
-    return { app->as<TypeApp>(), pt, pts };
-}*/
 
 } // namespace tir
 

@@ -2110,7 +2110,7 @@ const tir::Var* RecordExpr::infer(TypeChecker& checker, ExprBuilder& expr_builde
     if (!record_type)
         return b.error_value(b.type_error());
 
-    auto [type_app, struct_type] = resolve_type_app_applied<artic::StructType>(b, resolve_type_var(expr_builder.scope, record_type));
+    auto [type_app, struct_type, _] = match_type_app_unapplied<artic::StructType>(b.scope, resolve_type_var(expr_builder.scope, record_type));
     if (!struct_type ||
         struct_type->is_tuple_like()) {
         checker.type_expected(expr ? expr->loc : this->loc, record_type, "record-like structure");
@@ -3583,7 +3583,7 @@ const tir::Var* RecordPtrn::infer(TypeChecker& checker, LetRecBuilder& b) {
         return b.error_value(b.type_error());
 
     //if (path_type->isa<TypeError>())
-    auto [type_app, struct_type] = resolve_type_app_applied<artic::StructType>(b, resolve_type_var(b.scope, path_type));
+    auto [type_app, struct_type, _] = match_type_app_unapplied<artic::StructType>(b.scope, resolve_type_var(b.scope, path_type));
     if (!struct_type ||
         (struct_type->decl->isa<StructDecl>() &&
          struct_type->decl->as<StructDecl>()->is_tuple_like)) {
