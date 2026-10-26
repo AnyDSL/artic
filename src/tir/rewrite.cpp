@@ -21,6 +21,7 @@ void Rewriter::instantiate(Root& dst, const Root& old) {
 }*/
 
 const Var* Rewriter::instantiate_var(const Var* old) {
+    assert(&old->arena == &src && "node did not come from source arena!");
     while (old->binder) {
         auto found = old->binder->lookup_var_single(old);
         if (auto var = found->isa<Var>()) {
