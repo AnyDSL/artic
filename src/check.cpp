@@ -104,16 +104,16 @@ const Match::Ptrn* TypeChecker::convert_ptrn(Builder& builder, const ast::Ptrn& 
     }
 }
 
-void TypeChecker::bind_ptrn_params(Builder& b, ExprBuilder& eb, ast::Ptrn& ptrn, const ValueVar* value) {
+void TypeChecker::bind_ptrn_params(Builder& b, ExprBuilder& eb, ast::Ptrn& ptrn, const ValueVar* value, bool alloc_mut) {
     if (auto tuple_ptrn = ptrn.isa<ast::TuplePtrn>()) {
         for (int i = 0; i < tuple_ptrn->args.size(); ++i) {
             auto idx = b.typed_literal(Literal(uint64_t(i)), b.prim_type(ast::PrimType::U64));
-            bind_ptrn_params(b, eb, *tuple_ptrn->args[i], eb.extract(value, idx));
+            bind_ptrn_params(b, eb, *tuple_ptrn->args[i], eb.extract(value, idx), alloc_mut);
         }
     } else if (auto array_ptrn = ptrn.isa<ast::ArrayPtrn>()) {
         for (size_t i = 0; i < array_ptrn->elems.size(); ++i) {
             auto idx = b.typed_literal(Literal(uint64_t(i)), b.prim_type(ast::PrimType::U64));
-            bind_ptrn_params(b, eb, *array_ptrn->elems[i], eb.extract(value, idx));
+            bind_ptrn_params(b, eb, *array_ptrn->elems[i], eb.extract(value, idx), alloc_mut);
         }
     } else if (auto record_ptrn = ptrn.isa<ast::RecordPtrn>()) {
         if (record_ptrn->variant_index) {
@@ -123,18 +123,18 @@ void TypeChecker::bind_ptrn_params(Builder& b, ExprBuilder& eb, ast::Ptrn& ptrn,
             if (record_ptrn->fields[i]->is_etc())
                 continue;
             auto idx = b.typed_literal(Literal(uint64_t(record_ptrn->fields[i]->index)), b.prim_type(ast::PrimType::U64));
-            bind_ptrn_params(b, eb, *record_ptrn->fields[i], eb.extract(value, idx));
+            bind_ptrn_params(b, eb, *record_ptrn->fields[i], eb.extract(value, idx), alloc_mut);
         }
     } else if (auto ctor_ptrn = ptrn.isa<ast::CtorPtrn>()) {
         if (ctor_ptrn->variant_index) {
             value = eb.variant_extract(value, *ctor_ptrn->variant_index);
         }
-        if (ctor_ptrn->arg) bind_ptrn_params(b, eb, *ctor_ptrn->arg, value);
+        if (ctor_ptrn->arg) bind_ptrn_params(b, eb, *ctor_ptrn->arg, value, alloc_mut);
     } else if (auto field_ptrn = ptrn.isa<ast::FieldPtrn>()) {
-        bind_ptrn_params(b, eb, *field_ptrn->ptrn, value);
+        bind_ptrn_params(b, eb, *field_ptrn->ptrn, value, alloc_mut);
     } else if (auto id_ptrn = ptrn.isa<ast::IdPtrn>()) {
         auto orignal_value = value;
-        if (id_ptrn->decl->is_mut) {
+        if (id_ptrn->decl->is_mut && alloc_mut) {
             auto alloc = eb.local_variable(value->type());
             eb.binop(ast::BinaryExpr::Tag::Eq, alloc, value);
             value = alloc;
@@ -144,12 +144,11 @@ void TypeChecker::bind_ptrn_params(Builder& b, ExprBuilder& eb, ast::Ptrn& ptrn,
         id_ptrn->decl->var = nullptr;
         eb.bind(check_ptrn_decl(b.enclosing_let_rec(), *id_ptrn->decl, old_type), value);
         // bind the sub-pattern to the _original_ (non-ref) value
-        // bind the sub-pattern to the _original_ (non-ref) value
         if (id_ptrn->sub_ptrn)
-            bind_ptrn_params(b, eb, *id_ptrn->sub_ptrn, orignal_value);
+            bind_ptrn_params(b, eb, *id_ptrn->sub_ptrn, orignal_value, alloc_mut);
     } else if (auto typed_ptrn = ptrn.isa<ast::TypedPtrn>()) {
         if (typed_ptrn->ptrn)
-            bind_ptrn_params(b, eb, *typed_ptrn->ptrn, value);
+            bind_ptrn_params(b, eb, *typed_ptrn->ptrn, value, alloc_mut);
     } else if (ptrn.isa<ast::LiteralPtrn>()) {
 
     } else {
@@ -463,7 +462,7 @@ void TypeChecker::infer_global_attrs(const ast::StaticDecl* decl, const GlobalVa
 
 ValueExpr TypeChecker::build_fn_filter(Builder& builder, const ValueVar* param, ast::FnExpr& fn) {
     return yield_expr_scope(builder, [&](auto& expr_builder) {
-        bind_ptrn_params(builder, expr_builder, *fn.param, param);
+        bind_ptrn_params(builder, expr_builder, *fn.param, param, false);
         return check_filter(expr_builder, *fn.filter);
     });
 }

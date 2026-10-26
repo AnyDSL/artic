@@ -96,7 +96,7 @@ public:
     Array<const Var*> infer(Builder&, ast::TypeParamList*);
 
     /// Explores a pattern recursively and makes sure the body is wrapped in Bind nodes that extract the value of each sub-pattern
-    void bind_ptrn_params(Builder&, ExprBuilder&, ast::Ptrn&, const ValueVar*);
+    void bind_ptrn_params(Builder&, ExprBuilder&, ast::Ptrn&, const ValueVar*, bool = true);
 
     const Match::Ptrn* convert_ptrn(Builder&, const ast::Ptrn&);
 
