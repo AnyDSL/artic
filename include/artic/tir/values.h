@@ -472,7 +472,7 @@ const Array<std::string> builtin_tag_names = {
     "bitcast",
     "insert",
     "select",
-    "sign_bit",
+    "signbit",
     "isnan",
     "isfinite",
     "compare",

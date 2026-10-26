@@ -963,6 +963,7 @@ const thorin::Def* Builtin::emit(Emitter& emitter) const {
         case Tag::Select: return emitter.world.select(emitter.emit(args[0]->as<Value>()), emitter.emit(args[1]->as<Value>()), emitter.emit(args[2]->as<Value>()));
         case Tag::IsNaN: return isnan(emitter.emit(args[0]->as<Value>()));
         case Tag::IsFinite: return isfinite(emitter.emit(args[0]->as<Value>()));
+        case Tag::SignBit: return signbit(emitter.emit(args[0]->as<Value>()));
         case Tag::Compare:
             assert(false);
             break;
