@@ -165,19 +165,6 @@ struct Specializer : public Rewriter {
     }
 };
 
-const Node* Constructor::instantiate(LetRecBuilder& builder, ArrayRef<const Var*> args) const {
-    return instantiate_with<Specializer>(builder, args, builder);
-}
-
-const Node* App::instantiated(LetRecBuilder& builder) const {
-    if (instantiated_)
-        return instantiated_;
-    auto constructor = resolve_ctor_var(builder.scope, applicand())->isa<Constructor>();
-    assert(constructor);
-    assert(&builder.arena == &arena);
-    return instantiated_ = constructor->instantiate_with<Specializer>(builder, args, builder);
-}
-
 LetRec::LetRec(Scope& scope, const ArrayRef<std::tuple<const Var*, const Node*>>& vars, const Node* in)
     : scope(scope), vars(vars), body_(in) {
     //assert(in->is_var() || in->isa<LetRec>());

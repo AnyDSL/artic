@@ -239,10 +239,6 @@ struct ModApp : public ModDef, public App {
 
     const SigVar* signature() const override;
 
-    const Mod* instantiated(LetRecBuilder& b) const override {
-        return App::instantiated(b)->as<Mod>();
-    }
-
     ModApp(Builder&, const CtorVar*, const ArrayRef<const Var*>& args);
 private:
     mutable const Mod* instantiated_ = nullptr;

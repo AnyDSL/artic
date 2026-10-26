@@ -192,8 +192,6 @@ struct Constructor : public CtorDef, NominalDef {
         return instantiate_into(s, builder, args);
     }
 
-    const Node* instantiate(LetRecBuilder&, ArrayRef<const Var*> args) const;
-
     Constructor(LetRecBuilder&, Scope&, const ArrayRef<const Var*>&, const Node*);
 
 private:
@@ -223,10 +221,6 @@ struct App : public PrimDef {
     bool equals(const Node* other) const override;
     void print(Printer&) const override;
     void free_variables(FVSet&, Seen&) const override;
-
-    // attempts forcefully instantiating the app but does not schedule the resulting node!
-    // intended for use in 'peek' functions
-    virtual const Node* instantiated(LetRecBuilder&) const;
 
     App(const CtorVar*, const ArrayRef<const Var*>&);
 private:

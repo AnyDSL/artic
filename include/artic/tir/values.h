@@ -101,9 +101,6 @@ struct ValueApp : public ValueDef, public App {
     const ValueVar* rewrite(Rewriter&, Builder&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
-    const Value* instantiated(LetRecBuilder& b) const override {
-        return App::instantiated(b)->as<Value>();
-    }
 private:
     ValueApp(Builder&, const CtorVar*, const ArrayRef<const Var*>&);
     mutable const Value* instantiated_ = nullptr;

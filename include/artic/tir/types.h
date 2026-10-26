@@ -503,10 +503,6 @@ struct TypeApp : public TypeDef, public App {
     void bounds(Builder& b, const Scope&, TypeVarMap<TypeBounds>&, const TypeVar*, bool) const override;
     bool is_sized(const Scope&, std::unordered_set<const Type*>&) const override;
 
-    const Type* instantiated(LetRecBuilder& b) const override {
-        return App::instantiated(b)->as<Type>();
-    }
-
 private:
     TypeApp(Builder&, const CtorVar*, const ArrayRef<const Var*>&);
 
