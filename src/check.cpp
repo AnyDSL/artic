@@ -401,12 +401,21 @@ void TypeChecker::infer_fn_attrs(const ast::FnDecl* fn_decl, const Function* fn,
                         for (int t = 0; t <= int(Builtin::Tag::Max); t++) {
                             auto tag = Builtin::Tag(t);
                             if (Builtin::tag_name(tag) == builtin_name) {
-                                Array<const Var*> args = { fn->param };
-                                if (tag == Builtin::Tag::SizeOf || tag == Builtin::Tag::AlignOf)
-                                    args = { fn_decl->type_params->params[0]->var };
-                                if (tag == Builtin::Tag::BitCast)
-                                    args = { fn_decl->type_params->params[0]->var, fn->param };
-                                fn->set_body(fn_builder, yield_expr_scope(fn_builder, [&](ExprBuilder& expr_builder) { return expr_builder.builtin(tag, args); }));
+                                fn->set_body(fn_builder, yield_expr_scope(fn_builder, [&](ExprBuilder& expr_builder) {
+                                    Array<const Var*> args = { fn->param };
+                                    if (tag == Builtin::Tag::SizeOf || tag == Builtin::Tag::AlignOf)
+                                        args = { fn_decl->type_params->params[0]->var };
+                                    if (tag == Builtin::Tag::BitCast)
+                                        args = { fn_decl->type_params->params[0]->var, fn->param };
+                                    if (tag == Builtin::Tag::Select || tag == Builtin::Tag::Insert) {
+                                        args = {
+                                            expr_builder.extract(fn->param, expr_builder.typed_literal(Literal(uint64_t(0)), expr_builder.prim_type(ast::PrimType::I32)) ),
+                                            expr_builder.extract(fn->param, expr_builder.typed_literal(Literal(uint64_t(1)), expr_builder.prim_type(ast::PrimType::I32)) ),
+                                            expr_builder.extract(fn->param, expr_builder.typed_literal(Literal(uint64_t(2)), expr_builder.prim_type(ast::PrimType::I32)) ),
+                                        };
+                                    }
+                                    return expr_builder.builtin(tag, args);
+                                }));
                                 return;
                             }
                         }
