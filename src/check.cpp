@@ -2029,7 +2029,7 @@ const tir::Var* TupleType::infer(TypeChecker& checker, tir::LetRecBuilder& b) {
 
 const tir::Var* SizedArrayType::infer(TypeChecker& checker, tir::LetRecBuilder& b) {
     auto elem_type = checker.infer_type(b, *elem);
-    if (is_simd && !(elem_type->template isa<artic::PrimType>() || elem_type->template isa<artic::PtrType>())) {
+    if (is_simd && !(match_type_var<artic::PrimType>(*elem_type->binder, elem_type) || match_type_var<artic::PtrType>(*elem_type->binder, elem_type))) {
         checker.invalid_simd(loc, elem_type);
         return b.type_error();
     }
