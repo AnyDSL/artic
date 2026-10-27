@@ -251,6 +251,8 @@ public:
 
         const Value* builtin(Builtin::Tag, const ArrayRef<const Var*>&);
         const Value* mathop(thorin::MathOpTag, const ArrayRef<const ValueVar*>&);
+        /// The name fits.
+        const Asm* ass(std::string src, const ArrayRef<Asm::Constr>&, const ArrayRef<Asm::Constr>&, const ArrayRef<std::string>&, const ArrayRef<std::string>&);
 
         const Control* control(const Function*);
         const Branch* branch(const ValueVar*, const Function*, const Function*);
@@ -323,6 +325,7 @@ struct ExprBuilder : public Builder {
 
     const ValueVar* builtin(Builtin::Tag, const ArrayRef<const Var*>&);
     const ValueVar* mathop(thorin::MathOpTag, const ArrayRef<const ValueVar*>&);
+    const ValueVar* ass(std::string src, const ArrayRef<Asm::Constr>&, const ArrayRef<Asm::Constr>&, const ArrayRef<std::string>&, const ArrayRef<std::string>&);
 
     const ValueVar* control(const Function*);
 

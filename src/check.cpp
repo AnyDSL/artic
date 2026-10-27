@@ -3011,32 +3011,54 @@ const tir::Var* CastExpr::infer(TypeChecker& checker, ExprBuilder& expr_builder)
     return b.error_value();
 }
 
-inline bool is_acceptable_asm_in_or_out(const artic::TypeDef* type) {
-    return type->isa<artic::PrimType>() || type->isa<artic::PtrType>() || is_simd_type(type);
+inline bool is_acceptable_asm_in_or_out(const artic::TypeVar* type) {
+    const Scope& s = *type->binder;
+    return match_type_var<artic::PrimType>(s, type) || match_type_var<artic::PtrType>(s, type) || is_simd_type(type);
 }
 
 const tir::Var* AsmExpr::infer(TypeChecker& checker, ExprBuilder& expr_builder) {
-    assert(false && "TODO");
-    /*for (auto& out : outs) {
-        auto [ref_type, type] = remove_ref(checker.infer(*out.expr));
-        if (!ref_type || !ref_type->is_mut)
-            return checker.mutable_expected(out.expr->loc);
-        if (!is_acceptable_asm_in_or_out(type))
-            return checker.type_expected(out.expr->loc, type, "primitive, simd or pointer");
+    Array<Asm::Constr> nouts(outs.size());
+    for (size_t i = 0; i < outs.size(); i++) {
+        auto& out = outs[i];
+        auto inferred = checker.infer_expr(expr_builder, *out.expr);
+        auto [ref_type, type] = remove_ref(expr_builder.scope, inferred->type());
+        if (!ref_type || !ref_type->is_mut) {
+            checker.mutable_expected(out.expr->loc);
+            return expr_builder.error_value();
+        }
+        if (!is_acceptable_asm_in_or_out(type)) {
+            checker.type_expected(out.expr->loc, type, "primitive, simd or pointer");
+            return expr_builder.error_value();
+        }
         out.expr->write_to();
+        nouts[i] = Asm::Constr {
+            .loc = out.loc,
+            .name = out.name,
+            .expr = inferred,
+        };
     }
-    for (auto& in : ins) {
-        auto type = checker.deref(in.expr);
-        if (!is_acceptable_asm_in_or_out(type))
-            return checker.type_expected(in.expr->loc, type, "primitive, simd or pointer");
+    Array<Asm::Constr> nins(ins.size());
+    for (size_t i = 0; i < ins.size(); i++) {
+        auto& in = ins[i];
+        auto inferred = checker.deref(expr_builder, in.expr);
+        auto type = inferred->type();
+        if (!is_acceptable_asm_in_or_out(type)) {
+            checker.type_expected(in.expr->loc, type, "primitive, simd or pointer");
+            return expr_builder.error_value();
+        }
+        nins[i] = Asm::Constr {
+            .loc = in.loc,
+            .name = in.name,
+            .expr = inferred,
+        };
     }
     for (auto& opt : opts) {
         if (opt != "volatile" && opt != "alignstack" && opt != "intel") {
             checker.error(loc, "invalid option '{}'", opt);
-            return checker.builder().type_error();
+            expr_builder.type_error();
         }
     }
-    return checker.builder().unit_type();*/
+    return expr_builder.ass(src, nins, nouts, clobs, opts);
 }
 
 // Declarations --------------------------------------------------------------------

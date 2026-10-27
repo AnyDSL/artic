@@ -625,6 +625,18 @@ bool MathOp::equals(const Node* other) const {
     return false;
 }*/
 
+Asm::Asm(Builder& builder, std::string src, const ArrayRef<Constr>& ins, const ArrayRef<Constr>& outs, const ArrayRef<std::string>& clobs, const ArrayRef<std::string>& opts)
+    : ValueDef(builder.arena, builder.unit_type()), Node(builder.arena), NominalDef(), src(src), ins(ins), outs(outs), clobs(clobs), opts(opts) {}
+
+void Asm::free_variables(FVSet& set, Seen& seen) const {
+    for (auto constraint : ins) {
+        constraint.expr->free_variables(set, seen);
+    }
+    for (auto constraint : outs) {
+        constraint.expr->free_variables(set, seen);
+    }
+}
+
 Branch::Branch(Builder& builder, const ValueVar* cond, const Function* true_branch, const Function* else_branch) : ValueDef(builder.arena, [&]() -> const TypeVar* {
     if (!is_bool_type(resolve_type_var(builder.scope, cond->type())))
         return builder.enclosing_let_rec().type_error();

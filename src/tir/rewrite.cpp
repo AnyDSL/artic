@@ -453,6 +453,26 @@ const Node* MathOp::rewrite(Rewriter& r, Builder&) const {
     return r.unsafe_builder().mathop(tag, r.instantiate_var_array(args));
 }
 
+const Node* Asm::rewrite(Rewriter& r, Builder& b) const {
+    Array<Constr> nins(ins.size());
+    for (size_t i = 0; i < nins.size(); ++i) {
+        nins[i] = Constr {
+            .loc = ins[i].loc,
+            .name = ins[i].name,
+            .expr = r.instantiate_var(ins[i].expr)
+        };
+    }
+    Array<Constr> nouts(outs.size());
+    for (size_t i = 0; i < nouts.size(); ++i) {
+        nouts[i] = Constr {
+            .loc = outs[i].loc,
+            .name = outs[i].name,
+            .expr = r.instantiate_var(outs[i].expr)
+        };
+    }
+    return b.unsafe().ass(src, nins, nouts, clobs, opts);
+}
+
 const Node* Branch::rewrite(Rewriter& r, Builder& b) const {
     return r.unsafe_builder().branch(r.instantiate_var(cond), r.instantiate_fn(b, true_branch), r.instantiate_fn(b, else_branch));
 }

@@ -642,6 +642,27 @@ void MathOp::print(Printer& p) const {
     p << ")";
 }
 
+void Asm::print(Printer& p) const {
+    p << log::keyword_style("asm") << '(' << p.indent() << p.endl()
+      << '\"' << src << '\"' << p.endl();
+    auto print_constr = [&] (auto& constr) {
+        p << '\"' << constr.name << "\"(";
+        constr.expr->print(p);
+        p << ')';
+    };
+    auto print_clob = [&] (auto& clob) { p << '\"' << clob << '\"'; };
+    auto print_opt = print_clob;
+    p << ": ";
+    print_list(p.top(), ", ", outs, print_constr);
+    p << ": ";
+    print_list(p.top(), ", ", ins, print_constr);
+    p << ": ";
+    print_list(p.top(), ", ", clobs, print_clob);
+    p << ": ";
+    print_list(p.top(), ", ", opts, print_opt);
+    p << ")" << p.unindent();
+}
+
 void Branch::print(Printer& p) const {
     p << log::keyword_style("if") << " (";
     p.print(*cond);

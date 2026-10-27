@@ -1536,6 +1536,44 @@ const thorin::Def* BinOp::emit(Emitter& emitter) const {
     return res;
 }
 
+const thorin::Def* Asm::emit(Emitter& emitter) const {
+    std::vector<const thorin::Type*> out_types;
+    std::vector<const thorin::Def*> in_values;
+    std::vector<std::string> out_names;
+    std::vector<std::string> in_names;
+    in_values.push_back(nullptr);
+    for (auto& in : ins) {
+        in_values.push_back(emitter.emit(in.expr));
+        in_names.push_back(in.name);
+    }
+    out_types.push_back(emitter.world.mem_type());
+    for (auto& out : outs) {
+        out_types.push_back(match_type_var<tir::RefType>(*out.expr->type()->binder, out.expr->type())->pointee->convert(emitter));
+        out_names.push_back(out.name);
+    }
+    thorin::Assembly::Flags flags = thorin::Assembly::Flags::NoFlag;
+    for (auto& opt : opts) {
+        if (opt == "volatile")
+            flags |= thorin::Assembly::HasSideEffects;
+        else if (opt == "alignstack")
+            flags |= thorin::Assembly::IsAlignStack;
+        else if (opt == "intel")
+            flags |= thorin::Assembly::IsIntelDialect;
+    }
+    in_values.front() = emitter.state.mem;
+    // das ist echt dumm
+    thorin::Array<std::string> thorinized_clobs(clobs.size(), [&](size_t i) {
+        return clobs[i];
+    });
+    auto assembly = emitter.world.assembly(
+        emitter.world.tuple_type(out_types), in_values, src,
+        out_names, in_names, thorinized_clobs, flags, emitter.debug_info(this));
+    emitter.state.mem = assembly->out(0);
+    for (size_t i = 0, n = outs.size(); i < n; ++i)
+        emitter.store(emitter.emit(outs[i].expr), assembly->out(i + 1), emitter.debug_info(this));
+    return emitter.world.tuple({});
+}
+
 const thorin::Def* Branch::emit(Emitter& emitter) const {
     emitter.branch(emitter.emit(cond), emitter.emit(true_branch), emitter.emit(else_branch));
     return emitter.world.tuple({});

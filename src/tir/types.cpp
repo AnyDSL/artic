@@ -878,6 +878,12 @@ bool is_simd_type(const TypeDef* type) {
     return type->isa<SizedArrayType>() && type->as<SizedArrayType>()->is_simd;
 }
 
+bool is_simd_type(const TypeVar* type) {
+    auto [_, def] = lookup_type_var(*type->binder, type);
+    if (def) return is_simd_type(def);
+    return false;
+}
+
 bool is_unit_type(const TypeDef* type) {
     return type->isa<TupleType>() && type->as<TupleType>()->args.empty();
 }

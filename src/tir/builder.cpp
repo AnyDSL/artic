@@ -369,6 +369,14 @@ const ValueVar* ExprBuilder::mathop(thorin::MathOpTag tag, const ArrayRef<const 
     return bind_value(unsafe().mathop(tag, args));
 }
 
+const Asm* Builder::Unsafe::ass(std::string src, const ArrayRef<Asm::Constr>& ins, const ArrayRef<Asm::Constr>& outs, const ArrayRef<std::string>& clobs, const ArrayRef<std::string>& opts) {
+    return arena.insert<Asm>(builder, src, ins, outs, clobs, opts);
+}
+
+const ValueVar* ExprBuilder::ass(std::string src, const ArrayRef<Asm::Constr>& ins, const ArrayRef<Asm::Constr>& outs, const ArrayRef<std::string>& clobs, const ArrayRef<std::string>& opts) {
+    return bind_value(unsafe().ass(src, ins, outs, clobs, opts));
+}
+
 const Unit* Builder::Unsafe::unit() {
     return arena.insert<Unit>(arena, builder.enclosing_let_rec().unit_type());
 }

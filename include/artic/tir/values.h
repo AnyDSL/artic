@@ -528,6 +528,30 @@ struct MathOp : public ValueDef, NominalDef {
     MathOp(Builder&, thorin::MathOpTag, const ArrayRef<const ValueVar*>&);
 };
 
+struct Asm : public ValueDef, NominalDef {
+    struct Constr {
+        Loc loc;
+        std::string name;
+        const Value* expr;
+
+        // Constr(const Loc& loc, std::string&& name, const Value* expr)
+        //     : loc(loc), name(std::move(name)), expr(expr)
+        // {}
+        // Constr() {}
+    };
+
+    std::string src;
+    Array<Constr> ins, outs;
+    Array<std::string> clobs, opts;
+
+    void free_variables(FVSet&, Seen&) const override;
+    void print(Printer&) const override;
+    const Node* rewrite(Rewriter&, Builder&) const override;
+
+    const thorin::Def* emit(Emitter&) const override;
+    Asm(Builder&, std::string src, const ArrayRef<Constr>&, const ArrayRef<Constr>&, const ArrayRef<std::string>&, const ArrayRef<std::string>&);
+};
+
 struct Branch : public ValueDef, NominalDef {
     const ValueVar* cond;
     const Function* true_branch;
