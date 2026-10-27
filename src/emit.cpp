@@ -1168,6 +1168,14 @@ thorin::Debug Emitter::debug_info(const ast::Node& node, const std::string_view&
     return thorin::Debug(std::string(name), location(node.loc));
 }
 
+thorin::Debug Emitter::debug_info(const tir::Node* node, const std::string_view&) {
+    if (auto struct_type = node->isa<StructType>(); struct_type && struct_type->decl)
+        return thorin::Debug(struct_type->decl->id.name, location(struct_type->decl->id.loc), nullptr);
+    if (auto enum_type = node->isa<EnumType>(); enum_type && enum_type->decl)
+        return thorin::Debug(enum_type->decl->id.name, location(enum_type->decl->id.loc), nullptr);
+    return thorin::Debug();
+}
+
 template<typename T, typename R>
 const R* Emitter::emit_letrec(const T* letrec) {
     LazyEmit decls(letrec->scope, cur_module);
@@ -2544,7 +2552,7 @@ std::string StructType::stringify(Emitter& emitter) const {
 }
 
 const thorin::Type* StructType::convert_head(Emitter& emitter) const {
-    emitted = emitter.world.struct_type("^"+std::to_string(gid), member_count());
+    emitted = emitter.world.struct_type(decl ? decl->id.name : std::to_string(gid), member_count());
     return emitted;
 }
 

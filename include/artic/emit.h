@@ -181,7 +181,7 @@ public:
 
     thorin::Debug debug_info(const ast::NamedDecl&);
     thorin::Debug debug_info(const ast::Node&, const std::string_view& = "");
-    thorin::Debug debug_info(const tir::Node*, const std::string_view& = "") { return {}; };
+    thorin::Debug debug_info(const tir::Node*, const std::string_view& = "");
 
     // tir::Scope* scope = nullptr;
     // tir::Module* module = nullptr;

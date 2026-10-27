@@ -789,6 +789,20 @@ void dump_fvs(Node::FVSet& set) {
     p << '\n';
 }
 
+void dump_type_bounds(TypeVarMap<TypeBounds>& bounds) {
+    artic::Printer p(log::out);
+    Printer tp(p, 100);
+    int i = 1;
+    for (auto [var, var_bounds] : bounds) {
+        tp.print(*var);
+        p << " bounds are [";
+        tp.print(*var_bounds.lower);
+        p << ", ";
+        tp.print(*var_bounds.upper);
+        p << "]";
+        p << "\n";
+    }
+}
 
 }
 

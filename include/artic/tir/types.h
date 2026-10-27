@@ -60,6 +60,8 @@ struct TypeBounds {
     TypeBounds& meet(Builder&, const Scope& scope, const TypeBounds&);
 };
 
+void dump_type_bounds(TypeVarMap<TypeBounds>&);
+
 /// Base class for all types. Types should be created by a `Arena`,
 /// which will hash them and place them into a set. This makes types
 /// comparable via pointer equality, as long as they were created with

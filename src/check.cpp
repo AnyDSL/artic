@@ -1513,7 +1513,7 @@ bool TypeChecker::infer_fn_args(
     auto bounds = body_type->dom->Type::bounds(b, body_scope, arg_type, *arg_type->binder);
     if (ret_type)
         body_type->codom->bounds(b, body_scope, bounds, ret_type, *ret_type->binder, false);
-    auto variance = body_type->Type::variance(b.scope, false);
+    auto variance = body_type->Type::variance(body_scope, false);
     return try_infer_type_args(loc, fn_ctor->params, bounds, variance, type_args, true);
 }
 
@@ -2999,7 +2999,7 @@ const tir::Var* CastExpr::infer(TypeChecker& checker, ExprBuilder& expr_builder)
     bool allow_ptr = false;
     bool allow_int = false;
     bool allow_float = false;
-    if (expected->isa<artic::PtrType>()) {
+    if (match_type_var<artic::PtrType>(expr_builder.scope, expected)) {
         allow_ptr = true;
         allow_int = true;
     } else if (is_int_type(resolve_type_var(expr_builder.scope, expected))) {
@@ -3010,7 +3010,7 @@ const tir::Var* CastExpr::infer(TypeChecker& checker, ExprBuilder& expr_builder)
         allow_int = true;
         allow_float = true;
     }
-    if (allow_ptr && type->isa<artic::PtrType>())
+    if (allow_ptr && match_type_var<artic::PtrType>(expr_builder.scope, type))
         return expr_builder.cast(value, expected);
     if (allow_int && is_int_type(resolve_type_var(expr_builder.scope, type)))
         return expr_builder.cast(value, expected);
