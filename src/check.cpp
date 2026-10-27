@@ -4,6 +4,7 @@
 #include "artic/tir/builder.h"
 #include "artic/tir/scope.h"
 #include "artic/tir/module.h"
+#include "artic/tir/rewrite.h"
 
 namespace artic {
 
@@ -1767,6 +1768,26 @@ std::optional<Path::Elem::Inferred> Path::Elem::infer(TypeChecker& checker, Buil
     return std::nullopt;
 }
 
+struct Specializer : public Rewriter {
+    LetRecBuilder& b;
+    Scope& s;
+
+    FrameGuard root_frame;
+    Specializer(Arena&, Scope& s, LetRecBuilder& b) : Rewriter(b.arena, b.arena), b(b), s(s), root_frame(*this, b) {
+
+    }
+
+    const Var* lookup(const Var* var) const override {
+        if (!var->binder->is_child_of(&s) && &s != var->binder)
+            return var;
+        return Rewriter::lookup(var);
+    }
+
+    const tir::Node* rewrite(Builder& b, const Def* old) override {
+        return old->rewrite(*this, b);
+    }
+};
+
 std::optional<Path::Elem::Inferred> Path::infer_path(TypeChecker& checker, Builder& b, std::optional<tir::NodeKind> expected_kind, std::optional<FnCallInferenceContext> infer_fn_call) const {
     std::optional<Path::Elem::Inferred> prev;
     for (size_t i = 0, n = elems.size(); i < n; ++i) {
@@ -1809,6 +1830,13 @@ std::optional<Path::Elem::Inferred> Path::infer_path(TypeChecker& checker, Build
             }
         }
 
+        bool instantiate_immediately = false;
+        if (auto alias_var = prev->var->isa<AliasVar>()) {
+            auto alias_def = prev->var->binder->resolve_var(alias_var)->as<AliasDef>();
+            instantiate_immediately = true;
+            prev->var = alias_def->to;
+        }
+
         if (auto ctor = prev->var->isa<CtorVar>()) {
             auto ctor_sig = resolve_sig_var(b.scope, ctor->ctor_sig)->as<CtorSignature>();
             const size_t type_param_count = ctor_sig->dom.size();
@@ -1837,6 +1865,16 @@ std::optional<Path::Elem::Inferred> Path::infer_path(TypeChecker& checker, Build
                         checker.error(elem.loc, "expected {} type argument(s), but got {}", type_param_count, elem.args.size());
                         return std::nullopt;
                     }
+                }
+
+                if (instantiate_immediately) {
+                    LetRecBuilder& dst = b.enclosing_let_rec();
+                    auto ctor_def = resolve_ctor_var(b.scope, ctor)->as<Constructor>();
+                    auto instantiated = dst.maybe_schedule(ctor_def->instantiate_with<Specializer>(dst, type_args, dst));
+                    prev = Elem::Inferred {
+                        .var = instantiated,
+                    };
+                    break;
                 }
 
                 // wrap the previously inferred stuff with a new type application
@@ -3380,22 +3418,26 @@ const tir::Var* TypeDecl::infer(TypeChecker& checker, LetRecBuilder& builder) {
     if (!checker.enter_decl(this))
         return builder.type_error();
 
-    auto rhs_type = checker.infer_type(builder, *aliased_type);
-    var = builder.type_var(id);
-    builder.bind(var, rhs_type);
+    std::optional<Array<const Var*>> params = this->type_params ? std::make_optional(checker.infer(builder, &*this->type_params)) : std::nullopt;
+    auto outer_var = checker.maybe_polymorphic(builder, id, params, NodeKind::Type, [&](auto& builder, auto& self, auto& set_head) -> const Var* {
+        auto var = builder.type_var(id);
+        builder.tie_var(var);
+        set_head(var);
+        // this->var = self;
+        auto rhs_type = checker.infer_type(builder, *aliased_type);
+        builder.bind(var, rhs_type);
+        return var;
+    });
 
-    /*const artic::Type* type = nullptr;
-    if (type_params) {
-        type = checker.builder().type_alias(*this);
-        for (auto& param : type_params->params)
-            checker.infer(*param);
-        checker.infer(*aliased_type);
+    if (outer_var->kind() != NodeKind::Type) {
+        this->var = builder.alias_var(id);
+        builder.bind(this->var, builder.unsafe().alias_def(outer_var));
     } else {
-        // Directly expand non-polymorphic type aliases
-        type = checker.infer(*aliased_type);
-    }*/
+        this->var = outer_var;
+    }
+
     checker.exit_decl(this);
-    return var;
+    return this->var;
 }
 
 /*const tir::Signature* ModDecl::infer_signature(TypeChecker& checker) {
@@ -3464,6 +3506,8 @@ const tir::Var* ModDecl::infer(TypeChecker& checker, LetRecBuilder& builder) {
         if (auto use = decl->isa<UseDecl>(); use && use->is_alias())
             continue;
         auto var = checker.infer_mod_decl(*decl);
+        if (var->kind() == NodeKind::Alias)
+            continue;
         if (auto named_decl = decl->isa<NamedDecl>())
             decls.emplace(parent_builder.unsafe().decl_key(named_decl->id), var);
     }

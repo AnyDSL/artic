@@ -39,6 +39,7 @@ enum class NodeKind {
     Ptrn,
     Signature,
     Ctor,
+    Alias,
 };
 
 static inline std::string kind2str(NodeKind kind) {
@@ -50,6 +51,7 @@ static inline std::string kind2str(NodeKind kind) {
         case NodeKind::Ptrn: return "ptrn";
         case NodeKind::Signature: return "signature";
         case NodeKind::Ctor: return "constructor";
+        case NodeKind::Alias: return "alias";
     }
     return "";
 }
@@ -225,6 +227,32 @@ struct App : public PrimDef {
     App(const CtorVar*, const ArrayRef<const Var*>&);
 private:
     mutable const Node* instantiated_ = nullptr;
+};
+
+struct Alias : virtual public Node {
+    NodeKind kind() const override { return NodeKind::Alias; }
+};
+
+struct AliasVar : public Var, public Alias {
+    void print_head(Printer&) const override;
+    void print(Printer&) const override;
+
+    const Var* rebuild(Rewriter&, Builder&) const override;
+    bool can_bind(const Scope&, const Node*) const override;
+
+    AliasVar(Arena& arena, std::optional<ast::Identifier> id) : Var(id), Alias(), Node(arena) {}
+};
+
+struct AliasDef : virtual public Def, public Alias {
+    const Var* to;
+
+    bool is_nominal() const override { return true; }
+    const Node* rewrite(Rewriter&, Builder&) const override;
+    void free_variables(FVSet&, Seen&) const override;
+
+    void print(Printer&) const override;
+
+    AliasDef(Arena& arena, const Var* to) : Def(), Alias(), Node(arena), to(to) {}
 };
 
 const CtorDef* resolve_ctor_var(const Scope&, const CtorVar*);

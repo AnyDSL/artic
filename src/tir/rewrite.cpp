@@ -519,6 +519,14 @@ const SigVar* CtorSignature::rewrite(Rewriter& rewriter, Builder& b) const {
     return b.ctor_signature(new_dom, codom_kind);
 }
 
+const Var* AliasVar::rebuild(Rewriter&, Builder&) const {
+    assert(false);
+}
+
+const Node* AliasDef::rewrite(Rewriter&, Builder&) const {
+    assert(false);
+}
+
 }
 
 }

@@ -283,6 +283,15 @@ const CtorVar* Builder::ctor_var(std::optional<ast::Identifier> id, const SigVar
     return var;
 }
 
+const AliasVar* Builder::alias_var(std::optional<ast::Identifier> id) {
+    auto var = arena.insert<AliasVar>(arena, id);
+    return var;
+}
+
+const AliasDef* Builder::Unsafe::alias_def(const Var* to) {
+    return arena.insert<AliasDef>(arena, to);
+}
+
 const SigVar* Builder::sig_var(std::optional<ast::Identifier> id) {
     return arena.insert<SigVar>(*this, id);
 }

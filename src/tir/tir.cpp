@@ -145,26 +145,6 @@ const Node* Constructor::instantiate_into(Rewriter& r, Builder& b, ArrayRef<cons
     return r.instantiate_expr(b, body_);
 }
 
-struct Specializer : public Rewriter {
-    LetRecBuilder& b;
-    Scope& s;
-
-    FrameGuard root_frame;
-    Specializer(Arena&, Scope& s, LetRecBuilder& b) : Rewriter(b.arena, b.arena), b(b), s(s), root_frame(*this, b) {
-
-    }
-
-    const Var* lookup(const Var* var) const override {
-        if (!var->binder->is_child_of(&s) && &s != var->binder)
-            return var;
-        return Rewriter::lookup(var);
-    }
-
-    const Node* rewrite(Builder& b, const Def* old) override {
-        return old->rewrite(*this, b);
-    }
-};
-
 LetRec::LetRec(Scope& scope, const ArrayRef<std::tuple<const Var*, const Node*>>& vars, const Node* in)
     : scope(scope), vars(vars), body_(in) {
     //assert(in->is_var() || in->isa<LetRec>());
@@ -192,6 +172,14 @@ bool LetRec::equals(const Node* other) const {
 
 const CtorDef* resolve_ctor_var(const Scope& scope, const CtorVar* var) {
     return scope.resolve_var(var)->as<CtorDef>();
+}
+
+bool AliasVar::can_bind(const Scope& s, const Node* n) const {
+    return true;
+}
+
+void AliasDef::free_variables(FVSet& set, Seen& seen) const {
+    set.emplace(to);
 }
 
 std::tuple<const App*, const Node*, const Scope&> match_app_unapplied(const Scope& scope, const Def* def) {

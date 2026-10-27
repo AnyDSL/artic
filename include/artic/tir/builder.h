@@ -136,6 +136,8 @@ public:
 
     // Misc
     const CtorVar* ctor_var(std::optional<ast::Identifier> id, const SigVar*);
+    const AliasVar* alias_var(std::optional<ast::Identifier> id);
+    //const AliasVar* alias_def(const Var*);
 
     // Binding stuff
     const TypeVar* schedule_type(const TypeDef*, std::optional<ast::Identifier> = std::nullopt);
@@ -216,6 +218,8 @@ public:
         const Value* mod_value_access(const ModVar*, const Key*);
         const LetRecValue* value_let_rec(const ArrayRef<std::tuple<const Var*, const Node*>>&, ValueExpr);
         const ValueCtor* value_ctor(Scope&, const ArrayRef<const Var*>&, ValueExpr);
+
+        const AliasDef* alias_def(const Var*);
 
         const LocalVariable* local_variable(const TypeVar*);
         const Function* function(const ValueVar*, Scope&, const TypeVar* codom, const ast::FnDecl*);

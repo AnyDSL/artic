@@ -21,6 +21,8 @@ std::string Printer::unique_name(const Node& node) {
         prefix = "%";
     if (node.isa<SigVar>())
         prefix = "*";
+    if (node.isa<AliasVar>())
+        prefix = "#";
     if (auto var = node.isa<Var>(); var && var->id)
         return prefix + var->id->name + "_" + std::to_string(node.gid);
     return prefix + std::to_string(node.gid);
@@ -253,6 +255,10 @@ void CtorVar::print(Printer& p) const {
     p << p.unique_name(*this);
 }
 
+void AliasVar::print(Printer& p) const {
+    p << p.unique_name(*this);
+}
+
 void ModVar::print(Printer& p) const {
     p << p.unique_name(*this);
 }
@@ -468,6 +474,16 @@ void CtorVar::print_head(Printer& p) const {
     p << p.unique_name(*this);
     p << " : ";
     p.print(*ctor_sig);
+}
+
+void AliasVar::print_head(Printer& p) const {
+    p << log::keyword_style("alias") << ' ' << log::keyword_style("var") << " ";
+    p << p.unique_name(*this);
+}
+
+void AliasDef::print(Printer& p) const {
+    p << log::keyword_style("alias_def") << ' ' << log::keyword_style("to") << " ";
+    p.print(*to);
 }
 
 void Call::print(Printer& p) const {
