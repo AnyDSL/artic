@@ -391,47 +391,47 @@ void TypeApp::variance(const Scope& scope, std::unordered_map<const TypeVar*, Ty
 
 // Bounds --------------------------------------------------------------------------
 
-void Type::bounds(Builder& b, const Scope& scope, std::unordered_map<const TypeVar*, TypeBounds>&, const TypeVar*, bool) const {}
+void Type::bounds(Builder& b, const Scope& scope, std::unordered_map<const TypeVar*, TypeBounds>&, const TypeVar*, const Scope& arg_scope, bool) const {}
 
-void TupleType::bounds(Builder& b, const Scope& scope, std::unordered_map<const TypeVar*, TypeBounds>& bounds, const TypeVar* type, bool dir) const {
-    if (auto tuple_type = match_type_var<TupleType>(scope, type)) {
+void TupleType::bounds(Builder& b, const Scope& scope, std::unordered_map<const TypeVar*, TypeBounds>& bounds, const TypeVar* type, const Scope& arg_scope, bool dir) const {
+    if (auto tuple_type = match_type_var<TupleType>(arg_scope, type)) {
         for (size_t i = 0, n = std::min(args.size(), tuple_type->args.size()); i < n; ++i)
-            args[i]->bounds(b, scope, bounds, tuple_type->args[i], dir);
+            args[i]->bounds(b, scope, bounds, tuple_type->args[i], arg_scope, dir);
     }
 }
 
-void ArrayType::bounds(Builder& b, const Scope& scope, std::unordered_map<const TypeVar*, TypeBounds>& bounds, const TypeVar* type, bool dir) const {
-    if (auto array_type = match_type_var<ArrayType>(scope, type))
-        elem->bounds(b, scope, bounds, array_type->elem, dir);
+void ArrayType::bounds(Builder& b, const Scope& scope, std::unordered_map<const TypeVar*, TypeBounds>& bounds, const TypeVar* type, const Scope& arg_scope, bool dir) const {
+    if (auto array_type = match_type_var<ArrayType>(arg_scope, type))
+        elem->bounds(b, scope, bounds, array_type->elem, arg_scope, dir);
 }
 
-void AddrType::bounds(Builder& b, const Scope& scope, std::unordered_map<const TypeVar*, TypeBounds>& bounds, const TypeVar* type, bool dir) const {
+void AddrType::bounds(Builder& b, const Scope& scope, std::unordered_map<const TypeVar*, TypeBounds>& bounds, const TypeVar* type, const Scope& arg_scope, bool dir) const {
     if (auto addr_type = match_type_var<AddrType>(scope, type))
-        pointee->bounds(b, scope, bounds, addr_type->pointee, dir);
+        pointee->bounds(b, scope, bounds, addr_type->pointee, arg_scope, dir);
 }
 
-void ImplicitParamType::bounds(Builder& b, const Scope& scope, TypeVarMap<TypeBounds>& bounds, const TypeVar* type, bool dir) const {
-    underlying->bounds(b, scope, bounds, type, dir);
+void ImplicitParamType::bounds(Builder& b, const Scope& scope, TypeVarMap<TypeBounds>& bounds, const TypeVar* type, const Scope& arg_scope, bool dir) const {
+    underlying->bounds(b, scope, bounds, type, arg_scope, dir);
 }
 
-void FnType::bounds(Builder& b, const Scope& scope, std::unordered_map<const TypeVar*, TypeBounds>& bounds, const TypeVar* type, bool dir) const {
-    if (auto fn_type = match_type_var<FnType>(scope, type)) {
-        dom->bounds(b, scope, bounds, fn_type->dom, !dir);
-        codom->bounds(b, scope, bounds, fn_type->codom, dir);
+void FnType::bounds(Builder& b, const Scope& scope, std::unordered_map<const TypeVar*, TypeBounds>& bounds, const TypeVar* type, const Scope& arg_scope, bool dir) const {
+    if (auto fn_type = match_type_var<FnType>(arg_scope, type)) {
+        dom->bounds(b, scope, bounds, fn_type->dom, arg_scope, !dir);
+        codom->bounds(b, scope, bounds, fn_type->codom, arg_scope, dir);
     }
 }
 
-void TypeApp::bounds(Builder& b, const Scope& scope, std::unordered_map<const TypeVar*, TypeBounds>& bounds, const TypeVar* type, bool dir) const {
-    if (auto type_app = match_type_var<TypeApp>(scope, type)) {
+void TypeApp::bounds(Builder& b, const Scope& scope, std::unordered_map<const TypeVar*, TypeBounds>& bounds, const TypeVar* type, const Scope& arg_scope, bool dir) const {
+    if (auto type_app = match_type_var<TypeApp>(arg_scope, type)) {
         for (size_t i = 0, n = std::min(args.size(), type_app->args.size()); i < n; ++i)
             if (auto t = type_app->args[i]->isa<TypeVar>())
-                args[i]->as<Type>()->bounds(b, scope, bounds, t, dir);
+                args[i]->as<Type>()->bounds(b, scope, bounds, t, arg_scope, dir);
     }
 }
 
-void TypeVar::bounds(Builder& b, const Scope& scope, std::unordered_map<const TypeVar*, TypeBounds>& bounds, const TypeVar* type, bool dir) const {
+void TypeVar::bounds(Builder& b, const Scope& scope, std::unordered_map<const TypeVar*, TypeBounds>& bounds, const TypeVar* type, const Scope& arg_scope, bool dir) const {
     if (auto resolved = lookup_type_var_single(scope, this))
-        return resolved->bounds(b, scope, bounds, type, dir);
+        return resolved->bounds(b, scope, bounds, type, arg_scope, dir);
     TypeBounds type_bounds;
     if (dir)
         type_bounds = TypeBounds { type, b.top_type() };

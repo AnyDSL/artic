@@ -1501,9 +1501,9 @@ bool TypeChecker::infer_fn_args(
     std::vector<const Var*>& type_args) {
     auto [body_scope, body] = fn_ctor->peek_body();
     const FnType* body_type = resolve_type_var(body_scope, body->as<Value>()->type())->as<FnType>();
-    auto bounds = body_type->dom->Type::bounds(b, body_scope, arg_type);
+    auto bounds = body_type->dom->Type::bounds(b, body_scope, arg_type, *arg_type->binder);
     if (ret_type)
-        body_type->codom->bounds(b, body_scope, bounds, ret_type, false);
+        body_type->codom->bounds(b, body_scope, bounds, ret_type, *ret_type->binder, false);
     auto variance = body_type->Type::variance(b.scope, false);
     return try_infer_type_args(loc, fn_ctor->params, bounds, variance, type_args, true);
 }
@@ -1515,7 +1515,7 @@ bool TypeChecker::try_infer_implicit_args(
     const TypeVar* expected_type,
     std::vector<const Var*>& type_args) {
     auto body = forall_type->body()->type();
-    auto bounds = body->Type::bounds(b, b.scope, expected_type);
+    auto bounds = body->Type::bounds(b, b.scope, expected_type, *expected_type->binder);
     auto variance = body->Type::variance(b.scope, true);
     return try_infer_type_args(loc, forall_type->params, bounds, variance, type_args, false);
 }
