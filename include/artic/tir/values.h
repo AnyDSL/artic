@@ -142,6 +142,26 @@ struct LetRecValue : public Value, public LetRec {
     LetRecValue(Builder&, Scope&, const ArrayRef<std::tuple<const Var*, const Node*>>&, ValueExpr);
 };
 
+struct ArticCC {
+    thorin::CC cc;
+    bool default_exported;
+    std::string name;
+};
+
+static std::array recognized_ccs = {
+    ArticCC (thorin::CC::C, true, "C" ),
+    ArticCC (thorin::CC::Thorin, false, "thorin" ),
+    ArticCC (thorin::CC::Device, true, "device" ),
+};
+
+static inline std::string cc2str(thorin::CC cc) {
+    for (auto& rcc : recognized_ccs) {
+        if (rcc.cc == cc)
+            return rcc.name;
+    }
+    return "<invalid calling convention>";
+}
+
 struct FunctionLinkage {
     std::string symbol;
     bool is_external = false;

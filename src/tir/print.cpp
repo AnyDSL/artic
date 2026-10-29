@@ -428,22 +428,32 @@ void LocalVariable::print(Printer& p) const {
 }
 
 void Function::print(Printer& p) const {
-    if (filter_) {
-        p << "@(";
-        p.print(*as_value(*filter_), true);
-        p << ")";
-    }
-    p << log::keyword_style("fn") << "(";
+    p << log::keyword_style("fn");
+    p << "(";
     p.print(*param);
     p << ": ";
     p.print(*param->type());
-    p << ")" << ": ";
+    p << ")" << " -> ";
     p.print(*type());
-    if (body_) {
-        p << " {" << p.indent() << p.endl();
-        p.print(*as_value(*body_), true);
-        p << p.unindent() << p.endl() << "}";
+    p << " {" << p.indent() << p.endl();
+    if (linkage) {
+        p << log::keyword_style("linkage") << " = " << "{" << p.indent();
+        if (linkage->is_external)
+            p  << p.endl() << log::keyword_style("external");
+        p  << p.endl() << log::keyword_style("symbol") << " = " << "'" << log::literal_style(linkage->symbol) << "'";
+        p  << p.endl() << log::keyword_style("cc") << " = " << log::keyword_style(cc2str(linkage->cc));
+        // TODO: print intrinsic here in the future
+        p << p.unindent() << p.endl() << "}" << p.endl();
     }
+    if (filter_) {
+        p << log::keyword_style("filter") << " = ";
+        p.print(*as_value(*filter_), true);
+    }
+    if (body_) {
+        p << log::keyword_style("body") << " = ";
+        p.print(*as_value(*body_), true);
+    }
+    p << p.unindent() << p.endl() << "}" << p.endl();
 }
 
 void Unit::print(Printer& p) const {

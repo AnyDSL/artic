@@ -343,16 +343,17 @@ void TypeChecker::infer_fn_attrs(const ast::FnDecl* fn_decl, const Function* fn,
                 }},
                 AttrCase { "cc", AttrCase::String, [&](auto& cc_attr) {
                     const auto& cc = cc_attr.lit.as_string();
-                    if (cc == "C") {
-                        linkage->cc = thorin::CC::C;
-                        linkage->is_external = true;
-                    } else if (cc == "device") {
-                        linkage->cc = thorin::CC::Device;
-                        linkage->is_external = true;
-                    } else if (cc == "thorin") {
-                        // imported thorin functions are NOT external
-                        linkage->cc = thorin::CC::Thorin;
-                        linkage->is_external = false;
+                    const ArticCC* found = nullptr;
+                    for (auto& acc : recognized_ccs) {
+                        if (acc.name == cc) {
+                            found = &acc;
+                            break;
+                        }
+                    }
+                    if (found) {
+                        auto [thorin_cc, should_export, _] = *found;
+                        linkage->cc = thorin_cc;
+                        linkage->is_external |= should_export;
                     } else if (cc == "builtin") {
                         // builtin functions are actually not external at all
                         const auto& builtin_name = linkage->symbol;
