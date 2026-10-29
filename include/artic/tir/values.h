@@ -145,7 +145,9 @@ struct LetRecValue : public Value, public LetRec {
 struct FunctionLinkage {
     std::string symbol;
     bool is_external = false;
-    bool is_thorin_intrinsic = false;
+    // TODO: it would make a lot more sense to parse the intrinsics in Artic, instead of
+    // having Thorin magically resolve them using cont names...
+    // thorin::Intrinsic intrinsic = thorin::Intrinsic::None;
     thorin::CC cc = thorin::CC::C;
 };
 

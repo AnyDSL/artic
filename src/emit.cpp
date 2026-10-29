@@ -1276,7 +1276,7 @@ const thorin::Def* Function::emit(Emitter& emitter, const ValueVar* self) const 
     if (linkage) {
         cont->set_name(linkage->symbol);
         cont->attributes().cc = linkage->cc;
-        if (linkage->is_thorin_intrinsic)
+        if (linkage->cc == thorin::CC::Thorin)
             cont->set_intrinsic();
         if (linkage->is_external)
             emitter.world.make_external(cont);
