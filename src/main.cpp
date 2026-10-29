@@ -110,6 +110,7 @@ struct ProgramOptions {
     unsigned opt_level = 0;
     size_t max_errors = 0;
     size_t tab_width = 2;
+    int spirv_subgroup_size = -1;
     thorin::LogLevel log_level = thorin::LogLevel::Error;
 
     bool matches(const char* arg, const char* opt) {
@@ -233,6 +234,10 @@ struct ProgramOptions {
                     if (!check_arg(argc, argv, i))
                         return false;
                     hls_flags = argv[++i];
+                } else if (matches(argv[i], "--spirv-subgroup-size")) {
+                    if (!check_arg(argc, argv, i))
+                        return false;
+                    spirv_subgroup_size = atoi(argv[++i]);
                 } else if (matches(argv[i], "-O0")) {
                     opt_level = 0;
                 } else if (matches(argv[i], "-O1")) {
@@ -386,7 +391,7 @@ int main(int argc, char** argv) {
     }
 #endif
     if (opts.emit_host_code) {
-        thorin::DeviceBackends backends(thorin.world(), opts.opt_level, opts.debug, opts.hls_flags);
+        thorin::DeviceBackends backends(thorin.world(), opts.opt_level, opts.debug, opts.hls_flags, opts.spirv_subgroup_size);
         if (opts.emit_c) {
             thorin::Cont2Config kernel_configs;
             thorin::c::CodeGen cg(thorin, kernel_configs, thorin::c::Lang::C99, opts.debug, opts.hls_flags);
@@ -401,6 +406,10 @@ int main(int argc, char** argv) {
 #ifdef ENABLE_SPIRV
         if (opts.emit_spirv) {
             thorin::spirv::Target target;
+
+            if (opts.spirv_subgroup_size != -1) {
+                target.subgroup_size = opts.spirv_subgroup_size;
+            }
 
             thorin::spirv::CodeGen cg(thorin, target, opts.debug);
             emit_to_file(cg);
