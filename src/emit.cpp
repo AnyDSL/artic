@@ -684,16 +684,16 @@ const thorin::Def* Emitter::no_ret() {
     return world.bottom(world.unit_type());
 }
 
-static inline bool is_compatible(const Type* from, const Type* to) {
+static inline bool is_compatible(const TypeVar* from, const TypeVar* to) {
     // This function allows casting &[&[i32 * 4] * 5] directly to `&[&[i32]]`,
     // without loading the pointer and extracting each individual elements.
     if (from == to)
         return true;
-    auto from_addr_type = from->isa<AddrType>();
-    auto to_addr_type   = to->isa<AddrType>();
+    auto from_addr_type = match_type_var<AddrType>(*from->binder, from);
+    auto to_addr_type   = match_type_var<AddrType>(*to->binder, to);
     if (from_addr_type && to_addr_type && from_addr_type->addr_space == to_addr_type->addr_space) {
-        auto from_array_type = from_addr_type->pointee->isa<ArrayType>();
-        auto to_array_type   = to_addr_type->pointee->isa<ArrayType>();
+        auto from_array_type = match_type_var<ArrayType>(*from_addr_type->pointee->binder, from_addr_type->pointee);
+        auto to_array_type   = match_type_var<ArrayType>(*to_addr_type->pointee->binder, to_addr_type->pointee);
         if (from_array_type && to_array_type)
             return is_compatible(from_array_type->elem, to_array_type->elem);
         return is_compatible(from_addr_type->pointee, to_addr_type->pointee);
@@ -703,12 +703,12 @@ static inline bool is_compatible(const Type* from, const Type* to) {
 
 const thorin::Def* Emitter::cast_pointers(
     const thorin::Def* def,
-    const AddrType* from_addr_type,
-    const AddrType* to_addr_type,
+    const TypeVar* from_type, const AddrType* from_addr_type,
+    const TypeVar* to_type, const AddrType* to_addr_type,
     thorin::Debug debug)
 {
     const thorin::Def* addr = def;
-    if (!is_compatible(from_addr_type, to_addr_type)) {
+    if (!is_compatible(from_type, to_type)) {
         // We have to downcast the value pointed at
         assert(from_addr_type->pointee->subtype(to_addr_type->pointee));
         auto casted_val = down_cast(load(def, debug), from_addr_type->pointee, to_addr_type->pointee, debug);
@@ -758,11 +758,11 @@ const thorin::Def* Emitter::down_cast(const thorin::Def* def, const TypeVar* fro
 
     if (auto from_ref_type = match_type_var<RefType>(*from->binder, from)) {
         if (to_ptr_type && from_ref_type->is_compatible_with(to_ptr_type) && from_ref_type->pointee->subtype(to_ptr_type->pointee))
-            return cast_pointers(def, from_ref_type, to_ptr_type, debug);
+            return cast_pointers(def, from, from_ref_type, to, to_ptr_type, debug);
         return down_cast(load(def, debug), from_ref_type->pointee, to, debug);
     } else if (auto from_ptr_type = match_type_var<PtrType>(*from->binder, from); from_ptr_type && to_ptr_type) {
         assert(from_ptr_type->is_compatible_with(to_ptr_type));
-        return cast_pointers(def, from_ptr_type, to_ptr_type, debug);
+        return cast_pointers(def, from, from_ptr_type, to, to_ptr_type, debug);
     } else if (auto from_sized_array_type = match_type_var<SizedArrayType>(*from->binder, from)) {
         // Here, the returned value does not have the target type (it is a definite array instead
         // of an indefinite one). This is because Thorin does not have indefinite array values.

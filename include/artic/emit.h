@@ -192,7 +192,7 @@ public:
     }
 
 private:
-    const thorin::Def* cast_pointers(const thorin::Def*, const tir::AddrType*, const tir::AddrType*, thorin::Debug);
+    const thorin::Def* cast_pointers(const thorin::Def*, const tir::TypeVar*, const tir::AddrType*, const tir::TypeVar*, const tir::AddrType*, thorin::Debug);
 };
 
 /// Helper function to compile a set of files and generate an AST and a thorin module.
