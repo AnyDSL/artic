@@ -21,9 +21,6 @@ struct Value : virtual public Node {
     const TypeVar* type() const { return type_; }
     virtual const TypeDef* resolve_type(const Scope& s) const;
 
-    /// Emits a branch for boolean expressions.
-    virtual void emit_branch(Emitter&, thorin::Continuation*, thorin::Continuation*) const;
-
     /// emission for non-recursive nodes
     virtual const thorin::Def* emit(Emitter&) const {
         assert(false && "this node cannot be emitted");
@@ -483,7 +480,6 @@ struct BinOp : public ValueDef, NominalDef {
     const Node* rewrite(Rewriter&, Builder&) const override;
 
     const thorin::Def* emit(Emitter&) const override;
-    void emit_branch(Emitter&, thorin::Continuation*, thorin::Continuation*) const override;
 
     BinOp(Builder&, const ast::BinaryExpr::Tag, const ValueVar*, const ValueVar*);
 };

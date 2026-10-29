@@ -2877,8 +2877,25 @@ const tir::Var* BinaryExpr::infer(TypeChecker& checker, ExprBuilder& expr_builde
     const tir::TypeVar* left_type   = nullptr;
     const tir::TypeVar* right_type  = nullptr;
     if (is_logic()) {
-        left_type  = checker.coerce(expr_builder, &*left, b.bool_type())->type();
-        right_type = checker.coerce(expr_builder, &*right, b.bool_type())->type();
+        auto lhs  = checker.coerce(expr_builder, &*left, b.bool_type());
+        auto yield_param = b.value_var(ast::Identifier { loc, tag_to_string(tag) + "_join" }, b.fn_type(b.bool_type(), b.no_ret_type()));
+        auto control_fn = checker.build_fn(expr_builder, yield_param, [&](auto& ctrl_fn_builder) -> ValueExpr {
+            ExprBuilder ctrl_fn_expr_builder(ctrl_fn_builder, tag_to_string(tag) + "_builder");
+            const Function* if_true = checker.build_fn(ctrl_fn_expr_builder, b.value_var(std::nullopt, b.unit_type()), [&](auto& if_true_builder) -> ValueExpr {
+                ExprBuilder if_true_expr_builder(if_true_builder, tag_to_string(tag) + "_if_true_builder");
+                auto rhs = checker.coerce(if_true_expr_builder, &*right, b.bool_type());
+                return if_true_expr_builder.finish_tailcall(yield_param, rhs);
+            });
+            const Function* if_else = checker.build_fn(ctrl_fn_expr_builder, b.value_var(std::nullopt, b.unit_type()), [&](auto& if_else_builder) -> ValueExpr {
+                ExprBuilder if_else_expr_builder(if_else_builder, tag_to_string(tag) + "_if_else_builder");
+                return if_else_expr_builder.finish_tailcall(yield_param, b.typed_literal(Literal(tag == LogicOr), b.bool_type()));
+            });
+            if (tag == LogicOr)
+                std::swap(if_true, if_else);
+            return ctrl_fn_expr_builder.finish_branch(lhs, if_true, if_else);
+        });
+
+        return expr_builder.control(control_fn);
     } else if (!has_eq() && is_untyped(*left)) {
         // Expressions like `1 + x` should be handled by inferring the right-hand side first
         right_type = checker.deref(expr_builder, right)->type();

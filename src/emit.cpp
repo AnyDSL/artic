@@ -1452,58 +1452,9 @@ const thorin::Def* UnOp::emit(Emitter& emitter) const {
     return res;
 }
 
-void Value::emit_branch(
-    Emitter& emitter,
-    thorin::Continuation* join_true,
-    thorin::Continuation* join_false) const
-{
-    emitter.branch(emitter.emit(this), join_true, join_false);
-}
-
-void BinOp::emit_branch(
-    Emitter& emitter,
-    thorin::Continuation* join_true,
-    thorin::Continuation* join_false) const
-{
-    using namespace ast;
-    if (!BinaryExpr::is_logic(tag))
-        Value::emit_branch(emitter, join_true, join_false);
-    else {
-        auto cond = emitter.emit(lhs);
-        thorin::Continuation* next = nullptr;
-        // Note: We cannot really just use join_true and join_false in the branch,
-        // because the branch intrinsic requires both continuations to be of type `fn ()`.
-        if (tag == BinaryExpr::LogicAnd) {
-            auto branch_false = emitter.basic_block_with_mem(emitter.debug_info(this, "branch_false"));
-            next = emitter.basic_block_with_mem(emitter.debug_info(lhs, "and_true"));
-            branch_false->jump(join_false, { branch_false->param(0) });
-            emitter.branch(cond, next, branch_false, emitter.debug_info(this));
-        } else {
-            auto branch_true = emitter.basic_block_with_mem(emitter.debug_info(this, "branch_true"));
-            next = emitter.basic_block_with_mem(emitter.debug_info(rhs, "or_false"));
-            branch_true->jump(join_true, {  branch_true->param(0) });
-            emitter.branch(cond, branch_true, next, emitter.debug_info(this));
-        }
-        emitter.enter(next);
-        rhs->emit_branch(emitter, join_true, join_false);
-    }
-}
-
 const thorin::Def* BinOp::emit(Emitter& emitter) const {
     using namespace ast;
     auto& s = emitter.scope();
-    if (BinaryExpr::is_logic(tag)) {
-        auto join = emitter.basic_block_with_mem(emitter.world.type_bool(), emitter.debug_info(this, "join"));
-        auto join_true  = emitter.basic_block_with_mem(emitter.debug_info(this, "join_true"));
-        auto join_false = emitter.basic_block_with_mem(emitter.debug_info(this, "join_false"));
-        emit_branch(emitter, join_true, join_false);
-        emitter.enter(join_true);
-        emitter.jump(join, emitter.world.literal_bool(true, {}));
-        emitter.enter(join_false);
-        emitter.jump(join, emitter.world.literal_bool(false, {}));
-        emitter.enter(join);
-        return emitter.tuple_from_params(join);
-    }
     const thorin::Def* lhs = nullptr;
     const thorin::Def* ptr = nullptr;
     if (match_type_var(s, this->lhs->type())->isa<RefType>()) {
