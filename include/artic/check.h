@@ -187,6 +187,7 @@ public:
         }
     };
 
+    std::unordered_set<const tir::TypeVar*> nominal_types_;
 private:
     std::unordered_set<const ast::Decl*> decls_;
 

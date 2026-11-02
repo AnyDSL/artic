@@ -16,7 +16,18 @@ std::unique_ptr<Root> TypeChecker::run(ast::ModDecl& module) {
     auto mod = infer_mod_decl(module);
     if (errors > 0)
         return nullptr;
-    root->root_module = as_mod(builder.finish_module(mod->as<ModVar>()));
+    auto mod_expr= builder.finish_module(mod->as<ModVar>());
+    for (auto nt : nominal_types_) {
+        if (auto struct_type = match_type_var<tir::StructType>(*nt->binder, nt)) {
+            if (!nt->Type::is_sized(*nt->binder))
+                unsized_type(struct_type->decl->loc, nt);
+        }
+        if (auto enum_type = match_type_var<tir::EnumType>(*nt->binder, nt)) {
+            if (!nt->Type::is_sized(*nt->binder))
+                unsized_type(enum_type->decl->loc, nt);
+        }
+    }
+    root->root_module = as_mod(mod_expr);
     return std::move(root);
 }
 
@@ -3271,6 +3282,7 @@ const tir::Var* StructDecl::infer(TypeChecker& checker, LetRecBuilder& builder) 
             struct_type->members.push_back(checker.infer_field(*field));
         struct_type->validate();
         builder.bind(var, struct_type);
+        checker.nominal_types_.insert(var);
         checker.exit_decl(this);
         return var;
     });
@@ -3426,6 +3438,7 @@ const tir::Var* EnumDecl::infer(TypeChecker& checker, LetRecBuilder& builder) {
         }
         enum_type->validate();
         builder.bind(var, enum_type);
+        checker.nominal_types_.insert(var);
         checker.exit_decl(this);
         return var;
     });
@@ -3570,17 +3583,6 @@ const tir::Var* ModDecl::infer(TypeChecker& checker, LetRecBuilder& builder) {
             continue;
         if (auto named_decl = decl->isa<NamedDecl>())
             decls.emplace(parent_builder.unsafe().decl_key(named_decl->id), var);
-    }
-
-    for (auto& decl : this->decls) {
-        // if (auto struct_decl = decl->isa<StructDecl>()) {
-        //     if (!builder->as_type(struct_decl->var)->is_sized(checker.scope()))
-        //         checker.unsized_type(decl->loc, builder->as_type(struct_decl->var));
-        // }
-        // if (auto enum_decl = decl->isa<EnumDecl>()) {
-        //     if (!builder->as_type(enum_decl->var)->is_sized(checker.scope()))
-        //         checker.unsized_type(decl->loc, builder->as_type(enum_decl->var));
-        // }
     }
 
     auto unbound_mod = parent_builder.module(std::move(decls), this);

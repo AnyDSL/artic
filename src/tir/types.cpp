@@ -486,21 +486,20 @@ bool ComplexType::is_sized(const Scope& scope, std::unordered_set<const Type*>& 
 }
 
 bool TypeApp::is_sized(const Scope& scope, std::unordered_set<const Type*>& seen) const {
-    assert(false);
-    /*return
-        applicand()->is_sized(scope, seen) &&
+    return
+        //applicand()->is_sized(scope, seen) &&
         std::all_of(args.begin(), args.end(), [&seen, &scope] (auto a) {
-            if (auto t = a->template isa<Type>())
+            if (auto t = a->template isa<TypeVar>())
                 return t->is_sized(scope, seen);
             return true;
-        });*/
+        });
 }
 
 bool TypeVar::is_sized(const Scope& scope, std::unordered_set<const Type*>& seen) const {
     if (auto resolved = lookup_type_var_single(scope, this))
         return resolved->is_sized(scope, seen);
-    // unknown types are assumed to be unsized
-    return false;
+    // unknown types are assumed to be sized (since currently only sized types are valid anyways)
+    return true;
 }
 
 // Free variables ------------------------------------------------------------------
