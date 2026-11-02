@@ -1142,11 +1142,11 @@ const tir::TypeVar* TypeChecker::infer_ptrn_expr_together(ExprBuilder& expr_buil
     if (auto tuple_ptrn = ptrn.isa<ast::TuplePtrn>()) {
         if (auto tuple_expr = expr->isa<ast::TupleExpr>();
             tuple_expr && tuple_ptrn->args.size() == tuple_expr->args.size()) {
-            SmallArray<const Type*> args(tuple_expr->args.size());
+            SmallArray<const TypeVar*> args(tuple_expr->args.size());
             for (size_t i = 0, n = tuple_expr->args.size(); i < n; ++i)
                 args[i] = infer_ptrn_expr_together(expr_builder, *tuple_ptrn->args[i], tuple_expr->args[i]);
+            ptrn.type = expr_builder.tuple_type(args);
             return infer_expr(expr_builder, *tuple_expr)->type();
-            //return expr_builder().tuple_type(args);
         }
     } else if (auto typed_ptrn = ptrn.isa<ast::TypedPtrn>())
         return coerce(expr_builder, &*expr, infer_ptrn(expr_builder.enclosing_let_rec(), *typed_ptrn))->type();
@@ -2090,12 +2090,11 @@ const tir::Var* LetStmt::infer(TypeChecker& checker, tir::ExprBuilder& expr_buil
     if (init) {
         checker.infer_ptrn_expr_together(expr_builder, *ptrn, init);
         checker.bind_ptrn_params(type_b, expr_builder, *ptrn, init->value);
-        return type_b.unit();
     } else {
         auto ptrn_type = checker.infer_ptrn(type_b, *ptrn);
         checker.bind_ptrn_params(type_b, expr_builder, *ptrn, type_b.undef(ptrn_type));
-        return type_b.unit();
     }
+    assert(ptrn->type);
     checker.check_refutability(*ptrn, true);
     return type_b.unit();
 }
