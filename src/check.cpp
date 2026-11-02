@@ -1463,8 +1463,8 @@ bool TypeChecker::try_infer_type_args(
         }
 
         if (!bound.second.lower->subtype(bound.second.upper) ||
-            bound.second.lower->isa<TopType>() ||
-            bound.second.upper->isa<BottomType>()) {
+            match_type_var<TopType>(*bound.second.lower->binder, bound.second.lower) ||
+            match_type_var<BottomType>(*bound.second.upper->binder, bound.second.upper)) {
             if (diagnose_failure_as_error)
                 invalid_constraint(loc, bound.first, nullptr, bound.second.lower, bound.second.upper);
             return false;
