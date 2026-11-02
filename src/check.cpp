@@ -2226,7 +2226,7 @@ const tir::Var* ArrayExpr::infer(TypeChecker& checker, ExprBuilder& expr_builder
             checker.coerce(expr_builder, &*elems[i], elem_type);
         return elem_type;
     });
-    if (agg_t->isa<TypeError>())
+    if (match_type_var<TypeError>(expr_builder.scope, agg_t))
         return b.error_value(agg_t);
     Array<const ValueVar*> ops(elems.size());
     for (size_t i = 0, n = elems.size(); i < n; ++i)
@@ -2241,7 +2241,7 @@ const tir::Var* ArrayExpr::check(TypeChecker& checker, ExprBuilder& expr_builder
         for (auto& elem : elems)
             checker.coerce(expr_builder, &*elem, elem_type);
     });
-    if (agg_t->isa<TypeError>())
+    if (match_type_var<TypeError>(expr_builder.scope, agg_t))
         return b.error_value(expected);
     Array<const ValueVar*> ops(elems.size());
     for (size_t i = 0, n = elems.size(); i < n; ++i)
