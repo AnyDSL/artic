@@ -197,7 +197,7 @@ const Mod* Builder::Unsafe::mod_mod_access(const ModVar* src, const Key* key) {
     auto mod = lookup_mod_var(builder.scope, src)->isa<Module>();
     if (mod) {
         if (auto found = mod->lookup(key))
-            return found->as<Mod>();
+            return artic::as_dyn<const ModVar*>(found);
     }
     return arena.insert<ModModAccess>(builder, src, key);
 }
@@ -210,7 +210,7 @@ const Type* Builder::Unsafe::mod_type_access(const ModVar* src, const Key* key) 
     auto mod = lookup_mod_var(builder.scope, src)->isa<Module>();
     if (mod) {
         if (auto found = mod->lookup(key))
-            return found->as<Type>();
+            return artic::as_dyn<const TypeVar*>(found);
     }
     assert(false);
     //return builder.arena.insert<ModModAccess>(builder, src, key);
@@ -224,7 +224,7 @@ const Value* Builder::Unsafe::mod_value_access(const ModVar* src, const Key* key
     auto mod = lookup_mod_var(builder.scope, src)->isa<Module>();
     if (mod) {
         if (auto found = mod->lookup(key))
-            return found->as<Value>();
+            return artic::as_dyn<const ValueVar*>(found);
     }
     assert(false);
     //return builder.arena.insert<ModModAccess>(builder, src, key);
@@ -244,9 +244,9 @@ const ValueVar* Builder::value_app(const CtorVar* applied, const ArrayRef<const 
 
 const Var* Builder::mod_access(const ModVar* src, const Key* key) {
     auto mod_sig = resolve_sig_var(scope, src->signature()->as<SigVar>())->as<ModSignature>();
-    auto sig = mod_sig->lookup(key);
-    assert(sig);
-    sig = resolve_sig_var(scope, sig->as<SigVar>());
+    auto sig_var = mod_sig->lookup(key);
+    assert(sig_var);
+    auto sig = resolve_sig_var(scope, sig_var);
     if (sig->isa<ModSignature>()) {
         return mod_mod_access(src, key);
     } else if (sig->isa<TypeSignature>()) {
@@ -563,7 +563,7 @@ bool ExprBuilder::may_bind(NodeKind kind) {
 
 void ExprBuilder::bind(const Var* var, const Node* node) {
     auto value_var = var->as<ValueVar>();
-    auto value = node->as<Value>();
+    auto value = artic::as_dyn<const Value*>(node);
     add_binding(value_var, value);
 }
 
@@ -573,9 +573,9 @@ void ExprBuilder::add_binding(const ValueVar* var, const Value* value) {
 }
 
 const ValueVar* ExprBuilder::bind_value(const Value* value) {
-    if (auto var = value->isa<ValueVar>())
+    if (auto var = artic::isa<const ValueVar*>(value))
         return var;
-    auto def = value->isa<Def>();
+    auto def = artic::isa<const ValueDef*>(value);
     assert(!def->bound_to);
     //if (def->bound_to)
     //    return def->bound_to->as<ValueVar>();
@@ -796,7 +796,7 @@ void LetRecBuilder::reserve_bind(const Var* var) {
 
 void LetRecBuilder::bind(const Var* var, const Node* value) {
     assert(value != var);
-    if (auto def = value->isa<Def>()) {
+    if (auto def = artic::isa<const Def*>(value)) {
         if (def->bound_to)
             value = def->bound_to;
     }
@@ -816,9 +816,9 @@ const Scope* Builder::vars_scope(const Node::FVSet& fvs) {
 
 // Helper method to allow finding the intended scope of even some partially incomplete nodes
 static const Scope* get_node_scope_helper(Builder& builder, const Node* node) {
-    if (auto mod_var = node->isa<ModVar>())
+    if (auto mod_var = artic::isa<const ModVar*>(node))
         return builder.scope.find_scope(mod_var);
-    if (auto mod_access = node->isa<ModAccess>()) {
+    if (auto mod_access = artic::isa<const ModAccess*>(node)) {
         return unify_scopes(get_node_scope_helper(builder, mod_access->mod), get_node_scope_helper(builder, mod_access->key));
     }
     auto fvs = node->free_variables();
@@ -858,10 +858,10 @@ std::tuple<const Var*, Builder*> Builder::locate(const Def* node) {
 
 const Var* Builder::maybe_schedule(const Node* node) {
     assert(node);
-    if (auto var = node->isa<Var>()) {
+    if (auto var = artic::isa<const Var*>(node)) {
         return var;
     }
-    return schedule(node->as<Def>());
+    return schedule(artic::as_dyn<const Def*>(node));
 }
 
 const Var* Builder::schedule(const Def* node, std::optional<ast::Identifier> maybe_id) {
@@ -881,15 +881,15 @@ const Var* Builder::schedule(const Def* node, std::optional<ast::Identifier> may
     }
 
     const Var* var;
-    if (auto mod_value = node->isa<Mod>()) {
+    if (auto mod_value = node->isa<ModDef>()) {
         var = mod_var(maybe_id, mod_value->signature());
-    } else if (auto type = node->isa<Type>()) {
+    } else if (auto type = node->isa<TypeDef>()) {
         var = type_var(maybe_id);
-    } else if (auto value = node->isa<Value>()) {
+    } else if (auto value = node->isa<ValueDef>()) {
         var = value_var(std::nullopt, value->type());
-    } else if (auto ctor = node->isa<Ctor>()) {
+    } else if (auto ctor = node->isa<CtorDef>()) {
         var = ctor_var(maybe_id, ctor->ctor_sig);
-    } else if (node->isa<Sig>()) {
+    } else if (node->isa<SigDef>()) {
         var = sig_var(maybe_id);
     } else {
         assert(false);

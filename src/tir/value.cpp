@@ -47,7 +47,7 @@ size_t Unit::hash() const {
     return fnv::Hash().combine(67);
 }
 
-bool Unit::equals(const Node* n) const {
+bool Unit::equals(const Def* n) const {
     if (n->isa<Unit>())
         return true;
     return false;
@@ -57,7 +57,7 @@ size_t ErrorValue::hash() const {
     return type()->hash();
 }
 
-bool ErrorValue::equals(const Node* n) const {
+bool ErrorValue::equals(const Def* n) const {
     if (auto other_error = n->isa<ErrorValue>())
         return other_error->type()->subtype(type());
     return false;
@@ -68,7 +68,7 @@ ValueVar::ValueVar(Arena& arena, std::optional<ast::Identifier> id, const TypeVa
 {}
 
 bool ValueVar::can_bind(const Scope& scope, const Node* other) const {
-    if (auto value = other->isa<Value>()) {
+    if (auto value = artic::isa<const Value*>(other)) {
         return value->type()->subtype(type());
     }
     return false;
@@ -116,7 +116,7 @@ const TypeVar* extract_value_app_type(LetRecBuilder& builder, const CtorVar* cto
     Builder* dst = builder.find_suitable_builder(dst_scope, NodeKind::Type);
 
     auto ctor = resolve_ctor_var(builder.scope, ctor_var)->as<ValueCtor>();
-    TypeExtractor extractor(*dst->as<LetRecBuilder>(), ctor->scope, ctor->body()->as<Value>());
+    TypeExtractor extractor(*dst->as<LetRecBuilder>(), ctor->scope, artic::as<const Value*>(ctor->body()));
     for (size_t i = 0; i < args.size(); i++) {
         extractor.frame().insert(ctor->params[i], args[i]);
     }
@@ -139,7 +139,7 @@ void ValueApp::free_variables(FVSet& vars, Seen& seen) const {
     App::free_variables(vars, seen);
 }
 
-bool ValueApp::equals(const Node* other) const {
+bool ValueApp::equals(const Def* other) const {
     if (auto other_vapp = other->isa<ValueApp>())
         return App::equals(other_vapp);
     return false;
@@ -161,11 +161,11 @@ const Value* as_value(const ValueExpr& expr) {
 
 ValueExpr as_valueexpr(const Value* value) {
     assert(value);
-    if (auto seq = value->isa<Seq>())
+    if (auto seq = artic::isa<const Seq*>(value))
         return seq;
-    if (auto letrec = value->isa<LetRecValue>())
+    if (auto letrec = artic::isa<const LetRecValue*>(value))
         return letrec;
-    return value->as<ValueVar>();
+    return artic::as<const ValueVar*>(value);
 }
 
 LetRecValue::LetRecValue(Builder& builder, Scope& scope, const ArrayRef<std::tuple<const Var*, const Node*>>& vars, ValueExpr expr)
@@ -179,7 +179,7 @@ void LetRecValue::free_variables(FVSet& vars, Seen& seen) const {
 }
 
 bool LetRecValue::equals(const Node* other) const {
-    if (auto other_lrv = other->isa<LetRecValue>()) {
+    if (auto other_lrv = artic::isa<const LetRecValue*>(other)) {
         return LetRec::equals(other_lrv);
     }
     return false;
@@ -252,7 +252,7 @@ size_t TypedLiteral::hash() const {
     return h;
 }
 
-bool TypedLiteral::equals(const Node* other) const {
+bool TypedLiteral::equals(const Def* other) const {
     if (auto other_typed_literal = other->isa<TypedLiteral>()) {
         if (other_typed_literal->type() == type() && other_typed_literal->value.tag == value.tag) {
             switch (other_typed_literal->value.tag) {
@@ -273,7 +273,7 @@ size_t Undef::hash() const {
     return fnv::Hash().combine(type());
 }
 
-bool Undef::equals(const Node* other) const {
+bool Undef::equals(const Def* other) const {
     if (auto other_undef = other->isa<Undef>()) {
         if (other_undef->type()->subtype(type()))
             return true;
@@ -297,7 +297,7 @@ size_t Agg::hash() const {
     return h;
 }
 
-bool Agg::equals(const Node* other) const {
+bool Agg::equals(const Def* other) const {
     if (auto other_tuple = other->isa<Agg>()) {
         if (other_tuple->args.size() != args.size() || other_tuple->type() != type())
             return false;
@@ -338,7 +338,7 @@ size_t Variant::hash() const {
     return fnv::Hash().combine(elem).combine(index).combine(type());
 }
 
-bool Variant::equals(const Node* other) const {
+bool Variant::equals(const Def* other) const {
     if (auto other_variant = other->isa<Variant>()) {
         if (other_variant->type()->subtype(type()) && other_variant->elem == elem && other_variant->index == index)
             return true;
@@ -385,7 +385,7 @@ size_t Repeat::hash() const {
     return fnv::Hash().combine(type()).combine(elem);
 }
 
-bool Repeat::equals(const Node* other) const {
+bool Repeat::equals(const Def* other) const {
     if (auto other_rep = other->isa<Repeat>()) {
         if (other_rep->type()->subtype(type()) && other_rep->elem == elem)
             return true;
@@ -563,9 +563,9 @@ Builtin::Builtin(Builder& builder, Tag tag, const ArrayRef<const Var*>& args) : 
         case Tag::BitCast:
             return args[0]->as<TypeVar>();
         case Tag::Insert:
-            return args[0]->as<Value>()->type();
+            return args[0]->as<ValueVar>()->type();
         case Tag::Select:
-            return args[1]->as<Value>()->type();
+            return args[1]->as<ValueVar>()->type();
         case Tag::SignBit:
         case Tag::IsNaN:
         case Tag::IsFinite:

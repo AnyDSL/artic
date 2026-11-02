@@ -351,7 +351,9 @@ bool TypedExpr::is_constant() const {
 
 bool PathExpr::is_constant() const {
     assert(value);
-    return !value->type()->isa<tir::RefType>();
+    if (!value->type()->binder)
+        return false;
+    return !tir::match_type_var<tir::RefType>(*value->type()->binder, value->type());
 }
 
 void PathExpr::write_to() const {
@@ -461,7 +463,7 @@ bool BlockExpr::has_side_effect() const {
 
 bool CallExpr::is_jumping() const {
     assert(value);
-    return value->type()->isa<tir::NoRetType>();
+    return tir::match_type_var<tir::NoRetType>(*value->type()->binder, value->type());
 }
 
 bool CallExpr::has_side_effect() const {

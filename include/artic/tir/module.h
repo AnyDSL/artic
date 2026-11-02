@@ -57,7 +57,7 @@ struct ValueSignature : public SigDef, PrimDef {
     const TypeVar* value_type = nullptr;
 
     size_t hash() const override;
-    bool equals(const Node*) const override;
+    bool equals(const Def*) const override;
     void print(Printer& p) const override;
     const SigVar* rewrite(Rewriter&, Builder&) const override;
     void free_variables(FVSet&, Seen&) const override;
@@ -72,7 +72,7 @@ struct TypeSignature : public SigDef, PrimDef {
     const TypeVar* type = nullptr;
 
     size_t hash() const override;
-    bool equals(const Node*) const override;
+    bool equals(const Def*) const override;
     void print(Printer& p) const override;
     const SigVar* rewrite(Rewriter&, Builder&) const override;
     void free_variables(FVSet&, Seen&) const override;
@@ -87,7 +87,7 @@ struct ModSignature : public SigDef, PrimDef {
     std::unordered_map<const Key*, const SigVar*> elems;
 
     size_t hash() const override;
-    bool equals(const Node*) const override;
+    bool equals(const Def*) const override;
     void print(Printer& p) const override;
     const SigVar* rewrite(Rewriter&, Builder&) const override;
     void free_variables(FVSet&, Seen&) const override;
@@ -95,7 +95,7 @@ struct ModSignature : public SigDef, PrimDef {
     //NodeKind element_kind() const override { return NodeKind::Module; }
     bool is_sub_def(const Scope&, const SigDef*) const override;
 
-    const Sig* lookup(const Key*) const;
+    const SigVar* lookup(const Key*) const;
     const Key* lookup_key(const ast::Identifier&) const;
 
     ModSignature(Builder&, std::unordered_map<const Key*, const SigVar*>&&);
@@ -108,7 +108,7 @@ struct CtorSignature : public SigDef, PrimDef {
     NodeKind codom_kind;
 
     size_t hash() const override;
-    bool equals(const Node*) const override;
+    bool equals(const Def*) const override;
     void print(Printer& p) const override;
     const SigVar* rewrite(Rewriter&, Builder&) const override;
     void free_variables(FVSet&, Seen&) const override;
@@ -134,6 +134,14 @@ const Sig* lookup_sig_var_single(const Scope&, const SigVar*);
 const SigDef* lookup_sig_var(const Scope&, const SigVar*);
 
 const SigDef* resolve_sig_var(const Scope&, const SigVar*);
+
+template <typename T = SigDef>
+const T* match_sig_var(const Scope& scope, const SigVar* var) {
+    auto def = lookup_sig_var(scope, var);
+    if (def)
+        return def->isa<T>();
+    return nullptr;
+}
 
 struct Mod : virtual public Node {
     NodeKind kind() const override { return NodeKind::Module; }
@@ -173,7 +181,7 @@ struct Module : public ModDef, NominalDef {
     const ast::ModDecl* decl;
     std::unordered_map<const Key*, const Var*> decls;
 
-    const Node* lookup(const Key*) const;
+    const Var* lookup(const Key*) const;
 
     const SigVar* signature() const override;
 
@@ -194,7 +202,7 @@ struct ModAccess : virtual Node, PrimDef {
     const Key* key;
 
     size_t hash() const override;
-    bool equals(const Node*) const override;
+    bool equals(const Def*) const override;
     void print(Printer&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
@@ -206,7 +214,7 @@ struct ModModAccess : public ModAccess, public ModDef {
     const SigVar* signature() const override;
     void emit(Emitter&) const override;
 
-    bool equals(const Node*) const override;
+    bool equals(const Def*) const override;
     const ModVar* rewrite(Rewriter&, Builder&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
@@ -219,7 +227,7 @@ struct ModCtor : public Constructor {
     void free_variables(FVSet&, Seen&) const override;
 
     const Mod* body() const override {
-        return Constructor::body()->as<Mod>();
+        return as_dyn<const Mod*>(Constructor::body());
     }
 
     ModExpr body_expr() const {
@@ -231,7 +239,7 @@ struct ModCtor : public Constructor {
 
 struct ModApp : public ModDef, public App {
     size_t hash() const override;
-    bool equals(const Node*) const override;
+    bool equals(const Def*) const override;
     void print(Printer&) const override;
     const ModVar* rewrite(Rewriter&, Builder&) const override;
     void free_variables(FVSet&, Seen&) const override;
@@ -247,7 +255,7 @@ private:
 
 struct LetRecMod : public Mod, public LetRec {
     const Mod* body() const override {
-        return LetRec::body()->as<Mod>();
+        return as_dyn<const Mod*>(LetRec::body());
     }
 
     ModExpr body_expr() const {
@@ -271,7 +279,7 @@ struct ModError : public ModDef, PrimDef {
     const SigVar* signature_;
 
     size_t hash() const override;
-    bool equals(const Node*) const override;
+    bool equals(const Def*) const override;
     void print(Printer&) const override;
     const ModVar* rewrite(Rewriter&, Builder&) const override;
     void free_variables(FVSet&, Seen&) const override;
@@ -284,6 +292,14 @@ struct ModError : public ModDef, PrimDef {
 
 const ModDef* lookup_mod_var(const Scope&, const ModVar*);
 const ModDef* resolve_mod_var(const Scope&, const ModVar*);
+
+template <typename T = ModDef>
+const T* match_mod_var(const Scope& scope, const ModVar* var) {
+    auto def = lookup_mod_var(scope, var);
+    if (def)
+        return def->isa<T>();
+    return nullptr;
+}
 
 }
 

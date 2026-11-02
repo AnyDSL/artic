@@ -20,9 +20,9 @@ const Type* as_type(const TypeExpr& expr) {
 
 TypeExpr as_typeexpr(const Type* value) {
     assert(value);
-    if (auto letrec = value->isa<LetRecType>())
+    if (auto letrec = artic::isa<const LetRecType*>(value))
         return letrec;
-    return value->as<TypeVar>();
+    return as<const TypeVar*>(value);
 }
 
 // Constructors and validation -----------------------------------------------------
@@ -77,7 +77,7 @@ TypeVar::TypeVar(Arena& arena, std::optional<ast::Identifier> id)
 {}
 
 bool TypeVar::can_bind(const Scope&, const Node* other) const {
-    if (other->isa<Type>())
+    if (artic::isa<const Type*>(other))
         return true;
     return false;
 }
@@ -112,7 +112,7 @@ LetRecType::LetRecType(Builder& builder, Scope& scope, const ArrayRef<std::tuple
 {}
 
 bool LetRecType::equals(const Node* other) const {
-    if (auto other_lrt = other->isa<LetRecType>()) {
+    if (auto other_lrt = artic::isa<const LetRecType*>(other)) {
         return LetRec::equals(other_lrt);
     }
     return false;
@@ -134,15 +134,15 @@ TypeBounds& TypeBounds::meet(Builder& b, const Scope& scope, const TypeBounds& b
 
 // Equals ---------------------------------------------------------------------------
 
-bool PrimType::equals(const Node* other) const {
+bool PrimType::equals(const Def* other) const {
     return other->isa<PrimType>() && other->as<PrimType>()->tag == tag;
 }
 
-bool TupleType::equals(const Node* other) const {
+bool TupleType::equals(const Def* other) const {
     return other->isa<TupleType>() && other->as<TupleType>()->args == args;
 }
 
-bool SizedArrayType::equals(const Node* other) const {
+bool SizedArrayType::equals(const Def* other) const {
     return
         other->isa<SizedArrayType>() &&
         other->as<SizedArrayType>()->elem == elem &&
@@ -150,13 +150,13 @@ bool SizedArrayType::equals(const Node* other) const {
         other->as<SizedArrayType>()->is_simd == is_simd;
 }
 
-bool UnsizedArrayType::equals(const Node* other) const {
+bool UnsizedArrayType::equals(const Def* other) const {
     return
         other->isa<UnsizedArrayType>() &&
         other->as<UnsizedArrayType>()->elem == elem;
 }
 
-bool AddrType::equals(const Node* other) const {
+bool AddrType::equals(const Def* other) const {
     return
         typeid(*other) == typeid(*this) &&
         other->isa<AddrType>() &&
@@ -165,28 +165,28 @@ bool AddrType::equals(const Node* other) const {
         other->as<AddrType>()->is_mut == is_mut;
 }
 
-bool ImplicitParamType::equals(const Node* other) const {
+bool ImplicitParamType::equals(const Def* other) const {
     return
         other->isa<ImplicitParamType>() &&
         other->as<ImplicitParamType>()->underlying == underlying;
 }
 
-bool FnType::equals(const Node* other) const {
+bool FnType::equals(const Def* other) const {
     return
         other->isa<FnType>() &&
         other->as<FnType>()->dom == dom &&
         other->as<FnType>()->codom == codom;
 }
 
-bool BottomType::equals(const Node* other) const {
+bool BottomType::equals(const Def* other) const {
     return typeid(*other) == typeid(*this);
 }
 
-bool TopType::equals(const Node* other) const {
+bool TopType::equals(const Def* other) const {
     return typeid(*other) == typeid(*this);
 }
 
-bool TypeApp::equals(const Node* other) const {
+bool TypeApp::equals(const Def* other) const {
     if (auto other_type_app = other->isa<TypeApp>())
         return App::equals(other_type_app);
     return false;
@@ -385,7 +385,7 @@ void TypeVar::variance(const Scope& scope, std::unordered_map<const TypeVar*, Ty
 
 void TypeApp::variance(const Scope& scope, std::unordered_map<const TypeVar*, TypeVariance>& vars, bool dir) const {
     for (auto arg : args)
-        if (auto type_arg = arg->isa<Type>())
+        if (auto type_arg = arg->isa<TypeVar>())
             type_arg->variance(scope, vars, dir);
 }
 
@@ -425,7 +425,7 @@ void TypeApp::bounds(Builder& b, const Scope& scope, std::unordered_map<const Ty
     if (auto type_app = match_type_var<TypeApp>(arg_scope, type)) {
         for (size_t i = 0, n = std::min(args.size(), type_app->args.size()); i < n; ++i)
             if (auto t = type_app->args[i]->isa<TypeVar>())
-                args[i]->as<Type>()->bounds(b, scope, bounds, t, arg_scope, dir);
+                args[i]->as<TypeVar>()->bounds(b, scope, bounds, t, arg_scope, dir);
     }
 }
 
@@ -903,7 +903,7 @@ std::pair<const RefType*, const TypeVar*> remove_ref(const Scope& scope, const T
 const Type* lookup_type_var_single(const Scope& scope, const TypeVar* var) {
     auto found = scope.lookup_var_single(var);
     if (found)
-        return found->as<Type>();
+        return artic::as_dyn<const Type*>(found);
     return nullptr;
 }
 
@@ -954,7 +954,7 @@ std::tuple<const TypeApp*, const TypeDef*, const Scope&> match_type_app_unapplie
     auto [app, body, body_scope] = match_app_unapplied(scope, maybe_type_app);
     if (app) {
         auto type_app = maybe_type_app->as<TypeApp>();
-        auto [type_var, def_scope] = enter_type_expr_generic(body_scope, as_typeexpr(body->as<Type>()));
+        auto [type_var, def_scope] = enter_type_expr_generic(body_scope, as_typeexpr(artic::as_dyn<const Type*>(body)));
         auto [_, type_def] = lookup_type(def_scope, type_var);
         return { type_app, type_def, def_scope };
     }

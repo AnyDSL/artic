@@ -11,19 +11,19 @@ namespace tir {
 
 std::string Printer::unique_name(const Node& node) {
     auto prefix = "!";
-    if (node.isa<TypeVar>())
+    if (artic::isa<const TypeVar*>(&node))
         prefix = "^";
-    if (node.isa<ModVar>())
+    if (artic::isa<const ModVar*>(&node))
         prefix = "$";
-    if (node.isa<CtorVar>())
+    if (artic::isa<const CtorVar*>(&node))
         prefix = "@";
-    if (node.isa<ValueVar>())
+    if (artic::isa<const ValueVar*>(&node))
         prefix = "%";
-    if (node.isa<SigVar>())
+    if (artic::isa<const SigVar*>(&node))
         prefix = "*";
-    if (node.isa<AliasVar>())
+    if (artic::isa<const AliasVar*>(&node))
         prefix = "#";
-    if (auto var = node.isa<Var>(); var && var->id)
+    if (auto var = artic::isa<const Var*>(&node); var && var->id)
         return prefix + var->id->name + "_" + std::to_string(node.gid);
     return prefix + std::to_string(node.gid);
 }
@@ -59,12 +59,12 @@ void Printer::print(const Node& node, bool print_inline) {
     depth++;
     const Node* n = &node;
     if (max_depth == 0 || depth <= max_depth) {
-        auto was_var = n->isa<Var>();
+        auto was_var = artic::isa<const Var*>(n);
         push();
         while (true) {
             n->print(*this);
 
-            if (auto var = n->isa<Var>(); var && resolve_unbound_vars && var->binder) {
+            if (auto var = artic::isa<const Var*>(n); var && resolve_unbound_vars && var->binder) {
                 n = var->binder->lookup_var_single(var);
                 if (n) {
                     top() << " :=> ";
@@ -152,11 +152,9 @@ void PtrType::print(Printer& p) const {
         p << log::keyword_style("mut") << ' ';
     if (addr_space != 0)
         p << log::keyword_style("addrspace") << '(' << addr_space << ')';
-    if (pointee->isa<PtrType>())
-        p << '(';
+    p << '(';
     p.print(*pointee);
-    if (pointee->isa<PtrType>())
-        p << ')';
+    p << ')';
 }
 
 void RefType::print(Printer& p) const {
@@ -173,9 +171,9 @@ void ImplicitParamType::print(Printer& p) const {
 
 void FnType::print(Printer& p) const {
     p << log::keyword_style("fn") << ' ';
-    if (!dom->isa<TupleType>()) p << '(';
+    p << '(';
     p.print(*dom);
-    if (!dom->isa<TupleType>()) p << ')';
+    p << ')';
     p << " -> ";
     p.print(*codom);
 }
@@ -543,11 +541,10 @@ void Undef::print(Printer& p) const {
 }
 
 void Agg::print(Printer& p) const {
-    if (!type()->isa<TupleType>()) {
-        p << log::keyword_style("agg") << '[';
-        p.print(*type(), true);
-        p << "]";
-    }
+    p << log::keyword_style("agg") << '[';
+    p.print(*type(), true);
+    p << "]";
+
     p << '(';
     print_list(p.top(), ", ", args, [&] (auto& a) {
         p.print(*a, true);
@@ -620,8 +617,7 @@ void Seq::print(Printer& p) const {
         p.print(*bind.value, true);
         p << ';' << p.endl();
     }
-    p.print(*as_value(yield), !as_value(yield)->isa<Var>());
-    p << p.endl();
+    p.print(*as_value(yield), !artic::isa<const ValueVar*>(as_value(yield)));
     p << p.unindent() << p.endl() << '}';
 }
 

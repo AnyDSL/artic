@@ -27,10 +27,10 @@ private:
         T* t = new T(std::forward<Args>(args)...);
         if (auto it = types_.find(t); it != types_.end()) {
             delete t;
-            return (*it)->template as<T>();
+            return artic::as_dyn<const T*>(*it);
         }
         auto [it, _] = types_.emplace(t);
-        return (*it)->template as<T>();
+        return artic::as_dyn<const T*>(*it);
     }
 
     struct HashNode {

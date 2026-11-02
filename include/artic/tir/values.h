@@ -67,7 +67,7 @@ struct ValueDef : public Value, virtual public Def {
 struct Unit : public ValueDef, PrimDef {
     Unit(Arena& arena, const TypeVar* unit_type) : ValueDef(arena, unit_type), PrimDef(), Node(arena) {}
 
-    bool equals(const Node*) const override;
+    bool equals(const Def*) const override;
     size_t hash() const override;
     void print(Printer&) const override;
     const ValueVar* rewrite(Rewriter&, Builder&) const override;
@@ -81,7 +81,7 @@ struct Unit : public ValueDef, PrimDef {
 struct ErrorValue : public ValueDef, PrimDef {
     ErrorValue(Arena& arena, const TypeVar* type) : ValueDef(arena, type), PrimDef(), Node(arena) {}
 
-    bool equals(const Node*) const override;
+    bool equals(const Def*) const override;
     size_t hash() const override;
     void print(Printer&) const override;
     const ValueVar* rewrite(Rewriter&, Builder&) const override;
@@ -94,7 +94,7 @@ struct ErrorValue : public ValueDef, PrimDef {
 
 struct ValueApp : public ValueDef, public App {
     void print(Printer&) const override;
-    bool equals(const Node*) const override;
+    bool equals(const Def*) const override;
     const ValueVar* rewrite(Rewriter&, Builder&) const override;
     void free_variables(FVSet&, Seen&) const override;
 
@@ -107,7 +107,7 @@ private:
 
 struct ValueCtor : public Constructor {
     const Value* body() const override {
-        return Constructor::body()->as<Value>();
+        return as_dyn<const Value*>(Constructor::body());
     }
 
     ValueExpr body_expr() const {
@@ -122,7 +122,7 @@ struct ValueCtor : public Constructor {
 
 struct LetRecValue : public Value, public LetRec {
     const Value* body() const override {
-        return LetRec::body()->as<Value>();
+        return as_dyn<const Value*>(LetRec::body());
     }
 
     ValueExpr body_expr() const {
@@ -284,7 +284,7 @@ struct Cast : public ValueDef, NominalDef {
 struct TypedLiteral : public ValueDef, PrimDef {
     Literal value;
 
-    bool equals(const Node*) const override;
+    bool equals(const Def*) const override;
     size_t hash() const override;
 
     void print(Printer&) const override;
@@ -298,7 +298,7 @@ struct TypedLiteral : public ValueDef, PrimDef {
 };
 
 struct Undef : public ValueDef, PrimDef {
-    bool equals(const Node*) const override;
+    bool equals(const Def*) const override;
     size_t hash() const override;
 
     void print(Printer&) const override;
@@ -315,7 +315,7 @@ struct Undef : public ValueDef, PrimDef {
 struct Agg : public ValueDef, NominalDef {
     Array<const ValueVar*> args;
 
-    bool equals(const Node*) const override;
+    bool equals(const Def*) const override;
     size_t hash() const override;
 
     void print(Printer&) const override;
@@ -354,7 +354,7 @@ struct Variant : public ValueDef, NominalDef {
     size_t index;
     const ValueVar* elem;
 
-    bool equals(const Node*) const override;
+    bool equals(const Def*) const override;
     size_t hash() const override;
 
     void print(Printer&) const override;
@@ -400,7 +400,7 @@ struct VariantExtract : public ValueDef, NominalDef {
 struct Repeat : public ValueDef, NominalDef {
     const ValueVar* elem;
 
-    bool equals(const Node*) const override;
+    bool equals(const Def*) const override;
     size_t hash() const override;
 
     void print(Printer&) const override;
@@ -550,7 +550,7 @@ struct Asm : public ValueDef, NominalDef {
     struct Constr {
         Loc loc;
         std::string name;
-        const Value* expr;
+        const ValueVar* expr;
 
         // Constr(const Loc& loc, std::string&& name, const Value* expr)
         //     : loc(loc), name(std::move(name)), expr(expr)

@@ -24,7 +24,7 @@ const Var* Rewriter::instantiate_var(const Var* old) {
     assert(&old->arena == &src && "node did not come from source arena!");
     while (old->binder) {
         auto found = old->binder->lookup_var_single(old);
-        if (auto var = found->isa<Var>()) {
+        if (auto var = artic::isa<const Var*>(found)) {
             old = var;
         } else {
             break;
@@ -42,9 +42,9 @@ const Var* Rewriter::instantiate_var(const Var* old) {
     }
     Pending pending = *maybe_pending;
 
-    if (auto prim_def = pending.orhs->isa<PrimDef>()) {
+    if (auto prim_def = artic::isa<const PrimDef*>(pending.orhs)) {
         auto ndef = rewrite(*pending.dst, prim_def);
-        if (auto nvar = ndef->isa<Var>()) {
+        if (auto nvar = artic::isa<const Var*>(ndef)) {
             pending.frame->insert(old, nvar);
             return nvar;
         }
@@ -52,7 +52,7 @@ const Var* Rewriter::instantiate_var(const Var* old) {
         pending.dst->bind(nvar, ndef);
         pending.frame->insert(old, nvar);
         return nvar;
-    } else if (auto nominal_def = pending.orhs->isa<NominalDef>()) {
+    } else if (auto nominal_def = artic::isa<const NominalDef*>(pending.orhs)) {
         auto nvar = rebuild_var(*pending.dst, pending.ovar);
         if (auto dst_letrec = pending.dst->isa<LetRecBuilder>())
             dst_letrec->reserve_bind(nvar);
@@ -61,7 +61,7 @@ const Var* Rewriter::instantiate_var(const Var* old) {
         pending.frame->pending.erase(old);
         return nvar;
     } else {
-        auto var = pending.orhs->as<Var>();
+        auto var = artic::as_dyn<const Var*>(pending.orhs);
         auto nvar = lookup(var);
         pending.frame->insert(old, nvar);
         assert(nvar);
@@ -75,19 +75,19 @@ const Value* Seq::rewrite(Rewriter& r, Builder& builder) const {
     for (auto bind : evaluate) {
         const Value* new_value = nullptr; // = r.instantiate_rhs(seq_builder, bind.value)->as<Value>();
 
-        if (auto prim_def = bind.value->isa<PrimDef>()) {
+        if (auto prim_def = artic::isa<const PrimDef*, const Node*>(bind.value)) {
             assert(false && "putting PrimDef here is a problem.");
-        } else if (auto nominal_def = bind.value->isa<NominalDef>()) {
+        } else if (auto nominal_def = artic::isa<const NominalDef*, const Node*>(bind.value)) {
             auto rewrite_result = r.rewrite(seq_builder, nominal_def);
-            new_value = rewrite_result->as<Value>();
+            new_value = artic::as_dyn<const Value*>(rewrite_result);
         } else {
-            auto new_var = r.instantiate_var(bind.value->as<ValueVar>());
+            auto new_var = r.instantiate_var(artic::as<const ValueVar*>(bind.value));
             r.frame().insert(bind.var, new_var);
             continue;
             // assert(false && "putting variables here is also a problem.");
         }
 
-        assert(!new_value->isa<Def>() || !new_value->as<Def>()->bound_to);
+        assert(!artic::isa<const Def*, const Node*>(new_value) || !artic::as_dyn<const Def*, const Node*>(new_value)->bound_to);
         auto new_var = seq_builder.bind_value(new_value);
         r.frame().insert(bind.var, new_var);
     }
@@ -97,11 +97,11 @@ const Value* Seq::rewrite(Rewriter& r, Builder& builder) const {
 }
 
 const Node* Rewriter::instantiate_expr(Builder& b, const Node* must_be_expr) {
-    if (auto value = must_be_expr->isa<Value>())
+    if (auto value = artic::isa<const Value*>(must_be_expr))
         return as_value(instantiate_expr(b, as_valueexpr(value)));
-    if (auto type = must_be_expr->isa<Type>())
+    if (auto type = artic::isa<const Type*>(must_be_expr))
         return as_type(instantiate_expr(b, as_typeexpr(type)));
-    if (auto mod = must_be_expr->isa<Mod>())
+    if (auto mod = artic::isa<const Mod*>(must_be_expr))
         return as_mod(instantiate_expr(b, as_modexpr(mod)));
     assert(false && "not an expr");
 }
@@ -265,7 +265,7 @@ const ModVar* ModApp::rewrite(Rewriter& r, Builder& b) const {
 }
 
 const ModVar* ModModAccess::rewrite(Rewriter& r, Builder& b) const {
-    return b.mod_mod_access(r.instantiate_var(mod), r.instantiate_var(key));
+    return b.mod_mod_access(r.instantiate_var(mod), r.instantiate_key(key));
 }
 
 const ModVar* ModError::rewrite(Rewriter& r, Builder& b) const {
@@ -483,7 +483,7 @@ const Match::Ptrn* Match::Ptrn::rewrite(Rewriter& r) const {
     } else if (elem_ptrns) {
         std::vector<std::tuple<size_t, const Ptrn*>> new_array;
         for (auto& [idx, old] : *elem_ptrns) {
-            new_array.emplace_back(idx, r.instantiate_var(old));
+            new_array.emplace_back(idx, r.instantiate_ptrn(old));
         }
         return r.unsafe_builder().compound_match_ptrn(r.instantiate_var(type), new_array, sub_ptrn ? r.instantiate_ptrn(sub_ptrn) : nullptr);
     } else if (literal) {
@@ -496,7 +496,7 @@ const Match::Ptrn* Match::Ptrn::rewrite(Rewriter& r) const {
 const Node* Match::rewrite(Rewriter& r, Builder& b) const {
     std::vector<Case> ncases;
     for (size_t i = 0; i < cases.size(); i++) {
-        ncases.emplace_back(cases[i].loc, r.instantiate_var(cases[i].ptrn), r.instantiate_fn(b, cases[i].branch));
+        ncases.emplace_back(cases[i].loc, r.instantiate_ptrn(cases[i].ptrn), r.instantiate_fn(b, cases[i].branch));
     }
     return r.unsafe_builder().match(loc, r.instantiate_var(value), ncases);
 }

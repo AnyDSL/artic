@@ -750,13 +750,13 @@ void TypeChecker::invalid_ptrn(const Loc& loc, bool must_be_trivial) {
     }
 }
 
-void TypeChecker::invalid_constraint(const Loc& loc, const TypeVar* var, const Type* type_arg, const Type* lower, const Type* upper) {
+void TypeChecker::invalid_constraint(const Loc& loc, const TypeVar* var, const TypeVar* type_arg, const TypeVar* lower, const TypeVar* upper) {
     if (type_arg)
         error(loc, "invalid type argument '{}' for type variable '{}'", *type_arg, *var);
     else
         error(loc, "cannot infer type argument for type variable '{}'", *var);
-    bool bound_left  = !lower->isa<BottomType>() && !lower->isa<TypeError>();
-    bool bound_right = !upper->isa<TopType>();
+    bool bound_left  = !match_type_var<BottomType>(*lower->binder, lower) && !match_type_var<TypeError>(*lower->binder, lower);
+    bool bound_right = !match_type_var<TopType>(*upper->binder, upper);
     if (bound_left || bound_right) {
         if (bound_left && bound_right)
             note("type constraint '{} <: {} <: {}' is not satisfiable", *lower, *var, *upper);
@@ -807,14 +807,16 @@ static bool is_unit(const ast::Expr* expr) {
     return tuple_expr && tuple_expr->args.empty();
 }
 
-static bool is_tuple_type_with_implicits(const artic::Type* type) {
-    if (auto tuple_t = type->isa<artic::TupleType>(); tuple_t && !is_unit_type(tuple_t))
-        return std::any_of(tuple_t->args.begin(), tuple_t->args.end(), [&](auto arg){ return arg->template isa<ImplicitParamType>(); });
+static bool is_tuple_type_with_implicits(const artic::TypeVar* type) {
+    if (!type->binder)
+        return false;
+    if (auto tuple_t = match_type_var<artic::TupleType>(*type->binder, type); tuple_t && !is_unit_type(tuple_t))
+        return std::any_of(tuple_t->args.begin(), tuple_t->args.end(), [&](auto arg){ return match_type_var<ImplicitParamType>(*arg->binder, arg); });
     return false;
 }
 
 const ValueVar* TypeChecker::coerce(ExprBuilder& expr_builder, ast::Expr* expr, const TypeVar* expected) {
-    if (auto implicit = expected->isa<ImplicitParamType>()) {
+    if (auto implicit = match_type_var<ImplicitParamType>(*expected->binder, expected)) {
         // Only the empty tuple () can be coerced into a Summon[T]
         if (is_unit(expr))
             return summon_value(implicit->underlying, expr->loc);
@@ -1177,7 +1179,7 @@ const tir::ValueVar* TypeChecker::infer(Builder& b, const Loc&, const Literal& l
 const tir::ValueVar* TypeChecker::check(Builder& b, const Loc& loc, const Literal& lit, const TypeVar* expected) {
     const TypeApp* _ = nullptr;
     auto expected_def = resolve_type_var(b.scope, expected);
-    if (expected->isa<NoRetType>())
+    if (match_type_var<NoRetType>(b.scope, expected))
         return infer(b, loc, lit);
     if (lit.is_integer()) {
         if (!is_int_or_float_type(expected_def)) {
@@ -1510,7 +1512,7 @@ bool TypeChecker::infer_fn_args(
     const TypeVar* ret_type,
     std::vector<const Var*>& type_args) {
     auto [body_scope, body] = fn_ctor->peek_body();
-    const FnType* body_type = resolve_type_var(body_scope, body->as<Value>()->type())->as<FnType>();
+    const FnType* body_type = resolve_type_var(body_scope, artic::as_dyn<const Value*>(body)->type())->as<FnType>();
     auto bounds = body_type->dom->Type::bounds(b, body_scope, arg_type, *arg_type->binder);
     if (ret_type)
         body_type->codom->bounds(b, body_scope, bounds, ret_type, *ret_type->binder, false);
@@ -1575,7 +1577,7 @@ size_t TypeChecker::resolve_integer_constant(const Scope& scope, const Loc& loc,
     //     }
     //     break;
     // }
-    if (auto typed_lit = peeked_value->isa<TypedLiteral>()) {
+    if (auto typed_lit = artic::isa<const TypedLiteral*>(peeked_value)) {
         if (typed_lit->value.is_integer())
            return typed_lit->value.as_integer();
     }
@@ -1704,7 +1706,7 @@ std::optional<Path::Elem::Inferred> Path::Elem::infer(TypeChecker& checker, Buil
         auto prev_mod_var = prev->var->as<ModVar>();
 
         // propagate signature errors atp
-        if (prev_mod_var->signature()->isa<SigError>())
+        if (match_sig_var<SigError>(*prev_mod_var->signature()->binder, prev_mod_var->signature()))
             return std::nullopt;
 
         if (auto key = resolve_sig_var(b.scope, prev_mod_var->signature()->as<SigVar>())->as<ModSignature>()->lookup_key(id))
@@ -1823,7 +1825,7 @@ std::optional<Path::Elem::Inferred> Path::infer_path(TypeChecker& checker, Build
             if (auto ctor_var = prev->var->isa<CtorVar>()) {
                 auto ctor = resolve_ctor_var(b.scope, ctor_var)->isa<Constructor>();
                 // TODO: if ctors get signatures, update this
-                if (auto body_type = ctor->body()->isa<tir::Type>()) {
+                if (auto body_type = artic::isa<const tir::Type*>(ctor->body())) {
                     auto [inner_def, inner_scope] = enter_type_expr_generic(*type_s, as_typeexpr(body_type));
                     type = inner_def;
                     type_s = &inner_scope;
@@ -1868,7 +1870,7 @@ std::optional<Path::Elem::Inferred> Path::infer_path(TypeChecker& checker, Build
 
                         auto [body_scope, body] = val_ctor->peek_body();
 
-                        auto arg_type = checker.try_coerce(infer_fn_call->callsite_builder, body_scope, infer_fn_call->arg, resolve_type_var(body_scope, body->as<Value>()->type())->as<artic::FnType>()->dom);
+                        auto arg_type = checker.try_coerce(infer_fn_call->callsite_builder, body_scope, infer_fn_call->arg, resolve_type_var(body_scope, artic::as_dyn<const Value*>(body)->type())->as<artic::FnType>()->dom);
                         if (!checker.infer_fn_args(b, loc, val_ctor, arg_type, infer_fn_call->ret_type, type_args))
                             return std::nullopt;
                     } else {
@@ -2279,7 +2281,7 @@ const tir::Var* RepeatArrayExpr::check(TypeChecker& checker, ExprBuilder& expr_b
         expected, std::get<size_t>(size), is_simd, [&] (auto elem_type) {
         checker.coerce(expr_builder, &*elem, elem_type);
     });
-    if (type->isa<TypeError>())
+    if (match_type_var<TypeError>(expr_builder.scope, type))
         return b.error_value(expected);
     assert(elem->value);
     return expr_builder.repeat(type, elem->value);
@@ -3715,8 +3717,8 @@ const tir::Var* CtorPtrn::infer(TypeChecker& checker, LetRecBuilder& b) {
                 if (auto ctor_var = ctor->isa<CtorVar>()) {
                     ctor = b.value_app(ctor_var, type_app->args);
                 }
-                assert(ctor->isa<Value>());
-                auto peeked_ctor_t = resolve_type_var(b.scope, ctor->as<Value>()->type());
+                assert(ctor->isa<ValueVar>());
+                auto peeked_ctor_t = resolve_type_var(b.scope, ctor->as<ValueVar>()->type());
                 auto fn_t = peeked_ctor_t->as<tir::FnType>();
                 auto dom = fn_t->dom;
                 checker.check_ptrn(b, *arg, dom);

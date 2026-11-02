@@ -33,7 +33,7 @@ struct Rewriter {
     ModExpr instantiate_expr(Builder& b, ModExpr);
 
     const Function* instantiate_fn(Builder& b, const Function* old) {
-        return rewrite(b, old)->as<Function>();
+        return as_dyn<const Function*>(rewrite(b, old));
     }
 
     const Key* instantiate_key(const Key* old) {

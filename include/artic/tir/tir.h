@@ -60,7 +60,7 @@ static inline std::string kind2str(NodeKind kind) {
 /// which will hash them and place them into a set. This makes nodes
 /// comparable via pointer equality, as long as they were created with
 /// the same `Arena` object.
-struct Node : public DynCast<Node> {
+struct Node {
     Arena& arena;
     size_t gid;
 
@@ -103,7 +103,7 @@ struct Node : public DynCast<Node> {
     void dump_fvs() const;
 };
 
-struct Var : virtual public Node {
+struct Var : virtual public Node, public DynCast<Var> {
     mutable const Scope* binder = nullptr;
     std::optional<ast::Identifier> id;
 
@@ -118,11 +118,24 @@ struct Var : virtual public Node {
     Var(std::optional<ast::Identifier> id) : id(id) {}
 };
 
-struct Def : virtual public Node {
+struct Def : virtual public Node, public DynCast<Def> {
     virtual bool is_var() const final { return false; }
     virtual bool is_nominal() const = 0;
     virtual const Node* rewrite(Rewriter&, Builder&) const = 0;
     mutable const Var* bound_to = nullptr;
+
+    bool equals(const Node* other) const final {
+        auto other_def = artic::isa<const Def*>(other);
+        if (other_def)
+            return equals(other_def);
+        return false;
+    }
+
+    virtual bool equals(const Def* other) const {
+        return this == other;
+    }
+
+    Def() {}
 };
 
 struct PrimDef : virtual public Def {
@@ -161,8 +174,6 @@ struct LetRec : virtual Node {
 
     LetRec(Scope&, const ArrayRef<std::tuple<const Var*, const Node*>>&, const Node*);
 };
-
-inline bool is_exp(const Node* n) { return n->isa<Var>() || n->isa<LetRec>(); }
 
 struct Ctor : virtual public Node {
     const SigVar* ctor_sig;
@@ -220,7 +231,7 @@ struct App : public PrimDef {
     const CtorVar* applicand() const { return applicand_; };
 
     size_t hash() const override;
-    bool equals(const Node* other) const override;
+    bool equals(const Def* other) const override;
     void print(Printer&) const override;
     void free_variables(FVSet&, Seen&) const override;
 

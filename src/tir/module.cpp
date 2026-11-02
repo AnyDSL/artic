@@ -21,15 +21,15 @@ const Mod* as_mod(const ModExpr& expr) {
 
 ModExpr as_modexpr(const Mod* value) {
     assert(value);
-    if (auto letrec = value->isa<LetRecMod>())
+    if (auto letrec = artic::isa<const LetRecMod*>(value))
         return letrec;
-    return value->as<ModVar>();
+    return artic::as_dyn<const ModVar*>(value);
 }
 
-const Node* Module::lookup(const Key* key) const {
-    for (auto [decl_key, val] : decls) {
+const Var* Module::lookup(const Key* key) const {
+    for (auto [decl_key, var] : decls) {
         if (decl_key == key)
-            return val;
+            return var;
     }
     return nullptr;
 }
@@ -40,7 +40,7 @@ size_t ValueSignature::hash() const {
     return value_type->hash();
 }
 
-bool ValueSignature::equals(const Node* other) const {
+bool ValueSignature::equals(const Def* other) const {
     if (auto other_vs = other->isa<ValueSignature>()) {
         return other_vs->value_type == value_type;
     }
@@ -56,7 +56,7 @@ size_t TypeSignature::hash() const {
     return h;
 }
 
-bool TypeSignature::equals(const Node* other) const {
+bool TypeSignature::equals(const Def* other) const {
     if (auto other_ts = other->isa<TypeSignature>()) {
         return other_ts->type == type;
     }
@@ -74,7 +74,7 @@ size_t ModSignature::hash() const {
     return h;
 }
 
-bool ModSignature::equals(const Node* other) const {
+bool ModSignature::equals(const Def* other) const {
     if (auto other_ms = other->isa<ModSignature>()) {
         if (other_ms->elems.size() != elems.size())
             return false;
@@ -83,7 +83,7 @@ bool ModSignature::equals(const Node* other) const {
     return false;
 }
 
-const Sig* ModSignature::lookup(const Key* key) const {
+const SigVar* ModSignature::lookup(const Key* key) const {
     auto found = elems.find(key);
     if (found == elems.end())
         return nullptr;
@@ -110,7 +110,7 @@ size_t CtorSignature::hash() const {
     return h;
 }
 
-bool CtorSignature::equals(const Node* other) const {
+bool CtorSignature::equals(const Def* other) const {
     if (auto other_cts = other->isa<CtorSignature>()) {
         if (other_cts->dom.size() != dom.size())
             return false;
@@ -126,7 +126,7 @@ bool CtorSignature::equals(const Node* other) const {
 SigVar::SigVar(Builder& builder, std::optional<ast::Identifier> id) : Node(builder.arena), Var(id), Sig() {}
 
 bool SigVar::can_bind(const Scope& scope, const Node* other) const {
-    if (other->isa<Sig>())
+    if (artic::isa<const Sig*>(other))
         return true;
     return false;
 }
@@ -138,23 +138,20 @@ bool SigError::is_sub_def(const Scope&, const SigDef*) const {
 }
 
 const SigVar* Sig::from_node(Builder& builder, const Node* node, bool public_interface) {
-    if (auto mod_val = node->isa<Mod>()) {
-        return mod_val->signature();
-    }
     switch (node->kind()) {
         case NodeKind::Value: {
-            auto value = node->as<Value>();
+            auto value = artic::as_dyn<const Value*>(node);
             return builder.value_signature(value->type());
         }
         case NodeKind::Type: {
-            return builder.type_signature(public_interface ? node->as<TypeVar>() : nullptr);
+            return builder.type_signature(public_interface ? artic::as_dyn<const TypeVar*>(node) : nullptr);
         }
         case NodeKind::Module: {
-            return node->as<Mod>()->signature();
+            return artic::as_dyn<const Mod*>(node)->signature();
         }
         // Module constructors have no signature
         case NodeKind::Ctor: {
-            return node->as<Ctor>()->ctor_sig;
+            return artic::as_dyn<const Ctor*>(node)->ctor_sig;
             // while (auto ctor_var = node->isa<CtorVar>()) {
             //     node = builder.scope.resolve_ctor(ctor_var);
             // }
@@ -187,7 +184,7 @@ bool SigVar::is_sub(const Scope& scope, const Sig* other) const {
     if (this == other)
         return true;
 
-    if (auto other_def = other->isa<SigDef>()) {
+    if (auto other_def = artic::isa<const SigDef*>(other)) {
         auto def = lookup_sig_var(scope, this);
         if (def)
             return def->is_sub_def(scope, other_def);
@@ -197,7 +194,7 @@ bool SigVar::is_sub(const Scope& scope, const Sig* other) const {
 
     // we're both variables!
     auto sig = lookup_sig_var_single(scope, this);
-    auto other_sig = lookup_sig_var_single(scope, other->as<SigVar>());
+    auto other_sig = lookup_sig_var_single(scope, artic::as<const SigVar*>(other));
     if (sig && other_sig)
         return sig->is_sub(scope, other_sig);
 
@@ -208,9 +205,9 @@ bool SigDef::is_sub(const Scope& scope, const Sig* other) const {
     if (this == other)
         return true;
 
-    if (auto other_def = other->isa<SigDef>())
+    if (auto other_def = artic::isa<const SigDef*>(other))
         return is_sub_def(scope, other_def);
-    auto other_sig = lookup_sig_var(scope, other->as<SigVar>());
+    auto other_sig = lookup_sig_var(scope, artic::as<const SigVar*>(other));
     if (other_sig)
         return is_sub_def(scope, other_sig);
     // unknown variables can't be super signatures to defs
@@ -274,7 +271,7 @@ const SigVar* Module::signature() const {
 const Sig* lookup_sig_var_single(const Scope& scope, const SigVar* var) {
     auto found = scope.lookup_var_single(var);
     if (found)
-        return found->as<Sig>();
+        return artic::as_dyn<const Sig*>(found);
     return nullptr;
 }
 
@@ -298,7 +295,7 @@ const SigVar* ModVar::signature() const {
 }
 
 bool ModVar::can_bind(const Scope& scope, const Node* other) const {
-    if (auto mod = other->isa<Mod>()) {
+    if (auto mod = artic::isa<const Mod*>(other)) {
         return mod->signature()->is_sub(scope, signature());
     }
     return false;
@@ -311,7 +308,6 @@ const SigVar* ModModAccess::signature() const {
 ModAccess::ModAccess(Builder& builder, const ModVar* mod, const Key* key)
     : PrimDef(), mod(mod), key(key) {
     assert(mod->kind() == NodeKind::Module);
-    assert(key->isa<Key>());
 }
 
 ModModAccess::ModModAccess(Builder& builder, const ModVar* mod, const Key* key)
@@ -320,14 +316,13 @@ ModModAccess::ModModAccess(Builder& builder, const ModVar* mod, const Key* key)
         return mod_sig->elems.find(key)->second;
     }()) {
     assert(mod->kind() == NodeKind::Module);
-    assert(key->isa<Key>());
 }
 
 size_t ModAccess::hash() const {
     return fnv::Hash().combine(mod).combine(key);
 }
 
-bool ModAccess::equals(const Node* other) const {
+bool ModAccess::equals(const Def* other) const {
     if (auto other_access = other->isa<ModAccess>()) {
         if (other_access->mod == mod && other_access->key == key)
             return true;
@@ -335,7 +330,7 @@ bool ModAccess::equals(const Node* other) const {
     return false;
 }
 
-bool ModModAccess::equals(const Node* other) const {
+bool ModModAccess::equals(const Def* other) const {
     if (auto other_access = other->isa<ModModAccess>()) {
         return ModAccess::equals(other_access);
     }
@@ -375,7 +370,7 @@ size_t ModApp::hash() const {
     return h;
 }
 
-bool ModApp::equals(const Node* other) const {
+bool ModApp::equals(const Def* other) const {
     if (auto other_app = other->isa<ModApp>()) {
         if (args.size() != other_app->args.size())
             return false;
@@ -399,7 +394,7 @@ size_t ModError::hash() const {
     return fnv::Hash().combine(1337);
 }
 
-bool ModError::equals(const Node* other) const {
+bool ModError::equals(const Def* other) const {
     if (other->isa<ModError>())
         return true;
     return false;
@@ -414,7 +409,7 @@ LetRecMod::LetRecMod(Builder& builder, Scope& scope, const ArrayRef<std::tuple<c
 {}
 
 bool LetRecMod::equals(const Node* other) const {
-    if (auto other_lrm = other->isa<LetRecMod>()) {
+    if (auto other_lrm = artic::isa<const LetRecMod*>(other)) {
         return LetRec::equals(other_lrm);
     }
     return false;

@@ -161,7 +161,7 @@ struct PrimType : public TypeDef, PrimDef {
     ast::PrimType::Tag tag;
 
     void print(Printer&) const override;
-    bool equals(const Node*) const override;
+    bool equals(const Def*) const override;
     size_t hash() const override;
     const TypeVar* rewrite(Rewriter&, Builder&) const override;
     void free_variables(FVSet&, Seen&) const override;
@@ -179,7 +179,7 @@ struct TupleType : public TypeDef, PrimDef {
     Array<const TypeVar*> args;
 
     void print(Printer&) const override;
-    bool equals(const Node*) const override;
+    bool equals(const Def*) const override;
     size_t hash() const override;
     bool contains(const Type*) const override;
     const TypeVar* rewrite(Rewriter&, Builder&) const override;
@@ -222,7 +222,7 @@ struct SizedArrayType : public ArrayType {
     bool is_simd;
 
     void print(Printer&) const override;
-    bool equals(const Node*) const override;
+    bool equals(const Def*) const override;
     size_t hash() const override;
     const TypeVar* rewrite(Rewriter&, Builder&) const override;
 
@@ -238,7 +238,7 @@ private:
 /// An array whose size is not known at compile-time.
 struct UnsizedArrayType : public ArrayType {
     void print(Printer&) const override;
-    bool equals(const Node*) const override;
+    bool equals(const Def*) const override;
     size_t hash() const override;
     const TypeVar* rewrite(Rewriter&, Builder&) const override;
 
@@ -261,7 +261,7 @@ struct AddrType : public TypeDef, PrimDef {
         : TypeDef(), PrimDef(), pointee(pointee), is_mut(is_mut), addr_space(addr_space)
     {}
 
-    bool equals(const Node*) const override;
+    bool equals(const Def*) const override;
     size_t hash() const override;
     void free_variables(FVSet&, Seen&) const override;
 
@@ -308,7 +308,7 @@ struct ImplicitParamType : public TypeDef, PrimDef {
     const TypeVar* underlying;
 
     void print(Printer&) const override;
-    bool equals(const Node*) const override;
+    bool equals(const Def*) const override;
     size_t hash() const override;
     bool contains(const Type*) const override;
     const TypeVar* rewrite(Rewriter&, Builder&) const override;
@@ -333,7 +333,7 @@ struct FnType : public TypeDef, PrimDef {
     const TypeVar* codom;
 
     void print(Printer&) const override;
-    bool equals(const Node*) const override;
+    bool equals(const Def*) const override;
     size_t hash() const override;
     bool contains(const Type*) const override;
     const TypeVar* rewrite(Rewriter&, Builder&) const override;
@@ -356,7 +356,7 @@ private:
 /// Bottom type: Subtype of any other type
 struct BottomType : public TypeDef, PrimDef {
     void print(Printer&) const override;
-    bool equals(const Node*) const override;
+    bool equals(const Def*) const override;
     size_t hash() const override;
     const TypeVar* rewrite(Rewriter&, Builder&) const override;
     void free_variables(FVSet&, Seen&) const override;
@@ -370,7 +370,7 @@ protected:
 /// Top type: Supertype of any other type
 struct TopType : public TypeDef, PrimDef {
     void print(Printer&) const override;
-    bool equals(const Node*) const override;
+    bool equals(const Def*) const override;
     size_t hash() const override;
     const TypeVar* rewrite(Rewriter&, Builder&) const override;
     void free_variables(FVSet&, Seen&) const override;
@@ -491,7 +491,7 @@ struct TypeApp : public TypeDef, public App {
     // Array<const Type*> type_args;
 
     void print(Printer&) const override;
-    bool equals(const Node*) const override;
+    bool equals(const Def*) const override;
     //size_t hash() const override;
     bool contains(const Type*) const override;
     const TypeVar* rewrite(Rewriter&, Builder&) const override;
@@ -514,7 +514,7 @@ private:
 // this isn't a type, but it makes one!
 struct TypeCtor : public Constructor {
     const Type* body() const override {
-        return Constructor::body()->as<Type>();
+        return as_dyn<const Type*>(Constructor::body());
     }
 
     TypeExpr body_expr() const {
@@ -529,7 +529,7 @@ struct TypeCtor : public Constructor {
 
 struct LetRecType : public Type, public LetRec {
     const Type* body() const override {
-        return LetRec::body()->as<Type>();
+        return as_dyn<const Type*>(LetRec::body());
     }
 
     TypeExpr body_expr() const {
@@ -578,7 +578,7 @@ const T* match_type(const Scope& scope, const Type* type) {
 }*/
 
 template <typename T = TypeDef>
-const T* match_type_def(const Type* def) {
+const T* match_type_def(const TypeDef* def) {
     return def->isa<T>();
 }
 

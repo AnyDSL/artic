@@ -19,7 +19,7 @@ void Scope::insert(const Var* var, const Node* value) {
         for (auto fv : value->free_variables()) {
             assert(find_scope(fv) && "value has unbound free variables");
         }
-        if (auto def = value->isa<Def>()) {
+        if (auto def = artic::isa<const Def*>(value)) {
             bound_defs[def] = var;
             assert(!def->bound_to || def->bound_to == var);
             def->bound_to = var;
@@ -72,17 +72,17 @@ std::tuple<const Var*, const Def*> Scope::lookup_var(const Var* var) const {
         auto resolved = lookup_var_single(var);
         if (!resolved)
             return { var, nullptr };
-        if (auto another_var = resolved->isa<Var>())
+        if (auto another_var = artic::isa<const Var*>(resolved))
             var = another_var;
         else
-            return { var, resolved->as<Def>() };
+            return { var, artic::as_dyn<const Def*>(resolved) };
     }
 }
 
 std::tuple<const Var*, const Def*> Scope::lookup(const Node* node) const {
-    if (auto def = node->isa<Def>())
+    if (auto def = artic::isa<const Def*>(node))
         return { nullptr, def };
-    return lookup_var(node->as<Var>());
+    return lookup_var(artic::as_dyn<const Var*>(node));
 }
 
 std::tuple<const Var*, const Def*, const Scope&> Scope::lookup_var_deep(const Var* var) const {
@@ -94,15 +94,15 @@ std::tuple<const Var*, const Def*, const Scope&> Scope::lookup_var_deep(const Va
         // if (last_var->binder)
         //     s = last_var->binder;
         while (def) {
-            if (auto let_rec = def->isa<LetRec>()) {
+            /*if (auto let_rec = artic::isa<const LetRec*>(def)) {
                 s = &let_rec->scope;
-                if (auto body_def = let_rec->body()->isa<Def>()) {
+                if (auto body_def = artic::isa<const Def*>(let_rec->body())) {
                     def = body_def;
                 } else {
-                    var = let_rec->body()->as<Var>();
+                    var = artic::as<const Var*>(let_rec->body());
                 }
                 continue;
-            }
+            }*/
             return { var, def, *s };
         }
 
@@ -115,16 +115,16 @@ std::tuple<const Var*, const Def*, const Scope&> Scope::lookup_var_deep(const Va
 std::tuple<const Var*, const Def*, const Scope&> Scope::lookup_def_deep(const Def* def) const {
     const Scope* s = this;
     while (def) {
-        if (auto let_rec = def->isa<LetRec>()) {
+        /*if (auto let_rec = def->isa<const LetRec*>(def)) {
             s = &let_rec->scope;
-            if (auto body_def = let_rec->body()->isa<Def>()) {
+            if (auto body_def = let_rec->body()->isa<const Def*>(let_rec->body())) {
                 def = body_def;
             } else {
-                auto var = let_rec->body()->as<Var>();
+                auto var = let_rec->body()->as<const Var*>(let_rec->body());
                 return s->lookup_var_deep(var);
             }
             continue;
-        }
+        }*/
         return { nullptr, def, *s };
     }
     assert(false);
@@ -132,9 +132,9 @@ std::tuple<const Var*, const Def*, const Scope&> Scope::lookup_def_deep(const De
 
 std::tuple<const Var*, const Def*, const Scope&> Scope::lookup_deep(const Node* node) const {
     assert(node);
-    if (auto var = node->isa<Var>())
+    if (auto var = artic::isa<const Var*>(node))
         return lookup_var_deep(var);
-    return lookup_def_deep(node->as<Def>());
+    return lookup_def_deep(artic::as_dyn<const Def*>(node));
 }
 
 const Def* Scope::resolve_var(const Var* var) const {

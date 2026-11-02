@@ -44,7 +44,7 @@ bool LetRec::can_be_bound() const {
     return true;
 }
 
-bool App::equals(const Node* other) const {
+bool App::equals(const Def* other) const {
     if (auto other_app = other->isa<App>()) {
         if (applicand_ != other_app->applicand_)
             return false;
@@ -88,7 +88,7 @@ Constructor::Constructor(LetRecBuilder& builder, Scope& scope, const ArrayRef<co
 std::tuple<const Scope&, const Node*> Constructor::peek_body() const {
     const Scope* s = &scope;
     const Node* body = body_;
-    while (auto let_rec = body->isa<LetRec>()) {
+    while (auto let_rec = artic::isa<const LetRec*>(body)) {
         s = &let_rec->scope;
         body = let_rec->body();
     }
@@ -117,7 +117,7 @@ CtorVar::CtorVar(Arena& arena, std::optional<ast::Identifier> id, const SigVar* 
     : Node(arena), Var(id), Ctor(sig) {}
 
 bool CtorVar::can_bind(const Scope& scope, const Node* node) const {
-    if (auto ctor = node->isa<Ctor>()) {
+    if (auto ctor = artic::isa<const Ctor*>(node)) {
         return ctor->ctor_sig->is_sub(scope, ctor_sig);
     }
     return false;
@@ -163,7 +163,7 @@ size_t LetRec::hash() const {
 }
 
 bool LetRec::equals(const Node* other) const {
-    if (auto other_let_rec = other->isa<LetRec>()) {
+    if (auto other_let_rec = artic::isa<const LetRec*>(other)) {
         // TODO, naming-agnostic matches ?
         return this == other;
     }

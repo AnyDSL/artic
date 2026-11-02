@@ -956,14 +956,14 @@ static inline const thorin::Def* isfinite(const thorin::Def* val) {
 
 const thorin::Def* Builtin::emit(Emitter& emitter) const {
     switch (tag) {
-        case Tag::AlignOf: return emitter.world.align_of(emitter.emit(args[0]->as<Type>()));
-        case Tag::SizeOf: return emitter.world.size_of(emitter.emit(args[0]->as<Type>()));
-        case Tag::BitCast: return emitter.world.bitcast(emitter.emit(args[0]->as<Type>()), emitter.emit(args[1]->as<Value>()));
-        case Tag::Insert: return emitter.world.insert(emitter.emit(args[0]->as<Value>()), emitter.emit(args[1]->as<Value>()), emitter.emit(args[2]->as<Value>()));
-        case Tag::Select: return emitter.world.select(emitter.emit(args[0]->as<Value>()), emitter.emit(args[1]->as<Value>()), emitter.emit(args[2]->as<Value>()));
-        case Tag::IsNaN: return isnan(emitter.emit(args[0]->as<Value>()));
-        case Tag::IsFinite: return isfinite(emitter.emit(args[0]->as<Value>()));
-        case Tag::SignBit: return signbit(emitter.emit(args[0]->as<Value>()));
+        case Tag::AlignOf: return emitter.world.align_of(emitter.emit(args[0]->as<TypeVar>()));
+        case Tag::SizeOf: return emitter.world.size_of(emitter.emit(args[0]->as<TypeVar>()));
+        case Tag::BitCast: return emitter.world.bitcast(emitter.emit(args[0]->as<TypeVar>()), emitter.emit(args[1]->as<ValueVar>()));
+        case Tag::Insert: return emitter.world.insert(emitter.emit(args[0]->as<ValueVar>()), emitter.emit(args[1]->as<ValueVar>()), emitter.emit(args[2]->as<ValueVar>()));
+        case Tag::Select: return emitter.world.select(emitter.emit(args[0]->as<ValueVar>()), emitter.emit(args[1]->as<ValueVar>()), emitter.emit(args[2]->as<ValueVar>()));
+        case Tag::IsNaN: return isnan(emitter.emit(args[0]->as<ValueVar>()));
+        case Tag::IsFinite: return isfinite(emitter.emit(args[0]->as<ValueVar>()));
+        case Tag::SignBit: return signbit(emitter.emit(args[0]->as<ValueVar>()));
         case Tag::Compare:
             assert(false);
             break;
@@ -975,7 +975,7 @@ const thorin::Def* Builtin::emit(Emitter& emitter) const {
 const thorin::Def* MathOp::emit(Emitter& emitter) const {
     thorin::Array<const thorin::Def*> defs(args.size());
     for (size_t i = 0; i < defs.size(); ++i) {
-        defs[i] = emitter.emit(args[i]->as<Value>());
+        defs[i] = emitter.emit(args[i]);
     }
     return emitter.world.mathop(tag, defs);
 }
@@ -1169,9 +1169,9 @@ thorin::Debug Emitter::debug_info(const ast::Node& node, const std::string_view&
 }
 
 thorin::Debug Emitter::debug_info(const tir::Node* node, const std::string_view&) {
-    if (auto struct_type = node->isa<StructType>(); struct_type && struct_type->decl)
+    if (auto struct_type = artic::isa<const StructType*>(node); struct_type && struct_type->decl)
         return thorin::Debug(struct_type->decl->id.name, location(struct_type->decl->id.loc), nullptr);
-    if (auto enum_type = node->isa<EnumType>(); enum_type && enum_type->decl)
+    if (auto enum_type = artic::isa<const EnumType*>(node); enum_type && enum_type->decl)
         return thorin::Debug(enum_type->decl->id.name, location(enum_type->decl->id.loc), nullptr);
     return thorin::Debug();
 }
@@ -1200,13 +1200,13 @@ const R* Emitter::emit_letrec(const T* letrec) {
 void Module::emit(Emitter& emitter) const {
     for (auto [key, def] : decls) {
         // TODO: do something with the values in here ?
-        if (auto value = def->isa<Value>())
+        if (auto value = def->isa<ValueVar>())
             emitter.emit(value);
     }
 }
 
 void ModVar::emit(Emitter& emitter) const {
-    emitter.emit(emitter.resolve_var(this).def->as<Mod>());
+    emitter.emit(artic::as_dyn<const Mod*>(emitter.resolve_var(this).def));
 }
 
 void LetRecMod::emit(Emitter& emitter) const {
@@ -1241,7 +1241,7 @@ const thorin::Def* ValueVar::emit(Emitter& emitter) const {
     if (emitted)
         return emitted;
     LazyEmitDef& lazy = emitter.resolve_var(this);
-    return emitted = lazy.def->as<Value>()->emit(emitter, this);
+    return emitted = artic::as_dyn<const Value*>(lazy.def)->emit(emitter, this);
 }
 
 const thorin::Def* LetRecValue::emit(Emitter& emitter) const {
@@ -2477,7 +2477,7 @@ std::string TypeVar::stringify(Emitter& emitter) const {
 }
 
 const thorin::Type* TypeVar::convert(Emitter& emitter) const {
-    return emitter.emit(emitter.resolve_var(this).def->as<Type>());
+    return emitter.emit(artic::as_dyn<const Type*>(emitter.resolve_var(this).def));
 }
 
 inline std::string stringify_types(
