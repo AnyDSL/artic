@@ -132,7 +132,7 @@ public:
     Array<const Var*> duplicate_params(Builder&, const ArrayRef<const Var*>&);
 
     template <typename CheckFn, typename Fields>
-    void check_fields(
+    bool check_fields(
         const Loc&, LetRecBuilder&, const StructType*, const TypeVar*,
         const Fields&, CheckFn&, const std::string_view&,
         bool = false, bool = false);

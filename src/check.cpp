@@ -1229,11 +1229,12 @@ Array<const Var*> TypeChecker::infer(Builder& b, ast::TypeParamList* list) {
 }
 
 template <typename CheckFn, typename Fields>
-void TypeChecker::check_fields(
+bool TypeChecker::check_fields(
     const Loc& loc, LetRecBuilder& b, const StructType* struct_type, const TypeVar* type,
     const Fields& fields, CheckFn& check_fn, const std::string_view& msg,
     bool has_etc, bool accept_defaults)
 {
+    bool ok = true;
     std::vector<bool> seen(struct_type->member_count(), false);
     for (size_t i = 0, n = fields.size(); i < n; ++i) {
         // Skip the field if it is '...'
@@ -1242,10 +1243,14 @@ void TypeChecker::check_fields(
             continue;
         }
         auto index = struct_type->find_member(fields[i]->id.name);
-        if (!index)
-            return (void)unknown_member(fields[i]->loc, struct_type, fields[i]->id.name);
-        if (seen[*index])
-            return (void)error(loc, "field '{}' specified more than once", fields[i]->id.name);
+        if (!index) {
+            unknown_member(fields[i]->loc, struct_type, fields[i]->id.name);
+            ok = false;
+        }
+        if (seen[*index]) {
+            error(loc, "field '{}' specified more than once", fields[i]->id.name);
+            ok = false;
+        }
         seen[*index] = true;
         fields[i]->index = *index;
         check_fn(*fields[i], member_type(b, resolve_type_var(b.scope, type), *index));
@@ -1253,10 +1258,13 @@ void TypeChecker::check_fields(
     // Check that all fields have been specified, unless '...' was used
     if (!has_etc && !std::all_of(seen.begin(), seen.end(), [] (bool b) { return b; })) {
         for (size_t i = 0, n = seen.size(); i < n; ++i) {
-            if (!seen[i] && (!accept_defaults || !struct_type->decl || !struct_type->decl->fields[i]->init))
+            if (!seen[i] && (!accept_defaults || !struct_type->decl || !struct_type->decl->fields[i]->init)) {
                 error(loc, "missing field '{}' in structure {}", struct_type->decl->fields[i]->id.name, msg);
+                ok = false;
+            }
         }
     }
+    return ok;
 }
 
 void TypeChecker::check_block(const Loc& loc, const PtrVector<ast::Stmt>& stmts, bool last_semi) {
@@ -2177,8 +2185,10 @@ const tir::Var* RecordExpr::infer(TypeChecker& checker, ExprBuilder& expr_builde
         return b.error_value();
     }
     auto check_fn = [&](ast::Expr& expr, const tir::TypeVar* type) { return checker.check_expr(expr_builder, expr, type); };
-    checker.check_fields(loc, b, struct_type, record_type, fields, check_fn, "expression", static_cast<bool>(expr), true);
+    bool fields_ok = checker.check_fields(loc, b, struct_type, record_type, fields, check_fn, "expression", static_cast<bool>(expr), true);
     auto type = checker.infer_record_type(expr_builder, record_type, type_app, struct_type, variant_index);
+    if (!fields_ok)
+        return expr_builder.error_value(type);
     assert(!expr && "TODO: insert");
     Array<const ValueVar*> ops(struct_type->member_count());
     for (auto& field : fields) {
