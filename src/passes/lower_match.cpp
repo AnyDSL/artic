@@ -215,7 +215,7 @@ private:
     ValueExpr compile() {
         if (rows.empty()) {
             non_exhaustive_match(old_match->loc);
-            return builder.enclosing_let_rec().error_value(builder.enclosing_let_rec().type_error());
+            return builder.enclosing_let_rec().error_value(builder.no_ret_type());
         }
 
         ExprBuilder expr_builder(builder, "lowered_ptrn_expr");
@@ -461,7 +461,7 @@ bool lower_match(std::unique_ptr<Root>& root, Log& log) {
     LowerMatch pass(*root->arena, *new_root->arena, log);
     pass.instantiate(*new_root, *root);
     root = std::move(new_root);
-    return true;
+    return log.errors == 0;
 }
 
 }
