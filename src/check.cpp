@@ -1718,7 +1718,8 @@ std::optional<Path::Elem::Inferred> Path::Elem::infer(TypeChecker& checker, Buil
                     }
                 }
             }
-            assert(false && "TODO diagnose");
+            checker.unknown_module_member(loc, *prev, id.name);
+            return std::nullopt;
         }
 
         assert(prev->var);
@@ -1728,12 +1729,18 @@ std::optional<Path::Elem::Inferred> Path::Elem::infer(TypeChecker& checker, Buil
         if (match_sig_var<SigError>(*prev_mod_var->signature()->binder, prev_mod_var->signature()))
             return std::nullopt;
 
-        if (auto key = resolve_sig_var(b.scope, prev_mod_var->signature()->as<SigVar>())->as<ModSignature>()->lookup_key(id))
-            return Inferred { .var = b.mod_access(prev_mod_var, key) };
+        if (auto mod_sig = match_sig_var<ModSignature>(b.scope, prev_mod_var->signature())) {
+            if (auto key = mod_sig->lookup_key(id))
+                return Inferred { .var = b.mod_access(prev_mod_var, key) };
 
+            checker.unknown_module_member(loc, *prev, id.name);
+            return std::nullopt;
+        }
+
+        assert(false);
         // if something is missing, maybe we just haven't had the chance to infer it yet
-        checker.unknown_module_member(loc, *prev, id.name);
-        return std::nullopt;
+        // checker.unknown_module_member(loc, *prev, id.name);
+        // return std::nullopt;
     }
     if (is_super()) {
         assert(prev);
