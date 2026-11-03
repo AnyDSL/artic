@@ -6,6 +6,7 @@
 #include "artic/tir/passes.h"
 
 #include <unordered_map>
+#include <cassert>
 
 namespace artic::tir {
 

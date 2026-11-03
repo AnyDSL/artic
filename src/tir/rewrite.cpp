@@ -1,7 +1,5 @@
 #include "artic/tir/rewrite.h"
 
-#include <complex>
-
 #include "artic/tir/scope.h"
 #include "artic/tir/types.h"
 #include "artic/tir/values.h"
@@ -87,7 +85,10 @@ const Value* Seq::rewrite(Rewriter& r, Builder& builder) const {
             // assert(false && "putting variables here is also a problem.");
         }
 
-        assert(!artic::isa<const Def*, const Node*>(new_value) || !artic::as_dyn<const Def*, const Node*>(new_value)->bound_to);
+#ifdef assert
+        bool is_ok = !artic::isa<const Def*, const Node*>(new_value) || !artic::as_dyn<const Def*, const Node*>(new_value)->bound_to;
+        assert(is_ok && "Seq entries must be Defs and they must have not been bound elsewhere before.");
+#endif
         auto new_var = seq_builder.bind_value(new_value);
         r.frame().insert(bind.var, new_var);
     }
