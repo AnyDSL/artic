@@ -237,6 +237,7 @@ public:
         const Agg* tuple(const ArrayRef<const ValueVar*>&);
         const Repeat* repeat(const TypeVar*, const ValueVar*);
         const Value* extract(const ValueVar*, const ValueVar*);
+        const Value* insert(const ValueVar*, const ValueVar*, const ValueVar*);
         const Value* proj(const ValueVar*, const ValueVar*);
 
         const Variant* variant(const TypeVar*, size_t, const ValueVar*);
@@ -312,6 +313,7 @@ struct ExprBuilder : public Builder {
 
     const ValueVar* extract(const ValueVar*, const ValueVar*);
     const ValueVar* proj(const ValueVar*, const ValueVar*);
+    const ValueVar* insert(const ValueVar*, const ValueVar*, const ValueVar*);
 
     const ValueVar* call(const ValueVar* callee, const ValueVar* arg);
 

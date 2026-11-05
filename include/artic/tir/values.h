@@ -344,10 +344,18 @@ struct Extract : public ValueDef, NominalDef {
     Extract(Builder&, const ValueVar*, const ValueVar*);
 };
 
-struct Insert : public ValueDef {
+struct Insert : public ValueDef, NominalDef {
     const ValueVar* src;
     const ValueVar* idx;
     const ValueVar* elem;
+
+    void print(Printer&) const override;
+    const Node* rewrite(Rewriter&, Builder&) const override;
+    void free_variables(FVSet&, Seen&) const override;
+
+    const thorin::Def* emit(Emitter&) const override;
+
+    Insert(Builder&, const ValueVar*, const ValueVar*, const ValueVar*);
 };
 
 struct Variant : public ValueDef, NominalDef {

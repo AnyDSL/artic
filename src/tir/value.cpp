@@ -331,6 +331,17 @@ bool Extract::equals(const Node* other) const {
     return false;
 }*/
 
+Insert::Insert(Builder& builder, const ValueVar* src, const ValueVar* idx, const ValueVar* elem) : ValueDef(builder.arena, [&]() -> const TypeVar* {
+    auto& s = builder.scope;
+    auto resolved_src_type = resolve_type_var(s, src->type());
+    std::optional<size_t> known_idx;
+    if (auto lit_idx = match_value_var<TypedLiteral>(s, idx))
+        known_idx = lit_idx->value.as_integer();
+    auto member_ty = member_type(builder.enclosing_let_rec(), resolved_src_type, known_idx);
+    assert(elem->type()->subtype(member_ty));
+    return src->type();
+}()), Node(builder.arena), src(src), idx(idx), elem(elem) {}
+
 Variant::Variant(Builder& builder, const TypeVar* type, size_t idx, const ValueVar* elem)
     : Node(builder.arena), ValueDef(builder.arena, type), index(idx), elem(elem) {}
 
@@ -783,6 +794,13 @@ void Extract::free_variables(FVSet& vars, Seen& seen) const {
     type()->free_variables(vars, seen);
     src->free_variables(vars, seen);
     idx->free_variables(vars, seen);
+}
+
+void Insert::free_variables(FVSet& vars, Seen& seen) const {
+    type()->free_variables(vars, seen);
+    src->free_variables(vars, seen);
+    idx->free_variables(vars, seen);
+    elem->free_variables(vars, seen);
 }
 
 void Variant::free_variables(FVSet& vars, Seen& seen) const {

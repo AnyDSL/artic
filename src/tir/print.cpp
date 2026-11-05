@@ -570,6 +570,17 @@ void Extract::print(Printer& p) const {
     p << ')';
 }
 
+void Insert::print(Printer& p) const {
+    p << log::keyword_style("insert");
+    p << '(';
+    p.print(*src);
+    p << ", ";
+    p.print(*idx);
+    p << ", ";
+    p.print(*elem);
+    p << ')';
+}
+
 void Variant::print(Printer& p) const {
     p << log::keyword_style("variant") << '[';
     p.print(*type(), true);

@@ -422,6 +422,10 @@ const Node* Extract::rewrite(Rewriter& r, Builder&) const {
     return r.unsafe_builder().extract(r.instantiate_var(src), r.instantiate_var(idx));
 }
 
+const Node* Insert::rewrite(Rewriter& r, Builder&) const {
+    return r.unsafe_builder().insert(r.instantiate_var(src), r.instantiate_var(idx), r.instantiate_var(elem));
+}
+
 const Node* Variant::rewrite(Rewriter& r, Builder&) const {
     return r.unsafe_builder().variant(r.instantiate_var(type()), index, r.instantiate_var(elem));
 }

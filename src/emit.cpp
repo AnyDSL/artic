@@ -699,6 +699,10 @@ const thorin::Def* Extract::emit(Emitter& emitter) const {
     return emitter.world.extract(emitter.emit(src), emitter.emit(idx));
 }
 
+const thorin::Def* Insert::emit(Emitter& emitter) const {
+    return emitter.world.insert(emitter.emit(src), emitter.emit(idx), emitter.emit(elem));
+}
+
 const thorin::Def* Variant::emit(Emitter& emitter) const {
     return emitter.world.variant(emitter.emit(type())->as<thorin::VariantType>(), emitter.emit(elem), index);
 }

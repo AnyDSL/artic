@@ -2215,21 +2215,30 @@ const tir::Var* RecordExpr::infer(TypeChecker& checker, ExprBuilder& expr_builde
     auto type = checker.infer_record_type(expr_builder, record_type, type_app, struct_type, variant_index);
     if (!fields_ok)
         return expr_builder.error_value(type);
-    assert(!expr && "TODO: insert");
-    Array<const ValueVar*> ops(struct_type->member_count());
-    for (auto& field : fields) {
-        assert(field->value);
-        ops[field->index] = field->value;
+    if (expr) {
+        const ValueVar* agg = expr->value;
+        for (auto& field : fields) {
+            assert(field->value);
+            auto idx = b.typed_literal(artic::Literal(uint64_t(field->index)), b.prim_type(ast::PrimType::U64));
+            agg = expr_builder.insert(agg, idx, field->value);
+            return agg;
+        }
+    } else {
+        Array<const ValueVar*> ops(struct_type->member_count());
+        for (auto& field : fields) {
+            assert(field->value);
+            ops[field->index] = field->value;
+        }
+        for (size_t i = 0, n = ops.size(); i < n; ++i) {
+            if (!ops[i]) // check_fields already validated this is safe.
+                ops[i] = struct_type->decl->fields[i]->init->value;
+        }
+        auto agg = expr_builder.agg(record_type, ops);
+        if (variant_index) {
+            agg = expr_builder.variant(type, *variant_index, agg);
+        }
+        return agg;
     }
-    for (size_t i = 0, n = ops.size(); i < n; ++i) {
-        if (!ops[i]) // check_fields already validated this is safe.
-            ops[i] = struct_type->decl->fields[i]->init->value;
-    }
-    auto agg = expr_builder.agg(record_type, ops);
-    if (variant_index) {
-        agg = expr_builder.variant(type, *variant_index, agg);
-    }
-    return agg;
 }
 
 const tir::Var* TupleExpr::infer(TypeChecker& checker, ExprBuilder& expr_builder) {

@@ -477,6 +477,14 @@ const ValueVar* ExprBuilder::proj(const ValueVar* src, const ValueVar* idx) {
     return bind_value(unsafe().proj(src, idx));
 }
 
+const Value* Builder::Unsafe::insert(const ValueVar* src, const ValueVar* idx, const ValueVar* elem) {
+    return builder.arena.insert<Insert>(builder, src, idx, elem);
+}
+
+const ValueVar* ExprBuilder::insert(const ValueVar* src, const ValueVar* idx, const ValueVar* elem) {
+    return bind_value(unsafe().insert(src, idx, elem));
+}
+
 const Variant* Builder::Unsafe::variant(const TypeVar* type, size_t idx, const ValueVar* elem) {
     return builder.arena.insert<Variant>(builder, type, idx, elem);
 }
