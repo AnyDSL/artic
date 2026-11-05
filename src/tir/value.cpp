@@ -555,6 +555,27 @@ bool BinOp::equals(const Node* other) const {
     return false;
 }*/
 
+MemOp::MemOp(Builder& builder, Tag tag, const ValueVar* ptr, const ArrayRef<const ValueVar*>& ops) : ValueDef(builder.arena, [&]() -> const TypeVar* {
+    if (auto addr_type = match_type_var<AddrType>(builder.scope, ptr->type())) {
+        switch (tag) {
+            case Tag::Load: return addr_type->pointee;
+            case Tag::Store: {
+                assert(ops.size() == 1);
+                assert(ops[0]->type()->subtype(addr_type->pointee));
+                return builder.unit_type();
+            }
+        }
+        assert(false);
+    }
+    return builder.type_error();
+}()), Node(builder.arena), tag(tag), ptr(ptr), ops(ops) {}
+
+void MemOp::free_variables(FVSet& set, Seen& seen) const {
+    ptr->free_variables(set, seen);
+    for (auto op : ops)
+        op->free_variables(set, seen);
+}
+
 Builtin::Builtin(Builder& builder, Tag tag, const ArrayRef<const Var*>& args) : ValueDef(builder.arena, [&]() -> const TypeVar* {
     switch (tag) {
         case Tag::AlignOf:

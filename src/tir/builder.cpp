@@ -357,6 +357,14 @@ const Value* Builder::Unsafe::builtin(Builtin::Tag tag, const ArrayRef<const Var
     return builder.arena.insert<Builtin>(builder, tag, args);
 }
 
+const Value* Builder::Unsafe::memop(MemOp::Tag tag, const ValueVar* ptr, const ArrayRef<const ValueVar*>& ops) {
+    return builder.arena.insert<MemOp>(builder, tag, ptr, ops);
+}
+
+const ValueVar* ExprBuilder::memop(MemOp::Tag tag, const ValueVar* ptr, const ArrayRef<const ValueVar*>& ops) {
+    return bind_value(unsafe().memop(tag, ptr, ops));
+}
+
 const ValueVar* ExprBuilder::builtin(Builtin::Tag tag, const ArrayRef<const Var*>& args) {
     return bind_value(unsafe().builtin(tag, args));
 }

@@ -632,6 +632,21 @@ void BinOp::print(Printer& p) const {
     p.print(*rhs);
 }
 
+void MemOp::print(Printer& p) const {
+    p << log::keyword_style(memop_tag_names[static_cast<int>(tag)]) << " ";
+    p.print(*ptr);
+    if (!ops.empty()) {
+        p << " (";
+        for (size_t i = 0; i < ops.size(); i++) {
+            p.print(*ops[i]);
+            if (i + 1 < ops.size()) {
+                p << ", ";
+            }
+        }
+        p << ")";
+    }
+}
+
 void Builtin::print(Printer& p) const {
     p << log::keyword_style("builtin") << " \"" << tag_name(tag) << "\" (";
     print_list(p.top(), ", ", args, [&] (auto& a) {

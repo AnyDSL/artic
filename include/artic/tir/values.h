@@ -484,7 +484,32 @@ struct BinOp : public ValueDef, NominalDef {
     BinOp(Builder&, const ast::BinaryExpr::Tag, const ValueVar*, const ValueVar*);
 };
 
-const Array<std::string> builtin_tag_names = {
+static const Array<std::string> memop_tag_names = {
+    "load",
+    "store",
+};
+
+struct MemOp : public ValueDef, NominalDef {
+    enum class Tag {
+        Load,
+        Store,
+    };
+
+    Tag tag;
+    const ValueVar* ptr;
+    Array<const ValueVar*> ops;
+
+    void free_variables(FVSet&, Seen&) const override;
+
+    void print(Printer&) const override;
+    const Node* rewrite(Rewriter&, Builder&) const override;
+
+    const thorin::Def* emit(Emitter&) const override;
+
+    MemOp(Builder&, Tag, const ValueVar*, const ArrayRef<const ValueVar*>&);
+};
+
+static const Array<std::string> builtin_tag_names = {
     "alignof",
     "sizeof",
     "bitcast",

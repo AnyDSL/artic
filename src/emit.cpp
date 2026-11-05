@@ -1037,6 +1037,17 @@ const thorin::Def* BinOp::emit(Emitter& emitter) const {
     return res;
 }
 
+const thorin::Def* MemOp::emit(Emitter& emitter) const {
+    switch (tag) {
+        case Tag::Load: return emitter.load(emitter.emit(ptr));
+        case Tag::Store: {
+            emitter.store(emitter.emit(ptr), emitter.emit(ops[0]));
+            return emitter.world.tuple({});
+        }
+    }
+    assert(false);
+}
+
 const thorin::Def* Asm::emit(Emitter& emitter) const {
     std::vector<const thorin::Type*> out_types;
     std::vector<const thorin::Def*> in_values;

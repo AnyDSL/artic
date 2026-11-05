@@ -446,6 +446,10 @@ const Node* BinOp::rewrite(Rewriter& r, Builder&) const {
     return r.unsafe_builder().binop(tag, r.instantiate_var(lhs), r.instantiate_var(rhs));
 }
 
+const Node* MemOp::rewrite(Rewriter& r, Builder& b) const {
+    return r.unsafe_builder().memop(tag, r.instantiate_var(ptr), r.instantiate_var_array(ops));
+}
+
 const Node* Builtin::rewrite(Rewriter& r, Builder&) const {
     return r.unsafe_builder().builtin(tag, r.instantiate_var_array(args));
 }

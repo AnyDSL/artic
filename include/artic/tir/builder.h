@@ -249,6 +249,7 @@ public:
         const Value* unop(ast::UnaryExpr::Tag, const ValueVar*);
         const Value* binop(ast::BinaryExpr::Tag, const ValueVar*, const ValueVar*);
 
+        const Value* memop(MemOp::Tag, const ValueVar*, const ArrayRef<const ValueVar*>&);
         const Value* builtin(Builtin::Tag, const ArrayRef<const Var*>&);
         const Value* mathop(thorin::MathOpTag, const ArrayRef<const ValueVar*>&);
         /// The name fits.
@@ -323,6 +324,7 @@ struct ExprBuilder : public Builder {
     const ValueVar* unop(ast::UnaryExpr::Tag, const ValueVar*);
     const ValueVar* binop(ast::BinaryExpr::Tag, const ValueVar*, const ValueVar*);
 
+    const ValueVar* memop(MemOp::Tag, const ValueVar*, const ArrayRef<const ValueVar*>&);
     const ValueVar* builtin(Builtin::Tag, const ArrayRef<const Var*>&);
     const ValueVar* mathop(thorin::MathOpTag, const ArrayRef<const ValueVar*>&);
     const ValueVar* ass(std::string src, const ArrayRef<Asm::Constr>&, const ArrayRef<Asm::Constr>&, const ArrayRef<std::string>&, const ArrayRef<std::string>&);
