@@ -1412,7 +1412,7 @@ struct FieldDecl : public NamedDecl {
 
     // Set during type-checking. Contains the type this field declares
     mutable const tir::TypeVar* field_type = nullptr;
-    mutable const tir::ValueVar* default_value = nullptr;
+    mutable const tir::ValueVar* default_value_fn = nullptr;
 
     const tir::Var* infer(TypeChecker&, tir::LetRecBuilder&) override;
     void bind(NameBinder&) override;

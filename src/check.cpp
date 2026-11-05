@@ -2231,7 +2231,7 @@ const tir::Var* RecordExpr::infer(TypeChecker& checker, ExprBuilder& expr_builde
         }
         for (size_t i = 0, n = ops.size(); i < n; ++i) {
             if (!ops[i]) // check_fields already validated this is safe.
-                ops[i] = struct_type->decl->fields[i]->init->value;
+                ops[i] = expr_builder.call(struct_type->decl->fields[i]->default_value_fn, expr_builder.unit());
         }
         auto agg = expr_builder.agg(record_type, ops);
         if (variant_index) {
@@ -3283,7 +3283,11 @@ const tir::Var* FnDecl::check(TypeChecker& checker, LetRecBuilder& builder, [[ma
 const tir::Var* FieldDecl::infer(TypeChecker& checker, LetRecBuilder& builder) {
     auto field_type = checker.infer_type(builder, *type);
     if (init) {
-        default_value = std::get<const ValueVar*>(checker.yield_expr_scope(builder, [&](ExprBuilder& eb) { return checker.coerce(eb, &*init, field_type); }));
+        auto fn = checker.build_fn(builder, builder.value_var(std::nullopt, builder.unit_type()), [&](AbstractBuilder& fn_builder) -> ValueExpr {
+            return checker.yield_expr_scope(fn_builder, [&](ExprBuilder& eb) { return checker.coerce(eb, &*init, field_type); });
+        });
+        default_value_fn = builder.value_var(id, fn->type());
+        builder.bind(default_value_fn, fn);
         if (!init->is_constant())
             checker.error(init->loc, "only constants are allowed as default field values");
     }
