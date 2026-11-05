@@ -851,6 +851,13 @@ bool is_int_type(const TypeDef* type) {
     return false;
 }
 
+bool is_int_type(const TypeVar* var) {
+    assert(var->binder);
+    if (auto [_, def] = lookup_type_var(*var->binder, var); def)
+        return is_int_type(def);
+    return false;
+}
+
 bool is_float_type(const TypeDef* type) {
     if (auto prim_type = type->isa<PrimType>()) {
         switch (prim_type->tag) {
@@ -865,7 +872,18 @@ bool is_float_type(const TypeDef* type) {
     return false;
 }
 
+bool is_float_type(const TypeVar* var) {
+    assert(var->binder);
+    if (auto [_, def] = lookup_type_var(*var->binder, var); def)
+        return is_float_type(def);
+    return false;
+}
+
 bool is_int_or_float_type(const TypeDef* type) {
+    return is_int_type(type) || is_float_type(type);
+}
+
+bool is_int_or_float_type(const TypeVar* type) {
     return is_int_type(type) || is_float_type(type);
 }
 
@@ -873,18 +891,33 @@ bool is_prim_type(const TypeDef* type, ast::PrimType::Tag tag) {
     return type->isa<PrimType>() && type->as<PrimType>()->tag == tag;
 }
 
+bool is_prim_type(const TypeVar* var, ast::PrimType::Tag tag) {
+    assert(var->binder);
+    if (auto [_, def] = lookup_type_var(*var->binder, var); def)
+        return is_prim_type(def, tag);
+    return false;
+}
+
 bool is_simd_type(const TypeDef* type) {
     return type->isa<SizedArrayType>() && type->as<SizedArrayType>()->is_simd;
 }
 
-bool is_simd_type(const TypeVar* type) {
-    auto [_, def] = lookup_type_var(*type->binder, type);
-    if (def) return is_simd_type(def);
+bool is_simd_type(const TypeVar* var) {
+    assert(var->binder);
+    if (auto [_, def] = lookup_type_var(*var->binder, var); def)
+        return is_simd_type(def);
     return false;
 }
 
 bool is_unit_type(const TypeDef* type) {
     return type->isa<TupleType>() && type->as<TupleType>()->args.empty();
+}
+
+bool is_unit_type(const TypeVar* var) {
+    assert(var->binder);
+    if (auto [_, def] = lookup_type_var(*var->binder, var); def)
+        return is_unit_type(def);
+    return false;
 }
 
 std::pair<const PtrType*, const TypeVar*> remove_ptr(const Scope& scope, const TypeVar* type) {

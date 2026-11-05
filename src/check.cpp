@@ -2441,11 +2441,11 @@ const tir::Var* CallExpr::check(TypeChecker& checker, ExprBuilder& expr_builder,
     }
 
     auto [ref_type, callee_type] = remove_ref(expr_builder.scope, checker.infer_expr(expr_builder, *callee)->type());
-    if (auto fn_type = resolve_type_var(expr_builder.scope, callee_type)->isa<artic::FnType>()) {
+    if (auto fn_type = match_type_var<artic::FnType>(expr_builder.scope, callee_type)) {
         return expr_builder.call(checker.coerce(expr_builder, &*callee, callee_type), checker.coerce(expr_builder, &*arg, fn_type->dom));
     } else {
         // Accept pointers to arrays
-        auto ptr_type = resolve_type_var(expr_builder.scope, callee_type)->isa<artic::PtrType>();
+        auto ptr_type = match_type_var<artic::PtrType>(expr_builder.scope, callee_type);
         if (ptr_type) {
             // Create an implicit cast from the reference type to
             // a pointer type, so as to de-reference the reference.
@@ -2453,10 +2453,10 @@ const tir::Var* CallExpr::check(TypeChecker& checker, ExprBuilder& expr_builder,
                 checker.coerce(expr_builder, &*callee, callee_type);
             callee_type = ptr_type->pointee;
         }
-        if (auto array_type = resolve_type_var(expr_builder.scope, callee_type)->isa<artic::ArrayType>()) {
+        if (auto array_type = match_type_var<artic::ArrayType>(expr_builder.scope, callee_type)) {
             auto idx = checker.deref(expr_builder, arg);
             auto index_type = idx->type();
-            if (!is_int_type(resolve_type_var(expr_builder.scope, index_type))) {
+            if (!is_int_type(index_type)) {
                 checker.type_expected(arg->loc, index_type, "integer type");
                 return expr_builder.error_value();
             }

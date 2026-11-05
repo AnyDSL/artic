@@ -548,13 +548,19 @@ struct LetRecType : public Type, public LetRec {
 const TypeVar* member_type(LetRecBuilder&, const TypeDef*, std::optional<size_t>);
 
 bool is_int_type(const TypeDef*);
+bool is_int_type(const TypeVar*);
 bool is_float_type(const TypeDef*);
+bool is_float_type(const TypeVar*);
 bool is_int_or_float_type(const TypeDef*);
+bool is_int_or_float_type(const TypeVar*);
 bool is_prim_type(const TypeDef*, ast::PrimType::Tag);
+bool is_prim_type(const TypeVar*, ast::PrimType::Tag);
 bool is_simd_type(const TypeDef*);
 bool is_simd_type(const TypeVar*);
 bool is_unit_type(const TypeDef*);
+bool is_unit_type(const TypeVar*);
 inline bool is_bool_type(const TypeDef* type) { return is_prim_type(type, ast::PrimType::Bool); }
+inline bool is_bool_type(const TypeVar* type) { return is_prim_type(type, ast::PrimType::Bool); }
 
 const Type* lookup_type_var_single(const Scope&, const TypeVar*);
 std::tuple<const TypeVar*, const TypeDef*> lookup_type_var(const Scope&, const TypeVar*);
@@ -621,13 +627,6 @@ std::tuple<const TypeApp*, const T*, const Scope&> resolve_type_app_unapplied(co
     auto [app, t, s] = resolve_type_app_unapplied_generic(scope, type);
     return { app, t->isa<T>(), s };
 }*/
-
-static inline bool is_unit_type(const TypeVar* var) {
-    auto def = resolve_type_var(*var->binder, var);
-    if (def)
-        return is_unit_type(def);
-    return false;
-}
 
 } // namespace tir
 
