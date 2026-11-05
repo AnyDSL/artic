@@ -591,9 +591,11 @@ Builtin::Builtin(Builder& builder, Tag tag, const ArrayRef<const Var*>& args) : 
         case Tag::IsNaN:
         case Tag::IsFinite:
             return builder.enclosing_let_rec().bool_type();
-        case Tag::Compare:
-            assert(false);
+        case Tag::Compare: {
+            auto t = args[0]->as<TypeVar>();
+            return builder.fn_type(builder.tuple_type(Array { builder.ptr_type(t, false, 0), builder.ptr_type(t, false, 0) }), builder.bool_type());
             break;
+        }
     }
 }()), Node(builder.arena), tag(tag), args(args) {}
 

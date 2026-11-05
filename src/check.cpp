@@ -367,7 +367,7 @@ void TypeChecker::infer_fn_attrs(const ast::FnDecl* fn_decl, const Function* fn,
                         linkage->is_external |= should_export;
                     } else if (cc == "builtin") {
                         // builtin functions are actually not external at all
-                        const auto& builtin_name = linkage->symbol;
+                        const auto builtin_name = linkage->symbol;
                         linkage = std::nullopt;
                         static const std::unordered_map<std::string, std::tuple<size_t, thorin::MathOpTag>> math_ops = {
                             { "fabs",     {1, thorin::MathOpTag::MathOp_fabs }},
@@ -425,6 +425,14 @@ void TypeChecker::infer_fn_attrs(const ast::FnDecl* fn_decl, const Function* fn,
                                             expr_builder.extract(fn->param, expr_builder.typed_literal(Literal(uint64_t(1)), expr_builder.prim_type(ast::PrimType::I32)) ),
                                             expr_builder.extract(fn->param, expr_builder.typed_literal(Literal(uint64_t(2)), expr_builder.prim_type(ast::PrimType::I32)) ),
                                         };
+                                    }
+                                    if (tag == Builtin::Tag::Compare) {
+                                        auto tt = match_type_var<tir::TupleType>(expr_builder.scope, fn->param->type());
+                                        assert(tt && tt->args.size() == 2 && tt->args[0] == tt->args[1]);
+                                        auto ptr_t = match_type_var<PtrType>(expr_builder.scope, tt->args[0]);
+                                        args = { ptr_t->pointee };
+                                        auto f = expr_builder.builtin(tag, args);
+                                        return expr_builder.call(f, fn->param);
                                     }
                                     return expr_builder.builtin(tag, args);
                                 }));

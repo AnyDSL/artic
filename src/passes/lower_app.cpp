@@ -96,6 +96,28 @@ struct LowerApp : public Rewriter {
             }
         }
 
+        if (auto module = old->isa<Module>()) {
+            std::unordered_map<const tir::Key*, const Var*> decls;
+            for (auto [okey, oval] : module->decls) {
+                if (oval->isa<CtorVar>())
+                    continue;
+                auto nkey = instantiate_key(okey);
+                auto nval = instantiate_var(oval);
+                decls.emplace(nkey, nval);
+            }
+            return unsafe_builder().module(std::move(decls), instantiate_var(module->signature()), module->decl);
+        }
+
+        // if (auto module = old->isa<ModSignature>()) {
+        //     std::unordered_map<const tir::Key*, const Var*> decls;
+        //     for (auto [okey, oval] : module->elems) {
+        //         auto nkey = instantiate_key(okey);
+        //         auto nval = instantiate_var(oval);
+        //         decls.emplace(nkey, nval);
+        //     }
+        //     return unsafe_builder().module(std::move(decls), instantiate_var(module->signature()), module->decl);
+        // }
+
         return old->rewrite(*this, builder);
     }
 };
